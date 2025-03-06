@@ -60,10 +60,11 @@ std::string Proc::DumpIr() const {
   if (is_new_style_proc()) {
     absl::StrAppendFormat(
         &res, "<%s>",
-        absl::StrJoin(interface_, ", ",
-                      [](std::string* s, const ChannelReference* channel_ref) {
-                        absl::StrAppend(s, channel_ref->ToString());
-                      }));
+        absl::StrJoin(
+            interface_, ", ",
+            [](std::string* s, const ChannelInterface* channel_interface) {
+              absl::StrAppend(s, channel_interface->ToString());
+            }));
   }
   auto state_formatter = [](std::string* s, StateElement* state) {
     absl::StrAppend(s, state->name(), ": ", state->type()->ToString());
@@ -378,7 +379,7 @@ absl::StatusOr<Proc*> Proc::Clone(
   Proc* cloned_proc;
   if (is_new_style_proc()) {
     cloned_proc = target_package->AddProc(std::make_unique<Proc>(
-        new_name, /*interface=*/absl::Span<std::unique_ptr<ChannelReference>>(),
+        new_name, /*interface=*/absl::Span<std::unique_ptr<ChannelInterface>>(),
         target_package));
   } else {
     cloned_proc = target_package->AddProc(
@@ -401,22 +402,24 @@ absl::StatusOr<Proc*> Proc::Clone(
     original_to_clone[state_read] = cloned_state_read;
   }
   if (is_new_style_proc()) {
-    for (ChannelReference* channel_ref : interface()) {
-      if (channel_ref->direction() == ChannelDirection::kSend) {
+    for (ChannelInterface* channel_interface : interface()) {
+      if (channel_interface->direction() == ChannelDirection::kSend) {
         XLS_RETURN_IF_ERROR(
             cloned_proc
-                ->AddOutputChannelReference(
-                    std::make_unique<SendChannelReference>(
-                        new_chan_name(channel_ref->name()), channel_ref->type(),
-                        channel_ref->kind(), channel_ref->strictness()))
+                ->AddOutputChannelInterface(
+                    std::make_unique<SendChannelInterface>(
+                        new_chan_name(channel_interface->name()),
+                        channel_interface->type(), channel_interface->kind(),
+                        channel_interface->strictness()))
                 .status());
       } else {
         XLS_RETURN_IF_ERROR(
             cloned_proc
-                ->AddInputChannelReference(
-                    std::make_unique<ReceiveChannelReference>(
-                        new_chan_name(channel_ref->name()), channel_ref->type(),
-                        channel_ref->kind(), channel_ref->strictness()))
+                ->AddInputChannelInterface(
+                    std::make_unique<ReceiveChannelInterface>(
+                        new_chan_name(channel_interface->name()),
+                        channel_interface->type(), channel_interface->kind(),
+                        channel_interface->strictness()))
                 .status());
       }
     }
@@ -579,10 +582,10 @@ absl::StatusOr<Proc*> Proc::Clone(
 absl::StatusOr<Type*> Proc::GetChannelReferenceType(
     std::string_view name) const {
   if (is_new_style_proc()) {
-    for (const std::unique_ptr<ChannelReference>& channel_ref :
-         channel_references_) {
-      if (name == channel_ref->name()) {
-        return channel_ref->type();
+    for (const std::unique_ptr<ChannelInterface>& channel_interface :
+         channel_interfaces_) {
+      if (name == channel_interface->name()) {
+        return channel_interface->type();
       }
     }
     return absl::NotFoundError(absl::StrFormat(
@@ -592,7 +595,7 @@ absl::StatusOr<Type*> Proc::GetChannelReferenceType(
   return channel->type();
 }
 
-absl::StatusOr<ChannelReferences> Proc::AddChannel(
+absl::StatusOr<ChannelWithInterfaces> Proc::AddChannel(
     std::unique_ptr<Channel> channel) {
   XLS_RET_CHECK(is_new_style_proc());
   std::string channel_name{channel->name()};
@@ -626,19 +629,20 @@ absl::StatusOr<ChannelReferences> Proc::AddChannel(
     strictness = streaming_channel->GetStrictness();
   }
 
-  auto send_channel_ref = std::make_unique<SendChannelReference>(
+  auto send_channel_interface = std::make_unique<SendChannelInterface>(
       channel_ptr->name(), channel_ptr->type(), channel_ptr->kind(),
       strictness);
-  auto receive_channel_ref = std::make_unique<ReceiveChannelReference>(
+  auto receive_channel_interface = std::make_unique<ReceiveChannelInterface>(
       channel_ptr->name(), channel_ptr->type(), channel_ptr->kind(),
       strictness);
 
-  ChannelReferences channel_refs{.channel = channel_ptr,
-                                 .send_ref = send_channel_ref.get(),
-                                 .receive_ref = receive_channel_ref.get()};
-  channel_references_.push_back(std::move(send_channel_ref));
-  channel_references_.push_back(std::move(receive_channel_ref));
-  return channel_refs;
+  ChannelWithInterfaces channel_interfaces{
+      .channel = channel_ptr,
+      .send_interface = send_channel_interface.get(),
+      .receive_interface = receive_channel_interface.get()};
+  channel_interfaces_.push_back(std::move(send_channel_interface));
+  channel_interfaces_.push_back(std::move(receive_channel_interface));
+  return channel_interfaces;
 }
 
 absl::StatusOr<Channel*> Proc::GetChannel(std::string_view name) {
@@ -654,7 +658,7 @@ absl::StatusOr<Channel*> Proc::GetChannel(std::string_view name) {
 absl::StatusOr<ChannelRef> Proc::GetChannelRef(std::string_view name,
                                                ChannelDirection direction) {
   if (is_new_style_proc()) {
-    return GetChannelReference(name, direction);
+    return GetChannelInterface(name, direction);
   }
   return package()->GetChannel(name);
 }
@@ -668,61 +672,61 @@ bool Proc::ChannelIsOwnedByProc(Channel* channel) {
   return false;
 }
 
-absl::StatusOr<ReceiveChannelReference*> Proc::AddInputChannelReference(
-    std::unique_ptr<ReceiveChannelReference> channel_ref) {
-  XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref_ptr,
-                       AddInterfaceChannelReference(std::move(channel_ref)));
-  return down_cast<ReceiveChannelReference*>(channel_ref_ptr);
+absl::StatusOr<ReceiveChannelInterface*> Proc::AddInputChannelInterface(
+    std::unique_ptr<ReceiveChannelInterface> channel_interface) {
+  XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface_ptr,
+                       AddChannelInterface(std::move(channel_interface)));
+  return down_cast<ReceiveChannelInterface*>(channel_interface_ptr);
 }
 
-absl::StatusOr<SendChannelReference*> Proc::AddOutputChannelReference(
-    std::unique_ptr<SendChannelReference> channel_ref) {
-  XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref_ptr,
-                       AddInterfaceChannelReference(std::move(channel_ref)));
-  return down_cast<SendChannelReference*>(channel_ref_ptr);
+absl::StatusOr<SendChannelInterface*> Proc::AddOutputChannelInterface(
+    std::unique_ptr<SendChannelInterface> channel_interface) {
+  XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface_ptr,
+                       AddChannelInterface(std::move(channel_interface)));
+  return down_cast<SendChannelInterface*>(channel_interface_ptr);
 }
 
-absl::StatusOr<ChannelReference*> Proc::AddInterfaceChannelReference(
-    std::unique_ptr<ChannelReference> channel_ref) {
+absl::StatusOr<ChannelInterface*> Proc::AddChannelInterface(
+    std::unique_ptr<ChannelInterface> channel_interface) {
   XLS_RET_CHECK(is_new_style_proc());
-  if (channels_.contains(channel_ref->name())) {
+  if (channels_.contains(channel_interface->name())) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Cannot add channel `%s` to proc `%s`. Already a "
                         "channel of same name defined in the proc.",
-                        channel_ref->name(), name()));
+                        channel_interface->name(), name()));
   }
-  for (const std::unique_ptr<ChannelReference>& other_channel_ref :
-       channel_references_) {
-    if (other_channel_ref->name() == channel_ref->name()) {
+  for (const std::unique_ptr<ChannelInterface>& other_channel_interface :
+       channel_interfaces_) {
+    if (other_channel_interface->name() == channel_interface->name()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Cannot add channel `%s` to proc `%s`. Already an "
           "%s channel of same name on the proc.",
-          channel_ref->name(), name(),
-          other_channel_ref->direction() == ChannelDirection::kReceive
+          channel_interface->name(), name(),
+          other_channel_interface->direction() == ChannelDirection::kReceive
               ? "input"
               : "output"));
     }
   }
-  channel_references_.push_back(std::move(channel_ref));
-  interface_.push_back(channel_references_.back().get());
+  channel_interfaces_.push_back(std::move(channel_interface));
+  interface_.push_back(channel_interfaces_.back().get());
   return interface_.back();
 }
 
-absl::StatusOr<ReceiveChannelReference*> Proc::AddInputChannel(
+absl::StatusOr<ReceiveChannelInterface*> Proc::AddInputChannel(
     std::string_view name, Type* type, ChannelKind kind,
     std::optional<ChannelStrictness> strictness) {
-  return AddInputChannelReference(
-      std::make_unique<ReceiveChannelReference>(name, type, kind, strictness));
+  return AddInputChannelInterface(
+      std::make_unique<ReceiveChannelInterface>(name, type, kind, strictness));
 }
 
-absl::StatusOr<SendChannelReference*> Proc::AddOutputChannel(
+absl::StatusOr<SendChannelInterface*> Proc::AddOutputChannel(
     std::string_view name, Type* type, ChannelKind kind,
     std::optional<ChannelStrictness> strictness) {
-  return AddOutputChannelReference(
-      std::make_unique<SendChannelReference>(name, type, kind, strictness));
+  return AddOutputChannelInterface(
+      std::make_unique<SendChannelInterface>(name, type, kind, strictness));
 }
 
-absl::StatusOr<ChannelReference*> Proc::AddInterfaceChannel(
+absl::StatusOr<ChannelInterface*> Proc::AddInterfaceChannel(
     std::string_view name, ChannelDirection direction, Type* type,
     ChannelKind kind, std::optional<ChannelStrictness> strictness) {
   if (direction == ChannelDirection::kSend) {
@@ -731,30 +735,30 @@ absl::StatusOr<ChannelReference*> Proc::AddInterfaceChannel(
   return AddInputChannel(name, type, kind, strictness);
 }
 
-absl::Status Proc::RemoveInterfaceChannel(ChannelReference* channel_ref) {
+absl::Status Proc::RemoveChannelInterface(ChannelInterface* channel_interface) {
   auto interface_it =
-      std::find(interface_.begin(), interface_.end(), channel_ref);
+      std::find(interface_.begin(), interface_.end(), channel_interface);
   if (interface_it == interface_.end()) {
     return absl::NotFoundError(absl::StrFormat(
         "Channel reference `%s` (%p) is not on the interface of proc `%s`",
-        channel_ref->name(), channel_ref, name()));
+        channel_interface->name(), channel_interface, name()));
   }
   interface_.erase(interface_it);
 
-  std::erase_if(channel_references_,
-                [&](const std::unique_ptr<ChannelReference>& ref) {
-                  return ref.get() == channel_ref;
+  std::erase_if(channel_interfaces_,
+                [&](const std::unique_ptr<ChannelInterface>& ref) {
+                  return ref.get() == channel_interface;
                 });
   return absl::OkStatus();
 }
 
-bool Proc::IsInterfaceChannel(ChannelReference* channel_ref) {
-  return std::find(interface_.begin(), interface_.end(), channel_ref) !=
+bool Proc::IsOnProcInterface(ChannelInterface* channel_interface) {
+  return std::find(interface_.begin(), interface_.end(), channel_interface) !=
          interface_.end();
 }
 
 absl::StatusOr<ProcInstantiation*> Proc::AddProcInstantiation(
-    std::string_view name, absl::Span<ChannelReference* const> channel_args,
+    std::string_view name, absl::Span<ChannelInterface* const> channel_args,
     Proc* proc) {
   XLS_RET_CHECK(is_new_style_proc());
   proc_instantiations_.push_back(
@@ -762,25 +766,27 @@ absl::StatusOr<ProcInstantiation*> Proc::AddProcInstantiation(
   return proc_instantiations_.back().get();
 }
 
-bool Proc::HasChannelReference(std::string_view name,
+bool Proc::HasChannelInterface(std::string_view name,
                                ChannelDirection direction) const {
   CHECK(is_new_style_proc());
-  for (const std::unique_ptr<ChannelReference>& channel_ref :
-       channel_references_) {
-    if (name == channel_ref->name() && direction == channel_ref->direction()) {
+  for (const std::unique_ptr<ChannelInterface>& channel_interface :
+       channel_interfaces_) {
+    if (name == channel_interface->name() &&
+        direction == channel_interface->direction()) {
       return true;
     }
   }
   return false;
 }
 
-absl::StatusOr<ChannelReference*> Proc::GetChannelReference(
+absl::StatusOr<ChannelInterface*> Proc::GetChannelInterface(
     std::string_view name, ChannelDirection direction) const {
   XLS_RET_CHECK(is_new_style_proc());
-  for (const std::unique_ptr<ChannelReference>& channel_ref :
-       channel_references_) {
-    if (channel_ref->name() == name && channel_ref->direction() == direction) {
-      return channel_ref.get();
+  for (const std::unique_ptr<ChannelInterface>& channel_interface :
+       channel_interfaces_) {
+    if (channel_interface->name() == name &&
+        channel_interface->direction() == direction) {
+      return channel_interface.get();
     }
   }
   return absl::NotFoundError(
@@ -788,20 +794,20 @@ absl::StatusOr<ChannelReference*> Proc::GetChannelReference(
                       ChannelDirectionToString(direction), name, this->name()));
 }
 
-absl::StatusOr<SendChannelReference*> Proc::GetSendChannelReference(
+absl::StatusOr<SendChannelInterface*> Proc::GetSendChannelInterface(
     std::string_view name) const {
   XLS_RET_CHECK(is_new_style_proc());
-  XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref,
-                       GetChannelReference(name, ChannelDirection::kSend));
-  return down_cast<SendChannelReference*>(channel_ref);
+  XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface,
+                       GetChannelInterface(name, ChannelDirection::kSend));
+  return down_cast<SendChannelInterface*>(channel_interface);
 }
 
-absl::StatusOr<ReceiveChannelReference*> Proc::GetReceiveChannelReference(
+absl::StatusOr<ReceiveChannelInterface*> Proc::GetReceiveChannelInterface(
     std::string_view name) const {
   XLS_RET_CHECK(is_new_style_proc());
-  XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref,
-                       GetChannelReference(name, ChannelDirection::kReceive));
-  return down_cast<ReceiveChannelReference*>(channel_ref);
+  XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_interface,
+                       GetChannelInterface(name, ChannelDirection::kReceive));
+  return down_cast<ReceiveChannelInterface*>(channel_interface);
 }
 
 absl::StatusOr<ProcInstantiation*> Proc::GetProcInstantiation(

@@ -218,7 +218,7 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 0)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelReference * out,
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
                            pb.AddOutputChannel("out", p->GetBitsType(32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   BValue send = pb.Send(out, pb.Concat({x, y}));

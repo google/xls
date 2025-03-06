@@ -66,24 +66,26 @@ class SpecialUseMetadata {
   };
 
   // Associates a double-ended channel with the node.
-  SpecialUseMetadata(ChannelReferences channel, Purpose purpose)
+  SpecialUseMetadata(ChannelWithInterfaces channel, Purpose purpose)
       : channel_(channel), purpose_(purpose), is_single_ended_(false) {
     QCHECK(channel_.channel != nullptr);
-    QCHECK(channel_.send_ref != nullptr);
-    QCHECK(channel_.receive_ref != nullptr);
+    QCHECK(channel_.send_interface != nullptr);
+    QCHECK(channel_.receive_interface != nullptr);
   }
 
   // Associates a single-ended receive channel with the node.
-  SpecialUseMetadata(ReceiveChannelReference* chan_ref, Purpose purpose)
-      : channel_(ChannelReferences{
-            .channel = nullptr, .send_ref = nullptr, .receive_ref = chan_ref}),
+  SpecialUseMetadata(ReceiveChannelInterface* chan_interface, Purpose purpose)
+      : channel_(ChannelWithInterfaces{.channel = nullptr,
+                                       .send_interface = nullptr,
+                                       .receive_interface = chan_interface}),
         purpose_(purpose),
         is_single_ended_(true) {}
 
   // Associates a single-ended send channel with the node.
-  SpecialUseMetadata(SendChannelReference* chan_ref, Purpose purpose)
-      : channel_(ChannelReferences{
-            .channel = nullptr, .send_ref = chan_ref, .receive_ref = nullptr}),
+  SpecialUseMetadata(SendChannelInterface* chan_interface, Purpose purpose)
+      : channel_(ChannelWithInterfaces{.channel = nullptr,
+                                       .send_interface = chan_interface,
+                                       .receive_interface = nullptr}),
         purpose_(purpose),
         is_single_ended_(true) {}
 
@@ -102,14 +104,14 @@ class SpecialUseMetadata {
     return channel_.channel;
   }
 
-  SendChannelReference* GetSendChannelReference() {
-    QCHECK(channel_.send_ref != nullptr);
-    return channel_.send_ref;
+  SendChannelInterface* GetSendChannelInterface() {
+    QCHECK(channel_.send_interface != nullptr);
+    return channel_.send_interface;
   }
 
-  ReceiveChannelReference* GetReceiveChannelReference() {
-    QCHECK(channel_.receive_ref != nullptr);
-    return channel_.receive_ref;
+  ReceiveChannelInterface* GetReceiveChannelInterface() {
+    QCHECK(channel_.receive_interface != nullptr);
+    return channel_.receive_interface;
   }
 
   void SetStrictlyAfterAll(bool strictly_after) {
@@ -118,8 +120,8 @@ class SpecialUseMetadata {
 
  private:
   // May contain both ends of a particular channel.
-  // If a single-ended channel, only one ChannelReference is used.
-  const ChannelReferences channel_;
+  // If a single-ended channel, only one ChannelInterface is used.
+  const ChannelWithInterfaces channel_;
 
   // Associates a set of purposes with the channel.
   // The purpose is a bit-set of the Purpose enum.
@@ -169,11 +171,11 @@ class ProcMetadata {
 
   ProcMetadata* parent() const { return parent_; }
 
-  // Associate with a receive channel reference with a node in the original
+  // Associate with a receive channel interface with a node in the original
   // function/proc.  After stage conversion, a receive op is used
   // instead of the node in this stage.
-  SpecialUseMetadata* AssociateReceiveChannelReference(
-      Node* node, ReceiveChannelReference* channel,
+  SpecialUseMetadata* AssociateReceiveChannelInterface(
+      Node* node, ReceiveChannelInterface* channel,
       SpecialUseMetadata::Purpose purpose) {
     SpecialUseMetadata* metadata =
         special_use_metadata_
@@ -182,16 +184,16 @@ class ProcMetadata {
             .get();
 
     orig_node_to_metadata_map_[node].push_back(metadata);
-    channel_ref_to_metadata_map_[channel] = metadata;
+    channel_interface_to_metadata_map_[channel] = metadata;
 
     return metadata;
   }
 
-  // Associate with a send channel reference with a node in the original
+  // Associate with a send channel interface with a node in the original
   // function/proc.  After stage conversion a send op is used to send the
   // node's value to subsequent stages and/or external blocks.
-  SpecialUseMetadata* AssociateSendChannelReference(
-      Node* node, SendChannelReference* channel,
+  SpecialUseMetadata* AssociateSendChannelInterface(
+      Node* node, SendChannelInterface* channel,
       SpecialUseMetadata::Purpose purpose) {
     SpecialUseMetadata* metadata =
         special_use_metadata_
@@ -200,7 +202,7 @@ class ProcMetadata {
             .get();
 
     orig_node_to_metadata_map_[node].push_back(metadata);
-    channel_ref_to_metadata_map_[channel] = metadata;
+    channel_interface_to_metadata_map_[channel] = metadata;
 
     return metadata;
   }
@@ -209,8 +211,8 @@ class ProcMetadata {
   //
   // After stage conversion, the channel is used to pass
   // the node's value between stages.
-  SpecialUseMetadata* AssociateChannelReferences(
-      Node* node, ChannelReferences channel,
+  SpecialUseMetadata* AssociateChannelInterfaces(
+      Node* node, ChannelWithInterfaces channel,
       SpecialUseMetadata::Purpose purpose) {
     SpecialUseMetadata* metadata =
         special_use_metadata_
@@ -219,8 +221,8 @@ class ProcMetadata {
             .get();
 
     orig_node_to_metadata_map_[node].push_back(metadata);
-    channel_ref_to_metadata_map_[channel.send_ref] = metadata;
-    channel_ref_to_metadata_map_[channel.receive_ref] = metadata;
+    channel_interface_to_metadata_map_[channel.send_interface] = metadata;
+    channel_interface_to_metadata_map_[channel.receive_interface] = metadata;
 
     return metadata;
   }
@@ -230,9 +232,9 @@ class ProcMetadata {
   absl::StatusOr<std::vector<SpecialUseMetadata*>> FindSpecialUseMetadata(
       Node* orig_node, SpecialUseMetadata::Purpose purpose);
 
-  // For the specific channel reference, get the metadata associated with it.
+  // For the specific channel interface, get the metadata associated with it.
   absl::StatusOr<SpecialUseMetadata*> FindSpecialUseMetadataForChannel(
-      ChannelReference* chan_ref);
+      ChannelInterface* chan_interface);
 
   // Given a node from the source Proc IR, returns true if
   // that node has a recorded mapping to this stage.
@@ -280,8 +282,8 @@ class ProcMetadata {
   std::vector<std::unique_ptr<SpecialUseMetadata>> special_use_metadata_;
   absl::flat_hash_map<Node*, std::vector<SpecialUseMetadata*>>
       orig_node_to_metadata_map_;
-  absl::flat_hash_map<ChannelReference*, SpecialUseMetadata*>
-      channel_ref_to_metadata_map_;
+  absl::flat_hash_map<ChannelInterface*, SpecialUseMetadata*>
+      channel_interface_to_metadata_map_;
 };
 
 // Groups together metadata associated with procs created by stage conversion.

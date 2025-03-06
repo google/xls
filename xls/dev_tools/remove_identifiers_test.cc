@@ -50,11 +50,11 @@ TEST_F(RemoveIdentifersTest, BasicProc) {
                            pb.AddChannel("secret_tunnel", p->GetBitsType(32)));
   auto tok = pb.StateElement("secret_handshake", Value::Token());
   auto start_param = pb.StateElement("astounding", Value(UBits(42, 32)));
-  auto recv =
-      pb.Receive(orig_chan.receive_ref, tok, SourceInfo(), "Unbelievable");
+  auto recv = pb.Receive(orig_chan.receive_interface, tok, SourceInfo(),
+                         "Unbelievable");
   auto next_param =
       pb.Add(start_param, pb.TupleIndex(recv, 1, SourceInfo(), "nxt_val"));
-  auto out_tok = pb.Send(orig_chan.send_ref,
+  auto out_tok = pb.Send(orig_chan.send_interface,
                          pb.TupleIndex(recv, 0, SourceInfo(), "nxt_tok"),
                          next_param, SourceInfo(), "surprising");
   pb.Next(start_param, next_param, /*pred=*/std::nullopt, SourceInfo(),

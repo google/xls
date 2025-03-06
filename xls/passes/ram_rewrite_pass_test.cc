@@ -839,10 +839,10 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteProcScoped) {
   EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
-  EXPECT_THAT(proc->GetSendChannelReference("ram_1rw_req"),
+  EXPECT_THAT(proc->GetSendChannelInterface("ram_1rw_req"),
               IsOkAndHolds(m::ChannelWithType(
                   "(bits[10], bits[32], (), (), bits[1], bits[1])")));
-  EXPECT_THAT(proc->GetReceiveChannelReference("ram_1rw_resp"),
+  EXPECT_THAT(proc->GetReceiveChannelInterface("ram_1rw_resp"),
               IsOkAndHolds(m::ChannelWithType("(bits[32])")));
 }
 
@@ -887,14 +887,14 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1R1WRewriteProcScoped) {
   EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
-  EXPECT_THAT(proc->GetSendChannelReference("ram_1r1w_read_req"),
+  EXPECT_THAT(proc->GetSendChannelInterface("ram_1r1w_read_req"),
               IsOkAndHolds(m::ChannelWithType("(bits[10], ())")));
-  EXPECT_THAT(proc->GetReceiveChannelReference("ram_1r1w_read_resp"),
+  EXPECT_THAT(proc->GetReceiveChannelInterface("ram_1r1w_read_resp"),
               IsOkAndHolds(m::ChannelWithType("(bits[32])")));
 
-  EXPECT_THAT(proc->GetSendChannelReference("ram_1r1w_write_req"),
+  EXPECT_THAT(proc->GetSendChannelInterface("ram_1r1w_write_req"),
               IsOkAndHolds(m::ChannelWithType("(bits[10], bits[32], ())")));
-  EXPECT_THAT(proc->GetReceiveChannelReference("ram_1r1w_write_completion"),
+  EXPECT_THAT(proc->GetReceiveChannelInterface("ram_1r1w_write_completion"),
               IsOkAndHolds(m::ChannelWithType("()")));
 }
 

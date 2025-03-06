@@ -816,10 +816,10 @@ bool IsInterfaceChannelRef(ChannelRef channel_ref, Package* package) {
   if (!package->GetTop().has_value() || !package->GetTop().value()->IsProc()) {
     return false;
   }
-  absl::Span<ChannelReference* const> interface =
+  absl::Span<ChannelInterface* const> interface =
       package->GetTop().value()->AsProcOrDie()->interface();
   return std::find(interface.begin(), interface.end(),
-                   std::get<ChannelReference*>(channel_ref)) != interface.end();
+                   std::get<ChannelInterface*>(channel_ref)) != interface.end();
 }
 
 absl::StatusOr<SimplificationResult> SimplifyNode(

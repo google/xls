@@ -28,7 +28,7 @@ std::string ProcInstantiation::ToString() const {
   return absl::StrFormat(
       "proc_instantiation %s(%s%sproc=%s)", name(),
       absl::StrJoin(channel_args(), ", ",
-                    [](std::string* out, const ChannelReference* c) {
+                    [](std::string* out, const ChannelInterface* c) {
                       absl::StrAppend(out, c->name());
                     }),
       channel_args().empty() ? "" : ", ", proc()->name());

@@ -87,7 +87,7 @@ struct AdapterOutputChannel {
 class AdapterBuilder {
  public:
   static absl::StatusOr<std::unique_ptr<AdapterBuilder>>
-  CreateForProcScopedChannels(ChannelReference* adapted_channel,
+  CreateForProcScopedChannels(ChannelInterface* adapted_channel,
                               std::string_view adapter_name,
                               Proc* parent_proc) {
     XLS_RET_CHECK(parent_proc->package()->ChannelsAreProcScoped());
@@ -95,16 +95,16 @@ class AdapterBuilder {
         NewStyleProc(), adapter_name, parent_proc->package());
 
     // Add input/output for adapted channel.
-    ChannelReference* adapted_channel_ref_in_adapter;
+    ChannelInterface* adapted_channel_interface_in_adapter;
     if (adapted_channel->direction() == ChannelDirection::kSend) {
       XLS_ASSIGN_OR_RETURN(
-          adapted_channel_ref_in_adapter,
+          adapted_channel_interface_in_adapter,
           proc_builder->AddOutputChannel(
               adapted_channel->name(), adapted_channel->type(),
               ChannelKind::kStreaming, adapted_channel->strictness()));
     } else {
       XLS_ASSIGN_OR_RETURN(
-          adapted_channel_ref_in_adapter,
+          adapted_channel_interface_in_adapter,
           proc_builder->AddInputChannel(
               adapted_channel->name(), adapted_channel->type(),
               ChannelKind::kStreaming, adapted_channel->strictness()));
@@ -117,7 +117,7 @@ class AdapterBuilder {
     }
     std::unique_ptr<AdapterBuilder> builder =
         absl::WrapUnique(new AdapterBuilder(
-            adapted_channel, adapted_channel_ref_in_adapter,
+            adapted_channel, adapted_channel_interface_in_adapter,
             std::move(proc_builder), parent_proc,
             /*global_channel_name_uniquer=*/nullptr,
             /*proc_scoped_channel_name_uniquer=*/std::move(name_uniquer)));
@@ -154,10 +154,10 @@ class AdapterBuilder {
                                parent_proc().value(),
                                /*initial_values=*/{}, channel_config));
       XLS_ASSIGN_OR_RETURN(result.parent_send_channel_ref,
-                           parent_proc().value()->GetSendChannelReference(
+                           parent_proc().value()->GetSendChannelInterface(
                                result.channel->name()));
-      XLS_ASSIGN_OR_RETURN(ReceiveChannelReference * parent_receive_channel_ref,
-                           parent_proc().value()->GetReceiveChannelReference(
+      XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * parent_receive_channel_ref,
+                           parent_proc().value()->GetReceiveChannelInterface(
                                result.channel->name()));
       XLS_ASSIGN_OR_RETURN(
           result.adapter_receive_channel_ref,
@@ -191,10 +191,10 @@ class AdapterBuilder {
                                parent_proc().value(),
                                /*initial_values=*/{}, channel_config));
       XLS_ASSIGN_OR_RETURN(result.parent_receive_channel_ref,
-                           parent_proc().value()->GetReceiveChannelReference(
+                           parent_proc().value()->GetReceiveChannelInterface(
                                result.channel->name()));
-      XLS_ASSIGN_OR_RETURN(SendChannelReference * parent_send_channel_ref,
-                           parent_proc().value()->GetSendChannelReference(
+      XLS_ASSIGN_OR_RETURN(SendChannelInterface * parent_send_channel_ref,
+                           parent_proc().value()->GetSendChannelInterface(
                                result.channel->name()));
       XLS_ASSIGN_OR_RETURN(
           result.adapter_send_channel_ref,
@@ -281,7 +281,7 @@ class AdapterBuilder {
   std::optional<Proc*> parent_proc_;
   NameUniquer* global_channel_name_uniquer_;
   std::unique_ptr<NameUniquer> proc_scoped_channel_name_uniquer_;
-  std::vector<ChannelReference*> adapter_instantiation_args_;
+  std::vector<ChannelInterface*> adapter_instantiation_args_;
 };
 
 struct ChannelSends {
@@ -1356,8 +1356,8 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
               channel->name(), proc->name(), op->function_base()->name()));
         }
       }
-      XLS_ASSIGN_OR_RETURN(ReceiveChannelReference * channel_ref,
-                           proc->GetReceiveChannelReference(channel->name()));
+      XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * channel_ref,
+                           proc->GetReceiveChannelInterface(channel->name()));
       XLS_ASSIGN_OR_RETURN(
           adapter_builder,
           AdapterBuilder::CreateForProcScopedChannels(channel_ref, adapter_name,
@@ -1407,8 +1407,8 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
               channel->name(), proc->name(), op->function_base()->name()));
         }
       }
-      XLS_ASSIGN_OR_RETURN(SendChannelReference * channel_ref,
-                           proc->GetSendChannelReference(channel->name()));
+      XLS_ASSIGN_OR_RETURN(SendChannelInterface * channel_ref,
+                           proc->GetSendChannelInterface(channel->name()));
       XLS_ASSIGN_OR_RETURN(
           adapter_builder,
           AdapterBuilder::CreateForProcScopedChannels(channel_ref, adapter_name,

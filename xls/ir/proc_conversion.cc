@@ -112,15 +112,15 @@ absl::Status AddInterfaceChannel(Proc* proc, Channel* channel,
           dynamic_cast<StreamingChannel*>(channel)) {
     strictness = streaming_channel->GetStrictness();
   }
-  std::unique_ptr<ChannelReference> channel_ref;
+  std::unique_ptr<ChannelInterface> channel_interface;
   if (direction == ChannelDirection::kSend) {
-    channel_ref = std::make_unique<SendChannelReference>(
+    channel_interface = std::make_unique<SendChannelInterface>(
         channel->name(), channel->type(), channel->kind(), strictness);
   } else {
-    channel_ref = std::make_unique<ReceiveChannelReference>(
+    channel_interface = std::make_unique<ReceiveChannelInterface>(
         channel->name(), channel->type(), channel->kind(), strictness);
   }
-  return proc->AddInterfaceChannelReference(std::move(channel_ref)).status();
+  return proc->AddChannelInterface(std::move(channel_interface)).status();
 }
 
 }  // namespace
@@ -172,7 +172,7 @@ absl::Status ConvertPackageToNewStyleProcs(Package* package) {
     if (proc.get() == top) {
       continue;
     }
-    std::vector<ChannelReference*> instantiation_args;
+    std::vector<ChannelInterface*> instantiation_args;
     for (Channel* channel : channel_map.proc_to_channels[proc.get()]) {
       if (channel_map.IsLoopbackChannel(channel)) {
         // Loopback channels are not part of any proc interface and are declared
@@ -189,8 +189,8 @@ absl::Status ConvertPackageToNewStyleProcs(Package* package) {
           *channel_map.directions.at({proc.get(), channel}).begin();
       XLS_RETURN_IF_ERROR(AddInterfaceChannel(proc.get(), channel, direction));
       XLS_ASSIGN_OR_RETURN(
-          ChannelReference * arg,
-          top->GetChannelReference(channel->name(), direction));
+          ChannelInterface * arg,
+          top->GetChannelInterface(channel->name(), direction));
       instantiation_args.push_back(arg);
     }
     XLS_RETURN_IF_ERROR(

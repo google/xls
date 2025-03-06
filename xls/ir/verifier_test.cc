@@ -560,14 +560,14 @@ TEST_F(VerifierTest, MismatchedChannelFlowControl) {
 
   {
     TokenlessProcBuilder pb(NewStyleProc(), "the_proc", "tkn", &package);
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences channel1_refs,
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces channel1_refs,
                              pb.AddChannel("ch1", u32));
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences channel2_refs,
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces channel2_refs,
                              pb.AddChannel("ch2", u32));
-    XLS_ASSERT_OK(
-        pb.InstantiateProc("inst1", subproc, {channel1_refs.receive_ref}));
-    XLS_ASSERT_OK(
-        pb.InstantiateProc("inst2", subproc, {channel2_refs.receive_ref}));
+    XLS_ASSERT_OK(pb.InstantiateProc("inst1", subproc,
+                                     {channel1_refs.receive_interface}));
+    XLS_ASSERT_OK(pb.InstantiateProc("inst2", subproc,
+                                     {channel2_refs.receive_interface}));
     XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
     XLS_ASSERT_OK(package.SetTop(proc));
 
@@ -579,7 +579,7 @@ TEST_F(VerifierTest, MismatchedChannelFlowControl) {
   EXPECT_THAT(
       VerifyPackage(&package),
       StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("ChannelReference `ch` in proc `subproc` bound to "
+               HasSubstr("ChannelInterface `ch` in proc `subproc` bound to "
                          "channels with different flow control")));
 }
 
@@ -596,13 +596,13 @@ TEST_F(VerifierTest, MismatchedInterfaceChannelFlowControl) {
 
   {
     TokenlessProcBuilder pb(NewStyleProc(), "the_proc", "tkn", &package);
-    XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelReference * ch1_ref,
+    XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * ch1_ref,
                              pb.AddInputChannel("ch1", u32));
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences channel2_refs,
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces channel2_refs,
                              pb.AddChannel("ch2", u32));
     XLS_ASSERT_OK(pb.InstantiateProc("inst1", subproc, {ch1_ref}));
-    XLS_ASSERT_OK(
-        pb.InstantiateProc("inst2", subproc, {channel2_refs.receive_ref}));
+    XLS_ASSERT_OK(pb.InstantiateProc("inst2", subproc,
+                                     {channel2_refs.receive_interface}));
     XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
     XLS_ASSERT_OK(package.SetTop(proc));
 
@@ -616,7 +616,7 @@ TEST_F(VerifierTest, MismatchedInterfaceChannelFlowControl) {
   EXPECT_THAT(
       VerifyPackage(&package),
       StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("ChannelReference `ch` in proc `subproc` bound to "
+               HasSubstr("ChannelInterface `ch` in proc `subproc` bound to "
                          "channels with different flow control")));
 }
 

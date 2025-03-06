@@ -86,7 +86,7 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlySendNewStyle) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tkn", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      SendChannelReference * channel,
+      SendChannelInterface * channel,
       pb.AddOutputChannel("test_channel", p->GetBitsType(32)));
   pb.StateElement("state", Value(UBits(0, 0)));
   pb.SendIf(channel, pb.Literal(UBits(0, 1)), pb.Literal(UBits(1, 32)));
@@ -124,7 +124,7 @@ TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalseNewStyle) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), TestName(), "tkn", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      SendChannelReference * channel,
+      SendChannelInterface * channel,
       pb.AddOutputChannel("test_channel", p->GetBitsType(32)));
   pb.StateElement("state", Value(UBits(0, 0)));
   pb.SendIf(channel, pb.Literal(UBits(0, 1)), pb.Literal(UBits(1, 32)));

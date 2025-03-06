@@ -69,7 +69,7 @@ PackageInterfaceProto::Proc ExtractProcInterface(Proc* proc) {
   for (StateElement* state_element : proc->StateElements()) {
     AddNamed(proto.add_state(), state_element);
   }
-  for (const auto& c : proc->channel_references()) {
+  for (const auto& c : proc->channel_interfaces()) {
     if (c->direction() == ChannelDirection::kSend) {
       *proto.add_send_channels() = c->name();
     } else {

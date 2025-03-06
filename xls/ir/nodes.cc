@@ -465,7 +465,7 @@ absl::StatusOr<Node*> BitwiseReductionOp::CloneInNewFunction(
 absl::StatusOr<ChannelRef> ChannelNode::GetChannelRef() const {
   Proc* proc = function_base()->AsProcOrDie();
   if (proc->is_new_style_proc()) {
-    return proc->GetChannelReference(channel_name(), direction());
+    return proc->GetChannelInterface(channel_name(), direction());
   }
   return package()->GetChannel(channel_name());
 }
@@ -481,7 +481,7 @@ absl::Status ChannelNode::ReplaceChannel(std::string_view new_channel_name) {
   Proc* proc = function_base()->AsProcOrDie();
   if (proc->is_new_style_proc()) {
     XLS_RETURN_IF_ERROR(
-        proc->GetChannelReference(channel_name(), direction()).status());
+        proc->GetChannelInterface(channel_name(), direction()).status());
   } else {
     XLS_RETURN_IF_ERROR(package()->GetChannel(new_channel_name).status());
   }

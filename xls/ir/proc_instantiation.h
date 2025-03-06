@@ -31,7 +31,7 @@ class Proc;
 class ProcInstantiation {
  public:
   ProcInstantiation(std::string_view name,
-                    absl::Span<ChannelReference* const> channel_args,
+                    absl::Span<ChannelInterface* const> channel_args,
                     Proc* proc)
       : name_(name),
         channel_args_(channel_args.begin(), channel_args.end()),
@@ -39,9 +39,9 @@ class ProcInstantiation {
 
   std::string_view name() const { return name_; }
 
-  // The channel arguments to the instantiated proc. These channel references
+  // The channel arguments to the instantiated proc. These channel interfaces
   // match the type and direction of the interface of the instantiated proc.
-  absl::Span<ChannelReference* const> channel_args() const {
+  absl::Span<ChannelInterface* const> channel_args() const {
     return channel_args_;
   }
 
@@ -52,7 +52,7 @@ class ProcInstantiation {
 
  private:
   std::string name_;
-  std::vector<ChannelReference*> channel_args_;
+  std::vector<ChannelInterface*> channel_args_;
   Proc* proc_;
 };
 

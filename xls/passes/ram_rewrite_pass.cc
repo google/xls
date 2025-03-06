@@ -72,14 +72,14 @@ struct RamMetadata {
 };
 
 // Returns the channel with the given name. If `proc_scope` is defined then a
-// proc-scoped ChannelReference is returned, otherwise a global channel is
+// proc-scoped ChannelInterface is returned, otherwise a global channel is
 // returned.
 absl::StatusOr<ChannelRef> GetChannelRef(Package* p, std::string_view name,
                                          ChannelDirection direction,
                                          std::optional<Proc*> proc_scope) {
   if (proc_scope.has_value()) {
     XLS_RET_CHECK(p->ChannelsAreProcScoped());
-    return proc_scope.value()->GetChannelReference(name, direction);
+    return proc_scope.value()->GetChannelInterface(name, direction);
   }
   XLS_RET_CHECK(!p->ChannelsAreProcScoped());
   return p->GetChannel(name);
@@ -242,7 +242,7 @@ absl::StatusOr<RamChannel> CreateRamChannel(
   if (metadata.proc_scope.has_value()) {
     XLS_RET_CHECK(p->ChannelsAreProcScoped());
     XLS_ASSIGN_OR_RETURN(
-        ChannelReference * channel_ref,
+        ChannelInterface * channel_ref,
         metadata.proc_scope.value()->AddInterfaceChannel(
             name, direction, type, ChannelKind::kStreaming, strictness));
 
@@ -870,8 +870,8 @@ absl::Status RemoveRamChannel(Package* p, const RamChannel& ram_channel,
                               std::optional<Proc*> proc_scope) {
   if (proc_scope.has_value()) {
     XLS_RET_CHECK(p->ChannelsAreProcScoped());
-    return proc_scope.value()->RemoveInterfaceChannel(
-        std::get<ChannelReference*>(ram_channel.channel_ref));
+    return proc_scope.value()->RemoveChannelInterface(
+        std::get<ChannelInterface*>(ram_channel.channel_ref));
   }
   XLS_RET_CHECK(!p->ChannelsAreProcScoped());
   return p->RemoveChannel(std::get<Channel*>(ram_channel.channel_ref));

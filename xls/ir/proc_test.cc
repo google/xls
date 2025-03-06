@@ -346,18 +346,18 @@ TEST_F(ProcTest, Clone) {
 TEST_F(ProcTest, CloneNewStyle) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb(NewStyleProc(), "p", "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelReference * ch_a,
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * ch_a,
                            pb.AddInputChannel("a", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelReference * ch_b,
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * ch_b,
                            pb.AddOutputChannel("b", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences ch_c,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces ch_c,
                            pb.AddChannel("c", p->GetBitsType(32), {}));
 
   BValue state = pb.StateElement("st", Value(UBits(42, 32)));
   BValue recv_a = pb.Receive(ch_a);
-  BValue recv_c = pb.Receive(ch_c.receive_ref);
+  BValue recv_c = pb.Receive(ch_c.receive_interface);
   pb.Send(ch_b, state);
-  pb.Send(ch_c.send_ref, state);
+  pb.Send(ch_c.send_interface, state);
   BValue add = pb.Add(recv_a, recv_c);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({add}));
 

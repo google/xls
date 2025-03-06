@@ -285,9 +285,9 @@ TEST_F(OptimizationPipelineTest, ProcScopedChannels) {
   Proc* leaf;
   {
     TokenlessProcBuilder pb(NewStyleProc(), "myleaf", "tkn", p.get());
-    XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelReference * in,
+    XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in,
                              pb.AddInputChannel("in", p->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(SendChannelReference * out,
+    XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
                              pb.AddOutputChannel("out", p->GetBitsType(32)));
 
     // Create an optimization opportunity (constant folding).
@@ -302,21 +302,22 @@ TEST_F(OptimizationPipelineTest, ProcScopedChannels) {
   Proc* top;
   {
     TokenlessProcBuilder pb(NewStyleProc(), "myproc", "tkn", p.get());
-    XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelReference * in,
+    XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in,
                              pb.AddInputChannel("in", p->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(SendChannelReference * out,
+    XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
                              pb.AddOutputChannel("out", p->GetBitsType(32)));
 
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences tmp0_ch,
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces tmp0_ch,
                              pb.AddChannel("tmp0", p->GetBitsType(32)));
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences tmp1_ch,
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces tmp1_ch,
                              pb.AddChannel("tmp1", p->GetBitsType(32)));
 
     BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
-    XLS_ASSERT_OK(pb.InstantiateProc("inst0", leaf, {in, tmp0_ch.send_ref}));
-    XLS_ASSERT_OK(pb.InstantiateProc("inst1", leaf,
-                                     {tmp0_ch.receive_ref, tmp1_ch.send_ref}));
-    BValue next_accum = pb.Add(pb.Receive(tmp1_ch.receive_ref), accum);
+    XLS_ASSERT_OK(
+        pb.InstantiateProc("inst0", leaf, {in, tmp0_ch.send_interface}));
+    XLS_ASSERT_OK(pb.InstantiateProc(
+        "inst1", leaf, {tmp0_ch.receive_interface, tmp1_ch.send_interface}));
+    BValue next_accum = pb.Add(pb.Receive(tmp1_ch.receive_interface), accum);
     pb.Send(out, next_accum);
     XLS_ASSERT_OK(pb.SetAsTop());
     XLS_ASSERT_OK_AND_ASSIGN(top, pb.Build({next_accum}));

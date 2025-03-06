@@ -405,28 +405,28 @@ inline ChannelDirection InvertChannelDirection(ChannelDirection d) {
   }
 }
 
-// Abstraction representing a reference to a channel. The reference can be
+// Abstraction representing an interface to a channel. The interface can be
 // typed to refer to the send or receive side. With proc-scoped channels (new
 // style procs), channel-using operations such as send/receive refer to
-// channel references rather than channel objects. In elaboration these
-// channel references are bound to channel objects.
+// channel interfaces rather than channel objects. In elaboration these
+// channel interfaces are bound to channel objects.
 //
 // TODO(https://github.com/google/xls/issues/869): Reconsider whether channel
-// kind and strictness should be held by the channel reference. This is required
+// kind and strictness should be held by the channel interface. This is required
 // for storing these properties on the interface of new-style procs. An
 // alternative would be to have a separate data structure for interface
 // channels.
-class ChannelReference {
+class ChannelInterface {
  public:
-  ChannelReference(std::string_view name, Type* type, ChannelKind kind,
+  ChannelInterface(std::string_view name, Type* type, ChannelKind kind,
                    std::optional<ChannelStrictness> strictness)
       : name_(name), type_(type), kind_(kind), strictness_(strictness) {}
-  virtual ~ChannelReference() = default;
+  virtual ~ChannelInterface() = default;
 
-  // Like most IR constructs, ChannelReferences are passed around by pointer
+  // Like most IR constructs, ChannelInterfaces are passed around by pointer
   // and are not copyable.
-  ChannelReference(const ChannelReference&) = delete;
-  ChannelReference& operator=(const ChannelReference&) = delete;
+  ChannelInterface(const ChannelInterface&) = delete;
+  ChannelInterface& operator=(const ChannelInterface&) = delete;
 
   std::string_view name() const { return name_; }
   Type* type() const { return type_; }
@@ -443,43 +443,43 @@ class ChannelReference {
   std::optional<ChannelStrictness> strictness_;
 };
 
-class SendChannelReference : public ChannelReference {
+class SendChannelInterface : public ChannelInterface {
  public:
-  SendChannelReference(std::string_view name, Type* type, ChannelKind kind,
+  SendChannelInterface(std::string_view name, Type* type, ChannelKind kind,
                        std::optional<ChannelStrictness> strictness)
-      : ChannelReference(name, type, kind, strictness) {}
-  ~SendChannelReference() override = default;
+      : ChannelInterface(name, type, kind, strictness) {}
+  ~SendChannelInterface() override = default;
   ChannelDirection direction() const override {
     return ChannelDirection::kSend;
   }
 };
 
-class ReceiveChannelReference : public ChannelReference {
+class ReceiveChannelInterface : public ChannelInterface {
  public:
-  ReceiveChannelReference(std::string_view name, Type* type, ChannelKind kind,
+  ReceiveChannelInterface(std::string_view name, Type* type, ChannelKind kind,
                           std::optional<ChannelStrictness> strictness)
-      : ChannelReference(name, type, kind, strictness) {}
-  ~ReceiveChannelReference() override = default;
+      : ChannelInterface(name, type, kind, strictness) {}
+  ~ReceiveChannelInterface() override = default;
   ChannelDirection direction() const override {
     return ChannelDirection::kReceive;
   }
 };
 
-// Abstraction holding pointers hold both ends of a particular channel.
-struct ChannelReferences {
+// Abstraction gathering a channel with send and receive interfaces.
+struct ChannelWithInterfaces {
   Channel* channel;
-  SendChannelReference* send_ref;
-  ReceiveChannelReference* receive_ref;
+  SendChannelInterface* send_interface;
+  ReceiveChannelInterface* receive_interface;
 };
 
 // Type which holds a channel or channel reference. This is a type used to
 // transition to proc-scoped channels. In the proc-scoped channel universe all
-// uses of channels use ChannelReferences rather than Channel objects.
+// uses of channels use ChannelInterfaces rather than Channel objects.
 // TODO(https://github.com/google/xls/issues/869): Remove these and replace
-// with ChannelReference* when all procs are new style.
-using ChannelRef = std::variant<Channel*, ChannelReference*>;
-using SendChannelRef = std::variant<Channel*, SendChannelReference*>;
-using ReceiveChannelRef = std::variant<Channel*, ReceiveChannelReference*>;
+// with ChannelInterface* when all procs are new style.
+using ChannelRef = std::variant<Channel*, ChannelInterface*>;
+using SendChannelRef = std::variant<Channel*, SendChannelInterface*>;
+using ReceiveChannelRef = std::variant<Channel*, ReceiveChannelInterface*>;
 
 // Converts a send/receive ChannelRef into a generic ChannelRef.
 ChannelRef AsChannelRef(SendChannelRef ref);

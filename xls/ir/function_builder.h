@@ -755,18 +755,18 @@ class ProcBuilder : public BuilderBase {
 
   // Add an internal channel scoped to the proc. Only can be called for new
   // style procs.
-  absl::StatusOr<ChannelReferences> AddChannel(
+  absl::StatusOr<ChannelWithInterfaces> AddChannel(
       std::string_view name, Type* type,
       ChannelKind kind = ChannelKind::kStreaming,
       absl::Span<const Value> initial_values = {});
 
   // Add an interface channel to the proc. Only can be called for new style
   // procs.
-  absl::StatusOr<ReceiveChannelReference*> AddInputChannel(
+  absl::StatusOr<ReceiveChannelInterface*> AddInputChannel(
       std::string_view name, Type* type,
       ChannelKind kind = ChannelKind::kStreaming,
       std::optional<ChannelStrictness> strictness = std::nullopt);
-  absl::StatusOr<SendChannelReference*> AddOutputChannel(
+  absl::StatusOr<SendChannelInterface*> AddOutputChannel(
       std::string_view name, Type* type,
       ChannelKind kind = ChannelKind::kStreaming,
       std::optional<ChannelStrictness> strictness = std::nullopt);
@@ -781,17 +781,17 @@ class ProcBuilder : public BuilderBase {
 
   // Returns the receive/send channel end with the given name. Only can be
   // called for new style procs.
-  absl::StatusOr<ReceiveChannelReference*> GetReceiveChannelReference(
+  absl::StatusOr<ReceiveChannelInterface*> GetReceiveChannelInterface(
       std::string_view name);
-  absl::StatusOr<SendChannelReference*> GetSendChannelReference(
+  absl::StatusOr<SendChannelInterface*> GetSendChannelInterface(
       std::string_view name);
 
-  // Instantiates the specified proc in this proc. `channel_references` must
+  // Instantiates the specified proc in this proc. `channel_interfaces` must
   // match the number, type, and direction of channels on the interface of the
   // instantiated proc.
   absl::Status InstantiateProc(
       std::string_view name, Proc* instantiated_proc,
-      absl::Span<ChannelReference* const> channel_references);
+      absl::Span<ChannelInterface* const> channel_interfaces);
 
   // Returns the Param BValue for the state parameters. Unlike
   // BuilderBase::Param this doesn't add a Param node to the Proc. Rather the

@@ -1105,8 +1105,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
       Type* channel_type;
       if (pb->proc()->is_new_style_proc()) {
         XLS_ASSIGN_OR_RETURN(
-            channel_ref, pb->GetReceiveChannelReference(channel_name->value));
-        channel_type = std::get<ReceiveChannelReference*>(channel_ref)->type();
+            channel_ref, pb->GetReceiveChannelInterface(channel_name->value));
+        channel_type = std::get<ReceiveChannelInterface*>(channel_ref)->type();
       } else {
         XLS_ASSIGN_OR_RETURN(channel_ref,
                              package->GetChannel(channel_name->value));
@@ -1164,7 +1164,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
       SendChannelRef channel_ref;
       if (pb->proc()->is_new_style_proc()) {
         XLS_ASSIGN_OR_RETURN(channel_ref,
-                             pb->GetSendChannelReference(channel_name->value));
+                             pb->GetSendChannelInterface(channel_name->value));
       } else {
         XLS_ASSIGN_OR_RETURN(channel_ref,
                              package->GetChannel(channel_name->value));
@@ -1492,7 +1492,7 @@ absl::StatusOr<ProcInstantiation*> Parser::ParseProcInstantiation(Proc* proc) {
 
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
 
-  // Convert channel names to ChannelReferences and create the instantiation.
+  // Convert channel names to ChannelInterfaces and create the instantiation.
   if (channel_arg_names.size() !=
       instantiated_proc.value()->interface().size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -1502,11 +1502,11 @@ absl::StatusOr<ProcInstantiation*> Parser::ParseProcInstantiation(Proc* proc) {
         instantiation_name.pos().ToHumanString()));
   }
 
-  std::vector<ChannelReference*> channel_args;
+  std::vector<ChannelInterface*> channel_args;
   for (int64_t i = 0; i < channel_arg_names.size(); ++i) {
-    ChannelReference* interface_channel =
+    ChannelInterface* interface_channel =
         instantiated_proc.value()->interface()[i];
-    if (!proc->HasChannelReference(channel_arg_names[i],
+    if (!proc->HasChannelInterface(channel_arg_names[i],
                                    interface_channel->direction())) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "No such %s channel `%s` for proc instantiation arg "
@@ -1516,8 +1516,8 @@ absl::StatusOr<ProcInstantiation*> Parser::ParseProcInstantiation(Proc* proc) {
           instantiation_name.pos().ToHumanString()));
     }
     XLS_ASSIGN_OR_RETURN(
-        ChannelReference * channel_arg,
-        proc->GetChannelReference(channel_arg_names[i],
+        ChannelInterface * channel_arg,
+        proc->GetChannelInterface(channel_arg_names[i],
                                   interface_channel->direction()));
     channel_args.push_back(channel_arg);
   }
@@ -1912,7 +1912,7 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   XLS_ASSIGN_OR_RETURN(Token name, scanner_.PopTokenOrError(
                                        LexicalTokenType::kIdent, "proc name"));
   bool is_new_style_proc = false;
-  std::vector<std::unique_ptr<ChannelReference>> interface_channels;
+  std::vector<std::unique_ptr<ChannelInterface>> interface_channels;
   if (scanner_.TryDropToken(LexicalTokenType::kLt)) {
     is_new_style_proc = true;
     if (!scanner_.TryDropToken(LexicalTokenType::kGt)) {
@@ -1982,12 +1982,12 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
 
         switch (direction) {
           case ChannelDirection::kSend:
-            interface_channels.push_back(std::make_unique<SendChannelReference>(
+            interface_channels.push_back(std::make_unique<SendChannelInterface>(
                 channel_name.value(), type, kind, strictness));
             break;
           case ChannelDirection::kReceive:
             interface_channels.push_back(
-                std::make_unique<ReceiveChannelReference>(
+                std::make_unique<ReceiveChannelInterface>(
                     channel_name.value(), type, kind, strictness));
             break;
         }
@@ -2052,22 +2052,22 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
     builder =
         std::make_unique<ProcBuilder>(NewStyleProc(), name.value(), package,
                                       /*should_verify=*/false);
-    for (const std::unique_ptr<ChannelReference>& channel_ref :
+    for (const std::unique_ptr<ChannelInterface>& channel_interface :
          interface_channels) {
-      if (channel_ref->direction() == ChannelDirection::kReceive) {
-        XLS_RETURN_IF_ERROR(builder
-                                ->AddInputChannel(channel_ref->name(),
-                                                  channel_ref->type(),
-                                                  channel_ref->kind(),
-                                                  channel_ref->strictness())
-                                .status());
+      if (channel_interface->direction() == ChannelDirection::kReceive) {
+        XLS_RETURN_IF_ERROR(
+            builder
+                ->AddInputChannel(
+                    channel_interface->name(), channel_interface->type(),
+                    channel_interface->kind(), channel_interface->strictness())
+                .status());
       } else {
-        XLS_RETURN_IF_ERROR(builder
-                                ->AddOutputChannel(channel_ref->name(),
-                                                   channel_ref->type(),
-                                                   channel_ref->kind(),
-                                                   channel_ref->strictness())
-                                .status());
+        XLS_RETURN_IF_ERROR(
+            builder
+                ->AddOutputChannel(
+                    channel_interface->name(), channel_interface->type(),
+                    channel_interface->kind(), channel_interface->strictness())
+                .status());
       }
     }
   } else {

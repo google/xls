@@ -55,12 +55,12 @@ class Proc : public FunctionBase {
 
   // Creates a new-style proc which supports proc-scoped channels.
   Proc(std::string_view name,
-       absl::Span<std::unique_ptr<ChannelReference>> interface,
+       absl::Span<std::unique_ptr<ChannelInterface>> interface,
        Package* package)
       : FunctionBase(name, package), is_new_style_proc_(true) {
-    for (std::unique_ptr<ChannelReference>& channel_reference : interface) {
-      channel_references_.push_back(std::move(channel_reference));
-      interface_.push_back(channel_references_.back().get());
+    for (std::unique_ptr<ChannelInterface>& channel_interface : interface) {
+      channel_interfaces_.push_back(std::move(channel_interface));
+      interface_.push_back(channel_interfaces_.back().get());
     }
   }
 
@@ -265,13 +265,13 @@ class Proc : public FunctionBase {
   // Returns true if this is a new-style proc which has proc-scoped channels.
   bool is_new_style_proc() const { return is_new_style_proc_; }
 
-  // Returns the type of the channel reference (Channel or ChannelReference)
+  // Returns the type of the channel reference (Channel or ChannelInterface)
   // with the given name.
   absl::StatusOr<Type*> GetChannelReferenceType(std::string_view name) const;
 
-  // Return the ordered list of the channel references which form the interface
+  // Return the ordered list of the channel interfaces which form the interface
   // of the proc. Only can be called for new style procs.
-  absl::Span<ChannelReference* const> interface() const {
+  absl::Span<ChannelInterface* const> interface() const {
     CHECK(is_new_style_proc());
     return interface_;
   }
@@ -284,9 +284,9 @@ class Proc : public FunctionBase {
   }
 
   // Add a channel definition to the proc.  Only can be called for new style
-  // procs. Returns a data structure holding pointers to the references to the
+  // procs. Returns a data structure holding pointers to the interfaces to the
   // two sides of the channel.
-  absl::StatusOr<ChannelReferences> AddChannel(
+  absl::StatusOr<ChannelWithInterfaces> AddChannel(
       std::unique_ptr<Channel> channel);
 
   // Returns the channel with the given name defined in the proc. Only can be
@@ -301,57 +301,57 @@ class Proc : public FunctionBase {
   bool ChannelIsOwnedByProc(Channel* channel);
 
   // Add input/output channels to the interface of the proc.
-  absl::StatusOr<ReceiveChannelReference*> AddInputChannel(
+  absl::StatusOr<ReceiveChannelInterface*> AddInputChannel(
       std::string_view name, Type* type, ChannelKind kind,
       std::optional<ChannelStrictness> strictness = std::nullopt);
-  absl::StatusOr<SendChannelReference*> AddOutputChannel(
+  absl::StatusOr<SendChannelInterface*> AddOutputChannel(
       std::string_view name, Type* type, ChannelKind kind,
       std::optional<ChannelStrictness> strictness = std::nullopt);
-  absl::StatusOr<ChannelReference*> AddInterfaceChannel(
+  absl::StatusOr<ChannelInterface*> AddInterfaceChannel(
       std::string_view name, ChannelDirection direction, Type* type,
       ChannelKind kind,
       std::optional<ChannelStrictness> strictness = std::nullopt);
 
-  // Remove a channel from the interface of the proc. ChannelReferences later
-  // than `channel_ref` in the interface are shifted down.
-  absl::Status RemoveInterfaceChannel(ChannelReference* channel_ref);
+  // Remove a channel from the interface of the proc. ChannelInterfaceslater
+  // than `channel_interface` in the interface are shifted down.
+  absl::Status RemoveChannelInterface(ChannelInterface* channel_interface);
 
-  // Returns true if the given ChannelReference refers to an element of the
+  // Returns true if the given ChannelInterface refers to an element on the
   // interface of the proc.
-  bool IsInterfaceChannel(ChannelReference* channel_ref);
+  bool IsOnProcInterface(ChannelInterface* channel_interface);
 
   // Add an input/output channel to the interface of the proc. Only can be
   // called for new style procs.
-  absl::StatusOr<ReceiveChannelReference*> AddInputChannelReference(
-      std::unique_ptr<ReceiveChannelReference> channel_ref);
-  absl::StatusOr<SendChannelReference*> AddOutputChannelReference(
-      std::unique_ptr<SendChannelReference> channel_ref);
-  absl::StatusOr<ChannelReference*> AddInterfaceChannelReference(
-      std::unique_ptr<ChannelReference> channel_ref);
+  absl::StatusOr<ReceiveChannelInterface*> AddInputChannelInterface(
+      std::unique_ptr<ReceiveChannelInterface> channel_interface);
+  absl::StatusOr<SendChannelInterface*> AddOutputChannelInterface(
+      std::unique_ptr<SendChannelInterface> channel_interface);
+  absl::StatusOr<ChannelInterface*> AddChannelInterface(
+      std::unique_ptr<ChannelInterface> channel_interface);
 
   // Create and add a proc instantiation to the proc.
   absl::StatusOr<ProcInstantiation*> AddProcInstantiation(
-      std::string_view name, absl::Span<ChannelReference* const> channel_args,
+      std::string_view name, absl::Span<ChannelInterface* const> channel_args,
       Proc* proc);
 
-  // Returns whether this proc has a channel reference of the given name. Only
+  // Returns whether this proc has a channel interface of the given name. Only
   // can be called for new style procs.
-  bool HasChannelReference(std::string_view name,
+  bool HasChannelInterface(std::string_view name,
                            ChannelDirection direction) const;
 
-  // Returns the (Send/Receive) channel reference with the given name.
-  absl::StatusOr<ChannelReference*> GetChannelReference(
+  // Returns the (Send/Receive) channel interface with the given name.
+  absl::StatusOr<ChannelInterface*> GetChannelInterface(
       std::string_view name, ChannelDirection direction) const;
-  absl::StatusOr<SendChannelReference*> GetSendChannelReference(
+  absl::StatusOr<SendChannelInterface*> GetSendChannelInterface(
       std::string_view name) const;
-  absl::StatusOr<ReceiveChannelReference*> GetReceiveChannelReference(
+  absl::StatusOr<ReceiveChannelInterface*> GetReceiveChannelInterface(
       std::string_view name) const;
 
-  // Returns all the channel references in the proc. This includes references to
-  // interface channels and declared channels.
-  absl::Span<const std::unique_ptr<ChannelReference>> channel_references()
+  // Returns all the channel interfaces in the proc. This includes interfaces on
+  // the interface of the proc and of channels declared in the proc.
+  absl::Span<const std::unique_ptr<ChannelInterface>> channel_interfaces()
       const {
-    return channel_references_;
+    return channel_interfaces_;
   }
 
   // Returns the list of instantiations of other procs in this proc.
@@ -389,12 +389,12 @@ class Proc : public FunctionBase {
   // this is a problem, a linked list might be used instead.
   std::vector<StateElement*> state_vec_;
 
-  // All channel references in this proc. Channel references can be part of the
-  // interface or the references of channels declared in this proc.
-  std::vector<std::unique_ptr<ChannelReference>> channel_references_;
+  // All channel interfaces in this proc. Channel interfacescan be part of the
+  // proc interface or for channels declared in this proc.
+  std::vector<std::unique_ptr<ChannelInterface>> channel_interfaces_;
 
-  // Channel references which form interface of the proc.
-  std::vector<ChannelReference*> interface_;
+  // Channel interfaces which form interface of the proc.
+  std::vector<ChannelInterface*> interface_;
 
   // Instantiations of other procs within this proc.
   std::vector<std::unique_ptr<ProcInstantiation>> proc_instantiations_;

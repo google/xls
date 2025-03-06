@@ -64,9 +64,9 @@ absl::StatusOr<Proc*> CreatePassThroughProc(std::string_view name,
                                             Proc* proc_to_instantiate,
                                             Package* package) {
   TokenlessProcBuilder pb(NewStyleProc(), name, "tkn", package);
-  std::vector<ChannelReference*> channels;
+  std::vector<ChannelInterface*> channels;
   for (int64_t i = 0; i < input_channel_count; ++i) {
-    XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref,
+    XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_ref,
                          pb.AddInputChannel(absl::StrFormat("pass_ch%d", i),
                                             package->GetBitsType(32)));
     channels.push_back(channel_ref);
@@ -87,12 +87,12 @@ absl::StatusOr<Proc*> CreateMultipleInstantiationProc(
                                            package->GetBitsType(32))
                             .status());
   }
-  std::vector<ChannelReference*> channels;
+  std::vector<ChannelInterface*> channels;
   for (int64_t i = 0; i < instantiated_channel_count; ++i) {
     XLS_ASSIGN_OR_RETURN(
-        ChannelReferences channel_refs,
+        ChannelWithInterfaces channel_refs,
         pb.AddChannel(absl::StrFormat("ch%d", i), package->GetBitsType(32)));
-    channels.push_back(channel_refs.receive_ref);
+    channels.push_back(channel_refs.receive_interface);
   }
   for (int64_t i = 0; i < procs_to_instantiate.size(); ++i) {
     XLS_RETURN_IF_ERROR(
@@ -159,12 +159,12 @@ TEST_F(ElaborationTest, ProcInstantiatingProc) {
       Proc * leaf_proc,
       CreateLeafProc("leaf", /*input_channel_count=*/2, p.get()));
   TokenlessProcBuilder pb(NewStyleProc(), "top_proc", "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelReference * in_ch,
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_ch,
                            pb.AddInputChannel("in_ch", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences the_channel_refs,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces the_channel_refs,
                            pb.AddChannel("the_ch", p->GetBitsType(32)));
-  XLS_ASSERT_OK(pb.InstantiateProc("leaf_inst", leaf_proc,
-                                   {the_channel_refs.receive_ref, in_ch}));
+  XLS_ASSERT_OK(pb.InstantiateProc(
+      "leaf_inst", leaf_proc, {the_channel_refs.receive_interface, in_ch}));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
@@ -220,9 +220,9 @@ TEST_F(ElaborationTest, ProcInstantiatingProcInstantiatedProcEtc) {
                                           proc0, p.get()));
 
   TokenlessProcBuilder pb(NewStyleProc(), "top_proc", "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelReference * in_ch0,
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_ch0,
                            pb.AddInputChannel("in_ch0", p->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelReference * in_ch1,
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_ch1,
                            pb.AddInputChannel("in_ch1", p->GetBitsType(32)));
   XLS_ASSERT_OK(pb.InstantiateProc("top_inst_1", proc1, {in_ch0, in_ch1}));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
@@ -294,17 +294,17 @@ TEST_F(ElaborationTest, MultipleInstantiations) {
   EXPECT_EQ(elab.GetInstances(middle_proc->channels()[1]).size(), 2);
 
   EXPECT_EQ(
-      elab.GetInstancesOfChannelReference(leaf_proc->interface()[0]).size(), 7);
+      elab.GetInstancesOfChannelInterface(leaf_proc->interface()[0]).size(), 7);
   EXPECT_EQ(
-      elab.GetInstancesOfChannelReference(leaf_proc->interface()[1]).size(), 7);
+      elab.GetInstancesOfChannelInterface(leaf_proc->interface()[1]).size(), 7);
 
-  EXPECT_EQ(elab.GetInstancesOfChannelReference(leaf_proc->interface()[0])[0]
+  EXPECT_EQ(elab.GetInstancesOfChannelInterface(leaf_proc->interface()[0])[0]
                 ->path->ToString(),
             "top_proc::top_proc_inst0->middle");
-  EXPECT_EQ(elab.GetInstancesOfChannelReference(leaf_proc->interface()[0])[1]
+  EXPECT_EQ(elab.GetInstancesOfChannelInterface(leaf_proc->interface()[0])[1]
                 ->path->ToString(),
             "top_proc::top_proc_inst0->middle");
-  EXPECT_EQ(elab.GetInstancesOfChannelReference(leaf_proc->interface()[0])[6]
+  EXPECT_EQ(elab.GetInstancesOfChannelInterface(leaf_proc->interface()[0])[6]
                 ->path->ToString(),
             "top_proc");
 

@@ -606,9 +606,9 @@ bool IsProvenMutuallyExclusiveChannel(ChannelRef channel_ref) {
                ChannelStrictness::kProvenMutuallyExclusive;
   }
 
-  CHECK(std::holds_alternative<ChannelReference*>(channel_ref));
-  ChannelReference* channel_reference =
-      std::get<ChannelReference*>(channel_ref);
+  CHECK(std::holds_alternative<ChannelInterface*>(channel_ref));
+  ChannelInterface* channel_reference =
+      std::get<ChannelInterface*>(channel_ref);
   return channel_reference->kind() == ChannelKind::kStreaming &&
          channel_reference->strictness() ==
              ChannelStrictness::kProvenMutuallyExclusive;
@@ -619,8 +619,8 @@ std::string_view GetChannelName(ChannelRef channel_ref) {
     return std::get<Channel*>(channel_ref)->name();
   }
 
-  CHECK(std::holds_alternative<ChannelReference*>(channel_ref));
-  return std::get<ChannelReference*>(channel_ref)->name();
+  CHECK(std::holds_alternative<ChannelInterface*>(channel_ref));
+  return std::get<ChannelInterface*>(channel_ref)->name();
 }
 
 absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,

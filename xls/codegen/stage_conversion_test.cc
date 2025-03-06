@@ -138,12 +138,12 @@ TEST_P(SweepPipelineStagesFixture, TrivialPipelinedFunction) {
                            metadata.GetTopProcMetadata(f));
   Proc* top_proc = top_metadata->proc();
 
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelReference * ch_x,
-                           top_proc->GetReceiveChannelReference("x"));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelReference * ch_y,
-                           top_proc->GetReceiveChannelReference("y"));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelReference * ch_out,
-                           top_proc->GetSendChannelReference("out"));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInterface * ch_x,
+                           top_proc->GetReceiveChannelInterface("x"));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInterface * ch_y,
+                           top_proc->GetReceiveChannelInterface("y"));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInterface * ch_out,
+                           top_proc->GetSendChannelInterface("out"));
 
   // Assert that the same channels can be retreived from the metadata.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -159,9 +159,9 @@ TEST_P(SweepPipelineStagesFixture, TrivialPipelinedFunction) {
       top_metadata->FindSpecialUseMetadata(
           f->return_value(), SpecialUseMetadata::Purpose::kExternalOutput));
 
-  ASSERT_EQ(ch_x, x_metadata[0]->GetReceiveChannelReference());
-  ASSERT_EQ(ch_y, y_metadata[0]->GetReceiveChannelReference());
-  ASSERT_EQ(ch_out, out_metadata[0]->GetSendChannelReference());
+  ASSERT_EQ(ch_x, x_metadata[0]->GetReceiveChannelInterface());
+  ASSERT_EQ(ch_y, y_metadata[0]->GetReceiveChannelInterface());
+  ASSERT_EQ(ch_out, out_metadata[0]->GetSendChannelInterface());
 
   // Run a few values through the pipeline and verify the output.
   std::unique_ptr<ProcRuntime> runtime =
@@ -170,11 +170,11 @@ TEST_P(SweepPipelineStagesFixture, TrivialPipelinedFunction) {
   const ProcElaboration& elaboration = queue_manager.elaboration();
 
   ChannelInstance* ch_x_instance =
-      elaboration.GetInstancesOfChannelReference(ch_x).at(0);
+      elaboration.GetInstancesOfChannelInterface(ch_x).at(0);
   ChannelInstance* ch_y_instance =
-      elaboration.GetInstancesOfChannelReference(ch_y).at(0);
+      elaboration.GetInstancesOfChannelInterface(ch_y).at(0);
   ChannelInstance* ch_out_instance =
-      elaboration.GetInstancesOfChannelReference(ch_out).at(0);
+      elaboration.GetInstancesOfChannelInterface(ch_out).at(0);
 
   ChannelQueue& x_queue = queue_manager.GetQueue(ch_x_instance);
   ChannelQueue& y_queue = queue_manager.GetQueue(ch_y_instance);

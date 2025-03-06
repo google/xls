@@ -378,11 +378,11 @@ TEST(IrMatchersTest, ProcScopedChannels) {
   ProcBuilder b(NewStyleProc(), "test_proc", &p);
   auto my_token = b.StateElement("my_token", Value::Token());
   auto state = b.StateElement("my_state", Value(UBits(333, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences ch42,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces ch42,
                            b.AddChannel("ch42", p.GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(SendChannelReference * ch123,
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * ch123,
                            b.AddOutputChannel("ch123", p.GetBitsType(32)));
-  auto send = b.Send(ch42.send_ref, my_token, state);
+  auto send = b.Send(ch42.send_interface, my_token, state);
   auto send_if = b.SendIf(ch123, my_token, b.Literal(UBits(1, 1)), {state});
   XLS_ASSERT_OK(b.Build({b.AfterAll({send, send_if}), state}).status());
 

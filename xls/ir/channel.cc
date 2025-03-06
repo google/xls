@@ -309,33 +309,33 @@ std::ostream& operator<<(std::ostream& os, ChannelDirection direction) {
 }
 
 ChannelRef AsChannelRef(SendChannelRef ref) {
-  if (std::holds_alternative<SendChannelReference*>(ref)) {
-    return std::get<SendChannelReference*>(ref);
+  if (std::holds_alternative<SendChannelInterface*>(ref)) {
+    return std::get<SendChannelInterface*>(ref);
   }
   return std::get<Channel*>(ref);
 }
 
 ChannelRef AsChannelRef(ReceiveChannelRef ref) {
-  if (std::holds_alternative<ReceiveChannelReference*>(ref)) {
-    return std::get<ReceiveChannelReference*>(ref);
+  if (std::holds_alternative<ReceiveChannelInterface*>(ref)) {
+    return std::get<ReceiveChannelInterface*>(ref);
   }
   return std::get<Channel*>(ref);
 }
 
 SendChannelRef AsSendChannelRefOrDie(ChannelRef ref) {
-  if (std::holds_alternative<ChannelReference*>(ref)) {
-    ChannelReference* cref = std::get<ChannelReference*>(ref);
+  if (std::holds_alternative<ChannelInterface*>(ref)) {
+    ChannelInterface* cref = std::get<ChannelInterface*>(ref);
     CHECK_EQ(cref->direction(), ChannelDirection::kSend);
-    return down_cast<SendChannelReference*>(cref);
+    return down_cast<SendChannelInterface*>(cref);
   }
   return std::get<Channel*>(ref);
 }
 
 ReceiveChannelRef AsReceiveChannelRefOrDie(ChannelRef ref) {
-  if (std::holds_alternative<ChannelReference*>(ref)) {
-    ChannelReference* cref = std::get<ChannelReference*>(ref);
+  if (std::holds_alternative<ChannelInterface*>(ref)) {
+    ChannelInterface* cref = std::get<ChannelInterface*>(ref);
     CHECK_EQ(cref->direction(), ChannelDirection::kReceive);
-    return down_cast<ReceiveChannelReference*>(cref);
+    return down_cast<ReceiveChannelInterface*>(cref);
   }
   return std::get<Channel*>(ref);
 }
@@ -345,22 +345,22 @@ std::string_view ChannelRefName(ChannelRef ref) {
 }
 
 Type* ChannelRefType(ChannelRef ref) {
-  if (std::holds_alternative<ChannelReference*>(ref)) {
-    return std::get<ChannelReference*>(ref)->type();
+  if (std::holds_alternative<ChannelInterface*>(ref)) {
+    return std::get<ChannelInterface*>(ref)->type();
   }
   return std::get<Channel*>(ref)->type();
 }
 
 ChannelKind ChannelRefKind(ChannelRef ref) {
-  if (std::holds_alternative<ChannelReference*>(ref)) {
-    return std::get<ChannelReference*>(ref)->kind();
+  if (std::holds_alternative<ChannelInterface*>(ref)) {
+    return std::get<ChannelInterface*>(ref)->kind();
   }
   return std::get<Channel*>(ref)->kind();
 }
 
 std::optional<ChannelStrictness> ChannelRefStrictness(ChannelRef ref) {
-  if (std::holds_alternative<ChannelReference*>(ref)) {
-    return std::get<ChannelReference*>(ref)->strictness();
+  if (std::holds_alternative<ChannelInterface*>(ref)) {
+    return std::get<ChannelInterface*>(ref)->strictness();
   }
   if (auto streaming_channel =
           down_cast<StreamingChannel*>(std::get<Channel*>(ref))) {
@@ -369,7 +369,7 @@ std::optional<ChannelStrictness> ChannelRefStrictness(ChannelRef ref) {
   return std::nullopt;
 }
 
-std::string ChannelReference::ToString() const {
+std::string ChannelInterface::ToString() const {
   std::vector<std::string> keyword_strs;
   keyword_strs.push_back(
       absl::StrFormat("kind=%s", ChannelKindToString(kind())));
@@ -383,8 +383,8 @@ std::string ChannelReference::ToString() const {
 }
 
 std::string ChannelRefToString(ChannelRef ref) {
-  if (std::holds_alternative<ChannelReference*>(ref)) {
-    return std::get<ChannelReference*>(ref)->ToString();
+  if (std::holds_alternative<ChannelInterface*>(ref)) {
+    return std::get<ChannelInterface*>(ref)->ToString();
   }
   return std::get<Channel*>(ref)->ToString();
 }
