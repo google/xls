@@ -211,11 +211,6 @@ cc_library(
     ],
     deps = [
         ":assembly_format",
-        ":interfaces_inc_gen",
-        ":xls_ops_attrs_inc_gen",
-        ":xls_ops_enums_inc_gen",
-        ":xls_ops_inc_gen",
-        ":xls_ops_typedefs_inc_gen",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:CallOpInterfaces",
         "@llvm-project//mlir:FuncDialect",
