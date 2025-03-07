@@ -169,10 +169,7 @@ class FifoModel {
             absl::StrCat(instance_prefix_, kOutputValidRegisterName)),
         reg_state_(reg_state),
         next_reg_state_(next_reg_state) {
-    if (config_.depth() == 0) {
-      CHECK(config_.bypass() && !config_.register_pop_outputs() &&
-            !config_.register_push_outputs());
-    }
+    CHECK_OK(config.Validate());
   }
 
   absl::Status HandleInput(InstantiationInput* input, const Value& value) {

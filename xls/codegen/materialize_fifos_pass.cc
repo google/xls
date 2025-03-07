@@ -282,11 +282,7 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
       if (i->kind() == InstantiationKind::kFifo) {
         XLS_ASSIGN_OR_RETURN(FifoInstantiation * fifo,
                              i->AsFifoInstantiation());
-        if (fifo->fifo_config().depth() == 1 &&
-            fifo->fifo_config().register_pop_outputs()) {
-          return absl::InvalidArgumentError(
-              "Cannot materialize fifo with register_pop_outputs and depth 1.");
-        }
+        XLS_RETURN_IF_ERROR(fifo->fifo_config().Validate());
         insts.push_back(fifo);
       }
     }

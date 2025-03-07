@@ -4905,7 +4905,7 @@ TEST_F(ProcInliningPassTest, ProcWithNonblockingReceivesWithPassthrough) {
   constexpr std::string_view ir_text = R"(package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
-chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=$0, bypass=$1, register_push_outputs=$2, register_pop_outputs=$2)
+chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=$0, bypass=$1, register_push_outputs=$2, register_pop_outputs=$3)
 chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc foo(count: bits[32], init={0}) {
@@ -4935,39 +4935,59 @@ proc output_passthrough(state:(), init={()}) {
 }
   )";
 
-  for (int64_t fifo_depth : {0, 1}) {
-    LOG(INFO) << "fifo_depth: " << fifo_depth << "\n";
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::unique_ptr<Package> p,
-        ParsePackage(absl::Substitute(ir_text, fifo_depth, fifo_depth == 0,
-                                      fifo_depth != 0)));
-    EXPECT_THAT(
-        p->GetFunctionBases(),
-        UnorderedElementsAre(m::Proc("foo"), m::Proc("output_passthrough")));
+  for (int64_t fifo_depth : {0, 1, 4}) {
+    for (bool bypass : {true, false}) {
+      for (bool register_push_outputs : {true, false}) {
+        for (bool register_pop_outputs : {true, false}) {
+          FifoConfig config = FifoConfig(
+              fifo_depth, bypass, register_push_outputs, register_pop_outputs);
+          if (!config.Validate().ok()) {
+            continue;
+          }
 
-    XLS_ASSERT_OK(
-        EvalAndExpect(p.get(), {{"in", {5, 10}}},
-                      {{"out",
-                        {5, 1000, 1000, 1000, 1000, 1000, 10, 1000, 1000, 1000,
-                         1000, 1000, 1000, 1000, 1000, 1000, 1000}}})
-            .status());
+          LOG(INFO) << "fifo_depth: " << fifo_depth << " ";
+          LOG(INFO) << "bypass: " << (bypass ? "on" : "off") << " ";
+          LOG(INFO) << "register_push_outputs: "
+                    << (register_push_outputs ? "on" : "off") << " ";
+          LOG(INFO) << "register_pop_outputs: "
+                    << (register_pop_outputs ? "on" : "off") << "\n";
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        (auto [changed, unit]),
-        RunBlockStitchingPass(p.get(), /*top_name=*/"foo"));
-    EXPECT_TRUE(changed);
-    EXPECT_THAT(p->blocks(),
-                UnorderedElementsAre(m::Block("foo"), m::Block("foo__1"),
-                                     m::Block("output_passthrough")));
-    XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("foo"));
-    EXPECT_THAT(
-        EvalBlock(top_block, unit.metadata, {{"in", {5, 10}}}),
-        IsOkAndHolds(BlockOutputsMatch(UnorderedElementsAre(
-            // Latency sensitivity means we don't necessarily get the same
-            // output order, but we should see 5 and 10 once each and all other
-            // elements should be 1000.
-            Pair(Eq("out"), AllOf(Contains(5).Times(1), Contains(10).Times(1),
-                                  Each(AnyOf(Eq(5), Eq(10), Eq(1000)))))))));
+          XLS_ASSERT_OK_AND_ASSIGN(
+              std::unique_ptr<Package> p,
+              ParsePackage(absl::Substitute(ir_text, fifo_depth, bypass,
+                                            register_push_outputs,
+                                            register_pop_outputs)));
+          EXPECT_THAT(p->GetFunctionBases(),
+                      UnorderedElementsAre(m::Proc("foo"),
+                                           m::Proc("output_passthrough")));
+
+          XLS_ASSERT_OK(EvalAndExpect(p.get(), {{"in", {5, 10}}},
+                                      {{"out",
+                                        {5, 1000, 1000, 1000, 1000, 1000, 10,
+                                         1000, 1000, 1000, 1000, 1000, 1000,
+                                         1000, 1000, 1000, 1000}}})
+                            .status());
+
+          XLS_ASSERT_OK_AND_ASSIGN(
+              (auto [changed, unit]),
+              RunBlockStitchingPass(p.get(), /*top_name=*/"foo"));
+          EXPECT_TRUE(changed);
+          EXPECT_THAT(p->blocks(),
+                      UnorderedElementsAre(m::Block("foo"), m::Block("foo__1"),
+                                           m::Block("output_passthrough")));
+          XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("foo"));
+          EXPECT_THAT(
+              EvalBlock(top_block, unit.metadata, {{"in", {5, 10}}}),
+              IsOkAndHolds(BlockOutputsMatch(UnorderedElementsAre(
+                  // Latency sensitivity means we don't necessarily get the same
+                  // output order, but we should see 5 and 10 once each and all
+                  // other elements should be 1000.
+                  Pair(Eq("out"),
+                       AllOf(Contains(5).Times(1), Contains(10).Times(1),
+                             Each(AnyOf(Eq(5), Eq(10), Eq(1000)))))))));
+        }
+      }
+    }
   }
 }
 
@@ -5148,7 +5168,7 @@ TEST_F(ProcInliningPassTest, NestedProcsUsingEmptyAfterAll) {
 
 chan data_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 chan data_out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
-chan from_inner_proc(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=1, bypass=true, register_push_outputs=false, register_pop_outputs=true)
+chan from_inner_proc(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=1, bypass=true, register_push_outputs=false, register_pop_outputs=false)
 
 top proc foo(__state: (), init={()}) {
   tok: token = after_all(id=5)
