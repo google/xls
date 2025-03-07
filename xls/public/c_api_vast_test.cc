@@ -590,3 +590,79 @@ endmodule
 )";
   EXPECT_EQ(std::string_view{emitted}, kWant);
 }
+
+// Tests for conversion of VAST constructs to expressions, e.g. for use in a
+// concatenation.
+TEST(XlsCApiTest, VastExpressions) {
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "my_module");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, /*is_signed=*/false);
+
+  // Make a continuous assignment for a concat expression as the RHS.
+  xls_vast_logic_ref* input_ref =
+      xls_vast_verilog_module_add_input(m, "input", u8);
+  ASSERT_NE(input_ref, nullptr);
+
+  xls_vast_logic_ref* output_ref =
+      xls_vast_verilog_module_add_output(m, "output", u8);
+  ASSERT_NE(output_ref, nullptr);
+
+  // Create a concat expression -- use an index and a slice as the concatenated
+  // elements.
+  xls_vast_index* index = xls_vast_verilog_file_make_index_i64(
+      f, xls_vast_logic_ref_as_indexable_expression(input_ref), 0);
+  ASSERT_NE(index, nullptr);
+
+  // Now convert the index to an expression.
+  xls_vast_expression* index_expr = xls_vast_index_as_expression(index);
+  ASSERT_NE(index_expr, nullptr);
+
+  xls_vast_slice* slice = xls_vast_verilog_file_make_slice(
+      f, /*subject=*/xls_vast_logic_ref_as_indexable_expression(input_ref),
+      /*hi=*/
+      xls_vast_literal_as_expression(
+          xls_vast_verilog_file_make_plain_literal(f, 7)),
+      /*lo=*/
+      xls_vast_literal_as_expression(
+          xls_vast_verilog_file_make_plain_literal(f, 0)));
+  ASSERT_NE(slice, nullptr);
+
+  // Now convert the slice to an expression.
+  xls_vast_expression* slice_expr = xls_vast_slice_as_expression(slice);
+  ASSERT_NE(slice_expr, nullptr);
+
+  xls_vast_expression* concat_elements[2] = {index_expr, slice_expr};
+  xls_vast_concat* concat =
+      xls_vast_verilog_file_make_concat(f, concat_elements, 2);
+  ASSERT_NE(concat, nullptr);
+
+  // Now convert the concat to an expression.
+  xls_vast_expression* concat_expr = xls_vast_concat_as_expression(concat);
+  ASSERT_NE(concat_expr, nullptr);
+
+  // Create a continuous assignment.
+  xls_vast_continuous_assignment* assignment =
+      xls_vast_verilog_file_make_continuous_assignment(
+          f, xls_vast_logic_ref_as_expression(output_ref), concat_expr);
+  ASSERT_NE(assignment, nullptr);
+  xls_vast_verilog_module_add_member_continuous_assignment(m, assignment);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  const std::string_view kWant = R"(module my_module(
+  input wire [7:0] input,
+  output wire [7:0] output
+);
+  assign output = {input[0], input[7:0]};
+endmodule
+)";
+  EXPECT_EQ(std::string_view{emitted}, kWant);
+}

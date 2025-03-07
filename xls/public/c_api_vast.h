@@ -208,6 +208,8 @@ struct xls_vast_expression* xls_vast_slice_as_expression(
     struct xls_vast_slice* v);
 struct xls_vast_expression* xls_vast_concat_as_expression(
     struct xls_vast_concat* v);
+struct xls_vast_expression* xls_vast_index_as_expression(
+    struct xls_vast_index* v);
 
 struct xls_vast_indexable_expression*
 xls_vast_logic_ref_as_indexable_expression(

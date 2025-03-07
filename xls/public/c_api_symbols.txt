@@ -153,6 +153,7 @@ xls_value_make_ubits
 xls_value_to_string
 xls_value_to_string_format_preference
 xls_vast_concat_as_expression
+xls_vast_index_as_expression
 xls_vast_index_as_indexable_expression
 xls_vast_literal_as_expression
 xls_vast_logic_ref_as_expression
