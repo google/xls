@@ -46,6 +46,8 @@
 namespace xls::dslx {
 namespace {
 
+// TODO: erinzmoore - Use `GetEffectiveTable()` for inference table usage
+// throughout.
 class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
  public:
   TypeAnnotationResolverImpl(
@@ -113,8 +115,10 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     TypeSystemTrace trace = tracer_.TraceUnify(type_variable);
     VLOG(6) << "Unifying type annotations for variable "
             << type_variable->ToString();
+    InferenceTable& effective_table =
+        GetEffectiveTable(table_, parametric_context);
     XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
-                         table_.GetTypeAnnotationsForTypeVariable(
+                         effective_table.GetTypeAnnotationsForTypeVariable(
                              parametric_context, type_variable));
     if (accept_predicate.has_value()) {
       FilterAnnotations(annotations, *accept_predicate);

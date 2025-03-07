@@ -62,12 +62,9 @@ class InferenceTableTest : public ::testing::Test {
   }
 
   absl::StatusOr<TypeInfo*> ConvertTableToTypeInfo() {
-    std::unique_ptr<Module> empty =
-        std::make_unique<Module>("test", /*fs_path=*/std::nullopt, file_table_);
-    XLS_ASSIGN_OR_RETURN(
-        TypeInfo * ti, InferenceTableToTypeInfo(
-                           *table_, *module_, *import_data_,
-                           *warning_collector_, file_table_, std::move(empty)));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, InferenceTableToTypeInfo(
+                                            *table_, *module_, *import_data_,
+                                            *warning_collector_, file_table_));
     return ti;
   }
 
@@ -219,12 +216,14 @@ TEST_F(InferenceTableTest, ParametricVariable) {
       const ParametricContext* parametric_context1,
       table_->AddParametricInvocation(*invocation1, *foo, bar,
                                       /*caller_invocation=*/std::nullopt,
-                                      /*self_type=*/std::nullopt));
+                                      /*self_type=*/std::nullopt,
+                                      /* callee_table=*/std::nullopt));
   XLS_ASSERT_OK_AND_ASSIGN(
       const ParametricContext* parametric_context2,
       table_->AddParametricInvocation(*invocation2, *foo, bar,
                                       /*caller_invocation=*/std::nullopt,
-                                      /*self_type=*/std::nullopt));
+                                      /*self_type=*/std::nullopt,
+                                      /* callee_table=*/std::nullopt));
 
   EXPECT_THAT(table_->GetParametricInvocations(),
               ElementsAre(parametric_context1, parametric_context2));
@@ -280,12 +279,14 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
       const ParametricContext* parametric_context1,
       table_->AddParametricInvocation(*invocation1, *foo, bar,
                                       /*caller_invocation=*/std::nullopt,
-                                      /*self_type=*/std::nullopt));
+                                      /*self_type=*/std::nullopt,
+                                      /* callee_table=*/std::nullopt));
   XLS_ASSERT_OK_AND_ASSIGN(
       const ParametricContext* parametric_context2,
       table_->AddParametricInvocation(*invocation2, *foo, bar,
                                       /*caller_invocation=*/std::nullopt,
-                                      /*self_type=*/std::nullopt));
+                                      /*self_type=*/std::nullopt,
+                                      /* callee_table=*/std::nullopt));
 
   EXPECT_THAT(table_->GetParametricInvocations(),
               ElementsAre(parametric_context1, parametric_context2));
@@ -357,7 +358,8 @@ TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
       const ParametricContext* parametric_context,
       table_->AddParametricInvocation(*invocation, *foo, bar,
                                       /*caller_invocation=*/std::nullopt,
-                                      /*self_type=*/std::nullopt));
+                                      /*self_type=*/std::nullopt,
+                                      /* callee_table=*/std::nullopt));
 
   std::optional<ParametricContextScopedExpr> parametric_inv_m_value =
       table_->GetParametricValue(*m, *parametric_context);

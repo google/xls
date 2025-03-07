@@ -46,10 +46,14 @@ namespace xls::dslx {
 // The kinds of variables that can be defined in an `InferenceTable`.
 enum class InferenceVariableKind : uint8_t { kInteger, kBool, kType };
 
+// Forward declaration.
+class InferenceTable;
+
 // The details for a `ParametricContext` that is for an invocation.
 struct ParametricInvocationDetails {
   const Function* callee;
   std::optional<const Function*> caller;
+  InferenceTable* callee_table;
 };
 
 // The details for a `ParametricContext` that is for a struct.
@@ -266,7 +270,8 @@ class InferenceTable {
       const Invocation& invocation, const Function& callee,
       std::optional<const Function*> caller,
       std::optional<const ParametricContext*> parent_context,
-      std::optional<const TypeAnnotation*> self_type) = 0;
+      std::optional<const TypeAnnotation*> self_type,
+      std::optional<InferenceTable*> callee_table) = 0;
 
   // Retrieves all the parametric invocations that have been defined.
   virtual std::vector<const ParametricContext*> GetParametricInvocations()
@@ -379,6 +384,11 @@ absl::StatusOr<Number*> MakeTypeCheckedNumber(
 absl::StatusOr<Number*> MakeTypeCheckedNumber(
     Module& module, InferenceTable& table, const Span& span, int64_t value,
     const TypeAnnotation* type_annotation);
+
+// Helper to identify the appropriate table to use in the case of a parametric
+// invocation.
+InferenceTable& GetEffectiveTable(InferenceTable& base_table,
+                                  std::optional<const ParametricContext*>);
 
 }  // namespace xls::dslx
 

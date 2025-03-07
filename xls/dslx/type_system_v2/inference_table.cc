@@ -212,13 +212,21 @@ class InferenceTableImpl : public InferenceTable {
       const Invocation& node, const Function& callee,
       std::optional<const Function*> caller,
       std::optional<const ParametricContext*> parent_context,
-      std::optional<const TypeAnnotation*> self_type) override {
+      std::optional<const TypeAnnotation*> self_type,
+      std::optional<InferenceTable*> callee_table) override {
     VLOG(5) << "Add parametric invocation: " << node.ToString()
             << " from parent context: "
             << ::xls::dslx::ToString(parent_context);
+    if (module_.name() != callee.owner()->name()) {
+      CHECK(callee_table.has_value());
+      return (*callee_table)
+          ->AddParametricInvocation(node, callee, caller, parent_context,
+                                    self_type, std::nullopt);
+    }
+    InferenceTable* ctable = this;
     auto context = std::make_unique<ParametricContext>(
         parametric_contexts_.size(), &node,
-        ParametricInvocationDetails{&callee, caller}, parent_context,
+        ParametricInvocationDetails{&callee, caller, ctable}, parent_context,
         self_type);
     const std::vector<ParametricBinding*>& bindings =
         callee.parametric_bindings();
@@ -651,6 +659,19 @@ absl::StatusOr<Number*> MakeTypeCheckedNumber(
     const TypeAnnotation* type_annotation) {
   return MakeTypeCheckedNumber(module, table, span, InterpValue::MakeS64(value),
                                type_annotation);
+}
+
+InferenceTable& GetEffectiveTable(
+    InferenceTable& base_table,
+    std::optional<const ParametricContext*> parametric_context) {
+  if (parametric_context.has_value() &&
+      std::holds_alternative<ParametricInvocationDetails>(
+          (*parametric_context)->details())) {
+    auto details =
+        std::get<ParametricInvocationDetails>((*parametric_context)->details());
+    return *details.callee_table;
+  }
+  return base_table;
 }
 
 }  // namespace xls::dslx

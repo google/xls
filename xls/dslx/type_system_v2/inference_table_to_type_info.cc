@@ -45,6 +45,7 @@
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -202,12 +203,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                     public Evaluator,
                                     public ParametricStructInstantiator {
  public:
-  InferenceTableConverterImpl(
-      InferenceTable& table, Module& module, ImportData& import_data,
-      WarningCollector& warning_collector, TypeInfo* base_type_info,
-      const FileTable& file_table, TypeSystemTracer& tracer,
-      std::optional<std::unique_ptr<InferenceTableConverter>>
-          builtins_converter)
+  InferenceTableConverterImpl(InferenceTable& table, Module& module,
+                              ImportData& import_data,
+                              WarningCollector& warning_collector,
+                              TypeInfo* base_type_info,
+                              const FileTable& file_table,
+                              TypeSystemTracer& tracer)
       : table_(table),
         module_(module),
         import_data_(import_data),
@@ -218,16 +219,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         resolver_(TypeAnnotationResolver::Create(
             module, table, file_table,
             /*error_generator=*/*this, /*evaluator=*/*this,
-            /*parametric_struct_instantiator=*/*this, tracer_)),
-        builtins_converter_(std::move(builtins_converter)) {}
+            /*parametric_struct_instantiator=*/*this, tracer_)) {}
+
+  static absl::StatusOr<InferenceTableConverter*> FromImportData(
+      ImportData& import_data, std::string module_name,
+      WarningCollector& warning_collector) {
+    XLS_ASSIGN_OR_RETURN(ImportTokens import_tokens,
+                         ImportTokens::FromString(module_name));
+    XLS_ASSIGN_OR_RETURN(ModuleInfo * info, import_data.Get(import_tokens));
+    std::optional<InferenceTableConverter*> inference_table_converter =
+        info->inference_table_converter();
+    CHECK(inference_table_converter.has_value());
+    return *inference_table_converter;
+  }
 
   bool IsBuiltin(const Function* node) override {
-    // It's a builtin if we're the builtin converter and it's in the builtin
-    // module.
-    if (builtins_converter_.has_value()) {
-      return (*builtins_converter_)->IsBuiltin(node);
-    }
-    return module_.GetFunction(node->identifier()).has_value();
+    return node->owner()->name() == kBuiltinStubsModuleName;
   }
 
   absl::Status ConvertSubtree(
@@ -252,12 +259,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return absl::OkStatus();
     }
     if (node->owner()->name() != module_.name()) {
-      // use the other one ?
-      VLOG(5) << "Wrong module in ConvertSubtree; delegating to builtins "
-                 "converter";
-      return (*builtins_converter_)
-          ->ConvertSubtree(node, function, parametric_context,
-                           filter_param_type_annotations);
+      VLOG(5) << "Wrong module in ConvertSubtree; delegating to converter for  "
+              << node->owner()->name();
+      XLS_ASSIGN_OR_RETURN(
+          InferenceTableConverter * converter,
+          InferenceTableConverterImpl::FromImportData(
+              import_data_, node->owner()->name(), warning_collector_));
+      return converter->ConvertSubtree(node, function, parametric_context,
+                                       filter_param_type_annotations);
     }
     ConversionOrderVisitor visitor(
         parametric_context.has_value() &&
@@ -440,6 +449,17 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     // The parametric invocation now gets its own data structure set up in both
     // the `InferenceTable` and the `TypeInfo` hierarchy.
+
+    // If the callee is in a different table, use that table to add the
+    // parametric invocation.
+    std::optional<InferenceTable*> callee_table = std::nullopt;
+    if (function->owner()->name() != module_.name()) {
+      XLS_ASSIGN_OR_RETURN(ImportTokens tokens,
+                           ImportTokens::FromString(function->owner()->name()));
+      XLS_ASSIGN_OR_RETURN(ModuleInfo * info, import_data_.Get(tokens));
+      callee_table = info->inference_table();
+    }
+
     XLS_ASSIGN_OR_RETURN(
         const ParametricContext* invocation_context,
         table_.AddParametricInvocation(
@@ -447,7 +467,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             function_and_target_object.target_struct_context.has_value()
                 ? (*function_and_target_object.target_struct_context)
                       ->self_type()
-                : std::nullopt));
+                : std::nullopt,
+            callee_table));
     XLS_ASSIGN_OR_RETURN(
         TypeInfo * invocation_type_info,
         import_data_.type_info_owner().New(
@@ -807,7 +828,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   }
 
   // Returns the resulting base type info for the entire conversion.
-  TypeInfo* GetBaseTypeInfo() { return base_type_info_; }
+  TypeInfo* GetBaseTypeInfo() override { return base_type_info_; }
 
  private:
   // Converts the given type annotation to a concrete `Type`, either statically
@@ -1247,11 +1268,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         function_node = def->definer();
       } else if (std::holds_alternative<BuiltinNameDef*>(
                      name_ref->name_def())) {
-        if (builtins_converter_.has_value()) {
-          // Delegate to builtins converter.
+        if (module_.name() != kBuiltinStubsModuleName) {
           VLOG(5) << "ResolveFunction of builtin; delegating";
-          return (*builtins_converter_)
-              ->ResolveFunction(callee, caller_function, caller_context);
+          XLS_ASSIGN_OR_RETURN(
+              InferenceTableConverter * builtins_converter,
+              InferenceTableConverterImpl::FromImportData(
+                  import_data_, std::string(kBuiltinStubsModuleName),
+                  warning_collector_));
+          // Delegate to builtins converter.
+          return builtins_converter->ResolveFunction(callee, caller_function,
+                                                     caller_context);
         }
         // Look it up in our module
         BuiltinNameDef* def = std::get<BuiltinNameDef*>(name_ref->name_def());
@@ -1352,6 +1378,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return absl::OkStatus();
     };
 
+    InferenceTable& effective_table =
+        GetEffectiveTable(table_, invocation_context);
     for (int i = 0; i < invocation_context->parametric_bindings().size(); i++) {
       const ParametricBinding* binding =
           invocation_context->parametric_bindings()[i];
@@ -1365,14 +1393,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         const NameRef* name_ref = module_.Make<NameRef>(
             module_.span(), binding->identifier(), binding->name_def());
         XLS_RETURN_IF_ERROR(
-            table_.AddTypeAnnotationToVariableForParametricContext(
+            effective_table.AddTypeAnnotationToVariableForParametricContext(
                 invocation_context, name_ref,
                 std::get<TypeAnnotation*>(actual_parametric_type)));
         continue;
       }
 
       std::optional<ParametricContextScopedExpr> expr =
-          table_.GetParametricValue(*binding->name_def(), *invocation_context);
+          effective_table.GetParametricValue(*binding->name_def(),
+                                             *invocation_context);
       if (expr.has_value()) {
         // The expr may be a default expr which may use the inferred values of
         // any parametrics preceding it, so let's resolve any pending implicit
@@ -1399,8 +1428,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const ParametricBinding* binding = bindings.at(name);
       XLS_ASSIGN_OR_RETURN(
           Number * value_expr,
-          MakeTypeCheckedNumber(module_, table_, binding->span(), value,
-                                binding->type_annotation()));
+          MakeTypeCheckedNumber(module_, effective_table, binding->span(),
+                                value, binding->type_annotation()));
       actual_parametrics.emplace(binding->name_def(), value_expr);
     }
     if (callee_struct_context.has_value()) {
@@ -1551,8 +1580,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         // InterpValue. Instead, assign the formal type the actual arg type in
         // the target context.
         CHECK(target_context.has_value());
+        InferenceTable& effective_table =
+            GetEffectiveTable(table_, target_context);
         XLS_RETURN_IF_ERROR(
-            table_.AddTypeAnnotationToVariableForParametricContext(
+            effective_table.AddTypeAnnotationToVariableForParametricContext(
                 target_context, tvta->type_variable(), actual_arg_type));
         implicit_parametrics.erase(
             bindings.at(tvta->type_variable()->identifier()));
@@ -1936,7 +1967,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::flat_hash_map<const ParametricContext*,
                       absl::flat_hash_map<const NameDef*, ExprOrType>>
       parametric_value_exprs_;
-  std::optional<std::unique_ptr<InferenceTableConverter>> builtins_converter_;
   absl::flat_hash_map<std::optional<const ParametricContext*>,
                       absl::flat_hash_set<const AstNode*>>
       converted_subtrees_;
@@ -1944,40 +1974,36 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
 }  // namespace
 
+std::unique_ptr<InferenceTableConverter> CreateInferenceTableConverter(
+    InferenceTable& table, Module& module, ImportData& import_data,
+    WarningCollector& warning_collector, TypeInfo* type_info,
+    const FileTable& file_table, TypeSystemTracer& tracer) {
+  return std::make_unique<InferenceTableConverterImpl>(
+      table, module, import_data, warning_collector, type_info, file_table,
+      tracer);
+}
+
 absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
     InferenceTable& table, Module& module, ImportData& import_data,
-    WarningCollector& warning_collector, const FileTable& file_table,
-    std::unique_ptr<Module> builtins_module) {
+    WarningCollector& warning_collector, const FileTable& file_table) {
   VLOG(1) << "InferenceTableToTypeInfo: module " << &module;
   VLOG(5) << "Inference table before conversion:";
   VLOG(5) << table.ToString();
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * base_type_info,
                        import_data.type_info_owner().New(&module));
-  XLS_ASSIGN_OR_RETURN(
-      TypeInfo * builtins_type_info,
-      import_data.type_info_owner().New(std::move(builtins_module.get())));
-  std::unique_ptr<TypeSystemTracer> builtins_tracer =
-      TypeSystemTracer::Create();
-  std::optional<std::unique_ptr<InferenceTableConverter>> builtins_converter =
-      std::make_unique<InferenceTableConverterImpl>(
-          table, *builtins_module, import_data, warning_collector,
-          builtins_type_info, file_table, *builtins_tracer,
-          /*builtins_converter=*/std::nullopt);
 
   std::unique_ptr<TypeSystemTracer> module_tracer = TypeSystemTracer::Create();
-  InferenceTableConverterImpl converter(
-      table, module, import_data, warning_collector, base_type_info, file_table,
-      *module_tracer, std::move(builtins_converter));
+  std::unique_ptr<InferenceTableConverter> converter =
+      CreateInferenceTableConverter(table, module, import_data,
+                                    warning_collector, base_type_info,
+                                    file_table, *module_tracer);
   absl::Status status =
-      converter.ConvertSubtree(&module, /*function=*/std::nullopt,
-                               /*parametric_context=*/std::nullopt);
+      converter->ConvertSubtree(&module, /*function=*/std::nullopt,
+                                /*parametric_context=*/std::nullopt);
 
   VLOG(5) << "Inference table after conversion:";
   VLOG(5) << table.ToString();
-
-  VLOG(5) << "Builtins module traces after conversion:";
-  VLOG(5) << builtins_tracer->ConvertTracesToString();
 
   VLOG(5) << "User module traces after conversion:";
   VLOG(5) << module_tracer->ConvertTracesToString();
@@ -1985,7 +2011,7 @@ absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
   if (!status.ok()) {
     return status;
   }
-  return converter.GetBaseTypeInfo();
+  return converter->GetBaseTypeInfo();
 }
 
 }  // namespace xls::dslx

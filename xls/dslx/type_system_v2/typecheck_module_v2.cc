@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 
 #include <algorithm>
+#include <filesystem>  // NOLINT
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -46,8 +47,10 @@
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
+#include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -1495,21 +1498,43 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
 absl::StatusOr<TypeInfo*> TypecheckModuleV2(Module* module,
                                             ImportData* import_data,
                                             WarningCollector* warnings) {
-  std::unique_ptr<InferenceTable> table = InferenceTable::Create(*module);
-
+  // TODO: erinzmoore - Only load builtins if the module isn't already available
+  // in `import_data`.
+  XLS_ASSIGN_OR_RETURN(ImportTokens builtin_tokens,
+                       ImportTokens::FromString(kBuiltinStubsModuleName));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> builtins_module,
                        LoadBuiltinStubs());
-  PopulateInferenceTableVisitor builtins_visitor(*builtins_module, *table,
-                                                 import_data->file_table());
+  std::unique_ptr<InferenceTable> builtins_table =
+      InferenceTable::Create(*builtins_module);
+  PopulateInferenceTableVisitor builtins_visitor(
+      *builtins_module, *builtins_table, import_data->file_table());
   XLS_RETURN_IF_ERROR((*builtins_module).Accept(&builtins_visitor));
+  Module* builtins_ptr = builtins_module.get();
+  XLS_ASSIGN_OR_RETURN(TypeInfo * builtins_type_info,
+                       import_data->type_info_owner().New(builtins_ptr));
 
+  std::unique_ptr<TypeSystemTracer> builtins_tracer =
+      TypeSystemTracer::Create();
+  std::unique_ptr<InferenceTableConverter> builtins_converter =
+      CreateInferenceTableConverter(
+          *builtins_table, *builtins_module, *import_data, *warnings,
+          builtins_type_info, import_data->file_table(), *builtins_tracer);
+
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path builtins_path, BuiltinStubsPath());
+  std::unique_ptr<ModuleInfo> builtins_module_info =
+      std::make_unique<ModuleInfo>(
+          std::move(builtins_module), builtins_type_info, builtins_path,
+          std::move(builtins_table), std::move(builtins_converter));
+  XLS_RETURN_IF_ERROR(
+      import_data->Put(builtin_tokens, std::move(builtins_module_info))
+          .status());
+
+  std::unique_ptr<InferenceTable> table = InferenceTable::Create(*module);
   PopulateInferenceTableVisitor visitor(*module, *table,
                                         import_data->file_table());
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));
-
   return InferenceTableToTypeInfo(*table, *module, *import_data, *warnings,
-                                  import_data->file_table(),
-                                  std::move(builtins_module));
+                                  import_data->file_table());
 }
 
 }  // namespace xls::dslx

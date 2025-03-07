@@ -20,6 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 
 namespace xls::dslx {
@@ -66,6 +67,9 @@ class InferenceTableConverter {
 
   // Returns true if the given function is a builtin.
   virtual bool IsBuiltin(const Function* node) = 0;
+
+  // Returns the resulting base type info for the entire conversion.
+  virtual TypeInfo* GetBaseTypeInfo() = 0;
 };
 
 }  // namespace xls::dslx

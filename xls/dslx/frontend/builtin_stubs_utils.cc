@@ -16,6 +16,7 @@
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
@@ -29,16 +30,22 @@
 
 namespace xls::dslx {
 
+constexpr std::string_view kBuiltinStubsPath =
+    "xls/dslx/frontend/builtin_stubs.x";
+
+absl::StatusOr<std::filesystem::path> BuiltinStubsPath() {
+  return GetXlsRunfilePath(kBuiltinStubsPath);
+}
+
 absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs() {
-  const std::string path = "xls/dslx/frontend/builtin_stubs.x";
   XLS_ASSIGN_OR_RETURN(const std::filesystem::path full_path,
-                       GetXlsRunfilePath(path));
+                       BuiltinStubsPath());
   VLOG(5) << "Loading built-in stubs from: " << full_path;
   XLS_ASSIGN_OR_RETURN(std::string text, GetFileContents(full_path));
   FileTable file_table;
-  Fileno fileno = file_table.GetOrCreate(path);
-  Scanner s{file_table, fileno, text};
-  Parser parser{"<builtin_stubs>", &s, true};
+  Fileno fileno = file_table.GetOrCreate(kBuiltinStubsPath);
+  Scanner s = {file_table, fileno, text};
+  Parser parser = {std::string(kBuiltinStubsModuleName), &s, true};
   return parser.ParseModule();
 }
 

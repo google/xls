@@ -24,6 +24,8 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/inference_table_converter.h"
+#include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -33,8 +35,12 @@ namespace xls::dslx {
 // inference.
 absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
     InferenceTable& table, Module& module, ImportData& import_data,
-    WarningCollector& warning_collector, const FileTable& file_table,
-    std::unique_ptr<Module> builtins_module);
+    WarningCollector& warning_collector, const FileTable& file_table);
+
+std::unique_ptr<InferenceTableConverter> CreateInferenceTableConverter(
+    InferenceTable& table, Module& module, ImportData& import_data,
+    WarningCollector& warning_collector, TypeInfo* type_info,
+    const FileTable& file_table, TypeSystemTracer& tracer);
 
 }  // namespace xls::dslx
 

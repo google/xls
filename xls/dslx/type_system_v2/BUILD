@@ -55,6 +55,7 @@ cc_library(
     deps = [
         ":inference_table",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
@@ -89,6 +90,7 @@ cc_library(
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:deduce_utils",
@@ -192,8 +194,10 @@ cc_library(
     hdrs = ["typecheck_module_v2.h"],
     deps = [
         ":inference_table",
+        ":inference_table_converter",
         ":inference_table_to_type_info",
         ":type_annotation_utils",
+        ":type_system_tracer",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
         "//xls/dslx:import_data",

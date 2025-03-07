@@ -15,12 +15,18 @@
 #ifndef XLS_DSLX_FRONTEND_BUILTIN_STUBS_UTILS_H_
 #define XLS_DSLX_FRONTEND_BUILTIN_STUBS_UTILS_H_
 
+#include <filesystem>  // NOLINT
 #include <memory>
+#include <string_view>
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 
 namespace xls::dslx {
+
+constexpr std::string_view kBuiltinStubsModuleName = "<builtin_stubs>";
+
+absl::StatusOr<std::filesystem::path> BuiltinStubsPath();
 
 // Load the (empty) functions in the builtin_stubs.x file into a Module.
 absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs();

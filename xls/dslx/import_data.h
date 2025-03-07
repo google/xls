@@ -37,6 +37,8 @@
 #include "xls/dslx/import_record.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -46,9 +48,14 @@ namespace xls::dslx {
 class ModuleInfo {
  public:
   ModuleInfo(std::unique_ptr<Module> module, TypeInfo* type_info,
-             std::filesystem::path path)
+             std::filesystem::path path,
+             std::unique_ptr<InferenceTable> inference_table = nullptr,
+             std::unique_ptr<InferenceTableConverter>
+                 inference_table_converter = nullptr)
       : module_(std::move(module)),
         type_info_(type_info),
+        inference_table_(std::move(inference_table)),
+        inference_table_converter_(std::move(inference_table_converter)),
         path_(std::move(path)) {}
 
   const Module& module() const { return *module_; }
@@ -56,10 +63,18 @@ class ModuleInfo {
   const TypeInfo* type_info() const { return type_info_; }
   TypeInfo* type_info() { return type_info_; }
   const std::filesystem::path& path() const { return path_; }
+  // TODO: erinzmoore - Once typechecking is complete, bar use of the inference
+  // objects.
+  InferenceTable* inference_table() { return inference_table_.get(); }
+  InferenceTableConverter* inference_table_converter() {
+    return inference_table_converter_.get();
+  }
 
  private:
   std::unique_ptr<Module> module_;
   TypeInfo* type_info_;
+  std::unique_ptr<InferenceTable> inference_table_;
+  std::unique_ptr<InferenceTableConverter> inference_table_converter_;
   std::filesystem::path path_;
 };
 
