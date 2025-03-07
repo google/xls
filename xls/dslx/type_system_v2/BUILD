@@ -297,6 +297,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
+        "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:deduce_utils",
         "//xls/dslx/type_system:type",

@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 #include <variant>
 
 #include "absl/log/log.h"
@@ -31,6 +32,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_utils.h"
@@ -145,6 +147,42 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     XLS_RETURN_IF_ERROR(
         ValidateTupleIndex(*tuple_index, lhs_type, rhs_type, ti_, file_table_));
     return DefaultHandler(tuple_index);
+  }
+
+  absl::Status HandleInvocation(const Invocation* invocation) override {
+    std::optional<std::string_view> callee =
+        GetBuiltinFnName(invocation->callee());
+    if (callee.has_value() && *callee == "decode") {
+      // Special case: if decode, its return type must be unsigned.
+      std::optional<const Type*> callee_type =
+          ti_.GetItem(invocation->callee());
+      if (callee_type.has_value()) {
+        if (const auto* function_type =
+                dynamic_cast<const FunctionType*>(*callee_type)) {
+          const Type& return_type = function_type->return_type();
+          // First, it must be a bits type!
+          if (!IsBitsLike(return_type)) {
+            return TypeInferenceErrorStatus(
+                invocation->span(), &return_type,
+                absl::Substitute(
+                    "`decode` return type must be a bits type, saw `$0`",
+                    return_type.ToString()),
+                file_table_);
+          }
+          // Second, it must be unsigned.
+          XLS_ASSIGN_OR_RETURN(bool is_signed, IsSigned(return_type));
+          if (is_signed) {
+            return TypeInferenceErrorStatus(
+                invocation->span(), &return_type,
+                absl::Substitute(
+                    "`decode` return type must be unsigned, saw `$0`",
+                    return_type.ToString()),
+                file_table_);
+          }
+        }
+      }
+    }
+    return DefaultHandler(invocation);
   }
 
   absl::Status HandleCast(const Cast* cast) override {

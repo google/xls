@@ -5040,6 +5040,67 @@ TEST(TypecheckV2BuiltinTest, Ctz) {
               TypecheckSucceeds(HasNodeWithType("Y", "uN[8]")));
 }
 
+TEST(TypecheckV2BuiltinTest, Decode) {
+  EXPECT_THAT(R"(const Y = decode<u2, u32:5>(u5:1);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DecodeImplicitSize) {
+  EXPECT_THAT(R"(const Y = decode<u2>(u5:1);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DecodeXn) {
+  EXPECT_THAT(R"(const Y = decode<xN[bool:0x0][2]>(u1:1);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DecodeSizeMismatch) {
+  EXPECT_THAT(R"(const Y: u3 = decode<u3, 2>(u1:1);)",
+              TypecheckFails(HasSizeMismatch("u1", "uN[2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DecodeNotParametricType) {
+  EXPECT_THAT(
+      R"(
+  const Y = decode<u32:31>(u5:1);)",
+      TypecheckFails(HasSubstr("Expected parametric type, saw `u32:31`")));
+}
+
+TEST(TypecheckV2BuiltinTest, DecodeSignMismatch) {
+  EXPECT_THAT(R"(const Y = decode<s3>(u1:1);)",
+              TypecheckFails(HasSubstr(
+                  "`decode` return type must be unsigned, saw `sN[3]`")));
+}
+
+TEST(TypecheckV2BuiltinTest, DecodeSignMismatchTypeAlias) {
+  EXPECT_THAT(R"(
+  type SIGNED=s3;
+  const Y = decode<SIGNED>(u1:1);
+  )",
+              TypecheckFails(HasSubstr(
+                  "`decode` return type must be unsigned, saw `sN[3]`")));
+}
+
+TEST(TypecheckV2BuiltinTest, DecodeRequiresParametric) {
+  EXPECT_THAT(R"(const Y = decode(u1:1);)",
+              TypecheckFails(HasSubstr("Could not infer parametric")));
+}
+
+TEST(TypecheckV2BuiltinTest, DecodeRequiresParametricEvenWithTarget) {
+  // TIV2 can't use return types to infer parametrics.
+  EXPECT_THAT(R"(const Y: u32 = decode(u1:1);)",
+              TypecheckFails(HasSubstr("Could not infer parametric")));
+}
+
+TEST(TypecheckV2BuiltinTest, DecodeToStructError) {
+  EXPECT_THAT(R"(
+  struct S {}
+  const Y = decode<S>(u5:1);)",
+              TypecheckFails(HasSubstr(
+                  "`decode` return type must be a bits type, saw `S {}`")));
+}
+
 TEST(TypecheckV2BuiltinTest, Enumerate) {
   EXPECT_THAT(R"(const Y = enumerate<u16, u32:3>([u16:1, u16:2, u16:3]);)",
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));
