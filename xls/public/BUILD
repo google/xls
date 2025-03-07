@@ -219,6 +219,18 @@ cc_library(
 )
 
 cc_library(
+    name = "c_api_ir_builder",
+    srcs = ["c_api_ir_builder.cc"],
+    hdrs = ["c_api_ir_builder.h"],
+    deps = [
+        ":c_api_impl_helpers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:value",
+    ],
+)
+
+cc_library(
     name = "c_api",
     srcs = ["c_api.cc"],
     hdrs = ["c_api.h"],
@@ -226,6 +238,7 @@ cc_library(
         ":c_api_dslx",
         ":c_api_format_preference",
         ":c_api_impl_helpers",
+        ":c_api_ir_builder",
         ":c_api_vast",
         ":runtime_build_actions",
         "//xls/common:init_xls",
@@ -258,6 +271,7 @@ cc_test(
         ":c_api",
         ":c_api_dslx",
         ":c_api_format_preference",
+        ":c_api_ir_builder",
         ":c_api_vast",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",

@@ -33,6 +33,7 @@
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"
+#include "xls/public/c_api_ir_builder.h"
 
 namespace {
 
@@ -1168,6 +1169,107 @@ top fn add_one(tok: token, x: bits[32]) -> bits[32] {
   ASSERT_TRUE(xls_value_to_string(result, &result_str));
   absl::Cleanup free_result_str([=] { xls_c_str_free(result_str); });
   EXPECT_EQ(std::string_view{result_str}, "bits[32]:43");
+}
+
+// Tests that we can build a simple sample function. For fun we make one that
+// corresponds to an AOI21 gate.
+//
+// AOI21 formula is `fn aoi21(a, b, c) { !((a & b) | c) }`
+//
+// Just to test we can also handle tuple types we replicate the bit to be a
+// member of the result tuple 2x.
+TEST(XlsCApiTest, FnBuilder) {
+  xls_package* package = xls_package_create("my_package");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  // Note: this is tied to the package lifetime.
+  xls_type* u1 = xls_package_get_bits_type(package, 1);
+  xls_type* tuple_members[] = {u1, u1, u1};
+  xls_type* tuple_u1_u1_u1 =
+      xls_package_get_tuple_type(package, tuple_members, 3);
+
+  const char kFunctionName[] = "aoi21";
+  xls_function_builder* fn_builder = xls_function_builder_create(
+      kFunctionName, package, /*should_verify=*/true);
+  absl::Cleanup free_fn_builder([=] { xls_function_builder_free(fn_builder); });
+
+  // This value aliases the `fn_builder` so it does not need to be freed.
+  xls_builder_base* fn_builder_base =
+      xls_function_builder_as_builder_base(fn_builder);
+
+  std::vector<xls_bvalue*> bvalues_to_free;
+  absl::Cleanup free_bvalues([&] {
+    for (xls_bvalue* b : bvalues_to_free) {
+      xls_bvalue_free(b);
+    }
+  });
+
+  xls_bvalue* t =
+      xls_function_builder_add_parameter(fn_builder, "inputs", tuple_u1_u1_u1);
+  bvalues_to_free.push_back(t);
+
+  xls_bvalue* a = xls_builder_base_add_tuple_index(fn_builder_base, t, 0, "a");
+  bvalues_to_free.push_back(a);
+
+  xls_bvalue* b = xls_builder_base_add_tuple_index(fn_builder_base, t, 1, "b");
+  bvalues_to_free.push_back(b);
+
+  xls_bvalue* c = xls_builder_base_add_tuple_index(fn_builder_base, t, 2, "c");
+  bvalues_to_free.push_back(c);
+
+  // Show passing nullptr for the name.
+  xls_bvalue* a_and_b =
+      xls_builder_base_add_and(fn_builder_base, a, b, /*name=*/nullptr);
+  bvalues_to_free.push_back(a_and_b);
+
+  xls_bvalue* a_and_b_or_c =
+      xls_builder_base_add_or(fn_builder_base, a_and_b, c, "a_and_b_or_c");
+  bvalues_to_free.push_back(a_and_b_or_c);
+
+  xls_bvalue* not_a_and_b_or_c = xls_builder_base_add_not(
+      fn_builder_base, a_and_b_or_c, "not_a_and_b_or_c");
+  bvalues_to_free.push_back(not_a_and_b_or_c);
+
+  xls_bvalue* tuple_operands[] = {not_a_and_b_or_c, not_a_and_b_or_c};
+  xls_bvalue* result =
+      xls_builder_base_add_tuple(fn_builder_base, tuple_operands, 2, "result");
+  bvalues_to_free.push_back(result);
+
+  xls_function* function = nullptr;
+  {
+    char* error = nullptr;
+    ASSERT_TRUE(xls_function_builder_build_with_return_value(
+        fn_builder, result, &error, &function));
+    ASSERT_NE(function, nullptr);
+    // Note: the built function is placed in the package's lifetime and so there
+    // is no need to free it.
+  }
+
+  // Mark this function we built as the package top.
+  {
+    char* error = nullptr;
+    ASSERT_TRUE(xls_package_set_top_by_name(package, kFunctionName, &error));
+    ASSERT_EQ(error, nullptr);
+  }
+
+  // Convert the package to string and make sure it's what we expect the
+  // contents are.
+  char* package_str = nullptr;
+  ASSERT_TRUE(xls_package_to_string(package, &package_str));
+  absl::Cleanup free_package_str([=] { xls_c_str_free(package_str); });
+  const std::string_view kWant = R"(package my_package
+
+top fn aoi21(inputs: (bits[1], bits[1], bits[1]) id=1) -> (bits[1], bits[1]) {
+  a: bits[1] = tuple_index(inputs, index=0, id=2)
+  b: bits[1] = tuple_index(inputs, index=1, id=3)
+  and.5: bits[1] = and(a, b, id=5)
+  c: bits[1] = tuple_index(inputs, index=2, id=4)
+  a_and_b_or_c: bits[1] = or(and.5, c, id=6)
+  not_a_and_b_or_c: bits[1] = not(a_and_b_or_c, id=7)
+  ret result: (bits[1], bits[1]) = tuple(not_a_and_b_or_c, not_a_and_b_or_c, id=8)
+}
+)";
+  EXPECT_EQ(std::string_view{package_str}, kWant);
 }
 
 }  // namespace
