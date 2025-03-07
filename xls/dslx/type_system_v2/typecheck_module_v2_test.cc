@@ -1964,6 +1964,14 @@ const Y = 1 + 2 + 3 + foo<32>();
       TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, ParametricDefaultWithTypeBasedOnOtherParametric) {
+  EXPECT_THAT(R"(
+fn p<X: u32, Y: bits[X] = {u1:0}>(x: bits[X]) -> bits[X] { x }
+const X = p(u1:0);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[1]")));
+}
+
 TEST(TypecheckV2Test, FunctionReturningMismatchingIntegerAutoTypeFails) {
   EXPECT_THAT(R"(
 fn foo() -> u4 { 65536 }

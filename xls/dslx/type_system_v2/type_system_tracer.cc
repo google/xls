@@ -41,6 +41,7 @@ enum class TraceKind : uint8_t {
   kRoot,
   kUnify,
   kResolve,
+  kConvertActualArgument,
   kConvertNode,
   kConvertInvocation,
   kInferImplicitParametrics,
@@ -68,6 +69,8 @@ std::string TraceKindToString(TraceKind kind) {
       return "Unify";
     case TraceKind::kResolve:
       return "Resolve";
+    case TraceKind::kConvertActualArgument:
+      return "ConvertActualArg";
     case TraceKind::kConvertNode:
       return "ConvertNode";
     case TraceKind::kConvertInvocation:
@@ -158,6 +161,12 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
   TypeSystemTrace TraceConvertNode(const AstNode* node) override {
     return Trace(TypeSystemTraceImpl{
         .parent = stack_.top(), .kind = TraceKind::kConvertNode, .node = node});
+  }
+
+  TypeSystemTrace TraceConvertActualArgument(const AstNode* node) override {
+    return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
+                                     .kind = TraceKind::kConvertActualArgument,
+                                     .node = node});
   }
 
   TypeSystemTrace TraceConvertInvocation(

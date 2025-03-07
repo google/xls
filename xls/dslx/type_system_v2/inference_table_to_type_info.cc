@@ -424,6 +424,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         const Expr* actual_param = actual_args[i];
         XLS_RETURN_IF_ERROR(
             table_.SetTypeAnnotation(actual_param, formal_param));
+        TypeSystemTrace arg_trace =
+            tracer_.TraceConvertActualArgument(actual_param);
         XLS_RETURN_IF_ERROR(
             ConvertSubtree(actual_param, caller, caller_context));
       }
@@ -503,14 +505,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                          caller_context));
     }
 
-    // Convert the default expressions in the context of this invocation.
-    for (const ParametricBinding* binding : function->parametric_bindings()) {
-      if (binding->expr() != nullptr) {
-        XLS_RETURN_IF_ERROR(
-            ConvertSubtree(binding->expr(), function, invocation_context));
-      }
-    }
-
     // Figure out any implicit parametrics and generate the `ParametricEnv`.
     XLS_RETURN_IF_ERROR(GenerateParametricFunctionEnv(
         function_and_target_object.target_struct_context, invocation_context,
@@ -567,6 +561,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           table_.AddTypeAnnotationToVariableForParametricContext(
               caller_context, *table_.GetTypeVariable(actual_param),
               formal_type));
+      TypeSystemTrace arg_trace =
+          tracer_.TraceConvertActualArgument(actual_param);
       XLS_RETURN_IF_ERROR(ConvertSubtree(
           actual_param, caller,
           is_self_param ? function_and_target_object.target_struct_context
@@ -1408,6 +1404,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         // ones now.
         XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
         // Now evaluate the expr.
+        if (binding->expr() != nullptr) {
+          // Convert the default expr even when unused, or we will not notice if
+          // it has type errors. While we don't fundamentally need to care if
+          // that happens, v1 does check.
+          XLS_RETURN_IF_ERROR(ConvertSubtree(binding->expr(), std::nullopt,
+                                             invocation_context));
+        }
         XLS_ASSIGN_OR_RETURN(InterpValue value, Evaluate(*expr));
         parametric_context_type_info_.at(invocation_context)
             ->NoteConstExpr(binding->name_def(), value);
@@ -1498,6 +1501,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           // before it is used to figure out the type. If it's having a known
           // formal type imposed on it, then `ConvertInvocation` will convert it
           // after deciding the formal type.
+          TypeSystemTrace arg_trace =
+              tracer_.TraceConvertActualArgument(actual_arg);
           return ConvertSubtree(actual_arg, context_data.caller,
                                 invocation_context->parent_context(),
                                 /*filter_param_type_annotations=*/true);

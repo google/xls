@@ -84,6 +84,7 @@ class TypeSystemTracer {
   virtual TypeSystemTrace TraceUnify(
       const std::vector<const TypeAnnotation*>& annotations) = 0;
   virtual TypeSystemTrace TraceResolve(const TypeAnnotation* annotation) = 0;
+  virtual TypeSystemTrace TraceConvertActualArgument(const AstNode* node) = 0;
   virtual TypeSystemTrace TraceConvertNode(const AstNode* node) = 0;
   virtual TypeSystemTrace TraceConvertInvocation(
       const Invocation* invocation,

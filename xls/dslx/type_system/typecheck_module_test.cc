@@ -173,22 +173,26 @@ fn main() -> u2 { p<u32:1>(u1:0) }
                                    "value did not match inferred type"))));
 }
 
-// This should not be the case in general, but it is currently the case, that
-// this is flagged as an error.
-//
-// Right now the bits[X] is a symbolic type and it is not allowed to accept the
-// `u1`. Once we drive all typechecking from instantiations this will work with
-// the concrete type presented (via the invocation in `main()`).
-TEST(TypecheckTest, ParametricThatWorksForTheOneBindingPresented) {
+TEST_P(TypecheckBothVersionsTest,
+       ParametricThatWorksForTheOneBindingPresented) {
   std::string_view text = R"(
 fn p<X: u32, Y: bits[X] = {u1:0}>(x: bits[X]) -> bits[X] { x }
-fn main() -> u2 { p(u1:0) }
+fn main() -> u1 { p(u1:0) }
 )";
-  EXPECT_THAT(
-      Typecheck(text),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("uN[X] vs uN[1]: Annotated type of derived parametric "
-                         "value did not match inferred type")));
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // The following is the explanation of why this case didn't work in v1:
+    // Right now the bits[X] is a symbolic type and it is not allowed to accept
+    // the `u1`. Once we drive all typechecking from instantiations this will
+    // work with the concrete type presented (via the invocation in `main()`).
+    EXPECT_THAT(
+        Typecheck(text),
+        StatusIs(
+            absl::StatusCode::kInvalidArgument,
+            HasSubstr("uN[X] vs uN[1]: Annotated type of derived parametric "
+                      "value did not match inferred type")));
+  } else {
+    XLS_EXPECT_OK(Typecheck(text));
+  }
 }
 
 TEST_P(TypecheckBothVersionsTest, ParametricWrongArgCount) {
