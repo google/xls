@@ -1495,13 +1495,13 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
 
 }  // namespace
 
-absl::StatusOr<TypeInfo*> TypecheckModuleV2(Module* module,
-                                            ImportData* import_data,
-                                            WarningCollector* warnings) {
-  // TODO: erinzmoore - Only load builtins if the module isn't already available
-  // in `import_data`.
+absl::Status PopulateBuiltinStubs(ImportData* import_data,
+                                  WarningCollector* warnings) {
   XLS_ASSIGN_OR_RETURN(ImportTokens builtin_tokens,
                        ImportTokens::FromString(kBuiltinStubsModuleName));
+  if (import_data->Contains(builtin_tokens)) {
+    return absl::OkStatus();
+  }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> builtins_module,
                        LoadBuiltinStubs());
   std::unique_ptr<InferenceTable> builtins_table =
@@ -1528,6 +1528,13 @@ absl::StatusOr<TypeInfo*> TypecheckModuleV2(Module* module,
   XLS_RETURN_IF_ERROR(
       import_data->Put(builtin_tokens, std::move(builtins_module_info))
           .status());
+  return absl::OkStatus();
+}
+
+absl::StatusOr<TypeInfo*> TypecheckModuleV2(Module* module,
+                                            ImportData* import_data,
+                                            WarningCollector* warnings) {
+  XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(import_data, warnings));
 
   std::unique_ptr<InferenceTable> table = InferenceTable::Create(*module);
   PopulateInferenceTableVisitor visitor(*module, *table,
