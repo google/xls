@@ -761,10 +761,14 @@ absl::StatusOr<InterpValue::ChannelReference> InterpValue::GetChannelReference()
 // Returns the minimum of the given bits value interpreted as an unsigned
 // number and limit.
 static int64_t ClampedUnsignedValue(const Bits& bits, int64_t limit) {
-  if (limit < 0 || bits_ops::UGreaterThanOrEqual(bits, limit)) {
+  if (limit < 0) {
     return limit;
   }
-  return static_cast<int64_t>(bits.ToUint64().value());
+  std::optional<int64_t> bits_int = bits_ops::TryUnsignedBitsToInt64(bits);
+  if (bits_int.has_value() && *bits_int <= limit) {
+    return *bits_int;
+  }
+  return limit;
 }
 
 absl::StatusOr<InterpValue> InterpValue::Shl(const InterpValue& other) const {

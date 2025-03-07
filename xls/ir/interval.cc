@@ -208,15 +208,7 @@ Bits Interval::SizeBits() const {
 }
 
 std::optional<int64_t> Interval::Size() const {
-  Bits size_bits = SizeBits();
-  if (!size_bits.FitsInUint64()) {
-    return std::nullopt;
-  }
-  uint64_t size = size_bits.ToUint64().value();
-  if (size > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-    return std::nullopt;
-  }
-  return static_cast<int64_t>(size);
+  return bits_ops::TryUnsignedBitsToInt64(SizeBits());
 }
 
 bool Interval::IsImproper() const {

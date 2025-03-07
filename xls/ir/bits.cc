@@ -15,6 +15,7 @@
 #include "xls/ir/bits.h"
 
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <utility>
 
@@ -244,6 +245,21 @@ absl::StatusOr<int64_t> Bits::ToInt64() const {
   }
 
   return absl::bit_cast<int64_t>(word);
+}
+
+absl::StatusOr<int64_t> Bits::UnsignedToInt64() const {
+  if (bit_count() == 0) {
+    // By convention, an empty Bits has a numeric value of zero.
+    return 0;
+  }
+  if (!FitsInNBitsUnsigned(63)) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "Unsigned Bits value cannot be represented as a signed 64-bit value: ",
+        ToDebugString()));
+  }
+  DCHECK_LE(bitmap_.GetWord(0),
+            static_cast<uint64_t>(std::numeric_limits<int64_t>::max()));
+  return static_cast<int64_t>(bitmap_.GetWord(0));
 }
 
 Bits Bits::Slice(int64_t start, int64_t width) && {

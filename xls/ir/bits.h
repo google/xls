@@ -200,12 +200,13 @@ class Bits {
   bool FitsInInt64() const;
 
   // Converts the value held by this "bits" object into a uint64_t (int64_t).
-  // ToUint64 interprets the bits as unsigned. ToInt64 interprets the bits in
-  // twos-complement representation. Returns an error if the *value* cannot be
-  // represented in 64 bits (the width of the Bits object can be arbitrarily
-  // large).
+  // ToUint64 & UnsignedToInt64 interpret the bits as unsigned. ToInt64
+  // interprets the bits in twos-complement representation. Returns an error if
+  // the *value* cannot be represented in the target 64-bit type (the width of
+  // the Bits object can be arbitrarily large).
   absl::StatusOr<uint64_t> ToUint64() const;
   absl::StatusOr<int64_t> ToInt64() const;
+  absl::StatusOr<int64_t> UnsignedToInt64() const;
 
   // Extracts the "word_number"th u64 from this value, as in Bitmap::GetWord.
   // (Zero-bit values get 0 by convention.)

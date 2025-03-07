@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -53,11 +54,16 @@ Bits TruncateOrSignExtend(Bits bits, int64_t bit_count) {
 
 }  // namespace
 
-int64_t UnsignedBitsToSaturatedInt64(const Bits& bits) {
+std::optional<int64_t> TryUnsignedBitsToInt64(const Bits& bits) {
   if (bits.FitsInNBitsUnsigned(63)) {
-    return bits.ToUint64().value();
+    return *bits.UnsignedToInt64();
   }
-  return std::numeric_limits<int64_t>::max();
+  return std::nullopt;
+}
+
+int64_t UnsignedBitsToSaturatedInt64(const Bits& bits) {
+  return TryUnsignedBitsToInt64(bits).value_or(
+      std::numeric_limits<int64_t>::max());
 }
 
 Bits And(const Bits& lhs, const Bits& rhs) {
@@ -333,10 +339,11 @@ bool UEqual(const Bits& lhs, const Bits& rhs) { return UCmp(lhs, rhs) == 0; }
 
 bool UEqual(const Bits& lhs, int64_t rhs) {
   CHECK_GE(rhs, 0);
-  if (!lhs.FitsInNBitsUnsigned(63)) {
+  std::optional<int64_t> lhs_int = TryUnsignedBitsToInt64(lhs);
+  if (!lhs_int.has_value()) {
     return false;
   }
-  return static_cast<int64_t>(*lhs.ToUint64()) == rhs;
+  return *lhs_int == rhs;
 }
 
 bool UGreaterThanOrEqual(const Bits& lhs, const Bits& rhs) {
@@ -367,34 +374,38 @@ const Bits& UMax(const Bits& lhs, const Bits& rhs) {
 
 bool UGreaterThanOrEqual(const Bits& lhs, int64_t rhs) {
   CHECK_GE(rhs, 0);
-  if (!lhs.FitsInNBitsUnsigned(63)) {
+  std::optional<int64_t> lhs_int = TryUnsignedBitsToInt64(lhs);
+  if (!lhs_int.has_value()) {
     return true;
   }
-  return static_cast<int64_t>(*lhs.ToUint64()) >= rhs;
+  return *lhs_int >= rhs;
 }
 
 bool UGreaterThan(const Bits& lhs, int64_t rhs) {
   CHECK_GE(rhs, 0);
-  if (!lhs.FitsInNBitsUnsigned(63)) {
+  std::optional<int64_t> lhs_int = TryUnsignedBitsToInt64(lhs);
+  if (!lhs_int.has_value()) {
     return true;
   }
-  return static_cast<int64_t>(*lhs.ToUint64()) > rhs;
+  return *lhs_int > rhs;
 }
 
 bool ULessThanOrEqual(const Bits& lhs, int64_t rhs) {
   CHECK_GE(rhs, 0);
-  if (!lhs.FitsInNBitsUnsigned(63)) {
+  std::optional<int64_t> lhs_int = TryUnsignedBitsToInt64(lhs);
+  if (!lhs_int.has_value()) {
     return false;
   }
-  return static_cast<int64_t>(*lhs.ToUint64()) <= rhs;
+  return *lhs_int <= rhs;
 }
 
 bool ULessThan(const Bits& lhs, int64_t rhs) {
   CHECK_GE(rhs, 0);
-  if (!lhs.FitsInNBitsUnsigned(63)) {
+  std::optional<int64_t> lhs_int = TryUnsignedBitsToInt64(lhs);
+  if (!lhs_int.has_value()) {
     return false;
   }
-  return static_cast<int64_t>(*lhs.ToUint64()) < rhs;
+  return *lhs_int < rhs;
 }
 
 bool SEqual(const Bits& lhs, const Bits& rhs) {

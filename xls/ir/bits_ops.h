@@ -16,6 +16,7 @@
 #define XLS_IR_BITS_OPS_H_
 
 #include <cstdint>
+#include <optional>
 #include <ostream>
 #include <string>
 
@@ -26,6 +27,10 @@
 
 namespace xls {
 namespace bits_ops {
+
+// Returns the given bits as an int64_t, returning std::nullopt if the result
+// would be too large to fit in an int64_t.
+std::optional<int64_t> TryUnsignedBitsToInt64(const Bits& bits);
 
 // Returns the given bits as an int64_t, saturating to the maximum value if the
 // result would be too large to fit in an int64_t.
