@@ -321,6 +321,13 @@ struct xls_vast_expression* xls_vast_concat_as_expression(
   return reinterpret_cast<xls_vast_expression*>(cpp_expression);
 }
 
+struct xls_vast_expression* xls_vast_index_as_expression(
+    struct xls_vast_index* v) {
+  auto* cpp_v = reinterpret_cast<xls::verilog::Index*>(v);
+  auto* cpp_expression = static_cast<xls::verilog::Expression*>(cpp_v);
+  return reinterpret_cast<xls_vast_expression*>(cpp_expression);
+}
+
 struct xls_vast_indexable_expression*
 xls_vast_logic_ref_as_indexable_expression(
     struct xls_vast_logic_ref* logic_ref) {
@@ -431,6 +438,11 @@ struct xls_vast_index* xls_vast_verilog_file_make_index(
     struct xls_vast_verilog_file* f,
     struct xls_vast_indexable_expression* subject,
     struct xls_vast_expression* index) {
+  // Add a soundness check just in case users confuse this API with
+  // xls_vast_verilog_file_make_index_i64 and pass a literal zero in the place
+  // of the pointer.
+  CHECK(index != nullptr)
+      << "xls_vast_verilog_file_make_index: index is nullptr";
   auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
   auto* cpp_subject =
       reinterpret_cast<xls::verilog::IndexableExpression*>(subject);
