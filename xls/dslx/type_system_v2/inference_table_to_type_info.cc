@@ -57,6 +57,7 @@
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/expand_variables.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
 #include "xls/dslx/type_system_v2/solve_for_parametrics.h"
 #include "xls/dslx/type_system_v2/type_annotation_resolver.h"
@@ -68,19 +69,6 @@
 
 namespace xls::dslx {
 namespace {
-
-// The result of resolving the target of a function call. If the `target_object`
-// is specified, then it is an instance method being invoked on `target_object`.
-// Otherwise, it is a static function which may or may not be a member.
-struct FunctionAndTargetObject {
-  const Function* function = nullptr;
-  const std::optional<Expr*> target_object;
-  std::optional<const ParametricContext*> target_struct_context;
-  // This is part of a temporary hack to allow type checking of certain
-  // builtins. Built-ins in the builtin_stubs.x file will NOT have this
-  // value set to true.
-  bool is_special_builtin = false;
-};
 
 // Traverses an AST and flattens it into a `vector` in the order the `TypeInfo`
 // needs to be built such that prerequisites will be present in `TypeInfo` when
@@ -209,13 +197,12 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
   std::vector<const AstNode*> nodes_;
 };
 
-// An object that facilitates the conversion of an `InferenceTable` to
-// `TypeInfo`.
-class InferenceTableConverter : public UnificationErrorGenerator,
-                                public Evaluator,
-                                public ParametricStructInstantiator {
+class InferenceTableConverterImpl : public InferenceTableConverter,
+                                    public UnificationErrorGenerator,
+                                    public Evaluator,
+                                    public ParametricStructInstantiator {
  public:
-  InferenceTableConverter(
+  InferenceTableConverterImpl(
       InferenceTable& table, Module& module, ImportData& import_data,
       WarningCollector& warning_collector, TypeInfo* base_type_info,
       const FileTable& file_table, TypeSystemTracer& tracer,
@@ -234,7 +221,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
             /*parametric_struct_instantiator=*/*this, tracer_)),
         builtins_converter_(std::move(builtins_converter)) {}
 
-  bool IsBuiltin(const Function* node) {
+  bool IsBuiltin(const Function* node) override {
     // It's a builtin if we're the builtin converter and it's in the builtin
     // module.
     if (builtins_converter_.has_value()) {
@@ -243,21 +230,10 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     return module_.GetFunction(node->identifier()).has_value();
   }
 
-  // Converts all type info for the subtree rooted at `node`. `function` is
-  // the containing function of the subtree, if any. `parametric_context` is
-  // the invocation in whose context the types should be evaluated, if any.
-  //
-  // When `node` is an actual function argument that is being converted in order
-  // to determine a parametric in its own formal type, special behavior is
-  // needed, which is enabled by the `filter_param_type_annotations` flag. In
-  // such a case, the argument may have one annotation that is
-  // `ParamType(function_type, n)`, and since that is the very thing we are
-  // really trying to infer, we can't factor it in to the type of the argument
-  // value. In all other cases, the flag should be false.
   absl::Status ConvertSubtree(
       const AstNode* node, std::optional<const Function*> function,
       std::optional<const ParametricContext*> parametric_context,
-      bool filter_param_type_annotations = false) {
+      bool filter_param_type_annotations = false) override {
     // Avoid converting a subtree multiple times, as a performance optimization.
     // Evaluation functions convert the `Expr` they are being asked to evaluate
     // in case it is fabricated. For an `Expr` that is actually present in the
@@ -1251,10 +1227,9 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     return result;
   }
 
-  // Determines what function is being invoked by a `callee` expression.
   absl::StatusOr<const FunctionAndTargetObject> ResolveFunction(
       const Expr* callee, std::optional<const Function*> caller_function,
-      std::optional<const ParametricContext*> caller_context) {
+      std::optional<const ParametricContext*> caller_context) override {
     const AstNode* function_node = nullptr;
     std::optional<Expr*> target_object;
     std::optional<const ParametricContext*> target_struct_context =
@@ -1985,13 +1960,13 @@ absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
   std::unique_ptr<TypeSystemTracer> builtins_tracer =
       TypeSystemTracer::Create();
   std::optional<std::unique_ptr<InferenceTableConverter>> builtins_converter =
-      std::make_unique<InferenceTableConverter>(
+      std::make_unique<InferenceTableConverterImpl>(
           table, *builtins_module, import_data, warning_collector,
           builtins_type_info, file_table, *builtins_tracer,
           /*builtins_converter=*/std::nullopt);
 
   std::unique_ptr<TypeSystemTracer> module_tracer = TypeSystemTracer::Create();
-  InferenceTableConverter converter(
+  InferenceTableConverterImpl converter(
       table, module, import_data, warning_collector, base_type_info, file_table,
       *module_tracer, std::move(builtins_converter));
   absl::Status status =

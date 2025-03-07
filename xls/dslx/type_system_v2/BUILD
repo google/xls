@@ -50,6 +50,17 @@ cc_library(
 )
 
 cc_library(
+    name = "inference_table_converter",
+    hdrs = ["inference_table_converter.h"],
+    deps = [
+        ":inference_table",
+        "//xls/dslx/frontend:ast",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "inference_table_to_type_info",
     srcs = ["inference_table_to_type_info.cc"],
     hdrs = ["inference_table_to_type_info.h"],
@@ -57,6 +68,7 @@ cc_library(
         ":evaluator",
         ":expand_variables",
         ":inference_table",
+        ":inference_table_converter",
         ":parametric_struct_instantiator",
         ":solve_for_parametrics",
         ":type_annotation_resolver",
