@@ -1810,7 +1810,7 @@ absl::StatusOr<VerilogFunction*> DefineSmulpFunction(
 
   VerilogFile* file = section->file();
 
-  ScopedLintDisable lint_disable(section, {Lint::kMultiply});
+  ScopedLintDisable lint_disable(section, {Lint::kSignedType, Lint::kMultiply});
 
   VerilogFunction* func = section->Add<VerilogFunction>(
       node->loc(), function_name, file->BitVectorType(width * 2, node->loc()));
@@ -1852,16 +1852,32 @@ absl::StatusOr<VerilogFunction*> DefineSmulpFunction(
       node->loc(), signed_result,
       file->Mul(signed_lhs, signed_rhs, node->loc()));
 
+  LogicRef* unsigned_result =
+      func->AddRegDef(node->loc(), "unsigned_result",
+                      file->BitVectorType(width, node->loc(),
+                                          /*is_signed=*/false),
+                      /*init=*/nullptr);
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), unsigned_result,
+      file->Make<UnsignedCast>(node->loc(), signed_result));
+
   Bits offset_bits = MulpOffsetForSimulation(
       node->GetType()->AsTupleOrDie()->element_type(0)->GetFlatBitCount(),
       /*shift_size=*/4);
   Literal* offset = file->Literal(offset_bits, node->loc());
+
+  LogicRef* offset_result =
+      func->AddRegDef(node->loc(), "offset_result",
+                      file->BitVectorType(width, node->loc(),
+                                          /*is_signed=*/false),
+                      /*init=*/nullptr);
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), offset_result,
+      file->Sub(unsigned_result, offset, node->loc()));
+
   func->AddStatement<BlockingAssignment>(
       node->loc(), func->return_value_ref(),
-      file->Concat({offset, file->Sub(file->Make<UnsignedCast>(node->loc(),
-                                                               signed_result),
-                                      offset, node->loc())},
-                   node->loc()));
+      file->Concat({offset, offset_result}, node->loc()));
 
   return func;
 }

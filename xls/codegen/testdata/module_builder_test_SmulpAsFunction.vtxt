@@ -3,19 +3,25 @@ module SmulpAsFunction(
   input wire [31:0] y,
   input wire [31:0] z
 );
+  // lint_off SIGNED_TYPE
   // lint_off MULTIPLY
   function automatic [63:0] smulp32b_32b_x_32b (input reg [31:0] lhs, input reg [31:0] rhs);
     reg signed [31:0] signed_lhs;
     reg signed [31:0] signed_rhs;
     reg signed [31:0] signed_result;
+    reg [31:0] unsigned_result;
+    reg [31:0] offset_result;
     begin
       signed_lhs = $signed(lhs);
       signed_rhs = $signed(rhs);
       signed_result = signed_lhs * signed_rhs;
-      smulp32b_32b_x_32b = {32'h43ff_ffff, $unsigned(signed_result) - 32'h43ff_ffff};
+      unsigned_result = $unsigned(signed_result);
+      offset_result = unsigned_result - 32'h43ff_ffff;
+      smulp32b_32b_x_32b = {32'h43ff_ffff, offset_result};
     end
   endfunction
   // lint_on MULTIPLY
+  // lint_on SIGNED_TYPE
   wire [63:0] x_smulp_y;
   wire [63:0] z_smulp_z;
   assign x_smulp_y = smulp32b_32b_x_32b(x, y);
