@@ -4,3 +4,11 @@ repos:
     hooks:
       - id: end-of-file-fixer
         exclude: '^(xls/contrib/.*|docs_src/bazel_rules_macros.md|.*\.(sh|ir|txt|patch|csv))$'
+  - repo: https://github.com/pylint-dev/pylint
+    rev: v3.3.4
+    hooks:
+      - id: pylint
+        files: ^xls/dev_tools/check_ir_equivalence_main_test.py$
+        args: [
+          --rcfile=.pylintrc
+        ]
