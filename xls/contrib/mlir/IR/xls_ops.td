@@ -159,7 +159,7 @@ def Xls_FlopKindSkid        : I32EnumAttrCase<"kSkid", 2, "skid"> {
     See https://google.github.io/xls/codegen_options/#io-behavior for more information.
   }];
 }
-def Xls_FlopKindZeroLatency : I32EnumAttrCase<"kZeroLatency", 3, "zero-latency"> {
+def Xls_FlopKindZeroLatency : I32EnumAttrCase<"kZeroLatency", 3, "zero_latency"> {
   let summary = "Zero-latency flop.";
   let description = [{
     Adds a zero-latency buffer to the input/output. This is essentially a
