@@ -14,7 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=missing-function-docstring
+"""Checks that C++ files only include absolute paths.
+
+This prevents accidental inclusion via relpath even if it happens to work.
+"""
 
 import sys
 import re
@@ -46,27 +49,27 @@ ALLOWED_INCLUDE_STARTS = {
 }
 
 def check_file(filename):
-    with open(filename, 'r') as f:
-        content = f.read()
+  with open(filename, encoding='utf-8') as f:
+    content = f.read()
 
-    # Look for quoted (non-system) includes
-    includes = re.findall(r'#include\s*"([^"]*)"', content)
-    bad_includes = [
-      inc for inc in includes
-      if not any(inc.startswith(start) for start in ALLOWED_INCLUDE_STARTS)]
+  # Look for quoted (non-system) includes
+  includes = re.findall(r'#include\s*"([^"]*)"', content)
+  bad_includes = [
+    inc for inc in includes
+    if not any(inc.startswith(start) for start in ALLOWED_INCLUDE_STARTS)]
 
-    if bad_includes:
-        print(f'{filename}: Found non-absolute includes:')
-        for include in bad_includes:
-            print(f'  {include}')
-        return 1
-    return 0
+  if bad_includes:
+    print(f'{filename}: Found non-absolute includes:')
+    for include in bad_includes:
+      print(f'  {include}')
+    return 1
+  return 0
 
 def main():
-    exit_code = 0
-    for filename in sys.argv[1:]:
-        exit_code |= check_file(filename)
-    sys.exit(exit_code)
+  exit_code = 0
+  for filename in sys.argv[1:]:
+    exit_code |= check_file(filename)
+  sys.exit(exit_code)
 
 if __name__ == '__main__':
-    main()
+  main()

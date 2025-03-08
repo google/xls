@@ -32,7 +32,7 @@ def get_expected_guard(filepath, repo_root):
 
 
 def check_header_guard(filepath, expected_guard):
-  with open(filepath, 'r') as file:
+  with open(filepath, encoding='utf-8') as file:
     lines = file.readlines()
 
   # Check for the presence of the expected header guard.
@@ -76,7 +76,8 @@ def main():
     for file, expected, actual in non_compliant_files:
       print(file)
       print(f'  want: {expected}')
-      print(f'  got: {actual if actual else "None"}')
+      actual_str = actual if actual else 'None'
+      print(f'  got: {actual_str}')
     sys.exit(-1)
   else:
     print('All header files are style compliant.')
