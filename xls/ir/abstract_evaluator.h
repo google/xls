@@ -396,7 +396,12 @@ class AbstractEvaluator {
     return Vector({result});
   }
 
-  Vector Add(Span a, Span b) {
+  // Result which includes if an overflow/underflow occurs
+  struct OverflowResult {
+    Element overflow;
+    Vector result;
+  };
+  OverflowResult AddWithCarry(Span a, Span b) {
     Vector result(a.size());
     Element carry = Zero();
     for (int i = 0; i < a.size(); i++) {
@@ -404,7 +409,17 @@ class AbstractEvaluator {
       result[i] = r.sum;
       carry = r.carry;
     }
-    return result;
+    return {.overflow = carry, .result = std::move(result)};
+  }
+  Vector Add(Span a, Span b) { return AddWithCarry(a, b).result; }
+
+  OverflowResult AddWithSignedOverflow(Span a, Span b) {
+    OverflowResult res = AddWithCarry(a, b);
+    // Overflow has occurred if sign changes but the sign of the inputs are the
+    // same sign. Otherwise overflow can't happen due to 2s complement domain.
+    Element overflow = And(Equals({a.back()}, {b.back()}),
+                           Not(Equals({res.result.back()}, {a.back()})));
+    return {.overflow = overflow, .result = std::move(res.result)};
   }
 
   Vector Sub(Span a, Span b) {

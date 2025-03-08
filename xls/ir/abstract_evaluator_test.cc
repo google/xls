@@ -104,6 +104,157 @@ TEST(AbstractEvaluatorTest, Add) {
   EXPECT_EQ(c.ToInt64().value(), -1);
 }
 
+TEST(AbstractEvaluatorTest, AddWithCarry) {
+  TestAbstractEvaluator eval;
+  {
+    Bits a = UBits(2, 32);
+    Bits b = UBits(4, 32);
+    auto c = eval.AddWithCarry(ToBoxedVector(a), ToBoxedVector(b));
+    bool carry = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToUint64().value(), 6);
+    EXPECT_FALSE(carry);
+  }
+
+  {
+    Bits a = UBits(0xff, 8);
+    Bits b = UBits(1, 8);
+    auto c = eval.AddWithCarry(ToBoxedVector(a), ToBoxedVector(b));
+    bool carry = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToUint64().value(), 0x00);
+    EXPECT_TRUE(carry);
+  }
+
+  {
+    Bits a = SBits(-1024, 32);
+    Bits b = SBits(1023, 32);
+    auto c = eval.AddWithCarry(ToBoxedVector(a), ToBoxedVector(b));
+    bool carry = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), -1);
+    EXPECT_FALSE(carry);
+  }
+}
+
+void AddWithCarryFuzz(uint8_t lhs, uint8_t rhs) {
+  TestAbstractEvaluator eval;
+  Bits a = UBits(lhs, 8);
+  Bits b = UBits(rhs, 8);
+  uint64_t l_big = lhs;
+  uint64_t r_big = rhs;
+  auto c = eval.AddWithCarry(ToBoxedVector(a), ToBoxedVector(b));
+  uint64_t c_big = l_big + r_big;
+  if (c.overflow.value) {
+    // Overflow happened.
+    EXPECT_GT(Bits::MinBitCountUnsigned(c_big), 8);
+  } else {
+    EXPECT_LE(Bits::MinBitCountUnsigned(c_big), 8);
+  }
+  EXPECT_EQ(FromBoxedVector(c.result), UBits(c_big, 64).Slice(0, 8));
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, AddWithCarryFuzz)
+    .WithDomains(fuzztest::Arbitrary<uint8_t>(),
+                 fuzztest::Arbitrary<uint8_t>());
+
+TEST(AbstractEvaluatorTest, AddWithSignedOverflow) {
+  TestAbstractEvaluator eval;
+  {
+    Bits a = UBits(2, 32);
+    Bits b = UBits(4, 32);
+    auto c = eval.AddWithSignedOverflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool overflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToUint64().value(), 6);
+    EXPECT_FALSE(overflow);
+  }
+
+  {
+    Bits a = SBits(-2, 32);
+    Bits b = SBits(-4, 32);
+    auto c = eval.AddWithSignedOverflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool overflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), -6);
+    EXPECT_FALSE(overflow);
+  }
+  {
+    Bits a = SBits(-2, 32);
+    Bits b = SBits(4, 32);
+    auto c = eval.AddWithSignedOverflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool overflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), 2);
+    EXPECT_FALSE(overflow);
+  }
+  {
+    Bits a = SBits(2, 32);
+    Bits b = SBits(-4, 32);
+    auto c = eval.AddWithSignedOverflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool overflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), -2);
+    EXPECT_FALSE(overflow);
+  }
+  {
+    Bits b = SBits(-4, 32);
+    Bits a = SBits(2, 32);
+    auto c = eval.AddWithSignedOverflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool overflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), -2);
+    EXPECT_FALSE(overflow);
+  }
+
+  {
+    Bits a = SBits(-120, 8);
+    Bits b = SBits(-30, 8);
+    auto c = eval.AddWithSignedOverflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool overflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), 106);
+    EXPECT_TRUE(overflow);
+  }
+  {
+    Bits a = SBits(120, 8);
+    Bits b = SBits(30, 8);
+    auto c = eval.AddWithSignedOverflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool overflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), -106);
+    EXPECT_TRUE(overflow);
+  }
+  {
+    Bits a = Bits::MinSigned(8);
+    Bits b = Bits::MaxSigned(8);
+    auto c = eval.AddWithSignedOverflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool overflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), -1);
+    EXPECT_FALSE(overflow);
+  }
+}
+
+void AddWithOverflowFuzz(int8_t lhs, int8_t rhs) {
+  TestAbstractEvaluator eval;
+  Bits a = SBits(lhs, 8);
+  Bits b = SBits(rhs, 8);
+  int64_t l_big = lhs;
+  int64_t r_big = rhs;
+  auto c = eval.AddWithSignedOverflow(ToBoxedVector(a), ToBoxedVector(b));
+  uint64_t c_big = l_big + r_big;
+  if (c.overflow.value) {
+    // Overflow happened.
+    EXPECT_GT(Bits::MinBitCountSigned(c_big), 8);
+  } else {
+    EXPECT_LE(Bits::MinBitCountSigned(c_big), 8);
+  }
+  EXPECT_EQ(FromBoxedVector(c.result), SBits(c_big, 64).Slice(0, 8));
+}
+FUZZ_TEST(AbstractEvaluatorFuzzTest, AddWithOverflowFuzz)
+    .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
+
 TEST(AbstractEvaluatorTest, Sub) {
   TestAbstractEvaluator eval;
   {
