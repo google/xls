@@ -17,7 +17,7 @@
 #include <random>
 #include <vector>
 
-#include "include/benchmark/benchmark.h"
+#include "benchmark/benchmark.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"

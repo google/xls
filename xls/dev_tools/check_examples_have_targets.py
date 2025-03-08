@@ -96,7 +96,7 @@ def _to_target(relpath: str) -> str:
 
 
 def _does_file_seem_to_contain_tests(path: str) -> bool:
-  with open(path) as f:
+  with open(path, encoding='utf-8') as f:
     contents = f.read()
   return '#[test' in contents or '#[test_proc' in contents
 
