@@ -290,6 +290,165 @@ void SubFuzz(uint8_t lhs, uint8_t rhs) {
 FUZZ_TEST(AbstractEvaluatorFuzzTest, SubFuzz)
     .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
 
+TEST(AbstractEvaluatorTest, SubWithUnsignedUnderflow) {
+  TestAbstractEvaluator eval;
+  {
+    Bits a = UBits(2, 32);
+    Bits b = UBits(4, 32);
+    auto c = eval.SubWithUnsignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), -2);
+    EXPECT_TRUE(underflow);
+  }
+  {
+    Bits a = UBits(4, 32);
+    Bits b = UBits(2, 32);
+    auto c = eval.SubWithUnsignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToUint64().value(), 2);
+    EXPECT_FALSE(underflow);
+  }
+  {
+    Bits a = UBits(255, 8);
+    Bits b = UBits(255, 8);
+    auto c = eval.SubWithUnsignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToUint64().value(), 0);
+    EXPECT_FALSE(underflow);
+  }
+  {
+    Bits a = UBits(0, 8);
+    Bits b = UBits(255, 8);
+    auto c = eval.SubWithUnsignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToUint64().value(), 1);
+    EXPECT_TRUE(underflow);
+  }
+  {
+    Bits a = UBits(0, 8);
+    Bits b = UBits(0x80, 8);
+    auto c = eval.SubWithUnsignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToUint64().value(), 0x80);
+    EXPECT_TRUE(underflow);
+  }
+}
+
+void SubWithUnsignedUnderflowFuzz(uint8_t lhs, uint8_t rhs) {
+  TestAbstractEvaluator eval;
+  Bits a = UBits(lhs, 8);
+  Bits b = UBits(rhs, 8);
+  uint64_t l_big = lhs;
+  uint64_t r_big = rhs;
+  auto c = eval.SubWithUnsignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+  uint64_t c_big = l_big - r_big;
+  if (c.overflow.value) {
+    // Underflow happened.
+    EXPECT_NE(bits_ops::ZeroExtend(FromBoxedVector(c.result), 64),
+              UBits(c_big, 64));
+  } else {
+    EXPECT_EQ(bits_ops::ZeroExtend(FromBoxedVector(c.result), 64),
+              UBits(c_big, 64));
+  }
+  EXPECT_EQ(FromBoxedVector(c.result), SBits(c_big, 64).Slice(0, 8));
+}
+FUZZ_TEST(AbstractEvaluatorFuzzTest, SubWithUnsignedUnderflowFuzz)
+    .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
+
+TEST(AbstractEvaluatorTest, SubWithSignedUnderflow) {
+  TestAbstractEvaluator eval;
+  {
+    Bits a = SBits(2, 32);
+    Bits b = SBits(4, 32);
+    auto c = eval.SubWithSignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), -2);
+    EXPECT_FALSE(underflow);
+  }
+  {
+    Bits a = SBits(4, 32);
+    Bits b = SBits(2, 32);
+    auto c = eval.SubWithSignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), 2);
+    EXPECT_FALSE(underflow);
+  }
+  {
+    Bits a = SBits(0, 8);
+    Bits b = SBits(-128, 8);
+    auto c = eval.SubWithSignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), -128);
+    EXPECT_TRUE(underflow);
+  }
+  {
+    Bits a = SBits(-1, 8);
+    Bits b = SBits(-128, 8);
+    auto c = eval.SubWithSignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), 127);
+    EXPECT_FALSE(underflow);
+  }
+  {
+    Bits a = SBits(1, 8);
+    Bits b = SBits(127, 8);
+    auto c = eval.SubWithSignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), -126);
+    EXPECT_FALSE(underflow);
+  }
+  {
+    Bits a = SBits(-23, 8);
+    Bits b = SBits(120, 8);
+    auto c = eval.SubWithSignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), 113);
+    EXPECT_TRUE(underflow);
+  }
+  {
+    Bits a = SBits(23, 8);
+    Bits b = SBits(-120, 8);
+    auto c = eval.SubWithSignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+    bool underflow = c.overflow.value;
+    Bits result = FromBoxedVector(c.result);
+    EXPECT_EQ(result.ToInt64().value(), -113);
+    EXPECT_TRUE(underflow);
+  }
+}
+
+void SubWithSignedUnderflowFuzz(int8_t lhs, int8_t rhs) {
+  TestAbstractEvaluator eval;
+  Bits a = SBits(lhs, 8);
+  Bits b = SBits(rhs, 8);
+  int64_t l_big = lhs;
+  int64_t r_big = rhs;
+  auto c = eval.SubWithSignedUnderflow(ToBoxedVector(a), ToBoxedVector(b));
+  int64_t c_big = l_big - r_big;
+  if (c.overflow.value) {
+    // Underflow happened.
+    EXPECT_NE(bits_ops::SignExtend(FromBoxedVector(c.result), 64),
+              UBits(c_big, 64));
+  } else {
+    EXPECT_EQ(bits_ops::SignExtend(FromBoxedVector(c.result), 64),
+              UBits(c_big, 64));
+  }
+  EXPECT_EQ(FromBoxedVector(c.result), SBits(c_big, 64).Slice(0, 8));
+}
+
+FUZZ_TEST(AbstractEvaluatorFuzzTest, SubWithSignedUnderflowFuzz)
+    .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
+
 TEST(AbstractEvaluatorTest, Neg) {
   TestAbstractEvaluator eval;
   Bits a = SBits(4, 32);

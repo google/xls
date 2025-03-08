@@ -422,7 +422,7 @@ class AbstractEvaluator {
     return {.overflow = overflow, .result = std::move(res.result)};
   }
 
-  Vector Sub(Span a, Span b) {
+  OverflowResult SubWithUnsignedUnderflow(Span a, Span b) {
     Vector result(a.size());
     Element borrow = Zero();
     for (int i = 0; i < a.size(); i++) {
@@ -430,7 +430,28 @@ class AbstractEvaluator {
       result[i] = r.diff;
       borrow = r.borrow;
     }
-    return result;
+    return {.overflow = borrow, .result = std::move(result)};
+  }
+
+  Vector Sub(Span a, Span b) {
+    return std::move(SubWithUnsignedUnderflow(a, b).result);
+  }
+
+  OverflowResult SubWithSignedUnderflow(Span a, Span b) {
+    OverflowResult sub = SubWithUnsignedUnderflow(a, b);
+    // 0 - int_min is an underflow so we need to check it separately. NB That
+    // all positive non-zero RHS values end up with the sign being wrong except
+    // for the RHS == 0 case.
+    Element is_int_min =
+        And(b.back(), Not(OrReduce(b.subspan(0, b.size() - 1)).back()));
+    Element underflow = And(
+        // Neg-neg and pos-pos can't underflow due to the 2s complement domain.
+        Not(Equals({a.back()}, {b.back()})),
+        // Pos - neg and Neg - pos underflow if the sign of the result matches
+        // the sign of b or b is int_min (in which case we could have a double
+        // underflow).
+        Or(Equals({sub.result.back()}, {b.back()}), is_int_min));
+    return {.overflow = std::move(underflow), .result = std::move(sub.result)};
   }
 
   Vector Neg(Span x) {
