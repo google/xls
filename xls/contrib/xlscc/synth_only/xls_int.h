@@ -21,7 +21,7 @@
 #include "/xls_builtin.h"
 
 #define __AC_NAMESPACE ac_datatypes
-#include "include/ac_int.h"
+#include "external/com_github_hlslibs_ac_types/include/ac_int.h"
 
 #ifndef __SYNTHESIS__
 static_assert(false, "This header is only for synthesis");
@@ -79,7 +79,7 @@ class ExtendBits {};
 template <int FromW, int ToW>
 class ExtendBits<FromW, ToW, false> {
  public:
-  static_assert(FromW < ToW);
+  static_assert(FromW <= ToW);
 
   inline static __xls_bits<ToW> Convert(__xls_bits<FromW> storage) {
     __xls_bits<ToW> ret;
@@ -163,7 +163,7 @@ class MultiplyWithSign<Width, true> {
   }
 };
 
-template <int Width, int IndexW>
+template <int Width, unsigned int IndexW>
 class [[hls_synthetic_int]] ShiftLeft {
  public:
   inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
@@ -177,10 +177,10 @@ class [[hls_synthetic_int]] ShiftLeft {
   }
 };
 
-template <int Width, bool Signed, int IndexW>
+template <int Width, bool Signed, unsigned int IndexW>
 class ShiftRightWithSign {};
 
-template <int Width, int IndexW>
+template <int Width, unsigned int IndexW>
 class ShiftRightWithSign<Width, false, IndexW> {
  public:
   inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
@@ -194,7 +194,7 @@ class ShiftRightWithSign<Width, false, IndexW> {
   }
 };
 
-template <int Width, int IndexW>
+template <int Width, unsigned int IndexW>
 class ShiftRightWithSign<Width, true, IndexW> {
  public:
   inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
@@ -752,8 +752,29 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
   BINARY_OP(-, "sub", minus);
 
   BINARY_OP_WITH_SIGN(*, MultiplyWithSign, mult);
-  BINARY_OP_WITH_SIGN(/, DivideWithSign, div);
   BINARY_OP_WITH_SIGN(%, ModuloWithSign, mod);
+
+  template <int ToW, bool ToSign>
+  inline typename rt<ToW, ToSign>::div operator/(
+      const XlsInt<ToW, ToSign> &o) const {
+    typedef typename rt<ToW, ToSign>::div Result;
+    typedef XlsInt<std::max(ToW, Width), ToSign | Signed> Operands;
+    Operands as = *this;
+    Operands bs = o;
+    Operands ret;
+    asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_4_(aid): bits[i] = "
+        "identity(a, pos=(loc)) }"
+        : "=r"(ret.storage)
+        : "i"(Operands::width),
+          "parama"(DivideWithSign<Operands::width, Operands::sign>::Operate(
+              as.storage, bs.storage)));
+    return (Result)ret;
+  }
+  template <int ToW, bool ToSign>
+  inline XlsInt operator/=(const XlsInt<ToW, ToSign> &o) {
+    (*this) = (*this) / o;
+    return (*this);
+  }
 
   BINARY_OP(|, "or", logic);
   BINARY_OP(&, "and", logic);
@@ -761,7 +782,7 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
 
   template <int W2, bool S2>
   inline XlsInt operator>>(XlsInt<W2, S2> offset) const {
-    XlsInt<W2, S2> neg_offset = -offset;
+    XlsInt<32, true> neg_offset = -offset;
     XlsInt ret_right;
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_5_(aid): bits[i] = "
         "identity(a, pos=(loc)) }"
@@ -772,8 +793,9 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
     asm("fn (fid)(a: bits[i], o: bits[c]) -> bits[i] { ret op_(aid): bits[i] = "
         "shll(a, o, pos=(loc)) }"
         : "=r"(ret_left.storage)
-        : "i"(Width), "c"(W2), "a"(this->storage), "o"(neg_offset.storage));
-    return (offset < 0) ? ret_left : ret_right;
+        : "i"(Width), "c"(32), "a"(this->storage), "o"(neg_offset.storage));
+    XlsInt<32, S2> offset_trunc = offset;  // special case to match ac_int
+    return (offset_trunc < 0) ? ret_left : ret_right;
   }
   template <int W2, bool S2>
   inline XlsInt operator>>=(XlsInt<W2, S2> offset) {
@@ -783,19 +805,20 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
 
   template <int W2, bool S2>
   inline XlsInt operator<<(XlsInt<W2, S2> offset) const {
-    XlsInt<W2, S2> neg_offset = -offset;
+    XlsInt<32, true> neg_offset = -offset;
     XlsInt ret_right;
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_5_(aid): bits[i] = "
         "identity(a, pos=(loc)) }"
         : "=r"(ret_right.storage)
-        : "i"(Width), "a"(ShiftRightWithSign<Width, Signed, W2>::Operate(
+        : "i"(Width), "a"(ShiftRightWithSign<Width, Signed, 32>::Operate(
                           this->storage, neg_offset.storage)));
     XlsInt ret_left;
     asm("fn (fid)(a: bits[i], o: bits[c]) -> bits[i] { ret op_(aid): bits[i] = "
         "shll(a, o, pos=(loc)) }"
         : "=r"(ret_left.storage)
         : "i"(Width), "c"(W2), "a"(this->storage), "o"(offset.storage));
-    return (offset < 0) ? ret_right : ret_left;
+    XlsInt<32, S2> offset_trunc = offset;  // special case to match ac_int
+    return (offset_trunc < 0) ? ret_right : ret_left;
   }
   template <int W2, bool S2>
   inline XlsInt operator<<=(XlsInt<W2, S2> offset) {
@@ -803,17 +826,21 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
     return (*this);
   }
 
-#define COMPARISON_OP(__OP, __IR)                                      \
-  template <int ToW, bool ToSign>                                      \
-  inline bool operator __OP(const XlsInt<ToW, ToSign> &o) const {      \
-    XlsInt val(o);                                                     \
-    bool ret;                                                          \
-    asm("fn (gensym operator_" __IR                                    \
-        ")(a: bits[i], b: bits[i]) -> bits[1] { ret (aid): bits[1] "   \
-        "= " __IR "(a, b, pos=(loc)) }"                                \
-        : "=r"(ret)                                                    \
-        : "i"(Width), "parama"(this->storage), "paramb"(val.storage)); \
-    return ret;                                                        \
+#define COMPARISON_OP(__OP, __IR)                                           \
+  template <int ToW, bool ToSign>                                           \
+  inline bool operator __OP(const XlsInt<ToW, ToSign> &o) const {           \
+    constexpr int compare_size = std::max(ToW, Width) + (Signed ^ ToSign);  \
+    bool ret;                                                               \
+    asm("fn (gensym operator_" __IR                                         \
+        ")(a: bits[i], b: bits[i]) -> bits[1] { ret (aid): bits[1] "        \
+        "= " __IR "(a, b, pos=(loc)) }"                                     \
+        : "=r"(ret)                                                         \
+        : "i"(compare_size),                                                \
+          "parama"(ConvertBits<Width, compare_size, Signed>::Convert(       \
+              this->storage)),                                              \
+          "paramb"(                                                         \
+              ConvertBits<ToW, compare_size, ToSign>::Convert(o.storage))); \
+    return ret;                                                             \
   }
 
   COMPARISON_OP(==, "eq");
@@ -823,19 +850,19 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
     return !((*this) == o);
   }
 
-#define COMPARISON_OP_WITH_SIGN(__OP, __IMPL)                                 \
-  template <int ToW, bool ToSign>                                             \
-  inline bool operator __OP(const XlsInt<ToW, ToSign> &o) const {             \
-    XlsInt<std::max(ToW, Width), Signed | ToSign> valA(o);                    \
-    XlsInt<std::max(ToW, Width), Signed | ToSign> valB(*this);                \
-    bool ret;                                                                 \
-    asm("fn (fid)(a: bits[i]) -> bits[1] { ret op_6_(aid): bits[1] = "        \
-        "identity(a, pos=(loc)) }"                                            \
-        : "=r"(ret)                                                           \
-        : "i"(1),                                                             \
-          "parama"(__IMPL < std::max(ToW, Width),                             \
-                   Signed | ToSign > ::Operate(valB.storage, valA.storage))); \
-    return ret;                                                               \
+#define COMPARISON_OP_WITH_SIGN(__OP, __IMPL)                              \
+  template <int ToW, bool ToSign>                                          \
+  inline bool operator __OP(const XlsInt<ToW, ToSign> &o) const {          \
+    constexpr int compare_size = std::max(ToW, Width) + (Signed ^ ToSign); \
+    XlsInt<compare_size, Signed | ToSign> valA(o);                         \
+    XlsInt<compare_size, Signed | ToSign> valB(*this);                     \
+    bool ret;                                                              \
+    asm("fn (fid)(a: bits[i]) -> bits[1] { ret op_6_(aid): bits[1] = "     \
+        "identity(a, pos=(loc)) }"                                         \
+        : "=r"(ret)                                                        \
+        : "i"(1), "parama"(__IMPL<compare_size, Signed | ToSign>::Operate( \
+                      valB.storage, valA.storage)));                       \
+    return ret;                                                            \
   }
 
   COMPARISON_OP_WITH_SIGN(>, GreaterWithSign);

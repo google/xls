@@ -16,6 +16,7 @@
 #include <string>
 
 #include "gtest/gtest.h"
+#include "external/com_github_hlslibs_ac_types/include/ac_int.h"
 #include "xls/common/source_location.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 
@@ -491,13 +492,14 @@ TEST_F(XlsIntTest, ShiftRightEqXlsInt) {
 }
 
 TEST_F(XlsIntTest, ShiftRightNegative) {
+  int input = 100;
   const std::string content = R"(
     #include "xls_int.h"
-
     int my_package(int a) {
       return XlsInt<24, false>(a) >> -1;
     })";
-  RunAcDatatypeTest({{"a", 100}}, 200, content,
+  auto result = ac_int<24, false>(input) >> -1;
+  RunAcDatatypeTest({{"a", input}}, result, content,
                     xabsl::SourceLocation::current());
 }
 
@@ -906,6 +908,19 @@ TEST_F(XlsIntTest, XlsToLongBounds) {
   RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsIntTest, LargeDivision) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<53, true> result = -3290801924788693;
+      XlsInt<23, true> input = 2192177;
+      XlsInt<59, false> v2 = 91820317545228572;
+      result = input / v2;
+      return result.slc<53>(0).to_int();
+  })";
+  RunAcDatatypeTest({{"a", -1}}, 0, content, xabsl::SourceLocation::current());
+}
+
 TEST_F(XlsIntTest, XlsIntHasNbits) {
   const std::string content = R"(
     #include "xls_int.h"
@@ -925,6 +940,111 @@ TEST_F(XlsIntTest, XlsIntHasRT_T) {
       return result.to_long();
   })";
   RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, MixedSignednessLargeComparison) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<26, true> result = -12327587;
+      XlsInt<54, false> input = 12484526601657012;
+      result = (result < input) ? 1 : 0;
+      return result.to_long();
+  })";
+  RunAcDatatypeTest({{"a", 3}}, 1, content, xabsl::SourceLocation::current());
+}
+
+// TODO: google/xls#1990 - XlsInt division by zero does not match ac_int.
+TEST_F(XlsIntTest, DISABLED_XlsIntDivideByZeroDiffersFromAcInt) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package() {
+      XlsInt<47, false> result = 0;
+      XlsInt<1, false> input = 0;
+      XlsInt<2, true> v2 = 0;
+      result = input / v2;
+      return result.to_long();
+  })";
+  ac_int<47, false> result = 0;
+  ac_int<1, false> input = 0;
+  ac_int<2, true> v2 = 0;
+  result = input / v2;
+  RunAcDatatypeTest({}, result.to_long(), content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, XlsIntShiftLeftNegative) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package() {
+      XlsInt<20, false> result = 5440142428610104917;
+      XlsInt<85, true> input = -2760369167132203695;
+      XlsInt<23, true> v2 = -2189680;
+      v2 >>= input;
+      result = v2;
+      return result.slc<20>(0).to_uint();
+  })";
+  ac_int<20, false> result = 5440142428610104917;
+  ac_int<85, true> input = -2760369167132203695;
+  ac_int<23, true> v2 = -2189680;
+  v2 >>= input;
+  result = v2;
+  RunAcDatatypeTest({}, result.slc<20>(0).to_uint(), content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, AcIntShiftRightLargeNegative) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package() {
+      XlsInt<12, false> result = 0;
+      XlsInt<86, true> input = -1;
+      XlsInt<64, true> v2 = -370247727197476463;
+      result = input >> v2;
+      return result.to_ulong();
+  })";
+  ac_int<12, false> result = 0;
+  ac_int<86, true> input = -1;
+  ac_int<64, true> v2 = -370247727197476463;
+  result = input >> v2;
+  RunAcDatatypeTest({}, result.to_long(), content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, AcIntShiftLeftNegative) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package() {
+      XlsInt<64, false> result = 6003048344297852061;
+      XlsInt<43, true> input = -1235253422588;
+      XlsInt<88, true> v2 = -6302869816511075870;
+      v2 <<= input;
+      result = v2;
+      return result.to_ulong();
+  })";
+  ac_int<64, false> result = 6003048344297852061;
+  ac_int<43, true> input = -1235253422588;
+  ac_int<88, true> v2 = -6302869816511075870;
+  v2 <<= input;
+  result = v2;
+  RunAcDatatypeTest({}, result.to_ulong(), content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, CompareSmallToLarge) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package() {
+      XlsInt<2, false> result = 5;
+      XlsInt<88, true> input = -948062147197587059;
+      result = (result == input) ? 1 : 0;
+      return result.to_long();
+  })";
+  ac_int<2, false> result = 5;
+  ac_int<88, true> input = -948062147197587059;
+  result = (result == input) ? 1 : 0;
+  RunAcDatatypeTest({}, result.to_long(), content,
+                    xabsl::SourceLocation::current());
 }
 
 }  // namespace

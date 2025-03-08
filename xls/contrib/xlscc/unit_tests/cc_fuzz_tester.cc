@@ -178,7 +178,7 @@ class GeneratedTester : public XlsccTestBase {
 
     // Get the path that includes the ac_datatypes folder, so that the
     //  ac_datatypes headers can be included with the form:
-    // #include "external/com_github_hlslibs_ac_types/include/include/foo.h"
+    // #include "ac_datatypes/include/include/foo.h"
     auto ac_int_dir = std::filesystem::path(ac_int_path);
     ac_int_dir = ac_int_dir.parent_path().parent_path();
     std::string ac_include = std::string("-I") + ac_int_dir.string();

@@ -20,8 +20,8 @@
 #include "xls_int.h"
 
 #define __AC_NAMESPACE ac_datatypes
-#include "include/ac_fixed.h"
-#include "include/ac_int.h"
+#include "external/com_github_hlslibs_ac_types/include/ac_fixed.h"
+#include "external/com_github_hlslibs_ac_types/include/ac_int.h"
 #ifndef __SYNTHESIS__
 static_assert(false, "This header is only for synthesis");
 #endif  // __SYNTHESIS__
