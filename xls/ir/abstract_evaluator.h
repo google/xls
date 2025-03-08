@@ -478,6 +478,28 @@ class AbstractEvaluator {
     return BitSlice(result, 0, a.size() + b.size());
   }
 
+  OverflowResult SMulWithOverflow(Span a, Span b, int64_t output_width) {
+    Vector mul = SMul(a, b);
+    if (output_width >= a.size() + b.size()) {
+      Element sign = mul.back();
+      mul.resize(output_width, sign);
+      return {.overflow = Zero(), .result = std::move(mul)};
+    }
+    Element any_zero = Or(Not(OrReduce(a).back()), Not(OrReduce(b).back()));
+    // Negative if its not a multiply by zero and the signs of the two arguments
+    // are not the same otherwise positive.
+    Element expected_sign = And(Not(any_zero), Xor(a.back(), b.back()));
+    // If the truncated bits and the sign bit are just sign-extend they will all
+    // be true if expect_negative and false otherwise.
+    Vector high_bits_expected(1 + a.size() + b.size() - output_width,
+                              expected_sign);
+    Element overflow =
+        Not(Equals(high_bits_expected, Span(mul).subspan(output_width - 1)));
+    // Truncate to the appropriate width.
+    mul.resize(output_width);
+    return {.overflow = overflow, .result = std::move(mul)};
+  }
+
   // Unsigned multiplication of two Vectors.
   // Returns a Vector of a.size() + b.size().
   //
@@ -598,6 +620,18 @@ class AbstractEvaluator {
       result[i] = column.front();
     }
     return result;
+  }
+
+  OverflowResult UMulWithOverflow(Span a, Span b, int64_t output_width) {
+    Vector mul = UMul(a, b);
+    if (output_width >= a.size() + b.size()) {
+      mul.resize(output_width, Zero());
+      return {.overflow = Zero(), .result = std::move(mul)};
+    }
+    Element overflow = OrReduce(Span(mul).subspan(output_width)).back();
+    // Truncate to the appropriate width.
+    mul.resize(output_width);
+    return {.overflow = overflow, .result = std::move(mul)};
   }
 
   struct DivisionResult {

@@ -499,6 +499,81 @@ FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUMul)
     .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
                  NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
+TEST(AbstractEvaluatorTest, UMulWithOverflow) {
+  TestAbstractEvaluator eval;
+  Bits a = UBits(3, 8);
+  Bits b = UBits(3, 8);
+  auto c = eval.UMulWithOverflow(ToBoxedVector(a), ToBoxedVector(b), 8);
+  EXPECT_EQ(FromBoxedVector(c.result).ToUint64().value(), 9);
+  EXPECT_FALSE(c.overflow.value);
+
+  a = UBits(127, 10);
+  b = UBits(64, 7);
+  c = eval.UMulWithOverflow(ToBoxedVector(a), ToBoxedVector(b), 8);
+  EXPECT_EQ(FromBoxedVector(c.result).ToUint64().value(), 192);
+  EXPECT_TRUE(c.overflow.value);
+}
+
+TEST(AbstractEvaluatorTest, SMulWithOverflow) {
+  TestAbstractEvaluator eval;
+  {
+    Bits a = SBits(3, 8);
+    Bits b = SBits(5, 8);
+    auto c = eval.SMulWithOverflow(ToBoxedVector(a), ToBoxedVector(b), 8);
+    EXPECT_EQ(FromBoxedVector(c.result).ToInt64().value(), 15);
+    EXPECT_FALSE(c.overflow.value);
+  }
+  {
+    Bits a = SBits(-3, 8);
+    Bits b = SBits(-5, 8);
+    auto c = eval.SMulWithOverflow(ToBoxedVector(a), ToBoxedVector(b), 8);
+    EXPECT_EQ(FromBoxedVector(c.result).ToInt64().value(), 15);
+    EXPECT_FALSE(c.overflow.value);
+  }
+  {
+    Bits a = SBits(3, 8);
+    Bits b = SBits(-5, 8);
+    auto c = eval.SMulWithOverflow(ToBoxedVector(a), ToBoxedVector(b), 8);
+    EXPECT_EQ(FromBoxedVector(c.result).ToInt64().value(), -15);
+    EXPECT_FALSE(c.overflow.value);
+  }
+  {
+    Bits a = SBits(-3, 8);
+    Bits b = SBits(5, 8);
+    auto c = eval.SMulWithOverflow(ToBoxedVector(a), ToBoxedVector(b), 8);
+    EXPECT_EQ(FromBoxedVector(c.result).ToInt64().value(), -15);
+    EXPECT_FALSE(c.overflow.value);
+  }
+  {
+    Bits a = SBits(120, 8);
+    Bits b = SBits(3, 8);
+    auto c = eval.SMulWithOverflow(ToBoxedVector(a), ToBoxedVector(b), 8);
+    EXPECT_EQ(FromBoxedVector(c.result).ToInt64().value(), 104);
+    EXPECT_TRUE(c.overflow.value);
+  }
+  {
+    Bits a = SBits(-120, 8);
+    Bits b = SBits(3, 8);
+    auto c = eval.SMulWithOverflow(ToBoxedVector(a), ToBoxedVector(b), 8);
+    EXPECT_EQ(FromBoxedVector(c.result).ToInt64().value(), -104);
+    EXPECT_TRUE(c.overflow.value);
+  }
+  {
+    Bits a = SBits(120, 8);
+    Bits b = SBits(-3, 8);
+    auto c = eval.SMulWithOverflow(ToBoxedVector(a), ToBoxedVector(b), 8);
+    EXPECT_EQ(FromBoxedVector(c.result).ToInt64().value(), -104);
+    EXPECT_TRUE(c.overflow.value);
+  }
+  {
+    Bits a = SBits(-120, 8);
+    Bits b = SBits(-3, 8);
+    auto c = eval.SMulWithOverflow(ToBoxedVector(a), ToBoxedVector(b), 8);
+    EXPECT_EQ(FromBoxedVector(c.result).ToInt64().value(), 104);
+    EXPECT_TRUE(c.overflow.value);
+  }
+}
+
 void EvaluatorMatchesReferenceSMul(const Bits& lhs, const Bits& rhs) {
   TestAbstractEvaluator eval;
   Bits got = FromBoxedVector(eval.SMul(ToBoxedVector(lhs), ToBoxedVector(rhs)));
