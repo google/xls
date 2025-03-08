@@ -198,10 +198,6 @@ class TranslationState {
   // Acts as a cache for symbol lookups, should be available even in const
   // functions.
   mutable SymbolTableCollection symbol_table_;
-
-  // For source location
-  mutable llvm::StringMap<int> file_numbers_;
-  mutable int next_file_number_ = 1;
 };
 
 ::xls::SourceInfo TranslationState::getLoc(Operation* op) const {
@@ -214,19 +210,11 @@ class TranslationState {
     return ::xls::SourceInfo();
   }
 
-  std::filesystem::path path(
-      std::string_view(file_loc.getFilename().getValue()));
-  int id;
-  if (auto it = file_numbers_.find(path.string()); it == file_numbers_.end()) {
-    id = next_file_number_++;
-    file_numbers_[path.string()] = id;
-  } else {
-    id = it->second;
-  }
+  std::string_view filename(file_loc.getFilename().getValue());
 
-  return ::xls::SourceInfo(::xls::SourceLocation(
-      ::xls::Fileno(id), ::xls::Lineno(file_loc.getLine()),
-      ::xls::Colno(file_loc.getColumn())));
+  return ::xls::SourceInfo(
+      package_.AddSourceLocation(filename, ::xls::Lineno(file_loc.getLine()),
+                                 ::xls::Colno(file_loc.getColumn())));
 }
 
 ::xls::Type* TranslationState::getType(Type t) const {
