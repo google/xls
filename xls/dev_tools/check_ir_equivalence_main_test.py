@@ -145,35 +145,39 @@ class CheckIrEquivalenceMainTest(absltest.TestCase):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    return res.returncode == 0, res.stdout.decode("utf8"), res.stderr.decode("utf8")
+    stdout = res.stdout.decode("utf8")
+    stderr = res.stderr.decode("utf8")
+    return res.returncode == 0, stdout, stderr
 
   def test_detects_different_functions(self):
-    res, stdout, stderr = self._check_equiv(ADD_IR, NOT_ADD_IR)
+    res, stdout, _ = self._check_equiv(ADD_IR, NOT_ADD_IR)
     self.assertFalse(res)
     self.assertIn("Verified NOT equivalent", stdout)
 
   def test_ignores_assert(self):
-    res, stdout, stderr = self._check_equiv(PROC_IR_WITH_ASSERT, PROC_IR, act_count=3)
+    res, stdout, _ = self._check_equiv(
+      PROC_IR_WITH_ASSERT, PROC_IR, act_count=3)
     self.assertTrue(res)
     self.assertIn("Verified equivalent", stdout)
 
   def test_detects_equiv_functions(self):
-    res, stdout, stderr = self._check_equiv(ADD_IR, NOT_NOT_ADD_IR)
+    res, stdout, _ = self._check_equiv(ADD_IR, NOT_NOT_ADD_IR)
     self.assertTrue(res)
     self.assertIn("Verified equivalent", stdout)
 
   def test_detects_different_procs(self):
-    res, stdout, stderr = self._check_equiv(PROC_IR, NEG_PROC_IR, act_count=14)
+    res, stdout, _ = self._check_equiv(PROC_IR, NEG_PROC_IR, act_count=14)
     self.assertFalse(res)
     self.assertIn("Verified NOT equivalent", stdout)
 
   def test_detects_equiv_procs(self):
-    res, stdout, stderr = self._check_equiv(PROC_IR, NEG_NEG_PROC_IR, act_count=14)
+    res, stdout, _ = self._check_equiv(
+      PROC_IR, NEG_NEG_PROC_IR, act_count=14)
     self.assertTrue(res)
     self.assertIn("Verified equivalent", stdout)
 
   def test_lhs_has_no_top(self):
-    res, msg, stderr = self._check_equiv(ADD_IR, ADD_NO_TOP_IR)
+    res, _, stderr = self._check_equiv(ADD_IR, ADD_NO_TOP_IR)
     self.assertFalse(res)
     self.assertIn("Package has no top entity: add_no_top", stderr)
 
