@@ -639,7 +639,7 @@ BValue BuilderBase::Reverse(BValue arg, const SourceInfo& loc,
   if (ErrorPending()) {
     return BValue();
   }
-  return AddUnOp(Op::kReverse, arg, loc);
+  return AddUnOp(Op::kReverse, arg, loc, name);
 }
 
 BValue BuilderBase::Identity(BValue var, const SourceInfo& loc,
@@ -647,7 +647,7 @@ BValue BuilderBase::Identity(BValue var, const SourceInfo& loc,
   if (ErrorPending()) {
     return BValue();
   }
-  return AddUnOp(Op::kIdentity, var, loc);
+  return AddUnOp(Op::kIdentity, var, loc, name);
 }
 
 BValue BuilderBase::SignExtend(BValue arg, int64_t new_bit_count,
@@ -826,7 +826,7 @@ BValue BuilderBase::AndReduce(BValue operand, const SourceInfo& loc,
   if (ErrorPending()) {
     return BValue();
   }
-  return AddBitwiseReductionOp(Op::kAndReduce, operand);
+  return AddBitwiseReductionOp(Op::kAndReduce, operand, loc, name);
 }
 
 BValue BuilderBase::OrReduce(BValue operand, const SourceInfo& loc,
@@ -834,7 +834,7 @@ BValue BuilderBase::OrReduce(BValue operand, const SourceInfo& loc,
   if (ErrorPending()) {
     return BValue();
   }
-  return AddBitwiseReductionOp(Op::kOrReduce, operand);
+  return AddBitwiseReductionOp(Op::kOrReduce, operand, loc, name);
 }
 
 BValue BuilderBase::XorReduce(BValue operand, const SourceInfo& loc,
@@ -842,7 +842,7 @@ BValue BuilderBase::XorReduce(BValue operand, const SourceInfo& loc,
   if (ErrorPending()) {
     return BValue();
   }
-  return AddBitwiseReductionOp(Op::kXorReduce, operand);
+  return AddBitwiseReductionOp(Op::kXorReduce, operand, loc, name);
 }
 
 BValue BuilderBase::SMul(BValue lhs, BValue rhs, const SourceInfo& loc,

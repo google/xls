@@ -81,19 +81,81 @@ bool xls_function_builder_build_with_return_value(
 // inspecting the type of some built value that chained from an error), which is
 // why these function signatures do not produce errors.
 
+struct xls_bvalue* xls_builder_base_add_add(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name);
+
+struct xls_bvalue* xls_builder_base_add_umul(struct xls_builder_base* builder,
+                                             struct xls_bvalue* lhs,
+                                             struct xls_bvalue* rhs,
+                                             const char* name);
+
+struct xls_bvalue* xls_builder_base_add_smul(struct xls_builder_base* builder,
+                                             struct xls_bvalue* lhs,
+                                             struct xls_bvalue* rhs,
+                                             const char* name);
+
+struct xls_bvalue* xls_builder_base_add_sub(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name);
+
 struct xls_bvalue* xls_builder_base_add_and(struct xls_builder_base* builder,
                                             struct xls_bvalue* lhs,
                                             struct xls_bvalue* rhs,
                                             const char* name);
+
+struct xls_bvalue* xls_builder_base_add_nand(struct xls_builder_base* builder,
+                                             struct xls_bvalue* lhs,
+                                             struct xls_bvalue* rhs,
+                                             const char* name);
 
 struct xls_bvalue* xls_builder_base_add_or(struct xls_builder_base* builder,
                                            struct xls_bvalue* lhs,
                                            struct xls_bvalue* rhs,
                                            const char* name);
 
+struct xls_bvalue* xls_builder_base_add_xor(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name);
+
 struct xls_bvalue* xls_builder_base_add_not(struct xls_builder_base* builder,
                                             struct xls_bvalue* value,
                                             const char* name);
+
+struct xls_bvalue* xls_builder_base_add_and_reduce(
+    struct xls_builder_base* builder, struct xls_bvalue* value,
+    const char* name);
+
+struct xls_bvalue* xls_builder_base_add_or_reduce(
+    struct xls_builder_base* builder, struct xls_bvalue* value,
+    const char* name);
+
+struct xls_bvalue* xls_builder_base_add_xor_reduce(
+    struct xls_builder_base* builder, struct xls_bvalue* value,
+    const char* name);
+
+struct xls_bvalue* xls_builder_base_add_negate(struct xls_builder_base* builder,
+                                               struct xls_bvalue* value,
+                                               const char* name);
+
+struct xls_bvalue* xls_builder_base_add_reverse(
+    struct xls_builder_base* builder, struct xls_bvalue* value,
+    const char* name);
+
+struct xls_bvalue* xls_builder_base_add_one_hot(
+    struct xls_builder_base* builder, struct xls_bvalue* input,
+    bool lsb_is_priority, const char* name);
+
+struct xls_bvalue* xls_builder_base_add_sign_extend(
+    struct xls_builder_base* builder, struct xls_bvalue* value,
+    int64_t new_bit_count, const char* name);
+
+struct xls_bvalue* xls_builder_base_add_zero_extend(
+    struct xls_builder_base* builder, struct xls_bvalue* value,
+    int64_t new_bit_count, const char* name);
 
 struct xls_bvalue* xls_builder_base_add_literal(
     struct xls_builder_base* builder, struct xls_value* value,
@@ -120,6 +182,65 @@ struct xls_bvalue* xls_builder_base_add_concat(struct xls_builder_base* builder,
                                                struct xls_bvalue** operands,
                                                int64_t operand_count,
                                                const char* name);
+
+struct xls_bvalue* xls_builder_base_add_one_hot_select(
+    struct xls_builder_base* builder, struct xls_bvalue* selector,
+    struct xls_bvalue** cases, int64_t case_count, const char* name);
+
+struct xls_bvalue* xls_builder_base_add_priority_select(
+    struct xls_builder_base* builder, struct xls_bvalue* selector,
+    struct xls_bvalue** cases, int64_t case_count,
+    struct xls_bvalue* default_value, const char* name);
+
+struct xls_bvalue* xls_builder_base_add_eq(struct xls_builder_base* builder,
+                                           struct xls_bvalue* lhs,
+                                           struct xls_bvalue* rhs,
+                                           const char* name);
+
+struct xls_bvalue* xls_builder_base_add_ne(struct xls_builder_base* builder,
+                                           struct xls_bvalue* lhs,
+                                           struct xls_bvalue* rhs,
+                                           const char* name);
+
+struct xls_bvalue* xls_builder_base_add_ult(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name);
+
+struct xls_bvalue* xls_builder_base_add_ule(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name);
+
+struct xls_bvalue* xls_builder_base_add_ugt(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name);
+
+struct xls_bvalue* xls_builder_base_add_uge(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name);
+
+struct xls_bvalue* xls_builder_base_add_slt(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name);
+
+struct xls_bvalue* xls_builder_base_add_sle(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name);
+
+struct xls_bvalue* xls_builder_base_add_sgt(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name);
+
+struct xls_bvalue* xls_builder_base_add_sge(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name);
 
 }  // extern "C"
 
