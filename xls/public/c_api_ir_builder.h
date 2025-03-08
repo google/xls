@@ -108,6 +108,19 @@ struct xls_bvalue* xls_builder_base_add_tuple_index(
     struct xls_builder_base* builder, struct xls_bvalue* tuple, int64_t index,
     const char* name);
 
+struct xls_bvalue* xls_builder_base_add_bit_slice(
+    struct xls_builder_base* builder, struct xls_bvalue* value, int64_t start,
+    int64_t width, const char* name);
+
+struct xls_bvalue* xls_builder_base_add_dynamic_bit_slice(
+    struct xls_builder_base* builder, struct xls_bvalue* value,
+    struct xls_bvalue* start, int64_t width, const char* name);
+
+struct xls_bvalue* xls_builder_base_add_concat(struct xls_builder_base* builder,
+                                               struct xls_bvalue** operands,
+                                               int64_t operand_count,
+                                               const char* name);
+
 }  // extern "C"
 
 #endif  // XLS_PUBLIC_C_API_IR_BUILDER_H_

@@ -186,4 +186,45 @@ struct xls_bvalue* xls_builder_base_add_tuple_index(
   return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
 }
 
+struct xls_bvalue* xls_builder_base_add_bit_slice(
+    struct xls_builder_base* builder, struct xls_bvalue* value, int64_t start,
+    int64_t width, const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  auto* cpp_value = reinterpret_cast<xls::BValue*>(value);
+  std::string_view cpp_name = name == nullptr ? "" : name;
+  xls::BValue bvalue = cpp_builder->BitSlice(*cpp_value, start, width,
+                                             xls::SourceInfo(), cpp_name);
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_dynamic_bit_slice(
+    struct xls_builder_base* builder, struct xls_bvalue* value,
+    struct xls_bvalue* start, int64_t width, const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  auto* cpp_value = reinterpret_cast<xls::BValue*>(value);
+  auto* cpp_start = reinterpret_cast<xls::BValue*>(start);
+  std::string_view cpp_name = name == nullptr ? "" : name;
+  xls::BValue bvalue = cpp_builder->DynamicBitSlice(
+      *cpp_value, *cpp_start, width, xls::SourceInfo(), cpp_name);
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_concat(struct xls_builder_base* builder,
+                                               struct xls_bvalue** operands,
+                                               int64_t operand_count,
+                                               const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  std::vector<xls::BValue> cpp_operands;
+  for (int64_t i = 0; i < operand_count; ++i) {
+    cpp_operands.push_back(*reinterpret_cast<xls::BValue*>(operands[i]));
+  }
+  std::string_view cpp_name = name == nullptr ? "" : name;
+  xls::BValue bvalue = cpp_builder->Concat(absl::MakeConstSpan(cpp_operands),
+                                           xls::SourceInfo(), cpp_name);
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
 }  // extern "C"

@@ -1272,4 +1272,80 @@ top fn aoi21(inputs: (bits[1], bits[1], bits[1]) id=1) -> (bits[1], bits[1]) {
   EXPECT_EQ(std::string_view{package_str}, kWant);
 }
 
+TEST(XlsCApiTest, FnBuilderConcatAndSlice) {
+  xls_package* package = xls_package_create("my_package");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_function_builder* fn_builder = xls_function_builder_create(
+      "concat_and_slice", package, /*should_verify=*/true);
+  absl::Cleanup free_fn_builder([=] { xls_function_builder_free(fn_builder); });
+
+  xls_builder_base* fn_builder_base =
+      xls_function_builder_as_builder_base(fn_builder);
+
+  // Concat two 16 bit values and slice out the last 8 bits statically and some
+  // other 8 bits dynamically.
+  xls_type* u16 = xls_package_get_bits_type(package, 16);
+
+  xls_bvalue* x = xls_function_builder_add_parameter(fn_builder, "x", u16);
+  absl::Cleanup free_x([=] { xls_bvalue_free(x); });
+  xls_bvalue* y = xls_function_builder_add_parameter(fn_builder, "y", u16);
+  absl::Cleanup free_y([=] { xls_bvalue_free(y); });
+
+  xls_bvalue* concat_operands[] = {x, y};
+  xls_bvalue* concat = xls_builder_base_add_concat(
+      fn_builder_base, concat_operands, 2, "concat");
+  absl::Cleanup free_concat([=] { xls_bvalue_free(concat); });
+
+  xls_bvalue* last_8b = xls_builder_base_add_bit_slice(fn_builder_base, concat,
+                                                       32 - 8, 8, "last_8b");
+  absl::Cleanup free_last_8b([=] { xls_bvalue_free(last_8b); });
+
+  xls_value* dynamic_start_value = nullptr;
+  {
+    char* error = nullptr;
+    ASSERT_TRUE(xls_value_make_ubits(32, 0, &error, &dynamic_start_value));
+  }
+  absl::Cleanup free_dynamic_start_value(
+      [=] { xls_value_free(dynamic_start_value); });
+
+  xls_bvalue* dynamic_start = xls_builder_base_add_literal(
+      fn_builder_base, dynamic_start_value, "dynamic_start");
+  absl::Cleanup free_dynamic_start([=] { xls_bvalue_free(dynamic_start); });
+
+  xls_bvalue* dynamic_slice = xls_builder_base_add_dynamic_bit_slice(
+      fn_builder_base, concat, dynamic_start, 8, "dynamic_slice");
+  absl::Cleanup free_dynamic_slice([=] { xls_bvalue_free(dynamic_slice); });
+
+  xls_bvalue* slices_members[] = {last_8b, dynamic_slice};
+  xls_bvalue* slices =
+      xls_builder_base_add_tuple(fn_builder_base, slices_members, 2, "slices");
+  absl::Cleanup free_slices([=] { xls_bvalue_free(slices); });
+
+  xls_function* function = nullptr;
+  {
+    char* error = nullptr;
+    ASSERT_TRUE(xls_function_builder_build_with_return_value(
+        fn_builder, slices, &error, &function));
+    ASSERT_NE(function, nullptr);
+  }
+
+  // Convert the package to string and make sure it's what we expect the
+  // contents are.
+  char* package_str = nullptr;
+  ASSERT_TRUE(xls_package_to_string(package, &package_str));
+  absl::Cleanup free_package_str([=] { xls_c_str_free(package_str); });
+  const std::string_view kWant = R"(package my_package
+
+fn concat_and_slice(x: bits[16] id=1, y: bits[16] id=2) -> (bits[8], bits[8]) {
+  concat: bits[32] = concat(x, y, id=3)
+  dynamic_start: bits[32] = literal(value=0, id=5)
+  last_8b: bits[8] = bit_slice(concat, start=24, width=8, id=4)
+  dynamic_slice: bits[8] = dynamic_bit_slice(concat, dynamic_start, width=8, id=6)
+  ret slices: (bits[8], bits[8]) = tuple(last_8b, dynamic_slice, id=7)
+}
+)";
+  EXPECT_EQ(std::string_view{package_str}, kWant);
+}
+
 }  // namespace
