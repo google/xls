@@ -133,6 +133,52 @@ bool AbslParseFlag(std::string_view text,
                    std::string* error);
 std::string AbslUnparseFlag(const AstGeneratorOptions& ast_generator_options);
 
+// Note: we use a btree for a stable iteration order; i.e. so we can stably
+// select a random value from the environment across something like different
+// hash function seed states. That is, ideally different process invocation
+// would all produce identical generated functions for the same seed.
+using Env = absl::btree_map<std::string, TypedExpr>;
+
+// Properties of the proc being generated
+struct ProcProperties {
+  // A list of the state types in the proc's next function. Currently, at most
+  // a single state is supported. The order of types as they appear in the
+  // container mirrors the order present in the proc's next function.
+  std::vector<TypeAnnotation*> state_types;
+
+  // Parameters of the proc config function.
+  std::vector<Param*> config_params;
+
+  // Members of the proc.
+  std::vector<ProcMember*> members;
+};
+
+// The context contains information for an instance in the call stack.
+struct Context {
+  // TODO(https://github.com/google/xls/issues/789).
+  // TODO(https://github.com/google/xls/issues/790).
+  Env env;
+
+  // Contains properties of the generated proc. Only present if generating
+  // a proc.
+  std::optional<ProcProperties> proc_properties;
+  bool IsGeneratingProc() const { return proc_properties.has_value(); }
+
+  static Context GetFunctionContext() {
+    return Context{
+        .env = Env(),
+        .proc_properties = std::nullopt,
+    };
+  }
+
+  static Context GetProcContext() {
+    return Context{
+        .env = Env(),
+        .proc_properties = ProcProperties(),
+    };
+  }
+};
+
 // Type that generates a random module for use in fuzz testing; i.e.
 //
 //    std::mt19937_64 rng;
@@ -180,20 +226,6 @@ class AstGenerator {
 
   XLS_FRIEND_TEST(AstGeneratorTest, GeneratesParametricBindings);
   XLS_FRIEND_TEST(AstGeneratorTest, BitsTypeGetMetadata);
-
-  // Note: we use a btree for a stable iteration order; i.e. so we can stably
-  // select a random value from the environment across something like different
-  // hash function seed states. That is, ideally different process invocation
-  // would all produce identical generated functions for the same seed.
-  using Env = absl::btree_map<std::string, TypedExpr>;
-
-  // The context contains information for an instance in the call stack.
-  struct Context {
-    // TODO(https://github.com/google/xls/issues/789).
-    // TODO(https://github.com/google/xls/issues/790).
-    Env env;
-    bool is_generating_proc;
-  };
 
   static bool IsTypeRef(const TypeAnnotation* t);
   static bool IsBits(const TypeAnnotation* t);
@@ -259,7 +291,8 @@ class AstGenerator {
       std::string name, absl::Span<Param* const> proc_params);
 
   // Generate the proc's next function with the given name.
-  absl::StatusOr<AnnotatedFunction> GenerateProcNextFunction(std::string name);
+  absl::StatusOr<AnnotatedFunction> GenerateProcNextFunction(std::string name,
+                                                             Context* ctx);
 
   // Generate a function to return a constant with the given TypeAnnotation to
   // serve as a Proc's [required] init function.
@@ -725,19 +758,6 @@ class AstGenerator {
     return absl::OkStatus();
   }
 
-  struct ProcProperties {
-    // A list of the state types in the proc's next function. Currently, at most
-    // a single state is supported. The order of types as they appear in the
-    // container mirrors the order present in the proc's next function.
-    std::vector<TypeAnnotation*> state_types;
-
-    // Parameters of the proc config function.
-    std::vector<Param*> config_params;
-
-    // Members of the proc.
-    std::vector<ProcMember*> members;
-  };
-
   absl::BitGenRef bit_gen_;
 
   const AstGeneratorOptions options_;
@@ -764,9 +784,6 @@ class AstGenerator {
 
   // Set of constants defined during module generation.
   absl::btree_map<std::string, ConstantDef*> constants_;
-
-  // Contains properties of the generated proc.
-  ProcProperties proc_properties_;
 };
 
 }  // namespace xls::dslx

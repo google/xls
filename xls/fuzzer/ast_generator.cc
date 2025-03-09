@@ -428,6 +428,9 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
 }  // namespace
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
+  CHECK(ctx->IsGeneratingProc());
+  ProcProperties& proc_properties = ctx->proc_properties.value();
+
   // Equal distribution for channel ops.
   ChannelOpType chan_op_type =
       RandomChoice(absl::MakeConstSpan(
@@ -533,8 +536,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
         name_def, down_cast<TypeAnnotation*>(type_annotation));
   };
   XLS_ASSIGN_OR_RETURN(ProcMember * member, to_member(param));
-  proc_properties_.members.push_back(member);
-  proc_properties_.config_params.push_back(param);
+  proc_properties.members.push_back(member);
+  proc_properties.config_params.push_back(param);
   NameRef* chan_expr = module_->Make<NameRef>(fake_span_, param->identifier(),
                                               param->name_def());
 
@@ -1842,8 +1845,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
 // state is present.
 absl::StatusOr<TypedExpr> AstGenerator::GenerateProcNextFunctionRetval(
     Context* ctx) {
+  CHECK(ctx->IsGeneratingProc());
+  ProcProperties& proc_properties = ctx->proc_properties.value();
+
   TypedExpr retval;
-  if (proc_properties_.state_types.empty()) {
+  if (proc_properties.state_types.empty()) {
     // Return an empty tuple.
     retval = TypedExpr{
         .expr = module_->Make<XlsTuple>(fake_span_, std::vector<Expr*>{},
@@ -1854,7 +1860,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateProcNextFunctionRetval(
     // A state is present, therefore the return value for a proc's next function
     // must be of the state type.
     XLS_ASSIGN_OR_RETURN(
-        retval, ChooseEnvValue(&ctx->env, proc_properties_.state_types[0]));
+        retval, ChooseEnvValue(&ctx->env, proc_properties.state_types[0]));
   }
   retval.last_delaying_op = LastDelayingOp::kNone;
   for (auto& [name, value] : ctx->env) {
@@ -2550,7 +2556,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t call_depth,
                                                      Context* ctx) {
   absl::StatusOr<TypedExpr> generated = RecoverableError("Not yet generated.");
   while (IsRecoverableError(generated.status())) {
-    switch (ChooseOp(bit_gen_, ctx->is_generating_proc)) {
+    switch (ChooseOp(bit_gen_, ctx->IsGeneratingProc())) {
       case kArray:
         generated = GenerateArray(ctx);
         break;
@@ -2812,7 +2818,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
 
   // Done building up the body; finish with the retval.
   XLS_ASSIGN_OR_RETURN(TypedExpr retval,
-                       ctx->is_generating_proc
+                       ctx->IsGeneratingProc()
                            ? GenerateProcNextFunctionRetval(ctx)
                            : GenerateRetval(ctx));
   statements.push_back(module_->Make<Statement>(retval.expr));
@@ -2922,7 +2928,7 @@ void AstGenerator::GenerateTupleAssignment(
 absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateFunction(
     const std::string& name, int64_t call_depth,
     absl::Span<const AnnotatedType> param_types) {
-  Context context{.is_generating_proc = false};
+  Context context = Context::GetFunctionContext();
 
   std::vector<Param*> params;
   std::vector<AnnotatedParam> annotated_params;
@@ -3036,9 +3042,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
 }
 
 absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateProcNextFunction(
-    std::string name) {
-  Context context{.is_generating_proc = true};
-
+    std::string name, Context* ctx) {
   std::vector<Param*> params;
   TypeAnnotation* state_param_type = nullptr;
   if (options_.emit_stateless_proc) {
@@ -3047,14 +3051,14 @@ absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateProcNextFunction(
     state_param_type = GenerateType();
   }
   params.insert(params.end(), GenerateParam({.type = state_param_type}).param);
-  proc_properties_.state_types.push_back(params.back()->type_annotation());
+  ctx->proc_properties->state_types.push_back(params.back()->type_annotation());
 
   for (Param* param : params) {
-    context.env[param->identifier()] =
+    ctx->env[param->identifier()] =
         TypedExpr{MakeNameRef(param->name_def()), param->type_annotation()};
   }
 
-  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(0, &context));
+  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(0, ctx));
 
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
@@ -3099,25 +3103,27 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
 
 absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
     const std::string& name) {
+  Context ctx = Context::GetProcContext();
+  ProcProperties& proc_properties = ctx.proc_properties.value();
+
   XLS_ASSIGN_OR_RETURN(AnnotatedFunction next_function,
-                       GenerateProcNextFunction("next"));
+                       GenerateProcNextFunction("next", &ctx));
 
   XLS_ASSIGN_OR_RETURN(
       Function * config_function,
-      GenerateProcConfigFunction("config", proc_properties_.config_params));
+      GenerateProcConfigFunction("config", proc_properties.config_params));
 
-  CHECK_EQ(proc_properties_.state_types.size(), 1);
-  XLS_ASSIGN_OR_RETURN(
-      Function * init_fn,
-      GenerateProcInitFunction(absl::StrCat(name, ".init"),
-                               proc_properties_.state_types[0]));
+  CHECK_EQ(proc_properties.state_types.size(), 1);
+  XLS_ASSIGN_OR_RETURN(Function * init_fn, GenerateProcInitFunction(
+                                               absl::StrCat(name, ".init"),
+                                               proc_properties.state_types[0]));
 
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
 
   std::vector<ProcStmt> proc_stmts;
-  proc_stmts.reserve(proc_properties_.members.size());
-  for (ProcMember* member : proc_properties_.members) {
+  proc_stmts.reserve(proc_properties.members.size());
+  for (ProcMember* member : proc_properties.members) {
     proc_stmts.push_back(member);
   }
 
@@ -3126,7 +3132,7 @@ absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
       .config = config_function,
       .next = next_function.function,
       .init = init_fn,
-      .members = proc_properties_.members,
+      .members = proc_properties.members,
   };
   Proc* proc = module_->Make<Proc>(
       fake_span_, /*body_span=*/fake_span_, name_def,
