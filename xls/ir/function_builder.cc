@@ -1114,24 +1114,28 @@ absl::StatusOr<ChannelWithInterfaces> ProcBuilder::AddChannel(
 absl::StatusOr<ReceiveChannelInterface*> ProcBuilder::AddInputChannel(
     std::string_view name, Type* type, ChannelKind kind,
     std::optional<ChannelStrictness> strictness) {
-  if (kind == ChannelKind::kStreaming && !strictness.has_value()) {
-    strictness = kDefaultChannelStrictness;
-  }
   XLS_RET_CHECK(proc()->is_new_style_proc());
   auto channel_interface =
-      std::make_unique<ReceiveChannelInterface>(name, type, kind, strictness);
+      std::make_unique<ReceiveChannelInterface>(name, type, kind);
+  if (strictness.has_value()) {
+    channel_interface->SetStrictness(strictness.value());
+  } else if (kind == ChannelKind::kStreaming) {
+    channel_interface->SetStrictness(kDefaultChannelStrictness);
+  }
   return proc()->AddInputChannelInterface(std::move(channel_interface));
 }
 
 absl::StatusOr<SendChannelInterface*> ProcBuilder::AddOutputChannel(
     std::string_view name, Type* type, ChannelKind kind,
     std::optional<ChannelStrictness> strictness) {
-  if (kind == ChannelKind::kStreaming && !strictness.has_value()) {
-    strictness = kDefaultChannelStrictness;
-  }
   XLS_RET_CHECK(proc()->is_new_style_proc());
   auto channel_interface =
-      std::make_unique<SendChannelInterface>(name, type, kind, strictness);
+      std::make_unique<SendChannelInterface>(name, type, kind);
+  if (strictness.has_value()) {
+    channel_interface->SetStrictness(strictness.value());
+  } else if (kind == ChannelKind::kStreaming) {
+    channel_interface->SetStrictness(kDefaultChannelStrictness);
+  }
   return proc()->AddOutputChannelInterface(std::move(channel_interface));
 }
 

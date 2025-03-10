@@ -114,13 +114,15 @@ absl::Status AddInterfaceChannel(Proc* proc, Channel* channel,
   }
   std::unique_ptr<ChannelInterface> channel_interface;
   if (direction == ChannelDirection::kSend) {
-    channel_interface = std::make_unique<SendChannelInterface>(
-        channel->name(), channel->type(), channel->kind(), strictness);
-  } else {
-    channel_interface = std::make_unique<ReceiveChannelInterface>(
-        channel->name(), channel->type(), channel->kind(), strictness);
+    return proc
+        ->AddOutputChannel(channel->name(), channel->type(), channel->kind(),
+                           strictness)
+        .status();
   }
-  return proc->AddChannelInterface(std::move(channel_interface)).status();
+  return proc
+      ->AddInputChannel(channel->name(), channel->type(), channel->kind(),
+                        strictness)
+      .status();
 }
 
 }  // namespace

@@ -171,6 +171,15 @@ class Parser {
       Package* package, absl::Span<const IrAttribute> outer_attributes = {},
       Proc* proc = nullptr);
 
+  // Parse a channel interface starting at the current scanner position. The
+  // scanner must be positioned within the body of the proc `proc` with
+  // proc-scoped channels. Because of implementation details of the parser and
+  // proc API, this method does not actually add an interface to the proc (this
+  // is done when a channel is added or the signature is parsed). Rather, this
+  // method sets various attributes on the interface.
+  absl::StatusOr<ChannelInterface*> ParseChannelInterface(Package* package,
+                                                          Proc* proc);
+
   // Parse starting from a function type.
   absl::StatusOr<FunctionType*> ParseFunctionType(Package* package);
 
@@ -289,10 +298,17 @@ class Parser {
   // Parses a proc instantiation declaration. Only supported in procs.
   absl::StatusOr<ProcInstantiation*> ParseProcInstantiation(Proc* proc);
 
-  struct ProcNext {
+  struct ProcBodyResult {
     std::vector<BValue> next_state;
+    std::vector<ChannelInterface*> declared_channel_interfaces;
   };
-  using BodyResult = std::variant<BValue, ProcNext>;
+  struct FunctionBodyResult {
+    BValue return_value;
+  };
+  struct BlockBodyResult {};
+  using BodyResult =
+      std::variant<FunctionBodyResult, ProcBodyResult, BlockBodyResult>;
+
   // Parses the line-statements in the body of a function/proc. Returns the
   // return value if the body is a function, or the next token/state pair if the
   // body is a proc.

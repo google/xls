@@ -1,6 +1,8 @@
 package test
 
-proc my_proc<in_ch: bits[32] in kind=single_value, out_ch: bits[32] out kind=streaming strictness=proven_mutually_exclusive>(my_token: token, my_state: bits[32], init={token, 42}) {
+proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan_interface in_ch(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface out_ch(direction=send, kind=streaming, flow_control=ready_valid, flop_kind=skid)
   my_token: token = state_read(state_element=my_token, id=7)
   my_state: bits[32] = state_read(state_element=my_state, id=8)
   send.1: token = send(my_token, my_state, channel=out_ch, id=1)

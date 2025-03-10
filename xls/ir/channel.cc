@@ -15,6 +15,7 @@
 #include "xls/ir/channel.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -308,6 +309,28 @@ std::ostream& operator<<(std::ostream& os, ChannelDirection direction) {
   return os;
 }
 
+std::unique_ptr<SendChannelInterface> SendChannelInterface::Clone(
+    std::optional<std::string_view> new_name) const {
+  auto clone = std::make_unique<SendChannelInterface>(new_name.value_or(name()),
+                                                      type(), kind());
+  clone->SetKind(kind());
+  clone->SetStrictness(strictness());
+  clone->SetFlowControl(flow_control());
+  clone->SetFlopKind(flop_kind());
+  return clone;
+}
+
+std::unique_ptr<ReceiveChannelInterface> ReceiveChannelInterface::Clone(
+    std::optional<std::string_view> new_name) const {
+  auto clone = std::make_unique<ReceiveChannelInterface>(
+      new_name.value_or(name()), type(), kind());
+  clone->SetKind(kind());
+  clone->SetStrictness(strictness());
+  clone->SetFlowControl(flow_control());
+  clone->SetFlopKind(flop_kind());
+  return clone;
+}
+
 ChannelRef AsChannelRef(SendChannelRef ref) {
   if (std::holds_alternative<SendChannelInterface*>(ref)) {
     return std::get<SendChannelInterface*>(ref);
@@ -372,14 +395,18 @@ std::optional<ChannelStrictness> ChannelRefStrictness(ChannelRef ref) {
 std::string ChannelInterface::ToString() const {
   std::vector<std::string> keyword_strs;
   keyword_strs.push_back(
-      absl::StrFormat("kind=%s", ChannelKindToString(kind())));
+      absl::StrCat("direction=", ChannelDirectionToString(direction())));
+  keyword_strs.push_back(absl::StrCat("kind=", ChannelKindToString(kind())));
   if (strictness_.has_value()) {
-    keyword_strs.push_back(absl::StrFormat(
-        "strictness=%s", ChannelStrictnessToString(strictness_.value())));
+    keyword_strs.push_back(absl::StrCat(
+        "strictness=", ChannelStrictnessToString(strictness_.value())));
   }
-  return absl::StrFormat("%s: %s %s %s", name(), type()->ToString(),
-                         direction() == ChannelDirection::kSend ? "out" : "in",
-                         absl::StrJoin(keyword_strs, " "));
+  keyword_strs.push_back(
+      absl::StrCat("flow_control=", FlowControlToString(flow_control())));
+  keyword_strs.push_back(
+      absl::StrCat("flop_kind=", FlopKindToString(flop_kind())));
+  return absl::StrFormat("chan_interface %s(%s)", name(),
+                         absl::StrJoin(keyword_strs, ", "));
 }
 
 std::string ChannelRefToString(ChannelRef ref) {
@@ -387,6 +414,17 @@ std::string ChannelRefToString(ChannelRef ref) {
     return std::get<ChannelInterface*>(ref)->ToString();
   }
   return std::get<Channel*>(ref)->ToString();
+}
+
+FlowControl ChannelRefFlowControl(ChannelRef ref) {
+  if (std::holds_alternative<ChannelInterface*>(ref)) {
+    return std::get<ChannelInterface*>(ref)->flow_control();
+  } else if (StreamingChannel* streaming_channel =
+                 dynamic_cast<StreamingChannel*>(std::get<Channel*>(ref));
+             streaming_channel != nullptr) {
+    return streaming_channel->GetFlowControl();
+  }
+  return FlowControl::kNone;
 }
 
 }  // namespace xls

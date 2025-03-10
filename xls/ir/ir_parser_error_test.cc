@@ -666,7 +666,8 @@ proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
 TEST(IrParserErrorTest, NewStyleProcSendOnInput) {
   Package p("my_package");
   const std::string input =
-      R"(proc my_proc<in_ch: bits[32] in kind=streaming>(my_token: token, my_state: bits[32], init={token, 42}) {
+      R"(proc my_proc<in_ch: bits[32] in>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan_interface in_ch(direction=receive, kind=streaming)
   send: token = send(my_token, my_state, channel=in_ch)
   next (send, my_state)
 }
@@ -679,7 +680,8 @@ TEST(IrParserErrorTest, NewStyleProcSendOnInput) {
 TEST(IrParserErrorTest, NewStyleProcReceiveOnOutput) {
   Package p("my_package");
   const std::string input =
-      R"(proc my_proc<out_ch: bits[32] out kind=streaming>(my_token: token, my_state: bits[32], init={token, 42}) {
+      R"(proc my_proc<out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan_interface out_ch(direction=send, kind=streaming)
   rcv: (token, bits[32]) = receive(my_token, channel=out_ch)
   rcv_token: token = tuple_index(rcv, index=0)
   next (rcv_token, my_state)
@@ -695,6 +697,8 @@ TEST(IrParserErrorTest, InstantiateNonexistentProc) {
 
 proc the_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
   chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive)
+  chan_interface ch(direction=send, kind=streaming)
+  chan_interface ch(direction=receive, kind=streaming)
   proc_instantiation foo(ch, ch, proc=not_a_proc)
   next (my_token, my_state)
 }
@@ -713,6 +717,8 @@ proc og_proc(my_token: token, my_state: bits[32], init={token, 42}) {
 
 proc the_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
   chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive)
+  chan_interface ch(direction=send, kind=streaming)
+  chan_interface ch(direction=receive, kind=streaming)
   proc_instantiation foo(ch, ch, proc=og_proc)
   next (my_token, my_state)
 }
@@ -725,7 +731,9 @@ proc the_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
 TEST(IrParserErrorTest, ProcInstantiationWrongNumberOfArguments) {
   const std::string input = R"(package test
 
-proc my_proc<in_ch: bits[32] in kind=streaming, out_ch: bits[32] out kind=streaming>(my_token: token, my_state: bits[32], init={token, 42}) {
+proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan_interface in_ch(direction=receive, kind=streaming)
+  chan_interface out_ch(direction=send, kind=streaming)
   send.1: token = send(my_token, my_state, channel=out_ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
@@ -735,6 +743,8 @@ proc my_proc<in_ch: bits[32] in kind=streaming, out_ch: bits[32] out kind=stream
 
 proc other_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
   chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive)
+  chan_interface ch(direction=send, kind=streaming)
+  chan_interface ch(direction=receive, kind=streaming)
   proc_instantiation foo(ch, proc=my_proc)
   next (my_token, my_state)
 }
@@ -768,7 +778,9 @@ proc og_proc(my_token: token, my_state: bits[32], init={token, 42}) {
 TEST(IrParserErrorTest, DirectionMismatchInInstantiatedProc) {
   const std::string input = R"(package test
 
-proc my_proc<in_ch: bits[32] in kind=streaming, out_ch: bits[32] out kind=streaming>(my_token: token, my_state: bits[32], init={token, 42}) {
+proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan_interface in_ch(direction=receive, kind=streaming)
+  chan_interface out_ch(direction=send, kind=streaming)
   send.1: token = send(my_token, my_state, channel=out_ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
@@ -776,7 +788,9 @@ proc my_proc<in_ch: bits[32] in kind=streaming, out_ch: bits[32] out kind=stream
   next (tuple_index.4, my_state)
 }
 
-proc other_proc<in_ch: bits[32] in kind=streaming, out_ch: bits[32] out kind=streaming>(my_token: token, my_state: bits[32], init={token, 42}) {
+proc other_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan_interface in_ch(direction=receive, kind=streaming)
+  chan_interface out_ch(direction=send, kind=streaming)
   proc_instantiation foo(out_ch, in_ch, proc=my_proc)
   next (my_token, my_state)
 }
@@ -792,6 +806,8 @@ TEST(IrParserErrorTest, DeclareChannelInOldStyleProc) {
   const std::string input =
       R"(proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
   chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive)
+  chan_interface ch(direction=send, kind=streaming)
+  chan_interface ch(direction=receive, kind=streaming)
   next (rcv_token, my_state)
 }
 )";
@@ -806,6 +822,8 @@ TEST(IrParserErrorTest, DeclareChannelInFunction) {
   const std::string input =
       R"(fn my_func()  -> bits[1] {
   chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive)
+  chan_interface ch(direction=send, kind=streaming)
+  chan_interface ch(direction=receive, kind=streaming)
   ret result: bits[1] = literal(value=0, id=1)
 }
 )";
@@ -834,7 +852,8 @@ proc my_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
 TEST(IrParserErrorTest, NewStyleProcWithDuplicateChannelNames) {
   Package p("my_package");
   const std::string input =
-      R"(proc my_proc<ch: bits[32] in kind=streaming, ch: bits[32] out kind=streaming>(my_token: token, my_state: bits[32], init={token, 42}) {
+      R"(proc my_proc<ch: bits[32] in, ch: bits[32] out>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan_interface in_ch(direction=receive, kind=streaming)
   send.1: token = send(my_token, my_state, channel=ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
@@ -852,7 +871,9 @@ TEST(IrParserErrorTest, NewStyleProcWithDuplicateChannelNames) {
 TEST(IrParserErrorTest, InstantiatedProcWithUnknownChannel) {
   const std::string input = R"(package test
 
-proc my_proc<in_ch: bits[32] in kind=streaming, out_ch: bits[32] out kind=streaming>(my_token: token, my_state: bits[32], init={token, 42}) {
+proc my_proc<in_ch: bits[32] in, out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan_interface in_ch(direction=receive, kind=streaming)
+  chan_interface out_ch(direction=send, kind=streaming)
   send.1: token = send(my_token, my_state, channel=out_ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
@@ -2467,6 +2488,66 @@ block my_block(rst: bits[1]) {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Block `my_block` has no input port named "
                                  "`not_really_a_port`")));
+}
+
+TEST(IrParserErrorTest, DuplicateChannelInterfaces) {
+  Package p("my_package");
+  const std::string input =
+      R"(proc my_proc<out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan_interface out_ch(direction=send, kind=streaming)
+  chan_interface out_ch(direction=send, kind=streaming)
+  send: token = send(my_token, my_state, channel=out_ch)
+  next (send, my_state)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParseProc(input, &p).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Multiple channel interfaces named `out_ch`")));
+}
+
+TEST(IrParserErrorTest, MissingChannelInterfaceOnProcInterface) {
+  Package p("my_package");
+  const std::string input =
+      R"(proc my_proc<out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={token, 42}) {
+  send: token = send(my_token, my_state, channel=out_ch)
+  next (send, my_state)
+}
+)";
+  EXPECT_THAT(Parser::ParseProc(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Missing channel interface declaration")));
+}
+
+TEST(IrParserErrorTest, MissingChannelInterfaceForDeclaredChannel) {
+  Package p("my_package");
+  const std::string input =
+      R"(proc the_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive)
+  chan_interface ch(direction=send, kind=streaming)
+  next (my_token, my_state)
+}
+)";
+  EXPECT_THAT(Parser::ParseProc(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Missing channel interface declaration named "
+                                 "`ch` with direction `receive`")));
+}
+
+TEST(IrParserErrorTest, ChannelInterfaceDirectionMismatch) {
+  Package p("my_package");
+  const std::string input =
+      R"(proc my_proc<out_ch: bits[32] out>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan_interface out_ch(direction=receive, kind=streaming)
+  send: token = send(my_token, my_state, channel=out_ch)
+  next (send, my_state)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParseProc(input, &p).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("No declared channel or channel interface with "
+                         "direction `receive` with name `out_ch`")));
 }
 
 }  // namespace xls

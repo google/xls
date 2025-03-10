@@ -885,8 +885,11 @@ top proc test_proc(state:(), init={()}) {
         .ir_text = R"(package test
 
 top proc my_proc<
-    in: bits[32] in kind=streaming strictness=$0,
-    out: bits[32] out kind=streaming strictness=$0>() {
+    in: bits[32] in,
+    out: bits[32] out>() {
+  chan_interface in(direction=receive, kind=streaming, strictness=$0)
+  chan_interface out(direction=send, kind=streaming, strictness=$0)
+
   tok: token = literal(value=token)
   recv0: (token, bits[32]) = receive(tok, channel=in)
   recv0_tok: token = tuple_index(recv0, index=0)
@@ -1154,8 +1157,8 @@ class SingleValueChannelLegalizationPassTest : public TestWithParam<TestParam> {
              "flow_control=ready_valid, strictness=$0",
              "kind=single_value, ops=receive_only, "},
             // Proc-scoped channel form.
-            {"kind=streaming strictness=$0", "kind=single_value"},
-            {"kind=streaming strictness=$0", "kind=single_value"},
+            {"kind=streaming, strictness=$0", "kind=single_value"},
+            {"kind=streaming, strictness=$0", "kind=single_value"},
         });
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                          Parser::ParsePackage(substituted_ir_text));

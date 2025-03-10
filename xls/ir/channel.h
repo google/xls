@@ -17,7 +17,7 @@
 
 #include <cstdint>
 #include <iosfwd>
-#include <iterator>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -442,9 +442,13 @@ inline ChannelDirection InvertChannelDirection(ChannelDirection d) {
 // channels.
 class ChannelInterface {
  public:
-  ChannelInterface(std::string_view name, Type* type, ChannelKind kind,
-                   std::optional<ChannelStrictness> strictness)
-      : name_(name), type_(type), kind_(kind), strictness_(strictness) {}
+  ChannelInterface(std::string_view name, Type* type, ChannelKind kind)
+      : name_(name),
+        type_(type),
+        kind_(kind),
+        strictness_(std::nullopt),
+        flow_control_(FlowControl::kNone),
+        flop_kind_(FlopKind::kNone) {}
   virtual ~ChannelInterface() = default;
 
   // Like most IR constructs, ChannelInterfaces are passed around by pointer
@@ -454,8 +458,23 @@ class ChannelInterface {
 
   std::string_view name() const { return name_; }
   Type* type() const { return type_; }
+
+  // TODO(meheff): Remove kind from ChannelInterface. This is a property of the
+  // channel not the interface.
+  void SetKind(ChannelKind value) { kind_ = value; }
   ChannelKind kind() const { return kind_; }
+
+  void SetStrictness(std::optional<ChannelStrictness> value) {
+    strictness_ = value;
+  }
   std::optional<ChannelStrictness> strictness() const { return strictness_; }
+
+  void SetFlowControl(FlowControl value) { flow_control_ = value; }
+  FlowControl flow_control() const { return flow_control_; }
+
+  void SetFlopKind(FlopKind value) { flop_kind_ = value; }
+  FlopKind flop_kind() const { return flop_kind_; }
+
   virtual ChannelDirection direction() const = 0;
 
   std::string ToString() const;
@@ -465,14 +484,18 @@ class ChannelInterface {
   Type* type_;
   ChannelKind kind_;
   std::optional<ChannelStrictness> strictness_;
+  FlowControl flow_control_;
+  FlopKind flop_kind_;
 };
 
 class SendChannelInterface : public ChannelInterface {
  public:
-  SendChannelInterface(std::string_view name, Type* type, ChannelKind kind,
-                       std::optional<ChannelStrictness> strictness)
-      : ChannelInterface(name, type, kind, strictness) {}
+  SendChannelInterface(std::string_view name, Type* type,
+                       ChannelKind kind = ChannelKind::kStreaming)
+      : ChannelInterface(name, type, kind) {}
   ~SendChannelInterface() override = default;
+  std::unique_ptr<SendChannelInterface> Clone(
+      std::optional<std::string_view> new_name = std::nullopt) const;
   ChannelDirection direction() const override {
     return ChannelDirection::kSend;
   }
@@ -480,10 +503,12 @@ class SendChannelInterface : public ChannelInterface {
 
 class ReceiveChannelInterface : public ChannelInterface {
  public:
-  ReceiveChannelInterface(std::string_view name, Type* type, ChannelKind kind,
-                          std::optional<ChannelStrictness> strictness)
-      : ChannelInterface(name, type, kind, strictness) {}
+  ReceiveChannelInterface(std::string_view name, Type* type,
+                          ChannelKind kind = ChannelKind::kStreaming)
+      : ChannelInterface(name, type, kind) {}
   ~ReceiveChannelInterface() override = default;
+  std::unique_ptr<ReceiveChannelInterface> Clone(
+      std::optional<std::string_view> new_name = std::nullopt) const;
   ChannelDirection direction() const override {
     return ChannelDirection::kReceive;
   }
@@ -514,11 +539,13 @@ ChannelRef AsChannelRef(ReceiveChannelRef ref);
 SendChannelRef AsSendChannelRefOrDie(ChannelRef ref);
 ReceiveChannelRef AsReceiveChannelRefOrDie(ChannelRef ref);
 
-// Return the name/type/kind of a channel reference.
+// Return the name/type/kind/etc of a channel reference.
 std::string_view ChannelRefName(ChannelRef ref);
 Type* ChannelRefType(ChannelRef ref);
 ChannelKind ChannelRefKind(ChannelRef ref);
 std::optional<ChannelStrictness> ChannelRefStrictness(ChannelRef ref);
+FlowControl ChannelRefFlowControl(ChannelRef ref);
+
 std::string ChannelRefToString(ChannelRef ref);
 
 }  // namespace xls

@@ -1703,7 +1703,9 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
 absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
     BuilderBase* fb, absl::flat_hash_map<std::string, BValue>* name_to_value,
     Package* package) {
-  std::optional<BodyResult> result;
+  std::optional<BValue> return_value;
+  std::optional<std::vector<BValue>> next_state;
+  std::vector<ChannelInterface*> channel_interfaces;
   while (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
     XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
 
@@ -1745,6 +1747,24 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
           ParseChannel(package, /*outer_attributes=*/{}, proc).status());
       continue;
     }
+    if (scanner_.PeekTokenIs(LexicalTokenType::kKeyword) &&
+        scanner_.PeekToken()->value() == "chan_interface") {
+      if (!fb->function()->IsProc()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "chan_interface keyword only supported in procs @ %s",
+            peek.pos().ToHumanString()));
+      }
+      Proc* proc = fb->function()->AsProcOrDie();
+      if (!proc->is_new_style_proc()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Channel interfaces can only be declared in new-style procs @ %s",
+            peek.pos().ToHumanString()));
+      }
+      XLS_ASSIGN_OR_RETURN(ChannelInterface * interface,
+                           ParseChannelInterface(package, proc));
+      channel_interfaces.push_back(interface);
+      continue;
+    }
     if (scanner_.TryDropKeyword("proc_instantiation")) {
       if (!fb->function()->IsProc()) {
         return absl::InvalidArgumentError(absl::StrFormat(
@@ -1764,7 +1784,8 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
     // Handle "ret" or "next" depending on whether this is a Function or a Proc.
     bool saw_ret = scanner_.TryDropKeyword("ret");
     bool saw_next = !saw_ret && scanner_.TryDropKeyword("next");
-    if ((saw_ret || saw_next) && result.has_value()) {
+    if ((saw_ret && return_value.has_value()) ||
+        (saw_next && next_state.has_value())) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "More than one ret/next found @ %s", peek.pos().ToHumanString()));
     }
@@ -1781,8 +1802,9 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
       XLS_RETURN_IF_ERROR(
           scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
 
+      next_state = std::vector<BValue>();
+
       // TODO: Remove this once fully transitioned over to `next_value` nodes.
-      std::vector<BValue> next_state;
       if (!scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
         do {
           XLS_ASSIGN_OR_RETURN(
@@ -1795,11 +1817,11 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
                 next_state_name.pos().ToHumanString(),
                 next_state_name.value()));
           }
-          next_state.push_back(name_to_value->at(next_state_name.value()));
+          next_state->push_back(name_to_value->at(next_state_name.value()));
         } while (scanner_.TryDropToken(LexicalTokenType::kComma));
       }
       if (Proc* proc = fb->function()->AsProcOrDie();
-          !next_state.empty() && !proc->next_values().empty()) {
+          !next_state->empty() && !proc->next_values().empty()) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Proc includes both next_value nodes (e.g., %s) and next-state "
             "values on its 'next' line; both cannot be used at the same time.",
@@ -1808,7 +1830,6 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
 
       XLS_RETURN_IF_ERROR(
           scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
-      result = ProcNext{.next_state = next_state};
       continue;
     }
 
@@ -1820,28 +1841,28 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
             absl::StrFormat("ret keyword only supported in functions @ %s",
                             peek.pos().ToHumanString()));
       }
-      result = bvalue;
+      return_value = bvalue;
     }
   }
 
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose,
                                                 "'}' at end of function body"));
-  if (result.has_value()) {
-    return result.value();
-  }
   if (fb->function()->IsFunction()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Expected 'ret' in function."));
+    if (!return_value.has_value()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Expected 'ret' in function."));
+    }
+    return FunctionBodyResult{.return_value = return_value.value()};
   }
+
   if (fb->function()->IsProc()) {
-    // This proc uses explicit next_value nodes, so we return an empty ProcNext.
-    // TODO(epastor): Remove this once fully transitioned over to `next_value`
-    // nodes.
-    return ProcNext{.next_state = {}};
+    return ProcBodyResult{
+        .next_state = next_state.value_or(std::vector<BValue>()),
+        .declared_channel_interfaces = channel_interfaces};
   }
-  // Return an empty BValue for blocks as no ret or next is supported.
+
   XLS_RET_CHECK(fb->function()->IsBlock());
-  return BValue();
+  return BlockBodyResult();
 }
 
 absl::StatusOr<Type*> Parser::ParseTupleType(Package* package) {
@@ -1912,7 +1933,12 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   XLS_ASSIGN_OR_RETURN(Token name, scanner_.PopTokenOrError(
                                        LexicalTokenType::kIdent, "proc name"));
   bool is_new_style_proc = false;
-  std::vector<std::unique_ptr<ChannelInterface>> interface_channels;
+  struct ChannelInterfaceArg {
+    std::string name;
+    Type* type;
+    ChannelDirection direction;
+  };
+  std::vector<ChannelInterfaceArg> channel_interfaces;
   if (scanner_.TryDropToken(LexicalTokenType::kLt)) {
     is_new_style_proc = true;
     if (!scanner_.TryDropToken(LexicalTokenType::kGt)) {
@@ -1938,59 +1964,10 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
               direction_token.value()));
         }
 
-        ChannelKind kind = ChannelKind::kStreaming;
-        std::optional<ChannelStrictness> strictness;
-
-        // Parse keywords like "kind=streaming", etc.
-        while (!scanner_.PeekTokenIs(LexicalTokenType::kComma) &&
-               !scanner_.PeekTokenIs(LexicalTokenType::kGt)) {
-          XLS_ASSIGN_OR_RETURN(
-              Token keyword_token,
-              scanner_.PopTokenOrError(LexicalTokenType::kIdent,
-                                       "channel reference keyword"));
-          XLS_RETURN_IF_ERROR(
-              scanner_.DropTokenOrError(LexicalTokenType::kEquals));
-          XLS_ASSIGN_OR_RETURN(
-              Token value_token,
-              scanner_.PopTokenOrError(LexicalTokenType::kIdent,
-                                       "channel reference keyword"));
-
-          if (keyword_token.value() == "kind") {
-            absl::StatusOr<ChannelKind> kind_status =
-                StringToChannelKind(value_token.value());
-            if (!kind_status.ok()) {
-              return absl::InvalidArgumentError(absl::StrFormat(
-                  "Invalid channel kind \"%s\" @ %s", value_token.value(),
-                  value_token.pos().ToHumanString()));
-            }
-            kind = kind_status.value();
-          } else if (keyword_token.value() == "strictness") {
-            absl::StatusOr<ChannelStrictness> strictness_status =
-                ChannelStrictnessFromString(value_token.value());
-            if (!strictness_status.ok()) {
-              return absl::InvalidArgumentError(absl::StrFormat(
-                  "Invalid channel strictness \"%s\" @ %s", value_token.value(),
-                  value_token.pos().ToHumanString()));
-            }
-            strictness = strictness_status.value();
-          } else {
-            return absl::InvalidArgumentError(absl::StrFormat(
-                "Invalid channel keyword \"%s\" @ %s", keyword_token.value(),
-                keyword_token.pos().ToHumanString()));
-          }
-        }
-
-        switch (direction) {
-          case ChannelDirection::kSend:
-            interface_channels.push_back(std::make_unique<SendChannelInterface>(
-                channel_name.value(), type, kind, strictness));
-            break;
-          case ChannelDirection::kReceive:
-            interface_channels.push_back(
-                std::make_unique<ReceiveChannelInterface>(
-                    channel_name.value(), type, kind, strictness));
-            break;
-        }
+        channel_interfaces.push_back(
+            ChannelInterfaceArg{.name = channel_name.value(),
+                                .type = type,
+                                .direction = direction});
       } while (scanner_.TryDropToken(LexicalTokenType::kComma));
       XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kGt));
     }
@@ -2052,22 +2029,17 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
     builder =
         std::make_unique<ProcBuilder>(NewStyleProc(), name.value(), package,
                                       /*should_verify=*/false);
-    for (const std::unique_ptr<ChannelInterface>& channel_interface :
-         interface_channels) {
-      if (channel_interface->direction() == ChannelDirection::kReceive) {
-        XLS_RETURN_IF_ERROR(
-            builder
-                ->AddInputChannel(
-                    channel_interface->name(), channel_interface->type(),
-                    channel_interface->kind(), channel_interface->strictness())
-                .status());
+    for (const ChannelInterfaceArg& channel_interface : channel_interfaces) {
+      if (channel_interface.direction == ChannelDirection::kReceive) {
+        XLS_RETURN_IF_ERROR(builder
+                                ->AddInputChannel(channel_interface.name,
+                                                  channel_interface.type)
+                                .status());
       } else {
-        XLS_RETURN_IF_ERROR(
-            builder
-                ->AddOutputChannel(
-                    channel_interface->name(), channel_interface->type(),
-                    channel_interface->kind(), channel_interface->strictness())
-                .status());
+        XLS_RETURN_IF_ERROR(builder
+                                ->AddOutputChannel(channel_interface.name,
+                                                   channel_interface.type)
+                                .status());
       }
     }
   } else {
@@ -2179,8 +2151,8 @@ absl::StatusOr<Function*> Parser::ParseFunction(
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
                        ParseBody(fb, &name_to_value, package));
 
-  XLS_RET_CHECK(std::holds_alternative<BValue>(body_result));
-  BValue return_value = std::get<BValue>(body_result);
+  XLS_RET_CHECK(std::holds_alternative<FunctionBodyResult>(body_result));
+  BValue return_value = std::get<FunctionBodyResult>(body_result).return_value;
 
   if (return_value.valid() &&
       return_value.node()->GetType() != function_data.second) {
@@ -2230,14 +2202,14 @@ absl::StatusOr<Proc*> Parser::ParseProc(
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
                        ParseBody(pb.get(), &name_to_value, package));
 
-  XLS_RET_CHECK(std::holds_alternative<ProcNext>(body_result));
-  ProcNext proc_next = std::get<ProcNext>(body_result);
+  XLS_RET_CHECK(std::holds_alternative<ProcBodyResult>(body_result));
+  ProcBodyResult proc_body_result = std::get<ProcBodyResult>(body_result);
 
-  XLS_ASSIGN_OR_RETURN(Proc * result, pb->Build(proc_next.next_state));
+  XLS_ASSIGN_OR_RETURN(Proc * proc, pb->Build(proc_body_result.next_state));
 
   for (const IrAttribute& attribute : outer_attributes) {
     if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
-      result->SetInitiationInterval(
+      proc->SetInitiationInterval(
           std::get<InitiationInterval>(attribute.payload).value);
     } else {
       return absl::InvalidArgumentError(
@@ -2245,7 +2217,47 @@ absl::StatusOr<Proc*> Parser::ParseProc(
     }
   }
 
-  return result;
+  if (proc->is_new_style_proc()) {
+    absl::flat_hash_set<std::pair<std::string_view, ChannelDirection>>
+        declared_interface_set;
+    for (ChannelInterface* interface :
+         proc_body_result.declared_channel_interfaces) {
+      auto [_, inserted] = declared_interface_set.insert(
+          {interface->name(), interface->direction()});
+      if (!inserted) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Multiple channel interfaces named `%s` with direction `%s` in "
+            "proc "
+            "`%s`",
+            interface->name(), ChannelDirectionToString(interface->direction()),
+            proc->name()));
+      }
+    }
+    for (ChannelInterface* interface : proc->interface()) {
+      if (!declared_interface_set.contains(
+              {interface->name(), interface->direction()})) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Missing channel interface declaration named `%s` with direction "
+            "`%s` in proc "
+            "`%s`",
+            interface->name(), ChannelDirectionToString(interface->direction()),
+            proc->name()));
+      }
+    }
+    for (Channel* channel : proc->channels()) {
+      for (ChannelDirection direction :
+           {ChannelDirection::kSend, ChannelDirection::kReceive}) {
+        if (!declared_interface_set.contains({channel->name(), direction})) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Missing channel interface declaration named `%s` with direction "
+              "`%s` in proc `%s`",
+              channel->name(), ChannelDirectionToString(direction),
+              proc->name()));
+        }
+      }
+    }
+  }
+  return proc;
 }
 
 absl::StatusOr<Block*> Parser::ParseBlock(
@@ -2278,7 +2290,7 @@ absl::StatusOr<Block*> Parser::ParseBlock(
   absl::flat_hash_map<std::string, BValue> name_to_value;
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
                        ParseBody(bb.get(), &name_to_value, package));
-  XLS_RET_CHECK(std::holds_alternative<BValue>(body_result));
+  XLS_RET_CHECK(std::holds_alternative<BlockBodyResult>(body_result));
 
   XLS_ASSIGN_OR_RETURN(Block * block, bb->Build());
 
@@ -2584,6 +2596,112 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
 
   return absl::InvalidArgumentError(
       absl::StrCat("Unknown channel kind: ", static_cast<int>(kind.value())));
+}
+
+absl::StatusOr<ChannelInterface*> Parser::ParseChannelInterface(
+    Package* package, Proc* proc) {
+  if (AtEof()) {
+    return absl::InvalidArgumentError("Could not parse channel; at EOF.");
+  }
+  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("chan_interface"));
+  XLS_ASSIGN_OR_RETURN(Token name,
+                       scanner_.PopTokenOrError(LexicalTokenType::kIdent,
+                                                "channel interface name"));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
+      LexicalTokenType::kParenOpen, "'(' in channel interface definition"));
+  std::optional<ChannelDirection> direction;
+  std::optional<ChannelKind> kind;
+  std::optional<ChannelStrictness> strictness;
+  std::optional<FlowControl> flow_control;
+  std::optional<FlopKind> flop_kind;
+  absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
+  handlers["direction"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(std::string direction_string, ParseIdentifier());
+    if (direction_string == "receive") {
+      direction = ChannelDirection::kReceive;
+    } else if (direction_string == "send") {
+      direction = ChannelDirection::kSend;
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid direction `%s`", direction_string));
+    }
+    return absl::OkStatus();
+  };
+  handlers["kind"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token kind_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    absl::StatusOr<ChannelKind> kind_status =
+        StringToChannelKind(kind_token.value());
+    if (!kind_status.ok()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid channel kind \"%s\" @ %s", kind_token.value(),
+          kind_token.pos().ToHumanString()));
+    }
+    kind = kind_status.value();
+    return absl::OkStatus();
+  };
+  handlers["flow_control"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token flow_control_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    absl::StatusOr<FlowControl> flow_control_status =
+        StringToFlowControl(flow_control_token.value());
+    if (!flow_control_status.ok()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid flow control value \"%s\" @ %s", flow_control_token.value(),
+          flow_control_token.pos().ToHumanString()));
+    }
+    flow_control = flow_control_status.value();
+    return absl::OkStatus();
+  };
+  handlers["strictness"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    absl::StatusOr<ChannelStrictness> strictness_status =
+        ChannelStrictnessFromString(token.value());
+    if (!strictness_status.ok()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid strictness value \"%s\" @ %s", token.value(),
+                          token.pos().ToHumanString()));
+    }
+    strictness = strictness_status.value();
+    return absl::OkStatus();
+  };
+  handlers["flop_kind"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    XLS_ASSIGN_OR_RETURN(flop_kind, StringToFlopKind(token.value()));
+    return absl::OkStatus();
+  };
+
+  XLS_RETURN_IF_ERROR(ParseKeywordArguments(
+      handlers, /*mandatory_keywords=*/{"direction", "kind"}));
+
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
+      LexicalTokenType::kParenClose, "')' in channel interface declaration"));
+
+  // ChannelInterfaces are added to the proc as part of parsing of the signature
+  // and when a channel is declared. This function merely sets the attributes so
+  // grab the existing ChannelInterface of this name.
+  if (!proc->HasChannelInterface(name.value(), direction.value())) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("No declared channel or channel interface with "
+                        "direction `%s` with name `%s` in proc `%s`",
+                        ChannelDirectionToString(direction.value()),
+                        name.value(), proc->name()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      ChannelInterface * interface,
+      proc->GetChannelInterface(name.value(), direction.value()));
+  interface->SetKind(kind.value());
+  interface->SetStrictness(strictness);
+  if (flow_control.has_value()) {
+    interface->SetFlowControl(flow_control.value());
+  }
+  if (flop_kind.has_value()) {
+    interface->SetFlopKind(flop_kind.value());
+  }
+  return interface;
 }
 
 absl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {

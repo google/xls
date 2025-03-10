@@ -60,11 +60,15 @@ std::string Proc::DumpIr() const {
   if (is_new_style_proc()) {
     absl::StrAppendFormat(
         &res, "<%s>",
-        absl::StrJoin(
-            interface_, ", ",
-            [](std::string* s, const ChannelInterface* channel_interface) {
-              absl::StrAppend(s, channel_interface->ToString());
-            }));
+        absl::StrJoin(interface_, ", ",
+                      [](std::string* s, const ChannelInterface* interface) {
+                        absl::StrAppendFormat(
+                            s, "%s: %s %s", interface->name(),
+                            interface->type()->ToString(),
+                            interface->direction() == ChannelDirection::kSend
+                                ? "out"
+                                : "in");
+                      }));
   }
   auto state_formatter = [](std::string* s, StateElement* state) {
     absl::StrAppend(s, state->name(), ": ", state->type()->ToString());
@@ -82,8 +86,21 @@ std::string Proc::DumpIr() const {
   absl::StrAppend(&res, ") {\n");
 
   if (is_new_style_proc()) {
+    for (ChannelInterface* channel_interface : interface_) {
+      absl::StrAppendFormat(&res, "  %s\n", channel_interface->ToString());
+    }
     for (Channel* channel : channels()) {
       absl::StrAppendFormat(&res, "  %s\n", channel->ToString());
+      absl::StrAppendFormat(
+          &res, "  %s\n",
+          GetChannelInterface(channel->name(), ChannelDirection::kSend)
+              .value()
+              ->ToString());
+      absl::StrAppendFormat(
+          &res, "  %s\n",
+          GetChannelInterface(channel->name(), ChannelDirection::kReceive)
+              .value()
+              ->ToString());
     }
     for (const std::unique_ptr<ProcInstantiation>& instantiation :
          proc_instantiations()) {
@@ -407,19 +424,15 @@ absl::StatusOr<Proc*> Proc::Clone(
         XLS_RETURN_IF_ERROR(
             cloned_proc
                 ->AddOutputChannelInterface(
-                    std::make_unique<SendChannelInterface>(
-                        new_chan_name(channel_interface->name()),
-                        channel_interface->type(), channel_interface->kind(),
-                        channel_interface->strictness()))
+                    dynamic_cast<SendChannelInterface*>(channel_interface)
+                        ->Clone(new_chan_name(channel_interface->name())))
                 .status());
       } else {
         XLS_RETURN_IF_ERROR(
             cloned_proc
                 ->AddInputChannelInterface(
-                    std::make_unique<ReceiveChannelInterface>(
-                        new_chan_name(channel_interface->name()),
-                        channel_interface->type(), channel_interface->kind(),
-                        channel_interface->strictness()))
+                    dynamic_cast<ReceiveChannelInterface*>(channel_interface)
+                        ->Clone(new_chan_name(channel_interface->name())))
                 .status());
       }
     }
@@ -630,11 +643,11 @@ absl::StatusOr<ChannelWithInterfaces> Proc::AddChannel(
   }
 
   auto send_channel_interface = std::make_unique<SendChannelInterface>(
-      channel_ptr->name(), channel_ptr->type(), channel_ptr->kind(),
-      strictness);
+      channel_ptr->name(), channel_ptr->type(), channel_ptr->kind());
+  send_channel_interface->SetStrictness(strictness);
   auto receive_channel_interface = std::make_unique<ReceiveChannelInterface>(
-      channel_ptr->name(), channel_ptr->type(), channel_ptr->kind(),
-      strictness);
+      channel_ptr->name(), channel_ptr->type(), channel_ptr->kind());
+  receive_channel_interface->SetStrictness(strictness);
 
   ChannelWithInterfaces channel_interfaces{
       .channel = channel_ptr,
@@ -715,15 +728,23 @@ absl::StatusOr<ChannelInterface*> Proc::AddChannelInterface(
 absl::StatusOr<ReceiveChannelInterface*> Proc::AddInputChannel(
     std::string_view name, Type* type, ChannelKind kind,
     std::optional<ChannelStrictness> strictness) {
-  return AddInputChannelInterface(
-      std::make_unique<ReceiveChannelInterface>(name, type, kind, strictness));
+  XLS_ASSIGN_OR_RETURN(
+      ReceiveChannelInterface * interface,
+      AddInputChannelInterface(
+          std::make_unique<ReceiveChannelInterface>(name, type, kind)));
+  interface->SetStrictness(strictness);
+  return interface;
 }
 
 absl::StatusOr<SendChannelInterface*> Proc::AddOutputChannel(
     std::string_view name, Type* type, ChannelKind kind,
     std::optional<ChannelStrictness> strictness) {
-  return AddOutputChannelInterface(
-      std::make_unique<SendChannelInterface>(name, type, kind, strictness));
+  XLS_ASSIGN_OR_RETURN(
+      SendChannelInterface * interface,
+      AddOutputChannelInterface(
+          std::make_unique<SendChannelInterface>(name, type, kind)));
+  interface->SetStrictness(strictness);
+  return interface;
 }
 
 absl::StatusOr<ChannelInterface*> Proc::AddInterfaceChannel(

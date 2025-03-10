@@ -389,7 +389,7 @@ class Proc : public FunctionBase {
   // this is a problem, a linked list might be used instead.
   std::vector<StateElement*> state_vec_;
 
-  // All channel interfaces in this proc. Channel interfacescan be part of the
+  // All channel interfaces in this proc. Channel interfaces can be part of the
   // proc interface or for channels declared in this proc.
   std::vector<std::unique_ptr<ChannelInterface>> channel_interfaces_;
 

@@ -629,7 +629,9 @@ top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
   def test_new_style_proc(self):
     input_ir = """package foo
 
-top proc foo<input: bits[32] in kind=streaming, output:bits[32] out kind=streaming>(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+top proc foo<input: bits[32] in, output:bits[32] out>(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+  chan_interface input(direction=receive, kind=streaming, strictness=proven_mutually_exclusive)
+  chan_interface output(direction=send, kind=streaming, strictness=proven_mutually_exclusive)
   tkn: token = literal(value=token, id=1000)
   receive.1: (token, bits[32]) = receive(tkn, channel=input)
   tuple_index.2: token = tuple_index(receive.1, index=0)
