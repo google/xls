@@ -158,8 +158,10 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
   }
   if (node->Is<Next>()) {
     Next* next = node->As<Next>();
-    StateRead* state_read = next->state_read()->As<StateRead>();
-    next_values_by_state_read_.at(state_read).erase(next);
+    if (next->state_read()->Is<StateRead>()) {  // Could've been replaced.
+      StateRead* state_read = next->state_read()->As<StateRead>();
+      next_values_by_state_read_.at(state_read).erase(next);
+    }
     std::erase(next_values_, next);
   }
   for (ChangeListener* listener : change_listeners_) {
