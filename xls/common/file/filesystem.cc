@@ -32,10 +32,12 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/cord.h"
 #include "absl/strings/str_cat.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/io/tokenizer.h"
-#include "google/protobuf/io/zero_copy_stream_impl_lite.h"
+#include "google/protobuf/io/zero_copy_stream.h"
+#include "google/protobuf/io/zero_copy_stream_impl.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/status/error_code_to_status.h"
 #include "xls/common/status/ret_check.h"
@@ -267,8 +269,9 @@ absl::Status SetProtobinFile(const std::filesystem::path& file_name,
   return SetFileContents(file_name, bin_proto);
 }
 
-absl::Status SetTextProtoFile(const std::filesystem::path& file_name,
-                              const google::protobuf::Message& proto) {
+absl::Status PrintTextProtoToStream(
+    const google::protobuf::Message& proto,
+    google::protobuf::io::ZeroCopyOutputStream* output_stream) {
   if (!proto.IsInitialized()) {
     return absl::FailedPreconditionError(
         absl::StrCat("Cannot serialize proto, missing required field ",
@@ -276,23 +279,43 @@ absl::Status SetTextProtoFile(const std::filesystem::path& file_name,
   }
 
   const google::protobuf::Descriptor* const descriptor = proto.GetDescriptor();
-  std::string text_proto =
+  output_stream->WriteCord(absl::Cord(
       absl::StrCat("# proto-file: ", descriptor->file()->name(),
                    "\n"
                    "# proto-message: ",
                    descriptor->containing_type() ? descriptor->full_name()
                                                  : descriptor->name(),
-                   "\n\n");
+                   "\n\n")));
 
   google::protobuf::TextFormat::Printer printer = google::protobuf::TextFormat::Printer();
-  google::protobuf::io::StringOutputStream output_stream(&text_proto);
-  if (!printer.Print(proto, &output_stream)) {
-    return absl::FailedPreconditionError(absl::StrCat(
-        "Failed to convert proto to text for saving to ", file_name.string(),
-        " (this generally stems from massive protobufs that either exhaust "
-        "memory or overflow a 32-bit buffer somewhere)."));
+  if (!printer.Print(proto, output_stream)) {
+    return absl::FailedPreconditionError(
+        absl::StrCat("Failed to convert proto to text & save to stream (this "
+                     "generally stems from massive protobufs that either "
+                     "exhaust memory or overflow a 32-bit buffer somewhere)."));
   }
-  return SetFileContents(file_name, text_proto);
+  return absl::OkStatus();
+}
+
+absl::Status SetTextProtoFile(const std::filesystem::path& file_name,
+                              const google::protobuf::Message& proto) {
+  // Use POSIX C APIs instead of C++ iostreams to avoid exceptions.
+  int fd = open(file_name.c_str(), O_WRONLY | O_CREAT | O_CLOEXEC, 0664);
+  if (fd == -1) {
+    return ErrNoToStatusWithFilename(errno, file_name);
+  }
+
+  // Clear existing contents.
+  if (ftruncate(fd, 0) == -1) {
+    return ErrNoToStatusWithFilename(errno, file_name);
+  }
+
+  google::protobuf::io::FileOutputStream output_stream(fd);
+  XLS_RETURN_IF_ERROR(PrintTextProtoToStream(proto, &output_stream));
+  if (!output_stream.Close()) {
+    return ErrNoToStatusWithFilename(errno, file_name);
+  }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<std::filesystem::path> GetCurrentDirectory() {

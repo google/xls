@@ -964,6 +964,11 @@ proto_library(
     srcs = ["design_stats.proto"],
 )
 
+cc_proto_library(
+    name = "design_stats_cc_proto",
+    deps = [":design_stats_proto"],
+)
+
 py_proto_library(
     name = "design_stats_py_pb2",
     visibility = ["//xls:xls_utility_users"],

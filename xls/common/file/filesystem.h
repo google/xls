@@ -26,6 +26,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message.h"
 #include "xls/common/status/status_macros.h"
 
@@ -216,8 +217,23 @@ absl::Status ParseProtobinFile(const std::filesystem::path& file_name,
 absl::Status SetProtobinFile(const std::filesystem::path& file_name,
                              const google::protobuf::Message& proto);
 
+// Writes the protobuf provided to the stream `output_stream` in a protobuf text
+// format, including the standard header.
+//
+// NOTE: Will return OK iff the protobuf could be converted to string and all of
+// that data in was written.  May write some data and return an error.
+//
+// Typical return codes (not guaranteed exhaustive):
+//  * StatusCode::kOk
+//  * StatusCode::kFailedPrecondition (the proto couldn't be converted to
+//    string)
+absl::Status PrintTextProtoToStream(
+    const google::protobuf::Message& proto,
+    google::protobuf::io::ZeroCopyOutputStream* output_stream);
+
 // Writes the protobuf provided to the file `filename` in a protobuf text
-// format, overwriting any existing content in the file.
+// format, including the standard header. Overwrites any existing content in the
+// file.
 //
 // NOTE: Will return OK iff the protobuf could be converted to string and all of
 // that data in was written.  May write some data and return an error.
