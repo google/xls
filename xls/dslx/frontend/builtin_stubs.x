@@ -24,7 +24,7 @@ fn assert_eq<T: type>(x: T, y: T) -> ();
 
 fn assert_lt<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> ();
 
-fn assert!<N: u32>(x: bool, msg: u8[N]) -> ();
+fn assert!<N: u32>(predicate: bool, label: u8[N]) -> ();
 
 fn bit_slice_update<N: u32, U: u32, V: u32>(x: uN[N], y: uN[U], z: uN[V]) -> uN[N];
 
@@ -32,7 +32,7 @@ fn checked_cast<DEST: type, SRC: type>(x: SRC) -> DEST;
 
 fn clz<N: u32>(x: uN[N]) -> uN[N];
 
-fn cover!<N: u32>(msg: u8[N], y: u1) -> ();
+fn cover!<N: u32>(name: u8[N], condition: u1) -> ();
 
 fn ctz<N: u32>(x: uN[N]) -> uN[N];
 
@@ -41,8 +41,7 @@ fn decode<T: type, N: u32>(x: uN[N]) -> T;
 
 fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N];
 
-// Blocked on tiv2 supporting strings as u8[N]:
-// fn fail!<N: u32, T: type> (x: u8[N], y: T) -> T;
+fn fail!<N: u32, T: type> (label: u8[N], fallback_value: T) -> T;
 
 fn gate!<T: type>(x: u1, y: T) -> T;
 

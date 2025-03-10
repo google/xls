@@ -5116,6 +5116,40 @@ TEST(TypecheckV2BuiltinTest, DISABLED_EnumerateImplicitType) {
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));
 }
 
+TEST(TypecheckV2Test, Fail) {
+  EXPECT_THAT(
+      R"(
+fn f() {
+  let true_result = fail!("t", true);
+  let false_result = fail!("f", u2:0);
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("true_result", "uN[1]"),
+                              HasNodeWithType("false_result", "uN[2]"))));
+}
+
+TEST(TypecheckV2Test, FailExplicitParametrics) {
+  EXPECT_THAT(
+      R"(
+fn f() {
+  let true_result = fail!<1, u1>("t", true);
+  let false_result = fail!<1, u2>("f", u2:0);
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("true_result", "uN[1]"),
+                              HasNodeWithType("false_result", "uN[2]"))));
+}
+
+TEST(TypecheckV2Test, FailConstExpr) {
+  EXPECT_THAT(
+      R"(
+fn f() -> bool {
+  fail!("Fail", 1 > 0)
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("f", "() -> uN[1]")));
+}
+
 TEST(TypecheckV2BuiltinTest, Gate) {
   EXPECT_THAT(R"(const Y = gate!(true, u32:123);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
