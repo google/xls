@@ -86,6 +86,9 @@ TypeAnnotation* CreateU32Annotation(Module& module, const Span& span);
 // Creates an `s32` type annotation.
 TypeAnnotation* CreateS32Annotation(Module& module, const Span& span);
 
+// Creates a `u8` type annotation.
+TypeAnnotation* CreateU8Annotation(Module& module, const Span& span);
+
 // Creates a type annotation based on the name def of a built-in type like
 // `u32`.
 TypeAnnotation* CreateBuiltinTypeAnnotation(Module& module,

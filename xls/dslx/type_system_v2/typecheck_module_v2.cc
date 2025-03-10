@@ -580,6 +580,20 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleString(const String* node) override {
+    VLOG(5) << "HandleString: " << node->ToString();
+    // Strings are always constants, and we always know their size, so we can
+    // just set their annotation to u8[N] (with a constant N)
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node, module_.Make<ArrayTypeAnnotation>(
+                  node->span(), CreateU8Annotation(module_, node->span()),
+                  module_.Make<Number>(
+                      node->span(), absl::StrCat(node->text().size()),
+                      NumberKind::kOther,
+                      CreateU32Annotation(module_, node->span())))));
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleArray(const Array* node) override {
     VLOG(5) << "HandleArray: " << node->ToString();
 
@@ -1031,6 +1045,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     }
     for (int i = 0; i < node->args().size(); i++) {
       const Expr* arg = node->args()[i];
+      VLOG(5) << "HandleInvocation arg [" << i << "]= " << arg->ToString();
       // In a case like `foo.fn(arg0, arg1)`, `foo` is the implicit first actual
       // argument, hence `arg0` and `arg1` are actually at index 1 and 2 among
       // the params in the `FunctionTypeAnnotation`.

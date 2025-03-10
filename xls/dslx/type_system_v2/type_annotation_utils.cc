@@ -147,6 +147,11 @@ TypeAnnotation* CreateU32Annotation(Module& module, const Span& span) {
       span, BuiltinType::kU32, module.GetOrCreateBuiltinNameDef("u32"));
 }
 
+TypeAnnotation* CreateU8Annotation(Module& module, const Span& span) {
+  return module.Make<BuiltinTypeAnnotation>(
+      span, BuiltinType::kU8, module.GetOrCreateBuiltinNameDef("u8"));
+}
+
 TypeAnnotation* CreateS32Annotation(Module& module, const Span& span) {
   return module.Make<BuiltinTypeAnnotation>(
       span, BuiltinType::kS32, module.GetOrCreateBuiltinNameDef("s32"));

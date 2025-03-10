@@ -4985,8 +4985,7 @@ const X = foo(10);
       TypecheckSucceeds(HasNodeWithType("[1, 2, 3]", "uN[8][3]")));
 }
 
-TEST(TypecheckV2BuiltinTest, DISABLED_Assert) {
-  // TiV2 can't deal with strings yet.
+TEST(TypecheckV2BuiltinTest, Assert) {
   EXPECT_THAT(
       R"(
 fn foo(x:u32) -> u32 {
@@ -4996,7 +4995,8 @@ fn foo(x:u32) -> u32 {
 
 const X = foo(10);
 )",
-      TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32]"),
+                              HasNodeWithType("\"Failed\"", "uN[8][6]"))));
 }
 
 TEST(TypecheckV2BuiltinTest, BitSliceUpdate) {
