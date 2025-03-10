@@ -377,8 +377,6 @@ ModuleSection* ModuleBuilder::assert_section() const {
          options_.assertion_macro_names()) {
       auto [macro_name, polarity] =
           MacroNameAndPolarity(macro_name_and_polarity);
-      std::cerr << "Adding assert section with macro name: " << macro_name
-                << " and polarity: " << polarity << "\n";
       assert_section_ = (*assert_section_)
                             ->Add<ModuleConditionalDirective>(
                                 SourceInfo(), polarity, macro_name)
