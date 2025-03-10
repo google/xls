@@ -1039,7 +1039,7 @@ FailureOr<PackageInfo> importDslxInstantiation(
 // Attempts to find the given DSLX file. Tries fileName directory, and also
 // tries prepending the runfiles directory.
 FailureOr<std::filesystem::path> findDslxFile(
-    std::string file_name, llvm::StringRef dslx_search_path) {
+    std::string file_name, std::filesystem::path dslx_search_path) {
   std::vector<std::filesystem::path> candidates = {file_name};
   if (auto run_file_path = ::xls::GetXlsRunfilePath(file_name);
       run_file_path.ok()) {
@@ -1047,8 +1047,7 @@ FailureOr<std::filesystem::path> findDslxFile(
   }
 
   if (!dslx_search_path.empty()) {
-    candidates.push_back(std::filesystem::path(dslx_search_path.str()) /
-                         file_name);
+    candidates.push_back(dslx_search_path / file_name);
   }
 
   for (const auto& candidate : candidates) {
@@ -1062,7 +1061,7 @@ FailureOr<std::filesystem::path> findDslxFile(
 
 FailureOr<PackageInfo> importDslxFile(ImportDslxFilePackageOp file_import_op,
                                       Package& package,
-                                      llvm::StringRef dslx_search_path,
+                                      std::filesystem::path dslx_search_path,
                                       DslxPackageCache& dslx_cache) {
   auto file_name =
       findDslxFile(file_import_op.getFilename().str(), dslx_search_path);
@@ -1071,7 +1070,7 @@ FailureOr<PackageInfo> importDslxFile(ImportDslxFilePackageOp file_import_op,
   }
 
   absl::StatusOr<std::shared_ptr<const Package>> package_or =
-      dslx_cache.import(*file_name);
+      dslx_cache.import(*file_name, {dslx_search_path});
   if (!package_or.ok()) {
     llvm::errs() << "Failed to parse package: " << package_or.status().message()
                  << "\n";
@@ -1504,11 +1503,12 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
     return failure();
   }
 
+  std::filesystem::path search_path(dslx_search_path.str());
   for (auto& op : module.getBodyRegion().front()) {
     // Handle file imports.
     if (auto file_import_op = dyn_cast<ImportDslxFilePackageOp>(op)) {
-      auto package_or = importDslxFile(file_import_op, *package,
-                                       dslx_search_path, dslx_cache);
+      auto package_or =
+          importDslxFile(file_import_op, *package, search_path, dslx_cache);
       if (failed(package_or)) {
         return failure();
       }
@@ -1805,13 +1805,15 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
 }
 
 absl::StatusOr<std::shared_ptr<const Package>> DslxPackageCache::import(
-    const std::string& fileName) {
+    const std::string& fileName,
+    absl::Span<const std::filesystem::path> additional_search_paths) {
   auto it = cache.find(fileName);
   if (it != cache.end()) {
     return it->second;
   }
   const ::xls::ConvertDslxToIrOptions options{
       .dslx_stdlib_path = ::xls::GetDefaultDslxStdlibPath(),
+      .additional_search_paths = additional_search_paths,
       .warnings_as_errors = false,
   };
   absl::StatusOr<std::string> package_string_or =

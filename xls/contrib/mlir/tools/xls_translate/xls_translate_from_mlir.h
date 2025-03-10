@@ -54,7 +54,8 @@ class DslxPackageCache {
  public:
   // Imports `fileName` as a DSLX file.
   absl::StatusOr<std::shared_ptr<const ::xls::Package>> import(
-      const std::string& fileName);
+      const std::string& fileName,
+      absl::Span<const std::filesystem::path> additional_search_paths = {});
 
  private:
   absl::flat_hash_map<std::string, std::shared_ptr<const ::xls::Package>> cache;
