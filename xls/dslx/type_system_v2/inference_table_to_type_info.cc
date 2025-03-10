@@ -1281,8 +1281,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         std::optional<Function*> builtin_fn = module_.GetFunction(fn_name);
         if (builtin_fn.has_value()) {
           function_node = *builtin_fn;
-        } else if (fn_name == "array_size" || fn_name == "bit_count" ||
-                   fn_name == "element_count") {
+        } else if (fn_name == "bit_count" || fn_name == "element_count") {
           VLOG(5) << "Could not find built-in function " << fn_name
                   << "; special-casing for now";
           return FunctionAndTargetObject{.is_special_builtin = true};
