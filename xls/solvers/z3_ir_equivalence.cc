@@ -51,13 +51,29 @@ absl::StatusOr<ProverResult> TryProveEquivalence(Function* a, Function* b,
       Function * to_test_func,
       a->Clone(absl::StrFormat("%s_test", a->name()), to_test.get()));
 
-  XLS_RET_CHECK(
-      a->return_value()->GetType()->IsEqualTo(b->return_value()->GetType()))
-      << a->return_value()->GetType() << " vs " << b->return_value()->GetType();
-  XLS_RET_CHECK_EQ(a->params().size(), b->params().size());
+  if (!a->return_value()->GetType()->IsEqualTo(b->return_value()->GetType())) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Cannot prove equivalence of functions with differing "
+                        "return types: %s vs %s",
+                        a->return_value()->GetType()->ToString(),
+                        b->return_value()->GetType()->ToString()));
+  }
+
+  if (a->params().size() != b->params().size()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Cannot prove equivalence of functions with differing "
+                        "numbers of parameters: %d vs %d",
+                        a->params().size(), b->params().size()));
+  }
+
   for (int64_t i = 0; i < a->params().size(); ++i) {
-    XLS_RET_CHECK(
-        a->params()[i]->GetType()->IsEqualTo(b->params()[i]->GetType()));
+    if (!a->params()[i]->GetType()->IsEqualTo(b->params()[i]->GetType())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Cannot prove equivalence of functions with differing "
+          "parameter %d types: %s vs %s",
+          i, a->params()[i]->GetType()->ToString(),
+          b->params()[i]->GetType()->ToString()));
+    }
   }
 
   // Patch b into to_test. Wire up parameters to those at the same index in the

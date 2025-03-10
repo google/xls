@@ -287,7 +287,7 @@ TEST_F(EquivalenceTest, ScopedDetectsReturnTypeChange) {
   fb.Tuple({fb.UDiv(x, y), fb.Subtract(x, y), fb.UMod(x, y)});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  EXPECT_NONFATAL_FAILURE(ScopedReturnTypeChange(f), "return_value");
+  EXPECT_NONFATAL_FAILURE(ScopedReturnTypeChange(f), "differing return types");
 }
 
 TEST_F(EquivalenceTest, CounterexampleIsValidPointers) {
@@ -352,7 +352,7 @@ TEST_F(EquivalenceTest, ScopedDetectsParamShift) {
   fb.Tuple({fb.UDiv(x, y), fb.Subtract(x, y), fb.UMod(x, y)});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  EXPECT_NONFATAL_FAILURE(ScopedParamShift(f), "params");
+  EXPECT_NONFATAL_FAILURE(ScopedParamShift(f), "differing parameter 0 types");
 }
 
 TEST_F(EquivalenceTest, MultiFunctionDetectsSame) {

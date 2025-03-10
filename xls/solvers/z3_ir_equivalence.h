@@ -26,7 +26,7 @@
 
 namespace xls::solvers::z3 {
 
-// Verify that the original function's behavior stays the same after running
+// Verifies that the original function's behavior stays the same after running
 // 'run_pass' on it. The callback *must* use the provided package and function
 // and not the one passed to this call. The pass may not alter the type
 // signature of the function. The pass must modify the provided function
@@ -40,8 +40,8 @@ absl::StatusOr<ProverResult> TryProveEquivalence(
     const std::function<absl::Status(Package*, Function*)>& run_pass,
     absl::Duration timeout = absl::InfiniteDuration());
 
-// Verify that both functions have the same behaviors. Both functions must have
-// exactly the same types.
+// Verifies that both functions have the same behaviors. Both functions must
+// have exactly the same signatures, or an invalid argument error is returned.
 //
 // This call does not alter either function.
 //
