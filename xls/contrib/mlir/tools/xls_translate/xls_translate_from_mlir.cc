@@ -127,6 +127,10 @@ class TranslationState {
     return it->second;
   }
 
+  void setValue(Value value, BValue xls_value) {
+    value_map_->insert({value, xls_value});
+  }
+
   void setMultiResultValue(Operation* op, BValue value, BuilderBase& fb) {
     for (auto [i, result] : llvm::enumerate(op->getResults())) {
       BValue extract = fb.TupleIndex(value, i, value.loc());
@@ -672,6 +676,20 @@ BValue floatBitsToTuple(BValue float_bits, FloatType float_type,
   return fb.Tuple(elements);
 }
 
+BValue coerceFloatResult(Value mlir_result, BValue xls_result,
+                         ::xls::Function* func, BuilderBase& fb) {
+  if (!isa<FloatType>(mlir_result.getType()) ||
+      !xls_result.GetType()->IsBits()) {
+    return xls_result;
+  }
+  assert(func->ForeignFunctionData().has_value());
+  // This must be a call to a foreign function that returns a float. The
+  // foreign function will return it as a raw bits value, but we expect it
+  // as a tuple of (sign, exponent, mantissa).
+  auto float_type = cast<FloatType>(mlir_result.getType());
+  return floatBitsToTuple(xls_result, float_type, fb);
+}
+
 BValue convertOp(mlir::func::CallOp call, TranslationState& state,
                  BuilderBase& fb) {
   std::vector<BValue> args;
@@ -687,15 +705,17 @@ BValue convertOp(mlir::func::CallOp call, TranslationState& state,
   }
   BValue result = fb.Invoke(args, *func_or, state.getLoc(call));
 
-  if (isa<FloatType>(call.getResult(0).getType()) &&
-      result.GetType()->IsBits()) {
-    assert((*func_or)->ForeignFunctionData().has_value());
-    // This must be a call to a foreign function that returns a float. The
-    // foreign function will return it as a raw bits value, but we expect it
-    // as a tuple of (sign, exponent, mantissa).
-    auto float_type = cast<FloatType>(call.getResult(0).getType());
-    result = floatBitsToTuple(result, float_type, fb);
+  if (call.getNumResults() == 1) {
+    return coerceFloatResult(call.getResult(0), result, *func_or, fb);
   }
+
+  for (int i = 0, e = call.getNumResults(); i < e; ++i) {
+    BValue this_result = fb.TupleIndex(result, i);
+    this_result =
+        coerceFloatResult(call.getResult(i), this_result, *func_or, fb);
+    state.setValue(call.getResult(i), this_result);
+  }
+  // Just return the tuple result to indicate success.
   return result;
 }
 
@@ -1224,7 +1244,8 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
 
     // Receives and partial products have multiple results but are explicitly
     // supported.
-    if (!isa<BlockingReceiveOp, NonblockingReceiveOp, UmulpOp, SmulpOp>(op)) {
+    if (!isa<BlockingReceiveOp, func::CallOp, NonblockingReceiveOp, UmulpOp,
+             SmulpOp>(op)) {
       assert(op->getNumResults() <= 1 && "Multiple results not supported");
     }
 
