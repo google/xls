@@ -63,6 +63,9 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
     XLS_ASSIGN_OR_RETURN(Proc * top, unit->GetPackage()->GetTopAsProc());
     XLS_ASSIGN_OR_RETURN(elab, ProcElaboration::Elaborate(top));
   }
+  std::optional<const ProcElaboration*> elab_opt =
+      elab.has_value() ? std::optional<const ProcElaboration*>(&elab.value())
+                       : std::nullopt;
 
   for (FunctionBase* f : schedulable_functions) {
     if (f->ForeignFunctionData().has_value()) {
@@ -78,15 +81,14 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
         AddCycleConstraints(schedule, scheduling_options);
       }
     }
-
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
         options.synthesizer == nullptr
             ? RunPipelineSchedule(f, *options.delay_estimator,
-                                  scheduling_options, elab)
+                                  scheduling_options, elab_opt)
             : RunPipelineScheduleWithFdo(f, *options.delay_estimator,
                                          scheduling_options,
-                                         *options.synthesizer, elab));
+                                         *options.synthesizer, elab_opt));
 
     // Compute `changed` before moving schedule into unit->schedules.
     changed = changed || (schedule_cycle_map_before != schedule.GetCycleMap());

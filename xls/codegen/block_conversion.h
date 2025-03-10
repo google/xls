@@ -15,7 +15,6 @@
 #ifndef XLS_CODEGEN_BLOCK_CONVERSION_H_
 #define XLS_CODEGEN_BLOCK_CONVERSION_H_
 
-#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -125,7 +124,6 @@ absl::Status AddCombinationalFlowControl(
 // Update io channel metadata with latest information from block conversion.
 absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io, Block* block);
 
-std::string PipelineSignalName(std::string_view root, int64_t stage);
 absl::StatusOr<std::string> StreamingIOName(Node* node);
 
 }  // namespace xls::verilog

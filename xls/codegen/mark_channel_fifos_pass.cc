@@ -14,7 +14,6 @@
 
 #include "xls/codegen/mark_channel_fifos_pass.h"
 
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -35,7 +34,8 @@ absl::StatusOr<bool> MarkChannelFifosPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
   if (unit->package->ChannelsAreProcScoped()) {
-    return absl::UnimplementedError("Proc scoped channels not yet supported");
+    // Nothing to do for proc-scoped channels. ChannelInterfaces have a FlopKind
+    // not a std::optional<FlopKind>.
   }
   bool changed = false;
   for (Channel* chan : unit->package->channels()) {

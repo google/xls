@@ -32,6 +32,7 @@
 #include "xls/codegen/module_signature.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -94,7 +95,7 @@ struct StreamingInput {
   std::optional<Node*> signal_data;
   std::optional<Node*> signal_valid;
 
-  Channel* channel;
+  ChannelRef channel;
   std::optional<FifoInstantiation*> fifo_instantiation;
   std::optional<Node*> predicate;
 
@@ -117,7 +118,7 @@ struct StreamingOutput {
   std::optional<Node*> port;
   Node* port_valid;
   Node* port_ready;
-  Channel* channel;
+  ChannelRef channel;
   std::optional<FifoInstantiation*> fifo_instantiation;
   std::optional<Node*> predicate;
 
@@ -137,12 +138,12 @@ struct StreamingOutput {
 // in the generated block.
 struct SingleValueInput {
   InputPort* port;
-  Channel* channel;
+  ChannelRef channel;
 };
 
 struct SingleValueOutput {
   OutputPort* port;
-  Channel* channel;
+  ChannelRef channel;
 };
 
 // A data structure representing a pipeline register for a single XLS IR value.

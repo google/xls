@@ -32,10 +32,12 @@
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
@@ -1179,6 +1181,45 @@ proc ii_greater_than_one(st: bits[32], init={0}) {
       RunPipelineSchedule(
           proc, TestDelayEstimator(),
           SchedulingOptions().clock_period_ps(50).pipeline_stages(2)));
+
+  ResetProto reset_proto;
+  reset_proto.set_name("rst");
+  reset_proto.set_asynchronous(false);
+  reset_proto.set_active_low(false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(
+          schedule, proc,
+          BuildPipelineOptions()
+              .reset(reset_proto.name(), reset_proto.asynchronous(),
+                     reset_proto.active_low(), reset_proto.reset_data_path())
+              .use_system_verilog(UseSystemVerilog())));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(PipelineGeneratorTest, SingleProcWithProcScopedChannels) {
+  Package package(TestBaseName());
+
+  TokenlessProcBuilder pb(NewStyleProc(), "myleaf", "tkn", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in,
+                           pb.AddInputChannel("in", package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
+                           pb.AddOutputChannel("out", package.GetBitsType(32)));
+
+  pb.Send(out, pb.Add(pb.Receive(in), pb.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(proc));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(50).pipeline_stages(2), &elab));
 
   ResetProto reset_proto;
   reset_proto.set_name("rst");

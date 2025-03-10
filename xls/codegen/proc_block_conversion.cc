@@ -20,6 +20,7 @@
 #include <string_view>
 #include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -1272,13 +1273,19 @@ static absl::Status AddInputOutputFlops(
   // Flop streaming inputs.
   for (auto& vec : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
-      StreamingChannel* channel = down_cast<StreamingChannel*>(input.channel);
-      XLS_RET_CHECK(channel->channel_config().input_flop_kind())
-          << "No input flop kind";
       // TODO(https://github.com/google/xls/issues/1803): This is super hacky.
       // We really should have a different pass that configures all the channels
       // in a separate lowering step.
-      FlopKind kind = *channel->channel_config().input_flop_kind();
+      FlopKind kind;
+      if (std::holds_alternative<Channel*>(input.channel)) {
+        StreamingChannel* channel =
+            down_cast<StreamingChannel*>(std::get<Channel*>(input.channel));
+        XLS_RET_CHECK(channel->channel_config().input_flop_kind())
+            << "No input flop kind";
+        kind = channel->channel_config().input_flop_kind().value();
+      } else {
+        kind = std::get<ChannelInterface*>(input.channel)->flop_kind();
+      }
       XLS_RETURN_IF_ERROR(
           AddRegisterAfterStreamingInput(input, kind, block, valid_nodes));
 
@@ -1293,13 +1300,19 @@ static absl::Status AddInputOutputFlops(
   // Flop streaming outputs.
   for (auto& vec : streaming_io.outputs) {
     for (StreamingOutput& output : vec) {
-      StreamingChannel* channel = down_cast<StreamingChannel*>(output.channel);
-      XLS_RET_CHECK(channel->channel_config().output_flop_kind())
-          << "No output flop kind";
       // TODO(https://github.com/google/xls/issues/1803): This is super hacky.
       // We really should have a different pass that configures all the channels
       // in a separate lowering step.
-      FlopKind kind = *channel->channel_config().output_flop_kind();
+      FlopKind kind;
+      if (std::holds_alternative<Channel*>(output.channel)) {
+        StreamingChannel* channel =
+            down_cast<StreamingChannel*>(std::get<Channel*>(output.channel));
+        XLS_RET_CHECK(channel->channel_config().output_flop_kind())
+            << "No output flop kind";
+        kind = channel->channel_config().output_flop_kind().value();
+      } else {
+        kind = std::get<ChannelInterface*>(output.channel)->flop_kind();
+      }
       XLS_RETURN_IF_ERROR(
           AddRegisterBeforeStreamingOutput(output, kind, block, valid_nodes));
 

@@ -1100,27 +1100,31 @@ absl::Status Block::AddChannelPortMetadata(ChannelPortMetadata metadata) {
 }
 
 absl::Status Block::AddChannelPortMetadata(
-    Channel* channel, ChannelDirection direction,
+    ChannelRef channel, ChannelDirection direction,
     std::optional<std::string> data_port, std::optional<std::string> valid_port,
     std::optional<std::string> ready_port) {
   FlopKind flop_kind;
-  if (StreamingChannel* streaming_channel =
-          dynamic_cast<StreamingChannel*>(channel);
-      streaming_channel != nullptr) {
-    flop_kind =
-        direction == ChannelDirection::kReceive
-            ? streaming_channel->channel_config().input_flop_kind().value_or(
-                  FlopKind::kNone)
-            : streaming_channel->channel_config().output_flop_kind().value_or(
-                  FlopKind::kNone);
+  if (std::holds_alternative<Channel*>(channel)) {
+    if (StreamingChannel* streaming_channel =
+            dynamic_cast<StreamingChannel*>(std::get<Channel*>(channel));
+        streaming_channel != nullptr) {
+      flop_kind =
+          direction == ChannelDirection::kReceive
+              ? streaming_channel->channel_config().input_flop_kind().value_or(
+                    FlopKind::kNone)
+              : streaming_channel->channel_config().output_flop_kind().value_or(
+                    FlopKind::kNone);
+    } else {
+      flop_kind = FlopKind::kNone;
+    }
   } else {
-    flop_kind = FlopKind::kNone;
+    flop_kind = std::get<ChannelInterface*>(channel)->flop_kind();
   }
   return AddChannelPortMetadata(
-      ChannelPortMetadata{.channel_name = std::string{channel->name()},
-                          .type = channel->type(),
+      ChannelPortMetadata{.channel_name = std::string{ChannelRefName(channel)},
+                          .type = ChannelRefType(channel),
                           .direction = direction,
-                          .channel_kind = channel->kind(),
+                          .channel_kind = ChannelRefKind(channel),
                           .flop_kind = flop_kind,
                           .data_port = data_port,
                           .valid_port = valid_port,

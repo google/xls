@@ -24,8 +24,10 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -59,11 +61,22 @@
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
+
 namespace {
 
-absl::StatusOr<absl::flat_hash_set<int64_t>> GetLoopbackChannelIds(Package* p) {
+absl::StatusOr<ChannelRef> GetChannelRefUsedByNode(ChannelNode* node) {
+  if (node->package()->ChannelsAreProcScoped()) {
+    return node->function_base()->AsProcOrDie()->GetChannelInterface(
+        node->channel_name(), node->direction());
+  }
+  return GetChannelUsedByNode(node);
+}
+
+absl::StatusOr<absl::flat_hash_map<Proc*, absl::flat_hash_set<Channel*>>>
+GetGlobalLoopbackChannels(Package* p) {
+  XLS_RET_CHECK(!p->ChannelsAreProcScoped());
   XLS_ASSIGN_OR_RETURN(auto nodes_for_channel, ChannelUsers(p));
-  absl::flat_hash_set<int64_t> loopback_channel_ids;
+  absl::flat_hash_map<Proc*, absl::flat_hash_set<Channel*>> loopback_channels;
   for (auto& [chan, nodes] : nodes_for_channel) {
     if (chan->supported_ops() != ChannelOps::kSendReceive) {
       continue;
@@ -85,11 +98,47 @@ absl::StatusOr<absl::flat_hash_set<int64_t>> GetLoopbackChannelIds(Package* p) {
       }
     }
     if (saw_send && saw_receive && same_fb) {
-      loopback_channel_ids.insert(chan->id());
+      loopback_channels[fb->AsProcOrDie()].insert(chan);
     }
   }
+  return loopback_channels;
+}
 
-  return loopback_channel_ids;
+absl::StatusOr<absl::flat_hash_map<Proc*, absl::flat_hash_set<Channel*>>>
+GetProcScopedLoopbackChannels(Package* p) {
+  absl::flat_hash_map<Proc*, absl::flat_hash_set<Channel*>> loopback_channels;
+  XLS_RET_CHECK(p->ChannelsAreProcScoped());
+  for (const std::unique_ptr<Proc>& proc : p->procs()) {
+    // Sets of channels declared in `proc` which have sends/receives in `proc`.
+    absl::flat_hash_set<std::string_view> send_channels;
+    absl::flat_hash_set<std::string_view> receive_channels;
+    for (Node* node : proc->nodes()) {
+      if (node->Is<ChannelNode>()) {
+        std::string_view channel_name = node->As<ChannelNode>()->channel_name();
+        if (node->Is<Send>()) {
+          send_channels.insert(channel_name);
+        } else {
+          XLS_RET_CHECK(node->Is<Receive>());
+          receive_channels.insert(channel_name);
+        }
+      }
+    }
+    for (Channel* channel : proc->channels()) {
+      if (send_channels.contains(channel->name()) &&
+          receive_channels.contains(channel->name())) {
+        loopback_channels[proc.get()].insert(channel);
+      }
+    }
+  }
+  return loopback_channels;
+}
+
+absl::StatusOr<absl::flat_hash_map<Proc*, absl::flat_hash_set<Channel*>>>
+GetLoopbackChannels(Package* p) {
+  if (p->ChannelsAreProcScoped()) {
+    return GetProcScopedLoopbackChannels(p);
+  }
+  return GetGlobalLoopbackChannels(p);
 }
 
 // Determine which stages are mutually exclusive with each other.
@@ -139,6 +188,19 @@ absl::StatusOr<ConcurrentStageGroups> CalculateConcurrentGroupsFromStateWrites(
   return result;
 }
 
+// Returns true if tuple_type has a zero width element at the top level.
+bool HasZeroWidthType(TupleType* tuple_type) {
+  CHECK(tuple_type != nullptr);
+
+  for (Type* element_type : tuple_type->element_types()) {
+    if (element_type->GetFlatBitCount() == 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 }  // namespace
 
 CloneNodesIntoBlockHandler::CloneNodesIntoBlockHandler(
@@ -149,10 +211,8 @@ CloneNodesIntoBlockHandler::CloneNodesIntoBlockHandler(
       options_(options),
       block_(block),
       fifo_instantiations_({}) {
-  absl::StatusOr<absl::flat_hash_set<int64_t>> loopback_channel_ids_or_status =
-      GetLoopbackChannelIds(proc_or_function->package());
-  CHECK_OK(loopback_channel_ids_or_status.status());
-  loopback_channel_ids_ = std::move(loopback_channel_ids_or_status.value());
+  loopback_channels_ =
+      std::move(GetLoopbackChannels(proc_or_function->package()).value());
   if (is_proc_) {
     Proc* proc = function_base_->AsProcOrDie();
     result_.state_registers.resize(proc->GetStateElementCount());
@@ -181,22 +241,22 @@ absl::Status CloneNodesIntoBlockHandler::CloneNodes(
       XLS_RETURN_IF_ERROR(HandleNextValue(node, stage));
     } else if (node->Is<ChannelNode>()) {
       XLS_RET_CHECK(is_proc_);
-      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-
-      if (loopback_channel_ids_.contains(channel->id()) &&
-          channel->kind() == ChannelKind::kStreaming) {
+      XLS_ASSIGN_OR_RETURN(std::optional<Channel*> loopback_channel,
+                           MaybeGetLoopbackChannel(node->As<ChannelNode>()));
+      if (loopback_channel.has_value()) {
         StreamingChannel* streaming_channel =
-            down_cast<StreamingChannel*>(channel);
+            down_cast<StreamingChannel*>(loopback_channel.value());
         XLS_RET_CHECK(
             streaming_channel->channel_config().fifo_config().has_value())
             << absl::StreamFormat("Channel %s has no fifo config.",
-                                  channel->name());
+                                  streaming_channel->name());
 
         xls::Instantiation* instantiation;
         auto [itr, inserted] =
-            fifo_instantiations_.insert({channel->id(), nullptr});
+            fifo_instantiations_.insert({streaming_channel->id(), nullptr});
         if (inserted) {
-          std::string inst_name = absl::StrFormat("fifo_%s", channel->name());
+          std::string inst_name =
+              absl::StrFormat("fifo_%s", streaming_channel->name());
           XLS_ASSIGN_OR_RETURN(
               instantiation,
               block()->AddInstantiation(
@@ -301,8 +361,6 @@ absl::Status CloneNodesIntoBlockHandler::MarkMutualExclusiveStages(
   return absl::OkStatus();
 }
 
-// Don't clone state read operations. Instead replace with a RegisterRead
-// operation.
 absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleStateRead(Node* node,
                                                                   Stage stage) {
   CHECK_GE(stage, 0);
@@ -357,7 +415,6 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleStateRead(Node* node,
   return reg_read;
 }
 
-// Replace function parameters with input ports.
 absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFunctionParam(
     Node* node) {
   Param* param = node->As<Param>();
@@ -378,7 +435,6 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFunctionParam(
   return res;
 }
 
-// Replace next values with a RegisterWrite.
 absl::Status CloneNodesIntoBlockHandler::HandleNextValue(Node* node,
                                                          Stage stage) {
   Proc* proc = function_base_->AsProcOrDie();
@@ -467,31 +523,23 @@ absl::Status CloneNodesIntoBlockHandler::HandleNextValue(Node* node,
   return absl::OkStatus();
 }
 
-// Don't clone Receive operations. Instead replace with a tuple
-// containing the Receive's token operand and an InputPort operation.
-//
-// Both data and valid ports are created in this function.  See
-// MakeInputValidPortsForInputChannels() for additional handling of
-// the valid signal.
-//
-// In the case of handling non-blocking receives, the logic to adapt
-// data to a tuple of (data, valid) is added here.
 absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
     Node* node, int64_t stage) {
   Node* next_node;
 
   Receive* receive = node->As<Receive>();
-  XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-  std::string_view data_suffix = (channel->kind() == ChannelKind::kStreaming)
-                                     ? options_.streaming_channel_data_suffix()
-                                     : "";
+  XLS_ASSIGN_OR_RETURN(ChannelRef channel, GetChannelRefUsedByNode(receive));
+  std::string_view data_suffix =
+      (ChannelRefKind(channel) == ChannelKind::kStreaming)
+          ? options_.streaming_channel_data_suffix()
+          : "";
   XLS_ASSIGN_OR_RETURN(
       InputPort * input_port,
-      block()->AddInputPort(absl::StrCat(channel->name(), data_suffix),
-                            channel->type()));
+      block()->AddInputPort(absl::StrCat(ChannelRefName(channel), data_suffix),
+                            ChannelRefType(channel)));
 
-  if (std::optional<PackageInterfaceProto::Channel> c =
-          FindChannelInterface(options_.package_interface(), channel->name());
+  if (std::optional<PackageInterfaceProto::Channel> c = FindChannelInterface(
+          options_.package_interface(), ChannelRefName(channel));
       c && c->has_sv_type()) {
     result_.input_port_sv_type[input_port] = c->sv_type();
   }
@@ -499,7 +547,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
   XLS_ASSIGN_OR_RETURN(Node * literal_1, block()->MakeNode<xls::Literal>(
                                              node->loc(), Value(UBits(1, 1))));
 
-  if (channel->kind() == ChannelKind::kSingleValue) {
+  if (ChannelRefKind(channel) == ChannelKind::kSingleValue) {
     if (receive->is_blocking()) {
       XLS_ASSIGN_OR_RETURN(
           next_node,
@@ -520,16 +568,15 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
     return next_node;
   }
 
-  XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kStreaming);
-  XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->GetFlowControl(),
-                   FlowControl::kReadyValid);
+  XLS_RET_CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
+  XLS_RET_CHECK_EQ(ChannelRefFlowControl(channel), FlowControl::kReadyValid);
 
   // Construct the valid port.
   std::string_view valid_suffix = options_.streaming_channel_valid_suffix();
 
   XLS_ASSIGN_OR_RETURN(
       InputPort * input_valid_port,
-      block()->AddInputPort(absl::StrCat(channel->name(), valid_suffix),
+      block()->AddInputPort(absl::StrCat(ChannelRefName(channel), valid_suffix),
                             block()->package()->GetBitsType(1)));
 
   // If blocking return a tuple of (token, data), and if non-blocking
@@ -547,7 +594,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
               /*selector=*/node_map_.at(receive->predicate().value()),
               /*cases=*/std::vector<Node*>({zero_value, input_port}),
               /*default_value=*/std::nullopt,
-              /*name=*/absl::StrCat(channel->name(), "_select")));
+              /*name=*/absl::StrCat(ChannelRefName(channel), "_select")));
       data = select;
     }
     XLS_ASSIGN_OR_RETURN(
@@ -581,7 +628,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
               /*loc=*/node->loc(), /*selector=*/valid,
               /*cases=*/std::vector<Node*>({zero_value, input_port}),
               /*default_value=*/std::nullopt,
-              /*name=*/absl::StrCat(channel->name(), "_select")));
+              /*name=*/absl::StrCat(ChannelRefName(channel), "_select")));
       data = select;
     }
     XLS_ASSIGN_OR_RETURN(
@@ -609,24 +656,41 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
   return next_node;
 }
 
-// Don't clone Send operations. Instead replace with an OutputPort
-// operation in the block.
+absl::StatusOr<std::optional<Channel*>>
+CloneNodesIntoBlockHandler::MaybeGetLoopbackChannel(ChannelNode* node) const {
+  Proc* proc = node->function_base()->AsProcOrDie();
+  if (!loopback_channels_.contains(proc)) {
+    return std::nullopt;
+  }
+  Channel* channel;
+  if (node->package()->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(channel, proc->GetChannel(node->channel_name()));
+  } else {
+    XLS_ASSIGN_OR_RETURN(channel, GetChannelUsedByNode(node));
+  }
+  if (loopback_channels_.at(proc).contains(channel)) {
+    return channel;
+  }
+  return std::nullopt;
+}
+
 absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(
     Node* node, int64_t stage) {
   Node* next_node;
 
-  XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
   Send* send = node->As<Send>();
-  std::string_view data_suffix = (channel->kind() == ChannelKind::kStreaming)
-                                     ? options_.streaming_channel_data_suffix()
-                                     : "";
+  XLS_ASSIGN_OR_RETURN(ChannelRef channel, GetChannelRefUsedByNode(send));
+  std::string_view data_suffix =
+      (ChannelRefKind(channel) == ChannelKind::kStreaming)
+          ? options_.streaming_channel_data_suffix()
+          : "";
   XLS_ASSIGN_OR_RETURN(
       OutputPort * output_port,
-      block()->AddOutputPort(absl::StrCat(channel->name(), data_suffix),
+      block()->AddOutputPort(absl::StrCat(ChannelRefName(channel), data_suffix),
                              node_map_.at(send->data())));
 
-  if (std::optional<PackageInterfaceProto::Channel> c =
-          FindChannelInterface(options_.package_interface(), channel->name());
+  if (std::optional<PackageInterfaceProto::Channel> c = FindChannelInterface(
+          options_.package_interface(), ChannelRefName(channel));
       c && c->has_sv_type()) {
     result_.output_port_sv_type[output_port] = c->sv_type();
   }
@@ -640,15 +704,14 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(
           /*loc=*/SourceInfo(), node_map_.at(send->token()), Op::kIdentity));
   next_node = token_buf;
 
-  if (channel->kind() == ChannelKind::kSingleValue) {
+  if (ChannelRefKind(channel) == ChannelKind::kSingleValue) {
     result_.single_value_outputs.push_back(
         SingleValueOutput{.port = output_port, .channel = channel});
     return next_node;
   }
 
-  XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kStreaming);
-  XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->GetFlowControl(),
-                   FlowControl::kReadyValid);
+  XLS_RET_CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
+  XLS_RET_CHECK_EQ(ChannelRefFlowControl(channel), FlowControl::kReadyValid);
 
   StreamingOutput streaming_output{.port = output_port,
                                    .port_valid = nullptr,
@@ -785,7 +848,6 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFifoSendNode(
   return token_buf;
 }
 
-// Clone the operation from the source to the block as is.
 absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleGeneralNode(
     Node* node) {
   std::vector<Node*> new_operands;
@@ -795,10 +857,6 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleGeneralNode(
   return node->CloneInNewFunction(new_operands, block());
 }
 
-// Create a pipeline register for the given node.
-//
-// Returns a PipelineRegister whose reg_read field can be used
-// to chain dependent ops to.
 absl::StatusOr<PipelineRegister>
 CloneNodesIntoBlockHandler::CreatePipelineRegister(std::string_view name,
                                                    Node* node,
@@ -828,28 +886,6 @@ CloneNodesIntoBlockHandler::CreatePipelineRegister(std::string_view name,
   return PipelineRegister{reg, reg_write, reg_read};
 }
 
-// Returns true if tuple_type has a zero width element at the top level.
-bool CloneNodesIntoBlockHandler::HasZeroWidthType(TupleType* tuple_type) {
-  CHECK(tuple_type != nullptr);
-
-  for (Type* element_type : tuple_type->element_types()) {
-    if (element_type->GetFlatBitCount() == 0) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-// Creates pipeline registers for a given node.
-//
-// Depending on the type of node, multiple pipeline registers
-// may be created.
-//  1. Each pipeline register added will be added to pipeline_register_list
-//     which is passed in by reference.
-//  2. Logic may be inserted after said registers  so that a single node with
-//     the same type as the input node is returned.
-//
 absl::StatusOr<Node*>
 CloneNodesIntoBlockHandler::CreatePipelineRegistersForNode(
     std::string_view base_name, Node* node, Stage stage,

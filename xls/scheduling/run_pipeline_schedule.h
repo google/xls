@@ -33,13 +33,13 @@ namespace xls {
 absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options,
-    const std::optional<ProcElaboration>& elab = std::nullopt);
+    std::optional<const ProcElaboration*> elab = std::nullopt);
 
 // Produce a pipeline schedule using feedback-directed scheduling.
 absl::StatusOr<PipelineSchedule> RunPipelineScheduleWithFdo(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options, const synthesis::Synthesizer& synthesizer,
-    const std::optional<ProcElaboration>& elab = std::nullopt);
+    std::optional<const ProcElaboration*> elab = std::nullopt);
 
 }  // namespace xls
 

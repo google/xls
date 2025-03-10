@@ -36,7 +36,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
-#include "xls/ir/type.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
@@ -158,9 +157,6 @@ class CloneNodesIntoBlockHandler {
                                                           Node* node,
                                                           Stage stage_write);
 
-  // Returns true if tuple_type has a zero width element at the top level.
-  bool HasZeroWidthType(TupleType* tuple_type);
-
   // Creates pipeline registers for a given node.
   //
   // Depending on the type of node, multiple pipeline registers
@@ -174,6 +170,9 @@ class CloneNodesIntoBlockHandler {
       std::string_view base_name, Node* node, Stage stage,
       std::vector<PipelineRegister>& pipeline_registers_list);
 
+  absl::StatusOr<std::optional<Channel*>> MaybeGetLoopbackChannel(
+      ChannelNode* node) const;
+
   Block* block() const { return block_; };
 
   bool is_proc_;
@@ -185,7 +184,7 @@ class CloneNodesIntoBlockHandler {
   std::optional<ConcurrentStageGroups> concurrent_stages_;
   StreamingIOPipeline result_;
   absl::flat_hash_map<Node*, Node*> node_map_;
-  absl::flat_hash_set<int64_t> loopback_channel_ids_;
+  absl::flat_hash_map<Proc*, absl::flat_hash_set<Channel*>> loopback_channels_;
   absl::flat_hash_map<int64_t, xls::Instantiation*> fifo_instantiations_;
 };
 }  // namespace xls::verilog

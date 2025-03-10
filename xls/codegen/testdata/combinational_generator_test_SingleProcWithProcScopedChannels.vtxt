@@ -1,0 +1,14 @@
+module myleaf(
+  input wire [31:0] in,
+  input wire in_vld,
+  input wire out_rdy,
+  output wire [31:0] out,
+  output wire out_vld,
+  output wire in_rdy
+);
+  wire [31:0] add_16;
+  assign add_16 = in + 32'h0000_0001;
+  assign out = add_16;
+  assign out_vld = in_vld;
+  assign in_rdy = out_rdy;
+endmodule

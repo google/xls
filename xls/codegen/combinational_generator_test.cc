@@ -33,6 +33,7 @@
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
@@ -2267,6 +2268,26 @@ TEST_P(CombinationalGeneratorTest, TwoDArrayNe) {
               IsOkAndHolds(Value(UBits(1, 1))));
   EXPECT_THAT(simulator.RunFunction({{"x", a}, {"y", a}}),
               IsOkAndHolds(Value(UBits(0, 1))));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CombinationalGeneratorTest, SingleProcWithProcScopedChannels) {
+  Package package(TestBaseName());
+
+  TokenlessProcBuilder pb(NewStyleProc(), "myleaf", "tkn", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in,
+                           pb.AddInputChannel("in", package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
+                           pb.AddOutputChannel("out", package.GetBitsType(32)));
+
+  pb.Send(out, pb.Add(pb.Receive(in), pb.Literal(UBits(1, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(proc, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);

@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -32,6 +33,7 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_wrapper_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
@@ -46,7 +48,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
-#include "xls/passes/optimization_pass.h"
+#include "re2/re2.h"
 
 namespace xls::verilog {
 
@@ -82,11 +84,16 @@ std::optional<PackageInterfaceProto::Channel> FindChannelInterface(
   return std::nullopt;
 }
 
-// For each output streaming channel add a corresponding ready port (input
-// port). Combinationally combine those ready signals with their predicates to
-// generate an  all_active_outputs_ready signal.
-//
-// Upon success returns a Node* to the all_active_inputs_valid signal.
+std::string PipelineSignalName(std::string_view root, int64_t stage) {
+  std::string base;
+  // Strip any existing pipeline prefix from the name.
+  static constexpr LazyRE2 kPipelinePrefix = {.pattern_ = R"(^p\d+_(.+))"};
+  if (!RE2::PartialMatch(root, *kPipelinePrefix, &base)) {
+    base = root;
+  }
+  return absl::StrFormat("p%d_%s", stage, SanitizeIdentifier(base));
+}
+
 absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
     int64_t stage_count, std::string_view ready_suffix, Block* block) {
@@ -105,7 +112,8 @@ absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
         XLS_ASSIGN_OR_RETURN(
             streaming_output.port_ready,
             block->AddInputPort(
-                absl::StrCat(streaming_output.channel->name(), ready_suffix),
+                absl::StrCat(ChannelRefName(streaming_output.channel),
+                             ready_suffix),
                 block->package()->GetBitsType(1)));
       }
 
@@ -122,8 +130,8 @@ absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
         // If predicate has an assigned name, let the not expression get
         // inlined. Otherwise, give a descriptive name.
         if (!streaming_output.predicate.value()->HasAssignedName()) {
-          not_pred->SetName(
-              absl::StrFormat("%s_not_pred", streaming_output.channel->name()));
+          not_pred->SetName(absl::StrFormat(
+              "%s_not_pred", ChannelRefName(streaming_output.channel)));
         }
         std::vector<Node*> operands{not_pred, streaming_output.port_ready};
         XLS_ASSIGN_OR_RETURN(
@@ -134,7 +142,7 @@ absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
         // inline. Otherwise, give a descriptive name.
         if (!streaming_output.port_ready->HasAssignedName()) {
           active_ready->SetName(absl::StrFormat(
-              "%s_active_ready", streaming_output.channel->name()));
+              "%s_active_ready", ChannelRefName(streaming_output.channel)));
         }
         active_readys.push_back(active_ready);
       } else {
@@ -190,8 +198,8 @@ absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
         // If predicate has an assigned name, let the not expression get
         // inlined. Otherwise, give a descriptive name.
         if (!streaming_input.predicate.value()->HasAssignedName()) {
-          not_pred->SetName(
-              absl::StrFormat("%s_not_pred", streaming_input.channel->name()));
+          not_pred->SetName(absl::StrFormat(
+              "%s_not_pred", ChannelRefName(streaming_input.channel)));
         }
         std::vector<Node*> operands = {not_pred, streaming_input_valid};
         XLS_ASSIGN_OR_RETURN(
@@ -202,7 +210,7 @@ absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
         // inline. Otherwise, give a descriptive name.
         if (!streaming_input_valid->HasAssignedName()) {
           active_valid->SetName(absl::StrFormat(
-              "%s_active_valid", streaming_input.channel->name()));
+              "%s_active_valid", ChannelRefName(streaming_input.channel)));
         }
         active_valids.push_back(active_valid);
       } else {
@@ -373,7 +381,8 @@ absl::Status MakeOutputValidPortsForOutputChannels(
         XLS_ASSIGN_OR_RETURN(
             streaming_output.port_valid,
             block->AddOutputPort(
-                absl::StrCat(streaming_output.channel->name(), valid_suffix),
+                absl::StrCat(ChannelRefName(streaming_output.channel),
+                             valid_suffix),
                 valid));
       }
     }
@@ -410,7 +419,8 @@ absl::Status MakeOutputReadyPortsForInputChannels(
         XLS_ASSIGN_OR_RETURN(
             streaming_input.port_ready,
             block->AddOutputPort(
-                absl::StrCat(streaming_input.channel->name(), ready_suffix),
+                absl::StrCat(ChannelRefName(streaming_input.channel),
+                             ready_suffix),
                 ready));
       }
     }

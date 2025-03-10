@@ -261,7 +261,7 @@ class Block : public FunctionBase {
   // Add metadata describing the mapping from ports to the channel they are
   // derived from.
   absl::Status AddChannelPortMetadata(ChannelPortMetadata metadata);
-  absl::Status AddChannelPortMetadata(Channel* channel,
+  absl::Status AddChannelPortMetadata(ChannelRef channel,
                                       ChannelDirection direction,
                                       std::optional<std::string> data_port,
                                       std::optional<std::string> valid_port,

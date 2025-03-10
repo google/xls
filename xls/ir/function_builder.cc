@@ -1121,6 +1121,7 @@ absl::StatusOr<ReceiveChannelInterface*> ProcBuilder::AddInputChannel(
     channel_interface->SetStrictness(strictness.value());
   } else if (kind == ChannelKind::kStreaming) {
     channel_interface->SetStrictness(kDefaultChannelStrictness);
+    channel_interface->SetFlowControl(FlowControl::kReadyValid);
   }
   return proc()->AddInputChannelInterface(std::move(channel_interface));
 }
@@ -1135,6 +1136,7 @@ absl::StatusOr<SendChannelInterface*> ProcBuilder::AddOutputChannel(
     channel_interface->SetStrictness(strictness.value());
   } else if (kind == ChannelKind::kStreaming) {
     channel_interface->SetStrictness(kDefaultChannelStrictness);
+    channel_interface->SetFlowControl(FlowControl::kReadyValid);
   }
   return proc()->AddOutputChannelInterface(std::move(channel_interface));
 }

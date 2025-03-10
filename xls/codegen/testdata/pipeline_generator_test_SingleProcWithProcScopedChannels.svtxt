@@ -1,0 +1,30 @@
+module myleaf(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] in,
+  input wire in_vld,
+  input wire out_rdy,
+  output wire [31:0] out,
+  output wire out_vld,
+  output wire in_rdy
+);
+  reg p0_valid;
+  wire p0_stage_done;
+  wire [31:0] add_17;
+  wire p0_enable;
+  wire p0_load_en;
+  assign p0_stage_done = in_vld & out_rdy;
+  assign add_17 = in + 32'h0000_0001;
+  assign p0_enable = 1'h1;
+  assign p0_load_en = p0_stage_done | rst;
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      p0_valid <= 1'h0;
+    end else begin
+      p0_valid <= p0_enable ? p0_stage_done : p0_valid;
+    end
+  end
+  assign out = add_17;
+  assign out_vld = in_vld;
+  assign in_rdy = p0_load_en;
+endmodule

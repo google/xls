@@ -226,18 +226,19 @@ void ClearRewrittenMetadata(
     StreamingIOPipeline& streaming_io,
     absl::flat_hash_set<std::string_view> channel_names) {
   for (std::vector<StreamingInput>& inputs : streaming_io.inputs) {
-    inputs.erase(
-        std::remove_if(inputs.begin(), inputs.end(),
-                       [&channel_names](const StreamingInput& input) {
-                         return channel_names.contains(input.channel->name());
-                       }),
-        inputs.end());
+    inputs.erase(std::remove_if(inputs.begin(), inputs.end(),
+                                [&channel_names](const StreamingInput& input) {
+                                  return channel_names.contains(
+                                      ChannelRefName(input.channel));
+                                }),
+                 inputs.end());
   }
   for (std::vector<StreamingOutput>& outputs : streaming_io.outputs) {
     outputs.erase(
         std::remove_if(outputs.begin(), outputs.end(),
                        [&channel_names](const StreamingOutput& output) {
-                         return channel_names.contains(output.channel->name());
+                         return channel_names.contains(
+                             ChannelRefName(output.channel));
                        }),
         outputs.end());
   }

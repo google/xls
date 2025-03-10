@@ -293,6 +293,10 @@ class Proc : public FunctionBase {
   // called for new style procs.
   absl::StatusOr<Channel*> GetChannel(std::string_view name);
 
+  // Returns whether a channel with the given name is declared in the proc. Only
+  // can be called for new style procs.
+  bool HasChannelWithName(std::string_view name);
+
   // Returns the ChannelRef referring to the global channel or proc-scoped
   // channel (new-style procs) with the given name.
   absl::StatusOr<ChannelRef> GetChannelRef(std::string_view name,

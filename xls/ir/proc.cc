@@ -668,6 +668,11 @@ absl::StatusOr<Channel*> Proc::GetChannel(std::string_view name) {
       "No channel with name `%s` in proc `%s`", name, this->name()));
 }
 
+bool Proc::HasChannelWithName(std::string_view name) {
+  CHECK(is_new_style_proc());
+  return channels_.find(name) != channels_.end();
+}
+
 absl::StatusOr<ChannelRef> Proc::GetChannelRef(std::string_view name,
                                                ChannelDirection direction) {
   if (is_new_style_proc()) {

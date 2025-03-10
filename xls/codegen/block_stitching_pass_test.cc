@@ -759,7 +759,8 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
     for (const std::vector<StreamingInput>& metadata_inputs :
          metadata.streaming_io_and_pipeline.inputs) {
       for (const StreamingInput& input : metadata_inputs) {
-        if (input.channel->supported_ops() == ChannelOps::kSendReceive) {
+        if (std::get<Channel*>(input.channel)->supported_ops() ==
+            ChannelOps::kSendReceive) {
           continue;
         }
         ChannelSource source(input.port.value()->GetName(),
@@ -768,11 +769,14 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
                              ChannelSource::BehaviorDuringReset::kIgnoreReady);
         VLOG(3) << absl::StreamFormat(
             "Adding source for channel %s with ports %s %s %s",
-            input.channel->name(), input.port.value()->GetName(),
-            input.port_valid->GetName(), input.port_ready->GetName());
+            std::get<Channel*>(input.channel)->name(),
+            input.port.value()->GetName(), input.port_valid->GetName(),
+            input.port_ready->GetName());
         std::vector<uint64_t> cast_data_sequence;
-        cast_data_sequence.reserve(inputs.at(input.channel->name()).size());
-        for (int64_t in : inputs.at(input.channel->name())) {
+        cast_data_sequence.reserve(
+            inputs.at(std::get<Channel*>(input.channel)->name()).size());
+        for (int64_t in :
+             inputs.at(std::get<Channel*>(input.channel)->name())) {
           cast_data_sequence.push_back(in);
         }
         XLS_RETURN_IF_ERROR(source.SetDataSequence(cast_data_sequence));
@@ -781,7 +785,8 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
     }
     for (const SingleValueInput& metadata_input :
          metadata.streaming_io_and_pipeline.single_value_inputs) {
-      if (metadata_input.channel->supported_ops() == ChannelOps::kSendReceive) {
+      if (std::get<Channel*>(metadata_input.channel)->supported_ops() ==
+          ChannelOps::kSendReceive) {
         continue;
       }
       for (absl::flat_hash_map<std::string, Value>& cycle_values :
@@ -804,7 +809,8 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
     for (const std::vector<StreamingOutput>& outputs :
          metadata.streaming_io_and_pipeline.outputs) {
       for (const StreamingOutput& output : outputs) {
-        if (output.channel->supported_ops() == ChannelOps::kSendReceive) {
+        if (std::get<Channel*>(output.channel)->supported_ops() ==
+            ChannelOps::kSendReceive) {
           continue;
         }
         sinks.push_back(ChannelSink(
@@ -812,7 +818,7 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
             output.port_ready->GetName(), 0.5, block,
             ChannelSink::BehaviorDuringReset::kIgnoreValid));
         sink_names_by_data_name[sinks.back().data_name()] =
-            output.channel->name();
+            std::get<Channel*>(output.channel)->name();
       }
     }
   }
@@ -840,7 +846,8 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
   for (const auto& [_block, metadata] : metadata_map) {
     for (const SingleValueOutput& output :
          metadata.streaming_io_and_pipeline.single_value_outputs) {
-      if (output.channel->supported_ops() == ChannelOps::kSendReceive) {
+      if (std::get<Channel*>(output.channel)->supported_ops() ==
+          ChannelOps::kSendReceive) {
         continue;
       }
       std::vector<uint64_t>& channel_int_outputs =

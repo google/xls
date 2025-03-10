@@ -50,6 +50,11 @@ std::optional<PackageInterfaceProto::Channel> FindChannelInterface(
 // PackageToPipelinedBlocks are named using this function.
 std::string PipelineSignalName(std::string_view root, int64_t stage);
 
+// For each output streaming channel add a corresponding ready port (input
+// port). Combinationally combine those ready signals with their predicates to
+// generate an  all_active_outputs_ready signal.
+//
+// Upon success returns a Node* to the all_active_inputs_valid signal.
 absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
     int64_t stage_count, std::string_view ready_suffix, Block* block);

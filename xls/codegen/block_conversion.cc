@@ -70,7 +70,6 @@
 #include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
-#include "re2/re2.h"
 
 namespace xls {
 namespace verilog {
@@ -345,7 +344,6 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       CHECK_NE(*input.port, nullptr);
       CHECK_NE(input.port_valid, nullptr);
       CHECK_NE(input.port_ready, nullptr);
-      CHECK_NE(input.channel, nullptr);
       // Ports are either all external IOs or all from instantiations.
       CHECK(input.IsExternal() || input.IsInstantiation());
 
@@ -363,7 +361,6 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       CHECK_NE(*output.port, nullptr);
       CHECK_NE(output.port_valid, nullptr);
       CHECK_NE(output.port_ready, nullptr);
-      CHECK_NE(output.channel, nullptr);
       // Ports are either all external IOs or all from instantiations.
       CHECK(output.IsExternal() || output.IsInstantiation());
 
@@ -378,7 +375,6 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
 
   for (const SingleValueInput& input : io.single_value_inputs) {
     CHECK_NE(input.port, nullptr);
-    CHECK_NE(input.channel, nullptr);
 
     XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
         input.channel, ChannelDirection::kReceive, input.port->GetName(),
@@ -388,7 +384,6 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
 
   for (const SingleValueOutput& output : io.single_value_outputs) {
     CHECK_NE(output.port, nullptr);
-    CHECK_NE(output.channel, nullptr);
 
     XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
         output.channel, ChannelDirection::kSend, output.port->GetName(),
@@ -480,7 +475,6 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
 
   return absl::OkStatus();
 }
-
 
 // Adds a register between the node and all its downstream users.
 // Returns the new register added.
@@ -635,16 +629,6 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
   valid_nodes.push_back(to_valid);
 
   return to_data;
-}
-
-std::string PipelineSignalName(std::string_view root, int64_t stage) {
-  std::string base;
-  // Strip any existing pipeline prefix from the name.
-  static constexpr LazyRE2 kPipelinePrefix = {.pattern_ = R"(^p\d+_(.+))"};
-  if (!RE2::PartialMatch(root, *kPipelinePrefix, &base)) {
-    base = root;
-  }
-  return absl::StrFormat("p%d_%s", stage, SanitizeIdentifier(base));
 }
 
 absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(

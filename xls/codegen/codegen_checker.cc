@@ -26,6 +26,7 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/register.h"
@@ -66,24 +67,24 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
                     instantiations.contains(*input.fifo_instantiation));
       if (input.port.has_value()) {
         XLS_RET_CHECK(nodes.contains(*input.port)) << absl::StreamFormat(
-            "Port not found for %s", input.channel->name());
+            "Port not found for %s", ChannelRefName(input.channel));
       }
       XLS_RET_CHECK(nodes.contains(input.port_ready)) << absl::StreamFormat(
-          "Ready port not found for %s", input.channel->name());
+          "Ready port not found for %s", ChannelRefName(input.channel));
       XLS_RET_CHECK(nodes.contains(input.port_valid)) << absl::StreamFormat(
-          "Valid port not found for %s", input.channel->name());
+          "Valid port not found for %s", ChannelRefName(input.channel));
       if (input.signal_data.has_value()) {
         XLS_RET_CHECK(nodes.contains(*input.signal_data)) << absl::StreamFormat(
-            "Signal data not found for %s", input.channel->name());
+            "Signal data not found for %s", ChannelRefName(input.channel));
       }
       if (input.signal_valid.has_value()) {
         XLS_RET_CHECK(nodes.contains(*input.signal_valid))
             << absl::StreamFormat("Signal valid not found for %s",
-                                  input.channel->name());
+                                  ChannelRefName(input.channel));
       }
       if (input.predicate.has_value()) {
         XLS_RET_CHECK(nodes.contains(*input.predicate)) << absl::StreamFormat(
-            "Predicate not found for %s", input.channel->name());
+            "Predicate not found for %s", ChannelRefName(input.channel));
       }
     }
   }
@@ -99,7 +100,7 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
       XLS_RET_CHECK(nodes.contains(output.port_valid));
       if (output.predicate.has_value()) {
         XLS_RET_CHECK(nodes.contains(*output.predicate)) << absl::StreamFormat(
-            "Predicate not found for %s", output.channel->name());
+            "Predicate not found for %s", ChannelRefName(output.channel));
       }
     }
   }

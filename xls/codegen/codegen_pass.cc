@@ -29,6 +29,7 @@
 #include "absl/strings/str_split.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 
@@ -134,39 +135,41 @@ void CodegenPassUnit::GcMetadata() {
          metadata.streaming_io_and_pipeline.inputs) {
       for (const StreamingInput& input : inputs) {
         VLOG(5) << absl::StreamFormat("Input found on %v for %s", *block,
-                                      input.channel->name());
+                                      ChannelRefName(input.channel));
         if (!input.IsExternal()) {
           VLOG(5) << absl::StreamFormat("Skipping internal input %s",
-                                        input.channel->name());
+                                        ChannelRefName(input.channel));
           continue;
         }
-        channel_to_streaming_input[input.channel] = &input;
+        channel_to_streaming_input[std::get<Channel*>(input.channel)] = &input;
       }
     }
     for (const SingleValueInput& input :
          metadata.streaming_io_and_pipeline.single_value_inputs) {
       VLOG(5) << absl::StreamFormat("Input found on %v for %s", *block,
-                                    input.channel->name());
-      channel_to_single_value_input[input.channel] = &input;
+                                    ChannelRefName(input.channel));
+      channel_to_single_value_input[std::get<Channel*>(input.channel)] = &input;
     }
     for (const std::vector<StreamingOutput>& outputs :
          metadata.streaming_io_and_pipeline.outputs) {
       for (const StreamingOutput& output : outputs) {
         VLOG(5) << absl::StreamFormat("Output found on %v for %s.", *block,
-                                      output.channel->name());
+                                      ChannelRefName(output.channel));
         if (!output.IsExternal()) {
           VLOG(5) << absl::StreamFormat("Skipping internal output %s",
-                                        output.channel->name());
+                                        ChannelRefName(output.channel));
           continue;
         }
-        channel_to_streaming_output[output.channel] = &output;
+        channel_to_streaming_output[std::get<Channel*>(output.channel)] =
+            &output;
       }
     }
     for (const SingleValueOutput& output :
          metadata.streaming_io_and_pipeline.single_value_outputs) {
       VLOG(5) << absl::StreamFormat("Output found on %v for %s.", *block,
-                                    output.channel->name());
-      channel_to_single_value_output[output.channel] = &output;
+                                    ChannelRefName(output.channel));
+      channel_to_single_value_output[std::get<Channel*>(output.channel)] =
+          &output;
     }
   }
   return ChannelMap(std::move(channel_to_streaming_input),
