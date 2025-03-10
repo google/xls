@@ -174,7 +174,7 @@ localhost instances of [bazel-remote](https://github.com/buchgr/bazel-remote/).
 
 ### Getting Clangd completions
 
-A `compile_commands.json` file compatible with clangd and similar tools can be
+A `compile_flags.txt` file compatible with clangd and similar tools can be
 created by running `xls/dev_tools/make-compilation-db.sh`. Follow directions for
 your editor to install clangd code completion.
 
