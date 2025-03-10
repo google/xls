@@ -73,7 +73,7 @@ absl::StatusOr<Value> RunOnJit(
 ```
 
 The IR JIT is the default backend for the
-[eval_ir_main](./tools.md#eval-ir-main)
+[eval_ir_main](./tools.md#ir-eval)
 tool, which loads IR from disk and runs with args present on either the command
 line or in a specified file.
 
