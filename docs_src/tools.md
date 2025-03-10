@@ -39,7 +39,7 @@ visit the [codegen options](codegen_options.md) page.
 Dumps delay information about an XLS function including per-node delay
 information and critical-path.
 
-## Ir Evaluation
+## Ir Evaluation {#ir-eval}
 
 There are two different programs that can be used to simulate XLS designs
 depending on the type of design. `eval_ir_main` is used to simulate `fn` designs
@@ -79,7 +79,7 @@ channel names into the block ready/valid/data ports.
 with information about which bits of every node were observed set. This can be
 used to validate transformations and gain insights into how the code performs.
 
-## Jit Inspection {#jit-inspect}
+## Jit Inspection {#jit-inspection}
 
 One can use the `jit:aot_compiler_main` to inspect the jit code produced by our
 jits.
