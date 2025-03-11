@@ -3722,3 +3722,16 @@ cc_library(
         "//xls/common:visitor",
     ],
 )
+
+cc_library(
+    name = "pass_test_helpers",
+    hdrs = ["pass_test_helpers.h"],
+    deps = [
+        ":optimization_pass",
+        ":pass_base",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
