@@ -29,19 +29,19 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/stopwatch.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/examples/sample_packages.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
-#include "xls/passes/bdd_function.h"
+#include "xls/passes/bdd_query_engine.h"
 
 static constexpr std::string_view kUsage = R"(
 Builds a BDD from XLS IR and prints various metrics about the BDD. Usage:
@@ -116,15 +116,14 @@ absl::Status RealMain(std::string_view input_path) {
       return absl::InternalError(absl::StrFormat(
           "Top entity not set for package: %s.", package->name()));
     }
-    absl::Time start = absl::Now();
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<BddFunction> bdd_function,
-        BddFunction::Run(top.value(), absl::GetFlag(FLAGS_bdd_path_limit)));
-    absl::Duration bdd_time = absl::Now() - start;
+    BddQueryEngine query_engine(absl::GetFlag(FLAGS_bdd_path_limit));
+    Stopwatch bdd_stopwatch;
+    XLS_RETURN_IF_ERROR(query_engine.EagerlyPopulate(top.value()));
+    absl::Duration bdd_time = bdd_stopwatch.GetElapsedTime();
     total_time += bdd_time;
     std::cout << "BDD construction time: " << bdd_time << "\n";
-    std::cout << "BDD node count: " << bdd_function->bdd().size() << "\n";
-    std::cout << "BDD variable count: " << bdd_function->bdd().variable_count()
+    std::cout << "BDD node count: " << query_engine.bdd().size() << "\n";
+    std::cout << "BDD variable count: " << query_engine.bdd().variable_count()
               << "\n";
 
     int64_t number_bits = 0;
@@ -134,9 +133,9 @@ absl::Status RealMain(std::string_view input_path) {
     std::cout << "Bits in graph: " << number_bits << "\n";
 
     int64_t max_paths = 0;
-    for (int64_t i = 0; i < bdd_function->bdd().size(); ++i) {
+    for (int64_t i = 0; i < query_engine.bdd().size(); ++i) {
       max_paths =
-          std::max(max_paths, bdd_function->bdd().path_count(BddNodeIndex(i)));
+          std::max(max_paths, query_engine.bdd().path_count(BddNodeIndex(i)));
     }
     if (max_paths == std::numeric_limits<int32_t>::max()) {
       std::cout << "Maximum paths of any expression: INT32_MAX\n";

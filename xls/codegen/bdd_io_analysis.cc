@@ -25,7 +25,6 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
-#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 
 namespace xls {
@@ -89,7 +88,7 @@ absl::StatusOr<bool> AreStreamingOutputsMutuallyExclusive(Proc* proc) {
 
   // Use BDD query engine to determine predicates are such that
   // if one is true, the rest are false.
-  BddQueryEngine query_engine(BddFunction::kDefaultPathLimit,
+  BddQueryEngine query_engine(BddQueryEngine::kDefaultPathLimit,
                               UseNodeInBddEngine);
   XLS_RETURN_IF_ERROR(query_engine.Populate(proc).status());
 

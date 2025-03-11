@@ -14,50 +14,229 @@
 
 #include "xls/passes/bdd_query_engine.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "cppitertools/zip.hpp"
 #include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/abstract_evaluator.h"
+#include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/bdd_evaluator.h"
-#include "xls/passes/bdd_function.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
 
-class BddQueryEngine::AssumingBddQueryEngine final : public QueryEngine {
+namespace {
+
+// Returns whether the given op should be included in BDD computations.
+bool ShouldEvaluate(Node* node) {
+  const int64_t kMaxWidth = 64;
+  auto is_wide = [](Node* n) {
+    return n->GetType()->GetFlatBitCount() > kMaxWidth;
+  };
+
+  if (!node->GetType()->IsBits()) {
+    return false;
+  }
+  switch (node->op()) {
+    // Logical ops.
+    case Op::kAnd:
+    case Op::kNand:
+    case Op::kNor:
+    case Op::kNot:
+    case Op::kOr:
+    case Op::kXor:
+      return true;
+
+    // Extension ops.
+    case Op::kSignExt:
+    case Op::kZeroExt:
+      return true;
+
+    case Op::kLiteral:
+      return true;
+
+    // Bit moving ops.
+    case Op::kBitSlice:
+    case Op::kConcat:
+    case Op::kReverse:
+    case Op::kIdentity:
+      return true;
+    case Op::kDynamicBitSlice:
+      return !is_wide(node);
+
+    case Op::kOneHot:
+      return !is_wide(node);
+
+    // Select operations.
+    case Op::kOneHotSel:
+    case Op::kPrioritySel:
+    case Op::kSel:
+      return true;
+
+    // Encode/decode operations:
+    case Op::kDecode:
+    case Op::kEncode:
+      return true;
+
+    // Comparison operation are only expressed if at least one of the operands
+    // is a literal. This avoids the potential exponential explosion of BDD
+    // nodes which can occur with pathological variable ordering.
+    case Op::kUGe:
+    case Op::kUGt:
+    case Op::kULe:
+    case Op::kULt:
+    case Op::kEq:
+    case Op::kNe:
+      return node->operand(0)->Is<Literal>() || node->operand(1)->Is<Literal>();
+
+    // Arithmetic ops
+    case Op::kAdd:
+    case Op::kSMul:
+    case Op::kUMul:
+    case Op::kSMulp:
+    case Op::kUMulp:
+    case Op::kNeg:
+    case Op::kSDiv:
+    case Op::kSub:
+    case Op::kUDiv:
+    case Op::kSMod:
+    case Op::kUMod:
+      return false;
+
+    // Reduction ops.
+    case Op::kAndReduce:
+    case Op::kOrReduce:
+    case Op::kXorReduce:
+      return true;
+
+    // Weirdo ops.
+    case Op::kAfterAll:
+    case Op::kMinDelay:
+    case Op::kArray:
+    case Op::kArrayConcat:
+    case Op::kArrayIndex:
+    case Op::kArraySlice:
+    case Op::kArrayUpdate:
+    case Op::kAssert:
+    case Op::kCountedFor:
+    case Op::kCover:
+    case Op::kDynamicCountedFor:
+    case Op::kGate:
+    case Op::kInputPort:
+    case Op::kInvoke:
+    case Op::kMap:
+    case Op::kOutputPort:
+    case Op::kParam:
+    case Op::kStateRead:
+    case Op::kNext:
+    case Op::kReceive:
+    case Op::kRegisterRead:
+    case Op::kRegisterWrite:
+    case Op::kSend:
+    case Op::kTrace:
+    case Op::kTuple:
+    case Op::kTupleIndex:
+    case Op::kInstantiationInput:
+    case Op::kInstantiationOutput:
+      return false;
+
+    // Unsupported comparison operations.
+    case Op::kSGt:
+    case Op::kSGe:
+    case Op::kSLe:
+    case Op::kSLt:
+      return false;
+
+    // Shift operations and related ops.
+    // Shifts are very intensive to compute because they decompose into many,
+    // many gates and they don't seem to provide much benefit. Turn-off for now.
+    // TODO(meheff): Consider enabling shifts.
+    case Op::kShll:
+    case Op::kShra:
+    case Op::kShrl:
+    case Op::kBitSliceUpdate:
+      return false;
+  }
+  LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());
+}
+
+}  // namespace
+
+bool IsCheapForBdds(const Node* node) {
+  // The expense of evaluating a node using a BDD can depend strongly on the
+  // width of the inputs or outputs. The nodes are roughly classified into
+  // different groups based on their expense with width thresholds set for each
+  // group. These values are picked empirically based on benchmark results.
+  constexpr int64_t kWideThreshold = 256;
+  constexpr int64_t kNarrowThreshold = 16;
+  constexpr int64_t kVeryNarrowThreshold = 4;
+
+  auto is_always_cheap = [](const Node* node) {
+    return node->Is<ExtendOp>() || node->Is<NaryOp>() || node->Is<BitSlice>() ||
+           node->Is<Concat>() || node->Is<Literal>();
+  };
+
+  auto is_cheap_when_not_wide = [](const Node* node) {
+    return IsBinarySelect(const_cast<Node*>(node)) || node->Is<UnOp>() ||
+           node->Is<BitwiseReductionOp>() || node->Is<OneHot>() ||
+           node->op() == Op::kEq || node->op() == Op::kNe;
+  };
+
+  auto is_cheap_when_narrow = [](const Node* node) {
+    return node->Is<CompareOp>() || node->Is<OneHot>() ||
+           node->Is<OneHotSelect>() || node->Is<PrioritySelect>();
+  };
+
+  int64_t width = node->GetType()->GetFlatBitCount();
+  for (Node* operand : node->operands()) {
+    width = std::max(operand->GetType()->GetFlatBitCount(), width);
+  }
+
+  return is_always_cheap(node) ||
+         (is_cheap_when_not_wide(node) && width <= kWideThreshold) ||
+         (is_cheap_when_narrow(node) && width <= kNarrowThreshold) ||
+         width <= kVeryNarrowThreshold;
+}
+
+class BddQueryEngine::AssumingQueryEngine final : public QueryEngine {
  public:
-  AssumingBddQueryEngine(const BddQueryEngine* query_engine,
-                         BddNodeIndex assumption)
+  AssumingQueryEngine(const BddQueryEngine* query_engine,
+                      BddNodeIndex assumption)
       : query_engine_(query_engine), assumption_(assumption) {}
-  AssumingBddQueryEngine(std::shared_ptr<BddQueryEngine> query_engine,
-                         BddNodeIndex assumption)
+  AssumingQueryEngine(std::shared_ptr<BddQueryEngine> query_engine,
+                      BddNodeIndex assumption)
       : query_engine_storage_(std::move(query_engine)),
         query_engine_(query_engine_storage_.get()),
         assumption_(assumption) {}
@@ -98,16 +277,16 @@ class BddQueryEngine::AssumingBddQueryEngine final : public QueryEngine {
   BddNodeIndex assumption_;
 };
 
-absl::StatusOr<ReachedFixpoint>
-BddQueryEngine::AssumingBddQueryEngine::Populate(FunctionBase* f) {
+absl::StatusOr<ReachedFixpoint> BddQueryEngine::AssumingQueryEngine::Populate(
+    FunctionBase* f) {
   return absl::UnimplementedError("Cannot populate forwarding engine!");
 }
 
-bool BddQueryEngine::AssumingBddQueryEngine::IsTracked(Node* node) const {
+bool BddQueryEngine::AssumingQueryEngine::IsTracked(Node* node) const {
   return query_engine_->IsTracked(node);
 }
 std::optional<SharedLeafTypeTree<TernaryVector>>
-BddQueryEngine::AssumingBddQueryEngine::GetTernary(Node* node) const {
+BddQueryEngine::AssumingQueryEngine::GetTernary(Node* node) const {
   if (!query_engine_->IsTracked(node)) {
     return std::nullopt;
   }
@@ -140,10 +319,10 @@ BddQueryEngine::AssumingBddQueryEngine::GetTernary(Node* node) const {
 };
 
 std::unique_ptr<QueryEngine>
-BddQueryEngine::AssumingBddQueryEngine::SpecializeGivenPredicate(
+BddQueryEngine::AssumingQueryEngine::SpecializeGivenPredicate(
     const absl::flat_hash_set<PredicateState>& state) const {
-  std::unique_ptr<AssumingBddQueryEngine> specialized(
-      down_cast<AssumingBddQueryEngine*>(
+  std::unique_ptr<AssumingQueryEngine> specialized(
+      down_cast<AssumingQueryEngine*>(
           query_engine_->SpecializeGivenPredicate(state).release()));
   specialized->assumption_ =
       query_engine_->bdd().And(assumption_, specialized->assumption_);
@@ -151,15 +330,14 @@ BddQueryEngine::AssumingBddQueryEngine::SpecializeGivenPredicate(
 }
 
 std::unique_ptr<QueryEngine>
-BddQueryEngine::AssumingBddQueryEngine::SpecializeGiven(
+BddQueryEngine::AssumingQueryEngine::SpecializeGiven(
     const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const {
-  std::unique_ptr<AssumingBddQueryEngine> result;
+  std::unique_ptr<AssumingQueryEngine> result;
   if (query_engine_storage_ != nullptr) {
-    result = std::make_unique<AssumingBddQueryEngine>(query_engine_storage_,
-                                                      assumption_);
+    result = std::make_unique<AssumingQueryEngine>(query_engine_storage_,
+                                                   assumption_);
   } else {
-    result =
-        std::make_unique<AssumingBddQueryEngine>(query_engine_, assumption_);
+    result = std::make_unique<AssumingQueryEngine>(query_engine_, assumption_);
   }
   BddNodeIndex new_assumption =
       query_engine_->bdd().And(assumption_, result->assumption_);
@@ -172,24 +350,24 @@ BddQueryEngine::AssumingBddQueryEngine::SpecializeGiven(
   return result;
 }
 
-LeafTypeTree<IntervalSet> BddQueryEngine::AssumingBddQueryEngine::GetIntervals(
+LeafTypeTree<IntervalSet> BddQueryEngine::AssumingQueryEngine::GetIntervals(
     Node* node) const {
   // The default QueryEngine::GetIntervals implementation will inherit the
   // specialization from GetTernary.
   return QueryEngine::GetIntervals(node);
 }
 
-bool BddQueryEngine::AssumingBddQueryEngine::AtMostOneTrue(
+bool BddQueryEngine::AssumingQueryEngine::AtMostOneTrue(
     absl::Span<TreeBitLocation const> bits) const {
   return query_engine_->AtMostOneTrue(bits, assumption_);
 }
 
-bool BddQueryEngine::AssumingBddQueryEngine::AtLeastOneTrue(
+bool BddQueryEngine::AssumingQueryEngine::AtLeastOneTrue(
     absl::Span<TreeBitLocation const> bits) const {
   return query_engine_->AtLeastOneTrue(bits, assumption_);
 }
 
-bool BddQueryEngine::AssumingBddQueryEngine::Implies(
+bool BddQueryEngine::AssumingQueryEngine::Implies(
     const TreeBitLocation& a, const TreeBitLocation& b) const {
   if (!IsTracked(a.node()) || !IsTracked(b.node())) {
     return false;
@@ -206,7 +384,7 @@ bool BddQueryEngine::AssumingBddQueryEngine::Implies(
                                 *b_bdd);
 }
 
-std::optional<Bits> BddQueryEngine::AssumingBddQueryEngine::ImpliedNodeValue(
+std::optional<Bits> BddQueryEngine::AssumingQueryEngine::ImpliedNodeValue(
     absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
     Node* node) const {
   return query_engine_->ImpliedNodeValue(predicate_bit_values, node,
@@ -214,82 +392,149 @@ std::optional<Bits> BddQueryEngine::AssumingBddQueryEngine::ImpliedNodeValue(
 }
 
 std::optional<TernaryVector>
-BddQueryEngine::AssumingBddQueryEngine::ImpliedNodeTernary(
+BddQueryEngine::AssumingQueryEngine::ImpliedNodeTernary(
     absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
     Node* node) const {
   return query_engine_->ImpliedNodeTernary(predicate_bit_values, node,
                                            assumption_);
 }
 
-bool BddQueryEngine::AssumingBddQueryEngine::KnownEquals(
+bool BddQueryEngine::AssumingQueryEngine::KnownEquals(
     const TreeBitLocation& a, const TreeBitLocation& b) const {
   return query_engine_->KnownEquals(a, b, assumption_);
 }
 
-bool BddQueryEngine::AssumingBddQueryEngine::KnownNotEquals(
+bool BddQueryEngine::AssumingQueryEngine::KnownNotEquals(
     const TreeBitLocation& a, const TreeBitLocation& b) const {
   return query_engine_->KnownNotEquals(a, b, assumption_);
 }
 
-bool BddQueryEngine::AssumingBddQueryEngine::IsKnown(
+bool BddQueryEngine::AssumingQueryEngine::IsKnown(
     const TreeBitLocation& bit) const {
   return query_engine_->IsKnown(bit, assumption_);
 }
-std::optional<bool> BddQueryEngine::AssumingBddQueryEngine::KnownValue(
+std::optional<bool> BddQueryEngine::AssumingQueryEngine::KnownValue(
     const TreeBitLocation& bit) const {
   return query_engine_->KnownValue(bit, assumption_);
 }
-bool BddQueryEngine::AssumingBddQueryEngine::IsAllZeros(Node* n) const {
+bool BddQueryEngine::AssumingQueryEngine::IsAllZeros(Node* n) const {
   return query_engine_->IsAllZeros(n, assumption_);
 }
-bool BddQueryEngine::AssumingBddQueryEngine::IsAllOnes(Node* n) const {
+bool BddQueryEngine::AssumingQueryEngine::IsAllOnes(Node* n) const {
   return query_engine_->IsAllOnes(n, assumption_);
 }
-bool BddQueryEngine::AssumingBddQueryEngine::IsFullyKnown(Node* n) const {
+bool BddQueryEngine::AssumingQueryEngine::IsFullyKnown(Node* n) const {
   return query_engine_->IsFullyKnown(n, assumption_);
 }
 
-absl::StatusOr<ReachedFixpoint> BddQueryEngine::Populate(FunctionBase* f) {
-  XLS_ASSIGN_OR_RETURN(bdd_function_,
-                       BddFunction::Run(f, path_limit_, node_filter_));
-  // Construct the Bits objects indication which bit values are statically known
-  // for each node and what those values are (0 or 1) if known.
-  BinaryDecisionDiagram& bdd = this->bdd();
-  ReachedFixpoint rf = ReachedFixpoint::Unchanged;
-  for (Node* node : f->nodes()) {
-    if (node->GetType()->IsBits()) {
-      absl::InlinedVector<bool, 1> known_bits;
-      absl::InlinedVector<bool, 1> bits_values;
-      for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
-        if (GetBddNode(TreeBitLocation(node, i)) == bdd.zero()) {
-          known_bits.push_back(true);
-          bits_values.push_back(false);
-        } else if (GetBddNode(TreeBitLocation(node, i)) == bdd.one()) {
-          known_bits.push_back(true);
-          bits_values.push_back(true);
-        } else {
-          known_bits.push_back(false);
-          bits_values.push_back(false);
-        }
+namespace {
+
+using BddVector = std::vector<SaturatingBddNodeIndex>;
+using BddSpan = absl::Span<const SaturatingBddNodeIndex>;
+using BddTree = LeafTypeTree<BddVector>;
+using BddTreeView = LeafTypeTreeView<BddVector>;
+using SharedBddTree = SharedLeafTypeTree<BddVector>;
+
+BddVector CreateUnknownVector(int64_t size, BinaryDecisionDiagram* bdd) {
+  BddVector bdd_vector;
+  bdd_vector.reserve(size);
+  absl::c_move(bdd->NewVariables(size), std::back_inserter(bdd_vector));
+  return bdd_vector;
+}
+
+absl::StatusOr<BddTree> CreateUnknownOfType(Type* type,
+                                            BinaryDecisionDiagram* bdd) {
+  return BddTree::CreateFromFunction(
+      type, [bdd](Type* leaf_type) -> absl::StatusOr<BddVector> {
+        return CreateUnknownVector(leaf_type->GetFlatBitCount(), bdd);
+      });
+}
+
+class BddNodeEvaluator : public AbstractNodeEvaluator<SaturatingBddEvaluator> {
+ public:
+  BddNodeEvaluator(SaturatingBddEvaluator& evaluator)
+      : AbstractNodeEvaluator(evaluator) {}
+
+  absl::Status InjectValue(Node* node, const BddTree* value) {
+    if (value == nullptr) {
+      XLS_ASSIGN_OR_RETURN(
+          BddTree unknown,
+          CreateUnknownOfType(node->GetType(), evaluator().bdd()));
+      return SetValue(node, std::move(unknown).AsShared());
+    }
+    return SetValue(node, value->AsView().AsShared());
+  }
+
+  absl::Status DefaultHandler(Node* node) override {
+    XLS_ASSIGN_OR_RETURN(
+        BddTree unknown,
+        CreateUnknownOfType(node->GetType(), evaluator().bdd()));
+    return SetValue(node, std::move(unknown).AsShared());
+  }
+};
+
+}  // namespace
+
+BddTree BddQueryEngine::ComputeInfo(
+    Node* node, absl::Span<const BddTree* const> operand_infos) const {
+  if (!ShouldEvaluate(node)) {
+    VLOG(3) << "  node filtered out by generic ShouldEvaluate heuristic.";
+    return *CreateUnknownOfType(node->GetType(), bdd_.get());
+  }
+  if (node_filter_.has_value() && !(*node_filter_)(node)) {
+    VLOG(3) << "  node filtered out by configured filter.";
+    return *CreateUnknownOfType(node->GetType(), bdd_.get());
+  }
+
+  VLOG(3) << "  computing BDD value...";
+  BddNodeEvaluator node_evaluator(*evaluator_);
+  absl::flat_hash_set<Node*> injected_operands;
+  injected_operands.reserve(node->operand_count());
+  for (auto [operand, operand_info] :
+       iter::zip(node->operands(), operand_infos)) {
+    if (auto [_, inserted] = injected_operands.insert(operand); !inserted) {
+      // We've already injected the value for this operand.
+      continue;
+    }
+    CHECK_OK(node_evaluator.InjectValue(operand, operand_info));
+  }
+  CHECK_OK(node->VisitSingleNode(&node_evaluator));
+  absl::flat_hash_map<Node*, SharedBddTree> values =
+      std::move(node_evaluator).values();
+  LeafTypeTree<BddVector> result = std::move(values.at(node)).ToOwned();
+  int64_t new_variables = 0;
+  leaf_type_tree::ForEach(result.AsMutableView(), [&](BddVector& bdd_vector) {
+    for (SaturatingBddNodeIndex& bdd_node : bdd_vector) {
+      // Associate a new BDD variable with each bit that exceeded the path
+      // limit, so we can continue reasoning while acknowledging that we no
+      // longer model this bit's value.
+      if (ExceedsPathLimit(bdd_node)) {
+        bdd_node = evaluator_->bdd()->NewVariable();
+        new_variables++;
       }
-      if (!known_bits_.contains(node)) {
-        known_bits_[node] = Bits(known_bits.size());
-        bits_values_[node] = Bits(bits_values.size());
-      }
-      Bits new_known_bits(known_bits);
-      Bits new_bits_values(bits_values);
-      // TODO(taktoa): check for inconsistency
-      Bits ored_known_bits = bits_ops::Or(known_bits_[node], new_known_bits);
-      Bits ored_bits_values = bits_ops::Or(bits_values_[node], new_bits_values);
-      if ((ored_known_bits != known_bits_[node]) ||
-          (ored_bits_values != bits_values_[node])) {
-        rf = ReachedFixpoint::Changed;
-      }
-      known_bits_[node] = ored_known_bits;
-      bits_values_[node] = ored_bits_values;
+    }
+  });
+  if (new_variables > 0) {
+    VLOG(3) << absl::StreamFormat(
+        "  introduced %d new variables due to path limit.", new_variables);
+  }
+  return result;
+}
+
+absl::Status BddQueryEngine::MergeWithGiven(BddVector& info,
+                                            const BddVector& given) const {
+  XLS_RET_CHECK_EQ(info.size(), given.size());
+  for (auto [bit, given_bit] : iter::zip(info, given)) {
+    if (std::holds_alternative<TooManyPaths>(given_bit)) {
+      continue;
+    }
+    if (ExceedsPathLimit(bit) ||
+        std::get<BddNodeIndex>(given_bit) == bdd_->zero() ||
+        std::get<BddNodeIndex>(given_bit) == bdd_->one()) {
+      bit = given_bit;
     }
   }
-  return rf;
+  return absl::OkStatus();
 }
 
 std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGivenPredicate(
@@ -447,10 +692,9 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
     const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const {
   std::vector<BddNodeIndex> assumptions;
 
-  SaturatingBddEvaluator evaluator(path_limit_, &bdd());
   for (const auto& [node, value_knowledge] : givens) {
     if (value_knowledge.ternary.has_value()) {
-      VLOG(2) << "Specializing on " << node->GetName() << " = "
+      VLOG(3) << "Specializing on " << node->GetName() << " = "
               << value_knowledge.ternary->ToString(
                      [](TernarySpan span) { return xls::ToString(span); });
       CHECK_OK(leaf_type_tree::ForEachIndex(
@@ -479,7 +723,7 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
           }));
     }
     if (value_knowledge.intervals.has_value()) {
-      VLOG(2) << "Specializing on " << node->GetName() << " in "
+      VLOG(3) << "Specializing on " << node->GetName() << " in "
               << value_knowledge.intervals->ToString();
       CHECK_OK(leaf_type_tree::ForEachIndex(
           value_knowledge.intervals->AsView(),
@@ -501,8 +745,8 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
               if (std::optional<Bits> precise_value =
                       interval.GetPreciseValue();
                   precise_value.has_value()) {
-                SaturatingBddNodeIndex is_value = evaluator.Equals(
-                    bits, evaluator.BitsToVector(*precise_value));
+                SaturatingBddNodeIndex is_value = evaluator_->Equals(
+                    bits, evaluator_->BitsToVector(*precise_value));
                 if (HasTooManyPaths(is_value)) {
                   VLOG(3) << "SpecializeGiven exceeded path limit of "
                           << path_limit_ << " on: " << node->GetName() << " in "
@@ -517,8 +761,8 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
               }
 
               SaturatingBddNodeIndex lower_bound =
-                  evaluator.UGreaterThanOrEqual(
-                      bits, evaluator.BitsToVector(interval.LowerBound()));
+                  evaluator_->UGreaterThanOrEqual(
+                      bits, evaluator_->BitsToVector(interval.LowerBound()));
               if (HasTooManyPaths(lower_bound)) {
                 VLOG(3) << "SpecializeGiven exceeded path limit of "
                         << path_limit_ << " on: " << node->GetName() << " in "
@@ -527,8 +771,8 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
                 // also have too many paths - so it will never have any effect.
                 return absl::OkStatus();
               }
-              SaturatingBddNodeIndex upper_bound = evaluator.ULessThanOrEqual(
-                  bits, evaluator.BitsToVector(interval.UpperBound()));
+              SaturatingBddNodeIndex upper_bound = evaluator_->ULessThanOrEqual(
+                  bits, evaluator_->BitsToVector(interval.UpperBound()));
               if (HasTooManyPaths(upper_bound)) {
                 VLOG(3) << "SpecializeGiven exceeded path limit of "
                         << path_limit_ << " on: " << node->GetName() << " in "
@@ -538,7 +782,7 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
                 return absl::OkStatus();
               }
               SaturatingBddNodeIndex in_interval =
-                  evaluator.And(lower_bound, upper_bound);
+                  evaluator_->And(lower_bound, upper_bound);
               if (HasTooManyPaths(in_interval)) {
                 VLOG(3) << "SpecializeGiven exceeded path limit of "
                         << path_limit_ << " on: " << node->GetName() << " in "
@@ -550,7 +794,7 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
               in_interval_checks.push_back(in_interval);
             }
             SaturatingBddNodeIndex in_intervals =
-                evaluator.OrReduce(in_interval_checks).front();
+                evaluator_->OrReduce(in_interval_checks).front();
             if (HasTooManyPaths(in_intervals)) {
               VLOG(3) << "SpecializeGiven exceeded path limit of "
                       << path_limit_ << " on: " << node->GetName() << " in "
@@ -565,19 +809,19 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
   }
 
   bool already_exceeded_limit = false;
-  BddNodeIndex assumed = absl::c_accumulate(
-      assumptions, bdd().one(), [&](BddNodeIndex a, BddNodeIndex b) {
-        BddNodeIndex result = bdd().And(a, b);
-        if (ExceedsPathLimit(result)) {
-          if (!already_exceeded_limit) {
-            VLOG(3) << "SpecializeGiven exceeded path limit of " << path_limit_;
-            already_exceeded_limit = true;
-          }
-          return a;
-        }
-        return result;
-      });
-  return std::make_unique<AssumingBddQueryEngine>(this, assumed);
+  BddNodeIndex assumed = bdd().one();
+  for (const BddNodeIndex& assumption : assumptions) {
+    BddNodeIndex new_assumed = bdd().And(assumed, assumption);
+    if (ExceedsPathLimit(new_assumed)) {
+      if (!already_exceeded_limit) {
+        VLOG(3) << "SpecializeGiven exceeded path limit of " << path_limit_;
+        already_exceeded_limit = true;
+      }
+      continue;
+    }
+    assumed = new_assumed;
+  }
+  return std::make_unique<AssumingQueryEngine>(this, assumed);
 }
 bool BddQueryEngine::AtMostOneTrue(
     absl::Span<TreeBitLocation const> bits) const {
@@ -599,8 +843,8 @@ bool BddQueryEngine::AtMostOneTrue(
     }
   }
 
-  // Compute the OR-reduction of a pairwise AND of all bits. If this value is
-  // zero then no two bits can be simultaneously true. Equivalently: at most one
+  // Compute the NOR-reduction of a pairwise AND of all bits. If this value is
+  // one then no two bits can be simultaneously true. Equivalently: at most one
   // bit is true.
   for (int64_t i = 0; i < bits.size(); ++i) {
     std::optional<BddNodeIndex> i_bdd = GetBddNode(bits[i]);
@@ -619,17 +863,24 @@ bool BddQueryEngine::AtMostOneTrue(
       }
     }
   }
+  result = bdd().Not(result);
+
   if (assumption.has_value()) {
-    // If we have an assumption, we only care about the result when it's true;
-    // we ignore all cases when it's false.
-    result = bdd().And(*assumption, result);
+    return Implies(*assumption, result);
   }
-  return result == bdd().zero();
+  return result == bdd().one();
 }
 
 std::optional<SharedLeafTypeTree<TernaryVector>> BddQueryEngine::GetTernary(
-    Node* node, BddNodeIndex assumption) const {
+    Node* node) const {
+  return GetTernary(node, /*assumption=*/std::nullopt);
+}
+std::optional<SharedLeafTypeTree<TernaryVector>> BddQueryEngine::GetTernary(
+    Node* node, std::optional<BddNodeIndex> assumption) const {
   if (!IsTracked(node)) {
+    return std::nullopt;
+  }
+  if (assumption.has_value() && *assumption == bdd().zero()) {
     return std::nullopt;
   }
   absl::StatusOr<TernaryTree> ltt = TernaryTree::CreateFromFunction(
@@ -645,10 +896,15 @@ std::optional<SharedLeafTypeTree<TernaryVector>> BddQueryEngine::GetTernary(
           if (!bit.has_value()) {
             continue;
           }
-          if (Implies(assumption, *bit)) {
-            ternary[bit_index] = TernaryValue::kKnownOne;
-          } else if (Implies(assumption, bdd().Not(*bit))) {
+          if (*bit == bdd().zero()) {
             ternary[bit_index] = TernaryValue::kKnownZero;
+          } else if (*bit == bdd().one()) {
+            ternary[bit_index] = TernaryValue::kKnownOne;
+          } else if (assumption.has_value() &&
+                     Implies(*assumption, bdd().Not(*bit))) {
+            ternary[bit_index] = TernaryValue::kKnownZero;
+          } else if (assumption.has_value() && Implies(*assumption, *bit)) {
+            ternary[bit_index] = TernaryValue::kKnownOne;
           }
         }
         return ternary;
@@ -686,18 +942,14 @@ bool BddQueryEngine::AtLeastOneTrue(
   }
   BddNodeIndex result = ToBddNode(or_reduce);
   if (assumption.has_value()) {
-    // If we have an assumption, we only care about the result when it's true;
-    // we ignore all cases when it's false.
-    result = bdd().Or(bdd().Not(*assumption), ToBddNode(result));
+    return Implies(*assumption, result);
   }
   return result == bdd().one();
 }
 
 bool BddQueryEngine::Implies(const BddNodeIndex& a,
                              const BddNodeIndex& b) const {
-  // A implies B  <=>  !(A && !B)
-  BddNodeIndex result = bdd().And(a, bdd().Not(b));
-  return result == bdd().zero();
+  return bdd().Implies(a, b) == bdd().one();
 }
 
 bool BddQueryEngine::Implies(const TreeBitLocation& a,
@@ -750,7 +1002,6 @@ std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
   }
 
   // Create a Bdd node for the predicate_bit_values.
-  SaturatingBddEvaluator evaluator(path_limit_, &bdd());
   SaturatingBddNodeVector bdd_predicate_bits;
   for (const auto& [conjuction_bit_location, conjunction_value] :
        predicate_bit_values) {
@@ -765,8 +1016,10 @@ std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
         conjunction_value ? *conjuction_bit : bdd().Not(*conjuction_bit));
   }
   SaturatingBddNodeIndex bdd_predicate =
-      evaluator.And(assumption.value_or(bdd().one()),
-                    evaluator.AndReduce(bdd_predicate_bits).front());
+      evaluator_->AndReduce(bdd_predicate_bits).front();
+  if (assumption.has_value()) {
+    bdd_predicate = evaluator_->And(bdd_predicate, *assumption);
+  }
   if (HasTooManyPaths(bdd_predicate)) {
     return std::nullopt;
   }
@@ -785,17 +1038,17 @@ std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
     kImpliedTrue,
     kImpliedFalse
   };
-  auto implied_value = [&](int node_idx) -> std::optional<TernaryValue> {
+  auto implied_value = [&](int node_idx) -> TernaryValue {
     std::optional<BddNodeIndex> bdd_node_bit =
         GetBddNode(TreeBitLocation(node, node_idx));
     if (!bdd_node_bit.has_value()) {
-      return std::nullopt;
-    }
-    if (Implies(bdd_predicate_bit, *bdd_node_bit)) {
-      return TernaryValue::kKnownOne;
+      return TernaryValue::kUnknown;
     }
     if (Implies(bdd_predicate_bit, bdd().Not(*bdd_node_bit))) {
       return TernaryValue::kKnownZero;
+    }
+    if (Implies(bdd_predicate_bit, *bdd_node_bit)) {
+      return TernaryValue::kKnownOne;
     }
     return TernaryValue::kUnknown;
   };
@@ -804,12 +1057,7 @@ std::optional<TernaryVector> BddQueryEngine::ImpliedNodeTernary(
   CHECK(node->GetType()->IsBits());
   TernaryVector ternary(node->BitCountOrDie(), TernaryValue::kUnknown);
   for (int node_idx = 0; node_idx < node->BitCountOrDie(); ++node_idx) {
-    std::optional<TernaryValue> bit_value = implied_value(node_idx);
-    if (!bit_value.has_value()) {
-      // Missing information; we can't determine the node value.
-      return std::nullopt;
-    }
-    ternary[node_idx] = *bit_value;
+    ternary[node_idx] = implied_value(node_idx);
   }
   if (ternary_ops::AllUnknown(ternary)) {
     return std::nullopt;
@@ -837,11 +1085,11 @@ bool BddQueryEngine::KnownEquals(const TreeBitLocation& a,
   if (!b_bdd.has_value()) {
     return false;
   }
+  SaturatingBddNodeIndex result = evaluator_->Equals({*a_bdd}, {*b_bdd});
   if (assumption.has_value()) {
-    a_bdd = bdd().And(*a_bdd, *assumption);
-    b_bdd = bdd().And(*b_bdd, *assumption);
+    result = evaluator_->Implies(*assumption, result);
   }
-  return *a_bdd == *b_bdd;
+  return result == evaluator_->One();
 }
 
 bool BddQueryEngine::KnownNotEquals(const TreeBitLocation& a,
@@ -864,11 +1112,12 @@ bool BddQueryEngine::KnownNotEquals(
   if (!b_bdd.has_value()) {
     return false;
   }
+  SaturatingBddNodeIndex result =
+      evaluator_->Not(evaluator_->Equals({*a_bdd}, {*b_bdd}));
   if (assumption.has_value()) {
-    a_bdd = bdd().And(*a_bdd, *assumption);
-    b_bdd = bdd().And(*b_bdd, *assumption);
+    result = evaluator_->Implies(*assumption, result);
   }
-  return *a_bdd == bdd().Not(*b_bdd);
+  return result == evaluator_->One();
 }
 
 bool BddQueryEngine::IsKnown(const TreeBitLocation& bit,
@@ -891,8 +1140,16 @@ std::optional<bool> BddQueryEngine::KnownValue(
   if (!bdd_node.has_value()) {
     return std::nullopt;
   }
+
   if (assumption.has_value()) {
-    bdd_node = bdd().And(*bdd_node, *assumption);
+    if (evaluator_->Implies(*assumption, *bdd_node) == evaluator_->One()) {
+      return true;
+    }
+    if (evaluator_->Implies(*assumption, evaluator_->Not(*bdd_node)) ==
+        evaluator_->One()) {
+      return false;
+    }
+    return std::nullopt;
   }
 
   if (bdd_node == bdd().one()) {

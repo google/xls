@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -30,10 +29,11 @@
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
-#include "xls/passes/bdd_function.h"
+#include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 
@@ -101,9 +101,10 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f,
 absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<BddFunction> bdd_function,
-      BddFunction::Run(f, BddFunction::kDefaultPathLimit, IsCheapForBdds));
+  BddQueryEngine* query_engine = context.SharedQueryEngine<BddQueryEngine>(f);
+  auto get_bdd_node = [&](Node* n, int64_t bit_index) -> int64_t {
+    return query_engine->GetBddNode(TreeBitLocation(n, bit_index))->value();
+  };
 
   // To improve efficiency, bucket potentially common nodes together. The
   // bucketing is done via a int64_t hash value of the BDD node indices of each
@@ -114,7 +115,7 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
     std::vector<int64_t> values_to_hash;
     values_to_hash.reserve(n->BitCountOrDie());
     for (int64_t i = 0; i < n->BitCountOrDie(); ++i) {
-      values_to_hash.push_back(bdd_function->GetBddNode(n, i).value());
+      values_to_hash.push_back(get_bdd_node(n, i));
     }
     return hasher(values_to_hash);
   };
@@ -124,7 +125,7 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
       return false;
     }
     for (int64_t i = 0; i < a->BitCountOrDie(); ++i) {
-      if (bdd_function->GetBddNode(a, i) != bdd_function->GetBddNode(b, i)) {
+      if (get_bdd_node(a, i) != get_bdd_node(b, i)) {
         return false;
       }
     }

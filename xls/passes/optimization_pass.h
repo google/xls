@@ -26,7 +26,6 @@
 #include <type_traits>
 #include <typeindex>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/base/nullability.h"
@@ -37,7 +36,6 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/visitor.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -46,7 +44,6 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/value.h"
-#include "xls/passes/forwarding_query_engine.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/pass_registry.h"
@@ -186,18 +183,32 @@ struct OptimizationPassOptions : public PassOptionsBase {
 class OptimizationContext {
  public:
   template <typename QueryEngineT>
+    requires(std::is_base_of_v<QueryEngine, QueryEngineT>)
   QueryEngineT* SharedQueryEngine(FunctionBase* f) {
     absl::flat_hash_map<std::type_index, std::shared_ptr<QueryEngine>>&
         f_query_engines = shared_query_engines_[f];
     auto it = f_query_engines.find(typeid(QueryEngineT));
     if (it == f_query_engines.end()) {
       bool inserted = false;
-      std::tie(it, inserted) = f_query_engines.emplace(
-          typeid(QueryEngineT), std::make_unique<QueryEngineT>());
+      if constexpr (requires { QueryEngineT::MakeDefault(); }) {
+        std::tie(it, inserted) = f_query_engines.emplace(
+            typeid(QueryEngineT), QueryEngineT::MakeDefault());
+      } else {
+        std::tie(it, inserted) = f_query_engines.emplace(
+            typeid(QueryEngineT), std::make_unique<QueryEngineT>());
+      }
       CHECK(inserted);
       CHECK_OK(it->second->Populate(f).status());
     }
     return dynamic_cast<QueryEngineT*>(it->second.get());
+  }
+
+  template <typename QueryEngineT>
+    requires(std::is_base_of_v<QueryEngine, QueryEngineT>)
+  MaybeOwnedForwardingQueryEngine<QueryEngineT> GetForwardingQueryEngine(
+      FunctionBase* f) {
+    return MaybeOwnedForwardingQueryEngine<QueryEngineT>(
+        SharedQueryEngine<QueryEngineT>(f));
   }
 
   std::vector<QueryEngine*> ListQueryEngines() {

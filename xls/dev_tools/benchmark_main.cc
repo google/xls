@@ -77,7 +77,6 @@
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/orc_jit.h"
 #include "xls/jit/proc_jit.h"
-#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
@@ -379,18 +378,18 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
       if (node->GetType()->IsBits()) {
         for (int64_t bit_index = 0; bit_index < node->BitCountOrDie();
              ++bit_index) {
-          BddNodeIndex bdd_node =
-              bdd_query_engine.bdd_function().GetBddNode(node, bit_index);
-          if (bdd_node == bdd_query_engine.bdd_function().bdd().zero() ||
-              bdd_node == bdd_query_engine.bdd_function().bdd().one()) {
-            VLOG(1) << absl::StreamFormat(
-                "%s:%d in stage %d is known %s", node->GetName(), bit_index, i,
-                bdd_node == bdd_query_engine.bdd_function().bdd().zero()
-                    ? "zero"
-                    : "one");
+          TreeBitLocation location(node, bit_index);
+          if (std::optional<bool> known_value =
+                  bdd_query_engine.KnownValue(location);
+              known_value.has_value()) {
+            VLOG(1) << absl::StreamFormat("%s:%d in stage %d is known %s",
+                                          node->GetName(), bit_index, i,
+                                          *known_value ? "zero" : "one");
             constants_per_stage[i]++;
             total_constants++;
-          } else if (bdd_nodes.contains(bdd_node)) {
+          } else if (BddNodeIndex bdd_node =
+                         *bdd_query_engine.GetBddNode(location);
+                     bdd_nodes.contains(bdd_node)) {
             VLOG(1) << absl::StreamFormat(
                 "%s:%d in stage %d duplicate of %s:%d", node->GetName(),
                 bit_index, i, bdd_nodes.at(bdd_node).first->GetName(),
@@ -793,7 +792,7 @@ absl::Status RealMain(std::string_view path) {
   XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
 
   FunctionBase* f = package->GetTop().value();
-  BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);
+  BddQueryEngine query_engine(BddQueryEngine::kDefaultPathLimit);
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
   PrintNodeBreakdown(f);
 
@@ -855,12 +854,8 @@ absl::Status RealMain(std::string_view path) {
           f, effective_clock_period_ps, delay_estimator, query_engine,
           &schedules, synthesizer.get()));
 
-      // Scheduling can change the nodes in f slightly so we need to recompute
-      // the bdd.
-      BddQueryEngine sched_qe(BddFunction::kDefaultPathLimit);
-      XLS_RETURN_IF_ERROR(sched_qe.Populate(f).status());
       XLS_RETURN_IF_ERROR(PrintScheduleInfo(
-          f, schedules, sched_qe, delay_estimator,
+          f, schedules, query_engine, delay_estimator,
           scheduling_options_flags_proto.has_clock_period_ps()
               ? std::make_optional(
                     scheduling_options_flags_proto.clock_period_ps())

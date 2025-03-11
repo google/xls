@@ -107,8 +107,8 @@ static constexpr int64_t kIndexBitLimit = 10;
 // pathological cases are encountered.
 bool IsExpensiveToEvaluate(
     Node* node,
-    const absl::flat_hash_map<Node*, LeafTypeTree<TernaryEvaluator::Vector>>&
-        known_bits) {
+    const absl::flat_hash_map<
+        Node*, SharedLeafTypeTree<TernaryEvaluator::Vector>>& known_bits) {
   // How many bits of output we allow for complex evaluations.
   static constexpr int64_t kComplexEvaluationLimit = 256;
   // How many bits of data we are willing to keep track of for compound
@@ -330,15 +330,15 @@ absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::PopulateWithGivens(
     XLS_RETURN_IF_ERROR(n->VisitSingleNode(&ternary_visitor));
   }
 
-  absl::flat_hash_map<Node*, LeafTypeTree<TernaryVector>> new_values =
+  absl::flat_hash_map<Node*, SharedLeafTypeTree<TernaryVector>> new_values =
       std::move(ternary_visitor).values();
   ReachedFixpoint rf = ReachedFixpoint::Unchanged;
   for (Node* node : f->nodes()) {
     CHECK(new_values.contains(node));
     if (values_.contains(node) &&
-        values_[node].type() == new_values[node].type()) {
+        values_[node].type() == new_values.at(node).type()) {
       leaf_type_tree::SimpleUpdateFrom<TernaryVector, TernaryVector>(
-          values_[node].AsMutableView(), new_values[node].AsView(),
+          values_[node].AsMutableView(), new_values.at(node).AsView(),
           [&rf](TernaryVector& lhs, const TernaryVector& rhs) {
             if (lhs != rhs) {
               rf = ReachedFixpoint::Changed;
@@ -346,7 +346,7 @@ absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::PopulateWithGivens(
             CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
           });
     } else {
-      values_[node] = std::move(new_values[node]);
+      values_[node] = std::move(new_values.extract(node).mapped()).ToOwned();
     }
   }
   return rf;

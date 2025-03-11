@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
@@ -59,7 +58,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
-#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -914,14 +912,16 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     XLS_ASSIGN_OR_RETURN(changed, EliminateNoopNext(f));
   }
 
-  std::vector<std::unique_ptr<QueryEngine>> query_engines;
-  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
+  std::vector<QueryEngine*> unowned_query_engines;
+  owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
   if (use_bdd_) {
-    query_engines.push_back(std::make_unique<BddQueryEngine>(
-        BddFunction::kDefaultPathLimit, IsCheapForBdds));
+    unowned_query_engines.push_back(
+        context.SharedQueryEngine<BddQueryEngine>(f));
   }
 
-  UnionQueryEngine query_engine(std::move(query_engines));
+  UnionQueryEngine query_engine(std::move(owned_query_engines),
+                                std::move(unowned_query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   ConditionMap condition_map(f, context);

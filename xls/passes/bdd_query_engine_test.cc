@@ -262,8 +262,8 @@ TEST_F(BddQueryEngineTest, ForceNodeToBeModeledAsVariable) {
   BValue my_zero = fb.Literal(UBits(0, 1));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  BddQueryEngine query_engine(/*path_limit=*/0,
-                              [](const Node* n) { return n->op() != Op::kOr; });
+  BddQueryEngine query_engine(
+      /*path_limit=*/0, [](const Node* n) { return n->op() != Op::kOr; });
   XLS_ASSERT_OK(query_engine.Populate(f).status());
   EXPECT_FALSE(KnownEquals(query_engine, andop.node(), my_one.node()));
   EXPECT_TRUE(KnownEquals(query_engine, andop.node(), my_zero.node()));

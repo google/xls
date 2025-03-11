@@ -20,11 +20,12 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
-#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -32,11 +33,17 @@
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
-#include "xls/passes/bdd_function.h"
+#include "xls/passes/bdd_evaluator.h"
+#include "xls/passes/lazy_query_engine.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
+
+// Returns true if the given node is very cheap to evaluate using a
+// BDD. Typically single-bit and logical operations are considered cheap as well
+// as "free" operations like bitslice and concat.
+bool IsCheapForBdds(const Node* node);
 
 // A query engine which uses binary decision diagrams (BDDs) to analyze an XLS
 // function. BDDs provide sharp analysis of bits values and relationships
@@ -45,33 +52,47 @@ namespace xls {
 // particular for some operations such as arithmetic and comparison
 // operations. For this reason, these operations are generally excluded from the
 // analysis.
-class BddQueryEngine : public QueryEngine {
+class BddQueryEngine
+    : public LazyQueryEngine<std::vector<SaturatingBddNodeIndex>> {
+ private:
+  using BddVector = std::vector<SaturatingBddNodeIndex>;
+  using BddTree = LeafTypeTree<BddVector>;
+  using SharedBddTree = SharedLeafTypeTree<BddVector>;
+
  public:
+  // The suggested default limit on the number of paths from a BDD node to the
+  // BDD terminal nodes 0 and 1. If a BDD node associated with a particular bit
+  // in the function ({Node*, bit index} pair) exceeds this value the bit's
+  // representation in the BDD is replaced with a new BDD variable. This
+  // provides a mechanism for limiting the growth of the BDD.
+  static constexpr int64_t kDefaultPathLimit = 1024;
+
+  // Returns an instance of the recommended default BddQueryEngine, using
+  // kDefaultPathLimit and filtering to operate only on nodes that satisfy
+  // IsCheapForBdds.
+  static std::unique_ptr<BddQueryEngine> MakeDefault() {
+    return std::make_unique<BddQueryEngine>(kDefaultPathLimit, IsCheapForBdds);
+  }
+
   // `path_limit` is the maximum number of paths from the BDD node to the
   // terminals 0 and 1 to allow for a BDD expression before truncating it.
-  // `node_filter` is an optional function which can be used to limit the nodes
-  // which the BDD evaluates (returning false means the node will node be
-  // evaluated). See BddFunction for details.
+  // `node_filter` is an optional function which filters the nodes to be
+  // evaluated. If this function returns false for a node then the node will not
+  // be evaluated using BDDs. The node's bits will be new variables in the BDD
+  // for which no information is known. If `node_filter` returns true, the node
+  // still might *not* be evaluated because some kinds of nodes are never
+  // evaluated for various reasons including computation expense.
   explicit BddQueryEngine(int64_t path_limit = 0,
                           std::optional<std::function<bool(const Node*)>>
                               node_filter = std::nullopt)
-      : path_limit_(path_limit), node_filter_(node_filter) {}
-
-  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
-
-  bool IsTracked(Node* node) const override {
-    return known_bits_.contains(node);
-  }
+      : path_limit_(path_limit),
+        node_filter_(node_filter),
+        bdd_(std::make_unique<BinaryDecisionDiagram>()),
+        evaluator_(
+            std::make_unique<SaturatingBddEvaluator>(path_limit, bdd_.get())) {}
 
   std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
-      Node* node) const override {
-    CHECK(node->GetType()->IsBits());
-    TernaryVector ternary =
-        ternary_ops::FromKnownBits(known_bits_.at(node), bits_values_.at(node));
-    return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
-               node->GetType(), std::move(ternary))
-        .AsShared();
-  }
+      Node* node) const override;
 
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
       const absl::flat_hash_set<PredicateState>& state) const override;
@@ -93,26 +114,56 @@ class BddQueryEngine : public QueryEngine {
   bool KnownNotEquals(const TreeBitLocation& a,
                       const TreeBitLocation& b) const override;
 
-  using QueryEngine::IsAllOnes;
-  using QueryEngine::IsAllZeros;
-  using QueryEngine::IsFullyKnown;
-  using QueryEngine::IsKnown;
-  using QueryEngine::KnownValue;
-
-  // Returns the underlying BddFunction representing the XLS function.
-  const BddFunction& bdd_function() const { return *bdd_function_; }
-
- private:
-  class AssumingBddQueryEngine;
+  bool IsAllZeros(Node* n) const override { return QueryEngine::IsAllZeros(n); }
+  bool IsAllOnes(Node* n) const override { return QueryEngine::IsAllOnes(n); }
+  bool IsFullyKnown(Node* n) const override {
+    return QueryEngine::IsFullyKnown(n);
+  }
+  bool IsKnown(const TreeBitLocation& bit) const override {
+    return QueryEngine::IsKnown(bit);
+  }
+  std::optional<bool> KnownValue(const TreeBitLocation& bit) const override {
+    return QueryEngine::KnownValue(bit);
+  }
+  std::optional<Value> KnownValue(Node* node) const override {
+    return QueryEngine::KnownValue(node);
+  }
 
   // Returns the underlying BDD. This method is const, but queries on a BDD
   // generally mutate the object. We sneakily avoid conflicts with C++ const
   // because the BDD is only held indirectly via pointers.
-  // TODO(meheff): Enable queries on a BDD with out mutating the BDD itself.
-  BinaryDecisionDiagram& bdd() const { return bdd_function_->bdd(); }
+  // TODO(meheff): Enable queries on a BDD without mutating the BDD itself.
+  BinaryDecisionDiagram& bdd() const { return *bdd_; }
+
+  // Returns the BDD node associated with the given bit, if there is one;
+  // otherwise returns std::nullopt.
+  std::optional<BddNodeIndex> GetBddNode(
+      const TreeBitLocation& location) const {
+    std::optional<SharedBddTree> info = GetInfo(location.node());
+    if (!info.has_value()) {
+      return std::nullopt;
+    }
+    SaturatingBddNodeIndex node =
+        info->Get(location.tree_index()).at(location.bit_index());
+    if (std::holds_alternative<TooManyPaths>(node)) {
+      return std::nullopt;
+    }
+    return std::get<BddNodeIndex>(node);
+  }
+
+ protected:
+  BddTree ComputeInfo(
+      Node* node,
+      absl::Span<const BddTree* const> operand_infos) const override;
+
+  absl::Status MergeWithGiven(BddVector& info,
+                              const BddVector& given) const override;
+
+ private:
+  class AssumingQueryEngine;
 
   std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
-      Node* node, BddNodeIndex assumption) const;
+      Node* node, std::optional<BddNodeIndex> assumption) const;
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits,
                      std::optional<BddNodeIndex> assumption) const;
@@ -140,15 +191,6 @@ class BddQueryEngine : public QueryEngine {
   bool IsAllOnes(Node* n, std::optional<BddNodeIndex> assumption) const;
   bool IsFullyKnown(Node* n, std::optional<BddNodeIndex> assumption) const;
 
-  // Returns the BDD node associated with the given bit, if there is one;
-  // otherwise returns std::nullopt.
-  std::optional<BddNodeIndex> GetBddNode(
-      const TreeBitLocation& location) const {
-    CHECK(location.tree_index().empty());
-    CHECK(location.node()->GetType()->IsBits());
-    return bdd_function_->TryGetBddNode(location.node(), location.bit_index());
-  }
-
   // A implies B  <=>  !(A && !B)
   bool Implies(const BddNodeIndex& a, const BddNodeIndex& b) const;
 
@@ -157,25 +199,23 @@ class BddQueryEngine : public QueryEngine {
   // TODO(meheff): This should be part of the BDD itself where a query can be
   // performed and the BDD method returns a union of path limit exceeded or
   // the result of the query.
-  bool ExceedsPathLimit(BddNodeIndex node) const {
-    return path_limit_ > 0 && bdd().GetNode(node).path_count > path_limit_;
+  bool ExceedsPathLimit(SaturatingBddNodeIndex node) const {
+    if (path_limit_ <= 0) {
+      return false;
+    }
+    if (std::holds_alternative<TooManyPaths>(node)) {
+      return true;
+    }
+    return bdd().path_count(std::get<BddNodeIndex>(node)) > path_limit_;
   }
-
-  // Returns true if the known bits for the nodes have changed.
-  bool RecomputeKnownBits();
 
   // The maximum number of paths in expression in the BDD before truncating.
   int64_t path_limit_;
 
   std::optional<std::function<bool(const Node*)>> node_filter_;
 
-  // Indicates the bits at the output of each node which have known values.
-  absl::flat_hash_map<Node*, Bits> known_bits_;
-
-  // Indicates the values of bits at the output of each node (if known)
-  absl::flat_hash_map<Node*, Bits> bits_values_;
-
-  std::unique_ptr<BddFunction> bdd_function_;
+  std::unique_ptr<BinaryDecisionDiagram> bdd_;
+  std::unique_ptr<SaturatingBddEvaluator> evaluator_;
 };
 
 }  // namespace xls

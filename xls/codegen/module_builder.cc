@@ -56,7 +56,6 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 
 namespace xls {
@@ -335,7 +334,7 @@ ModuleBuilder::ModuleBuilder(std::string_view name, VerilogFile* file,
       file_(file),
       package_("__ModuleBuilder_type_generator"),
       options_(std::move(options)),
-      query_engine_(std::nullopt) {
+      query_engine_(BddQueryEngine::kDefaultPathLimit) {
   module_ = file_->AddModule(module_name_, SourceInfo());
   functions_section_ = module_->Add<ModuleSection>(SourceInfo());
   constants_section_ = module_->Add<ModuleSection>(SourceInfo());
@@ -802,16 +801,10 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
 absl::StatusOr<SelectorProperties> ModuleBuilder::GetSelectorProperties(
     Node* selector) {
   XLS_RET_CHECK(selector->GetType()->IsBits());
-  bool never_zero = false;
-  if (!query_engine_.has_value()) {
-    query_engine_ = BddQueryEngine(BddFunction::kDefaultPathLimit);
-    XLS_RETURN_IF_ERROR(
-        query_engine_->Populate(selector->function_base()).status());
-  }
-  if (query_engine_.has_value()) {
-    never_zero = query_engine_->AtLeastOneBitTrue(selector);
-  }
-  return SelectorProperties{.never_zero = never_zero};
+  XLS_RETURN_IF_ERROR(
+      query_engine_.Populate(selector->function_base()).status());
+  return SelectorProperties{.never_zero =
+                                query_engine_.AtLeastOneBitTrue(selector)};
 }
 
 // We emit asserts if at least one of the following is true:

@@ -1571,6 +1571,7 @@ cc_library(
         ":type",
         ":value",
         ":value_utils",
+        "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
@@ -1582,6 +1583,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@cppitertools",
     ],
 )
 

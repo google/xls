@@ -81,6 +81,9 @@ class BinaryDecisionDiagram {
   BddNodeIndex And(BddNodeIndex a, BddNodeIndex b);
   BddNodeIndex Or(BddNodeIndex a, BddNodeIndex b);
 
+  // Returns the expression a -> b (i.e., (!a || b))
+  BddNodeIndex Implies(BddNodeIndex a, BddNodeIndex b);
+
   // Returns the leaf node corresponding to zero or one.
   BddNodeIndex zero() const { return BddNodeIndex(0); }
   BddNodeIndex one() const { return BddNodeIndex(1); }

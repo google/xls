@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -41,7 +40,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/value.h"
-#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -441,9 +439,9 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
-  auto query_engine = UnionQueryEngine::Of(
-      StatelessQueryEngine(),
-      BddQueryEngine(BddFunction::kDefaultPathLimit, IsCheapForBdds));
+  auto query_engine =
+      UnionQueryEngine::Of(StatelessQueryEngine(),
+                           context.GetForwardingQueryEngine<BddQueryEngine>(f));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   bool modified = false;

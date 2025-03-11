@@ -33,7 +33,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
-#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 
 namespace xls::verilog {
@@ -49,7 +48,8 @@ absl::StatusOr<bool> PrioritySelectReductionPass::RunInternal(
     }
     CodegenMetadata& metadata = metadata_itr->second;
 
-    std::optional<BddQueryEngine> query_engine;
+    BddQueryEngine query_engine(BddQueryEngine::kDefaultPathLimit);
+    XLS_RETURN_IF_ERROR(query_engine.Populate(block.get()).status());
     for (Node* node : ReverseTopoSort(block.get())) {
       if (!node->Is<PrioritySelect>()) {
         continue;
@@ -70,17 +70,13 @@ absl::StatusOr<bool> PrioritySelectReductionPass::RunInternal(
         continue;
       }
 
-      if (!query_engine.has_value()) {
-        query_engine = BddQueryEngine(BddFunction::kDefaultPathLimit);
-        XLS_RETURN_IF_ERROR(query_engine->Populate(block.get()).status());
-      }
-      if (!query_engine->AtMostOneBitTrue(selector)) {
+      if (!query_engine.AtMostOneBitTrue(selector)) {
         // Selector may not be one-hot, so we need to be able to reject the
         // lower-priority cases.
         continue;
       }
-      if (!query_engine->AtLeastOneBitTrue(selector) &&
-          !query_engine->IsAllZeros(sel->default_value())) {
+      if (!query_engine.AtLeastOneBitTrue(selector) &&
+          !query_engine.IsAllZeros(sel->default_value())) {
         // The default case may be used and may be nonzero, so we can't rewrite
         // this to a one-hot select without adding a new case.
         continue;

@@ -15,15 +15,12 @@
 #include "xls/visualization/ir_viz/ir_to_proto.h"
 
 #include <cstdint>
-#include <iterator>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -45,7 +42,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
-#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/proc_state_range_query_engine.h"
 #include "xls/passes/query_engine.h"
@@ -176,7 +172,7 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
   }
 
   auto query_engine = UnionQueryEngine::Of(
-      BddQueryEngine(BddFunction::kDefaultPathLimit), TernaryQueryEngine(),
+      BddQueryEngine(BddQueryEngine::kDefaultPathLimit), TernaryQueryEngine(),
       RangeQueryEngine(), ProcStateRangeQueryEngine());
   XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
 

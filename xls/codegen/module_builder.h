@@ -376,7 +376,7 @@ class ModuleBuilder {
   // name.
   absl::flat_hash_map<std::string, VerilogFunction*> node_functions_;
 
-  std::optional<BddQueryEngine> query_engine_;
+  BddQueryEngine query_engine_;
 };
 
 }  // namespace verilog

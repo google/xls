@@ -131,6 +131,8 @@ class SaturatingBddEvaluator
     return result;
   }
 
+  BinaryDecisionDiagram* bdd() const { return bdd_; }
+
  private:
   int64_t path_limit_;
   BinaryDecisionDiagram* bdd_;

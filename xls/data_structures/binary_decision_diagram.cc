@@ -213,6 +213,10 @@ BddNodeIndex BinaryDecisionDiagram::And(BddNodeIndex a, BddNodeIndex b) {
   return IfThenElse(a, b, zero());
 }
 
+BddNodeIndex BinaryDecisionDiagram::Implies(BddNodeIndex a, BddNodeIndex b) {
+  return IfThenElse(a, b, one());
+}
+
 absl::StatusOr<bool> BinaryDecisionDiagram::Evaluate(
     BddNodeIndex expr,
     const absl::flat_hash_map<BddNodeIndex, bool>& variable_values) const {

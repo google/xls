@@ -31,6 +31,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "cppitertools/zip.hpp"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -40,6 +42,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -64,7 +67,9 @@ namespace xls {
 template <typename AbstractEvaluatorT>
 class AbstractNodeEvaluator : public DfsVisitorWithDefault {
  public:
+  using ElementT = typename AbstractEvaluatorT::Element;
   using LeafValueT = typename AbstractEvaluatorT::Vector;
+  using LeafSpanT = typename AbstractEvaluatorT::Span;
 
   explicit AbstractNodeEvaluator(AbstractEvaluatorT& evaluator)
       : evaluator_(evaluator) {}
@@ -108,35 +113,136 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
                         array_concat->GetType(), std::move(leaves)));
   }
 
-  absl::Status HandleArrayIndex(ArrayIndex* index) override {
-    // This function needs to be specialized if you want to handle it so make
-    // sure to note that in the status message.
-    //
-    // TODO(allight): Maybe it would be worth it to have a default impl but it
-    // will be so inefficient its probably useless.
-    XLS_RETURN_IF_ERROR(DefaultHandler(index))
-        << "Index must be specialized for each evaluator type";
-    return absl::OkStatus();
+  absl::Status HandleArrayIndex(ArrayIndex* array_index) override {
+    XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<LeafValueT> array_view,
+                         GetCompoundValue(array_index->array()));
+    SharedLeafTypeTree<LeafValueT> result = array_view.AsShared();
+    for (Node* index : array_index->indices()) {
+      XLS_ASSIGN_OR_RETURN(LeafSpanT index_value, GetValue(index));
+      XLS_ASSIGN_OR_RETURN(ArrayType * array_type, result.type()->AsArray());
+      const bool has_default =
+          !IsPowerOfTwo(static_cast<uint64_t>(array_type->size())) ||
+          index_value.size() != FloorOfLog2(array_type->size());
+
+      if (array_type->element_type()->IsBits()) {
+        std::vector<LeafSpanT> elements;
+        elements.reserve(array_type->size());
+        for (int64_t i = 0; i < array_type->size(); ++i) {
+          elements.push_back(result.Get({i}));
+        }
+        std::optional<LeafSpanT> default_value;
+        if (has_default) {
+          default_value = std::move(elements.back());
+          elements.pop_back();
+        }
+        return SetValue(array_index, evaluator_.Select(index_value, elements,
+                                                       default_value));
+      }
+
+      std::vector<LeafTypeTreeView<LeafValueT>> elements;
+      elements.reserve(array_type->size());
+      for (int64_t i = 0; i < array_type->size(); ++i) {
+        elements.push_back(result.AsView({i}));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          LeafTypeTree<LeafValueT> index_result,
+          ZipPiecewise(array_type->element_type(), elements,
+                       [&](absl::Span<LeafSpanT const> values) ->
+                       typename AbstractEvaluatorT::Vector {
+                         absl::Span<LeafSpanT const> cases = values;
+                         if (has_default) {
+                           cases.remove_suffix(1);
+                         }
+                         return evaluator_.Select(
+                             index_value, cases,
+                             has_default ? std::make_optional(values.back())
+                                         : std::nullopt);
+                       }));
+      result = std::move(index_result).AsShared();
+    }
+    return SetValue(array_index, std::move(result));
   }
-  absl::Status HandleArraySlice(ArraySlice* slice) override {
-    // This function needs to be specialized if you want to handle it so make
-    // sure to note that in the status message.
-    //
-    // TODO(allight): Maybe it would be worth it to have a default impl but it
-    // will be so inefficient its probably useless.
-    XLS_RETURN_IF_ERROR(DefaultHandler(slice))
-        << "Slice must be specialized for each evaluator type";
-    return absl::OkStatus();
+
+  absl::Status HandleArraySlice(ArraySlice* array_slice) override {
+    XLS_ASSIGN_OR_RETURN(LeafSpanT start_value, GetValue(array_slice->start()));
+    XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<LeafValueT> array_view,
+                         GetCompoundValue(array_slice->array()));
+
+    XLS_ASSIGN_OR_RETURN(ArrayType * array_type, array_view.type()->AsArray());
+    ArrayType* result_type = array_slice->package()->GetArrayType(
+        array_slice->width(), array_type->element_type());
+
+    std::vector<LeafTypeTree<LeafValueT>> slices;
+    slices.reserve(array_type->size());
+    for (int64_t start = 0; start < array_type->size(); ++start) {
+      XLS_ASSIGN_OR_RETURN(
+          LeafTypeTree<LeafValueT> slice,
+          leaf_type_tree::SliceArray(result_type, array_view.AsView(), start));
+    }
+
+    const bool has_default =
+        !IsPowerOfTwo(static_cast<uint64_t>(array_type->size())) ||
+        start_value.size() != FloorOfLog2(array_type->size());
+    XLS_ASSIGN_OR_RETURN(
+        LeafTypeTree<LeafValueT> result,
+        ZipPiecewise(array_type->element_type(), slices,
+                     [&](absl::Span<LeafSpanT const> values) ->
+                     typename AbstractEvaluatorT::Vector {
+                       absl::Span<LeafSpanT const> cases = values;
+                       if (has_default) {
+                         cases.remove_suffix(1);
+                       }
+                       return evaluator_.Select(
+                           start_value, cases,
+                           has_default ? std::make_optional(values.back())
+                                       : std::nullopt);
+                     }));
+    return SetValue(array_slice, std::move(result));
   }
+
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
-    // This function needs to be specialized if you want to handle it so make
-    // sure to note that in the status message.
-    //
-    // TODO(allight): Maybe it would be worth it to have a default impl but it
-    // will be so inefficient its probably useless.
-    XLS_RETURN_IF_ERROR(DefaultHandler(update))
-        << "Update must be specialized for each evaluator type";
-    return absl::OkStatus();
+    XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<LeafValueT> to_update,
+                         GetCompoundValue(update->array_to_update()));
+    XLS_ASSIGN_OR_RETURN(LeafTypeTreeView<LeafValueT> update_value,
+                         GetCompoundValue(update->update_value()));
+    XLS_ASSIGN_OR_RETURN(std::vector<LeafSpanT> indices,
+                         GetValueList(update->indices()));
+
+    LeafTypeTree<LeafValueT> updated = leaf_type_tree::Clone(to_update);
+    leaf_type_tree::ForEachSubArray<LeafValueT>(
+        updated.AsMutableView(), indices.size(),
+        [&](MutableLeafTypeTreeView<LeafValueT> entry,
+            absl::Span<const int64_t> concrete_indices) -> absl::Status {
+          LeafTypeTree<LeafValueT> updated_entry =
+              leaf_type_tree::Zip<LeafValueT, LeafValueT, LeafValueT>(
+                  entry.AsView(), update_value.AsView(),
+                  [&](const LeafValueT& entry_element,
+                      const LeafValueT& update_element) {
+                    std::vector<ElementT> index_matches;
+                    index_matches.reserve(indices.size());
+                    for (const auto& [index, concrete_index] :
+                         iter::zip(indices, concrete_indices)) {
+                      if (Bits::MinBitCountUnsigned(concrete_index) <=
+                          index.size()) {
+                        index_matches.push_back(evaluator_.Equals(
+                            index, evaluator_.BitsToVector(
+                                       UBits(concrete_index, index.size()))));
+                      } else {
+                        index_matches.push_back(evaluator_.Zero());
+                      }
+                    }
+                    LeafSpanT update_span = update_element;
+                    return evaluator_.PrioritySelect(
+                        /*selector=*/evaluator_.AndReduce(index_matches),
+                        /*cases=*/
+                        absl::MakeConstSpan(&update_span, 1),
+                        /*selector_can_be_zero=*/true,
+                        /*default_value=*/entry_element);
+                  });
+          leaf_type_tree::ReplaceElements(entry, updated_entry.AsView());
+          return absl::OkStatus();
+        });
+    return SetValue(update, std::move(updated).AsShared());
   }
 
   absl::Status HandleBitSlice(BitSlice* bit_slice) override {
@@ -159,15 +265,13 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(auto input, GetValue(decode->operand(0)));
     return SetValue(decode, evaluator_.Decode(input, decode->width()));
   }
-  absl::Status HandleDynamicBitSlice(DynamicBitSlice* slice) override {
-    // This function needs to be specialized if you want to handle it so make
-    // sure to note that in the status message.
-    //
-    // TODO(allight): Maybe it would be worth it to have a default impl but it
-    // will be so inefficient its probably useless.
-    XLS_RETURN_IF_ERROR(DefaultHandler(slice))
-        << "DynamicBitSlice must be specialized for each evaluator type";
-    return absl::OkStatus();
+  absl::Status HandleDynamicBitSlice(
+      DynamicBitSlice* dynamic_bit_slice) override {
+    return SetValue(
+        dynamic_bit_slice,
+        evaluator_.DynamicBitSlice(*GetValue(dynamic_bit_slice->operand(0)),
+                                   *GetValue(dynamic_bit_slice->start()),
+                                   dynamic_bit_slice->width()));
   }
   absl::Status HandleEncode(Encode* encode) override {
     XLS_ASSIGN_OR_RETURN(auto input, GetValue(encode->operand(0)));
@@ -418,7 +522,7 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
             typename AbstractEvaluatorT::Vector {
               CHECK(!has_default || values.size() == sel->cases().size() + 1)
                   << "values size: " << values.size() << " sel: " << sel;
-              return evaluator().Select(
+              return evaluator_.Select(
                   selector, values.subspan(0, sel->cases().size()),
                   has_default ? std::make_optional(values.back())
                               : std::nullopt);
@@ -558,11 +662,12 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
     return values_.at(n).AsView();
   }
 
-  const absl::flat_hash_map<Node*, LeafTypeTree<LeafValueT>>& values() const& {
+  const absl::flat_hash_map<Node*, SharedLeafTypeTree<LeafValueT>>& values()
+      const& {
     return values_;
   }
 
-  absl::flat_hash_map<Node*, LeafTypeTree<LeafValueT>>&& values() && {
+  absl::flat_hash_map<Node*, SharedLeafTypeTree<LeafValueT>>&& values() && {
     return std::move(values_);
   }
 
@@ -611,9 +716,14 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
   // This is intentionally a rvalue to avoid copying large bit vectors.
   //
   // This invalidates all Views returned by GetValue and GetCompoundValue.
+  absl::Status SetValue(Node* n, SharedLeafTypeTree<LeafValueT>&& value) {
+    XLS_RET_CHECK(!values_.contains(n)) << n << " visited multiple times";
+    values_.emplace(n, std::move(value));
+    return absl::OkStatus();
+  }
   absl::Status SetValue(Node* n, LeafTypeTree<LeafValueT>&& value) {
     XLS_RET_CHECK(!values_.contains(n)) << n << " visited multiple times";
-    values_[n] = std::move(value);
+    values_.emplace(n, std::move(value).AsShared());
     return absl::OkStatus();
   }
 
@@ -626,8 +736,27 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
           f) {
     XLS_ASSIGN_OR_RETURN(std::vector<LeafTypeTreeView<LeafValueT>> options,
                          GetCompoundValueList(cases));
+    return ZipPiecewise(target, options, f);
+  }
+  absl::StatusOr<LeafTypeTree<LeafValueT>> ZipPiecewise(
+      Type* target, absl::Span<const LeafTypeTree<LeafValueT>> cases,
+      std::function<typename AbstractEvaluatorT::Vector(
+          absl::Span<const typename AbstractEvaluatorT::Span>)>
+          f) {
+    std::vector<LeafTypeTreeView<LeafValueT>> options;
+    options.reserve(cases.size());
+    for (const LeafTypeTree<LeafValueT>& option : cases) {
+      options.push_back(option.AsView());
+    }
+    return ZipPiecewise(target, options, f);
+  }
+  absl::StatusOr<LeafTypeTree<LeafValueT>> ZipPiecewise(
+      Type* target, absl::Span<const LeafTypeTreeView<LeafValueT>> options,
+      std::function<typename AbstractEvaluatorT::Vector(
+          absl::Span<const typename AbstractEvaluatorT::Span>)>
+          f) {
     std::vector<typename AbstractEvaluatorT::Span> spans;
-    spans.reserve(cases.size());
+    spans.reserve(options.size());
     return leaf_type_tree::ZipIndex<typename AbstractEvaluatorT::Vector,
                                     typename AbstractEvaluatorT::Vector>(
         options,
@@ -651,7 +780,7 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
   // represent values which are considered unconstrained. This uses unique_ptr
   // to ensure that the internal pointers do not move since we may want to hold
   // views to them.
-  absl::flat_hash_map<Node*, LeafTypeTree<LeafValueT>> values_;
+  absl::flat_hash_map<Node*, SharedLeafTypeTree<LeafValueT>> values_;
 };
 
 // An abstract evaluator for XLS Nodes. The function takes an AbstractEvaluator

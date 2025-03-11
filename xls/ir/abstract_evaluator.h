@@ -99,6 +99,10 @@ class AbstractEvaluator {
     return And(Or(a, b), Not(And(a, b)));
   }
 
+  Element Implies(const Element& a, const Element& b) const {
+    return If(a, b, One());
+  }
+
   struct AdderResult {
     Element sum;
     Element carry;
@@ -138,7 +142,7 @@ class AbstractEvaluator {
   }
 
   // Returns the given bits value as a Vector type.
-  Vector BitsToVector(const Bits& bits) {
+  Vector BitsToVector(const Bits& bits) const {
     Vector result(bits.bit_count());
     for (int64_t i = 0; i < bits.bit_count(); ++i) {
       result[i] = bits.Get(i) ? One() : Zero();
@@ -196,7 +200,7 @@ class AbstractEvaluator {
     return result;
   }
 
-  Element Equals(Span a, Span b) {
+  Element Equals(Span a, Span b) const {
     CHECK_EQ(a.size(), b.size());
     Element result = One();
     for (int64_t i = 0; i < a.size(); ++i) {
@@ -220,7 +224,7 @@ class AbstractEvaluator {
     return Or(a_neg_b_non_neg, And(Not(a_non_neg_b_neg), ULessThan(a, b)));
   }
 
-  Element ULessThan(Span a, Span b) {
+  Element ULessThan(Span a, Span b) const {
     CHECK_EQ(a.size(), b.size());
     Element result = Zero();
     Element upper_bits_lte = One();
@@ -230,9 +234,13 @@ class AbstractEvaluator {
     }
     return result;
   }
-  Element ULessThanOrEqual(Span a, Span b) { return Not(ULessThan(b, a)); }
-  Element UGreaterThan(Span a, Span b) { return ULessThan(b, a); }
-  Element UGreaterThanOrEqual(Span a, Span b) { return Not(ULessThan(a, b)); }
+  Element ULessThanOrEqual(Span a, Span b) const {
+    return Not(ULessThan(b, a));
+  }
+  Element UGreaterThan(Span a, Span b) const { return ULessThan(b, a); }
+  Element UGreaterThanOrEqual(Span a, Span b) const {
+    return Not(ULessThan(a, b));
+  }
 
   Vector OneHotSelect(Span selector, SpanOfSpan cases,
                       bool selector_can_be_zero) {
@@ -372,7 +380,7 @@ class AbstractEvaluator {
   }
 
   // Reduction ops.
-  Vector AndReduce(Span a) {
+  Vector AndReduce(Span a) const {
     Element result = One();
     for (const Element& e : a) {
       result = And(result, e);
@@ -380,7 +388,7 @@ class AbstractEvaluator {
     return Vector({result});
   }
 
-  Vector OrReduce(Span a) {
+  Vector OrReduce(Span a) const {
     Element result = Zero();
     for (const Element& e : a) {
       result = Or(result, e);
@@ -388,7 +396,7 @@ class AbstractEvaluator {
     return Vector{result};
   }
 
-  Vector XorReduce(Span a) {
+  Vector XorReduce(Span a) const {
     Element result = Zero();
     for (const Element& e : a) {
       result = Or(And(Not(result), e), And(result, Not(e)));

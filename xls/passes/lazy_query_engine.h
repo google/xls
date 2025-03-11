@@ -276,6 +276,30 @@ class LazyQueryEngine : public QueryEngine, public ChangeListener {
 
   void ForceRecompute(Node* node) { MarkUnverified(node); }
 
+  // Eagerly computes the values for all nodes in the function that do not have
+  // known values. This is expensive and should only be used for testing and
+  // measurement.
+  absl::Status EagerlyPopulate(FunctionBase* f) {
+    XLS_RETURN_IF_ERROR(Populate(f).status());
+    for (Node* node : TopoSort(f_)) {
+      if (GetCacheState(node) == CacheState::kKnown) {
+        continue;
+      }
+      std::vector<const LeafTypeTree<Info>*> operand_infos;
+      operand_infos.reserve(node->operands().size());
+      for (Node* operand : node->operands()) {
+        const CacheEntryView operand_entry = GetCacheEntry(operand);
+        XLS_RET_CHECK_EQ(operand_entry.state, CacheState::kKnown);
+        operand_infos.push_back(operand_entry.info);
+      }
+      cache_.insert_or_assign(
+          node, CacheEntry{.state = CacheState::kKnown,
+                           .info = std::make_unique<LeafTypeTree<Info>>(
+                               ComputeInfo(node, operand_infos))});
+    }
+    return absl::OkStatus();
+  }
+
   // Verifies that the query engine's current state is consistent; e.g., for
   // lazy query engines, checks that the current state of the cache is correct
   // where expected & consistent regardless. This is an expensive operation,
