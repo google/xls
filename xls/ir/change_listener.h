@@ -25,6 +25,7 @@ class Function;
 class Node;
 class Proc;
 
+// A pure-virtual interface for listening to changes to XLS IR.
 class ChangeListener {
  public:
   virtual ~ChangeListener() = default;
