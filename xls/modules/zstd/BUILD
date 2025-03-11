@@ -4678,3 +4678,78 @@ place_and_route(
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "frame_header_enc_dslx",
+    srcs = ["frame_header_enc.x"],
+    deps = [
+        ":frame_header_dec_dslx",
+        "//xls/modules/zstd/memory:mem_writer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "frame_header_enc_dslx_test",
+    library = ":frame_header_enc_dslx",
+)
+
+frame_header_enc_codegen_args = common_codegen_args | {
+    "module_name": "FrameHeaderEncoder",
+    "worst_case_throughput": "2",
+}
+
+xls_dslx_verilog(
+    name = "frame_header_enc_verilog",
+    codegen_args = frame_header_enc_codegen_args,
+    dslx_top = "FrameHeaderEncoderInst",
+    library = ":frame_header_enc_dslx",
+    tags = ["manual"],
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__frame_header_enc__FrameHeaderEncoderInst__FrameHeaderEncoder_0__16_32_5_22_next",
+    },
+    verilog_file = "frame_header_enc.v",
+)
+
+xls_benchmark_ir(
+    name = "frame_header_enc_opt_ir_benchmark",
+    src = ":frame_header_enc_verilog.opt.ir",
+    benchmark_ir_args = frame_header_enc_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "frame_header_enc_verilog_lib",
+    srcs = [
+        ":frame_header_enc.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "frame_header_enc_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "FrameHeaderEncoder",
+    deps = [
+        ":frame_header_enc_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "frame_header_enc_benchmark_synth",
+    synth_target = ":frame_header_enc_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "frame_header_enc_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":frame_header_enc_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
