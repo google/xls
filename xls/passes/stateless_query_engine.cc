@@ -136,8 +136,7 @@ StatelessQueryEngine::GetTernary(Node* node) const {
     if (auto ternary_tree = GetTernary(node->operand(0))) {
       ternary = ternary_tree->Get({});
     } else {
-      ternary = TernaryVector(node->operand(0)->BitCountOrDie(),
-                              TernaryValue::kUnknown);
+      return std::nullopt;
     }
     TernaryValue sign = ternary.back();
     ternary.resize(node->BitCountOrDie(), sign);

@@ -14,6 +14,7 @@
 
 #include "xls/passes/stateless_query_engine.h"
 
+#include <optional>
 #include <string_view>
 
 #include "gtest/gtest.h"
@@ -168,8 +169,8 @@ TEST_F(StatelessQueryEngineTest, SignExtendOfParam) {
   StatelessQueryEngine query_engine;
   EXPECT_EQ(query_engine.ToString(f->return_value()), "0bXXXX_XXXX_XXXX_XXXX");
   EXPECT_EQ(query_engine.KnownLeadingSignBits(f->return_value()), 14);
-  EXPECT_EQ(query_engine.KnownLeadingZeros(f->return_value()), 0);
-  EXPECT_EQ(query_engine.KnownLeadingOnes(f->return_value()), 0);
+  EXPECT_EQ(query_engine.KnownLeadingZeros(f->return_value()), std::nullopt);
+  EXPECT_EQ(query_engine.KnownLeadingOnes(f->return_value()), std::nullopt);
 }
 
 TEST_F(StatelessQueryEngineTest, ZeroExtendOfLiteral) {
