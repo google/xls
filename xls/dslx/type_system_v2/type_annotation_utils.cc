@@ -49,10 +49,10 @@ namespace xls::dslx {
 namespace {
 
 Expr* CreateElementCountInvocation(Module& module, TypeAnnotation* annotation) {
-  NameRef* bit_count =
+  NameRef* element_count =
       module.Make<NameRef>(annotation->span(), "element_count",
                            module.GetOrCreateBuiltinNameDef("element_count"));
-  return module.Make<Invocation>(annotation->span(), bit_count,
+  return module.Make<Invocation>(annotation->span(), element_count,
                                  std::vector<Expr*>{},
                                  std::vector<ExprOrType>{annotation});
 }

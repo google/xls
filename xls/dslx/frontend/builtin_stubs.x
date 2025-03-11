@@ -26,6 +26,8 @@ fn assert_lt<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> ();
 
 fn assert!<N: u32>(predicate: bool, label: u8[N]) -> ();
 
+fn bit_count<T: type>() -> u32;
+
 fn bit_slice_update<N: u32, U: u32, V: u32>(x: uN[N], y: uN[U], z: uN[V]) -> uN[N];
 
 fn checked_cast<DEST: type, SRC: type>(x: SRC) -> DEST;

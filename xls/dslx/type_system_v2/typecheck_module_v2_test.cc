@@ -5009,6 +5009,34 @@ const X = foo(10);
                               HasNodeWithType("\"Failed\"", "uN[8][6]"))));
 }
 
+TEST(TypecheckV2BuiltinTest, BitCount) {
+  EXPECT_THAT(R"(
+struct MyPoint { x: u32, y: u32 }
+
+fn test_bit_count_size() {
+    const x = bit_count<u32[4]>();
+    const y = bit_count<bool>();
+    const z = bit_count<MyPoint>();
+})",
+              TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[32]"),
+                                      HasNodeWithType("y", "uN[32]"),
+                                      HasNodeWithType("z", "uN[32]"))));
+}
+
+TEST(TypecheckV2BuiltinTest, BitCountMismatch) {
+  EXPECT_THAT(R"(
+const x: u31 = bit_count<u32[4]>();
+)",
+              TypecheckFails(HasSizeMismatch("u32", "u31")));
+}
+
+TEST(TypecheckV2BuiltinTest, BitCountImplicitIsIllegal) {
+  EXPECT_THAT(R"(
+const x: u31 = bit_count();
+)",
+              TypecheckFails(HasSubstr("Could not infer parametric")));
+}
+
 TEST(TypecheckV2BuiltinTest, BitSliceUpdate) {
   EXPECT_THAT(R"(const Y = bit_slice_update(u32:10, u33:11, u34:12);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
