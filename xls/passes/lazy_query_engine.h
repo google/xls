@@ -15,10 +15,7 @@
 #ifndef XLS_PASSES_LAZY_QUERY_ENGINE_H_
 #define XLS_PASSES_LAZY_QUERY_ENGINE_H_
 
-#include <cstdint>
 #include <optional>
-#include <ostream>
-#include <string>
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
@@ -26,16 +23,12 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/topo_sort.h"
-#include "xls/ir/type.h"
-#include "xls/passes/lazy_dag_cache.h"
+#include "xls/passes/lazy_node_info.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -81,248 +74,104 @@ namespace xls {
 //       the main advantage of this cache over a more typical invalidating
 //       cache.
 template <typename Info>
-class LazyQueryEngine
-    : public QueryEngine,
-      public ChangeListener,
-      public LazyDagCache<Node*, LeafTypeTree<Info>>::DagProvider {
+class LazyQueryEngine : public QueryEngine {
  private:
-  using CacheState = LazyDagCache<Node*, LeafTypeTree<Info>>::CacheState;
+  class QueryEngineNodeInfo : public LazyNodeInfo<Info> {
+   public:
+    explicit QueryEngineNodeInfo(LazyQueryEngine<Info>* owner)
+        : owner_(owner) {}
+    QueryEngineNodeInfo(const QueryEngineNodeInfo&) = default;
+    QueryEngineNodeInfo(QueryEngineNodeInfo&&) = default;
+    QueryEngineNodeInfo& operator=(const QueryEngineNodeInfo&) = default;
+    QueryEngineNodeInfo& operator=(QueryEngineNodeInfo&&) = default;
+
+    QueryEngineNodeInfo WithOwner(LazyQueryEngine<Info>* owner) const& {
+      QueryEngineNodeInfo info(*this);
+      info.owner_ = owner;
+      return info;
+    }
+
+    QueryEngineNodeInfo TakeOwner(LazyQueryEngine<Info>* owner) && {
+      QueryEngineNodeInfo info(std::move(*this));
+      info.owner_ = owner;
+      return info;
+    }
+
+   protected:
+    LeafTypeTree<Info> ComputeInfo(
+        Node* node,
+        absl::Span<const LeafTypeTree<Info>* const> operand_infos) const final;
+
+    absl::Status MergeWithGiven(Info& info, const Info& given) const final;
+
+   private:
+    LazyQueryEngine<Info>* owner_;
+  };
 
  public:
-  LazyQueryEngine<Info>() : cache_(this) {}
-  ~LazyQueryEngine() override {
-    if (f_ != nullptr) {
-      f_->UnregisterChangeListener(this);
-    }
-  }
+  LazyQueryEngine<Info>() : info_(this) {}
+  ~LazyQueryEngine() override {}
 
   LazyQueryEngine(const LazyQueryEngine<Info>& other)
-      : f_(other.f_), cache_(this, other.cache_), givens_(other.givens_) {
-    if (f_ != nullptr) {
-      f_->RegisterChangeListener(this);
-    }
-  }
+      : info_(other.info_.WithOwner(this)) {}
   LazyQueryEngine& operator=(const LazyQueryEngine<Info>& other) {
-    if (f_ != other.f_) {
-      if (f_ != nullptr) {
-        f_->UnregisterChangeListener(this);
-      }
-      f_ = other.f_;
-    }
-    cache_ = LazyDagCache<Node*, LeafTypeTree<Info>>(this, other.cache_);
-    givens_ = other.givens_;
-    if (f_ != nullptr) {
-      f_->RegisterChangeListener(this);
-    }
+    info_ = other.info_.WithOwner(this);
     return *this;
   }
-
   LazyQueryEngine(LazyQueryEngine<Info>&& other)
-      : f_(other.f_),
-        cache_(this, std::move(other.cache_)),
-        givens_(std::move(other.givens_)) {
-    if (f_ != nullptr) {
-      f_->RegisterChangeListener(this);
-    }
-  }
+      : info_(std::move(other).info_.TakeOwner(this)) {}
   LazyQueryEngine& operator=(LazyQueryEngine<Info>&& other) {
-    if (f_ != other.f_) {
-      if (f_ != nullptr) {
-        f_->UnregisterChangeListener(this);
-      }
-      f_ = other.f_;
-      if (other.f_ != nullptr) {
-        other.f_->UnregisterChangeListener(&other);
-        f_->RegisterChangeListener(this);
-      }
-    }
-    cache_ =
-        LazyDagCache<Node*, LeafTypeTree<Info>>(this, std::move(other.cache_));
-    givens_ = std::move(other.givens_);
+    info_ = std::move(other).info_.TakeOwner(this);
     return *this;
   }
 
   absl::StatusOr<ReachedFixpoint> PopulateWithGivens(
       FunctionBase* f, absl::flat_hash_map<Node*, LeafTypeTree<Info>> givens) {
-    ReachedFixpoint rf = ReachedFixpoint::Unchanged;
-    if (f_ != f) {
-      if (f_ != nullptr) {
-        f_->UnregisterChangeListener(this);
-        cache_.Clear();
-        givens_.clear();
-        rf = ReachedFixpoint::Changed;
-      }
-
-      if (f != nullptr) {
-        f_ = f;
-        f_->RegisterChangeListener(this);
-        rf = ReachedFixpoint::Changed;
-      }
-    }
-
-    if (givens_ != givens) {
-      absl::flat_hash_map<Node*, LeafTypeTree<Info>> old_givens =
-          std::exchange(givens_, std::move(givens));
-      for (Node* node : f->nodes()) {
-        // If the given information for a node could have changed, we need to
-        // mark it (and its descendants) for possible recomputation.
-        auto old_given_it = old_givens.find(node);
-        auto new_given_it = givens_.find(node);
-        const bool had_old_given = old_given_it != old_givens.end();
-        const bool has_new_given = new_given_it != givens_.end();
-        if (!had_old_given && !has_new_given) {
-          continue;
-        }
-        cache_.MarkUnverified(node);
-        rf = ReachedFixpoint::Changed;
-      }
-    }
-
-    return rf;
+    return info_.AttachWithGivens(f, std::move(givens));
   }
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
-    return PopulateWithGivens(f, {});
-  }
-
-  absl::StatusOr<ReachedFixpoint> AddGiven(Node* node,
-                                           LeafTypeTree<Info> given_ltt) {
-    auto it = givens_.find(node);
-    if (it == givens_.end()) {
-      givens_.emplace(node, std::move(given_ltt));
-      cache_.MarkUnverified(node);
-      return ReachedFixpoint::Changed;
-    }
-    XLS_RETURN_IF_ERROR((leaf_type_tree::UpdateFrom<Info, Info>(
-        given_ltt.AsMutableView(), it->second.AsView(),
-        [this](Type*, Info& info, const Info& given,
-               absl::Span<const int64_t>) {
-          return MergeWithGiven(info, given);
-        })));
-    return ReplaceGiven(node, std::move(given_ltt));
-  }
-  ReachedFixpoint RemoveGiven(Node* node) {
-    auto it = givens_.find(node);
-    if (it == givens_.end()) {
-      return ReachedFixpoint::Unchanged;
-    }
-    givens_.erase(it);
-    cache_.MarkUnverified(node);
-    return ReachedFixpoint::Changed;
-  }
-  ReachedFixpoint ReplaceGiven(Node* node, LeafTypeTree<Info> given) {
-    auto it = givens_.find(node);
-    if (it == givens_.end()) {
-      givens_.emplace(node, std::move(given));
-      cache_.MarkUnverified(node);
-      return ReachedFixpoint::Changed;
-    }
-    LeafTypeTree<Info> prev_given = std::exchange(it->second, std::move(given));
-    cache_.MarkUnverified(node);
-    return ReachedFixpoint::Changed;
+    return info_.Attach(f);
   }
 
   bool IsTracked(Node* node) const override {
-    return node->function_base() == f_;
+    return node->function_base() == info_.bound_function();
   }
+
+  absl::Status CheckConsistency() const override {
+    return info_.CheckCacheConsistency();
+  }
+
+  // Access to the underlying data store for this query engine. Use this to
+  // directly add givens if required.
+  LazyNodeInfo<Info>& info() { return info_; }
+
+  // Access to the underlying data store for this query engine. Use this to
+  // directly add givens if required.
+  const LazyNodeInfo<Info>& info() const { return info_; }
 
   std::optional<SharedLeafTypeTree<Info>> GetInfo(Node* node) const {
-    LeafTypeTree<Info>* info = cache_.QueryValue(node);
-    if (info == nullptr) {
-      return std::nullopt;
-    }
-    return info->AsView().AsShared();
+    return info_.GetInfo(node);
   }
-
-  // No action necessary on NodeAdded.
-
-  void NodeDeleted(Node* node) override { cache_.Forget(node); }
-
-  void OperandChanged(Node* node, Node* old_operand,
-                      absl::Span<const int64_t> operand_nos) override {
-    CacheState prev_state = cache_.GetCacheState(node);
-    if (prev_state != CacheState::kKnown &&
-        prev_state != CacheState::kInputsUnverified) {
-      return;
-    }
-    bool operand_info_changed = false;
-    if (const LeafTypeTree<Info>* old_operand_info =
-            cache_.GetCachedValue(old_operand);
-        old_operand_info != nullptr) {
-      for (int64_t operand_no : operand_nos) {
-        Node* new_operand = node->operand(operand_no);
-        if (new_operand->GetType() != old_operand->GetType()) {
-          operand_info_changed = true;
-          continue;
-        }
-        const LeafTypeTree<Info>* new_operand_info =
-            cache_.GetCachedValue(new_operand);
-        if (new_operand_info == nullptr) {
-          // We don't know anything about the new operand - but we can guess
-          // that it may be equivalent to the old operand.
-          cache_.AddUnverified(new_operand, leaf_type_tree::CloneToHeap(
-                                                old_operand_info->AsView()));
-        } else if (*new_operand_info != *old_operand_info) {
-          operand_info_changed = true;
-        }
-      }
-    }
-    if (operand_info_changed) {
-      cache_.MarkUnverified(node);
-    } else {
-      cache_.MarkInputsUnverified(node);
-    }
-  }
-
-  void OperandRemoved(Node* node, Node* old_operand) override {
-    cache_.MarkUnverified(node);
-  }
-
-  void OperandAdded(Node* node) override { cache_.MarkUnverified(node); }
-
-  void ForceRecompute(Node* node) { cache_.MarkUnverified(node); }
 
   // Eagerly computes the values for all nodes in the function that do not have
   // known values. This is expensive and should only be used for testing and
   // measurement.
   absl::Status EagerlyPopulate(FunctionBase* f) {
-    XLS_RETURN_IF_ERROR(Populate(f).status());
-    return cache_.EagerlyPopulate(TopoSort(f));
+    return info_.EagerlyPopulate(f);
   }
 
-  // Verifies that the query engine's current state is consistent; e.g., for
-  // lazy query engines, checks that the current state of the cache is correct
-  // where expected & consistent regardless. This is an expensive operation,
-  // intended for use in tests.
-  absl::Status CheckConsistency() const override {
-    return cache_.CheckConsistency(TopoSort(f_));
-  }
+  void ForceRecompute(Node* node) { info_.ForceRecompute(node); }
 
-  // Implementation for LazyDagCache::DagProvider.
-  std::string GetName(Node* const& node) const override {
-    return node->GetName();
+  // Helpers for adding/removing givens.
+  absl::StatusOr<ReachedFixpoint> AddGiven(Node* node,
+                                           LeafTypeTree<Info> given_ltt) {
+    return info_.AddGiven(node, std::move(given_ltt));
   }
-  absl::Span<Node* const> GetInputs(Node* const& node) const override {
-    return node->operands();
+  absl::StatusOr<ReachedFixpoint> ReplaceGiven(Node* node,
+                                               LeafTypeTree<Info> given_ltt) {
+    return info_.ReplaceGiven(node, std::move(given_ltt));
   }
-  absl::Span<Node* const> GetUsers(Node* const& node) const override {
-    return node->users();
-  }
-  absl::StatusOr<LeafTypeTree<Info>> ComputeValue(
-      Node* const& node,
-      absl::Span<const LeafTypeTree<Info>* const> operand_infos)
-      const override {
-    LeafTypeTree<Info> new_info = ComputeInfo(node, operand_infos);
-    if (auto it = givens_.find(node); it != givens_.end()) {
-      const LeafTypeTree<Info>& given_ltt = it->second;
-      XLS_RETURN_IF_ERROR((leaf_type_tree::UpdateFrom<Info, Info>(
-          new_info.AsMutableView(), given_ltt.AsView(),
-          [this](Type*, Info& info, const Info& given,
-                 absl::Span<const int64_t>) {
-            return MergeWithGiven(info, given);
-          })));
-    }
-    return new_info;
-  }
+  ReachedFixpoint RemoveGiven(Node* node) { return info_.RemoveGiven(node); }
 
  protected:
   virtual LeafTypeTree<Info> ComputeInfo(
@@ -332,11 +181,21 @@ class LazyQueryEngine
   virtual absl::Status MergeWithGiven(Info& info, const Info& given) const = 0;
 
  private:
-  FunctionBase* f_ = nullptr;
-
-  mutable LazyDagCache<Node*, LeafTypeTree<Info>> cache_;
-  absl::flat_hash_map<Node*, LeafTypeTree<Info>> givens_;
+  QueryEngineNodeInfo info_;
 };
+
+template <typename Info>
+absl::Status LazyQueryEngine<Info>::QueryEngineNodeInfo::MergeWithGiven(
+    Info& info, const Info& given) const {
+  return owner_->MergeWithGiven(info, given);
+}
+
+template <typename Info>
+LeafTypeTree<Info> LazyQueryEngine<Info>::QueryEngineNodeInfo::ComputeInfo(
+    Node* node,
+    absl::Span<const LeafTypeTree<Info>* const> operand_infos) const {
+  return owner_->ComputeInfo(node, operand_infos);
+}
 
 }  // namespace xls
 
