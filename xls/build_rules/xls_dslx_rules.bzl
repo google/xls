@@ -831,7 +831,7 @@ def _xls_dslx_to_verilog_packge_impl(ctx):
 
     dslx_path = ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path + dslx_srcs_wsroot_path + wsroot_dslx_path
 
-    # Make arguments for the cpp_transpiler tool.
+    # Make arguments for the dslx_to_verilog translator.
     sv_file = ctx.outputs.package_file
     lint_waivers = ctx.attr.lint_waivers
 
@@ -887,24 +887,24 @@ xls_dslx_to_verilog_package_attrs = {
 }
 
 xls_dslx_to_verilog_package = rule(
-    doc = """Generates a cc and h file pair that provides a C++ interface to
-the DSLX types in srcs.  srcs must only contain a single file.
+    doc = """Generates a .sv file corresponding to types in a DSLX source file.
+.  srcs must only contain a single file.
 
 Example:
 
     ```
-    xls_dslx_generate_cpp_type_files
-        name = "b_cpp_types_generate",
-        srcs = ["b.x"],
-        deps = [":a_dslx"],
-
-        outs_prefix = "b_cpp_types",
-        namespace = "xls::b",
+    xls_dslx_to_verilog_package
+        name = "foo_verilog_package",
+        srcs = ["foo.x"],
+        deps = [":bar_dslx"],
+        namespace = "foo",
+        lint_waivers = ["SOME_LINT_RULE"]
+        package_file = "foo_module.sv",
     )
 
     ```
 
-    will generate b_cpp_types.cc and b_cpp_types.h.
+    will generate some_module.sv.
     """,
     implementation = _xls_dslx_to_verilog_packge_impl,
     attrs = dicts.add(
