@@ -14,9 +14,12 @@
 
 # Optimization passes, pass managers.
 
+# pytype binary only
 load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
+
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -1587,6 +1590,7 @@ cc_library(
     hdrs = ["narrowing_pass.h"],
     deps = [
         ":aliasing_query_engine",
+        ":bit_count_query_engine",
         ":context_sensitive_range_query_engine",
         ":lazy_ternary_query_engine",
         ":optimization_pass",
@@ -3733,5 +3737,64 @@ cc_library(
         "//xls/ir",
         "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "bit_count_query_engine",
+    srcs = ["bit_count_query_engine.cc"],
+    hdrs = ["bit_count_query_engine.h"],
+    deps = [
+        ":dataflow_visitor",
+        ":lazy_query_engine",
+        ":query_engine",
+        ":stateless_query_engine",
+        "//xls/common:source_location",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:ternary",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+        "@cppitertools",
+    ],
+)
+
+cc_test(
+    name = "bit_count_query_engine_test",
+    srcs = ["bit_count_query_engine_test.cc"],
+    deps = [
+        ":bit_count_query_engine",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value_builder",
+        "//xls/solvers:z3_ir_translator",
+        "//xls/solvers:z3_ir_translator_matchers",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
+py_binary(
+    name = "bit_count_query_engine_proofs_z3",
+    srcs = ["bit_count_query_engine_proofs_z3.py"],
+    deps = [
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        requirement("z3-solver"),
     ],
 )

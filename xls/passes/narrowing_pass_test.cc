@@ -1048,6 +1048,24 @@ TEST_P(NarrowingPassTest, SignExtendAdd) {
                     m::Type("bits[128]")));
 }
 
+TEST_P(NarrowingPassTest, SignExtendAddTree) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u3 = p->GetBitsType(3);
+  fb.Add(fb.Add(fb.SignExtend(fb.Param("a", u3), 32),
+                fb.SignExtend(fb.Param("b", u3), 32)),
+         fb.Add(fb.SignExtend(fb.Param("c", u3), 32),
+                fb.SignExtend(fb.Param("d", u3), 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              AllOf(m::SignExt(AllOf(m::Add(_, _), m::Type("bits[5]"))),
+                    m::Type("bits[32]")));
+}
+
 TEST_P(NarrowingPassTest, AddNegativeNumber) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

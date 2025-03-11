@@ -59,6 +59,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/aliasing_query_engine.h"
+#include "xls/passes/bit_count_query_engine.h"
 #include "xls/passes/context_sensitive_range_query_engine.h"
 #include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
@@ -1789,6 +1790,7 @@ absl::StatusOr<AliasingQueryEngine> GetQueryEngine(
   std::vector<std::unique_ptr<QueryEngine>> owned_engines;
   std::vector<QueryEngine*> unowned_engines;
   owned_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  unowned_engines.push_back(context.SharedQueryEngine<BitCountQueryEngine>(f));
   if (analysis == AnalysisType::kRangeWithContext) {
     if (ProcStateRangeQueryEngine::CanAnalyzeProcStateEvolution(f)) {
       // NB ProcStateRange already includes a ternary qe
