@@ -100,19 +100,14 @@ absl::StatusOr<InferenceVariableKind> TypeAnnotationToInferenceVariableKind(
 class InferenceVariable {
  public:
   InferenceVariable(const AstNode* definer, const NameRef* name_ref,
-                    InferenceVariableKind kind, bool parametric)
-      : definer_(definer),
-        name_ref_(name_ref),
-        kind_(kind),
-        parametric_(parametric) {}
+                    InferenceVariableKind kind)
+      : definer_(definer), name_ref_(name_ref), kind_(kind) {}
 
   const AstNode* definer() const { return definer_; }
 
   std::string_view name() const { return name_ref_->identifier(); }
 
   InferenceVariableKind kind() const { return kind_; }
-
-  bool parametric() const { return parametric_; }
 
   // Returns the `NameRef` dealt out for this variable at creation time. This
   // is used to avoid spurious creations of additional refs by table functions
@@ -135,7 +130,6 @@ class InferenceVariable {
   const AstNode* const definer_;
   const NameRef* const name_ref_;
   const InferenceVariableKind kind_;
-  const bool parametric_;
 };
 
 // The mutable data for a node in an `InferenceTable`.
@@ -155,16 +149,6 @@ struct MutableParametricContextData {
       type_annotations_per_type_variable;
 };
 
-// The mutable data for a type variable in an `InferenceTable`.
-struct TypeConstraints {
-  std::optional<bool> is_signed;
-  std::optional<int64_t> min_width;
-
-  // The explicit type annotation from which `is_signed` was determined, for
-  // tracing and error purposes.
-  std::optional<const TypeAnnotation*> signedness_definer;
-};
-
 class InferenceTableImpl : public InferenceTable {
  public:
   explicit InferenceTableImpl(Module& module) : module_(module) {}
@@ -180,8 +164,8 @@ class InferenceTableImpl : public InferenceTable {
         module_.Make<NameDef>(span, std::string(name), definer);
     const NameRef* name_ref =
         module_.Make<NameRef>(span, std::string(name), name_def);
-    AddVariable(name_def, std::make_unique<InferenceVariable>(
-                              definer, name_ref, kind, /*parametric=*/false));
+    AddVariable(name_def,
+                std::make_unique<InferenceVariable>(definer, name_ref, kind));
     if (declaration_annotation.has_value()) {
       CHECK_NE(*declaration_annotation, nullptr);
       XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable,
@@ -202,8 +186,8 @@ class InferenceTableImpl : public InferenceTable {
     const NameDef* name_def = binding.name_def();
     const NameRef* name_ref = module_.Make<NameRef>(
         name_def->span(), name_def->identifier(), name_def);
-    AddVariable(name_def, std::make_unique<InferenceVariable>(
-                              name_def, name_ref, kind, /*parametric=*/true));
+    AddVariable(name_def,
+                std::make_unique<InferenceVariable>(name_def, name_ref, kind));
     XLS_RETURN_IF_ERROR(SetTypeAnnotation(name_def, binding.type_annotation()));
     return name_ref;
   }
@@ -592,18 +576,6 @@ class InferenceTableImpl : public InferenceTable {
           *node_data.type_annotation);
     }
     return absl::OkStatus();
-  }
-
-  std::vector<const AstNode*> FilterAndConvertNodeSetToOrderedVector(
-      const absl::flat_hash_set<const AstNode*>& nodes) const {
-    std::vector<const AstNode*> result;
-    absl::c_copy_if(
-        nodes, std::back_inserter(result),
-        [&](const AstNode* node) { return node_data_.contains(node); });
-    absl::c_sort(result, [this](const AstNode* x, const AstNode* y) {
-      return node_data_.at(x).order_added < node_data_.at(y).order_added;
-    });
-    return result;
   }
 
   Module& module_;
