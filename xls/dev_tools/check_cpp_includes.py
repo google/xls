@@ -14,13 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=missing-module-docstring
-# pylint: disable=missing-function-docstring
+"""Checks that C++ files only include absolute paths.
+
+This prevents accidental inclusion via relpath even if it happens to work.
+"""
 
 import re
 import sys
 
-ALLOWED_INCLUDE_STARTS = {
+ALLOWED_INCLUDE_STARTS = frozenset([
     'xls/',
     'absl/',
     'gmock/',
@@ -44,11 +46,12 @@ ALLOWED_INCLUDE_STARTS = {
     'linenoise.h',
     'libs/json11/',
     '%s',  # For format strings embedded in files.
-}
+])
 
 
 def check_file(filename):
-  with open(filename, 'r') as f:
+  """Checks a file for non-absolute includes."""
+  with open(filename, encoding='utf-8') as f:
     content = f.read()
 
   # Look for quoted (non-system) includes

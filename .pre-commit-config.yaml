@@ -13,3 +13,11 @@ repos:
         files: ^xls/.*\.(h|cc)$
         exclude: ^xls/contrib/
         types: [text]
+  - repo: https://github.com/pylint-dev/pylint
+    rev: v3.3.4
+    hooks:
+      - id: pylint
+        files: ^xls/dev_tools/check_.*.py$
+        args: [
+          --rcfile=.pylintrc
+        ]
