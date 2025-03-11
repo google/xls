@@ -1109,12 +1109,12 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     return true;
   }
 
-  // SignExt(SignExt(x, w_0), w_1) => SignExt(x, w_1)
-  if (n->op() == Op::kSignExt && n->operand(0)->op() == Op::kSignExt) {
-    VLOG(2) << "FOUND: replace signext(signext(x)) with signext(x)";
+  // Ext(Ext(x, w_0), w_1) => Ext(x, w_1)
+  if (n->Is<ExtendOp>() && n->op() == n->operand(0)->op()) {
+    VLOG(2) << "FOUND: replace extend(extend(x)) with extend(x)";
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<ExtendOp>(n->operand(0)->operand(0),
-                                        n->BitCountOrDie(), Op::kSignExt)
+                                        n->BitCountOrDie(), n->op())
             .status());
     return true;
   }
