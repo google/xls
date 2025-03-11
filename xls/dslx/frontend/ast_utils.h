@@ -77,6 +77,11 @@ bool IsBuiltinBitsTypeAttr(std::string_view attr);
 // "n" may be null.
 bool IsParametricFunction(const AstNode* n);
 
+// Returns whether node n is a `NameRef` to a parametric function.
+//
+// "n" may be null.
+bool IsNameRefToParametricFunction(const AstNode* n);
+
 // Returns whether the parent of "n" is an invocation where "n" is the callee.
 //
 // "n" should not be null.

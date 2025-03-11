@@ -79,6 +79,21 @@ bool IsParametricFunction(const AstNode* n) {
   return f != nullptr && f->IsParametric();
 }
 
+bool IsNameRefToParametricFunction(const AstNode* n) {
+  const auto* ref = dynamic_cast<const NameRef*>(n);
+  if (ref == nullptr) {
+    return false;
+  }
+  if (IsBuiltinParametricNameRef(ref)) {
+    return true;
+  }
+  if (std::holds_alternative<const NameDef*>(ref->name_def())) {
+    return IsParametricFunction(
+        std::get<const NameDef*>(ref->name_def())->definer());
+  }
+  return false;
+}
+
 bool ParentIsInvocationWithCallee(const NameRef* n) {
   CHECK(n != nullptr);
   const AstNode* parent = n->parent();

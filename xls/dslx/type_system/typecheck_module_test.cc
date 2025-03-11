@@ -139,7 +139,7 @@ fn f(tok: token, output_r: chan<u8> in, expected: u8) -> token {
                        HasSubstr("Cannot recv() outside of a proc")));
 }
 
-TEST(TypecheckTest, ParametricWhoseTypeIsDeterminedByArgBinding) {
+TEST_P(TypecheckBothVersionsTest, ParametricWhoseTypeIsDeterminedByArgBinding) {
   std::string_view text = R"(
 fn p<A: u32, B: u32, C: bits[B] = {bits[B]:0}>(x: bits[B]) -> bits[B] { x }
 fn main() -> u2 { p<u32:1>(u2:0) }
@@ -776,16 +776,22 @@ TEST(TypecheckErrorTest, LetTypeAnnotationIsXn) {
                                  "into a concrete bits type.")));
 }
 
-TEST(TypecheckErrorTest, ParametricIdentifierLtValue) {
+TEST_P(TypecheckBothVersionsTest, ParametricIdentifierLtValue) {
   constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> bits[N] { x }
 
 fn f() -> bool { p < u32:42 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Name 'p' is a parametric function, but it is "
-                                 "not being invoked")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Name 'p' is a parametric function, but it is "
+                              "not being invoked"),
+                HasSubstrInV2(GetParam(),
+                              "Expected type `uN[32]` but got `p`, which is a "
+                              "parametric function not being invoked."))));
 }
 
 // X is not bound in this example but it's also not used anywhere. This is
@@ -953,15 +959,18 @@ fn f() -> u32 { id((u8:3,)) }
                      HasTypeMismatchInV2(GetParam(), "(u8,)", "bits[N]"))));
 }
 
-TEST(TypecheckErrorTest, ParametricWrongNumberOfDims) {
+TEST_P(TypecheckBothVersionsTest, ParametricWrongNumberOfDims) {
   constexpr std::string_view kProgram = R"(
 fn id<N: u32, M: u32>(x: bits[N][M]) -> bits[N][M] { x }
 fn f() -> u32 { id(u32:42) }
 )";
   EXPECT_THAT(
       Typecheck(kProgram),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("types are different kinds (array vs ubits)")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "types are different kinds (array vs ubits)"),
+                HasTypeMismatchInV2(GetParam(), "u32", "bits[N][M]"))));
 }
 
 TEST(TypecheckErrorTest, RecursionCausesError) {
@@ -1710,15 +1719,18 @@ fn main() -> bits[5] { parametric(u5:1) }
 )"));
 }
 
-TEST(TypecheckTest, ParametricInstantiationVsArgError) {
+TEST_P(TypecheckBothVersionsTest, ParametricInstantiationVsArgError) {
   EXPECT_THAT(
       Typecheck(R"(
 fn foo<X: u32 = {u32:5}>(x: bits[X]) -> bits[X] { x }
 fn bar() -> bits[10] { foo(u5:1) + foo(u10: 1) }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Inconsistent parametric instantiation of function, "
-                         "first saw X = u32:10; then saw X = u32:5 = u32:5")));
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Inconsistent parametric instantiation of function, "
+                         "first saw X = u32:10; then saw X = u32:5 = u32:5"),
+                     HasTypeMismatchInV2(GetParam(), "bits[5]", "uN[10]"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, ParametricInstantiationVsBodyOk) {
@@ -1857,7 +1869,7 @@ fn bar() -> bits[5] { foo(u5:1, u11: 2) }
                 HasSizeMismatchInV2(GetParam(), "bits[10]", "u11"))));
 }
 
-TEST(TypecheckTest, ParametricDerivedInstantiationVsBodyOk) {
+TEST_P(TypecheckBothVersionsTest, ParametricDerivedInstantiationVsBodyOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn foo<W: u32, Z: u32 = {W + W}>(w: bits[W]) -> bits[1] {
     let val: bits[Z] = w++w + bits[Z]: 5;
@@ -1867,7 +1879,7 @@ fn bar() -> bits[1] { foo(u5: 5) + foo(u10: 10) }
 )"));
 }
 
-TEST(TypecheckTest, ParametricDerivedInstantiationVsBodyError) {
+TEST_P(TypecheckBothVersionsTest, ParametricDerivedInstantiationVsBodyError) {
   EXPECT_THAT(Typecheck(R"(
 fn foo<W: u32, Z: u32 = {W + W}>(w: bits[W]) -> bits[1] {
   let val: bits[Z] = w + w;
@@ -1876,7 +1888,7 @@ fn foo<W: u32, Z: u32 = {W + W}>(w: bits[W]) -> bits[1] {
 fn bar() -> bits[1] { foo(u5:5) }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("uN[10] vs uN[5]")));
+                       HasSizeMismatch("uN[10]", "uN[5]")));
 }
 
 TEST_P(TypecheckBothVersionsTest, ParametricDerivedInstantiationVsReturnOk) {
@@ -1954,7 +1966,7 @@ fn main() -> u32 { p<u32:42>() }
 )"));
 }
 
-TEST(TypecheckBothVersionsTest, ParametricCallInParametricExpr) {
+TEST(TypecheckTest, ParametricCallInParametricExpr) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn pid<N: u32>(x: bits[N]) -> bits[N] { x }
 fn p<X: u32, Y: u32 = {pid(X)}>() -> u32 { Y }

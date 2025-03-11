@@ -91,6 +91,21 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(def);
   }
 
+  absl::Status HandleNameRef(const NameRef* ref) override {
+    if (IsNameRefToParametricFunction(ref) && !type_->IsFunction()) {
+      // Bare parametric function references that are not invocations don't get
+      // typechecked the normal way, because we only annotate their types when
+      // invocations are encountered, hence the need for a check here.
+      return TypeInferenceErrorStatus(
+          ref->span(), type_,
+          absl::Substitute("Expected type `$0` but got `$1`, which is a "
+                           "parametric function not being invoked.",
+                           type_->ToString(), ref->ToString()),
+          file_table_);
+    }
+    return DefaultHandler(ref);
+  }
+
   absl::Status HandleBinop(const Binop* binop) override {
     if ((GetBinopSameTypeKinds().contains(binop->binop_kind()) ||
          GetBinopShifts().contains(binop->binop_kind())) &&

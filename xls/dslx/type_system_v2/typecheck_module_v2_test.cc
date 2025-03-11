@@ -1955,6 +1955,16 @@ const Y = foo();
                               HasNodeWithType("const Y = foo();", "sN[32]"))));
 }
 
+TEST(TypecheckV2Test, ParametricFunctionInWrongContextWithoutInvocation) {
+  EXPECT_THAT(
+      R"(
+fn foo<N: u32>() -> uN[N] { 3 }
+const Y: u32 = foo;
+)",
+      TypecheckFails(HasSubstr("Expected type `uN[32]` but got `foo`, which is "
+                               "a parametric function not being invoked")));
+}
+
 TEST(TypecheckV2Test, SumOfLiteralsAndParametricFunctionCall) {
   EXPECT_THAT(
       R"(
