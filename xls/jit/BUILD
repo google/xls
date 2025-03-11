@@ -962,33 +962,39 @@ cc_library(
 
 cc_binary(
     name = "value_to_native_layout_benchmark",
+    testonly = True,
     srcs = ["value_to_native_layout_benchmark.cc"],
     deps = [
         ":llvm_type_converter",
         ":orc_jit",
         ":type_layout",
+        "//xls/common:benchmark_support",
+        "//xls/common:init_xls",
         "//xls/interpreter:random_value",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
-        "@google_benchmark//:benchmark_main",
+        "@google_benchmark//:benchmark",
     ],
 )
 
 cc_binary(
     name = "jit_channel_queue_benchmark",
+    testonly = True,
     srcs = ["jit_channel_queue_benchmark.cc"],
     deps = [
         ":jit_channel_queue",
         ":jit_runtime",
         ":orc_jit",
+        "//xls/common:benchmark_support",
+        "//xls/common:init_xls",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
         "//xls/ir:proc_elaboration",
         "@com_google_absl//absl/log:check",
-        "@google_benchmark//:benchmark_main",
+        "@google_benchmark//:benchmark",
     ],
 )
 

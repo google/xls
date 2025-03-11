@@ -192,7 +192,7 @@ cc_library(
     testonly = True,
     srcs = ["benchmark_support.cc"],
     hdrs = ["benchmark_support.h"],
-    visibility = ["//visibility:private"],
+    visibility = ["//xls:xls_utility_users"],
     deps = [
         "@com_google_absl//absl/flags:flag",
         "@google_benchmark//:benchmark",

@@ -18,8 +18,10 @@
 #include <type_traits>
 #include <vector>
 
+#include "benchmark/benchmark.h"
 #include "absl/log/check.h"
-#include "include/benchmark/benchmark.h"
+#include "xls/common/benchmark_support.h"
+#include "xls/common/init_xls.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/package.h"
@@ -96,4 +98,8 @@ BENCHMARK(BM_QueueWriteThenRead<ThreadUnsafeJitChannelQueue>)
 }  // namespace
 }  // namespace xls
 
-BENCHMARK_MAIN();
+int main(int argc, char* argv[]) {
+  xls::InitXls(argv[0], argc, argv);
+  xls::RunSpecifiedBenchmarks(/*default_spec=*/"all");
+  return 0;
+}

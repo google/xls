@@ -17,7 +17,9 @@
 #include <random>
 #include <vector>
 
-#include "include/benchmark/benchmark.h"
+#include "benchmark/benchmark.h"
+#include "xls/common/benchmark_support.h"
+#include "xls/common/init_xls.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
@@ -81,4 +83,8 @@ BENCHMARK(BM_NativeLayoutToValue)->DenseRange(0, kNumTypes - 1);
 }  // namespace
 }  // namespace xls
 
-BENCHMARK_MAIN();
+int main(int argc, char* argv[]) {
+  xls::InitXls(argv[0], argc, argv);
+  xls::RunSpecifiedBenchmarks(/*default_spec=*/"all");
+  return 0;
+}

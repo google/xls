@@ -28,7 +28,7 @@ ABSL_FLAG(std::optional<std::string>, benchmark_filter, std::nullopt,
 
 namespace xls {
 
-void RunSpecifiedBenchmarks() {
+void RunSpecifiedBenchmarks(std::optional<std::string> default_spec) {
   // Match BENCHMARK_MAIN macro definition of the benchmark MAIN function.
   // We don't want to run benchmarks unless some are actually requested and we
   // want to always run gtests so we can't use the standard BENCHMARK_MAIN
@@ -40,10 +40,15 @@ void RunSpecifiedBenchmarks() {
   benchmark::Initialize(&fake_argc, &fake_argv_ptr);
 
   // Only run benchmarks if requested.
-  if (absl::GetFlag(FLAGS_benchmark_filter)) {
-    benchmark::SetBenchmarkFilter(*absl::GetFlag(FLAGS_benchmark_filter));
+  std::optional<std::string> filter = absl::GetFlag(FLAGS_benchmark_filter);
+  if (!filter.has_value()) {
+    filter = default_spec;
+  }
+  if (filter.has_value()) {
+    benchmark::SetBenchmarkFilter(*filter);
     benchmark::RunSpecifiedBenchmarks();
   }
   benchmark::Shutdown();
 }
+
 }  // namespace xls

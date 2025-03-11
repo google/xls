@@ -15,10 +15,16 @@
 #ifndef XLS_COMMON_BENCHMARK_SUPPORT_H_
 #define XLS_COMMON_BENCHMARK_SUPPORT_H_
 
+#include <optional>
+#include <string>
+
 namespace xls {
+
 // Helper to perform setup and execute benchmarks. Not a public API.
 // This should be called after parsing all flags and setting up googletest.
-void RunSpecifiedBenchmarks();
+void RunSpecifiedBenchmarks(
+    std::optional<std::string> default_spec = std::nullopt);
+
 }  // namespace xls
 
 #endif  // XLS_COMMON_BENCHMARK_SUPPORT_H_
