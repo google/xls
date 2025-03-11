@@ -1238,8 +1238,9 @@ TEST(XlsCApiTest, FnBuilder) {
   xls_function* function = nullptr;
   {
     char* error = nullptr;
-    ASSERT_TRUE(xls_function_builder_build_with_return_value(
-        fn_builder, result, &error, &function));
+    ASSERT_TRUE(xls_function_builder_build_with_return_value(fn_builder, result,
+                                                             &error, &function))
+        << "error: " << error;
     ASSERT_NE(function, nullptr);
     // Note: the built function is placed in the package's lifetime and so there
     // is no need to free it.
@@ -1346,6 +1347,175 @@ fn concat_and_slice(x: bits[16] id=1, y: bits[16] id=2) -> (bits[8], bits[8]) {
 }
 )";
   EXPECT_EQ(std::string_view{package_str}, kWant);
+}
+
+TEST(XlsCApiTest, FnBuilderBinops) {
+  struct TestCase {
+    std::string_view op_name;
+    bool is_comparison;
+    std::function<xls_bvalue*(xls_builder_base*, xls_bvalue*, xls_bvalue*,
+                              const char*)>
+        add_op;
+  };
+  const std::vector<TestCase> kBinops = {
+      {"add", false, xls_builder_base_add_add},    // +
+      {"umul", false, xls_builder_base_add_umul},  // *
+      {"smul", false, xls_builder_base_add_smul},  // *
+      {"sub", false, xls_builder_base_add_sub},    // -
+      {"and", false, xls_builder_base_add_and},    // &
+      {"nand", false, xls_builder_base_add_nand},  // !&
+      {"or", false, xls_builder_base_add_or},      // |
+      {"xor", false, xls_builder_base_add_xor},    // ^
+      {"eq", true, xls_builder_base_add_eq},       // ==
+      {"ne", true, xls_builder_base_add_ne},       // !=
+      {"ult", true, xls_builder_base_add_ult},     // unsigned <
+      {"ule", true, xls_builder_base_add_ule},     // unsigned <=
+      {"ugt", true, xls_builder_base_add_ugt},     // unsigned >
+      {"uge", true, xls_builder_base_add_uge},     // unsigned >=
+      {"slt", true, xls_builder_base_add_slt},     // signed <
+      {"sle", true, xls_builder_base_add_sle},     // signed <=
+      {"sgt", true, xls_builder_base_add_sgt},     // signed >
+      {"sge", true, xls_builder_base_add_sge},     // signed >=
+  };
+
+  for (const TestCase& test_case : kBinops) {
+    xls_package* package = xls_package_create("my_package");
+    absl::Cleanup free_package([=] { xls_package_free(package); });
+
+    xls_type* u8 = xls_package_get_bits_type(package, 8);
+
+    xls_function_builder* fn_builder =
+        xls_function_builder_create("binop", package, /*should_verify=*/true);
+    absl::Cleanup free_fn_builder(
+        [=] { xls_function_builder_free(fn_builder); });
+
+    xls_builder_base* fn_builder_base =
+        xls_function_builder_as_builder_base(fn_builder);
+
+    xls_bvalue* x = xls_function_builder_add_parameter(fn_builder, "x", u8);
+    absl::Cleanup free_x([=] { xls_bvalue_free(x); });
+    xls_bvalue* y = xls_function_builder_add_parameter(fn_builder, "y", u8);
+    absl::Cleanup free_y([=] { xls_bvalue_free(y); });
+
+    xls_bvalue* result = test_case.add_op(fn_builder_base, x, y, "result");
+    absl::Cleanup free_result([=] { xls_bvalue_free(result); });
+
+    xls_function* function = nullptr;
+    {
+      char* error = nullptr;
+      ASSERT_TRUE(xls_function_builder_build_with_return_value(
+          fn_builder, result, &error, &function))
+          << "error: " << error;
+      ASSERT_NE(function, nullptr);
+    }
+
+    // Convert to string and extract the one node from the body.
+    char* package_str = nullptr;
+    ASSERT_TRUE(xls_package_to_string(package, &package_str));
+    absl::Cleanup free_package_str([=] { xls_c_str_free(package_str); });
+    const std::string_view kWantTmpl =
+        R"(package my_package
+
+fn binop(x: bits[8] id=1, y: bits[8] id=2) -> bits[%d] {
+  ret result: bits[%d] = %s(x, y, id=3)
+}
+)";
+
+    int64_t result_bits = test_case.is_comparison ? 1 : 8;
+    EXPECT_THAT(std::string_view{package_str},
+                HasSubstr(absl::StrFormat(kWantTmpl, result_bits, result_bits,
+                                          test_case.op_name)));
+  }
+}
+
+TEST(XlsCApiTest, FnBuilderUnaryOps) {
+  struct TestCase {
+    // Operation name to expect in the IR text.
+    std::string_view op_name;
+    // The number of output result bits we expect for the op.
+    int64_t result_bits;
+    // Builder operation to add the unary operation.
+    std::function<xls_bvalue*(xls_builder_base*, xls_bvalue*, const char*)>
+        add_op;
+    // Any extra attributes we expect in the unary operation output IR text.
+    std::string extra_attributes;
+  };
+  const std::vector<TestCase> kUnaryOps = {
+      TestCase{"not", 8, xls_builder_base_add_not},
+      TestCase{"neg", 8, xls_builder_base_add_negate},
+      TestCase{"reverse", 8, xls_builder_base_add_reverse},
+      TestCase{"and_reduce", 1, xls_builder_base_add_and_reduce},
+      TestCase{"or_reduce", 1, xls_builder_base_add_or_reduce},
+      TestCase{"xor_reduce", 1, xls_builder_base_add_xor_reduce},
+      TestCase{"one_hot", 9,
+               [](xls_builder_base* builder, xls_bvalue* x, const char* name) {
+                 return xls_builder_base_add_one_hot(
+                     builder, x, /*lsb_is_priority=*/true, name);
+               },
+               ", lsb_prio=true"},
+      TestCase{"one_hot", 9,
+               [](xls_builder_base* builder, xls_bvalue* x, const char* name) {
+                 return xls_builder_base_add_one_hot(
+                     builder, x, /*lsb_is_priority=*/false, name);
+               },
+               ", lsb_prio=false"},
+      TestCase{"sign_ext", 16,
+               [](xls_builder_base* builder, xls_bvalue* x, const char* name) {
+                 return xls_builder_base_add_sign_extend(builder, x, 16, name);
+               },
+               ", new_bit_count=16"},
+      TestCase{"zero_ext", 16,
+               [](xls_builder_base* builder, xls_bvalue* x, const char* name) {
+                 return xls_builder_base_add_zero_extend(builder, x, 16, name);
+               },
+               ", new_bit_count=16"},
+  };
+
+  for (const TestCase& test_case : kUnaryOps) {
+    xls_package* package = xls_package_create("my_package");
+    absl::Cleanup free_package([=] { xls_package_free(package); });
+
+    xls_type* u8 = xls_package_get_bits_type(package, 8);
+
+    xls_function_builder* fn_builder =
+        xls_function_builder_create("unaryop", package, /*should_verify=*/true);
+    absl::Cleanup free_fn_builder(
+        [=] { xls_function_builder_free(fn_builder); });
+
+    xls_builder_base* fn_builder_base =
+        xls_function_builder_as_builder_base(fn_builder);
+
+    xls_bvalue* x = xls_function_builder_add_parameter(fn_builder, "x", u8);
+    absl::Cleanup free_x([=] { xls_bvalue_free(x); });
+
+    xls_bvalue* result = test_case.add_op(fn_builder_base, x, "result");
+    absl::Cleanup free_result([=] { xls_bvalue_free(result); });
+
+    xls_function* function = nullptr;
+    {
+      char* error = nullptr;
+      ASSERT_TRUE(xls_function_builder_build_with_return_value(
+          fn_builder, result, &error, &function))
+          << "error: " << error;
+      ASSERT_NE(function, nullptr);
+    }
+
+    // Convert to string and extract the one node from the body.
+    char* package_str = nullptr;
+    ASSERT_TRUE(xls_package_to_string(package, &package_str));
+    absl::Cleanup free_package_str([=] { xls_c_str_free(package_str); });
+    const std::string_view kWantTmpl =
+        R"(package my_package
+
+fn unaryop(x: bits[8] id=1) -> bits[%d] {
+  ret result: bits[%d] = %s(x%s, id=2)
+}
+)";
+    EXPECT_THAT(std::string_view{package_str},
+                HasSubstr(absl::StrFormat(
+                    kWantTmpl, test_case.result_bits, test_case.result_bits,
+                    test_case.op_name, test_case.extra_attributes)));
+  }
 }
 
 }  // namespace
