@@ -368,8 +368,7 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
       Node* node, internal::LeadingBits value,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
     XLS_RET_CHECK_LE(value.leading_signs(), node->BitCountOrDie())
-        << loc.function_name() << "@" << loc.file_name() << ":" << loc.line()
-        << " -> " << node;
+        << loc.file_name() << ":" << loc.line() << " -> " << node;
     return SetValue(
         node, LeadingBitsTree::CreateSingleElementTree(node->GetType(), value));
   }
