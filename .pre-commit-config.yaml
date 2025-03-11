@@ -21,3 +21,4 @@ repos:
         args: [
           --rcfile=.pylintrc
         ]
+
