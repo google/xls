@@ -194,73 +194,115 @@ fn test_min_normal_exp() {
     assert_eq(min_normal_exp<u32:11>(), s11:-1022);
 }
 
-// Returns the unbiased exponent. For normal numbers it is
-// `bexp - 2^(EXP_SZ - 1) + 1` and for subnormals it is, `2 - 2^(EXP_SZ-1)`. For
-// infinity and `NaN``, there are no guarantees, as the unbiased exponent has
-// no meaning in that case.
+// Returns the unbiased exponent.
+// For normal numbers it is `bexp - 2^(EXP_SZ - 1) + 1`.
+// For zero and subnormals, it is `1 - 2^(EXP_SZ-1)`.
+// For infinity and `NaN`, it is `-2^(EXP_SZ - 1)`.
 //
-// For example, for single precision normal numbers the unbiased exponent is
-// `bexp - 127`` and for subnormal numbers it is `-126`.
+// For example, for single precision IEEE numbers, the unbiased exponent is
+// `bexp - 127`, for zero and subnormal numbers it is `-127`, and for infinity
+// and `NaN` it is `-128`.
 pub fn unbiased_exponent<EXP_SZ: u32, FRACTION_SZ: u32>
     (f: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[EXP_SZ] {
-    const UEXP_SZ: u32 = EXP_SZ + u32:1;
-    const MASK_SZ: u32 = EXP_SZ - u32:1;
-    let bias = std::mask_bits<MASK_SZ>() as sN[UEXP_SZ];
-    let subnormal_exp = (sN[UEXP_SZ]:1 - bias) as sN[EXP_SZ];
-    let bexp = f.bexp as sN[UEXP_SZ];
-    let uexp = (bexp - bias) as sN[EXP_SZ];
-    if f.bexp == bits[EXP_SZ]:0 { subnormal_exp } else { uexp }
+    const EXP_SZ_MINUS_ONE: u32 = EXP_SZ - u32:1;
+    const BIAS = std::unsigned_max_value<EXP_SZ_MINUS_ONE>() as sN[EXP_SZ];
+    (f.bexp as sN[EXP_SZ]) - BIAS
 }
 
 #[test]
 fn unbiased_exponent_zero_test() {
+    let expected = s8:-127;
+    let actual = unbiased_exponent<u32:8, u32:23>(zero<u32:8, u32:23>(false));
+    assert_eq(actual, expected);
+
+    let actual = unbiased_exponent<u32:8, u32:23>(zero<u32:8, u32:23>(true));
+    assert_eq(actual, expected);
+}
+
+#[test]
+fn unbiased_exponent_one_test() {
     let expected = s8:0;
-    let actual = unbiased_exponent<u32:8, u32:23>(
-        APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:127, fraction: u23:0 });
+    let actual = unbiased_exponent<u32:8, u32:23>(one<u32:8, u32:23>(false));
+    assert_eq(actual, expected);
+
+    let actual = unbiased_exponent<u32:8, u32:23>(one<u32:8, u32:23>(true));
     assert_eq(actual, expected);
 }
 
 #[test]
-fn unbiased_exponent_positive_test() {
+fn unbiased_exponent_two_test() {
     let expected = s8:1;
-    let actual = unbiased_exponent<u32:8, u32:23>(
-        APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:128, fraction: u23:0 });
+    let two = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:128, fraction: u23:0 };
+    let actual = unbiased_exponent<u32:8, u32:23>(two);
+    assert_eq(actual, expected);
+
+    let minus_two = APFloat<u32:8, u32:23> { sign: u1:1, bexp: u8:128, fraction: u23:0 };
+    let actual = unbiased_exponent<u32:8, u32:23>(minus_two);
     assert_eq(actual, expected);
 }
 
 #[test]
-fn unbiased_exponent_negative_test() {
+fn unbiased_exponent_half_test() {
+    let half = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:126, fraction: u23:0 };
     let expected = s8:-1;
-    let actual = unbiased_exponent<u32:8, u32:23>(
-        APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:126, fraction: u23:0 });
+    let actual = unbiased_exponent<u32:8, u32:23>(half);
+    assert_eq(actual, expected);
+
+    let minus_half = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:126, fraction: u23:0 };
+    let actual = unbiased_exponent<u32:8, u32:23>(minus_half);
     assert_eq(actual, expected);
 }
 
 #[test]
 fn unbiased_exponent_subnormal_test() {
-    let expected = s8:-126;
+    let expected = s8:-127;
     let actual = unbiased_exponent<u32:8, u32:23>(
-        APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:0, fraction: u23:0 });
+        APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:0, fraction: u23:42 });
     assert_eq(actual, expected);
 }
 
-// Returns the biased exponent which is equal to `unbiased_exponent + 2^EXP_SZ - 1`
+#[test]
+fn unbiased_exponent_inf_nan_test() {
+    let expected = s8:-128;
+
+    // inf
+    let actual = unbiased_exponent(inf<u32:8, u32:23>(false));
+    assert_eq(actual, expected);
+
+    // -inf
+    let actual = unbiased_exponent(inf<u32:8, u32:23>(true));
+    assert_eq(actual, expected);
+
+    // NaN
+    let actual = unbiased_exponent(qnan<u32:8, u32:23>());
+    assert_eq(actual, expected);
+}
+
+// Returns the biased exponent which is equal to `unbiased_exponent + 2^(EXP_SZ - 1)`
 //
-// Since the function only takes as input the unbiased exponent, it cannot
-// distinguish between normal and subnormal numbers, as a result it assumes that
-// the input is the exponent for a normal number.
-pub fn bias<EXP_SZ: u32, FRACTION_SZ: u32>(unbiased_exponent: sN[EXP_SZ]) -> bits[EXP_SZ] {
-    const UEXP_SZ: u32 = EXP_SZ + u32:1;
-    const MASK_SZ: u32 = EXP_SZ - u32:1;
-    let bias = std::mask_bits<MASK_SZ>() as sN[UEXP_SZ];
-    let extended_unbiased_exp = unbiased_exponent as sN[UEXP_SZ];
-    (extended_unbiased_exp + bias) as bits[EXP_SZ]
+// Notice: Since the function only takes as input the unbiased exponent, it cannot
+// distinguish between zero and subnormal numbers, or NaN and infinity, respectively.
+pub fn bias<EXP_SZ: u32, FRACTION_SZ: u32>(unbiased_exponent: sN[EXP_SZ]) -> uN[EXP_SZ] {
+    const EXP_SZ_MINUS_ONE: u32 = EXP_SZ - u32:1;
+    const BIAS = std::unsigned_max_value<EXP_SZ_MINUS_ONE>() as sN[EXP_SZ];
+    (unbiased_exponent + BIAS) as uN[EXP_SZ]
 }
 
 #[test]
 fn bias_test() {
+    // normal.
     let expected = u8:127;
     let actual = bias<u32:8, u32:23>(s8:0);
+    assert_eq(expected, actual);
+
+    // Inf or NaN.
+    let expected = u8:255;
+    let actual = bias<u32:8, u32:23>(s8:-128);
+    assert_eq(expected, actual);
+
+    // Zero or subnormal.
+    let expected = u8:0;
+    let actual = bias<u32:8, u32:23>(s8:-127);
     assert_eq(expected, actual);
 }
 
