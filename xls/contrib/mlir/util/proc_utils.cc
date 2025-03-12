@@ -326,6 +326,27 @@ void populateBody(SprocOp body, scf::ForOp forOp, ValueRange invariants,
   }
 }
 
+// Splits the given invariants into two groups: those that must be captured and
+// those that can be cloned.
+//
+// The cloned values have a defining op that has zero arguments.
+std::pair<SmallVector<Value>, SmallVector<Value>> splitOutInvariantsToClone(
+    ValueRange invariants) {
+  SmallVector<Value> toKeep;
+  SmallVector<Value> toClone;
+  for (Value invariant : invariants) {
+    if (isa_and_present<arith::ConstantOp, xls::ConstantScalarOp>(
+            invariant.getDefiningOp())) {
+      toClone.push_back(invariant);
+    } else {
+      toKeep.push_back(invariant);
+    }
+  }
+  return {toKeep, toClone};
+}
+
+}  // namespace
+
 // Fixes up an SprocOp that may have SchanOps and SpawnOps in the `next` region.
 // Moves them into the `spawns` region, and adds arguments to the `next` region
 // for any SchanOps that are used outside of the `spawns` region.
@@ -350,8 +371,8 @@ void fixupSproc(SprocOp sproc) {
       }
       int insertPoint = terminator->getNumOperands();
       terminator->insertOperands(terminator->getNumOperands(), result);
-      Value arg = next.insertArgument(std::next(next.args_begin(), insertPoint),
-                                      result.getType(), result.getLoc());
+      Value arg =
+          next.insertArgument(insertPoint, result.getType(), result.getLoc());
       result.replaceUsesWithIf(arg, [&](OpOperand& opOperand) {
         return opOperand.getOwner()->getBlock() != &spawns;
       });
@@ -381,27 +402,6 @@ FailureOr<int64_t> getTripCount(scf::ForOp forOp) {
 
   return (upperBound - lowerBound).getLimitedValue();
 }
-
-// Splits the given invariants into two groups: those that must be captured and
-// those that can be cloned.
-//
-// The cloned values have a defining op that has zero arguments.
-std::pair<SmallVector<Value>, SmallVector<Value>> splitOutInvariantsToClone(
-    ValueRange invariants) {
-  SmallVector<Value> toKeep;
-  SmallVector<Value> toClone;
-  for (Value invariant : invariants) {
-    if (isa_and_present<arith::ConstantOp, xls::ConstantScalarOp>(
-            invariant.getDefiningOp())) {
-      toClone.push_back(invariant);
-    } else {
-      toKeep.push_back(invariant);
-    }
-  }
-  return {toKeep, toClone};
-}
-
-}  // namespace
 
 LogicalResult convertForOpToSprocCall(scf::ForOp forOp,
                                       SymbolTable& symbolTable) {

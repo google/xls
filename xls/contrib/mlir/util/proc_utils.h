@@ -15,9 +15,12 @@
 #ifndef XLS_CONTRIB_MLIR_UTIL_PROC_UTILS_H_
 #define XLS_CONTRIB_MLIR_UTIL_PROC_UTILS_H_
 
+#include <cstdint>
+
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/include/mlir/IR/SymbolTable.h"
 #include "mlir/include/mlir/Support/LLVM.h"
+#include "xls/contrib/mlir/IR/xls_ops.h"
 
 namespace mlir::xls {
 
@@ -92,6 +95,15 @@ namespace mlir::xls {
 // The SymbolTable is updated.
 LogicalResult convertForOpToSprocCall(scf::ForOp forOp,
                                       SymbolTable& symbolTable);
+
+// Fixes up an SprocOp that may have SchanOps and SpawnOps in the `next` region.
+// Moves them into the `spawns` region, and adds arguments to the `next` region
+// for any SchanOps that are used outside of the `spawns` region.
+void fixupSproc(SprocOp sproc);
+
+// Tries to determine the trip count of the ForOp. Returns failure if the trip
+// count cannot be determined.
+FailureOr<int64_t> getTripCount(scf::ForOp forOp);
 
 // Registers the test pass for extracting as a top level module.
 namespace test {
