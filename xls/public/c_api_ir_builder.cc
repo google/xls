@@ -44,6 +44,15 @@ struct xls_type* xls_package_get_bits_type(struct xls_package* package,
   return reinterpret_cast<xls_type*>(cpp_type);
 }
 
+struct xls_type* xls_package_get_array_type(struct xls_package* package,
+                                            struct xls_type* element_type,
+                                            int64_t size) {
+  auto* cpp_package = reinterpret_cast<xls::Package*>(package);
+  auto* cpp_element_type = reinterpret_cast<xls::Type*>(element_type);
+  auto* cpp_type = cpp_package->GetArrayType(size, cpp_element_type);
+  return reinterpret_cast<xls_type*>(cpp_type);
+}
+
 struct xls_type* xls_package_get_tuple_type(struct xls_package* package,
                                             struct xls_type** members,
                                             int64_t member_count) {
@@ -243,6 +252,42 @@ struct xls_bvalue* xls_builder_base_add_tuple_index(
   return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
 }
 
+struct xls_bvalue* xls_builder_base_add_array(struct xls_builder_base* builder,
+                                              struct xls_type* element_type,
+                                              struct xls_bvalue** elements,
+                                              int64_t element_count,
+                                              const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  auto* cpp_element_type = reinterpret_cast<xls::Type*>(element_type);
+  std::vector<xls::BValue> cpp_elements;
+  for (int64_t i = 0; i < element_count; ++i) {
+    cpp_elements.push_back(*reinterpret_cast<xls::BValue*>(elements[i]));
+  }
+  std::string_view cpp_name = name == nullptr ? "" : name;
+  xls::BValue bvalue =
+      cpp_builder->Array(absl::MakeConstSpan(cpp_elements), cpp_element_type,
+                         xls::SourceInfo(), cpp_name);
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_array_index(
+    struct xls_builder_base* builder, struct xls_bvalue* array,
+    struct xls_bvalue** indices, int64_t index_count, bool assumed_in_bounds,
+    const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  auto* cpp_array = reinterpret_cast<xls::BValue*>(array);
+  std::vector<xls::BValue> cpp_indices;
+  for (int64_t i = 0; i < index_count; ++i) {
+    cpp_indices.push_back(*reinterpret_cast<xls::BValue*>(indices[i]));
+  }
+  std::string_view cpp_name = name == nullptr ? "" : name;
+  xls::BValue bvalue = cpp_builder->ArrayIndex(
+      *cpp_array, cpp_indices, assumed_in_bounds, xls::SourceInfo(), cpp_name);
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
 struct xls_bvalue* xls_builder_base_add_bit_slice(
     struct xls_builder_base* builder, struct xls_bvalue* value, int64_t start,
     int64_t width, const char* name) {
@@ -251,6 +296,21 @@ struct xls_bvalue* xls_builder_base_add_bit_slice(
   std::string_view cpp_name = name == nullptr ? "" : name;
   xls::BValue bvalue = cpp_builder->BitSlice(*cpp_value, start, width,
                                              xls::SourceInfo(), cpp_name);
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_bit_slice_update(
+    struct xls_builder_base* builder, struct xls_bvalue* arg,
+    struct xls_bvalue* start, struct xls_bvalue* update_value,
+    const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  auto* cpp_arg = reinterpret_cast<xls::BValue*>(arg);
+  auto* cpp_start = reinterpret_cast<xls::BValue*>(start);
+  auto* cpp_update_value = reinterpret_cast<xls::BValue*>(update_value);
+  std::string_view cpp_name = name == nullptr ? "" : name;
+  xls::BValue bvalue = cpp_builder->BitSliceUpdate(
+      *cpp_arg, *cpp_start, *cpp_update_value, xls::SourceInfo(), cpp_name);
   auto* cpp_heap_bvalue = new xls::BValue(bvalue);
   return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
 }
@@ -283,6 +343,38 @@ struct xls_bvalue* xls_builder_base_add_concat(struct xls_builder_base* builder,
                                            xls::SourceInfo(), cpp_name);
   auto* cpp_heap_bvalue = new xls::BValue(bvalue);
   return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_shra(struct xls_builder_base* builder,
+                                             struct xls_bvalue* value,
+                                             struct xls_bvalue* amount,
+                                             const char* name) {
+  return xls_builder_base_binop(builder, xls::Op::kShra, value, amount, name);
+}
+
+struct xls_bvalue* xls_builder_base_add_shrl(struct xls_builder_base* builder,
+                                             struct xls_bvalue* value,
+                                             struct xls_bvalue* amount,
+                                             const char* name) {
+  return xls_builder_base_binop(builder, xls::Op::kShrl, value, amount, name);
+}
+
+struct xls_bvalue* xls_builder_base_add_shll(struct xls_builder_base* builder,
+                                             struct xls_bvalue* value,
+                                             struct xls_bvalue* amount,
+                                             const char* name) {
+  return xls_builder_base_binop(builder, xls::Op::kShll, value, amount, name);
+}
+
+struct xls_bvalue* xls_builder_base_add_nor(struct xls_builder_base* builder,
+                                            struct xls_bvalue* lhs,
+                                            struct xls_bvalue* rhs,
+                                            const char* name) {
+  return xls_builder_base_binop_generic(
+      builder, lhs, rhs, name,
+      [](xls::BuilderBase* builder, xls::BValue lhs, xls::BValue rhs,
+         xls::SourceInfo loc,
+         std::string_view name) { return builder->Nor(lhs, rhs, loc, name); });
 }
 
 struct xls_bvalue* xls_builder_base_add_add(struct xls_builder_base* builder,
@@ -563,6 +655,180 @@ struct xls_bvalue* xls_builder_base_add_zero_extend(
                       xls::SourceInfo loc, std::string_view name) {
         return builder->ZeroExtend(value, new_bit_count, loc, name);
       });
+}
+
+xls_type* xls_builder_base_get_type(struct xls_builder_base* builder,
+                                    struct xls_bvalue* value) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  auto* cpp_value = reinterpret_cast<xls::BValue*>(value);
+  xls::Type* cpp_type = cpp_builder->GetType(*cpp_value);
+  return reinterpret_cast<xls_type*>(cpp_type);
+}
+
+bool xls_builder_base_get_last_value(struct xls_builder_base* builder,
+                                     char** error_out,
+                                     struct xls_bvalue** value_out) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+
+  if (absl::Status error = cpp_builder->GetError(); !error.ok()) {
+    *error_out = xls::ToOwnedCString(error.ToString());
+    return false;
+  }
+
+  absl::StatusOr<xls::BValue> cpp_last_value = cpp_builder->GetLastValue();
+  if (!cpp_last_value.ok()) {
+    *error_out = xls::ToOwnedCString(cpp_last_value.status().ToString());
+    return false;
+  }
+  auto* cpp_bvalue = new xls::BValue(*cpp_last_value);
+  *value_out = reinterpret_cast<xls_bvalue*>(cpp_bvalue);
+  return true;
+}
+
+struct xls_type* xls_package_get_token_type(struct xls_package* package) {
+  auto* cpp_package = reinterpret_cast<xls::Package*>(package);
+  auto* cpp_type = cpp_package->GetTokenType();
+  return reinterpret_cast<xls_type*>(cpp_type);
+}
+
+struct xls_bvalue* xls_builder_base_add_select(struct xls_builder_base* builder,
+                                               struct xls_bvalue* selector,
+                                               struct xls_bvalue** cases,
+                                               int64_t case_count,
+                                               struct xls_bvalue* default_value,
+                                               const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  xls::BValue cpp_selector = *reinterpret_cast<xls::BValue*>(selector);
+  std::vector<xls::BValue> cpp_cases;
+  for (int64_t i = 0; i < case_count; ++i) {
+    cpp_cases.push_back(*reinterpret_cast<xls::BValue*>(cases[i]));
+  }
+  std::optional<xls::BValue> cpp_default = std::nullopt;
+  if (default_value != nullptr) {
+    cpp_default = *reinterpret_cast<xls::BValue*>(default_value);
+  }
+  xls::BValue bvalue = cpp_builder->Select(cpp_selector, cpp_cases, cpp_default,
+                                           xls::SourceInfo(), name ? name : "");
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_clz(struct xls_builder_base* builder,
+                                            struct xls_bvalue* value,
+                                            const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  xls::BValue cpp_value = *reinterpret_cast<xls::BValue*>(value);
+  xls::BValue bvalue =
+      cpp_builder->Clz(cpp_value, xls::SourceInfo(), name ? name : "");
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_ctz(struct xls_builder_base* builder,
+                                            struct xls_bvalue* value,
+                                            const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  xls::BValue cpp_value = *reinterpret_cast<xls::BValue*>(value);
+  xls::BValue bvalue =
+      cpp_builder->Ctz(cpp_value, xls::SourceInfo(), name ? name : "");
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_after_all(
+    struct xls_builder_base* builder, struct xls_bvalue** dependencies,
+    int64_t dependency_count, const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  std::vector<xls::BValue> cpp_deps;
+  for (int64_t i = 0; i < dependency_count; ++i) {
+    cpp_deps.push_back(*reinterpret_cast<xls::BValue*>(dependencies[i]));
+  }
+  xls::BValue bvalue =
+      cpp_builder->AfterAll(cpp_deps, xls::SourceInfo(), name ? name : "");
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_array_slice(
+    struct xls_builder_base* builder, struct xls_bvalue* array,
+    struct xls_bvalue* start, int64_t width, const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  xls::BValue cpp_array = *reinterpret_cast<xls::BValue*>(array);
+  xls::BValue cpp_start = *reinterpret_cast<xls::BValue*>(start);
+  xls::BValue bvalue = cpp_builder->ArraySlice(
+      cpp_array, cpp_start, width, xls::SourceInfo(), name ? name : "");
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_array_update(
+    struct xls_builder_base* builder, struct xls_bvalue* array,
+    struct xls_bvalue* update_value, struct xls_bvalue** indices,
+    int64_t index_count, bool assumed_in_bounds, const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  xls::BValue cpp_array = *reinterpret_cast<xls::BValue*>(array);
+  xls::BValue cpp_update = *reinterpret_cast<xls::BValue*>(update_value);
+  std::vector<xls::BValue> cpp_indices;
+  for (int64_t i = 0; i < index_count; ++i) {
+    cpp_indices.push_back(*reinterpret_cast<xls::BValue*>(indices[i]));
+  }
+  xls::BValue bvalue = cpp_builder->ArrayUpdate(
+      cpp_array, cpp_update, cpp_indices, assumed_in_bounds, xls::SourceInfo(),
+      name ? name : "");
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_array_concat(
+    struct xls_builder_base* builder, struct xls_bvalue** arrays,
+    int64_t array_count, const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  std::vector<xls::BValue> cpp_arrays;
+  for (int64_t i = 0; i < array_count; ++i) {
+    cpp_arrays.push_back(*reinterpret_cast<xls::BValue*>(arrays[i]));
+  }
+  xls::BValue bvalue =
+      cpp_builder->ArrayConcat(cpp_arrays, xls::SourceInfo(), name ? name : "");
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_identity(
+    struct xls_builder_base* builder, struct xls_bvalue* value,
+    const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  xls::BValue cpp_value = *reinterpret_cast<xls::BValue*>(value);
+  xls::BValue bvalue =
+      cpp_builder->Identity(cpp_value, xls::SourceInfo(), name ? name : "");
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_encode(struct xls_builder_base* builder,
+                                               struct xls_bvalue* value,
+                                               const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  xls::BValue cpp_value = *reinterpret_cast<xls::BValue*>(value);
+  xls::BValue bvalue =
+      cpp_builder->Encode(cpp_value, xls::SourceInfo(), name ? name : "");
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
+}
+
+struct xls_bvalue* xls_builder_base_add_decode(struct xls_builder_base* builder,
+                                               struct xls_bvalue* value,
+                                               int64_t* width,
+                                               const char* name) {
+  auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
+  xls::BValue cpp_value = *reinterpret_cast<xls::BValue*>(value);
+  std::optional<int64_t> cpp_width = std::nullopt;
+  if (width != nullptr) {
+    cpp_width = *width;
+  }
+  xls::BValue bvalue = cpp_builder->Decode(cpp_value, cpp_width,
+                                           xls::SourceInfo(), name ? name : "");
+  auto* cpp_heap_bvalue = new xls::BValue(bvalue);
+  return reinterpret_cast<xls_bvalue*>(cpp_heap_bvalue);
 }
 
 }  // extern "C"

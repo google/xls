@@ -320,11 +320,14 @@ TEST(XlsCApiTest, FlattenBitsValueToBits) {
   absl::Cleanup free_flattened([flattened] { xls_bits_free(flattened); });
 
   // The flattened bits should be the same as the original bits.
+  char* value_bits_str = xls_bits_to_debug_string(value_bits);
+  absl::Cleanup free_value_bits_str(
+      [=] { xls_c_str_free(value_bits_str); });  // Ensure free
+  char* flattened_str = xls_bits_to_debug_string(flattened);
+  absl::Cleanup free_flattened_str(
+      [=] { xls_c_str_free(flattened_str); });  // Ensure free
   EXPECT_TRUE(xls_bits_eq(value_bits, flattened))
-      << "value_bits: "
-      << ToOwnedCppString(xls_bits_to_debug_string(value_bits))
-      << "\nflattened:  "
-      << ToOwnedCppString(xls_bits_to_debug_string(flattened));
+      << "value_bits: " << value_bits_str << "\nflattened:  " << flattened_str;
 }
 
 TEST(XlsCApiTest, FlattenTupleValueToBits) {
@@ -375,10 +378,14 @@ TEST(XlsCApiTest, FlattenTupleValueToBits) {
   absl::Cleanup free_want_bits([want_bits] { xls_bits_free(want_bits); });
 
   // Check they're equivalent.
+  char* flattened_str = xls_bits_to_debug_string(flattened);
+  absl::Cleanup free_flattened_str(
+      [=] { xls_c_str_free(flattened_str); });  // Ensure free
+  char* want_bits_str = xls_bits_to_debug_string(want_bits);
+  absl::Cleanup free_want_bits_str(
+      [=] { xls_c_str_free(want_bits_str); });  // Ensure free
   EXPECT_TRUE(xls_bits_eq(flattened, want_bits))
-      << "flattened: " << ToOwnedCppString(xls_bits_to_debug_string(flattened))
-      << "\nwant_bits: "
-      << ToOwnedCppString(xls_bits_to_debug_string(want_bits));
+      << "flattened: " << flattened_str << "\nwant_bits: " << want_bits_str;
 }
 
 TEST(XlsCApiTest, MakeArrayValue) {
@@ -518,7 +525,10 @@ TEST(XlsCApiTest, MakeSbitsDoesNotFit) {
                         "signed datatype"));
 
   ASSERT_TRUE(xls_bits_make_sbits(2, -2, &error_out, &bits));
-  EXPECT_EQ(ToOwnedCppString(xls_bits_to_debug_string(bits)), "0b10");
+  char* bits_str = xls_bits_to_debug_string(bits);
+  absl::Cleanup free_bits_str(
+      [=] { xls_c_str_free(bits_str); });  // Ensure free
+  EXPECT_EQ(std::string(bits_str), "0b10");
   absl::Cleanup free_bits([bits] { xls_bits_free(bits); });
 }
 
@@ -536,10 +546,14 @@ TEST(XlsCApiTest, FlattenArrayValueToBits) {
   ASSERT_TRUE(xls_bits_make_ubits(6, 0b111000, &error_out, &want_bits));
   absl::Cleanup free_want_bits([want_bits] { xls_bits_free(want_bits); });
 
+  char* flattened_str = xls_bits_to_debug_string(flattened);
+  absl::Cleanup free_flattened_str(
+      [=] { xls_c_str_free(flattened_str); });  // Ensure free
+  char* want_bits_str = xls_bits_to_debug_string(want_bits);
+  absl::Cleanup free_want_bits_str(
+      [=] { xls_c_str_free(want_bits_str); });  // Ensure free
   EXPECT_TRUE(xls_bits_eq(flattened, want_bits))
-      << "flattened: " << ToOwnedCppString(xls_bits_to_debug_string(flattened))
-      << "\nwant_bits: "
-      << ToOwnedCppString(xls_bits_to_debug_string(want_bits));
+      << "flattened: " << flattened_str << "\nwant_bits: " << want_bits_str;
 }
 
 TEST(XlsCApiTest, MakeSignedBits) {
@@ -1607,6 +1621,599 @@ fn unaryop(x: bits[8] id=1) -> bits[%d] {
                     kWantTmpl, test_case.result_bits, test_case.result_bits,
                     test_case.op_name, test_case.extra_attributes)));
   }
+}
+
+TEST(XlsCApiTest, FnBuilderArrayOps) {
+  xls_package* package = xls_package_create("my_package");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_type* u8 = xls_package_get_bits_type(package, 8);
+  xls_type* u32 = xls_package_get_bits_type(package, 32);
+  xls_type* u8_arr3 = xls_package_get_array_type(package, u8, 3);
+  xls_type* u8_arr6 = xls_package_get_array_type(package, u8, 6);
+
+  xls_function_builder* fn_builder =
+      xls_function_builder_create("array_ops", package, /*should_verify=*/true);
+  absl::Cleanup free_fn_builder([=] { xls_function_builder_free(fn_builder); });
+
+  xls_builder_base* fn_builder_base =
+      xls_function_builder_as_builder_base(fn_builder);
+
+  std::vector<xls_bvalue*> bvalues_to_free;
+  absl::Cleanup free_bvalues([&] {
+    for (xls_bvalue* b : bvalues_to_free) {
+      xls_bvalue_free(b);
+    }
+  });
+
+  xls_bvalue* x = xls_function_builder_add_parameter(fn_builder, "x", u8_arr3);
+  bvalues_to_free.push_back(x);
+  xls_bvalue* y = xls_function_builder_add_parameter(fn_builder, "y", u8_arr3);
+  bvalues_to_free.push_back(y);
+  xls_bvalue* idx = xls_function_builder_add_parameter(fn_builder, "idx", u32);
+  bvalues_to_free.push_back(idx);
+  xls_bvalue* update_val =
+      xls_function_builder_add_parameter(fn_builder, "update_val", u8);
+  bvalues_to_free.push_back(update_val);
+
+  // Array literal: lit = u8[3]:[1, 2, 3]
+  xls_bvalue* lit = nullptr;
+  {
+    char* error = nullptr;
+    xls_value* v1 = nullptr;
+    ASSERT_TRUE(xls_value_make_ubits(8, 1, &error, &v1));
+    absl::Cleanup free_v1([=] { xls_value_free(v1); });
+    xls_value* v2 = nullptr;
+    ASSERT_TRUE(xls_value_make_ubits(8, 2, &error, &v2));
+    absl::Cleanup free_v2([=] { xls_value_free(v2); });
+    xls_value* v3 = nullptr;
+    ASSERT_TRUE(xls_value_make_ubits(8, 3, &error, &v3));
+    absl::Cleanup free_v3([=] { xls_value_free(v3); });
+
+    xls_value* elements[] = {v1, v2, v3};
+    xls_value* arr_val = nullptr;
+    ASSERT_TRUE(
+        xls_value_make_array(/*element_count=*/3, elements, &error, &arr_val));
+    absl::Cleanup free_arr_val([=] { xls_value_free(arr_val); });
+
+    lit = xls_builder_base_add_literal(fn_builder_base, arr_val, "lit");
+    bvalues_to_free.push_back(lit);
+  }
+
+  // Index into x: x_idx = x[idx]
+  xls_bvalue* indices_idx[] = {idx};
+  xls_bvalue* x_idx = xls_builder_base_add_array_index(
+      fn_builder_base, x, indices_idx, 1, /*assumed_in_bounds=*/true, "x_idx");
+  bvalues_to_free.push_back(x_idx);
+
+  // Slice x: x_slice = x[idx: width 2]
+  xls_bvalue* x_slice =
+      xls_builder_base_add_array_slice(fn_builder_base, x, idx, 2, "x_slice");
+  bvalues_to_free.push_back(x_slice);
+
+  // Update x: x_upd = x[idx: update_val]
+  xls_bvalue* indices_upd[] = {idx};
+  xls_bvalue* x_upd = xls_builder_base_add_array_update(
+      fn_builder_base, x, update_val, indices_upd, 1,
+      /*assumed_in_bounds=*/true, "x_upd");
+  bvalues_to_free.push_back(x_upd);
+
+  // Concat x and y: concat = x ++ y
+  xls_bvalue* concat_ops[] = {x, y};
+  xls_bvalue* concat_arr = xls_builder_base_add_array_concat(
+      fn_builder_base, concat_ops, 2, "concat_arr");
+  bvalues_to_free.push_back(concat_arr);
+
+  // Return tuple
+  xls_type* tuple_members[] = {u8_arr3, u8,
+                               xls_package_get_array_type(package, u8, 2),
+                               u8_arr3, u8_arr6};
+  xls_bvalue* return_elts[] = {lit, x_idx, x_slice, x_upd, concat_arr};
+  xls_bvalue* result =
+      xls_builder_base_add_tuple(fn_builder_base, return_elts, 5, "result");
+  bvalues_to_free.push_back(result);
+
+  xls_function* function = nullptr;
+  {
+    char* error = nullptr;
+    ASSERT_TRUE(xls_function_builder_build_with_return_value(fn_builder, result,
+                                                             &error, &function))
+        << "error: " << error;
+    ASSERT_NE(function, nullptr);
+  }
+
+  char* package_str = nullptr;
+  ASSERT_TRUE(xls_package_to_string(package, &package_str));
+  absl::Cleanup free_package_str([=] { xls_c_str_free(package_str); });
+  const std::string_view kWant = R"(package my_package
+
+fn array_ops(x: bits[8][3] id=1, y: bits[8][3] id=2, idx: bits[32] id=3, update_val: bits[8] id=4) -> (bits[8][3], bits[8], bits[8][2], bits[8][3], bits[8][6]) {
+  lit: bits[8][3] = literal(value=[1, 2, 3], id=5)
+  x_idx: bits[8] = array_index(x, indices=[idx], assumed_in_bounds=true, id=6)
+  x_slice: bits[8][2] = array_slice(x, idx, width=2, id=7)
+  x_upd: bits[8][3] = array_update(x, update_val, indices=[idx], assumed_in_bounds=true, id=8)
+  concat_arr: bits[8][6] = array_concat(x, y, id=9)
+  ret result: (bits[8][3], bits[8], bits[8][2], bits[8][3], bits[8][6]) = tuple(lit, x_idx, x_slice, x_upd, concat_arr, id=10)
+}
+)";
+  EXPECT_EQ(std::string_view{package_str}, kWant);
+}
+
+TEST(XlsCApiTest, FnBuilderShiftOps) {
+  xls_package* package = xls_package_create("my_package");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_type* u8 = xls_package_get_bits_type(package, 8);
+  xls_type* u3 = xls_package_get_bits_type(package, 3);
+
+  xls_function_builder* fn_builder =
+      xls_function_builder_create("shift_ops", package, /*should_verify=*/true);
+  absl::Cleanup free_fn_builder([=] { xls_function_builder_free(fn_builder); });
+
+  xls_builder_base* fn_builder_base =
+      xls_function_builder_as_builder_base(fn_builder);
+
+  std::vector<xls_bvalue*> bvalues_to_free;
+  absl::Cleanup free_bvalues([&] {
+    for (xls_bvalue* b : bvalues_to_free) {
+      xls_bvalue_free(b);
+    }
+  });
+
+  xls_bvalue* x = xls_function_builder_add_parameter(fn_builder, "x", u8);
+  bvalues_to_free.push_back(x);
+  xls_bvalue* amt = xls_function_builder_add_parameter(fn_builder, "amt", u3);
+  bvalues_to_free.push_back(amt);
+
+  xls_bvalue* shra_op =
+      xls_builder_base_add_shra(fn_builder_base, x, amt, "shra_op");
+  bvalues_to_free.push_back(shra_op);
+  xls_bvalue* shrl_op =
+      xls_builder_base_add_shrl(fn_builder_base, x, amt, "shrl_op");
+  bvalues_to_free.push_back(shrl_op);
+  xls_bvalue* shll_op =
+      xls_builder_base_add_shll(fn_builder_base, x, amt, "shll_op");
+  bvalues_to_free.push_back(shll_op);
+
+  xls_type* tuple_members[] = {u8, u8, u8};
+  xls_bvalue* return_elts[] = {shra_op, shrl_op, shll_op};
+  xls_bvalue* result =
+      xls_builder_base_add_tuple(fn_builder_base, return_elts, 3, "result");
+  bvalues_to_free.push_back(result);
+
+  xls_function* function = nullptr;
+  {
+    char* error = nullptr;
+    ASSERT_TRUE(xls_function_builder_build_with_return_value(fn_builder, result,
+                                                             &error, &function))
+        << "error: " << error;
+    ASSERT_NE(function, nullptr);
+  }
+
+  char* package_str = nullptr;
+  ASSERT_TRUE(xls_package_to_string(package, &package_str));
+  absl::Cleanup free_package_str([=] { xls_c_str_free(package_str); });
+  const std::string_view kWant = R"(package my_package
+
+fn shift_ops(x: bits[8] id=1, amt: bits[3] id=2) -> (bits[8], bits[8], bits[8]) {
+  shra_op: bits[8] = shra(x, amt, id=3)
+  shrl_op: bits[8] = shrl(x, amt, id=4)
+  shll_op: bits[8] = shll(x, amt, id=5)
+  ret result: (bits[8], bits[8], bits[8]) = tuple(shra_op, shrl_op, shll_op, id=6)
+}
+)";
+  EXPECT_EQ(std::string_view{package_str}, kWant);
+}
+
+TEST(XlsCApiTest, FnBuilderBitwiseUpdateAndNor) {
+  xls_package* package = xls_package_create("my_package");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_type* u16 = xls_package_get_bits_type(package, 16);
+  xls_type* u8 = xls_package_get_bits_type(package, 8);
+  xls_type* u4 = xls_package_get_bits_type(package, 4);
+
+  xls_function_builder* fn_builder = xls_function_builder_create(
+      "bitwise_update_nor", package, /*should_verify=*/true);
+  absl::Cleanup free_fn_builder([=] { xls_function_builder_free(fn_builder); });
+
+  xls_builder_base* fn_builder_base =
+      xls_function_builder_as_builder_base(fn_builder);
+
+  std::vector<xls_bvalue*> bvalues_to_free;
+  absl::Cleanup free_bvalues([&] {
+    for (xls_bvalue* b : bvalues_to_free) {
+      xls_bvalue_free(b);
+    }
+  });
+
+  xls_bvalue* x = xls_function_builder_add_parameter(fn_builder, "x", u16);
+  bvalues_to_free.push_back(x);
+  xls_bvalue* start =
+      xls_function_builder_add_parameter(fn_builder, "start", u4);
+  bvalues_to_free.push_back(start);
+  xls_bvalue* update =
+      xls_function_builder_add_parameter(fn_builder, "update", u8);
+  bvalues_to_free.push_back(update);
+  xls_bvalue* y = xls_function_builder_add_parameter(fn_builder, "y", u16);
+  bvalues_to_free.push_back(y);
+
+  xls_bvalue* bsu = xls_builder_base_add_bit_slice_update(fn_builder_base, x,
+                                                          start, update, "bsu");
+  bvalues_to_free.push_back(bsu);
+
+  xls_bvalue* nor_op =
+      xls_builder_base_add_nor(fn_builder_base, x, y, "nor_op");
+  bvalues_to_free.push_back(nor_op);
+
+  xls_type* tuple_members[] = {u16, u16};
+  xls_bvalue* return_elts[] = {bsu, nor_op};
+  xls_bvalue* result =
+      xls_builder_base_add_tuple(fn_builder_base, return_elts, 2, "result");
+  bvalues_to_free.push_back(result);
+
+  xls_function* function = nullptr;
+  char* error = nullptr;
+  ASSERT_TRUE(xls_function_builder_build_with_return_value(fn_builder, result,
+                                                           &error, &function))
+      << "error: " << error;
+  ASSERT_NE(function, nullptr);
+
+  // Prepare inputs
+  // x = 0b1111_0000_1111_0000 = 0xF0F0
+  // start = 4
+  // update = 0b_1010_1010 = 0xAA
+  // y = 0b0000_1111_0000_1111 = 0x0F0F
+  xls_value* x_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(16, 0xF0F0, &error, &x_v));
+  absl::Cleanup c_x([=] { xls_value_free(x_v); });
+  xls_value* start_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(4, 4, &error, &start_v));
+  absl::Cleanup c_start([=] { xls_value_free(start_v); });
+  xls_value* update_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 0xAA, &error, &update_v));
+  absl::Cleanup c_update([=] { xls_value_free(update_v); });
+  xls_value* y_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(16, 0x0F0F, &error, &y_v));
+  absl::Cleanup c_y([=] { xls_value_free(y_v); });
+
+  std::vector<xls_value*> args = {x_v, start_v, update_v, y_v};
+
+  // Run Interpreter
+  xls_value* actual_result = nullptr;
+  ASSERT_TRUE(xls_interpret_function(function, args.size(), args.data(), &error,
+                                     &actual_result))
+      << "error: " << error;
+  absl::Cleanup free_actual_result([=] { xls_value_free(actual_result); });
+
+  // Prepare expected output
+  // bsu = x with bits[11:4] replaced by update
+  // x     = 1111_0000_1111_0000
+  // update=       1010_1010
+  // result= 1111_1010_1010_0000 = 0xFAAF
+  xls_value* exp_bsu = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(16, 0xFAA0, &error, &exp_bsu));
+  absl::Cleanup c_exp_bsu([=] { xls_value_free(exp_bsu); });
+  // nor = !(x | y)
+  // x | y = 0xF0F0 | 0x0F0F = 0xFFF
+  // !(0xFFF) = 0x0000
+  xls_value* exp_nor = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(16, 0x0000, &error, &exp_nor));
+  absl::Cleanup c_exp_nor([=] { xls_value_free(exp_nor); });
+
+  xls_value* expected_elts[] = {exp_bsu, exp_nor};
+  xls_value* expected_result = xls_value_make_tuple(2, expected_elts);
+  absl::Cleanup free_expected_result([=] { xls_value_free(expected_result); });
+
+  // Compare results
+  char* actual_str = nullptr;
+  char* expected_str = nullptr;
+  ASSERT_TRUE(xls_value_to_string(actual_result, &actual_str));
+  absl::Cleanup free_actual_str([=] { xls_c_str_free(actual_str); });
+  ASSERT_TRUE(xls_value_to_string(expected_result, &expected_str));
+  absl::Cleanup free_expected_str([=] { xls_c_str_free(expected_str); });
+  EXPECT_TRUE(xls_value_eq(actual_result, expected_result))
+      << "Actual: " << actual_str << "\\nExpected: " << expected_str;
+}
+
+TEST(XlsCApiTest, FnBuilderMiscOps) {
+  xls_package* package = xls_package_create("my_package");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_type* u2 = xls_package_get_bits_type(package, 2);
+  xls_type* u4 = xls_package_get_bits_type(package, 4);
+  xls_type* u8 = xls_package_get_bits_type(package, 8);
+  xls_type* u16 = xls_package_get_bits_type(package, 16);
+
+  xls_function_builder* fn_builder =
+      xls_function_builder_create("misc_ops", package, /*should_verify=*/true);
+  absl::Cleanup free_fn_builder([=] { xls_function_builder_free(fn_builder); });
+
+  xls_builder_base* fn_builder_base =
+      xls_function_builder_as_builder_base(fn_builder);
+
+  std::vector<xls_bvalue*> bvalues_to_free;
+  absl::Cleanup free_bvalues([&] {
+    for (xls_bvalue* b : bvalues_to_free) {
+      xls_bvalue_free(b);
+    }
+  });
+
+  // Parameters
+  xls_bvalue* sel = xls_function_builder_add_parameter(fn_builder, "sel", u2);
+  bvalues_to_free.push_back(sel);
+  xls_bvalue* c0 = xls_function_builder_add_parameter(fn_builder, "c0", u8);
+  bvalues_to_free.push_back(c0);
+  xls_bvalue* c1 = xls_function_builder_add_parameter(fn_builder, "c1", u8);
+  bvalues_to_free.push_back(c1);
+  xls_bvalue* c2 = xls_function_builder_add_parameter(fn_builder, "c2", u8);
+  bvalues_to_free.push_back(c2);
+  xls_bvalue* c3 = xls_function_builder_add_parameter(fn_builder, "c3", u8);
+  bvalues_to_free.push_back(c3);
+  xls_bvalue* z_arg =
+      xls_function_builder_add_parameter(fn_builder, "z_arg", u16);
+  bvalues_to_free.push_back(z_arg);
+  xls_bvalue* enc_arg =
+      xls_function_builder_add_parameter(fn_builder, "enc_arg", u4);
+  bvalues_to_free.push_back(enc_arg);
+  xls_bvalue* dec_arg =
+      xls_function_builder_add_parameter(fn_builder, "dec_arg", u4);
+  bvalues_to_free.push_back(dec_arg);
+  xls_bvalue* id_arg =
+      xls_function_builder_add_parameter(fn_builder, "id_arg", u8);
+  bvalues_to_free.push_back(id_arg);
+
+  // Operations
+  xls_bvalue* cases[] = {c0, c1, c2, c3};
+  xls_bvalue* select_op = xls_builder_base_add_select(
+      fn_builder_base, sel, cases, 4, /*default_value=*/nullptr, "select_op");
+  bvalues_to_free.push_back(select_op);
+
+  xls_bvalue* clz_op =
+      xls_builder_base_add_clz(fn_builder_base, z_arg, "clz_op");
+  bvalues_to_free.push_back(clz_op);
+  xls_bvalue* ctz_op =
+      xls_builder_base_add_ctz(fn_builder_base, z_arg, "ctz_op");
+  bvalues_to_free.push_back(ctz_op);
+
+  xls_bvalue* encode_op =
+      xls_builder_base_add_encode(fn_builder_base, enc_arg, "encode_op");
+  bvalues_to_free.push_back(encode_op);
+
+  xls_bvalue* decode_op = xls_builder_base_add_decode(fn_builder_base, dec_arg,
+                                                      nullptr, "decode_op");
+  bvalues_to_free.push_back(decode_op);
+  int64_t decode_width = 8;
+  xls_bvalue* decode_op_wide = xls_builder_base_add_decode(
+      fn_builder_base, dec_arg, &decode_width, "decode_op_wide");
+  bvalues_to_free.push_back(decode_op_wide);
+
+  xls_bvalue* id_op =
+      xls_builder_base_add_identity(fn_builder_base, id_arg, "id_op");
+  bvalues_to_free.push_back(id_op);
+
+  // Result tuple
+  xls_bvalue* return_elts[] = {select_op, clz_op,         ctz_op, encode_op,
+                               decode_op, decode_op_wide, id_op};
+  xls_bvalue* result =
+      xls_builder_base_add_tuple(fn_builder_base, return_elts, 7, "result");
+  bvalues_to_free.push_back(result);
+
+  // Build function
+  xls_function* function = nullptr;
+  char* error = nullptr;
+  ASSERT_TRUE(xls_function_builder_build_with_return_value(fn_builder, result,
+                                                           &error, &function))
+      << "error: " << error;
+  ASSERT_NE(function, nullptr);
+
+  // Prepare inputs
+  xls_value* sel_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(2, 1, &error, &sel_v));
+  absl::Cleanup c_sel([=] { xls_value_free(sel_v); });
+  xls_value* c0_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 10, &error, &c0_v));
+  absl::Cleanup c_c0([=] { xls_value_free(c0_v); });
+  xls_value* c1_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 20, &error, &c1_v));
+  absl::Cleanup c_c1([=] { xls_value_free(c1_v); });
+  xls_value* c2_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 30, &error, &c2_v));
+  absl::Cleanup c_c2([=] { xls_value_free(c2_v); });
+  xls_value* c3_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 40, &error, &c3_v));
+  absl::Cleanup c_c3([=] { xls_value_free(c3_v); });
+  xls_value* z_arg_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(16, 0b0000101100001000, &error, &z_arg_v));
+  absl::Cleanup c_z_arg([=] { xls_value_free(z_arg_v); });
+  xls_value* enc_arg_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(4, 0b1000, &error, &enc_arg_v));
+  absl::Cleanup c_enc_arg([=] { xls_value_free(enc_arg_v); });
+  xls_value* dec_arg_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(4, 0b0100, &error, &dec_arg_v));
+  absl::Cleanup c_dec_arg([=] { xls_value_free(dec_arg_v); });
+  xls_value* id_arg_v = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 55, &error, &id_arg_v));
+  absl::Cleanup c_id_arg([=] { xls_value_free(id_arg_v); });
+
+  std::vector<xls_value*> args = {sel_v,   c0_v,      c1_v,      c2_v,    c3_v,
+                                  z_arg_v, enc_arg_v, dec_arg_v, id_arg_v};
+
+  // Run Interpreter
+  xls_value* actual_result = nullptr;
+  ASSERT_TRUE(xls_interpret_function(function, args.size(), args.data(), &error,
+                                     &actual_result))
+      << "error: " << error;
+  absl::Cleanup free_actual_result([=] { xls_value_free(actual_result); });
+
+  // Prepare expected output
+  xls_value* exp_sel = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 20, &error, &exp_sel));
+  absl::Cleanup c_exp_sel([=] { xls_value_free(exp_sel); });  // sel=1 -> c1_v
+  xls_value* exp_clz = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(16, 4, &error, &exp_clz));
+  absl::Cleanup c_exp_clz([=] {
+    xls_value_free(exp_clz);
+  });  // clz(0b00001...) = 4. Actual type seems to be input width.
+  xls_value* exp_ctz = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(16, 3, &error, &exp_ctz));
+  absl::Cleanup c_exp_ctz([=] {
+    xls_value_free(exp_ctz);
+  });  // ctz(...01000) = 3. Actual type seems to be input width.
+  xls_value* exp_enc = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(2, 3, &error, &exp_enc));
+  absl::Cleanup c_exp_enc(
+      [=] { xls_value_free(exp_enc); });  // encode(0b1000) = 3. ceil(log2(4))=2
+  xls_value* exp_dec = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(16, 16, &error, &exp_dec));
+  absl::Cleanup c_exp_dec([=] {
+    xls_value_free(exp_dec);
+  });  // decode(bits[4]:4) = 16 (0b10000). default width 2^4=16
+  xls_value* exp_dec_w = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 16, &error, &exp_dec_w));
+  absl::Cleanup c_exp_dec_w([=] {
+    xls_value_free(exp_dec_w);
+  });  // decode(bits[4]:4, width=8) = 16 (0b10000)
+  xls_value* exp_id = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(8, 55, &error, &exp_id));
+  absl::Cleanup c_exp_id([=] { xls_value_free(exp_id); });  // identity(55) = 55
+
+  xls_value* expected_elts[] = {exp_sel, exp_clz,   exp_ctz, exp_enc,
+                                exp_dec, exp_dec_w, exp_id};
+  xls_value* expected_result = xls_value_make_tuple(7, expected_elts);
+  absl::Cleanup free_expected_result([=] { xls_value_free(expected_result); });
+
+  // Compare results
+  char* actual_str = nullptr;
+  char* expected_str = nullptr;
+  ASSERT_TRUE(xls_value_to_string(actual_result, &actual_str));
+  absl::Cleanup free_actual_str(
+      [=] { xls_c_str_free(actual_str); });  // Ensure free
+  ASSERT_TRUE(xls_value_to_string(expected_result, &expected_str));
+  absl::Cleanup free_expected_str(
+      [=] { xls_c_str_free(expected_str); });  // Ensure free
+  EXPECT_TRUE(xls_value_eq(actual_result, expected_result))
+      << "Actual: " << actual_str          // Use directly now
+      << "\\nExpected: " << expected_str;  // Use directly now
+}
+
+TEST(XlsCApiTest, FnBuilderTokenOps) {
+  xls_package* package = xls_package_create("my_package");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_type* token_type = xls_package_get_token_type(package);
+
+  xls_function_builder* fn_builder =
+      xls_function_builder_create("token_ops", package, /*should_verify=*/true);
+  absl::Cleanup free_fn_builder([=] { xls_function_builder_free(fn_builder); });
+
+  xls_builder_base* fn_builder_base =
+      xls_function_builder_as_builder_base(fn_builder);
+
+  std::vector<xls_bvalue*> bvalues_to_free;
+  absl::Cleanup free_bvalues([&] {
+    for (xls_bvalue* b : bvalues_to_free) {
+      xls_bvalue_free(b);
+    }
+  });
+
+  xls_bvalue* tok1 =
+      xls_function_builder_add_parameter(fn_builder, "tok1", token_type);
+  bvalues_to_free.push_back(tok1);
+  xls_bvalue* tok2 =
+      xls_function_builder_add_parameter(fn_builder, "tok2", token_type);
+  bvalues_to_free.push_back(tok2);
+
+  xls_bvalue* deps[] = {tok1, tok2};
+  xls_bvalue* after_all_op =
+      xls_builder_base_add_after_all(fn_builder_base, deps, 2, "after_all_op");
+  bvalues_to_free.push_back(after_all_op);
+
+  xls_function* function = nullptr;
+  {
+    char* error = nullptr;
+    ASSERT_TRUE(xls_function_builder_build_with_return_value(
+        fn_builder, after_all_op, &error, &function))
+        << "error: " << error;
+    ASSERT_NE(function, nullptr);
+  }
+
+  char* package_str = nullptr;
+  ASSERT_TRUE(xls_package_to_string(package, &package_str));
+  absl::Cleanup free_package_str([=] { xls_c_str_free(package_str); });
+  const std::string_view kWant = R"(package my_package
+
+fn token_ops(tok1: token id=1, tok2: token id=2) -> token {
+  ret after_all_op: token = after_all(tok1, tok2, id=3)
+}
+)";
+  EXPECT_EQ(std::string_view{package_str}, kWant);
+}
+
+TEST(XlsCApiTest, FnBuilderGetTypeAndLastValue) {
+  xls_package* package = xls_package_create("my_package");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_type* u32 = xls_package_get_bits_type(package, 32);
+
+  xls_function_builder* fn_builder = xls_function_builder_create(
+      "get_type_last_val", package, /*should_verify=*/true);
+  absl::Cleanup free_fn_builder([=] { xls_function_builder_free(fn_builder); });
+
+  xls_builder_base* fn_builder_base =
+      xls_function_builder_as_builder_base(fn_builder);
+
+  std::vector<xls_bvalue*> bvalues_to_free;
+  absl::Cleanup free_bvalues([&] {
+    for (xls_bvalue* b : bvalues_to_free) {
+      xls_bvalue_free(b);
+    }
+  });
+
+  xls_bvalue* x = xls_function_builder_add_parameter(fn_builder, "x", u32);
+  bvalues_to_free.push_back(x);
+
+  xls_bvalue* y = xls_builder_base_add_add(fn_builder_base, x, x, "y");
+  bvalues_to_free.push_back(y);  // Add y to cleanup list
+
+  // Test GetLastValue
+  xls_bvalue* last_val = nullptr;
+  char* error = nullptr;
+  ASSERT_TRUE(
+      xls_builder_base_get_last_value(fn_builder_base, &error, &last_val))
+      << "error: " << error;
+  absl::Cleanup free_last_val([=] { xls_bvalue_free(last_val); });
+  ASSERT_NE(last_val, nullptr);
+  // Note: Cannot directly compare BValue pointers reliably. The IR string check
+  // implicitly verifies GetLastValue returned the correct BValue `y`.
+
+  // Test GetType
+  xls_type* last_val_type =
+      xls_builder_base_get_type(fn_builder_base, last_val);
+  ASSERT_NE(last_val_type, nullptr);
+  EXPECT_EQ(last_val_type, u32);  // Check if the type pointer matches u32
+
+  // Test GetType on an earlier value
+  xls_type* x_type = xls_builder_base_get_type(fn_builder_base, x);
+  ASSERT_NE(x_type, nullptr);
+  EXPECT_EQ(x_type, u32);  // Check if the type pointer matches u32
+
+  xls_function* function = nullptr;
+  ASSERT_TRUE(xls_function_builder_build_with_return_value(fn_builder, last_val,
+                                                           &error, &function))
+      << "error: " << error;
+  ASSERT_NE(function, nullptr);
+
+  char* package_str = nullptr;
+  ASSERT_TRUE(xls_package_to_string(package, &package_str));
+  absl::Cleanup free_package_str([=] { xls_c_str_free(package_str); });
+  const std::string_view kWant = R"(package my_package
+
+fn get_type_last_val(x: bits[32] id=1) -> bits[32] {
+  ret y: bits[32] = add(x, x, id=2)
+}
+)";
+  EXPECT_EQ(std::string_view{package_str}, kWant);
 }
 
 }  // namespace
