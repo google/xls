@@ -20,8 +20,8 @@
 #include <optional>
 #include <utility>
 
-#include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
+#include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -52,11 +52,12 @@ class ForwardingQueryEngine : public QueryEngine {
   };
 
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
-      const absl::flat_hash_set<PredicateState>& state) const override {
+      const absl::btree_set<PredicateState>& state) const override {
     return real().SpecializeGivenPredicate(state);
   }
   std::unique_ptr<QueryEngine> SpecializeGiven(
-      const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const override {
+      const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>&
+          givens) const override {
     return real().SpecializeGiven(givens);
   }
 

@@ -24,6 +24,8 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -246,9 +248,10 @@ class BddQueryEngine::AssumingQueryEngine final : public QueryEngine {
   std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override;
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
-      const absl::flat_hash_set<PredicateState>& state) const override;
+      const absl::btree_set<PredicateState>& state) const override;
   std::unique_ptr<QueryEngine> SpecializeGiven(
-      const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const override;
+      const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>&
+          givens) const override;
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override;
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;
   bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override;
@@ -320,7 +323,7 @@ BddQueryEngine::AssumingQueryEngine::GetTernary(Node* node) const {
 
 std::unique_ptr<QueryEngine>
 BddQueryEngine::AssumingQueryEngine::SpecializeGivenPredicate(
-    const absl::flat_hash_set<PredicateState>& state) const {
+    const absl::btree_set<PredicateState>& state) const {
   std::unique_ptr<AssumingQueryEngine> specialized(
       down_cast<AssumingQueryEngine*>(
           query_engine_->SpecializeGivenPredicate(state).release()));
@@ -331,7 +334,8 @@ BddQueryEngine::AssumingQueryEngine::SpecializeGivenPredicate(
 
 std::unique_ptr<QueryEngine>
 BddQueryEngine::AssumingQueryEngine::SpecializeGiven(
-    const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const {
+    const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>& givens)
+    const {
   std::unique_ptr<AssumingQueryEngine> result;
   if (query_engine_storage_ != nullptr) {
     result = std::make_unique<AssumingQueryEngine>(query_engine_storage_,
@@ -538,8 +542,8 @@ absl::Status BddQueryEngine::MergeWithGiven(BddVector& info,
 }
 
 std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGivenPredicate(
-    const absl::flat_hash_set<PredicateState>& state) const {
-  absl::flat_hash_map<Node*, ValueKnowledge> givens;
+    const absl::btree_set<PredicateState>& state) const {
+  absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan> givens;
   for (const PredicateState& ps : state) {
     if (ps.IsBasePredicate()) {
       continue;
@@ -689,7 +693,8 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGivenPredicate(
 }
 
 std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
-    const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const {
+    const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>& givens)
+    const {
   std::vector<BddNodeIndex> assumptions;
 
   for (const auto& [node, value_knowledge] : givens) {

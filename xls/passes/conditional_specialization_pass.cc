@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
@@ -274,8 +275,9 @@ class ConditionSet {
   }
 
   // Returns the conditions as givens
-  absl::flat_hash_map<Node*, ValueKnowledge> GetAsGivens() const {
-    absl::flat_hash_map<Node*, ValueKnowledge> givens;
+  absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan> GetAsGivens()
+      const {
+    absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan> givens;
     for (const Condition& condition : conditions()) {
       if (condition.partial.IsUnrestricted()) {
         continue;

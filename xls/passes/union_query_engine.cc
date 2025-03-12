@@ -21,8 +21,8 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
+#include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -146,7 +146,7 @@ UnownedUnionQueryEngine::GetTernary(Node* node) const {
 }
 
 std::unique_ptr<QueryEngine> UnownedUnionQueryEngine::SpecializeGivenPredicate(
-    const absl::flat_hash_set<PredicateState>& state) const {
+    const absl::btree_set<PredicateState>& state) const {
   std::vector<std::unique_ptr<QueryEngine>> engines;
   engines.reserve(engines_.size());
   for (const auto& engine : engines_) {
@@ -156,7 +156,8 @@ std::unique_ptr<QueryEngine> UnownedUnionQueryEngine::SpecializeGivenPredicate(
 }
 
 std::unique_ptr<QueryEngine> UnownedUnionQueryEngine::SpecializeGiven(
-    const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const {
+    const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>& givens)
+    const {
   std::vector<std::unique_ptr<QueryEngine>> engines;
   engines.reserve(engines_.size());
   for (const auto& engine : engines_) {

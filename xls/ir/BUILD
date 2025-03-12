@@ -624,7 +624,6 @@ cc_library(
         "//xls/common:iterator_range",
         "//xls/common:math_util",
         "//xls/common:visitor",
-        "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",

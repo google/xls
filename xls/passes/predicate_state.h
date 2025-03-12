@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_PREDICATE_STATE_H_
 #define XLS_PASSES_PREDICATE_STATE_H_
 
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <variant>
@@ -161,6 +162,23 @@ class PredicateState {
 
   friend bool operator==(const PredicateState& x, const PredicateState& y) {
     return (x.node_ == y.node_) && (x.index_ == y.index_);
+  }
+  friend bool operator!=(const PredicateState& x, const PredicateState& y) {
+    return !(x == y);
+  }
+
+  friend std::strong_ordering operator<=>(const PredicateState& x,
+                                          const PredicateState& y) {
+    if (std::strong_ordering node_cmp =
+            Node::NodeIdLessThan().Compare(x.node(), y.node());
+        node_cmp != std::strong_ordering::equal) {
+      return node_cmp;
+    }
+    if (std::strong_ordering arm_type_cmp = x.arm().index() <=> y.arm().index();
+        arm_type_cmp != std::strong_ordering::equal) {
+      return arm_type_cmp;
+    }
+    return x.arm_index() <=> y.arm_index();
   }
 
   template <typename H>

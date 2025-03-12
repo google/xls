@@ -25,8 +25,8 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -613,7 +613,7 @@ absl::StatusOr<ReachedFixpoint> ContextSensitiveRangeQueryEngine::Populate(
 
 std::unique_ptr<QueryEngine>
 ContextSensitiveRangeQueryEngine::SpecializeGivenPredicate(
-    const absl::flat_hash_set<PredicateState>& state) const {
+    const absl::btree_set<PredicateState>& state) const {
   // Currently only single element states are supported.
   // We do check for consistency here but really we just ignore extra state
   // elements since something that is true for A is also true for A && B. We

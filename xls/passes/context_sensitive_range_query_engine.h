@@ -20,8 +20,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -57,7 +57,7 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
       Node* node) const override;
 
   LeafTypeTree<IntervalSet> GetIntervalsGivenPredicates(
-      Node* node, const absl::flat_hash_set<PredicateState>& state) const {
+      Node* node, const absl::btree_set<PredicateState>& state) const {
     return SpecializeGivenPredicate(state)->GetIntervals(node);
   }
 
@@ -113,7 +113,7 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
   // surprising non-deterministic behavior. In the future we might relax this
   // restriction.
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
-      const absl::flat_hash_set<PredicateState>& state) const override;
+      const absl::btree_set<PredicateState>& state) const override;
 
   Bits MaxUnsignedValue(Node* node) const override;
   Bits MinUnsignedValue(Node* node) const override;

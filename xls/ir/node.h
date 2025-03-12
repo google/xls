@@ -15,6 +15,7 @@
 #ifndef XLS_IR_NODE_H_
 #define XLS_IR_NODE_H_
 
+#include <compare>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -227,6 +228,14 @@ class Node {
         return a < b;
       }
       return a->id() < b->id();
+    }
+
+    std::strong_ordering Compare(const Node* a, const Node* b) const {
+      if (std::strong_ordering id_cmp = a->id() <=> b->id();
+          id_cmp != std::strong_ordering::equal) {
+        return id_cmp;
+      }
+      return a <=> b;
     }
   };
 

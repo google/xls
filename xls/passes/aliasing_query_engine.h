@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -91,12 +92,12 @@ class AliasingQueryEngine final : public QueryEngine {
     return base_->GetTernary(UnaliasNode(node));
   }
   AliasingQueryEngine UpdatableSpecializeGivenPredicate(
-      const absl::flat_hash_set<PredicateState>& state) const {
+      const absl::btree_set<PredicateState>& state) const {
     return AliasingQueryEngine(base_->SpecializeGivenPredicate(state),
                                alias_map_);
   }
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
-      const absl::flat_hash_set<PredicateState>& state) const override {
+      const absl::btree_set<PredicateState>& state) const override {
     return std::unique_ptr<QueryEngine>(new AliasingQueryEngine(
         base_->SpecializeGivenPredicate(state), alias_map_));
   }

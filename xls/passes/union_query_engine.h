@@ -25,8 +25,9 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -65,10 +66,11 @@ class UnownedUnionQueryEngine : public QueryEngine {
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override;
 
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
-      const absl::flat_hash_set<PredicateState>& state) const override;
+      const absl::btree_set<PredicateState>& state) const override;
 
   std::unique_ptr<QueryEngine> SpecializeGiven(
-      const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const override;
+      const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>&
+          givens) const override;
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;
 
