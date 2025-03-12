@@ -52,18 +52,18 @@ absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
             options);
 }
 absl::Status {{wrapped.class_name}}Continuation::SetInputPorts(const {{wrapped.class_name}}Ports& ports) {
-  {% for port in wrapped.input_ports %}
+{% for port in wrapped.input_ports %}
   if (!ports.{{port.snake_name}}) {
     return absl::InvalidArgumentError("Input port {{port.xls_name}} (field {{port.snake_name}}) is not set.");
   }
-  {% endfor %}
+{% endfor %}
   absl::flat_hash_map<std::string, xls::Value> values{
-    {% for port in wrapped.input_ports %}
+{% for port in wrapped.input_ports %}
       {
         std::string("{{port.xls_name}}"),
         *ports.{{port.snake_name}}
       },
-    {% endfor %}
+{% endfor %}
   };
   return xls::BaseBlockJitWrapperContinuation::SetInputPorts(values);
 }

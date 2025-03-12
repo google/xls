@@ -13,7 +13,7 @@
 namespace {{ wrapped.namespace }} {
 
 struct {{ wrapped.class_name }}Ports {
-  {% for port in wrapped.input_ports %}
+{% for port in wrapped.input_ports %}
   // The value of port {{port.xls_name}}.
   std::optional<xls::Value> {{port.snake_name}};
 
@@ -23,31 +23,31 @@ struct {{ wrapped.class_name }}Ports {
     return *this;
   }
 
-  {% if port.specialized_type %}
+{% if port.specialized_type %}
   // Set the current value of the {{port.xls_name}} port.
   {{wrapped.class_name}}Ports& Set{{port.camel_name}}({{port.specialized_type}} v) {
     {{port.snake_name}} = xls::Value(xls::UBits(v, {{port.bit_count}}));
     return *this;
   }
-  {% endif %}
-  {% endfor %}
+{% endif %}
+{% endfor %}
 };
 
 class {{ wrapped.class_name}}Continuation : public xls::BaseBlockJitWrapperContinuation {
  public:
 
-  {% for port in wrapped.output_ports %}
+{% for port in wrapped.output_ports %}
   // Get the current value of the {{port.xls_name}} port.
   xls::Value Get{{port.camel_name}}AsValue() const {
     return GetOutputByName("{{port.xls_name}}");
   }
-  {% if port.specialized_type %}
+{% if port.specialized_type %}
   // Get the current value of the {{port.xls_name}} port.
   {{port.specialized_type}} Get{{port.camel_name}}() const {
     return static_cast<{{port.specialized_type}}>(GetOutputByName("{{port.xls_name}}").bits().ToUint64().value());
   }
-  {% endif %}
-  {% endfor %}
+{% endif %}
+{% endfor %}
 
   absl::Status SetInputPorts(const {{wrapped.class_name}}Ports& ports);
   using xls::BaseBlockJitWrapperContinuation::SetInputPorts;
