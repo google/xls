@@ -1385,11 +1385,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         // This is a <T: type> reference
         ExprOrType actual_parametric_type =
             invocation->explicit_parametrics()[i];
-        const NameRef* name_ref = module_.Make<NameRef>(
-            module_.span(), binding->identifier(), binding->name_def());
         XLS_RETURN_IF_ERROR(
             effective_table.AddTypeAnnotationToVariableForParametricContext(
-                invocation_context, name_ref,
+                invocation_context, binding,
                 std::get<TypeAnnotation*>(actual_parametric_type)));
         continue;
       }
@@ -1577,38 +1575,35 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       VLOG(5) << "Infer using actual type: " << actual_arg_type->ToString()
               << " and formal type: " << formal_types[i]->ToString()
               << " with effective context: " << ToString(actual_arg_context);
-      if (auto tvta = dynamic_cast<const TypeVariableTypeAnnotation*>(
-              formal_types[i])) {
-        // Do not call "SolveForParametrics" if the implicit parametric is
-        // a TypeVariableTypeAnnotation, because it will never become an
-        // InterpValue. Instead, assign the formal type the actual arg type in
-        // the target context.
-        CHECK(target_context.has_value());
-        InferenceTable& effective_table =
-            GetEffectiveTable(table_, target_context);
-        XLS_RETURN_IF_ERROR(
-            effective_table.AddTypeAnnotationToVariableForParametricContext(
-                target_context, tvta->type_variable(), actual_arg_type));
-        implicit_parametrics.erase(
-            bindings.at(tvta->type_variable()->identifier()));
-      } else {
-        absl::flat_hash_map<const ParametricBinding*, InterpValue> resolved;
-        XLS_ASSIGN_OR_RETURN(
-            resolved,
-            SolveForParametrics(
-                actual_arg_type, formal_types[i], implicit_parametrics,
-                [&](const TypeAnnotation* expected_type, const Expr* expr) {
-                  return Evaluate(ParametricContextScopedExpr(
-                      actual_arg_context, expected_type, expr));
-                }));
-        for (auto& [binding, value] : resolved) {
-          VLOG(5) << "Inferred implicit parametric value: " << value.ToString()
-                  << " for binding: " << binding->identifier()
-                  << " using function argument: `" << actual_args[i]->ToString()
-                  << "` of actual type: " << actual_arg_type->ToString();
+      absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+          resolved;
+      XLS_ASSIGN_OR_RETURN(
+          resolved,
+          SolveForParametrics(
+              actual_arg_type, formal_types[i], implicit_parametrics,
+              [&](const TypeAnnotation* expected_type, const Expr* expr) {
+                return Evaluate(ParametricContextScopedExpr(
+                    actual_arg_context, expected_type, expr));
+              }));
+      for (auto& [binding, value_or_type] : resolved) {
+        VLOG(5) << "Inferred implicit parametric value: "
+                << ToString(value_or_type)
+                << " for binding: " << binding->identifier()
+                << " using function argument: `" << actual_args[i]->ToString()
+                << "` of actual type: " << actual_arg_type->ToString();
+        implicit_parametrics.erase(binding);
+        if (std::holds_alternative<InterpValue>(value_or_type)) {
+          InterpValue& value = std::get<InterpValue>(value_or_type);
           output_ti->NoteConstExpr(binding->name_def(), value);
-          implicit_parametrics.erase(binding);
           values.emplace(binding->identifier(), std::move(value));
+        } else {
+          CHECK(target_context.has_value());
+          InferenceTable& effective_table =
+              GetEffectiveTable(table_, target_context);
+          XLS_RETURN_IF_ERROR(
+              effective_table.AddTypeAnnotationToVariableForParametricContext(
+                  target_context, binding,
+                  std::get<const TypeAnnotation*>(value_or_type)));
         }
       }
     }

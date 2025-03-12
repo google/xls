@@ -295,14 +295,19 @@ class InferenceTableImpl : public InferenceTable {
       std::optional<const ParametricContext*> context, const NameRef* ref,
       const TypeAnnotation* annotation) override {
     XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
-    CHECK(variable->kind() == InferenceVariableKind::kType);
-    if (context.has_value()) {
-      mutable_parametric_context_data_.at(*context)
-          .type_annotations_per_type_variable[variable]
-          .push_back(annotation);
-    } else {
-      type_annotations_per_type_variable_[variable].push_back(annotation);
-    }
+    AddTypeAnnotationForParametricContextInternal(context, variable,
+                                                  annotation);
+    return absl::OkStatus();
+  }
+
+  absl::Status AddTypeAnnotationToVariableForParametricContext(
+      std::optional<const ParametricContext*> context,
+      const ParametricBinding* binding,
+      const TypeAnnotation* annotation) override {
+    XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable,
+                         GetVariable(binding->name_def()));
+    AddTypeAnnotationForParametricContextInternal(context, variable,
+                                                  annotation);
     return absl::OkStatus();
   }
 
@@ -546,15 +551,19 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   absl::StatusOr<InferenceVariable*> GetVariable(const NameRef* ref) const {
-    if (std::holds_alternative<const NameDef*>(ref->name_def())) {
-      const auto it =
-          variables_.find(std::get<const NameDef*>(ref->name_def()));
+    return GetVariable(ref->name_def());
+  }
+
+  absl::StatusOr<InferenceVariable*> GetVariable(AnyNameDef name_def) const {
+    if (std::holds_alternative<const NameDef*>(name_def)) {
+      const auto it = variables_.find(std::get<const NameDef*>(name_def));
       if (it != variables_.end()) {
         return it->second.get();
       }
     }
-    return absl::NotFoundError(absl::Substitute(
-        "No inference variable for NameRef: $0", ref->ToString()));
+    return absl::NotFoundError(
+        absl::Substitute("No inference variable for NameRef: $0",
+                         ToAstNode(name_def)->ToString()));
   }
 
   // Runs the given `mutator` on the stored `NodeData` for `node`, creating the
@@ -576,6 +585,19 @@ class InferenceTableImpl : public InferenceTable {
           *node_data.type_annotation);
     }
     return absl::OkStatus();
+  }
+
+  void AddTypeAnnotationForParametricContextInternal(
+      std::optional<const ParametricContext*> context,
+      const InferenceVariable* variable, const TypeAnnotation* annotation) {
+    CHECK(variable->kind() == InferenceVariableKind::kType);
+    if (context.has_value()) {
+      mutable_parametric_context_data_.at(*context)
+          .type_annotations_per_type_variable[variable]
+          .push_back(annotation);
+    } else {
+      type_annotations_per_type_variable_[variable].push_back(annotation);
+    }
   }
 
   Module& module_;

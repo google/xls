@@ -36,6 +36,19 @@
 namespace xls::dslx {
 namespace {
 
+bool operator==(InterpValueOrTypeAnnotation lhs,
+                InterpValueOrTypeAnnotation rhs) {
+  const bool lhs_is_interp_value = std::holds_alternative<InterpValue>(lhs);
+  const bool rhs_is_interp_value = std::holds_alternative<InterpValue>(rhs);
+  if (lhs_is_interp_value ^ rhs_is_interp_value) {
+    return false;
+  }
+  return lhs_is_interp_value
+             ? std::get<InterpValue>(lhs).Eq(std::get<InterpValue>(rhs))
+             : std::get<const TypeAnnotation*>(lhs)->ToString() ==
+                   std::get<const TypeAnnotation*>(rhs)->ToString();
+}
+
 // Used on both the resolvable and dependent annotations, to keep track of what
 // was last encountered on each.
 class Visitor : public AstNodeVisitorWithDefault {
@@ -45,6 +58,13 @@ class Visitor : public AstNodeVisitorWithDefault {
     if (std::holds_alternative<const NameDef*>(node->name_def())) {
       last_variable_ = std::get<const NameDef*>(node->name_def());
     }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTypeVariableTypeAnnotation(
+      const TypeVariableTypeAnnotation* node) override {
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
+    last_tvta_ = node;
     return absl::OkStatus();
   }
 
@@ -58,13 +78,30 @@ class Visitor : public AstNodeVisitorWithDefault {
     return HandlePossibleIntegerAnnotation(node);
   }
 
+  absl::Status HandleTupleTypeAnnotation(
+      const TupleTypeAnnotation* node) override {
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
+    last_direct_annotation_ = node;
+    return absl::OkStatus();
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     last_variable_ = std::nullopt;
     last_signedness_and_bit_count_ = std::nullopt;
+    last_tvta_ = std::nullopt;
+    last_direct_annotation_ = std::nullopt;
     return absl::OkStatus();
   }
 
   std::optional<const NameDef*> last_variable() const { return last_variable_; }
+
+  std::optional<const TypeVariableTypeAnnotation*> last_tvta() const {
+    return last_tvta_;
+  }
+
+  std::optional<const TypeAnnotation*> last_direct_annotation() const {
+    return last_direct_annotation_;
+  }
 
   std::optional<SignednessAndBitCountResult> last_signedness_and_bit_count()
       const {
@@ -78,12 +115,15 @@ class Visitor : public AstNodeVisitorWithDefault {
     absl::StatusOr<SignednessAndBitCountResult> result =
         GetSignednessAndBitCount(annotation);
     if (result.ok()) {
+      last_direct_annotation_ = annotation;
       last_signedness_and_bit_count_ = *result;
     }
     return absl::OkStatus();
   }
 
   std::optional<const NameDef*> last_variable_;
+  std::optional<const TypeVariableTypeAnnotation*> last_tvta_;
+  std::optional<const TypeAnnotation*> last_direct_annotation_;
   std::optional<SignednessAndBitCountResult> last_signedness_and_bit_count_;
 };
 
@@ -109,6 +149,7 @@ class Resolver {
   absl::Status AcceptMismatch(const AstNode* resolvable,
                               const AstNode* dependent) {
     XLS_RETURN_IF_ERROR(dependent->Accept(dependent_visitor_));
+
     // Scenario 1: `dependent` is S or N or whatever, and `resolvable` is the
     // expr it equates to. Here we don't even care what kind of annotation we
     // are dealing with.
@@ -116,8 +157,20 @@ class Resolver {
       return ResolveVariable(resolvable, *dependent_visitor_->last_variable());
     }
 
-    // Scenario 2: The 2 annotations just aren't related.
     XLS_RETURN_IF_ERROR(resolvable->Accept(resolvable_visitor_));
+
+    // Scenario 2: `dependent` is a TVTA and `resolvable` is a direct type
+    // annotation. This means the generic type referred to by the TVTA is the
+    // resovable type.
+    if (dependent_visitor_->last_tvta().has_value() &&
+        resolvable_visitor_->last_direct_annotation().has_value()) {
+      return ResolveVariable(
+          *resolvable_visitor_->last_direct_annotation(),
+          std::get<const NameDef*>(
+              (*dependent_visitor_->last_tvta())->type_variable()->name_def()));
+    }
+
+    // Scenario 3: The 2 annotations just aren't related.
     if (!resolvable_visitor_->last_signedness_and_bit_count().has_value() ||
         !dependent_visitor_->last_signedness_and_bit_count().has_value()) {
       return absl::InvalidArgumentError(
@@ -125,7 +178,7 @@ class Resolver {
                            dependent->ToString()));
     }
 
-    // Scenario 3: `dependent` is a more-expanded form of `resolvable` or vice
+    // Scenario 4: `dependent` is a more-expanded form of `resolvable` or vice
     // versa. The more compact one is a built-in type like `u24`, so the zipper
     // is not going to line up the 24 and the N, much less the implicit
     // signedness value.
@@ -141,7 +194,8 @@ class Resolver {
         dependent_signedness_and_bit_count.signedness);
   }
 
-  absl::flat_hash_map<const ParametricBinding*, InterpValue>& results() {
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>&
+  results() {
     return results_;
   }
 
@@ -165,7 +219,25 @@ class Resolver {
     const ParametricBinding* binding = it->second;
     XLS_ASSIGN_OR_RETURN(InterpValue value,
                          expr_evaluator_(binding->type_annotation(), expr));
-    return NoteValue(binding, std::move(value));
+    return NoteResult(binding, std::move(value));
+  }
+
+  // Resolves `resolvable` to the given type annotation.
+  absl::Status ResolveVariable(const TypeAnnotation* direct_annotation,
+                               const NameDef* variable) {
+    const auto it = bindings_to_resolve_.find(variable);
+    if (it == bindings_to_resolve_.end()) {
+      // If we are not being asked to solve for the variable at hand, we don't
+      // care about it.
+      return absl::OkStatus();
+    }
+    const ParametricBinding* binding = it->second;
+    if (dynamic_cast<const GenericTypeAnnotation*>(
+            binding->type_annotation()) == nullptr) {
+      // Don't try to resolve a parametric that isn't a type.
+      return absl::OkStatus();
+    }
+    return NoteResult(binding, direct_annotation);
   }
 
   // Variant that takes an int64_t `value` instead of an `Expr`.
@@ -185,9 +257,9 @@ class Resolver {
         int64_t bit_count,
         Evaluate(CreateU32Annotation(*variable->owner(), variable->span()),
                  signedness_and_bit_count.bit_count));
-    return NoteValue(it->second,
-                     is_signed ? InterpValue::MakeSBits(bit_count, value)
-                               : InterpValue::MakeUBits(bit_count, value));
+    return NoteResult(it->second,
+                      is_signed ? InterpValue::MakeSBits(bit_count, value)
+                                : InterpValue::MakeUBits(bit_count, value));
   }
 
   // Variant that takes a value or `Expr`.
@@ -224,15 +296,15 @@ class Resolver {
     return absl::OkStatus();
   }
 
-  // Records the given `value` for `variable` in the result map, and ensures
+  // Records the given `result` for `variable` in the result map, and ensures
   // that it doesn't conflict with a value already recorded.
-  absl::Status NoteValue(const ParametricBinding* variable, InterpValue value) {
-    const auto result = results_.emplace(variable, value);
-    if (!result.second && !value.Eq(result.first->second)) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("Determined conflicting values for $0: $1 vs. $2",
-                           variable->ToString(),
-                           result.first->second.ToString(), value.ToString()));
+  absl::Status NoteResult(const ParametricBinding* variable,
+                          InterpValueOrTypeAnnotation result) {
+    const auto [it, emplaced] = results_.emplace(variable, result);
+    if (!emplaced && result != it->second) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "Determined conflicting values for $0: $1 vs. $2",
+          variable->ToString(), ToString(it->second), ToString(result)));
     }
     return absl::OkStatus();
   }
@@ -256,12 +328,14 @@ class Resolver {
   absl::AnyInvocable<absl::StatusOr<InterpValue>(
       const TypeAnnotation* expected_type, const Expr*)>
       expr_evaluator_;
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> results_;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      results_;
 };
 
 }  // namespace
 
-absl::StatusOr<absl::flat_hash_map<const ParametricBinding*, InterpValue>>
+absl::StatusOr<
+    absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>>
 SolveForParametrics(const TypeAnnotation* resolvable_type,
                     const TypeAnnotation* parametric_dependent_type,
                     absl::flat_hash_set<const ParametricBinding*> parametrics,

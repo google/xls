@@ -83,7 +83,8 @@ const BAR: uN[4] = uN[4]:1;
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -105,7 +106,8 @@ const BAR: uN[4] = uN[4]:1;
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -128,7 +130,8 @@ const BAR: uN[X] = uN[X]:1;
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -151,7 +154,8 @@ const BAR: uN[4 + X] = uN[4 + X]:1;
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -173,7 +177,8 @@ const BAR: u4 = u4:1;
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -195,7 +200,8 @@ const BAR: sN[4] = sN[4]:1;
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -217,7 +223,8 @@ const BAR: xN[false][4] = xN[false][4]:1;
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -239,7 +246,8 @@ const BAR: bits[4] = bits[4]:1;
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -261,7 +269,8 @@ const BAR: uN[4] = uN[4]:1;
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -284,7 +293,8 @@ const BAR: xN[true][4] = xN[true][4]:1;
   const ParametricBinding* s = foo->parametric_bindings()[0];
   const ParametricBinding* n = foo->parametric_bindings()[1];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -307,7 +317,8 @@ const BAR: xN[true][4] = xN[true][4]:1;
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[1];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -330,7 +341,8 @@ const BAR: s4 = s4:1;
   const ParametricBinding* s = foo->parametric_bindings()[0];
   const ParametricBinding* n = foo->parametric_bindings()[1];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -353,7 +365,8 @@ const BAR: u32[3] = [u32:0, u32:1, u32:3];
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -362,6 +375,87 @@ const BAR: u32[3] = [u32:0, u32:1, u32:3];
                             return EvaluateLiteral(expr, false, 32);
                           }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeU32(3))));
+}
+
+TEST_F(SolveForParametricsTest, SolveForArrayOfGenericType) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
+fn foo<T: type, N: u32>(a: T[N]) -> T[N] { a }
+const BAR: u32[3] = [u32:0, u32:1, u32:3];
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module->GetMemberOrError<Function>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* bar,
+                           module->GetMemberOrError<ConstantDef>("BAR"));
+  const ParametricBinding* t = foo->parametric_bindings()[0];
+  const ParametricBinding* n = foo->parametric_bindings()[1];
+  const Param* a = foo->params()[0];
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      values,
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{t, n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
+  EXPECT_EQ(values.size(), 2);
+  EXPECT_TRUE(values.contains(t));
+  EXPECT_TRUE(values.contains(n));
+  EXPECT_EQ(ToString(values.at(t)), "u32");
+  EXPECT_EQ(values.at(n), InterpValueOrTypeAnnotation(InterpValue::MakeU32(3)));
+}
+
+TEST_F(SolveForParametricsTest, SolveForArrayOfTupleGenericType) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
+fn foo<T: type, N: u32>(a: T[N]) -> T[N] { a }
+const BAR: (s16, u32)[3] = [(0, 1), (2, 3), (4, 5)];
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module->GetMemberOrError<Function>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* bar,
+                           module->GetMemberOrError<ConstantDef>("BAR"));
+  const ParametricBinding* t = foo->parametric_bindings()[0];
+  const ParametricBinding* n = foo->parametric_bindings()[1];
+  const Param* a = foo->params()[0];
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      values,
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{t, n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
+  EXPECT_EQ(values.size(), 2);
+  EXPECT_TRUE(values.contains(t));
+  EXPECT_TRUE(values.contains(n));
+  EXPECT_EQ(ToString(values.at(t)), "(s16, u32)");
+  EXPECT_EQ(values.at(n), InterpValueOrTypeAnnotation(InterpValue::MakeU32(3)));
+}
+
+TEST_F(SolveForParametricsTest, SolveForGenericTypeInTuple) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
+fn foo<T: type>(a: (T, u32)) -> (T, u32) { a }
+const BAR: (s16, u32) = (s16:5, u32:2);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module->GetMemberOrError<Function>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* bar,
+                           module->GetMemberOrError<ConstantDef>("BAR"));
+  const ParametricBinding* t = foo->parametric_bindings()[0];
+  const Param* a = foo->params()[0];
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      values,
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{t},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
+  EXPECT_EQ(values.size(), 1);
+  EXPECT_TRUE(values.contains(t));
+  EXPECT_EQ(ToString(values.at(t)), "s16");
 }
 
 TEST_F(SolveForParametricsTest, SolveFor2dBuiltinArray) {
@@ -376,7 +470,8 @@ const BAR: u32[33][34] = zero!<u32[33][34]>();
   const ParametricBinding* m = foo->parametric_bindings()[0];
   const ParametricBinding* n = foo->parametric_bindings()[1];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -427,7 +522,8 @@ const BAR: xN[false][24][33][34] = zero!<xN[false][24][33][34]>();
   const ParametricBinding* m = foo->parametric_bindings()[2];
   const ParametricBinding* n = foo->parametric_bindings()[3];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values, SolveForParametrics(
                   bar->type_annotation(), a->type_annotation(),
@@ -453,7 +549,8 @@ const BAR: (u10, (s4, sN[10]))[20] = zero!<(u10, (s4, sN[10]))[20]>();
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const ParametricBinding* x = foo->parametric_bindings()[1];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
@@ -476,7 +573,8 @@ const BAR: (uN[5], bool) = zero!<(uN[5], bool)>();
                            module->GetMemberOrError<ConstantDef>("BAR"));
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
-  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
   EXPECT_THAT(
       SolveForParametrics(bar->type_annotation(), a->type_annotation(),
                           absl::flat_hash_set<const ParametricBinding*>{n},

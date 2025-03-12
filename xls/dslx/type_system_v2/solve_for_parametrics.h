@@ -15,6 +15,9 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_SOLVE_FOR_PARAMETRICS_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_SOLVE_FOR_PARAMETRICS_H_
 
+#include <string>
+#include <variant>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
@@ -23,6 +26,15 @@
 #include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
+
+using InterpValueOrTypeAnnotation =
+    std::variant<InterpValue, const TypeAnnotation*>;
+
+inline std::string ToString(InterpValueOrTypeAnnotation value_or_type) {
+  return std::holds_alternative<InterpValue>(value_or_type)
+             ? std::get<InterpValue>(value_or_type).ToString()
+             : std::get<const TypeAnnotation*>(value_or_type)->ToString();
+}
 
 // Determines values for the specified `parametrics` by equating the type of an
 // actual value with a formal type that depends on the parametrics. For example:
@@ -40,7 +52,11 @@ namespace xls::dslx {
 // struct they belong to. This function may only be able to resolve some of
 // those using the passed in type annotations, in which case the returned map
 // will have fewer elements than `parametrics`.
-absl::StatusOr<absl::flat_hash_map<const ParametricBinding*, InterpValue>>
+//
+// For a type parametric (e.g. `<T: type>`), the solution is a `TypeAnnotation`;
+// for a value parametric, as in the examples above, it is an `InterpValue`.
+absl::StatusOr<
+    absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>>
 SolveForParametrics(const TypeAnnotation* resolvable_type,
                     const TypeAnnotation* parametric_dependent_type,
                     absl::flat_hash_set<const ParametricBinding*> parametrics,

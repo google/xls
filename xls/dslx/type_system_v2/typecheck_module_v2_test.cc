@@ -4812,16 +4812,12 @@ TEST(TypecheckV2BuiltinTest, ArrayRevElementMismatch) {
               TypecheckFails(HasSizeMismatch("u6[3]", "uN[3][4]")));
 }
 
-TEST(TypecheckV2BuiltinTest, DISABLED_ArrayRevImplicitElementType) {
-  // Fails with:
-  // Mismatch: uN[3] vs. TypeVariableTypeAnnotation: ELEMENT_TYPE
+TEST(TypecheckV2BuiltinTest, ArrayRevImplicitElementType) {
   EXPECT_THAT("const Y = array_rev([1, 2, 3, 4]);",
-              TypecheckSucceeds(HasNodeWithType("Y", "uN[32][4]")));
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[3][4]")));
 }
 
-TEST(TypecheckV2BuiltinTest, DISABLED_ArrayRevImplicit) {
-  // Fails with:
-  // Mismatch: uN[32] vs. TypeVariableTypeAnnotation: ELEMENT_TYPE
+TEST(TypecheckV2BuiltinTest, ArrayRevImplicit) {
   EXPECT_THAT("const Y = array_rev([u32:1, u32:2, u32:3, u32:4]);",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32][4]")));
 }
@@ -4841,16 +4837,12 @@ TEST(TypecheckV2BuiltinTest, ArraySizeElementBitsMismatch) {
               TypecheckFails(HasSizeMismatch("u31", "uN[32]")));
 }
 
-TEST(TypecheckV2BuiltinTest, DISABLED_ArraySizeImplicit) {
-  // Fails with:
-  // Mismatch: uN[3] vs. TypeVariableTypeAnnotation: ELEMENT_TYPE
+TEST(TypecheckV2BuiltinTest, ArraySizeImplicit) {
   EXPECT_THAT("const Y = array_size([1, 2, 3, 4]);",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
-TEST(TypecheckV2BuiltinTest, DISABLED_ArraySliceAllImplicitSizes) {
-  // Fails with:
-  // Mismatch: uN[16] vs. TypeVariableTypeAnnotation: T
+TEST(TypecheckV2BuiltinTest, ArraySliceAllImplicitSizes) {
   EXPECT_THAT(R"(
   const TM = [u16:1, u16:2, u16:3, u16:4];
   const TP = [u16:0, u16:0, u16:0];
@@ -4859,9 +4851,7 @@ TEST(TypecheckV2BuiltinTest, DISABLED_ArraySliceAllImplicitSizes) {
               TypecheckSucceeds(HasNodeWithType("Y", "uN[16][3]")));
 }
 
-TEST(TypecheckV2BuiltinTest, DISABLED_ArraySliceSomeImplicitSizes) {
-  // Fails with:
-  // Mismatch: uN[16] vs. TypeVariableTypeAnnotation: T
+TEST(TypecheckV2BuiltinTest, ArraySliceSomeImplicitSizes) {
   EXPECT_THAT(R"(
   const TM = [u16:1, u16:2, u16:3, u16:4];
   const TP = [u16:0, u16:0, u16:0];
@@ -5144,12 +5134,12 @@ TEST(TypecheckV2BuiltinTest, Enumerate) {
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));
 }
 
-TEST(TypecheckV2BuiltinTest, DISABLED_EnumerateImplicitSize) {
+TEST(TypecheckV2BuiltinTest, EnumerateImplicitSize) {
   EXPECT_THAT(R"(const Y = enumerate<u16>([u16:1, u16:2, u16:3]);)",
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));
 }
 
-TEST(TypecheckV2BuiltinTest, DISABLED_EnumerateImplicitType) {
+TEST(TypecheckV2BuiltinTest, EnumerateImplicitType) {
   EXPECT_THAT(R"(const Y = enumerate([u16:1, u16:2, u16:3]);)",
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));
 }
@@ -5365,9 +5355,7 @@ TEST(TypecheckV2BuiltinTest, ZipExplicitSizes) {
       TypecheckSucceeds(HasNodeWithType("Y", "(uN[16], uN[32])[3]")));
 }
 
-TEST(TypecheckV2BuiltinTest, DISABLED_ZipImplicitSizes) {
-  // Fails with:
-  // Mismatch: uN[16] vs. TypeVariableTypeAnnotation: T
+TEST(TypecheckV2BuiltinTest, ZipImplicitSizes) {
   EXPECT_THAT(R"(const Y = zip([u16:1, u16:2, u16:3], [u32:1, u32:2, u32:3]);)",
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[16], uN[32])[3]")));
 }

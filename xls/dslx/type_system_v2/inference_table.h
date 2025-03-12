@@ -314,6 +314,12 @@ class InferenceTable {
       std::optional<const ParametricContext*> context, const NameRef* ref,
       const TypeAnnotation* type) = 0;
 
+  // Convenience variant that takes the `ParametricBinding` associated with a
+  // variable instead of a `NameRef`, with no difference in effect.
+  virtual absl::Status AddTypeAnnotationToVariableForParametricContext(
+      std::optional<const ParametricContext*> context,
+      const ParametricBinding* binding, const TypeAnnotation* type) = 0;
+
   // Removes annotations matching the given predicate from the general list of
   // annotations for the variable referred to by `ref`.
   virtual absl::Status RemoveTypeAnnotationsFromTypeVariable(
