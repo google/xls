@@ -16,6 +16,7 @@
 
 #include <string>
 #include <optional>
+#include "absl/flags/declare.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"

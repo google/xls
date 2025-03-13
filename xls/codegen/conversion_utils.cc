@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"

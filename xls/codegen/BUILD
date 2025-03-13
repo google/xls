@@ -448,6 +448,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:register",
         "//xls/ir:source_location",
+        "//xls/ir:xls_ir_interface_cc_proto",
         "//xls/passes:dataflow_simplification_pass",
         "//xls/passes:dce_pass",
         "@com_google_absl//absl/algorithm:container",

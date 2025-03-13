@@ -188,6 +188,7 @@ cc_library(
         "//xls/ir:format_preference",
         "//xls/ir:source_location",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -227,6 +228,8 @@ cc_library(
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:value",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -260,6 +263,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -280,6 +284,7 @@ cc_test(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
     ],
 )

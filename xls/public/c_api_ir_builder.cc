@@ -14,8 +14,11 @@
 
 #include "xls/public/c_api_ir_builder.h"
 
+#include <cstdint>
 #include <functional>
 #include <vector>
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/value.h"

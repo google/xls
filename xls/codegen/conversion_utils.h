@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"

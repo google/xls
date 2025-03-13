@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/types/variant.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"

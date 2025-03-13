@@ -20,6 +20,7 @@
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/types/span.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/ADT/STLFunctionalExtras.h"

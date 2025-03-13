@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
