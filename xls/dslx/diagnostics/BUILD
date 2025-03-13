@@ -53,9 +53,6 @@ cc_test(
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
-        "//xls/dslx:warning_collector",
-        "//xls/dslx/type_system:type_info",
-        "@com_google_absl//absl/status",
         "@googletest//:gtest",
     ],
 )

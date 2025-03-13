@@ -239,7 +239,6 @@ cc_test(
         ":inline_bitmap",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
-        "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "@com_google_absl//absl/types:span",

@@ -487,11 +487,9 @@ cc_test(
         ":ir_converter_options_flags",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/dslx:warning_kind",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
         "@googletest//:gtest",
     ],
 )

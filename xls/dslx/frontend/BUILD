@@ -654,7 +654,6 @@ cc_library(
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:status_macros",
-        "//xls/dslx:import_data",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
     ],

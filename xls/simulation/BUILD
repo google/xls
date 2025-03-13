@@ -121,7 +121,6 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:channel_cc_proto",
-        "//xls/ir:channel_ops",
         "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
