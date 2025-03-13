@@ -385,6 +385,7 @@ cc_test(
         ":unit_test",
         "//xls/common:source_location",
         "//xls/common:xls_gunit_main",
+        "@com_github_hlslibs_ac_types//:ac_fixed",
         "@googletest//:gtest",
     ],
 )

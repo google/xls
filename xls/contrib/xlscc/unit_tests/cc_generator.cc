@@ -58,6 +58,7 @@ class Variable {
   std::string name;
   std::string type;
   std::string value;
+  int64_t bit_width;
   std::vector<std::string> templated_parameters;
 
   static Variable GenerateInt(const std::string& variable_name,
@@ -89,7 +90,11 @@ class Variable {
             std::to_string(absl::Uniform(bit_gen, min_value, max_value));
       }
     }
-    return {variable_name, int_metadata.name, value_str, {}};
+    return {variable_name,
+            int_metadata.name,
+            value_str,
+            int_metadata.bit_width,
+            {}};
   }
 
   static Variable GenerateXlsInt(const std::string& variable_name,
@@ -106,6 +111,7 @@ class Variable {
     return {variable_name,
             "ac_int",
             std::to_string(absl::Uniform(bit_gen, min_value, max_value)),
+            bit_width,
             {std::to_string(bit_width), is_signed ? "true" : "false"}};
   }
 
@@ -134,6 +140,9 @@ class Variable {
     }
     std::string value;
     if (is_float) {
+      // doubles are 32 bit integers with 32 bits of decimal precision.
+      max_value = std::numeric_limits<int32_t>::max();
+      min_value = is_signed ? std::numeric_limits<int32_t>::min() : 0;
       value = std::to_string(
           absl::Uniform<double>(bit_gen, static_cast<double>(min_value),
                                 static_cast<double>(max_value)));
@@ -146,6 +155,7 @@ class Variable {
         variable_name,
         "ac_fixed",
         value,
+        bit_width,
         {std::to_string(bit_width), std::to_string(integer_width),
          is_signed ? "true" : "false", quantization, overflow},
     };
@@ -260,8 +270,12 @@ std::string GenerateTest(uint32_t seed, VariableType type) {
     GenerateComparisonOp(content, var, input, bit_gen);
   } else {
     Function selected = Function::Generate(bit_gen);
-    content << var.name << " = " << var.Type() << "(" << input.name << "."
-            << selected.name << "()" << ");\n";
+    if (input.bit_width <= 64) {
+      content << var.name << " = " << var.Type() << "(" << input.name << "."
+              << selected.name << "()" << ");\n";
+    } else {
+      content << var.name << " = " << var.Type() << "(" << input.name << ");\n";
+    }
   }
 
   content << "#ifndef __SYNTHESIS__\n";
