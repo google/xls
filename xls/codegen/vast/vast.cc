@@ -14,6 +14,7 @@
 
 #include "xls/codegen/vast/vast.h"
 
+#include <variant>
 #include <algorithm>
 #include <cstdint>
 #include <optional>

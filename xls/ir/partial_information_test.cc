@@ -14,6 +14,7 @@
 
 #include "xls/ir/partial_information.h"
 
+#include <tuple>
 #include <cstdint>
 #include <optional>
 #include <utility>

@@ -17,6 +17,7 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_TYPE_INFO_H_
 #define XLS_DSLX_TYPE_SYSTEM_TYPE_INFO_H_
 
+#include <utility>
 #include <cstdint>
 #include <memory>
 #include <optional>

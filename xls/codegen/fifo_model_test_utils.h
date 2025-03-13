@@ -15,6 +15,7 @@
 #ifndef XLS_CODEGEN_FIFO_MODEL_TEST_UTILS_H_
 #define XLS_CODEGEN_FIFO_MODEL_TEST_UTILS_H_
 
+#include <memory>
 #include <cstdint>
 #include <string>
 #include <variant>

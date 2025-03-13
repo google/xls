@@ -14,6 +14,7 @@
 
 #include "xls/dslx/warning_kind.h"
 
+#include <vector>
 #include <string>
 #include <string_view>
 

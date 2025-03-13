@@ -15,6 +15,7 @@
 #ifndef GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_FROM_MLIR_H_
 #define GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_FROM_MLIR_H_
 
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <string>
 

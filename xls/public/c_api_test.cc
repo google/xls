@@ -14,6 +14,10 @@
 
 #include "xls/public/c_api.h"
 
+#include <variant>
+#include <utility>
+#include <functional>
+#include <initializer_list>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT

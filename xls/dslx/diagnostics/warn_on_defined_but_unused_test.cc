@@ -14,6 +14,8 @@
 
 #include "xls/dslx/diagnostics/warn_on_defined_but_unused.h"
 
+#include <string>
+#include <optional>
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"

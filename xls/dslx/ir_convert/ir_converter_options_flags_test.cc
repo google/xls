@@ -14,6 +14,8 @@
 
 #include "xls/dslx/ir_convert/ir_converter_options_flags.h"
 
+#include <string>
+#include <optional>
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"

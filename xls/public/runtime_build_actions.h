@@ -28,6 +28,7 @@
 // compiler remaining stable, users should not depend on the precise output of
 // these actions remaining stable, they will evolve as the XLS system evolves.
 
+#include <vector>
 #include <filesystem>  // NOLINT
 #include <optional>
 #include <string>

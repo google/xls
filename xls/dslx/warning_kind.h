@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_WARNING_KIND_H_
 #define XLS_DSLX_WARNING_KIND_H_
 
+#include <string>
 #include <array>
 #include <cstdint>
 #include <string_view>

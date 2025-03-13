@@ -14,6 +14,7 @@
 
 #include "xls/codegen/materialize_fifos_pass.h"
 
+#include <string>
 #include <cstdint>
 #include <optional>
 #include <string_view>
