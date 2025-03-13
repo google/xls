@@ -1627,6 +1627,38 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
                                  sub_proc_invoked->name_prefix));
   }
 
+  // Re-use state elements from outer FSM in inner/sub-FSM.
+  // This reduces state bits for example when statics are declared in a
+  // calling function, and then used in a pipelined loop in a called function.
+  for (const auto& [callee_param, unique_caller_decls_for_param] :
+       sub_proc_invoked->enclosing_func->caller_decls_by_callee_param) {
+    if (unique_caller_decls_for_param.size() != 1) {
+      XLSCC_CHECK_GT(unique_caller_decls_for_param.size(), 0, body_loc);
+      const bool opt_warnings_on =
+          debug_ir_trace_flags_ & DebugIrTraceFlags_OptimizationWarnings;
+      if (opt_warnings_on) {
+        LOG(WARNING) << WarningMessage(
+            GetLoc(*callee_param),
+            "Can't share state elements for parameter %s because it maps to "
+            "multiple caller declarations",
+            callee_param->getNameAsString());
+      }
+      continue;
+    }
+    const clang::NamedDecl* caller_decl =
+        *unique_caller_decls_for_param.begin();
+
+    if (!outer_prepared.state_element_for_variable.contains(caller_decl)) {
+      continue;
+    }
+
+    xls::StateElement* state_elem =
+        outer_prepared.state_element_for_variable.at(caller_decl);
+
+    // Avoid [] = .at()
+    outer_prepared.state_element_for_variable[callee_param] = state_elem;
+  }
+
   // Generate inner FSM
   XLS_ASSIGN_OR_RETURN(
       PipelinedLoopContentsReturn contents_ret,

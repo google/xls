@@ -893,6 +893,12 @@ struct GeneratedFunction {
   absl::flat_hash_map<IOChannel*, IOChannel*>
       generated_caller_channels_by_callee;
 
+  // Enables state element re-use by tracking call by reference parameters
+  // This is a multimap in order to detect cases with multiple calls
+  absl::flat_hash_map<const clang::NamedDecl*,
+                      absl::flat_hash_set<const clang::NamedDecl*>>
+      caller_decls_by_callee_param;
+
   // XLS channel orders for all calls. Vector has an element for each
   // channel parameter.
   std::map<std::vector<ChannelBundle>, int64_t>

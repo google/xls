@@ -784,15 +784,17 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
   GeneratedFunction& enclosing_func = *context().sf;
 
   // Generate body function
+  const std::string loop_name = absl::StrFormat("%s_loop", name_prefix);
+
   auto generated_func = std::make_unique<GeneratedFunction>();
   CHECK_NE(context().sf, nullptr);
   CHECK_NE(context().sf->clang_decl, nullptr);
   generated_func->clang_decl = context().sf->clang_decl;
+
   uint64_t extra_return_count = 0;
   {
     // Set up IR generation
-    xls::FunctionBuilder body_builder(absl::StrFormat("%s_func", name_prefix),
-                                      package_);
+    xls::FunctionBuilder body_builder(loop_name, package_);
 
     xls::BValue context_struct_val =
         body_builder.Param(absl::StrFormat("%s_context_vars", name_prefix),
@@ -1057,6 +1059,14 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     context().sf->SortNamesDeterministically(vars_to_save_between_iters);
   }
 
+  if (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopContext) {
+    LOG(INFO) << absl::StrFormat("Variables to save for loop %s at %s:\n",
+                                 loop_name, LocString(loc));
+    for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
+      LOG(INFO) << absl::StrFormat("-- %s:\n", decl->getNameAsString().c_str());
+    }
+  }
+
   PipelinedLoopSubProc pipelined_loop_proc = {
       .name_prefix = name_prefix.data(),
       // context_ members are filled in by caller
@@ -1214,8 +1224,18 @@ Translator::GenerateIR_PipelinedLoopContents(
     if (!context_field_indices.contains(decl)) {
       continue;
     }
+
+    const bool do_create_state_element =
+        !prepared.state_element_for_variable.contains(decl);
+
+    if (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopContext) {
+      LOG(INFO) << absl::StrFormat(
+          "Variable to save %s will create state element? %i:\n",
+          decl->getNameAsString().c_str(), (int)do_create_state_element);
+    }
+
     // Only create a state element if one doesn't already exist
-    if (!prepared.state_element_for_variable.contains(decl)) {
+    if (do_create_state_element) {
       const CValue& prev_value = pipelined_loop_proc.outer_variables.at(decl);
       XLS_ASSIGN_OR_RETURN(
           xls::Value def,

@@ -3397,6 +3397,31 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         stripped.is_ref && (!stripped.base.isConstQualified());
     will_assign_param[p] = will_assign;
 
+    // Save information about call-by-reference to enable state element re-use.
+    if (will_assign) {
+      const clang::Expr* expr_inner = RemoveParensAndCasts(expr_args[pi]);
+      const clang::DeclRefExpr* decl_ref =
+          clang::dyn_cast_or_null<const clang::DeclRefExpr>(expr_inner);
+
+      if (decl_ref != nullptr) {
+        // Transitive case across nested calls
+        const clang::NamedDecl* decl = decl_ref->getDecl();
+
+        if (auto caller_decls_found =
+                context().sf->caller_decls_by_callee_param.find(decl);
+            caller_decls_found !=
+            context().sf->caller_decls_by_callee_param.end()) {
+          for (const clang::NamedDecl* caller_decl :
+               caller_decls_found->second) {
+            func->caller_decls_by_callee_param[p].insert(caller_decl);
+          }
+        } else {
+          // Outer most call case, where the referenced variable is declared
+          func->caller_decls_by_callee_param[p].insert(decl);
+        }
+      }
+    }
+
     // Map callee IO channels
     CValue argv;
     {
@@ -3876,24 +3901,26 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
                          TranslateTypeFromClang(stripped.base, GetLoc(*p)));
 
     // Const references don't need a return
-    if (will_assign_param.at(p)) {
-      XLSCC_CHECK(!unpacked_returns.empty(), loc);
-
-      MaskIOOtherThanMemoryWritesGuard guard(*this);
-      LValueModeGuard lvalue_guard(*this);
-      context().any_writes_generated = false;
-      XLS_RETURN_IF_ERROR(
-          Assign(expr_args[pi], CValue(unpacked_returns.front(), ctype), loc));
-
-      if (context().any_writes_generated) {
-        LOG(WARNING) << WarningMessage(
-            loc,
-            "Memory write in call-by-reference will generate a read and a "
-            "write. Is this intended here?");
-      }
-
-      unpacked_returns.pop_front();
+    if (!will_assign_param.at(p)) {
+      continue;
     }
+
+    XLSCC_CHECK(!unpacked_returns.empty(), loc);
+
+    MaskIOOtherThanMemoryWritesGuard guard(*this);
+    LValueModeGuard lvalue_guard(*this);
+    context().any_writes_generated = false;
+    XLS_RETURN_IF_ERROR(
+        Assign(expr_args[pi], CValue(unpacked_returns.front(), ctype), loc));
+
+    if (context().any_writes_generated) {
+      LOG(WARNING) << WarningMessage(
+          loc,
+          "Memory write in call-by-reference will generate a read and a "
+          "write. Is this intended here?");
+    }
+
+    unpacked_returns.pop_front();
   }
 
   // Callee IO returns

@@ -42,6 +42,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
@@ -9580,6 +9581,294 @@ TEST_P(TranslatorProcTest, ForFullyPipelinedInferredInner) {
              /* min_ticks = */ min_ticks,
              /* max_ticks = */ max_ticks);
   }
+}
+
+TEST_F(TranslatorProcTestWithoutFSMParam, StateElementReuseInLoopInCall) {
+  const std::string content = R"(
+    void DoSomething(long& foobar) {
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<10;++i) {
+        ++foobar;
+      }
+    }
+
+    class Block {
+    public:
+
+    #pragma hls_top
+      void Run() {
+        static long foo = 0;
+        DoSomething(foo);
+        int x = in.read();
+        out.write(x + foo);
+      }
+
+      __xls_channel<int , __xls_channel_dir_In>& in;
+      __xls_channel<int, __xls_channel_dir_Out>& out;
+    };)";
+
+  generate_fsms_for_pipelined_loops_ = true;
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 10, 32)),
+                      xls::Value(xls::SBits(100 + 20, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
+  }
+
+  ASSERT_EQ(package_->procs().size(), 1);
+  const xls::Proc* proc = package_->procs().at(0).get();
+
+  int64_t n_64_bit_elems = 0;
+
+  for (xls::StateElement* state_element : proc->StateElements()) {
+    if (state_element->type()->GetFlatBitCount() == 64) {
+      ++n_64_bit_elems;
+    }
+  }
+
+  EXPECT_EQ(n_64_bit_elems, 1);
+}
+
+TEST_F(TranslatorProcTestWithoutFSMParam, StateElementReuseInLoopInNestedCall) {
+  const std::string content = R"(
+    void DoSomethingNested(long& foobar) {
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<10;++i) {
+        ++foobar;
+      }
+    }
+
+    void DoSomething(long& foobar) {
+      DoSomethingNested(foobar);
+    }
+
+    class Block {
+    public:
+
+    #pragma hls_top
+      void Run() {
+        static long foo = 0;
+        DoSomething(foo);
+        int x = in.read();
+        out.write(x + foo);
+      }
+
+      __xls_channel<int , __xls_channel_dir_In>& in;
+      __xls_channel<int, __xls_channel_dir_Out>& out;
+    };)";
+
+  generate_fsms_for_pipelined_loops_ = true;
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 10, 32)),
+                      xls::Value(xls::SBits(100 + 20, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
+  }
+
+  ASSERT_EQ(package_->procs().size(), 1);
+  const xls::Proc* proc = package_->procs().at(0).get();
+
+  int64_t n_64_bit_elems = 0;
+
+  for (xls::StateElement* state_element : proc->StateElements()) {
+    if (state_element->type()->GetFlatBitCount() == 64) {
+      ++n_64_bit_elems;
+    }
+  }
+
+  EXPECT_EQ(n_64_bit_elems, 1);
+}
+
+TEST_F(TranslatorProcTestWithoutFSMParam, StateElementReuseInLoopInMultiCall) {
+  const std::string content = R"(
+    void DoSomething(long& foobar) {
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<10;++i) {
+        ++foobar;
+      }
+    }
+
+    class Block {
+    public:
+
+    #pragma hls_top
+      void Run() {
+        static long foo = 0;
+        static long bar = 15;
+        DoSomething(foo);
+        DoSomething(bar);
+        out_foo.write(foo);
+        out_bar.write(bar);
+      }
+
+      __xls_channel<int, __xls_channel_dir_Out>& out_foo;
+      __xls_channel<int, __xls_channel_dir_Out>& out_bar;
+    };)";
+
+  generate_fsms_for_pipelined_loops_ = true;
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out_foo"] = {xls::Value(xls::SBits(10, 32)),
+                          xls::Value(xls::SBits(20, 32))};
+    outputs["out_bar"] = {xls::Value(xls::SBits(10 + 15, 32)),
+                          xls::Value(xls::SBits(20 + 15, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
+  }
+
+  ASSERT_EQ(package_->procs().size(), 1);
+  const xls::Proc* proc = package_->procs().at(0).get();
+
+  int64_t n_64_bit_elems = 0;
+
+  for (xls::StateElement* state_element : proc->StateElements()) {
+    if (state_element->type()->GetFlatBitCount() == 64) {
+      ++n_64_bit_elems;
+    }
+  }
+
+  // Currently, when there are multiple calls with different parameters,
+  // state element sharing is skipped.
+  EXPECT_EQ(n_64_bit_elems, 4);
+}
+
+TEST_F(TranslatorProcTestWithoutFSMParam,
+       StateElementReuseInLoopInMultiCallSameParam) {
+  const std::string content = R"(
+    void DoSomething(long& foobar) {
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<10;++i) {
+        ++foobar;
+      }
+    }
+
+    class Block {
+    public:
+
+    #pragma hls_top
+      void Run() {
+        static long foo = 0;
+        static long bar = 15;
+        DoSomething(foo);
+        DoSomething(foo);
+        out_foo.write(foo);
+        out_bar.write(bar);
+      }
+
+      __xls_channel<int, __xls_channel_dir_Out>& out_foo;
+      __xls_channel<int, __xls_channel_dir_Out>& out_bar;
+    };)";
+
+  generate_fsms_for_pipelined_loops_ = true;
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out_foo"] = {xls::Value(xls::SBits(20, 32)),
+                          xls::Value(xls::SBits(40, 32))};
+    outputs["out_bar"] = {xls::Value(xls::SBits(15, 32)),
+                          xls::Value(xls::SBits(15, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
+  }
+
+  ASSERT_EQ(package_->procs().size(), 1);
+  const xls::Proc* proc = package_->procs().at(0).get();
+
+  int64_t n_64_bit_elems = 0;
+
+  for (xls::StateElement* state_element : proc->StateElements()) {
+    if (state_element->type()->GetFlatBitCount() == 64) {
+      ++n_64_bit_elems;
+    }
+  }
+
+  // State elements can be shared for multiple calls with the same parameters.
+  EXPECT_EQ(n_64_bit_elems, 2);
+}
+
+TEST_F(TranslatorProcTestWithoutFSMParam,
+       StateElementReuseInLoopInCallNestedLoop) {
+  const std::string content = R"(
+    void DoSomething(long& foobar) {
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<2;++i) {
+        #pragma hls_pipeline_init_interval 1
+        for(int j=0;j<6;++j) {
+          ++foobar;
+        }
+      }
+    }
+
+    class Block {
+    public:
+
+    #pragma hls_top
+      void Run() {
+        static long foo = 0;
+        DoSomething(foo);
+        out_foo.write(foo);
+      }
+
+      __xls_channel<int, __xls_channel_dir_Out>& out_foo;
+    };)";
+
+  generate_fsms_for_pipelined_loops_ = true;
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out_foo"] = {xls::Value(xls::SBits(12, 32)),
+                          xls::Value(xls::SBits(24, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
+  }
+
+  ASSERT_EQ(package_->procs().size(), 1);
+  const xls::Proc* proc = package_->procs().at(0).get();
+
+  int64_t n_64_bit_elems = 0;
+
+  for (xls::StateElement* state_element : proc->StateElements()) {
+    if (state_element->type()->GetFlatBitCount() == 64) {
+      ++n_64_bit_elems;
+    }
+  }
+
+  // State elements can be shared for multiple calls with the same parameters.
+  EXPECT_EQ(n_64_bit_elems, 1);
 }
 
 }  // namespace

@@ -166,6 +166,7 @@ cc_test(
         "//xls/ir:events",
         "//xls/ir:function_builder",
         "//xls/ir:op",
+        "//xls/ir:state_element",
         "//xls/ir:value",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
