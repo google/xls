@@ -51,7 +51,7 @@ pub fn unbiased_exponent(f: F64) -> sN[F64_EXP_SZ] {
 }
 
 pub fn bias(unbiased_exponent_in: sN[F64_EXP_SZ]) -> uN[F64_EXP_SZ] {
-    apfloat::bias(unbiased_exponent_in)
+    apfloat::bias<F64_EXP_SZ, F64_FRACTION_SZ>(unbiased_exponent_in)
 }
 
 pub fn flatten(f: F64) -> uN[F64_TOTAL_SZ] { apfloat::flatten<F64_EXP_SZ, F64_FRACTION_SZ>(f) }

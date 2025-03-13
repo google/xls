@@ -194,43 +194,6 @@ fn test_min_normal_exp() {
     assert_eq(min_normal_exp<u32:11>(), s11:-1022);
 }
 
-// Returns 2^(EXP_SZ-1)-1, which is the exponent bias used for encoding
-// the given APFloat type. For example, this would return 127 for float32.
-pub fn exponent_bias<EXP_SZ: u32, FRACTION_SZ: u32>(f: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[EXP_SZ] {
-    std::signed_max_value<EXP_SZ>() as sN[EXP_SZ]
-}
-
-#[test]
-fn exponent_bias_test() {
-    const F32_EXP_SZ = u32:8;
-    const F32_FRACTION_SZ = u32:23;
-    let expected = s8:127;
-    let input = one<F32_EXP_SZ, F32_FRACTION_SZ>(false);
-    let actual = exponent_bias(input);
-    assert_eq(actual, expected);
-
-    const BF19_EXP_SZ = u32:8;
-    const BF19_FRACTION_SZ = u32:10;
-    let expected = s8:127;
-    let input = one<BF19_EXP_SZ, BF19_FRACTION_SZ>(false);
-    let actual = exponent_bias(input);
-    assert_eq(actual, expected);
-
-    const BF16_EXP_SZ = u32:8;
-    const BF16_FRACTION_SZ = u32:7;
-    let expected = s8:127;
-    let input = one<BF16_EXP_SZ, BF16_FRACTION_SZ>(false);
-    let actual = exponent_bias(input);
-    assert_eq(actual, expected);
-
-    const FP16_EXP_SZ = u32:5;
-    const FP16_FRACTION_SZ = u32:10;
-    let expected = s5:15;
-    let input = one<FP16_EXP_SZ, FP16_FRACTION_SZ>(false);
-    let actual = exponent_bias(input);
-    assert_eq(actual, expected);
-}
-
 // Returns the unbiased exponent.
 // For normal numbers it is `bexp - 2^(EXP_SZ - 1) + 1`.
 // For zero and subnormals, it is `1 - 2^(EXP_SZ-1)`.
@@ -241,8 +204,9 @@ fn exponent_bias_test() {
 // and `NaN` it is `-128`.
 pub fn unbiased_exponent<EXP_SZ: u32, FRACTION_SZ: u32>
     (f: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[EXP_SZ] {
-    let bias = exponent_bias(f);
-    (f.bexp as sN[EXP_SZ]) - bias
+    const EXP_SZ_MINUS_ONE: u32 = EXP_SZ - u32:1;
+    const BIAS = std::unsigned_max_value<EXP_SZ_MINUS_ONE>() as sN[EXP_SZ];
+    (f.bexp as sN[EXP_SZ]) - BIAS
 }
 
 #[test]
@@ -318,26 +282,27 @@ fn unbiased_exponent_inf_nan_test() {
 //
 // Notice: Since the function only takes as input the unbiased exponent, it cannot
 // distinguish between zero and subnormal numbers, or NaN and infinity, respectively.
-pub fn bias<EXP_SZ: u32>(unbiased_exponent: sN[EXP_SZ]) -> uN[EXP_SZ] {
-    const BIAS = std::signed_max_value<EXP_SZ>();
+pub fn bias<EXP_SZ: u32, FRACTION_SZ: u32>(unbiased_exponent: sN[EXP_SZ]) -> uN[EXP_SZ] {
+    const EXP_SZ_MINUS_ONE: u32 = EXP_SZ - u32:1;
+    const BIAS = std::unsigned_max_value<EXP_SZ_MINUS_ONE>() as sN[EXP_SZ];
     (unbiased_exponent + BIAS) as uN[EXP_SZ]
 }
 
 #[test]
 fn bias_test() {
-    // Normal.
+    // normal.
     let expected = u8:127;
-    let actual = bias<u32:8>(s8:0);
+    let actual = bias<u32:8, u32:23>(s8:0);
     assert_eq(expected, actual);
 
     // Inf or NaN.
     let expected = u8:255;
-    let actual = bias<u32:8>(s8:-128);
+    let actual = bias<u32:8, u32:23>(s8:-128);
     assert_eq(expected, actual);
 
     // Zero or subnormal.
     let expected = u8:0;
-    let actual = bias<u32:8>(s8:-127);
+    let actual = bias<u32:8, u32:23>(s8:-127);
     assert_eq(expected, actual);
 }
 
@@ -418,7 +383,7 @@ pub fn cast_from_fixed_using_rne<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u3
     let exp = (num_trailing_nonzeros as uN[UEXP_SZ]) - uN[UEXP_SZ]:1;
     let max_exp_exclusive = uN[UEXP_SZ]:1 << ((EXP_SZ as uN[UEXP_SZ]) - uN[UEXP_SZ]:1);
     let is_inf = exp >= max_exp_exclusive;
-    let bexp = bias(exp as sN[EXP_SZ]);
+    let bexp = bias<EXP_SZ, FRACTION_SZ>(exp as sN[EXP_SZ]);
 
     // Determine fraction (pre-rounding).
     //
@@ -533,7 +498,7 @@ pub fn cast_from_fixed_using_rz<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u32
     let exp = (num_trailing_nonzeros as uN[UEXP_SZ]) - uN[UEXP_SZ]:1;
     let max_exp_exclusive = uN[UEXP_SZ]:1 << ((EXP_SZ as uN[UEXP_SZ]) - uN[UEXP_SZ]:1);
     let is_inf = exp >= max_exp_exclusive;
-    let bexp = bias(exp as sN[EXP_SZ]);
+    let bexp = bias<EXP_SZ, FRACTION_SZ>(exp as sN[EXP_SZ]);
 
     // Determine fraction (pre-rounding).
     //
@@ -573,91 +538,163 @@ fn cast_from_fixed_using_rz_test() {
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:2),
-        Float { sign: false, bexp: bias(sN[EXP_SZ]:1), fraction: uN[FRAC_SZ]:0 });
+        Float { sign: false, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1), fraction: uN[FRAC_SZ]:0 });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:2),
-        Float { sign: true, bexp: bias(sN[EXP_SZ]:1), fraction: uN[FRAC_SZ]:0 });
+        Float { sign: true, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1), fraction: uN[FRAC_SZ]:0 });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:3),
-        Float { sign: false, bexp: bias(sN[EXP_SZ]:1), fraction: uN[FRAC_SZ]:0b10000 });
+        Float {
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1),
+            fraction: uN[FRAC_SZ]:0b10000,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:3),
-        Float { sign: true, bexp: bias(sN[EXP_SZ]:1), fraction: uN[FRAC_SZ]:0b10000 });
+        Float {
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1),
+            fraction: uN[FRAC_SZ]:0b10000,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b111000),
-        Float { sign: false, bexp: bias(sN[EXP_SZ]:5), fraction: uN[FRAC_SZ]:0b11000 });
+        Float {
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+            fraction: uN[FRAC_SZ]:0b11000,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b111000),
-        Float { sign: true, bexp: bias(sN[EXP_SZ]:5), fraction: uN[FRAC_SZ]:0b11000 });
+        Float {
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+            fraction: uN[FRAC_SZ]:0b11000,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b1110000),
-        Float { sign: false, bexp: bias(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11000 });
+        Float {
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11000,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b1110000),
-        Float { sign: true, bexp: bias(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11000 });
+        Float {
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11000,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b111111),
-        Float { sign: false, bexp: bias(sN[EXP_SZ]:5), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b111111),
-        Float { sign: true, bexp: bias(sN[EXP_SZ]:5), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b1111110),
-        Float { sign: false, bexp: bias(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b1111110),
-        Float { sign: true, bexp: bias(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b1111111),
-        Float { sign: false, bexp: bias(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b1111111),
-        Float { sign: true, bexp: bias(sN[EXP_SZ]:6), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b01111111111111111),
-        Float { sign: false, bexp: bias(sN[EXP_SZ]:15), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b01111111111111111),
-        Float { sign: true, bexp: bias(sN[EXP_SZ]:15), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b00000011111111111),
-        Float { sign: false, bexp: bias(sN[EXP_SZ]:10), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b00000011111111111),
-        Float { sign: true, bexp: bias(sN[EXP_SZ]:10), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b00000011111111000),
-        Float { sign: false, bexp: bias(sN[EXP_SZ]:10), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: false,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b00000011111111000),
-        Float { sign: true, bexp: bias(sN[EXP_SZ]:10), fraction: uN[FRAC_SZ]:0b11111 });
+        Float {
+            sign: true,
+            bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+            fraction: uN[FRAC_SZ]:0b11111,
+        });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[20]:0b01000000000000000),
-        Float { sign: false, bexp: bias(sN[EXP_SZ]:15), fraction: uN[FRAC_SZ]:0 });
+        Float { sign: false, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15), fraction: uN[FRAC_SZ]:0 });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[20]:0b01000000000000000),
-        Float { sign: true, bexp: bias(sN[EXP_SZ]:15), fraction: uN[FRAC_SZ]:0 });
+        Float { sign: true, bexp: bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15), fraction: uN[FRAC_SZ]:0 });
 
     assert_eq(
         cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[20]:0b010000000000000000),
@@ -792,12 +829,11 @@ fn upcast_test() {
     assert_eq(upcast<BF16_EXP_SZ, BF16_FRACTION_SZ>(one_bf16), one_bf16);
 }
 
-// Rounds a apfloat to lower precision in fractional bits, while the exponent size remains fixed.
+// Round the apfloat to lower precision in fractional bits, while the exponent size remains fixed.
 // Ties round to even (LSB = 0) and denormal inputs get flushed to zero.
-// The result is undefined for NaN and infinity.
-fn downcast_fractional_rne<TO_FRACTION_SZ: u32, FROM_FRACTION_SZ: u32, EXP_SZ: u32>
+pub fn downcast_fractional_rne<TO_FRACTION_SZ: u32, FROM_FRACTION_SZ: u32, EXP_SZ: u32>
     (f: APFloat<EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<EXP_SZ, TO_FRACTION_SZ> {
-    const_assert!(FROM_FRACTION_SZ >= TO_FRACTION_SZ);
+    const_assert!(FROM_FRACTION_SZ > TO_FRACTION_SZ);
 
     let lsb_index = FROM_FRACTION_SZ - TO_FRACTION_SZ;
 
@@ -817,26 +853,63 @@ fn downcast_fractional_rne<TO_FRACTION_SZ: u32, FROM_FRACTION_SZ: u32, EXP_SZ: u
 
     let renormalize = round_up && and_reduce(truncated_fraction);
 
-    // bexp: If the fraction rolled over when rounded up, then need to increment the exponent.
-    // Rollover from the largest representable value will naturally go to infinity as desired.
-
-    APFloat {
-        sign: f.sign,
-        bexp: if renormalize { f.bexp + uN[EXP_SZ]:1 } else { f.bexp },
-        fraction: if round_up {
-            truncated_fraction + uN[TO_FRACTION_SZ]:1
-        } else {
-            truncated_fraction
-        },
+    if is_nan(f) {
+        qnan<EXP_SZ, TO_FRACTION_SZ>()
+    } else if is_zero_or_subnormal(f) {
+        // flush denormals to zero
+        zero<EXP_SZ, TO_FRACTION_SZ>(f.sign)
+    } else {
+        // bexp: If the fraction rolled over when rounded up, then need to increment the exponent.
+        // Rollover from the largest representable value will naturally go to infinity as desired.
+        APFloat {
+            sign: f.sign,
+            bexp: if renormalize { f.bexp + uN[EXP_SZ]:1 } else { f.bexp },
+            fraction: if round_up {
+                truncated_fraction + uN[TO_FRACTION_SZ]:1
+            } else {
+                truncated_fraction
+            },
+        }
     }
 }
 
 #[test]
-fn downcast_fractional_rne_fp32_to_bf16_test() {
-    const F32_EXP_SZ = u32:8;
-    const F32_FRACTION_SZ = u32:23;
+fn downcast_fractional_rne_test() {
     const BF16_EXP_SZ = u32:8;
     const BF16_FRACTION_SZ = u32:7;
+    const F32_EXP_SZ = u32:8;
+    const F32_FRACTION_SZ = u32:23;
+
+    // qnan -> qnan
+    let qnan_f32 = qnan<F32_EXP_SZ, F32_FRACTION_SZ>();
+    let qnan_bf16 = qnan<BF16_EXP_SZ, BF16_FRACTION_SZ>();
+    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(qnan_f32), qnan_bf16);
+
+    // inf -> inf
+    let inf_f32 = inf<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
+    let inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
+    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(inf_f32), inf_bf16);
+
+    let minus_inf_f32 = inf<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
+    let minus_inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
+    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(minus_inf_f32), minus_inf_bf16);
+
+    // +/- 0.0 -> same-signed 0
+    let zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
+    let zero_bf16 = zero<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
+    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(zero_f32), zero_bf16);
+
+    let minus_zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
+    let minus_zero_bf16 = zero<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
+    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(minus_zero_f32), minus_zero_bf16);
+
+    // subnormals flushed to same-signed 0.0
+    let subnormal_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0, fraction: u23:0x7fffff };
+    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(subnormal_f32), zero_bf16);
+
+    let minus_subnormal_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, ..subnormal_f32 };
+    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(minus_subnormal_f32), minus_zero_bf16);
 
     // normals
     let one_bf16 = one<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
@@ -881,17 +954,6 @@ fn downcast_fractional_rne_fp32_to_bf16_test() {
     assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(rne_up_f32), rne_up_bf16);
 
     // round up to inf
-    let inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
-    let just_above_max_normal_bf16 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fe000 };
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(just_above_max_normal_bf16), inf_bf16);
-
-    let just_below_max_normal_bf16 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, bexp: u8:0xfe, fraction: u23:0x7fe000 };
-    let minus_inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(just_below_max_normal_bf16), minus_inf_bf16);
-
-    // round up to inf
     let max_normal_f32 =
         APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fffff };
     assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(max_normal_f32), inf_bf16);
@@ -900,247 +962,6 @@ fn downcast_fractional_rne_fp32_to_bf16_test() {
         APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, bexp: u8:0xfe, fraction: u23:0x7fffff };
     let minus_inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
     assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(minus_max_normal_f32), minus_inf_bf16);
-}
-
-// Round the apfloat to an apfloat with smaller fraction and/or smaller exponent size.
-// Ties round to even (LSB = 0) and denormal inputs and outputs get flushed to zero.
-// Values with exponents above the target exponent range will overflow to infinity.
-// Values with exponents below the target exponent range will underflow to zero.
-pub fn downcast_rne<TO_FRACTION_SZ: u32, TO_EXP_SZ: u32, FROM_FRACTION_SZ: u32, FROM_EXP_SZ: u32>
-    (f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
-    const_assert!(FROM_EXP_SZ >= TO_EXP_SZ);
-    const_assert!(FROM_FRACTION_SZ >= TO_FRACTION_SZ);
-    // Guard against using this method on identical types.
-    const_assert!((FROM_FRACTION_SZ > TO_FRACTION_SZ) || (FROM_EXP_SZ > TO_EXP_SZ));
-
-    match tag(f) {
-        APFloatTag::NAN => qnan<TO_EXP_SZ, TO_FRACTION_SZ>(),
-        APFloatTag::INFINITY => inf<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
-        APFloatTag::ZERO => zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
-        APFloatTag::SUBNORMAL => zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
-        APFloatTag::NORMAL => {
-            // Downcast the fraction. This may increment the exponent.
-            let f_cast = downcast_fractional_rne<TO_FRACTION_SZ>(f);
-            const INF_EXP = std::unsigned_max_value<FROM_EXP_SZ>();
-            // Check for overflow to infinity due to rounding the fractional part up.
-            if f_cast.bexp == INF_EXP {
-                inf<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign)
-            } else {
-                // Check for over- and underflow of the exponent in the target type.
-                const FROM_EXP_SZ_MINUS_ONE = FROM_EXP_SZ - u32:1;
-                const TO_BIAS = std::signed_max_value<TO_EXP_SZ>() as sN[FROM_EXP_SZ];
-                let uexp = unbiased_exponent<FROM_EXP_SZ, TO_FRACTION_SZ>(f_cast);
-                if FROM_EXP_SZ < TO_EXP_SZ && uexp > TO_BIAS {
-                    inf<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign)
-                } else if FROM_EXP_SZ > TO_EXP_SZ && uexp <= -TO_BIAS {
-                    // Tiny values including subnormals in the target type are flushed to zero.
-                    zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign)
-                } else {
-                    APFloat {
-                        sign: f_cast.sign,
-                        bexp: bias(uexp as sN[TO_EXP_SZ]),
-                        fraction: f_cast.fraction,
-                    }
-                }
-            }
-        },
-    }
-}
-
-#[test]
-fn downcast_rne_fp32_to_fp16_test() {
-    const F32_EXP_SZ = u32:8;
-    const F32_FRACTION_SZ = u32:23;
-    const FP16_EXP_SZ = u32:5;
-    const FP16_FRACTION_SZ = u32:10;
-
-    // qnan -> qnan
-    let qnan_f32 = qnan<F32_EXP_SZ, F32_FRACTION_SZ>();
-    let qnan_fp16 = qnan<FP16_EXP_SZ, FP16_FRACTION_SZ>();
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(qnan_f32), qnan_fp16);
-
-    // inf -> inf
-    let inf_f32 = inf<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
-    let inf_fp16 = inf<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:0);
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(inf_f32), inf_fp16);
-
-    let minus_inf_f32 = inf<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
-    let minus_inf_fp16 = inf<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:1);
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_inf_f32), minus_inf_fp16);
-
-    // +/- 0.0 -> same-signed 0
-    let zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
-    let zero_fp16 = zero<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:0);
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(zero_f32), zero_fp16);
-
-    let minus_zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
-    let minus_zero_fp16 = zero<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:1);
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_zero_f32), minus_zero_fp16);
-
-    // subnormals flushed to same-signed 0.0
-    let subnormal_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0, fraction: u23:0x7fffff };
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(subnormal_f32), zero_fp16);
-
-    let minus_subnormal_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, ..subnormal_f32 };
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_subnormal_f32), minus_zero_fp16);
-
-    // normals
-    let one_fp16 = one<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:0);
-    let one_f32 = one<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(one_f32), one_fp16);
-
-    let minus_one_fp16 = APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { sign: u1:1, ..one_fp16 };
-    let minus_one_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, ..one_f32 };
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_one_f32), minus_one_fp16);
-
-    // fraction with no rounding necessary
-    let one_dot_5_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { fraction: u23:0x400000, ..one_f32 };
-    let one_dot_5_fp16 = APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { fraction: u10:0x200, ..one_fp16 };
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(one_dot_5_f32), one_dot_5_fp16);
-
-    // rounds down
-    let not_that_close_to_four_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x7fc000 };
-    let almost_four_fp16 =
-        APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { sign: u1:0, bexp: u5:0x10, fraction: u10:0x3fe };
-    assert_eq(
-        downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(not_that_close_to_four_f32), almost_four_fp16);
-
-    // rounds down tie to even
-    let getting_closer_to_four_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x7fe000 };
-    let almost_four_fp16 =
-        APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { sign: u1:0, bexp: u5:0x10, fraction: u10:0x3ff };
-    assert_eq(
-        downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(getting_closer_to_four_f32), almost_four_fp16);
-
-    // rounds up tie to even.
-    let even_closer_to_four_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x7ff000 };
-    let four_fp16 =
-        APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { sign: u1:0, bexp: u5:0x11, fraction: u10:0x0 };
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(even_closer_to_four_f32), four_fp16);
-
-    // rounds up
-    let soooo_close_to_four_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x7ff100 };
-    let four_fp16 =
-        APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { sign: u1:0, bexp: u5:0x11, fraction: u10:0x0 };
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(soooo_close_to_four_f32), four_fp16);
-
-    // round up to inf
-    let max_normal_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fffff };
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(max_normal_f32), inf_fp16);
-
-    let minus_max_normal_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, bexp: u8:0xfe, fraction: u23:0x7fffff };
-    let minus_inf_fp16 = inf<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:1);
-    assert_eq(downcast_rne<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_max_normal_f32), minus_inf_fp16);
-}
-
-#[test]
-fn downcast_rne_fp32_to_bf16_test() {
-    const F32_EXP_SZ = u32:8;
-    const F32_FRACTION_SZ = u32:23;
-    const BF16_EXP_SZ = u32:8;
-    const BF16_FRACTION_SZ = u32:7;
-
-    // qnan -> qnan
-    let qnan_f32 = qnan<F32_EXP_SZ, F32_FRACTION_SZ>();
-    let qnan_fp16 = qnan<BF16_EXP_SZ, BF16_FRACTION_SZ>();
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(qnan_f32), qnan_fp16);
-
-    // inf -> inf
-    let inf_f32 = inf<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
-    let inf_fp16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(inf_f32), inf_fp16);
-
-    let minus_inf_f32 = inf<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
-    let minus_inf_fp16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(minus_inf_f32), minus_inf_fp16);
-
-    // +/- 0.0 -> same-signed 0
-    let zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
-    let zero_fp16 = zero<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(zero_f32), zero_fp16);
-
-    let minus_zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
-    let minus_zero_fp16 = zero<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(minus_zero_f32), minus_zero_fp16);
-
-    // subnormals flushed to same-signed 0.0
-    let subnormal_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0, fraction: u23:0x7fffff };
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(subnormal_f32), zero_fp16);
-
-    let minus_subnormal_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, ..subnormal_f32 };
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(minus_subnormal_f32), minus_zero_fp16);
-
-    // normals
-    let one_bf16 = one<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
-    let one_f32 = one<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(one_f32), one_bf16);
-
-    let minus_one_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:1, ..one_bf16 };
-    let minus_one_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, ..one_f32 };
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(minus_one_f32), minus_one_bf16);
-
-    // fraction with no rounding necessary
-    let one_dot_5_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { fraction: u23:0x400000, ..one_f32 };
-    let one_dot_5_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { fraction: u7:0x40, ..one_bf16 };
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(one_dot_5_f32), one_dot_5_bf16);
-
-    // rounds down
-    let pi_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x490fdb };
-    let pi_bf16 =
-        APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u7:0x49 };
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(pi_f32), pi_bf16);
-
-    // rounds up
-    let one_third_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x7d, fraction: u23:0x2aaaab };
-    let one_third_bf16 =
-        APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x7d, fraction: u7:0x2b };
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(one_third_f32), one_third_bf16);
-
-    // rounds down, tie to even
-    let rne_down_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x408000 };
-    let rne_down_bf16 =
-        APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u7:0x40 };
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(rne_down_f32), rne_down_bf16);
-
-    // rounds up, tie to even
-    let rne_up_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x418000 };
-    let rne_up_bf16 =
-        APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u7:0x42 };
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(rne_up_f32), rne_up_bf16);
-
-    // round up to inf
-    let inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
-    let just_above_max_normal_bf16 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fe000 };
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(just_above_max_normal_bf16), inf_bf16);
-
-    let just_below_max_normal_bf16 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, bexp: u8:0xfe, fraction: u23:0x7fe000 };
-    let minus_inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
-    assert_eq(
-        downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(just_below_max_normal_bf16), minus_inf_bf16);
-
-    // round up to inf
-    let max_normal_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fffff };
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(max_normal_f32), inf_bf16);
-
-    let minus_max_normal_f32 =
-        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, bexp: u8:0xfe, fraction: u23:0x7fffff };
-    let minus_inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
-    assert_eq(downcast_rne<BF16_FRACTION_SZ, BF16_EXP_SZ>(minus_max_normal_f32), minus_inf_bf16);
 }
 
 // Returns a normalized APFloat with the given components.
@@ -1196,8 +1017,11 @@ pub fn ldexp<EXP_SZ: u32, FRACTION_SZ: u32>
     // Increase the exponent of fraction by 'exp'. If this was not a DAZ module,
     // we'd have to deal with denormal 'fraction' here.
     let exp = signex(exp, s33:0) + signex(unbiased_exponent<EXP_SZ, FRACTION_SZ>(fraction), s33:0);
-    let result =
-        Float { sign: fraction.sign, bexp: bias(exp as sN[EXP_SZ]), fraction: fraction.fraction };
+    let result = Float {
+        sign: fraction.sign,
+        bexp: bias<EXP_SZ, FRACTION_SZ>(exp as sN[EXP_SZ]),
+        fraction: fraction.fraction,
+    };
 
     // Handle overflow.
     let result = if exp > MAX_EXPONENT { inf<EXP_SZ, FRACTION_SZ>(fraction.sign) } else { result };
@@ -1318,7 +1142,11 @@ pub fn cast_to_fixed<NUM_DST_BITS: u32, EXP_SZ: u32, FRACTION_SZ: u32>
     let overflow = (exp as u32) >= MAX_EXPONENT;
     let result = if overflow || is_nan(to_cast) { MIN_FIXED_VALUE } else { result };
     // Underflow / to_cast < 1 --> 0
-    let result = if to_cast.bexp < bias(sN[EXP_SZ]:0) { sN[NUM_DST_BITS]:0 } else { result };
+    let result = if to_cast.bexp < bias<EXP_SZ, FRACTION_SZ>(sN[EXP_SZ]:0) {
+        sN[NUM_DST_BITS]:0
+    } else {
+        result
+    };
 
     result
 }
@@ -2557,7 +2385,7 @@ fn mul_no_round
     let fraction = if fraction_shift == uN[WIDE_FRACTION]:0 { fraction << 1 } else { fraction };
 
     // e.g., for floats, 0xff -> 0x7f, A.K.A. 127, the exponent bias.
-    let bias = std::signed_max_value<EXP_SZ>() as sN[EXP_SIGN_CARRY];
+    let bias = std::mask_bits<EXP_SZ>() as sN[EXP_SIGN_CARRY] >> 1;
     let bexp = (a.bexp as sN[EXP_SIGN_CARRY]) + (b.bexp as sN[EXP_SIGN_CARRY]) - bias +
                (fraction_shift as sN[EXP_SIGN_CARRY]);
     let bexp = if a.bexp == bits[EXP_SZ]:0 || b.bexp == bits[EXP_SZ]:0 {
@@ -3198,7 +3026,7 @@ fn fail_case_aa() {
 
 // Returns whether or not the given APFloat has a fractional part.
 pub fn has_fractional_part<EXP_SZ: u32, FRACTION_SZ: u32>(f: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
-    f.bexp < bias(FRACTION_SZ as sN[EXP_SZ])
+    f.bexp < bias<EXP_SZ, FRACTION_SZ>(FRACTION_SZ as sN[EXP_SZ])
 }
 
 #[test]
@@ -3225,7 +3053,7 @@ fn has_fractional_part_test() {
 // Returns whether or not the given APFloat has an negative exponent.
 pub fn has_negative_exponent<EXP_SZ: u32, FRACTION_SZ: u32>
     (f: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
-    f.bexp < bias(sN[EXP_SZ]:0)
+    f.bexp < bias<EXP_SZ, FRACTION_SZ>(sN[EXP_SZ]:0)
 }
 
 #[test]
