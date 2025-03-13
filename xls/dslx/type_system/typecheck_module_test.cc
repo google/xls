@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "gmock/gmock.h"
+#include "xls/dslx/interp_value.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"

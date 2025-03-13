@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "gmock/gmock.h"
+#include "xls/ir/channel.pb.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"

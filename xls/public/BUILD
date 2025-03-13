@@ -227,6 +227,8 @@ cc_library(
         ":c_api_impl_helpers",
         "//xls/ir",
         "//xls/ir:function_builder",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:value",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",

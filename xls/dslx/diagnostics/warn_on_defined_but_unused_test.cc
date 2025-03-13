@@ -16,6 +16,9 @@
 
 #include <string>
 #include <optional>
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/warning_kind.h"
+#include "xls/dslx/warning_collector.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"

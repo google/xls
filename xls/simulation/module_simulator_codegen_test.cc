@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "gmock/gmock.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"

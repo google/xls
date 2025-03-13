@@ -485,6 +485,7 @@ cc_test(
     srcs = ["ir_converter_options_flags_test.cc"],
     deps = [
         ":ir_converter_options_flags",
+        ":ir_converter_options_flags_cc_proto",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:warning_kind",

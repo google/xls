@@ -17,6 +17,10 @@
 #include <cstdint>
 #include <functional>
 #include <vector>
+#include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/op.h"
+#include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/function.h"

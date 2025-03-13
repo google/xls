@@ -19,6 +19,8 @@
 #include <variant>
 #include <vector>
 
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/warning_collector.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"

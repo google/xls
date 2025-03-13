@@ -163,6 +163,7 @@ cc_test(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel",
+        "//xls/ir:channel_cc_proto",
         "//xls/ir:events",
         "//xls/ir:function_builder",
         "//xls/ir:op",

@@ -96,6 +96,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:virtualizable_file_system",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:type",
         "//xls/ir",

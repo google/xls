@@ -21,6 +21,7 @@
 #include <variant>
 #include <vector>
 
+#include "xls/ir/channel.pb.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"

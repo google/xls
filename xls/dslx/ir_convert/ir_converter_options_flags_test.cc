@@ -16,6 +16,7 @@
 
 #include <string>
 #include <optional>
+#include "xls/dslx/ir_convert/ir_converter_options_flags.pb.h"
 #include "absl/flags/declare.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

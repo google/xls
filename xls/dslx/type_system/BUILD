@@ -415,6 +415,7 @@ cc_test(
         "//xls/dslx:error_printer",
         "//xls/dslx:error_test_utils",
         "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:virtualizable_file_system",
         "//xls/dslx/frontend:ast",

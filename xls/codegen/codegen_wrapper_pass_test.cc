@@ -16,6 +16,7 @@
 
 #include <memory>
 
+#include "xls/passes/optimization_pass.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
