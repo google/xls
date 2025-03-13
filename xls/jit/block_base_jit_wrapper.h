@@ -30,6 +30,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/evaluator_options.h"
+#include "xls/ir/events.h"
 #include "xls/ir/value.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/block_jit.h"
@@ -45,6 +46,18 @@ class BaseBlockJitWrapper;
 class BaseBlockJitWrapperContinuation {
  public:
   BlockJitContinuation* inner_continuation() const { return inner_.get(); }
+
+  // Get the interpreter events since the last time
+  // `interpreter_events().Clear()` was called. This includes trace and
+  // assertions.
+  const InterpreterEvents& interpreter_events() const {
+    return inner_->GetEvents();
+  }
+
+  // Get the interpreter events since the last time
+  // `interpreter_events().Clear()` was called. This includes trace and
+  // assertions.
+  InterpreterEvents& interpreter_events() { return inner_->GetEvents(); }
 
   absl::Status SetInputPorts(absl::Span<const Value> values) {
     XLS_RET_CHECK(to_set_inputs_.empty())
