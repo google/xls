@@ -38,6 +38,7 @@ struct xls_type* xls_package_get_tuple_type(struct xls_package* package,
                                             int64_t member_count) {
   auto* cpp_package = reinterpret_cast<xls::Package*>(package);
   std::vector<xls::Type*> cpp_members;
+  cpp_members.reserve(member_count);
   for (int64_t i = 0; i < member_count; ++i) {
     cpp_members.push_back(reinterpret_cast<xls::Type*>(members[i]));
   }
@@ -208,6 +209,7 @@ struct xls_bvalue* xls_builder_base_add_tuple(struct xls_builder_base* builder,
                                               const char* name) {
   auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
   std::vector<xls::BValue> cpp_operands;
+  cpp_operands.reserve(operand_count);
   for (int64_t i = 0; i < operand_count; ++i) {
     cpp_operands.push_back(*reinterpret_cast<xls::BValue*>(operands[i]));
   }
