@@ -178,27 +178,40 @@ exponent field. For single precision floats this value is -126.
 ### `apfloat::unbiased_exponent`
 
 ```dslx-snippet
-pub fn unbiased_exponent<EXP_SZ:u32, FRACTION_SZ:u32>(f: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[EXP_SZ]
+pub fn unbiased_exponent<EXP_SZ: u32, FRACTION_SZ: u32>(f: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[EXP_SZ]
 ```
 
-Returns the unbiased exponent. For normal numbers it is `bexp - 2^EXP_SZ +
-1``and for subnormals it is,`2 - 2^EXP_SZ``. For infinity and `NaN``, there are
-no guarantees, as the unbiased exponent has no meaning in that case.
+Returns the unbiased exponent of `f`. For normal numbers it is `bexp -
+2^(EXP_SZ - 1) + 1`. For zero and subnormals, it is `1 - 2^(EXP_SZ-1)`. For
+infinity and `NaN`, it is `-2^(EXP_SZ - 1)`.
 
-For example, for single precision normal numbers the unbiased exponent is
-`bexp - 127``and for subnormal numbers it is`-126`.
+For example, for single precision IEEE numbers, the unbiased exponent is `bexp -
+127`, for zero and subnormal numbers it is `-127`, and for infinity and `NaN` it
+is `-128`.
 
 ### `apfloat::bias`
 
 ```dslx-snippet
-pub fn bias<EXP_SZ: u32, FRACTION_SZ: u32>(unbiased_exponent: sN[EXP_SZ]) -> bits[EXP_SZ]
+pub fn bias<EXP_SZ: u32>(unbiased_exponent: sN[EXP_SZ]) -> bits[EXP_SZ]
 ```
 
-Returns the biased exponent which is equal to `unbiased_exponent + 2^EXP_SZ - 1`
+Returns the biased exponent which is equal to `unbiased_exponent + 2^(EXP_SZ -
+1)`
 
-Since the function only takes as input the unbiased exponent, it cannot
-distinguish between normal and subnormal numbers, as a result it assumes that
-the input is the exponent for a normal number.
+Notice: Since the function only takes as input the unbiased exponent, it cannot
+distinguish between zero and subnormal numbers, or `NaN` and infinity,
+respectively.
+
+### `apfloat::exponent_bias`
+
+```dslx-snippet
+pub fn exponent_bias<EXP_SZ: u32, FRACTION_SZ: u32>(
+                     f: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> sN[EXP_SZ]
+```
+
+Returns `2^(EXP_SZ-1)-1`, which is the exponent bias used for encoding the given
+APFloat type. For example, this would return `127` for `float32`.
 
 ### `apfloat::flatten`
 
@@ -272,16 +285,20 @@ pub fn upcast<TO_EXP_SZ: u32, TO_FRACTION_SZ: u32, FROM_EXP_SZ: u32, FROM_FRACTI
 Upcast the given apfloat to another (larger) apfloat representation. Note:
 denormal inputs get flushed to zero.
 
-### `apfloat::downcast_fractional_rne`
+### `apfloat::downcast_rne`
 
 ```dslx-snippet
-pub fn downcast_fractional_rne<TO_FRACTION_SZ: u32, FROM_FRACTION_SZ: u32, EXP_SZ: u32>
-    (f: APFloat<EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<EXP_SZ, TO_FRACTION_SZ> {
+pub fn downcast_rne<TO_FRACTION_SZ: u32, TO_EXP_SZ,
+                    FROM_FRACTION_SZ: u32, FROM_EXP_SZ: u32>(
+                    f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>)
+    -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
 ```
 
-Round the apfloat to lower precision in fractional bits, while the exponent size
-remains fixed. Ties round to even (LSB = 0) and denormal inputs get flushed to
-zero.
+Round the apfloat to an apfloat with smaller fraction or smaller exponent (or
+both). Ties round to even (LSB = 0) and denormal inputs and outputs get flushed
+to zero. Values with exponents above the target exponent range will overflow to
+infinity. Values with exponents below the target exponent range will underflow
+to zero.
 
 ### `apfloat::normalize`
 

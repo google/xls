@@ -47,7 +47,7 @@ pub fn unbiased_exponent(f: BF16) -> s8 {
 }
 
 pub fn bias(unbiased_exponent_in: s8) -> u8 {
-    apfloat::bias<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(unbiased_exponent_in)
+    apfloat::bias(unbiased_exponent_in)
 }
 
 pub fn flatten(f: BF16) -> u16 { apfloat::flatten<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f) }
@@ -171,7 +171,7 @@ pub fn floor(f: BF16) -> BF16 { apfloat::floor(f) }
 pub fn trunc(f: BF16) -> BF16 { apfloat::trunc(f) }
 
 pub fn from_float32(f32: apfloat::APFloat<u32:8, u32:23>) -> BF16 {
-    apfloat::downcast_fractional_rne<BF16::FRACTION_SIZE>(f32)
+    apfloat::downcast_rne<BF16::FRACTION_SIZE, BF16::EXP_SIZE>(f32)
 }
 
 // Converts the given signed integer to bfloat16. For s8, all values can be
