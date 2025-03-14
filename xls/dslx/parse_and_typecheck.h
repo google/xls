@@ -44,7 +44,8 @@ struct TypecheckedModule {
 // get-or-insert any imported modules.
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
-    ImportData* import_data, std::vector<CommentData>* comments = nullptr);
+    ImportData* import_data, std::vector<CommentData>* comments = nullptr,
+    bool force_version2 = false);
 
 // Helper that parses and creates a new module from the given "text".
 //
@@ -68,7 +69,7 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 // "import_data" is used to get-or-insert any imported modules.
 absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
-    ImportData* import_data);
+    ImportData* import_data, bool force_version2 = false);
 
 }  // namespace xls::dslx
 

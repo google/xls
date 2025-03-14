@@ -40,6 +40,8 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/run_routines/run_routines.h"
+#include "xls/dslx/type_system/typecheck_test_utils.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
@@ -60,9 +62,11 @@ constexpr ConvertOptions kFailNoPos = {
 };
 
 void ExpectIr(std::string_view got, std::string_view test_name) {
+  std::string test_name_without_param(test_name);
+  RE2::GlobalReplace(&test_name_without_param, R"(/\d+)", "");
   ExpectEqualToGoldenFile(
       absl::StrFormat("xls/dslx/ir_convert/testdata/ir_converter_test_%s.ir",
-                      test_name),
+                      test_name_without_param),
       got);
 }
 
@@ -72,11 +76,12 @@ std::string TestName() {
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     std::string_view program, std::string_view fn_name, ImportData& import_data,
-    const ConvertOptions& options) {
+    const ConvertOptions& options, bool typecheck_version2 = false) {
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, /*path=*/"test_module.x",
-                        /*module_name=*/"test_module", &import_data));
+                        /*module_name=*/"test_module", &import_data,
+                        /*comments=*/nullptr, typecheck_version2));
   return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
                             &import_data,
                             /*parametric_env=*/nullptr, options);
@@ -84,14 +89,16 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     std::string_view program, std::string_view fn_name,
-    const ConvertOptions& options = ConvertOptions{}) {
+    const ConvertOptions& options = ConvertOptions{},
+    bool typecheck_version2 = false) {
   auto import_data = CreateImportDataForTest();
-  return ConvertOneFunctionForTest(program, fn_name, import_data, options);
+  return ConvertOneFunctionForTest(program, fn_name, import_data, options,
+                                   typecheck_version2);
 }
 
 absl::StatusOr<std::string> ConvertModuleForTest(
     std::string_view program, const ConvertOptions& options = ConvertOptions{},
-    ImportData* import_data = nullptr) {
+    ImportData* import_data = nullptr, bool typecheck_version2 = false) {
   std::optional<ImportData> import_data_value;
   if (import_data == nullptr) {
     import_data_value.emplace(CreateImportDataForTest());
@@ -99,13 +106,43 @@ absl::StatusOr<std::string> ConvertModuleForTest(
   }
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test_module.x", "test_module", import_data));
+      ParseAndTypecheck(program, "test_module.x", "test_module", import_data,
+                        /*comments=*/nullptr, typecheck_version2));
   XLS_ASSIGN_OR_RETURN(std::string converted,
                        ConvertModule(tm.module, import_data, options));
   return converted;
 }
 
-TEST(IrConverterTest, NamedConstant) {
+class IrConverterWithBothTypecheckVersionsTest
+    : public ::testing::TestWithParam<TypeInferenceVersion> {
+ public:
+  absl::StatusOr<std::string> ConvertOneFunctionForTest(
+      std::string_view program, std::string_view fn_name,
+      ImportData& import_data, const ConvertOptions& options) {
+    return ::xls::dslx::ConvertOneFunctionForTest(
+        program, fn_name, import_data, options,
+        GetParam() == TypeInferenceVersion::kVersion2);
+  }
+
+  absl::StatusOr<std::string> ConvertOneFunctionForTest(
+      std::string_view program, std::string_view fn_name,
+      const ConvertOptions& options = ConvertOptions{}) {
+    return ::xls::dslx::ConvertOneFunctionForTest(
+        program, fn_name, options,
+        GetParam() == TypeInferenceVersion::kVersion2);
+  }
+
+  absl::StatusOr<std::string> ConvertModuleForTest(
+      std::string_view program,
+      const ConvertOptions& options = ConvertOptions{},
+      ImportData* import_data = nullptr) {
+    return ::xls::dslx::ConvertModuleForTest(
+        program, options, import_data,
+        GetParam() == TypeInferenceVersion::kVersion2);
+  }
+};
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, NamedConstant) {
   const char* program =
       R"(fn f() -> u32 {
   let foo: u32 = u32:42;
@@ -117,7 +154,7 @@ TEST(IrConverterTest, NamedConstant) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, Concat) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, Concat) {
   const char* program =
       R"(fn f(x: bits[31]) -> u32 {
   bits[1]:1 ++ x
@@ -128,7 +165,7 @@ TEST(IrConverterTest, Concat) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, TwoPlusTwo) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, TwoPlusTwo) {
   const char* program =
       R"(fn two_plus_two() -> u32 {
   u32:2 + u32:2
@@ -139,7 +176,7 @@ TEST(IrConverterTest, TwoPlusTwo) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, SignedDiv) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, SignedDiv) {
   const char* program =
       R"(fn signed_div(x: s32, y: s32) -> s32 {
   x / y
@@ -149,7 +186,7 @@ TEST(IrConverterTest, SignedDiv) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, NegativeX) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, NegativeX) {
   const char* program =
       R"(fn negate(x: u32) -> u32 {
   -x
@@ -159,7 +196,7 @@ TEST(IrConverterTest, NegativeX) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, LetBinding) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, LetBinding) {
   const char* program =
       R"(fn f() -> u32 {
   let x: u32 = u32:2;
@@ -170,7 +207,7 @@ TEST(IrConverterTest, LetBinding) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, LetTupleBinding) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBinding) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, u32:3);
@@ -182,7 +219,7 @@ TEST(IrConverterTest, LetTupleBinding) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, LetTupleBindingNested) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBindingNested) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, (u32:3, (u32:4,), u32:5));
@@ -196,7 +233,8 @@ TEST(IrConverterTest, LetTupleBindingNested) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, LetTupleBindingRestOfTupleNestedNone) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       LetTupleBindingRestOfTupleNestedNone) {
   const char* program =
       R"(
 #[test]
@@ -212,7 +250,8 @@ fn f() {
                              }));
 }
 
-TEST(IrConverterTest, LetTupleBindingRestOfTupleNested) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       LetTupleBindingRestOfTupleNested) {
   const char* program =
       R"(
 #[test]
@@ -228,7 +267,8 @@ fn f() {
                              }));
 }
 
-TEST(IrConverterTest, LetTupleBindingWildcardNested) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       LetTupleBindingWildcardNested) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, u32:3, (u32:4, u32:5, (u32:6,u32:7), u32:8));
@@ -242,7 +282,7 @@ TEST(IrConverterTest, LetTupleBindingWildcardNested) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, LetTupleBindingWildcard) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBindingWildcard) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, u32:3);
@@ -256,7 +296,7 @@ TEST(IrConverterTest, LetTupleBindingWildcard) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, LetTupleBindingRestOfTuple) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, LetTupleBindingRestOfTuple) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, u32:3, u32:4);
@@ -270,7 +310,8 @@ TEST(IrConverterTest, LetTupleBindingRestOfTuple) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, LetTupleBindingRestOfTupleNone) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       LetTupleBindingRestOfTupleNone) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2,);
@@ -284,7 +325,8 @@ TEST(IrConverterTest, LetTupleBindingRestOfTupleNone) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, LetTupleBindingRestOfTupleBeginning) {
+TEST(IrConverterWithBothTypecheckVersionsTest,
+     LetTupleBindingRestOfTupleBeginning) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, u32:3, u32:4);
@@ -298,7 +340,8 @@ TEST(IrConverterTest, LetTupleBindingRestOfTupleBeginning) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, LetTupleBindingRestOfTupleSkipsMiddle) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       LetTupleBindingRestOfTupleSkipsMiddle) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, u32:2, u32:3, u32:4);
@@ -312,7 +355,7 @@ TEST(IrConverterTest, LetTupleBindingRestOfTupleSkipsMiddle) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, MatchRestOfTupleBeginning) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchRestOfTupleBeginning) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, u32:2, u32:3, u32:4);
@@ -328,7 +371,7 @@ TEST(IrConverterTest, MatchRestOfTupleBeginning) {
                              }));
 }
 
-TEST(IrConverterTest, MatchRestOfTupleMiddle) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchRestOfTupleMiddle) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, u32:2, u32:3, u32:4);
@@ -344,7 +387,7 @@ TEST(IrConverterTest, MatchRestOfTupleMiddle) {
                              }));
 }
 
-TEST(IrConverterTest, MatchRestOfTupleEnd) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchRestOfTupleEnd) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, u32:2, u32:3, u32:4);
@@ -360,7 +403,8 @@ TEST(IrConverterTest, MatchRestOfTupleEnd) {
                              }));
 }
 
-TEST(IrConverterTest, MatchTupleOfTuplesRestOfTuple) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       MatchTupleOfTuplesRestOfTuple) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, (u32:2, u32:3, u32:4), u32:5, u32:6);
@@ -380,7 +424,8 @@ TEST(IrConverterTest, MatchTupleOfTuplesRestOfTuple) {
                              }));
 }
 
-TEST(IrConverterTest, MatchRestOfTupleAsTrailingArm) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       MatchRestOfTupleAsTrailingArm) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, u32:2);
@@ -396,7 +441,7 @@ TEST(IrConverterTest, MatchRestOfTupleAsTrailingArm) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, Struct) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, Struct) {
   const char* program =
       R"(struct S {
   zub: u8,
@@ -415,7 +460,7 @@ fn f(a: S, b: S) -> u8 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, Index) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, Index) {
   const char* program =
       R"(fn f(x: uN[32][4]) -> u32 {
   x[u32:0]
@@ -425,7 +470,7 @@ TEST(IrConverterTest, Index) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, TupleOfParameters) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, TupleOfParameters) {
   const char* program =
       R"(fn f(x: u8, y: u8) -> (u8, u8) {
   (x, y)
@@ -436,7 +481,7 @@ TEST(IrConverterTest, TupleOfParameters) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, TupleOfLiterals) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, TupleOfLiterals) {
   const char* program =
       R"(fn f() -> (u8, u8) {
   (u8:0xaa, u8:0x55)
@@ -475,7 +520,7 @@ fn main(a: (u7, u7)[3]) -> u7 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ForOverArrayLiteral) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ForOverArrayLiteral) {
   const std::string_view kProgram = R"(
 fn main() -> u7 {
   for (t, accum): ((u7, u7), u7) in (u7, u7)[2]:[(u7:0, u7:1), (u7:2, u7:3)] {
@@ -549,7 +594,7 @@ TEST(IrConverterTest, CountedForVariableRange) {
   ASSERT_FALSE(status_or_ir.ok());
 }
 
-TEST(IrConverterTest, ExtendConversions) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ExtendConversions) {
   const char* program =
       R"(fn main(x: u8, y: s8) -> (u32, u32, s32, s32) {
   (x as u32, y as u32, x as s32, y as s32)
@@ -561,7 +606,7 @@ TEST(IrConverterTest, ExtendConversions) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, TupleIndex) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, TupleIndex) {
   const char* program =
       R"(fn main() -> u8 {
   let t = (u32:3, u8:4);
@@ -574,7 +619,7 @@ TEST(IrConverterTest, TupleIndex) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, BasicStruct) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, BasicStruct) {
   const char* program =
       R"(
 struct Point {
@@ -592,7 +637,7 @@ fn f(xy: u32) -> Point {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, InvokeNullary) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, InvokeNullary) {
   const char* program =
       R"(fn callee() -> u32 {
   u32:42
@@ -606,7 +651,7 @@ fn caller() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, Match) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, Match) {
   const char* program =
       R"(
 fn f(x: u8) -> u2 {
@@ -623,7 +668,7 @@ fn f(x: u8) -> u2 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, MatchDefaultOnly) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchDefaultOnly) {
   const char* program =
       R"(
 fn f(x: u8) -> u2 {
@@ -638,7 +683,7 @@ fn f(x: u8) -> u2 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, MatchDense) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchDense) {
   const char* program =
       R"(
 fn f(x: u2) -> u8 {
@@ -673,7 +718,7 @@ fn f(x: Foo) -> Foo {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ArrayEllipsis) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ArrayEllipsis) {
   const char* program =
       R"(
 fn main() -> u8[2] {
@@ -686,7 +731,7 @@ fn main() -> u8[2] {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, NonConstArrayEllipsis) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, NonConstArrayEllipsis) {
   const char* program =
       R"(
 fn main(x: bits[8]) -> u8[4] {
@@ -725,7 +770,7 @@ fn main(array: u8[4]) -> (u32, u8)[4]) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, SplatStructInstance) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, SplatStructInstance) {
   const char* program =
       R"(
 struct Point {
@@ -743,7 +788,7 @@ fn f(p: Point, new_y: u32) -> Point {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, BoolLiterals) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, BoolLiterals) {
   const char* program =
       R"(
 fn f(x: u8) -> bool {
@@ -756,7 +801,7 @@ fn f(x: u8) -> bool {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, MatchIdentity) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchIdentity) {
   const char* program =
       R"(
 fn f(x: u8) -> u2 {
@@ -772,7 +817,7 @@ fn f(x: u8) -> u2 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, Conditional) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, Conditional) {
   const char* program =
       R"(fn main(x: bool) -> u8 {
   if x { u8:42 } else { u8:24 }
@@ -783,7 +828,7 @@ TEST(IrConverterTest, Conditional) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, MatchPackageLevelConstant) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchPackageLevelConstant) {
   const char* program =
       R"(const FOO = u8:0xff;
 fn f(x: u8) -> u2 {
@@ -816,7 +861,7 @@ fn main(x: u8) -> u8 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, MatchUnderLet) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchUnderLet) {
   const char* program =
       R"(
 fn main(x: u8) -> u8 {
@@ -846,7 +891,7 @@ fn f(x: u32, y: u32) -> u8 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, SingleElementBitsArrayParam) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, SingleElementBitsArrayParam) {
   const char* program =
       R"(
 fn f(x: u32[1]) -> u32[1] {
@@ -873,7 +918,7 @@ fn f(x: Foo[1]) -> Foo[1] {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, BitSliceCast) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, BitSliceCast) {
   const char* program =
       R"(
 fn main(x: u2) -> u1 {
@@ -886,7 +931,7 @@ fn main(x: u2) -> u1 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, MatchDenseConsts) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchDenseConsts) {
   const char* program =
       R"(
 type MyU2 = u2;
@@ -3397,6 +3442,11 @@ TEST(IrConverterTest, MatchExhaustiveRangeInTrailingArm) {
       ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
 }
+
+INSTANTIATE_TEST_SUITE_P(IrConverterWithBothTypecheckVersionsTestSuite,
+                         IrConverterWithBothTypecheckVersionsTest,
+                         testing::Values(TypeInferenceVersion::kVersion1,
+                                         TypeInferenceVersion::kVersion2));
 
 }  // namespace
 }  // namespace xls::dslx

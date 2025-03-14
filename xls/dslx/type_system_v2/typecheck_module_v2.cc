@@ -848,6 +848,17 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->lhs(), tuple_type_variable));
 
+    // The index itself must be u32.
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* index_type_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Number*>(node->index()),
+            GenerateInternalTypeVariableName<Expr>(node->index())));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->index(), index_type_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node->index(), CreateU32Annotation(module_, node->index()->span())));
+
     // The type of the entire expr is then ElementType(tuple_type_variable,
     // index).
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(

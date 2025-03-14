@@ -1000,6 +1000,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (const auto* const_assert = dynamic_cast<const ConstAssert*>(node)) {
       return CheckConstAssert(const_assert, type, ti);
     }
+    if (const auto* function = dynamic_cast<const Function*>(node)) {
+      ti->NoteRequiresImplicitToken(*function, false);
+    }
     return absl::OkStatus();
   }
 

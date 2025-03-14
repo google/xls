@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
@@ -52,8 +51,6 @@ using ::testing::HasSubstr;
 
 // These matchers expect different errors in v1 and v2, allowing the errors to
 // diverge, at least temporarily.
-
-enum class TypeInferenceVersion : uint8_t { kVersion1 = 1, kVersion2 = 2 };
 
 MATCHER_P2(HasSubstrInV1, param, substr, "") {
   return param == TypeInferenceVersion::kVersion2 ||

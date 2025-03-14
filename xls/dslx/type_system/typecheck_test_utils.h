@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_UTILS_H_
 #define XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_UTILS_H_
 
+#include <cstdint>
 #include <memory>
 #include <string_view>
 
@@ -26,6 +27,8 @@
 #include "re2/re2.h"
 
 namespace xls::dslx {
+
+enum class TypeInferenceVersion : uint8_t { kVersion1 = 1, kVersion2 = 2 };
 
 struct TypecheckResult {
   // If `import_data` is not dependency injected into the `Typecheck` routine,

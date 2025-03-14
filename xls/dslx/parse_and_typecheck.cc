@@ -42,7 +42,8 @@ namespace xls::dslx {
 
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
-    ImportData* import_data, std::vector<CommentData>* comments) {
+    ImportData* import_data, std::vector<CommentData>* comments,
+    bool force_version2) {
   XLS_RET_CHECK(import_data != nullptr);
 
   FileTable& file_table = import_data->file_table();
@@ -59,7 +60,7 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
                        ParseModule(text, path, module_name,
                                    import_data->file_table(), comments));
-  return TypecheckModule(std::move(module), path, import_data);
+  return TypecheckModule(std::move(module), path, import_data, force_version2);
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
@@ -88,7 +89,7 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 
 absl::StatusOr<TypecheckedModule> TypecheckModule(
     std::unique_ptr<Module> module, std::string_view path,
-    ImportData* import_data) {
+    ImportData* import_data, bool force_version2) {
   XLS_RET_CHECK(module.get() != nullptr);
   XLS_RET_CHECK(import_data != nullptr);
 
@@ -97,7 +98,8 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   WarningCollector warnings(import_data->enabled_warnings());
   XLS_ASSIGN_OR_RETURN(
       TypeInfo * type_info,
-      module->attributes().contains(ModuleAttribute::kTypeInferenceVersion2)
+      force_version2 || module->attributes().contains(
+                            ModuleAttribute::kTypeInferenceVersion2)
           ? TypecheckModuleV2(module.get(), import_data, &warnings)
           : TypecheckModule(module.get(), import_data, &warnings));
   TypecheckedModule result{module.get(), type_info, std::move(warnings)};

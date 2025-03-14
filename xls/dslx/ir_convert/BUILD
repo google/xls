@@ -225,11 +225,13 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/run_routines",
         "//xls/dslx/run_routines:run_comparator",
+        "//xls/dslx/type_system:typecheck_test_utils",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
+        "@re2",
     ],
 )
 
