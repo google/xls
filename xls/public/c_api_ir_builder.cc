@@ -16,7 +16,9 @@
 
 #include <cstdint>
 #include <functional>
+#include <string_view>
 #include <vector>
+
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
