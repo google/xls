@@ -43,14 +43,15 @@
 extern "C" {
 
 // Opaque structs.
-struct xls_value;
-struct xls_package;
+struct xls_bits;
 struct xls_function;
 struct xls_function_base;
-struct xls_type;
-struct xls_function_type;
-struct xls_schedule_and_codegen_result;
 struct xls_function_jit;
+struct xls_function_type;
+struct xls_package;
+struct xls_schedule_and_codegen_result;
+struct xls_type;
+struct xls_value;
 
 void xls_init_xls(const char* usage, int argc, char* argv[]);
 
