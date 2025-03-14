@@ -32,7 +32,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/variant.h"
-#include "google/protobuf/text_format.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.pb.h"

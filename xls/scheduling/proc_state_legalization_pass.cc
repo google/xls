@@ -15,13 +15,11 @@
 #include "xls/scheduling/proc_state_legalization_pass.h"
 
 #include <cstdint>
-#include <iterator>
 #include <optional>
 #include <string>
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"

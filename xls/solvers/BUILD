@@ -55,7 +55,6 @@ cc_library(
     deps = [
         ":z3_ir_translator",
         "//xls/common:visitor",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:function_builder",

@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/ir/format_preference.h"
 #include "xls/public/c_api_format_preference.h"
 

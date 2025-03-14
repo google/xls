@@ -303,7 +303,6 @@ cc_library(
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:unwrap_meta_type",
-        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

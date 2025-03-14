@@ -15,15 +15,12 @@
 #include "xls/ir/interval.h"
 
 #include <cstdint>
-#include <functional>
-#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"

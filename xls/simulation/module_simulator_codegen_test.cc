@@ -26,6 +26,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/status/matchers.h"

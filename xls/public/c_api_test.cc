@@ -17,8 +17,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT
+#include <functional>
+#include <initializer_list>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -26,6 +30,7 @@
 #include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/log_lines.h"

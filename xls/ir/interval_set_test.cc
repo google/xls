@@ -15,7 +15,6 @@
 #include "xls/ir/interval_set.h"
 
 #include <cstdint>
-#include <functional>
 #include <limits>
 #include <optional>
 #include <utility>

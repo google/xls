@@ -188,6 +188,7 @@ cc_library(
         "//xls/ir:format_preference",
         "//xls/ir:source_location",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -226,7 +227,11 @@ cc_library(
         ":c_api_impl_helpers",
         "//xls/ir",
         "//xls/ir:function_builder",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:value",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -238,7 +243,6 @@ cc_library(
         ":c_api_dslx",
         ":c_api_format_preference",
         ":c_api_impl_helpers",
-        ":c_api_ir_builder",
         ":c_api_vast",
         ":runtime_build_actions",
         "//xls/common:init_xls",
@@ -261,6 +265,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -272,7 +277,6 @@ cc_test(
         ":c_api_dslx",
         ":c_api_format_preference",
         ":c_api_ir_builder",
-        ":c_api_vast",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -282,6 +286,7 @@ cc_test(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
     ],
 )

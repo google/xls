@@ -37,6 +37,7 @@
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/nodes.h"

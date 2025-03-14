@@ -46,8 +46,10 @@
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "re2/re2.h"
 
 namespace xls::verilog {

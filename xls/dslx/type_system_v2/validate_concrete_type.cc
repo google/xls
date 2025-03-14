@@ -18,7 +18,6 @@
 #include <string_view>
 #include <variant>
 
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"

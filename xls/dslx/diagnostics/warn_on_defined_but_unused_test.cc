@@ -14,12 +14,17 @@
 
 #include "xls/dslx/diagnostics/warn_on_defined_but_unused.h"
 
+#include <optional>
+#include <string>
+
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/warning_collector.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 namespace {

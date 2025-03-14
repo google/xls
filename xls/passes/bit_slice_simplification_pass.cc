@@ -53,7 +53,6 @@
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
-#include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
 namespace xls {

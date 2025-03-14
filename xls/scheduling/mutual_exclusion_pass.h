@@ -15,12 +15,7 @@
 #ifndef XLS_SCHEDULING_MUTUAL_EXCLUSION_PASS_H_
 #define XLS_SCHEDULING_MUTUAL_EXCLUSION_PASS_H_
 
-#include <cstdint>
-#include <optional>
 
-#include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"

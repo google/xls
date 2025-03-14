@@ -28,6 +28,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"

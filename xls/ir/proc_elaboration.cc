@@ -35,7 +35,6 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/node.h"

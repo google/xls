@@ -39,6 +39,7 @@
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"

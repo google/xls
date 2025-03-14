@@ -28,6 +28,8 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {

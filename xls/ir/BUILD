@@ -204,7 +204,6 @@ cc_library(
         ":format_preference",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
@@ -603,7 +602,6 @@ cc_library(
         ":bits",
         ":change_listener",
         ":channel",
-        ":channel_cc_proto",
         ":channel_ops",
         ":foreign_function_data_cc_proto",
         ":format_strings",
@@ -837,7 +835,6 @@ cc_library(
         ":bits",
         ":bits_ops",
         ":channel",
-        ":channel_cc_proto",
         ":channel_ops",
         ":code_template",
         ":foreign_function_data_cc_proto",
@@ -875,7 +872,6 @@ cc_test(
         ":bits",
         ":bits_ops",
         ":channel",
-        ":channel_cc_proto",
         ":channel_ops",
         ":ir",
         ":ir_parser",
@@ -901,7 +897,6 @@ cc_test(
     deps = [
         ":bits",
         ":channel",
-        ":channel_cc_proto",
         ":channel_ops",
         ":ir",
         ":ir_parser",
@@ -946,7 +941,6 @@ cc_test(
     deps = [
         ":bits",
         ":channel",
-        ":channel_cc_proto",
         ":channel_ops",
         ":function_builder",
         ":ir",
@@ -1665,7 +1659,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
-        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -1728,7 +1721,6 @@ cc_test(
     deps = [
         ":bits",
         ":channel",
-        ":channel_cc_proto",
         ":channel_ops",
         ":function_builder",
         ":ir",
@@ -1791,7 +1783,6 @@ cc_test(
     deps = [
         ":bits",
         ":channel",
-        ":channel_cc_proto",
         ":channel_ops",
         ":ir",
         ":ir_matcher",
@@ -1970,7 +1961,6 @@ cc_library(
     hdrs = ["proc_elaboration.h"],
     deps = [
         ":channel",
-        ":channel_cc_proto",
         ":channel_ops",
         ":elaboration",
         ":ir",

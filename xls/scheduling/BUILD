@@ -369,7 +369,6 @@ cc_library(
         "//xls/ir:state_element",
         "//xls/ir:value",
         "//xls/solvers:z3_ir_translator",
-        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",

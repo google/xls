@@ -21,7 +21,6 @@
 #include <ostream>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -30,7 +29,6 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/source_location.h"

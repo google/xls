@@ -66,7 +66,6 @@
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_utils.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"

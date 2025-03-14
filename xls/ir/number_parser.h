@@ -18,7 +18,6 @@
 #define XLS_IR_NUMBER_PARSER_H_
 
 #include <cstdint>
-#include <optional>
 #include <string_view>
 #include <utility>
 

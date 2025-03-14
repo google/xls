@@ -16,7 +16,6 @@
 
 #include <cassert>
 #include <cstdint>
-#include <iterator>
 #include <utility>
 
 #include "llvm/include/llvm/ADT/STLExtras.h"

@@ -15,15 +15,16 @@
 #ifndef GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_FROM_MLIR_H_
 #define GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_FROM_MLIR_H_
 
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "llvm/include/llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
-#include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/OwningOpRef.h"
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "xls/codegen/xls_metrics.pb.h"
