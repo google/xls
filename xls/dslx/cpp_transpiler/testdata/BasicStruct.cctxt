@@ -67,23 +67,23 @@ absl::StatusOr<::xls::Value> MyStruct::ToValue() const {
   std::vector<::xls::Value> members;
   members.resize(5);
   if (!FitsInNBitsUnsigned(x, 32)) {
-    return absl::InvalidArgumentError("Value does not fit in 32 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 32 bits", x));
   }
   members[0] = ::xls::Value(::xls::UBits(x, 32));
   if (!FitsInNBitsUnsigned(y, 15)) {
-    return absl::InvalidArgumentError("Value does not fit in 15 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 15 bits", y));
   }
   members[1] = ::xls::Value(::xls::UBits(y, 15));
   if (!FitsInNBitsUnsigned(z, 8)) {
-    return absl::InvalidArgumentError("Value does not fit in 8 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 8 bits", z));
   }
   members[2] = ::xls::Value(::xls::UBits(z, 8));
   if (!FitsInNBitsSigned(w, 63)) {
-    return absl::InvalidArgumentError("Value does not fit in 63 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Signed value %#x does not fit in 63 bits", w));
   }
   members[3] = ::xls::Value(::xls::SBits(w, 63));
   if (!FitsInNBitsUnsigned(v, 1)) {
-    return absl::InvalidArgumentError("Value does not fit in 1 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 1 bits", v));
   }
   members[4] = ::xls::Value(::xls::UBits(v, 1));
   return ::xls::Value::Tuple(members);

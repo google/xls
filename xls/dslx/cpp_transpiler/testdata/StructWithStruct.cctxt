@@ -55,11 +55,11 @@ absl::StatusOr<::xls::Value> InnerStruct::ToValue() const {
   std::vector<::xls::Value> members;
   members.resize(2);
   if (!FitsInNBitsUnsigned(x, 32)) {
-    return absl::InvalidArgumentError("Value does not fit in 32 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 32 bits", x));
   }
   members[0] = ::xls::Value(::xls::UBits(x, 32));
   if (!FitsInNBitsUnsigned(y, 16)) {
-    return absl::InvalidArgumentError("Value does not fit in 16 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 16 bits", y));
   }
   members[1] = ::xls::Value(::xls::UBits(y, 16));
   return ::xls::Value::Tuple(members);
@@ -126,7 +126,7 @@ absl::StatusOr<::xls::Value> OuterStruct::ToValue() const {
   std::vector<::xls::Value> members;
   members.resize(3);
   if (!FitsInNBitsUnsigned(x, 32)) {
-    return absl::InvalidArgumentError("Value does not fit in 32 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 32 bits", x));
   }
   members[0] = ::xls::Value(::xls::UBits(x, 32));
   XLS_ASSIGN_OR_RETURN(members[1], a.ToValue());

@@ -32,7 +32,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/types/variant.h"
 #include "xls/common/case_converters.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
@@ -147,10 +146,10 @@ class BitVectorCppEmitter : public CppEmitter {
     if (is_signed()) {
       pieces.push_back(absl::StrFormat("if (!FitsInNBitsSigned(%s, %d)) {", rhs,
                                        dslx_bit_count()));
-      pieces.push_back(
-          absl::StrFormat("  return absl::InvalidArgumentError(\"Value does "
-                          "not fit in %d bits\");",
-                          dslx_bit_count()));
+      pieces.push_back(absl::StrFormat(
+          "  return absl::InvalidArgumentError(absl::StrFormat(\"Signed value "
+          "%%#x does not fit in %d bits\", %s));",
+          dslx_bit_count(), rhs));
       pieces.push_back("}");
       pieces.push_back(
           absl::StrFormat("%s = ::xls::Value(::xls::SBits(%s, %d));", lhs, rhs,
@@ -158,10 +157,10 @@ class BitVectorCppEmitter : public CppEmitter {
     } else {
       pieces.push_back(absl::StrFormat("if (!FitsInNBitsUnsigned(%s, %d)) {",
                                        rhs, dslx_bit_count()));
-      pieces.push_back(
-          absl::StrFormat("  return absl::InvalidArgumentError(\"Value does "
-                          "not fit in %d bits\");",
-                          dslx_bit_count()));
+      pieces.push_back(absl::StrFormat(
+          "  return absl::InvalidArgumentError(absl::StrFormat(\"Unsigned "
+          "value %%#x does not fit in %d bits\", %s));",
+          dslx_bit_count(), rhs));
       pieces.push_back("}");
       pieces.push_back(
           absl::StrFormat("%s = ::xls::Value(::xls::UBits(%s, %d));", lhs, rhs,

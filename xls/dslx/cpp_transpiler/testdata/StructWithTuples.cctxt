@@ -61,11 +61,11 @@ absl::StatusOr<::xls::Value> Foo::ToValue() const {
     std::vector<::xls::Value> members;
     members.resize(2);
     if (!FitsInNBitsUnsigned(std::get<0>(a), 32)) {
-      return absl::InvalidArgumentError("Value does not fit in 32 bits");
+      return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 32 bits", std::get<0>(a)));
     }
     members[0] = ::xls::Value(::xls::UBits(std::get<0>(a), 32));
     if (!FitsInNBitsUnsigned(std::get<1>(a), 32)) {
-      return absl::InvalidArgumentError("Value does not fit in 32 bits");
+      return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 32 bits", std::get<1>(a)));
     }
     members[1] = ::xls::Value(::xls::UBits(std::get<1>(a), 32));
     members[0] = ::xls::Value::Tuple(members);

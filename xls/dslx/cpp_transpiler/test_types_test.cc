@@ -139,9 +139,11 @@ TEST(TestTypesTest, VerifyMySignedType) {
 TEST(TestTypesTest, MyTypeToValue) {
   EXPECT_THAT(test::MyTypeToValue(test::MyType{42}),
               IsOkAndHolds(Value(UBits(42, 37))));
-  EXPECT_THAT(test::MyTypeToValue(test::MyType{0xffffaaaabbb}),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Value does not fit in 37 bits")));
+  EXPECT_THAT(
+      test::MyTypeToValue(test::MyType{0xffffaaaabbb}),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Unsigned value 0xffffaaaabbb does not fit in 37 bits")));
 }
 
 TEST(TestTypesTest, MyTypeFromValue) {
@@ -192,9 +194,10 @@ TEST(TestTypesTest, SimpleStructToValue) {
       s.ToValue(),
       IsOkAndHolds(Value::Tuple({Value(UBits(42, 17)), Value(UBits(1, 7))})));
   test::InnerStruct t{.x = 0xffffffff, .y = test::MyEnum::kB};
-  EXPECT_THAT(t.ToValue(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Value does not fit in 17 bits")));
+  EXPECT_THAT(
+      t.ToValue(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Unsigned value 0xffffffff does not fit in 17 bits")));
   test::InnerStruct u{.x = 0x123, .y = static_cast<test::MyEnum>(250)};
   EXPECT_THAT(u.ToValue(),
               StatusIs(absl::StatusCode::kInvalidArgument,

@@ -57,7 +57,7 @@ absl::StatusOr<::xls::Value> MyEnumToValue(MyEnum input) {
   XLS_RETURN_IF_ERROR(VerifyMyEnum(input));
   ::xls::Value result;
   if (!FitsInNBitsUnsigned(static_cast<uint32_t>(input), 32)) {
-    return absl::InvalidArgumentError("Value does not fit in 32 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 32 bits", static_cast<uint32_t>(input)));
   }
   result = ::xls::Value(::xls::UBits(static_cast<uint32_t>(input), 32));
   return result;

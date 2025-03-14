@@ -78,7 +78,7 @@ absl::StatusOr<::xls::Value> MyStruct::ToValue() const {
     for (int64_t i0 = 0; i0 < 32; ++i0) {
       ::xls::Value element;
       if (!FitsInNBitsUnsigned(x[i0], 32)) {
-        return absl::InvalidArgumentError("Value does not fit in 32 bits");
+        return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 32 bits", x[i0]));
       }
       element = ::xls::Value(::xls::UBits(x[i0], 32));
       elements.push_back(element);
@@ -90,7 +90,7 @@ absl::StatusOr<::xls::Value> MyStruct::ToValue() const {
     for (int64_t i0 = 0; i0 < 8; ++i0) {
       ::xls::Value element;
       if (!FitsInNBitsSigned(y[i0], 7)) {
-        return absl::InvalidArgumentError("Value does not fit in 7 bits");
+        return absl::InvalidArgumentError(absl::StrFormat("Signed value %#x does not fit in 7 bits", y[i0]));
       }
       element = ::xls::Value(::xls::SBits(y[i0], 7));
       elements.push_back(element);
@@ -102,7 +102,7 @@ absl::StatusOr<::xls::Value> MyStruct::ToValue() const {
     for (int64_t i0 = 0; i0 < 7; ++i0) {
       ::xls::Value element;
       if (!FitsInNBitsUnsigned(z[i0], 8)) {
-        return absl::InvalidArgumentError("Value does not fit in 8 bits");
+        return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 8 bits", z[i0]));
       }
       element = ::xls::Value(::xls::UBits(z[i0], 8));
       elements.push_back(element);

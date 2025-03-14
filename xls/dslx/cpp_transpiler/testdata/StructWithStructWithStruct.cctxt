@@ -55,11 +55,11 @@ absl::StatusOr<::xls::Value> InnerStruct::ToValue() const {
   std::vector<::xls::Value> members;
   members.resize(2);
   if (!FitsInNBitsUnsigned(x, 32)) {
-    return absl::InvalidArgumentError("Value does not fit in 32 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 32 bits", x));
   }
   members[0] = ::xls::Value(::xls::UBits(x, 32));
   if (!FitsInNBitsUnsigned(y, 16)) {
-    return absl::InvalidArgumentError("Value does not fit in 16 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 16 bits", y));
   }
   members[1] = ::xls::Value(::xls::UBits(y, 16));
   return ::xls::Value::Tuple(members);
@@ -125,7 +125,7 @@ absl::StatusOr<::xls::Value> MiddleStruct::ToValue() const {
   std::vector<::xls::Value> members;
   members.resize(2);
   if (!FitsInNBitsUnsigned(z, 48)) {
-    return absl::InvalidArgumentError("Value does not fit in 48 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 48 bits", z));
   }
   members[0] = ::xls::Value(::xls::UBits(z, 48));
   XLS_ASSIGN_OR_RETURN(members[1], a.ToValue());
@@ -191,7 +191,7 @@ absl::StatusOr<::xls::Value> OtherMiddleStruct::ToValue() const {
   members.resize(2);
   XLS_ASSIGN_OR_RETURN(members[0], b.ToValue());
   if (!FitsInNBitsUnsigned(w, 64)) {
-    return absl::InvalidArgumentError("Value does not fit in 64 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 64 bits", w));
   }
   members[1] = ::xls::Value(::xls::UBits(w, 64));
   return ::xls::Value::Tuple(members);
@@ -260,7 +260,7 @@ absl::StatusOr<::xls::Value> OuterStruct::ToValue() const {
   XLS_ASSIGN_OR_RETURN(members[1], b.ToValue());
   XLS_ASSIGN_OR_RETURN(members[2], c.ToValue());
   if (!FitsInNBitsUnsigned(v, 8)) {
-    return absl::InvalidArgumentError("Value does not fit in 8 bits");
+    return absl::InvalidArgumentError(absl::StrFormat("Unsigned value %#x does not fit in 8 bits", v));
   }
   members[3] = ::xls::Value(::xls::UBits(v, 8));
   return ::xls::Value::Tuple(members);
