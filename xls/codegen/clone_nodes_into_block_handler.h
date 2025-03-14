@@ -36,7 +36,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
-#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {

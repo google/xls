@@ -15,7 +15,6 @@
 #ifndef XLS_PASSES_PROC_STATE_RANGE_QUERY_ENGINE_H_
 #define XLS_PASSES_PROC_STATE_RANGE_QUERY_ENGINE_H_
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -30,7 +29,6 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
-#include "xls/ir/proc.h"
 #include "xls/ir/ternary.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"

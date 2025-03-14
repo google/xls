@@ -26,10 +26,8 @@
 #include "xls/codegen/op_override.h"
 #include "xls/codegen/ram_configuration.h"
 #include "xls/common/proto_adaptor_utils.h"
-#include "xls/ir/bits.h"
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
-#include "xls/ir/value.h"
 
 namespace xls::verilog {
 

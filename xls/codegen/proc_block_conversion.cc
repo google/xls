@@ -59,7 +59,6 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_utils.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {

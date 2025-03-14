@@ -18,12 +18,10 @@
 #include <optional>
 #include "xls/dslx/ir_convert/ir_converter_options_flags.pb.h"
 #include "absl/flags/declare.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/warning_kind.h"
 
 ABSL_DECLARE_FLAG(std::optional<std::string>, enable_warnings);
 ABSL_DECLARE_FLAG(std::optional<std::string>, disable_warnings);

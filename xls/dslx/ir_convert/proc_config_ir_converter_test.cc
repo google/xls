@@ -37,7 +37,6 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/package.h"

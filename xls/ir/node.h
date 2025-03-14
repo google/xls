@@ -23,7 +23,6 @@
 #include <ostream>
 #include <string>
 #include <string_view>
-#include <tuple>
 #include <utility>
 
 #include "absl/container/inlined_vector.h"

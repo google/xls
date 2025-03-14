@@ -21,7 +21,6 @@
 #include "xls/dslx/warning_collector.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"

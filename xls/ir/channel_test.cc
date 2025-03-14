@@ -26,7 +26,6 @@
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"

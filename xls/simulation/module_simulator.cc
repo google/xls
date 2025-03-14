@@ -24,7 +24,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -40,7 +39,6 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/channel.pb.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_type.pb.h"
 #include "xls/simulation/module_testbench.h"

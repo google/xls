@@ -36,7 +36,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"

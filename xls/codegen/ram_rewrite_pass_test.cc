@@ -27,7 +27,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/base/no_destructor.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -54,7 +53,6 @@
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/ir_matcher.h"
-#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"

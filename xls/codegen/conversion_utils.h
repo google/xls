@@ -29,7 +29,6 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/ir/block.h"
 #include "xls/ir/node.h"
-#include "xls/ir/register.h"
 
 namespace xls::verilog {
 

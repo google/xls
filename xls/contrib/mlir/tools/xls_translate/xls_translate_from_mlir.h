@@ -25,7 +25,6 @@
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
-#include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/OwningOpRef.h"
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "xls/codegen/xls_metrics.pb.h"

@@ -44,7 +44,6 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
-#include "xls/passes/ternary_query_engine.h"
 
 namespace xls {
 

@@ -35,7 +35,6 @@
 #include "absl/types/span.h"
 #include "cppitertools/count.hpp"
 #include "cppitertools/enumerate.hpp"
-#include "cppitertools/range.hpp"
 #include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
