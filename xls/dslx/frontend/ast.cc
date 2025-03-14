@@ -1536,6 +1536,9 @@ std::vector<AstNode*> FormatMacro::GetChildren(bool want_types) const {
   for (Expr* arg : args_) {
     results.push_back(arg);
   }
+  if (verbosity_.has_value()) {
+    results.push_back(*verbosity_);
+  }
   return results;
 }
 

@@ -1386,6 +1386,20 @@ TEST(AstClonerTest, FormatMacro) {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, FormatMacroWithVerbosity) {
+  constexpr std::string_view kProgram = R"(fn main(x: u32) -> u32 {
+    let _ = vtrace_fmt!(4, "x is {}, {:#x} in hex", x, x);
+    ()
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, Match) {
   // Try to every potential NameDefTree Leaf type (NameRef, NameDef,
   // WildcardPattern, Number, ColonRef).

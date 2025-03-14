@@ -808,6 +808,15 @@ TEST_F(FunctionFmtTest, TraceFormatMacro) {
   EXPECT_EQ(got, want);
 }
 
+TEST_F(FunctionFmtTest, VTraceFormatMacro) {
+  const std::string_view original =
+      R"(fn f(x:u32,y:u32){vtrace_fmt!(4, "x is {} y is {}",x,y)})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"vtrace_fmt!"}));
+  const std::string_view want =
+      R"(fn f(x: u32, y: u32) { vtrace_fmt!(4, "x is {} y is {}", x, y) })";
+  EXPECT_EQ(got, want);
+}
+
 TEST_F(FunctionFmtTest, FunctionWithCommentsOnLastLines) {
   const std::string_view original =
       R"(fn f() {

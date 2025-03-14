@@ -1006,12 +1006,15 @@ DocRef Fmt(const For& n, Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const FormatMacro& n, Comments& comments, DocArena& arena) {
-  std::vector<DocRef> pieces = {
-      arena.MakeText(n.macro()),
-      arena.oparen(),
-      arena.MakeText(
-          absl::StrCat("\"", StepsToXlsFormatString(n.format()), "\"")),
-  };
+  std::vector<DocRef> pieces = {arena.MakeText(n.macro()), arena.oparen()};
+  if (n.verbosity().has_value()) {
+    pieces.push_back(Fmt(**n.verbosity(), comments, arena));
+    pieces.push_back(arena.comma());
+    pieces.push_back(arena.break1());
+  }
+
+  pieces.push_back(arena.MakeText(
+      absl::StrCat("\"", StepsToXlsFormatString(n.format()), "\"")));
 
   if (!n.args().empty()) {
     pieces.push_back(arena.comma());
