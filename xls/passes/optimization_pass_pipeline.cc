@@ -277,6 +277,11 @@ class PostInliningOptPassGroup : public OptimizationCompoundPass {
     // not clear if it will be likely to find anything and we'd need more
     // cleanup passes if we did to take advantage of the narrower state.
     Add<ProcStateOptimizationPass>();
+    Add<DeadCodeEliminationPass>();
+
+    Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
+    Add<DeadCodeEliminationPass>();
+    Add<CapOptLevel<3, FixedPointSimplificationPass>>();
   }
 };
 }  // namespace
