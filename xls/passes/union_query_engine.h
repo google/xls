@@ -161,6 +161,17 @@ class UnionQueryEngine : public UnownedUnionQueryEngine {
     absl::c_reverse(vec);
     return UnionQueryEngine(std::move(vec));
   }
+  template <typename... Engines>
+  static std::unique_ptr<UnionQueryEngine> UniquePtrOf(Engines... e) {
+    std::vector<std::unique_ptr<QueryEngine>> vec =
+        MakeVec<sizeof...(Engines), Engines...>(std::forward<Engines>(e)...);
+    // Reverse the list so that the order of arguments is the same as the order
+    // in the list of unique_ptr<QueryEngine> we use to construct the actual
+    // UnionQueryEngine. NB Assuming well-behaved QEs this should never be
+    // semantically meaningful but it makes debugging easier.
+    absl::c_reverse(vec);
+    return std::make_unique<UnionQueryEngine>(std::move(vec));
+  }
 
  private:
   static std::vector<QueryEngine*> ToUnownedVector(

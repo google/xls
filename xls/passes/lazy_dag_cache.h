@@ -70,8 +70,8 @@ class LazyDagCache {
     virtual ~DagProvider() = default;
 
     virtual std::string GetName(const Key& key) const = 0;
-    virtual absl::Span<const Key> GetInputs(const Key& key) const = 0;
-    virtual absl::Span<const Key> GetUsers(const Key& key) const = 0;
+    virtual std::vector<Key> GetInputs(const Key& key) const = 0;
+    virtual std::vector<Key> GetUsers(const Key& key) const = 0;
 
     virtual absl::StatusOr<Value> ComputeValue(
         const Key& key, absl::Span<const Value* const> input_values) const = 0;
@@ -189,8 +189,7 @@ class LazyDagCache {
       return;
     }
     state = CacheState::kInputsUnverified;
-    absl::Span<const Key> users = provider_->GetUsers(key);
-    std::vector<Key> worklist(users.begin(), users.end());
+    std::vector<Key> worklist = provider_->GetUsers(key);
     while (!worklist.empty()) {
       Key descendant = std::move(worklist.back());
       worklist.pop_back();
@@ -203,8 +202,9 @@ class LazyDagCache {
         continue;
       }
       descendant_state = CacheState::kInputsUnverified;
-      worklist.insert(worklist.end(), descendant->users().begin(),
-                      descendant->users().end());
+      std::vector<Key> users = provider_->GetUsers(descendant);
+      worklist.reserve(worklist.size() + users.size());
+      absl::c_move(users, std::back_inserter(worklist));
     }
   }
 
@@ -270,7 +270,7 @@ class LazyDagCache {
         continue;
       }
       std::vector<const Value*> input_values;
-      absl::Span<const Key> inputs = provider_->GetInputs(key);
+      std::vector<Key> inputs = provider_->GetInputs(key);
       input_values.reserve(inputs.size());
       for (const Key& input : inputs) {
         const CacheEntryView input_entry = GetCacheEntry(input);
@@ -430,7 +430,7 @@ absl::Status LazyDagCache<Key, Value>::CheckConsistency(
     }
 
     std::vector<const Value*> input_values;
-    absl::Span<const Key> inputs = provider_->GetInputs(key);
+    std::vector<Key> inputs = provider_->GetInputs(key);
     input_values.reserve(inputs.size());
     for (const Key& input : inputs) {
       input_values.push_back(GetCachedValue(input));

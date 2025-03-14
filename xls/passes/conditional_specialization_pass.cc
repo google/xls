@@ -14,47 +14,37 @@
 
 #include "xls/passes/conditional_specialization_pass.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <string>
 #include <utility>
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
-#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
-#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/data_structures/transitive_closure.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/change_listener.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_ops.h"
-#include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/partial_information.h"
-#include "xls/ir/partial_ops.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
@@ -68,383 +58,10 @@
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/union_query_engine.h"
+#include "xls/passes/visibility_analysis.h"
 
 namespace xls {
 namespace {
-
-// Encapsulates a condition (a node holding a particular value) which can be
-// assumed to be true at particular points in the graph.
-struct Condition {
-  Node* node;
-  PartialInformation partial;
-
-  std::string ToString() const {
-    if (partial.IsUnconstrained()) {
-      return absl::StrFormat("%s (unconstrained)", node->GetName());
-    }
-    if (partial.IsImpossible()) {
-      return absl::StrFormat("%s (impossible)", node->GetName());
-    }
-    return absl::StrFormat("%s in %s", node->GetName(), partial.ToString());
-  }
-
-  bool operator==(const Condition& other) const {
-    return node == other.node && partial == other.partial;
-  }
-
-  template <typename H>
-  friend H AbslHashValue(H h, const Condition& c) {
-    return H::combine(std::move(h), c.node, c.partial);
-  }
-};
-
-// A comparison functor for ordering Conditions. The functor orders conditions
-// based on the topological order of the respective node, and then based on the
-// condition's value. The motivation for ordering based on topological order is
-// that the size of the set of conditions considered at any one time is bounded
-// which means some conditions must be discarded.  We preferentially discard
-// conditions of nodes which may be far away from the node being considered for
-// transformation. Topological sort order gives a measure of distance for this
-// purpose.
-class ConditionCmp {
- public:
-  explicit ConditionCmp(const absl::flat_hash_map<Node*, int64_t>& topo_index)
-      : topo_index_(&topo_index) {}
-
-  ConditionCmp(const ConditionCmp&) = default;
-  ConditionCmp& operator=(const ConditionCmp&) = default;
-
-  bool operator()(const Condition& a, const Condition& b) const {
-    return topo_index_->at(a.node) < topo_index_->at(b.node);
-  }
-
- private:
-  const absl::flat_hash_map<Node*, int64_t>* topo_index_;
-};
-
-// A set of Conditions which can be assumed to hold at a particular point in the
-// graph.
-class ConditionSet {
- private:
-  // The maximum size limit on the number of conditions to avoid superlinear
-  // behavior.
-  static constexpr int64_t kMaxConditions = 64;
-  using ConditionVector = absl::InlinedVector<Condition, kMaxConditions + 1>;
-
- public:
-  explicit ConditionSet(const absl::flat_hash_map<Node*, int64_t>& topo_index)
-      : condition_cmp_(topo_index) {}
-
-  ConditionSet(const ConditionSet&) = default;
-  ConditionSet(ConditionSet&&) = default;
-  ConditionSet& operator=(const ConditionSet&) = default;
-
-  // Limit to conditions that are also true in `other`.
-  void Intersect(const ConditionSet& other) {
-    auto it = conditions_.begin();
-    auto other_it = other.conditions_.begin();
-    while (it != conditions_.end() && other_it != other.conditions_.end()) {
-      if (condition_cmp_(*it, *other_it)) {
-        // No condition on it->node in `other`, so remove it from this set.
-        it = conditions_.erase(it);
-      } else if (condition_cmp_(*other_it, *it)) {
-        // No condition on other_it->node in `this`, so ignore it.
-        ++other_it;
-      } else {
-        // Take the meet of the conditions.
-        it->partial.MeetWith(other_it->partial);
-        if (it->partial.IsUnconstrained()) {
-          it = conditions_.erase(it);
-        } else {
-          ++it;
-        }
-        ++other_it;
-      }
-    }
-    // Remove all trailing conditions from `this` that were not in `other`.
-    conditions_.erase(it, conditions_.end());
-  }
-
-  // Add all conditions in `other` to this set.
-  void Union(const ConditionSet& other) {
-    ConditionVector original = std::move(conditions_);
-    conditions_.clear();
-    auto original_it = original.begin();
-    auto other_it = other.conditions_.begin();
-    while (conditions_.size() < kMaxConditions &&
-           (original_it != original.end() ||
-            other_it != other.conditions_.end())) {
-      if (other_it == other.conditions_.end() ||
-          (original_it != original.end() &&
-           condition_cmp_(*original_it, *other_it))) {
-        // No condition on original_it->node in `other`, so just insert the
-        // original.
-        conditions_.push_back(std::move(*original_it));
-        ++original_it;
-      } else if (original_it == original.end() ||
-                 (other_it != other.conditions_.end() &&
-                  condition_cmp_(*other_it, *original_it))) {
-        // No condition on other_it->node in the original, so insert the other.
-        conditions_.push_back(*other_it);
-        ++other_it;
-      } else {
-        // Take the join of the conditions, and insert the result.
-        Condition condition = std::move(*original_it);
-        condition.partial.JoinWith(other_it->partial);
-        conditions_.push_back(std::move(condition));
-        ++original_it;
-        ++other_it;
-      }
-    }
-  }
-
-  // Adds a condition to the set.  Note: it is possible to add conflicting
-  // conditions to the set (pred==0 and pred==1). This is an indication that the
-  // node is necessarily dead. We will merge the partial information of the
-  // conditions, and record that the result is impossible.
-  void AddCondition(const Condition& condition) {
-    VLOG(4) << absl::StreamFormat("ConditionSet for (%s) : %s",
-                                  condition.ToString(), this->ToString());
-    CHECK(!condition.node->Is<Literal>());
-    auto it = absl::c_lower_bound(conditions_, condition, condition_cmp_);
-    if (it != conditions_.end() && it->node == condition.node) {
-      it->partial.JoinWith(condition.partial);
-      return;
-    }
-    conditions_.insert(it, condition);
-
-    // The conditions are ordered in topological sort order (based on
-    // Condition.node) and transformation occurs in reverse topological sort
-    // order so the most distant conditions should be at the end of the
-    // condition set. Just pop the last condition off the end if it exceeds the
-    // limit.
-    if (conditions_.size() > kMaxConditions) {
-      conditions_.pop_back();
-    }
-    CHECK_LE(conditions_.size(), kMaxConditions);
-  }
-
-  absl::Span<const Condition> conditions() const { return conditions_; }
-
-  std::optional<Condition> condition(Node* node) const {
-    auto it = absl::c_lower_bound(
-        conditions_,
-        Condition{.node = node,
-                  .partial =
-                      PartialInformation::Unconstrained(node->BitCountOrDie())},
-        condition_cmp_);
-    if (it == conditions_.end() || it->node != node) {
-      return std::nullopt;
-    }
-    return *it;
-  }
-
-  bool empty() const { return conditions_.empty(); }
-
-  bool impossible() const {
-    return absl::c_any_of(conditions_, [](const Condition& condition) {
-      return condition.partial.IsImpossible();
-    });
-  }
-
-  std::string ToString() const {
-    std::vector<std::string> pieces;
-    pieces.reserve(conditions_.size());
-    for (const Condition& condition : conditions_) {
-      pieces.push_back(condition.ToString());
-    }
-    return absl::StrCat("(", absl::StrJoin(pieces, " & "), ")");
-  }
-
-  // Returns the conditions as predicates
-  std::vector<std::pair<TreeBitLocation, bool>> GetPredicates() const {
-    std::vector<std::pair<TreeBitLocation, bool>> predicates;
-    for (const Condition& condition : conditions()) {
-      std::optional<TernarySpan> ternary = condition.partial.Ternary();
-      if (!ternary.has_value()) {
-        continue;
-      }
-      for (int64_t i = 0; i < condition.node->BitCountOrDie(); ++i) {
-        if (ternary->at(i) == TernaryValue::kUnknown) {
-          continue;
-        }
-        bool bit_value = (ternary->at(i) == TernaryValue::kKnownOne);
-        predicates.push_back({TreeBitLocation{condition.node, i}, bit_value});
-      }
-    }
-    return predicates;
-  }
-
-  // Returns the conditions as givens
-  absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan> GetAsGivens()
-      const {
-    absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan> givens;
-    for (const Condition& condition : conditions()) {
-      if (condition.partial.IsUnconstrained()) {
-        continue;
-      }
-
-      ValueKnowledge& given = givens[condition.node];
-      if (condition.partial.Ternary().has_value()) {
-        if (given.ternary.has_value()) {
-          if (absl::Status merged = ternary_ops::UpdateWithUnion(
-                  given.ternary->Get({}), *condition.partial.Ternary());
-              !merged.ok()) {
-            // This is impossible, as the conditions contradict each other. For
-            // now, we can't do anything about this; it might be worth finding a
-            // way to propagate this information.
-            VLOG(1) << "Proved this condition set is impossible: "
-                    << ToString();
-            return {};
-          }
-        } else {
-          given.ternary = TernaryTree::CreateSingleElementTree(
-              condition.node->GetType(), *condition.partial.Ternary());
-        }
-      }
-      if (condition.partial.Range().has_value()) {
-        IntervalSet range = *condition.partial.Range();
-        if (given.intervals.has_value()) {
-          range = IntervalSet::Intersect(range, given.intervals->Get({}));
-        }
-        given.intervals = IntervalSetTree::CreateSingleElementTree(
-            condition.node->GetType(), std::move(range));
-      }
-    }
-    return givens;
-  }
-
- private:
-  ConditionCmp condition_cmp_;
-
-  // Kept sorted at all times (according to `condition_cmp_`), retaining
-  // only unique elements.
-  ConditionVector conditions_;
-};
-
-// A map containing the set of conditions which can be assumed at each node
-// (and at some edges). An example where a condition would be assigned to an
-// edge rather than a node is a case arm of a select. In this case, a
-// selector value can be assumed on the edge from the case operand to the
-// select operation. In general, the condition cannot be assumed on the
-// source node of the edge (case operand) because the source node may be
-// used outside the case arm expression.
-class ConditionMap {
- public:
-  explicit ConditionMap(FunctionBase* f, OptimizationContext& context) {
-    std::vector<Node*> topo_sort = context.TopoSort(f);
-    for (int64_t i = 0; i < topo_sort.size(); ++i) {
-      topo_index_[topo_sort[i]] = i;
-      // Initially all node conditions are empty.
-      node_conditions_.emplace(topo_sort[i],
-                               std::make_unique<ConditionSet>(topo_index_));
-    }
-  }
-
-  // Returns the condition set for the given node. Returns a mutable
-  // reference as this is the mechanism for setting condition sets of nodes.
-  ConditionSet& GetNodeConditionSet(Node* node) {
-    auto it = node_conditions_.find(node);
-    if (it == node_conditions_.end()) {
-      it = node_conditions_.insert(
-          it, {node, std::make_unique<ConditionSet>(topo_index_)});
-    }
-    return *it->second;
-  }
-
-  // Sets the condition set for the given edge where the edge extends to
-  // `node` and operand index `operand_no`.
-  void SetEdgeConditionSet(Node* node, int64_t operand_no,
-                           ConditionSet condition_set) {
-    VLOG(4) << absl::StrFormat("Setting conditions on %s->%s (operand %d): %s",
-                               node->operand(operand_no)->GetName(),
-                               node->GetName(), operand_no,
-                               condition_set.ToString());
-    std::pair<Node*, int64_t> key = {node, operand_no};
-    CHECK(!edge_conditions_.contains(key));
-    edge_conditions_.insert(
-        {key, std::make_unique<ConditionSet>(std::move(condition_set))});
-  }
-
-  // Returns the conditions which can be assumed along the edge to `node`
-  // from its operand index `operand_no`.
-  const ConditionSet& GetEdgeConditionSet(Node* node, int64_t operand_no) {
-    std::pair<Node*, int64_t> key = {node, operand_no};
-    if (!edge_conditions_.contains(key)) {
-      // There are no special conditions for this edge. Return the
-      // conditions on the target of the edge which necessarily hold on the
-      // edge as well.
-      return GetNodeConditionSet(node);
-    }
-    return *edge_conditions_.at(key);
-  }
-
-  // Returns the conditions which can be assumed along the edge(s) from node
-  // to user. This interface is asymmetric to SetEdgeCondition (which takes
-  // a node and operand number) to make it easier to use because at a
-  // particular node you have easy access to the user list but not the
-  // operand number(s) associated with each user.
-  const ConditionSet& GetEdgeConditionSet(Node* node, Node* user) {
-    // Find the unique (if there is one) operand number of user which
-    // corresponds to node.
-    std::optional<int64_t> operand_index;
-    for (int64_t i = 0; i < user->operand_count(); ++i) {
-      if (user->operand(i) == node) {
-        if (operand_index.has_value()) {
-          // `node` appears in multiple operands of `user`. Return the
-          // assumptions that can be made at the node `user` itself. This is
-          // typically not a strong conditions as might be assuming along
-          // the edges.
-          return GetNodeConditionSet(user);
-        }
-        operand_index = i;
-      }
-    }
-    CHECK(operand_index.has_value()) << absl::StreamFormat(
-        "%s is not a user of %s", user->GetName(), node->GetName());
-    return GetEdgeConditionSet(user, *operand_index);
-  }
-
-  std::string ToString() const {
-    std::stringstream os;
-    os << "Node conditions:\n";
-    for (const auto& [node, cond_set] : node_conditions_) {
-      if (!cond_set->conditions().empty()) {
-        os << absl::StrFormat("[%s]: %s", node->ToString(),
-                              cond_set->ToString())
-           << "\n";
-      }
-    }
-    os << "Edge conditions:\n";
-    for (const auto& [key, cond_set] : edge_conditions_) {
-      if (!cond_set->conditions().empty()) {
-        os << absl::StrFormat("[%s, %i]: %s", std::get<0>(key)->ToString(),
-                              std::get<1>(key), cond_set->ToString())
-           << "\n";
-      }
-    }
-    return os.str();
-  }
-
- private:
-  // Index of each node in the function base in a topological sort.
-  absl::flat_hash_map<Node*, int64_t> topo_index_;
-
-  // Set of conditions which might be assumed at each node.
-  absl::flat_hash_map<Node*, std::unique_ptr<ConditionSet>> node_conditions_;
-
-  // Set of conditions which might be assumed at some edges. The key defines
-  // an edge as (node, operand_no). If no key exists for an edge, then there
-  // are no special conditions for the edge, and the conditions for the edge
-  // are the same as the node.
-  absl::flat_hash_map<std::pair<Node*, int64_t>, std::unique_ptr<ConditionSet>>
-      edge_conditions_;
-
-  // A cache of the set of conditions implied by a given condition. Avoids the
-  // need to recompute this each time we rederive the same condition.
-  absl::flat_hash_map<Condition, std::unique_ptr<ConditionSet>>
-      implied_conditions_;
-};
 
 // Returns the value for node logically implied by the given conditions if a
 // value can be implied. Returns std::nullopt otherwise.
@@ -592,8 +209,9 @@ absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> AffectedBy(
   return TransitiveClosure(affected_by);
 }
 
-absl::StatusOr<std::optional<Node*>> CheckMatch(
-    Node* node, const PartialInformation& partial, Node* user) {
+absl::StatusOr<std::optional<Node*>> CheckMatch(Node* node,
+                                                PartialInformation partial,
+                                                Node* user) {
   if (partial.IsImpossible()) {
     // Matching is impossible. Return a literal 0.
     return node->function_base()->MakeNode<Literal>(user->loc(),
@@ -729,163 +347,6 @@ absl::StatusOr<std::optional<Node*>> CheckMatch(
   return NaryAndIfNeeded(node->function_base(), match_conditions);
 }
 
-class ImpliedConditionCache {
- public:
-  ImpliedConditionCache(FunctionBase* f, OptimizationContext& context,
-                        QueryEngine* query_engine)
-      : query_engine_(query_engine) {
-    std::vector<Node*> topo_sort = context.TopoSort(f);
-    for (int64_t i = 0; i < topo_sort.size(); ++i) {
-      topo_index_[topo_sort[i]] = i;
-    }
-  }
-
-  const ConditionSet& GetImplied(const Condition& condition) {
-    if (auto it = cache_.find(condition); it != cache_.end()) {
-      return *it->second;
-    }
-    auto [it, _] =
-        cache_.emplace(condition, std::make_unique<ConditionSet>(topo_index_));
-    ConditionSet& implied_conditions = *it->second;
-
-    implied_conditions.AddCondition(condition);
-
-    if (condition.node->op() == Op::kNot &&
-        condition.partial.Ternary().has_value() &&
-        !condition.node->operand(0)->Is<Literal>()) {
-      Node* operand = condition.node->operand(0);
-
-      VLOG(4) << "Lifting a known negated value: not(" << operand->GetName()
-              << ") == " << xls::ToString(*condition.partial.Ternary());
-
-      implied_conditions.Union(GetImplied(Condition{
-          .node = operand, .partial = partial_ops::Not(condition.partial)}));
-    }
-
-    if (condition.node->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor}) &&
-        condition.partial.Ternary().has_value()) {
-      TernarySpan value = *condition.partial.Ternary();
-      TernaryVector lifted_value =
-          condition.node->OpIn({Op::kNand, Op::kNor})
-              ? ternary_ops::Not(value)
-              : TernaryVector(value.begin(), value.end());
-      TernaryValue lifted_bit = condition.node->OpIn({Op::kAnd, Op::kNand})
-                                    ? TernaryValue::kKnownOne
-                                    : TernaryValue::kKnownZero;
-      TernaryValue non_lifted_bit = ternary_ops::Not(lifted_bit);
-
-      if (absl::c_contains(lifted_value, lifted_bit)) {
-        for (int64_t i = 0; i < lifted_value.size(); ++i) {
-          if (lifted_value[i] == non_lifted_bit) {
-            lifted_value[i] = TernaryValue::kUnknown;
-          }
-        }
-        VLOG(4) << "Lifting known bits; " << OpToString(condition.node->op())
-                << "("
-                << absl::StrJoin(condition.node->operands(), ", ",
-                                 [](std::string* out, Node* node) {
-                                   absl::StrAppend(out, node->GetName());
-                                 })
-                << ") == " << xls::ToString(value)
-                << ", so all operands must match: "
-                << xls::ToString(lifted_value);
-        for (Node* operand : condition.node->operands()) {
-          if (operand->Is<Literal>()) {
-            continue;
-          }
-          implied_conditions.Union(GetImplied(Condition{
-              .node = operand, .partial = PartialInformation(lifted_value)}));
-        }
-      }
-    }
-
-    bool lhs_rhs_equal = false;
-    bool lhs_rhs_unequal = false;
-    if (condition.node->OpIn({Op::kEq, Op::kNe}) &&
-        condition.partial.Range().has_value() &&
-        condition.partial.Range()->IsPrecise()) {
-      lhs_rhs_equal = (condition.node->op() == Op::kEq) ==
-                      (condition.partial.Range()->GetPreciseValue()->IsOne());
-      lhs_rhs_unequal = (condition.node->op() == Op::kNe) ==
-                        (condition.partial.Range()->GetPreciseValue()->IsOne());
-    }
-    if (lhs_rhs_equal && condition.node->operand(0)->GetType()->IsBits()) {
-      Node* lhs = condition.node->operand(0);
-      Node* rhs = condition.node->operand(1);
-      CHECK(rhs->GetType()->IsBits());
-
-      VLOG(4) << "Converting a known equality to direct conditions: "
-              << lhs->GetName() << " == " << rhs->GetName();
-
-      std::optional<SharedLeafTypeTree<TernaryVector>> lhs_ternary =
-          query_engine_->GetTernary(lhs);
-      IntervalSet lhs_range = query_engine_->GetIntervals(lhs).Get({});
-      bool info_on_lhs = (lhs_ternary.has_value() &&
-                          !ternary_ops::AllUnknown(lhs_ternary->Get({}))) ||
-                         !lhs_range.IsMaximal();
-      if (!rhs->Is<Literal>() && info_on_lhs) {
-        implied_conditions.Union(GetImplied(
-            Condition{.node = rhs,
-                      .partial = {lhs_ternary.has_value()
-                                      ? std::make_optional(lhs_ternary->Get({}))
-                                      : std::nullopt,
-                                  lhs_range}}));
-      }
-
-      std::optional<SharedLeafTypeTree<TernaryVector>> rhs_ternary =
-          query_engine_->GetTernary(rhs);
-      IntervalSet rhs_range = query_engine_->GetIntervals(rhs).Get({});
-      bool info_on_rhs = (rhs_ternary.has_value() &&
-                          !ternary_ops::AllUnknown(rhs_ternary->Get({}))) ||
-                         !rhs_range.IsMaximal();
-      if (!lhs->Is<Literal>() && info_on_rhs) {
-        implied_conditions.Union(GetImplied(
-            Condition{.node = lhs,
-                      .partial = {rhs_ternary.has_value()
-                                      ? std::make_optional(rhs_ternary->Get({}))
-                                      : std::nullopt,
-                                  rhs_range}}));
-      }
-    }
-
-    if (lhs_rhs_unequal && condition.node->operand(0)->GetType()->IsBits()) {
-      Node* lhs = condition.node->operand(0);
-      Node* rhs = condition.node->operand(1);
-      CHECK(rhs->GetType()->IsBits());
-
-      VLOG(4) << "Converting a known inequality to direct conditions: "
-              << lhs->GetName() << " != " << rhs->GetName();
-
-      if (std::optional<Value> lhs_value = query_engine_->KnownValue(lhs);
-          !rhs->Is<Literal>() && rhs->GetType()->IsBits() &&
-          lhs_value.has_value()) {
-        implied_conditions.Union(GetImplied(
-            Condition{.node = rhs,
-                      .partial = PartialInformation(
-                          IntervalSet::Punctured(lhs_value->bits()))}));
-      }
-      if (std::optional<Value> rhs_value = query_engine_->KnownValue(rhs);
-          !lhs->Is<Literal>() && lhs->GetType()->IsBits() &&
-          rhs_value.has_value()) {
-        implied_conditions.Union(GetImplied(
-            Condition{.node = lhs,
-                      .partial = PartialInformation(
-                          IntervalSet::Punctured(rhs_value->bits()))}));
-      }
-    }
-
-    return implied_conditions;
-  }
-
- private:
-  QueryEngine* query_engine_;
-
-  // Index of each node in the function base in a topological sort.
-  absl::flat_hash_map<Node*, int64_t> topo_index_;
-
-  absl::flat_hash_map<Condition, std::unique_ptr<ConditionSet>> cache_;
-};
-
 absl::StatusOr<bool> EliminateNoopNext(FunctionBase* f) {
   std::vector<Next*> to_remove;
   for (Node* n : f->nodes()) {
@@ -927,8 +388,9 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
                                 std::move(unowned_query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
-  ConditionMap condition_map(f, context);
-  ImpliedConditionCache condition_cache(f, context, &query_engine);
+  // NOTE: Since this is not a lazy analysis, it can go stale!
+  XLS_ASSIGN_OR_RETURN(VisibilityConditions analysis,
+                       RunVisibilityAnalysis(f, context, use_bdd_));
 
   std::optional<absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>
       affected_by;
@@ -937,219 +399,13 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   // arm operands of selects and propagate them upwards through the expressions
   // which compute the case arm.
   for (Node* node : context.ReverseTopoSort(f)) {
-    ConditionSet& set = condition_map.GetNodeConditionSet(node);
-    VLOG(4) << absl::StreamFormat("Considering node %s: %s", node->GetName(),
-                                  set.ToString());
+    VLOG(4) << absl::StreamFormat("Considering node %s", node->GetName());
 
-    if (node->Is<Invoke>()) {
-      // The contents of an invoke may be side-effecting (e.g., the invoked
-      // function might contain an assert), so don't assume any conditions for
-      // this node or its predecessors.
-      VLOG(4) << absl::StreamFormat(
-          "Node %s is an invoke and could be side-effecting", node->GetName());
-      continue;
-    }
-    if (OpIsSideEffecting(node->op()) &&
-        !node->OpIn({Op::kSend, Op::kStateRead, Op::kNext})) {
-      // Inputs to side-effecting operations should not change so don't assume
-      // any conditions for this node or it's predecessors.
-      VLOG(4) << absl::StreamFormat("Node %s is side-effecting",
-                                    node->GetName());
-      continue;
-    }
-
-    // Compute the intersection of the condition sets of the users of this node.
-    //
-    // If this node has an implicit use then we can't propagate any conditions
-    // from the users because this value is unconditionally live and therefore
-    // its computed value should not be changed. Similarly, if this node is a
-    // Send then the data input can only be controlled by the predicate, not by
-    // any successors of the Send.
-    //
-    // In addition, if this node is a StateRead's predicate, then its value can
-    // affect throughput and so shouldn't be changed.
-    if (!f->HasImplicitUse(node) && !node->Is<Send>() &&
-        absl::c_none_of(node->users(),
-                        [](Node* user) { return user->Is<StateRead>(); })) {
-      VLOG(4) << absl::StreamFormat(
-          "%s has no implicit use, computing intersection of conditions of "
-          "users",
-          node->GetName());
-      bool first_user = true;
-      for (Node* user : node->users()) {
-        const ConditionSet& user_set =
-            condition_map.GetEdgeConditionSet(node, user);
-        VLOG(4) << "Conditions for edge " << node->GetName() << " -> "
-                << user->GetName() << ": " << user_set.ToString();
-        if (first_user) {
-          set = user_set;
-        } else {
-          set.Intersect(user_set);
-        }
-        VLOG(4) << "Conditions for " << node->GetName()
-                << " so far: " << set.ToString();
-        first_user = false;
-      }
-    }
-
-    // If the only user of this node is a single select arm then add a condition
-    // based on the selector value for this arm.
-    if (node->Is<Select>()) {
-      Select* select = node->As<Select>();
-      // Don't bother specializing if the selector is a literal as this
-      // results in a useless condition where we assume a literal has a
-      // literal value.
-      if (!select->selector()->Is<Literal>()) {
-        for (int64_t case_no = 0; case_no < select->cases().size(); ++case_no) {
-          ConditionSet edge_set = set;
-          // If this case is selected, we know the selector is exactly
-          // `case_no`.
-          edge_set.Union(condition_cache.GetImplied(Condition{
-              .node = select->selector(),
-              .partial = PartialInformation(IntervalSet::Precise(
-                  UBits(case_no, select->selector()->BitCountOrDie()))),
-          }));
-          condition_map.SetEdgeConditionSet(node, case_no + 1,
-                                            std::move(edge_set));
-        }
-      }
-    }
-    if (node->Is<OneHotSelect>()) {
-      OneHotSelect* select = node->As<OneHotSelect>();
-      if (!select->selector()->Is<Literal>()) {
-        for (int64_t case_no = 0; case_no < select->cases().size(); ++case_no) {
-          ConditionSet edge_set = set;
-          // If this case is selected, we know the corresponding bit of the
-          // selector is one.
-          TernaryVector selector_value(select->selector()->BitCountOrDie(),
-                                       TernaryValue::kUnknown);
-          selector_value[case_no] = TernaryValue::kKnownOne;
-          edge_set.Union(condition_cache.GetImplied(Condition{
-              .node = select->selector(),
-              .partial = PartialInformation(selector_value),
-          }));
-          condition_map.SetEdgeConditionSet(node, case_no + 1,
-                                            std::move(edge_set));
-        }
-      }
-    }
-    if (node->Is<PrioritySelect>()) {
-      PrioritySelect* select = node->As<PrioritySelect>();
-      if (!select->selector()->Is<Literal>()) {
-        for (int64_t case_no = 0; case_no < select->cases().size(); ++case_no) {
-          ConditionSet edge_set = set;
-          // If this case is selected, we know all the bits of the selector up
-          // to and including `case_no`; all higher-priority bits are zero, and
-          // this case's bit is one.
-          Bits known_bits = Bits(select->selector()->BitCountOrDie());
-          known_bits.SetRange(0, case_no + 1);
-          Bits known_bits_values =
-              Bits::PowerOfTwo(case_no, select->selector()->BitCountOrDie());
-          edge_set.Union(condition_cache.GetImplied(Condition{
-              .node = select->selector(),
-              .partial = PartialInformation(
-                  ternary_ops::FromKnownBits(known_bits, known_bits_values)),
-          }));
-          condition_map.SetEdgeConditionSet(node, case_no + 1,
-                                            std::move(edge_set));
-        }
-        ConditionSet edge_set = set;
-        // If the default value is selected, we know all the bits of the
-        // selector are zero.
-        edge_set.Union(condition_cache.GetImplied(Condition{
-            .node = select->selector(),
-            .partial = PartialInformation(IntervalSet::Precise(
-                UBits(0, select->selector()->BitCountOrDie()))),
-        }));
-        condition_map.SetEdgeConditionSet(node, select->cases().size() + 1,
-                                          std::move(edge_set));
-      }
-    }
-
-    if (node->Is<ArrayUpdate>()) {
-      ArrayUpdate* update = node->As<ArrayUpdate>();
-      ConditionSet edge_set = set;
-      Type* array_type = update->array_to_update()->GetType();
-      for (Node* index : update->indices()) {
-        if (index->Is<Literal>()) {
-          continue;
-        }
-
-        const int64_t array_size = array_type->AsArrayOrDie()->size();
-        if (Bits::MinBitCountUnsigned(array_size) > index->BitCountOrDie()) {
-          continue;
-        }
-
-        // ArrayUpdate is a no-op if any index is out of range; as such, it only
-        // cares about the update value if all indices are in range.
-        edge_set.Union(condition_cache.GetImplied(Condition{
-            .node = index,
-            .partial = PartialInformation(IntervalSet::Of({Interval::RightOpen(
-                UBits(0, index->BitCountOrDie()),
-                UBits(array_size, index->BitCountOrDie()))})),
-        }));
-
-        array_type = array_type->AsArrayOrDie()->element_type();
-      }
-      condition_map.SetEdgeConditionSet(node, ArrayUpdate::kUpdateValueOperand,
-                                        std::move(edge_set));
-    }
-
-    if (node->Is<Send>()) {
-      Send* send = node->As<Send>();
-      if (!send->predicate().has_value()) {
-        continue;
-      }
-
-      Node* predicate = *send->predicate();
-      if (predicate->Is<Literal>()) {
-        continue;
-      }
-
-      VLOG(4) << absl::StreamFormat(
-          "%s is a conditional send, assuming predicate %s is true for data %s",
-          node->GetName(), predicate->GetName(), send->data()->GetName());
-
-      ConditionSet edge_set = set;
-      edge_set.Union(condition_cache.GetImplied(Condition{
-          .node = predicate,
-          .partial = PartialInformation(IntervalSet::Precise(UBits(1, 1)))}));
-      condition_map.SetEdgeConditionSet(node, Send::kDataOperand,
-                                        std::move(edge_set));
-    }
-
-    if (node->Is<Next>()) {
-      Next* next = node->As<Next>();
-      if (!next->predicate().has_value()) {
-        continue;
-      }
-
-      Node* predicate = *next->predicate();
-      if (predicate->Is<Literal>()) {
-        continue;
-      }
-
-      VLOG(4) << absl::StreamFormat(
-          "%s is a conditional next_value, assuming predicate %s is true for "
-          "data %s",
-          node->GetName(), predicate->GetName(), next->value()->GetName());
-
-      ConditionSet edge_set = set;
-      edge_set.Union(condition_cache.GetImplied(Condition{
-          .node = predicate,
-          .partial = PartialInformation(IntervalSet::Precise(UBits(1, 1)))}));
-      condition_map.SetEdgeConditionSet(node, Next::kStateReadOperand,
-                                        edge_set);
-      condition_map.SetEdgeConditionSet(node, Next::kValueOperand,
-                                        std::move(edge_set));
-    }
-
-    VLOG(4) << absl::StreamFormat("Conditions for %s : %s", node->GetName(),
-                                  set.ToString());
-
-    // Now specialize the node itself based on the conditions on its access.
+    // Specialize the node itself based on the conditions on its access.
     if (options.optimize_for_best_case_throughput && node->Is<StateRead>() &&
-        !set.empty()) {
+        !analysis.GetVisibilityConditions(node).empty()) {
+      const ConditionSet& set = analysis.GetVisibilityConditions(node);
+
       StateRead* state_read = node->As<StateRead>();
       if (state_read->predicate().has_value()) {
         // For now, avoid specializing the predicate of an already-conditional
@@ -1207,10 +463,10 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
       }
 
       const ConditionSet& edge_set =
-          condition_map.GetEdgeConditionSet(operand, node);
-      VLOG(4) << absl::StrFormat("Conditions on edge %s -> %s: %s",
-                                 operand->GetName(), node->GetName(),
-                                 edge_set.ToString());
+          analysis.GetVisibilityConditionsForEdge(node, operand_no);
+      VLOG(4) << absl::StrFormat(
+          "Conditions on edge %s -> %s (as operand %d): %s", operand->GetName(),
+          node->GetName(), operand_no, edge_set.ToString());
       if (edge_set.empty()) {
         continue;
       }
@@ -1332,8 +588,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
               // This case could be selected - but if it's definitely zero when
               // selected, then we can ignore it.
               std::optional<Bits> implied_case = ImpliedNodeValue(
-                  condition_map.GetEdgeConditionSet(ohs,
-                                                    /*operand_no=*/case_no + 1),
+                  analysis.GetVisibilityConditionsForEdge(ohs, case_no + 1),
                   ohs->cases()[case_no], *specialized_query_engine);
               if (implied_case.has_value() && implied_case->IsZero()) {
                 implied_selector.value()[case_no] = TernaryValue::kKnownZero;

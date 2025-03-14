@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
@@ -346,11 +347,11 @@ class LazyNodeInfo
   std::string GetName(Node* const& node) const override {
     return node->GetName();
   }
-  absl::Span<Node* const> GetInputs(Node* const& node) const override {
-    return node->operands();
+  std::vector<Node*> GetInputs(Node* const& node) const override {
+    return std::vector<Node*>(node->operands().begin(), node->operands().end());
   }
-  absl::Span<Node* const> GetUsers(Node* const& node) const override {
-    return node->users();
+  std::vector<Node*> GetUsers(Node* const& node) const override {
+    return std::vector<Node*>(node->users().begin(), node->users().end());
   }
   absl::StatusOr<LeafTypeTree<Info>> ComputeValue(
       Node* const& node,
