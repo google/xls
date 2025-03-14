@@ -343,7 +343,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
   absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
                                    ResultsT* results,
                                    ContextT&... context) const override {
-    if (!options.ir_dump_path.empty()) {
+    if (!options.ir_dump_path.empty() && results->invocations.empty()) {
       // Start of the top-level pass. Dump IR.
       XLS_RETURN_IF_ERROR(DumpIr(options.ir_dump_path, ir, this->short_name(),
                                  "start",
@@ -551,12 +551,12 @@ CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
     if (!pass->IsCompound()) {
       results->invocations.push_back(
           {pass->short_name(), pass_changed, duration});
-    }
-    if (!options.ir_dump_path.empty()) {
-      XLS_RETURN_IF_ERROR(DumpIr(options.ir_dump_path, ir, top_level_name,
-                                 absl::StrCat("after_", pass->short_name()),
-                                 /*ordinal=*/results->invocations.size(),
-                                 /*changed=*/pass_changed));
+      if (!options.ir_dump_path.empty()) {
+        XLS_RETURN_IF_ERROR(DumpIr(options.ir_dump_path, ir, top_level_name,
+                                   absl::StrCat("after_", pass->short_name()),
+                                   /*ordinal=*/results->invocations.size(),
+                                   /*changed=*/pass_changed));
+      }
     }
 
     aggregate_result.AddSinglePassResult(pass->short_name(), pass_changed,
