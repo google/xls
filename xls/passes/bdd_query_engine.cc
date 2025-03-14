@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -34,10 +35,10 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "cppitertools/enumerate.hpp"
 #include "cppitertools/zip.hpp"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/abstract_evaluator.h"
@@ -456,25 +457,23 @@ absl::StatusOr<BddTree> CreateUnknownOfType(Type* type,
 
 class BddNodeEvaluator : public AbstractNodeEvaluator<SaturatingBddEvaluator> {
  public:
-  BddNodeEvaluator(SaturatingBddEvaluator& evaluator)
-      : AbstractNodeEvaluator(evaluator) {}
+  BddNodeEvaluator(SaturatingBddEvaluator& evaluator,
+                   std::function<BddTreeView(Node*)> get_variables)
+      : AbstractNodeEvaluator(evaluator), get_variables_(get_variables) {}
 
   absl::Status InjectValue(Node* node, const BddTree* value) {
     if (value == nullptr) {
-      XLS_ASSIGN_OR_RETURN(
-          BddTree unknown,
-          CreateUnknownOfType(node->GetType(), evaluator().bdd()));
-      return SetValue(node, std::move(unknown).AsShared());
+      return SetValue(node, get_variables_(node).AsShared());
     }
     return SetValue(node, value->AsView().AsShared());
   }
 
   absl::Status DefaultHandler(Node* node) override {
-    XLS_ASSIGN_OR_RETURN(
-        BddTree unknown,
-        CreateUnknownOfType(node->GetType(), evaluator().bdd()));
-    return SetValue(node, std::move(unknown).AsShared());
+    return SetValue(node, get_variables_(node).AsShared());
   }
+
+ private:
+  std::function<BddTreeView(Node*)> get_variables_;
 };
 
 }  // namespace
@@ -483,15 +482,16 @@ BddTree BddQueryEngine::ComputeInfo(
     Node* node, absl::Span<const BddTree* const> operand_infos) const {
   if (!ShouldEvaluate(node)) {
     VLOG(3) << "  node filtered out by generic ShouldEvaluate heuristic.";
-    return *CreateUnknownOfType(node->GetType(), bdd_.get());
+    return leaf_type_tree::Clone(GetVariablesFor(node));
   }
   if (node_filter_.has_value() && !(*node_filter_)(node)) {
     VLOG(3) << "  node filtered out by configured filter.";
-    return *CreateUnknownOfType(node->GetType(), bdd_.get());
+    return leaf_type_tree::Clone(GetVariablesFor(node));
   }
 
   VLOG(3) << "  computing BDD value...";
-  BddNodeEvaluator node_evaluator(*evaluator_);
+  BddNodeEvaluator node_evaluator(
+      *evaluator_, [this](Node* node) { return GetVariablesFor(node); });
   absl::flat_hash_set<Node*> injected_operands;
   injected_operands.reserve(node->operand_count());
   for (auto [operand, operand_info] :
@@ -507,17 +507,22 @@ BddTree BddQueryEngine::ComputeInfo(
       std::move(node_evaluator).values();
   LeafTypeTree<BddVector> result = std::move(values.at(node)).ToOwned();
   int64_t new_variables = 0;
-  leaf_type_tree::ForEach(result.AsMutableView(), [&](BddVector& bdd_vector) {
-    for (SaturatingBddNodeIndex& bdd_node : bdd_vector) {
-      // Associate a new BDD variable with each bit that exceeded the path
-      // limit, so we can continue reasoning while acknowledging that we no
-      // longer model this bit's value.
-      if (ExceedsPathLimit(bdd_node)) {
-        bdd_node = evaluator_->bdd()->NewVariable();
-        new_variables++;
-      }
-    }
-  });
+  CHECK_OK(leaf_type_tree::ForEachIndex(
+      result.AsMutableView(),
+      [&](Type* leaf_type, BddVector& bdd_vector,
+          absl::Span<const int64_t> tree_index) -> absl::Status {
+        for (auto [bit_index, bdd_node] : iter::enumerate(bdd_vector)) {
+          // Associate a new BDD variable with each bit that exceeded the path
+          // limit, so we can continue reasoning while acknowledging that we no
+          // longer model this bit's value.
+          if (ExceedsPathLimit(bdd_node)) {
+            bdd_node =
+                GetVariableFor(TreeBitLocation(node, bit_index, tree_index));
+            new_variables++;
+          }
+        }
+        return absl::OkStatus();
+      }));
   if (new_variables > 0) {
     VLOG(3) << absl::StreamFormat(
         "  introduced %d new variables due to path limit.", new_variables);
@@ -1247,6 +1252,38 @@ bool BddQueryEngine::IsFullyKnown(
          absl::c_all_of(ternary_value->elements(), [](const TernaryVector& v) {
            return ternary_ops::IsFullyKnown(v);
          });
+}
+
+BddNodeIndex BddQueryEngine::GetVariableFor(TreeBitLocation location) const {
+  if (auto it = node_variables_.find(location.node());
+      it != node_variables_.end()) {
+    if (it->second->type() == location.node()->GetType()) {
+      return std::get<BddNodeIndex>(
+          it->second->Get(location.tree_index()).at(location.bit_index()));
+    } else {
+      node_variables_.erase(it);
+    }
+  }
+  if (auto it = bit_variables_.find(location); it != bit_variables_.end()) {
+    return it->second;
+  }
+  BddNodeIndex result = bdd_->NewVariable();
+  CHECK(bit_variables_.emplace(location, result).second);
+  return result;
+}
+BddTreeView BddQueryEngine::GetVariablesFor(Node* node) const {
+  if (auto it = node_variables_.find(node);
+      it != node_variables_.end() && it->second->type() == node->GetType()) {
+    // If a node has changed type (which can happen!), we need a new set of
+    // variables for it.
+    return it->second->AsView();
+  }
+  absl::StatusOr<BddTree> result =
+      CreateUnknownOfType(node->GetType(), bdd_.get());
+  CHECK_OK(result.status());
+  return node_variables_
+      .insert_or_assign(node, std::make_unique<BddTree>(*std::move(result)))
+      .first->second->AsView();
 }
 
 }  // namespace xls

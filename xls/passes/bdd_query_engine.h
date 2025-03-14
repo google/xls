@@ -25,6 +25,7 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/binary_decision_diagram.h"
@@ -55,8 +56,10 @@ bool IsCheapForBdds(const Node* node);
 class BddQueryEngine
     : public LazyQueryEngine<std::vector<SaturatingBddNodeIndex>> {
  private:
+  using Base = LazyQueryEngine<std::vector<SaturatingBddNodeIndex>>;
   using BddVector = std::vector<SaturatingBddNodeIndex>;
   using BddTree = LeafTypeTree<BddVector>;
+  using BddTreeView = LeafTypeTreeView<BddVector>;
   using SharedBddTree = SharedLeafTypeTree<BddVector>;
 
  public:
@@ -217,6 +220,16 @@ class BddQueryEngine
 
   std::unique_ptr<BinaryDecisionDiagram> bdd_;
   std::unique_ptr<SaturatingBddEvaluator> evaluator_;
+
+  // A map from bit locations to BDD variables; used when the BDD is saturated
+  // to avoid creating new variables for the same bit.
+  mutable absl::flat_hash_map<TreeBitLocation, BddNodeIndex> bit_variables_;
+  BddNodeIndex GetVariableFor(TreeBitLocation location) const;
+
+  // A map from nodes to BDD variables used to represent fully-unknown values;
+  // used to avoid creating new variables for the same node.
+  mutable absl::flat_hash_map<Node*, std::unique_ptr<BddTree>> node_variables_;
+  BddTreeView GetVariablesFor(Node* node) const;
 };
 
 }  // namespace xls
