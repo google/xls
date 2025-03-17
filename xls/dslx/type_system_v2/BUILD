@@ -226,13 +226,11 @@ cc_test(
     name = "typecheck_module_v2_test",
     srcs = ["typecheck_module_v2_test.cc"],
     deps = [
+        ":matchers",
         ":type_system_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/type_system:typecheck_test_utils",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
@@ -433,5 +431,20 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "matchers",
+    testonly = True,
+    hdrs = ["matchers.h"],
+    deps = [
+        ":type_system_test_utils",
+        "//xls/dslx/type_system:typecheck_test_utils",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
     ],
 )

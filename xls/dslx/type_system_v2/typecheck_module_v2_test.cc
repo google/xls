@@ -17,96 +17,16 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
-#include "absl/status/status_matchers.h"
-#include "absl/status/statusor.h"
-#include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
+#include "xls/dslx/type_system_v2/matchers.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
 
 namespace xls::dslx {
 namespace {
 
-using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
-
-// Verifies that a type info string contains the given node string and type
-// string combo.
-MATCHER_P2(HasNodeWithType, node, type, "") {
-  return ExplainMatchResult(
-      HasSubstr(absl::Substitute("node: `$0`, type: $1", node, type)), arg,
-      result_listener);
-}
-
-// Verifies the type produced by `TypecheckV2`, for the topmost node only, in a
-// simple AST (typically a one-liner). The `arg` is the DSLX code and `expected`
-// is the type string.
-MATCHER_P(TopNodeHasType, expected, "") {
-  absl::StatusOr<TypecheckResult> result = TypecheckV2(arg);
-  if (!result.ok()) {
-    *result_listener << "Failed to typecheck: `" << arg
-                     << "`; status: " << result.status();
-    return false;
-  }
-  absl::StatusOr<std::string> type_info_string = TypeInfoToString(result->tm);
-  if (!type_info_string.ok()) {
-    *result_listener << "Failed to convert type info to string; status: "
-                     << type_info_string.status();
-    return false;
-  }
-  bool matched = ExplainMatchResult(HasNodeWithType(arg, expected),
-                                    *type_info_string, result_listener);
-  if (!matched) {
-    *result_listener << "Type info: " << *type_info_string;
-  }
-  return matched;
-}
-
-// Verifies that the `TypecheckV2` output contains a one-line statement block
-// with the given type.
-MATCHER_P2(HasOneLineBlockWithType, expected_line, expected_type, "") {
-  bool matched = ExplainMatchResult(
-      HasSubstr(absl::Substitute("node: `{\n    $0\n}`, type: $1",
-                                 expected_line, expected_type)),
-      arg, result_listener);
-  if (!matched) {
-    *result_listener << "Type info: " << arg;
-  }
-  return matched;
-}
-
-// Verifies that `TypecheckV2` fails for the given DSLX code, using `matcher`
-// for the error string. The `arg` is the DSLX code.
-MATCHER_P(TypecheckFails, matcher, "") {
-  return ExplainMatchResult(
-      StatusIs(absl::StatusCode::kInvalidArgument, matcher), TypecheckV2(arg),
-      result_listener);
-}
-
-// Verifies that `TypecheckV2` succeeds for the given DSLX code and the
-// resulting type info string satisfies the given `matcher`.
-MATCHER_P(TypecheckSucceeds, matcher, "") {
-  absl::StatusOr<TypecheckResult> result = TypecheckV2(arg);
-  if (!result.ok()) {
-    *result_listener << "Failed to typecheck: `" << arg
-                     << "`; status: " << result.status();
-    return false;
-  }
-  absl::StatusOr<std::string> type_info_string = TypeInfoToString(result->tm);
-  if (!type_info_string.ok()) {
-    *result_listener << "Failed to convert type info to string; status: "
-                     << type_info_string.status();
-    return false;
-  }
-  bool matched =
-      ExplainMatchResult(matcher, *type_info_string, result_listener);
-  if (!matched) {
-    *result_listener << "Type info: " << *type_info_string;
-  }
-  return matched;
-}
 
 TEST(TypecheckV2Test, GlobalIntegerConstantWithNoTypeAnnotations) {
   EXPECT_THAT("const X = 3;",
@@ -3611,7 +3531,8 @@ const X = Point::num_dims();
 }
 
 TEST(TypecheckV2Test, ImplWithMissingConstantFails) {
-  constexpr std::string_view kProgram = R"(
+  EXPECT_THAT(
+      R"(
 struct Point { x: u32, y: u32 }
 
 impl Point {
@@ -3621,11 +3542,9 @@ impl Point {
 fn point_dims() -> u32 {
     Point::DIMENSIONS
 }
-)";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Name 'DIMENSIONS' is not defined by the impl "
-                                 "for struct 'Point'")));
+)",
+      TypecheckFails(HasSubstr("Name 'DIMENSIONS' is not defined by the impl "
+                               "for struct 'Point'")));
 }
 
 TEST(TypecheckV2Test, MissingImplOnStructFails) {
