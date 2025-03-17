@@ -871,6 +871,19 @@ class NodeChecker : public DfsVisitor {
           absl::StrFormat("One hot selector has %d bits for %d cases",
                           selector_width, sel->cases().size()));
     }
+
+    // All cases should have the same type.
+    Type* first_case_type = sel->get_case(0)->GetType();
+    for (int64_t i = 1; i < sel->cases().size(); ++i) {
+      if (sel->get_case(i)->GetType() != first_case_type) {
+        return absl::InternalError(
+            absl::StrFormat("All cases in one-hot select must have the same "
+                            "type: %s != %s for case %d",
+                            first_case_type->ToString(),
+                            sel->get_case(i)->GetType()->ToString(), i));
+      }
+    }
+
     return absl::OkStatus();
   }
 
@@ -886,6 +899,29 @@ class NodeChecker : public DfsVisitor {
           absl::StrFormat("Priority selector has %d bits for %d cases",
                           selector_width, sel->cases().size()));
     }
+
+    // All cases should have the same type.
+    for (int64_t i = 1; i < sel->cases().size(); ++i) {
+      Type* first_case_type = sel->get_case(0)->GetType();
+      if (sel->get_case(i)->GetType() != first_case_type) {
+        return absl::InternalError(
+            absl::StrFormat("All cases in priority select must have the same "
+                            "type: %s != %s for case %d",
+                            first_case_type->ToString(),
+                            sel->get_case(i)->GetType()->ToString(), i));
+      }
+    }
+
+    // The default value should have the same type as the cases.
+    if (Node* default_value = sel->default_value(); default_value != nullptr) {
+      Type* default_value_type = default_value->GetType();
+      if (default_value_type != sel->GetType()) {
+        return absl::InternalError(absl::StrFormat(
+            "Default value must have the same type as the cases: %s != %s",
+            sel->GetType()->ToString(), default_value_type->ToString()));
+      }
+    }
+
     return absl::OkStatus();
   }
 
@@ -992,6 +1028,7 @@ class NodeChecker : public DfsVisitor {
           selector_width, sel->cases().size()));
     }
 
+    // All cases should have the same type.
     for (int64_t i = 0; i < sel->cases().size(); ++i) {
       Type* operand_type = sel->get_case(i)->GetType();
       if (operand_type != sel->GetType()) {
@@ -1000,6 +1037,8 @@ class NodeChecker : public DfsVisitor {
             i + 1, operand_type->ToString(), sel->ToString()));
       }
     }
+
+    // The default value should have the same type as the cases.
     if (sel->default_value()) {
       Type* operand_type = sel->default_value().value()->GetType();
       if (operand_type != sel->GetType()) {
@@ -1008,6 +1047,7 @@ class NodeChecker : public DfsVisitor {
                             operand_type->ToString(), sel->ToString()));
       }
     }
+
     return absl::OkStatus();
   }
 
