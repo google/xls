@@ -1990,6 +1990,7 @@ cc_test(
         ":state_channel_conversion",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:proc_evaluator",
         "//xls/interpreter:proc_interpreter",
@@ -2001,8 +2002,10 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:proc_elaboration",
         "//xls/ir:value",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
 )

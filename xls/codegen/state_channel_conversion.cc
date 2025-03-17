@@ -79,7 +79,6 @@ absl::StatusOr<bool> State2ChannelConversionPass(Proc* proc,
   std::vector<Next*> to_remove;
   std::vector<std::pair<Node*, Node*>> state_read_replacements;
   // Wire up channels receive/send where we used state read/write before.
-  // TODO: predicates for conditional state operations
   for (Node* node : proc->nodes()) {
     if (node->Is<Next>()) {
       Next* const next = node->As<Next>();
@@ -88,18 +87,20 @@ absl::StatusOr<bool> State2ChannelConversionPass(Proc* proc,
       const StateChannelInfo& info = found->second;
       XLS_RET_CHECK_OK(proc->MakeNode<Send>(
           node->loc(), info.token, next->value(),
-          /*predicate=*/std::nullopt, info.channel->name()));
+          /*predicate=*/next->predicate(), info.channel->name()));
       to_remove.push_back(next);
     } else if (node->Is<StateRead>()) {
-      auto found = state_read2channel.find(node->As<StateRead>());
+      StateRead* state_read = node->As<StateRead>();
+      auto found = state_read2channel.find(state_read);
       XLS_RET_CHECK(found != state_read2channel.end());
       const StateChannelInfo& info = found->second;
 
-      XLS_ASSIGN_OR_RETURN(Receive * receive,
-                           proc->MakeNode<Receive>(node->loc(), info.token,
-                                                   /*predicate=*/std::nullopt,
-                                                   info.channel->name(),
-                                                   /*is_blocking=*/true));
+      XLS_ASSIGN_OR_RETURN(
+          Receive * receive,
+          proc->MakeNode<Receive>(node->loc(), info.token,
+                                  /*predicate=*/state_read->predicate(),
+                                  info.channel->name(),
+                                  /*is_blocking=*/true));
       XLS_ASSIGN_OR_RETURN(Node * receive_value,
                            proc->MakeNode<TupleIndex>(node->loc(), receive, 1));
       state_read_replacements.emplace_back(node, receive_value);
