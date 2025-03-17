@@ -14,43 +14,25 @@
 
 #include "xls/scheduling/schedule_util.h"
 
-#include <vector>
-
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
+#include "xls/ir/topo_sort.h"
 
 namespace xls {
 
 absl::flat_hash_set<Node*> GetDeadAfterSynthesisNodes(FunctionBase* f) {
   absl::flat_hash_set<Node*> dead_after_synthesis;
-  std::vector<Node*> to_visit;
-  auto mark_dead = [&](Node* node) {
-    auto [_, inserted] = dead_after_synthesis.insert(node);
-    if (inserted) {
-      to_visit.insert(to_visit.end(), node->operands().begin(),
-                      node->operands().end());
-    }
-  };
-  for (Node* node : f->nodes()) {
-    if (node->OpIn({Op::kAssert, Op::kCover, Op::kTrace})) {
-      mark_dead(node);
-    }
-  }
-  while (!to_visit.empty()) {
-    Node* node = to_visit.back();
-    to_visit.pop_back();
-    if (dead_after_synthesis.contains(node)) {
-      continue;
-    }
-
-    // Does this node have any visible effects of its own? If so, it's live.
+  for (Node* node : ReverseTopoSort(f)) {
+    // Does this node have any visible effects of its own (not counting
+    // non-synthesized effects, like asserts or traces)? If so, it's live.
     if (f->HasImplicitUse(node)) {
       continue;
     }
-    if (OpIsSideEffecting(node->op())) {
+    if (OpIsSideEffecting(node->op()) &&
+        !node->OpIn({Op::kAssert, Op::kCover, Op::kTrace})) {
       continue;
     }
 
@@ -59,7 +41,7 @@ absl::flat_hash_set<Node*> GetDeadAfterSynthesisNodes(FunctionBase* f) {
     if (absl::c_all_of(node->users(), [&](Node* user) {
           return dead_after_synthesis.contains(user);
         })) {
-      mark_dead(node);
+      dead_after_synthesis.insert(node);
     }
   }
   return dead_after_synthesis;

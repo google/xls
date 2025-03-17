@@ -204,7 +204,7 @@ TEST_F(PipelineScheduleTest, InfeasibleScheduleWithReturnValueUsers) {
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
   BValue ret_value = fb.Not(x, SourceInfo(), "ret_value");
-  fb.Negate(ret_value);
+  fb.Gate(fb.Literal(UBits(1, 1)), ret_value);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret_value));
 
   ASSERT_THAT(
