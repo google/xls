@@ -154,6 +154,7 @@ message TemplateArgument {
 message ArrayType {
   optional Type element_type = 1;
   optional int32 size = 2;
+  optional bool use_tuple = 3;
 }
 
 // Channel type

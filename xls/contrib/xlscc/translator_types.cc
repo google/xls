@@ -733,8 +733,8 @@ const clang::NamedDecl* CField::name() const { return name_; }
 
 std::shared_ptr<CType> CField::type() const { return type_; }
 
-CArrayType::CArrayType(std::shared_ptr<CType> element, int size)
-    : element_(element), size_(size) {
+CArrayType::CArrayType(std::shared_ptr<CType> element, int size, bool use_tuple)
+    : element_(element), size_(size), use_tuple_(use_tuple) {
   // XLS doesn't support 0 sized arrays
   CHECK_GT(size_, 0);
 }
@@ -744,7 +744,8 @@ bool CArrayType::operator==(const CType& o) const {
     return false;
   }
   const auto* o_derived = o.As<CArrayType>();
-  return *element_ == *o_derived->element_ && size_ == o_derived->size_;
+  return *element_ == *o_derived->element_ && size_ == o_derived->size_ &&
+         use_tuple_ == o_derived->use_tuple_;
 }
 
 int CArrayType::GetBitWidth() const { return size_ * element_->GetBitWidth(); }
@@ -768,13 +769,15 @@ int CArrayType::GetSize() const { return size_; }
 std::shared_ptr<CType> CArrayType::GetElementType() const { return element_; }
 
 CArrayType::operator std::string() const {
-  return absl::StrFormat("%s[%i]", string(*element_), size_);
+  return absl::StrFormat("%s[%i]%s", string(*element_), size_,
+                         use_tuple_ ? " (tup)" : "");
 }
 
 absl::Status CArrayType::GetMetadata(
     Translator& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   output->mutable_as_array()->set_size(size_);
+  output->mutable_as_array()->set_use_tuple(use_tuple_);
   XLS_RETURN_IF_ERROR(element_->GetMetadata(
       translator, output->mutable_as_array()->mutable_element_type(),
       aliases_used));
@@ -792,6 +795,8 @@ absl::Status CArrayType::GetMetadataValue(Translator& translator,
   }
   return absl::OkStatus();
 }
+
+bool CArrayType::GetUseTuple() const { return use_tuple_; }
 
 CPointerType::CPointerType(std::shared_ptr<CType> pointee_type)
     : pointee_type_(pointee_type) {}

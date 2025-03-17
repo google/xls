@@ -536,6 +536,84 @@ xls::Type* Translator::GetFlexTupleType(
   return (members.size() == 1) ? members[0] : package_->GetTupleType(members);
 }
 
+absl::StatusOr<CValue> Translator::GetArrayElement(const CValue& arr_val,
+                                                   xls::BValue index_bval,
+                                                   const xls::SourceInfo& loc) {
+  XLSCC_CHECK(index_bval.GetType()->IsBits(), loc);
+  XLSCC_CHECK(arr_val.type()->Is<CArrayType>(), loc);
+  auto arr_type = arr_val.type()->As<CArrayType>();
+  xls::BValue rval;
+
+  if (arr_type->GetUseTuple()) {
+    XLSCC_CHECK(arr_val.rvalue().GetType()->IsTuple(), loc);
+    std::vector<xls::BValue> cases;
+    cases.reserve(arr_type->GetSize());
+    for (int i = 0; i < arr_type->GetSize(); ++i) {
+      xls::BValue elem = context().fb->TupleIndex(arr_val.rvalue(), i, loc);
+      cases.push_back(elem);
+    }
+    XLS_ASSIGN_OR_RETURN(xls::BValue default_value,
+                         CreateDefaultValue(arr_type->GetElementType(), loc));
+    rval = context().fb->Select(index_bval, cases,
+                                /*default_value=*/default_value, loc);
+  } else {
+    XLSCC_CHECK(arr_val.rvalue().GetType()->IsArray(), loc);
+    rval = context().fb->ArrayIndex(arr_val.rvalue(), {index_bval}, loc);
+  }
+
+  return CValue(rval, arr_type->GetElementType());
+}
+
+absl::StatusOr<CValue> Translator::UpdateArrayElement(
+    const CValue& arr_val, xls::BValue index_bval, const CValue& rvalue,
+    const xls::SourceInfo& loc) {
+  // Assign to an array element
+  // (...)[index] = rvalue
+  if (!arr_val.type()->Is<CArrayType>()) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc,
+                     "Only array subscript assignments directly to "
+                     "arrays supported (not pointers, yet)"));
+  }
+  auto arr_type = arr_val.type()->As<CArrayType>();
+
+  if (*rvalue.type() != *arr_type->GetElementType()) {
+    return absl::InvalidArgumentError(ErrorMessage(
+        loc, "Cannot assign rvalue of type %s to element of array of type %s",
+        std::string(*rvalue.type()), std::string(*arr_type->GetElementType())));
+  }
+  XLS_ASSIGN_OR_RETURN(bool element_has_lvalues,
+                       arr_type->GetElementType()->ContainsLValues(*this));
+  XLSCC_CHECK(!element_has_lvalues, loc);
+  XLSCC_CHECK(rvalue.rvalue().valid(), loc);
+
+  xls::BValue rval;
+
+  if (arr_type->GetUseTuple()) {
+    XLSCC_CHECK(arr_val.rvalue().GetType()->IsTuple(), loc);
+    std::vector<xls::BValue> elems;
+    elems.reserve(arr_type->GetSize());
+    for (int i = 0; i < arr_type->GetSize(); ++i) {
+      xls::BValue i_literal =
+          context().fb->Literal(xls::UBits(i, index_bval.BitCountOrDie()), loc);
+      xls::BValue elem = context().fb->TupleIndex(arr_val.rvalue(), i, loc);
+      xls::BValue this_elem = context().fb->Eq(index_bval, i_literal, loc);
+      elem = context().fb->Select(this_elem,
+                                  /*on_true=*/rvalue.rvalue(),
+                                  /*on_false=*/elem, loc);
+      elems.push_back(elem);
+    }
+
+    rval = context().fb->Tuple(elems, loc);
+  } else {
+    XLSCC_CHECK(arr_val.rvalue().GetType()->IsArray(), loc);
+    rval = context().fb->ArrayUpdate(arr_val.rvalue(), rvalue.rvalue(),
+                                     {index_bval}, loc);
+  }
+
+  return CValue(rval, arr_val.type());
+}
+
 xls::BValue Translator::MakeFunctionReturn(
     const std::vector<xls::BValue>& bvals, const xls::SourceInfo& loc) {
   return MakeFlexTuple(bvals, loc);
@@ -1320,7 +1398,6 @@ absl::Status Translator::GenerateIR_Function_Body(
 
   XLS_ASSIGN_OR_RETURN(sf.xls_func,
                        header.builder->BuildWithReturnValue(return_bval));
-
   return absl::OkStatus();
 }
 
@@ -1403,7 +1480,6 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
                              StripTypeQualifiers(field_qtype));
         field_qtype = stripped.base;
       }
-
       XLS_ASSIGN_OR_RETURN(
           std::shared_ptr<CType> field_type,
           TranslateTypeFromClang(field_qtype, GetLoc(*it->getCanonicalDecl())));
@@ -1951,8 +2027,11 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
 
 int64_t Translator::ArrayBValueWidth(xls::BValue array_bval) {
   xls::Type* type = array_bval.node()->GetType();
-  CHECK(type->IsArray());
-  return type->AsArrayOrDie()->size();
+  CHECK(type->IsArray() || type->IsTuple());
+  if (type->IsArray()) {
+    return type->AsArrayOrDie()->size();
+  }
+  return type->AsTupleOrDie()->size();
 }
 
 absl::StatusOr<int64_t> Translator::EvaluateBValInt64(
@@ -1970,6 +2049,12 @@ absl::StatusOr<int64_t> Translator::EvaluateBValInt64(
 absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
     xls::BValue array_to_update, xls::BValue start_index,
     xls::BValue slice_to_write, const xls::SourceInfo& loc) {
+  XLSCC_CHECK(array_to_update.GetType()->IsArray(), loc);
+  XLSCC_CHECK(slice_to_write.GetType()->IsArray(), loc);
+  XLSCC_CHECK(start_index.GetType()->IsBits(), loc);
+
+  XLSCC_CHECK(array_to_update.GetType()->IsArray(), loc);
+
   const int64_t total_width = ArrayBValueWidth(array_to_update);
   const int64_t slice_width = ArrayBValueWidth(slice_to_write);
 
@@ -2185,31 +2270,12 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
     return absl::OkStatus();
   }
   if (auto* cast = clang::dyn_cast<const clang::ArraySubscriptExpr>(lvalue)) {
-    // Assign to an array element
-    // (...)[index] = rvalue
-    XLS_ASSIGN_OR_RETURN(CValue arr_val, GenerateIR_Expr(cast->getBase(), loc));
-    if (!arr_val.type()->Is<CArrayType>()) {
-      return absl::UnimplementedError(
-          ErrorMessage(loc,
-                       "Only array subscript assignments directly to "
-                       "arrays supported (not pointers, yet)"));
-    }
-    auto arr_type = arr_val.type()->As<CArrayType>();
     XLS_ASSIGN_OR_RETURN(CValue idx_val, GenerateIR_Expr(cast->getIdx(), loc));
-    if (*rvalue.type() != *arr_type->GetElementType()) {
-      return absl::InvalidArgumentError(ErrorMessage(
-          loc, "Cannot assign rvalue of type %s to element of array of type %s",
-          std::string(*rvalue.type()),
-          std::string(*arr_type->GetElementType())));
-    }
-    XLS_ASSIGN_OR_RETURN(bool element_has_lvalues,
-                         arr_type->GetElementType()->ContainsLValues(*this));
-    XLSCC_CHECK(!element_has_lvalues, loc);
-    XLSCC_CHECK(rvalue.rvalue().valid(), loc);
-    auto arr_rvalue =
-        CValue(context().fb->ArrayUpdate(arr_val.rvalue(), rvalue.rvalue(),
-                                         {idx_val.rvalue()}, loc),
-               arr_val.type());
+    XLS_ASSIGN_OR_RETURN(CValue arr_val, GenerateIR_Expr(cast->getBase(), loc));
+
+    XLS_ASSIGN_OR_RETURN(
+        CValue arr_rvalue,
+        UpdateArrayElement(arr_val, idx_val.rvalue(), rvalue, loc));
     return Assign(cast->getBase(), arr_rvalue, loc);
   }
   if (auto member_expr = clang::dyn_cast<const clang::MemberExpr>(lvalue)) {
@@ -2448,6 +2514,14 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
                        "only supported on arrays, for array slicing"));
     }
 
+    std::shared_ptr<CArrayType> base_array_type =
+        std::dynamic_pointer_cast<CArrayType>(base_cv.type());
+
+    if (base_array_type->GetUseTuple()) {
+      return absl::UnimplementedError(ErrorMessage(
+          loc, "Slicing not supported on arrays implemented as tuples"));
+    }
+
     XLS_ASSIGN_OR_RETURN(CValue array_idx_cv,
                          GenerateIR_Expr(array_subscript_expr->getIdx(), loc));
     auto array_int_type =
@@ -2475,7 +2549,8 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
     XLSCC_CHECK(sliced_array.GetType()->IsArray(), loc);
 
     return CValue(sliced_array, std::make_shared<CArrayType>(
-                                    pointee_type, array_slice_in_size));
+                                    pointee_type, array_slice_in_size,
+                                    base_array_type->GetUseTuple()));
   }
 
   if (auto ref_type = dynamic_cast<const CReferenceType*>(lhs_cv.type().get());
@@ -2779,7 +2854,8 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::ResolveTypeInstanceDeeply(
       XLS_ASSIGN_OR_RETURN(
           std::shared_ptr<CType> elem_type,
           ResolveTypeInstanceDeeply(ret_array->GetElementType()));
-      return std::make_shared<CArrayType>(elem_type, ret_array->GetSize());
+      return std::make_shared<CArrayType>(elem_type, ret_array->GetSize(),
+                                          ret_array->GetUseTuple());
     }
   }
 
@@ -3481,14 +3557,24 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       }
     }
 
-    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> argt,
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> param_type,
                          TranslateTypeFromClang(stripped.base, arg_loc));
+
+    if (param_type->Is<CArrayType>() && argv.type()->Is<CArrayType>()) {
+      if (param_type->As<CArrayType>()->GetUseTuple() !=
+          argv.type()->As<CArrayType>()->GetUseTuple()) {
+        return absl::UnimplementedError(ErrorMessage(
+            arg_loc,
+            "Array parameter type mismatch for %s (tuple vs array): %s vs %s",
+            p->getNameAsString(), string(*param_type), string(*argv.type())));
+      }
+    }
 
     xls::BValue pass_bval = argv.rvalue();
     std::shared_ptr<CType> pass_type = argv.type();
 
     if (argv.type()->Is<CPointerType>() || argv.type()->Is<CArrayType>()) {
-      auto arg_arr_type = argt->As<CArrayType>();
+      auto param_arr_type = param_type->As<CArrayType>();
 
       // Pointer to array
       if (argv.type()->Is<CPointerType>()) {
@@ -3507,15 +3593,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
       int64_t pass_bval_arr_size = ArrayBValueWidth(pass_bval);
 
-      if (pass_bval_arr_size < arg_arr_type->GetSize()) {
+      if (pass_bval_arr_size < param_arr_type->GetSize()) {
         return absl::UnimplementedError(
             ErrorMessage(arg_loc, "Array slice out of bounds"));
       }
 
-      if (pass_bval_arr_size != arg_arr_type->GetSize()) {
+      if (pass_bval_arr_size != param_arr_type->GetSize()) {
         pass_bval = context().fb->ArraySlice(
             pass_bval, context().fb->Literal(xls::SBits(0, 32), arg_loc),
-            arg_arr_type->GetSize(), arg_loc);
+            param_arr_type->GetSize(), arg_loc);
       }
 
       std::shared_ptr<CType> element_type;
@@ -3531,7 +3617,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       }
 
       pass_type =
-          std::make_shared<CArrayType>(element_type, arg_arr_type->GetSize());
+          std::make_shared<CArrayType>(element_type, param_arr_type->GetSize(),
+                                       param_arr_type->GetUseTuple());
     }
 
     if (pass_type->Is<CReferenceType>()) {
@@ -3544,12 +3631,13 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       pass_type = argv.type();
     }
 
-    if (*pass_type != *argt) {
-      return absl::InternalError(ErrorMessage(
-          arg_loc,
-          "Internal error: expression type %s doesn't match "
-          "parameter type %s in function %s",
-          string(*argv.type()), string(*argt), funcdecl->getNameAsString()));
+    if (*pass_type != *param_type) {
+      return absl::InternalError(
+          ErrorMessage(arg_loc,
+                       "Internal error: expression type %s doesn't match "
+                       "parameter type %s in function %s",
+                       string(*argv.type()), string(*param_type),
+                       funcdecl->getNameAsString()));
     }
 
     XLSCC_CHECK(pass_bval.valid(), arg_loc);
@@ -4325,11 +4413,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
       XLSCC_CHECK_NE(arr_val.lvalue(), nullptr, loc);
       XLS_ASSIGN_OR_RETURN(arr_val, GenerateIR_Expr(arr_val.lvalue(), loc));
     }
-    auto arr_type = arr_val.type()->As<CArrayType>();
-    XLS_ASSIGN_OR_RETURN(CValue idx_val, GenerateIR_Expr(cast->getIdx(), loc));
-    return CValue(
-        context().fb->ArrayIndex(arr_val.rvalue(), {idx_val.rvalue()}, loc),
-        arr_type->GetElementType());
+
+    XLS_ASSIGN_OR_RETURN(CValue index_bval,
+                         GenerateIR_Expr(cast->getIdx(), loc));
+    return GetArrayElement(arr_val, index_bval.rvalue(), loc);
   }
   // Access to a struct member, for example: x.foo
   if (auto* cast = clang::dyn_cast<const clang::MemberExpr>(expr)) {
@@ -4407,7 +4494,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     std::string str = strref.str();
 
     std::shared_ptr<CType> element_type(new CIntType(8, true, true));
-    std::shared_ptr<CType> type(new CArrayType(element_type, str.size()));
+    auto type = std::make_shared<CArrayType>(element_type, str.size(),
+                                             /*use_tuple=*/false);
 
     std::vector<xls::Value> elements;
 
@@ -4438,6 +4526,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
 absl::Status Translator::MinSizeArraySlices(CValue& true_cv, CValue& false_cv,
                                             std::shared_ptr<CType>& result_type,
                                             const xls::SourceInfo& loc) {
+  XLSCC_CHECK(!true_cv.type()->As<CArrayType>()->GetUseTuple(), loc);
+  XLSCC_CHECK(!false_cv.type()->As<CArrayType>()->GetUseTuple(), loc);
+
   // Array slices are the size of source arrays, and indices just wrap around.
   // Take the smaller size
   if (true_cv.type()->Is<CArrayType>() && false_cv.type()->Is<CArrayType>() &&
@@ -4446,7 +4537,8 @@ absl::Status Translator::MinSizeArraySlices(CValue& true_cv, CValue& false_cv,
     int64_t min_size = std::min(true_cv.type()->As<CArrayType>()->GetSize(),
                                 false_cv.type()->As<CArrayType>()->GetSize());
     result_type = std::make_shared<CArrayType>(
-        true_cv.type()->As<CArrayType>()->GetElementType(), min_size);
+        true_cv.type()->As<CArrayType>()->GetElementType(), min_size,
+        true_cv.type()->As<CArrayType>()->GetUseTuple());
     XLSCC_CHECK(true_cv.rvalue().valid(), loc);
     XLSCC_CHECK(false_cv.rvalue().valid(), loc);
     xls::BValue bval_0 = context().fb->Literal(xls::UBits(0, 32), loc);
@@ -4605,7 +4697,11 @@ absl::StatusOr<xls::BValue> Translator::BuildCArrayTypeValue(
   element_vals.resize(it->GetSize(), sub_elem_val);
   XLS_ASSIGN_OR_RETURN(xls::Type * xls_elem_type,
                        TranslateTypeToXLS(it->GetElementType(), loc));
-  return context().fb->Array(element_vals, xls_elem_type, loc);
+  if (it->GetUseTuple()) {
+    return context().fb->Tuple(std::move(element_vals), loc);
+  } else {
+    return context().fb->Array(element_vals, xls_elem_type, loc);
+  }
 }
 
 absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
@@ -4630,7 +4726,11 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
     XLS_ASSIGN_OR_RETURN(xls::Value default_elem_val,
                          CreateDefaultRawValue(it->GetElementType(), loc));
     element_vals.resize(it->GetSize(), default_elem_val);
-    return xls::Value::ArrayOrDie(element_vals);
+    if (it->GetUseTuple()) {
+      return xls::Value::TupleOwned(std::move(element_vals));
+    } else {
+      return xls::Value::ArrayOrDie(element_vals);
+    }
   }
   if (t->Is<CStructType>()) {
     auto it = t->As<CStructType>();
@@ -4745,9 +4845,15 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
       XLSCC_CHECK(this_val.valid(), loc);
       element_vals.push_back(this_val);
     }
-    XLS_ASSIGN_OR_RETURN(xls::Type * xls_elem_type,
-                         TranslateTypeToXLS(array_t->GetElementType(), loc));
-    return CValue(context().fb->Array(element_vals, xls_elem_type, loc), t);
+    xls::BValue rval;
+    if (array_t->GetUseTuple()) {
+      rval = context().fb->Tuple(std::move(element_vals), loc);
+    } else {
+      XLS_ASSIGN_OR_RETURN(xls::Type * xls_elem_type,
+                           TranslateTypeToXLS(array_t->GetElementType(), loc));
+      rval = context().fb->Array(element_vals, xls_elem_type, loc);
+    }
+    return CValue(rval, t);
   }
   if (t->Is<CInstantiableTypeAlias>()) {
     XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> struct_type,
@@ -5931,7 +6037,7 @@ absl::StatusOr<bool> Translator::EvaluateBool(
 }
 
 absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
-    clang::QualType t, const xls::SourceInfo& loc) {
+    clang::QualType t, const xls::SourceInfo& loc, bool array_as_tuple) {
   const clang::Type* type = t.getTypePtr();
 
   XLS_ASSIGN_OR_RETURN(bool channel, TypeIsChannel(t, loc));
@@ -6032,8 +6138,8 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
                  clang::dyn_cast<const clang::ConstantArrayType>(type)) {
     XLS_ASSIGN_OR_RETURN(shared_ptr<CType> type,
                          TranslateTypeFromClang(array->getElementType(), loc));
-    return std::shared_ptr<CType>(
-        new CArrayType(type, array->getSize().getZExtValue()));
+    return std::make_shared<CArrayType>(type, array->getSize().getZExtValue(),
+                                        array_as_tuple);
   } else if (auto td = clang::dyn_cast<const clang::TypedefType>(type)) {
     return TranslateTypeFromClang(td->getDecl()->getUnderlyingType(), loc);
   } else if (auto elab = clang::dyn_cast<const clang::ElaboratedType>(type)) {
@@ -6067,7 +6173,24 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
       return pointee_type;
     }
     return std::shared_ptr<CType>(new CPointerType(pointee_type));
+  } else if (auto lval = clang::dyn_cast<const clang::AttributedType>(type)) {
+    auto type_attr = clang::dyn_cast<clang::AnnotateTypeAttr>(lval->getAttr());
+    XLSCC_CHECK_NE(type_attr, nullptr, loc);
+
+    std::string annotation = type_attr->getAnnotation().str();
+
+    if (annotation != "hls_array_as_tuple") {
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Unsupported attribute on type: %s", annotation));
+    }
+
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ret,
+                         TranslateTypeFromClang(lval->desugar(), loc,
+                                                /*array_as_tuple=*/true));
+
+    return ret;
   }
+  type->dump();
   return absl::UnimplementedError(
       ErrorMessage(loc, "Unsupported type class in translate: %s",
                    type->getTypeClassName()));
@@ -6123,7 +6246,13 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
     auto it = t->As<CArrayType>();
     XLS_ASSIGN_OR_RETURN(auto xls_elem_type,
                          TranslateTypeToXLS(it->GetElementType(), loc));
-    return package_->GetArrayType(it->GetSize(), xls_elem_type);
+    if (it->GetUseTuple()) {
+      std::vector<xls::Type*> elem_types;
+      elem_types.resize(it->GetSize(), xls_elem_type);
+      return package_->GetTupleType(elem_types);
+    } else {
+      return package_->GetArrayType(it->GetSize(), xls_elem_type);
+    }
   }
   if (t->Is<CReferenceType>() || t->Is<CPointerType>() ||
       t->Is<CChannelType>()) {

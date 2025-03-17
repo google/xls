@@ -213,6 +213,7 @@ TEST_F(TranslatorMetadataTest, NamespaceStructArray) {
               }
             }
             size: 2
+            use_tuple: false
           }
         }
         is_reference: true
@@ -350,6 +351,7 @@ TEST_F(TranslatorMetadataTest, NamespaceNestedStruct) {
               }
             }
             size: 2
+            use_tuple: false
           }
         }
         is_reference: true
@@ -415,6 +417,7 @@ TEST_F(TranslatorMetadataTest, ArrayOfStructs) {
                 }
               }
               size: 10
+              use_tuple: false
             }
           }
         }
@@ -492,6 +495,7 @@ TEST_F(TranslatorMetadataTest, ArrayOfStructs) {
               }
             }
             size: 2
+            use_tuple: false
           }
         }
         is_reference: true
@@ -865,6 +869,7 @@ TEST_F(TranslatorMetadataTest, StaticArray) {
               }
             }
             size: 2
+            use_tuple: false
           }
         }
         value {
@@ -1063,9 +1068,11 @@ TEST_F(TranslatorMetadataTest, Static2DArray) {
                   }
                 }
                 size: 2
+                use_tuple: false
               }
             }
             size: 2
+            use_tuple: false
           }
         }
         value {

@@ -368,7 +368,7 @@ class CInstantiableTypeAlias : public CType {
 // C/C++ native array
 class CArrayType : public CType {
  public:
-  CArrayType(std::shared_ptr<CType> element, int size);
+  CArrayType(std::shared_ptr<CType> element, int size, bool use_tuple);
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -381,10 +381,12 @@ class CArrayType : public CType {
 
   int GetSize() const;
   std::shared_ptr<CType> GetElementType() const;
+  bool GetUseTuple() const;
 
  private:
   std::shared_ptr<CType> element_;
   int size_;
+  bool use_tuple_;
 };
 
 // Pointer in C/C++
@@ -2126,7 +2128,8 @@ class Translator {
       const clang::RecordDecl* sd);
 
   absl::StatusOr<std::shared_ptr<CType>> TranslateTypeFromClang(
-      clang::QualType t, const xls::SourceInfo& loc);
+      clang::QualType t, const xls::SourceInfo& loc,
+      bool array_as_tuple = false);
   absl::StatusOr<xls::Type*> TranslateTypeToXLS(std::shared_ptr<CType> t,
                                                 const xls::SourceInfo& loc);
   absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstance(
@@ -2232,6 +2235,16 @@ class Translator {
                                                xls::BValue start_index,
                                                xls::BValue slice_to_write,
                                                const xls::SourceInfo& loc);
+
+  absl::StatusOr<CValue> GetArrayElement(const CValue& arr_val,
+                                         xls::BValue index_bval,
+                                         const xls::SourceInfo& loc);
+
+  absl::StatusOr<CValue> UpdateArrayElement(const CValue& arr_val,
+                                            xls::BValue index_bval,
+                                            const CValue& rvalue,
+                                            const xls::SourceInfo& loc);
+
   int64_t ArrayBValueWidth(xls::BValue array_bval);
 
   // Creates a properly ordered list of next values to pass to

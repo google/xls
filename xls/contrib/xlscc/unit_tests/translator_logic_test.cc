@@ -5378,6 +5378,105 @@ TEST_F(TranslatorLogicTest, MixedCtorSettingValueAndBase) {
   Run({}, 10, content);
 }
 
+TEST_F(TranslatorLogicTest, ArrayAsTuple) {
+  std::string_view content = R"(
+       long long my_package(long long a, long long b) {
+         long long arr[4] [[clang::annotate_type("hls_array_as_tuple")]];
+         arr[0] = a;
+         arr[1] = b;
+         return arr[0]+arr[1];
+       })";
+
+  Run({{"a", 11}, {"b", 50}}, 61, content);
+}
+
+TEST_F(TranslatorLogicTest, ArrayAsTupleCall) {
+  std::string_view content = R"(
+       long long add_it(
+        long long arr[4] [[clang::annotate_type("hls_array_as_tuple")]]) {
+        return arr[0]+arr[1];
+       }
+
+       long long my_package(long long a, long long b) {
+         long long arr[4] [[clang::annotate_type("hls_array_as_tuple")]];
+         arr[0] = a;
+         arr[1] = b;
+         return add_it(arr);
+       })";
+
+  Run({{"a", 11}, {"b", 50}}, 61, content);
+
+  const xls::FunctionBase* add_it = nullptr;
+  for (const xls::FunctionBase* f : package_->GetFunctionBases()) {
+    if (absl::StrContains(f->name(), "add_it")) {
+      add_it = f;
+      break;
+    }
+  }
+
+  ASSERT_NE(add_it, nullptr);
+  ASSERT_EQ(add_it->params().size(), 1);
+  EXPECT_TRUE(add_it->params()[0]->GetType()->IsTuple());
+}
+
+TEST_F(TranslatorLogicTest, ArrayAsTupleCallMixed) {
+  std::string_view content = R"(
+       long long add_it(
+        long long arr[4]) {
+        return arr[0]+arr[1];
+       }
+
+       long long my_package(long long a, long long b) {
+         long long arr[4] [[clang::annotate_type("hls_array_as_tuple")]];
+         arr[0] = a;
+         arr[1] = b;
+         return add_it(arr);
+       })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("tuple vs array")));
+}
+
+TEST_F(TranslatorLogicTest, ArrayAsTupleCallMixed2) {
+  std::string_view content = R"(
+       long long add_it(
+        long long arr[4] [[clang::annotate_type("hls_array_as_tuple")]]) {
+        return arr[0]+arr[1];
+       }
+
+       long long my_package(long long a, long long b) {
+         long long arr[4];
+         arr[0] = a;
+         arr[1] = b;
+         return add_it(arr);
+       })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("tuple vs array")));
+}
+
+TEST_F(TranslatorLogicTest, ArrayAsTupleSlice) {
+  std::string_view content = R"(
+       long long add_it(
+        long long arr[2] [[clang::annotate_type("hls_array_as_tuple")]]) {
+        return arr[0]+arr[1];
+       }
+
+       long long my_package(long long a, long long b) {
+         long long arr[4] [[clang::annotate_type("hls_array_as_tuple")]];
+         arr[0] = a;
+         arr[1] = b;
+         return add_it(&arr[0]);
+       })";
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("Slicing not supported")));
+}
+
 }  // namespace
 
 }  // namespace xlscc
