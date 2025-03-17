@@ -4214,6 +4214,7 @@ xls_dslx_library(
     deps = [
         ":mem_writer_simple_arbiter_dslx",
         ":mem_reader_simple_arbiter_dslx",
+        ":mem_copy_dslx",
         "//xls/modules/zstd/memory:axi_dslx",
         "//xls/modules/zstd/memory:axi_ram_dslx",
     ],
@@ -4332,6 +4333,75 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":sequence_header_writer_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "mem_copy_dslx",
+    srcs = [
+        "mem_copy.x",
+    ],
+    deps = [
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+        "//xls/modules/zstd/memory:mem_writer_dslx",
+    ],
+)
+
+xls_dslx_verilog(
+    name = "mem_copy_verilog",
+    codegen_args = common_codegen_args | {
+        "module_name": "RawMemcopyInst",
+    },
+    dslx_top = "RawMemcopyInst",
+    library = ":mem_copy_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_copy.v",
+)
+
+xls_benchmark_ir(
+    name = "mem_copy_opt_ir_benchmark",
+    src = ":mem_copy_verilog.opt.ir",
+    benchmark_ir_args = common_codegen_args | {
+        "inline_procs": "true",
+        "top": "__mem_copy__RawMemcopyInst__RawMemcopy_0__RawMemcopyInternal_0__32_64_next"
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_copy_verilog_lib",
+    srcs = [
+        ":mem_copy.v",
+        ":xls_fifo_wrapper.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_copy_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "RawMemcopyInst",
+    deps = [
+        ":mem_copy_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_copy_benchmark_synth",
+    synth_target = ":mem_copy_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_copy_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_copy_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )

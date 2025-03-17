@@ -23,149 +23,12 @@ import xls.modules.zstd.memory.mem_reader;
 import xls.modules.zstd.memory.mem_writer;
 import xls.modules.zstd.mem_writer_simple_arbiter;
 import xls.modules.zstd.mem_reader_simple_arbiter;
+import xls.modules.zstd.mem_copy;
 
-enum LiteralsBlockType: u3 {
-    RAW        = 0,
-    RLE        = 1,
-    COMP       = 2,
-    COMP_4     = 3,
-    TREELESS   = 4,
-    TREELESS_4 = 5,
-}
-
-enum LiteralsEncoderStatus: u1 {
-    OK = 0,
-    ERROR = 1,
-}
-
-struct LiteralsEncoderReq<ADDR_W: u32> {
-    lit_addr: uN[ADDR_W],
-    lit_cnt: u32,
-    out_addr: uN[ADDR_W]
-}
-
-struct LiteralsEncoderResp<ADDR_W: u32> {
-    status: LiteralsEncoderStatus,
-    btype:  LiteralsBlockType,
-    length: uN[ADDR_W],
-}
-
-proc LiteralsEncoderRawMemcopy<ADDR_W: u32, DATA_W: u32> {
-    type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
-    type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;
-    type MemWriterData = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
-    type MemReaderStatus = mem_reader::MemReaderStatus;
-
-    init {}
-
-    mem_reader_resp_r: chan<MemReaderResp> in;
-    mem_writer_data_s: chan<MemWriterData> out;
-    done_s: chan<MemReaderStatus> out;
-
-    config(
-        mem_reader_resp_r: chan<MemReaderResp> in,
-        mem_writer_data_s: chan<MemWriterData> out,
-        done_s: chan<MemReaderStatus> out,
-    ) {
-        (mem_reader_resp_r, mem_writer_data_s, done_s)
-    }
-
-    next(state: ()) {
-        let (resp_tok, resp) = recv(join(), mem_reader_resp_r);
-
-        let is_ok = (resp.status == MemReaderStatus::OKAY);
-        let mem_writer_data = MemWriterData {
-            data: resp.data,
-            length: resp.length,
-            last: resp.last,
-        };
-        let data_tok = send_if(resp_tok, mem_writer_data_s, is_ok, mem_writer_data);
-
-        let do_send_done = !is_ok || resp.last;
-        send_if(data_tok, done_s, do_send_done, resp.status);
-    }
-}
-
-proc LiteralsEncoderRaw<ADDR_W: u32, DATA_W: u32> {
-    type Req = LiteralsEncoderReq<ADDR_W>;
-    type Resp = LiteralsEncoderResp<ADDR_W>;
-    type Status = LiteralsEncoderStatus;
-
-    type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
-    type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;
-    type MemReaderStatus = mem_reader::MemReaderStatus;
-
-    type MemWriterReq = mem_writer::MemWriterReq<ADDR_W>;
-    type MemWriterData = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
-    type MemWriterResp = mem_writer::MemWriterResp;
-    type MemWriterStatus = mem_writer::MemWriterRespStatus;
-
-    init {}
-
-    req_r: chan<Req> in;
-    resp_s: chan<Resp> out;
-
-    mem_rd_req_s: chan<MemReaderReq> out;
-    mem_copy_done_r: chan<MemReaderStatus> in;
-
-    mem_wr_req_s: chan<MemWriterReq> out;
-    mem_wr_resp_r: chan<MemWriterResp> in;
-
-    config(
-        req_r: chan<Req> in,
-        resp_s: chan<Resp> out,
-
-        mem_rd_req_s: chan<MemReaderReq> out,
-        mem_rd_resp_r: chan<MemReaderResp> in,
-
-        mem_wr_req_s: chan<MemWriterReq> out,
-        mem_wr_data_s: chan<MemWriterData> out,
-        mem_wr_resp_r: chan<MemWriterResp> in,
-    ) {
-
-        let (mem_copy_done_s, mem_copy_done_r) = chan<MemReaderStatus>("mem_copy_done");
-
-        spawn LiteralsEncoderRawMemcopy<ADDR_W, DATA_W>(
-            mem_rd_resp_r,
-            mem_wr_data_s,
-            mem_copy_done_s,
-        );
-
-        (
-            req_r, resp_s,
-            mem_rd_req_s, mem_copy_done_r,
-            mem_wr_req_s, mem_wr_resp_r,
-        )
-    }
-
-    next(state: ()) {
-        let (req_tok, req) = recv(join(), req_r);
-
-        let mem_rd_req = MemReaderReq { addr: req.lit_addr, length: req.lit_cnt };
-        let mem_rd_req_tok = send(req_tok, mem_rd_req_s, mem_rd_req);
-
-        let mem_wr_req = MemWriterReq { addr: req.out_addr, length: req.lit_cnt };
-        let mem_wr_req_tok = send(req_tok, mem_wr_req_s, mem_wr_req);
-
-        let mem_req_tok = join(mem_rd_req_tok, mem_wr_req_tok);
-        let (mem_copy_done_tok, mem_rd_status) = recv(mem_req_tok, mem_copy_done_r);
-        let (mem_wr_resp_tok, mem_wr_resp) = recv(mem_req_tok, mem_wr_resp_r);
-
-        let mem_resp_tok = join(mem_copy_done_tok, mem_wr_resp_tok);
-
-        let mem_rd_ok = (mem_rd_status == MemReaderStatus::OKAY);
-        let mem_wr_ok = (mem_wr_resp.status == MemWriterStatus::OKAY);
-        let status = if (mem_rd_ok && mem_wr_ok) { Status::OK } else { Status::ERROR };
-
-        let resp = LiteralsEncoderResp {
-            btype: LiteralsBlockType::RAW,
-            length: req.lit_cnt,
-            status,
-        };
-
-        send(mem_resp_tok, resp_s, resp);
-    }
-}
+type RawMemcopyBlockType = mem_copy::RawMemcopyBlockType;
+type RawMemcopyStatus = mem_copy::RawMemcopyStatus;
+type RawMemcopyReq = mem_copy::RawMemcopyReq;
+type RawMemcopyResp = mem_copy::RawMemcopyResp;
 
 enum LiteralSectionHeaderWriterStatus: u1 {
     OK = 0,
@@ -174,7 +37,7 @@ enum LiteralSectionHeaderWriterStatus: u1 {
 
 struct LiteralSectionHeaderWriterReq<ADDR_W: u32> {
     addr: uN[ADDR_W],
-    btype: LiteralsBlockType,
+    btype: RawMemcopyBlockType,
     regenerated_size: u20,
     compressed_size: u18,
 }
@@ -224,7 +87,7 @@ proc LiteralSectionHeaderWriter<ADDR_W: u32, DATA_W: u32> {
         let (req_tok, req) = recv(join(), req_r);
 
         // TODO: Generalize the proc
-        assert!(req.btype == LiteralsBlockType::RAW, "unsupported_literal_type");
+        assert!(req.btype == RawMemcopyBlockType::RAW, "unsupported_literal_type");
         let btype = u2:0;
 
         let (data, length) = if req.regenerated_size < u20:0x1F { // regenerated_size < 31
@@ -279,22 +142,22 @@ proc LiteralsEncoder<ADDR_W: u32, DATA_W: u32> {
     type HeaderWriterReq = LiteralSectionHeaderWriterReq<ADDR_W>;
     type HeaderWriterResp = LiteralSectionHeaderWriterResp<ADDR_W>;
 
-    type Status = LiteralsEncoderStatus;
+    type Status = RawMemcopyStatus;
 
     init {}
 
-    req_r: chan<LiteralsEncoderReq> in;
-    resp_s: chan<LiteralsEncoderResp> out;
+    req_r: chan<RawMemcopyReq> in;
+    resp_s: chan<RawMemcopyResp> out;
 
     lshwr_req_s: chan<HeaderWriterReq> out;
     lshwr_resp_r: chan<HeaderWriterResp> in;
 
-    raw_req_s: chan<LiteralsEncoderReq> out;
-    raw_resp_r: chan<LiteralsEncoderResp> in;
+    raw_req_s: chan<RawMemcopyReq> out;
+    raw_resp_r: chan<RawMemcopyResp> in;
 
     config(
-        req_r: chan<LiteralsEncoderReq> in,
-        resp_s: chan<LiteralsEncoderResp> out,
+        req_r: chan<RawMemcopyReq> in,
+        resp_s: chan<RawMemcopyResp> out,
 
         raw_mem_rd_req_s: chan<MemReaderReq> out,
         raw_mem_rd_resp_r: chan<MemReaderResp> in,
@@ -316,10 +179,10 @@ proc LiteralsEncoder<ADDR_W: u32, DATA_W: u32> {
             lshwr_mem_wr_req_s, lshwr_mem_wr_data_s, lshwr_mem_wr_resp_r,
         );
 
-        let (raw_req_s, raw_req_r) = chan<LiteralsEncoderReq>("raw_req");
-        let (raw_resp_s, raw_resp_r) = chan<LiteralsEncoderResp>("raw_resp");
+        let (raw_req_s, raw_req_r) = chan<RawMemcopyReq>("raw_req");
+        let (raw_resp_s, raw_resp_r) = chan<RawMemcopyResp>("raw_resp");
 
-        spawn LiteralsEncoderRaw<ADDR_W, DATA_W>(
+        spawn mem_copy::RawMemcopy<ADDR_W, DATA_W>(
             raw_req_r, raw_resp_s,
             raw_mem_rd_req_s, raw_mem_rd_resp_r,
             raw_mem_wr_req_s, raw_mem_wr_data_s, raw_mem_wr_resp_r,
@@ -334,11 +197,11 @@ proc LiteralsEncoder<ADDR_W: u32, DATA_W: u32> {
 
     next(state: ()) {
         let (req_tok, req) = recv(join(), req_r);
-        let selected_btype = LiteralsBlockType::RAW;
+        let selected_btype = RawMemcopyBlockType::RAW;
 
         // Write Literasl Secion Header
         let lshw_req = match(selected_btype) {
-            LiteralsBlockType::RAW => HeaderWriterReq {
+            RawMemcopyBlockType::RAW => HeaderWriterReq {
                 addr: req.out_addr,
                 btype: selected_btype,
                 regenerated_size: checked_cast<u20>(req.lit_cnt),
@@ -353,26 +216,26 @@ proc LiteralsEncoder<ADDR_W: u32, DATA_W: u32> {
         let lshwr_error = (lshwr_resp.status != LiteralSectionHeaderWriterStatus::OK);
 
         // Write Literals
-        let new_req = LiteralsEncoderReq {
+        let new_req = RawMemcopyReq {
             lit_addr: req.lit_addr,
             lit_cnt: req.lit_cnt,
             out_addr: req.out_addr + lshwr_resp.length
         };
 
-        let do_send_raw_req = !lshwr_error && (selected_btype == LiteralsBlockType::RAW);
+        let do_send_raw_req = !lshwr_error && (selected_btype == RawMemcopyBlockType::RAW);
         let raw_req_tok = send_if(lshwr_req_tok, raw_req_s, do_send_raw_req, new_req);
 
-        let (raw_resp_tok, raw_resp) = recv_if(lshwr_resp_tok, raw_resp_r, do_send_raw_req, zero!<LiteralsEncoderResp>());
-        let raw_error = if do_send_raw_req { raw_resp.status != LiteralsEncoderStatus::OK } else { false };
+        let (raw_resp_tok, raw_resp) = recv_if(lshwr_resp_tok, raw_resp_r, do_send_raw_req, zero!<RawMemcopyResp>());
+        let raw_error = if do_send_raw_req { raw_resp.status != RawMemcopyStatus::OK } else { false };
 
         let error = match(selected_btype) {
-            LiteralsBlockType::RAW => lshwr_error || raw_error,
+            RawMemcopyBlockType::RAW => lshwr_error || raw_error,
             _ => fail!("impossible_case_1", true)
         };
         let status = if error { Status::ERROR } else { Status::OK };
         let resp_tok = join(raw_resp_tok);
 
-        let resp = LiteralsEncoderResp {
+        let resp = RawMemcopyResp {
             btype: selected_btype,
             length: lshwr_resp.length + req.lit_cnt,
             status,
@@ -411,8 +274,8 @@ const TEST_DATA = uN[TEST_RAM_DATA_W][4]:[
 
 #[test_proc]
 proc LiteralsEncoderTest {
-    type Req = LiteralsEncoderReq<TEST_ADDR_W>;
-    type Resp = LiteralsEncoderResp<TEST_ADDR_W>;
+    type Req = RawMemcopyReq<TEST_ADDR_W>;
+    type Resp = RawMemcopyResp<TEST_ADDR_W>;
     type Addr = uN[TEST_ADDR_W];
     type Length = uN[TEST_ADDR_W];
 
@@ -639,9 +502,9 @@ proc LiteralsEncoderTest {
 
         // Literals Encoder Response
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, LiteralsEncoderResp {
-            status: LiteralsEncoderStatus::OK,
-            btype: LiteralsBlockType::RAW,
+        assert_eq(resp, RawMemcopyResp {
+            status: RawMemcopyStatus::OK,
+            btype: RawMemcopyBlockType::RAW,
             length: Length:0x1a
         });
 
