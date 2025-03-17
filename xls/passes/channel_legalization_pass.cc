@@ -949,9 +949,6 @@ void MakeMutualExclusionAssertions(
   // Make mutual exclusion assertions.
   for (const auto& [node, predecessors] : token_dag) {
     std::vector<BValue> mutually_exclusive_fired;
-    std::vector<BValue> mutually_exclusive_pred_recv_tokens;
-    mutually_exclusive_pred_recv_tokens.push_back(
-        activations.at(node).pred_recv_token);
 
     for (Node* const mutually_exclusive_node :
          mutually_exclusive_nodes.at(node)) {
@@ -960,8 +957,6 @@ void MakeMutualExclusionAssertions(
       mutually_exclusive_fired.push_back(
           pb.And(mutually_exclusive_activation_node.predicate,
                  mutually_exclusive_activation_node.valid));
-      mutually_exclusive_pred_recv_tokens.push_back(
-          mutually_exclusive_activation_node.pred_recv_token);
     }
     if (mutually_exclusive_fired.empty()) {
       continue;
@@ -976,15 +971,12 @@ void MakeMutualExclusionAssertions(
     BValue my_activation_mutually_exclusive = pb.AddNaryOp(
         Op::kNand, {my_predicate, has_any_predecessor_fire}, SourceInfo(),
         absl::StrFormat("%v_mutually_exclusive", *node));
-    BValue assertion_token = pb.AfterAll(mutually_exclusive_pred_recv_tokens);
-    BValue mutual_exclusion_assertion =
-        pb.Assert(assertion_token, my_activation_mutually_exclusive,
-                  absl::StrFormat(
-                      "Node %s predicate was not mutually exclusive with {%s}.",
-                      node->GetName(),
-                      absl::StrJoin(mutually_exclusive_nodes.at(node), ", ")),
-                  /*label=*/"adapter_mutually_exclusive_A");
-    activations.at(node).pred_recv_token = mutual_exclusion_assertion;
+    pb.Assert(pb.Literal(Value::Token()), my_activation_mutually_exclusive,
+              absl::StrFormat(
+                  "Node %s predicate was not mutually exclusive with {%s}.",
+                  node->GetName(),
+                  absl::StrJoin(mutually_exclusive_nodes.at(node), ", ")),
+              /*label=*/"adapter_mutually_exclusive_A");
   }
 }
 
@@ -992,8 +984,6 @@ void MakeMutualExclusionAssertions(
 void MakeDebugTrace(BValue condition,
                     absl::Span<NodeAndPredecessors const> token_dag,
                     ActivationNetwork& activations, ProcBuilder& pb) {
-  std::vector<BValue> pred_recv_tokens;
-  pred_recv_tokens.reserve(token_dag.size());
   std::vector<BValue> args;
   std::string format_string = "\nAdapter proc fire:\tpredicate\tvalid\tdone\n";
   for (const auto& [node, _] : token_dag) {
@@ -1001,10 +991,9 @@ void MakeDebugTrace(BValue condition,
     args.push_back(activation.predicate);
     args.push_back(activation.valid);
     args.push_back(activation.done);
-    pred_recv_tokens.push_back(activation.pred_recv_token);
     absl::StrAppend(&format_string, node->GetName(), ":\t{}\t{}\t{}\n");
   }
-  pb.Trace(pb.AfterAll(pred_recv_tokens), condition, args, format_string,
+  pb.Trace(pb.Literal(Value::Token()), condition, args, format_string,
            /*verbosity=*/3);
 }
 
