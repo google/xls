@@ -18,7 +18,6 @@
 #include <array>
 #include <cstdint>
 #include <deque>
-#include <initializer_list>
 #include <optional>
 #include <random>
 #include <string>
