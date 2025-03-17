@@ -62,6 +62,38 @@ top fn function_0() -> bits[8][8] {
                                      HasSubstr("does not match node type")));
 }
 
+TEST_F(VerifierTest, PrioritySelectWithDifferentCaseTypes) {
+  std::string input = R"(
+package p
+
+fn f(s: bits[2], a: bits[2], b: bits[3]) -> bits[3] {
+  ret priority_sel.1: bits[3] = priority_sel(s, cases=[a, b], default=b)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("All cases in priority select must have the same type")));
+}
+
+TEST_F(VerifierTest, OneHotSelectWithDifferentCaseTypes) {
+  std::string input = R"(
+package p
+
+fn f(s: bits[2], a: bits[2], b: bits[3]) -> bits[2] {
+  ret one_hot_sel.1: bits[2] = one_hot_sel(s, cases=[a, b])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("All cases in one-hot select must have the same type")));
+}
+
 TEST_F(VerifierTest, WellFormedPackage) {
   std::string input = R"(
 package WellFormedPackage
