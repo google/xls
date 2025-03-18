@@ -2292,11 +2292,28 @@ cc_library(
         ":interval_ops",
         ":interval_set",
         ":ternary",
+        "//xls/passes:ternary_evaluator",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "partial_information_test_utils",
+    testonly = True,
+    hdrs = ["partial_information_test_utils.h"],
+    deps = [
+        ":bits",
+        ":bits_test_utils",
+        ":interval_set",
+        ":interval_set_test_utils",
+        ":partial_info",
+        ":ternary",
+        "//xls/common/fuzzing:fuzztest",
+        "@com_google_absl//absl/log:check",
     ],
 )
 
@@ -2327,10 +2344,16 @@ cc_library(
     srcs = ["partial_ops.cc"],
     hdrs = ["partial_ops.h"],
     deps = [
+        ":bits",
+        ":bits_ops",
+        ":interval",
         ":interval_ops",
         ":interval_set",
+        ":ir",
         ":partial_info",
         ":ternary",
+        "//xls/common:math_util",
+        "//xls/passes:ternary_evaluator",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
@@ -2340,12 +2363,21 @@ cc_library(
 cc_test(
     name = "partial_ops_test",
     srcs = ["partial_ops_test.cc"],
+    shard_count = 5,
     deps = [
+        ":bits",
+        ":bits_ops",
+        ":bits_test_utils",
         ":interval_set_test_utils",
         ":partial_info",
+        ":partial_information_test_utils",
         ":partial_ops",
         ":ternary",
+        "//xls/common:math_util",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
     ],
 )

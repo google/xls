@@ -64,13 +64,13 @@
 #include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/predicate_dominator_analysis.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/proc_state_range_query_engine.h"
 #include "xls/passes/query_engine.h"
-#include "xls/passes/range_query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
@@ -1797,7 +1797,7 @@ absl::StatusOr<AliasingQueryEngine> GetQueryEngine(
       owned_engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
     } else {
       unowned_engines.push_back(
-          context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
+          context.SharedQueryEngine<PartialInfoQueryEngine>(f));
     }
     owned_engines.push_back(
         std::make_unique<ContextSensitiveRangeQueryEngine>());
@@ -1807,10 +1807,10 @@ absl::StatusOr<AliasingQueryEngine> GetQueryEngine(
       owned_engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
     } else {
       unowned_engines.push_back(
-          context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
-      owned_engines.push_back(std::make_unique<RangeQueryEngine>());
+          context.SharedQueryEngine<PartialInfoQueryEngine>(f));
     }
   } else {
+    CHECK_EQ(analysis, AnalysisType::kTernary);
     unowned_engines.push_back(
         context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
   }

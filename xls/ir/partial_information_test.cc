@@ -119,9 +119,9 @@ inline auto ArbitraryTernaryAndNormalizedIntervalSet() {
       fuzztest::InRange(0, 1000));
 }
 
-void ImpossibleAndUnrestricted(std::tuple<std::optional<TernaryVector>,
-                                          std::optional<IntervalSet>, int64_t>
-                                   inputs) {
+void ImpossibleAndUnconstrained(std::tuple<std::optional<TernaryVector>,
+                                           std::optional<IntervalSet>, int64_t>
+                                    inputs) {
   const auto& [ternary, range, bit_count] = inputs;
   PartialInformation info(bit_count, ternary, range);
   if (range.has_value() && ternary.has_value()) {
@@ -135,11 +135,11 @@ void ImpossibleAndUnrestricted(std::tuple<std::optional<TernaryVector>,
   } else if (ternary.has_value()) {
     EXPECT_FALSE(info.IsImpossible());
   }
-  EXPECT_EQ(info.IsUnrestricted(),
+  EXPECT_EQ(info.IsUnconstrained(),
             (!range.has_value() || range->IsMaximal()) &&
                 (!ternary.has_value() || ternary_ops::AllUnknown(*ternary)));
 }
-FUZZ_TEST(PartialInformationFuzzTest, ImpossibleAndUnrestricted)
+FUZZ_TEST(PartialInformationFuzzTest, ImpossibleAndUnconstrained)
     .WithDomains(ArbitraryTernaryAndNormalizedIntervalSet());
 
 // Detected by fuzzing; this regression test is a combination of a ternary and

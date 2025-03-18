@@ -43,10 +43,9 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/proc_state_range_query_engine.h"
 #include "xls/passes/query_engine.h"
-#include "xls/passes/range_query_engine.h"
-#include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/visualization/ir_viz/node_attribute_visitor.h"
@@ -172,8 +171,8 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
   }
 
   auto query_engine = UnionQueryEngine::Of(
-      BddQueryEngine(BddQueryEngine::kDefaultPathLimit), TernaryQueryEngine(),
-      RangeQueryEngine(), ProcStateRangeQueryEngine());
+      BddQueryEngine(BddQueryEngine::kDefaultPathLimit),
+      PartialInfoQueryEngine(), ProcStateRangeQueryEngine());
   XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
 
   for (Node* node : function->nodes()) {

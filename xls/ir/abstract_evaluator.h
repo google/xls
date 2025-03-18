@@ -419,7 +419,7 @@ class AbstractEvaluator {
     }
     return {.overflow = carry, .result = std::move(result)};
   }
-  Vector Add(Span a, Span b) { return AddWithCarry(a, b).result; }
+  Vector Add(Span a, Span b) { return std::move(AddWithCarry(a, b).result); }
 
   OverflowResult AddWithSignedOverflow(Span a, Span b) {
     OverflowResult res = AddWithCarry(a, b);

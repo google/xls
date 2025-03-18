@@ -79,8 +79,8 @@ struct Condition {
   PartialInformation partial;
 
   std::string ToString() const {
-    if (partial.IsUnrestricted()) {
-      return absl::StrFormat("%s (unrestricted)", node->GetName());
+    if (partial.IsUnconstrained()) {
+      return absl::StrFormat("%s (unconstrained)", node->GetName());
     }
     if (partial.IsImpossible()) {
       return absl::StrFormat("%s (impossible)", node->GetName());
@@ -153,7 +153,7 @@ class ConditionSet {
       } else {
         // Take the meet of the conditions.
         it->partial.MeetWith(other_it->partial);
-        if (it->partial.IsUnrestricted()) {
+        if (it->partial.IsUnconstrained()) {
           it = conditions_.erase(it);
         } else {
           ++it;
@@ -280,7 +280,7 @@ class ConditionSet {
       const {
     absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan> givens;
     for (const Condition& condition : conditions()) {
-      if (condition.partial.IsUnrestricted()) {
+      if (condition.partial.IsUnconstrained()) {
         continue;
       }
 
@@ -501,7 +501,7 @@ std::optional<TernaryVector> ImpliedNodeTernary(
   PartialInformation partial =
       PartialInformation::Unconstrained(node->BitCountOrDie());
   std::optional<Condition> condition = condition_set.condition(node);
-  if (condition.has_value() && !condition->partial.IsUnrestricted()) {
+  if (condition.has_value() && !condition->partial.IsUnconstrained()) {
     VLOG(4) << absl::StreamFormat("%s trivially implies %s==%s",
                                   condition_set.ToString(), node->GetName(),
                                   condition->partial.ToString());
@@ -599,7 +599,7 @@ absl::StatusOr<std::optional<Node*>> CheckMatch(
     return node->function_base()->MakeNode<Literal>(user->loc(),
                                                     Value(UBits(0, 1)));
   }
-  if (partial.IsUnrestricted()) {
+  if (partial.IsUnconstrained()) {
     return std::nullopt;
   }
   if (std::optional<Bits> precise_value = partial.GetPreciseValue();

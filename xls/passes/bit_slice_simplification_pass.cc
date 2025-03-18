@@ -49,9 +49,9 @@
 #include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
-#include "xls/passes/range_query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
@@ -63,10 +63,12 @@ static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
   std::vector<std::unique_ptr<QueryEngine>> owned_engines;
   std::vector<QueryEngine*> unowned_engines;
   owned_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  unowned_engines.push_back(
-      context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
   if (opt_level >= 3) {
-    owned_engines.push_back(std::make_unique<RangeQueryEngine>());
+    unowned_engines.push_back(
+        context.SharedQueryEngine<PartialInfoQueryEngine>(f));
+  } else {
+    unowned_engines.push_back(
+        context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
   }
   auto query_engine = std::make_unique<UnionQueryEngine>(
       std::move(owned_engines), std::move(unowned_engines));

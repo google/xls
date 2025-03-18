@@ -32,12 +32,38 @@ PartialInformation Xor(PartialInformation a, const PartialInformation& b);
 PartialInformation Nand(PartialInformation a, const PartialInformation& b);
 PartialInformation Nor(PartialInformation a, const PartialInformation& b);
 
+PartialInformation AndReduce(const PartialInformation& p);
+PartialInformation OrReduce(const PartialInformation& p);
+PartialInformation XorReduce(const PartialInformation& p);
+
 PartialInformation Concat(absl::Span<PartialInformation const> infos);
 PartialInformation SignExtend(const PartialInformation& p, int64_t width);
 PartialInformation ZeroExtend(const PartialInformation& p, int64_t width);
 PartialInformation Truncate(const PartialInformation& p, int64_t width);
 PartialInformation BitSlice(const PartialInformation& p, int64_t start,
                             int64_t width);
+
+PartialInformation DynamicBitSlice(const PartialInformation& p,
+                                   const PartialInformation& start,
+                                   int64_t width);
+PartialInformation BitSliceUpdate(const PartialInformation& to_update,
+                                  const PartialInformation& start,
+                                  const PartialInformation& update_value);
+
+PartialInformation Reverse(PartialInformation p);
+
+PartialInformation Decode(const PartialInformation& p, int64_t width);
+PartialInformation Encode(const PartialInformation& p);
+
+PartialInformation OneHotLsbToMsb(const PartialInformation& p);
+PartialInformation OneHotMsbToLsb(const PartialInformation& p);
+
+PartialInformation OneHotSelect(const PartialInformation& selector,
+                                absl::Span<PartialInformation const> cases,
+                                bool selector_can_be_zero);
+
+PartialInformation Gate(const PartialInformation& control,
+                        PartialInformation input);
 
 PartialInformation Neg(PartialInformation p);
 PartialInformation Add(PartialInformation a, const PartialInformation& b);
@@ -46,19 +72,51 @@ PartialInformation UMul(const PartialInformation& a,
                         const PartialInformation& b, int64_t output_bitwidth);
 PartialInformation UDiv(const PartialInformation& a,
                         const PartialInformation& b);
+PartialInformation UMod(const PartialInformation& a,
+                        const PartialInformation& b);
+PartialInformation SMul(const PartialInformation& a,
+                        const PartialInformation& b, int64_t output_bitwidth);
+PartialInformation SDiv(const PartialInformation& a,
+                        const PartialInformation& b);
+PartialInformation SMod(const PartialInformation& a,
+                        const PartialInformation& b);
 
+PartialInformation Shll(PartialInformation a, const PartialInformation& b);
 PartialInformation Shrl(PartialInformation a, const PartialInformation& b);
+PartialInformation Shra(PartialInformation a, const PartialInformation& b);
 
 PartialInformation Eq(const PartialInformation& a, const PartialInformation& b);
 PartialInformation Ne(const PartialInformation& a, const PartialInformation& b);
-PartialInformation SLt(const PartialInformation& a,
-                       const PartialInformation& b);
-PartialInformation SGt(const PartialInformation& a,
-                       const PartialInformation& b);
+
 PartialInformation ULt(const PartialInformation& a,
                        const PartialInformation& b);
-PartialInformation UGt(const PartialInformation& a,
+inline PartialInformation UGt(const PartialInformation& a,
+                              const PartialInformation& b) {
+  return ULt(b, a);
+}
+inline PartialInformation ULe(const PartialInformation& a,
+                              const PartialInformation& b) {
+  return Not(ULt(b, a));
+}
+inline PartialInformation UGe(const PartialInformation& a,
+                              const PartialInformation& b) {
+  return Not(ULt(a, b));
+}
+
+PartialInformation SLt(const PartialInformation& a,
                        const PartialInformation& b);
+inline PartialInformation SGt(const PartialInformation& a,
+                              const PartialInformation& b) {
+  return SLt(b, a);
+}
+inline PartialInformation SLe(const PartialInformation& a,
+                              const PartialInformation& b) {
+  return Not(SLt(b, a));
+}
+inline PartialInformation SGe(const PartialInformation& a,
+                              const PartialInformation& b) {
+  return Not(SLt(a, b));
+}
 
 // Bit ops.
 

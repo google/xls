@@ -22,6 +22,7 @@
 
 #include "absl/log/check.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/ternary.h"
 
@@ -74,6 +75,12 @@ class PartialInformation {
     return PartialInformation(std::nullopt, IntervalSet(bit_count));
   }
 
+  static PartialInformation Precise(Bits value) {
+    return PartialInformation(value.bit_count(),
+                              ternary_ops::BitsToTernary(value),
+                              IntervalSet::Precise(value));
+  }
+
   PartialInformation(const PartialInformation& other) = default;
   PartialInformation& operator=(const PartialInformation& other) = default;
 
@@ -88,10 +95,14 @@ class PartialInformation {
   const std::optional<IntervalSet>& Range() const& { return range_; }
   std::optional<IntervalSet> Range() && { return std::move(range_); }
 
+  IntervalSet RangeOrMaximal() const {
+    return range_.value_or(IntervalSet::Maximal(bit_count_));
+  }
+
   int64_t BitCount() const { return bit_count_; }
 
   bool IsImpossible() const { return range_.has_value() && range_->IsEmpty(); }
-  bool IsUnrestricted() const {
+  bool IsUnconstrained() const {
     return !ternary_.has_value() && !range_.has_value();
   }
 
@@ -103,8 +114,17 @@ class PartialInformation {
     return range_->GetPreciseValue();
   }
 
+  // Returns true if this PartialInformation is compatible with the given value.
+  bool IsCompatibleWith(Bits value) const;
+
+  // Returns true if there are values satisfying both this and `other`.
+  bool IsCompatibleWith(PartialInformation other) const;
+  bool IsCompatibleWith(const IntervalSet& other) const;
+  bool IsCompatibleWith(const Interval& other) const;
+  bool IsCompatibleWith(TernarySpan other) const;
+
   // Returns true if this represents the exclusion of a single value.
-  bool IsPunctured() const;
+  bool IsPunctured() const { return GetPuncturedValue().has_value(); }
 
   // Returns the single value that is excluded by this PartialInformation, if it
   // represents the exclusion of a single value.
@@ -128,11 +148,17 @@ class PartialInformation {
     return Or(other).Not();
   }
 
+  PartialInformation& Reverse();
+
+  PartialInformation& Gate(const PartialInformation& control);
+
   PartialInformation& Neg();
   PartialInformation& Add(const PartialInformation& other);
   PartialInformation& Sub(const PartialInformation& other);
 
+  PartialInformation& Shll(const PartialInformation& other);
   PartialInformation& Shrl(const PartialInformation& other);
+  PartialInformation& Shra(const PartialInformation& other);
 
   // Updates this PartialInformation to include the information in `other`; if
   // the result would be impossible, marks this PartialInformation as

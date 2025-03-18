@@ -33,8 +33,9 @@
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/range_query_engine.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 
@@ -153,15 +154,16 @@ static absl::Status SparsifySelect(FunctionBase* f, Select* select,
 absl::StatusOr<bool> SparsifySelectPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
-  RangeQueryEngine engine;
-  XLS_RETURN_IF_ERROR(engine.Populate(f).status());
+  PartialInfoQueryEngine* engine =
+      context.SharedQueryEngine<PartialInfoQueryEngine>(f);
+  XLS_RETURN_IF_ERROR(engine->Populate(f).status());
 
   bool changed = false;
   for (Node* node : context.TopoSort(f)) {
     if (node->Is<Select>()) {
       Select* select = node->As<Select>();
       Node* selector = select->selector();
-      IntervalSetTree selector_ist = engine.GetIntervalSetTree(selector);
+      IntervalSetTree selector_ist = engine->GetIntervals(selector);
       IntervalSet selector_intervals = selector_ist.Get({});
       if (std::optional<int64_t> size = selector_intervals.Size()) {
         if (size >= select->cases().size()) {

@@ -272,6 +272,19 @@ bool IsCompatible(TernarySpan pattern, const Bits& bits) {
   return true;
 }
 
+bool IsCompatible(TernarySpan a, TernarySpan b) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+  for (int64_t i = 0; i < a.size(); ++i) {
+    if (a[i] != b[i] && a[i] != TernaryValue::kUnknown &&
+        b[i] != TernaryValue::kUnknown) {
+      return false;
+    }
+  }
+  return true;
+}
+
 int64_t MinimumBitCount(TernarySpan t) {
   int64_t len = t.size();
   for (int64_t i = 0; i < t.size(); ++i) {

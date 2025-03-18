@@ -66,9 +66,9 @@
 #include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
+#include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
-#include "xls/passes/range_query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
@@ -2207,10 +2207,12 @@ absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
   std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
   std::vector<QueryEngine*> unowned_query_engines;
   owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  unowned_query_engines.push_back(
-      context.SharedQueryEngine<LazyTernaryQueryEngine>(func));
   if (range_analysis_) {
-    owned_query_engines.push_back(std::make_unique<RangeQueryEngine>());
+    unowned_query_engines.push_back(
+        context.SharedQueryEngine<PartialInfoQueryEngine>(func));
+  } else {
+    unowned_query_engines.push_back(
+        context.SharedQueryEngine<LazyTernaryQueryEngine>(func));
   }
   VLOG(2) << "Range analysis is " << std::boolalpha << range_analysis_;
 
