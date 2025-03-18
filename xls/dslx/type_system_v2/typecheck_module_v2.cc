@@ -634,6 +634,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     }
 
     if (node->type_annotation() != nullptr) {
+      array_annotation = node->type_annotation();
       XLS_RETURN_IF_ERROR(
           table_.SetTypeAnnotation(node, node->type_annotation()));
 

@@ -1292,7 +1292,7 @@ fn f() -> (u32, u32) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, InvokeMultipleArgs) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, InvokeMultipleArgs) {
   const char* program =
       R"(fn callee(x: bits[32], y: bits[32]) -> bits[32] {
   x + y
@@ -1306,7 +1306,7 @@ fn caller() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, CastOfAdd) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, CastOfAdd) {
   const char* program =
       R"(
 fn main(x: u8, y: u8) -> u32 {
@@ -1319,7 +1319,7 @@ fn main(x: u8, y: u8) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, IdentityFinalArg) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, IdentityFinalArg) {
   const char* program =
       R"(
 fn main(x0: u19, x3: u29) -> u29 {
@@ -1334,7 +1334,7 @@ fn main(x0: u19, x3: u29) -> u29 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ModuleLevelConstantDims) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ModuleLevelConstantDims) {
   const char* program =
       R"(
 const BATCH_SIZE = u32:17;
@@ -1349,7 +1349,7 @@ fn main(x: u32[BATCH_SIZE]) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, Signex) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, Signex) {
   const char* program =
       R"(
 fn main(x: u8) -> u32 {
@@ -1362,7 +1362,7 @@ fn main(x: u8) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, SMulp) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, SMulp) {
   constexpr std::string_view program = R"(
 fn main(x: s10, y: s10) -> s10 {
   let product = smulp(x, y);
@@ -1376,7 +1376,7 @@ fn main(x: s10, y: s10) -> s10 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, UMulp) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, UMulp) {
   constexpr std::string_view program = R"(
 fn main(x: u10, y: u10) -> u10 {
   let product = umulp(x, y);
@@ -1389,7 +1389,7 @@ fn main(x: u10, y: u10) -> u10 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, OneHotSelSplat) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, OneHotSelSplat) {
   const char* program =
       R"(
 fn main(s: u2) -> u32 {
@@ -1402,7 +1402,7 @@ fn main(s: u2) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, OneHotSelNonArrayNode) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, OneHotSelNonArrayNode) {
   // Tests that the cases parameter of a one_hot_sel can take a node that
   // is not an Array node, but rather a name that refers to an Array.
   //
@@ -1420,7 +1420,7 @@ fn main(s: u2) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, PrioritySelSplat) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, PrioritySelSplat) {
   const char* program =
       R"(
 fn main(s: u2) -> u32 {
@@ -1433,7 +1433,7 @@ fn main(s: u2) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, PrioritySelNonArrayNode) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, PrioritySelNonArrayNode) {
   // Tests that the cases parameter of a priority_sel can take a node that
   // is not an Array node, but rather a name that refers to an Array.
   //
@@ -1452,7 +1452,7 @@ fn main(s: u2) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, BitSliceSyntax) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, BitSliceSyntax) {
   const char* program =
       R"(
 fn f(x: u4) -> u2 {
@@ -1465,7 +1465,7 @@ fn f(x: u4) -> u2 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, InvocationMultiSymbol) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, InvocationMultiSymbol) {
   const char* program =
       R"(fn parametric<M: u32, N: u32, R: u32 = {M + N}>(x: bits[M], y: bits[N]) -> bits[R] {
   x ++ y
@@ -1479,7 +1479,7 @@ fn main() -> u8 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ArrayConcat0) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ArrayConcat0) {
   const char* program =
       R"(
 fn f(in1: u32[2]) -> u32 {
@@ -1493,7 +1493,7 @@ fn f(in1: u32[2]) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, PackageLevelConstantArray) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, PackageLevelConstantArray) {
   const char* program =
       R"(const FOO = u8[2]:[1, 2];
 fn f() -> u8[2] { FOO }
@@ -1504,7 +1504,7 @@ fn g() -> u8[2] { FOO }
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, MatchWithlet) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchWithlet) {
   const char* program =
       R"(
 fn f(x: u8) -> u2 {
@@ -1521,7 +1521,8 @@ fn f(x: u8) -> u2 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, SignexAcceptsSignedOutputType) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       SignexAcceptsSignedOutputType) {
   const char* program =
       R"(
 fn main(x: u8) -> s32 {
@@ -1534,7 +1535,7 @@ fn main(x: u8) -> s32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, StructWithConstSizedArray) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, StructWithConstSizedArray) {
   const char* program =
       R"(
 const THING_COUNT = u32:2;
@@ -1554,7 +1555,7 @@ fn get_thing(x: Foo, i: u32) -> u32 {
 
 // Tests that a simple constexpr function can be evaluated at compile time
 // (which we observe at IR conversion time).
-TEST(IrConverterTest, ConstexprFunction) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ConstexprFunction) {
   const char* program =
       R"(
 const MY_CONST = u32:5;
@@ -1573,7 +1574,7 @@ fn f() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, NestedTupleSignature) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, NestedTupleSignature) {
   const char* program =
       R"(
     type Foo = u3;
@@ -1615,7 +1616,7 @@ fn main() -> u8[2] {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, Identity) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, Identity) {
   const char* program =
       R"(fn main(x: u8) -> u8 {
   x
@@ -1628,14 +1629,16 @@ TEST(IrConverterTest, Identity) {
 
 // Because the function is not instantiated, we should not observe the error at
 // conversion time.
-TEST(IrConverterTest, TypeErrorInUninstantiatedParametric) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       TypeErrorInUninstantiatedParametric) {
   const char* program = R"(fn f<N: u32>(x: u8) -> u8 { 42(x) })";
   absl::StatusOr<std::string> converted =
       ConvertModuleForTest(program, ConvertOptions{.emit_positions = false});
   XLS_EXPECT_OK(converted.status());
 }
 
-TEST(IrConverterTest, PackageLevelConstantArrayAccess) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       PackageLevelConstantArrayAccess) {
   const char* program =
       R"(
 const FOO = u8[2]:[1, 2];
@@ -1648,7 +1651,8 @@ fn g() -> u8 { FOO[u32:1] }
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, TransitiveParametricInvocation) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       TransitiveParametricInvocation) {
   const char* program =
       R"(
 fn parametric_id<N: u32>(x: bits[N]) -> bits[N] {
@@ -1667,7 +1671,7 @@ fn main(x: u8) -> u8 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ParametricIrConversion) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ParametricIrConversion) {
   const char* program =
       R"(
 fn parametric<N: u32>(x: bits[N]) -> u32 {
@@ -1874,7 +1878,8 @@ fn main() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, SignedComparisonsViaSignedNumbers) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       SignedComparisonsViaSignedNumbers) {
   const char* program =
       R"(
 fn main(x: s32, y: s32) -> bool {
@@ -1889,7 +1894,7 @@ fn main(x: s32, y: s32) -> bool {
 
 // Tests that a parametric constexpr function can be evaluated at compile time
 // (IR conversion time).
-TEST(IrConverterTest, ParametricConstexprFn) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ParametricConstexprFn) {
   const char* program =
       R"(
 pub const MY_CONST = u32:5;
@@ -2131,7 +2136,7 @@ fn main(p: bool, x: u32) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ConvertRangeOpUnsigned) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertRangeOpUnsigned) {
   const std::string kProgram = R"(
 fn main() -> u32[5] {
   u32:2..u32:7
@@ -2143,7 +2148,7 @@ fn main() -> u32[5] {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ConvertRangeOpSigned) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertRangeOpSigned) {
   const std::string kProgram = R"(
 fn main() -> s32[4] {
   s32:-2..s32:2
@@ -2877,7 +2882,8 @@ fn main() {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ParameterShadowingModuleLevelConstant) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ParameterShadowingModuleLevelConstant) {
   constexpr std::string_view kProgram = R"(
   const FOO = u32:0;
 
@@ -2920,7 +2926,8 @@ TEST(IrConverterTest, ChannelDecl) {
                        HasSubstr("AST node unsupported for IR conversion:")));
 }
 
-TEST(IrConverterTest, StringWithUnsignedRangeCharacter) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       StringWithUnsignedRangeCharacter) {
   constexpr std::string_view kProgram = R"(fn main() -> u8[1] {
   "\x80"  // -128 in signed char interpretation
 })";
@@ -2933,7 +2940,7 @@ TEST(IrConverterTest, StringWithUnsignedRangeCharacter) {
 }
 
 // TODO(google/xls#917): Remove this test when empty arrays are supported.
-TEST(IrConverterTest, EmptyArray) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, EmptyArray) {
   constexpr std::string_view kProgram = R"(
     fn main() -> u32[0] {
       u32[0]:[]
@@ -3302,7 +3309,8 @@ fn main() -> (u5[3], u6[3]) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ConvertFilesToPackageFailsTypeCheck) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ConvertFilesToPackageFailsTypeCheck) {
   constexpr std::string_view program =
       R"(
 fn main() -> u8 {
@@ -3396,7 +3404,8 @@ TEST(IrConverterTest, UseTreeEntryCallInParametric) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, MatchExhaustiveMultiplePatternLastArm) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       MatchExhaustiveMultiplePatternLastArm) {
   constexpr std::string_view program = R"(
 fn main(x: u2) -> u32 {
   match x {
@@ -3412,7 +3421,8 @@ fn main(x: u2) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, MatchExhaustiveOneRangeAndValueInSingleArm) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       MatchExhaustiveOneRangeAndValueInSingleArm) {
   constexpr std::string_view program = R"(
   fn main(x: u2) -> u32 {
     match x {
@@ -3427,7 +3437,8 @@ TEST(IrConverterTest, MatchExhaustiveOneRangeAndValueInSingleArm) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, MatchExhaustiveRangeInTrailingArm) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       MatchExhaustiveRangeInTrailingArm) {
   constexpr std::string_view program = R"(
   fn main(x: u2) -> u32 {
     match x {

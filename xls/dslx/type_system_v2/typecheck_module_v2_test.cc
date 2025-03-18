@@ -631,9 +631,14 @@ TEST(TypecheckV2Test, ArrayWithArrayAnnotation) {
               TypecheckSucceeds(HasNodeWithType("X", "uN[32][2]")));
 }
 
+TEST(TypecheckV2Test, ArrayDeclarationMismatchingAnnotationFails) {
+  EXPECT_THAT("const X: u16[2] = u32[2]:[1, 2];",
+              TypecheckFails(HasSizeMismatch("u16", "u32")));
+}
+
 TEST(TypecheckV2Test, ArrayWithArrayAnnotationWithSignednessMismatchFails) {
   EXPECT_THAT("const X = u32[2]:[-1, 2];",
-              TypecheckFails(HasSignednessMismatch("u32", "sN[3]")));
+              TypecheckFails(HasSignednessMismatch("u32", "sN[1]")));
 }
 
 TEST(TypecheckV2Test, ArrayWithArrayAnnotationWithSizeMismatchFails) {

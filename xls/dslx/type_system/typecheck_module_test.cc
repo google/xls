@@ -2862,7 +2862,7 @@ TEST_P(TypecheckBothVersionsTest, BadArrayLiteralType) {
           absl::StatusCode::kInvalidArgument,
           AllOf(HasSubstrInV1(GetParam(),
                               "Array was not annotated with an array type"),
-                HasTypeMismatchInV2(GetParam(), "s32", "uN[2][2]"))));
+                HasTypeMismatchInV2(GetParam(), "s32", "sN[32][2]"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, CharLiteralArray) {

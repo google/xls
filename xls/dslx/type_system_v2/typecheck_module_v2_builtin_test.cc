@@ -536,7 +536,7 @@ const Y = signex(u16:10, s32:0);
 
 TEST(TypecheckV2BuiltinTest, Smulp) {
   EXPECT_THAT(R"(const Y = smulp(s16:10, s16:20);)",
-              TypecheckSucceeds(HasNodeWithType("Y", "(sN[16], sN[16])")));
+              TypecheckSucceeds(HasNodeWithType("Y", "(uN[16], uN[16])")));
 }
 
 TEST(TypecheckV2BuiltinTest, Trace) {

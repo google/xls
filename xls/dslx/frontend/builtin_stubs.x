@@ -77,7 +77,11 @@ fn rev<N: u32>(x: uN[N]) -> uN[N];
 
 fn signex<NS: bool, N: u32, MS: bool, M: u32>(x: xN[MS][M], y: xN[NS][N]) -> xN[NS][N];
 
-fn smulp<N: u32>(x: sN[N], y: sN[N]) -> (sN[N], sN[N]);
+// Note (originally in v1): the result tuple from `smulp` are two "bags of bits"
+// that must be added together in order to arrive at the signed product. So we
+// give them back as unsigned and users should cast the sum of these elements to
+// a signed number.
+fn smulp<N: u32>(x: sN[N], y: sN[N]) -> (uN[N], uN[N]);
 
 fn trace!<T: type>(value: T) -> T;
 
