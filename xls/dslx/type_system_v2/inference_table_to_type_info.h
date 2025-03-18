@@ -40,7 +40,7 @@ absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
 std::unique_ptr<InferenceTableConverter> CreateInferenceTableConverter(
     InferenceTable& table, Module& module, ImportData& import_data,
     WarningCollector& warning_collector, TypeInfo* type_info,
-    const FileTable& file_table, TypeSystemTracer& tracer);
+    const FileTable& file_table, std::unique_ptr<TypeSystemTracer> tracer);
 
 }  // namespace xls::dslx
 

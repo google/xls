@@ -208,18 +208,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                               WarningCollector& warning_collector,
                               TypeInfo* base_type_info,
                               const FileTable& file_table,
-                              TypeSystemTracer& tracer)
+                              std::unique_ptr<TypeSystemTracer> tracer)
       : table_(table),
         module_(module),
         import_data_(import_data),
         warning_collector_(warning_collector),
         base_type_info_(base_type_info),
         file_table_(file_table),
-        tracer_(tracer),
+        tracer_(std::move(tracer)),
         resolver_(TypeAnnotationResolver::Create(
             module, table, file_table,
             /*error_generator=*/*this, /*evaluator=*/*this,
-            /*parametric_struct_instantiator=*/*this, tracer_)) {}
+            /*parametric_struct_instantiator=*/*this, *tracer_)) {}
 
   static absl::StatusOr<InferenceTableConverter*> FromImportData(
       ImportData& import_data, std::string module_name,
@@ -366,7 +366,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const Invocation* invocation, std::optional<const Function*> caller,
       std::optional<const ParametricContext*> caller_context) {
     TypeSystemTrace trace =
-        tracer_.TraceConvertInvocation(invocation, caller_context);
+        tracer_->TraceConvertInvocation(invocation, caller_context);
     VLOG(5) << "Converting invocation: " << invocation->callee()->ToString()
             << " with module: " << invocation->owner()->name()
             << " in module: " << module_.name()
@@ -425,7 +425,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_RETURN_IF_ERROR(
             table_.SetTypeAnnotation(actual_param, formal_param));
         TypeSystemTrace arg_trace =
-            tracer_.TraceConvertActualArgument(actual_param);
+            tracer_->TraceConvertActualArgument(actual_param);
         XLS_RETURN_IF_ERROR(
             ConvertSubtree(actual_param, caller, caller_context));
       }
@@ -562,7 +562,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               caller_context, *table_.GetTypeVariable(actual_param),
               formal_type));
       TypeSystemTrace arg_trace =
-          tracer_.TraceConvertActualArgument(actual_param);
+          tracer_->TraceConvertActualArgument(actual_param);
       XLS_RETURN_IF_ERROR(ConvertSubtree(
           actual_param, caller,
           is_self_param ? function_and_target_object.target_struct_context
@@ -597,7 +597,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (node->kind() == AstNodeKind::kRestOfTuple) {
       return absl::OkStatus();
     }
-    TypeSystemTrace trace = tracer_.TraceConvertNode(node);
+    TypeSystemTrace trace = tracer_->TraceConvertNode(node);
     VLOG(5) << "GenerateTypeInfo for node: " << node->ToString()
             << " of kind: `" << AstNodeKindToString(node->kind()) << "`"
             << " with owner: " << node->owner()->name()
@@ -841,7 +841,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::StatusOr<std::unique_ptr<Type>> Concretize(
       const TypeAnnotation* annotation,
       std::optional<const ParametricContext*> parametric_context) {
-    TypeSystemTrace trace = tracer_.TraceConcretize(annotation);
+    TypeSystemTrace trace = tracer_->TraceConcretize(annotation);
     VLOG(5) << "Concretize: " << annotation->ToString()
             << " in context invocation: " << ToString(parametric_context);
     VLOG(5) << "Effective context: " << ToString(parametric_context);
@@ -1221,7 +1221,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       std::optional<const ParametricContext*> parametric_context,
       TypeInfo* type_info, const TypeAnnotation* type_annotation,
       const Expr* expr) {
-    TypeSystemTrace trace = tracer_.TraceEvaluate(parametric_context, expr);
+    TypeSystemTrace trace = tracer_->TraceEvaluate(parametric_context, expr);
 
     // This is the type of the parametric binding we are talking about, which is
     // typically a built-in type, but the way we are concretizing it here would
@@ -1513,7 +1513,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           // formal type imposed on it, then `ConvertInvocation` will convert it
           // after deciding the formal type.
           TypeSystemTrace arg_trace =
-              tracer_.TraceConvertActualArgument(actual_arg);
+              tracer_->TraceConvertActualArgument(actual_arg);
           return ConvertSubtree(actual_arg, context_data.caller,
                                 invocation_context->parent_context(),
                                 /*filter_param_type_annotations=*/true);
@@ -1541,7 +1541,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       absl::FunctionRef<absl::Status(const Expr*)> pre_use_actual_arg =
           [](const Expr*) { return absl::OkStatus(); }) {
     TypeSystemTrace trace =
-        tracer_.TraceInferImplicitParametrics(implicit_parametrics);
+        tracer_->TraceInferImplicitParametrics(implicit_parametrics);
     absl::flat_hash_map<std::string, InterpValue> values;
     ParametricBindings bindings(implicit_parametrics);
     for (int i = 0; i < formal_types.size() && !implicit_parametrics.empty();
@@ -1971,7 +1971,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   WarningCollector& warning_collector_;
   TypeInfo* const base_type_info_;
   const FileTable& file_table_;
-  TypeSystemTracer& tracer_;
+  std::unique_ptr<TypeSystemTracer> tracer_;
   std::unique_ptr<TypeAnnotationResolver> resolver_;
   absl::flat_hash_map<const ParametricContext*, TypeInfo*>
       parametric_context_type_info_;
@@ -1990,10 +1990,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 std::unique_ptr<InferenceTableConverter> CreateInferenceTableConverter(
     InferenceTable& table, Module& module, ImportData& import_data,
     WarningCollector& warning_collector, TypeInfo* type_info,
-    const FileTable& file_table, TypeSystemTracer& tracer) {
+    const FileTable& file_table, std::unique_ptr<TypeSystemTracer> tracer) {
   return std::make_unique<InferenceTableConverterImpl>(
       table, module, import_data, warning_collector, type_info, file_table,
-      tracer);
+      std::move(tracer));
 }
 
 absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
@@ -2007,10 +2007,11 @@ absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
                        import_data.type_info_owner().New(&module));
 
   std::unique_ptr<TypeSystemTracer> module_tracer = TypeSystemTracer::Create();
+  TypeSystemTracer* module_tracer_ptr = module_tracer.get();
   std::unique_ptr<InferenceTableConverter> converter =
       CreateInferenceTableConverter(table, module, import_data,
                                     warning_collector, base_type_info,
-                                    file_table, *module_tracer);
+                                    file_table, std::move(module_tracer));
   absl::Status status =
       converter->ConvertSubtree(&module, /*function=*/std::nullopt,
                                 /*parametric_context=*/std::nullopt);
@@ -2019,7 +2020,7 @@ absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
   VLOG(5) << table.ToString();
 
   VLOG(5) << "User module traces after conversion:";
-  VLOG(5) << module_tracer->ConvertTracesToString();
+  VLOG(5) << module_tracer_ptr->ConvertTracesToString();
 
   if (!status.ok()) {
     return status;
