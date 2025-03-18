@@ -139,44 +139,25 @@ std::string AbslUnparseFlag(const AstGeneratorOptions& ast_generator_options);
 // would all produce identical generated functions for the same seed.
 using Env = absl::btree_map<std::string, TypedExpr>;
 
-// Properties of the proc being generated
-struct ProcProperties {
-  // A list of the state types in the proc's next function. Currently, at most
-  // a single state is supported. The order of types as they appear in the
-  // container mirrors the order present in the proc's next function.
-  std::vector<TypeAnnotation*> state_types;
-
-  // Parameters of the proc config function.
-  std::vector<Param*> config_params;
-
-  // Members of the proc.
-  std::vector<ProcMember*> members;
-};
-
 // The context contains information for an instance in the call stack.
 struct Context {
   // TODO(https://github.com/google/xls/issues/789).
   // TODO(https://github.com/google/xls/issues/790).
   Env env;
 
-  // Contains properties of the generated proc. Only present if generating
-  // a proc.
-  std::optional<ProcProperties> proc_properties;
-  bool IsGeneratingProc() const { return proc_properties.has_value(); }
+  // Context of the proc currently being generated.
+  struct ProcContext {
+    // Proc state type.
+    TypeAnnotation* state_type;
 
-  static Context GetFunctionContext() {
-    return Context{
-        .env = Env(),
-        .proc_properties = std::nullopt,
-    };
-  }
+    // Channels available to the proc next functiont that have not yet been
+    // interacted with:
+    std::vector<ProcMember*> unused_channels;
+  };
 
-  static Context GetProcContext() {
-    return Context{
-        .env = Env(),
-        .proc_properties = ProcProperties(),
-    };
-  }
+  // Only present if generating a proc.
+  std::optional<ProcContext*> proc_context;
+  bool IsGeneratingProc() const { return proc_context.has_value(); }
 };
 
 // Type that generates a random module for use in fuzz testing; i.e.
@@ -286,21 +267,24 @@ class AstGenerator {
       absl::Span<const AnnotatedType> param_types);
 
   // Generate the proc's config function with the given name and proc parameters
-  // (proc members).
+  // that are fed through to proc members.
   absl::StatusOr<Function*> GenerateProcConfigFunction(
-      std::string name, absl::Span<Param* const> proc_params);
+      std::string name, absl::Span<Param* const> proc_feedthrough_params);
 
   // Generate the proc's next function with the given name.
-  absl::StatusOr<AnnotatedFunction> GenerateProcNextFunction(std::string name,
-                                                             Context* ctx);
+  absl::StatusOr<AnnotatedFunction> GenerateProcNextFunction(
+      std::string name, Context::ProcContext* proc_ctx);
 
-  // Generate a function to return a constant with the given TypeAnnotation to
-  // serve as a Proc's [required] init function.
-  absl::StatusOr<Function*> GenerateProcInitFunction(
-      std::string_view name, TypeAnnotation* return_type);
+  // Generate a function to return a constant initial state to serve as a Proc's
+  // [required] init function.
+  absl::StatusOr<Function*> GenerateProcInitFunction(std::string_view name,
+                                                     TypeAnnotation* state_typ);
 
-  // Generate a DSLX proc with the given name.
-  absl::StatusOr<AnnotatedProc> GenerateProc(const std::string& name);
+  // Generate a DSLX proc with the given name. proc_io, defines the number and
+  // types of the channels the proc's config function accepts.
+  absl::StatusOr<AnnotatedProc> GenerateProc(
+      const std::string& name,
+      absl::Span<const std::pair<TypeAnnotation*, ChannelDirection>> proc_io);
 
   // Chooses a value from the environment that satisfies the predicate "take",
   // or returns nullopt if none exists.

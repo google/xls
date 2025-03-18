@@ -148,6 +148,13 @@ bool SampleOptions::operator==(const SampleOptions& other) const {
   throughput->set_stderr_regex(
       ".*Impossible to schedule proc .* as specified; .*: cannot achieve full "
       "throughput.*");
+  // TODO: Remove when fixed.
+  auto* combinational_proc = proto.add_known_failure();
+  combinational_proc->set_tool(".*codegen_main");
+  combinational_proc->set_stderr_regex(
+      ".*Proc combinational generator only supports streaming output channels "
+      "which can be determined to be mutually exclusive, got .* output "
+      "channels which were not proven to be mutually exclusive.*");
   return proto;
 }
 
