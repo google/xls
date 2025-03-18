@@ -805,12 +805,36 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
           table_.SetSliceStartAndWidthExprs(node, start_and_width));
 
       // Type-check the nontrivial, fabricated expressions, constraining them to
-      // s32.
+      // s32 (for generic slices) or u32 (for width slices).
       VLOG(6) << "Type-checking expanded slice start: "
               << start_and_width.start->ToString()
               << " and width: " << start_and_width.width->ToString();
-      XLS_RETURN_IF_ERROR(HandleSliceBoundInternal(start_and_width.start));
-      XLS_RETURN_IF_ERROR(HandleSliceBoundInternal(start_and_width.width));
+      const bool is_signed = std::holds_alternative<Slice*>(node->rhs());
+      XLS_RETURN_IF_ERROR(
+          HandleSliceBoundInternal(start_and_width.start, is_signed));
+      XLS_RETURN_IF_ERROR(
+          HandleSliceBoundInternal(start_and_width.width, is_signed));
+
+      if (std::holds_alternative<WidthSlice*>(node->rhs())) {
+        // For a `WidthSlice` we need to also make sure the `start` in the
+        // original AST gets the correct type of u32, because it's used in IR
+        // conversion. For a generic `Slice`, this is not necessary or
+        // desirable; the actual `start` and `limit` nodes from the AST are
+        // throw-away exprs without specific type rules, and the `StartAndWidth`
+        // created above is what gets used later.
+        Expr* width_slice_start = std::get<WidthSlice*>(node->rhs())->start();
+        XLS_ASSIGN_OR_RETURN(
+            const NameRef* start_variable,
+            table_.DefineInternalVariable(
+                InferenceVariableKind::kType,
+                const_cast<Expr*>(width_slice_start),
+                GenerateInternalTypeVariableName(width_slice_start)));
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeVariable(width_slice_start, start_variable));
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            width_slice_start,
+            CreateU32Annotation(module_, width_slice_start->span())));
+      }
 
       return DefaultHandler(node);
     }
@@ -1434,8 +1458,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
 
   // Type-checks a fabricated longhand slice bound expression. Expressions in
-  // this context are always constrained to s32.
-  absl::Status HandleSliceBoundInternal(const Expr* bound) {
+  // this context are always 32-bit.
+  absl::Status HandleSliceBoundInternal(const Expr* bound, bool is_signed) {
     XLS_ASSIGN_OR_RETURN(
         const NameRef* variable,
         table_.DefineInternalVariable(InferenceVariableKind::kType,
@@ -1443,7 +1467,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                                       GenerateInternalTypeVariableName(bound)));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(bound, variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        bound, CreateS32Annotation(module_, bound->span())));
+        bound, is_signed ? CreateS32Annotation(module_, bound->span())
+                         : CreateU32Annotation(module_, bound->span())));
     return bound->Accept(this);
   }
 

@@ -57,7 +57,7 @@ Expr* CreateElementCountInvocation(Module& module, TypeAnnotation* annotation) {
                                  std::vector<ExprOrType>{annotation});
 }
 
-Number* CreateS32Zero(Module& module, const Span& span) {
+Expr* CreateS32Zero(Module& module, const Span& span) {
   return module.Make<Number>(span, "0", NumberKind::kOther,
                              CreateS32Annotation(module, span));
 }
@@ -68,21 +68,32 @@ Number* CreateS32Zero(Module& module, const Span& span) {
 // `element_count<typeof(x)>()`. Since it's not in a position to decide whether
 // a non-null expr is negative, this utility will produce an `Expr` like `if
 // bound < 0 { element_count<typeof(x)> + bound } else { bound }` and ultimately
-// `ConstExprEvaluator`, given the right context, can evaluate that.
-// TODO - https://github.com/google/xls/issues/193: The bounds are supposed to
-// be clamped such that the expanded start is in [0, element_count<typeof(x)>())
-// and the expanded limit is in [start, element_count<typeof(x)>()). We should
-// add an integer clamping builtin and do this in a follow-up, because it would
-// be quite messy without that.
+// `ConstExprEvaluator`, given the right context, can evaluate that. Note that
+// in v2 we do not silently clamp slice bounds as in v1; this is an intentional
+// design change.
 absl::StatusOr<Expr*> ExpandSliceBoundExpr(Module& module,
                                            TypeAnnotation* source_array_type,
                                            Expr* bound, bool start) {
   if (bound == nullptr) {
     return start ? CreateS32Zero(module, source_array_type->span())
-                 : CreateElementCountInvocation(module, source_array_type);
+                 : module.Make<Cast>(
+                       source_array_type->span(),
+                       CreateElementCountInvocation(module, source_array_type),
+                       CreateS32Annotation(module, source_array_type->span()));
   }
-  // The following is the AST we generate here:
-  // if bound < 0 { element_count<source_array_type>() + bound } else { bound }
+  // The following is the AST we generate here.
+  //
+  // if bound < 0 {
+  //   (element_count<source_array_type>() as s32) + bound
+  // } else {
+  //   bound
+  // }
+  //
+  // TODO - https://github.com/google/xls/issues/193: it should be using
+  // `widening_cast<s32>(bound)` for each occurrence of `bound`, but currently
+  // there is an issue invoking builtins other than `element_count` from the
+  // context of a fabricated expression.
+
   XLS_ASSIGN_OR_RETURN(AstNode * bound_copy1, CloneAst(bound));
   XLS_ASSIGN_OR_RETURN(AstNode * bound_copy2, CloneAst(bound));
   XLS_ASSIGN_OR_RETURN(AstNode * bound_copy3, CloneAst(bound));
@@ -434,15 +445,11 @@ absl::StatusOr<StartAndWidthExprs> CreateSliceStartAndWidthExprs(
   CHECK(slice->kind() == AstNodeKind::kSlice ||
         slice->kind() == AstNodeKind::kWidthSlice);
   if (const auto* width_slice = dynamic_cast<const WidthSlice*>(slice)) {
-    XLS_ASSIGN_OR_RETURN(
-        Expr * start,
-        ExpandSliceBoundExpr(module, source_array_type, width_slice->start(),
-                             /*start=*/true));
     // In a width slice, the LHS is the start index and the RHS is a type
     // annotation whose element count is the number of elements the slice is
     // asking to extract from the source array.
     return StartAndWidthExprs{
-        .start = start,
+        .start = width_slice->start(),
         .width = CreateElementCountInvocation(module, width_slice->width())};
   }
   const auto* bounded_slice = dynamic_cast<const Slice*>(slice);

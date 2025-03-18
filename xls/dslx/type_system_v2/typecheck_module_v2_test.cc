@@ -5000,7 +5000,8 @@ TEST(TypecheckV2Test, WidthSliceOfBits) {
 }
 
 TEST(TypecheckV2Test, WidthSliceOfBitsWithNegativeStart) {
-  EXPECT_THAT("const X = 0b100111[-5+:u3];", TopNodeHasType("uN[3]"));
+  EXPECT_THAT("const X = 0b100111[-5+:u3];",
+              TypecheckFails(HasSignednessMismatch("sN[4]", "u32")));
 }
 
 TEST(TypecheckV2Test, WidthSliceWithNonBitsWidthAnnotationFails) {
@@ -5022,8 +5023,7 @@ TEST(TypecheckV2Test, WidthSliceOfSignedBitsFails) {
 
 TEST(TypecheckV2Test, WidthSliceBeforeStartFails) {
   EXPECT_THAT("const X = (u6:0b011100)[-7+:u4];",
-              TypecheckFails(
-                  HasSubstr("Slice range out of bounds for array of size 6")));
+              TypecheckFails(HasSignednessMismatch("sN[4]", "u32")));
 }
 
 TEST(TypecheckV2Test, WidthSliceAfterEndFails) {
@@ -5034,12 +5034,21 @@ TEST(TypecheckV2Test, WidthSliceAfterEndFails) {
 
 TEST(TypecheckV2Test, WidthSliceByParametrics) {
   EXPECT_THAT(R"(
-fn f<A: s32, B: u32>(value: u32) -> uN[B] { value[A+:uN[B]] }
+fn f<A: u32, B: u32>(value: u32) -> uN[B] { value[A+:uN[B]] }
 const X = f<2, 3>(0b100111);
 const Y = f<1, 4>(0b100111);
 )",
               TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[3]"),
                                       HasNodeWithType("Y", "uN[4]"))));
+}
+
+TEST(TypecheckV2Test, WithSliceSetsTypeOnStart) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: u32) -> u8 {
+  x[3+:u8]+x[y+:u8]
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("3", "uN[32]")));
 }
 
 TEST(TypecheckV2Test, RangeExpr) {

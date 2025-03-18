@@ -599,8 +599,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
     TypeSystemTrace trace = tracer_.TraceConvertNode(node);
     VLOG(5) << "GenerateTypeInfo for node: " << node->ToString()
+            << " of kind: `" << AstNodeKindToString(node->kind()) << "`"
             << " with owner: " << node->owner()->name()
-            << " for module: " << module_.name();
+            << " for module: " << module_.name()
+            << " in parametric context: " << ToString(parametric_context);
     if (pre_unified_type.has_value()) {
       VLOG(5) << "Using pre-unified type: " << (*pre_unified_type)->ToString();
     }
@@ -611,6 +613,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           annotation,
           resolver_->ResolveAndUnifyTypeAnnotationsForNode(
               parametric_context, node, type_annotation_accept_predicate));
+    }
+
+    if (node->kind() == AstNodeKind::kFunction) {
+      // TODO: https://github.com/google/xls/issues/193 - When procs are
+      // supported, this should sometimes be true.
+      ti->NoteRequiresImplicitToken(*dynamic_cast<const Function*>(node),
+                                    false);
     }
 
     // If the node itself is a `TypeAnnotation`, then, in the absence of any
@@ -1000,9 +1009,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (const auto* const_assert = dynamic_cast<const ConstAssert*>(node)) {
       return CheckConstAssert(const_assert, type, ti);
     }
-    if (const auto* function = dynamic_cast<const Function*>(node)) {
-      ti->NoteRequiresImplicitToken(*function, false);
-    }
     return absl::OkStatus();
   }
 
@@ -1014,12 +1020,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     std::optional<StartAndWidthExprs> start_and_width_exprs =
         table_.GetSliceStartAndWidthExprs(index);
     CHECK(start_and_width_exprs.has_value());
-    StartAndWidth concrete_start_and_width;
+    absl::StatusOr<int32_t> start =
+        EvaluateU32OrExpr(parametric_context, start_and_width_exprs->start);
     XLS_ASSIGN_OR_RETURN(
-        concrete_start_and_width.start,
-        EvaluateU32OrExpr(parametric_context, start_and_width_exprs->start));
-    XLS_ASSIGN_OR_RETURN(
-        concrete_start_and_width.width,
+        uint32_t width,
         EvaluateU32OrExpr(parametric_context, start_and_width_exprs->width));
     const Type& array_type = **ti->GetItem(index->lhs());
     int64_t array_size;
@@ -1032,9 +1036,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_ASSIGN_OR_RETURN(array_size, bits_like->size.GetAsInt64());
     }
 
-    if (concrete_start_and_width.start < 0 ||
-        concrete_start_and_width.start + concrete_start_and_width.width >
-            array_size) {
+    // A generic `Slice` must have a constexpr start value. A `WidthSlice` can
+    // have a constexpr or dynamic start value. If it's constexpr, we validate
+    // it.
+    const bool is_generic_slice = std::holds_alternative<Slice*>(index->rhs());
+    if (is_generic_slice && !start.ok()) {
+      return start.status();
+    }
+    if (start.ok() && (*start < 0 || *start + width > array_size)) {
       return TypeInferenceErrorStatus(
           index->span(), nullptr,
           absl::StrCat("Slice range out of bounds for array of size ",
@@ -1042,13 +1051,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           file_table_);
     }
 
-    if (std::holds_alternative<Slice*>(index->rhs())) {
+    if (is_generic_slice) {
       ti->AddSliceStartAndWidth(
           std::get<Slice*>(index->rhs()),
           parametric_context.has_value()
               ? converted_parametric_envs_.at(*parametric_context)
               : ParametricEnv{},
-          concrete_start_and_width);
+          StartAndWidth{*start, width});
     }
     return absl::OkStatus();
   }
@@ -1219,7 +1228,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // support it being a complex type that even refers to other parametrics.
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          Concretize(type_annotation, parametric_context));
-    type_info->SetItem(expr, *type);
+    if (!type_info->Contains(const_cast<Expr*>(expr))) {
+      type_info->SetItem(expr, *type);
+    }
     if (type_annotation->owner() == &module_) {
       // Prevent bleed-over from a different module.
       type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));

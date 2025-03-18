@@ -844,7 +844,7 @@ fn f(x: u8) -> u2 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ParametricInvocation) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ParametricInvocation) {
   const char* program =
       R"(
 fn parametric_id<N: u32>(x: bits[N]) -> bits[N] {
@@ -878,7 +878,7 @@ fn main(x: u8) -> u8 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, WidthSlice) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, WidthSlice) {
   const char* program =
       R"(
 fn f(x: u32, y: u32) -> u8 {

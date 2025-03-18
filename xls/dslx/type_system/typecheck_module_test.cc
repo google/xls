@@ -2691,7 +2691,7 @@ fn f() -> Foo {
                HasSubstr("Cannot use '+' on values with enum type Foo")));
 }
 
-TEST(TypecheckBothVersionsTest, SlicesWithMismatchedTypes) {
+TEST(TypecheckTest, SlicesWithMismatchedTypes) {
   EXPECT_THAT(Typecheck("fn f(x: u8) -> u8 { x[s4:0 : s5:1] }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Slice limit type (sN[5]) did not match")));
@@ -2744,19 +2744,14 @@ TEST_P(TypecheckBothVersionsTest, WidthSlices) {
 }
 
 TEST_P(TypecheckBothVersionsTest, WidthSliceNegativeStartNumberLiteral) {
-  if (GetParam() == TypeInferenceVersion::kVersion1) {
-    // Start literal cannot be negative in v1.
-    EXPECT_THAT(
-        Typecheck("fn f(x: u32) -> u1 { x[-1+:u1] }"),
-        StatusIs(
-            absl::StatusCode::kInvalidArgument,
-            HasSubstr(
-                "only unsigned values are permitted; got start value: -1")));
-  } else {
-    // In v2, width slicing accepts any start value that regular slicing
-    // accepts.
-    XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u1 { x[-1+:u1] }"));
-  }
+  EXPECT_THAT(
+      Typecheck("fn f(x: u32) -> u1 { x[-1+:u1] }"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(
+                    GetParam(),
+                    "only unsigned values are permitted; got start value: -1"),
+                HasSignednessMismatchInV2(GetParam(), "sN[1]", "u32"))));
 
   EXPECT_THAT(
       Typecheck("fn f(x: u32) -> u2 { x[-1+:u2] }"),
@@ -2765,9 +2760,7 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceNegativeStartNumberLiteral) {
           AllOf(HasSubstrInV1(
                     GetParam(),
                     "only unsigned values are permitted; got start value: -1"),
-                HasSubstrInV2(
-                    GetParam(),
-                    "Slice range out of bounds for array of size 32"))));
+                HasSignednessMismatchInV2(GetParam(), "sN[1]", "u32"))));
   EXPECT_THAT(
       Typecheck("fn f(x: u32) -> u3 { x[-2+:u3] }"),
       AllOf(StatusIs(
@@ -2775,9 +2768,7 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceNegativeStartNumberLiteral) {
           AllOf(HasSubstrInV1(
                     GetParam(),
                     "only unsigned values are permitted; got start value: -2"),
-                HasSubstrInV2(
-                    GetParam(),
-                    "Slice range out of bounds for array of size 32")))));
+                HasSignednessMismatchInV2(GetParam(), "sN[2]", "u32")))));
 }
 
 TEST_P(TypecheckBothVersionsTest, WidthSliceEmptyStartNumber) {
@@ -2808,19 +2799,16 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceTupleStart) {
                AllOf(HasSubstrInV1(
                          GetParam(),
                          "Start expression for width slice must be bits typed"),
-                     HasTypeMismatchInV2(GetParam(), "(s32,)", "s32"))));
+                     HasTypeMismatchInV2(GetParam(), "(s32,)", "u32"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, WidthSliceTupleSubject) {
   EXPECT_THAT(
       Typecheck("fn f(start: s32, x: (u32)) -> u3 { x[start+:u3] }"),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          AllOf(
-              HasSubstrInV1(GetParam(), "Value to slice is not of 'bits' type"),
-              HasSubstrInV2(GetParam(),
-                            "Tuples should not be indexed with array-style "
-                            "syntax. Use `tuple.<number>` syntax instead."))));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Value to slice is not of 'bits' type"),
+                     HasTypeMismatchInV2(GetParam(), "s32", "u32"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, OverlargeWidthSlice) {
