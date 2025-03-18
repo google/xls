@@ -159,6 +159,10 @@ static absl::StatusOr<InstantiationPort> ExtractNested(
       return InstantiationPort{std::string(full_parameter_name), current_type};
       break;
     case TypeKind::kTuple: {
+      if (nested_name.empty()) {
+        return InstantiationPort{std::string(full_parameter_name),
+                                 current_type};
+      }
       TupleType* const tuple = current_type->AsTupleOrDie();
       int64_t tuple_index = 0;
       std::string_view parameter_remaining;

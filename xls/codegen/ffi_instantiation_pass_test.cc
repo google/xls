@@ -123,10 +123,11 @@ TEST_F(FfiInstantiationPassTest, FunctionParameterIsTuple) {
   auto p = CreatePackage();
   BitsType* const u32 = p->GetBitsType(32);
   BitsType* const u17 = p->GetBitsType(17);
+  Type* const tuple_type = p->GetTupleType({u32, u17});
 
   // Simple function that has foreign function data attached.
   FunctionBuilder fb(TestName() + "ffi_fun", p.get());
-  const BValue param_x = fb.Param("x", p->GetTupleType({u32, u17}));
+  const BValue param_x = fb.Param("x", tuple_type);
   XLS_ASSERT_OK_AND_ASSIGN(ForeignFunctionData ffd,
                            ForeignFunctionDataCreateFromTemplate(
                                "foo {fn} (.xa({x.0}), .mb({x.1}))"));
@@ -143,7 +144,7 @@ TEST_F(FfiInstantiationPassTest, FunctionParameterIsTuple) {
   bb.OutputPort("out", bb.Invoke({param}, ffi_fun));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
-  // Convert to Instationation
+  // Convert to Instantiation
   EXPECT_THAT(Run(block), IsOkAndHolds(true));
   ASSERT_EQ(block->GetInstantiations().size(), 1);
 
@@ -151,6 +152,7 @@ TEST_F(FfiInstantiationPassTest, FunctionParameterIsTuple) {
   ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
   xls::ExternInstantiation* const extern_inst =
       down_cast<xls::ExternInstantiation*>(instantiation);
+  EXPECT_EQ(extern_inst->function(), ffi_fun);
 
   // Make sure that all elements are expanded so that they are accessible
   // to the user in the text template.
@@ -162,7 +164,13 @@ TEST_F(FfiInstantiationPassTest, FunctionParameterIsTuple) {
   }
   EXPECT_THAT(input_ports, ElementsAre("x", "x.0", "x.1"));
 
-  EXPECT_EQ(extern_inst->function(), ffi_fun);
+  {  // Access full tuple parameter bits without dotted notation.
+    XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort input_param,
+                             extern_inst->GetInputPort("x"));
+    EXPECT_EQ(input_param.name, "x");
+    EXPECT_EQ(input_param.type, tuple_type);
+  }
+
   for (std::string_view param_name : {"x.0", "x.1"}) {
     XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort input_param,
                              extern_inst->GetInputPort(param_name));
@@ -207,7 +215,7 @@ TEST_F(FfiInstantiationPassTest, FunctionTakingNoParametersJustReturns) {
   EXPECT_EQ(return_port.type, p->GetBitsType(kReturnBitCount));
 }
 
-TEST_F(FfiInstantiationPassTest, FunctionReturningTuple) {
+TEST_F(FfiInstantiationPassTest, FunctionReturningTupleAccessAsScalars) {
   constexpr int kReturnBitCount[] = {17, 27};
   auto p = CreatePackage();
 
@@ -243,6 +251,41 @@ TEST_F(FfiInstantiationPassTest, FunctionReturningTuple) {
     EXPECT_EQ(return_port.name, return_name);
     EXPECT_EQ(return_port.type, p->GetBitsType(kReturnBitCount[i]));
   }
+}
+
+TEST_F(FfiInstantiationPassTest, FunctionReturningTupleAccessAsTuple) {
+  constexpr int kReturnBitCount[] = {17, 27};
+  auto p = CreatePackage();
+
+  // Function returning a tuple.
+  FunctionBuilder fb(TestName() + "ffi_fun", p.get());
+  BValue retval = fb.Tuple({fb.Literal(UBits(42, kReturnBitCount[0])),
+                            fb.Literal(UBits(24, kReturnBitCount[1]))});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ForeignFunctionData ffd,
+      ForeignFunctionDataCreateFromTemplate("foo {fn} (.foobar({return}))"));
+  fb.SetForeignFunctionData(ffd);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * ffi_fun, fb.BuildWithReturnValue(retval));
+
+  // A block that contains one invocation of that ffi_fun.
+  BlockBuilder bb(TestName(), p.get());
+  bb.OutputPort("out", bb.Invoke({}, ffi_fun));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  // Convert to instance
+  EXPECT_THAT(Run(block), IsOkAndHolds(true));
+
+  xls::Instantiation* const instantiation = block->GetInstantiations()[0];
+  ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
+
+  xls::ExternInstantiation* const extern_inst =
+      down_cast<xls::ExternInstantiation*>(instantiation);
+
+  // Access of "return" template parameter yields full tuple
+  XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort return_port,
+                           extern_inst->GetOutputPort("return"));
+  EXPECT_EQ(return_port.name, "return");
+  EXPECT_EQ(return_port.type, retval.GetType());
 }
 
 TEST_F(FfiInstantiationPassTest, FunctionReturningNestedTuple) {
@@ -295,12 +338,6 @@ TEST_F(FfiInstantiationPassTest, FunctionReturningNestedTuple) {
 
   // Test some invalid accesses and usefulness of error messages
   // by Instantiation (ir/instantiation.cc)
-  EXPECT_THAT(
-      extern_inst->GetOutputPort("return.1"),
-      StatusIs(absl::StatusCode::kNotFound,
-               testing::HasSubstr("return.1 is a tuple (with 2 fields), "
-                                  "expected sub-access by .<number>")));
-
   EXPECT_THAT(
       extern_inst->GetOutputPort("return.42"),
       StatusIs(absl::StatusCode::kInvalidArgument,

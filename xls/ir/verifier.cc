@@ -906,10 +906,6 @@ static absl::Status VerifyForeignFunctionTemplate(Function* fun) {
       continue;
     }
     if (original == "return") {
-      if (!return_type->IsBits()) {
-        return absl::InvalidArgumentError(err_msg(
-            "got `return` in template, but function does not return a scalar"));
-      }
       continue;
     }
 
