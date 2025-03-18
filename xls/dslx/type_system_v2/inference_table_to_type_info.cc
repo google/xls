@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -402,6 +403,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     absl::c_copy(invocation->args(), std::back_inserter(actual_args));
 
     if (!function->IsParametric()) {
+      // TODO: https://github.com/google/xls/issues/193 - Run this logic for all
+      // non-parametric functions that are imported. There is no way the callee
+      // node for such invocations will have the formal function type annotation
+      // in the table before we come into `ConvertInvocation`. If they only have
+      // the "actual" annotation, whose return type is `Any`, unification will
+      // fail.
+      std::optional<std::string_view> builtin =
+          GetBuiltinFnName(invocation->callee());
+      if (builtin.has_value()) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            invocation->callee(),
+            CreateFunctionTypeAnnotation(module_, *function)));
+      }
+
       XLS_RETURN_IF_ERROR(
           GenerateTypeInfo(function_and_target_object.target_struct_context,
                            invocation->callee()));
