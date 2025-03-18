@@ -188,8 +188,8 @@ IntervalSet IntervalSet::ZeroExtend(int64_t bit_width) const {
 
 IntervalSet IntervalSet::PositiveIntervals(bool with_zero) const {
   CHECK(IsNormalized());
-  if (bit_count_ < 1) {
-    return IntervalSet();
+  if (bit_count_ < 1 || (bit_count_ == 1 && !with_zero)) {
+    return IntervalSet(bit_count_);
   }
   return IntervalSet::Intersect(
       *this, IntervalSet::Of({Interval(UBits(with_zero ? 0 : 1, bit_count_),

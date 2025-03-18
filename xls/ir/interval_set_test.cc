@@ -579,6 +579,13 @@ TEST(IntervalSetTest, PositiveIntervals) {
     IntervalSet neg = SignedIntervals({{-127, -22}, {-12, -1}}, 8);
     EXPECT_EQ(Intervals({}, 8), neg.PositiveIntervals(/*with_zero=*/true));
   }
+  {
+    IntervalSet tiny_range = SignedIntervals({{-1, 0}}, 1);
+    EXPECT_EQ(Intervals({{0, 0}}, 1),
+              tiny_range.PositiveIntervals(/*with_zero=*/true));
+    EXPECT_EQ(Intervals({}, 1),
+              tiny_range.PositiveIntervals(/*with_zero=*/false));
+  }
 }
 
 TEST(IntervalSetTest, NegativeIntervals) {
@@ -591,6 +598,10 @@ TEST(IntervalSetTest, NegativeIntervals) {
     IntervalSet pos_and_neg =
         SignedIntervals({{0, 4}, {8, 12}, {18, 127}, {-12, -1}}, 8);
     EXPECT_EQ(Intervals({{1, 12}}, 8), pos_and_neg.NegativeAbsoluteIntervals());
+  }
+  {
+    IntervalSet tiny_range = SignedIntervals({{-1, 0}}, 1);
+    EXPECT_EQ(Intervals({{1, 1}}, 1), tiny_range.NegativeAbsoluteIntervals());
   }
 }
 

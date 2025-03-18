@@ -58,7 +58,7 @@ TernaryVector ExtractTernaryVector(const IntervalSet& intervals,
                                    std::optional<Node*> source) {
   CHECK(intervals.IsNormalized())
       << (source.has_value() ? source.value()->ToString() : "");
-  CHECK(!intervals.Intervals().empty())
+  CHECK(!intervals.IsEmpty())
       << (source.has_value() ? source.value()->ToString() : "");
   TernaryVector result = ExtractTernaryInterval(intervals.Intervals().front());
   for (const Interval& i : intervals.Intervals().subspan(1)) {
@@ -828,16 +828,22 @@ IntervalSet UDiv(const IntervalSet& a, const IntervalSet& b) {
   return results;
 }
 IntervalSet UMod(const IntervalSet& a, const IntervalSet& b) {
+  CHECK_EQ(a.BitCount(), b.BitCount());
+  if (a.IsEmpty() || b.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
   // Integer modulus is a complex case. The result is restricted to be less than
-  // `b`, but we also can get more information out of intervals in `a` if (e.g.)
-  // `b` is precise and `a` contains intervals with fewer than `b` values in
-  // them.
+  // `b` (and no larger than `a`), but we also can get more information out of
+  // intervals in `a` if (e.g.) `b` is precise and `a` contains intervals with
+  // fewer than `b` values in them.
   if (b.UpperBound()->IsZero()) {
     return IntervalSet::Of({Interval::Precise(Bits(a.BitCount()))});
   }
   // TODO(epastor): Extract more information when we can.
-  return IntervalSet::Of(
-      {Interval::RightOpen(Bits(a.BitCount()), *b.UpperBound())});
+  Bits upper_bound =
+      bits_ops::UMin(*a.UpperBound(), bits_ops::Decrement(*b.UpperBound()));
+  return IntervalSet::Of({Interval::Closed(Bits(a.BitCount()), upper_bound)});
 }
 IntervalSet SMul(const IntervalSet& a, const IntervalSet& b,
                  int64_t output_bitwidth) {
@@ -896,10 +902,15 @@ IntervalSet SDiv(const IntervalSet& a, const IntervalSet& b) {
   return res;
 }
 IntervalSet SMod(const IntervalSet& a, const IntervalSet& b) {
+  CHECK_EQ(a.BitCount(), b.BitCount());
+  if (a.IsEmpty() || b.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
   // Integer modulus is a complex case. The result is restricted to be less than
-  // `b` (in absolute value), but we also can get more information out of
-  // intervals in `a` if (e.g.) `b` is precise and `a` contains intervals with
-  // fewer than `b` values in them.
+  // `b` and at most `a` (in absolute value), but we also can get more
+  // information out of intervals in `a` if (e.g.) `b` is precise and `a`
+  // contains intervals with fewer than `b` values in them.
 
   // TODO(epastor): Extract more information when we can.
   Bits absolute_b_bound(b.BitCount());
@@ -912,8 +923,19 @@ IntervalSet SMod(const IntervalSet& a, const IntervalSet& b) {
   if (absolute_b_bound.IsZero()) {
     return IntervalSet::Of({Interval::Precise(Bits(a.BitCount()))});
   }
+
+  Bits absolute_a_bound(a.BitCount());
+  for (const Interval& i : a.SignedIntervals()) {
+    absolute_a_bound =
+        bits_ops::UMax(absolute_a_bound, bits_ops::Abs(i.LowerBound()));
+    absolute_a_bound =
+        bits_ops::UMax(absolute_a_bound, bits_ops::Abs(i.UpperBound()));
+  }
+
+  Bits absolute_bound =
+      bits_ops::UMin(absolute_a_bound, bits_ops::Decrement(absolute_b_bound));
   return IntervalSet::Of(
-      {Interval::Open(bits_ops::Negate(absolute_b_bound), absolute_b_bound)});
+      {Interval::Closed(bits_ops::Negate(absolute_bound), absolute_bound)});
 }
 
 IntervalSet Shll(const IntervalSet& a, const IntervalSet& b) {
@@ -979,18 +1001,17 @@ IntervalSet Decode(const IntervalSet& a, int64_t width) {
   // the corresponding power-of-two as an interval. The good news is that we can
   // (and do) stop as soon as we reach `width` or any larger value, since all of
   // those encode the same point (0)... so this visits at most `width` elements.
-  a.ForEachElement([&](const Bits& b) {
+  for (const Bits& b : a.Values()) {
     uint64_t bit = b.ToUint64().value_or(width);
     if (bit >= static_cast<uint64_t>(width)) {
       // We're done; no need to check later elements.
       result.AddInterval(Interval::Precise(UBits(0, width)));
-      return true;
+      break;
     }
 
     result.AddInterval(
         Interval::Precise(Bits::PowerOfTwo(static_cast<int64_t>(bit), width)));
-    return false;
-  });
+  }
   result.Normalize();
   return result;
 }
@@ -1040,6 +1061,10 @@ IntervalSet Concat(absl::Span<IntervalSet const> sets) {
 
 // Bit ops.
 IntervalSet Not(const IntervalSet& a) {
+  if (a.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
   TernaryEvaluator eval;
   // Special case 1-bit version to avoid allocations.
   if (a.BitCount() == 1) {
@@ -1051,6 +1076,10 @@ IntervalSet Not(const IntervalSet& a) {
 }
 IntervalSet And(const IntervalSet& a, const IntervalSet& b) {
   CHECK_EQ(a.BitCount(), b.BitCount());
+  if (a.IsEmpty() || b.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
   // Special case 1-bit version to avoid allocations.
   TernaryEvaluator eval;
   if (a.BitCount() == 1) {
@@ -1087,6 +1116,10 @@ IntervalSet And(const IntervalSet& a, const IntervalSet& b) {
 }
 IntervalSet Or(const IntervalSet& a, const IntervalSet& b) {
   CHECK_EQ(a.BitCount(), b.BitCount());
+  if (a.IsEmpty() || b.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
   TernaryEvaluator eval;
   if (a.BitCount() == 1) {
     return TernaryToOneBitRange(
@@ -1122,6 +1155,10 @@ IntervalSet Or(const IntervalSet& a, const IntervalSet& b) {
 
 IntervalSet Xor(const IntervalSet& a, const IntervalSet& b) {
   CHECK_EQ(a.BitCount(), b.BitCount());
+  if (a.IsEmpty() || b.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
   TernaryEvaluator eval;
   if (a.BitCount() == 1) {
     return TernaryToOneBitRange(
@@ -1140,6 +1177,10 @@ IntervalSet Xor(const IntervalSet& a, const IntervalSet& b) {
 }
 
 IntervalSet AndReduce(const IntervalSet& a) {
+  if (a.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
   // Unless the intervals cover max, the and_reduce of the input must be 0.
   if (!a.CoversMax()) {
     return TernaryToOneBitRange(TernaryValue::kKnownZero);
@@ -1153,6 +1194,10 @@ IntervalSet AndReduce(const IntervalSet& a) {
 }
 
 IntervalSet OrReduce(const IntervalSet& a) {
+  if (a.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
   // Unless the intervals cover 0, the or_reduce of the input must be 1.
   if (!a.CoversZero()) {
     return TernaryToOneBitRange(TernaryValue::kKnownOne);
@@ -1165,6 +1210,10 @@ IntervalSet OrReduce(const IntervalSet& a) {
   return TernaryToOneBitRange(TernaryValue::kUnknown);
 }
 IntervalSet XorReduce(const IntervalSet& a) {
+  if (a.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
   // XorReduce determines the parity of the number of 1s in a bitstring.
   // Incrementing a bitstring always outputs in a bitstring with a different
   // parity of 1s (since even + 1 = odd and odd + 1 = even). Therefore, this
@@ -1172,7 +1221,7 @@ IntervalSet XorReduce(const IntervalSet& a) {
   // imprecise. When the given set of intervals only contains precise
   // intervals, we can check whether they all have the same parity of 1s, and
   // return 1 or 0 if they are all the same, or unknown otherwise.
-  if (a.NumberOfIntervals() == 0 || !a.Intervals().front().IsPrecise()) {
+  if (!a.Intervals().front().IsPrecise()) {
     return TernaryToOneBitRange(TernaryValue::kUnknown);
   }
   Bits output = bits_ops::XorReduce(*a.Intervals().front().GetPreciseValue());
@@ -1189,6 +1238,12 @@ IntervalSet XorReduce(const IntervalSet& a) {
 
 // Cmp
 IntervalSet Eq(const IntervalSet& a, const IntervalSet& b) {
+  CHECK_EQ(a.BitCount(), b.BitCount());
+  if (a.IsEmpty() || b.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
+
   if (a.IsPrecise() && b.IsPrecise()) {
     return TernaryToOneBitRange(
         bits_ops::UEqual(*a.GetPreciseValue(), *b.GetPreciseValue())
@@ -1207,6 +1262,10 @@ IntervalSet Ne(const IntervalSet& a, const IntervalSet& b) {
 
 IntervalSet ULt(const IntervalSet& a, const IntervalSet& b) {
   CHECK_EQ(a.BitCount(), b.BitCount());
+  if (a.IsEmpty() || b.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
   if (a.IsPrecise() && a.GetPreciseValue() == Bits::AllOnes(a.BitCount())) {
     // If a is all ones, then it is not less than any value.
     return TernaryToOneBitRange(TernaryValue::kKnownZero);
@@ -1231,6 +1290,11 @@ IntervalSet ULt(const IntervalSet& a, const IntervalSet& b) {
 }
 
 IntervalSet SLt(const IntervalSet& a, const IntervalSet& b) {
+  CHECK_EQ(a.BitCount(), b.BitCount());
+  if (a.IsEmpty() || b.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(a.BitCount());
+  }
   CHECK(a.IsNormalized());
   CHECK(b.IsNormalized());
   auto is_all_negative = [](const IntervalSet& v) {
@@ -1252,6 +1316,10 @@ IntervalSet SLt(const IntervalSet& a, const IntervalSet& b) {
 }
 
 IntervalSet Gate(const IntervalSet& cond, const IntervalSet& val) {
+  if (cond.IsEmpty() || val.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(val.BitCount());
+  }
   if (cond.IsPrecise()) {
     if (cond.CoversZero()) {
       return IntervalSet::Precise(Bits(val.BitCount()));
@@ -1268,6 +1336,10 @@ IntervalSet Gate(const IntervalSet& cond, const IntervalSet& val) {
 }
 IntervalSet OneHot(const IntervalSet& val, LsbOrMsb lsb_or_msb,
                    int64_t max_interval_bits) {
+  if (val.IsEmpty()) {
+    // If the input is empty, so is the output.
+    return IntervalSet(val.BitCount() + 1);
+  }
   TernaryEvaluator tern;
   TernaryVector src = ExtractTernaryVector(val);
   TernaryVector res;
