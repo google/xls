@@ -225,6 +225,7 @@ cc_library(
 cc_test(
     name = "typecheck_module_v2_test",
     srcs = ["typecheck_module_v2_test.cc"],
+    shard_count = 4,
     deps = [
         ":matchers",
         ":type_system_test_utils",
@@ -232,6 +233,17 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx/type_system:typecheck_test_utils",
         "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "typecheck_module_v2_builtin_test",
+    srcs = ["typecheck_module_v2_builtin_test.cc"],
+    deps = [
+        ":matchers",
+        "//xls/common:xls_gunit_main",
+        "//xls/dslx/type_system:typecheck_test_utils",
         "@googletest//:gtest",
     ],
 )
