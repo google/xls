@@ -1375,10 +1375,12 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
                                              OpBuilder& builder,
                                              MLIRContext* ctx,
                                              TranslationState& state) {
-  // Argument types:
+  // Argument types + names:
   SmallVector<Type> mlir_arg_types;
-  for (auto* arg : xls_func.GetType()->parameters()) {
-    mlir_arg_types.push_back(translateType(arg, builder, ctx));
+  SmallVector<Location> mlir_arg_locs;
+  for (auto* arg : xls_func.params()) {
+    mlir_arg_types.push_back(translateType(arg->GetType(), builder, ctx));
+    mlir_arg_locs.push_back(NameLoc::get(StringAttr::get(ctx, arg->name())));
   }
 
   // Return type:
@@ -1406,13 +1408,14 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
   // New function base scope
   state.newFunctionBaseContext(/*is_proc=*/false);
 
-  // Add parameters to function context:
+  // Add parameters to function context + attach parameter locs
   for (uint64_t arg_idx = 0; arg_idx < xls_func.params().length(); arg_idx++) {
     auto xls_param = xls_func.params()[arg_idx];
     auto mlir_arg = body->getArgument(arg_idx);
     if (auto err = state.setMlirValue(xls_param->id(), mlir_arg); !err.ok()) {
       return err;
     }
+    mlir_arg.setLoc(mlir_arg_locs[arg_idx]);
   }
 
   // Function body:
@@ -1483,6 +1486,7 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
     body->addArgument(elem_type, builder.getUnknownLoc());
     auto mlir_elem = body->getArgument(i);
     state.setStateElement(xls_elem->name(), mlir_elem);
+    mlir_elem.setLoc(NameLoc::get(StringAttr::get(ctx, xls_elem->name())));
   }
 
   // For each state element, track the SSA value that defines its next value.
