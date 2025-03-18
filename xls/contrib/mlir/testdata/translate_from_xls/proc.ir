@@ -9,7 +9,7 @@ chan ch_inp(bits[32], id=0, kind=streaming, ops=receive_only)
 
 // CHECK-LABEL: xls.chan @ch_out {
 // CHECK-SAME:    fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>,
-// CHECK-SAME:    input_flop_kind = #xls<flop_kind zero-latency>,
+// CHECK-SAME:    input_flop_kind = #xls<flop_kind zero_latency>,
 // CHECK-SAME:    output_flop_kind = #xls<flop_kind skid>
 // CHECK-SAME:    recv_supported = false
 // CHECK-SAME:  } : i32
