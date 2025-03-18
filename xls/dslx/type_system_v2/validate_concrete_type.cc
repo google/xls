@@ -18,6 +18,7 @@
 #include <string_view>
 #include <variant>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -164,36 +165,21 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleInvocation(const Invocation* invocation) override {
-    std::optional<std::string_view> callee =
+    using BuiltinValidator =
+        absl::Status (TypeValidator::*)(const Invocation&, const FunctionType&);
+    static const auto* builtin_validators =
+        new absl::flat_hash_map<std::string_view, BuiltinValidator>{
+            {"decode", &TypeValidator::ValidateDecodeInvocation},
+            {"widening_cast", &TypeValidator::ValidateWideningCastInvocation}};
+
+    std::optional<std::string_view> builtin =
         GetBuiltinFnName(invocation->callee());
-    if (callee.has_value() && *callee == "decode") {
-      // Special case: if decode, its return type must be unsigned.
-      std::optional<const Type*> callee_type =
-          ti_.GetItem(invocation->callee());
-      if (callee_type.has_value()) {
-        if (const auto* function_type =
-                dynamic_cast<const FunctionType*>(*callee_type)) {
-          const Type& return_type = function_type->return_type();
-          // First, it must be a bits type!
-          if (!IsBitsLike(return_type)) {
-            return TypeInferenceErrorStatus(
-                invocation->span(), &return_type,
-                absl::Substitute(
-                    "`decode` return type must be a bits type, saw `$0`",
-                    return_type.ToString()),
-                file_table_);
-          }
-          // Second, it must be unsigned.
-          XLS_ASSIGN_OR_RETURN(bool is_signed, IsSigned(return_type));
-          if (is_signed) {
-            return TypeInferenceErrorStatus(
-                invocation->span(), &return_type,
-                absl::Substitute(
-                    "`decode` return type must be unsigned, saw `$0`",
-                    return_type.ToString()),
-                file_table_);
-          }
-        }
+    if (builtin.has_value()) {
+      const auto it = builtin_validators->find(*builtin);
+      if (it != builtin_validators->end()) {
+        const auto& signature = dynamic_cast<const FunctionType&>(
+            **ti_.GetItem(invocation->callee()));
+        return (this->*it->second)(*invocation, signature);
       }
     }
     return DefaultHandler(invocation);
@@ -464,6 +450,74 @@ class TypeValidator : public AstNodeVisitorWithDefault {
       const Type& rhs_type = **ti_.GetItem(std::get<Expr*>(index->rhs()));
       return ValidateArrayIndex(*index, lhs_type, rhs_type, ti_, file_table_);
     }
+    return absl::OkStatus();
+  }
+
+  absl::Status ValidateDecodeInvocation(const Invocation& invocation,
+                                        const FunctionType& signature) {
+    const Type& return_type = signature.return_type();
+    // First, it must be a bits type!
+    if (!IsBitsLike(return_type)) {
+      return TypeInferenceErrorStatus(
+          invocation.span(), &return_type,
+          absl::Substitute("`decode` return type must be a bits type, saw `$0`",
+                           return_type.ToString()),
+          file_table_);
+    }
+    // Second, it must be unsigned.
+    XLS_ASSIGN_OR_RETURN(bool is_signed, IsSigned(return_type));
+    if (is_signed) {
+      return TypeInferenceErrorStatus(
+          invocation.span(), &return_type,
+          absl::Substitute("`decode` return type must be unsigned, saw `$0`",
+                           return_type.ToString()),
+          file_table_);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ValidateWideningCastInvocation(const Invocation& invocation,
+                                              const FunctionType& signature) {
+    // This logic is based on `TypecheckIsAcceptableWideningCast` in v1, which
+    // is forked here due to nonstandard error handling.
+    const Type& from = *signature.params()[0];
+    const Type& to = signature.return_type();
+    std::optional<BitsLikeProperties> from_bits_like = GetBitsLike(from);
+    std::optional<BitsLikeProperties> to_bits_like = GetBitsLike(to);
+
+    if (!from_bits_like.has_value() || !to_bits_like.has_value()) {
+      return TypeInferenceErrorStatus(
+          invocation.span(), &to,
+          absl::StrFormat(
+              "widening_cast must cast bits to bits, not `%s` to `%s`.",
+              from.ToErrorString(), to.ToErrorString()),
+          file_table_);
+    }
+
+    XLS_ASSIGN_OR_RETURN(bool signed_input,
+                         from_bits_like->is_signed.GetAsBool());
+    XLS_ASSIGN_OR_RETURN(bool signed_output,
+                         to_bits_like->is_signed.GetAsBool());
+
+    XLS_ASSIGN_OR_RETURN(int64_t old_bit_count,
+                         from_bits_like->size.GetAsInt64());
+    XLS_ASSIGN_OR_RETURN(int64_t new_bit_count,
+                         to_bits_like->size.GetAsInt64());
+
+    bool can_cast =
+        ((signed_input == signed_output) && (new_bit_count >= old_bit_count)) ||
+        (!signed_input && signed_output && (new_bit_count > old_bit_count));
+
+    if (!can_cast) {
+      return TypeInferenceErrorStatus(
+          invocation.span(), &to,
+          absl::StrFormat("Cannot cast from type `%s` (%d bits) to `%s` (%d "
+                          "bits) with widening_cast",
+                          ToTypeString(from_bits_like.value()), old_bit_count,
+                          ToTypeString(to_bits_like.value()), new_bit_count),
+          file_table_);
+    }
+
     return absl::OkStatus();
   }
 

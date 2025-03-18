@@ -47,6 +47,7 @@ namespace xls::dslx {
 namespace {
 
 using ::absl_testing::StatusIs;
+using ::testing::AllOf;
 using ::testing::HasSubstr;
 
 absl::StatusOr<TestResultData> ParseAndTest(
@@ -3041,7 +3042,7 @@ TEST(IrConverterTest, VTraceFmtSimpleWithArgs) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, WideningCastsUnErrors) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, WideningCastsUnErrors) {
   constexpr std::string_view kProgram =
       R"(
 fn main(x: u8) -> u32 {
@@ -3055,13 +3056,18 @@ fn main(x: u8) -> u32 {
   options.emit_positions = false;
   options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Can not cast from type uN[32] (32 bits) to "
-                                 "uN[4] (4 bits) with widening_cast")));
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Can not cast from type uN[32] (32 bits) to "
+                                   "uN[4] (4 bits) with widening_cast"),
+                     HasSubstrInV2(GetParam(),
+                                   "Cannot cast from type `uN[32]` (32 bits) "
+                                   "to `uN[4]` (4 bits) with widening_cast"))));
 }
 
-TEST(IrConverterTest, WideningAndCheckedCasts) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, WideningAndCheckedCasts) {
   constexpr std::string_view program =
       R"(
 fn main(x: u8, y: s8) -> u32 {

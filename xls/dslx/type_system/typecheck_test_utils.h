@@ -96,6 +96,55 @@ MATCHER_P2(HasSignednessMismatch, type1, type2, "") {
       arg, result_listener);
 }
 
+// These matchers expect different errors in v1 and v2, allowing the errors to
+// diverge, at least temporarily.
+
+MATCHER_P2(HasSubstrInV1, param, substr, "") {
+  return param == TypeInferenceVersion::kVersion2 ||
+         ExplainMatchResult(::testing::HasSubstr(substr), arg, result_listener);
+}
+
+MATCHER_P2(HasSubstrInV2, param, substr, "") {
+  return param == TypeInferenceVersion::kVersion1 ||
+         ExplainMatchResult(::testing::HasSubstr(substr), arg, result_listener);
+}
+
+MATCHER_P3(HasSizeMismatchInV1, param, type1, type2, "") {
+  return param == TypeInferenceVersion::kVersion2 ||
+         ExplainMatchResult(HasSizeMismatch(type1, type2), arg,
+                            result_listener);
+}
+
+MATCHER_P3(HasSizeMismatchInV2, param, type1, type2, "") {
+  return param == TypeInferenceVersion::kVersion1 ||
+         ExplainMatchResult(HasSizeMismatch(type1, type2), arg,
+                            result_listener);
+}
+
+MATCHER_P3(HasTypeMismatchInV1, param, type1, type2, "") {
+  return param == TypeInferenceVersion::kVersion2 ||
+         ExplainMatchResult(HasTypeMismatch(type1, type2), arg,
+                            result_listener);
+}
+
+MATCHER_P3(HasTypeMismatchInV2, param, type1, type2, "") {
+  return param == TypeInferenceVersion::kVersion1 ||
+         ExplainMatchResult(HasTypeMismatch(type1, type2), arg,
+                            result_listener);
+}
+
+MATCHER_P3(HasSignednessMismatchInV1, param, type1, type2, "") {
+  return param == TypeInferenceVersion::kVersion2 ||
+         ExplainMatchResult(HasTypeMismatch(type1, type2), arg,
+                            result_listener);
+}
+
+MATCHER_P3(HasSignednessMismatchInV2, param, type1, type2, "") {
+  return param == TypeInferenceVersion::kVersion1 ||
+         ExplainMatchResult(HasTypeMismatch(type1, type2), arg,
+                            result_listener);
+}
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_UTILS_H_

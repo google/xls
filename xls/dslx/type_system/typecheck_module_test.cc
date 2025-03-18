@@ -50,55 +50,6 @@ using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 
-// These matchers expect different errors in v1 and v2, allowing the errors to
-// diverge, at least temporarily.
-
-MATCHER_P2(HasSubstrInV1, param, substr, "") {
-  return param == TypeInferenceVersion::kVersion2 ||
-         ExplainMatchResult(HasSubstr(substr), arg, result_listener);
-}
-
-MATCHER_P2(HasSubstrInV2, param, substr, "") {
-  return param == TypeInferenceVersion::kVersion1 ||
-         ExplainMatchResult(HasSubstr(substr), arg, result_listener);
-}
-
-MATCHER_P3(HasSizeMismatchInV1, param, type1, type2, "") {
-  return param == TypeInferenceVersion::kVersion2 ||
-         ExplainMatchResult(HasSizeMismatch(type1, type2), arg,
-                            result_listener);
-}
-
-MATCHER_P3(HasSizeMismatchInV2, param, type1, type2, "") {
-  return param == TypeInferenceVersion::kVersion1 ||
-         ExplainMatchResult(HasSizeMismatch(type1, type2), arg,
-                            result_listener);
-}
-
-MATCHER_P3(HasTypeMismatchInV1, param, type1, type2, "") {
-  return param == TypeInferenceVersion::kVersion2 ||
-         ExplainMatchResult(HasTypeMismatch(type1, type2), arg,
-                            result_listener);
-}
-
-MATCHER_P3(HasTypeMismatchInV2, param, type1, type2, "") {
-  return param == TypeInferenceVersion::kVersion1 ||
-         ExplainMatchResult(HasTypeMismatch(type1, type2), arg,
-                            result_listener);
-}
-
-MATCHER_P3(HasSignednessMismatchInV1, param, type1, type2, "") {
-  return param == TypeInferenceVersion::kVersion2 ||
-         ExplainMatchResult(HasTypeMismatch(type1, type2), arg,
-                            result_listener);
-}
-
-MATCHER_P3(HasSignednessMismatchInV2, param, type1, type2, "") {
-  return param == TypeInferenceVersion::kVersion1 ||
-         ExplainMatchResult(HasTypeMismatch(type1, type2), arg,
-                            result_listener);
-}
-
 // Base class for general tests that run against both versions of type
 // inference.
 class TypecheckBothVersionsTest
@@ -3824,55 +3775,71 @@ fn f() -> imported::T {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
-TEST(TypecheckTest, MissingWideningCastFromValueError) {
+TEST_P(TypecheckBothVersionsTest, MissingWideningCastFromValueError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u64 {
   widening_cast<u64>()
 }
 )";
 
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Invalid number of arguments passed to")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Invalid number of arguments passed to"),
+                     HasSubstrInV2(GetParam(),
+                                   "Expected 1 argument(s) but got 0"))));
 }
 
-TEST(TypecheckTest, MissingCheckedCastFromValueError) {
+TEST_P(TypecheckBothVersionsTest, MissingCheckedCastFromValueError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u64 {
   checked_cast<u64>()
 }
 )";
 
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Invalid number of arguments passed to")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Invalid number of arguments passed to"),
+                     HasSubstrInV2(GetParam(),
+                                   "Expected 1 argument(s) but got 0"))));
 }
 
-TEST(TypecheckTest, MissingWideningCastToTypeError) {
+TEST_P(TypecheckBothVersionsTest, MissingWideningCastToTypeError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u64 {
   widening_cast(x)
 }
 )";
 
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Invalid number of parametrics passed to")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Invalid number of parametrics passed to"),
+                     HasSubstrInV2(GetParam(),
+                                   "Could not infer parametric(s): DEST"))));
 }
 
-TEST(TypecheckTest, MissingCheckedCastToTypeError) {
+TEST_P(TypecheckBothVersionsTest, MissingCheckedCastToTypeError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u64 {
   checked_cast(x)
 }
 )";
 
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Invalid number of parametrics passed to")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Invalid number of parametrics passed to"),
+                     HasSubstrInV2(GetParam(),
+                                   "Could not infer parametric(s): DEST"))));
 }
 
-TEST(TypecheckTest, WideningCastToSmallerUnError) {
+TEST_P(TypecheckBothVersionsTest, WideningCastToSmallerUnError) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   widening_cast<u33>(u32:0);
@@ -3881,13 +3848,19 @@ fn main() {
 }
 )";
 
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Can not cast from type uN[32] (32 bits) to "
-                                 "uN[31] (31 bits) with widening_cast")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Can not cast from type uN[32] (32 bits) to "
+                              "uN[31] (31 bits) with widening_cast"),
+                HasSubstrInV2(GetParam(),
+                              "Cannot cast from type `uN[32]` (32 bits) to "
+                              "`uN[31]` (31 bits) with widening_cast"))));
 }
 
-TEST(TypecheckTest, WideningCastToSmallerSnError) {
+TEST_P(TypecheckBothVersionsTest, WideningCastToSmallerSnError) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   widening_cast<s33>(s32:0);
@@ -3896,13 +3869,19 @@ fn main() {
 }
 )";
 
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Can not cast from type sN[32] (32 bits) to "
-                                 "sN[31] (31 bits) with widening_cast")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Can not cast from type sN[32] (32 bits) to "
+                              "sN[31] (31 bits) with widening_cast"),
+                HasSubstrInV2(GetParam(),
+                              "Cannot cast from type `sN[32]` (32 bits) to "
+                              "`sN[31]` (31 bits) with widening_cast"))));
 }
 
-TEST(TypecheckTest, WideningCastToUnError) {
+TEST_P(TypecheckBothVersionsTest, WideningCastToUnError) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   widening_cast<u4>(u3:0);
@@ -3911,13 +3890,18 @@ fn main() {
 }
 )";
 
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Can not cast from type sN[1] (1 bits) to "
-                                 "uN[4] (4 bits) with widening_cast")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Can not cast from type sN[1] (1 bits) to "
+                                   "uN[4] (4 bits) with widening_cast"),
+                     HasSubstrInV2(GetParam(),
+                                   "Cannot cast from type `sN[1]` (1 bits) to "
+                                   "`uN[4]` (4 bits) with widening_cast"))));
 }
 
-TEST(TypecheckTest, WideningCastsUnError2) {
+TEST_P(TypecheckBothVersionsTest, WideningCastsUnError2) {
   constexpr std::string_view kProgram =
       R"(
 fn main(x: u8) -> u32 {
@@ -3926,13 +3910,19 @@ fn main(x: u8) -> u32 {
   x_32 + widening_cast<u32>(x_4)
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Can not cast from type uN[32] (32 bits) to "
-                                 "uN[4] (4 bits) with widening_cast")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Can not cast from type uN[32] (32 bits) to "
+                              "uN[4] (4 bits) with widening_cast"),
+                HasSubstrInV2(GetParam(),
+                              "Cannot cast from type `uN[32]` (32 bits) to "
+                              "`uN[4]` (4 bits) with widening_cast"))));
 }
 
-TEST(TypecheckTest, WideningCastToSnError1) {
+TEST_P(TypecheckBothVersionsTest, WideningCastToSnError1) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   widening_cast<s4>(u3:0);
@@ -3941,13 +3931,18 @@ fn main() {
 }
 )";
 
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Can not cast from type uN[4] (4 bits) to "
-                                 "sN[4] (4 bits) with widening_cast")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Can not cast from type uN[4] (4 bits) to "
+                                   "sN[4] (4 bits) with widening_cast"),
+                     HasSubstrInV2(GetParam(),
+                                   "Cannot cast from type `uN[4]` (4 bits) to "
+                                   "`sN[4]` (4 bits) with widening_cast"))));
 }
 
-TEST(TypecheckTest, WideningCastsSnError2) {
+TEST_P(TypecheckBothVersionsTest, WideningCastsSnError2) {
   constexpr std::string_view kProgram =
       R"(
 fn main(x: s8) -> s32 {
@@ -3956,13 +3951,19 @@ fn main(x: s8) -> s32 {
   x_32 + widening_cast<s32>(x_4)
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Can not cast from type sN[32] (32 bits) to "
-                                 "sN[4] (4 bits) with widening_cast")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Can not cast from type sN[32] (32 bits) to "
+                              "sN[4] (4 bits) with widening_cast"),
+                HasSubstrInV2(GetParam(),
+                              "Cannot cast from type `sN[32]` (32 bits) to "
+                              "`sN[4]` (4 bits) with widening_cast"))));
 }
 
-TEST(TypecheckTest, WideningCastsUnToSnError) {
+TEST_P(TypecheckBothVersionsTest, WideningCastsUnToSnError) {
   constexpr std::string_view kProgram =
       R"(
 fn main(x: u8) -> s32 {
@@ -3971,13 +3972,18 @@ fn main(x: u8) -> s32 {
   checked_cast<s32>(x_9) + checked_cast<s32>(x_8)
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Can not cast from type uN[8] (8 bits) to "
-                                 "sN[8] (8 bits) with widening_cast")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Can not cast from type uN[8] (8 bits) to "
+                                   "sN[8] (8 bits) with widening_cast"),
+                     HasSubstrInV2(GetParam(),
+                                   "Cannot cast from type `uN[8]` (8 bits) to "
+                                   "`sN[8]` (8 bits) with widening_cast"))));
 }
 
-TEST(TypecheckTest, WideningCastsSnToUnError) {
+TEST_P(TypecheckBothVersionsTest, WideningCastsSnToUnError) {
   constexpr std::string_view kProgram =
       R"(
 fn main(x: s8) -> s32 {
@@ -3985,10 +3991,15 @@ fn main(x: s8) -> s32 {
   checked_cast<s32>(x_9)
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Can not cast from type sN[8] (8 bits) to "
-                                 "uN[9] (9 bits) with widening_cast")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Can not cast from type sN[8] (8 bits) to "
+                                   "uN[9] (9 bits) with widening_cast"),
+                     HasSubstrInV2(GetParam(),
+                                   "Cannot cast from type `sN[8]` (8 bits) to "
+                                   "`uN[9]` (9 bits) with widening_cast"))));
 }
 
 TEST(TypecheckTest, OverlargeValue80Bits) {

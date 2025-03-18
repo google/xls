@@ -437,7 +437,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         function->parametric_bindings(), invocation->explicit_parametrics()));
 
     // If we get here, we are dealing with a parametric function. First let's
-    // make sure a valid number of parametrics are being passed in.
+    // make sure a valid number of parametrics and regular arguments are being
+    // passed in.
     if (invocation->explicit_parametrics().size() >
         function->parametric_bindings().size()) {
       return ArgCountMismatchErrorStatus(
@@ -446,6 +447,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               "Too many parametric values supplied; limit: $0 given: $1",
               function->parametric_bindings().size(),
               invocation->explicit_parametrics().size()),
+          file_table_);
+    }
+    const int formal_param_count_without_self =
+        (function->params().size() - (function->IsMethod() ? 1 : 0));
+    if (invocation->args().size() != formal_param_count_without_self) {
+      // Note that the eventual unification of the signature would also catch
+      // this, but this redundant check ensures that an arg count mismatch error
+      // takes precedence over "could not infer parametric: N" errors that are
+      // caused by too few regular args.
+      return ArgCountMismatchErrorStatus(
+          invocation->span(),
+          absl::Substitute("Expected $0 argument(s) but got $1.",
+                           function->params().size(),
+                           invocation->args().size()),
           file_table_);
     }
 

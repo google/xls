@@ -560,12 +560,25 @@ TEST(TypecheckV2BuiltinTest, Umulp) {
 }
 
 TEST(TypecheckV2BuiltinTest, WideningCast) {
-  EXPECT_THAT(R"(const Y = widening_cast<u31>(u32:3);)",
-              TypecheckSucceeds(HasNodeWithType("Y", "uN[31]")));
+  EXPECT_THAT("const Y = widening_cast<u31>(u30:3);", TopNodeHasType("uN[31]"));
+}
+
+TEST(TypecheckV2BuiltinTest, WideningCastWithNarrowingTypeFails) {
+  EXPECT_THAT(
+      R"(const Y = widening_cast<u31>(u32:3);)",
+      TypecheckFails(HasSubstr("Cannot cast from type `uN[32]` (32 bits) to "
+                               "`uN[31]` (31 bits) with widening_cast")));
+}
+
+TEST(TypecheckV2BuiltinTest, WideningCastToSameSizeSignedFails) {
+  EXPECT_THAT(
+      R"(const Y = widening_cast<s31>(u31:3);)",
+      TypecheckFails(HasSubstr("Cannot cast from type `uN[31]` (31 bits) to "
+                               "`sN[31]` (31 bits) with widening_cast")));
 }
 
 TEST(TypecheckV2BuiltinTest, WideningCastExplicit) {
-  EXPECT_THAT(R"(const Y = widening_cast<u31, u32>(u32:3);)",
+  EXPECT_THAT(R"(const Y = widening_cast<u31, u30>(u30:3);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[31]")));
 }
 
