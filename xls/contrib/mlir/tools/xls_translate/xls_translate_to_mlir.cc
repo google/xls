@@ -45,6 +45,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
+#include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/lsb_or_msb.h"
@@ -1264,6 +1265,41 @@ absl::StatusOr<Operation*> translateOp(::xls::CountedFor& node,
       *loc, result_type, *initial_value, invar_args, trip_count, *body, stride);
 }
 
+absl::StatusOr<Operation*> translateOp(::xls::Trace& node, OpBuilder& builder,
+                                       MLIRContext* ctx,
+                                       TranslationState& state) {
+  auto token = state.getMlirValue(node.token()->id());
+  if (!token.ok()) {
+    return token.status();
+  }
+
+  auto predicate = state.getMlirValue(node.condition()->id());
+  if (!predicate.ok()) {
+    return predicate.status();
+  }
+
+  SmallVector<Value> args_vec;
+  for (auto* xls_operand : node.args()) {
+    auto arg = state.getMlirValue(xls_operand->id());
+    if (!arg.ok()) {
+      return arg.status();
+    }
+    args_vec.push_back(*arg);
+  }
+  ValueRange args(args_vec);
+
+  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto loc = translateLoc(node.loc(), builder, state);
+  if (!loc.ok()) {
+    return loc.status();
+  }
+
+  return builder.create<xls::TraceOp>(
+      *loc, result_type, *token, *predicate, args,
+      builder.getStringAttr(::xls::StepsToXlsFormatString(node.format())),
+      builder.getI64IntegerAttr(node.verbosity()));
+}
+
 absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
                                           OpBuilder& builder, MLIRContext* ctx,
                                           TranslationState& state) {
@@ -1333,6 +1369,8 @@ absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
   } else if (auto* xls_op = dynamic_cast<::xls::Gate*>(&xls_node)) {
     op = translateOp(*xls_op, builder, ctx, state);
   } else if (auto* xls_op = dynamic_cast<::xls::CountedFor*>(&xls_node)) {
+    op = translateOp(*xls_op, builder, ctx, state);
+  } else if (auto* xls_op = dynamic_cast<::xls::Trace*>(&xls_node)) {
     op = translateOp(*xls_op, builder, ctx, state);
   } else if (dynamic_cast<::xls::Param*>(&xls_node)) {
     return absl::InternalError(

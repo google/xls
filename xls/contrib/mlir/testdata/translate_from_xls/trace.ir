@@ -1,0 +1,12 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+// CHECK-LABEL:   func.func @test_trace(
+// CHECK-SAME:                          %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !xls.token,
+// CHECK-SAME:                          %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i1,
+// CHECK-SAME:                          %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i1) -> !xls.token {
+// CHECK:           %[[VAL_3:.*]] = xls.trace %[[VAL_0]], %[[VAL_1]], "Hello. val={}"(%[[VAL_2]]) : i1
+fn test_trace(tok: token id=1, activated: bits[1] id=2, val: bits[1] id=3) -> token {
+  ret trace.4 : token = trace(tok, activated, format="Hello. val={}", data_operands=[val], id=4)
+}
