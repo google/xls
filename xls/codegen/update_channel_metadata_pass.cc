@@ -26,10 +26,10 @@ absl::StatusOr<bool> UpdateChannelMetadataPass::RunInternal(
     CodegenPassResults* results) const {
   bool changed = false;
 
-  for (auto& [fb, block] : unit->function_base_to_block_) {
+  for (auto& [fb, block] : unit->function_base_to_block()) {
     if (fb->IsProc()) {
       XLS_RETURN_IF_ERROR(UpdateChannelMetadata(
-          unit->metadata[block].streaming_io_and_pipeline, block));
+          unit->GetMetadataForBlock(block).streaming_io_and_pipeline, block));
     }
   }
 

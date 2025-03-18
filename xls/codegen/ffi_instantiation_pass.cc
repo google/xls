@@ -152,7 +152,7 @@ absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
   std::vector<Node*> to_remove;
-  for (const std::unique_ptr<Block>& block : unit->package->blocks()) {
+  for (const std::unique_ptr<Block>& block : unit->package()->blocks()) {
     for (Node* node : block->nodes()) {
       if (!node->Is<Invoke>()) {
         continue;

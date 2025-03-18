@@ -49,19 +49,19 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
   XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(context)
                           ->Run(&unit, codegen_pass_options, &results)
                           .status());
-  XLS_RET_CHECK_NE(unit.top_block, nullptr);
-  XLS_RET_CHECK(unit.metadata.contains(unit.top_block));
-  XLS_RET_CHECK(unit.metadata.at(unit.top_block).signature.has_value());
+  XLS_RET_CHECK_NE(unit.top_block(), nullptr);
+  XLS_RET_CHECK(unit.metadata().contains(unit.top_block()));
+  XLS_RET_CHECK(unit.metadata().at(unit.top_block()).signature.has_value());
   VerilogLineMap verilog_line_map;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
-      GenerateVerilog(unit.top_block, options, &verilog_line_map));
+      GenerateVerilog(unit.top_block(), options, &verilog_line_map));
 
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
   return ModuleGeneratorResult{
       verilog, verilog_line_map,
-      unit.metadata.at(unit.top_block).signature.value()};
+      unit.metadata().at(unit.top_block()).signature.value()};
 }
 
 }  // namespace verilog

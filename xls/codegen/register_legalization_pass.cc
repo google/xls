@@ -41,7 +41,7 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
   // block->GetRegisters(). Removing the registers later requires a pointer to
   // the block that contains the register.
   std::vector<std::pair<Block*, Register*>> to_remove;
-  for (const std::unique_ptr<Block>& block : unit->package->blocks()) {
+  for (const std::unique_ptr<Block>& block : unit->package()->blocks()) {
     for (Register* reg : block->GetRegisters()) {
       if (reg->type()->GetFlatBitCount() == 0) {
         to_remove.push_back(std::make_pair(block.get(), reg));
@@ -75,7 +75,7 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
     unit->GcMetadata();
     // Pull the registers out of pipeline-register & state list if they are
     // there.
-    for (auto& [block, metadata] : unit->metadata) {
+    for (auto& [block, metadata] : unit->metadata()) {
       for (std::optional<StateRegister>& reg :
            metadata.streaming_io_and_pipeline.state_registers) {
         if (reg.has_value() && removed_regs.contains(reg->reg)) {

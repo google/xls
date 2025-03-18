@@ -37,7 +37,7 @@ namespace xls::verilog {
 namespace {
 
 absl::Status CheckNodeToStageMap(const CodegenPassUnit& unit) {
-  for (const auto& [block, metadata] : unit.metadata) {
+  for (const auto& [block, metadata] : unit.metadata()) {
     XLS_RET_CHECK_EQ(
         metadata.streaming_io_and_pipeline.node_to_stage_map.size(),
         absl::c_count_if(
@@ -165,11 +165,11 @@ absl::Status CodegenChecker::Run(CodegenPassUnit* unit,
                                  const CodegenPassOptions& options,
                                  CodegenPassResults* results) const {
   XLS_RETURN_IF_ERROR(CheckNodeToStageMap(*unit)) << unit->DumpIr();
-  for (const auto& [block, metadata] : unit->metadata) {
+  for (const auto& [block, metadata] : unit->metadata()) {
     XLS_RETURN_IF_ERROR(
         CheckStreamingIO(metadata.streaming_io_and_pipeline, block));
   }
-  return VerifyPackage(unit->package);
+  return VerifyPackage(unit->package());
 }
 
 }  // namespace xls::verilog

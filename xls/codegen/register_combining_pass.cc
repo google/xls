@@ -164,7 +164,7 @@ absl::StatusOr<bool> RegisterCombiningPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
   bool changed = false;
-  for (auto& [block, metadata] : unit->metadata) {
+  for (auto& [block, metadata] : unit->metadata()) {
     XLS_ASSIGN_OR_RETURN(bool block_changed,
                          RunOnBlock(block, metadata, options));
     changed = changed || block_changed;

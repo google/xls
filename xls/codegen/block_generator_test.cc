@@ -832,7 +832,7 @@ TEST_P(BlockGeneratorTest, AssertFmtOnlyConsumerOfReset) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string verilog,
       GenerateVerilog(
-          unit.top_block,
+          unit.top_block(),
           options.SetOpOverride(
               Op::kAssert,
               std::make_unique<OpOverrideAssertion>(
@@ -1691,9 +1691,9 @@ proc running_sum(first_cycle: bits[1], init={1}) {
                                                      schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block));
+                           GenerateSignature(options, unit.top_block()));
 
   verilog = absl::StrCat("`include \"fifo.v\"\n\n", verilog);
 
@@ -1795,13 +1795,13 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
                                                      schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
 
   VLOG(3) << "Verilog:";
   XLS_VLOG_LINES(3, verilog);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block));
+                           GenerateSignature(options, unit.top_block()));
 
   ModuleSimulator simulator = NewModuleSimulator(verilog, sig);
 
@@ -1881,10 +1881,10 @@ proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
                                                      schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block));
+                           GenerateSignature(options, unit.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -1939,10 +1939,10 @@ proc bad_alternator(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
                                                      schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block));
+                           GenerateSignature(options, unit.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -1995,10 +1995,10 @@ proc lookup_proc(x: bits[1], z: bits[1], init={0, 0}) {
                                                      schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block));
+                           GenerateSignature(options, unit.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2212,10 +2212,10 @@ proc mux_proc(tkn: token, init={token}) {
                                                      schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block));
+                           GenerateSignature(options, unit.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2268,10 +2268,10 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
                            FunctionToCombinationalBlock(f, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block));
+                           GenerateSignature(options, unit.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2303,10 +2303,10 @@ TEST_P(BlockGeneratorTest, ArrayIndexBounds) {
                            FunctionToCombinationalBlock(f, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block));
+                           GenerateSignature(options, unit.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2357,10 +2357,10 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
                            FunctionToCombinationalBlock(f, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block));
+                           GenerateSignature(options, unit.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2413,10 +2413,10 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
                            FunctionToCombinationalBlock(f, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block));
+                           GenerateSignature(options, unit.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2542,7 +2542,7 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
   XLS_ASSERT_OK(passes->Run(&unit, codegen_pass_options, &results));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2586,7 +2586,7 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
   XLS_ASSERT_OK(passes->Run(&unit, codegen_pass_options, &results));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block, options));
+                           GenerateVerilog(unit.top_block(), options));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);

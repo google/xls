@@ -466,11 +466,13 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
   port_order.push_back(std::string{options.output_port_name()});
   XLS_RETURN_IF_ERROR(block->ReorderPorts(port_order));
 
-  unit.metadata[block] = CodegenMetadata{
-      .streaming_io_and_pipeline = std::move(streaming_io_and_pipeline),
-      .conversion_metadata = function_metadata,
-      .concurrent_stages = std::move(concurrent_stages),
-  };
+  unit.SetMetadataForBlock(
+      block,
+      CodegenMetadata{
+          .streaming_io_and_pipeline = std::move(streaming_io_and_pipeline),
+          .conversion_metadata = function_metadata,
+          .concurrent_stages = std::move(concurrent_stages),
+      });
 
   return absl::OkStatus();
 }
@@ -762,7 +764,7 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
                             return p.name() == param->name();
                           });
       if (name != func_interface->parameters().end() && name->has_sv_type()) {
-        unit.metadata[block]
+        unit.GetMetadataForBlock(block)
             .streaming_io_and_pipeline
             .input_port_sv_type[node_map[param]->As<InputPort>()] =
             name->sv_type();
@@ -788,11 +790,12 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
                        block->AddOutputPort(options.output_port_name(),
                                             node_map.at(f->return_value())));
   if (func_interface && func_interface->has_sv_result_type()) {
-    unit.metadata[block].streaming_io_and_pipeline.output_port_sv_type[output] =
+    unit.GetMetadataForBlock(block)
+        .streaming_io_and_pipeline.output_port_sv_type[output] =
         func_interface->sv_result_type();
   }
 
-  unit.metadata[block]
+  unit.GetMetadataForBlock(block)
       .conversion_metadata.emplace<FunctionConversionMetadata>();
   unit.GcMetadata();
   return unit;
@@ -860,17 +863,20 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
   CodegenPassUnit unit(block->package(), block);
-  unit.metadata[unit.top_block] = CodegenMetadata{
-      .streaming_io_and_pipeline = std::move(streaming_io),
-      .conversion_metadata = ProcConversionMetadata(),
-      .concurrent_stages = std::nullopt,
-  };
+  unit.SetMetadataForBlock(
+      unit.top_block(),
+      CodegenMetadata{
+          .streaming_io_and_pipeline = std::move(streaming_io),
+          .conversion_metadata = ProcConversionMetadata(),
+          .concurrent_stages = std::nullopt,
+      });
   XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(&unit));
   VLOG(3) << "After RemoveDeadTokenNodes";
   XLS_VLOG_LINES(3, unit.DumpIr());
 
   XLS_RETURN_IF_ERROR(UpdateChannelMetadata(
-      unit.metadata[unit.top_block].streaming_io_and_pipeline, unit.top_block));
+      unit.GetMetadataForBlock(unit.top_block()).streaming_io_and_pipeline,
+      unit.top_block()));
   VLOG(3) << "After UpdateChannelMetadata";
   XLS_VLOG_LINES(3, unit.DumpIr());
 

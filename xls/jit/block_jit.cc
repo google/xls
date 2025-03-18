@@ -80,7 +80,7 @@ class CheckNoInstantiationsOnTop : public verilog::CodegenPass {
       verilog::CodegenPassUnit* unit,
       const verilog::CodegenPassOptions& options,
       verilog::CodegenPassResults* results) const final {
-    XLS_RET_CHECK(unit->top_block->GetInstantiations().empty())
+    XLS_RET_CHECK(unit->top_block()->GetInstantiations().empty())
         << "Jit is unable to implement instantiations.";
     return false;
   }
@@ -228,7 +228,7 @@ absl::StatusOr<ElaborationJitData> CloneElaborationPackage(
       PrepareForJitPassPipeline()->Run(&pass_unit, opts, &results).status());
   return ElaborationJitData{
       .cloned_package = std::move(jit_package),
-      .inlined_block = pass_unit.top_block,
+      .inlined_block = pass_unit.top_block(),
       .renamed_registers = std::move(results.register_renames),
       .added_registers = std::move(results.inserted_registers),
   };

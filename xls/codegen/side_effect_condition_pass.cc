@@ -25,7 +25,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/conversion_utils.h"
 #include "xls/common/status/ret_check.h"
@@ -129,12 +128,11 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
   //     this by looking for a schedule. If there's no schedule, assume that
   //     we're looking at something produced by the combinational generator.
   bool changed = false;
-  for (std::unique_ptr<Block>& block : unit->package->blocks()) {
-    auto metadata_itr = unit->metadata.find(block.get());
-    if (metadata_itr == unit->metadata.end()) {
+  for (std::unique_ptr<Block>& block : unit->package()->blocks()) {
+    if (!unit->HasMetadataForBlock(block.get())) {
       continue;
     }
-    const CodegenMetadata& metadata = metadata_itr->second;
+    const CodegenMetadata& metadata = unit->GetMetadataForBlock(block.get());
     bool is_function = std::holds_alternative<FunctionConversionMetadata>(
         metadata.conversion_metadata);
     if (is_function && (!options.codegen_options.valid_control().has_value() ||

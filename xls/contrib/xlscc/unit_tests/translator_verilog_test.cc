@@ -143,10 +143,10 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
       xls::verilog::ProcToCombinationalBlock(proc, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string verilog,
-      xls::verilog::GenerateVerilog(unit.top_block, codegen_options()));
+      xls::verilog::GenerateVerilog(unit.top_block(), codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(
       xls::verilog::ModuleSignature signature,
-      xls::verilog::GenerateSignature(codegen_options(), unit.top_block));
+      xls::verilog::GenerateSignature(codegen_options(), unit.top_block()));
 
   VLOG(1) << package.DumpIr() << std::endl;
 
@@ -283,11 +283,11 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
       xls::verilog::ProcToCombinationalBlock(proc, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(
       xls::verilog::ModuleSignature signature,
-      xls::verilog::GenerateSignature(codegen_options(), unit.top_block));
+      xls::verilog::GenerateSignature(codegen_options(), unit.top_block()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string verilog,
-      xls::verilog::GenerateVerilog(unit.top_block, codegen_options()));
+      xls::verilog::GenerateVerilog(unit.top_block(), codegen_options()));
 
   VLOG(1) << package.DumpIr() << std::endl;
 

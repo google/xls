@@ -384,7 +384,7 @@ absl::StatusOr<bool> NameLegalizationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
   bool changed = false;
-  for (const std::unique_ptr<Block>& block : unit->package->blocks()) {
+  for (const std::unique_ptr<Block>& block : unit->package()->blocks()) {
     XLS_ASSIGN_OR_RETURN(
         bool block_changed,
         LegalizeNames(block.get(),

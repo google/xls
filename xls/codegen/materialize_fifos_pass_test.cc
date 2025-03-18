@@ -89,10 +89,10 @@ class MaterializeFifosPassTestHelper {
     CodegenPassResults res;
     XLS_ASSIGN_OR_RETURN(auto changed, mfp.Run(&pu, opt, &res));
     XLS_RET_CHECK(changed);
-    XLS_RET_CHECK_EQ(pu.top_block->GetInstantiations().size(), 1);
+    XLS_RET_CHECK_EQ(pu.top_block()->GetInstantiations().size(), 1);
     XLS_ASSIGN_OR_RETURN(
         auto bi,
-        pu.top_block->GetInstantiations().front()->AsBlockInstantiation());
+        pu.top_block()->GetInstantiations().front()->AsBlockInstantiation());
     return bi->instantiated_block();
   }
 

@@ -111,7 +111,7 @@ TEST(BlockMetricsGeneratorTest, PipelineRegistersCount) {
           f));
 
   XLS_ASSERT_OK_AND_ASSIGN(BlockMetricsProto proto,
-                           GenerateBlockMetrics(unit.top_block));
+                           GenerateBlockMetrics(unit.top_block()));
 
   EXPECT_EQ(proto.flop_count(), schedule.CountFinalInteriorPipelineRegisters());
 }
@@ -244,7 +244,7 @@ TEST(BlockMetricsGeneratorTest, BillOfMaterials) {
           f));
 
   XLS_ASSERT_OK_AND_ASSIGN(BlockMetricsProto proto,
-                           GenerateBlockMetrics(unit.top_block));
+                           GenerateBlockMetrics(unit.top_block()));
 
   EXPECT_EQ(proto.bill_of_materials_size(), 6);
   EXPECT_EQ(proto.bill_of_materials(0).op(), ToOpProto(Op::kInputPort));

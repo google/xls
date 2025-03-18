@@ -1279,7 +1279,7 @@ TEST_F(ProcInliningPassTest, NestedProcs) {
 
   EXPECT_EQ(p->blocks().size(), 3);  // 2 leaf + 1 container
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3}}},
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}},
                         /*num_cycles=*/10),
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
 }
@@ -1321,7 +1321,7 @@ TEST_F(ProcInliningPassTest, NestedProcsFifoDepth1) {
 
   EXPECT_EQ(p->blocks().size(), p->procs().size() + 1);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3}}},
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
 }
@@ -1396,7 +1396,7 @@ TEST_F(ProcInliningPassTest, NestedProcsWithNonzeroFifoDepth) {
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
 }
 
@@ -1431,7 +1431,7 @@ TEST_F(ProcInliningPassTest, NestedProcsWithSingleValue) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata, {{"in", {1}}}),
+      EvalBlock(top_block, unit.metadata(), {{"in", {1}}}),
       // Single value outputs show up for every cycle.
       IsOkAndHolds(BlockOutputsMatch(ElementsAre(Pair("out", Each(Eq(2)))))));
 }
@@ -1479,7 +1479,7 @@ TEST_F(ProcInliningPassTest, NestedProcsWithConditionalSingleValueSend) {
   EXPECT_TRUE(changed);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3, 4, 5}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 4, 5}}}),
               IsOkAndHolds(BlockOutputsMatch(ElementsAre(
                   // send_if is not specially codegen'd for single value
                   // channels, nor is the value retained. It's just a direct
@@ -1525,7 +1525,7 @@ TEST_F(ProcInliningPassTest, NestedProcPassThrough) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {123, 22, 42}}},
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
@@ -1576,7 +1576,7 @@ TEST_F(ProcInliningPassTest, NestedProcDelayedPassThrough) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {123, 22, 42}}},
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {246, 44, 84}}})));
 }
@@ -1622,7 +1622,7 @@ TEST_F(ProcInliningPassTest, InputPlusDelayedInput) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {123, 22, 42}}},
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}},
                         /*num_cycles=*/168),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
@@ -1681,7 +1681,7 @@ TEST_F(ProcInliningPassTest, NestedProcsTrivialInnerLoop) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3}}},
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 42, 42}}})));
 }
@@ -1725,7 +1725,7 @@ TEST_F(ProcInliningPassTest, NestedProcsIota) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {},
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {},
                         /*num_cycles=*/3),
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 43, 44}}})));
 }
@@ -1772,7 +1772,7 @@ TEST_F(ProcInliningPassTest, NestedProcsOddIota) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {},
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {43, 45, 47, 49}}})));
 }
@@ -1853,7 +1853,7 @@ TEST_F(ProcInliningPassTest, SynchronizedNestedProcs) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3}}},
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {43, 44, 45}}})));
 }
@@ -1923,7 +1923,7 @@ TEST_F(ProcInliningPassTest, NestedProcsNontrivialInnerLoop) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {7, 8, 9}}})));
 }
 
@@ -1978,7 +1978,7 @@ TEST_F(ProcInliningPassTest, DoubleNestedProcsPassThrough) {
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {123, 22, 42}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
 
@@ -2049,7 +2049,7 @@ TEST_F(ProcInliningPassTest, SequentialNestedProcsPassThrough) {
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {123, 22, 42}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
 
@@ -2140,7 +2140,7 @@ TEST_F(ProcInliningPassTest, SequentialNestedLoopingProcsWithState) {
 
   EXPECT_EQ(p->blocks().size(), 5);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {0, 1, 2}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {0, 1, 2}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {13, 14, 15}}})));
 }
 
@@ -2209,7 +2209,7 @@ TEST_F(ProcInliningPassTest, SequentialNestedProcsWithLoops) {
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {123, 22, 42}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {246, 44, 84}}})));
 }
 
@@ -2329,7 +2329,7 @@ TEST_F(ProcInliningPassTest, DoubleNestedLoops) {
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 100, 100000}}},
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 100, 100000}}},
                         /*num_cycles=*/16),
               IsOkAndHolds(BlockOutputsEq({{"out", {16, 116, 100116}}})));
 }
@@ -2407,7 +2407,7 @@ TEST_F(ProcInliningPassTest, MultiIO) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata,
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
                         {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}}),
               IsOkAndHolds(BlockOutputsEq({{"x_plus_y_out", {133, 42, 72}},
                                            {"x_minus_y_out", {113, 2, 12}}})));
@@ -2472,7 +2472,7 @@ TEST_F(ProcInliningPassTest, NonTopProcsWithExternalStreamingIO) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata,
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
                         {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}},
                         /*num_cycles=*/15),
               IsOkAndHolds(BlockOutputsEq({{"x_plus_y_out", {133, 42, 72}},
@@ -2535,7 +2535,7 @@ TEST_F(ProcInliningPassTest, NonTopProcsWithExternalSingleValueIO) {
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata,
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
                         {{"x", {123, 22, 42}}, {"y_sv", {10}}},
                         /*num_cycles=*/15),
               IsOkAndHolds(BlockOutputsEq({{"x_plus_y_out", {133, 32, 52}},
@@ -2599,12 +2599,12 @@ TEST_F(ProcInliningPassTest, SingleValueAndStreamingChannels) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata, {{"x", {123, 22, 42}}, {"sv", {10}}}),
-      IsOkAndHolds(BlockOutputsEq({{"sum", {133, 32, 52}}})));
-  EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata, {{"x", {123, 22, 42}}, {"sv", {25}}}),
-      IsOkAndHolds(BlockOutputsEq({{"sum", {148, 47, 67}}})));
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
+                        {{"x", {123, 22, 42}}, {"sv", {10}}}),
+              IsOkAndHolds(BlockOutputsEq({{"sum", {133, 32, 52}}})));
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
+                        {{"x", {123, 22, 42}}, {"sv", {25}}}),
+              IsOkAndHolds(BlockOutputsEq({{"sum", {148, 47, 67}}})));
 }
 
 TEST_F(ProcInliningPassTest, TriangleProcNetwork) {
@@ -2694,7 +2694,7 @@ TEST_F(ProcInliningPassTest, TriangleProcNetwork) {
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {123, 22, 42}}},
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}},
                         /*num_cycles=*/30),
               IsOkAndHolds(BlockOutputsEq({{"out", {369, 66, 126}}})));
 }
@@ -2753,7 +2753,7 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth0) {
   EXPECT_THAT(p->blocks().size(), 3);
 
   EXPECT_THAT(
-      EvalBlock(p->GetBlock("A").value(), unit.metadata, {{"in", {1, 2, 3}}}),
+      EvalBlock(p->GetBlock("A").value(), unit.metadata(), {{"in", {1, 2, 3}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {43, 44, 45}}})));
 }
 
@@ -2811,7 +2811,7 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithNoDataLossFifoDepth1Variant0) {
   EXPECT_EQ(p->blocks().size(), 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {43, 44, 45}}})));
 }
 
@@ -2874,7 +2874,7 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithNoDataLossFifoDepth1Variant1) {
   EXPECT_EQ(p->blocks().size(), 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 43, 44}}})));
 }
 
@@ -2938,7 +2938,7 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth1) {
   // For proc inlining, inlined channels could not backpressure and this would
   // be an assertion failure. With block stitching, the FIFO will backpressure
   // and you get the same behavior as the proc network.
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 42, 43}}})));
 }
 
@@ -2999,7 +2999,7 @@ TEST_F(ProcInliningPassTest, DataLoss) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3, 4, 5}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 4, 5}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {1, 2, 3}}})));
 }
 
@@ -3072,7 +3072,7 @@ TEST_F(ProcInliningPassTest, BlockingReceiveBlocksSendsForDepth0Fifos) {
   // backpressure and you get the same behavior as the proc network.
   EXPECT_EQ(p->blocks().size(), 3);
   EXPECT_THAT(
-      EvalBlock(p->GetBlock("A").value(), unit.metadata, {{"in", {1, 2, 3}}}),
+      EvalBlock(p->GetBlock("A").value(), unit.metadata(), {{"in", {1, 2, 3}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {}}})));
 }
 
@@ -3170,7 +3170,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
   // A, B, adapter, and the top block.
   EXPECT_EQ(p->blocks().size(), 4);
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata, {{"x", {2, 5, 7}}, {"y", {10}}}),
+      EvalBlock(top_block, unit.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
       IsOkAndHolds(BlockOutputsEq(
           {{"result0_out", {4, 14, 28}}, {"result1_out", {20, 40, 60}}})));
 }
@@ -3252,7 +3252,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_EQ(p->blocks().size(), 4);
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata, {{"x", {2, 5, 7}}, {"y", {10}}}),
+      EvalBlock(top_block, unit.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
       IsOkAndHolds(BlockOutputsEq(
           {{"result0_out", {6, 18, 34}}, {"result1_out", {22, 44, 66}}})));
 }
@@ -3332,7 +3332,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata, {{"x", {2, 5, 7}}, {"y", {10}}}),
+      EvalBlock(top_block, unit.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
       IsOkAndHolds(BlockOutputsEq(
           {{"result0_out", {20, 40, 60}}, {"result1_out", {24, 54, 88}}})));
 }
@@ -3412,7 +3412,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata, {{"x", {2, 5, 7}}, {"y", {10}}}),
+      EvalBlock(top_block, unit.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
       IsOkAndHolds(BlockOutputsEq(
           {{"result0_out", {4, 14, 28}}, {"result1_out", {24, 54, 88}}})));
 }
@@ -3471,7 +3471,7 @@ TEST_F(ProcInliningPassTest, TokenFanIn) {
   EXPECT_EQ(p->blocks().size(), 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata,
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
                         {{"in0", {2, 5, 7}}, {"in1", {10, 20, 30}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {12, 25, 37}}})));
 }
@@ -3563,7 +3563,7 @@ TEST_F(ProcInliningPassTest, TokenFanOut) {
   LOG(INFO) << p->DumpIr();
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {2, 5, 7}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {2, 5, 7}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {10, 19, 25}}})));
 }
 
@@ -3759,8 +3759,9 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
 
     VLOG(1) << "Sample " << sample << " (after inlining):\n" << p->DumpIr();
     XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("top_proc"));
-    EXPECT_THAT(EvalBlock(top_block, unit.metadata, inputs, /*num_cycles=*/100),
-                IsOkAndHolds(BlockOutputsEq(expected_outputs)));
+    EXPECT_THAT(
+        EvalBlock(top_block, unit.metadata(), inputs, /*num_cycles=*/100),
+        IsOkAndHolds(BlockOutputsEq(expected_outputs)));
   }
 }
 
@@ -3813,7 +3814,7 @@ TEST_F(ProcInliningPassTest, DataDependencyWithoutTokenDependency) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {123, 22, 42}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {246, 44, 84}}})));
 }
 
@@ -3881,7 +3882,7 @@ TEST_F(ProcInliningPassTest, ReceivedValueSentAndNext) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {5, 7, 13}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {5, 7, 13}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {5, 12, 20}}})));
 }
 
@@ -3946,7 +3947,7 @@ TEST_F(ProcInliningPassTest, OffsetSendAndReceive) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {}, /*num_cycles=*/80),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {}, /*num_cycles=*/80),
               IsOkAndHolds(BlockOutputsEq({{"out", {0, 16, 32, 48, 64}}})));
 }
 
@@ -4024,7 +4025,7 @@ TEST_F(ProcInliningPassTest, InliningProducesCycle) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {}, /*num_cycles=*/6),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {}, /*num_cycles=*/6),
               IsOkAndHolds(BlockOutputsEq({{"out", {0, 1, 2, 3}}})));
 }
 
@@ -4080,7 +4081,7 @@ TEST_F(ProcInliningPassTest, MultipleSends) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       // Seems to hang on last output unless you give another input.
-      EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3, 42, 123, 200}}}),
+      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123, 200}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123, 210}}})));
 }
 
@@ -4134,8 +4135,9 @@ TEST_F(ProcInliningPassTest, MultipleSendsInDifferentOrder) {
   // top, A, B, and adapter
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3, 42, 123}}}),
-              IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
+      IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
 }
 
 TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth0) {
@@ -4189,8 +4191,9 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth0) {
   // top, A, B, and adapter
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3, 42, 123}}}),
-              IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
+      IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
 }
 
 TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth1) {
@@ -4244,8 +4247,9 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth1) {
   // top, A, B, and adapter
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3, 42, 123}}}),
-              IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
+      IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
 }
 
 TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTick) {
@@ -4310,7 +4314,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTick) {
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3, 42, 123, 333}}}),
+      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123, 333}}}),
       // EvalBlock() runs further and produces all outputs.
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 3, 5, 0, 42, 124, 335, 0}}})));
 }
@@ -4381,7 +4385,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTickFifoDepth0) {
   EXPECT_EQ(p->blocks().size(), 4);
 
   EXPECT_THAT(
-      EvalBlock(p->GetBlock("A").value(), unit.metadata,
+      EvalBlock(p->GetBlock("A").value(), unit.metadata(),
                 {{"in", {1, 2, 3, 42, 123, 333}}}),
       // EvalBlock() runs further and produces all outputs.
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 3, 5, 0, 42, 124, 335, 0}}})));
@@ -4454,9 +4458,10 @@ TEST_F(ProcInliningPassTest, MultipleSendsAndReceives) {
   // top, A, B, send adapter, and receive adapter
   EXPECT_EQ(p->blocks().size(), 5);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3, 42, 123}}},
-                        /*num_cycles=*/2000),
-              IsOkAndHolds(BlockOutputsEq({{"out", {11, 102, 13, 142, 133}}})));
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123}}},
+                /*num_cycles=*/2000),
+      IsOkAndHolds(BlockOutputsEq({{"out", {11, 102, 13, 142, 133}}})));
 }
 
 TEST_F(ProcInliningPassTest, ReceiveIfsWithFalseCondition) {
@@ -4514,9 +4519,10 @@ TEST_F(ProcInliningPassTest, ReceiveIfsWithFalseCondition) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3, 42, 123}}}),
-              IsOkAndHolds(BlockOutputsEq({{"out0", {100, 102, 100, 142, 100}},
-                                           {"out1", {1, 0, 3, 0, 123}}})));
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
+      IsOkAndHolds(BlockOutputsEq(
+          {{"out0", {100, 102, 100, 142, 100}}, {"out1", {1, 0, 3, 0, 123}}})));
 }
 
 TEST_F(ProcInliningPassTest, ProcsWithDifferentII) {
@@ -4556,7 +4562,7 @@ TEST_F(ProcInliningPassTest, ProcsWithDifferentII) {
   EXPECT_TRUE(changed);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
 }
 
@@ -4610,7 +4616,7 @@ TEST_F(ProcInliningPassTest, ProcsWithNonblockingReceivesWithDroppingProc) {
                                    m::Block("arb__2")));
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("arb"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata,
+      EvalBlock(top_block, unit.metadata(),
                 {{"in0", {100, 3, 5, 7, 9, 11}}, {"in1", {0, 2, 4, 6, 8, 10}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {100, 0, 2, 4, 6, 8, 10}}})));
 }
@@ -4658,7 +4664,7 @@ TEST_F(ProcInliningPassTest,
                                    m::Block("arb")));
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("accum"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata,
+      EvalBlock(top_block, unit.metadata(),
                 {{"in0", {100, 200, 300}}, {"in1", {0, 2, 4, 6, 8, 10}}}),
       IsOkAndHolds(
           // Arbiter is latency sensitive, so we get the same outputs in a
@@ -4717,12 +4723,12 @@ TEST_F(ProcInliningPassTest, ProcWithAssert) {
 
   // Eval without tripping the assertion
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("loopback"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {100, 200, 300}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {100, 200, 300}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {100, 200, 300}}})));
 
   // Eval with a zero input, which should trip the assertion.
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata, {{"in", {100, 200, 300, 0}}}),
+      EvalBlock(top_block, unit.metadata(), {{"in", {100, 200, 300, 0}}}),
       IsOkAndHolds(Field(
           "interpreter_events", &BlockEvaluationResults::interpreter_events,
           Field("assert_msgs", &InterpreterEvents::assert_msgs,
@@ -4773,8 +4779,9 @@ TEST_F(ProcInliningPassTest, ProcWithCover) {
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("loopback"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"in", {100, 200, 300, 0}}}),
-              IsOkAndHolds(BlockOutputsEq({{"out", {100, 200, 300, 0}}})));
+  EXPECT_THAT(
+      EvalBlock(top_block, unit.metadata(), {{"in", {100, 200, 300, 0}}}),
+      IsOkAndHolds(BlockOutputsEq({{"out", {100, 200, 300, 0}}})));
 }
 
 TEST_F(ProcInliningPassTest, ProcWithGate) {
@@ -4821,7 +4828,7 @@ TEST_F(ProcInliningPassTest, ProcWithGate) {
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("loopback"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata,
+      EvalBlock(top_block, unit.metadata(),
                 {{"in", {0, 1, 2, 99, 100, 200, 300, 1000}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {0, 1, 2, 99, 100, 0, 0, 0}}})));
 }
@@ -4882,7 +4889,7 @@ TEST_F(ProcInliningPassTest, ProcWithTrace) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("trace_not_zero"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata,
+      EvalBlock(top_block, unit.metadata(),
                 {{"in", {100, 200, 300, 0, 400, 0, 500}}},
                 /*num_cycles=*/45),
       IsOkAndHolds(AllOf(
@@ -4984,7 +4991,7 @@ proc output_passthrough(state:(), init={()}) {
                                            m::Block("output_passthrough")));
           XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("foo"));
           EXPECT_THAT(
-              EvalBlock(top_block, unit.metadata, {{"in", {5, 10}}}),
+              EvalBlock(top_block, unit.metadata(), {{"in", {5, 10}}}),
               IsOkAndHolds(BlockOutputsMatch(UnorderedElementsAre(
                   // Latency sensitivity means we don't necessarily get the same
                   // output order, but we should see 5 and 10 once each and all
@@ -5089,7 +5096,7 @@ proc output_passthrough(state: bits[1], init={1}) {
     }
     // No backpressure.
     EXPECT_THAT(
-        EvalBlock(top_block, unit.metadata, {{"in", {5, 10}}},
+        EvalBlock(top_block, unit.metadata(), {{"in", {5, 10}}},
                   /*num_cycles=*/no_backpressure_cycles),
         IsOkAndHolds(BlockOutputsMatch(UnorderedElementsAre(
             // Latency sensitivity means we don't necessarily get the same
@@ -5101,7 +5108,7 @@ proc output_passthrough(state: bits[1], init={1}) {
 
     // Yes backpressure.
     EXPECT_THAT(
-        EvalBlock(top_block, unit.metadata, {{"in", {4, 10}}},
+        EvalBlock(top_block, unit.metadata(), {{"in", {4, 10}}},
                   /*num_cycles=*/yes_backpressure_cycles),
         IsOkAndHolds(BlockOutputsMatch(UnorderedElementsAre(
             // Latency sensitivity means we don't necessarily get the same
@@ -5165,7 +5172,7 @@ proc output_passthrough(state:bits[1], init={0}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("foo"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata, {{"in", {5, 10}}}),
+      EvalBlock(top_block, unit.metadata(), {{"in", {5, 10}}}),
       IsOkAndHolds(BlockOutputsEq({{"out0", {5, 10}}, {"out1", {5, 10}}})));
 }
 
@@ -5219,7 +5226,7 @@ proc input_passthrough(__state: (), init={()}) {
                                    m::Block("input_passthrough")));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("foo"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata, {{"data_in", {5, 10}}}),
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"data_in", {5, 10}}}),
               IsOkAndHolds(BlockOutputsEq({{"data_out", {5, 10}}})));
 }
 

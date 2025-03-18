@@ -33,12 +33,12 @@ FlopKind GetRealFlopKind(bool enabled, CodegenOptions::IOKind kind) {
 absl::StatusOr<bool> MarkChannelFifosPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
-  if (unit->package->ChannelsAreProcScoped()) {
+  if (unit->package()->ChannelsAreProcScoped()) {
     // Nothing to do for proc-scoped channels. ChannelInterfaces have a FlopKind
     // not a std::optional<FlopKind>.
   }
   bool changed = false;
-  for (Channel* chan : unit->package->channels()) {
+  for (Channel* chan : unit->package()->channels()) {
     if (chan->kind() != ChannelKind::kStreaming) {
       continue;
     }

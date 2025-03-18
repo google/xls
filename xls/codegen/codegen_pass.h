@@ -274,35 +274,34 @@ struct CodegenMetadata {
 
 // Data structure operated on by codegen passes. Contains the IR and associated
 // metadata which may be used and mutated by passes.
-struct CodegenPassUnit {
+class CodegenPassUnit {
+ public:
   // Ordering for blocks lexicographically by name.
   struct BlockByName {
     std::strong_ordering operator()(const Block* lhs, const Block* rhs) const {
       return lhs->name() <=> rhs->name();
     }
   };
-  CodegenPassUnit(Package* p, Block* b) : package(p), top_block(b) {}
 
-  // The package containing IR to lower.
-  Package* package;
-
-  // The top-level block to generate a Verilog module for.
-  absl::Nonnull<Block*> top_block;
-
-  // Metadata for pipelined blocks.
-  // TODO(google/xls#1060): refactor so conversion_metadata is in
-  // StreamingIOPipeline and more elements are split as function- or proc-only.
   using MetadataMap = absl::btree_map<Block*, CodegenMetadata, BlockByName>;
-  MetadataMap metadata;
 
-  // Sorted map from FunctionBase to schedule.
-  absl::btree_map<FunctionBase*, PipelineSchedule,
-                  struct FunctionBase::NameLessThan>
-      function_base_to_schedule_;
+  explicit CodegenPassUnit(absl::Nonnull<Package*> p, Block* b = nullptr)
+      : package_(p), top_block_(b) {}
 
-  // Sorted map from FunctionBase to block.
-  absl::btree_map<FunctionBase*, Block*, struct FunctionBase::NameLessThan>
-      function_base_to_block_;
+  Package* package() { return package_; }
+
+  // Has a top block been set?
+  bool HasTopBlock() const { return top_block_ != nullptr; }
+
+  // Returns the top block if it is set.  Dies if it does not.
+  Block* top_block() {
+    CHECK_NE(top_block_, nullptr);
+
+    return top_block_;
+  }
+
+  // Sets the top block.
+  void SetTopBlock(absl::Nonnull<Block*> b) { top_block_ = b; }
 
   // Adds necessary maps from the Schedule to FunctionBase and to the Block.
   void AssociateBlock(FunctionBase* fb, PipelineSchedule schedule,
@@ -313,17 +312,83 @@ struct CodegenPassUnit {
 
   // These methods are required by CompoundPassBase.
   std::string DumpIr() const;
+
   const std::string& name() const {
-    CHECK_NE(top_block, nullptr);
-    return top_block->name();
+    CHECK_NE(top_block_, nullptr);
+
+    return top_block_->name();
   }
   int64_t GetNodeCount() const;
   const TransformMetrics& transform_metrics() const {
-    return package->transform_metrics();
+    return package_->transform_metrics();
+  }
+
+  // Returns the metadata map.
+  MetadataMap& metadata() { return metadata_; }
+  const MetadataMap& metadata() const { return metadata_; }
+
+  // Returns true if we have metadata forthe block.
+  bool HasMetadataForBlock(absl::Nonnull<Block*> block) const {
+    return metadata_.contains(block);
+  }
+
+  // Returns the metadata for the given block (will create one if it doesn't
+  // exist).
+  CodegenMetadata& GetMetadataForBlock(absl::Nonnull<Block*> block) {
+    return metadata_[block];
+  }
+
+  void SetMetadataForBlock(absl::Nonnull<Block*> block,
+                           CodegenMetadata metadata) {
+    metadata_[block] = std::move(metadata);
   }
 
   // Clean up any dangling pointers in codegen metadata.
   void GcMetadata();
+
+  // Returns function to block mapping.
+  const absl::btree_map<FunctionBase*, Block*,
+                        struct FunctionBase::NameLessThan>&
+  function_base_to_block() const {
+    return function_base_to_block_;
+  }
+  absl::btree_map<FunctionBase*, Block*, struct FunctionBase::NameLessThan>&
+  function_base_to_block() {
+    return function_base_to_block_;
+  }
+
+  // Returns function to schedule mapping.
+  const absl::btree_map<FunctionBase*, PipelineSchedule,
+                        struct FunctionBase::NameLessThan>&
+  function_base_to_schedule() const {
+    return function_base_to_schedule_;
+  }
+  absl::btree_map<FunctionBase*, PipelineSchedule,
+                  struct FunctionBase::NameLessThan>&
+  function_base_to_schedule() {
+    return function_base_to_schedule_;
+  }
+
+ private:
+  // The package containing IR to lower.
+  Package* package_;
+
+  // Metadata for pipelined blocks.
+  // TODO(google/xls#1060): refactor so conversion_metadata is in
+  // StreamingIOPipeline and more elements are split as function- or proc-only.
+  MetadataMap metadata_;
+
+  // Sorted map from FunctionBase to schedule.
+  absl::btree_map<FunctionBase*, PipelineSchedule,
+                  struct FunctionBase::NameLessThan>
+      function_base_to_schedule_;
+
+  // Sorted map from FunctionBase to block.
+  absl::btree_map<FunctionBase*, Block*, struct FunctionBase::NameLessThan>
+      function_base_to_block_;
+
+  // The top-level block to generate a Verilog module for.
+  Block* top_block_;
 };
 
 struct CodegenPassResults : public PassResults {

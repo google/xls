@@ -29,8 +29,8 @@ absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
     CodegenPassResults* results) const {
   bool changed = false;
   VLOG(3) << absl::StreamFormat("Metadata has %d blocks",
-                                unit->metadata.size());
-  for (auto& [block, metadata] : unit->metadata) {
+                                unit->metadata().size());
+  for (auto& [block, metadata] : unit->metadata()) {
     if (metadata.signature.has_value()) {
       return absl::InvalidArgumentError("Signature already generated.");
     }

@@ -27,7 +27,7 @@ absl::StatusOr<bool> BlockMetricsGenerationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
   bool changed = false;
-  for (auto& [block, metadata] : unit->metadata) {
+  for (auto& [block, metadata] : unit->metadata()) {
     if (!metadata.signature.has_value()) {
       return absl::InvalidArgumentError(
           "Block metrics should be run after signature generation.");

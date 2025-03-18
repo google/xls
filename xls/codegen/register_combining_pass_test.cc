@@ -148,7 +148,7 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
   RecordProperty("ir", unit.DumpIr());
   // Just make sure that changes to block-conversion haven't broken us.
   ASSERT_THAT(
-      unit.top_block->GetRegisters(),
+      unit.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
           NodeToRegMatcher(st, 0), NodeToRegMatcher(st, 1),
@@ -168,7 +168,7 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
   RecordProperty("result", unit.DumpIr());
 
   EXPECT_THAT(
-      unit.top_block->GetRegisters(),
+      unit.top_block()->GetRegisters(),
 
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
@@ -229,7 +229,7 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
   RecordProperty("ir", unit.DumpIr());
   // Just make sure that changes to block-conversion haven't broken us.
   ASSERT_THAT(
-      unit.top_block->GetRegisters(),
+      unit.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st1), StateToRegFullMatcher(st1),
           NodeToRegMatcher(st1, 0), NodeToRegMatcher(st1, 1),
@@ -254,7 +254,7 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
   RecordProperty("result", unit.DumpIr());
 
   EXPECT_THAT(
-      unit.top_block->GetRegisters(),
+      unit.top_block()->GetRegisters(),
 
       UnorderedElementsAre(
           StateToRegMatcher(st1), StateToRegFullMatcher(st1),
@@ -320,7 +320,7 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
   RecordProperty("ir", unit.DumpIr());
   // Just make sure that changes to block-conversion haven't broken us.
   ASSERT_THAT(
-      unit.top_block->GetRegisters(),
+      unit.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st1), StateToRegFullMatcher(st1),
           NodeToRegMatcher(st1, 0), NodeToRegMatcher(st1, 1),
@@ -349,7 +349,7 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
   RecordProperty("result", unit.DumpIr());
 
   EXPECT_THAT(
-      unit.top_block->GetRegisters(),
+      unit.top_block()->GetRegisters(),
 
       UnorderedElementsAre(
           StateToRegMatcher(st1), StateToRegFullMatcher(st1),
@@ -407,7 +407,7 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
   RecordProperty("ir", unit.DumpIr());
   // Just make sure that changes to block-conversion haven't broken us.
   ASSERT_THAT(
-      unit.top_block->GetRegisters(),
+      unit.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
           NodeToRegMatcher(st, 0), NodeToRegMatcher(st, 1),
@@ -427,7 +427,7 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
   RecordProperty("result", unit.DumpIr());
 
   EXPECT_THAT(
-      unit.top_block->GetRegisters(),
+      unit.top_block()->GetRegisters(),
 
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
@@ -485,7 +485,7 @@ TEST_F(RegisterCombiningPassTest, DoesntApplyToPredicatedReads) {
   RecordProperty("ir", unit.DumpIr());
   // Just make sure that changes to block-conversion haven't broken us.
   ASSERT_THAT(
-      unit.top_block->GetRegisters(),
+      unit.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
           NodeToRegMatcher(st, 0), NodeToRegMatcher(st, 1),
@@ -505,7 +505,7 @@ TEST_F(RegisterCombiningPassTest, DoesntApplyToPredicatedReads) {
   RecordProperty("result", unit.DumpIr());
 
   EXPECT_THAT(
-      unit.top_block->GetRegisters(),
+      unit.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
           NodeToRegMatcher(st, 0), NodeToRegMatcher(st, 1),

@@ -41,12 +41,11 @@ absl::StatusOr<bool> PrioritySelectReductionPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
   bool changed = false;
-  for (std::unique_ptr<Block>& block : unit->package->blocks()) {
-    auto metadata_itr = unit->metadata.find(block.get());
-    if (metadata_itr == unit->metadata.end()) {
+  for (std::unique_ptr<Block>& block : unit->package()->blocks()) {
+    if (!unit->HasMetadataForBlock(block.get())) {
       continue;
     }
-    CodegenMetadata& metadata = metadata_itr->second;
+    CodegenMetadata& metadata = unit->GetMetadataForBlock(block.get());
 
     BddQueryEngine query_engine(BddQueryEngine::kDefaultPathLimit);
     XLS_RETURN_IF_ERROR(query_engine.Populate(block.get()).status());

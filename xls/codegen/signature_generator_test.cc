@@ -62,8 +62,9 @@ TEST(SignatureGeneratorTest, CombinationalBlock) {
       FunctionBaseToCombinationalBlock(f, CodegenOptions()));
 
   // Default options.
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(CodegenOptions(), unit.top_block));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleSignature sig,
+      GenerateSignature(CodegenOptions(), unit.top_block()));
 
   ASSERT_EQ(sig.data_inputs().size(), 3);
 
@@ -115,8 +116,8 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
         FunctionBaseToPipelinedBlock(schedule, codegen_options, f));
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
-        GenerateSignature(codegen_options, unit.top_block,
-                          unit.metadata[unit.top_block]
+        GenerateSignature(codegen_options, unit.top_block(),
+                          unit.GetMetadataForBlock(unit.top_block())
                               .streaming_io_and_pipeline.node_to_stage_map));
 
     ASSERT_EQ(sig.data_inputs().size(), 2);
@@ -157,8 +158,8 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
 
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
-        GenerateSignature(codegen_options, unit.top_block,
-                          unit.metadata[unit.top_block]
+        GenerateSignature(codegen_options, unit.top_block(),
+                          unit.GetMetadataForBlock(unit.top_block())
                               .streaming_io_and_pipeline.node_to_stage_map));
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 4);
@@ -176,8 +177,8 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
     // Adding flopping of the outputs should increase latency by one.
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
-        GenerateSignature(codegen_options, unit.top_block,
-                          unit.metadata[unit.top_block]
+        GenerateSignature(codegen_options, unit.top_block(),
+                          unit.GetMetadataForBlock(unit.top_block())
                               .streaming_io_and_pipeline.node_to_stage_map));
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 4);
@@ -198,8 +199,8 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
     // two.
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
-        GenerateSignature(codegen_options, unit.top_block,
-                          unit.metadata[unit.top_block]
+        GenerateSignature(codegen_options, unit.top_block(),
+                          unit.GetMetadataForBlock(unit.top_block())
                               .streaming_io_and_pipeline.node_to_stage_map));
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 5);
@@ -219,8 +220,8 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
         FunctionBaseToPipelinedBlock(schedule, codegen_options, f));
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
-        GenerateSignature(codegen_options, unit.top_block,
-                          unit.metadata[unit.top_block]
+        GenerateSignature(codegen_options, unit.top_block(),
+                          unit.GetMetadataForBlock(unit.top_block())
                               .streaming_io_and_pipeline.node_to_stage_map));
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 4);
@@ -242,8 +243,8 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
         FunctionBaseToPipelinedBlock(schedule, codegen_options, f));
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleSignature sig,
-        GenerateSignature(codegen_options, unit.top_block,
-                          unit.metadata[unit.top_block]
+        GenerateSignature(codegen_options, unit.top_block(),
+                          unit.GetMetadataForBlock(unit.top_block())
                               .streaming_io_and_pipeline.node_to_stage_map));
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 3);
@@ -297,7 +298,7 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
 
   XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
                                                      schedule, options, proc));
-  Block* block = unit.top_block;
+  Block* block = unit.top_block();
   XLS_VLOG_LINES(2, block->DumpIr());
 
   XLS_ASSERT_OK_AND_ASSIGN(

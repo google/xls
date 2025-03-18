@@ -275,7 +275,7 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
   XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
-                       BlockElaboration::Elaborate(unit->top_block));
+                       BlockElaboration::Elaborate(unit->top_block()));
   std::vector<FifoInstantiation*> insts;
   for (Block* b : elab.blocks()) {
     for (xls::Instantiation* i : b->GetInstantiations()) {
@@ -304,7 +304,7 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
 
   for (FifoInstantiation* f : insts) {
     XLS_ASSIGN_OR_RETURN(
-        impls[f], MaterializeFifo(uniquer, unit->package, f,
+        impls[f], MaterializeFifo(uniquer, unit->package(), f,
                                   *options.codegen_options.GetResetBehavior(),
                                   reset_name));
   }
@@ -342,7 +342,7 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
 
   // Record all the elaboration registers added by this new block.
   XLS_ASSIGN_OR_RETURN(BlockElaboration new_elab,
-                       BlockElaboration::Elaborate(unit->top_block));
+                       BlockElaboration::Elaborate(unit->top_block()));
   for (const auto& [i, blk] : impls) {
     for (BlockInstance* inst : new_elab.GetInstances(blk)) {
       for (Register* reg : blk->GetRegisters()) {

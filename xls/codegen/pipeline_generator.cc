@@ -77,15 +77,16 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(context)
                           ->Run(&unit, pass_options, &results)
                           .status());
-  XLS_RET_CHECK(unit.top_block != nullptr &&
-                unit.metadata.contains(unit.top_block) &&
-                unit.metadata.at(unit.top_block).signature.has_value());
+  XLS_RET_CHECK(
+      unit.top_block() != nullptr &&
+      unit.HasMetadataForBlock(unit.top_block()) &&
+      unit.GetMetadataForBlock(unit.top_block()).signature.has_value());
   VerilogLineMap verilog_line_map;
   const auto& pipeline =
-      unit.metadata.at(unit.top_block).streaming_io_and_pipeline;
+      unit.GetMetadataForBlock(unit.top_block()).streaming_io_and_pipeline;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
-      GenerateVerilog(unit.top_block, pass_options.codegen_options,
+      GenerateVerilog(unit.top_block(), pass_options.codegen_options,
                       &verilog_line_map, pipeline.input_port_sv_type,
                       pipeline.output_port_sv_type));
 
@@ -93,7 +94,7 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   // not just top.
   return ModuleGeneratorResult{
       verilog, verilog_line_map,
-      unit.metadata.at(unit.top_block).signature.value()};
+      unit.GetMetadataForBlock(unit.top_block()).signature.value()};
 }
 
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
@@ -131,15 +132,16 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(context)
                           ->Run(&unit, pass_options, &results)
                           .status());
-  XLS_RET_CHECK(unit.top_block != nullptr &&
-                unit.metadata.contains(unit.top_block) &&
-                unit.metadata.at(unit.top_block).signature.has_value());
+  XLS_RET_CHECK(
+      unit.top_block() != nullptr &&
+      unit.HasMetadataForBlock(unit.top_block()) &&
+      unit.GetMetadataForBlock(unit.top_block()).signature.has_value());
   VerilogLineMap verilog_line_map;
   const auto& pipeline =
-      unit.metadata[unit.top_block].streaming_io_and_pipeline;
+      unit.GetMetadataForBlock(unit.top_block()).streaming_io_and_pipeline;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
-      GenerateVerilog(unit.top_block, options, &verilog_line_map,
+      GenerateVerilog(unit.top_block(), options, &verilog_line_map,
                       pipeline.input_port_sv_type,
                       pipeline.output_port_sv_type));
 
@@ -147,7 +149,7 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   // not just top.
   return ModuleGeneratorResult{
       verilog, verilog_line_map,
-      unit.metadata.at(unit.top_block).signature.value()};
+      unit.GetMetadataForBlock(unit.top_block()).signature.value()};
 }
 
 }  // namespace verilog

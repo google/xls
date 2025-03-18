@@ -354,7 +354,7 @@ absl::StatusOr<bool> Ram1RWRewrite(
     const RamConfiguration& base_ram_configuration) {
   auto& ram_config =
       down_cast<const Ram1RWConfiguration&>(base_ram_configuration);
-  Block* block = unit->top_block;
+  Block* block = unit->top_block();
 
   XLS_ASSIGN_OR_RETURN(
       RamRWPortBlockPorts rw_block_ports,
@@ -528,25 +528,26 @@ absl::StatusOr<bool> Ram1RWRewrite(
   XLS_RETURN_IF_ERROR(WriteCompletionRewrite(
       block, rw_block_ports.write_completion_ports, ram_name));
 
-  auto metadata_itr = unit->metadata.find(unit->top_block);
-  if (metadata_itr != unit->metadata.end()) {
+  if (unit->HasMetadataForBlock(unit->top_block())) {
+    CodegenMetadata& metadata = unit->GetMetadataForBlock(unit->top_block());
+
     ClearRewrittenMetadata(
-        metadata_itr->second.streaming_io_and_pipeline,
+        metadata.streaming_io_and_pipeline,
         {ram_config.rw_port_configuration().request_channel_name,
          ram_config.rw_port_configuration().response_channel_name,
          ram_config.rw_port_configuration().write_completion_channel_name});
 
-    if (metadata_itr->second.signature.has_value()) {
-      ModuleSignature& signature = *metadata_itr->second.signature;
-      XLS_RETURN_IF_ERROR(
-          Ram1RWUpdateSignature(signature, ram_config, ram_name, unit->package,
-                                /*req_addr_port=*/req_addr_port,
-                                /*req_re_port=*/req_re_port,
-                                /*req_we_port=*/req_we_port,
-                                /*req_wr_data_port=*/req_wr_data_port,
-                                /*req_wr_mask_port=*/req_wr_mask_port,
-                                /*req_rd_mask_port=*/req_rd_mask_port,
-                                /*resp_rd_data_port=*/resp_rd_data_port));
+    if (metadata.signature.has_value()) {
+      ModuleSignature& signature = *metadata.signature;
+      XLS_RETURN_IF_ERROR(Ram1RWUpdateSignature(
+          signature, ram_config, ram_name, unit->package(),
+          /*req_addr_port=*/req_addr_port,
+          /*req_re_port=*/req_re_port,
+          /*req_we_port=*/req_we_port,
+          /*req_wr_data_port=*/req_wr_data_port,
+          /*req_wr_mask_port=*/req_wr_mask_port,
+          /*req_rd_mask_port=*/req_rd_mask_port,
+          /*resp_rd_data_port=*/resp_rd_data_port));
     }
   }
 
@@ -558,7 +559,7 @@ absl::StatusOr<bool> Ram1R1WRewrite(
     const RamConfiguration& base_ram_configuration) {
   auto& ram_config =
       down_cast<const Ram1R1WConfiguration&>(base_ram_configuration);
-  Block* block = unit->top_block;
+  Block* block = unit->top_block();
 
   XLS_ASSIGN_OR_RETURN(
       RamRPortBlockPorts r_block_ports,
@@ -717,18 +718,19 @@ absl::StatusOr<bool> Ram1R1WRewrite(
   XLS_RETURN_IF_ERROR(WriteCompletionRewrite(
       block, w_block_ports.write_completion_ports, ram_name));
 
-  auto metadata_itr = unit->metadata.find(unit->top_block);
-  if (metadata_itr != unit->metadata.end()) {
-    if (metadata_itr->second.signature.has_value()) {
+  if (unit->HasMetadataForBlock(unit->top_block())) {
+    CodegenMetadata& metadata = unit->GetMetadataForBlock(unit->top_block());
+
+    if (metadata.signature.has_value()) {
       ClearRewrittenMetadata(
-          metadata_itr->second.streaming_io_and_pipeline,
+          metadata.streaming_io_and_pipeline,
           {
               ram_config.r_port_configuration().request_channel_name,
               ram_config.r_port_configuration().response_channel_name,
               ram_config.w_port_configuration().request_channel_name,
               ram_config.w_port_configuration().write_completion_channel_name,
           });
-      ModuleSignature& signature = metadata_itr->second.signature.value();
+      ModuleSignature& signature = metadata.signature.value();
       auto builder = ModuleSignatureBuilder::FromProto(signature.proto());
 
       for (std::string_view channel_name : {
@@ -773,7 +775,7 @@ absl::StatusOr<bool> Ram1R1WRewrite(
       }
 
       builder.AddRam1R1W({
-          .package = unit->package,
+          .package = unit->package(),
           .data_type = rd_data_port->GetType(),
           .ram_name = ram_name,
           .rd_req_name = ram_config.r_port_configuration().request_channel_name,
@@ -833,7 +835,7 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
     CodegenPassResults* results) const {
   bool changed = false;
 
-  XLS_RET_CHECK_NE(unit->top_block, nullptr)
+  XLS_RET_CHECK(unit->HasTopBlock())
       << "RamRewritePass requires top_block to be set.";
 
   for (const std::unique_ptr<RamConfiguration>& ram_configuration :

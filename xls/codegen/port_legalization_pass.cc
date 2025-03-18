@@ -49,7 +49,7 @@ absl::StatusOr<bool> PortLegalizationPass::RunInternal(
     CodegenPassResults* results) const {
   bool changed = false;
   std::vector<Node*> to_remove;
-  for (std::unique_ptr<Block>& block : unit->package->blocks()) {
+  for (std::unique_ptr<Block>& block : unit->package()->blocks()) {
     // Remove instantiation inputs/outputs with zero width.
     for (Node* node : block->nodes()) {
       if (IsZeroWidthInstantiationPort(node)) {

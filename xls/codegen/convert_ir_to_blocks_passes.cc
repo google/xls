@@ -58,7 +58,7 @@ absl::StatusOr<bool> ConvertFuncsToCombinationalBlocksPass::RunInternal(
     CodegenPassResults* results) const {
   bool changed = false;
 
-  for (auto& [fb, block] : unit->function_base_to_block_) {
+  for (auto& [fb, block] : unit->function_base_to_block()) {
     if (!fb->IsFunction()) {
       continue;
     }
@@ -87,8 +87,10 @@ absl::StatusOr<bool> ConvertFuncsToCombinationalBlocksPass::RunInternal(
                               return p.name() == param->name();
                             });
         if (name != func_interface->parameters().end() && name->has_sv_type()) {
-          unit->metadata[block].streaming_io_and_pipeline.input_port_sv_type
-              [nodes_function2block[param]->As<InputPort>()] = name->sv_type();
+          unit->GetMetadataForBlock(block)
+              .streaming_io_and_pipeline
+              .input_port_sv_type[nodes_function2block[param]
+                                      ->As<InputPort>()] = name->sv_type();
         }
       }
     }
@@ -112,12 +114,12 @@ absl::StatusOr<bool> ConvertFuncsToCombinationalBlocksPass::RunInternal(
         block->AddOutputPort(options.codegen_options.output_port_name(),
                              nodes_function2block.at(f->return_value())));
     if (func_interface && func_interface->has_sv_result_type()) {
-      unit->metadata[block]
+      unit->GetMetadataForBlock(block)
           .streaming_io_and_pipeline.output_port_sv_type[output] =
           func_interface->sv_result_type();
     }
 
-    unit->metadata[block]
+    unit->GetMetadataForBlock(block)
         .conversion_metadata.emplace<FunctionConversionMetadata>();
 
     changed = true;
@@ -134,7 +136,7 @@ absl::StatusOr<bool> ConvertProcsToCombinationalBlocksPass::RunInternal(
     CodegenPassResults* results) const {
   bool changed = false;
 
-  for (auto& [fb, block] : unit->function_base_to_block_) {
+  for (auto& [fb, block] : unit->function_base_to_block()) {
     if (!fb->IsProc()) {
       continue;
     }
@@ -194,7 +196,7 @@ absl::StatusOr<bool> ConvertProcsToCombinationalBlocksPass::RunInternal(
 
     // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
     //                codegen pipeline.
-    unit->metadata[block] = CodegenMetadata{
+    unit->GetMetadataForBlock(block) = CodegenMetadata{
         .streaming_io_and_pipeline = std::move(streaming_io),
         .conversion_metadata = ProcConversionMetadata(),
         .concurrent_stages = std::nullopt,
@@ -214,7 +216,7 @@ absl::StatusOr<bool> ConvertFuncsToPipelinedBlocksPass::RunInternal(
     CodegenPassResults* results) const {
   bool changed = false;
 
-  for (auto& [fb, block] : unit->function_base_to_block_) {
+  for (auto& [fb, block] : unit->function_base_to_block()) {
     if (!fb->IsFunction()) {
       continue;
     }
@@ -231,7 +233,7 @@ absl::StatusOr<bool> ConvertFuncsToPipelinedBlocksPass::RunInternal(
     VLOG(3) << "Converting function to a pipelined block:";
     XLS_VLOG_LINES(3, f->DumpIr());
 
-    PipelineSchedule& schedule = unit->function_base_to_schedule_.at(fb);
+    PipelineSchedule& schedule = unit->function_base_to_schedule().at(fb);
     XLS_RETURN_IF_ERROR(SingleFunctionToPipelinedBlock(
         schedule, options.codegen_options, *unit, f, block));
 
@@ -249,7 +251,7 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
     CodegenPassResults* results) const {
   bool changed = false;
 
-  for (auto& [fb, block] : unit->function_base_to_block_) {
+  for (auto& [fb, block] : unit->function_base_to_block()) {
     if (!fb->IsProc()) {
       continue;
     }
@@ -266,7 +268,7 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
     VLOG(3) << "Converting proc to a pipelined block:";
     XLS_VLOG_LINES(3, proc->DumpIr());
 
-    PipelineSchedule& schedule = unit->function_base_to_schedule_.at(fb);
+    PipelineSchedule& schedule = unit->function_base_to_schedule().at(fb);
     XLS_RETURN_IF_ERROR(SingleProcToPipelinedBlock(
         schedule, options.codegen_options, *unit, proc, block));
 

@@ -85,7 +85,7 @@ TEST_F(BlockInliningPassTest, InlineBlocks) {
   CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
 
-  Block* inlined = pu.top_block;
+  Block* inlined = pu.top_block();
   EXPECT_THAT(inlined->nodes(),
               testing::Not(testing::Contains(m::InstantiationInput())));
   EXPECT_THAT(inlined->nodes(),
@@ -161,7 +161,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithReg) {
   CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
 
-  Block* inlined = pu.top_block;
+  Block* inlined = pu.top_block();
   EXPECT_THAT(inlined->nodes(),
               testing::Not(testing::Contains(m::InstantiationInput())));
   EXPECT_THAT(inlined->nodes(),
@@ -244,7 +244,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithFifo) {
   CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
 
-  Block* inlined = pu.top_block;
+  Block* inlined = pu.top_block();
   XLS_ASSERT_OK_AND_ASSIGN(auto* left_foobar_inst,
                            inlined->GetInstantiation("left::foobar"));
   XLS_ASSERT_OK_AND_ASSIGN(auto* right_foobar_inst,
@@ -317,7 +317,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithExtern) {
   CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
 
-  Block* inlined = pu.top_block;
+  Block* inlined = pu.top_block();
   XLS_ASSERT_OK_AND_ASSIGN(auto* left_foobar_inst,
                            inlined->GetInstantiation("left::foobar"));
   XLS_ASSERT_OK_AND_ASSIGN(auto* right_foobar_inst,

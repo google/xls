@@ -91,7 +91,7 @@ absl::StatusOr<bool> MulpCombiningPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
   bool changed = false;
-  for (const std::unique_ptr<Block>& block : unit->package->blocks()) {
+  for (const std::unique_ptr<Block>& block : unit->package()->blocks()) {
     for (Node* node : block->nodes()) {
       if (std::optional<PartialProductOp*> mulp = MatchMulpAdd(node)) {
         XLS_RETURN_IF_ERROR(

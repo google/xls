@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
@@ -1529,11 +1528,13 @@ absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
   XLS_VLOG_LINES(3, block->DumpIr());
 
   // RemoveDeadTokenNodes() mutates metadata.
-  unit.metadata[block] = CodegenMetadata{
-      .streaming_io_and_pipeline = std::move(streaming_io_and_pipeline),
-      .conversion_metadata = std::move(proc_metadata),
-      .concurrent_stages = std::move(concurrent_stages),
-  };
+  unit.SetMetadataForBlock(
+      block,
+      CodegenMetadata{
+          .streaming_io_and_pipeline = std::move(streaming_io_and_pipeline),
+          .conversion_metadata = std::move(proc_metadata),
+          .concurrent_stages = std::move(concurrent_stages),
+      });
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
@@ -1545,7 +1546,7 @@ absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
   // TODO: add simplification pass here to remove unnecessary `1 & x`
 
   XLS_RETURN_IF_ERROR(UpdateChannelMetadata(
-      unit.metadata[block].streaming_io_and_pipeline, block));
+      unit.GetMetadataForBlock(block).streaming_io_and_pipeline, block));
   VLOG(3) << "After UpdateChannelMetadata";
   XLS_VLOG_LINES(3, block->DumpIr());
 

@@ -417,21 +417,21 @@ absl::Status StitchChannel(
 // sends/receives through the container.
 absl::Status StitchBlocks(CodegenPassUnit& unit,
                           const CodegenOptions& options) {
-  VLOG(2) << "Stitching blocks for " << unit.top_block->name();
+  VLOG(2) << "Stitching blocks for " << unit.top_block()->name();
   auto channel_map = ChannelMap::Create(unit);
   XLS_ASSIGN_OR_RETURN(
       (absl::flat_hash_map<Block*, ::xls::Instantiation*> instantiations),
-      InstantiateBlocksInContainer(unit.top_block, options));
+      InstantiateBlocksInContainer(unit.top_block(), options));
   std::vector<Channel*> channels_sorted_by_name;
-  channels_sorted_by_name.reserve(unit.package->channels().size());
-  for (Channel* channel : unit.package->channels()) {
+  channels_sorted_by_name.reserve(unit.package()->channels().size());
+  for (Channel* channel : unit.package()->channels()) {
     channels_sorted_by_name.push_back(channel);
   }
   absl::c_sort(channels_sorted_by_name, Channel::NameLessThan);
 
   for (Channel* channel : channels_sorted_by_name) {
     XLS_RETURN_IF_ERROR(
-        StitchChannel(unit.top_block, channel, channel_map, instantiations));
+        StitchChannel(unit.top_block(), channel, channel_map, instantiations));
   }
 
   return absl::OkStatus();
@@ -477,7 +477,7 @@ absl::StatusOr<bool> BlockStitchingPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
   // No need to stitch blocks when we don't have 2+ blocks.
-  if (unit->package->blocks().size() < 2) {
+  if (unit->package()->blocks().size() < 2) {
     return false;
   }
 
@@ -490,15 +490,16 @@ absl::StatusOr<bool> BlockStitchingPass::RunInternal(
       SanitizeIdentifier(unit->name())));
 
   XLS_ASSIGN_OR_RETURN(
-      unit->top_block,
-      AddBlockWithName(unit->package, top_block_name, unit->metadata));
+      Block * top_block,
+      AddBlockWithName(unit->package(), top_block_name, unit->metadata()));
+  unit->SetTopBlock(top_block);
 
   // Insert metadata for the new container block.
-  unit->metadata.insert({unit->top_block, CodegenMetadata{}});
+  unit->metadata().insert({unit->top_block(), CodegenMetadata{}});
 
-  XLS_RETURN_IF_ERROR(unit->top_block->AddClockPort("clk"));
+  XLS_RETURN_IF_ERROR(unit->top_block()->AddClockPort("clk"));
   XLS_RETURN_IF_ERROR(
-      MaybeAddResetPort(unit->top_block, options.codegen_options));
+      MaybeAddResetPort(unit->top_block(), options.codegen_options));
 
   XLS_RETURN_IF_ERROR(StitchBlocks(*unit, options.codegen_options));
   return true;
