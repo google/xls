@@ -664,6 +664,11 @@ CloneNodesIntoBlockHandler::MaybeGetLoopbackChannel(ChannelNode* node) const {
   }
   Channel* channel;
   if (node->package()->ChannelsAreProcScoped()) {
+    if (!proc->HasChannelWithName(node->channel_name())) {
+      // Channel is not declared in this proc (or is interface of top proc) so
+      // this cannot be a loopback channel.
+      return std::nullopt;
+    }
     XLS_ASSIGN_OR_RETURN(channel, proc->GetChannel(node->channel_name()));
   } else {
     XLS_ASSIGN_OR_RETURN(channel, GetChannelUsedByNode(node));
@@ -735,8 +740,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFifoReceiveNode(
   XLS_ASSIGN_OR_RETURN(Node * valid,
                        block()->MakeNode<xls::InstantiationOutput>(
                            receive->loc(), fifo_instantiation, "pop_valid"));
-  XLS_ASSIGN_OR_RETURN(Channel * channel,
-                       block()->package()->GetChannel(receive->channel_name()));
+  XLS_ASSIGN_OR_RETURN(ChannelRef channel, GetChannelRefUsedByNode(receive));
   Node* signal_valid;
   if (receive->is_blocking()) {
     signal_valid = valid;
@@ -765,9 +769,9 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFifoReceiveNode(
   // return a tuple of (token, data, valid).
   if (receive->is_blocking()) {
     if (receive->predicate().has_value() && options_.gate_recvs()) {
-      XLS_ASSIGN_OR_RETURN(
-          Node * zero_value,
-          block()->MakeNode<xls::Literal>(loc, ZeroOfType(channel->type())));
+      XLS_ASSIGN_OR_RETURN(Node * zero_value,
+                           block()->MakeNode<xls::Literal>(
+                               loc, ZeroOfType(ChannelRefType(channel))));
       XLS_ASSIGN_OR_RETURN(
           Select * select,
           block()->MakeNodeWithName<Select>(
@@ -775,7 +779,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFifoReceiveNode(
               /*selector=*/node_map_.at(receive->predicate().value()),
               /*cases=*/std::vector<Node*>({zero_value, data}),
               /*default_value=*/std::nullopt,
-              /*name=*/absl::StrCat(channel->name(), "_select")));
+              /*name=*/absl::StrCat(ChannelRefName(channel), "_select")));
       data = select;
     }
     XLS_ASSIGN_OR_RETURN(
@@ -784,9 +788,9 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFifoReceiveNode(
   } else {
     // Receive is non-blocking; we need a zero value to pass through if there
     // is no valid data.
-    XLS_ASSIGN_OR_RETURN(
-        Node * zero_value,
-        block()->MakeNode<xls::Literal>(loc, ZeroOfType(channel->type())));
+    XLS_ASSIGN_OR_RETURN(Node * zero_value,
+                         block()->MakeNode<xls::Literal>(
+                             loc, ZeroOfType(ChannelRefType(channel))));
     // Ensure that the output of the receive is zero when the data is not
     // valid or the predicate is false.
     if (options_.gate_recvs()) {
@@ -808,7 +812,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFifoReceiveNode(
               /*cases=*/
               std::initializer_list<Node*>({zero_value, data}),
               /*default_value=*/std::nullopt,
-              /*name=*/absl::StrCat(channel->name(), "_select")));
+              /*name=*/absl::StrCat(ChannelRefName(channel), "_select")));
       data = select;
     }
     XLS_ASSIGN_OR_RETURN(
@@ -824,8 +828,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFifoSendNode(
   XLS_ASSIGN_OR_RETURN(Node * ready,
                        block()->MakeNode<xls::InstantiationOutput>(
                            send->loc(), fifo_instantiation, "push_ready"));
-  XLS_ASSIGN_OR_RETURN(Channel * channel,
-                       block()->package()->GetChannel(send->channel_name()));
+  XLS_ASSIGN_OR_RETURN(ChannelRef channel, GetChannelRefUsedByNode(send));
   Node* data = node_map_.at(send->data());
   XLS_ASSIGN_OR_RETURN(Node * port,
                        block()->MakeNode<xls::InstantiationInput>(

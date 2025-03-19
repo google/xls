@@ -997,6 +997,7 @@ cc_test(
         ":module_signature",
         ":module_signature_cc_proto",
         ":pipeline_generator",
+        "//xls/common:golden_files",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/estimators/delay_model:delay_estimator",

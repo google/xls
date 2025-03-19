@@ -29,6 +29,7 @@
 #include "absl/strings/substitute.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/bits.h"
@@ -1325,6 +1326,58 @@ TEST_P(PipelineGeneratorTest, FunctionWithoutDataPathReset) {
   seq.AtEndOfCycle().ExpectEq("out", 42);
 
   XLS_ASSERT_OK(tb->Run());
+}
+
+TEST_P(PipelineGeneratorTest, ProcScopedChannelsWithLoopbackChannel) {
+  Package package(TestBaseName());
+
+  TokenlessProcBuilder pb(NewStyleProc(), "myproc", "tkn", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelWithInterfaces loopback,
+                           pb.AddChannel("loopback", package.GetBitsType(32)));
+  dynamic_cast<StreamingChannel*>(loopback.channel)
+      ->channel_config(
+          ChannelConfig(FifoConfig(/*depth=*/2, /*bypass=*/false,
+                                   /*register_push_outputs=*/true,
+                                   /*register_pop_outputs=*/false)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out,
+                           pb.AddOutputChannel("out", package.GetBitsType(32)));
+
+  BValue myvalue =
+      pb.Add(pb.Receive(loopback.receive_interface), pb.Literal(UBits(1, 32)));
+  pb.Send(loopback.send_interface, myvalue);
+  pb.Send(out, myvalue);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  XLS_ASSERT_OK(package.SetTop(proc));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(proc));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          SchedulingOptions().pipeline_stages(3).add_constraint(IOConstraint(
+              "loopback", IODirection::kReceive, "loopback", IODirection::kSend,
+              /*minimum_latency=*/1, /*maximum_latency=*/1)),
+          &elab));
+
+  ResetProto reset_proto;
+  reset_proto.set_name("rst");
+  reset_proto.set_asynchronous(false);
+  reset_proto.set_active_low(false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(
+          schedule, proc,
+          BuildPipelineOptions()
+              .reset(reset_proto.name(), reset_proto.asynchronous(),
+                     reset_proto.active_low(), reset_proto.reset_data_path())
+              .use_system_verilog(UseSystemVerilog())));
+
+  // Don't use the verilog variant of ExpectEqual... because that parses the
+  // verilog but there is no fifo implementation.
+  ExpectEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                          result.verilog_text);
 }
 
 INSTANTIATE_TEST_SUITE_P(PipelineGeneratorTestInstantiation,
