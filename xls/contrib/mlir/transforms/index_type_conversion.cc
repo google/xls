@@ -22,6 +22,7 @@
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/include/mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinTypes.h"
@@ -276,6 +277,10 @@ class IndexTypeConversionPass
     RewritePatternSet patterns(&getContext());
     patterns.add<LegalizeIndexCast, LegalizeIndexCastUI, LegalizeConstantIndex,
                  LegalizeGeneralOps, LegalizeChanOp>(typeConverter, &ctx);
+    mlir::populateAnyFunctionOpInterfaceTypeConversionPattern(patterns,
+                                                              typeConverter);
+    mlir::populateReturnOpTypeConversionPattern(patterns, typeConverter);
+    mlir::populateCallOpTypeConversionPattern(patterns, typeConverter);
     if (failed(mlir::applyFullConversion(getOperation(), target,
                                          std::move(patterns)))) {
       signalPassFailure();
