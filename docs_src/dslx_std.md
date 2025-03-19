@@ -366,13 +366,12 @@ Example usage:
 
 ### `range`
 
-Returns an array filled with the sequence from inclusive `START` to exclusive
-`LIMIT`. Note that `START` and `LIMIT` must be compile-time-constant values (AKA
-"constexpr"). It is compile-time-checked by the type system that `LIMIT >=
-START`.
+Returns an array filled with the sequence from inclusive `start` to exclusive
+`limit`. Note that `start` and `limit` must be compile-time-constant values (AKA
+"constexpr"). The type system checks at compile-time that `limit >= start`.
 
 ```
-fn range(START: const uN, LIMIT: const uN) -> uN[{LIMIT-START}]
+pub fn range<N: u32>(start: const uN[N], limit: const uN[N]) -> uN[N][limit-start]
 ```
 
 ### `signex`
