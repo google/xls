@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
 
@@ -51,6 +52,11 @@ struct OptOptions {
   std::optional<int64_t> bisect_limit;
   PipelineMetricsProto* metrics = nullptr;
   bool debug_optimizations = false;
+
+  // TODO(allight): adding out-arguments like this (and metrics) is not very
+  // clean.
+  // If not null the pass-results to populate.
+  PassResults* results = nullptr;
 };
 
 // Helper used in the opt_main tool, optimizes the given IR for a particular

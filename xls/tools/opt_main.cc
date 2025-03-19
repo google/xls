@@ -49,6 +49,7 @@
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/tools/opt.h"
@@ -129,6 +130,8 @@ ABSL_FLAG(std::optional<std::string>, passes_textproto, std::nullopt,
 ABSL_FLAG(std::optional<int64_t>, passes_bisect_limit, std::nullopt,
           "Number of passes to allow to execute. This can be used as compiler "
           "fuel to ensure the compiler finishes at a particular point.");
+ABSL_FLAG(bool, passes_bisect_limit_is_error, false,
+          "If set then reaching passes bisect limit is considered an error.");
 ABSL_FLAG(bool, list_passes, false,
           "If passed list the names of all passes and exit.");
 ABSL_FLAG(std::optional<std::string>, pipeline_metrics_proto, std::nullopt,
@@ -262,6 +265,7 @@ absl::Status RealMain(std::string_view input_path) {
 
   bool debug_optimizations = absl::GetFlag(FLAGS_debug_optimizations);
 
+  PassResults results;
   XLS_ASSIGN_OR_RETURN(
       std::string opt_ir,
       tools::OptimizeIrForTop(
@@ -281,7 +285,9 @@ absl::Status RealMain(std::string_view input_path) {
               .bisect_limit = bisect_limit,
               .metrics = wants_metrics ? &metrics : nullptr,
               .debug_optimizations = debug_optimizations,
+              .results = &results,
           }));
+  VLOG(2) << "Ran " << results.invocations.size() << " passes";
   if (absl::GetFlag(FLAGS_pipeline_metrics_proto)) {
     XLS_RETURN_IF_ERROR(
         SetFileContents(*absl::GetFlag(FLAGS_pipeline_metrics_proto),
@@ -296,9 +302,14 @@ absl::Status RealMain(std::string_view input_path) {
 
   if (output_path == "-") {
     std::cout << opt_ir;
-    return absl::OkStatus();
+  } else {
+    XLS_RETURN_IF_ERROR(SetFileContents(output_path, opt_ir));
   }
-  return SetFileContents(output_path, opt_ir);
+  if (absl::GetFlag(FLAGS_passes_bisect_limit_is_error) && bisect_limit &&
+      results.invocations.size() >= *bisect_limit) {
+    return absl::InternalError("passes bisect limit was reached.");
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace
