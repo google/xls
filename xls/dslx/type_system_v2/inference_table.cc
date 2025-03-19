@@ -472,10 +472,12 @@ class InferenceTableImpl : public InferenceTable {
                         annotation_to_string("  ", *data.type_annotation));
       }
       if (data.slice_start_and_width_exprs.has_value()) {
-        absl::StrAppend(&result, "  Start: %s\n",
-                        data.slice_start_and_width_exprs->start->ToString());
-        absl::StrAppend(&result, "  Width: %s\n",
-                        data.slice_start_and_width_exprs->width->ToString());
+        absl::StrAppendFormat(
+            &result, "  Start: %s\n",
+            data.slice_start_and_width_exprs->start->ToString());
+        absl::StrAppendFormat(
+            &result, "  Width: %s\n",
+            data.slice_start_and_width_exprs->width->ToString());
       }
       const std::vector<const ParametricContext*>& contexts =
           contexts_per_node[node];
