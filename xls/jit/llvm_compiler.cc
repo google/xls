@@ -77,7 +77,7 @@ std::unique_ptr<llvm::Module> LlvmCompiler::NewModule(std::string_view name) {
   CHECK(!module_created_) << "Only one module should be made.";
   auto module = std::make_unique<llvm::Module>(name, *GetContext());
   module->setDataLayout(data_layout_);
-  module->setTargetTriple(target_triple());
+  module->setTargetTriple(llvm::Triple(target_triple()));
   return module;
 }
 

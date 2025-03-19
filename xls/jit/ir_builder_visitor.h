@@ -52,7 +52,7 @@ class JitBuilderContext {
         top_(top),
         type_converter_(llvm_compiler_.GetContext(),
                         llvm_compiler_.CreateDataLayout().value()) {
-    CHECK_EQ(module_->getTargetTriple(), llvm_compiler_.target_triple());
+    CHECK_EQ(module_->getTargetTriple().str(), llvm_compiler_.target_triple());
   }
 
   llvm::Module* module() const { return module_.get(); }
