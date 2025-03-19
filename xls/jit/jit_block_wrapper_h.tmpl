@@ -31,6 +31,15 @@ struct {{ wrapped.class_name }}Ports {
   }
 {% endif %}
 {% endfor %}
+  absl::Status SetInputByName(std::string_view name, const xls::Value& v) {
+  {% for port in wrapped.input_ports %}
+    if (name == "{{port.xls_name}}") {
+      {{port.snake_name}} = v;
+      return absl::OkStatus();
+    }
+  {% endfor %}
+    return absl::InvalidArgumentError(absl::StrCat("Input port ", name, " is not found."));
+  }
 };
 
 class {{ wrapped.class_name}}Continuation : public xls::BaseBlockJitWrapperContinuation {
@@ -39,12 +48,16 @@ class {{ wrapped.class_name}}Continuation : public xls::BaseBlockJitWrapperConti
 {% for port in wrapped.output_ports %}
   // Get the current value of the {{port.xls_name}} port.
   xls::Value Get{{port.camel_name}}AsValue() const {
-    return GetOutputByName("{{port.xls_name}}");
+    absl::StatusOr<xls::Value> value = GetOutputByName("{{port.xls_name}}");
+    CHECK_OK(value);
+    return *value;
   }
 {% if port.specialized_type %}
   // Get the current value of the {{port.xls_name}} port.
   {{port.specialized_type}} Get{{port.camel_name}}() const {
-    return static_cast<{{port.specialized_type}}>(GetOutputByName("{{port.xls_name}}").bits().ToUint64().value());
+    absl::StatusOr<xls::Value> value = GetOutputByName("{{port.xls_name}}");
+    CHECK_OK(value);
+    return static_cast<{{port.specialized_type}}>(value->bits().ToUint64().value());
   }
 {% endif %}
 {% endfor %}

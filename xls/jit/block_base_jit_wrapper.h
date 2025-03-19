@@ -96,8 +96,7 @@ class BaseBlockJitWrapperContinuation {
   std::vector<Value> GetRegisters() const { return inner_->GetRegisters(); }
   const absl::flat_hash_map<std::string, Value>& GetRegistersMap() const;
 
- protected:
-  Value GetOutputByName(std::string_view name) const;
+  absl::StatusOr<Value> GetOutputByName(std::string_view name) const;
 
  private:
   explicit BaseBlockJitWrapperContinuation(

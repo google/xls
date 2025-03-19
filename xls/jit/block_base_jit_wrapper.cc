@@ -19,6 +19,8 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/ir/value.h"
 
 namespace xls {
@@ -39,10 +41,14 @@ BaseBlockJitWrapperContinuation::GetRegistersMap() const {
   return saved_output_registers_;
 }
 
-Value BaseBlockJitWrapperContinuation::GetOutputByName(
+absl::StatusOr<Value> BaseBlockJitWrapperContinuation::GetOutputByName(
     std::string_view name) const {
   const auto& map = GetOutputPortsMap();
-  return map.at(name);
+  if (auto it = map.find(name); it != map.end()) {
+    return it->second;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Output port ", name, " is not found."));
 }
 
 absl::Status BaseBlockJitWrapperContinuation::PrepareForCycle() {
