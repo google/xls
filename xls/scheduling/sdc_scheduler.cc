@@ -308,7 +308,6 @@ absl::Status SDCSchedulingModel::AddBackedgeConstraints(
     return absl::OkStatus();
   }
 
-  using StateIndex = int64_t;
   for (Next* next : proc->next_values()) {
     StateRead* state_read = next->state_read()->As<StateRead>();
     StateElement* state = state_read->state_element();
