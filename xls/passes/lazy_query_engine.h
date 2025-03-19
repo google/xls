@@ -136,6 +136,8 @@ class LazyQueryEngine : public QueryEngine {
     return node->function_base() == info_.bound_function();
   }
 
+  // Check that the query engine is consistent. Note that Forced values are
+  // always considered consistent.
   absl::Status CheckConsistency() const override {
     return info_.CheckCacheConsistency();
   }
@@ -171,6 +173,25 @@ class LazyQueryEngine : public QueryEngine {
     return info_.ReplaceGiven(node, std::move(given_ltt));
   }
   ReachedFixpoint RemoveGiven(Node* node) { return info_.RemoveGiven(node); }
+
+  // Set the node to a single immutable forced value.
+  //
+  // This is different from Givens since it is not combined with the calculated
+  // values from earlier in the tree but instead considered a-priori known.
+  //
+  // Note that any forced value may not have a given associated with it as the
+  // given value will be ignored.
+  //
+  // Care should be taken when using this since existing information is utterly
+  // ignored. In general AddGiven is a better choice.
+  absl::StatusOr<ReachedFixpoint> SetForced(Node* node,
+                                            LeafTypeTree<Info> forced_ltt) {
+    return info_.SetForced(node, std::move(forced_ltt));
+  }
+  // Removed forced information.
+  absl::StatusOr<ReachedFixpoint> RemoveForced(Node* node) {
+    return info_.RemoveForced(node);
+  }
 
  protected:
   virtual LeafTypeTree<Info> ComputeInfo(

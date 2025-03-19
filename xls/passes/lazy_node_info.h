@@ -55,8 +55,8 @@ namespace xls {
 // This class implements a cache with a simple state machine; each node has
 // either no recorded information (kUnknown), information that may be
 // out-of-date (kUnverified), information that is valid if all inputs prove to
-// be up-to-date (kInputsUnverified), or information that is known to be current
-// & correct (kKnown).
+// be up-to-date (kInputsUnverified), information that is known to be current
+// & correct (kKnown), or information with a forced value (kForced).
 //
 // On populating with a FunctionBase, this class listens for change events. When
 // a node changes, we mark its information as potentially out-of-date
@@ -70,6 +70,12 @@ namespace xls {
 // unverified. If `n` was in state kUnverified & this does change its associated
 // information, we mark any direct users that were in state kInputsUnverified as
 // kUnverified, since their inputs have changed.
+//
+// Any node that is in the kForced state will remain in the same state
+// regardless of other changes to the graph. Changing the value a node is Forced
+// to will invalidate all its users.
+//
+// A node may not have both 'given' data and 'forced' data at the same time.
 //
 // NOTE: If `n` is in state kInputsUnverified after we queried all of its
 //       operands, then their values did not change, so we have verified that
@@ -177,13 +183,51 @@ class LazyNodeInfo
     return rf;
   }
 
+  // Set the node to a single immutable forced value.
+  //
+  // This is different from Givens since it is not combined with the calculated
+  // values from earlier in the tree but instead considered a-priori known.
+  //
+  // Note that any forced value may not have a given associated with it as the
+  // given value will be ignored.
+  //
+  // Care should be taken when using this since existing information is utterly
+  // ignored. In general AddGiven is a better choice.
+  absl::StatusOr<ReachedFixpoint> SetForced(Node* node,
+                                            LeafTypeTree<Info> forced_ltt) {
+    XLS_RET_CHECK(givens_.find(node) == givens_.end())
+        << node << " already has given information.";
+    if (cache_.GetCacheState(node) == CacheState::kForced &&
+        *cache_.GetCachedValue(node) == forced_ltt) {
+      return ReachedFixpoint::Unchanged;
+    }
+    cache_.SetForced(node, std::move(forced_ltt));
+    return ReachedFixpoint::Changed;
+  }
+
+  absl::StatusOr<ReachedFixpoint> RemoveForced(Node* node) {
+    XLS_RET_CHECK_EQ(cache_.GetCacheState(node), CacheState::kForced)
+        << node << " has no forced value associated with it.";
+    if (cache_.GetCacheState(node) != CacheState::kForced) {
+      return ReachedFixpoint::Unchanged;
+    }
+    cache_.Forget(node);
+    return ReachedFixpoint::Changed;
+  }
+
   // Bind the node info to the given function.
   absl::StatusOr<ReachedFixpoint> Attach(FunctionBase* f) {
     return AttachWithGivens(f, {});
   }
 
+  // Set the value 'given' as being assumed for the given node. This data is
+  // combined with the already calculated data. If one needs to set the state
+  // directly to the given value use SetForced instead. A node may not have both
+  // 'Forced' and 'Given' data associated with it at the same time.
   absl::StatusOr<ReachedFixpoint> AddGiven(Node* node,
                                            LeafTypeTree<Info> given_ltt) {
+    XLS_RET_CHECK_NE(cache_.GetCacheState(node), CacheState::kForced)
+        << node << " has a forced value associated with it.";
     auto it = givens_.find(node);
     if (it == givens_.end()) {
       givens_.emplace(node, std::move(given_ltt));
@@ -207,9 +251,13 @@ class LazyNodeInfo
     cache_.MarkUnverified(node);
     return ReachedFixpoint::Changed;
   }
-  ReachedFixpoint ReplaceGiven(Node* node, LeafTypeTree<Info> given) {
+
+  absl::StatusOr<ReachedFixpoint> ReplaceGiven(Node* node,
+                                               LeafTypeTree<Info> given) {
     auto it = givens_.find(node);
     if (it == givens_.end()) {
+      XLS_RET_CHECK_NE(cache_.GetCacheState(node), CacheState::kForced)
+          << node << " has a forced value associated with it.";
       givens_.emplace(node, std::move(given));
       cache_.MarkUnverified(node);
       return ReachedFixpoint::Changed;
@@ -287,6 +335,8 @@ class LazyNodeInfo
   // lazy query engines, checks that the current state of the cache is correct
   // where expected & consistent regardless. This is an expensive operation,
   // intended for use in tests.
+  //
+  // Note that Forced values are always considered consistent.
   absl::Status CheckCacheConsistency() const {
     XLS_RET_CHECK(f_ != nullptr) << "Unattached info";
     return cache_.CheckConsistency(TopoSort(f_));

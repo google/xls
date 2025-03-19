@@ -33,6 +33,7 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -62,6 +63,7 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 
 struct TernaryPair {
@@ -1783,6 +1785,55 @@ TEST_F(LazyTernaryQueryEngineTest, Givens) {
   EXPECT_THAT(query_engine.ToString(v.node()), "0bXX11_11XX");
   ASSERT_EQ(query_engine.RemoveGiven(bar.node()), ReachedFixpoint::Changed);
   EXPECT_THAT(query_engine.ToString(v.node()), "0bXXXX_XXXX");
+}
+
+// NB Forced and givens are pretty much identical for this apart from Force
+// being able to give illegal results.
+TEST_F(LazyTernaryQueryEngineTest, Forced) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue foo = fb.Param("foo", p->GetBitsType(8));
+  BValue bar = fb.Param("bar", p->GetBitsType(8));
+  BValue mask = fb.Param("mask", p->GetBitsType(8));
+  BValue v = fb.PrioritySelect(sel, {fb.And({foo, mask})}, fb.And({bar, mask}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  LazyTernaryQueryEngine query_engine;
+  ASSERT_THAT(query_engine.Populate(f), IsOkAndHolds(ReachedFixpoint::Changed));
+  EXPECT_THAT(query_engine.ToString(v.node()), "0bXXXX_XXXX");
+  ASSERT_THAT(
+      query_engine.SetForced(mask.node(),
+                             LeafTypeTree<TernaryVector>(
+                                 mask.node()->GetType(),
+                                 StringToTernaryVector("0b001XX100").value())),
+      IsOkAndHolds(ReachedFixpoint::Changed));
+  EXPECT_THAT(query_engine.ToString(v.node()), "0b00XX_XX00");
+  ASSERT_THAT(query_engine.SetForced(sel.node(),
+                                     LeafTypeTree<TernaryVector>(
+                                         sel.node()->GetType(),
+                                         StringToTernaryVector("0b1").value())),
+              IsOkAndHolds(ReachedFixpoint::Changed));
+  ASSERT_THAT(query_engine.SetForced(
+                  foo.node(), LeafTypeTree<TernaryVector>(
+                                  foo.node()->GetType(),
+                                  StringToTernaryVector("0b11X00X11").value())),
+              IsOkAndHolds(ReachedFixpoint::Changed));
+  EXPECT_THAT(query_engine.ToString(v.node()), "0b00X0_0X00");
+  ASSERT_THAT(query_engine.RemoveForced(mask.node()),
+              IsOkAndHolds(ReachedFixpoint::Changed));
+  EXPECT_THAT(query_engine.ToString(v.node()), "0bXXX0_0XXX");
+  ASSERT_THAT(query_engine.RemoveForced(foo.node()),
+              IsOkAndHolds(ReachedFixpoint::Changed));
+  // NB This is inconsistent but since its forced it doesn't matter.
+  ASSERT_THAT(
+      query_engine.SetForced(v.node()->As<PrioritySelect>()->get_case(0),
+                             LeafTypeTree<TernaryVector>(
+                                 mask.node()->GetType(),
+                                 StringToTernaryVector("0b11111111").value())),
+      IsOkAndHolds(ReachedFixpoint::Changed));
+  EXPECT_THAT(query_engine.CheckConsistency(), IsOk());
+  EXPECT_THAT(query_engine.ToString(v.node()), "0b1111_1111");
 }
 
 TEST_F(LazyTernaryQueryEngineTest, ArrayIndexingConsistencyCheck) {

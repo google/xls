@@ -43,14 +43,19 @@ namespace xls {
 // This class implements a cache with a simple state machine; each key has
 // either no recorded value (kUnknown), a value that may be out-of-date
 // (kUnverified), a value that is valid if all inputs prove to be up-to-date
-// (kInputsUnverified), or a value that is known to be current & correct
-// (kKnown).
+// (kInputsUnverified), a value that is known to be current & correct
+// (kKnown), or information with a forced value (kForced).
 //
 // When a `key` is queried, we query for the values for all of its inputs, and
 // then re-compute the value for `key` if absent or unverified. If `key` was in
 // state kUnverified & this does change its associated value, we mark any direct
 // users that were in state kInputsUnverified as kUnverified, since their inputs
 // have changed.
+//
+// Any node that is in the kForced state will remain in the same state
+// regardless of other changes to the graph. Changing the value a node is Forced
+// to will invalidate all its users and force a recalculation of downstream
+// values.
 //
 // NOTE: If `key` is in state kInputsUnverified after we queried all of its
 //       inputs, then their values did not change, so we have verified that
@@ -93,8 +98,45 @@ class LazyDagCache {
   LazyDagCache<Key, Value>& operator=(LazyDagCache<Key, Value>&& other) =
       delete;
 
+  // Erase all knowledge of the values of all keys.
   void Clear() { cache_.clear(); }
-  void Forget(const Key& key) { cache_.erase(key); }
+  // Erase all knowledge of the value of all keys except for 'Forced' values.
+  void ClearNonForced() {
+    absl::erase_if(cache_, [](const auto& v) {
+      return v.second.state != CacheState::kForced;
+    });
+  }
+
+  // Entirely remove knowledge of this key. This includes erasing any Forced
+  // data.
+  void Forget(const Key& key) {
+    cache_.erase(key);
+    for (const Key& user : provider_->GetUsers(key)) {
+      MarkInputsUnverified(user);
+    }
+  }
+
+  // Set the key as having the immutable, authoritative 'value'.
+  //
+  // *This is a dangerous operation and should be used with care.* It tells the
+  // cache to never call the ComputeValue callback and to instead consider
+  // 'value' to be associated with 'key' now and forever. This knowledge may
+  // only be removed by calling 'Forget' or 'Clear'.
+  void SetForced(const Key& key, std::unique_ptr<Value> value) {
+    cache_.insert_or_assign(key, CacheEntry{.state = CacheState::kForced,
+                                            .value = std::move(value)});
+    MarkUsersUnverified(key);
+  }
+
+  // Set the key as having the immutable, authoritative 'value'.
+  //
+  // *This is a dangerous operation and should be used with care.* It tells the
+  // cache to never call the ComputeValue callback and to instead consider
+  // 'value' to be associated with 'key' now and forever. This knowledge may
+  // only be removed by calling 'Forget' or 'Clear'.
+  void SetForced(const Key& key, Value value) {
+    SetForced(key, std::make_unique<Value>(std::move(value)));
+  }
 
   void AddUnverified(const Key& key, Value value) {
     cache_.insert_or_assign(
@@ -106,6 +148,15 @@ class LazyDagCache {
                                             .value = std::move(value)});
   }
 
+  // Request recomputation of any users of this key.
+  //
+  // Mark as full unverified to force recomputation.
+  void MarkUsersUnverified(const Key& key) {
+    for (const Key& user : provider_->GetUsers(key)) {
+      MarkUnverified(user);
+    }
+  }
+
   void MarkUnverified(const Key& key) {
     auto it = cache_.find(key);
     if (it == cache_.end()) {
@@ -113,6 +164,11 @@ class LazyDagCache {
     }
     auto& [state, _] = it->second;
     if (state == CacheState::kUnverified) {
+      return;
+    }
+    if (state == CacheState::kForced) {
+      VLOG(1) << "Mark unverified called on forced entry "
+              << provider_->GetName(key);
       return;
     }
     state = CacheState::kUnverified;
@@ -155,7 +211,8 @@ class LazyDagCache {
   Value* QueryValue(const Key& key) {
     // If `key` is already known, return a pointer to the cached value.
     if (auto it = cache_.find(key);
-        it != cache_.end() && it->second.state == CacheState::kKnown) {
+        it != cache_.end() && (it->second.state == CacheState::kKnown ||
+                               it->second.state == CacheState::kForced)) {
       return it->second.value.get();
     }
 
@@ -189,6 +246,7 @@ class LazyDagCache {
       return cached_value.get();
     }
 
+    CHECK_NE(state, CacheState::kForced);
     state = CacheState::kKnown;
     cached_value = std::make_unique<Value>(*std::move(new_value));
 
@@ -208,7 +266,7 @@ class LazyDagCache {
   // all nodes in the DAG.
   absl::Status EagerlyPopulate(absl::Span<const Key> topo_sorted_keys) {
     for (const Key& key : topo_sorted_keys) {
-      if (GetCacheState(key) == CacheState::kKnown) {
+      if (GetNonForcedCacheState(key) == CacheState::kKnown) {
         continue;
       }
       std::vector<const Value*> input_values;
@@ -232,6 +290,8 @@ class LazyDagCache {
   // consistent regardless. This is an expensive operation, intended for use in
   // tests. `topo_sorted_keys` must be a topological sort of the keys for all
   // nodes in the DAG.
+  //
+  // Note that Forced values are always considered consistent.
   absl::Status CheckConsistency(absl::Span<const Key> topo_sorted_keys) const;
 
   enum class CacheState : uint8_t {
@@ -241,6 +301,14 @@ class LazyDagCache {
     kUnverified,
     kInputsUnverified,
     kKnown,
+    // A value has been provided via external information and should be
+    // considered authoritatively known.
+    //
+    // This node can never be put to unverified state.
+    //
+    // It is possible that the value this key is forced to is one that cannot be
+    // arrived at through the normal update sequence.
+    kForced,
   };
 
   template <typename Sink>
@@ -258,6 +326,9 @@ class LazyDagCache {
       case CacheState::kKnown:
         absl::Format(&sink, "KNOWN");
         return;
+      case CacheState::kForced:
+        absl::Format(&sink, "FORCED");
+        return;
     }
     LOG(FATAL) << "Unknown CacheState: " << static_cast<int>(state);
   }
@@ -271,6 +342,14 @@ class LazyDagCache {
       return CacheState::kUnknown;
     }
     return it->second.state;
+  }
+  // Get the cache state with forced values being considered kKnown
+  CacheState GetNonForcedCacheState(const Key& key) const {
+    CacheState s = GetCacheState(key);
+    if (s == CacheState::kForced) {
+      return CacheState::kKnown;
+    }
+    return s;
   }
   const Value* GetCachedValue(const Key& key) const {
     auto it = cache_.find(key);
@@ -320,9 +399,10 @@ absl::Status LazyDagCache<Key, Value>::CheckConsistency(
 
     if (state == CacheState::kKnown) {
       for (const Key& input : provider_->GetInputs(key)) {
-        XLS_RET_CHECK_EQ(GetCacheState(input), CacheState::kKnown)
+        XLS_RET_CHECK_EQ(GetNonForcedCacheState(input), CacheState::kKnown)
             << "Non-KNOWN input for KNOWN key " << provider_->GetName(key)
-            << ": " << provider_->GetName(input);
+            << ": " << provider_->GetName(input) << " (input is "
+            << GetCacheState(input) << ")";
       }
     }
     if (state == CacheState::kInputsUnverified) {
@@ -333,11 +413,19 @@ absl::Status LazyDagCache<Key, Value>::CheckConsistency(
       }
     }
 
+    // NB state FORCED & UNVERIFIED has no requirements on its inputs.
+
     if (absl::c_any_of(provider_->GetInputs(key), [&](const Key& input) {
           return !correct_values.contains(input);
         })) {
       // We can only check the consistency/correctness of `node`'s stored value
       // if all of its inputs have correct stored values.
+      continue;
+    }
+
+    if (state == CacheState::kForced) {
+      // Forced values are definitionally correct.
+      correct_values.insert(key);
       continue;
     }
 
