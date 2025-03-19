@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/cord.h"
@@ -92,13 +93,16 @@ absl::Status SetFileContentsOrAppend(const std::filesystem::path& file_name,
                     (set_or_append == SetOrAppend::kAppend ? O_APPEND : 0),
                 0664);
   if (fd == -1) {
-    return ErrNoToStatusWithFilename(errno, file_name);
+    XLS_RETURN_IF_ERROR(ErrNoToStatusWithFilename(errno, file_name));
+    return absl::InternalError("errno returned but no status");
   }
 
   // Clear existing contents if not appending.
   if (set_or_append == SetOrAppend::kSet) {
     if (ftruncate(fd, 0) == -1) {
-      return ErrNoToStatusWithFilename(errno, file_name);
+      // Continue anyway since some files like /dev/null can't be truncated.
+      LOG(WARNING) << "Unable to truncate opened file " << file_name
+                   << " due to " << strerror(errno);
     }
   }
 
@@ -110,13 +114,15 @@ absl::Status SetFileContentsOrAppend(const std::filesystem::path& file_name,
         continue;
       }
       close(fd);
-      return ErrNoToStatusWithFilename(errno, file_name);
+      XLS_RETURN_IF_ERROR(ErrNoToStatusWithFilename(errno, file_name));
+      return absl::InternalError("errno returned but no status");
     }
     written += n;
   }
 
   if (close(fd) != 0) {
-    return ErrNoToStatusWithFilename(errno, file_name);
+    XLS_RETURN_IF_ERROR(ErrNoToStatusWithFilename(errno, file_name));
+    return absl::InternalError("errno returned but no status");
   }
   return absl::OkStatus();
 }
