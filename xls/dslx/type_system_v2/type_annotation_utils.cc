@@ -520,4 +520,19 @@ absl::StatusOr<InterpValueWithTypeAnnotation> GetBuiltinMember(
       file_table);
 }
 
+bool IsToken(const TypeAnnotation* annotation) {
+  if (const auto* built_in =
+          dynamic_cast<const BuiltinTypeAnnotation*>(annotation)) {
+    return built_in->builtin_type() == BuiltinType::kToken;
+  }
+  return false;
+}
+
+const BuiltinTypeAnnotation* CastToTokenType(const TypeAnnotation* annotation) {
+  if (!IsToken(annotation)) {
+    return nullptr;
+  }
+  return dynamic_cast<const BuiltinTypeAnnotation*>(annotation);
+}
+
 }  // namespace xls::dslx

@@ -190,6 +190,13 @@ absl::StatusOr<InterpValueWithTypeAnnotation> GetBuiltinMember(
     std::string_view member_name, const Span& span,
     std::string_view object_type_for_error, const FileTable& file_table);
 
+// Returns true if the type annotation is a builtin Token
+bool IsToken(const TypeAnnotation* annotation);
+
+// If the annotation is a Token BuiltinTypeAnnotation, returns it. Otherwise,
+// returns nullptr.
+const BuiltinTypeAnnotation* CastToTokenType(const TypeAnnotation* annotation);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_

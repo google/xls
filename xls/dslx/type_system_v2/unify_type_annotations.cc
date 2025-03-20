@@ -124,6 +124,13 @@ class Unifier {
           CastAllOrError<FunctionTypeAnnotation>(annotations));
       return UnifyFunctionTypeAnnotations(function_annotations, span);
     }
+    if (IsToken(annotations[0])) {
+      // If first is a token, all must be tokens.
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<const BuiltinTypeAnnotation*> builtin_annotations,
+          CastAllOrError<BuiltinTypeAnnotation>(annotations, &CastToTokenType));
+      return annotations[0];
+    }
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> first_struct_or_proc,
                          GetStructOrProcRef(annotations[0], file_table_));
     if (first_struct_or_proc.has_value()) {
@@ -281,8 +288,6 @@ class Unifier {
     std::vector<std::vector<const TypeAnnotation*>> param_types;
     param_types.resize(annotations[0]->param_types().size());
     for (const FunctionTypeAnnotation* annotation : annotations) {
-      VLOG(6) << "Return type to unify: "
-              << annotation->return_type()->ToString();
       return_types.push_back(annotation->return_type());
       if (annotation->param_types().size() !=
           annotations[0]->param_types().size()) {
@@ -332,7 +337,6 @@ class Unifier {
     // of the enclosing function. We are in a position now to decide if `N` is
     // 32 or not.
     for (const TypeAnnotation* annotation : annotations) {
-      VLOG(6) << "Annotation: " << annotation->ToString();
       XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                            GetStructOrProcRef(annotation, file_table_));
       CHECK(struct_or_proc_ref.has_value());
@@ -367,7 +371,6 @@ class Unifier {
     std::optional<SignednessAndSize> unified_signedness_and_bit_count;
     for (int i = 0; i < annotations.size(); ++i) {
       const TypeAnnotation* current_annotation = annotations[i];
-      VLOG(6) << "Annotation " << i << ": " << current_annotation->ToString();
       absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
           GetSignednessAndBitCount(current_annotation);
       bool current_annotation_is_auto =
@@ -499,7 +502,6 @@ class Unifier {
     result.reserve(annotations.size());
     for (int i = 0; i < annotations.size(); i++) {
       const TypeAnnotation* annotation = annotations[i];
-      VLOG(6) << "Annotation " << i << ": " << annotation->ToString();
       const T* casted = cast_fn(annotation);
       if (casted == nullptr) {
         return error_generator_.TypeMismatchError(parametric_context_,

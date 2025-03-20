@@ -70,6 +70,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) override {
     TypeSystemTrace trace = tracer_.TraceUnify(node);
+    VLOG(6) << "ResolveAndUnifyTypeAnnotationsForNode " << node->ToString();
     const std::optional<const NameRef*> type_variable =
         table_.GetTypeVariable(node);
     if (type_variable.has_value()) {
@@ -173,7 +174,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     TypeSystemTrace trace = tracer_.TraceResolve(annotation);
     // This is purely to avoid wasting time on annotations that clearly need no
     // resolution.
-    if (GetSignednessAndBitCount(annotation).ok()) {
+    if (GetSignednessAndBitCount(annotation).ok() || IsToken(annotation)) {
       return annotation;
     }
     VLOG(4) << "Resolving variables in: " << annotation->ToString()

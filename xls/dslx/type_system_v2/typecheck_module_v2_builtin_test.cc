@@ -604,5 +604,73 @@ TEST(TypecheckV2BuiltinTest, ZipImplicitSizes) {
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[16], uN[32])[3]")));
 }
 
+TEST(TypecheckV2BuiltinTest, TokenFnImplicit) {
+  EXPECT_THAT(R"(
+  const Y = token();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, TokenFnExplicit) {
+  EXPECT_THAT(R"(
+  const Y:token = token();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, TokenReturnedFromFn) {
+  EXPECT_THAT(R"(
+fn f() -> token { token() }
+const Y = f();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, TokenReturnedFromParametricFn) {
+  EXPECT_THAT(R"(
+fn f<N: u32>() -> token { token() }
+const Y = f<0>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, TokenParam) {
+  EXPECT_THAT(R"(
+fn f(t: token) -> token { t }
+const Y = f(token());
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, TokenFnMismatch) {
+  EXPECT_THAT(R"(
+  const Y: u32 = token();
+)",
+              TypecheckFails(HasTypeMismatch("u32", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, TokenDeclarationMismatch) {
+  EXPECT_THAT(R"(
+  const Y = u32:0;
+  const X: token = Y;
+)",
+              TypecheckFails(HasTypeMismatch("u32", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, TokenFnAssignmentDeclarationMismatch) {
+  EXPECT_THAT(R"(
+  const Y = token();
+  const X: u32 = Y;
+)",
+              TypecheckFails(HasTypeMismatch("u32", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, TokenAssignmentMismatch) {
+  EXPECT_THAT(R"(
+  const X: token = u32:0;
+)",
+              TypecheckFails(HasTypeMismatch("u32", "token")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

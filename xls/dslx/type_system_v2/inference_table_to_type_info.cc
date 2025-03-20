@@ -711,6 +711,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       ti->SetItem(literal->type_annotation(),
                   *std::make_unique<MetaType>((*type)->CloneToUnique()));
     }
+    // TODO: davidplass - for imports (& builtins), allow foreign types (from
+    // different modules).
     ti->SetItem(node, **type);
     XLS_RETURN_IF_ERROR(NoteIfConstExpr(parametric_context, node, **type, ti));
     VLOG(5) << "Generated type: " << (*ti->GetItem(node))->ToString()
@@ -883,6 +885,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return absl::InvalidArgumentError(
           "Attempting to concretize `Any` type, which means there was "
           "insufficient type info.");
+    }
+    if (IsToken(annotation)) {
+      return std::make_unique<TokenType>();
     }
     if (const auto* tuple =
             dynamic_cast<const TupleTypeAnnotation*>(annotation)) {
