@@ -83,6 +83,8 @@ fn signex<NS: bool, N: u32, MS: bool, M: u32>(x: xN[MS][M], y: xN[NS][N]) -> xN[
 // a signed number.
 fn smulp<N: u32>(x: sN[N], y: sN[N]) -> (uN[N], uN[N]);
 
+fn token() -> token;
+
 fn trace!<T: type>(value: T) -> T;
 
 fn umulp<N: u32>(x: uN[N], y: uN[N]) -> (uN[N], uN[N]);

@@ -711,8 +711,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       ti->SetItem(literal->type_annotation(),
                   *std::make_unique<MetaType>((*type)->CloneToUnique()));
     }
-    // TODO: davidplass - for imports (& builtins), allow foreign types (from
-    // different modules).
+    if (node->owner()->name() != module_.name() && IsToken(*annotation)) {
+      // Make a copy of the Token BuiltinTypeAnnotation in the "right" module.
+      node = module_.Make<BuiltinTypeAnnotation>(
+          (*annotation)->span(), BuiltinType::kToken,
+          module_.GetOrCreateBuiltinNameDef("token"));
+    }
     ti->SetItem(node, **type);
     XLS_RETURN_IF_ERROR(NoteIfConstExpr(parametric_context, node, **type, ti));
     VLOG(5) << "Generated type: " << (*ti->GetItem(node))->ToString()

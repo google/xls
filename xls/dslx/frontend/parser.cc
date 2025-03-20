@@ -1153,6 +1153,13 @@ absl::StatusOr<Token> Parser::PopSelfOrIdentifier(std::string_view context) {
     return PopTokenOrError(TokenKind::kKeyword,
                            /*start=*/nullptr, context);
   }
+  if (parse_fn_stubs_) {
+    // Allow "token" as an identifier, for parsing builtin stubs.
+    XLS_ASSIGN_OR_RETURN(bool is_token, PeekTokenIs(Keyword::kToken));
+    if (is_token) {
+      return PopTokenOrError(TokenKind::kKeyword, /*start=*/nullptr, context);
+    }
+  }
   return PopTokenOrError(TokenKind::kIdentifier,
                          /*start=*/nullptr, context);
 }

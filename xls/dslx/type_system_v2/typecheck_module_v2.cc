@@ -1548,41 +1548,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
 
 }  // namespace
 
-// Creates the builtin function `fn token() -> token` in the builtins_module.
-// The parser can't handle `token` as a function name because it thinks
-// `token` is a type name, so we can't add the stub to the builtin_stubs.x
-// file.
-// TODO: davidplass - update the parser to allow `token` as a `fn` and
-// add the function to the builtin stubs file.
-absl::StatusOr<Function*> CreateTokenFunctionStub(Module& user_module,
-                                                  Module& builtins_module) {
-  // The token needs to be created in the user module so it has the right
-  // parent when creating TypeInfos
-  BuiltinTypeAnnotation* token_type = user_module.Make<BuiltinTypeAnnotation>(
-      user_module.span(), BuiltinType::kToken,
-      user_module.GetOrCreateBuiltinNameDef(BuiltinType::kToken));
-
-  Span span = builtins_module.span();
-  Function* token_fn = builtins_module.Make<Function>(
-      span,
-      // The name of the function is "token"
-      builtins_module.Make<NameDef>(span, "token", /*definer=*/nullptr),
-      std::vector<ParametricBinding*>{}, std::vector<Param*>{},
-      /*return_type=*/token_type,
-      /*(empty) body=*/
-      builtins_module.Make<StatementBlock>(
-          span, std::vector<Statement*>{},
-          /*last_expr_had_trailing_semi=*/true),
-      FunctionTag::kNormal,
-      /*is_public=*/true);
-
-  // Tell the module about it.
-  XLS_RETURN_IF_ERROR(
-      builtins_module.AddTop(token_fn, /*make_collision_error=*/nullptr));
-  return token_fn;
-}
-
-absl::Status PopulateBuiltinStubs(Module& user_module, ImportData* import_data,
+absl::Status PopulateBuiltinStubs(ImportData* import_data,
                                   WarningCollector* warnings) {
   XLS_ASSIGN_OR_RETURN(ImportTokens builtin_tokens,
                        ImportTokens::FromString(kBuiltinStubsModuleName));
@@ -1596,9 +1562,6 @@ absl::Status PopulateBuiltinStubs(Module& user_module, ImportData* import_data,
       InferenceTable::Create(*builtins_module);
   PopulateInferenceTableVisitor builtins_visitor(
       *builtins_module, *builtins_table, import_data->file_table());
-  // Adds the token function to the module
-  XLS_RETURN_IF_ERROR(
-      CreateTokenFunctionStub(user_module, *builtins_module).status());
   XLS_RETURN_IF_ERROR((*builtins_module).Accept(&builtins_visitor));
 
   Module* builtins_ptr = builtins_module.get();
@@ -1625,7 +1588,7 @@ absl::Status PopulateBuiltinStubs(Module& user_module, ImportData* import_data,
 absl::StatusOr<TypeInfo*> TypecheckModuleV2(Module* module,
                                             ImportData* import_data,
                                             WarningCollector* warnings) {
-  XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(*module, import_data, warnings));
+  XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(import_data, warnings));
 
   std::unique_ptr<InferenceTable> table = InferenceTable::Create(*module);
   PopulateInferenceTableVisitor visitor(*module, *table,
