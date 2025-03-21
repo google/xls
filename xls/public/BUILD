@@ -243,6 +243,7 @@ cc_library(
         ":c_api_dslx",
         ":c_api_format_preference",
         ":c_api_impl_helpers",
+        ":c_api_ir_builder",
         ":c_api_vast",
         ":runtime_build_actions",
         "//xls/common:init_xls",
