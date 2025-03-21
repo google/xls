@@ -95,7 +95,8 @@ class Unifier {
     if (annotations.size() == 1) {
       XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                            GetStructOrProcRef(annotations[0], file_table_));
-      if (!struct_or_proc_ref.has_value()) {
+      if (!struct_or_proc_ref.has_value() &&
+          annotations[0]->owner() == &module_) {
         // This is here mainly for preservation of shorthand annotations
         // appearing in the source code, in case they get put in subsequent
         // error messages. General unification would normalize the format.
@@ -129,7 +130,9 @@ class Unifier {
       XLS_ASSIGN_OR_RETURN(
           std::vector<const BuiltinTypeAnnotation*> builtin_annotations,
           CastAllOrError<BuiltinTypeAnnotation>(annotations, &CastToTokenType));
-      return annotations[0];
+      return CreateBuiltinTypeAnnotation(
+          module_, module_.GetOrCreateBuiltinNameDef("token"),
+          annotations[0]->span());
     }
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> first_struct_or_proc,
                          GetStructOrProcRef(annotations[0], file_table_));
