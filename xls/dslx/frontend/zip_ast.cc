@@ -77,8 +77,20 @@ class ZipVisitor : public AstNodeVisitorWithDefault {
 
   template <>
   bool MatchContent(const NameRef* lhs, const NameRef* rhs) {
-    return !options_.check_defs_for_name_refs ||
-           ToAstNode(lhs->name_def()) == ToAstNode(rhs->name_def());
+    if (!options_.check_defs_for_name_refs) {
+      return true;
+    }
+    const AstNode* lhs_def = ToAstNode(lhs->name_def());
+    const AstNode* rhs_def = ToAstNode(rhs->name_def());
+    if (lhs_def != rhs_def) {
+      return false;
+    }
+    if (!options_.refs_to_same_parametric_are_different ||
+        lhs_def->kind() != AstNodeKind::kNameDef) {
+      return true;
+    }
+    const auto* name_def = dynamic_cast<const NameDef*>(lhs_def);
+    return name_def->parent()->kind() != AstNodeKind::kParametricBinding;
   }
 
   // Returns true if `node` is of type `T` and `MatchContent<T>` returns true.

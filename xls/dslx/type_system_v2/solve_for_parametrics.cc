@@ -350,6 +350,7 @@ SolveForParametrics(const TypeAnnotation* resolvable_type,
       ZipAst(resolvable_type, parametric_dependent_type, &resolvable_visitor,
              &dependent_visitor,
              ZipAstOptions{.check_defs_for_name_refs = true,
+                           .refs_to_same_parametric_are_different = true,
                            .accept_mismatch_callback = [&](const AstNode* lhs,
                                                            const AstNode* rhs) {
                              return resolver.AcceptMismatch(lhs, rhs);

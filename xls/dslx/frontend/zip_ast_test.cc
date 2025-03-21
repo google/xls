@@ -149,6 +149,24 @@ const Z = Y + 1;
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("X vs. Y")));
 }
 
+TEST_F(ZipAstTest, ZipSameParametricRefWithFlag) {
+  constexpr std::string_view kProgram = R"(
+fn f<N: u32>(a: uN[N]) -> uN[N] { a }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* f,
+                           module->GetMemberOrError<Function>("f"));
+  const Param* a = f->params()[0];
+  Collector collector1;
+  Collector collector2;
+  EXPECT_THAT(
+      ZipAst(a->type_annotation(), a->type_annotation(), &collector1,
+             &collector2,
+             ZipAstOptions{.check_defs_for_name_refs = true,
+                           .refs_to_same_parametric_are_different = true}),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("N vs. N")));
+}
+
 TEST_F(ZipAstTest, ZipWithMismatchAccepted) {
   XLS_ASSERT_OK_AND_ASSIGN(auto module1, Parse(R"(
 fn muladd<S: bool, N: u32>(a: xN[S][N], b: xN[S][N], c: xN[S][N]) -> xN[S][N] {

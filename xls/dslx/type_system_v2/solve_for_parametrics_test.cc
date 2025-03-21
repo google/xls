@@ -585,5 +585,29 @@ const BAR: (uN[5], bool) = zero!<(uN[5], bool)>();
                HasSubstr("Mismatch: (uN[5], bool) vs. u32[N]")));
 }
 
+TEST_F(SolveForParametricsTest, SolveForReentrantParametricInvocation) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module->GetMemberOrError<Function>("foo"));
+  const ParametricBinding* n = foo->parametric_bindings()[0];
+  const Param* a = foo->params()[0];
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      values,
+      SolveForParametrics(a->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*,
+                              const Expr* expr) -> absl::StatusOr<InterpValue> {
+                            // Simulate having an "N" value from a lower-frame
+                            // `foo` call.
+                            EXPECT_EQ(expr->ToString(), "N");
+                            return InterpValue::MakeU32(4);
+                          }));
+  EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeU32(4))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

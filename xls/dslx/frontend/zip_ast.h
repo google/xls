@@ -28,6 +28,16 @@ struct ZipAstOptions {
   // def than the RHS one.
   bool check_defs_for_name_refs = false;
 
+  // If true, then two `NameRef`s to the same `ParametricBinding` of the same
+  // function or struct are considered different. This means the caller is
+  // considering the two ASTs being zipped to be in two different parametric
+  // contexts, so that, for example `uN[N]` must have a different instantiation
+  // of `N` on one side than the other, even though it's the same `N` at the AST
+  // level. Note that references to *different* parametric bindings that look
+  // the same (e.g. the `N` in two different functions) fall under the purview
+  // of the `check_defs_for_name_refs` flag.
+  bool refs_to_same_parametric_are_different = false;
+
   // The callback for handling mismatches. By default, this generates an error.
   absl::AnyInvocable<absl::Status(const AstNode*, const AstNode*)>
       accept_mismatch_callback =
