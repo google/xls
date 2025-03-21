@@ -772,26 +772,26 @@ static absl::Status AddOneShotOutputLogic(
       // the ready input port to serve as points where the
       // additional logic from AddRegisterToRDVNodes() can be inserted.
       XLS_ASSIGN_OR_RETURN(std::string port_name,
-                           StreamingIOName(*output.port));
+                           StreamingIOName(*output.GetDataPort()));
       XLS_ASSIGN_OR_RETURN(std::string port_valid_name,
-                           StreamingIOName(output.port_valid));
+                           StreamingIOName(output.GetValidPort()));
       std::string valid_buf_name = absl::StrFormat("__%s_buf", port_valid_name);
 
       XLS_ASSIGN_OR_RETURN(
           Node * output_port_valid_buf,
           block->MakeNodeWithName<UnOp>(
-              /*loc=*/SourceInfo(), output.port_valid->operand(0),
+              /*loc=*/SourceInfo(), output.GetValidPort()->operand(0),
               Op::kIdentity, valid_buf_name));
-      XLS_RETURN_IF_ERROR(
-          output.port_valid->ReplaceOperandNumber(0, output_port_valid_buf));
+      XLS_RETURN_IF_ERROR(output.GetValidPort()->ReplaceOperandNumber(
+          0, output_port_valid_buf));
 
       XLS_ASSIGN_OR_RETURN(Node * output_port_ready_buf,
                            block->MakeNodeWithName<UnOp>(
-                               /*loc=*/SourceInfo(), output.port_ready,
+                               /*loc=*/SourceInfo(), output.GetReadyPort(),
                                Op::kIdentity, valid_buf_name));
 
       XLS_RETURN_IF_ERROR(
-          output.port_ready->ReplaceUsesWith(output_port_ready_buf));
+          output.GetReadyPort()->ReplaceUsesWith(output_port_ready_buf));
 
       XLS_RETURN_IF_ERROR(AddOneShotLogicToRVNodes(
           output_port_valid_buf, output_port_ready_buf,
@@ -1169,21 +1169,22 @@ static absl::StatusOr<RegisterRead*> AddRegisterToRDVNodes(
 static absl::Status AddRegisterAfterStreamingInput(
     StreamingInput& input, FlopKind flop, Block* block,
     std::vector<std::optional<Node*>>& valid_nodes) {
-  XLS_ASSIGN_OR_RETURN(std::string port_name, StreamingIOName(*input.port));
+  XLS_ASSIGN_OR_RETURN(std::string port_name,
+                       StreamingIOName(*input.GetDataPort()));
   switch (flop) {
     case FlopKind::kZeroLatency:
-      return AddZeroLatencyBufferToRDVNodes(*input.port, input.port_valid,
-                                            input.port_ready, port_name, block,
-                                            valid_nodes)
+      return AddZeroLatencyBufferToRDVNodes(
+                 *input.GetDataPort(), input.GetValidPort(),
+                 input.GetReadyPort(), port_name, block, valid_nodes)
           .status();
     case FlopKind::kSkid:
-      return AddSkidBufferToRDVNodes(*input.port, input.port_valid,
-                                     input.port_ready, port_name, block,
+      return AddSkidBufferToRDVNodes(*input.GetDataPort(), input.GetValidPort(),
+                                     input.GetReadyPort(), port_name, block,
                                      valid_nodes)
           .status();
     case FlopKind::kFlop:
-      return AddRegisterToRDVNodes(*input.port, input.port_valid,
-                                   input.port_ready, port_name, block,
+      return AddRegisterToRDVNodes(*input.GetDataPort(), input.GetValidPort(),
+                                   input.GetReadyPort(), port_name, block,
                                    valid_nodes)
           .status();
     case FlopKind::kNone:
@@ -1203,36 +1204,38 @@ static absl::Status AddRegisterBeforeStreamingOutput(
   // Add buffers before the data/valid output ports and after
   // the ready input port to serve as points where the
   // additional logic from AddRegisterToRDVNodes() can be inserted.
-  XLS_ASSIGN_OR_RETURN(std::string port_name, StreamingIOName(*output.port));
+  XLS_ASSIGN_OR_RETURN(std::string port_name,
+                       StreamingIOName(*output.GetDataPort()));
   XLS_ASSIGN_OR_RETURN(std::string port_valid_name,
-                       StreamingIOName(output.port_valid));
+                       StreamingIOName(output.GetValidPort()));
   XLS_ASSIGN_OR_RETURN(std::string port_ready_name,
-                       StreamingIOName(output.port_ready));
+                       StreamingIOName(output.GetReadyPort()));
   std::string data_buf_name = absl::StrFormat("__%s_buf", port_name);
   std::string valid_buf_name = absl::StrFormat("__%s_buf", port_valid_name);
   std::string ready_buf_name = absl::StrFormat("__%s_buf", port_ready_name);
   XLS_ASSIGN_OR_RETURN(
       Node * output_port_data_buf,
       block->MakeNodeWithName<UnOp>(
-          /*loc=*/SourceInfo(), output.port.value()->operand(0), Op::kIdentity,
-          data_buf_name));
-  XLS_RETURN_IF_ERROR(
-      output.port.value()->ReplaceOperandNumber(0, output_port_data_buf));
+          /*loc=*/SourceInfo(), output.GetDataPort().value()->operand(0),
+          Op::kIdentity, data_buf_name));
+  XLS_RETURN_IF_ERROR(output.GetDataPort().value()->ReplaceOperandNumber(
+      0, output_port_data_buf));
 
-  XLS_ASSIGN_OR_RETURN(Node * output_port_valid_buf,
-                       block->MakeNodeWithName<UnOp>(
-                           /*loc=*/SourceInfo(), output.port_valid->operand(0),
-                           Op::kIdentity, valid_buf_name));
+  XLS_ASSIGN_OR_RETURN(
+      Node * output_port_valid_buf,
+      block->MakeNodeWithName<UnOp>(
+          /*loc=*/SourceInfo(), output.GetValidPort()->operand(0),
+          Op::kIdentity, valid_buf_name));
   XLS_RETURN_IF_ERROR(
-      output.port_valid->ReplaceOperandNumber(0, output_port_valid_buf));
+      output.GetValidPort()->ReplaceOperandNumber(0, output_port_valid_buf));
 
   XLS_ASSIGN_OR_RETURN(Node * output_port_ready_buf,
                        block->MakeNodeWithName<UnOp>(
-                           /*loc=*/SourceInfo(), output.port_ready,
+                           /*loc=*/SourceInfo(), output.GetReadyPort(),
                            Op::kIdentity, ready_buf_name));
 
   XLS_RETURN_IF_ERROR(
-      output.port_ready->ReplaceUsesWith(output_port_ready_buf));
+      output.GetReadyPort()->ReplaceUsesWith(output_port_ready_buf));
 
   switch (flop) {
     case FlopKind::kZeroLatency:
@@ -1275,23 +1278,23 @@ static absl::Status AddInputOutputFlops(
       // We really should have a different pass that configures all the channels
       // in a separate lowering step.
       FlopKind kind;
-      if (std::holds_alternative<Channel*>(input.channel)) {
-        StreamingChannel* channel =
-            down_cast<StreamingChannel*>(std::get<Channel*>(input.channel));
+      if (std::holds_alternative<Channel*>(input.GetChannel())) {
+        StreamingChannel* channel = down_cast<StreamingChannel*>(
+            std::get<Channel*>(input.GetChannel()));
         XLS_RET_CHECK(channel->channel_config().input_flop_kind())
             << "No input flop kind";
         kind = channel->channel_config().input_flop_kind().value();
       } else {
-        kind = std::get<ChannelInterface*>(input.channel)->flop_kind();
+        kind = std::get<ChannelInterface*>(input.GetChannel())->flop_kind();
       }
       XLS_RETURN_IF_ERROR(
           AddRegisterAfterStreamingInput(input, kind, block, valid_nodes));
 
       // ready for an output port is an output for the block,
       // record that we should not separately add a flop these inputs.
-      handled_io_nodes.insert(input.port_ready);
-      handled_io_nodes.insert(*input.port);
-      handled_io_nodes.insert(input.port_valid);
+      handled_io_nodes.insert(input.GetReadyPort());
+      handled_io_nodes.insert(*input.GetDataPort());
+      handled_io_nodes.insert(input.GetValidPort());
     }
   }
 
@@ -1302,23 +1305,23 @@ static absl::Status AddInputOutputFlops(
       // We really should have a different pass that configures all the channels
       // in a separate lowering step.
       FlopKind kind;
-      if (std::holds_alternative<Channel*>(output.channel)) {
-        StreamingChannel* channel =
-            down_cast<StreamingChannel*>(std::get<Channel*>(output.channel));
+      if (std::holds_alternative<Channel*>(output.GetChannel())) {
+        StreamingChannel* channel = down_cast<StreamingChannel*>(
+            std::get<Channel*>(output.GetChannel()));
         XLS_RET_CHECK(channel->channel_config().output_flop_kind())
             << "No output flop kind";
         kind = channel->channel_config().output_flop_kind().value();
       } else {
-        kind = std::get<ChannelInterface*>(output.channel)->flop_kind();
+        kind = std::get<ChannelInterface*>(output.GetChannel())->flop_kind();
       }
       XLS_RETURN_IF_ERROR(
           AddRegisterBeforeStreamingOutput(output, kind, block, valid_nodes));
 
       // ready for an output port is an input for the block,
       // record that we should not separately add a flop these inputs.
-      handled_io_nodes.insert(output.port_ready);
-      handled_io_nodes.insert(*output.port);
-      handled_io_nodes.insert(output.port_valid);
+      handled_io_nodes.insert(output.GetReadyPort());
+      handled_io_nodes.insert(*output.GetDataPort());
+      handled_io_nodes.insert(output.GetValidPort());
     }
   }
 
@@ -1377,8 +1380,8 @@ static absl::StatusOr<Node*> Stage0HasNoActiveRecvs(
 
   std::vector<Node*> recv_if_preds;
   for (StreamingInput& streaming_input : streaming_inputs[0]) {
-    if (streaming_input.predicate.has_value()) {
-      recv_if_preds.push_back(streaming_input.predicate.value());
+    if (streaming_input.GetPredicate().has_value()) {
+      recv_if_preds.push_back(streaming_input.GetPredicate().value());
     } else {
       // There is an unconditional receive node, return literal 0
       return block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(0, 1)));
@@ -1410,14 +1413,14 @@ static absl::Status AddIdleOutput(
 
   for (auto& vec : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
-      XLS_RET_CHECK(input.signal_valid.has_value());
-      valid_nodes.push_back(input.signal_valid);
+      XLS_RET_CHECK(input.GetSignalValid().has_value());
+      valid_nodes.push_back(input.GetSignalValid());
     }
   }
 
   for (auto& vec : streaming_io.outputs) {
     for (StreamingOutput& output : vec) {
-      valid_nodes.push_back(output.port_valid->operand(0));
+      valid_nodes.push_back(output.GetValidPort()->operand(0));
     }
   }
 

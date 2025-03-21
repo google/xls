@@ -68,12 +68,19 @@ using Stage = int64_t;
 // Data structures holding the data and (optional) predicate nodes representing
 // streaming inputs (receive over streaming channel) and streaming outputs (send
 // over streaming channel) in the generated block.
-struct StreamingInput {
+class StreamingInput {
   // Note that these ports can either be external I/Os or be ports from a FIFO
   // instantiation.
-  std::optional<Node*> port;
-  Node* port_valid;
-  Node* port_ready;
+ public:
+  StreamingInput(std::optional<Node*> port, Node* port_valid, Node* port_ready,
+                 ChannelRef channel)
+      : port_(port),
+        port_valid_(port_valid),
+        port_ready_(port_ready),
+        channel_(channel) {}
+
+  // Block* block;
+  //  ChannelDirection direction;
 
   // signal_data and signal_valid represent the internal view of the streaming
   // input.  These are used (ex. for handling non-blocking receives) as
@@ -92,58 +99,128 @@ struct StreamingInput {
   //  |   |             |              |            |
   //  |                                             |
   //  -----------------------------------------------
-  std::optional<Node*> signal_data;
-  std::optional<Node*> signal_valid;
 
-  ChannelRef channel;
-  std::optional<FifoInstantiation*> fifo_instantiation;
-  std::optional<Node*> predicate;
+  const std::optional<Node*>& GetDataPort() const { return port_; }
+  void SetDataPort(std::optional<Node*> value) { port_ = value; }
+  Node* GetValidPort() const { return port_valid_; }
+  Node* GetReadyPort() const { return port_ready_; }
+  void SetReadyPort(Node* value) { port_ready_ = value; }
+  ChannelRef GetChannel() const { return channel_; }
+
+  const std ::optional<Node*>& GetPredicate() const { return predicate_; }
+  void SetPredicate(std::optional<Node*> value) { predicate_ = value; }
+
+  const std ::optional<FifoInstantiation*>& GetFifoInstantiation() const {
+    return fifo_instantiation_;
+  }
+  void SetFifoInstantiation(FifoInstantiation* value) {
+    fifo_instantiation_ = value;
+  }
+
+  const std ::optional<Node*>& GetSignalData() const { return signal_data_; }
+  void SetSignalData(std::optional<Node*> value) { signal_data_ = value; }
+  const std ::optional<Node*>& GetSignalValid() const { return signal_valid_; }
+  void SetSignalValid(std::optional<Node*> value) { signal_valid_ = value; }
 
   bool IsExternal() const {
-    return (!port.has_value() || port.value()->op() == Op::kInputPort) &&
-           port_valid->op() == Op::kInputPort &&
-           port_ready->op() == Op::kOutputPort;
+    return (!GetDataPort().has_value() ||
+            GetDataPort().value()->op() == Op::kInputPort) &&
+           GetValidPort()->op() == Op::kInputPort &&
+           GetReadyPort()->op() == Op::kOutputPort;
   }
   bool IsInstantiation() const {
-    return (!port.has_value() ||
-            port.value()->op() == Op::kInstantiationOutput) &&
-           port_valid->op() == Op::kInstantiationOutput &&
-           port_ready->op() == Op::kInstantiationInput;
+    return (!GetDataPort().has_value() ||
+            GetDataPort().value()->op() == Op::kInstantiationOutput) &&
+           GetValidPort()->op() == Op::kInstantiationOutput &&
+           GetReadyPort()->op() == Op::kInstantiationInput;
   }
+
+ private:
+  std::optional<Node*> port_;
+  Node* port_valid_;
+  Node* port_ready_;
+  ChannelRef channel_;
+
+  std::optional<Node*> signal_data_;
+  std::optional<Node*> signal_valid_;
+  std::optional<FifoInstantiation*> fifo_instantiation_;
+  std::optional<Node*> predicate_;
 };
 
-struct StreamingOutput {
-  // Note that these ports can either be external I/Os or be ports from a FIFO
-  // instantiation.
-  std::optional<Node*> port;
-  Node* port_valid;
-  Node* port_ready;
-  ChannelRef channel;
-  std::optional<FifoInstantiation*> fifo_instantiation;
-  std::optional<Node*> predicate;
+class StreamingOutput {
+ public:
+  StreamingOutput(std::optional<Node*> port, Node* port_valid, Node* port_ready,
+                  ChannelRef channel)
+      : port_(port),
+        port_valid_(port_valid),
+        port_ready_(port_ready),
+        channel_(channel) {}
+
+  const std ::optional<Node*>& GetDataPort() const { return port_; }
+  void SetDataPort(std::optional<Node*> value) { port_ = value; }
+  Node* GetValidPort() const { return port_valid_; }
+  void SetValidPort(Node* value) { port_valid_ = value; }
+  Node* GetReadyPort() const { return port_ready_; }
+  void SetReadyPort(Node* value) { port_ready_ = value; }
+  ChannelRef GetChannel() const { return channel_; }
+  const std ::optional<Node*>& GetPredicate() const { return predicate_; }
+  void SetPredicate(std::optional<Node*> value) { predicate_ = value; }
+
+  const std ::optional<FifoInstantiation*>& GetFifoInstantiation() const {
+    return fifo_instantiation_;
+  }
+  void SetFifoInstantiation(FifoInstantiation* value) {
+    fifo_instantiation_ = value;
+  }
 
   bool IsExternal() const {
-    return port.value()->op() == Op::kOutputPort &&
-           port_valid->op() == Op::kOutputPort &&
-           port_ready->op() == Op::kInputPort;
+    return GetDataPort().value()->op() == Op::kOutputPort &&
+           GetValidPort()->op() == Op::kOutputPort &&
+           GetReadyPort()->op() == Op::kInputPort;
   }
   bool IsInstantiation() const {
-    return port.value()->op() == Op::kInstantiationInput &&
-           port_valid->op() == Op::kInstantiationInput &&
-           port_ready->op() == Op::kInstantiationOutput;
+    return GetDataPort().value()->op() == Op::kInstantiationInput &&
+           GetValidPort()->op() == Op::kInstantiationInput &&
+           GetReadyPort()->op() == Op::kInstantiationOutput;
   }
+
+ private:
+  // Note that these ports can either be external I/Os or be ports from a FIFO
+  // instantiation.
+  std::optional<Node*> port_;
+  Node* port_valid_;
+  Node* port_ready_;
+  ChannelRef channel_;
+  std::optional<FifoInstantiation*> fifo_instantiation_;
+  std::optional<Node*> predicate_;
 };
 
 // Data structures holding the port representing single value inputs/outputs
 // in the generated block.
 struct SingleValueInput {
-  InputPort* port;
-  ChannelRef channel;
+ public:
+  SingleValueInput(InputPort* port, ChannelRef channel)
+      : port_(port), channel_(channel) {}
+
+  ChannelRef GetChannel() const { return channel_; }
+  InputPort* GetDataPort() const { return port_; }
+
+ private:
+  InputPort* port_;
+  ChannelRef channel_;
 };
 
-struct SingleValueOutput {
-  OutputPort* port;
-  ChannelRef channel;
+class SingleValueOutput {
+ public:
+  SingleValueOutput(OutputPort* port, ChannelRef channel)
+      : port_(port), channel_(channel) {}
+
+  ChannelRef GetChannel() const { return channel_; }
+  OutputPort* GetDataPort() const { return port_; }
+
+ private:
+  OutputPort* port_;
+  ChannelRef channel_;
 };
 
 // A data structure representing a pipeline register for a single XLS IR value.

@@ -340,52 +340,55 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
                                    Block* block) {
   for (const auto& inputs : io.inputs) {
     for (const StreamingInput& input : inputs) {
-      CHECK_NE(*input.port, nullptr);
-      CHECK_NE(input.port_valid, nullptr);
-      CHECK_NE(input.port_ready, nullptr);
+      CHECK_NE(*input.GetDataPort(), nullptr);
+      CHECK_NE(input.GetValidPort(), nullptr);
+      CHECK_NE(input.GetReadyPort(), nullptr);
       // Ports are either all external IOs or all from instantiations.
       CHECK(input.IsExternal() || input.IsInstantiation());
 
       if (input.IsExternal()) {
         XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-            input.channel, ChannelDirection::kReceive,
-            input.port.value()->GetName(), input.port_valid->GetName(),
-            input.port_ready->GetName()));
+            input.GetChannel(), ChannelDirection::kReceive,
+            input.GetDataPort().value()->GetName(),
+            input.GetValidPort()->GetName(), input.GetReadyPort()->GetName()));
       }
     }
   }
 
   for (const auto& outputs : io.outputs) {
     for (const StreamingOutput& output : outputs) {
-      CHECK_NE(*output.port, nullptr);
-      CHECK_NE(output.port_valid, nullptr);
-      CHECK_NE(output.port_ready, nullptr);
+      CHECK_NE(*output.GetDataPort(), nullptr);
+      CHECK_NE(output.GetValidPort(), nullptr);
+      CHECK_NE(output.GetReadyPort(), nullptr);
       // Ports are either all external IOs or all from instantiations.
       CHECK(output.IsExternal() || output.IsInstantiation());
 
       if (output.IsExternal()) {
         XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-            output.channel, ChannelDirection::kSend,
-            output.port.value()->GetName(), output.port_valid->GetName(),
-            output.port_ready->GetName()));
+            output.GetChannel(), ChannelDirection::kSend,
+            output.GetDataPort().value()->GetName(),
+            output.GetValidPort()->GetName(),
+            output.GetReadyPort()->GetName()));
       }
     }
   }
 
   for (const SingleValueInput& input : io.single_value_inputs) {
-    CHECK_NE(input.port, nullptr);
+    CHECK_NE(input.GetDataPort(), nullptr);
 
     XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-        input.channel, ChannelDirection::kReceive, input.port->GetName(),
+        input.GetChannel(), ChannelDirection::kReceive,
+        input.GetDataPort()->GetName(),
         /*valid_port=*/std::nullopt,
         /*ready_port=*/std::nullopt));
   }
 
   for (const SingleValueOutput& output : io.single_value_outputs) {
-    CHECK_NE(output.port, nullptr);
+    CHECK_NE(output.GetDataPort(), nullptr);
 
     XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-        output.channel, ChannelDirection::kSend, output.port->GetName(),
+        output.GetChannel(), ChannelDirection::kSend,
+        output.GetDataPort()->GetName(),
         /*valid_port=*/std::nullopt,
         /*ready_port=*/std::nullopt));
   }

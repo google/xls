@@ -228,7 +228,7 @@ void ClearRewrittenMetadata(
     inputs.erase(std::remove_if(inputs.begin(), inputs.end(),
                                 [&channel_names](const StreamingInput& input) {
                                   return channel_names.contains(
-                                      ChannelRefName(input.channel));
+                                      ChannelRefName(input.GetChannel()));
                                 }),
                  inputs.end());
   }
@@ -237,7 +237,7 @@ void ClearRewrittenMetadata(
         std::remove_if(outputs.begin(), outputs.end(),
                        [&channel_names](const StreamingOutput& output) {
                          return channel_names.contains(
-                             ChannelRefName(output.channel));
+                             ChannelRefName(output.GetChannel()));
                        }),
         outputs.end());
   }

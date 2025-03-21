@@ -66,41 +66,44 @@ void CodegenPassUnit::GcMetadata() {
     for (std::vector<StreamingInput>& inputs :
          block_metadata.streaming_io_and_pipeline.inputs) {
       for (StreamingInput& input : inputs) {
-        if (input.port.has_value() && !nodes.contains(*input.port)) {
-          input.port.reset();
+        if (input.GetDataPort().has_value() &&
+            !nodes.contains(*input.GetDataPort())) {
+          input.SetDataPort(std::nullopt);
         }
-        if (input.signal_data.has_value() &&
-            !nodes.contains(*input.signal_data)) {
-          input.signal_data.reset();
+        if (input.GetSignalData().has_value() &&
+            !nodes.contains(*input.GetSignalData())) {
+          input.SetSignalData(std::nullopt);
         }
-        if (input.signal_valid.has_value() &&
-            !nodes.contains(*input.signal_valid)) {
-          input.signal_valid.reset();
+        if (input.GetSignalValid().has_value() &&
+            !nodes.contains(*input.GetSignalValid())) {
+          input.SetSignalValid(std ::nullopt);
         }
-        if (input.predicate.has_value() && !nodes.contains(*input.predicate)) {
-          input.predicate.reset();
+        if (input.GetPredicate().has_value() &&
+            !nodes.contains(*input.GetPredicate())) {
+          input.SetPredicate(std::nullopt);
         }
       }
     }
     for (std::vector<StreamingOutput>& outputs :
          block_metadata.streaming_io_and_pipeline.outputs) {
       for (StreamingOutput& output : outputs) {
-        if (output.port.has_value() && !nodes.contains(*output.port)) {
-          output.port.reset();
+        if (output.GetDataPort().has_value() &&
+            !nodes.contains(*output.GetDataPort())) {
+          output.SetDataPort(std::nullopt);
         }
-        if (output.predicate.has_value() &&
-            !nodes.contains(*output.predicate)) {
-          output.predicate.reset();
+        if (output.GetPredicate().has_value() &&
+            !nodes.contains(*output.GetPredicate())) {
+          output.SetPredicate(std::nullopt);
         }
       }
     }
     std::erase_if(block_metadata.streaming_io_and_pipeline.single_value_inputs,
                   [&nodes](const SingleValueInput& input) {
-                    return !nodes.contains(input.port);
+                    return !nodes.contains(input.GetDataPort());
                   });
     std::erase_if(block_metadata.streaming_io_and_pipeline.single_value_outputs,
                   [&nodes](const SingleValueOutput& output) {
-                    return !nodes.contains(output.port);
+                    return !nodes.contains(output.GetDataPort());
                   });
     for (std::optional<Node*>& valid :
          block_metadata.streaming_io_and_pipeline.pipeline_valid) {
@@ -134,40 +137,42 @@ void CodegenPassUnit::GcMetadata() {
          metadata.streaming_io_and_pipeline.inputs) {
       for (const StreamingInput& input : inputs) {
         VLOG(5) << absl::StreamFormat("Input found on %v for %s", *block,
-                                      ChannelRefName(input.channel));
+                                      ChannelRefName(input.GetChannel()));
         if (!input.IsExternal()) {
           VLOG(5) << absl::StreamFormat("Skipping internal input %s",
-                                        ChannelRefName(input.channel));
+                                        ChannelRefName(input.GetChannel()));
           continue;
         }
-        channel_to_streaming_input[std::get<Channel*>(input.channel)] = &input;
+        channel_to_streaming_input[std::get<Channel*>(input.GetChannel())] =
+            &input;
       }
     }
     for (const SingleValueInput& input :
          metadata.streaming_io_and_pipeline.single_value_inputs) {
       VLOG(5) << absl::StreamFormat("Input found on %v for %s", *block,
-                                    ChannelRefName(input.channel));
-      channel_to_single_value_input[std::get<Channel*>(input.channel)] = &input;
+                                    ChannelRefName(input.GetChannel()));
+      channel_to_single_value_input[std::get<Channel*>(input.GetChannel())] =
+          &input;
     }
     for (const std::vector<StreamingOutput>& outputs :
          metadata.streaming_io_and_pipeline.outputs) {
       for (const StreamingOutput& output : outputs) {
         VLOG(5) << absl::StreamFormat("Output found on %v for %s.", *block,
-                                      ChannelRefName(output.channel));
+                                      ChannelRefName(output.GetChannel()));
         if (!output.IsExternal()) {
           VLOG(5) << absl::StreamFormat("Skipping internal output %s",
-                                        ChannelRefName(output.channel));
+                                        ChannelRefName(output.GetChannel()));
           continue;
         }
-        channel_to_streaming_output[std::get<Channel*>(output.channel)] =
+        channel_to_streaming_output[std::get<Channel*>(output.GetChannel())] =
             &output;
       }
     }
     for (const SingleValueOutput& output :
          metadata.streaming_io_and_pipeline.single_value_outputs) {
       VLOG(5) << absl::StreamFormat("Output found on %v for %s.", *block,
-                                    ChannelRefName(output.channel));
-      channel_to_single_value_output[std::get<Channel*>(output.channel)] =
+                                    ChannelRefName(output.GetChannel()));
+      channel_to_single_value_output[std::get<Channel*>(output.GetChannel())] =
           &output;
     }
   }
