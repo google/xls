@@ -43,7 +43,7 @@ enum FlopKindProto {
 
 // Configuration for a single channel.
 message ChannelConfigProto {
-  // Configuration passed to the materialize_fifos_pass or the xls_fifo_wrapper
+  // Configuration passed to the MaybeMaterializeFifosPass or the FIFO module
   // instantiation to set up the actual verilog fifo backing the channel.
   //
   // It is an error to include this for non-streaming channels.

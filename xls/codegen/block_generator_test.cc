@@ -269,6 +269,8 @@ class BlockGeneratorTest : public VerilogTestBase {
       std::optional<std::string> clock_name = std::nullopt) {
     CodegenOptions options;
     options.use_system_verilog(UseSystemVerilog());
+    options.set_fifo_module("xls_fifo_wrapper");
+    options.set_nodata_fifo_module("xls_nodata_fifo_wrapper");
     if (clock_name.has_value()) {
       options.clock_name(clock_name.value());
     }
@@ -390,6 +392,8 @@ class BlockGeneratorTest : public VerilogTestBase {
     codegen_flags_proto.set_use_system_verilog(UseSystemVerilog());
     codegen_flags_proto.set_streaming_channel_valid_suffix("_vld");
     codegen_flags_proto.set_streaming_channel_ready_suffix("_rdy");
+    codegen_flags_proto.set_fifo_module("xls_fifo_wrapper");
+    codegen_flags_proto.set_nodata_fifo_module("xls_nodata_fifo_wrapper");
 
     return ScheduleAndCodegen(&package, scheduling_options_flags_proto,
                               codegen_flags_proto, /*with_delay_model=*/true);
@@ -2481,6 +2485,8 @@ class ZeroWidthBlockGeneratorTest
     options.flop_outputs(std::get<0>(std::get<1>(std::get<1>(GetParam()))));
     options.flop_outputs_kind(
         std::get<1>(std::get<1>(std::get<1>(GetParam()))));
+    options.set_fifo_module("xls_fifo_wrapper");
+    options.set_nodata_fifo_module("xls_nodata_fifo_wrapper");
     return options;
   }
   std::filesystem::path GoldenFilePath(

@@ -370,8 +370,62 @@ string. These format strings use placeholders to fill in relevant information.
 
 -   See also [Reset Signal Configuration](#reset-signal-configuration).
 
--   `--materialize_internal_fifos` forces internal fifos between multi-proc
-    codegen'd blocks be directly implemented in verilog in the output.
+-   `--fifo_module` provides the name of a Verilog module that will be used to
+    implement FIFOs with data signals between procs in the same network; this
+    defaults to "xls_fifo_wrapper". If passed an empty string, these FIFOs will
+    be materialized using XLS-provided logic (which is not necessarily optimized
+    for PPA). This module must take the following parameters:
+
+    -   Width: a positive integer; the width of the datapath in bits.
+    -   Depth: a non-negative integer; the number of entries in the FIFO.
+    -   RegisterPushOutputs: a bit; if set, the `push_*` output signals must be
+        driven directly from registers. Will never be set if `Depth` is 0.
+    -   RegisterPopOutputs: a bit; if set, the `pop_*` output signals must be
+        driven directly from registers. Will never be set if `Depth` is less
+        than 2.
+    -   EnableBypass: a bit; if set, the storage must be bypassed if the FIFO is
+        empty and a push & pop occur in the same clock cycle, reducing the
+        minimum push-to-pop (cut-through) latency. Necessitates a combinational
+        timing path between the pop & push controllers. Will always be set if
+        `Depth` is 0.
+
+    and provide the following interface:
+
+    -   `input logic clk`,
+    -   `input logic rst`,
+    -   `output logic push_ready`,
+    -   `input logic push_valid`,
+    -   `input logic [Width-1:0] push_data`,
+    -   `input logic pop_ready`,
+    -   `output logic pop_valid`,
+    -   `output logic [Width-1:0] pop_data`.
+
+-   `--nodata_fifo_module` provides the name of a Verilog module that will be
+    used to implement FIFOs with no data signal between procs in the same
+    network. If not present, these FIFOs will be materialized using XLS-provided
+    logic (which is not necessarily optimized for PPA). This module must take
+    the following parameters:
+
+    -   Depth: a non-negative integer; the number of entries in the FIFO.
+    -   RegisterPushOutputs: a bit; if set, the `push_*` output signals must be
+        driven directly from registers. Will never be set if `Depth` is 0.
+    -   RegisterPopOutputs: a bit; if set, the `pop_*` output signals must be
+        driven directly from registers. Will never be set if `Depth` is less
+        than 2.
+    -   EnableBypass: a bit; if set, the storage must be bypassed if the FIFO is
+        empty and a push & pop occur in the same clock cycle, reducing the
+        minimum push-to-pop (cut-through) latency. Necessitates a combinational
+        timing path between the pop & push controllers. Will always be set if
+        `Depth` is 0.
+
+    and provide the following interface:
+
+    -   `input logic clk`,
+    -   `input logic rst`,
+    -   `output logic push_ready`,
+    -   `input logic push_valid`,
+    -   `input logic pop_ready`,
+    -   `output logic pop_valid`.
 
 # RAMs (experimental)
 

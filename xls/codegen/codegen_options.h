@@ -334,14 +334,20 @@ class CodegenOptions {
   }
   bool generate_combinational() const { return generate_combinational_; }
 
-  // Whether to generate internal fifos directly. If false internal fifos will
-  // need to be instantiated in verilog.
-  CodegenOptions& materialize_internal_fifos(bool value) {
-    materialize_internal_fifos_ = value;
+  // Which module to use for FIFOs. If empty, will materialize an internal
+  // implementation.
+  std::string_view fifo_module() const { return fifo_module_; }
+  CodegenOptions& set_fifo_module(std::string_view module) {
+    fifo_module_ = module;
     return *this;
   }
-  bool materialize_internal_fifos() const {
-    return materialize_internal_fifos_;
+
+  // Which module to use for no-data FIFOs. If empty, will materialize an
+  // internal implementation.
+  std::string_view nodata_fifo_module() const { return nodata_fifo_module_; }
+  CodegenOptions& set_nodata_fifo_module(std::string_view module) {
+    nodata_fifo_module_ = module;
+    return *this;
   }
 
   // If non-empty, the seed used to randomize the order of lines in the output.
@@ -390,7 +396,8 @@ class CodegenOptions {
   std::string simulation_macro_name_ = "SIMULATION";
   std::vector<std::string> assertion_macro_names_ = {"ASSERT_ON"};
   Version codegen_version_ = Version::kDefault;
-  bool materialize_internal_fifos_ = false;
+  std::string fifo_module_ = "xls_fifo_wrapper";
+  std::string nodata_fifo_module_ = "";
   std::vector<int32_t> randomize_order_seed_;
 };
 

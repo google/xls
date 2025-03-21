@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/materialize_fifos_pass.h"
+#include "xls/codegen/maybe_materialize_fifos_pass.h"
 
 #include <cstdint>
 #include <memory>
@@ -81,11 +81,13 @@ class MaterializeFifosPassTestHelper {
                                        std::string_view reset_name) {
     XLS_ASSIGN_OR_RETURN(Block * wrapper, MakeOracleBlock(p, params, "test"));
 
-    MaterializeFifosPass mfp;
+    MaybeMaterializeFifosPass mfp;
     CodegenPassUnit pu(p, wrapper);
     CodegenPassOptions opt;
     opt.codegen_options.reset(reset_name, /*asynchronous=*/false,
                               /*active_low=*/false, /*reset_data_path=*/false);
+    opt.codegen_options.set_fifo_module("");
+    opt.codegen_options.set_nodata_fifo_module("");
     CodegenPassResults res;
     XLS_ASSIGN_OR_RETURN(auto changed, mfp.Run(&pu, opt, &res));
     XLS_RET_CHECK(changed);

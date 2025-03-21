@@ -404,6 +404,7 @@ xls_dslx_verilog(
         "pipeline_stages": "3",
         "reset": "rst",
         "use_system_verilog": "false",
+        "fifo_module": "",
         "materialize_internal_fifos": "true",
     },
     dslx_top = "RleBlockDecoder",
@@ -421,6 +422,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "3",
         "delay_model": "asap7",
+        "fifo_module": "",
         "materialize_internal_fifos": "true",
     },
     tags = ["manual"],
@@ -666,6 +668,7 @@ xls_dslx_verilog(
         "pipeline_stages": "2",
         "reset": "rst",
         "use_system_verilog": "false",
+        "fifo_module": "",
         "materialize_internal_fifos": "true",
     },
     dslx_top = "BlockDecoder",
@@ -683,6 +686,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "2",
         "delay_model": "asap7",
+        "fifo_module": "",
         "materialize_internal_fifos": "true",
     },
     tags = ["manual"],
@@ -787,6 +791,7 @@ xls_dslx_verilog(
         "flop_outputs": "false",
         "worst_case_throughput": "1",
         "use_system_verilog": "false",
+        "fifo_module": "",
         "materialize_internal_fifos": "true",
     },
     dslx_top = "SequenceExecutorZstd",
@@ -804,6 +809,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "8",
         "delay_model": "asap7",
+        "fifo_module": "",
         "materialize_internal_fifos": "true",
     },
     tags = ["manual"],
@@ -976,6 +982,7 @@ xls_dslx_verilog(
         "flop_outputs": "false",
         "worst_case_throughput": "1",
         "use_system_verilog": "false",
+        "fifo_module": "",
         "materialize_internal_fifos": "true",
     },
     dslx_top = "ZstdDecoder",
@@ -1034,6 +1041,7 @@ xls_benchmark_ir(
         #TODO: rewrite ram in opt_ir step to perform valid IR benchmark
         "pipeline_stages": "1",
         "delay_model": "asap7",
+        "fifo_module": "",
         "materialize_internal_fifos": "true",
     },
     tags = ["manual"],

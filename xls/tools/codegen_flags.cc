@@ -145,9 +145,21 @@ ABSL_FLAG(std::vector<std::string>, ram_configurations, {},
 ABSL_FLAG(bool, gate_recvs, true,
           "If true, emit logic to gate the data value to zero for a receive "
           "operation in Verilog. Otherwise, the data value is not gated.");
+ABSL_FLAG(std::string, fifo_module, "xls_fifo_wrapper",
+          "If provided, instantiates the provided module where (positive "
+          "width) FIFOs are needed, passing the parameters Width, Depth, "
+          "RegisterPushOutputs, RegisterPopOutputs, and EnableBypass; "
+          "otherwise, materializes the FIFOs using an internal implementation."
+          "See documentation for the requirements this module must meet.");
+ABSL_FLAG(std::string, nodata_fifo_module, "",
+          "If provided, instantiates the provided module where a no-data FIFO "
+          "is required, passing the parameters Depth, RegisterPushOutputs, "
+          "RegisterPopOutputs, and EnableBypass; otherwise, materializes the "
+          "FIFO using an internal implementation. See documentation for the "
+          "requirements this module must meet.");
 ABSL_FLAG(bool, materialize_internal_fifos, false,
-          "If true, emit logic implementing fifos for any channels in the IR. "
-          "If false use an externally provided fifo implementation.");
+          "If true and no `--fifo_module` is provided, FIFOs will be "
+          "materialized using an internal implementation.");
 ABSL_FLAG(bool, array_index_bounds_checking, true,
           "If true, emit bounds checking on array-index operations in Verilog. "
           "Otherwise, the bounds checking is not evaluated.");
@@ -331,7 +343,21 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
   // Optimizations
   POPULATE_FLAG(gate_recvs);
   POPULATE_FLAG(array_index_bounds_checking);
-  POPULATE_FLAG(materialize_internal_fifos);
+  POPULATE_FLAG(fifo_module);
+  POPULATE_FLAG(nodata_fifo_module);
+  if (absl::GetFlag(FLAGS_materialize_internal_fifos)) {
+    any_flags_set = true;
+    if (!FLAGS_fifo_module.IsSpecifiedOnCommandLine()) {
+      proto.clear_fifo_module();
+    } else {
+      XLS_RET_CHECK(proto.fifo_module().empty())
+          << "Cannot specify both --fifo_module and "
+             "--materialize_internal_fifos.";
+      XLS_RET_CHECK(proto.nodata_fifo_module().empty())
+          << "Cannot specify both --nodata_fifo_module and "
+             "--materialize_internal_fifos.";
+    }
+  }
   XLS_ASSIGN_OR_RETURN(
       RegisterMergeStrategyProto merge_strategy,
       MergeStrategyFromString(absl::GetFlag(FLAGS_register_merge_strategy)));

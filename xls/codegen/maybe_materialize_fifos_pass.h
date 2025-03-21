@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_MATERIALIZE_FIFOS_PASS_H_
-#define XLS_CODEGEN_MATERIALIZE_FIFOS_PASS_H_
+#ifndef XLS_CODEGEN_MAYBE_MATERIALIZE_FIFOS_PASS_H_
+#define XLS_CODEGEN_MAYBE_MATERIALIZE_FIFOS_PASS_H_
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 
 namespace xls::verilog {
 
-// Materialize FIFO instantiations into blocks. The performance
-// characteristics/DV Support may not be ideal for all use cases.
-class MaterializeFifosPass : public CodegenPass {
+// Materialize FIFO instantiations into blocks where required by codegen
+// options. The performance characteristics/DV Support may not be ideal for all
+// use cases.
+class MaybeMaterializeFifosPass : public CodegenPass {
  public:
-  MaterializeFifosPass()
+  MaybeMaterializeFifosPass()
       : CodegenPass("materialize_fifos",
                     "Materialize FIFO instantiations into block-instantiations "
                     "that match the same API.") {}
@@ -35,24 +36,6 @@ class MaterializeFifosPass : public CodegenPass {
                                    CodegenPassResults* results) const final;
 };
 
-// Helper pass to materialize fifos in cases where there is no configured fifo
-// template.
-class MaybeMaterializeInternalFifoPass : public CodegenPass {
- public:
-  MaybeMaterializeInternalFifoPass()
-      : CodegenPass("fallback_fifos",
-                    "Materialize FIFO instantiations into block-instantiation "
-                    "if no FIFO template is specified.") {}
-
- protected:
-  absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
-                                   const CodegenPassOptions& options,
-                                   CodegenPassResults* results) const final;
-
- private:
-  MaterializeFifosPass materialize_;
-};
-
 }  // namespace xls::verilog
 
-#endif  // XLS_CODEGEN_MATERIALIZE_FIFOS_PASS_H_
+#endif  // XLS_CODEGEN_MAYBE_MATERIALIZE_FIFOS_PASS_H_

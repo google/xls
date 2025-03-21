@@ -386,6 +386,7 @@ mem_reader_codegen_args = common_codegen_args | {
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
     "clock_period_ps": MEM_READER_CLOCK_PERIOD_PS,
+    "fifo_module": "",
     "materialize_internal_fifos": "true",
 }
 
@@ -441,6 +442,7 @@ mem_reader_adv_codegen_args = common_codegen_args | {
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
     "clock_period_ps": MEM_READER_CLOCK_PERIOD_PS,
+    "fifo_module": "",
     "materialize_internal_fifos": "true",
 }
 
@@ -670,6 +672,7 @@ mem_writer_codegen_args = common_codegen_args | {
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
     "worst_case_throughput": "1",
+    "fifo_module": "",
     "materialize_internal_fifos": "true",
 }
 

@@ -947,7 +947,12 @@ class BlockGenerator {
         });
 
         std::string_view wrapper_name =
-            have_data ? "xls_fifo_wrapper" : "xls_nodata_fifo_wrapper";
+            have_data ? options_.fifo_module() : options_.nodata_fifo_module();
+        if (wrapper_name.empty()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "No FIFO module specified, but %sFIFO instantiation required.",
+              have_data ? "" : "no-data "));
+        }
 
         mb_.instantiation_section()->Add<Instantiation>(
             SourceInfo(), wrapper_name, fifo_instantiation->name(),

@@ -72,7 +72,8 @@ CodegenOptions::CodegenOptions(const CodegenOptions& options)
       simulation_macro_name_(options.simulation_macro_name_),
       assertion_macro_names_(options.assertion_macro_names_),
       codegen_version_(options.codegen_version_),
-      materialize_internal_fifos_(options.materialize_internal_fifos_),
+      fifo_module_(options.fifo_module_),
+      nodata_fifo_module_(options.nodata_fifo_module_),
       randomize_order_seed_(options.randomize_order_seed_) {
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
@@ -111,7 +112,8 @@ CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
   emit_sv_types_ = options.emit_sv_types_;
   simulation_macro_name_ = options.simulation_macro_name_;
   codegen_version_ = options.codegen_version_;
-  materialize_internal_fifos_ = options.materialize_internal_fifos_;
+  fifo_module_ = options.fifo_module_;
+  nodata_fifo_module_ = options.nodata_fifo_module_;
   randomize_order_seed_ = options.randomize_order_seed_;
 
   for (auto& [op, op_override] : options.op_overrides_) {

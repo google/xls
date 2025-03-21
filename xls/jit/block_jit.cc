@@ -35,7 +35,7 @@
 #include "xls/codegen/block_inlining_pass.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/codegen/materialize_fifos_pass.h"
+#include "xls/codegen/maybe_materialize_fifos_pass.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
@@ -89,7 +89,7 @@ class CheckNoInstantiationsOnTop : public verilog::CodegenPass {
 std::unique_ptr<verilog::CodegenCompoundPass> PrepareForJitPassPipeline() {
   auto passes = std::make_unique<verilog::CodegenCompoundPass>(
       "prepare_for_jit", "Process the IR to make it compatible with the jit");
-  passes->Add<verilog::MaterializeFifosPass>();
+  passes->Add<verilog::MaybeMaterializeFifosPass>();
   passes->Add<verilog::BlockInliningPass>();
   passes->Add<CheckNoInstantiationsOnTop>();
   return passes;
@@ -221,9 +221,13 @@ absl::StatusOr<ElaborationJitData> CloneElaborationPackage(
   verilog::CodegenPassUnit pass_unit(jit_package.get(), cloned_top);
   verilog::CodegenPassResults results;
   verilog::CodegenPassOptions opts{
-      .codegen_options = verilog::CodegenOptions().reset(
-          FifoInstantiation::kResetPortName, /*asynchronous=*/false,
-          /*active_low=*/false, /*reset_data_path=*/false)};
+      .codegen_options =
+          verilog::CodegenOptions()
+              .reset(FifoInstantiation::kResetPortName, /*asynchronous=*/false,
+                     /*active_low=*/false, /*reset_data_path=*/false)
+              // Force all FIFOs to be materialized.
+              .set_fifo_module("")
+              .set_nodata_fifo_module("")};
   XLS_RETURN_IF_ERROR(
       PrepareForJitPassPipeline()->Run(&pass_unit, opts, &results).status());
   return ElaborationJitData{

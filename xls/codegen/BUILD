@@ -627,7 +627,7 @@ cc_library(
         ":codegen_pass",
         ":codegen_wrapper_pass",
         ":ffi_instantiation_pass",
-        ":materialize_fifos_pass",
+        ":maybe_materialize_fifos_pass",
         ":mulp_combining_pass",
         ":name_legalization_pass",
         ":port_legalization_pass",
@@ -1765,9 +1765,9 @@ cc_library(
 )
 
 cc_library(
-    name = "materialize_fifos_pass",
-    srcs = ["materialize_fifos_pass.cc"],
-    hdrs = ["materialize_fifos_pass.h"],
+    name = "maybe_materialize_fifos_pass",
+    srcs = ["maybe_materialize_fifos_pass.cc"],
+    hdrs = ["maybe_materialize_fifos_pass.h"],
     deps = [
         ":codegen_pass",
         "//xls/common/status:ret_check",
@@ -1788,12 +1788,12 @@ cc_library(
 )
 
 cc_test(
-    name = "materialize_fifos_pass_test",
-    srcs = ["materialize_fifos_pass_test.cc"],
+    name = "maybe_materialize_fifos_pass_test",
+    srcs = ["maybe_materialize_fifos_pass_test.cc"],
     deps = [
         ":codegen_pass",
         ":fifo_model_test_utils",
-        ":materialize_fifos_pass",
+        ":maybe_materialize_fifos_pass",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",

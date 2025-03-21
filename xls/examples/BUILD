@@ -834,6 +834,7 @@ xls_ir_verilog(
         "streaming_channel_ready_suffix": "_ready",
         "streaming_channel_valid_suffix": "_valid",
         "use_system_verilog": "true",
+        "fifo_module": "",
         "materialize_internal_fifos": "true",
     },
     verilog_file = "delay.sv",

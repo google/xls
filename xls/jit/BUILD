@@ -780,7 +780,7 @@ cc_library(
         "//xls/codegen:block_inlining_pass",
         "//xls/codegen:codegen_options",
         "//xls/codegen:codegen_pass",
-        "//xls/codegen:materialize_fifos_pass",
+        "//xls/codegen:maybe_materialize_fifos_pass",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/interpreter:block_evaluator",

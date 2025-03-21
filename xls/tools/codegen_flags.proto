@@ -86,8 +86,10 @@ message CodegenFlagsProto {
 
   optional int64 codegen_version = 36;
 
-  // Should internal fifos be manually generated in verilog.
-  optional bool materialize_internal_fifos = 37;
+  // Which module to use for FIFOs. If empty, will materialize an internal
+  // implementation.
+  optional string fifo_module = 40;
+  optional string nodata_fifo_module = 41;
 
   // If present, the seed used to randomize the order of lines in the output. If
   // empty, will use a default order. This can be useful for creating multiple

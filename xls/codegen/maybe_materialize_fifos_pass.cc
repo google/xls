@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/materialize_fifos_pass.h"
+#include "xls/codegen/maybe_materialize_fifos_pass.h"
 
 #include <cstdint>
 #include <optional>
@@ -271,7 +271,7 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
 }
 }  // namespace
 
-absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
+absl::StatusOr<bool> MaybeMaterializeFifosPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
   XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
@@ -282,8 +282,14 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
       if (i->kind() == InstantiationKind::kFifo) {
         XLS_ASSIGN_OR_RETURN(FifoInstantiation * fifo,
                              i->AsFifoInstantiation());
+        const bool should_materialize =
+            fifo->data_type()->GetFlatBitCount() == 0
+                ? options.codegen_options.nodata_fifo_module().empty()
+                : options.codegen_options.fifo_module().empty();
         XLS_RETURN_IF_ERROR(fifo->fifo_config().Validate());
-        insts.push_back(fifo);
+        if (should_materialize) {
+          insts.push_back(fifo);
+        }
       }
     }
   }
@@ -310,7 +316,7 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
   }
 
   // The name of the reset port of the materialized FIFO is given by the codegen
-  // options and hence migth differ from the name of the reset port of the
+  // options and hence might differ from the name of the reset port of the
   // original fifo instantiation (which is always
   // FifoInstantiation::kResetPortName). This ensure the materialized fifo block
   // behaves like any other require any special handling and acts like any other
@@ -352,15 +358,6 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
     }
   }
   return true;
-}
-
-absl::StatusOr<bool> MaybeMaterializeInternalFifoPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
-  if (options.codegen_options.materialize_internal_fifos()) {
-    return materialize_.Run(unit, options, results);
-  }
-  return false;
 }
 
 }  // namespace xls::verilog

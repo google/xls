@@ -123,7 +123,21 @@ CODEGEN_FIELDS = {
                                "'IdentityOnly' or 'None'",
     "emit_sv_types": "Whether or not to honor the #[sv_type(NAME)] annotations in the source DSLX.",
     "codegen_version": "Version of codegen to use (0=default).",
-    "materialize_internal_fifos": "Whether or not to materialize internal fifos directly in Verilog.",
+    "fifo_module": "If provided, instantiates the provided module where (positive " +
+                   "width) FIFOs are needed, passing the parameters Width, Depth, " +
+                   "RegisterPushOutputs, RegisterPopOutputs, and EnableBypass; " +
+                   "if passed an empty string, materializes the FIFOs using an internal " +
+                   "implementation. If not provided, defaults to `xls_fifo_wrapper` (unless " +
+                   "`materialize_internal_fifos` is set). See documentation for the requirements " +
+                   "this module must meet.",
+    "nodata_fifo_module": "If provided, instantiates the provided module where a no-data FIFO is " +
+                          "required, passing the parameters Depth, RegisterPushOutputs, " +
+                          "RegisterPopOutputs, and EnableBypass; otherwise, materializes the " +
+                          "FIFO using an internal implementation. See documentation for the " +
+                          "requirements this module must meet.",
+    "materialize_internal_fifos": "If true and `fifo_module` is not provided, materializes FIFOs " +
+                                  "using an internal implementation. Will produce an error if " +
+                                  "`fifo_module` is provided with a non-empty string.",
     "randomize_order_seed": "If present, the seed used to randomize the order of lines in the " +
                             "output, as a comma-separated list of one or more 32-bit integers. " +
                             "If empty, will use a default order. This can be useful for creating " +
