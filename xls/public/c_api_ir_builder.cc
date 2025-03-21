@@ -274,6 +274,7 @@ struct xls_bvalue* xls_builder_base_add_concat(struct xls_builder_base* builder,
                                                const char* name) {
   auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
   std::vector<xls::BValue> cpp_operands;
+  cpp_operands.reserve(operand_count);
   for (int64_t i = 0; i < operand_count; ++i) {
     cpp_operands.push_back(*reinterpret_cast<xls::BValue*>(operands[i]));
   }
@@ -337,6 +338,7 @@ struct xls_bvalue* xls_builder_base_add_one_hot_select(
   auto* cpp_builder = reinterpret_cast<xls::BuilderBase*>(builder);
   auto* cpp_selector = reinterpret_cast<xls::BValue*>(selector);
   std::vector<xls::BValue> cpp_cases;
+  cpp_cases.reserve(case_count);
   for (int64_t i = 0; i < case_count; ++i) {
     cpp_cases.push_back(*reinterpret_cast<xls::BValue*>(cases[i]));
   }
@@ -355,6 +357,7 @@ struct xls_bvalue* xls_builder_base_add_priority_select(
   auto* cpp_selector = reinterpret_cast<xls::BValue*>(selector);
   auto* cpp_default_value = reinterpret_cast<xls::BValue*>(default_value);
   std::vector<xls::BValue> cpp_cases;
+  cpp_cases.reserve(case_count);
   for (int64_t i = 0; i < case_count; ++i) {
     cpp_cases.push_back(*reinterpret_cast<xls::BValue*>(cases[i]));
   }
