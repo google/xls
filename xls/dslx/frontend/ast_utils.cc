@@ -585,4 +585,15 @@ bool ContainedWithinFunction(const Invocation& invocation,
   return contained;
 }
 
+std::optional<const Function*> GetContainingFunction(const AstNode* node) {
+  const AstNode* current = node->parent();
+  while (current != nullptr) {
+    if (current->kind() == AstNodeKind::kFunction) {
+      return dynamic_cast<const Function*>(current);
+    }
+    current = current->parent();
+  }
+  return std::nullopt;
+}
+
 }  // namespace xls::dslx

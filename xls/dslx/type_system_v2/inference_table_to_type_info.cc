@@ -277,8 +277,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     for (const AstNode* node : visitor.nodes()) {
       VLOG(5) << "Next node: " << node->ToString();
       if (const auto* invocation = dynamic_cast<const Invocation*>(node)) {
-        XLS_RETURN_IF_ERROR(
-            ConvertInvocation(invocation, function, parametric_context));
+        XLS_RETURN_IF_ERROR(ConvertInvocation(invocation, parametric_context));
       } else {
         XLS_RETURN_IF_ERROR(GenerateTypeInfo(
             parametric_context, node,
@@ -364,10 +363,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // nodes. This involves resolving the callee function and applying the formal
   // types of the arguments to the actual arguments in the inference table.
   absl::Status ConvertInvocation(
-      const Invocation* invocation, std::optional<const Function*> caller,
+      const Invocation* invocation,
       std::optional<const ParametricContext*> caller_context) {
     TypeSystemTrace trace =
         tracer_->TraceConvertInvocation(invocation, caller_context);
+    std::optional<const Function*> caller = GetContainingFunction(invocation);
     VLOG(5) << "Converting invocation: " << invocation->callee()->ToString()
             << " with module: " << invocation->owner()->name()
             << " in module: " << module_.name()
@@ -392,6 +392,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     const Function* function = function_and_target_object.function;
+
+    if (caller.has_value() && function == *caller) {
+      return TypeInferenceErrorStatus(
+          invocation->span(), nullptr,
+          absl::Substitute("Recursion of function `$0` detected -- recursion "
+                           "is currently unsupported.",
+                           function->identifier()),
+          file_table_);
+    }
 
     // Come up with the actual args by merging the possible target object
     // (`some_struct` in the case of `some_struct.foo(args)`), with the vector

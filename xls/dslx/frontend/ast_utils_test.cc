@@ -253,7 +253,7 @@ type MyS2 = MyS1;
   EXPECT_EQ(s, resolved);
 }
 
-TEST(ContainedWithinFunctionTest, SampleInvocation) {
+TEST(ContainingFunctionTest, SampleInvocation) {
   const std::string_view kProgram = R"(
 fn f() { () }
 fn main() { f() }
@@ -269,12 +269,28 @@ fn main() { f() }
 
   // The function "main" has the call to f.
   ASSERT_TRUE(ContainedWithinFunction(*call_f, *main));
+  ASSERT_EQ(GetContainingFunction(call_f), main);
 
   // The function "f" does not have the call to f.
   ASSERT_FALSE(ContainedWithinFunction(*call_f, *f));
 }
 
-TEST(ContainedWithinFunctionTest, SampleBuiltinInvocation) {
+TEST(ContainingFunctionTest, StandaloneInvocation) {
+  const std::string_view kProgram = R"(
+fn f() { () }
+const X = f();
+)";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* x,
+                           module->GetMemberOrError<ConstantDef>("X"));
+  const Invocation* standalone_call = down_cast<const Invocation*>(x->value());
+
+  ASSERT_EQ(GetContainingFunction(standalone_call), std::nullopt);
+}
+
+TEST(ContainingFunctionTest, SampleBuiltinInvocation) {
   const std::string_view kProgram = R"(
 fn main(x: u32, y: u32, z: u32) -> u32 { bit_slice_update(x, y, z) }
 )";
@@ -288,9 +304,10 @@ fn main(x: u32, y: u32, z: u32) -> u32 { bit_slice_update(x, y, z) }
 
   // The function "main" has the call to f.
   ASSERT_TRUE(ContainedWithinFunction(*call, *main));
+  ASSERT_EQ(GetContainingFunction(call), main);
 }
 
-TEST(ContainedWithinFunctionTest, InvocationWithinParametricExpression) {
+TEST(ContainingFunctionTest, InvocationWithinParametricExpression) {
   const std::string_view kProgram = R"(
 fn id(x: u32) -> u32 { x }
 fn f<X: u32, Y: u32 = {id(X)}>() -> u32 { Y }
@@ -307,6 +324,7 @@ fn f<X: u32, Y: u32 = {id(X)}>() -> u32 { Y }
 
   // The function "f" has the call to id() contained within its bounds.
   ASSERT_TRUE(ContainedWithinFunction(*call, *f));
+  ASSERT_EQ(GetContainingFunction(call), f);
 }
 
 }  // namespace

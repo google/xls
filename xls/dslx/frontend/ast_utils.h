@@ -219,6 +219,9 @@ const Number* IsBareNumber(const AstNode* node, bool* is_boolean = nullptr);
 bool ContainedWithinFunction(const Invocation& invocation,
                              const Function& caller);
 
+// Retrieves the containing function of `node`, if any.
+std::optional<const Function*> GetContainingFunction(const AstNode* node);
+
 // Organizes a group of ParametricBinding pointers by their identifiers.
 class ParametricBindings {
  public:

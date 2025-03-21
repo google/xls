@@ -922,14 +922,14 @@ fn f() -> u32 { id(u32:42) }
                 HasTypeMismatchInV2(GetParam(), "u32", "bits[N][M]"))));
 }
 
-TEST(TypecheckErrorTest, RecursionCausesError) {
+TEST_P(TypecheckBothVersionsTest, RecursionCausesError) {
   constexpr std::string_view kProgram = "fn f(x: u32) -> u32 { f(x) }";
   EXPECT_THAT(Typecheck(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Recursion of function `f` detected")));
 }
 
-TEST(TypecheckErrorTest, ParametricRecursionCausesError) {
+TEST_P(TypecheckBothVersionsTest, ParametricRecursionCausesError) {
   constexpr std::string_view kProgram = R"(
 fn f<X: u32>(x: bits[X]) -> u32 { f(x) }
 fn g() -> u32 { f(u32: 5) }
