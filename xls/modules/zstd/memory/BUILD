@@ -900,3 +900,68 @@ place_and_route(
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "mem_writer_data_downscaler_dslx",
+    srcs = ["mem_writer_data_downscaler.x"],
+    deps = [
+        ":mem_writer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "mem_writer_data_downscaler_dslx_test",
+    library = ":mem_writer_data_downscaler_dslx",
+)
+
+xls_dslx_verilog(
+    name = "mem_writer_data_downscaler_verilog",
+    codegen_args = common_codegen_args,
+    dslx_top = "MemWriterDataDownscalerInst",
+    library = ":mem_writer_data_downscaler_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_writer_data_downscaler.v",
+)
+
+xls_benchmark_ir(
+    name = "mem_writer_data_downscaler_opt_ir_benchmark",
+    src = ":mem_writer_data_downscaler_verilog.opt.ir",
+    benchmark_ir_args = common_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_writer_data_downscaler_verilog_lib",
+    srcs = [
+        ":mem_writer_data_downscaler.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_writer_data_downscaler_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "__mem_writer_data_downscaler__MemWriterDataDownscalerInst_0_next",
+    deps = [
+        ":mem_writer_data_downscaler_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_writer_data_downscaler_benchmark_synth",
+    synth_target = ":mem_writer_data_downscaler_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_writer_data_downscaler_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_writer_data_downscaler_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
