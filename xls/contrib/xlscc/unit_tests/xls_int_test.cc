@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdint>
+#include <limits>
 #include <string>
 
 #include "gtest/gtest.h"
@@ -1045,6 +1046,207 @@ TEST_F(XlsIntTest, CompareSmallToLarge) {
   result = (result == input) ? 1 : 0;
   RunAcDatatypeTest({}, result.to_long(), content,
                     xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitXlsIntZero) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<2, false> result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_0>(result, 4);
+      return result[3].to_long();
+  })";
+  RunAcDatatypeTest({{"a", 1}}, 0, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitXlsIntQuantum) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<2, false> result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_QUANTUM>(result, 4);
+      return result[3].to_long();
+  })";
+  RunAcDatatypeTest({{"a", 2}}, 1, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitXlsIntMaxUnsigned) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<3, false> result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_MAX>(result, 4);
+      return result[3].to_long();
+  })";
+  RunAcDatatypeTest({{"a", 1}}, 7, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitXlsIntMaxSigned) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<3, true> result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_MAX>(result, 4);
+      return result[3].to_long();
+  })";
+  RunAcDatatypeTest({{"a", -1}}, 3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitXlsIntMinUnsigned) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<3, false> result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_MIN>(result, 4);
+      return result[3].to_long();
+  })";
+  RunAcDatatypeTest({{"a", 1}}, 0, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitXlsIntMinSigned) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<3, true> result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_MIN>(result, 4);
+      return result[3].to_long();
+  })";
+  RunAcDatatypeTest({{"a", 1}}, -4, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitCharZero) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      char result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_0>(result, 4);
+      return static_cast<long long>(result[3]);
+  })";
+  RunAcDatatypeTest({{"a", 1}}, 0, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitCharZeroMultidimensional) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<3, true> result[2][4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 2; ++i) {
+        #pragma hls_unroll yes
+        for(int j = 0; j < 4; ++j) {
+          result[i][j] = a;
+        }
+      }
+      ac::init_array<ac_datatypes::AC_VAL_MAX>(result, 2 * 4);
+      return static_cast<long long>(result[1][3]);
+  })";
+  RunAcDatatypeTest({{"a", 1}}, 3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitCharQuantum) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      char result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_QUANTUM>(result, 4);
+      return static_cast<long long>(result[3]);
+  })";
+  RunAcDatatypeTest({{"a", 2}}, 1, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitCharMaxUnsigned) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      unsigned char result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_MAX>(result, 4);
+      return static_cast<long long>(result[3]);
+  })";
+  RunAcDatatypeTest({{"a", 1}}, std::numeric_limits<unsigned char>::max(),
+                    content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitCharMaxSigned) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      signed char result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_MAX>(result, 4);
+      return static_cast<long long>(result[3]);
+  })";
+  RunAcDatatypeTest({{"a", -1}}, std::numeric_limits<signed char>::max(),
+                    content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitCharMinUnsigned) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      unsigned char result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_MIN>(result, 4);
+      return static_cast<long long>(result[3]);
+  })";
+  RunAcDatatypeTest({{"a", 1}}, 0, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ArrayInitCharMinSigned) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      signed char result[4];
+      #pragma hls_unroll yes
+      for(int i = 0; i < 4; ++i) {
+        result[i] = a;
+      }
+      ac::init_array<ac_datatypes::AC_VAL_MIN>(result, 4);
+      return static_cast<long long>(result[3]);
+  })";
+  RunAcDatatypeTest({{"a", 1}}, std::numeric_limits<signed char>::min(),
+                    content, xabsl::SourceLocation::current());
 }
 
 }  // namespace

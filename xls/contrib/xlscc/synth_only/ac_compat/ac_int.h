@@ -36,6 +36,13 @@ using ac_datatypes::AC_TRN;
 using ac_datatypes::AC_TRN_ZERO;
 using ac_datatypes::AC_WRAP;
 
+using ac_datatypes::ac_special_val;
+using ac_datatypes::AC_VAL_0;
+using ac_datatypes::AC_VAL_DC;
+using ac_datatypes::AC_VAL_MAX;
+using ac_datatypes::AC_VAL_MIN;
+using ac_datatypes::AC_VAL_QUANTUM;
+
 namespace ac {
 using ac_datatypes::ac::log2_ceil;
 using ac_datatypes::ac::log2_floor;

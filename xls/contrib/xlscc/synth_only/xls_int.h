@@ -16,6 +16,7 @@
 #define XLS_INT_H
 
 #include <algorithm>
+#include <cstddef>
 #include <type_traits>
 
 #include "/xls_builtin.h"
@@ -468,6 +469,52 @@ class [[hls_synthetic_int]] XlsIntBase<Width, true> {
 };
 template <int W, bool S>
 class XlsInt;
+
+namespace synth_only_internal {
+
+// Value provides the minimum possible value for a number with the given width
+// and signedness.
+template <int Width, bool Signed>
+class MinValue {};
+
+template <int Width>
+class MinValue<Width, /*Signed=*/true> {
+ public:
+  inline static __xls_bits<Width> Value() {
+    return (XlsInt<Width, false>(1) << (Width - 1)).storage;
+  }
+};
+
+template <int Width>
+class MinValue<Width, /*Signed=*/false> {
+ public:
+  inline static __xls_bits<Width> Value() {
+    return XlsInt<Width, false>(0).storage;
+  }
+};
+
+// Value provides the maximum possible value for a number with the given width
+// and signedness.
+template <int Width, bool Signed>
+class MaxValue {};
+
+template <int Width>
+class MaxValue<Width, /*Signed=*/true> {
+ public:
+  inline static __xls_bits<Width> Value() {
+    return (XlsInt<Width, false>(0).bit_complement() >> 1).storage;
+  }
+};
+
+template <int Width>
+class MaxValue<Width, /*Signed=*/false> {
+ public:
+  inline static __xls_bits<Width> Value() {
+    return (XlsInt<Width, false>(0).bit_complement()).storage;
+  }
+};
+
+}  // namespace synth_only_internal
 
 // BitElemRef is returned from XlsInt's non-const operator [].
 // It represents a reference to a certain bit inside an XlsInt.
@@ -997,6 +1044,22 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
     return *this;
   }
 
+  template <ac_datatypes::ac_special_val V>
+  inline XlsInt &set_val() {
+    if constexpr (V == ac_datatypes::AC_VAL_0) {
+      *this = 0;
+    } else if constexpr (V == ac_datatypes::AC_VAL_MIN) {
+      *this = synth_only_internal::MinValue<Width, Signed>::Value();
+    } else if constexpr (V == ac_datatypes::AC_VAL_MAX) {
+      *this = synth_only_internal::MaxValue<Width, Signed>::Value();
+    } else if constexpr (V == ac_datatypes::AC_VAL_QUANTUM) {
+      *this = 1;
+    } else {
+      static_assert(false, "Unsupported special value");
+    }
+    return (*this);
+  }
+
   template <int ToW, bool ToSign>
   friend class XlsInt;
 };
@@ -1046,6 +1109,99 @@ OPS_WITH_INT(long, 64, true)
 OPS_WITH_INT(unsigned long, 64, false)
 OPS_WITH_INT(long long, 64, true)
 OPS_WITH_INT(unsigned long long, 64, false)
+
+#define __XLS_SPECIAL_VAL_FOR_INTS(C_TYPE, WI, SI, DC_VALUE)            \
+  template <ac_datatypes::ac_special_val val>                           \
+  inline C_TYPE value(C_TYPE);                                          \
+  template <> /* Value of zero for this C type */                       \
+  inline C_TYPE value<ac_datatypes::AC_VAL_0>(C_TYPE) {                 \
+    return (C_TYPE)0;                                                   \
+  }                                                                     \
+  template <> /* "Don't care" value (uninitialized)for this C type */   \
+  inline C_TYPE value<ac_datatypes::AC_VAL_DC>(C_TYPE) {                \
+    return (C_TYPE)DC_VALUE;                                            \
+  }                                                                     \
+  template <> /* Smallest representable value change for this C type */ \
+  inline C_TYPE value<ac_datatypes::AC_VAL_QUANTUM>(C_TYPE) {           \
+    return (C_TYPE)1;                                                   \
+  }                                                                     \
+  template <> /* Maximum representable value for this C type */         \
+  inline C_TYPE value<ac_datatypes::AC_VAL_MAX>(C_TYPE) {               \
+    return (C_TYPE)(SI ? ~(((C_TYPE)1) << (WI - 1)) : (C_TYPE) - 1);    \
+  }                                                                     \
+  template <> /* Minium representable value for this C type */          \
+  inline C_TYPE value<ac_datatypes::AC_VAL_MIN>(C_TYPE) {               \
+    return (C_TYPE)(SI ? ((C_TYPE)1) << (WI - 1) : (C_TYPE)0);          \
+  }
+
+// Using 0xDC value repeated for size of C type for "don't care" values in order
+// to distinguish from the normal 0 initialized value.
+__XLS_SPECIAL_VAL_FOR_INTS(bool, 1, false, 1)
+__XLS_SPECIAL_VAL_FOR_INTS(char, 8, true, 0xDC)
+__XLS_SPECIAL_VAL_FOR_INTS(signed char, 8, true, 0xDC)
+__XLS_SPECIAL_VAL_FOR_INTS(unsigned char, 8, false, 0xDC)
+__XLS_SPECIAL_VAL_FOR_INTS(short, 16, true, 0xDCDC)
+__XLS_SPECIAL_VAL_FOR_INTS(unsigned short, 16, false, 0xDCDC)
+__XLS_SPECIAL_VAL_FOR_INTS(int, 32, true, 0xDCDCDCDC)
+__XLS_SPECIAL_VAL_FOR_INTS(unsigned int, 32, false, 0xDCDCDCDC)
+__XLS_SPECIAL_VAL_FOR_INTS(long, 64, true, 0xDCDCDCDCDCDCDCDC)
+__XLS_SPECIAL_VAL_FOR_INTS(unsigned long, 64, false, 0xDCDCDCDCDCDCDCDC)
+__XLS_SPECIAL_VAL_FOR_INTS(long long, 64, true, 0xDCDCDCDCDCDCDCDC)
+__XLS_SPECIAL_VAL_FOR_INTS(unsigned long long, 64, false, 0xDCDCDCDCDCDCDCDC)
+
+#undef __XLS_SPECIAL_VAL_FOR_INTS
+
+#define __XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(C_TYPE)                   \
+  template <ac_datatypes::ac_special_val V, int Size>                   \
+  inline bool init_array(C_TYPE(&a)[Size], int m) {                     \
+    C_TYPE t = value<V>((C_TYPE)0);                                     \
+    _Pragma("hls_unroll yes") for (int i = 0; i < m && i < Size; i++) { \
+      a[i] = t;                                                         \
+    }                                                                   \
+    return true;                                                        \
+  }
+
+namespace ac {
+template <ac_datatypes::ac_special_val V, int W, bool S, size_t Size>
+inline bool init_array(XlsInt<W, S> (&a)[Size], int n) {
+  XlsInt<W, S> t;
+  t.template set_val<V>();
+#pragma hls_unroll yes
+  for (int i = 0; i < n && i < Size; i++) {
+    a[i] = t;
+  }
+  return true;
+}
+
+template <ac_datatypes::ac_special_val V, int W, bool S, size_t Size1,
+          size_t Size2>
+inline bool init_array(XlsInt<W, S> (&a)[Size1][Size2], int n) {
+  XlsInt<W, S> t;
+  t.template set_val<V>();
+#pragma hls_unroll yes
+  for (int i = 0; i < n && i < Size1; i++) {
+#pragma hls_unroll yes
+    for (int j = 0; j < n && j < Size2; j++) {
+      a[i][j] = t;
+    }
+  }
+  return true;
+}
+
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(bool)
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(char)
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(signed char)
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(unsigned char)
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(signed short)
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(unsigned short)
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(signed int)
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(unsigned int)
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(signed long)
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(unsigned long)
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(signed long long)
+__XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS(unsigned long long)
+#undef __XLS_INIT_ARRAY_SPECIAL_VAL_FOR_INTS
+}  // namespace ac
 
 #undef ac_int
 

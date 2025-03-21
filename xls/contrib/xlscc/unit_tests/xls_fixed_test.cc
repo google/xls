@@ -726,7 +726,7 @@ TEST_F(XlsFixedTest, MinValueUnsigned) {
   const std::string content = R"(
     #include "xls_fixed.h"
     long long my_package() {
-      XlsInt<3, false> x(MinValue<3, false>::Value());
+      XlsInt<3, false> x(synth_only_internal::MinValue<3, false>::Value());
       return x.to_int();
     })";
   RunAcDatatypeTest({}, 0, content, xabsl::SourceLocation::current());
@@ -736,7 +736,7 @@ TEST_F(XlsFixedTest, MinValueSigned) {
   const std::string content = R"(
     #include "xls_fixed.h"
     long long my_package() {
-      XlsInt<3, true> x(MinValue<3, true>::Value());
+      XlsInt<3, true> x(synth_only_internal::MinValue<3, true>::Value());
       return x.to_int();
     })";
   RunAcDatatypeTest({}, -4, content, xabsl::SourceLocation::current());
@@ -746,7 +746,7 @@ TEST_F(XlsFixedTest, MaxValueUnsigned) {
   const std::string content = R"(
     #include "xls_fixed.h"
     long long my_package() {
-      XlsInt<3, false> x(MaxValue<3, false>::Value());
+      XlsInt<3, false> x(synth_only_internal::MaxValue<3, false>::Value());
       return x.to_int();
     })";
   RunAcDatatypeTest({}, 7, content, xabsl::SourceLocation::current());
@@ -756,7 +756,7 @@ TEST_F(XlsFixedTest, MaxValueSigned) {
   const std::string content = R"(
     #include "xls_fixed.h"
     long long my_package() {
-      XlsInt<3, true> x(MaxValue<3, true>::Value());
+      XlsInt<3, true> x(synth_only_internal::MaxValue<3, true>::Value());
       return x.to_int();
     })";
   RunAcDatatypeTest({}, 3, content, xabsl::SourceLocation::current());

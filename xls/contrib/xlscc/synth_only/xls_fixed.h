@@ -26,52 +26,6 @@
 static_assert(false, "This header is only for synthesis");
 #endif  // __SYNTHESIS__
 
-namespace {
-
-// Value provides the minimum possible value for a number with the given width
-// and signedness.
-template <int Width, bool Signed>
-class MinValue {};
-
-template <int Width>
-class MinValue<Width, true> {
- public:
-  inline static __xls_bits<Width> Value() {
-    return (XlsInt<Width, false>(1) << (Width - 1)).storage;
-  }
-};
-
-template <int Width>
-class MinValue<Width, false> {
- public:
-  inline static __xls_bits<Width> Value() {
-    return XlsInt<Width, false>(0).storage;
-  }
-};
-
-// Value provides the maximum possible value for a number with the given width
-// and signedness.
-template <int Width, bool Signed>
-class MaxValue {};
-
-template <int Width>
-class MaxValue<Width, true> {
- public:
-  inline static __xls_bits<Width> Value() {
-    return (XlsInt<Width, false>(0).bit_complement() >> 1).storage;
-  }
-};
-
-template <int Width>
-class MaxValue<Width, false> {
- public:
-  inline static __xls_bits<Width> Value() {
-    return (XlsInt<Width, false>(0).bit_complement()).storage;
-  }
-};
-
-}  // namespace
-
 // Quantize takes a value "in" that has been shifted, along with the original
 // value then based on the quantization mode, it will either round the value or
 // not. If it does round, it will do so by incrementing the value and setting
@@ -151,13 +105,15 @@ class Overflow {
     } else if constexpr (S) {
       if (overflow) {
         if (!is_negative) {
-          return MaxValue<W, S>::Value();
+          return synth_only_internal::MaxValue<W, S>::Value();
         } else {
           if constexpr (o_mode == ac_datatypes::AC_SAT_SYM) {
             auto one = XlsInt<1, false>(1);
-            return (XlsInt<W, S>(MinValue<W, S>::Value()) | one).storage;
+            return (XlsInt<W, S>(synth_only_internal::MinValue<W, S>::Value()) |
+                    one)
+                .storage;
           } else {
-            return MinValue<W, S>::Value();
+            return synth_only_internal::MinValue<W, S>::Value();
           }
         }
       } else {
@@ -166,7 +122,7 @@ class Overflow {
     } else {
       if (overflow) {
         if (!is_negative) {
-          return MaxValue<W, S>::Value();
+          return synth_only_internal::MaxValue<W, S>::Value();
         } else {
           return XlsInt<W, S>(0).storage;
         }
