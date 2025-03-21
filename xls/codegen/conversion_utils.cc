@@ -107,19 +107,20 @@ absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
   for (Stage stage = 0; stage < stage_count; ++stage) {
     std::vector<Node*> active_readys;
     for (StreamingOutput& streaming_output : streaming_outputs[stage]) {
-      if (streaming_output.fifo_instantiation.has_value()) {
+      if (streaming_output.GetFifoInstantiation().has_value()) {
         // The ready signal is managed elsewhere for FIFO instantiations.
-        XLS_RET_CHECK_NE(streaming_output.port_ready, nullptr);
+        XLS_RET_CHECK_NE(streaming_output.GetReadyPort(), nullptr);
       } else {
         XLS_ASSIGN_OR_RETURN(
-            streaming_output.port_ready,
+            Node * ready_port,
             block->AddInputPort(
-                absl::StrCat(ChannelRefName(streaming_output.channel),
+                absl::StrCat(ChannelRefName(streaming_output.GetChannel()),
                              ready_suffix),
                 block->package()->GetBitsType(1)));
+        streaming_output.SetReadyPort(ready_port);
       }
 
-      if (streaming_output.predicate.has_value()) {
+      if (streaming_output.GetPredicate().has_value()) {
         // Logic for the active ready signal for a Send operation with a
         // predicate `pred`.
         //
@@ -127,28 +128,30 @@ absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
         //          = !pred | ready
         XLS_ASSIGN_OR_RETURN(
             Node * not_pred,
-            block->MakeNode<UnOp>(
-                SourceInfo(), streaming_output.predicate.value(), Op::kNot));
+            block->MakeNode<UnOp>(SourceInfo(),
+                                  streaming_output.GetPredicate().value(),
+                                  Op::kNot));
         // If predicate has an assigned name, let the not expression get
         // inlined. Otherwise, give a descriptive name.
-        if (!streaming_output.predicate.value()->HasAssignedName()) {
+        if (!streaming_output.GetPredicate().value()->HasAssignedName()) {
           not_pred->SetName(absl::StrFormat(
-              "%s_not_pred", ChannelRefName(streaming_output.channel)));
+              "%s_not_pred", ChannelRefName(streaming_output.GetChannel())));
         }
-        std::vector<Node*> operands{not_pred, streaming_output.port_ready};
+        std::vector<Node*> operands{not_pred, streaming_output.GetReadyPort()};
         XLS_ASSIGN_OR_RETURN(
             Node * active_ready,
             block->MakeNode<NaryOp>(SourceInfo(), operands, Op::kOr));
         // not_pred will have an assigned name or be inlined, so only check
         // the ready port. If it has an assigned name, just let everything
         // inline. Otherwise, give a descriptive name.
-        if (!streaming_output.port_ready->HasAssignedName()) {
-          active_ready->SetName(absl::StrFormat(
-              "%s_active_ready", ChannelRefName(streaming_output.channel)));
+        if (!streaming_output.GetReadyPort()->HasAssignedName()) {
+          active_ready->SetName(
+              absl::StrFormat("%s_active_ready",
+                              ChannelRefName(streaming_output.GetChannel())));
         }
         active_readys.push_back(active_ready);
       } else {
-        active_readys.push_back(streaming_output.port_ready);
+        active_readys.push_back(streaming_output.GetReadyPort());
       }
     }
 
@@ -183,10 +186,10 @@ absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
     for (StreamingInput& streaming_input : streaming_inputs[stage]) {
       // Input ports for input channels are already created during
       // HandleReceiveNode().
-      XLS_RET_CHECK(streaming_input.signal_valid.has_value());
-      Node* streaming_input_valid = *streaming_input.signal_valid;
+      XLS_RET_CHECK(streaming_input.GetSignalValid().has_value());
+      Node* streaming_input_valid = *streaming_input.GetSignalValid();
 
-      if (streaming_input.predicate.has_value()) {
+      if (streaming_input.GetPredicate().has_value()) {
         // Logic for the active valid signal for a Receive operation with a
         // predicate `pred`.
         //
@@ -195,13 +198,14 @@ absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
         XLS_ASSIGN_OR_RETURN(
             Node * not_pred,
             block->MakeNode<UnOp>(SourceInfo(),
-                                  streaming_input.predicate.value(), Op::kNot));
+                                  streaming_input.GetPredicate().value(),
+                                  Op::kNot));
 
         // If predicate has an assigned name, let the not expression get
         // inlined. Otherwise, give a descriptive name.
-        if (!streaming_input.predicate.value()->HasAssignedName()) {
+        if (!streaming_input.GetPredicate().value()->HasAssignedName()) {
           not_pred->SetName(absl::StrFormat(
-              "%s_not_pred", ChannelRefName(streaming_input.channel)));
+              "%s_not_pred", ChannelRefName(streaming_input.GetChannel())));
         }
         std::vector<Node*> operands = {not_pred, streaming_input_valid};
         XLS_ASSIGN_OR_RETURN(
@@ -212,7 +216,7 @@ absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
         // inline. Otherwise, give a descriptive name.
         if (!streaming_input_valid->HasAssignedName()) {
           active_valid->SetName(absl::StrFormat(
-              "%s_active_valid", ChannelRefName(streaming_input.channel)));
+              "%s_active_valid", ChannelRefName(streaming_input.GetChannel())));
         }
         active_valids.push_back(active_valid);
       } else {
@@ -367,25 +371,27 @@ absl::Status MakeOutputValidPortsForOutputChannels(
                                   pipelined_valids.at(stage),
                                   next_stage_open.at(stage)};
 
-      if (streaming_output.predicate.has_value()) {
-        operands.push_back(streaming_output.predicate.value());
+      if (streaming_output.GetPredicate().has_value()) {
+        operands.push_back(streaming_output.GetPredicate().value());
       }
 
       XLS_ASSIGN_OR_RETURN(Node * valid, block->MakeNode<NaryOp>(
                                              SourceInfo(), operands, Op::kAnd));
-      if (streaming_output.fifo_instantiation.has_value()) {
+      if (streaming_output.GetFifoInstantiation().has_value()) {
         XLS_ASSIGN_OR_RETURN(
-            streaming_output.port_valid,
+            Node * valid_port,
             block->MakeNode<xls::InstantiationInput>(
-                streaming_output.port.value()->loc(), valid,
-                streaming_output.fifo_instantiation.value(), "push_valid"));
+                streaming_output.GetDataPort().value()->loc(), valid,
+                streaming_output.GetFifoInstantiation().value(), "push_valid"));
+        streaming_output.SetValidPort(valid_port);
       } else {
         XLS_ASSIGN_OR_RETURN(
-            streaming_output.port_valid,
+            Node * valid_port,
             block->AddOutputPort(
-                absl::StrCat(ChannelRefName(streaming_output.channel),
+                absl::StrCat(ChannelRefName(streaming_output.GetChannel()),
                              valid_suffix),
                 valid));
+        streaming_output.SetValidPort(valid_port);
       }
     }
   }
@@ -405,25 +411,27 @@ absl::Status MakeOutputReadyPortsForInputChannels(
   for (Stage stage = 0; stage < streaming_inputs.size(); ++stage) {
     for (StreamingInput& streaming_input : streaming_inputs[stage]) {
       Node* ready = all_active_outputs_ready.at(stage);
-      if (streaming_input.predicate.has_value()) {
-        std::vector<Node*> operands{streaming_input.predicate.value(),
+      if (streaming_input.GetPredicate().has_value()) {
+        std::vector<Node*> operands{streaming_input.GetPredicate().value(),
                                     all_active_outputs_ready.at(stage)};
         XLS_ASSIGN_OR_RETURN(
             ready, block->MakeNode<NaryOp>(SourceInfo(), operands, Op::kAnd));
       }
-      if (streaming_input.fifo_instantiation.has_value()) {
+      if (streaming_input.GetFifoInstantiation().has_value()) {
         XLS_ASSIGN_OR_RETURN(
-            streaming_input.port_ready,
+            Node * ready_port,
             block->MakeNode<xls::InstantiationInput>(
-                streaming_input.port.value()->loc(), ready,
-                streaming_input.fifo_instantiation.value(), "pop_ready"));
+                streaming_input.GetDataPort().value()->loc(), ready,
+                streaming_input.GetFifoInstantiation().value(), "pop_ready"));
+        streaming_input.SetReadyPort(ready_port);
       } else {
         XLS_ASSIGN_OR_RETURN(
-            streaming_input.port_ready,
+            Node * ready_port,
             block->AddOutputPort(
-                absl::StrCat(ChannelRefName(streaming_input.channel),
+                absl::StrCat(ChannelRefName(streaming_input.GetChannel()),
                              ready_suffix),
                 ready));
+        streaming_input.SetReadyPort(ready_port);
       }
     }
   }

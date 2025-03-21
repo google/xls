@@ -563,7 +563,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
     }
 
     result_.single_value_inputs.push_back(
-        SingleValueInput{.port = input_port, .channel = channel});
+        SingleValueInput(input_port, channel));
 
     return next_node;
   }
@@ -641,15 +641,13 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
   // To the rest of the logic, a non-blocking receive is always valid.
   Node* signal_valid = receive->is_blocking() ? input_valid_port : literal_1;
 
-  StreamingInput streaming_input{.port = input_port,
-                                 .port_valid = input_valid_port,
-                                 .port_ready = nullptr,
-                                 .signal_data = next_node,
-                                 .signal_valid = signal_valid,
-                                 .channel = channel};
+  StreamingInput streaming_input(input_port, input_valid_port,
+                                 /*port_ready=*/nullptr, channel);
+  streaming_input.SetSignalData(next_node);
+  streaming_input.SetSignalValid(signal_valid);
 
   if (receive->predicate().has_value()) {
-    streaming_input.predicate = node_map_.at(receive->predicate().value());
+    streaming_input.SetPredicate(node_map_.at(receive->predicate().value()));
   }
   result_.inputs[stage].push_back(streaming_input);
 
@@ -711,20 +709,18 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(
 
   if (ChannelRefKind(channel) == ChannelKind::kSingleValue) {
     result_.single_value_outputs.push_back(
-        SingleValueOutput{.port = output_port, .channel = channel});
+        SingleValueOutput(output_port, channel));
     return next_node;
   }
 
   XLS_RET_CHECK_EQ(ChannelRefKind(channel), ChannelKind::kStreaming);
   XLS_RET_CHECK_EQ(ChannelRefFlowControl(channel), FlowControl::kReadyValid);
 
-  StreamingOutput streaming_output{.port = output_port,
-                                   .port_valid = nullptr,
-                                   .port_ready = nullptr,
-                                   .channel = channel};
+  StreamingOutput streaming_output(output_port, /*port_valid=*/nullptr,
+                                   /*port_ready=*/nullptr, channel);
 
   if (send->predicate().has_value()) {
-    streaming_output.predicate = node_map_.at(send->predicate().value());
+    streaming_output.SetPredicate(node_map_.at(send->predicate().value()));
   }
 
   result_.outputs[stage].push_back(streaming_output);
@@ -750,16 +746,13 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFifoReceiveNode(
         block()->MakeNode<xls::Literal>(receive->loc(), Value(UBits(1, 1))));
     signal_valid = literal_1;
   }
-  StreamingInput streaming_input{.port = data,
-                                 .port_valid = valid,
-                                 .port_ready = nullptr,
-                                 .signal_data = data,
-                                 .signal_valid = signal_valid,
-                                 .channel = channel,
-                                 .fifo_instantiation = fifo_instantiation};
+  StreamingInput streaming_input(data, valid, /*port_ready=*/nullptr, channel);
+  streaming_input.SetSignalData(data);
+  streaming_input.SetSignalValid(signal_valid);
+  streaming_input.SetFifoInstantiation(fifo_instantiation);
 
   if (receive->predicate().has_value()) {
-    streaming_input.predicate = node_map_.at(receive->predicate().value());
+    streaming_input.SetPredicate(node_map_.at(receive->predicate().value()));
   }
   result_.inputs[stage].push_back(streaming_input);
   Node* next_token = node_map_.at(receive->token());
@@ -833,14 +826,12 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFifoSendNode(
   XLS_ASSIGN_OR_RETURN(Node * port,
                        block()->MakeNode<xls::InstantiationInput>(
                            send->loc(), data, fifo_instantiation, "push_data"));
-  StreamingOutput streaming_output{.port = port,
-                                   .port_valid = nullptr,
-                                   .port_ready = ready,
-                                   .channel = channel,
-                                   .fifo_instantiation = fifo_instantiation};
+  StreamingOutput streaming_output(port, /*port_valid=*/nullptr, ready,
+                                   channel);
+  streaming_output.SetFifoInstantiation(fifo_instantiation);
 
   if (send->predicate().has_value()) {
-    streaming_output.predicate = node_map_.at(send->predicate().value());
+    streaming_output.SetPredicate(node_map_.at(send->predicate().value()));
   }
   result_.outputs[stage].push_back(streaming_output);
   // Map the Send node to the token operand of the Send in the block.
