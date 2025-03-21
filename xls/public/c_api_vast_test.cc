@@ -127,6 +127,10 @@ TEST(XlsCApiTest, ContinuousAssignmentOfSlice) {
   xls_vast_slice* input_slice = xls_vast_verilog_file_make_slice_i64(
       f, xls_vast_logic_ref_as_indexable_expression(input_ref), 3, 0);
 
+  xls_vast_comment* comment =
+      xls_vast_verilog_file_make_comment(f, "This is a comment");
+  xls_vast_verilog_module_add_member_comment(m, comment);
+
   xls_vast_continuous_assignment* assignment =
       xls_vast_verilog_file_make_continuous_assignment(
           f, xls_vast_logic_ref_as_expression(output_ref),
@@ -141,6 +145,7 @@ TEST(XlsCApiTest, ContinuousAssignmentOfSlice) {
   input wire [7:0] my_input,
   output wire [3:0] my_output
 );
+  // This is a comment
   assign my_output = my_input[3:0];
 endmodule
 )";

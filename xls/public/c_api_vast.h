@@ -45,6 +45,7 @@ struct xls_vast_slice;
 struct xls_vast_literal;
 struct xls_vast_instantiation;
 struct xls_vast_continuous_assignment;
+struct xls_vast_comment;
 
 // Note: We define the enum with a fixed width integer type for clarity of the
 // exposed ABI.
@@ -124,6 +125,8 @@ void xls_vast_verilog_module_add_member_instantiation(
 void xls_vast_verilog_module_add_member_continuous_assignment(
     struct xls_vast_verilog_module* m,
     struct xls_vast_continuous_assignment* member);
+void xls_vast_verilog_module_add_member_comment(
+    struct xls_vast_verilog_module* m, struct xls_vast_comment* comment);
 
 struct xls_vast_logic_ref* xls_vast_verilog_module_add_input(
     struct xls_vast_verilog_module* m, const char* name,
@@ -140,6 +143,9 @@ struct xls_vast_continuous_assignment*
 xls_vast_verilog_file_make_continuous_assignment(
     struct xls_vast_verilog_file* f, struct xls_vast_expression* lhs,
     struct xls_vast_expression* rhs);
+
+struct xls_vast_comment* xls_vast_verilog_file_make_comment(
+    struct xls_vast_verilog_file* f, const char* text);
 
 struct xls_vast_instantiation* xls_vast_verilog_file_make_instantiation(
     struct xls_vast_verilog_file* f, const char* module_name,

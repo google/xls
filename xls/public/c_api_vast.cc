@@ -223,6 +223,13 @@ void xls_vast_verilog_module_add_member_continuous_assignment(
   cpp_module->AddModuleMember(cpp_member);
 }
 
+void xls_vast_verilog_module_add_member_comment(
+    struct xls_vast_verilog_module* m, struct xls_vast_comment* comment) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  auto* cpp_comment = reinterpret_cast<xls::verilog::Comment*>(comment);
+  cpp_module->AddModuleMember(cpp_comment);
+}
+
 struct xls_vast_literal* xls_vast_verilog_file_make_plain_literal(
     struct xls_vast_verilog_file* f, int32_t value) {
   auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
@@ -259,6 +266,14 @@ xls_vast_verilog_file_make_continuous_assignment(
   auto* cpp_assignment = cpp_file->Make<xls::verilog::ContinuousAssignment>(
       xls::SourceInfo(), cpp_lhs, cpp_rhs);
   return reinterpret_cast<xls_vast_continuous_assignment*>(cpp_assignment);
+}
+
+struct xls_vast_comment* xls_vast_verilog_file_make_comment(
+    struct xls_vast_verilog_file* f, const char* text) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  xls::verilog::Comment* cpp_comment =
+      cpp_file->Make<xls::verilog::Comment>(xls::SourceInfo(), text);
+  return reinterpret_cast<xls_vast_comment*>(cpp_comment);
 }
 
 struct xls_vast_instantiation* xls_vast_verilog_file_make_instantiation(
