@@ -86,16 +86,6 @@ def load_external_repositories():
         build_file = "//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel",
     )
 
-    # Released 2025-02-17
-    # Also filed https://github.com/google/or-tools/issues/4551 to make available in BCR
-    ORTOOLS_VERSION = "9.12"
-    http_archive(
-        name = "com_google_ortools",
-        urls = ["https://github.com/google/or-tools/archive/refs/tags/v{tag}.tar.gz".format(tag = ORTOOLS_VERSION)],
-        integrity = "sha256-3np0PI7Al6uJBsHgDqeC7opP5OwpfhXXvfOhh7L4gpw=",
-        strip_prefix = "or-tools-" + ORTOOLS_VERSION,
-    )
-
     # Used in C++ tests of the ZSTD Module
     # Version fdfb2aff released on 2024-07-31
     # https://github.com/facebook/zstd/commit/fdfb2aff39dc498372d8c9e5f2330b692fea9794

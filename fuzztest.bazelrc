@@ -7,6 +7,7 @@
 # And don't forget to add the following to your project's .bazelrc:
 #
 #  try-import %workspace%/fuzztest.bazelrc
+
 ### Common options.
 #
 # Do not use directly.
@@ -20,12 +21,19 @@ build:fuzztest-common --copt=-UNDEBUG
 # Enable libc++ assertions.
 # See https://libcxx.llvm.org/UsingLibcxx.html#enabling-the-safe-libc-mode
 build:fuzztest-common --copt=-D_LIBCPP_ENABLE_ASSERTIONS=1
+
 ### ASan (Address Sanitizer) build configuration.
 #
 # Use with: --config=asan
 
 build:asan --linkopt=-fsanitize=address
 build:asan --copt=-fsanitize=address
+
+# We rely on the following flag instead of the compiler provided
+# __has_feature(address_sanitizer) to know that we have an ASAN build even in
+# the uninstrumented runtime.
+build:asan --copt=-DADDRESS_SANITIZER
+
 ### FuzzTest build configuration.
 #
 # Use with: --config=fuzztest
@@ -38,14 +46,11 @@ build:fuzztest --config=fuzztest-common
 # Link statically.
 build:fuzztest --dynamic_mode=off
 
-# We rely on the following flag instead of the compiler provided
-# __has_feature(address_sanitizer) to know that we have an ASAN build even in
-# the uninstrumented runtime.
-build:fuzztest --copt=-DADDRESS_SANITIZER
 # We apply coverage tracking instrumentation to everything but Centipede and the
 # FuzzTest framework itself (including GoogleTest and GoogleMock).
 build:fuzztest --copt=-fsanitize-coverage=inline-8bit-counters,trace-cmp,pc-table
 build:fuzztest --per_file_copt=common/.*,fuzztest/.*,centipede/.*,-centipede/.*fuzz_target,googletest/.*,googlemock/.*@-fsanitize-coverage=0
+
 ### Experimental FuzzTest build configuration.
 #
 # Use with: --config=fuzztest-experimental
