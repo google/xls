@@ -5455,7 +5455,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     }
   } else if (const auto* pasm =
                  clang::dyn_cast<const clang::GCCAsmStmt>(stmt)) {
-    std::string sasm = pasm->getAsmString()->getString().str();
+    std::string sasm = pasm->getAsmString();
     vector<xls::BValue> args;
 
     // Go in reverse to avoid having to deal with eg %10 matching %1.
@@ -5465,7 +5465,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     for (int i = pasm->getNumInputs() - 1; i >= 0; --i) {
       const clang::Expr* expr = pasm->getInputExpr(i);
       if (expr->isIntegerConstantExpr(ctx)) {
-        const std::string name = pasm->getInputConstraint(i).str();
+        const std::string name = pasm->getInputConstraint(i);
         XLS_ASSIGN_OR_RETURN(auto val, EvaluateInt64(*expr, ctx, loc));
         sasm = std::regex_replace(
             sasm, std::regex(absl::StrFormat(R"(\b%s\b)", name)),
