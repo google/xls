@@ -717,12 +717,17 @@ const GLOBAL: u32 = u32:4;
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckErrorTest, LetTypeAnnotationIsXn) {
+TEST_P(TypecheckBothVersionsTest, LetTypeAnnotationIsXn) {
   constexpr std::string_view kProgram = "fn f() { let x: xN = u32:42; }";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Could not determine signedness to turn `xN` "
-                                 "into a concrete bits type.")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Could not determine signedness to turn `xN` "
+                              "into a concrete bits type."),
+                HasSubstrInV2(GetParam(),
+                              "`xN` requires a specified signedness"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, ParametricIdentifierLtValue) {

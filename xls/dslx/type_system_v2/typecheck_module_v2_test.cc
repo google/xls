@@ -249,6 +249,35 @@ const Z = X % 1 % Y % 2;
                   HasNodeWithType("const Z = X % 1 % Y % 2;", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, XnAnnotationWithMissingSignednessFails) {
+  EXPECT_THAT(
+      "const X = xN:3;",
+      TypecheckFails(HasSubstr("`xN` requires a specified signedness.")));
+}
+
+TEST(TypecheckV2Test, XnAnnotationWithMissingBitCountFails) {
+  EXPECT_THAT(
+      "const X = xN[false]:3;",
+      TypecheckFails(HasSubstr("`xN` requires a specified bit count.")));
+}
+
+TEST(TypecheckV2Test, XnAnnotationWithBitCountInSignednessPositionFails) {
+  EXPECT_THAT("const X = xN[32]:3;",
+              TypecheckFails(HasTypeMismatch("uN[6]", "bool")));
+}
+
+TEST(TypecheckV2Test, UnAnnotationWithMissingBitCountFails) {
+  EXPECT_THAT(
+      "const X = uN:3;",
+      TypecheckFails(HasSubstr("`uN` requires a specified bit count.")));
+}
+
+TEST(TypecheckV2Test, SnAnnotationWithMissingBitCountFails) {
+  EXPECT_THAT(
+      "const X = sN:3;",
+      TypecheckFails(HasSubstr("`sN` requires a specified bit count.")));
+}
+
 TEST(TypecheckV2Test, ConcatOfBitsLiterals) {
   EXPECT_THAT("const X = u8:3 ++ u1:1;", TopNodeHasType("uN[9]"));
 }

@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -192,14 +193,36 @@ TypeAnnotation* CreateStructAnnotation(Module& module,
 }
 
 absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
-    const TypeAnnotation* annotation) {
+    const TypeAnnotation* annotation, bool ignore_missing_dimensions) {
   if (const auto* builtin_annotation =
           dynamic_cast<const BuiltinTypeAnnotation*>(annotation)) {
-    // Handle things like `s32` and `u32`, which have an implied signedness and
-    // bit count.
-    XLS_ASSIGN_OR_RETURN(bool signedness, builtin_annotation->GetSignedness());
-    return SignednessAndBitCountResult(signedness,
-                                       builtin_annotation->GetBitCount());
+    if (ignore_missing_dimensions) {
+      absl::StatusOr<bool> signedness = builtin_annotation->GetSignedness();
+      return SignednessAndBitCountResult(signedness.value_or(false),
+                                         builtin_annotation->GetBitCount());
+    }
+    switch (builtin_annotation->builtin_type()) {
+      case BuiltinType::kXN:
+        return absl::InvalidArgumentError(
+            "`xN` requires a specified signedness.");
+      case BuiltinType::kUN:
+      case BuiltinType::kSN:
+        return absl::InvalidArgumentError(absl::Substitute(
+            "`$0` requires a specified bit count.", annotation->ToString()));
+      case BuiltinType::kToken:
+      case BuiltinType::kChannelIn:
+      case BuiltinType::kChannelOut:
+        return absl::NotFoundError(absl::StrCat("Annotation is not bits-like: ",
+                                                annotation->ToString()));
+      default:
+        // Handle things like `s32` and `u32`, which have an implied signedness
+        // and bit count. This logic also handles `bits`, which stores its
+        // array-style bit count inside the builtin annotation.
+        XLS_ASSIGN_OR_RETURN(bool signedness,
+                             builtin_annotation->GetSignedness());
+        return SignednessAndBitCountResult(signedness,
+                                           builtin_annotation->GetBitCount());
+    }
   }
   if (const auto* array_annotation =
           dynamic_cast<const ArrayTypeAnnotation*>(annotation)) {
@@ -230,10 +253,14 @@ absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
       if (builtin_element_annotation->builtin_type() == BuiltinType::kXN) {
         // `xN` has an expression for the signedness, which appears as the inner
         // array dim.
+        if (!multi_dimensional && !ignore_missing_dimensions) {
+          return absl::InvalidArgumentError(
+              "`xN` requires a specified bit count.");
+        }
         result.signedness = array_annotation->dim();
       } else if (multi_dimensional) {
         // This is something like uN[32][2].
-        return absl::InvalidArgumentError(absl::Substitute(
+        return absl::NotFoundError(absl::Substitute(
             "Type annotation $0 does not have a signedness and bit count.",
             annotation->ToString()));
       } else {
@@ -246,9 +273,25 @@ absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
       return result;
     }
   }
-  return absl::InvalidArgumentError(
+  return absl::NotFoundError(
       absl::StrCat("Cannot extract signedness and bit count from annotation: ",
                    annotation->ToString()));
+}
+
+absl::StatusOr<SignednessAndBitCountResult>
+GetSignednessAndBitCountWithUserFacingError(
+    const TypeAnnotation* annotation, const FileTable& file_table,
+    absl::AnyInvocable<absl::Status()> default_error_factory) {
+  absl::StatusOr<SignednessAndBitCountResult> result =
+      GetSignednessAndBitCount(annotation);
+  if (result.ok()) {
+    return result;
+  }
+  if (absl::IsNotFound(result.status())) {
+    return default_error_factory();
+  }
+  return TypeInferenceErrorStatus(annotation->span(), /*type=*/nullptr,
+                                  result.status().message(), file_table);
 }
 
 absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
@@ -303,10 +346,15 @@ const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
     return nullptr;
   }
   // If the signedness and bit count can be retrieved, then it's some flavor of
-  // xN, uN, sN, etc. and not what this function is looking for.
+  // xN, uN, sN, etc. and not what this function is looking for. If that yields
+  // an invalid argument error, then it's still one of those types but
+  // malformed, and the malformedness doesn't mean it's an array.
   absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
       GetSignednessAndBitCount(annotation);
-  return !signedness_and_bit_count.ok() ? array_annotation : nullptr;
+  return !signedness_and_bit_count.ok() &&
+                 !absl::IsInvalidArgument(signedness_and_bit_count.status())
+             ? array_annotation
+             : nullptr;
 }
 
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(

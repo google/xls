@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -106,9 +107,27 @@ TypeAnnotation* CreateStructAnnotation(Module& module,
                                        const StructOrProcRef& ref);
 
 // Returns the signedness and bit count from the given type annotation, if it is
-// a bits-like annotation; otherwise, returns an error.
+// a bits-like annotation; otherwise, returns an error. The kind of error is
+// either:
+// - Not found, if the annotation is not bits-like.
+// - Invalid argument, if the annotation is erroneously missing dimensions and
+//   `ignore_missing_dimensions` is false.
+//
+// The `ignore_missing_dimensions` flag is useful for a caller that does its own
+// traversal or zipping of the internals of type annotations like `uN[32]`, and
+// wants to be able to extract what information it can from just the `uN` piece.
 absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
-    const TypeAnnotation* annotation);
+    const TypeAnnotation* annotation, bool ignore_missing_dimensions = false);
+
+// Variant that returns an error suitable to present to the user on any failure.
+// The `default_error_factory` is used to convert any "not found" error (i.e.
+// "annotation is not bits-like") into a context-relevant error for the user,
+// If the annotation is erroneously missing dimensions, then a user-facing error
+// is internally provided.
+absl::StatusOr<SignednessAndBitCountResult>
+GetSignednessAndBitCountWithUserFacingError(
+    const TypeAnnotation* annotation, const FileTable& file_table,
+    absl::AnyInvocable<absl::Status()> default_error_factory);
 
 // Creates a type annotation for a literal `number`, which is sized to fit the
 // value. If the `number` is negative, then the annotation will be signed and

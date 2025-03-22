@@ -113,7 +113,8 @@ class Visitor : public AstNodeVisitorWithDefault {
   absl::Status HandlePossibleIntegerAnnotation(const T* annotation) {
     XLS_RETURN_IF_ERROR(DefaultHandler(annotation));
     absl::StatusOr<SignednessAndBitCountResult> result =
-        GetSignednessAndBitCount(annotation);
+        GetSignednessAndBitCount(annotation,
+                                 /*ignore_missing_dimensions=*/true);
     if (result.ok()) {
       last_direct_annotation_ = annotation;
       last_signedness_and_bit_count_ = *result;
@@ -248,7 +249,8 @@ class Resolver {
     }
     XLS_ASSIGN_OR_RETURN(
         SignednessAndBitCountResult signedness_and_bit_count,
-        GetSignednessAndBitCount(it->second->type_annotation()));
+        GetSignednessAndBitCount(it->second->type_annotation(),
+                                 /*ignore_missing_dimensions=*/true));
     XLS_ASSIGN_OR_RETURN(
         bool is_signed,
         Evaluate(CreateBoolAnnotation(*variable->owner(), variable->span()),

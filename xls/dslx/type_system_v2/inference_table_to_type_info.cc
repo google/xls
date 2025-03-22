@@ -963,22 +963,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           std::move(member_types),
           *dynamic_cast<const ProcDef*>(struct_def_base));
     }
-    absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
-        GetSignednessAndBitCount(annotation);
-    if (!signedness_and_bit_count.ok()) {
-      return absl::UnimplementedError(absl::Substitute(
-          "Type inference version 2 is a work in progress and cannot yet "
-          "handle non-bits-like type annotation `$0`.",
-          annotation->ToString()));
-    }
+    XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
+                         GetSignednessAndBitCountWithUserFacingError(
+                             annotation, file_table_, [&] {
+                               return absl::UnimplementedError(absl::Substitute(
+                                   "Type inference version 2 is a work in "
+                                   "progress and cannot yet handle "
+                                   "non-bits-like type annotation `$0`.",
+                                   annotation->ToString()));
+                             }));
     XLS_ASSIGN_OR_RETURN(
         bool signedness,
         EvaluateBoolOrExpr(parametric_context,
-                           signedness_and_bit_count->signedness));
-    XLS_ASSIGN_OR_RETURN(
-        int64_t bit_count,
-        EvaluateU32OrExpr(parametric_context,
-                          signedness_and_bit_count->bit_count));
+                           signedness_and_bit_count.signedness));
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count,
+                         EvaluateU32OrExpr(parametric_context,
+                                           signedness_and_bit_count.bit_count));
     VLOG(5) << "Concretized: " << annotation->ToString()
             << " to signed: " << signedness << ", bit count: " << bit_count;
     return std::make_unique<BitsType>(signedness, bit_count);

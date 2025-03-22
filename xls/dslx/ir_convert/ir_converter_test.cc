@@ -326,8 +326,8 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterWithBothTypecheckVersionsTest,
-     LetTupleBindingRestOfTupleBeginning) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       LetTupleBindingRestOfTupleBeginning) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:2, u32:3, u32:4);
@@ -508,7 +508,7 @@ TEST(IrConverterTest, CountedFor) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ForOverArrayOfItems) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ForOverArrayOfItems) {
   const std::string_view kProgram = R"(
 fn main(a: (u7, u7)[3]) -> u7 {
   for (t, accum): ((u7, u7), u7) in a {
@@ -971,7 +971,7 @@ fn f(outer_thing_1: u32, outer_thing_2: u32) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ParametricDefaultInStruct) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ParametricDefaultInStruct) {
   const char* kProgram = R"(
 struct Foo <X: u32, Y: u32 = {X + u32:1}, Z: u32 = {Y + u32:1}> {
     a: uN[X],
@@ -995,7 +995,8 @@ fn test() -> Foo<u32:5> {
 }
 
 // See https://github.com/google/xls/issues/1615
-TEST(IrConverterTest, ParametricStructReverseOrderParametrics) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ParametricStructReverseOrderParametrics) {
   const char* kProgram = R"(
 struct Foo<X: u32, Y: u32, Z:u32 = {X}> {
     a: uN[X],

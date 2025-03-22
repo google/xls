@@ -374,22 +374,24 @@ class Unifier {
     std::optional<SignednessAndSize> unified_signedness_and_bit_count;
     for (int i = 0; i < annotations.size(); ++i) {
       const TypeAnnotation* current_annotation = annotations[i];
-      absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
-          GetSignednessAndBitCount(current_annotation);
+      XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
+                           GetSignednessAndBitCountWithUserFacingError(
+                               current_annotation, file_table_, [&] {
+                                 return error_generator_.TypeMismatchError(
+                                     parametric_context_, current_annotation,
+                                     annotations[0]);
+                               }));
       bool current_annotation_is_auto =
           table_.IsAutoLiteral(current_annotation);
-      if (!signedness_and_bit_count.ok()) {
-        return error_generator_.TypeMismatchError(
-            parametric_context_, current_annotation, annotations[0]);
-      }
+
       XLS_ASSIGN_OR_RETURN(
           bool current_annotation_signedness,
           evaluator_.EvaluateBoolOrExpr(parametric_context_,
-                                        signedness_and_bit_count->signedness));
+                                        signedness_and_bit_count.signedness));
       XLS_ASSIGN_OR_RETURN(
           int64_t current_annotation_raw_bit_count,
           evaluator_.EvaluateU32OrExpr(parametric_context_,
-                                       signedness_and_bit_count->bit_count));
+                                       signedness_and_bit_count.bit_count));
       SignednessAndSize current_annotation_signedness_and_bit_count{
           .is_auto = current_annotation_is_auto,
           .is_signed = current_annotation_signedness,
