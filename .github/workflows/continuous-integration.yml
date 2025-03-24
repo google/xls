@@ -28,15 +28,16 @@ jobs:
       - name: Run pre-commit checks
         run: pre-commit run --all-files --show-diff-on-failure
 
+      - name: Install dependencies via apt
+        run: |
+          sudo apt-get install -y python3-dev python-is-python3 build-essential liblapack-dev libblas-dev gfortran libtinfo6
+
       - name: Restore Nightly Bazel Cache
         uses: actions/cache/restore@v4
         with:
           path: "~/.cache/bazel"
           key: bazel-cache-nightly-${{ runner.os }}-${{ github.sha }}
           restore-keys: bazel-cache-nightly-${{ runner.os }}-
-
-      - name: Install dependencies via apt
-        run: sudo apt-get install python3-dev python-is-python3 build-essential liblapack-dev libblas-dev gfortran
 
       - name: Bazel Build Tools (opt)
         run: |
