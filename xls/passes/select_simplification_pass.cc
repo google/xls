@@ -1425,6 +1425,20 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                     is_single_user_matching_select) ||
         (default_value.has_value() &&
          is_single_user_matching_select(*default_value))) {
+      std::vector<Node*> temp_cases;
+      if (selector->BitCountOrDie() == 1 && default_value.has_value() &&
+          !is_single_user_matching_select(*default_value)) {
+        // The default value is not the case with a matching select - and the
+        // selector is a single bit. We can get an equivalent select by negating
+        // the selector & swapping the default value with the case, and this
+        // will simplify the resulting merge.
+        CHECK_EQ(cases.size(), 1);
+        temp_cases = {*default_value};
+        default_value = cases.front();
+        cases = absl::MakeConstSpan(temp_cases);
+        XLS_ASSIGN_OR_RETURN(selector, node->function_base()->MakeNode<UnOp>(
+                                           node->loc(), selector, Op::kNot));
+      }
       // Cases for the replacement one-hot-select.
       std::vector<Node*> new_cases;
       // Pieces of the selector for the replacement one-hot-select. These are
@@ -1489,15 +1503,26 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           //     selector={..., S & A, S & B, S & C, ...},
           //     cases=[..., A, B, C, ...])
           //
-          XLS_ASSIGN_OR_RETURN(Node * selector_bit,
-                               node->function_base()->MakeNode<BitSlice>(
-                                   node->loc(), selector,
-                                   /*start=*/i, /*width=*/1));
-          XLS_ASSIGN_OR_RETURN(
-              Node * selector_bit_mask,
-              node->function_base()->MakeNode<ExtendOp>(
-                  node->loc(), selector_bit,
-                  /*new_bit_count=*/operand_cases.size(), Op::kSignExt));
+          Node* selector_bit;
+          if (selector->BitCountOrDie() == 1) {
+            CHECK_EQ(i, 0);
+            selector_bit = selector;
+          } else {
+            XLS_ASSIGN_OR_RETURN(selector_bit,
+                                 node->function_base()->MakeNode<BitSlice>(
+                                     node->loc(), selector,
+                                     /*start=*/i, /*width=*/1));
+          }
+          Node* selector_bit_mask;
+          if (operand_cases.size() == 1) {
+            selector_bit_mask = selector_bit;
+          } else {
+            XLS_ASSIGN_OR_RETURN(
+                selector_bit_mask,
+                node->function_base()->MakeNode<ExtendOp>(
+                    node->loc(), selector_bit,
+                    /*new_bit_count=*/operand_cases.size(), Op::kSignExt));
+          }
           XLS_ASSIGN_OR_RETURN(
               Node * masked_selector,
               node->function_base()->MakeNode<NaryOp>(
