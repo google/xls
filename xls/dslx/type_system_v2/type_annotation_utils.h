@@ -216,6 +216,12 @@ bool IsToken(const TypeAnnotation* annotation);
 // returns nullptr.
 const BuiltinTypeAnnotation* CastToTokenType(const TypeAnnotation* annotation);
 
+// Creates a new FunctionTypeAnnotation from the given one, with the last
+// and parameter of the original signature repeated `count` times (which
+// can be 0, meaning, remove the last parameter).
+const FunctionTypeAnnotation* ExpandVarargs(
+    Module& module, const FunctionTypeAnnotation* signature, int count);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_

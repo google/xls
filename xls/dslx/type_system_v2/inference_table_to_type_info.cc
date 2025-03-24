@@ -421,9 +421,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       std::optional<std::string_view> builtin =
           GetBuiltinFnName(invocation->callee());
       if (builtin.has_value()) {
-        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-            invocation->callee(),
-            CreateFunctionTypeAnnotation(module_, *function)));
+        const FunctionTypeAnnotation* ft_annotation =
+            CreateFunctionTypeAnnotation(module_, *function);
+        if (builtin == "join") {
+          ft_annotation =
+              ExpandVarargs(module_, ft_annotation, actual_args.size());
+        }
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeAnnotation(invocation->callee(), ft_annotation));
       }
 
       XLS_RETURN_IF_ERROR(

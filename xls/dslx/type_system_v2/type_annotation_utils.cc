@@ -583,4 +583,18 @@ const BuiltinTypeAnnotation* CastToTokenType(const TypeAnnotation* annotation) {
   return dynamic_cast<const BuiltinTypeAnnotation*>(annotation);
 }
 
+const FunctionTypeAnnotation* ExpandVarargs(
+    Module& module, const FunctionTypeAnnotation* signature, int count) {
+  CHECK_GT(signature->param_types().size(), 0);
+
+  TypeAnnotation* last_param_type = signature->param_types().back();
+  std::vector<TypeAnnotation*> param_types(signature->param_types().begin(),
+                                           signature->param_types().end() - 1);
+  for (int i = 0; i < count; ++i) {
+    param_types.push_back(last_param_type);
+  }
+
+  return module.Make<FunctionTypeAnnotation>(param_types,
+                                             signature->return_type());
+}
 }  // namespace xls::dslx

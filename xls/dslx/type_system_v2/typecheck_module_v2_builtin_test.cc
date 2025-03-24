@@ -672,5 +672,69 @@ TEST(TypecheckV2BuiltinTest, TokenAssignmentMismatch) {
               TypecheckFails(HasTypeMismatch("u32", "token")));
 }
 
+TEST(TypecheckV2BuiltinTest, Join) {
+  EXPECT_THAT(R"(
+  const T = token();
+  const Y = join(T);
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("T", "token"),
+                                      HasNodeWithType("Y", "token"))));
+}
+
+TEST(TypecheckV2BuiltinTest, Join2) {
+  EXPECT_THAT(R"(
+  const T = token();
+  const Y = join(T, T);
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("T", "token"),
+                                      HasNodeWithType("Y", "token"))));
+}
+
+TEST(TypecheckV2BuiltinTest, Join0) {
+  EXPECT_THAT(R"(
+  const T = token();
+  const Y = join();
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("T", "token"),
+                                      HasNodeWithType("Y", "token"))));
+}
+
+TEST(TypecheckV2BuiltinTest, Join012) {
+  EXPECT_THAT(
+      R"(
+  const T = token();
+  const X = join();
+  const Y = join(T);
+  const Z = join(T, T);
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("T", "token"), HasNodeWithType("X", "token"),
+                HasNodeWithType("Y", "token"), HasNodeWithType("Z", "token"))));
+}
+
+TEST(TypecheckV2BuiltinTest, JoinMismatchReturnType) {
+  EXPECT_THAT(
+      R"(
+  const X:u32 = join();
+)",
+      TypecheckFails(HasTypeMismatch("u32", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, JoinMismatchParamType) {
+  EXPECT_THAT(
+      R"(
+  const X = join(u32:0);
+)",
+      TypecheckFails(HasTypeMismatch("u32", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, JoinMismatchSecondParamType) {
+  EXPECT_THAT(
+      R"(
+  const X = join(token(), u32:0);
+)",
+      TypecheckFails(HasTypeMismatch("u32", "token")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -47,6 +47,9 @@ fn fail!<N: u32, T: type> (label: u8[N], fallback_value: T) -> T;
 
 fn gate!<T: type>(x: u1, y: T) -> T;
 
+// `join` can take zero or more `token` arguments; the varargs are handled by the type checker.
+fn join(t: token) -> token;
+
 fn one_hot<N: u32, M: u32={N + 1}>(x: uN[N], y: u1) -> uN[M];
 
 fn one_hot_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N]) -> xN[S][M];
