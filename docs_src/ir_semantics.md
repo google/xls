@@ -927,7 +927,7 @@ is zero.
 Implements a binary encoder.
 
 ```
-result = encode(operand, width=<width>)
+result = encode(operand)
 ```
 
 **Types**
