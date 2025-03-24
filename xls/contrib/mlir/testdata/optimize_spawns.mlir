@@ -25,8 +25,8 @@ xls.sproc @fn2(%arg0: !xls.schan<tensor<8xi32>, out>) {
 // CHECK:      xls.spawn @fn(%arg0) : !xls.schan<tensor<8xi32>, in>
 // CHECK:      xls.yield
 // CHECK:    }
-// CHECK:    next (%arg0: i32) zeroinitializer {
-// CHECK:      xls.yield %arg0 : i32
+// CHECK:    next () zeroinitializer {
+// CHECK:      xls.yield
 // CHECK:    }
 // CHECK:  }
 xls.sproc @consume_arg(%arg0: !xls.schan<tensor<8xi32>, in>) top {
@@ -51,8 +51,8 @@ xls.sproc @consume_arg(%arg0: !xls.schan<tensor<8xi32>, in>) top {
 // CHECK:      xls.spawn @fn2(%arg0) : !xls.schan<tensor<8xi32>, out>
 // CHECK:      xls.yield
 // CHECK:    }
-// CHECK:    next (%arg0: i32) zeroinitializer {
-// CHECK:      xls.yield %arg0 : i32
+// CHECK:    next () zeroinitializer {
+// CHECK:      xls.yield
 // CHECK:    }
 // CHECK:  }
 xls.sproc @produce_result(%arg0: !xls.schan<tensor<8xi32>, out>) top {
@@ -77,8 +77,8 @@ xls.sproc @produce_result(%arg0: !xls.schan<tensor<8xi32>, out>) top {
 // CHECK:      xls.spawn @fn(%in) : !xls.schan<tensor<8xi32>, in>
 // CHECK:      xls.yield
 // CHECK:    }
-// CHECK:    next (%arg0: i32) zeroinitializer {
-// CHECK:      xls.yield %arg0 : i32
+// CHECK:    next () zeroinitializer {
+// CHECK:      xls.yield
 // CHECK:    }
 // CHECK:  }
 xls.sproc @contract_away_interior_channel() top {
@@ -175,3 +175,18 @@ xls.sproc @recv_predicated() top {
     xls.yield %arg2 : i32
   }
 }
+
+// CHECK-LABEL: sproc @unused_args
+// CHECK: yield
+// CHECK: next () zeroinitializer {
+// CHECK:   xls.yield
+// CHECK: }
+xls.sproc @unused_args(%arg0: !xls.schan<tensor<8xi32>, in>) {
+  spawns {
+    xls.yield %arg0 : !xls.schan<tensor<8xi32>, in>
+  }
+  next(%arg0: !xls.schan<tensor<8xi32>, in>, %arg1: i32) zeroinitializer {
+    xls.yield %arg1 : i32
+  }
+}
+

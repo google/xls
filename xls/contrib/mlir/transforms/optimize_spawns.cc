@@ -106,6 +106,30 @@ class SendOfBlockingReceiveOp : public OpRewritePattern<SSendOp> {
   }
 };
 
+void RemoveUnusedArguments(SprocOp sproc) {
+  // Erase unused channel arguments from the next region.
+  for (int i = sproc.getYieldedChannels().size() - 1; i >= 0; --i) {
+    Value next_chan = sproc.getNextChannels()[i];
+    if (next_chan.use_empty()) {
+      sproc.getNext().eraseArgument(i);
+      sproc.getSpawns().front().getTerminator()->eraseOperand(i);
+    }
+  }
+
+  // Erase state arguments that are only passed to the terminator from the next
+  // region.
+  Operation* terminator = sproc.getNext().front().getTerminator();
+  for (int i = terminator->getNumOperands() - 1; i >= 0; --i) {
+    BlockArgument arg = sproc.getStateArguments()[i];
+    OpOperand& yield = terminator->getOpOperand(i);
+
+    if (arg == yield.get() && arg.hasOneUse()) {
+      terminator->eraseOperand(i);
+      sproc.getNext().eraseArgument(arg.getArgNumber());
+    }
+  }
+}
+
 class OptimizeSpawnsPass
     : public impl::OptimizeSpawnsPassBase<OptimizeSpawnsPass> {
  public:
@@ -120,6 +144,9 @@ class OptimizeSpawnsPass
     // Ensure that all spawns regions are topologically sorted; given the order
     // in which the pattern is applied, this is not currently guaranteed.
     sortTopologically(&getOperation().getSpawns().front());
+
+    // Optimize away unused arguments to the next region.
+    RemoveUnusedArguments(getOperation());
   }
 };
 
