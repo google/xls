@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_STAGE_CONVERSION_H_
-#define XLS_CODEGEN_STAGE_CONVERSION_H_
+#ifndef XLS_CODEGEN_PASSES_NG_STAGE_CONVERSION_H_
+#define XLS_CODEGEN_PASSES_NG_STAGE_CONVERSION_H_
 
 #include <cstdint>
 #include <memory>
@@ -358,4 +358,4 @@ absl::Status SingleFunctionBaseToPipelinedStages(
 
 }  // namespace xls::verilog
 
-#endif  // XLS_CODEGEN_STAGE_CONVERSION_H_
+#endif  // XLS_CODEGEN_PASSES_NG_STAGE_CONVERSION_H_

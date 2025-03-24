@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/stage_conversion.h"
+#include "xls/codegen/passes_ng/stage_conversion_pass_pipeline.h"
 
 #include <cstdint>
 #include <memory>
@@ -27,9 +27,10 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/passes_ng/stage_conversion.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
-#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
@@ -40,10 +41,10 @@
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
-#include "xls/ir/op.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -66,33 +67,6 @@ class StageConversionTestBase : public IrTestBase {
   }
 };
 
-// Unit delay delay estimator.
-class TestDelayEstimator : public DelayEstimator {
- public:
-  TestDelayEstimator() : DelayEstimator("test") {}
-
-  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
-    switch (node->op()) {
-      case Op::kAfterAll:
-      case Op::kMinDelay:
-      case Op::kParam:
-      case Op::kStateRead:
-      case Op::kNext:
-      case Op::kInputPort:
-      case Op::kOutputPort:
-      case Op::kLiteral:
-      case Op::kBitSlice:
-      case Op::kConcat:
-      case Op::kTupleIndex:
-      case Op::kReceive:
-      case Op::kSend:
-        return 0;
-      default:
-        return 1;
-    }
-  }
-};
-
 // Fixture to sweep pipeline stages.
 class SweepPipelineStagesFixture : public StageConversionTestBase,
                                    public testing::WithParamInterface<int64_t> {
@@ -107,6 +81,8 @@ class SweepPipelineStagesFixture : public StageConversionTestBase,
 
 TEST_P(SweepPipelineStagesFixture, TrivialPipelinedFunction) {
   auto p = CreatePackage();
+  auto delay_estimator = TestDelayEstimator();
+
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
   BValue y = fb.Param("y", p->GetBitsType(32));
@@ -117,25 +93,35 @@ TEST_P(SweepPipelineStagesFixture, TrivialPipelinedFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(
-          f, TestDelayEstimator(),
+          f, delay_estimator,
           SchedulingOptions().pipeline_stages(GetStageCount())));
 
   VLOG(2) << "Starting Package";
   XLS_VLOG_LINES(2, p->DumpIr());
 
-  StageConversionMetadata metadata;
+  CodegenPassUnit unit(p.get());
+  unit.AssociateSchedule(f, schedule);
 
-  XLS_ASSERT_OK(SingleFunctionBaseToPipelinedStages(
-      "top", schedule,
-      CodegenOptions().flop_inputs(false).flop_outputs(true).clock_name("clk"),
-      metadata));
+  CodegenPassOptions pass_options;
+  pass_options.codegen_options =
+      CodegenOptions().flop_inputs(false).flop_outputs(true).clock_name("clk");
+  pass_options.schedule = schedule;
+  pass_options.delay_estimator = &delay_estimator;
+  CodegenPassResults results;
+  OptimizationContext context;
+
+  XLS_ASSERT_OK(
+      CreateStageConversionPassPipeline(pass_options.codegen_options, context)
+          ->Run(&unit, pass_options, &results)
+          .status());
 
   VLOG(2) << "Final Package";
   XLS_VLOG_LINES(2, p->DumpIr());
 
   // Get top-level proc and input/output channels.
-  XLS_ASSERT_OK_AND_ASSIGN(ProcMetadata * top_metadata,
-                           metadata.GetTopProcMetadata(f));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProcMetadata * top_metadata,
+      unit.stage_conversion_metadata().GetTopProcMetadata(f));
   Proc* top_proc = top_metadata->proc();
 
   XLS_ASSERT_OK_AND_ASSIGN(ChannelInterface * ch_x,
@@ -145,7 +131,7 @@ TEST_P(SweepPipelineStagesFixture, TrivialPipelinedFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelInterface * ch_out,
                            top_proc->GetSendChannelInterface("out"));
 
-  // Assert that the same channels can be retreived from the metadata.
+  // Assert that the same channels can be retrieved from the metadata.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<SpecialUseMetadata*> x_metadata,
       top_metadata->FindSpecialUseMetadata(

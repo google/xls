@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/stage_conversion.h"
+#include "xls/codegen/passes_ng/stage_conversion.h"
 
 #include <cstdint>
 #include <memory>

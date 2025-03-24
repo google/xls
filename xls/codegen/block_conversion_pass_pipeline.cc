@@ -85,7 +85,7 @@ absl::StatusOr<CodegenPassUnit> CreateBlocksFor(
 
     const PipelineSchedule& schedule = schedules.at(fb);
 
-    unit.AssociateBlock(fb, schedule, block);
+    unit.AssociateScheduleAndBlock(fb, schedule, block);
   }
 
   unit.GcMetadata();

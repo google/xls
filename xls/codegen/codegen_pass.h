@@ -30,6 +30,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/passes_ng/stage_conversion.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
@@ -380,9 +381,19 @@ class CodegenPassUnit {
   // Sets the top block.
   void SetTopBlock(absl::Nonnull<Block*> b) { top_block_ = b; }
 
-  // Adds necessary maps from the Schedule to FunctionBase and to the Block.
-  void AssociateBlock(FunctionBase* fb, PipelineSchedule schedule,
-                      Block* block) {
+  // Adds necessary maps from the FunctionBase to the Block.
+  void AssociateBlock(FunctionBase* fb, Block* block) {
+    function_base_to_block_.emplace(fb, block);
+  }
+
+  // Adds necessary maps from the FunctionBase to the Schedule.
+  void AssociateSchedule(FunctionBase* fb, PipelineSchedule schedule) {
+    function_base_to_schedule_.emplace(fb, std::move(schedule));
+  }
+
+  // Adds necessary maps from the FunctionBase to the Block and Schedule.
+  void AssociateScheduleAndBlock(FunctionBase* fb, PipelineSchedule schedule,
+                                 Block* block) {
     function_base_to_schedule_.emplace(fb, std::move(schedule));
     function_base_to_block_.emplace(fb, block);
   }
@@ -446,6 +457,11 @@ class CodegenPassUnit {
     return function_base_to_schedule_;
   }
 
+  // Returns the manager of stage conversion metadata.
+  StageConversionMetadata& stage_conversion_metadata() {
+    return stage_conversion_metadata_;
+  }
+
  private:
   // The package containing IR to lower.
   Package* package_;
@@ -466,6 +482,10 @@ class CodegenPassUnit {
 
   // The top-level block to generate a Verilog module for.
   Block* top_block_;
+
+  // Object that associates function bases to metadata created during
+  // stage conversion.
+  StageConversionMetadata stage_conversion_metadata_;
 };
 
 struct CodegenPassResults : public PassResults {

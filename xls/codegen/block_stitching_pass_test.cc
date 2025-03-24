@@ -175,7 +175,7 @@ absl::StatusOr<std::pair<bool, CodegenPassUnit>> RunBlockStitchingPass(
       bool ccp_changed,
       ccp.Run(&unit, CodegenPassOptions{.codegen_options = options}, &results));
   changed = changed || ccp_changed;
-  return std::make_pair(changed, unit);
+  return std::make_pair(changed, std::move(unit));
 }
 
 TEST_F(BlockStitchingPassTest, SingleBlockIsNoop) {
