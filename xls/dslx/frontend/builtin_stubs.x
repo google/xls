@@ -58,25 +58,19 @@ fn or_reduce<N: u32>(x: uN[N]) -> u1;
 
 fn priority_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N], z: xN[S][M]) -> xN[S][M];
 
-// Blocked on tiv2 supporting procs:
-// fn recv_if_non_blocking<T: type>(tok: token, channel: chan<T> in, predicate: bool, value: T) -> (token, T, bool);
+fn recv_if_non_blocking<T: type>(tok: token, channel: chan<T> in, predicate: bool, value: T) -> (token, T, bool);
 
-// Blocked on tiv2 supporting procs:
-// fn recv_if<T: type>(tok: token, channel: chan<T> in, predicate: bool, value: T) -> (token, T);
+fn recv_if<T: type>(tok: token, channel: chan<T> in, predicate: bool, value: T) -> (token, T);
 
-// Blocked on tiv2 supporting procs:
-// fn recv_non_blocking<T: type>(tok: token, channel: chan<T> in, value: T) -> (token, T, bool);
+fn recv_non_blocking<T: type>(tok: token, channel: chan<T> in, value: T) -> (token, T, bool);
 
-// Blocked on tiv2 supporting procs:
-// fn recv<T: type>(tok: token, channel: chan<T> in) -> (token, T);
+fn recv<T: type>(tok: token, channel: chan<T> in) -> (token, T);
 
 fn rev<N: u32>(x: uN[N]) -> uN[N];
 
-// Blocked on tiv2 supporting procs:
-// fn send_if<T: type>(tok: token, channel: chan<T> out, predicate: bool, value: T) -> token;
+fn send_if<T: type>(tok: token, channel: chan<T> out, predicate: bool, value: T) -> token;
 
-// Blocked on tiv2 supporting procs:
-// fn send<T: type>(tok: token, channel: chan<T> out, value: T) -> token;
+fn send<T: type>(tok: token, channel: chan<T> out, value: T) -> token;
 
 fn signex<NS: bool, N: u32, MS: bool, M: u32>(x: xN[MS][M], y: xN[NS][N]) -> xN[NS][N];
 

@@ -99,6 +99,9 @@ std::vector<AstNode*> ProcLike::GetChildren(bool want_types) const {
   for (ParametricBinding* pb : parametric_bindings_) {
     results.push_back(pb);
   }
+  for (ProcMember* member : members()) {
+    results.push_back(member);
+  }
   for (const ProcStmt& s : body_.stmts) {
     results.push_back(ToAstNode(s));
   }

@@ -736,5 +736,332 @@ TEST(TypecheckV2BuiltinTest, JoinMismatchSecondParamType) {
       TypecheckFails(HasTypeMismatch("u32", "token")));
 }
 
+TEST(TypecheckV2BuiltinTest, Send) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> out;
+  v: u32;
+
+  init { join() }
+  config(c: chan<u32> out, v: u32) { (c, v) }
+
+  next(state: token) {
+    send(state, c, v)
+  }
+}
+)",
+      TypecheckSucceeds(HasOneLineBlockWithType("send(state, c, v)", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, SendWithDataMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> out;
+  v: u64;
+
+  init { join() }
+  config(c: chan<u32> out, v: u64) { (c, v) }
+
+  next(state: token) {
+    send(state, c, v)
+  }
+}
+)",
+      TypecheckFails(HasSizeMismatch("uN[32]", "uN[64]")));
+}
+
+TEST(TypecheckV2BuiltinTest, SendWithChannelDirectionMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> in;
+  v: u32;
+
+  init { join() }
+  config(c: chan<u32> in, v: u32) { (c, v) }
+
+  next(state: token) {
+    send(state, c, v)
+  }
+}
+)",
+      TypecheckFails(HasTypeMismatch("chan<uN[32]> out", "chan<uN[32]> in")));
+}
+
+TEST(TypecheckV2BuiltinTest, SendWithChannelDimMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32>[2] out;
+  v: u32;
+
+  init { join() }
+  config(c: chan<u32>[2] out, v: u32) { (c, v) }
+
+  next(state: token) {
+    send(state, c, v)
+  }
+}
+)",
+      TypecheckFails(HasTypeMismatch("chan<uN[32]>[2] out", "chan<Any> out")));
+}
+
+TEST(TypecheckV2BuiltinTest, SendIf) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> out;
+  v: u32;
+
+  init { join() }
+  config(c: chan<u32> out, v: u32) { (c, v) }
+
+  next(state: token) {
+    send_if(state, c, false, v)
+  }
+}
+)",
+      TypecheckSucceeds(
+          HasOneLineBlockWithType("send_if(state, c, false, v)", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, SendIfWithPredicateTypeMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> out;
+  v: u32;
+
+  init { join() }
+  config(c: chan<u32> out, v: u32) { (c, v) }
+
+  next(state: token) {
+    send_if(state, c, u32:50, v)
+  }
+}
+)",
+      TypecheckFails(HasTypeMismatch("bool", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, Recv) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> in;
+
+  init { (join(), 0) }
+  config(c: chan<u32> in) { (c,) }
+
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)",
+      TypecheckSucceeds(
+          HasOneLineBlockWithType("recv(state.0, c)", "(token, uN[32])")));
+}
+
+TEST(TypecheckV2BuiltinTest, RecvWithDataMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> in;
+
+  init { (join(), 0) }
+  config(c: chan<u32> in) { (c,) }
+
+  next(state: (token, u64)) {
+    recv(state.0, c)
+  }
+}
+)",
+      TypecheckFails(HasSizeMismatch("uN[32]", "uN[64]")));
+}
+
+TEST(TypecheckV2BuiltinTest, RecvWithChannelDirectionMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> out;
+
+  init { (join(), 0) }
+  config(c: chan<u32> out) { (c,) }
+
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)",
+      TypecheckFails(HasTypeMismatch("chan<uN[32]> in", "chan<uN[32]> out")));
+}
+
+TEST(TypecheckV2BuiltinTest, RecvWithChannelDimMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32>[2] in;
+
+  init { (join(), 0) }
+  config(c: chan<u32>[2] in) { (c,) }
+
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)",
+      TypecheckFails(HasTypeMismatch("chan<uN[32]>[2] in", "chan<Any> in")));
+}
+
+TEST(TypecheckV2BuiltinTest, RecvIf) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> in;
+  v: u32;
+
+  init { (join(), 0) }
+  config(c: chan<u32> in, v: u32) { (c, v) }
+
+  next(state: (token, u32)) {
+    recv_if(state.0, c, false, v)
+  }
+}
+)",
+      TypecheckSucceeds(HasOneLineBlockWithType("recv_if(state.0, c, false, v)",
+                                                "(token, uN[32])")));
+}
+
+TEST(TypecheckV2BuiltinTest, RecvIfWithPredicateTypeMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> in;
+  v: u32;
+
+  init { (join(), 0) }
+  config(c: chan<u32> in, v: u32) { (c, v) }
+
+  next(state: (token, u32)) {
+    recv_if(state.0, c, u32:50, v)
+  }
+}
+)",
+      TypecheckFails(HasTypeMismatch("u32", "bool")));
+}
+
+TEST(TypecheckV2BuiltinTest, RecvIfWithDefaultValueTypeMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> in;
+  v: u64;
+
+  init { (join(), 0) }
+  config(c: chan<u32> in, v: u64) { (c, v) }
+
+  next(state: (token, u32)) {
+    recv_if(state.0, c, false, v)
+  }
+}
+)",
+      TypecheckFails(HasTypeMismatch("uN[32]", "uN[64]")));
+}
+
+TEST(TypecheckV2BuiltinTest, RecvNonBlocking) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> in;
+  v: u32;
+
+  init { (join(), 0, false) }
+  config(c: chan<u32> in, v: u32) { (c, v) }
+
+  next(state: (token, u32, bool)) {
+    recv_non_blocking(state.0, c, v)
+  }
+}
+)",
+      TypecheckSucceeds(HasOneLineBlockWithType(
+          "recv_non_blocking(state.0, c, v)", "(token, uN[32], uN[1])")));
+}
+
+TEST(TypecheckV2BuiltinTest, RecvNonBlockingWithDefaultValueMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> in;
+  v: u64;
+
+  init { (join(), 0, false) }
+  config(c: chan<u32> in, v: u64) { (c, v) }
+
+  next(state: (token, u32, bool)) {
+    recv_non_blocking(state.0, c, v)
+  }
+}
+)",
+      TypecheckFails(HasTypeMismatch("uN[32]", "uN[64]")));
+}
+
+TEST(TypecheckV2BuiltinTest, RecvIfNonBlocking) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> in;
+  v: u32;
+
+  init { (join(), 0, false) }
+  config(c: chan<u32> in, v: u32) { (c, v) }
+
+  next(state: (token, u32, bool)) {
+    recv_if_non_blocking(state.0, c, false, v)
+  }
+}
+)",
+      TypecheckSucceeds(
+          HasOneLineBlockWithType("recv_if_non_blocking(state.0, c, false, v)",
+                                  "(token, uN[32], uN[1])")));
+}
+
+TEST(TypecheckV2BuiltinTest, RecvIfNonBlockingWithPredicateTypeMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> in;
+  v: u32;
+
+  init { (join(), 0, false) }
+  config(c: chan<u32> in, v: u32) { (c, v) }
+
+  next(state: (token, u32, bool)) {
+    recv_if_non_blocking(state.0, c, u32:50, v)
+  }
+}
+)",
+      TypecheckFails(HasTypeMismatch("u32", "bool")));
+}
+
+TEST(TypecheckV2BuiltinTest,
+     RecvIfNonBlockingWithDefaultValueTypeMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32> in;
+  v: u64;
+
+  init { (join(), 0, false) }
+  config(c: chan<u32> in, v: u64) { (c, v) }
+
+  next(state: (token, u32, bool)) {
+    recv_if_non_blocking(state.0, c, false, v)
+  }
+}
+)",
+      TypecheckFails(HasTypeMismatch("uN[32]", "uN[64]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

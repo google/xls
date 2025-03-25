@@ -936,6 +936,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return std::make_unique<FunctionType>(std::move(param_types),
                                             std::move(return_type));
     }
+    if (const auto* channel =
+            dynamic_cast<const ChannelTypeAnnotation*>(annotation)) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> payload_type,
+                           Concretize(channel->payload(), parametric_context));
+      std::unique_ptr<Type> type = std::make_unique<ChannelType>(
+          std::move(payload_type), channel->direction());
+      if (channel->dims().has_value()) {
+        for (Expr* dim : *channel->dims()) {
+          XLS_ASSIGN_OR_RETURN(int64_t size,
+                               EvaluateU32OrExpr(parametric_context, dim));
+          type = std::make_unique<ArrayType>(
+              std::move(type), TypeDim(InterpValue::MakeU32(size)));
+        }
+      }
+      return type;
+    }
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc,
                          GetStructOrProcRef(annotation, file_table_));
     if (struct_or_proc.has_value()) {
@@ -1636,17 +1652,31 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       VLOG(5) << "Infer using actual type: " << actual_arg_type->ToString()
               << " and formal type: " << formal_types[i]->ToString()
               << " with effective context: " << ToString(actual_arg_context);
-      absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
-          resolved;
-      XLS_ASSIGN_OR_RETURN(
-          resolved,
-          SolveForParametrics(
+
+      absl::StatusOr<absl::flat_hash_map<const ParametricBinding*,
+                                         InterpValueOrTypeAnnotation>>
+          resolved = SolveForParametrics(
               actual_arg_type, formal_types[i], implicit_parametrics,
               [&](const TypeAnnotation* expected_type, const Expr* expr) {
                 return Evaluate(ParametricContextScopedExpr(
                     actual_arg_context, expected_type, expr));
-              }));
-      for (auto& [binding, value_or_type] : resolved) {
+              });
+      if (!resolved.ok()) {
+        // `SolveForParametrics` does not yield user-presentable errors. When it
+        // errors, it means the formal and actual argument types are not
+        // reconcilable.
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* direct_actual_arg_type,
+            resolver_->ResolveIndirectTypeAnnotations(
+                actual_arg_context, actual_arg_type, std::nullopt));
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* direct_formal_arg_type,
+            resolver_->ResolveIndirectTypeAnnotations(
+                target_context, formal_types[i], std::nullopt));
+        return TypeMismatchError(actual_arg_context, direct_actual_arg_type,
+                                 direct_formal_arg_type);
+      }
+      for (auto& [binding, value_or_type] : *resolved) {
         VLOG(5) << "Inferred implicit parametric value: "
                 << ToString(value_or_type)
                 << " for binding: " << binding->identifier()

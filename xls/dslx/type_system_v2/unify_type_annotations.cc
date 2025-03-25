@@ -27,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -133,6 +134,13 @@ class Unifier {
       return CreateBuiltinTypeAnnotation(
           module_, module_.GetOrCreateBuiltinNameDef("token"),
           annotations[0]->span());
+    }
+    if (const auto* first_channel_annotation =
+            dynamic_cast<const ChannelTypeAnnotation*>(annotations[0])) {
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<const ChannelTypeAnnotation*> channel_annotations,
+          CastAllOrError<ChannelTypeAnnotation>(annotations));
+      return UnifyChannelTypeAnnotations(channel_annotations, span);
     }
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> first_struct_or_proc,
                          GetStructOrProcRef(annotations[0], file_table_));
@@ -322,6 +330,78 @@ class Unifier {
     }
     return module_.Make<FunctionTypeAnnotation>(
         unified_param_types, const_cast<TypeAnnotation*>(unified_return_type));
+  }
+
+  // Unifies multiple annotations for a channel. The channels must be in the
+  // same direction, with the same array dimensions (if any), and have a
+  // unifiable payload type, for this to succeed.
+  absl::StatusOr<const ChannelTypeAnnotation*> UnifyChannelTypeAnnotations(
+      std::vector<const ChannelTypeAnnotation*> annotations, const Span& span) {
+    std::optional<ChannelDirection> unified_direction;
+    std::vector<const TypeAnnotation*> payload_types;
+    std::optional<std::vector<uint32_t>> unified_dims;
+    for (int i = 0; i < annotations.size(); i++) {
+      const ChannelTypeAnnotation* annotation = annotations[i];
+      payload_types.push_back(annotation->payload());
+      if (i == 0) {
+        unified_direction = annotation->direction();
+        if (annotation->dims().has_value()) {
+          XLS_ASSIGN_OR_RETURN(unified_dims,
+                               EvaluateDimensions(*annotation->dims()));
+        }
+      } else {
+        if (annotation->direction() != *unified_direction) {
+          return error_generator_.TypeMismatchError(parametric_context_,
+                                                    annotations[0], annotation);
+        }
+        if (unified_dims.has_value() ^ annotation->dims().has_value()) {
+          return error_generator_.TypeMismatchError(parametric_context_,
+                                                    annotations[0], annotation);
+        }
+        if (annotation->dims().has_value()) {
+          XLS_ASSIGN_OR_RETURN(std::vector<uint32_t> current_dims,
+                               EvaluateDimensions(*annotation->dims()));
+          if (current_dims != *unified_dims) {
+            return error_generator_.TypeMismatchError(
+                parametric_context_, annotations[0], annotation);
+          }
+        }
+      }
+    }
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_payload_type,
+                         UnifyTypeAnnotations(payload_types, span));
+    XLS_ASSIGN_OR_RETURN(std::optional<std::vector<Expr*>> dim_exprs,
+                         DimensionsToExprs(span, unified_dims));
+    return module_.Make<ChannelTypeAnnotation>(
+        span, *unified_direction,
+        const_cast<TypeAnnotation*>(unified_payload_type), dim_exprs);
+  }
+
+  // Evaluates a vector of u32-typed array dimensions, and returns them all.
+  absl::StatusOr<std::vector<uint32_t>> EvaluateDimensions(
+      const std::vector<Expr*>& dims) {
+    std::vector<uint32_t> result(dims.size());
+    for (int i = 0; i < dims.size(); i++) {
+      XLS_ASSIGN_OR_RETURN(result[i], evaluator_.EvaluateU32OrExpr(
+                                          parametric_context_, dims[i]));
+    }
+    return result;
+  }
+
+  // Converts an optional vector of concrete u32-typed array dimensions to an
+  // optional vector of `Expr`.
+  absl::StatusOr<std::optional<std::vector<Expr*>>> DimensionsToExprs(
+      const Span& span, const std::optional<std::vector<uint32_t>>& dims) {
+    if (!dims.has_value()) {
+      return std::nullopt;
+    }
+    std::vector<Expr*> result(dims->size());
+    for (int i = 0; i < dims->size(); i++) {
+      XLS_ASSIGN_OR_RETURN(
+          result[i], MakeTypeCheckedNumber(module_, table_, span, (*dims)[i],
+                                           CreateU32Annotation(module_, span)));
+    }
+    return result;
   }
 
   // Unifies multiple annotations for a parametric struct, and produces an

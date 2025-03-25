@@ -79,6 +79,12 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleProcMember(const ProcMember* node) override {
+    VLOG(5) << "HandleProcMember: " << node->ToString();
+    XLS_RETURN_IF_ERROR(DefineTypeVariableForVariableOrConstant(node).status());
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleNameRef(const NameRef* node) override {
     VLOG(5) << "HandleNameRef: " << node->ToString();
     return PropagateDefToRef(node);

@@ -2035,6 +2035,28 @@ const Y = foo(X + Z);
                         HasNodeWithType("const Y = foo(X + Z);", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, FunctionCallWithUnusedResult) {
+  EXPECT_THAT(R"(
+fn foo(a: u32) -> u32 { a }
+
+fn bar() -> u32 {
+  foo(5);
+  foo(6);
+  7
+}
+  )",
+              TypecheckSucceeds(AllOf(HasNodeWithType("foo(5)", "uN[32]"),
+                                      HasNodeWithType("foo(6)", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, FunctionCallForwardingChannelParam) {
+  EXPECT_THAT(R"(
+fn foo(c: chan<u32> in) {}
+fn bar(c: chan<u32> in) { foo(c); }
+  )",
+              TypecheckSucceeds(AllOf(HasNodeWithType("foo(c)", "()"))));
+}
+
 TEST(TypecheckV2Test, FunctionCallPassingInTooManyArgumentsFails) {
   EXPECT_THAT(R"(
 fn foo(a: u4) -> u4 { a }

@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -187,6 +188,42 @@ const BAR: u4 = u4:1;
                             return EvaluateLiteral(expr, false, 32);
                           }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeU32(4))));
+}
+
+TEST_F(SolveForParametricsTest, SolveForTypeWithChannelOfType) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
+proc P<T: type> {
+   c: chan<T> in;
+   init {}
+   config(c: chan<T> in) { (c,) }
+   next(state: ()) { () }
+}
+
+proc Consumer {
+  init {}
+  config(c: chan<u32> in) {
+    spawn P(c);
+  }
+  next(state: ()) { () }
+}
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(const Proc* p, module->GetMemberOrError<Proc>("P"));
+  XLS_ASSERT_OK_AND_ASSIGN(const Proc* consumer,
+                           module->GetMemberOrError<Proc>("Consumer"));
+  const TypeAnnotation* parametric_channel_type =
+      p->members()[0]->type_annotation();
+  const TypeAnnotation* concrete_channel_type =
+      consumer->config().params()[0]->type_annotation();
+  const ParametricBinding* t = p->parametric_bindings()[0];
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      values, SolveForParametrics(
+                  concrete_channel_type, parametric_channel_type,
+                  absl::flat_hash_set<const ParametricBinding*>{t}, nullptr));
+  ASSERT_TRUE(values.contains(t));
+  ASSERT_TRUE(std::holds_alternative<const TypeAnnotation*>(values.at(t)));
+  ASSERT_EQ(std::get<const TypeAnnotation*>(values.at(t))->ToString(), "u32");
 }
 
 TEST_F(SolveForParametricsTest, SolveForSnWithSn) {
