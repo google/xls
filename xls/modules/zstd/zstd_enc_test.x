@@ -318,7 +318,7 @@ proc ZstdEncoderTest {
         let (input_axi_ar_s, input_axi_ar_r) = chan<AxiAr>("input_axi_ar");
         let (input_axi_r_s, input_axi_r_r) = chan<AxiR>("input_axi_r");
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W, TEST_RAM_SIZE
         >(
             input_axi_ar_r, input_axi_r_s,
@@ -622,7 +622,7 @@ proc ZstdEncoderWriteFaultTest {
         let (input_axi_ar_s, input_axi_ar_r) = chan<AxiAr>("input_axi_ar");
         let (input_axi_r_s, input_axi_r_r) = chan<AxiR>("input_axi_r");
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W, TEST_RAM_SIZE
         >(
             input_axi_ar_r, input_axi_r_s,
