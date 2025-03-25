@@ -740,12 +740,12 @@ absl::Status SDCSchedulingModel::ExtractError(
   }
   if (!problems.empty()) {
     if (problems.size() == 1 || problems.size() == 2) {
-      return absl::InvalidArgumentError(
-          absl::StrCat("cannot achieve ", absl::StrJoin(problems, " or "),
-                       ". Try ", absl::StrJoin(suggestions, " and ")));
+      return absl::InvalidArgumentError(absl::StrCat(
+          func_->name(), ": cannot achieve ", absl::StrJoin(problems, " or "),
+          ". Try ", absl::StrJoin(suggestions, " and ")));
     }
     return absl::InvalidArgumentError(absl::StrCat(
-        "cannot achieve ",
+        func_->name(), ": cannot achieve ",
         absl::StrJoin(
             absl::MakeConstSpan(problems).subspan(0, problems.size() - 1),
             ", "),
@@ -784,14 +784,16 @@ absl::Status SDCSchedulingModel::ExtractError(
   }
   if (!io_problems.empty()) {
     return absl::InvalidArgumentError(absl::StrCat(
-        "cannot satisfy the given I/O constraints. Would succeed with: ",
+        func_->name(),
+        ": cannot satisfy the given I/O constraints. Would succeed with: ",
         absl::StrJoin(io_problems, ", ",
                       [](std::string* out, const std::string& entry) {
                         absl::StrAppend(out, "{", entry, "}");
                       })));
   }
 
-  return absl::UnknownError("reason unknown.");
+  return absl::UnknownError(
+      absl::StrCat("reason unknown for ", func_->name(), "."));
 }
 
 math_opt::LinearConstraint SDCSchedulingModel::DiffAtMostConstraint(
