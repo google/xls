@@ -4696,6 +4696,7 @@ xls_dslx_library(
     deps = [
         ":frame_header_dec_dslx",
         "//xls/modules/zstd/memory:mem_writer_dslx",
+        "//xls/modules/zstd/memory:mem_writer_data_downscaler_dslx",
     ],
 )
 

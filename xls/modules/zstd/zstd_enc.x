@@ -285,7 +285,7 @@ pub proc ZstdEncoder<ADDR_W: u32, DATA_W: u32> {
             mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r,
         );
 
-        spawn frame_header_enc::FrameHeaderEncoder<XFERS_FOR_HEADER, DATA_W, ADDR_W>
+        spawn frame_header_enc::FrameHeaderEncoder<DATA_W, ADDR_W>
         (
             fhw_req_r, fhw_resp_s,
             n_mem_wr_req_s[0], n_mem_wr_data_s[0], n_mem_wr_resp_r[0]
@@ -312,16 +312,16 @@ pub proc ZstdEncoder<ADDR_W: u32, DATA_W: u32> {
 
         let window_size = ZSTD_WINDOW_ABSOLUTEMIN; // TODO: Calculate the window size based on the frame content
         trace_fmt!("writing frame header to {:#x}", request.output_offset);
-        let tok = send(tok, fhw_req_s, FrameHeaderEncoderReq{
+
+        let tok = send(tok, fhw_req_s, FrameHeaderEncoderReq {
             addr: request.output_offset,
-            header: FrameHeader {
-                window_size: window_size,
-                frame_content_size: request.data_size as u64,
-                dictionary_id: u32: 0,
-                content_checksum_flag: u1: 0
-            },
-            fixed_size: u1:0,
-            single_segment_flag: u1:1
+            window_log: u5:22,
+            src_size: request.data_size as u64,
+            dict_id: u32:0,
+            provide_dict_id: false,
+            provide_checksum: false,
+            provide_content_size: true,
+            provide_window_size: true,
         });
         let (tok, resp) = recv(tok, fhw_resp_r);
         trace_fmt!("written frame header {:#x}", resp);
