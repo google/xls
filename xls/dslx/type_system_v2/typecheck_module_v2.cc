@@ -1090,7 +1090,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       TypeAnnotation* arg_annotation = module_.Make<ParamTypeAnnotation>(
           module_.Make<TypeVariableTypeAnnotation>(function_type_variable),
           arg_index_including_implicit_self);
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(arg, arg_annotation));
       XLS_ASSIGN_OR_RETURN(
           const NameRef* arg_type_variable,
           table_.DefineInternalVariable(
