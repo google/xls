@@ -9233,6 +9233,154 @@ TEST_P(TranslatorProcTest, MultiBlockReturn) {
           testing::HasSubstr("Returns from sub-block functions")));
 }
 
+TEST_F(TranslatorProcTestWithoutFSMParam, MultiBlockMultiStateSubBlock) {
+  const std::string content = R"(
+    #pragma hls_design block
+    void block_a(__xls_channel<int, __xls_channel_dir_In>& in,
+                 __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+      int a[2];
+
+      a[0] = in.read();
+      a[1] = in.read();
+
+      xfer.write(a[0] + 1 + 0);
+      xfer.write(a[1] + 1 + 1);
+    }
+
+    #pragma hls_design block
+    void block_b(__xls_channel<int, __xls_channel_dir_Out>& out,
+                 __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+      int a[2];
+
+      a[0] = xfer.read();
+      a[1] = xfer.read();
+
+      out.write(a[0] * 10);
+      out.write(a[1] * 10);
+    }
+
+    #pragma hls_top
+    void foo(__xls_channel<int, __xls_channel_dir_In>& in,
+             __xls_channel<int, __xls_channel_dir_Out>& out) {
+      static __xls_channel<int, __xls_channel_dir_InOut> xfer;
+      block_b(out, xfer);
+      block_a(in, xfer);
+    }
+  )";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in1 = block_spec.add_channels();
+    ch_in1->set_name("in");
+    ch_in1->set_is_input(true);
+    ch_in1->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {
+        xls::Value(xls::SBits(80, 32)), xls::Value(xls::SBits(100, 32)),
+        xls::Value(xls::SBits(20, 32)), xls::Value(xls::SBits(10, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits((80 + 1) * 10, 32)),
+                      xls::Value(xls::SBits((100 + 2) * 10, 32)),
+                      xls::Value(xls::SBits((20 + 1) * 10, 32)),
+                      xls::Value(xls::SBits((10 + 2) * 10, 32))};
+
+    generate_fsms_for_pipelined_loops_ = true;
+    split_states_on_channel_ops_ = true;
+    merge_states_ = false;
+
+    BlockTest(content,
+              /*top_proc_name=*/"foo_proc",
+              /*n_cycles=*/64, block_spec, inputs, outputs);
+  }
+}
+
+TEST_P(TranslatorProcTest, MultiBlockPipelinedLoopSubBlock) {
+  const std::string content = R"(
+      #pragma hls_design block
+      void block_a(__xls_channel<int, __xls_channel_dir_In>& in,
+                  __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+        int a[2];
+
+        [[hls_pipeline_init_interval(1)]]
+        for(int i=0;i<2;++i) {
+          a[i] = in.read();
+        }
+
+        [[hls_pipeline_init_interval(1)]]
+        for(int i=0;i<2;++i) {
+          xfer.write(a[i] + 1 + i);
+        }
+      }
+
+      #pragma hls_design block
+      void block_b(__xls_channel<int, __xls_channel_dir_Out>& out,
+                  __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+        int a[2];
+
+        [[hls_pipeline_init_interval(1)]]
+        for(int i=0;i<2;++i) {
+          a[i] = xfer.read();
+        }
+
+        [[hls_pipeline_init_interval(1)]]
+        for(int i=0;i<2;++i) {
+          out.write(a[i] * 10);
+        }
+      }
+
+      #pragma hls_top
+      void foo(__xls_channel<int, __xls_channel_dir_In>& in,
+              __xls_channel<int, __xls_channel_dir_Out>& out) {
+        static __xls_channel<int, __xls_channel_dir_InOut> xfer;
+        block_b(out, xfer);
+        block_a(in, xfer);
+      }
+    )";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in1 = block_spec.add_channels();
+    ch_in1->set_name("in");
+    ch_in1->set_is_input(true);
+    ch_in1->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {
+        xls::Value(xls::SBits(80, 32)), xls::Value(xls::SBits(100, 32)),
+        xls::Value(xls::SBits(20, 32)), xls::Value(xls::SBits(10, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits((80 + 1) * 10, 32)),
+                      xls::Value(xls::SBits((100 + 2) * 10, 32)),
+                      xls::Value(xls::SBits((20 + 1) * 10, 32)),
+                      xls::Value(xls::SBits((10 + 2) * 10, 32))};
+
+    BlockTest(content,
+              /*top_proc_name=*/"foo_proc",
+              /*n_cycles=*/64, block_spec, inputs, outputs);
+  }
+}
+
 TEST_P(TranslatorProcTest, ChannelFlopKindInIR) {
   const std::string content = R"(
     #include "/xls_builtin.h"

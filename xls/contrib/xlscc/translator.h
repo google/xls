@@ -907,7 +907,6 @@ struct GeneratedFunction {
       state_index_by_called_channel_order;
 
   // For sub-blocks
-  xls::Channel* control_in_channel = nullptr;
   xls::Channel* direct_ins_channel = nullptr;
 
   template <typename ValueType>

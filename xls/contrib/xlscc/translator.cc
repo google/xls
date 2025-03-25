@@ -1194,48 +1194,6 @@ absl::Status Translator::GenerateIR_SubBlockStub(
   auto control_in_ctype =
       std::make_shared<CIntType>(kNumSubBlockModeBits, /*is_signed=*/false);
 
-  xls::BValue context_out_value =
-      context().fb->Literal(xls::UBits(0, kNumSubBlockModeBits), body_loc);
-
-  xls::Type* control_in_type = context_out_value.GetType();
-
-  // Create control channel
-  IOChannel* control_in_channel = nullptr;
-  {
-    std::string ch_name =
-        absl::StrFormat("%s_control", funcdecl->getNameAsString());
-    xls::Channel* xls_channel = nullptr;
-    XLS_ASSIGN_OR_RETURN(
-        xls_channel,
-        package_->CreateStreamingChannel(
-            ch_name, xls::ChannelOps::kSendReceive, control_in_type,
-            /*initial_values=*/{},
-            // Control channel is 0 to a few bits wide, and depth=1
-            // avoids common deadlocks.
-            xls::FifoConfig(/*depth=*/depth, /*bypass=*/true,
-                            /*register_push_outputs=*/false,
-                            /*register_pop_outputs=*/false),
-            xls::FlowControl::kReadyValid));
-    IOChannel new_channel;
-    new_channel.item_type = control_in_ctype;
-    new_channel.unique_name = ch_name;
-    new_channel.generated = xls_channel;
-    control_in_channel = AddChannel(new_channel, body_loc);
-    sf.control_in_channel = xls_channel;
-  }
-
-  // Send control
-  {
-    IOOp op;
-    op.op = OpType::kSend;
-    std::vector<xls::BValue> sp = {context_out_value,
-                                   context().full_condition_bval(body_loc)};
-    op.ret_value =
-        context().fb->Tuple(sp, body_loc, /*name=*/"context_out_send_tup");
-    XLS_RETURN_IF_ERROR(
-        AddOpToChannel(op, control_in_channel, body_loc).status());
-  }
-
   std::vector<xls::BValue> direct_in_tuple_values;
   std::vector<std::shared_ptr<CType>> direct_in_tuple_types;
 

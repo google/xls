@@ -2180,13 +2180,6 @@ Translator::GenerateIRBlockPrepare(
 
   // Generate control receive (with direct-ins)
   if (caller_sub_function != nullptr) {
-    CHECK_NE(caller_sub_function->control_in_channel, nullptr);
-    xls::BValue control_tup = pb.Receive(
-        caller_sub_function->control_in_channel, prepared.token, body_loc,
-        /*name=*/"control_receive");
-    prepared.token = pb.TupleIndex(control_tup, 0, body_loc,
-                                   /*name=*/"control_receive_token");
-
     CHECK_NE(caller_sub_function->direct_ins_channel, nullptr);
     xls::BValue direct_ins_tup_recvd = pb.Receive(
         caller_sub_function->direct_ins_channel, prepared.token, body_loc,
