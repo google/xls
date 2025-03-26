@@ -1451,6 +1451,67 @@ TEST_P(PipelineGeneratorTest, TrivialProcHierarchyWithProcScopedChannels) {
               absl_testing::IsOkAndHolds(outputs));
 }
 
+TEST_P(PipelineGeneratorTest, MultiplyInstantiatedProc) {
+  // Construct a proc which instantiates a proc twice which accumulates its
+  // inputs.
+  Package p(TestBaseName());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc,
+                           CreateNewStyleAccumProc("leaf_proc", &p));
+
+  TokenlessProcBuilder pb(NewStyleProc(), "a_top_proc", "tkn", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in0_channel,
+                           pb.AddInputChannel("in0_ch", p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in1_channel,
+                           pb.AddInputChannel("in1_ch", p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out0_channel,
+                           pb.AddOutputChannel("out0_ch", p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out1_channel,
+                           pb.AddOutputChannel("out1_ch", p.GetBitsType(32)));
+
+  XLS_ASSERT_OK(pb.InstantiateProc(
+      "inst0", leaf_proc,
+      std::vector<ChannelInterface*>{in0_channel, out0_channel}));
+  XLS_ASSERT_OK(pb.InstantiateProc(
+      "inst1", leaf_proc,
+      std::vector<ChannelInterface*>{in1_channel, out1_channel}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
+  XLS_ASSERT_OK(p.SetTop(top));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(top));
+
+  PackagePipelineSchedules schedules;
+  for (const std::unique_ptr<Proc>& proc : p.procs()) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        RunPipelineSchedule(proc.get(), TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2), &elab));
+    schedules.emplace(proc.get(), std::move(schedule));
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedules, &p,
+                           CodegenOptions()
+                               .use_system_verilog(UseSystemVerilog())
+                               .clock_name("clk")
+                               .reset("rst", false, false, false)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  absl::flat_hash_map<std::string, std::vector<Bits>> inputs = {
+      {"in0_ch", {UBits(0, 32), UBits(10, 32), UBits(42, 32)}},
+      {"in1_ch", {UBits(1, 32), UBits(2, 32), UBits(5, 32)}}};
+  absl::flat_hash_map<std::string, std::vector<Bits>> outputs = {
+      {"out0_ch", {UBits(0, 32), UBits(10, 32), UBits(52, 32)}},
+      {"out1_ch", {UBits(1, 32), UBits(3, 32), UBits(8, 32)}}};
+  EXPECT_THAT(
+      simulator.RunInputSeriesProc(inputs, {{"out0_ch", 3}, {"out1_ch", 3}}),
+      absl_testing::IsOkAndHolds(outputs));
+}
+
 INSTANTIATE_TEST_SUITE_P(PipelineGeneratorTestInstantiation,
                          PipelineGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
