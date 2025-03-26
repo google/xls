@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <filesystem>  // NOLINT
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -39,6 +40,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/builtin_stubs_utils.h"
@@ -413,7 +415,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
-  absl::Status HandleFor(const For* node) override {
+  absl::Status HandleForLoopBase(const ForLoopBase* node) {
     VLOG(5) << "HandleFor: " << node->ToString();
 
     // Both init expr and body statement block have the same type as For itself.
@@ -445,12 +447,31 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node->names(), module_.Make<TupleTypeAnnotation>(
                            node->names()->span(), iterable_accumulator_types)));
-    if (TypeAnnotation* type_annotation = node->type_annotation()) {
+
+    // Recursively process each component.
+    XLS_RETURN_IF_ERROR(node->init()->Accept(this));
+    XLS_RETURN_IF_ERROR(node->iterable()->Accept(this));
+    XLS_RETURN_IF_ERROR(node->names()->Accept(this));
+    TypeAnnotation* type_annotation = node->type_annotation();
+    if (type_annotation) {
+      XLS_RETURN_IF_ERROR(type_annotation->Accept(this));
+    }
+    XLS_RETURN_IF_ERROR(node->body()->Accept(this));
+    // If a type annotation is explicitly specified, it overrides the default
+    // type annotation.
+    if (type_annotation) {
       XLS_RETURN_IF_ERROR(
           table_.SetTypeAnnotation(node->names(), type_annotation));
     }
+    return absl::OkStatus();
+  }
 
-    return DefaultHandler(node);
+  absl::Status HandleFor(const For* node) override {
+    return HandleForLoopBase(node);
+  }
+
+  absl::Status HandleUnrollFor(const UnrollFor* node) override {
+    return HandleForLoopBase(node);
   }
 
   absl::Status HandleArrayTypeAnnotation(

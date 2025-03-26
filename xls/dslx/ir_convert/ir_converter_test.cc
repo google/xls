@@ -71,6 +71,20 @@ void ExpectIr(std::string_view got, std::string_view test_name) {
       got);
 }
 
+void ExpectVersionSpecificIr(
+    std::string_view got, std::string_view test_name,
+    const TypeInferenceVersion& type_inference_version) {
+  std::string test_name_without_param(test_name);
+  RE2::GlobalReplace(&test_name_without_param, R"(/\d+)", "");
+  if (type_inference_version == TypeInferenceVersion::kVersion2) {
+    test_name_without_param = "v2_" + test_name_without_param;
+  }
+  ExpectEqualToGoldenFile(
+      absl::StrFormat("xls/dslx/ir_convert/testdata/ir_converter_test_%s.ir",
+                      test_name_without_param),
+      got);
+}
+
 std::string TestName() {
   return ::testing::UnitTest::GetInstance()->current_test_info()->name();
 }
@@ -1062,7 +1076,7 @@ fn main() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, UnrollForSimple) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForSimple) {
   const char* kProgram = R"(
 fn test() -> u32 {
   unroll_for!(i, acc): (u32, u32) in u32:0..u32:4 {
@@ -1074,10 +1088,10 @@ fn test() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
-  ExpectIr(converted, TestName());
+  ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
-TEST(IrConverterTest, UnrollForNonU32) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForNonU32) {
   const char* kProgram = R"(
 fn test() -> u8 {
   unroll_for!(i, acc): (u8, u8) in u8:0..u8:4 {
@@ -1089,10 +1103,10 @@ fn test() -> u8 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
-  ExpectIr(converted, TestName());
+  ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
-TEST(IrConverterTest, UnrollForWithSignedIterable) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithSignedIterable) {
   const char* kProgram = R"(
 fn test() -> s32 {
   unroll_for!(i, acc): (s32, s32) in [-s32:2, s32:0, s32:5] {
@@ -1104,10 +1118,10 @@ fn test() -> s32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
-  ExpectIr(converted, TestName());
+  ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
-TEST(IrConverterTest, UnrollForWithoutIndexName) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithoutIndexName) {
   const char* kProgram = R"(
 fn test() -> u32 {
   unroll_for!(_, acc): (u32, u32) in u32:0..u32:4 {
@@ -1155,7 +1169,7 @@ proc SomeProc {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, UnrollForNested) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForNested) {
   const char* kProgram = R"(
 fn test() -> u32 {
   unroll_for!(i, acc): (u32, u32) in u32:0..u32:4 {
@@ -1170,7 +1184,7 @@ fn test() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
-  ExpectIr(converted, TestName());
+  ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
 TEST(IrConverterTest, UnrollForWithRangeBuiltin) {
@@ -1188,7 +1202,7 @@ fn test() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, UnrollForWithArrayAsIterable) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithArrayAsIterable) {
   const char* kProgram = R"(
 fn test() -> u32 {
   unroll_for!(i, acc): (u32, u32) in [u32:3, u32:4, u32:1] {
@@ -1200,10 +1214,11 @@ fn test() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
-  ExpectIr(converted, TestName());
+  ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
-TEST(IrConverterTest, UnrollForWithNonConstexprIterable) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       UnrollForWithNonConstexprIterable) {
   const char* kProgram = R"(
 fn test(x:u32, y:u32) -> u32 {
   unroll_for!(i, acc): (u32, u32) in [x, y] {
@@ -1217,18 +1232,27 @@ fn test(x:u32, y:u32) -> u32 {
   options.emit_positions = false;
   options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("unroll_for! must use a constexpr iterable expression")));
+  if (GetParam() == TypeInferenceVersion::kVersion2) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::string converted,
+        ConvertModuleForTest(kProgram,
+                             ConvertOptions{.emit_positions = false}));
+    ExpectVersionSpecificIr(converted, TestName(),
+                            TypeInferenceVersion::kVersion2);
+  } else {
+    EXPECT_THAT(
+        ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+        StatusIs(
+            absl::StatusCode::kInvalidArgument,
+            HasSubstr("unroll_for! must use a constexpr iterable expression")));
+  }
 }
 
-TEST(IrConverterTest, UnrollForWithNonBitsIterable) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForWithNonBitsIterable) {
   const char* kProgram = R"(
 fn test() -> u32 {
   unroll_for!(i, acc): ((u32, u32), u32) in [(u32:0, u32:5)] {
-    i + acc
+    i.0 + acc
   }(u32:0)
 }
 )";
@@ -1238,11 +1262,20 @@ fn test() -> u32 {
   options.emit_positions = false;
   options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("unroll_for! must iterate through a range or "
-                         "aggregate type whose elements are all bits")));
+  if (GetParam() == TypeInferenceVersion::kVersion2) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::string converted,
+        ConvertModuleForTest(kProgram,
+                             ConvertOptions{.emit_positions = false}));
+    ExpectVersionSpecificIr(converted, TestName(),
+                            TypeInferenceVersion::kVersion2);
+  } else {
+    EXPECT_THAT(
+        ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+        StatusIs(absl::StatusCode::kInvalidArgument,
+                 HasSubstr("unroll_for! must iterate through a range or "
+                           "aggregate type whose elements are all bits")));
+  }
 }
 
 TEST(IrConverterTest, UnrollForWithParametric) {
@@ -1264,7 +1297,8 @@ fn foo() -> u8 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, UnrollForWithTupleAccumulator) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       UnrollForWithTupleAccumulator) {
   const char* kProgram = R"(
 fn test() -> (u32, u32) {
   unroll_for!(i, (acc1, acc2)): (u32, (u32, u32)) in u32:0..u32:4 {
@@ -1276,7 +1310,7 @@ fn test() -> (u32, u32) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
-  ExpectIr(converted, TestName());
+  ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
 TEST(IrConverterTest, CountedForWithTupleAccumulator) {

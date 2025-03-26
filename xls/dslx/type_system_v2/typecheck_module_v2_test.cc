@@ -5453,5 +5453,99 @@ fn foo() {
       TypecheckFails(HasSizeMismatch("u32", "uN[64]")));
 }
 
+TEST(TypecheckV2Test, UnrollFor) {
+  // Verify that the loop is unrolled 5 times, and is also constant-folded.
+  EXPECT_THAT(
+      R"(
+const A = u32:1;
+fn foo() {
+  let B = u32:2;
+  const X = unroll_for! (i, a) in u32:0..u32:5 {
+    let C = B + i;
+    let D = A * a;
+    C + D
+  } (u32:0);
+  let Y : u32[X] = [0, ...];
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("X", "uN[32]"), HasNodeWithType("Y", "uN[32][20]"),
+          HasSubstr(
+              R"(span: fake.x:8:5-8:19, node: `let C = B + i;`, type: uN[32]
+span: fake.x:8:5-8:19, node: `let C = B + i;`, type: uN[32]
+span: fake.x:8:5-8:19, node: `let C = B + i;`, type: uN[32]
+span: fake.x:8:5-8:19, node: `let C = B + i;`, type: uN[32]
+span: fake.x:8:5-8:19, node: `let C = B + i;`, type: uN[32])"))));
+}
+
+TEST(TypecheckV2Test, UnrollForNested) {
+  // Unrolled 0 + 1 + 2 + 3 + 4 = 10 times.
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  let X = unroll_for! (i, a) in u32:0..5 {
+    let Y = unroll_for! (j, b) in u32:0..i {
+      let i = i + j;
+      a + b + i
+    } (u32:1);
+    a + i + Y
+  } (u32:0);
+  let Z : u32[X] = [0, ...];
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("X", "uN[32]"), HasNodeWithType("Z", "uN[32][567]"),
+          HasSubstr(
+              R"(span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
+span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
+span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
+span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
+span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
+span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
+span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
+span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
+span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
+span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32])"))));
+}
+
+TEST(TypecheckV2Test, UnrollForCompositeType) {
+  EXPECT_THAT(
+      R"(
+type Tp = (s32, (u8, s16), u2);
+struct St { x: u32, y: s64 }
+const A : Tp[3] = [(1, (2, 3), 0), (1, (2, -3), 1), (4, (5, 6), 2)];
+fn foo() {
+  let X = unroll_for! ((i, (j, k), _), a) in A {
+    St { x: a.x + (i as u32), y: a.y + (j as s64) + (k as s64)}
+  } (St { x: u32:0, y: s64:0 } );
+  let Y : u32[X.x + (X.y as u32)] = [0, ...];
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("X", "St { x: uN[32], y: sN[64] }"),
+          HasNodeWithType("Y", "uN[32][21]"),
+          HasSubstr(
+              R"(span: fake.x:9:8-9:64, node: `St { x: a.x + (i as u32), y: a.y + (j as s64) + (k as s64) }`, type: St { x: uN[32], y: sN[64] }
+span: fake.x:9:8-9:64, node: `St { x: a.x + (i as u32), y: a.y + (j as s64) + (k as s64) }`, type: St { x: uN[32], y: sN[64] }
+span: fake.x:9:8-9:64, node: `St { x: a.x + (i as u32), y: a.y + (j as s64) + (k as s64) }`, type: St { x: uN[32], y: sN[64] })"))));
+}
+
+TEST(TypecheckV2Test, UnrollForNoReturnValue) {
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  unroll_for! (i, _) in u32:0..5 {
+    let _ = i;
+  } (());
+}
+)",
+      TypecheckSucceeds(
+          HasSubstr(R"(span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32]
+span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32]
+span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32]
+span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32]
+span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32])")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

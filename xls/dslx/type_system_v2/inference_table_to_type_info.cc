@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <memory>
@@ -160,6 +161,19 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
     }
     XLS_RETURN_IF_ERROR(node->value()->Accept(this));
     XLS_RETURN_IF_ERROR(node->name_def()->Accept(this));
+    nodes_.push_back(node);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleUnrollFor(const UnrollFor* node) override {
+    // node->body() will not be handled because unroll_for generates new
+    // unrolled body statements.
+    if (node->type_annotation()) {
+      XLS_RETURN_IF_ERROR(node->type_annotation()->Accept(this));
+    }
+    XLS_RETURN_IF_ERROR(node->iterable()->Accept(this));
+    XLS_RETURN_IF_ERROR(node->names()->Accept(this));
+    XLS_RETURN_IF_ERROR(node->init()->Accept(this));
     nodes_.push_back(node);
     return absl::OkStatus();
   }
@@ -1079,6 +1093,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (const auto* const_assert = dynamic_cast<const ConstAssert*>(node)) {
       return CheckConstAssert(const_assert, type, ti);
     }
+    if (const auto* unroll_for = dynamic_cast<const UnrollFor*>(node)) {
+      return ExpandUnrollFor(unroll_for, parametric_context, type, ti);
+    }
     return absl::OkStatus();
   }
 
@@ -1254,6 +1271,178 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     };
     XLS_RETURN_IF_ERROR(MatchTupleNodeToType(note_members, let->name_def_tree(),
                                              &type, file_table_, *value));
+    return absl::OkStatus();
+  }
+
+  // Unroll for is expanded to a sequence of statements as following.
+  // ```
+  // let X = unroll_for! (i, a) in iterable {
+  //   body_statements
+  //   last_body_expr
+  // } (init);
+  // ```
+  // becomes
+  // ```
+  // let a = init;
+  // let i = iterable[0];
+  // body_statements
+  // let a = last_body_expr;
+  // let i = iterable[1];
+  // body_statements
+  // let a = last_body_expr;
+  // ... // repeat for each element in iterable
+  // let i = iterable[iterable.size() - 1];
+  // body_statements
+  // let X = last_body_expr;
+  // ```
+  absl::Status ExpandUnrollFor(
+      const UnrollFor* unroll_for,
+      std::optional<const ParametricContext*> parametric_context,
+      const Type& type, TypeInfo* ti) {
+    std::vector<Statement*> unrolled_statements;
+
+    CHECK_EQ(unroll_for->names()->nodes().size(), 2);
+    NameDefTree* iterator_name = unroll_for->names()->nodes()[0];
+    NameDefTree* accumulator_name = unroll_for->names()->nodes()[1];
+    TypeAnnotation* iterator_type = nullptr;
+    TypeAnnotation* accumulator_type = nullptr;
+    std::optional<const TypeAnnotation*> name_type_annotation =
+        table_.GetTypeAnnotation(unroll_for->names());
+    if (name_type_annotation) {
+      if (const TupleTypeAnnotation* types =
+              dynamic_cast<const TupleTypeAnnotation*>(*name_type_annotation)) {
+        CHECK_EQ(types->size(), 2);
+        iterator_type = types->members()[0];
+        accumulator_type = types->members()[1];
+      } else {
+        return absl::InvalidArgumentError(
+            absl::StrCat("Invalid type annotation in unroll_for!: ",
+                         unroll_for->type_annotation()->ToString(),
+                         ", expect a tuple type with two members"));
+      }
+    }
+
+    // The only thing that needs to be evaluated to a constant here is the size
+    // of the iterable, while the elements need not to be constants. However if
+    // the entire iterable is a constant array, we can use their evaluated
+    // values directly.
+    absl::StatusOr<InterpValue> const_iterable =
+        ConstexprEvaluator::EvaluateToValue(
+            &import_data_, ti, &warning_collector_, ParametricEnv(),
+            unroll_for->iterable());
+    const std::vector<InterpValue>* iterable_values = nullptr;
+    size_t size = 0;
+    if (const_iterable.ok()) {
+      XLS_ASSIGN_OR_RETURN(iterable_values, const_iterable->GetValues());
+      size = iterable_values->size();
+    } else {
+      InterpValue loop_size = InterpValue::MakeToken();
+      std::optional<const TypeAnnotation*> iterable_type_annotation =
+          table_.GetTypeAnnotation(unroll_for->iterable());
+      if (iterable_type_annotation) {
+        if (auto* array_type_annotation =
+                dynamic_cast<const ArrayTypeAnnotation*>(
+                    *iterable_type_annotation)) {
+          XLS_ASSIGN_OR_RETURN(
+              loop_size, ConstexprEvaluator::EvaluateToValue(
+                             &import_data_, ti, &warning_collector_,
+                             ParametricEnv(), array_type_annotation->dim()));
+        }
+      }
+      XLS_ASSIGN_OR_RETURN(size, loop_size.GetBitValueUnsigned());
+    }
+
+    bool has_result_value = !accumulator_name->IsWildcardLeaf();
+    Expr* accumulator_value = unroll_for->init();
+    for (size_t i = 0; i < size; i++) {
+      if (has_result_value) {
+        Let* accumulator =
+            module_.Make<Let>(accumulator_name->span(), accumulator_name,
+                              accumulator_type, accumulator_value, false);
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeAnnotation(accumulator, accumulator_type));
+        unrolled_statements.push_back(module_.Make<Statement>(accumulator));
+      }
+      if (!iterator_name->IsWildcardLeaf()) {
+        Let* iterator = nullptr;
+        if (iterable_values && (*iterable_values)[i].FitsInUint64()) {
+          Number* value =
+              module_.Make<Number>(unroll_for->iterable()->span(),
+                                   (*iterable_values)[i].ToString(true),
+                                   NumberKind::kOther, iterator_type);
+          XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(value, iterator_type));
+
+          XLS_RETURN_IF_ERROR(
+              ConvertSubtree(value, std::nullopt, std::nullopt));
+          XLS_ASSIGN_OR_RETURN(Type * value_type, ti->GetItemOrError(value));
+          ti->SetItem(value, MetaType(value_type->CloneToUnique()));
+
+          iterator = module_.Make<Let>(iterator_name->span(), iterator_name,
+                                       iterator_type, value, false);
+        } else {
+          Expr* index = module_.Make<Number>(
+              unroll_for->iterable()->span(), std::to_string(i),
+              NumberKind::kOther,
+              CreateU32Annotation(module_, unroll_for->span()), false);
+          XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+              index, CreateU32Annotation(module_, unroll_for->span())));
+          XLS_RETURN_IF_ERROR(
+              ConvertSubtree(index, std::nullopt, std::nullopt));
+          XLS_ASSIGN_OR_RETURN(Type * index_type, ti->GetItemOrError(index));
+          ti->SetItem(index, MetaType(index_type->CloneToUnique()));
+          Expr* element =
+              module_.Make<Index>(unroll_for->iterable()->span(),
+                                  unroll_for->iterable(), index, false);
+          iterator = module_.Make<Let>(iterator_name->span(), iterator_name,
+                                       iterator_type, element, false);
+        }
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(iterator, iterator_type));
+        unrolled_statements.push_back(module_.Make<Statement>(iterator));
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          AstNode * copy_body,
+          table_.Clone(unroll_for->body(), &NoopCloneReplacer));
+      StatementBlock* copy_body_statementblock =
+          dynamic_cast<StatementBlock*>(copy_body);
+      absl::Span<Statement* const> statements =
+          copy_body_statementblock->statements();
+      if (has_result_value) {
+        // If accumulator is not wildcard, we expect the last body statement to
+        // be an expr updating the accumulator, which will be handled in the
+        // next iteration.
+        CHECK_GT(statements.size(), 0);
+        unrolled_statements.insert(unrolled_statements.end(),
+                                   statements.begin(), statements.end() - 1);
+        accumulator_value = std::get<Expr*>(statements.back()->wrapped());
+      } else {
+        unrolled_statements.insert(unrolled_statements.end(),
+                                   statements.begin(), statements.end());
+      }
+    }
+    // Handle the final result of unroll_for! expr.
+    if (has_result_value) {
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(accumulator_value, accumulator_type));
+      Statement* last = module_.Make<Statement>(accumulator_value);
+      unrolled_statements.push_back(last);
+    }
+    StatementBlock* unrolled_statement_block = module_.Make<StatementBlock>(
+        unroll_for->span(), unrolled_statements, !has_result_value);
+
+    XLS_RETURN_IF_ERROR(ConvertSubtree(unrolled_statement_block, std::nullopt,
+                                       parametric_context));
+    if (has_result_value) {
+      absl::StatusOr<InterpValue> const_result =
+          ConstexprEvaluator::EvaluateToValue(
+              &import_data_, ti, &warning_collector_, ParametricEnv(),
+              std::get<Expr*>(unrolled_statements.back()->wrapped()));
+      if (const_result.ok()) {
+        ti->NoteConstExpr(unroll_for, *const_result);
+      }
+    }
+
+    ti->NoteUnrolledLoop(unroll_for, ParametricEnv(), unrolled_statement_block);
     return absl::OkStatus();
   }
 

@@ -204,6 +204,7 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtin_stubs_utils",
@@ -233,7 +234,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/type_system:typecheck_test_utils",
-        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
 )
