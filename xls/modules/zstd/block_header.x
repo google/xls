@@ -42,7 +42,7 @@ pub struct BlockHeader {
     size: BlockSize,
 }
 
-struct BlockHeaderWriterReq<ADDR_W: u32> {
+pub struct BlockHeaderWriterReq<ADDR_W: u32> {
     addr: uN[ADDR_W],
     header: BlockHeader,
 }
@@ -61,12 +61,12 @@ pub fn extract_block_header(data:u24) -> BlockHeader {
     }
 }
 
-enum BlockHeaderWriterStatus: u1 {
+pub enum BlockHeaderWriterStatus: u1 {
     OKAY = 0,
     ERROR = 1
 }
 
-struct BlockHeaderWriterResp {
+pub struct BlockHeaderWriterResp {
     status: BlockHeaderWriterStatus,
 }
 
