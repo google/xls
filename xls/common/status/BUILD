@@ -164,3 +164,29 @@ cc_library(
         "@googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "status_or_ref",
+    hdrs = ["status_or_ref.h"],
+    deps = [
+        ":status_builder",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "status_or_ref_test",
+    srcs = ["status_or_ref_test.cc"],
+    deps = [
+        ":matchers",
+        ":status_macros",
+        ":status_or_ref",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@googletest//:gtest",
+    ],
+)
