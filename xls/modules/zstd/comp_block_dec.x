@@ -1588,7 +1588,8 @@ proc CompressBlockDecoderTest {
         }(tok);
         let tok = send(tok, ml_sel_test_s, u1:1);
 
-        let tok = unroll_for!(test_i, tok): (u32, token) in range(u32:0, array_size(COMP_BLOCK_DEC_TESTCASES)) {
+        // TODO: Enable more test cases when posssible. Currently their number is limited to lower the RAM consumption
+        let tok = unroll_for!(test_i, tok): (u32, token) in u32[2]:[u32:0, u32:4] {
             let (input_length, input, output_length, output) = COMP_BLOCK_DEC_TESTCASES[test_i];
 
             trace_fmt!("Loading testcase {}", test_i);
