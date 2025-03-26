@@ -38,6 +38,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -72,6 +73,22 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(const NameRef* variable,
                          DefineTypeVariableForVariableOrConstant(node));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->value(), variable));
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleChannelDecl(const ChannelDecl* node) override {
+    VLOG(5) << "HandleChannelDecl: " << node->ToString()
+            << " with type: " << node->type()->ToString();
+    CHECK_NE(node->type(), nullptr);
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node, module_.Make<TupleTypeAnnotation>(
+                  node->span(), std::vector<TypeAnnotation*>{
+                                    module_.Make<ChannelTypeAnnotation>(
+                                        node->span(), ChannelDirection::kOut,
+                                        node->type(), node->dims()),
+                                    module_.Make<ChannelTypeAnnotation>(
+                                        node->span(), ChannelDirection::kIn,
+                                        node->type(), node->dims())})));
     return DefaultHandler(node);
   }
 
@@ -1028,6 +1045,32 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
             std::get<Expr*>(last_statement->wrapped()), *variable));
       }
     }
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleSpawn(const Spawn* node) override {
+    VLOG(5) << "HandleSpawn: " << node->ToString();
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* config_type_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType,
+            const_cast<Invocation*>(node->config()),
+            absl::StrCat(GenerateInternalTypeVariableName(
+                             static_cast<const Expr*>(node->config())),
+                         "_config")));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->config(), config_type_variable));
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* next_type_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Invocation*>(node->next()),
+            absl::StrCat(GenerateInternalTypeVariableName(
+                             static_cast<const Expr*>(node->next())),
+                         "_next")));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->next(), next_type_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node, CreateUnitTupleAnnotation(module_, node->span())));
     return DefaultHandler(node);
   }
 

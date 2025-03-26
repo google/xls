@@ -2266,7 +2266,7 @@ proc main {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, HandlesBasicProc) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesBasicProc) {
   const std::string kProgram = R"(
 proc producer {
   c: chan<u32> out;
@@ -2319,7 +2319,7 @@ proc main {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, HandlesProcWithTypeAlias) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesProcWithTypeAlias) {
   const std::string kProgram = R"(
 proc P {
     type MyU32 = u32;
@@ -2349,7 +2349,7 @@ proc P {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, HandlesProcWithMultipleSpawn) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesProcWithMultipleSpawn) {
   const std::string kProgram = R"(
 proc C {
     s: chan<u32> in;
@@ -2424,7 +2424,7 @@ proc A {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, SendIfRecvIf) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, SendIfRecvIf) {
   constexpr std::string_view kProgram = R"(proc producer {
   c: chan<u32> out;
 
@@ -2481,7 +2481,7 @@ proc main {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, Join) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, Join) {
   constexpr std::string_view kProgram = R"(proc foo {
   p0: chan<u32> out;
   p1: chan<u32> out;
@@ -2533,7 +2533,7 @@ proc main {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, BoundaryChannels) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, BoundaryChannels) {
   constexpr std::string_view kProgram = R"(proc foo {
   in_0: chan<u32> in;
   in_1: chan<u32> in;
@@ -2833,7 +2833,7 @@ TEST(IrConverterTest, LetChannelSubarrayInNext) {
                        HasSubstr("Invalid channel subarray use")));
 }
 
-TEST(IrConverterTest, TopProcWithState) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, TopProcWithState) {
   constexpr std::string_view kProgram = R"(
 proc main {
   init {
@@ -3199,7 +3199,8 @@ fn main(x: u32[4]) -> u32[4] {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, InvokeParametricFunctionInBothFuncAndProc) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       InvokeParametricFunctionInBothFuncAndProc) {
   constexpr std::string_view program =
       R"(
 fn square<IMPL: bool>(x:u32) -> u32 {

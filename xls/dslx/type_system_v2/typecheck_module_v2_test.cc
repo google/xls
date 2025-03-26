@@ -5547,5 +5547,99 @@ span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32]
 span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32])")));
 }
 
+TEST(TypecheckV2Test, SpawnBasicProc) {
+  EXPECT_THAT(R"(
+proc Counter {
+  c: chan<u32> out;
+  max: u32;
+  init { 0 }
+  config(c: chan<u32> out, max: u32) {
+    (c, max)
+  }
+  next(i: u32) {
+    send(join(), c, i);
+    if i == max { i } else { i + 1 }
+  }
+}
+
+proc main {
+  c: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p, c) = chan<u32>("my_chan");
+    spawn Counter(p, 50);
+    (c,)
+  }
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("spawn Counter(p, 50)", "()")));
+}
+
+TEST(TypecheckV2Test, SpawnWithTypeMismatchFails) {
+  EXPECT_THAT(R"(
+proc Counter {
+  max: u32;
+  init { () }
+  config(max: u32) {
+    (max,)
+  }
+  next(state: ()) { () }
+}
+
+proc main {
+  init { () }
+  config() {
+    spawn Counter(u64:5);
+    ()
+  }
+  next(state: ()) { () }
+}
+)",
+              TypecheckFails(HasSizeMismatch("u32", "uN[64]")));
+}
+
+TEST(TypecheckV2Test, BadChannelDeclAssignmentFails) {
+  EXPECT_THAT(
+      R"(
+proc main {
+  init { () }
+  config() {
+    let p: u32 = chan<u32>("my_chan");
+    ()
+  }
+  next(state: ()) { () }
+}
+)",
+      TypecheckFails(HasTypeMismatch("u32", "(chan<u32> out, chan<u32> in)")));
+}
+
+TEST(TypecheckV2Test, ProcWithInitNextTypeMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc main {
+  init { u32:0 }
+  config() { () }
+  next(state: ()) { () }
+}
+)",
+      TypecheckFails(HasTypeMismatch("u32", "()")));
+}
+
+TEST(TypecheckV2Test, ProcWithConfigReturnTypeMismatchFails) {
+  EXPECT_THAT(
+      R"(
+proc main {
+  max: u32;
+  init { () }
+  config() { (u64:5,) }
+  next(state: ()) { () }
+}
+)",
+      TypecheckFails(HasTypeMismatch("u32", "u64")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

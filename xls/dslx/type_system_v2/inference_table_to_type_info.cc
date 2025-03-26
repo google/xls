@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
@@ -78,14 +79,26 @@ namespace {
 // evaluations are done.
 class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
  public:
-  explicit ConversionOrderVisitor(bool handle_parametric_entities)
-      : handle_parametric_entities_(handle_parametric_entities) {}
+  explicit ConversionOrderVisitor(const AstNode* root,
+                                  bool handle_parametric_entities)
+      : root_(root), handle_parametric_entities_(handle_parametric_entities) {}
 
   absl::Status HandleFunction(const Function* node) override {
     if (!handle_parametric_entities_ && node->IsParametric()) {
       return absl::OkStatus();
     }
     return DefaultHandler(node);
+  }
+
+  absl::Status HandleProc(const Proc* node) override {
+    // Proc boundaries in the enclosing module scope are a "break point." The
+    // caller needs to set up a new `TypeInfo` for the proc and then dive in. We
+    // only dive in if the visitor's root is the proc subtree.
+    if (node == root_) {
+      return DefaultHandler(node);
+    }
+    nodes_.push_back(node);
+    return absl::OkStatus();
   }
 
   absl::Status HandleImpl(const Impl* node) override {
@@ -209,6 +222,7 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
   const std::vector<const AstNode*>& nodes() const { return nodes_; }
 
  private:
+  const AstNode* const root_;
   const bool handle_parametric_entities_;
   std::vector<const AstNode*> nodes_;
 };
@@ -284,9 +298,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                        filter_param_type_annotations);
     }
     ConversionOrderVisitor visitor(
-        parametric_context.has_value() &&
-        (node == function || (node->parent() != nullptr &&
-                              node->parent()->kind() == AstNodeKind::kImpl)));
+        node, parametric_context.has_value() &&
+                  (node == function ||
+                   (node->parent() != nullptr &&
+                    node->parent()->kind() == AstNodeKind::kImpl)));
     XLS_RETURN_IF_ERROR(node->Accept(&visitor));
     for (const AstNode* node : visitor.nodes()) {
       VLOG(5) << "Next node: " << node->ToString();
@@ -425,7 +440,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
     absl::c_copy(invocation->args(), std::back_inserter(actual_args));
 
-    if (!function->IsParametric()) {
+    // Note that functions in procs are treated as if they are parametric (as in
+    // v1), because there needs to be a `TypeInfo` with separate const-exprs per
+    // instantiation of a proc.
+    if (!function->IsParametric() && !function->IsInProc()) {
       // TODO: https://github.com/google/xls/issues/193 - Run this logic for all
       // non-parametric functions that are imported. There is no way the callee
       // node for such invocations will have the formal function type annotation
@@ -537,10 +555,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         TypeInfo * invocation_type_info,
         import_data_.type_info_owner().New(
             &module_,
-            function_and_target_object.target_struct_context.has_value()
-                ? parametric_context_type_info_.at(
-                      *function_and_target_object.target_struct_context)
-                : base_type_info_));
+            GetTypeInfo(function_and_target_object.target_struct_context)));
     parametric_context_type_info_.emplace(invocation_context,
                                           invocation_type_info);
 
@@ -646,9 +661,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // the base type info.
   TypeInfo* GetTypeInfo(
       std::optional<const ParametricContext*> parametric_context) {
-    return parametric_context.has_value()
-               ? parametric_context_type_info_.at(*parametric_context)
-               : base_type_info_;
+    if (parametric_context.has_value()) {
+      return parametric_context_type_info_.at(*parametric_context);
+    }
+    if (current_proc_type_info_.has_value()) {
+      return *current_proc_type_info_;
+    }
+    return base_type_info_;
   }
 
   // Generates type info for one node.
@@ -671,6 +690,43 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (pre_unified_type.has_value()) {
       VLOG(5) << "Using pre-unified type: " << (*pre_unified_type)->ToString();
     }
+
+    // A proc requires its own top-level `TypeInfo`, so dealing with a proc root
+    // node has the following sequence:
+    // 1. The conversion order visitor at module level stops at the proc root
+    //    without diving in.
+    // 2. We get here with the proc root, and `current_proc_type_info_` is
+    //    nullopt.
+    // 3. Below, we create the top-level proc type info and set
+    //    `current_proc_type_info_` to be that. This makes it so that this
+    //    `TypeInfo` is treated as the base-level `TypeInfo` until that is
+    //    cleared (see `GetTypeInfo()`).
+    // 4. Also below, we kick off conversion of the proc's subtree.
+    // 5. The last step in (4) is to re-enter here with the `Proc` node and
+    //    `current_proc_type_info_` still set.
+    // 6. At the end of the re-entrant call we reset `current_proc_type_info_`
+    //    to nullopt.
+    // 7. The original call returns early after converting the subtree.
+    bool entered_with_current_proc_type_info =
+        current_proc_type_info_.has_value();
+    absl::Cleanup clear_current_proc_type_info = [&] {
+      if (node->kind() == AstNodeKind::kProc &&
+          entered_with_current_proc_type_info) {
+        current_proc_type_info_ = std::nullopt;
+      }
+    };
+    if (node->kind() == AstNodeKind::kProc) {
+      const Proc* proc = dynamic_cast<const Proc*>(node);
+      if (!base_type_info_->GetTopLevelProcTypeInfo(proc).ok()) {
+        XLS_ASSIGN_OR_RETURN(
+            current_proc_type_info_,
+            import_data_.type_info_owner().New(&module_, base_type_info_));
+        XLS_RETURN_IF_ERROR(base_type_info_->SetTopLevelProcTypeInfo(
+            proc, *current_proc_type_info_));
+        return ConvertSubtree(proc, std::nullopt, parametric_context);
+      }
+    }
+
     TypeInfo* ti = GetTypeInfo(parametric_context);
     std::optional<const TypeAnnotation*> annotation = pre_unified_type;
     if (!annotation.has_value()) {
@@ -1456,7 +1512,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             << " in module: " << module_.name()
             << " in context: " << ToString(scoped_expr.context());
 
-    TypeInfo* type_info = base_type_info_;
     // Note that `scoped_expr` will not have a `context()` in a case like
     //  fn foo<X: u32>(...) { ... }
     //  fn bar() {
@@ -1465,9 +1520,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // The only scoped expr there is the expression being passed for `X`, which
     // is in a non-parametric caller and therefore cannot possibly refer to any
     // parametrics.
-    if (scoped_expr.context().has_value()) {
-      type_info = parametric_context_type_info_.at(*scoped_expr.context());
-    }
+    TypeInfo* type_info = GetTypeInfo(scoped_expr.context());
     return Evaluate(scoped_expr.context(), type_info,
                     scoped_expr.type_annotation(), scoped_expr.expr());
   }
@@ -1754,11 +1807,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       formal_types.push_back(param->type_annotation());
     }
 
-    TypeInfo* actual_arg_ti = base_type_info_;
-    if (invocation_context->parent_context().has_value()) {
-      actual_arg_ti = parametric_context_type_info_.at(
-          *invocation_context->parent_context());
-    }
+    TypeInfo* actual_arg_ti = GetTypeInfo(invocation_context->parent_context());
     return InferImplicitParametrics(
         invocation_context->parent_context(), invocation_context,
         implicit_parametrics, formal_types, actual_args, ti, actual_arg_ti,
@@ -1963,12 +2012,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // for parametric function invocations, and the differences are in the
     // logistics. We build this as a map, `resolved_parametrics`, and convert it
     // to a vector at the end.
-    XLS_ASSIGN_OR_RETURN(
-        TypeInfo * instance_type_info,
-        import_data_.type_info_owner().New(
-            &module_, parent_context.has_value()
-                          ? parametric_context_type_info_.at(*parent_context)
-                          : base_type_info_));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * instance_type_info,
+                         import_data_.type_info_owner().New(
+                             &module_, GetTypeInfo(parent_context)));
     ParametricBindings bindings(struct_def.parametric_bindings());
     absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
     auto set_value = [&](const ParametricBinding* binding,
@@ -2243,6 +2289,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   ImportData& import_data_;
   WarningCollector& warning_collector_;
   TypeInfo* const base_type_info_;
+  std::optional<TypeInfo*> current_proc_type_info_;
   const FileTable& file_table_;
   std::unique_ptr<TypeSystemTracer> tracer_;
   std::unique_ptr<TypeAnnotationResolver> resolver_;

@@ -4590,7 +4590,7 @@ proc t {
                     "function in module `fake` with name `result_in`")));
 }
 
-TEST(TypecheckErrorTest, ReferenceToBuiltinFunctionInNext) {
+TEST_P(TypecheckBothVersionsTest, ReferenceToBuiltinFunctionInNext) {
   XLS_EXPECT_OK(Typecheck(R"(
 proc t {
     config() { () }
