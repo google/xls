@@ -4753,3 +4753,19 @@ place_and_route(
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "zstd_encoder_dslx",
+    srcs = [
+        "zstd_enc.x",
+    ],
+    deps = [
+        ":mem_writer_simple_arbiter_dslx",
+        ":mem_reader_simple_arbiter_dslx",
+        ":frame_header_dec_dslx",
+        ":frame_header_enc_dslx",
+        ":block_header_dslx",
+        ":mem_copy_dslx",
+    ],
+)
+
