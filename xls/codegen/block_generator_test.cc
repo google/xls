@@ -43,6 +43,7 @@
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/signature_generator.h"
+#include "xls/codegen/test_fifos.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -90,178 +91,6 @@ using ::testing::HasSubstr;
 
 constexpr char kTestName[] = "block_generator_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";
-
-inline constexpr std::string_view kDepth1FifoRTLText =
-    R"(// simple fifo depth-1 implementation
-module xls_fifo_wrapper (
-clk, rst,
-push_ready, push_data, push_valid,
-pop_ready,  pop_data,  pop_valid);
-  parameter Width = 32,
-            Depth = 32,
-            EnableBypass = 0,
-            RegisterPushOutputs = 1,
-            RegisterPopOutputs = 1;
-  localparam AddrWidth = $clog2(Depth) + 1;
-  input  wire             clk;
-  input  wire             rst;
-  output wire             push_ready;
-  input  wire [Width-1:0] push_data;
-  input  wire             push_valid;
-  input  wire             pop_ready;
-  output wire [Width-1:0] pop_data;
-  output wire             pop_valid;
-
-  // Require depth be 1 and bypass disabled.
-  initial begin
-    if (EnableBypass || Depth != 1 || !RegisterPushOutputs || RegisterPopOutputs) begin
-      // FIFO configuration not supported.
-      $fatal(1);
-    end
-  end
-
-
-  reg [Width-1:0] mem;
-  reg full;
-
-  assign push_ready = !full;
-  assign pop_valid = full;
-  assign pop_data = mem;
-
-  always @(posedge clk) begin
-    if (rst == 1'b1) begin
-      full <= 1'b0;
-    end else begin
-      if (push_valid && push_ready) begin
-        mem <= push_data;
-        full <= 1'b1;
-      end else if (pop_valid && pop_ready) begin
-        mem <= mem;
-        full <= 1'b0;
-      end else begin
-        mem <= mem;
-        full <= full;
-      end
-    end
-  end
-endmodule
-)";
-
-inline constexpr std::string_view kDepth1NoDataFifoRTLText =
-    R"(// simple nodata fifo depth-1 implementation
-module xls_nodata_fifo_wrapper (
-clk, rst,
-push_ready, push_valid,
-pop_ready,  pop_valid);
-  parameter Depth = 32,
-            EnableBypass = 0,
-            RegisterPushOutputs = 1,
-            RegisterPopOutputs = 1;
-  localparam AddrWidth = $clog2(Depth) + 1;
-  input  wire             clk;
-  input  wire             rst;
-  output wire             push_ready;
-  input  wire             push_valid;
-  input  wire             pop_ready;
-  output wire             pop_valid;
-
-  // Require depth be 1 and bypass disabled.
-  initial begin
-    if (EnableBypass || Depth != 1 || !RegisterPushOutputs || RegisterPopOutputs) begin
-      // FIFO configuration not supported.
-      $fatal(1);
-    end
-  end
-
-  reg full;
-
-  assign push_ready = !full;
-  assign pop_valid = full;
-
-  always @(posedge clk) begin
-    if (rst == 1'b1) begin
-      full <= 1'b0;
-    end else begin
-      if (push_valid && push_ready) begin
-        full <= 1'b1;
-      end else if (pop_valid && pop_ready) begin
-        full <= 1'b0;
-      end else begin
-        full <= full;
-      end
-    end
-  end
-endmodule
-)";
-
-inline constexpr std::string_view kDepth0FifoRTLText =
-    R"(// simple fifo depth-1 implementation
-module xls_fifo_wrapper (
-clk, rst,
-push_ready, push_data, push_valid,
-pop_ready,  pop_data,  pop_valid);
-  parameter Width = 32,
-            Depth = 32,
-            EnableBypass = 0,
-            RegisterPushOutputs = 1,
-            RegisterPopOutputs = 1;
-  localparam AddrWidth = $clog2(Depth) + 1;
-  input  wire             clk;
-  input  wire             rst;
-  output wire             push_ready;
-  input  wire [Width-1:0] push_data;
-  input  wire             push_valid;
-  input  wire             pop_ready;
-  output wire [Width-1:0] pop_data;
-  output wire             pop_valid;
-
-  // Require depth be 1 and bypass disabled.
-  initial begin
-    if (EnableBypass != 1 || Depth != 0 || RegisterPushOutputs || RegisterPopOutputs) begin
-      // FIFO configuration not supported.
-      $fatal(1);
-    end
-  end
-
-
-  assign push_ready = pop_ready;
-  assign pop_valid = push_valid;
-  assign pop_data = push_data;
-
-endmodule
-)";
-
-inline constexpr std::string_view kDepth0NoDataFifoRTLText =
-    R"(// simple nodata fifo depth-1 implementation
-module xls_nodata_fifo_wrapper (
-clk, rst,
-push_ready, push_valid,
-pop_ready,  pop_valid);
-  parameter Depth = 32,
-            EnableBypass = 0,
-            RegisterPushOutputs = 1,
-            RegisterPopOutputs = 1;
-  localparam AddrWidth = $clog2(Depth) + 1;
-  input  wire             clk;
-  input  wire             rst;
-  output wire             push_ready;
-  input  wire             push_valid;
-  input  wire             pop_ready;
-  output wire             pop_valid;
-
-  // Require depth be 1 and bypass disabled.
-  initial begin
-    if (EnableBypass != 1 || Depth != 0 || RegisterPushOutputs || RegisterPopOutputs) begin
-      // FIFO configuration not supported.
-      $fatal(1);
-    end
-  end
-
-  assign push_ready = pop_ready;
-  assign pop_valid = push_valid;
-
-endmodule
-)";
 
 class BlockGeneratorTest : public VerilogTestBase {
  protected:
@@ -1701,9 +1530,8 @@ proc running_sum(first_cycle: bits[1], init={1}) {
 
   verilog = absl::StrCat("`include \"fifo.v\"\n\n", verilog);
 
-  VerilogInclude fifo_definition{
-      .relative_path = "fifo.v",
-      .verilog_text = std::string{kDepth1FifoRTLText}};
+  VerilogInclude fifo_definition{.relative_path = "fifo.v",
+                                 .verilog_text = kDepth1Fifo.rtl};
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog, /*macro_definitions=*/{},
@@ -2009,15 +1837,11 @@ proc lookup_proc(x: bits[1], z: bits[1], init={0, 0}) {
 }
 
 TEST_P(BlockGeneratorTest, MultiProcWithInternalFifo) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenResult result,
-      MakeMultiProc(FifoConfig(/*depth=*/1, /*bypass=*/false,
-                               /*register_push_outputs=*/true,
-                               /*register_pop_outputs=*/false),
-                    /*data_width=*/32));
-  VerilogInclude fifo_definition{
-      .relative_path = "fifo.v",
-      .verilog_text = std::string{kDepth1FifoRTLText}};
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenResult result,
+                           MakeMultiProc(kDepth1Fifo.config,
+                                         /*data_width=*/32));
+  VerilogInclude fifo_definition{.relative_path = "fifo.v",
+                                 .verilog_text = kDepth1Fifo.rtl};
   std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
 
   result.module_generator_result.verilog_text = absl::StrCat(
@@ -2048,16 +1872,12 @@ TEST_P(BlockGeneratorTest, MultiProcWithInternalFifo) {
 }
 
 TEST_P(BlockGeneratorTest, MultiProcWithInternalNoDataFifo) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenResult result,
-      MakeMultiProc(FifoConfig(/*depth=*/1, /*bypass=*/false,
-                               /*register_push_outputs=*/true,
-                               /*register_pop_outputs=*/false),
-                    /*data_width=*/0));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenResult result,
+                           MakeMultiProc(kDepth1NoDataFifo.config,
+                                         /*data_width=*/0));
 
-  VerilogInclude fifo_definition{
-      .relative_path = "fifo.v",
-      .verilog_text = std::string{kDepth1NoDataFifoRTLText}};
+  VerilogInclude fifo_definition{.relative_path = "fifo.v",
+                                 .verilog_text = kDepth1NoDataFifo.rtl};
   std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
 
   result.module_generator_result.verilog_text = absl::StrCat(
@@ -2088,15 +1908,11 @@ TEST_P(BlockGeneratorTest, MultiProcWithInternalNoDataFifo) {
 }
 
 TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenResult result,
-      MakeMultiProc(FifoConfig(/*depth=*/0, /*bypass=*/true,
-                               /*register_push_outputs=*/false,
-                               /*register_pop_outputs=*/false),
-                    /*data_width=*/32));
-  VerilogInclude fifo_definition{
-      .relative_path = "fifo.v",
-      .verilog_text = std::string{kDepth0FifoRTLText}};
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenResult result,
+                           MakeMultiProc(kDepth0Fifo.config,
+                                         /*data_width=*/32));
+  VerilogInclude fifo_definition{.relative_path = "fifo.v",
+                                 .verilog_text = kDepth0Fifo.rtl};
   std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
 
   result.module_generator_result.verilog_text = absl::StrCat(
@@ -2128,15 +1944,11 @@ TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
 }
 
 TEST_P(BlockGeneratorTest, MultiProcNoDataDirectConnect) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenResult result,
-      MakeMultiProc(FifoConfig(/*depth=*/0, /*bypass=*/true,
-                               /*register_push_outputs=*/false,
-                               /*register_pop_outputs=*/false),
-                    /*data_width=*/0));
-  VerilogInclude fifo_definition{
-      .relative_path = "fifo.v",
-      .verilog_text = std::string{kDepth0NoDataFifoRTLText}};
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenResult result,
+                           MakeMultiProc(kDepth0NoDataFifo.config,
+                                         /*data_width=*/0));
+  VerilogInclude fifo_definition{.relative_path = "fifo.v",
+                                 .verilog_text = kDepth0NoDataFifo.rtl};
   std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
 
   result.module_generator_result.verilog_text = absl::StrCat(

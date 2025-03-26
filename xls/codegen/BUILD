@@ -1000,6 +1000,7 @@ cc_test(
         ":module_signature",
         ":module_signature_cc_proto",
         ":pipeline_generator",
+        ":test_fifos",
         "//xls/common:golden_files",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -1019,6 +1020,7 @@ cc_test(
         "//xls/simulation:module_simulator",
         "//xls/simulation:module_testbench",
         "//xls/simulation:module_testbench_thread",
+        "//xls/simulation:verilog_include",
         "//xls/simulation:verilog_test_base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
@@ -1266,6 +1268,7 @@ cc_test(
         ":module_signature",
         ":op_override_impls",
         ":signature_generator",
+        ":test_fifos",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
@@ -2015,6 +2018,13 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
+)
+
+cc_library(
+    name = "test_fifos",
+    testonly = True,
+    hdrs = ["test_fifos.h"],
+    deps = ["//xls/ir:channel"],
 )
 
 # Test that codegen args work correctly in our rules.
