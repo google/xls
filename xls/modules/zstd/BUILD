@@ -4769,3 +4769,15 @@ xls_dslx_library(
     ],
 )
 
+xls_dslx_test(
+    name = "zstd_encoder_dslx_test",
+    srcs = [
+        "zstd_enc_test.x"
+    ],
+    deps = [
+        ":zstd_encoder_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_writer_dslx",
+    ]
+)
