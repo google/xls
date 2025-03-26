@@ -212,6 +212,7 @@ proc AxiRamWriterResponder<
     }
 }
 
+const SYNC_FIFO_DEPTH=u32:1;
 pub proc AxiRamWriter<
     ADDR_W: u32, DATA_W: u32,ID_W: u32, RAM_SIZE: u32,
     RAM_ADDR_W: u32 = {std::clog2(RAM_SIZE)},
@@ -223,7 +224,6 @@ pub proc AxiRamWriter<
     type WriteReq = ram::WriteReq<RAM_ADDR_W, DATA_W, NUM_PARTITIONS>;
     type WriteResp = ram::WriteResp<DATA_W>;
     type Sync = AxiRamWriterSync<ID_W>;
-    const SYNC_FIFO_DEPTH=u32:1;
 
     init { }
 
