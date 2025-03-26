@@ -4268,6 +4268,75 @@ xls_dslx_test(
     library = ":mem_reader_simple_arbiter_dslx",
 )
 
+
+mem_reader_simple_arbiter_codegen_args = common_codegen_args | {
+    "module_name": "MemReaderSimpleArbiter",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+}
+
+
+xls_dslx_verilog(
+    name = "mem_reader_simple_arbiter_verilog",
+    codegen_args = mem_reader_simple_arbiter_codegen_args,
+    dslx_top = "MemReaderSimpleArbiterInst",
+    library = ":mem_reader_simple_arbiter_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_reader_simple_arbiter.v",
+    opt_ir_args = {
+        "inline_procs": "false",
+    },
+)
+
+xls_benchmark_ir(
+    name = "mem_reader_simple_arbiter_opt_ir_benchmark",
+    src = ":mem_reader_simple_arbiter_verilog.opt.ir",
+    codegen_args = mem_reader_simple_arbiter_codegen_args,
+    benchmark_ir_args = {
+        "inline_procs": "true",
+        "top": "__mem_reader_simple_arbiter__MemReaderSimpleArbiterInst__MemReaderSimpleArbiter_0__32_32_5_3_next",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_reader_simple_arbiter_verilog_lib",
+    srcs = [
+        ":mem_reader_simple_arbiter.v",
+        ":xls_fifo_wrapper.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_reader_simple_arbiter_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "MemReaderSimpleArbiter",
+    deps = [
+        ":mem_reader_simple_arbiter_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_reader_simple_arbiter_benchmark_synth",
+    synth_target = ":mem_reader_simple_arbiter_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_reader_simple_arbiter_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_reader_simple_arbiter_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "5",
+)
+
 xls_dslx_library(
     name = "sequence_header_writer_dslx",
     srcs = [
