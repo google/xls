@@ -4084,6 +4084,73 @@ xls_dslx_test(
     library = ":mem_reader_mux_dslx",
 )
 
+mem_reader_mux_codegen_args = common_codegen_args | {
+    "module_name": "MemReaderMux",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+}
+
+
+xls_dslx_verilog(
+    name = "mem_reader_mux_verilog",
+    codegen_args = mem_reader_mux_codegen_args,
+    dslx_top = "MemReaderMuxInst",
+    library = ":mem_reader_mux_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_reader_mux.v",
+    opt_ir_args = {
+        "inline_procs": "false",
+    },
+)
+
+xls_benchmark_ir(
+    name = "mem_reader_mux_opt_ir_benchmark",
+    src = ":mem_reader_mux_verilog.opt.ir",
+    codegen_args = mem_reader_mux_codegen_args,
+    benchmark_ir_args = {
+        "inline_procs": "true",
+        "top": "__mem_reader_mux__MemReaderMuxInst__MemReaderMux_0__32_32_0_5_3_next",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_reader_mux_verilog_lib",
+    srcs = [
+        ":mem_reader_mux.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_reader_mux_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "MemReaderMux",
+    deps = [
+        ":mem_reader_mux_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_reader_mux_benchmark_synth",
+    synth_target = ":mem_reader_mux_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_reader_mux_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_reader_mux_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "5",
+)
+
 xls_dslx_library(
     name = "literal_encoder_dslx",
     srcs = [
