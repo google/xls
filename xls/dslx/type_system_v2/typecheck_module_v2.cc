@@ -1024,17 +1024,18 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     //   Node               Annotation             Variable
     //   --------------------------------------------------
     //   x                  u32                    T0
-    //   foo(a, b)          ReturnType(T3)         T0
+    //   foo(a, b)          <unspecified>          T0
     //   a                  ParamType(T3, 0)       T1
     //   b                  ParamType(T3, 1)       T2
     //   foo                (T1, T2) -> T0         T3
     //
     // The core task here is to produce a `FunctionTypeAnnotation` for the
     // actual arguments/return type: the `(T1, T2) -> T0` annotation in the
-    // example. By the time of conversion of the invocation node to type info,
-    // a formal `FunctionTypeAnnotation` for the resolved target `Function`
-    // object will have been determined, and the two annotations will be
-    // unified.
+    // example. At the time of conversion to type info, the target function will
+    // be resolved, and a `FunctionTypeAnnotation` for the resolved target
+    // `Function` object will be determined. Conversion will apply formal types
+    // to the argument nodes and the invocation node just in time for
+    // conversion.
 
     VLOG(5) << "HandleInvocation: " << node->ToString();
 
@@ -1115,15 +1116,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
         node->callee(), module_.Make<FunctionTypeAnnotation>(
                             arg_types, module_.Make<TypeVariableTypeAnnotation>(
                                            return_type_variable))));
-
-    // The specific way we formulate this annotation indicates that the type of
-    // the node is the return type of the unification of the function type;
-    // hence, the formal return type, which has not been encountered yet, will
-    // govern it.
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node,
-        module_.Make<ReturnTypeAnnotation>(
-            module_.Make<TypeVariableTypeAnnotation>(function_type_variable))));
     return node->callee()->Accept(this);
   }
 

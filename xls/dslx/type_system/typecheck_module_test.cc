@@ -1684,7 +1684,7 @@ fn bar() -> bits[10] { foo(u5:1) + foo(u10: 1) }
                          GetParam(),
                          "Inconsistent parametric instantiation of function, "
                          "first saw X = u32:10; then saw X = u32:5 = u32:5"),
-                     HasTypeMismatchInV2(GetParam(), "bits[5]", "uN[10]"))));
+                     HasTypeMismatchInV2(GetParam(), "bits[5]", "bits[10]"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, ParametricInstantiationVsBodyOk) {

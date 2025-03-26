@@ -877,7 +877,7 @@ proc P {
   }
 }
 )",
-      TypecheckFails(HasSizeMismatch("uN[32]", "uN[64]")));
+      TypecheckFails(HasSizeMismatch("uN[32]", "u64")));
 }
 
 TEST(TypecheckV2BuiltinTest, RecvWithChannelDirectionMismatchFails) {

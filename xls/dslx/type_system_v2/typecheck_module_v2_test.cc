@@ -1928,6 +1928,18 @@ const Y = 1 + 2 + 3 + foo<32>();
       TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, MultiTermSumOfParametricCalls) {
+  EXPECT_THAT(
+      R"(
+fn foo<N: u32>(a: uN[N]) -> u32 { a as u32 }
+// Note: the point is to make it obvious in manual runs if there is exponential
+// growth in typechecking an expr like this. That was the case with the original
+// rev of `HandleInvocation`.
+const Y = foo(1) + foo(2) + foo(3) + foo(4) + foo(5) + foo(6) + foo(7);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
 TEST(TypecheckV2Test, ParametricDefaultWithTypeBasedOnOtherParametric) {
   EXPECT_THAT(R"(
 fn p<X: u32, Y: bits[X] = {u1:0}>(x: bits[X]) -> bits[X] { x }

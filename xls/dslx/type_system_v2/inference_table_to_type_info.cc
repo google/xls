@@ -448,6 +448,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const auto* function_type =
           dynamic_cast<const FunctionTypeAnnotation*>(*signature);
       CHECK(function_type);
+      XLS_RETURN_IF_ERROR(
+          table_.AddTypeAnnotationToVariableForParametricContext(
+              caller_context, *table_.GetTypeVariable(invocation),
+              function_type->return_type()));
       for (int i = 0; i < function_type->param_types().size(); i++) {
         const TypeAnnotation* formal_param = function_type->param_types()[i];
         const Expr* actual_param = actual_args[i];
@@ -591,6 +595,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
         caller_context, callee_variable, parametric_free_function_type));
+    XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
+        caller_context, *table_.GetTypeVariable(invocation),
+        parametric_free_function_type->return_type()));
     XLS_RETURN_IF_ERROR(
         GenerateTypeInfo(function_and_target_object.target_struct_context,
                          invocation->callee()));
