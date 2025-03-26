@@ -144,7 +144,11 @@ pub proc RawMemcopy<ADDR_W: u32, DATA_W: u32> {
 
         let mem_req_tok = join(mem_rd_req_tok, mem_wr_req_tok);
         let (mem_copy_done_tok, mem_rd_status) = recv(mem_req_tok, mem_copy_done_r);
-        let (mem_wr_resp_tok, mem_wr_resp) = recv(mem_req_tok, mem_wr_resp_r);
+        let (mem_wr_resp_tok, mem_wr_resp) = recv_if(
+            mem_req_tok, mem_wr_resp_r,
+            mem_rd_status == MemReaderStatus::OKAY,
+            MemWriterResp { status: mem_writer::MemWriterRespStatus::ERROR }
+        );
 
         let mem_resp_tok = join(mem_copy_done_tok, mem_wr_resp_tok);
 
