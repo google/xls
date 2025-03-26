@@ -1,0 +1,84 @@
+module leaf_proc(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] accum_in,
+  input wire accum_in_vld,
+  input wire accum_out_rdy,
+  output wire accum_in_rdy,
+  output wire [31:0] accum_out,
+  output wire accum_out_vld
+);
+  reg [31:0] p0_tuple_index_23;
+  reg [31:0] __accum;
+  reg p0_valid;
+  wire p1_stage_done;
+  wire p1_not_valid;
+  wire p0_enable;
+  wire p0_data_enable;
+  wire p0_load_en;
+  wire [31:0] add_30;
+  assign p1_stage_done = p0_valid & accum_out_rdy;
+  assign p1_not_valid = ~p0_valid;
+  assign p0_enable = p1_stage_done | p1_not_valid;
+  assign p0_data_enable = p0_enable & accum_in_vld;
+  assign p0_load_en = p0_data_enable | rst;
+  assign add_30 = __accum + p0_tuple_index_23;
+  always @ (posedge clk) begin
+    p0_tuple_index_23 <= p0_load_en ? accum_in : p0_tuple_index_23;
+  end
+  always @ (posedge clk) begin
+    if (rst) begin
+      __accum <= 32'h0000_0000;
+      p0_valid <= 1'h0;
+    end else begin
+      __accum <= p1_stage_done ? add_30 : __accum;
+      p0_valid <= p0_enable ? accum_in_vld : p0_valid;
+    end
+  end
+  assign accum_in_rdy = p0_load_en;
+  assign accum_out = add_30;
+  assign accum_out_vld = p0_valid;
+endmodule
+
+
+module a_top_proc(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] in_ch,
+  input wire in_ch_vld,
+  input wire out_ch_rdy,
+  output wire in_ch_rdy,
+  output wire [31:0] out_ch,
+  output wire out_ch_vld
+);
+  wire instantiation_output_67;
+  wire [31:0] instantiation_output_68;
+  wire instantiation_output_69;
+  reg p0_valid;
+  wire p0_stage_done;
+  wire p0_enable;
+
+  assign p0_stage_done = 1'h1;
+  assign p0_enable = 1'h1;
+  always @ (posedge clk) begin
+    if (rst) begin
+      p0_valid <= 1'h0;
+    end else begin
+      p0_valid <= p0_enable ? p0_stage_done : p0_valid;
+    end
+  end
+  // ===== Instantiations
+  leaf_proc inst (
+    .rst(rst),
+    .accum_in(in_ch),
+    .accum_in_vld(in_ch_vld),
+    .accum_out_rdy(out_ch_rdy),
+    .accum_in_rdy(instantiation_output_67),
+    .accum_out(instantiation_output_68),
+    .accum_out_vld(instantiation_output_69),
+    .clk(clk)
+  );
+  assign in_ch_rdy = instantiation_output_67;
+  assign out_ch = instantiation_output_68;
+  assign out_ch_vld = instantiation_output_69;
+endmodule

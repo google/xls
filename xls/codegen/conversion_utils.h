@@ -101,7 +101,7 @@ absl::Status MaybeAddResetPort(Block* block, const CodegenOptions& options);
 // Send/receive nodes are not cloned from the proc into the block, but the
 // network of tokens connecting these send/receive nodes *is* cloned. This
 // function removes the token operations.
-absl::Status RemoveDeadTokenNodes(CodegenPassUnit* unit);
+absl::Status RemoveDeadTokenNodes(Block* block, CodegenPassUnit* unit);
 
 // Make valid ports (output) for the output channel.
 //

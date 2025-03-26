@@ -14,8 +14,8 @@
 
 #include "xls/codegen/block_conversion.h"
 
+#include <algorithm>
 #include <cstdint>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -27,7 +27,6 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/nullability.h"
-#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -60,6 +59,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
@@ -245,23 +245,21 @@ absl::StatusOr<PipelineSchedule> MaybeAddInputOutputFlopsToSchedule(
 
 }  // namespace
 
-// Adds the nodes in the given schedule to the block. Pipeline registers are
-// inserted between stages and returned as a vector indexed by cycle. The block
-// should be empty prior to calling this function.
-//
-// Returns the resulting pipeline and concurrent stages.
-// TODO google/xls#1324 and google/xls#1300: ideally this wouldn't need to
-// return so much and more of this could be done later or stored directly in the
-// IR.
 absl::StatusOr<
     std::tuple<StreamingIOPipeline, std::optional<ConcurrentStageGroups>>>
-CloneNodesIntoPipelinedBlock(const PipelineSchedule& schedule,
-                             const CodegenOptions& options, Block* block) {
+CloneNodesIntoPipelinedBlock(
+    const PipelineSchedule& schedule, const CodegenOptions& options,
+    Block* block,
+    const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks) {
   FunctionBase* function_base = schedule.function_base();
   XLS_RET_CHECK(function_base->IsProc() || function_base->IsFunction());
 
   CloneNodesIntoBlockHandler cloner(function_base, schedule.length(), options,
                                     block);
+  if (function_base->IsProc()) {
+    XLS_RETURN_IF_ERROR(cloner.AddChannelPortsAndFifoInstantiations());
+    XLS_RETURN_IF_ERROR(cloner.AddBlockInstantiations(converted_blocks));
+  }
   for (int64_t stage = 0; stage < schedule.length(); ++stage) {
     XLS_RET_CHECK_OK(cloner.CloneNodes(schedule.nodes_in_cycle(stage), stage));
     XLS_RET_CHECK_OK(cloner.AddNextPipelineStage(schedule, stage));
@@ -332,6 +330,7 @@ absl::Status AddCombinationalFlowControl(
 absl::StatusOr<StreamingIOPipeline> CloneProcNodesIntoBlock(
     Proc* proc, const CodegenOptions& options, Block* block) {
   CloneNodesIntoBlockHandler cloner(proc, /*stage_count=*/0, options, block);
+  XLS_RETURN_IF_ERROR(cloner.AddChannelPortsAndFifoInstantiations());
   XLS_RET_CHECK_OK(cloner.CloneNodes(TopoSort(proc), /*stage=*/0));
   return cloner.GetResult();
 }
@@ -429,9 +428,11 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
   XLS_ASSIGN_OR_RETURN(PipelineSchedule transformed_schedule,
                        MaybeAddInputOutputFlopsToSchedule(schedule, options));
 
+  absl::flat_hash_map<FunctionBase*, Block*> converted_blocks;
   XLS_ASSIGN_OR_RETURN(
       (auto [streaming_io_and_pipeline, concurrent_stages]),
-      CloneNodesIntoPipelinedBlock(transformed_schedule, options, block));
+      CloneNodesIntoPipelinedBlock(transformed_schedule, options, block,
+                                   converted_blocks));
 
   FunctionConversionMetadata function_metadata;
   if (options.valid_control().has_value()) {
@@ -635,6 +636,33 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
   return to_data;
 }
 
+absl::StatusOr<std::vector<FunctionBase*>> GetBlockConversionOrder(
+    Package* package, absl::Span<Proc* const> procs_to_convert) {
+  FunctionBase* top = *package->GetTop();
+  if (top->IsFunction()) {
+    XLS_RET_CHECK(procs_to_convert.empty());
+    return std::vector<FunctionBase*>({top});
+  }
+  CHECK(top->IsProc());
+  if (package->ChannelsAreProcScoped()) {
+    XLS_RET_CHECK(procs_to_convert.empty());
+    // The order of block conversion must be from the leaf up as *instantiated*
+    // procs must be converted before *instantiating* proc.
+    XLS_ASSIGN_OR_RETURN(ProcElaboration elab,
+                         ProcElaboration::Elaborate(top->AsProcOrDie()));
+    std::vector<FunctionBase*> order(elab.procs().begin(), elab.procs().end());
+    std::reverse(order.begin(), order.end());
+    return order;
+  }
+  // For the non-proc-scoped channels case, the set of procs to convert must be
+  // given.
+  XLS_RET_CHECK(!procs_to_convert.empty());
+  std::vector<FunctionBase*> order(procs_to_convert.begin(),
+                                   procs_to_convert.end());
+  std::sort(order.begin(), order.end(), FunctionBase::NameLessThan);
+  return order;
+}
+
 absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
     const PackagePipelineSchedules& schedules, const CodegenOptions& options,
     Package* package) {
@@ -651,23 +679,19 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
 
   XLS_RET_CHECK(package->GetTop().has_value());
   FunctionBase* top = *package->GetTop();
-  absl::btree_map<FunctionBase*, PipelineSchedule,
-                  struct FunctionBase::NameLessThan>
-      sorted_schedules;
-  if (top->IsFunction()) {
-    // We only support a top-level function, which can't call into procs or
-    // blocks; all other functions must already be inlined into `top`.
-    sorted_schedules.emplace(top, schedules.at(top));
-  } else {
-    absl::c_copy_if(schedules,
-                    std::inserter(sorted_schedules, sorted_schedules.end()),
-                    [](const auto& entry) {
-                      // Our top-level entity isn't a function - so all
-                      // functions must be inlined into their users already. Any
-                      // residual functions don't need to be generated.
-                      return !entry.first->IsFunction();
-                    });
+
+  std::vector<Proc*> procs_to_convert;
+  if (!package->ChannelsAreProcScoped() &&
+      package->GetTop().value()->IsProc()) {
+    for (const auto& [fb, _] : schedules) {
+      if (fb->IsProc()) {
+        procs_to_convert.push_back(fb->AsProcOrDie());
+      }
+    }
   }
+  XLS_ASSIGN_OR_RETURN(std::vector<FunctionBase*> conversion_order,
+                       GetBlockConversionOrder(package, procs_to_convert));
+
   // Make `unit` optional because we haven't created the top block yet. We will
   // create it on the first iteration and emplace `unit`.
   std::string module_name(
@@ -694,7 +718,12 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
     XLS_RETURN_IF_ERROR(mark_chans.Run(&unit, cg_options, &results).status());
   }
 
-  for (const auto& [fb, schedule] : sorted_schedules) {
+  absl::flat_hash_map<FunctionBase*, Block*> converted_blocks;
+  for (FunctionBase* fb : conversion_order) {
+    XLS_RET_CHECK(schedules.contains(fb)) << absl::StrFormat(
+        "Missing schedule for functionbase `%s`", fb->name());
+
+    const PipelineSchedule& schedule = schedules.at(fb);
     std::string sub_block_name = block_name_uniquer.GetSanitizedUniqueName(
         SanitizeIdentifier(fb->name()));
     Block* sub_block;
@@ -705,10 +734,11 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
           package->AddBlock(std::make_unique<Block>(sub_block_name, package));
     }
     if (fb->IsProc()) {
-      XLS_RETURN_IF_ERROR(SingleProcToPipelinedBlock(
-          schedule, options, unit, fb->AsProcOrDie(), sub_block));
+      XLS_RETURN_IF_ERROR(
+          SingleProcToPipelinedBlock(schedule, options, unit, fb->AsProcOrDie(),
+                                     sub_block, converted_blocks));
     } else if (fb->IsFunction()) {
-      XLS_RET_CHECK_EQ(sorted_schedules.size(), 1);
+      XLS_RET_CHECK_EQ(conversion_order.size(), 1);
       XLS_RET_CHECK_EQ(fb, top);
       XLS_RETURN_IF_ERROR(SingleFunctionToPipelinedBlock(
           schedule, options, unit, fb->AsFunctionOrDie(), sub_block));
@@ -716,6 +746,7 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
       return absl::InvalidArgumentError(absl::StrFormat(
           "FunctionBase %s was not a function or proc.", fb->name()));
     }
+    converted_blocks[fb] = sub_block;
   }
 
   // Avoid leaving any dangling pointers.
@@ -873,7 +904,7 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
           .conversion_metadata = ProcConversionMetadata(),
           .concurrent_stages = std::nullopt,
       });
-  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(&unit));
+  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block, &unit));
   VLOG(3) << "After RemoveDeadTokenNodes";
   XLS_VLOG_LINES(3, unit.DumpIr());
 

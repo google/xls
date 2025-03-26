@@ -4,9 +4,9 @@ module neg_proc(
   input wire [31:0] in,
   input wire in_vld,
   input wire out_rdy,
+  output wire in_rdy,
   output wire [31:0] out,
-  output wire out_vld,
-  output wire in_rdy
+  output wire out_vld
 );
   reg [31:0] __in_reg;
   reg __in_valid_reg;
@@ -16,25 +16,25 @@ module neg_proc(
   wire p0_stage_done;
   wire in_valid_inv;
   wire out_to_is_not_rdy;
-  wire [31:0] negate;
   wire in_valid_load_en;
+  wire [31:0] negate;
   wire out_skid_data_load_en;
   wire out_skid_valid_set_zero;
+  wire in_load_en;
   wire [31:0] out_select;
   wire out_valid_or;
-  wire in_load_en;
   wire out_skid_valid_load_en;
   assign out_from_skid_rdy = ~__out_valid_skid_reg;
   assign p0_stage_done = __in_valid_reg & out_from_skid_rdy;
   assign in_valid_inv = ~__in_valid_reg;
   assign out_to_is_not_rdy = ~out_rdy;
-  assign negate = -__in_reg;
   assign in_valid_load_en = p0_stage_done | in_valid_inv;
+  assign negate = -__in_reg;
   assign out_skid_data_load_en = __in_valid_reg & out_from_skid_rdy & out_to_is_not_rdy;
   assign out_skid_valid_set_zero = __out_valid_skid_reg & out_rdy;
+  assign in_load_en = in_vld & in_valid_load_en;
   assign out_select = __out_valid_skid_reg ? __out_skid_reg : negate;
   assign out_valid_or = __in_valid_reg | __out_valid_skid_reg;
-  assign in_load_en = in_vld & in_valid_load_en;
   assign out_skid_valid_load_en = out_skid_data_load_en | out_skid_valid_set_zero;
   always_ff @ (posedge clk) begin
     if (rst) begin
@@ -49,7 +49,7 @@ module neg_proc(
       __out_valid_skid_reg <= out_skid_valid_load_en ? out_from_skid_rdy : __out_valid_skid_reg;
     end
   end
+  assign in_rdy = in_load_en;
   assign out = out_select;
   assign out_vld = out_valid_or;
-  assign in_rdy = in_load_en;
 endmodule

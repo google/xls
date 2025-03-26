@@ -8,11 +8,11 @@ module pipelined_proc(
   input wire [6:0] in1_data,
   input wire in1_valid,
   input wire out_ready,
-  output wire [6:0] out_data,
-  output wire out_valid,
   output wire ctrl_ready,
   output wire in0_ready,
-  output wire in1_ready
+  output wire in1_ready,
+  output wire [6:0] out_data,
+  output wire out_valid
 );
   reg [6:0] __out_data_reg;
   reg __out_data_valid_reg;
@@ -51,9 +51,9 @@ module pipelined_proc(
       __out_data_valid_reg <= out_data_valid_load_en ? __out_valid_buf : __out_data_valid_reg;
     end
   end
-  assign out_data = __out_data_reg;
-  assign out_valid = __out_data_valid_reg;
   assign ctrl_ready = pipeline_enable;
   assign in0_ready = ctrl_0 & pipeline_enable;
   assign in1_ready = ctrl_data & pipeline_enable;
+  assign out_data = __out_data_reg;
+  assign out_valid = __out_data_valid_reg;
 endmodule

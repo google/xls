@@ -37,6 +37,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
@@ -251,10 +252,26 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
     CodegenPassResults* results) const {
   bool changed = false;
 
-  for (auto& [fb, block] : unit->function_base_to_block()) {
+  std::vector<Proc*> procs_to_convert;
+  if (!unit->package()->ChannelsAreProcScoped() &&
+      unit->package()->GetTop().has_value() &&
+      unit->package()->GetTop().value()->IsProc()) {
+    for (auto& [fb, _] : unit->function_base_to_block()) {
+      if (fb->IsProc()) {
+        procs_to_convert.push_back(fb->AsProcOrDie());
+      }
+    }
+  }
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<FunctionBase*> conversion_order,
+      GetBlockConversionOrder(unit->package(), procs_to_convert));
+
+  absl::flat_hash_map<FunctionBase*, Block*> converted_blocks;
+  for (FunctionBase* fb : conversion_order) {
     if (!fb->IsProc()) {
       continue;
     }
+    Block* block = unit->function_base_to_block().at(fb);
     if (options.codegen_options.manual_control().has_value()) {
       return absl::UnimplementedError(
           "Manual pipeline control not implemented");
@@ -269,9 +286,11 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
     XLS_VLOG_LINES(3, proc->DumpIr());
 
     PipelineSchedule& schedule = unit->function_base_to_schedule().at(fb);
-    XLS_RETURN_IF_ERROR(SingleProcToPipelinedBlock(
-        schedule, options.codegen_options, *unit, proc, block));
+    XLS_RETURN_IF_ERROR(
+        SingleProcToPipelinedBlock(schedule, options.codegen_options, *unit,
+                                   proc, block, converted_blocks));
 
+    converted_blocks[fb] = block;
     changed = true;
   }
 

@@ -80,29 +80,8 @@ class StreamingInput {
         port_ready_(port_ready),
         channel_(channel) {}
 
-  // Block* block;
-  //  ChannelDirection direction;
-
-  // signal_data and signal_valid represent the internal view of the streaming
-  // input.  These are used (ex. for handling non-blocking receives) as
-  // additional logic are placed between the ports and the pipeline use of these
-  // signals.
-  //
-  // Pictorially:
-  //      | port_data   | port_valid   | port_ready
-  //  ----|-------------|--------------|-------------
-  //  |   |             |              |            |
-  //  | |--------------------------|   |            |
-  //  | |  Logic / Adapter         |   |            |
-  //  | |                          |   |            |
-  //  | |--------------------------|   |            |
-  //  |   | signal_data | signal_valid |            |
-  //  |   |             |              |            |
-  //  |                                             |
-  //  -----------------------------------------------
-
   const std::optional<Node*>& GetDataPort() const { return port_; }
-  void SetDataPort(std::optional<Node*> value) { port_ = value; }
+  void ClearDataPort() { port_ = std::nullopt; }
   Node* GetValidPort() const { return port_valid_; }
   Node* GetReadyPort() const { return port_ready_; }
   void SetReadyPort(Node* value) { port_ready_ = value; }
@@ -142,6 +121,23 @@ class StreamingInput {
   Node* port_ready_;
   ChannelRef channel_;
 
+  // signal_data and signal_valid represent the internal view of the streaming
+  // input.  These are used (ex. for handling non-blocking receives) as
+  // additional logic are placed between the ports and the pipeline use of these
+  // signals.
+  //
+  // Pictorially:
+  //      | port_data   | port_valid   | port_ready
+  //  ----|-------------|--------------|-------------
+  //  |   |             |              |            |
+  //  | |--------------------------|   |            |
+  //  | |  Logic / Adapter         |   |            |
+  //  | |                          |   |            |
+  //  | |--------------------------|   |            |
+  //  |   | signal_data | signal_valid |            |
+  //  |   |             |              |            |
+  //  |                                             |
+  //  -----------------------------------------------
   std::optional<Node*> signal_data_;
   std::optional<Node*> signal_valid_;
   std::optional<FifoInstantiation*> fifo_instantiation_;

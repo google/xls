@@ -2,13 +2,13 @@ module neg_proc(
   input wire [31:0] in_d,
   input wire in_v,
   input wire out_r,
+  output wire in_r,
   output wire [31:0] out_d,
-  output wire out_v,
-  output wire in_r
+  output wire out_v
 );
   wire [31:0] negate;
   assign negate = -in_d;
+  assign in_r = out_r;
   assign out_d = negate;
   assign out_v = in_v;
-  assign in_r = out_r;
 endmodule

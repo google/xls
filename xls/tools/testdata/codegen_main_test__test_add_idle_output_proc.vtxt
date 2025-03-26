@@ -4,9 +4,9 @@ module neg_proc(
   input wire [31:0] in,
   input wire in_vld,
   input wire out_rdy,
+  output wire in_rdy,
   output wire [31:0] out,
   output wire out_vld,
-  output wire in_rdy,
   output wire idle
 );
   reg [31:0] __in_reg;
@@ -42,8 +42,8 @@ module neg_proc(
       __out_valid_reg <= out_valid_load_en ? __in_valid_reg : __out_valid_reg;
     end
   end
+  assign in_rdy = in_load_en;
   assign out = __out_reg;
   assign out_vld = __out_valid_reg;
-  assign in_rdy = in_load_en;
   assign idle = ~(__in_valid_reg | __out_valid_reg | in_vld);
 endmodule

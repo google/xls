@@ -3,9 +3,9 @@ module pipelined_proc(
   input wire rst,
   input wire in_valid,
   input wire out_ready,
+  output wire in_ready,
   output wire [31:0] out_data,
-  output wire out_valid,
-  output wire in_ready
+  output wire out_valid
 );
   reg __in_data_valid_reg;
   reg [31:0] __out_data_reg;
@@ -21,9 +21,9 @@ module pipelined_proc(
   wire out_data_data_is_sent_to;
   wire out_data_skid_data_load_en;
   wire out_data_skid_valid_set_zero;
+  wire in_data_load_en;
   wire [31:0] out_data_select;
   wire out_data_valid_or;
-  wire in_data_load_en;
   wire [31:0] __out_data_buf;
   wire out_data_data_valid_load_en__1;
   wire out_data_skid_valid_load_en;
@@ -36,9 +36,9 @@ module pipelined_proc(
   assign out_data_data_is_sent_to = __out_data_valid_reg & out_ready & out_data_from_skid_rdy;
   assign out_data_skid_data_load_en = __out_data_valid_reg & out_data_data_valid_load_en & out_data_to_is_not_rdy;
   assign out_data_skid_valid_set_zero = __out_data_valid_skid_reg & out_ready;
+  assign in_data_load_en = in_valid & in_data_valid_load_en;
   assign out_data_select = __out_data_valid_skid_reg ? __out_data_skid_reg : __out_data_reg;
   assign out_data_valid_or = __out_data_valid_reg | __out_data_valid_skid_reg;
-  assign in_data_load_en = in_valid & in_data_valid_load_en;
   assign __out_data_buf = 32'h0000_0019;
   assign out_data_data_valid_load_en__1 = out_data_data_is_sent_to | out_data_data_valid_load_en;
   assign out_data_skid_valid_load_en = out_data_skid_data_load_en | out_data_skid_valid_set_zero;
@@ -57,7 +57,7 @@ module pipelined_proc(
       __out_data_valid_skid_reg <= out_data_skid_valid_load_en ? out_data_from_skid_rdy : __out_data_valid_skid_reg;
     end
   end
+  assign in_ready = in_data_load_en;
   assign out_data = out_data_select;
   assign out_valid = out_data_valid_or;
-  assign in_ready = in_data_load_en;
 endmodule

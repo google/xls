@@ -1279,6 +1279,10 @@ static absl::Status AddInputOutputFlops(
       // in a separate lowering step.
       FlopKind kind;
       if (std::holds_alternative<Channel*>(input.GetChannel())) {
+        if (block->package()->ChannelsAreProcScoped()) {
+          // With proc scoped channels, the interface holds the flop kind.
+          continue;
+        }
         StreamingChannel* channel = down_cast<StreamingChannel*>(
             std::get<Channel*>(input.GetChannel()));
         XLS_RET_CHECK(channel->channel_config().input_flop_kind())
@@ -1306,6 +1310,10 @@ static absl::Status AddInputOutputFlops(
       // in a separate lowering step.
       FlopKind kind;
       if (std::holds_alternative<Channel*>(output.GetChannel())) {
+        if (block->package()->ChannelsAreProcScoped()) {
+          // With proc scoped channels, the interface holds the flop kind.
+          continue;
+        }
         StreamingChannel* channel = down_cast<StreamingChannel*>(
             std::get<Channel*>(output.GetChannel()));
         XLS_RET_CHECK(channel->channel_config().output_flop_kind())
@@ -1445,10 +1453,12 @@ static absl::Status AddIdleOutput(
 }  // namespace
 
 // Public interface
-absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
-                                        const CodegenOptions& options,
-                                        CodegenPassUnit& unit, Proc* proc,
-                                        absl::Nonnull<Block*> block) {
+absl::Status SingleProcToPipelinedBlock(
+    const PipelineSchedule& schedule, const CodegenOptions& options,
+    CodegenPassUnit& unit, Proc* proc, absl::Nonnull<Block*> block,
+    const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks) {
+  VLOG(1) << absl::StrFormat("SingleProcToPipelinedBlock(proc=`%s`, block=`%s)",
+                             proc->name(), block->name());
   XLS_RET_CHECK_EQ(schedule.function_base(), proc);
   if (std::optional<int64_t> ii = proc->GetInitiationInterval();
       ii.has_value()) {
@@ -1461,8 +1471,9 @@ absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
   VLOG(3) << "Schedule Used";
   XLS_VLOG_LINES(3, schedule.ToString());
 
-  XLS_ASSIGN_OR_RETURN((auto [streaming_io_and_pipeline, concurrent_stages]),
-                       CloneNodesIntoPipelinedBlock(schedule, options, block));
+  XLS_ASSIGN_OR_RETURN(
+      (auto [streaming_io_and_pipeline, concurrent_stages]),
+      CloneNodesIntoPipelinedBlock(schedule, options, block, converted_blocks));
 
   VLOG(3) << "After Pipeline";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -1541,7 +1552,7 @@ absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
-  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(&unit));
+  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block, &unit));
 
   VLOG(3) << "After RemoveDeadTokenNodes";
   XLS_VLOG_LINES(3, block->DumpIr());

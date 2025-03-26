@@ -27,12 +27,12 @@ module pipelined_proc(
   wire out_data_load_en;
   wire p0_stage_done;
   wire p0_data_enable;
-  wire and_1052;
+  wire and_1055;
   wire [31:0] lit1;
-  wire or_1054;
+  wire or_1057;
   wire even_iteration;
   wire [31:0] incremented_counter;
-  wire or_1055;
+  wire or_1058;
   assign p1_all_active_states_valid = 1'h1;
   assign p1_stage_valid = p1_all_active_states_valid & p0_valid;
   assign p1_all_active_inputs_valid = 1'h1;
@@ -47,12 +47,12 @@ module pipelined_proc(
   assign out_data_load_en = __out_valid_buf & out_data_valid_load_en;
   assign p0_stage_done = __counter_full & p0_all_active_inputs_valid & out_data_load_en;
   assign p0_data_enable = p0_enable & p0_stage_done;
-  assign and_1052 = p0_even_iteration & p1_stage_done;
+  assign and_1055 = p0_even_iteration & p1_stage_done;
   assign lit1 = 32'h0000_0001;
-  assign or_1054 = __odd_iteration & p0_data_enable | and_1052;
+  assign or_1057 = __odd_iteration & p0_data_enable | and_1055;
   assign even_iteration = ~__odd_iteration;
   assign incremented_counter = p0___counter__1 + lit1;
-  assign or_1055 = p0_data_enable | or_1054;
+  assign or_1058 = p0_data_enable | or_1057;
   always @ (posedge clk) begin
     if (rst) begin
       __counter <= 32'h0000_0000;
@@ -64,11 +64,11 @@ module pipelined_proc(
       __out_data_reg <= 32'h0000_0000;
       __out_data_valid_reg <= 1'h0;
     end else begin
-      __counter <= and_1052 ? incremented_counter : __counter;
+      __counter <= and_1055 ? incremented_counter : __counter;
       __odd_iteration <= p0_data_enable ? even_iteration : __odd_iteration;
       p0___counter__1 <= p0_data_enable ? __counter : p0___counter__1;
       p0_even_iteration <= p0_data_enable ? even_iteration : p0_even_iteration;
-      __counter_full <= or_1055 ? or_1054 : __counter_full;
+      __counter_full <= or_1058 ? or_1057 : __counter_full;
       p0_valid <= p0_enable ? p0_stage_done : p0_valid;
       __out_data_reg <= out_data_load_en ? __counter : __out_data_reg;
       __out_data_valid_reg <= out_data_valid_load_en ? __out_valid_buf : __out_data_valid_reg;

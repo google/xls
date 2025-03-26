@@ -4,11 +4,11 @@ module pipelined_proc(
   input wire [31:0] in_data,
   input wire in_valid,
   input wire out_ready,
-  output wire out_valid,
-  output wire in_ready
+  output wire in_ready,
+  output wire out_valid
 );
   wire p0_stage_done;
   assign p0_stage_done = in_valid & out_ready;
-  assign out_valid = in_valid;
   assign in_ready = p0_stage_done;
+  assign out_valid = in_valid;
 endmodule

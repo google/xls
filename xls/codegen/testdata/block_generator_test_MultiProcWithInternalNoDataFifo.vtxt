@@ -5,8 +5,8 @@ module pipelined_proc__1(
   input wire rst,
   input wire in_vld,
   input wire internal_rdy,
-  output wire internal_vld,
-  output wire in_rdy
+  output wire in_rdy,
+  output wire internal_vld
 );
   reg p0_valid;
   reg __in_valid_reg;
@@ -42,8 +42,8 @@ module pipelined_proc__1(
       __internal_valid_reg <= internal_valid_load_en ? p0_valid : __internal_valid_reg;
     end
   end
-  assign internal_vld = __internal_valid_reg;
   assign in_rdy = in_load_en;
+  assign internal_vld = __internal_valid_reg;
 endmodule
 
 
@@ -52,8 +52,8 @@ module proc_out(
   input wire rst,
   input wire internal_vld,
   input wire out_rdy,
-  output wire out_vld,
-  output wire internal_rdy
+  output wire internal_rdy,
+  output wire out_vld
 );
   reg p0_valid;
   reg __internal_valid_reg;
@@ -89,8 +89,8 @@ module proc_out(
       __out_valid_reg <= out_valid_load_en ? p0_valid : __out_valid_reg;
     end
   end
-  assign out_vld = __out_valid_reg;
   assign internal_rdy = internal_load_en;
+  assign out_vld = __out_valid_reg;
 endmodule
 
 
@@ -102,28 +102,28 @@ module pipelined_proc(
   output wire in_rdy,
   output wire out_vld
 );
-  wire instantiation_output_138;
   wire instantiation_output_144;
+  wire instantiation_output_150;
+  wire instantiation_output_157;
+  wire instantiation_output_162;
   wire instantiation_output_151;
   wire instantiation_output_156;
-  wire instantiation_output_145;
-  wire instantiation_output_150;
 
   // ===== Instantiations
   pipelined_proc__1 pipelined_proc__1_inst0 (
     .rst(rst),
     .in_vld(in_vld),
-    .internal_rdy(instantiation_output_145),
-    .in_rdy(instantiation_output_138),
-    .internal_vld(instantiation_output_144),
+    .internal_rdy(instantiation_output_151),
+    .in_rdy(instantiation_output_144),
+    .internal_vld(instantiation_output_150),
     .clk(clk)
   );
   proc_out proc_out_inst1 (
     .rst(rst),
-    .internal_vld(instantiation_output_150),
+    .internal_vld(instantiation_output_156),
     .out_rdy(out_rdy),
-    .internal_rdy(instantiation_output_151),
-    .out_vld(instantiation_output_156),
+    .internal_rdy(instantiation_output_157),
+    .out_vld(instantiation_output_162),
     .clk(clk)
   );
   xls_nodata_fifo_wrapper #(
@@ -134,11 +134,11 @@ module pipelined_proc(
   ) fifo_internal (
     .clk(clk),
     .rst(rst),
-    .push_valid(instantiation_output_144),
-    .pop_ready(instantiation_output_151),
-    .push_ready(instantiation_output_145),
-    .pop_valid(instantiation_output_150)
+    .push_valid(instantiation_output_150),
+    .pop_ready(instantiation_output_157),
+    .push_ready(instantiation_output_151),
+    .pop_valid(instantiation_output_156)
   );
-  assign in_rdy = instantiation_output_138;
-  assign out_vld = instantiation_output_156;
+  assign in_rdy = instantiation_output_144;
+  assign out_vld = instantiation_output_162;
 endmodule

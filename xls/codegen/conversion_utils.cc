@@ -50,6 +50,7 @@
 #include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "re2/re2.h"
 
 namespace xls::verilog {
@@ -107,19 +108,6 @@ absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
   for (Stage stage = 0; stage < stage_count; ++stage) {
     std::vector<Node*> active_readys;
     for (StreamingOutput& streaming_output : streaming_outputs[stage]) {
-      if (streaming_output.GetFifoInstantiation().has_value()) {
-        // The ready signal is managed elsewhere for FIFO instantiations.
-        XLS_RET_CHECK_NE(streaming_output.GetReadyPort(), nullptr);
-      } else {
-        XLS_ASSIGN_OR_RETURN(
-            Node * ready_port,
-            block->AddInputPort(
-                absl::StrCat(ChannelRefName(streaming_output.GetChannel()),
-                             ready_suffix),
-                block->package()->GetBitsType(1)));
-        streaming_output.SetReadyPort(ready_port);
-      }
-
       if (streaming_output.GetPredicate().has_value()) {
         // Logic for the active ready signal for a Send operation with a
         // predicate `pred`.
@@ -320,7 +308,7 @@ absl::Status MaybeAddResetPort(Block* block, const CodegenOptions& options) {
 // Send/receive nodes are not cloned from the proc into the block, but the
 // network of tokens connecting these send/receive nodes *is* cloned. This
 // function removes the token operations.
-absl::Status RemoveDeadTokenNodes(CodegenPassUnit* unit) {
+absl::Status RemoveDeadTokenNodes(Block* block, CodegenPassUnit* unit) {
   // Receive nodes produce a tuple of a token and a data value. In the block
   // this becomes a tuple of a token and an InputPort. Run tuple simplification
   // to disentangle the tuples so DCE can do its work and eliminate the token
@@ -329,21 +317,34 @@ absl::Status RemoveDeadTokenNodes(CodegenPassUnit* unit) {
   // TODO: We really shouldn't be running passes like this during block
   // conversion. These should be fully in the pipeline. This is work for the
   // future.
-  CodegenPassResults pass_results;
-  CodegenPassOptions pass_options;
-  CodegenCompoundPass ccp("block_conversion_dead_token_removal",
-                          "Dead token removal during block-conversion process");
-  OptimizationContext context;
-  ccp.AddInvariantChecker<CodegenChecker>();
-  ccp.Add<CodegenWrapperPass>(std::make_unique<DataflowSimplificationPass>(),
-                              context);
-  ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                              context);
-  ccp.Add<RegisterLegalizationPass>();
-  ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                              context);
 
-  XLS_RETURN_IF_ERROR(ccp.Run(unit, pass_options, &pass_results).status());
+  // To limit the scope of the optimizations to the block itself, call the pass
+  // individually on the block.
+  OptimizationPassOptions options;
+  PassResults results;
+  OptimizationContext context;
+  DataflowSimplificationPass dataflow_pass;
+  XLS_RETURN_IF_ERROR(
+      dataflow_pass.RunOnFunctionBase(block, options, &results, context)
+          .status());
+  DataflowSimplificationPass dataflow_simp_pass;
+  XLS_RETURN_IF_ERROR(
+      dataflow_simp_pass.RunOnFunctionBase(block, options, &results, context)
+          .status());
+  DeadCodeEliminationPass dce_pass;
+  XLS_RETURN_IF_ERROR(
+      dce_pass.RunOnFunctionBase(block, options, &results, context).status());
+
+  CodegenPassResults codegen_results;
+  CodegenPassOptions codegen_options;
+  RegisterLegalizationPass reg_legalization_pass;
+  XLS_RETURN_IF_ERROR(
+      reg_legalization_pass.Run(unit, codegen_options, &codegen_results)
+          .status());
+
+  XLS_RETURN_IF_ERROR(
+      dce_pass.RunOnFunctionBase(block, options, &results, context).status());
+
   // Nodes like cover and assert have token types and will cause
   // a dangling token network remaining.
   //
@@ -352,6 +353,15 @@ absl::Status RemoveDeadTokenNodes(CodegenPassUnit* unit) {
   // ir operations.
 
   return absl::OkStatus();
+}
+
+static absl::Status ReplacePortOrFifoInstantiationDataOperand(Node* node,
+                                                              Node* value) {
+  if (node->Is<OutputPort>()) {
+    return node->ReplaceOperandNumber(OutputPort::kOperandOperand, value);
+  }
+  XLS_RET_CHECK(node->Is<InstantiationInput>());
+  return node->ReplaceOperandNumber(InstantiationInput::kDataOperand, value);
 }
 
 // Make valid ports (output) for the output channel.
@@ -377,22 +387,10 @@ absl::Status MakeOutputValidPortsForOutputChannels(
 
       XLS_ASSIGN_OR_RETURN(Node * valid, block->MakeNode<NaryOp>(
                                              SourceInfo(), operands, Op::kAnd));
-      if (streaming_output.GetFifoInstantiation().has_value()) {
-        XLS_ASSIGN_OR_RETURN(
-            Node * valid_port,
-            block->MakeNode<xls::InstantiationInput>(
-                streaming_output.GetDataPort().value()->loc(), valid,
-                streaming_output.GetFifoInstantiation().value(), "push_valid"));
-        streaming_output.SetValidPort(valid_port);
-      } else {
-        XLS_ASSIGN_OR_RETURN(
-            Node * valid_port,
-            block->AddOutputPort(
-                absl::StrCat(ChannelRefName(streaming_output.GetChannel()),
-                             valid_suffix),
-                valid));
-        streaming_output.SetValidPort(valid_port);
-      }
+      // The valid port/instantiation-input is already created but is set
+      // to a dummy value.
+      XLS_RETURN_IF_ERROR(ReplacePortOrFifoInstantiationDataOperand(
+          streaming_output.GetValidPort(), valid));
     }
   }
 
@@ -417,25 +415,13 @@ absl::Status MakeOutputReadyPortsForInputChannels(
         XLS_ASSIGN_OR_RETURN(
             ready, block->MakeNode<NaryOp>(SourceInfo(), operands, Op::kAnd));
       }
-      if (streaming_input.GetFifoInstantiation().has_value()) {
-        XLS_ASSIGN_OR_RETURN(
-            Node * ready_port,
-            block->MakeNode<xls::InstantiationInput>(
-                streaming_input.GetDataPort().value()->loc(), ready,
-                streaming_input.GetFifoInstantiation().value(), "pop_ready"));
-        streaming_input.SetReadyPort(ready_port);
-      } else {
-        XLS_ASSIGN_OR_RETURN(
-            Node * ready_port,
-            block->AddOutputPort(
-                absl::StrCat(ChannelRefName(streaming_input.GetChannel()),
-                             ready_suffix),
-                ready));
-        streaming_input.SetReadyPort(ready_port);
-      }
+
+      // The ready port/instantiation-input is already created but is set to a
+      // dummy value.
+      XLS_RETURN_IF_ERROR(ReplacePortOrFifoInstantiationDataOperand(
+          streaming_input.GetReadyPort(), ready));
     }
   }
-
   return absl::OkStatus();
 }
 

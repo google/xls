@@ -29,7 +29,9 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/concurrent_stage_groups.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
@@ -91,6 +93,16 @@ class CloneNodesIntoBlockHandler {
                              int64_t stage_count, const CodegenOptions& options,
                              Block* block);
 
+  // Add ports to the block corresponding to the channels on the interface of
+  // the proc. Should only be called for procs.
+  absl::Status AddChannelPortsAndFifoInstantiations();
+
+  // Adds the block instantiations corresponding to the proc instantiations
+  // within the proc being converted.  Should only be called for procs. This is
+  // a noop if channels are not proc-scoped.
+  absl::Status AddBlockInstantiations(
+      const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks);
+
   // For a given set of sorted nodes, process and clone them into the
   // block.
   absl::Status CloneNodes(absl::Span<Node* const> sorted_nodes, int64_t stage);
@@ -114,6 +126,23 @@ class CloneNodesIntoBlockHandler {
     return concurrent_stages_;
   }
 
+  // Abstraction representing the signals of a channel interface (ports or fifo
+  // instantiation input/outputs).
+  struct ChannelConnection {
+   public:
+    ChannelRef channel;
+    ChannelDirection direction;
+    Node* data;
+    std::optional<Node*> valid;
+    std::optional<Node*> ready;
+
+    // Replaces the value driving the data/ready/valid port with the given
+    // node.
+    absl::Status ReplaceDataSignal(Node* value) const;
+    absl::Status ReplaceValidSignal(Node* value) const;
+    absl::Status ReplaceReadySignal(Node* value) const;
+  };
+
  private:
   // Don't clone state read operations. Instead replace with a RegisterRead
   // operation.
@@ -134,16 +163,13 @@ class CloneNodesIntoBlockHandler {
   //
   // In the case of handling non-blocking receives, the logic to adapt
   // data to a tuple of (data, valid) is added here.
-  absl::StatusOr<Node*> HandleReceiveNode(Node* node, int64_t stage);
+  absl::StatusOr<Node*> HandleReceiveNode(Receive* receive, int64_t stage,
+                                          const ChannelConnection& connection);
 
   // Don't clone Send operations. Instead replace with an OutputPort
   // operation in the block.
-  absl::StatusOr<Node*> HandleSendNode(Node* node, int64_t stage);
-
-  absl::StatusOr<Node*> HandleFifoReceiveNode(
-      Receive* receive, int64_t stage, FifoInstantiation* fifo_instantiation);
-  absl::StatusOr<Node*> HandleFifoSendNode(
-      Send* send, int64_t stage, FifoInstantiation* fifo_instantiation);
+  absl::StatusOr<Node*> HandleSendNode(Send* send, int64_t stage,
+                                       const ChannelConnection& connection);
 
   // Clone the operation from the source to the block as is.
   absl::StatusOr<Node*> HandleGeneralNode(Node* node);
@@ -169,9 +195,6 @@ class CloneNodesIntoBlockHandler {
       std::string_view base_name, Node* node, Stage stage,
       std::vector<PipelineRegister>& pipeline_registers_list);
 
-  absl::StatusOr<std::optional<Channel*>> MaybeGetLoopbackChannel(
-      ChannelNode* node) const;
-
   Block* block() const { return block_; };
 
   bool is_proc_;
@@ -183,8 +206,9 @@ class CloneNodesIntoBlockHandler {
   std::optional<ConcurrentStageGroups> concurrent_stages_;
   StreamingIOPipeline result_;
   absl::flat_hash_map<Node*, Node*> node_map_;
-  absl::flat_hash_map<Proc*, absl::flat_hash_set<Channel*>> loopback_channels_;
-  absl::flat_hash_map<int64_t, xls::Instantiation*> fifo_instantiations_;
+  absl::flat_hash_map<std::pair<std::string, ChannelDirection>,
+                      ChannelConnection>
+      channel_connections_;
 };
 }  // namespace xls::verilog
 

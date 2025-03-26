@@ -18,6 +18,9 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -27,10 +30,12 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -1378,6 +1383,72 @@ TEST_P(PipelineGeneratorTest, ProcScopedChannelsWithLoopbackChannel) {
   // verilog but there is no fifo implementation.
   ExpectEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                           result.verilog_text);
+}
+
+absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
+                                              Package* package) {
+  TokenlessProcBuilder pb(NewStyleProc(), proc_name, "tkn", package);
+  BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+  XLS_ASSIGN_OR_RETURN(
+      ReceiveChannelInterface * in_channel,
+      pb.AddInputChannel("accum_in", package->GetBitsType(32)));
+  BValue input = pb.Receive(in_channel);
+  BValue next_accum = pb.Add(accum, input);
+  XLS_ASSIGN_OR_RETURN(
+      SendChannelInterface * out_channel,
+      pb.AddOutputChannel("accum_out", package->GetBitsType(32)));
+  pb.Send(out_channel, next_accum);
+  return pb.Build({next_accum});
+}
+
+TEST_P(PipelineGeneratorTest, TrivialProcHierarchyWithProcScopedChannels) {
+  // Construct a proc which instantiates two accumulator procs tied in series.
+  Package p(TestBaseName());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc,
+                           CreateNewStyleAccumProc("leaf_proc", &p));
+
+  TokenlessProcBuilder pb(NewStyleProc(), "a_top_proc", "tkn", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_channel,
+                           pb.AddInputChannel("in_ch", p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out_channel,
+                           pb.AddOutputChannel("out_ch", p.GetBitsType(32)));
+
+  XLS_ASSERT_OK(pb.InstantiateProc(
+      "inst", leaf_proc,
+      std::vector<ChannelInterface*>{in_channel, out_channel}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
+  XLS_ASSERT_OK(p.SetTop(top));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(top));
+
+  PackagePipelineSchedules schedules;
+  for (const std::unique_ptr<Proc>& proc : p.procs()) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        RunPipelineSchedule(proc.get(), TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2), &elab));
+    schedules.emplace(proc.get(), std::move(schedule));
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(schedules, &p,
+                           CodegenOptions()
+                               .use_system_verilog(UseSystemVerilog())
+                               .clock_name("clk")
+                               .reset("rst", false, false, false)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  absl::flat_hash_map<std::string, std::vector<Bits>> inputs = {
+      {"in_ch", {UBits(0, 32), UBits(10, 32), UBits(42, 32)}}};
+  absl::flat_hash_map<std::string, std::vector<Bits>> outputs = {
+      {"out_ch", {UBits(0, 32), UBits(10, 32), UBits(52, 32)}}};
+  EXPECT_THAT(simulator.RunInputSeriesProc(inputs, {{"out_ch", 3}}),
+              absl_testing::IsOkAndHolds(outputs));
 }
 
 INSTANTIATE_TEST_SUITE_P(PipelineGeneratorTestInstantiation,

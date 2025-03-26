@@ -4,23 +4,23 @@ module pipelined_proc(
   input wire [31:0] in_data,
   input wire in_valid,
   input wire out_ready,
-  output wire out_valid,
-  output wire in_ready
+  output wire in_ready,
+  output wire out_valid
 );
   reg __out_data_valid_skid_reg;
   wire out_data_from_skid_rdy;
   wire out_data_to_is_not_rdy;
   wire out_data_skid_data_load_en;
   wire out_data_skid_valid_set_zero;
-  wire out_data_valid_or;
   wire p0_stage_done;
+  wire out_data_valid_or;
   wire out_data_skid_valid_load_en;
   assign out_data_from_skid_rdy = ~__out_data_valid_skid_reg;
   assign out_data_to_is_not_rdy = ~out_ready;
   assign out_data_skid_data_load_en = in_valid & out_data_from_skid_rdy & out_data_to_is_not_rdy;
   assign out_data_skid_valid_set_zero = __out_data_valid_skid_reg & out_ready;
-  assign out_data_valid_or = in_valid | __out_data_valid_skid_reg;
   assign p0_stage_done = in_valid & out_data_from_skid_rdy;
+  assign out_data_valid_or = in_valid | __out_data_valid_skid_reg;
   assign out_data_skid_valid_load_en = out_data_skid_data_load_en | out_data_skid_valid_set_zero;
   always_ff @ (posedge clk) begin
     if (rst) begin
@@ -29,6 +29,6 @@ module pipelined_proc(
       __out_data_valid_skid_reg <= out_data_skid_valid_load_en ? out_data_from_skid_rdy : __out_data_valid_skid_reg;
     end
   end
-  assign out_valid = out_data_valid_or;
   assign in_ready = p0_stage_done;
+  assign out_valid = out_data_valid_or;
 endmodule

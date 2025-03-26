@@ -242,7 +242,8 @@ class ProcElaboration {
     return channel_instance_ptrs_;
   }
 
-  // Returns the procs in this elaboration.
+  // Returns the procs in this elaboration. The order of the procs is a
+  // topological sort of the hierarchy with top first.
   absl::Span<Proc* const> procs() const { return procs_; }
 
   // Return all instances of a particular channel/proc.

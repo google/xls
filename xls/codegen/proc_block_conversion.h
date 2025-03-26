@@ -16,10 +16,12 @@
 #define XLS_CODEGEN_PROC_BLOCK_CONVERSION_H_
 
 #include "absl/base/nullability.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/ir/block.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/proc.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
@@ -32,10 +34,12 @@ namespace xls::verilog {
 //  inout - unit:     Metadata for codegen passes.
 //  input - proc:     Function to convert to a pipelined block.
 //  inout - block:    Destination block, should be empty.
-absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
-                                        const CodegenOptions& options,
-                                        CodegenPassUnit& unit, Proc* proc,
-                                        absl::Nonnull<Block*> block);
+//  input - converted_blocks: Blocks converted so far indexed by the
+//                            proc/function the block was created from.
+absl::Status SingleProcToPipelinedBlock(
+    const PipelineSchedule& schedule, const CodegenOptions& options,
+    CodegenPassUnit& unit, Proc* proc, absl::Nonnull<Block*> block,
+    const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks);
 
 }  // namespace xls::verilog
 #endif  // XLS_CODEGEN_PROC_BLOCK_CONVERSION_H_

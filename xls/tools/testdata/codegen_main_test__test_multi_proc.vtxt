@@ -4,9 +4,9 @@ module multi_proc__1(
   input wire [31:0] in,
   input wire in_vld,
   input wire internal_rdy,
+  output wire in_rdy,
   output wire [31:0] internal,
-  output wire internal_vld,
-  output wire in_rdy
+  output wire internal_vld
 );
   reg [31:0] p0_data;
   reg p0_valid;
@@ -53,9 +53,9 @@ module multi_proc__1(
       __internal_valid_reg <= internal_valid_load_en ? p0_valid : __internal_valid_reg;
     end
   end
+  assign in_rdy = in_load_en;
   assign internal = __internal_reg;
   assign internal_vld = __internal_valid_reg;
-  assign in_rdy = in_load_en;
 endmodule
 
 
@@ -65,9 +65,9 @@ module proc1(
   input wire [31:0] internal,
   input wire internal_vld,
   input wire out_rdy,
+  output wire internal_rdy,
   output wire [31:0] out,
-  output wire out_vld,
-  output wire internal_rdy
+  output wire out_vld
 );
   reg [31:0] p0_data;
   reg p0_valid;
@@ -114,9 +114,9 @@ module proc1(
       __out_valid_reg <= out_valid_load_en ? p0_valid : __out_valid_reg;
     end
   end
+  assign internal_rdy = internal_load_en;
   assign out = __out_reg;
   assign out_vld = __out_valid_reg;
-  assign internal_rdy = internal_load_en;
 endmodule
 
 
@@ -130,35 +130,35 @@ module multi_proc(
   output wire [31:0] out,
   output wire out_vld
 );
-  wire instantiation_output_154;
-  wire [31:0] instantiation_output_159;
   wire instantiation_output_160;
+  wire [31:0] instantiation_output_165;
+  wire instantiation_output_166;
+  wire instantiation_output_173;
+  wire [31:0] instantiation_output_177;
+  wire instantiation_output_178;
   wire instantiation_output_167;
   wire [31:0] instantiation_output_171;
   wire instantiation_output_172;
-  wire instantiation_output_161;
-  wire [31:0] instantiation_output_165;
-  wire instantiation_output_166;
 
   // ===== Instantiations
   multi_proc__1 multi_proc__1_inst0 (
     .rst(rst),
     .in(in),
     .in_vld(in_vld),
-    .internal_rdy(instantiation_output_161),
-    .in_rdy(instantiation_output_154),
-    .internal(instantiation_output_159),
-    .internal_vld(instantiation_output_160),
+    .internal_rdy(instantiation_output_167),
+    .in_rdy(instantiation_output_160),
+    .internal(instantiation_output_165),
+    .internal_vld(instantiation_output_166),
     .clk(clk)
   );
   proc1 proc1_inst1 (
     .rst(rst),
-    .internal(instantiation_output_165),
-    .internal_vld(instantiation_output_166),
+    .internal(instantiation_output_171),
+    .internal_vld(instantiation_output_172),
     .out_rdy(out_rdy),
-    .internal_rdy(instantiation_output_167),
-    .out(instantiation_output_171),
-    .out_vld(instantiation_output_172),
+    .internal_rdy(instantiation_output_173),
+    .out(instantiation_output_177),
+    .out_vld(instantiation_output_178),
     .clk(clk)
   );
   xls_fifo_wrapper #(
@@ -170,14 +170,14 @@ module multi_proc(
   ) fifo_internal (
     .clk(clk),
     .rst(rst),
-    .push_data(instantiation_output_159),
-    .push_valid(instantiation_output_160),
-    .pop_ready(instantiation_output_167),
-    .push_ready(instantiation_output_161),
-    .pop_data(instantiation_output_165),
-    .pop_valid(instantiation_output_166)
+    .push_data(instantiation_output_165),
+    .push_valid(instantiation_output_166),
+    .pop_ready(instantiation_output_173),
+    .push_ready(instantiation_output_167),
+    .pop_data(instantiation_output_171),
+    .pop_valid(instantiation_output_172)
   );
-  assign in_rdy = instantiation_output_154;
-  assign out = instantiation_output_171;
-  assign out_vld = instantiation_output_172;
+  assign in_rdy = instantiation_output_160;
+  assign out = instantiation_output_177;
+  assign out_vld = instantiation_output_178;
 endmodule

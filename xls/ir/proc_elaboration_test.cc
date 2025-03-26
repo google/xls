@@ -40,8 +40,8 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
-using ::testing::UnorderedElementsAre;
 
 using ElaborationTest = IrTestBase;
 
@@ -230,7 +230,7 @@ TEST_F(ElaborationTest, ProcInstantiatingProcInstantiatedProcEtc) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));
 
-  EXPECT_THAT(elab.procs(), UnorderedElementsAre(top, proc0, proc1, leaf_proc));
+  EXPECT_THAT(elab.procs(), ElementsAre(top, proc1, proc0, leaf_proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ProcInstance * leaf_inst,
@@ -267,7 +267,7 @@ TEST_F(ElaborationTest, MultipleInstantiations) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));
 
-  EXPECT_THAT(elab.procs(), UnorderedElementsAre(top, middle_proc, leaf_proc));
+  EXPECT_THAT(elab.procs(), ElementsAre(top, middle_proc, leaf_proc));
 
   EXPECT_EQ(elab.GetInstances(leaf_proc).size(), 7);
 
@@ -365,7 +365,7 @@ TEST_F(ElaborationTest, ElaborateOldStyleProc) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::ElaborateOldStylePackage(p.get()));
 
-  EXPECT_THAT(elab.procs(), UnorderedElementsAre(top));
+  EXPECT_THAT(elab.procs(), ElementsAre(top));
 
   ASSERT_EQ(elab.proc_instances().size(), 1);
   absl::Span<ProcInstance* const> proc_instances = elab.GetInstances(top);
@@ -399,7 +399,7 @@ TEST_F(ElaborationTest, ElaborateOldStyleMultiprocNetwork) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::ElaborateOldStylePackage(&p));
 
-  EXPECT_THAT(elab.procs(), UnorderedElementsAre(proc1, proc2, proc3));
+  EXPECT_THAT(elab.procs(), ElementsAre(proc1, proc2, proc3));
 
   ASSERT_EQ(elab.proc_instances().size(), 3);
   EXPECT_EQ(elab.GetInstances(proc1).size(), 1);

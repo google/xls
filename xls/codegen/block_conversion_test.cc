@@ -67,6 +67,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
@@ -6622,6 +6623,60 @@ TEST_F(ProcConversionTestFixture, SimpleFunctionWithProcsPresent) {
   EXPECT_THAT(
       GetOutputPort(top_block),
       m::OutputPort("out", m::Add(m::InputPort("x"), m::InputPort("y"))));
+}
+
+absl::StatusOr<Proc*> CreateNewStyleAccumProc(std::string_view proc_name,
+                                              Package* package) {
+  TokenlessProcBuilder pb(NewStyleProc(), proc_name, "tkn", package);
+  BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
+  XLS_ASSIGN_OR_RETURN(
+      ReceiveChannelInterface * in_channel,
+      pb.AddInputChannel("accum_in", package->GetBitsType(32)));
+  BValue input = pb.Receive(in_channel);
+  BValue next_accum = pb.Add(accum, input);
+  XLS_ASSIGN_OR_RETURN(
+      SendChannelInterface * out_channel,
+      pb.AddOutputChannel("accum_out", package->GetBitsType(32)));
+  pb.Send(out_channel, next_accum);
+  return pb.Build({next_accum});
+}
+
+TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
+  // Construct a proc which instantiates one proc which accumulates its inputs.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * leaf_proc,
+                           CreateNewStyleAccumProc("leaf_proc", p.get()));
+
+  TokenlessProcBuilder pb(NewStyleProc(), "a_top_proc", "tkn", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in_channel,
+                           pb.AddInputChannel("in_ch", p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelInterface * out_channel,
+                           pb.AddOutputChannel("out_ch", p->GetBitsType(32)));
+
+  XLS_ASSERT_OK(pb.InstantiateProc(
+      "inst", leaf_proc,
+      std::vector<ChannelInterface*>{in_channel, out_channel}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top, pb.Build({}));
+  XLS_ASSERT_OK(p->SetTop(top));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(top));
+
+  PackagePipelineSchedules schedules;
+  for (const std::unique_ptr<Proc>& proc : p->procs()) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        RunPipelineSchedule(proc.get(), TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2), &elab));
+    schedules.emplace(proc.get(), std::move(schedule));
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      PackageToPipelinedBlocks(
+          schedules, CodegenOptions().reset("rst", false, false, false),
+          p.get()));
+
+  EXPECT_EQ(unit.package()->blocks().size(), 2);
 }
 
 }  // namespace

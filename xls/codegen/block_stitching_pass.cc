@@ -488,8 +488,10 @@ absl::StatusOr<Block*> AddBlockWithName(
 absl::StatusOr<bool> BlockStitchingPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
-  // No need to stitch blocks when we don't have 2+ blocks.
-  if (unit->package()->blocks().size() < 2) {
+  // No need to stitch blocks when we don't have 2+ blocks or if channels are
+  // proc-scoped.
+  if (unit->package()->blocks().size() < 2 ||
+      unit->package()->ChannelsAreProcScoped()) {
     return false;
   }
 

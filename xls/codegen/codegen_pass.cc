@@ -68,7 +68,7 @@ void CodegenPassUnit::GcMetadata() {
       for (StreamingInput& input : inputs) {
         if (input.GetDataPort().has_value() &&
             !nodes.contains(*input.GetDataPort())) {
-          input.SetDataPort(std::nullopt);
+          input.ClearDataPort();
         }
         if (input.GetSignalData().has_value() &&
             !nodes.contains(*input.GetSignalData())) {

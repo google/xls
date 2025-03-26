@@ -22,8 +22,10 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/concurrent_stage_groups.h"
@@ -106,10 +108,21 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
 absl::StatusOr<StreamingIOPipeline> CloneProcNodesIntoBlock(
     Proc* proc, const CodegenOptions& options, Block* block);
 
+// Adds the nodes in the given schedule to the block. Pipeline registers are
+// inserted between stages and returned as a vector indexed by cycle. The block
+// should be empty prior to calling this function. `converted_blocks` includes
+// all blocks which have been converted from function/procs so far.
+//
+// Returns the resulting pipeline and concurrent stages.
+// TODO google/xls#1324 and google/xls#1300: ideally this wouldn't need to
+// return so much and more of this could be done later or stored directly in the
+// IR.
 absl::StatusOr<
     std::tuple<StreamingIOPipeline, std::optional<ConcurrentStageGroups>>>
-CloneNodesIntoPipelinedBlock(const PipelineSchedule& schedule,
-                             const CodegenOptions& options, Block* block);
+CloneNodesIntoPipelinedBlock(
+    const PipelineSchedule& schedule, const CodegenOptions& options,
+    Block* block,
+    const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks);
 
 // Adds ready/valid ports for each of the given streaming inputs/outputs. Also,
 // adds logic which propagates ready and valid signals through the block.
@@ -123,6 +136,13 @@ absl::Status AddCombinationalFlowControl(
 absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io, Block* block);
 
 absl::StatusOr<std::string> StreamingIOName(Node* node);
+
+// Returns the order in which procs/functions should be converted to blocks. The
+// order is meaningful for proc-scoped channels where conversion must occur
+// bottom up in the tree of proc instantiations. `procs_to_convert` is the set
+// of Procs to convert. `procs_to_convert` must not be specified otherwise.
+absl::StatusOr<std::vector<FunctionBase*>> GetBlockConversionOrder(
+    Package* package, absl::Span<Proc* const> procs_to_convert = {});
 
 }  // namespace xls::verilog
 

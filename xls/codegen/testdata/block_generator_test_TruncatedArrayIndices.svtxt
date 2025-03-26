@@ -18,8 +18,8 @@ module pipelined_proc(
   wire out_data_valid_load_en;
   wire out_data_load_en;
   wire p0_stage_done;
-  wire [32:0] sel_1022;
-  wire [3:0] sel_1023;
+  wire [32:0] sel_1027;
+  wire [3:0] sel_1028;
   wire pipeline_enable;
   wire [6:0] entry;
   assign p0_all_active_inputs_valid = 1'h1;
@@ -29,10 +29,10 @@ module pipelined_proc(
   assign out_data_valid_load_en = out_ready | out_data_valid_inv;
   assign out_data_load_en = __out_valid_buf & out_data_valid_load_en;
   assign p0_stage_done = p0_all_active_states_valid & p0_all_active_inputs_valid & out_data_load_en;
-  assign sel_1022 = __x ? 33'h0_0000_0002 : 33'h0_0000_0001;
-  assign sel_1023 = __z ? 4'h5 : 4'h4;
+  assign sel_1027 = __x ? 33'h0_0000_0002 : 33'h0_0000_0001;
+  assign sel_1028 = __z ? 4'h5 : 4'h4;
   assign pipeline_enable = p0_stage_done & p0_stage_done;
-  assign entry = lookup_table[sel_1022 > 33'h0_0000_0000 ? 1'h0 : sel_1022[0:0]][sel_1023 > 4'h3 ? 2'h3 : sel_1023[1:0]];
+  assign entry = lookup_table[sel_1027 > 33'h0_0000_0000 ? 1'h0 : sel_1027[0:0]][sel_1028 > 4'h3 ? 2'h3 : sel_1028[1:0]];
   always_ff @ (posedge clk) begin
     if (rst) begin
       __x <= 1'h0;

@@ -3,9 +3,9 @@ module pipelined_proc(
   input wire rst,
   input wire in_valid,
   input wire out_ready,
+  output wire in_ready,
   output wire [31:0] out_data,
-  output wire out_valid,
-  output wire in_ready
+  output wire out_valid
 );
   reg __in_data_valid_reg;
   reg __in_data_valid_skid_reg;
@@ -60,7 +60,7 @@ module pipelined_proc(
       __out_data_valid_skid_reg <= out_data_skid_valid_load_en ? out_data_from_skid_rdy : __out_data_valid_skid_reg;
     end
   end
+  assign in_ready = in_data_from_skid_rdy;
   assign out_data = out_data_select;
   assign out_valid = out_data_valid_or;
-  assign in_ready = in_data_from_skid_rdy;
 endmodule
