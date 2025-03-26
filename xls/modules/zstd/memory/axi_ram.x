@@ -108,7 +108,9 @@ proc AxiRamReaderRequester<
         //if ar_bundle_valid {
         //    trace_fmt!("{:#x}", ar_bundle);
         //} else {};
-        let tok = send_if(tok, sync_s, ar_bundle_valid && !ar_bundle_ok, Sync {
+
+        let error = ar_bundle_valid && !ar_bundle_ok;
+        let tok = send_if(tok, sync_s, error, Sync {
             id: ar_bundle.id,
             resp: AxiReadResp::SLVERR,
             last: true,
@@ -156,7 +158,7 @@ proc AxiRamReaderRequester<
             )
         };
 
-        let tok = send_if(tok, sync_s, state.status == Status::READ_BURST, Sync {
+        let tok = send_if(tok, sync_s, !error && state.status == Status::READ_BURST, Sync {
             do_recv_ram_resp: do_read_from_ram,
             read_data_size: read_data_size,
             read_data_offset: read_data_offset,
@@ -707,6 +709,7 @@ proc AxiRamReaderTest {
                         AxiAxBurst::WRAP => {
                             (axi_ar_bundle.addr + j * (u32:1 << (axi_ar_bundle.size as u32))) % (TEST_RAM_SIZE * (TEST_RAM_DATA_W / u32:8))
                         },
+                        _ => fail!("invalid_burst_mode", TestAxiAddr:0),
                     };
                     // create expected data using RAM data
                     let (expected_data, addr_valid) = for (k, (expected_data, addr_valid)): (u32, (uN[TEST_AXI_DATA_W], bool)) in range(u32:0, TEST_AXI_DATA_W / u32:8) {
