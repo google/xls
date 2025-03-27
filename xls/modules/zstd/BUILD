@@ -4111,19 +4111,12 @@ xls_dslx_test(
 match_finder_codegen_args = common_codegen_args | {
     "module_name": "MatchFinder",
     "pipeline_stages": "16",
+    "worst_case_throughput": "2",
 }
 
 xls_dslx_verilog(
     name = "match_finder_verilog",
-    codegen_args = match_finder_codegen_args | {
-        "ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
-            rd_req = "match_finder__ram_read_req_s",
-            rd_resp = "match_finder__ram_read_resp_r",
-            wr_req = "match_finder__ram_write_req_s",
-            wr_resp = "match_finder__ram_write_resp_r",
-        ),
-    },
+    codegen_args = match_finder_codegen_args,
     dslx_top = "MatchFinderInst",
     library = ":match_finder_dslx",
     opt_ir_args = {

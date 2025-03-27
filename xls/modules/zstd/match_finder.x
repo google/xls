@@ -414,7 +414,7 @@ proc MatchFinder<
         let hb_rd_req = HistoryBufferRdReq {
             offset: (state.match_offset + state.match_length) as uN[HB_OFFSET_W],
         };
-        let tok1_15 = send_if(tok0, hb_rd_req_s, state.fsm == FSM::INPUT_READ_NEXT_REQ, hb_rd_req);
+        let tok1_15 = send_if(tok0, hb_rd_req_s, state.fsm == FSM::INPUT_READ_NEXT_REQ && !ht_is_match, hb_rd_req);
 
         // [SEND_RESP]
         let resp = Resp {
