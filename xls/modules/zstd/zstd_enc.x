@@ -91,7 +91,7 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
 
     // parent I/O
     conf_r: chan<Conf> in;
-    enc_resp_s: chan<Resp> out;
+    resp_s: chan<Status> out;
 
     // communication
     bhw_req_s: chan<BlockHeaderWriterReq> out;
@@ -107,18 +107,18 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
         mem_wr_data_s: chan<MemWriterData> out,
         mem_wr_resp_r: chan<MemWriterResp> in,
         conf_r: chan<Conf> in,
-        enc_resp_s: chan<Resp> out,
+        resp_s: chan<Status> out
     ) {
-        let (bhw_req_s, bhw_req_r) = chan<BlockHeaderWriterReq>("bhw_req");
-        let (bhw_resp_s, bhw_resp_r) = chan<BlockHeaderWriterResp>("bhw_resp");
-        let (memcpy_req_s, memcpy_req_r) = chan<RawMemcopyReq>("memcpy_req");
-        let (memcpy_resp_s, memcpy_resp_r) = chan<RawMemcopyResp>("memcpy_resp");
+        let (bhw_req_s, bhw_req_r) = chan<BlockHeaderWriterReq, u32:1>("bhw_req");
+        let (bhw_resp_s, bhw_resp_r) = chan<BlockHeaderWriterResp, u32:1>("bhw_resp");
+        let (memcpy_req_s, memcpy_req_r) = chan<RawMemcopyReq, u32:1>("memcpy_req");
+        let (memcpy_resp_s, memcpy_resp_r) = chan<RawMemcopyResp, u32:1>("memcpy_resp");
 
-        let (n_mem_wr_req_s, n_mem_wr_req_r) = chan<MemWriterReq>[ARBITER_SUBBLOCKS]("n_req");
-        let (n_mem_wr_data_s, n_mem_wr_data_r) = chan<MemWriterData>[ARBITER_SUBBLOCKS]("n_data");
-        let (n_mem_wr_resp_s, n_mem_wr_resp_r) = chan<MemWriterResp>[ARBITER_SUBBLOCKS]("n_resp");
+        let (n_mem_wr_req_s, n_mem_wr_req_r) = chan<MemWriterReq, u32:1>[2]("n_req");
+        let (n_mem_wr_data_s, n_mem_wr_data_r) = chan<MemWriterData, u32:1>[2]("n_data");
+        let (n_mem_wr_resp_s, n_mem_wr_resp_r) = chan<MemWriterResp, u32:1>[2]("n_resp");
 
-        spawn mem_writer_simple_arbiter::MemWriterSimpleArbiter<ADDR_W, DATA_W, ARBITER_SUBBLOCKS>
+        spawn mem_writer_simple_arbiter::MemWriterSimpleArbiter<ADDR_W, DATA_W, u32:2>
         (
             n_mem_wr_req_r, n_mem_wr_data_r, n_mem_wr_resp_s,
             mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r,
@@ -138,7 +138,7 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
         );
 
         (
-            conf_r, enc_resp_s,
+            conf_r, resp_s,
             bhw_req_s, bhw_resp_r,
             memcpy_req_s, memcpy_resp_r
         )
@@ -155,7 +155,7 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
             let conf = state.conf;
             let size = std::min(conf.max_block_size, conf.bytes_left) as BlockSize;
             let last_block: bool = state.conf.bytes_left < conf.max_block_size;
-            let tok = send(tok, bhw_req_s, BlockHeaderWriterReq{
+            let tok1 = send(tok, bhw_req_s, BlockHeaderWriterReq{
                     addr: conf.output_offset,
                     header: BlockHeader {
                         last: last_block,
@@ -165,24 +165,25 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
                 }
             );
             trace_fmt!("writing block header to {:#x}", conf.output_offset);
-            let (tok, resp) = recv(tok, bhw_resp_r);
+            let (tok1, bhw_resp) = recv(tok, bhw_resp_r);
 
-            let status = if resp.status == BlockHeaderWriterStatus::OKAY {
-                let tok = send(tok, memcpy_req_s, RawMemcopyReq {
-                    lit_addr: conf.input_offset,
-                    lit_cnt: size as Data,
-                    out_addr: conf.output_offset + BLOCK_HEADER_LENGTH_BYTES
-                });
-                trace_fmt!("raw copying: {:#x} -> {:#x} (size: {})", conf.input_offset, conf.output_offset + BLOCK_HEADER_LENGTH_BYTES, size);
-                let (tok, resp) = recv(tok, memcpy_resp_r);
-                if resp.status == RawMemcopyRespStatus::OK { Status::OK } else { Status::ERROR }
+            let tok2 = send(tok, memcpy_req_s, RawMemcopyReq {
+                lit_addr: conf.input_offset,
+                lit_cnt: size as Data,
+                out_addr: conf.output_offset + BLOCK_HEADER_LENGTH_BYTES
+            });
+            trace_fmt!("raw copying: {:#x} -> {:#x} (size: {})", conf.input_offset, conf.output_offset + BLOCK_HEADER_LENGTH_BYTES, size);
+            let (tok2, memcpy_resp) = recv(tok2, memcpy_resp_r);
+
+            let status = if memcpy_resp.status == RawMemcopyRespStatus::OK && bhw_resp.status == BlockHeaderWriterStatus::OKAY {
+                Status::OK
             } else {
-                trace_fmt!("failed writing block header");
-                ZstdEncodeRespStatus::ERROR
+                trace_fmt!("failed writing block: {} {}", bhw_resp, memcpy_resp);
+                Status::ERROR
             };
 
             if last_block || status != ZstdEncodeRespStatus::OK {
-                let tok = send(tok, enc_resp_s, ZstdEncodeResp{status});
+                let tok = send(join(tok1, tok2), resp_s, status);
                 zero!<State>()
             } else {
                 let bytes_written = size as Data + BLOCK_HEADER_LENGTH_BYTES;
@@ -211,6 +212,7 @@ pub proc ZstdEncoder<ADDR_W: u32, DATA_W: u32> {
     type Req = ZstdEncodeReq<ADDR_W, DATA_W>;
     type Resp = ZstdEncodeResp;
     type ZstdEncoderBlockWriterConf = ZstdEncoderBlockWriterConf<ADDR_W, DATA_W>;
+    type Status = ZstdEncodeRespStatus;
 
     type FrameHeader = frame_header_dec::FrameHeader;
     type FrameHeaderEncoderReq = frame_header_enc::FrameHeaderEncoderReq<ADDR_W>;
@@ -220,6 +222,9 @@ pub proc ZstdEncoder<ADDR_W: u32, DATA_W: u32> {
     // from
     enc_req: chan<Req> in;
     enc_resp_s: chan<Resp> out;
+
+    bw_resp_r: chan<Status> in;
+
     mem_rd_req_s: chan<MemReaderReq> out;
     mem_rd_resp_r: chan<MemReaderResp> in;
 
@@ -244,14 +249,16 @@ pub proc ZstdEncoder<ADDR_W: u32, DATA_W: u32> {
         mem_wr_data_s: chan<MemWriterData> out,
         mem_wr_resp_r: chan<MemWriterResp> in,
     ) {
-        let (conf_s, conf_r) = chan<ZstdEncoderBlockWriterConf>("conf");
+        let (conf_s, conf_r) = chan<ZstdEncoderBlockWriterConf, u32:1>("conf");
 
-        let (fhw_req_s, fhw_req_r) = chan<FrameHeaderEncoderReq>("bhw_req");
-        let (fhw_resp_s, fhw_resp_r) = chan<FrameHeaderEncoderResp>("bhw_resp");
+        let (fhw_req_s, fhw_req_r) = chan<FrameHeaderEncoderReq, u32:1>("bhw_req");
+        let (fhw_resp_s, fhw_resp_r) = chan<FrameHeaderEncoderResp, u32:1>("bhw_resp");
 
-        let (n_mem_wr_req_s, n_mem_wr_req_r) = chan<MemWriterReq>[ARBITER_SUBBLOCKS]("n_req");
-        let (n_mem_wr_data_s, n_mem_wr_data_r) = chan<MemWriterData>[ARBITER_SUBBLOCKS]("n_data");
-        let (n_mem_wr_resp_s, n_mem_wr_resp_r) = chan<MemWriterResp>[ARBITER_SUBBLOCKS]("n_resp");
+        let (n_mem_wr_req_s, n_mem_wr_req_r) = chan<MemWriterReq, u32:1>[ARBITER_SUBBLOCKS]("n_req");
+        let (n_mem_wr_data_s, n_mem_wr_data_r) = chan<MemWriterData, u32:1>[ARBITER_SUBBLOCKS]("n_data");
+        let (n_mem_wr_resp_s, n_mem_wr_resp_r) = chan<MemWriterResp, u32:1>[ARBITER_SUBBLOCKS]("n_resp");
+
+        let (bw_resp_s, bw_resp_r) = chan<Status, u32:1>("bw_resp");
 
         spawn mem_writer_simple_arbiter::MemWriterSimpleArbiter<ADDR_W, DATA_W, ARBITER_SUBBLOCKS>
         (
@@ -269,11 +276,12 @@ pub proc ZstdEncoder<ADDR_W: u32, DATA_W: u32> {
         (
             mem_rd_req_s, mem_rd_resp_r,
             n_mem_wr_req_s[1], n_mem_wr_data_s[1], n_mem_wr_resp_r[1],
-            conf_r, enc_resp_s
+            conf_r, bw_resp_s
         );
 
         (
             enc_req_r, enc_resp_s,
+            bw_resp_r,
             mem_rd_req_s, mem_rd_resp_r,
             mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r,
             conf_s, fhw_req_s, fhw_resp_r,
@@ -309,6 +317,8 @@ pub proc ZstdEncoder<ADDR_W: u32, DATA_W: u32> {
                 output_offset: request.output_offset + resp.length as uN[ADDR_W],
                 max_block_size: request.max_block_size
             });
+            let (tok, status) = recv(tok, bw_resp_r);
+            send(tok, enc_resp_s, ZstdEncodeResp{status: status});
         };
     }
 }

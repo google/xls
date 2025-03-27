@@ -4774,3 +4774,67 @@ xls_dslx_test(
         "//xls/modules/zstd/memory:axi_ram_writer_dslx",
     ]
 )
+
+zstd_encoder_codegen_args = common_codegen_args | {
+    "module_name": "ZstdEncoder",
+    "worst_case_throughput": "3",
+}
+
+xls_dslx_verilog(
+    name = "zstd_encoder_verilog",
+    codegen_args = zstd_encoder_codegen_args,
+    dslx_top = "ZstdEncoderInst",
+    library = ":zstd_encoder_dslx",
+    tags = ["manual"],
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__zstd_enc__ZstdEncoderInst__ZstdEncoder_0__32_32_next",
+    },
+    verilog_file = "zstd_enc.v",
+)
+
+xls_benchmark_ir(
+    name = "zstd_encoder_opt_ir_benchmark",
+    src = ":zstd_encoder_verilog.opt.ir",
+    benchmark_ir_args = zstd_encoder_codegen_args | {
+        "inline_procs": "true",
+        "top": "__zstd_enc__ZstdEncoderInst__ZstdEncoder_0__32_32_next",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "zstd_encoder_verilog_lib",
+    srcs = [
+        ":zstd_enc.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "zstd_encoder_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "ZstdEncoder",
+    deps = [
+        ":zstd_encoder_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "zstd_encoder_benchmark_synth",
+    synth_target = ":zstd_encoder_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "zstd_encoder_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":zstd_encoder_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
