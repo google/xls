@@ -46,8 +46,6 @@
 namespace xls::dslx {
 namespace {
 
-// TODO: erinzmoore - Use `GetEffectiveTable()` for inference table usage
-// throughout.
 class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
  public:
   TypeAnnotationResolverImpl(
@@ -104,7 +102,19 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       return ResolveAndUnifyTypeAnnotations(parametric_context, *type_variable,
                                             *node_span, accept_predicate);
     } else {
-      return table_.GetTypeAnnotation(node);
+      std::optional<const TypeAnnotation*> annotation =
+          table_.GetTypeAnnotation(node);
+      // If the annotation belongs to a different module, send through
+      // unification to potentially create a copy in this module.
+      if (annotation.has_value() && (*annotation)->owner() != &module_) {
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* result,
+            ResolveAndUnifyTypeAnnotations(parametric_context, {*annotation},
+                                           *node->GetSpan(), accept_predicate));
+        return result;
+      }
+
+      return annotation;
     }
   }
 
@@ -116,10 +126,8 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     TypeSystemTrace trace = tracer_.TraceUnify(type_variable);
     VLOG(6) << "Unifying type annotations for variable "
             << type_variable->ToString();
-    InferenceTable& effective_table =
-        GetEffectiveTable(table_, parametric_context);
     XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
-                         effective_table.GetTypeAnnotationsForTypeVariable(
+                         table_.GetTypeAnnotationsForTypeVariable(
                              parametric_context, type_variable));
     if (accept_predicate.has_value()) {
       FilterAnnotations(annotations, *accept_predicate);

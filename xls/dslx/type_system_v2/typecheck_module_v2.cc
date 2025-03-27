@@ -1637,9 +1637,9 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
 
   XLS_ASSIGN_OR_RETURN(std::filesystem::path builtins_path, BuiltinStubsPath());
   std::unique_ptr<ModuleInfo> builtins_module_info =
-      std::make_unique<ModuleInfo>(
-          std::move(builtins_module), builtins_type_info, builtins_path,
-          std::move(builtins_table), std::move(builtins_converter));
+      std::make_unique<ModuleInfo>(std::move(builtins_module),
+                                   builtins_type_info, builtins_path,
+                                   std::move(builtins_converter));
   XLS_RETURN_IF_ERROR(
       import_data->Put(builtin_tokens, std::move(builtins_module_info))
           .status());

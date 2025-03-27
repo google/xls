@@ -287,7 +287,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // we skip it.
       return absl::OkStatus();
     }
-    if (node->owner()->name() != module_.name()) {
+    if (!parametric_context.has_value() &&
+        node->owner()->name() != module_.name()) {
       VLOG(5) << "Wrong module in ConvertSubtree; delegating to converter for  "
               << node->owner()->name();
       XLS_ASSIGN_OR_RETURN(
@@ -532,16 +533,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // The parametric invocation now gets its own data structure set up in both
     // the `InferenceTable` and the `TypeInfo` hierarchy.
 
-    // If the callee is in a different table, use that table to add the
-    // parametric invocation.
-    std::optional<InferenceTable*> callee_table = std::nullopt;
-    if (function->owner()->name() != module_.name()) {
-      XLS_ASSIGN_OR_RETURN(ImportTokens tokens,
-                           ImportTokens::FromString(function->owner()->name()));
-      XLS_ASSIGN_OR_RETURN(ModuleInfo * info, import_data_.Get(tokens));
-      callee_table = info->inference_table();
-    }
-
     XLS_ASSIGN_OR_RETURN(
         const ParametricContext* invocation_context,
         table_.AddParametricInvocation(
@@ -549,8 +540,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             function_and_target_object.target_struct_context.has_value()
                 ? (*function_and_target_object.target_struct_context)
                       ->self_type()
-                : std::nullopt,
-            callee_table));
+                : std::nullopt));
     XLS_ASSIGN_OR_RETURN(
         TypeInfo * invocation_type_info,
         import_data_.type_info_owner().New(
@@ -1699,8 +1689,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return absl::OkStatus();
     };
 
-    InferenceTable& effective_table =
-        GetEffectiveTable(table_, invocation_context);
     for (int i = 0; i < invocation_context->parametric_bindings().size(); i++) {
       const ParametricBinding* binding =
           invocation_context->parametric_bindings()[i];
@@ -1712,15 +1700,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         ExprOrType actual_parametric_type =
             invocation->explicit_parametrics()[i];
         XLS_RETURN_IF_ERROR(
-            effective_table.AddTypeAnnotationToVariableForParametricContext(
+            table_.AddTypeAnnotationToVariableForParametricContext(
                 invocation_context, binding,
                 std::get<TypeAnnotation*>(actual_parametric_type)));
         continue;
       }
 
       std::optional<ParametricContextScopedExpr> expr =
-          effective_table.GetParametricValue(*binding->name_def(),
-                                             *invocation_context);
+          table_.GetParametricValue(*binding->name_def(), *invocation_context);
       if (expr.has_value()) {
         // The expr may be a default expr which may use the inferred values of
         // any parametrics preceding it, so let's resolve any pending implicit
@@ -1754,8 +1741,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const ParametricBinding* binding = bindings.at(name);
       XLS_ASSIGN_OR_RETURN(
           Number * value_expr,
-          MakeTypeCheckedNumber(module_, effective_table, binding->span(),
-                                value, binding->type_annotation()));
+          MakeTypeCheckedNumber(module_, table_, binding->span(), value,
+                                binding->type_annotation()));
       actual_parametrics.emplace(binding->name_def(), value_expr);
     }
     if (callee_struct_context.has_value()) {
@@ -1934,10 +1921,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           values.emplace(binding->identifier(), std::move(value));
         } else {
           CHECK(target_context.has_value());
-          InferenceTable& effective_table =
-              GetEffectiveTable(table_, target_context);
           XLS_RETURN_IF_ERROR(
-              effective_table.AddTypeAnnotationToVariableForParametricContext(
+              table_.AddTypeAnnotationToVariableForParametricContext(
                   target_context, binding,
                   std::get<const TypeAnnotation*>(value_or_type)));
         }
