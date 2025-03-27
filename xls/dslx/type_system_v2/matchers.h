@@ -15,9 +15,11 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_MATCHERS_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_MATCHERS_H_
 
+#include <cstddef>
 #include <string>
 
 #include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -30,12 +32,47 @@ namespace xls::dslx {
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
+class HasRepeatedSubstrMatcher
+    : public ::testing::internal::HasSubstrMatcher<std::string> {
+ public:
+  HasRepeatedSubstrMatcher(const std::string& substring, size_t n)
+      : ::testing::internal::HasSubstrMatcher<std::string>(substring),
+        substring_(substring),
+        n_(n) {}
+
+  bool MatchAndExplain(const std::string& s,
+                       ::testing::MatchResultListener* /* listener */) const {
+    size_t pos = 0;
+    for (size_t i = 0; i < n_; i++) {
+      pos = s.find(substring_, pos);
+      if (pos == std::string::npos) {
+        return false;
+      }
+      pos += substring_.size();
+    }
+    return true;
+  }
+
+ private:
+  // substring_ is private in HasSubstrMatcher so we have to duplicate it here
+  // to use.
+  const std::string substring_;
+  const size_t n_;
+};
+
 // Verifies that a type info string contains the given node string and type
 // string combo.
 MATCHER_P2(HasNodeWithType, node, type, "") {
   return ExplainMatchResult(
       HasSubstr(absl::Substitute("node: `$0`, type: $1", node, type)), arg,
       result_listener);
+}
+
+MATCHER_P3(HasRepeatedNodeWithType, node, type, n, "") {
+  return ExplainMatchResult(
+      ::testing::MakePolymorphicMatcher(HasRepeatedSubstrMatcher(
+          absl::Substitute("node: `$0`, type: $1", node, type), n)),
+      arg, result_listener);
 }
 
 // Verifies the type produced by `TypecheckV2`, for the topmost node only, in a

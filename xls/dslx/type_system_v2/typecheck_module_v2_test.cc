@@ -5470,12 +5470,7 @@ fn foo() {
 )",
       TypecheckSucceeds(AllOf(
           HasNodeWithType("X", "uN[32]"), HasNodeWithType("Y", "uN[32][20]"),
-          HasSubstr(
-              R"(span: fake.x:8:5-8:19, node: `let C = B + i;`, type: uN[32]
-span: fake.x:8:5-8:19, node: `let C = B + i;`, type: uN[32]
-span: fake.x:8:5-8:19, node: `let C = B + i;`, type: uN[32]
-span: fake.x:8:5-8:19, node: `let C = B + i;`, type: uN[32]
-span: fake.x:8:5-8:19, node: `let C = B + i;`, type: uN[32])"))));
+          HasRepeatedNodeWithType("let C = B + i;", "uN[32]", 5))));
 }
 
 TEST(TypecheckV2Test, UnrollForNested) {
@@ -5495,17 +5490,7 @@ fn foo() {
 )",
       TypecheckSucceeds(AllOf(
           HasNodeWithType("X", "uN[32]"), HasNodeWithType("Z", "uN[32][567]"),
-          HasSubstr(
-              R"(span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
-span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
-span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
-span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
-span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
-span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
-span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
-span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
-span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32]
-span: fake.x:7:7-7:21, node: `let i = i + j;`, type: uN[32])"))));
+          HasRepeatedNodeWithType("let i = i + j;", "uN[32]", 10))));
 }
 
 TEST(TypecheckV2Test, UnrollForCompositeType) {
@@ -5524,10 +5509,9 @@ fn foo() {
       TypecheckSucceeds(AllOf(
           HasNodeWithType("X", "St { x: uN[32], y: sN[64] }"),
           HasNodeWithType("Y", "uN[32][21]"),
-          HasSubstr(
-              R"(span: fake.x:9:8-9:64, node: `St { x: a.x + (i as u32), y: a.y + (j as s64) + (k as s64) }`, type: St { x: uN[32], y: sN[64] }
-span: fake.x:9:8-9:64, node: `St { x: a.x + (i as u32), y: a.y + (j as s64) + (k as s64) }`, type: St { x: uN[32], y: sN[64] }
-span: fake.x:9:8-9:64, node: `St { x: a.x + (i as u32), y: a.y + (j as s64) + (k as s64) }`, type: St { x: uN[32], y: sN[64] })"))));
+          HasRepeatedNodeWithType(
+              "St { x: a.x + (i as u32), y: a.y + (j as s64) + (k as s64) }",
+              "St { x: uN[32], y: sN[64] }", 3))));
 }
 
 TEST(TypecheckV2Test, UnrollForNoReturnValue) {
@@ -5539,12 +5523,7 @@ fn foo() {
   } (());
 }
 )",
-      TypecheckSucceeds(
-          HasSubstr(R"(span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32]
-span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32]
-span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32]
-span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32]
-span: fake.x:6:5-6:15, node: `let _ = i;`, type: uN[32])")));
+      TypecheckSucceeds(HasRepeatedNodeWithType("let _ = i;", "uN[32]", 5)));
 }
 
 TEST(TypecheckV2Test, SpawnBasicProc) {
