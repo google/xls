@@ -5494,6 +5494,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       return absl::UnimplementedError(
           ErrorMessage(loc, "Unimplemented C++17 if initializers"));
     }
+    auto orig_vars = context().variables;
     if (ifst->getThen() != nullptr) {
       PushContextGuard context_guard(*this, cond.rvalue(), loc);
       XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getThen(), ctx));
@@ -5501,6 +5502,14 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     if (ifst->getElse() != nullptr) {
       PushContextGuard context_guard(*this, context().fb->Not(cond.rvalue()),
                                      loc);
+      // Avoid complexifying expressions on variables set in previous
+      // if-blocks.
+      for (auto& [name, cval] : context().variables) {
+        if (!orig_vars.contains(name)) {
+          continue;
+        }
+        context().variables[name] = orig_vars.at(name);
+      }
       XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getElse(), ctx));
     }
   } else if (auto forst = clang::dyn_cast<const clang::ForStmt>(stmt)) {
