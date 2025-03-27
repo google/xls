@@ -523,8 +523,9 @@ BlockJitContinuation::BlockJitContinuation(
     const JittedFunctionBase& jit_func)
     : metadata_(metadata),
       block_jit_(jit),
-      register_buffers_memory_{jit_func.CreateInputBuffer(),
-                               jit_func.CreateInputBuffer()},
+      // Force registers to start out as zeros to match block-interpreter.
+      register_buffers_memory_{jit_func.CreateInputBuffer(/*zero=*/true),
+                               jit_func.CreateInputBuffer(/*zero=*/true)},
       input_port_buffers_memory_(jit_func.CreateInputBuffer()),
       output_port_buffers_memory_(jit_func.CreateOutputBuffer()),
       input_buffers_(MakeCombinedBuffers(jit_func, metadata_,

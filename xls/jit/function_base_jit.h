@@ -104,7 +104,9 @@ class JittedFunctionBase {
       std::optional<JitFunctionType> packed_entrypoint = std::nullopt);
 
   // Create a buffer with space for all inputs, correctly aligned.
-  JitArgumentSet CreateInputBuffer() const;
+  //
+  // If 'zero' then zero initialize the buffer contents.
+  JitArgumentSet CreateInputBuffer(bool zero = false) const;
 
   // Create a buffer with space for all outputs, correctly aligned.
   JitArgumentSet CreateOutputBuffer() const;

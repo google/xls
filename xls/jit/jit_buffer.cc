@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iterator>
 #include <memory>
 #include <type_traits>
@@ -39,7 +40,8 @@ using AlignedPtr = std::unique_ptr<uint8_t[], DeleteAligned>;
 // This allocates the actual memory that's used in the jit-argument-set and
 // returns it and the pointers into it that make up each argument.
 std::pair<AlignedPtr, std::vector<uint8_t*>> AllocateAlignedBuffer(
-    absl::Span<int64_t const> sizes, absl::Span<int64_t const> alignments) {
+    absl::Span<int64_t const> sizes, absl::Span<int64_t const> alignments,
+    bool zero = false) {
   static_assert(sizeof(int64_t) >= sizeof(intptr_t),
                 "More than 64 bit pointers");
   CHECK_EQ(sizes.size(), alignments.size());
@@ -64,6 +66,9 @@ std::pair<AlignedPtr, std::vector<uint8_t*>> AllocateAlignedBuffer(
       absl::bit_cast<uint8_t*>(AllocateAligned(max_align, total_size));
   CHECK(buffer != nullptr) << "Unable to allocate. align:" << max_align
                            << " size: " << total_size;
+  if (zero) {
+    memset(buffer, 0, total_size);
+  }
   ptrs.reserve(offsets.size());
   absl::c_transform(offsets, std::back_inserter(ptrs),
                     [&](int64_t p) { return buffer + p; });
@@ -73,8 +78,9 @@ std::pair<AlignedPtr, std::vector<uint8_t*>> AllocateAlignedBuffer(
 
 JitArgumentSet JitArgumentSet::CreateInput(const JittedFunctionBase* source,
                                            absl::Span<int64_t const> aligns,
-                                           absl::Span<int64_t const> sizes) {
-  auto [buf, ptr] = AllocateAlignedBuffer(sizes, aligns);
+                                           absl::Span<int64_t const> sizes,
+                                           bool zero) {
+  auto [buf, ptr] = AllocateAlignedBuffer(sizes, aligns, zero);
   return JitArgumentSet(source, std::move(buf), std::move(ptr),
                         /*is_inputs=*/true, /*is_outputs=*/false);
 }

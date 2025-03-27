@@ -1255,9 +1255,9 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
 
 }  // namespace
 
-JitArgumentSet JittedFunctionBase::CreateInputBuffer() const {
+JitArgumentSet JittedFunctionBase::CreateInputBuffer(bool zero) const {
   return JitArgumentSet::CreateInput(this, input_buffer_preferred_alignments(),
-                                     input_buffer_sizes());
+                                     input_buffer_sizes(), zero);
 }
 JitArgumentSet JittedFunctionBase::CreateOutputBuffer() const {
   return JitArgumentSet::CreateOutput(

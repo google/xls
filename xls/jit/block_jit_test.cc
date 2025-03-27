@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "gmock/gmock.h"
@@ -47,6 +48,8 @@ namespace {
 using ::absl_testing::StatusIs;
 using ::testing::ContainsRegex;
 using ::testing::ElementsAre;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 class BlockJitTest : public IrTestBase {};
 TEST_F(BlockJitTest, ConstantToPort) {
@@ -275,6 +278,37 @@ TEST_F(BlockJitTest, ErrorOnUnhandledNameCollision) {
               absl_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::HasSubstr("Multiple blocks have the same name")));
+}
+
+// TODO(allight): This is the current explicit behavior of the block-evaluator
+// api and to reduce surprise also the direct JIT apis. We might want to
+// consider if we should change it however since it might be different from the
+// actual synthesized verilog behavior.
+TEST_F(BlockJitTest, RegistersAreInitiallyZero) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto r1,
+                           bb.block()->AddRegister("test1", p->GetBitsType(16),
+                                                   Value(UBits(1234, 16))));
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  BValue reset_port = bb.ResetPort(
+      "reset", ResetBehavior{.asynchronous = false, .active_low = false});
+  bb.OutputPort("out", bb.RegisterRead(r1));
+  bb.RegisterWrite(r1, bb.InputPort("in", p->GetBitsType(16)),
+                   /*load_enable=*/std::nullopt, reset_port);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(blk));
+  std::unique_ptr<BlockJitContinuation> continuation = jit->NewContinuation();
+  EXPECT_THAT(continuation->GetRegistersMap(),
+              UnorderedElementsAre(Pair("test1", Value(UBits(0, 16)))));
+  XLS_ASSERT_OK(
+      continuation->SetInputPorts(absl::flat_hash_map<std::string, Value>{
+          {"in", Value(UBits(12, 16))}, {"reset", Value(UBits(1, 1))}}));
+  XLS_ASSERT_OK(jit->RunOneCycle(*continuation));
+  EXPECT_THAT(continuation->GetOutputPortsMap(),
+              UnorderedElementsAre(Pair("out", Value(UBits(0, 16)))));
+  EXPECT_THAT(continuation->GetRegistersMap(),
+              UnorderedElementsAre(Pair("test1", Value(UBits(1234, 16)))));
 }
 
 struct RegInput {

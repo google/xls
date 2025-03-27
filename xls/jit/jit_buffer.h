@@ -82,9 +82,12 @@ class JitArgumentSet {
   // Create an argument set with the given alignments and sizes. NB Should only
   // be called by jit-code. The passed in sizes and alignments are not checked
   // against the source.
+  //
+  // If zero then zero-initialize the buffers.
   static JitArgumentSet CreateInput(const JittedFunctionBase* source,
                                     absl::Span<int64_t const> aligns,
-                                    absl::Span<int64_t const> sizes);
+                                    absl::Span<int64_t const> sizes,
+                                    bool zero = false);
   // Create an argument set with the given alignments and sizes. NB Should only
   // be called by jit-code. The passed in sizes and alignments are not checked
   // against the source.

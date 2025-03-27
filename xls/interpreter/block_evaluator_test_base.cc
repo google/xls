@@ -1521,6 +1521,59 @@ TEST_P(BlockEvaluatorTest, TypeChecksRegister) {
   EXPECT_THAT(result, Not(IsOk()));
 }
 
+// TODO(allight): This is the current explicit behavior of the block-evaluator
+// api and to reduce surprise also the direct JIT apis. We might want to
+// consider if we should change it however since really the values are Xs and
+// the difference can be visible in some circumstances.
+TEST_P(BlockEvaluatorTest, InitialRegisterValueIsZero) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto r1,
+                           bb.block()->AddRegister("test1", p->GetBitsType(16),
+                                                   Value(UBits(1234, 16))));
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  BValue reset = bb.ResetPort(
+      "reset", ResetBehavior{.asynchronous = false, .active_low = false});
+  bb.OutputPort("out", bb.RegisterRead(r1));
+  bb.RegisterWrite(r1, bb.Literal(UBits(0xbeef, 16)),
+                   /*load_enable=*/bb.Literal(UBits(0, 1)), reset);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(blk));
+  XLS_ASSERT_OK(cont->RunOneCycle({{"reset", Value(UBits(0, 1))}}));
+  EXPECT_THAT(cont->registers(),
+              UnorderedElementsAre(Pair("test1", Value(UBits(0, 16)))));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(0, 16)))));
+}
+
+// TODO(allight): This is the current explicit behavior of the block-evaluator
+// api and to reduce surprise also the direct JIT apis. We might want to
+// consider if we should change it however since really the values are Xs and
+// the difference can be visible in some circumstances.
+TEST_P(BlockEvaluatorTest, OutputPortsGetStartValue) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto r1,
+                           bb.block()->AddRegister("test1", p->GetBitsType(16),
+                                                   Value(UBits(1234, 16))));
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  BValue reset_port = bb.ResetPort(
+      "reset", ResetBehavior{.asynchronous = false, .active_low = false});
+  bb.OutputPort("out", bb.RegisterRead(r1));
+  bb.RegisterWrite(r1, bb.InputPort("in", p->GetBitsType(16)),
+                   /*load_enable=*/std::nullopt, reset_port);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(blk));
+  EXPECT_THAT(cont->registers(),
+              UnorderedElementsAre(Pair("test1", Value(UBits(0, 16)))));
+  XLS_ASSERT_OK(cont->RunOneCycle(
+      {{"in", Value(UBits(0, 16))}, {"reset", Value(UBits(1, 1))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(0, 16)))));
+  EXPECT_THAT(cont->registers(),
+              UnorderedElementsAre(Pair("test1", Value(UBits(1234, 16)))));
+}
+
 TEST_P(BlockEvaluatorTest, SetRegistersContinuation) {
   auto package = CreatePackage();
   BlockBuilder b(TestName(), package.get());
