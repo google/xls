@@ -1,4 +1,4 @@
-// Copyright 2024 The XLS Authors
+// Copyright 2024-2025 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,21 +13,77 @@
 // limitations under the License.
 
 // This file contains implementation of MatchFinder
+//
+// # Match Finder Processing Logic
+//
+// 1. If the symbol is already in the hash table (i.e., it was seen before), then:
+//     1.1 Compare the sequence in the history buffer (starting after the previous occurrence of the symbol)
+//         with the current sequence in memory.
+//     1.2 If a match is found (i.e., the sequences are equal up to some point),
+//         and the match is at least as long as the configured minimum:
+//             1.2.1 Emit a sequence (A, B, C) where:
+//                 A - literals collected since the last match
+//                 B - offset of the match (from the hash table)
+//                 C - length of the match
+//
+// 2. If no valid match is found (either not long enough or the symbol is new),
+//    add the current symbol to the hash table.
+//
+// 3. Copy all processed symbols from memory into the history buffer.
+//
+// 4. After processing the last symbol, if it wasn’t part of a match,
+//    emit a final sequence for the remaining (trailing) literals.
+// ---
+//
+// ## Example
+//
+// - Minimum match length: 3
+// - Input symbols: [1, 2, 8, 5, 6, 1, 8, 5, 6, 9]
+//
+// 1. The first few symbols are all new, so they are added to literals.
+//    - Literals: [1, 2, 8, 5, 6]
+//    - Sequences: []
+//
+// 2. At index 5, the symbol `1` is seen again.
+//    - Check for a match in the history buffer:
+//      - History: [1, 2, 8, 5, 6], current: [1, 8, 5, 6...]
+//      - Only the first symbol matches (match length = 1), which is below the minimum.
+//    - So, `1` is added to literals.
+//    - Literals: [1, 2, 8, 5, 6, 1]
+//    - Sequences: []
+//
+// 3. At index 6, the symbol `8` is seen again.
+//    - Matching sequence found: [8, 5, 6] (length = 3)
+//    - A sequence is emitted:
+//      - Offset: 6 (index of current `8`)
+//      - Match start: index 3 (prior occurrence of `8`)
+//      - Match length: 3
+//    - Literals: [1, 2, 8, 5, 6, 1]
+//    - Sequences: [(6, 4, 3)]
+//
+// 4. At index 9, symbol `9` is new and added to literals.
+//    - It's the last symbol, so trailing literals are flushed.
+//    - A dummy sequence is added to mark the trailing literal.
+//    - Literals: [1, 2, 8, 5, 6, 1, 9]
+//    - Sequences: [(6, 4, 3), (1, 0, 0)]
 
 import std;
 
-import xls.examples.ram as ram;
-import xls.modules.zstd.common as common;
-import xls.modules.zstd.memory.mem_reader as mem_reader;
-import xls.modules.zstd.memory.mem_writer as mem_writer;
-import xls.modules.zstd.memory.axi as axi;
-import xls.modules.zstd.memory.axi_ram_reader as axi_ram_reader;
-import xls.modules.zstd.history_buffer as history_buffer;
-import xls.modules.zstd.hash_table as hash_table;
-import xls.modules.zstd.aligned_parallel_ram as aligned_parallel_ram;
+import xls.examples.ram;
+import xls.modules.zstd.common;
+import xls.modules.zstd.memory.mem_reader;
+import xls.modules.zstd.memory.mem_writer;
+import xls.modules.zstd.memory.axi;
+import xls.modules.zstd.memory.axi_ram_reader;
+import xls.modules.zstd.memory.axi_ram_writer;
+import xls.modules.zstd.history_buffer;
+import xls.modules.zstd.hash_table;
+import xls.modules.zstd.aligned_parallel_ram;
+import xls.modules.zstd.mem_reader_simple_arbiter;
+import xls.modules.zstd.mem_writer_simple_arbiter;
 
-
-const SYMBOL_WIDTH = common::SYMBOL_WIDTH;
+// for now assuming KEY_WIDTH = DATA_W
+const KEY_WIDTH = common::SYMBOL_WIDTH * u32:8;
 
 struct ZstdParams<HT_SIZE_W: u32> {
     num_entries_log2: uN[HT_SIZE_W],
@@ -35,13 +91,7 @@ struct ZstdParams<HT_SIZE_W: u32> {
 
 enum MatchFinderRespStatus : u1 {
     OK = 0,
-    FAIL = 1,
-}
-
-struct MatchFinderSequence {
-    literals_len: u16,
-    match_offset: u16,
-    match_len: u16,
+    ERROR = 1,
 }
 
 pub struct MatchFinderReq<HT_SIZE_W: u32, ADDR_W: u32> {
@@ -58,171 +108,280 @@ pub struct MatchFinderResp {
     seq_cnt: u32, // number of sequences
 }
 
-struct MatchFinderInputBufferReq<ADDR_W: u32> {
+struct MatchFinderInternalLoopState<
+    ADDR_W: u32,
+    HT_SIZE_W: u32,
+> {
+    active: bool,
+    lit_addr_offset: uN[ADDR_W],
+    seq_addr_offset: uN[ADDR_W],
+    lit_cnt: u32,
+    seq_cnt: u32,
+    lit_since_last_sequence: u32,
+
+    current_input_addr: uN[ADDR_W],
+    output_lit_addr: uN[ADDR_W],
+    output_seq_addr: uN[ADDR_W],
+    num_entries_log2: uN[HT_SIZE_W],
+    remaining_size: uN[ADDR_W],
+}
+
+struct MatchFinderInternalHistoryCompareConf<
+    ADDR_W: u32,
+    HB_OFFSET_W: u32
+>{
+    current_hb_offset: uN[HB_OFFSET_W],
+    current_input_addr: uN[ADDR_W],
+}
+
+struct MatchFinderInternalHistoryCompareResp{
+    match_found: bool,
+    match_length: u32,
+    last: bool
+}
+
+struct MatchFinderInternalHistoryCompareState<
+    ADDR_W: u32,
+    HB_OFFSET_W: u32
+> {
+    active: bool,
+    conf: MatchFinderInternalHistoryCompareConf<ADDR_W, HB_OFFSET_W>,
+    match_length: u32,
+}
+
+struct MatchFinderInternalLiteralCopyConf<ADDR_W: u32> {
     input_addr: uN[ADDR_W],
-    input_size: uN[ADDR_W],
+    output_addr: uN[ADDR_W],
+    size: uN[ADDR_W],
+    move_literals: bool,
 }
 
-struct MatchFinderInputBufferResp {
-    data: uN[SYMBOL_WIDTH],
-    last: bool,
+struct MatchFinderInternalLiteralCopyState<ADDR_W: u32> {
+    active: bool,
+    conf: MatchFinderInternalLiteralCopyConf<ADDR_W>,
 }
 
-struct MatchFinderInputBufferState<
-    ADDR_W: u32, DATA_W: u32,
-    DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)},
-> {
-    addr: uN[ADDR_W],
-    left_to_read: uN[ADDR_W],
-    buffer: uN[DATA_W],
-    buffer_len: uN[DATA_W_LOG2],
-}
 
-proc MatchFinderInputBuffer<
-    ADDR_W: u32, DATA_W: u32,
-    DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)},
-> {
+proc MatchFinderInternalLiteralCopy<
+    ADDR_W: u32, DATA_W: u32, HB_SIZE: u32, MIN_SEQ_LEN: u32,
+    HB_DATA_W: u32 = {KEY_WIDTH},
+    HB_OFFSET_W: u32 = {std::clog2(HB_SIZE)}
+>
+{
+    type State = MatchFinderInternalLiteralCopyState<ADDR_W>;
+    type Config = MatchFinderInternalLiteralCopyConf<ADDR_W>;
+
+    type HistoryBufferRdReq = history_buffer::HistoryBufferReadReq<HB_OFFSET_W>;
+    type HistoryBufferRdResp = history_buffer::HistoryBufferReadResp<HB_DATA_W>;
+    type HistoryBufferWrReq = history_buffer::HistoryBufferWriteReq<HB_DATA_W>;
+    type HistoryBufferWrResp = history_buffer::HistoryBufferWriteResp;
+
     type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
     type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;
-    type MemReaderStatus = mem_reader::MemReaderStatus;
+    type MemWriterReq = mem_writer::MemWriterReq<ADDR_W>;
+    type MemWriterResp = mem_writer::MemWriterResp;
+    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
+    type MemWriterRespStatus = mem_writer::MemWriterRespStatus;
 
-    type Req = MatchFinderInputBufferReq<ADDR_W>;
-    type Resp = MatchFinderInputBufferResp;
-    type State = MatchFinderInputBufferState<ADDR_W, DATA_W>;
-
-    req_r: chan<Req> in;
-    next_r: chan<()> in;
-    out_s: chan<Resp> out;
-
-    // MemReader interface
+    hb_wr_req_s: chan<HistoryBufferWrReq> out;
+    hb_wr_resp_r: chan<HistoryBufferWrResp> in;
     mem_rd_req_s: chan<MemReaderReq> out;
     mem_rd_resp_r: chan<MemReaderResp> in;
-
-    config (
-        req_r: chan<Req> in,
-        next_r: chan<()> in,
-        out_s: chan<Resp> out,
-        mem_rd_req_s: chan<MemReaderReq> out,
-        mem_rd_resp_r: chan<MemReaderResp> in,
-    ) {
-        (req_r, next_r, out_s, mem_rd_req_s, mem_rd_resp_r)
-    }
+    mem_wr_req_s: chan<MemWriterReq> out;
+    mem_wr_packet_s: chan<MemWriterDataPacket> out;
+    mem_wr_resp_r: chan<MemWriterResp> in;
+    conf_r: chan<Config> in;
+    resp_s: chan<()> out;
 
     init { zero!<State>() }
 
-    next (state: State) {
-        // receive request
-        let do_recv_req = state.left_to_read == uN[ADDR_W]:0;
-        let (tok_req, req, req_valid) = recv_if_non_blocking(join(), req_r, do_recv_req, zero!<Req>());
+    config(
+        hb_wr_req_s: chan<HistoryBufferWrReq> out,
+        hb_wr_resp_r: chan<HistoryBufferWrResp> in,
+        mem_rd_req_s: chan<MemReaderReq> out,
+        mem_rd_resp_r: chan<MemReaderResp> in,
+        mem_wr_req_s: chan<MemWriterReq> out,
+        mem_wr_packet_s: chan<MemWriterDataPacket> out,
+        mem_wr_resp_r: chan<MemWriterResp> in,
+        conf_r: chan<Config> in,
+        resp_s: chan<()> out,
+    ) {
+        (
+            hb_wr_req_s, hb_wr_resp_r,
+            mem_rd_req_s, mem_rd_resp_r,
+            mem_wr_req_s, mem_wr_packet_s, mem_wr_resp_r,
+            conf_r, resp_s
+        )
+    }
 
-        // send memory read request
-        let mem_rd_req = MemReaderReq {
-            addr: req.input_addr,
-            length: req.input_size,
-        };
-        send_if(tok_req, mem_rd_req_s, req_valid, mem_rd_req);
+    next(state: State) {
+        const KEY_WIDTH_BYTES = KEY_WIDTH as uN[ADDR_W] / uN[ADDR_W]:8;
+        let tok = join();
+        let conf = state.conf;
 
-        // receive memory read response
-        let do_recv_mem_rd_resp = (state.left_to_read > uN[ADDR_W]:0) && (state.buffer_len == uN[DATA_W_LOG2]:0);
-        let (_, mem_rd_resp, mem_rd_resp_valid) = recv_if_non_blocking(join(), mem_rd_resp_r, do_recv_mem_rd_resp, zero!<MemReaderResp>());
-
-        // receive next and send data
-        let do_recv_next = (state.left_to_read > uN[ADDR_W]:0 && (state.buffer_len > uN[DATA_W_LOG2]:0));
-        let (tok_next, _, next_valid) = recv_if_non_blocking(join(), next_r, do_recv_next, ());
-
-        let resp = Resp {
-            data: state.buffer as uN[SYMBOL_WIDTH],
-            last: state.left_to_read == uN[ADDR_W]:1,
-        };
-        send_if(tok_next, out_s, next_valid, resp);
-
-        // update state
-        if req_valid {
-            State {
-                addr: req.input_addr,
-                left_to_read: req.input_size,
-                ..zero!<State>()
-            }
-        } else if mem_rd_resp_valid {
-            State {
-                buffer: mem_rd_resp.data,
-                buffer_len: DATA_W as uN[DATA_W_LOG2],
-                ..state
-            }
-        } else if next_valid {
-            State {
-                left_to_read: state.left_to_read - uN[ADDR_W]:1,
-                buffer: state.buffer >> SYMBOL_WIDTH,
-                buffer_len: state.buffer_len - (SYMBOL_WIDTH as uN[DATA_W_LOG2]),
-                ..state
-            }
+        if !state.active {
+            let (tok, conf) = recv(tok, conf_r);
+            State { active: true, conf: conf }
+        } else if conf.size == uN[ADDR_W]:0 {
+            // copy done
+            let tok = send(tok, resp_s, ());
+            zero!<State>()
         } else {
-            state
+            let tok = send(
+                tok, mem_rd_req_s, MemReaderReq {
+                    addr: conf.input_addr,
+                    length: KEY_WIDTH_BYTES
+                }
+            );
+
+            // place in history buffer
+            let (tok, mem_resp) = recv(tok, mem_rd_resp_r);
+            let tok1 = send(tok, hb_wr_req_s, HistoryBufferWrReq {
+                data: mem_resp.data
+            });
+            let (tok1, _) = recv(tok1, hb_wr_resp_r);
+
+            if conf.move_literals {
+                // place in literals memory
+                let tok2 = send(tok, mem_wr_req_s, MemWriterReq {
+                    addr: conf.output_addr,
+                    length: KEY_WIDTH_BYTES
+                });
+                let tok2 = send(tok2, mem_wr_packet_s, MemWriterDataPacket {
+                    data: mem_resp.data,
+                    length: KEY_WIDTH_BYTES,
+                    last: true
+                });
+                let (tok2, resp) = recv(tok2, mem_wr_resp_r);
+                trace_fmt!("|- writing literal value {:#x} at {:#x} -> {:#x} [{}]", mem_resp.data, conf.input_addr, conf.output_addr, resp.status);
+            } else {};
+
+            State {
+                active: true,
+                conf: Config{
+                    input_addr: conf.input_addr + KEY_WIDTH_BYTES,
+                    output_addr: conf.output_addr + KEY_WIDTH_BYTES,
+                    size: conf.size - KEY_WIDTH_BYTES,
+                    ..conf
+                }
+            }
         }
+
     }
 }
+proc MatchFinderInternalHistoryCompare<
+    ADDR_W: u32, DATA_W: u32, HB_SIZE: u32, MIN_SEQ_LEN: u32,
+    HB_DATA_W: u32 = {KEY_WIDTH},
+    HB_OFFSET_W: u32 = {std::clog2(HB_SIZE)},
+>{
+    type State = MatchFinderInternalHistoryCompareState<ADDR_W, HB_OFFSET_W>;
+    type Config = MatchFinderInternalHistoryCompareConf<ADDR_W, HB_OFFSET_W>;
+    type Resp = MatchFinderInternalHistoryCompareResp;
 
-enum MatchFinderFSM: u5 {
-    IDLE = 0,
-    INPUT_NEXT = 1,
-    INPUT_READ = 2,
-    HASH_TABLE_REQ = 4,
-    HASH_TABLE_RESP = 5,
-    HISTORY_BUFFER_RESP = 6,
-    OUTPUT_LITERAL_REQ_PACKET = 8,
-    OUTPUT_LITERAL_RESP = 9,
-    OUTPUT_SEQUENCE_REQ_PACKET = 10,
-    OUTPUT_SEQUENCE_RESP = 11,
-    INPUT_READ_NEXT_REQ = 15,
-    INPUT_READ_NEXT_RESP = 16,
-    SEND_RESP = 17,
-    FAILURE = 18,
-}
+    type HistoryBufferRdReq = history_buffer::HistoryBufferReadReq<HB_OFFSET_W>;
+    type HistoryBufferRdResp = history_buffer::HistoryBufferReadResp<HB_DATA_W>;
+    type HistoryBufferWrReq = history_buffer::HistoryBufferWriteReq<HB_DATA_W>;
+    type HistoryBufferWrResp = history_buffer::HistoryBufferWriteResp;
 
-struct MatchFinderState<
-    DATA_W: u32, ADDR_W: u32, HT_SIZE_W: u32, MIN_SEQ_LEN: u32,
-    DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)}
-> {
-    fsm: MatchFinderFSM,
-    req: MatchFinderReq<HT_SIZE_W, ADDR_W>,
-    input_data: uN[SYMBOL_WIDTH],
-    input_last: bool,
-    input_addr_offset: uN[ADDR_W],
-    output_lit_addr: uN[ADDR_W],
-    output_seq_addr: uN[ADDR_W],
-    lit_buffer: uN[MIN_SEQ_LEN][SYMBOL_WIDTH],
-    lit_buffer_last: bool,
-    literals_length: u16,
-    match_offset: u16,
-    match_length: u16,
-    lit_cnt: u32,
-    seq_cnt: u32,
+    type MemWriterReq = mem_writer::MemWriterReq<ADDR_W>;
+    type MemWriterResp = mem_writer::MemWriterResp;
+    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
+    type MemWriterRespStatus = mem_writer::MemWriterRespStatus;
+    type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
+    type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;
+
+    hb_rd_req_s: chan<HistoryBufferRdReq> out;
+    hb_rd_resp_r: chan<HistoryBufferRdResp> in;
+    mem_rd_req_s: chan<MemReaderReq> out;
+    mem_rd_resp_r: chan<MemReaderResp> in;
+    conf_r: chan<Config> in;
+    resp_s: chan<Resp> out;
+
+    init {zero!<State>()}
+    config(
+        hb_rd_req_s: chan<HistoryBufferRdReq> out,
+        hb_rd_resp_r: chan<HistoryBufferRdResp> in,
+        mem_rd_req_s: chan<MemReaderReq> out,
+        mem_rd_resp_r: chan<MemReaderResp> in,
+        conf_r: chan<Config> in,
+        resp_s: chan<Resp> out,
+    ) {
+        (
+            hb_rd_req_s, hb_rd_resp_r,
+            mem_rd_req_s, mem_rd_resp_r,
+            conf_r, resp_s
+        )
+    }
+
+    next(state: State) {
+        const KEY_WIDTH_BYTES = KEY_WIDTH as uN[ADDR_W] / uN[ADDR_W]:8;
+
+        let tok = join();
+        if !state.active {
+            let (tok, conf) = recv(tok, conf_r);
+            State {
+                active: true,
+                match_length: u32:1,
+                conf: conf,
+            }
+
+        } else {
+            let tok = send(
+                tok, mem_rd_req_s, MemReaderReq {
+                    addr: state.conf.current_input_addr,
+                    length: KEY_WIDTH_BYTES
+                }
+            );
+            let (tok, mem_resp) = recv(tok, mem_rd_resp_r);
+
+            let tok = send(tok, hb_rd_req_s, HistoryBufferRdReq {
+                offset: state.conf.current_hb_offset,
+            });
+
+            let (tok, hb_resp) = recv(tok, hb_rd_resp_r);
+
+            let diff = hb_resp.data != mem_resp.data || state.conf.current_hb_offset == uN[HB_OFFSET_W]:0;
+            let match_length_increment_cornercase = if state.conf.current_hb_offset == uN[HB_OFFSET_W]:0 && hb_resp.data == mem_resp.data { u32:1 } else { u32:0 };
+
+            let tok = send_if(tok, resp_s, state.active && diff, Resp {
+                match_found: true,
+                match_length: state.match_length + match_length_increment_cornercase,
+                last: mem_resp.last
+            });
+
+            State {
+                active: !diff,
+                match_length: u32:1 + state.match_length,
+                conf: Config {
+                    current_input_addr: state.conf.current_input_addr + KEY_WIDTH_BYTES,
+                    current_hb_offset: state.conf.current_hb_offset - KEY_WIDTH_BYTES as uN[HB_OFFSET_W],
+                }
+            }
+        }
+
+    }
 }
 
 proc MatchFinder<
     ADDR_W: u32, DATA_W: u32, HT_SIZE: u32, HB_SIZE: u32, MIN_SEQ_LEN: u32,
     DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)},
 
-    HT_KEY_W: u32 = {SYMBOL_WIDTH},
-    HT_VALUE_W: u32 = {SYMBOL_WIDTH + ADDR_W},
+    HT_KEY_W: u32 = {KEY_WIDTH},
+    HT_VALUE_W: u32 = {KEY_WIDTH + ADDR_W},
     HT_SIZE_W: u32 = {std::clog2(HT_SIZE + u32:1)},
 
-    HB_DATA_W: u32 = {SYMBOL_WIDTH},
+    HB_DATA_W: u32 = {KEY_WIDTH},
     HB_OFFSET_W: u32 = {std::clog2(HB_SIZE)},
 > {
-    type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
-    type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;
-    type MemReaderStatus = mem_reader::MemReaderStatus;
+    type State = MatchFinderInternalLoopState<ADDR_W, HT_SIZE_W>;
+    type Resp = MatchFinderResp;
+    type Req = MatchFinderReq<HT_SIZE_W, ADDR_W>;
+    type RespStatus = MatchFinderRespStatus;
 
-    type InputBufferReq =  MatchFinderInputBufferReq<ADDR_W>;
-    type InputBufferResp =  MatchFinderInputBufferResp;
-
-    type MemWriterReq = mem_writer::MemWriterReq<ADDR_W>;
-    type MemWriterResp = mem_writer::MemWriterResp;
-    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
-    type MemWriterRespStatus = mem_writer::MemWriterRespStatus;
-
-    type Addr = uN[ADDR_W];
+    type HistoryCompareConfig = MatchFinderInternalHistoryCompareConf<ADDR_W, HB_OFFSET_W>;
+    type HistoryCompareResp = MatchFinderInternalHistoryCompareResp;
+    type HistoryCompareConfig = MatchFinderInternalHistoryCompareConf<ADDR_W, HB_OFFSET_W>;
+    type CopyConfig = MatchFinderInternalLiteralCopyConf<ADDR_W>;
 
     type HashTableRdReq = hash_table::HashTableReadReq<HT_KEY_W, HT_SIZE, HT_SIZE_W>;
     type HashTableRdResp = hash_table::HashTableReadResp<HT_VALUE_W>;
@@ -234,381 +393,248 @@ proc MatchFinder<
     type HistoryBufferWrReq = history_buffer::HistoryBufferWriteReq<HB_DATA_W>;
     type HistoryBufferWrResp = history_buffer::HistoryBufferWriteResp;
 
-    type Req = MatchFinderReq<HT_SIZE_W, ADDR_W>;
-    type Resp = MatchFinderResp;
-    type RespStatus = MatchFinderRespStatus;
-    type State = MatchFinderState<DATA_W, ADDR_W, HT_SIZE_W, MIN_SEQ_LEN, DATA_W_LOG2>;
+    type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
+    type MemReaderResp = mem_reader::MemReaderResp<DATA_W, ADDR_W>;
+    type MemWriterReq = mem_writer::MemWriterReq<ADDR_W>;
+    type MemWriterResp = mem_writer::MemWriterResp;
+    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
+    type MemWriterRespStatus = mem_writer::MemWriterRespStatus;
 
-    type NumEntries = uN[HT_SIZE_W];
-    type Key = uN[HT_KEY_W];
-    type FSM = MatchFinderFSM;
-
-    req_r: chan<Req> in;
-    resp_s: chan<Resp> out;
-
-    // InputBuffer interface
-    inp_buf_req_s: chan<InputBufferReq> out;
-    inp_buf_next_s: chan<()> out;
-    inp_buf_out_r: chan<InputBufferResp> in;
-
-    // MemWriter interface
-    mem_wr_req_s: chan<MemWriterReq> out;
-    mem_wr_packet_s: chan<MemWriterDataPacket> out;
-    mem_wr_resp_r: chan<MemWriterResp> in;
-
-    // HashTable interface
     ht_rd_req_s: chan<HashTableRdReq> out;
     ht_rd_resp_r: chan<HashTableRdResp> in;
     ht_wr_req_s: chan<HashTableWrReq> out;
     ht_wr_resp_r: chan<HashTableWrResp> in;
 
-   // HistoryBuffer interface
-    hb_rd_req_s: chan<HistoryBufferRdReq> out;
-    hb_rd_resp_r: chan<HistoryBufferRdResp> in;
     hb_wr_req_s: chan<HistoryBufferWrReq> out;
     hb_wr_resp_r: chan<HistoryBufferWrResp> in;
 
-    config (
-        // Req & Resp
+    mem_wr_req_s: chan<MemWriterReq> out;
+    mem_wr_packet_s: chan<MemWriterDataPacket> out;
+    mem_wr_resp_r: chan<MemWriterResp> in;
+    mem_rd_req_s: chan<MemReaderReq> out;
+    mem_rd_resp_r: chan<MemReaderResp> in;
+
+    req_r: chan<Req> in;
+    resp_s: chan<Resp> out;
+
+    hb_mlen_conf_s: chan<HistoryCompareConfig> out;
+    hb_mlen_resp_r: chan<HistoryCompareResp> in;
+    copy_conf_s: chan<CopyConfig> out;
+    copy_resp_r: chan<()> in;
+
+    init { zero!<State>() }
+
+    config(
         req_r: chan<Req> in,
         resp_s: chan<Resp> out,
-
-        // Access to input
         mem_rd_req_s: chan<MemReaderReq> out,
         mem_rd_resp_r: chan<MemReaderResp> in,
-
-        // Output
         mem_wr_req_s: chan<MemWriterReq> out,
         mem_wr_packet_s: chan<MemWriterDataPacket> out,
         mem_wr_resp_r: chan<MemWriterResp> in,
-
-        // HashTable RAM interface
         ht_rd_req_s: chan<HashTableRdReq> out,
         ht_rd_resp_r: chan<HashTableRdResp> in,
         ht_wr_req_s: chan<HashTableWrReq> out,
         ht_wr_resp_r: chan<HashTableWrResp> in,
-
-        // HistoryBuffer RAM interface
         hb_rd_req_s: chan<HistoryBufferRdReq> out,
         hb_rd_resp_r: chan<HistoryBufferRdResp> in,
         hb_wr_req_s: chan<HistoryBufferWrReq> out,
         hb_wr_resp_r: chan<HistoryBufferWrResp> in,
     ) {
-        let (inp_buf_req_s, inp_buf_req_r) = chan<InputBufferReq, u32:0>("inp_buf_req");
-        let (inp_buf_next_s, inp_buf_next_r) = chan<(), u32:0>("inp_buf_next");
-        let (inp_buf_out_s, inp_buf_out_r) = chan<InputBufferResp, u32:0>("inp_buf_out");
+        let (hb_mlen_conf_s, hb_reader_conf_r) = chan<HistoryCompareConfig, u32:1>("hb_reader_conf");
+        let (hb_reader_resp_s, hb_mlen_resp_r) = chan<HistoryCompareResp, u32:1>("hb_reader_resp");
+        let (copy_conf_s, copy_conf_r) = chan<CopyConfig, u32:1>("copy_conf");
+        let (copy_resp_s, copy_resp_r) = chan<(), u32:1>("copy_resp");
 
-        spawn MatchFinderInputBuffer<ADDR_W, DATA_W> (
-            inp_buf_req_r, inp_buf_next_r, inp_buf_out_s,
+        let (n_mem_wr_req_s, n_mem_wr_req_r) = chan<MemWriterReq, u32:1>[2]("n_req");
+        let (n_mem_wr_data_s, n_mem_wr_data_r) = chan<MemWriterDataPacket, u32:1>[2]("n_data");
+        let (n_mem_wr_resp_s, n_mem_wr_resp_r) = chan<MemWriterResp, u32:1>[2]("n_resp");
+
+        let (n_mem_rd_req_s, n_mem_rd_req_r) = chan<MemReaderReq, u32:1>[3]("n_mem_rd_req");
+        let (n_mem_rd_resp_s, n_mem_rd_resp_r) = chan<MemReaderResp, u32:1>[3]("n_mem_rd_resp");
+
+
+        spawn mem_writer_simple_arbiter::MemWriterSimpleArbiter<ADDR_W, DATA_W, u32:2>
+        (
+            n_mem_wr_req_r, n_mem_wr_data_r, n_mem_wr_resp_s,
+            mem_wr_req_s, mem_wr_packet_s, mem_wr_resp_r,
+        );
+
+        spawn mem_reader_simple_arbiter::MemReaderSimpleArbiter<ADDR_W, DATA_W, u32:3> (
+            n_mem_rd_req_r, n_mem_rd_resp_s,
             mem_rd_req_s, mem_rd_resp_r,
         );
 
+        spawn MatchFinderInternalHistoryCompare<
+            ADDR_W, DATA_W,
+            HB_SIZE, MIN_SEQ_LEN,
+        >
         (
+            hb_rd_req_s, hb_rd_resp_r,
+            n_mem_rd_req_s[0], n_mem_rd_resp_r[0],
+            hb_reader_conf_r, hb_reader_resp_s,
+        );
+
+        spawn MatchFinderInternalLiteralCopy<
+            ADDR_W, DATA_W,
+            HB_SIZE, MIN_SEQ_LEN,
+        >
+        (
+            hb_wr_req_s, hb_wr_resp_r,
+            n_mem_rd_req_s[1], n_mem_rd_resp_r[1],
+            n_mem_wr_req_s[0], n_mem_wr_data_s[0], n_mem_wr_resp_r[0],
+            copy_conf_r, copy_resp_s
+        );
+
+        (
+            ht_rd_req_s, ht_rd_resp_r,
+            ht_wr_req_s, ht_wr_resp_r,
+            hb_wr_req_s, hb_wr_resp_r,
+            n_mem_wr_req_s[1], n_mem_wr_data_s[1], n_mem_wr_resp_r[1],
+            n_mem_rd_req_s[2], n_mem_rd_resp_r[2],
             req_r, resp_s,
-            inp_buf_req_s, inp_buf_next_s, inp_buf_out_r,
-            mem_wr_req_s, mem_wr_packet_s, mem_wr_resp_r,
-            ht_rd_req_s, ht_rd_resp_r, ht_wr_req_s, ht_wr_resp_r,
-            hb_rd_req_s, hb_rd_resp_r, hb_wr_req_s, hb_wr_resp_r,
+            hb_mlen_conf_s, hb_mlen_resp_r,
+            copy_conf_s, copy_resp_r
         )
     }
 
-    init { zero!<State>() }
+    next(state: State) {
+        const KEY_WIDTH_BYTES = KEY_WIDTH as uN[ADDR_W] / uN[ADDR_W]:8;
+        const DATA_W_B = DATA_W / u32:8;
+        let tok = join();
 
-    next (state: State) {
-        let tok0 = join();
-
-        // [IDLE]
-        let (tok1_0, req) = recv_if(tok0, req_r, state.fsm == FSM::IDLE, state.req);
-        let inp_buf_req = InputBufferReq { input_addr: req.input_addr, input_size: req.input_size };
-        let tok1_1 = send_if(tok0, inp_buf_req_s, state.fsm == FSM::IDLE, inp_buf_req);
-
-        // [INPUT_NEXT]
-        let do_send_inp_buf_next = state.fsm == FSM::INPUT_NEXT || state.fsm == FSM::INPUT_READ_NEXT_REQ;
-
-        // [INPUT_READ]
-        let do_recv_inp_buf_out = state.fsm == FSM::INPUT_READ || state.fsm == FSM::INPUT_READ_NEXT_RESP;
-        let (tok1_2, inp_buf_out) = recv_if(tok0, inp_buf_out_r, do_recv_inp_buf_out, zero!<InputBufferResp>());
-
-        // [HASH_TABLE_REQ]
-        let ht_rd_req = HashTableRdReq {
-            num_entries_log2: state.req.zstd_params.num_entries_log2,
-            key: state.input_data,
-        };
-        let tok1_3 = send_if(tok0, ht_rd_req_s, state.fsm == FSM::HASH_TABLE_REQ, ht_rd_req);
-
-        // [HASH_TABLE_RESP]
-        let (tok1_4, ht_rd_resp) = recv_if(tok0, ht_rd_resp_r, state.fsm == FSM::HASH_TABLE_RESP, zero!<HashTableRdResp>());
-        let ht_is_match = ht_rd_resp.is_match && (((ht_rd_resp.value >> ADDR_W) as uN[SYMBOL_WIDTH]) == state.input_data);
-        let hb_rd_req = if ht_is_match {
-            HistoryBufferRdReq {
-                offset: (state.req.input_addr + state.input_addr_offset - (ht_rd_resp.value as uN[ADDR_W])) as uN[HB_OFFSET_W],
+        if !state.active {
+            let (tok, req) = recv(tok, req_r);
+            trace_fmt!("Started encoding");
+            State {
+                active: true,
+                output_lit_addr: req.output_lit_addr,
+                output_seq_addr: req.output_seq_addr,
+                current_input_addr: req.input_addr,
+                num_entries_log2: req.zstd_params.num_entries_log2,
+                remaining_size: req.input_size,
+                ..zero!<State>()
             }
+        } else if state.remaining_size == uN[ADDR_W]:0 {
+            // write trailing sequence
+            trace_fmt!("writing sequence ({}, {}, {})", state.lit_since_last_sequence, u32:0, u32:0);
+
+            let tok = send(tok, mem_wr_req_s, MemWriterReq {
+                addr: state.seq_addr_offset + state.output_seq_addr,
+                length: DATA_W_B,
+            });
+
+            let tok = send(tok, mem_wr_packet_s, MemWriterDataPacket {
+                data: (state.lit_since_last_sequence as u16 ++ u16:0 ++ u16:0) as uN[DATA_W],
+                length: DATA_W_B,
+                last: true,
+            });
+
+            let (tok, wr_resp) = recv(tok, mem_wr_resp_r);
+
+            trace_fmt!("Encoding finished");
+            let tok = send(tok, resp_s, Resp {
+                status: RespStatus::OK,
+                lit_cnt: state.lit_cnt,
+                seq_cnt: state.seq_cnt + u32:1,
+            });
+            zero!<State>()
         } else {
-            zero!<HistoryBufferRdReq>()
-        };
-        let tok1_4 = send_if(tok1_4, hb_rd_req_s, ht_is_match, hb_rd_req);
-
-        // [HISTORY_BUFFER_RESP] | [HISTORY_BUFFER_NEXT_RESP]
-        let (tok1_5, hb_rd_resp) = recv_if(tok0, hb_rd_resp_r, state.fsm == FSM::HISTORY_BUFFER_RESP, zero!<HistoryBufferRdResp>());
-        let (tok1_2, inp_buf_out) = recv_if(tok0, inp_buf_out_r, state.fsm == FSM::HISTORY_BUFFER_RESP, zero!<InputBufferResp>());
-
-        let is_next_match = state.input_data == hb_rd_resp.data;
-        let tok1_2 = send_if(tok0, inp_buf_next_s, do_send_inp_buf_next || ht_is_match || is_next_match, ());
-
-        // write entry in hash table
-        let do_save_entry = (
-            (state.fsm == FSM::HASH_TABLE_RESP && !ht_is_match) ||
-            (state.fsm == FSM::HISTORY_BUFFER_RESP && !is_next_match)
-        );
-        let ht_wr_req =  HashTableWrReq {
-            num_entries_log2: state.req.zstd_params.num_entries_log2,
-            key: state.input_data,
-            value: (
-                (state.input_data) ++
-                (state.req.input_addr + state.input_addr_offset)
-            ),
-        };
-        let tok1_2 = send_if(tok1_2, ht_wr_req_s, do_save_entry, ht_wr_req);
-        // write entry in history buffer
-        let hb_wr_req = HistoryBufferWrReq {
-            data: state.input_data
-        };
-        let tok1_2 = send_if(tok1_2, hb_wr_req_s, do_save_entry, hb_wr_req);
-
-        // [OUTPUT_LITERAL_REQ_PACKET]
-        let lit_mem_wr_req = MemWriterReq {
-            addr: state.output_lit_addr,
-            length: uN[ADDR_W]:1,
-        };
-        let tok1_7 = send_if(tok0, mem_wr_req_s, state.fsm == FSM::OUTPUT_LITERAL_REQ_PACKET, lit_mem_wr_req);
-
-        let lit_mem_wr_packet = MemWriterDataPacket {
-            data: state.input_data as uN[DATA_W],
-            length: uN[ADDR_W]:1,
-            last: true,
-        };
-        let tok1_8 = send_if(tok0, mem_wr_packet_s, state.fsm == FSM::OUTPUT_LITERAL_REQ_PACKET, lit_mem_wr_packet);
-
-        // [OUTPUT_LITERAL_RESP]
-        let (tok1_9, lit_mem_wr_resp) = recv_if(tok0, mem_wr_resp_r, state.fsm == FSM::OUTPUT_LITERAL_RESP, zero!<MemWriterResp>());
-
-        // [OUTPUT_SEQUENCE_REQ_PACKET]
-        let seq_mem_wr_req = MemWriterReq {
-            addr: state.output_seq_addr,
-            length: uN[ADDR_W]:6,
-        };
-        let tok1_9 = send_if(tok0, mem_wr_req_s, state.fsm == FSM::OUTPUT_SEQUENCE_REQ_PACKET, seq_mem_wr_req);
-
-        let seq_mem_wr_packet = MemWriterDataPacket {
-            data: (state.literals_length ++ state.match_offset ++ state.match_length) as uN[DATA_W],
-            length: uN[ADDR_W]:6,
-            last: true,
-        };
-
-        let tok1_10 = send_if(tok0, mem_wr_packet_s, state.fsm == FSM::OUTPUT_SEQUENCE_REQ_PACKET, seq_mem_wr_packet);
-
-        // [OUTPUT_SEQUENCE_RESP]
-        let (tok1_11, seq_mem_wr_resp) = recv_if(tok0, mem_wr_resp_r, state.fsm == FSM::OUTPUT_SEQUENCE_RESP, zero!<MemWriterResp>());
-
-        // [INPUT_READ_NEXT_REQ]
-        let hb_rd_req = HistoryBufferRdReq {
-            offset: (state.match_offset + state.match_length) as uN[HB_OFFSET_W],
-        };
-        let tok1_15 = send_if(tok0, hb_rd_req_s, state.fsm == FSM::INPUT_READ_NEXT_REQ && !ht_is_match, hb_rd_req);
-
-        // [SEND_RESP]
-        let resp = Resp {
-            status: RespStatus::OK,
-            lit_cnt: state.lit_cnt,
-            seq_cnt: state.seq_cnt,
-        };
-
-        let tok1_19 = send_if(tok0, resp_s, state.fsm == FSM::SEND_RESP, resp);
-
-        // [FAILURE]
-        let fail_resp = MatchFinderResp {
-            status: MatchFinderRespStatus::FAIL,
-            lit_cnt: u32:0,
-            seq_cnt: u32:0,
-        };
-        let tok1_4 = send_if(tok0, resp_s, state.fsm == FSM::FAILURE, fail_resp);
-
-        let (tok, _, _) = recv_if_non_blocking(tok0, ht_wr_resp_r, false, zero!<HashTableWrResp>());
-        let (tok, _, _) = recv_if_non_blocking(tok0, hb_wr_resp_r, false, zero!<HistoryBufferWrResp>());
-
-        match state.fsm {
-            FSM::IDLE => {
-                trace_fmt!("[IDLE] Received match finder request {:#x}", req);
-                State {
-                    fsm: FSM::INPUT_NEXT,
-                    req: req,
-                    input_addr_offset: uN[ADDR_W]:0,
-                    output_lit_addr: req.output_lit_addr,
-                    output_seq_addr: req.output_seq_addr,
-                    ..zero!<State>()
+            let tok = send(
+                tok, mem_rd_req_s, MemReaderReq {
+                    addr: state.current_input_addr,
+                    length: KEY_WIDTH_BYTES
                 }
-            },
+            );
+            let (tok, resp) = recv(tok, mem_rd_resp_r);
 
-            FSM::INPUT_NEXT => {
-                trace_fmt!("[INPUT_NEXT] Sent next to input buffer");
-                State {
-                    fsm: FSM::INPUT_READ,
-                    input_addr_offset: state.input_addr_offset + uN[ADDR_W]:1,
-                    ..state
-                }
-            },
+            // Step 1: read from hashtable and check if there's a match (+ corner cases)
+            let tok = send(tok, ht_rd_req_s, HashTableRdReq {
+                num_entries_log2: state.num_entries_log2,
+                key: resp.data,
+            });
+            let (tok, ht_rd_resp) = recv(tok, ht_rd_resp_r);
+            let matched = ht_rd_resp.is_match &&
+            resp.data == (ht_rd_resp.value >> ADDR_W) as uN[DATA_W] &&
+            state.current_input_addr - ht_rd_resp.value as uN[ADDR_W] > KEY_WIDTH_BYTES;
 
-            FSM::INPUT_READ => {
-                trace_fmt!("[INPUT_READ] Received input {:#x}", inp_buf_out);
-                State {
-                    fsm: FSM::HASH_TABLE_REQ,
-                    input_data: inp_buf_out.data,
-                    input_last: inp_buf_out.last,
-                    ..state
-                }
-            },
+            // Step 2: compute history buffer offset and get match length
+            let offset = (state.current_input_addr - (ht_rd_resp.value as uN[ADDR_W])) as uN[HB_OFFSET_W] - uN[HB_OFFSET_W]:2 * KEY_WIDTH_BYTES as uN[HB_OFFSET_W];
+            let tok = send_if(tok, hb_mlen_conf_s, matched, HistoryCompareConfig {
+                current_hb_offset: offset,
+                current_input_addr: state.current_input_addr + KEY_WIDTH_BYTES,
+            });
+            let (tok, cmp_resp) = recv_if(tok, hb_mlen_resp_r, matched, HistoryCompareResp {
+                match_length: uN[ADDR_W]:1,
+                ..zero!<HistoryCompareResp>()
+            });
 
-            FSM::HASH_TABLE_REQ => {
-                trace_fmt!("[HASH_TABLE_REQ] Sent HT read request {:#x}", ht_rd_req);
-                State {
-                    fsm: FSM::HASH_TABLE_RESP,
-                    ..state
-                }
-            },
+            // Step 3: compute parameters for sequence and write it if it's long enough
+            let encode_sequence = cmp_resp.match_length >= MIN_SEQ_LEN && matched;
+            let match_offset =  offset / KEY_WIDTH_BYTES as uN[HB_OFFSET_W] + uN[HB_OFFSET_W]:2;
 
-            FSM::HASH_TABLE_RESP => {
-                trace_fmt!("[HASH_TABLE_RESP] Received HT read respose {:#x}", ht_rd_resp);
-                if ht_is_match {
-                    trace_fmt!("[HASH_TABLE_RESP] Sent HB read request {:#x}", hb_rd_req);
-                    State {
-                        fsm: FSM::HISTORY_BUFFER_RESP,
-                        match_offset: hb_rd_req.offset as u16,
-                        ..state
-                    }
-                } else {
-                    State {
-                        fsm: FSM::OUTPUT_LITERAL_REQ_PACKET,
-                        ..state
-                    }
-                }
-            },
+            let tok3 = send_if(tok, mem_wr_req_s, encode_sequence, MemWriterReq {
+                addr: state.seq_addr_offset + state.output_seq_addr,
+                length: DATA_W_B,
+            });
+            let tok3 = send_if(tok3, mem_wr_packet_s, encode_sequence, MemWriterDataPacket {
+                data: (
+                    state.lit_since_last_sequence as u16 ++
+                    match_offset as u16 ++
+                    cmp_resp.match_length as u16
+                ) as uN[DATA_W],
+                length: DATA_W_B,
+                last: true,
+            });
+            let (tok3, wr_resp) = recv_if(tok3, mem_wr_resp_r, encode_sequence, zero!<MemWriterResp>());
+            if encode_sequence {
+                trace_fmt!("|- writing sequence ({}, {}, {}), at {:#x} [{}], hb offset was {}",
+                    state.lit_since_last_sequence, match_offset, cmp_resp.match_length,
+                    state.seq_addr_offset + state.output_seq_addr,wr_resp.status, offset
+                );
+            } else {};
 
-            FSM::HISTORY_BUFFER_RESP => {
-                trace_fmt!("[HISTORY_BUFFER_RESP] Received HB read response {:#x}", hb_rd_resp);
-                trace_fmt!("[HISTORY_BUFFER_RESP] Next symbol {:#x}", state.input_data);
-                if is_next_match {
-                    State {
-                        fsm: FSM::INPUT_NEXT,
-                        match_length: state.match_length + u16:1,
-                        ..state
-                    }
-                } else if state.match_length as u32 < MIN_SEQ_LEN {
-                    State {
-                        fsm: FSM::OUTPUT_LITERAL_REQ_PACKET,
-                        ..state
-                    }
-                } else {
-                    State {
-                        fsm: FSM::OUTPUT_SEQUENCE_REQ_PACKET,
-                        ..state
-                    }
-                }
-            },
+            // Step 4: copy processed literals to history buffer (and literals memory if sequence wasn't written)
+            let copy_conf = CopyConfig {
+                input_addr: state.current_input_addr,
+                output_addr: state.lit_addr_offset + state.output_lit_addr,
+                size: cmp_resp.match_length * KEY_WIDTH_BYTES,
+                move_literals: !encode_sequence
+            };
+            let tok4 = send(tok, copy_conf_s, copy_conf);
+            let (tok4, _) = recv(tok4, copy_resp_r);
 
-            FSM::OUTPUT_LITERAL_REQ_PACKET => {
-                trace_fmt!("[OUTPUT_LITERAL_REQ_PACKET] Sent mem write request {:#x}", lit_mem_wr_req);
-                trace_fmt!("[OUTPUT_LITERAL_REQ_PACKET] Sent mem write data {:#x}", lit_mem_wr_packet);
-                State {
-                    fsm: FSM::OUTPUT_LITERAL_RESP,
-                    ..state
-                }
-            },
+            // Step 5: write current data in hashtable
+            let tok5 = send(tok, ht_wr_req_s, HashTableWrReq {
+                num_entries_log2: state.num_entries_log2,
+                key: resp.data,
+                value: (
+                    (resp.data) ++
+                    (state.current_input_addr)
+                ),
+            });
+            let (tok5, ht_wr_resp) = recv(tok5, ht_wr_resp_r);
 
-            FSM::OUTPUT_LITERAL_RESP => {
-                trace_fmt!("[OUTPUT_LITERAL_RESP] Received mem write response {:#x}", lit_mem_wr_resp);
-                if state.input_last {
-                    State {
-                        fsm: FSM::OUTPUT_SEQUENCE_REQ_PACKET,
-                        output_lit_addr: state.output_lit_addr + uN[ADDR_W]:1,
-                        literals_length: state.literals_length + u16:1,
-                        ..state
-                    }
-                } else {
-                    State {
-                        fsm: FSM::INPUT_NEXT,
-                        output_lit_addr: state.output_lit_addr + uN[ADDR_W]:1,
-                        literals_length: state.literals_length + u16:1,
-                        ..state
-                    }
-                }
-            },
+            // Step 6: compute next iteration parameters
+            let address_increment = KEY_WIDTH_BYTES * cmp_resp.match_length;
+            let lit_cnt_increment = if encode_sequence { uN[ADDR_W]:0 } else { cmp_resp.match_length };
+            let lit_address_increment = if encode_sequence { uN[ADDR_W]:0 } else { KEY_WIDTH_BYTES * cmp_resp.match_length };
+            let seq_address_increment = if encode_sequence { DATA_W_B } else { uN[ADDR_W]:0 };
+            let seq_cnt_increment = encode_sequence as uN[ADDR_W]; // if encode_sequence: seq_cnt ++
+            let lit_since_last_sequence = if encode_sequence { uN[ADDR_W]:0 } else { state.lit_since_last_sequence + cmp_resp.match_length };
+            let remaining_size = if state.remaining_size < address_increment { u32:0 } else { state.remaining_size - address_increment };
 
-            FSM::OUTPUT_SEQUENCE_REQ_PACKET => {
-                trace_fmt!("[OUTPUT_SEQUENCE_REQ_PACKET] Sent mem write request {:#x}", seq_mem_wr_req);
-                trace_fmt!("[OUTPUT_SEQUENCE_REQ_PACKET] Sent mem write data {:#x}", seq_mem_wr_packet);
-                State {
-                    fsm: FSM::OUTPUT_SEQUENCE_RESP,
-                    lit_cnt: state.lit_cnt + (state.literals_length as u32),
-                    seq_cnt: state.seq_cnt + (state.match_length as u32),
-                    ..state
-                }
-            },
-
-            FSM::OUTPUT_SEQUENCE_RESP => {
-                trace_fmt!("[OUTPUT_SEQUENCE_RESP] Received mem write response {:#x}", seq_mem_wr_resp);
-                if state.input_last {
-                    State {
-                        fsm: FSM::SEND_RESP,
-                        output_seq_addr: state.output_seq_addr + uN[ADDR_W]:6,
-                        ..state
-                    }
-                } else {
-                    State {
-                        fsm: FSM::HASH_TABLE_REQ, // here we reuse last response, which was not matched
-                        output_seq_addr: state.output_seq_addr + uN[ADDR_W]:6,
-                        literals_length: u16:0,
-                        match_length: u16:0,
-                        ..state
-                    }
-                }
-            },
-
-            FSM::INPUT_READ_NEXT_REQ => {
-                trace_fmt!("[INPUT_NEXT] Sent next to input buffer");
-                State {
-                    fsm: FSM::INPUT_READ_NEXT_RESP,
-                    input_addr_offset: state.input_addr_offset + uN[ADDR_W]:1,
-                    ..state
-                }
-            },
-
-            FSM::INPUT_READ_NEXT_RESP => {
-                trace_fmt!("[INPUT_READ_NEXT_RESP ] Received input {:#x}", inp_buf_out);
-                State {
-                    fsm: FSM::HISTORY_BUFFER_RESP,
-                    input_data: inp_buf_out.data,
-                    input_last: inp_buf_out.last,
-                    ..state
-                }
-            },
-
-            FSM::SEND_RESP => {
-                trace_fmt!("[SEND_RESP] Sent response {:#x}", resp);
-                State {
-                    fsm: FSM::IDLE,
-                    ..zero!<State>()
-                }
-            },
-
-            FSM::FAILURE => {
-                trace_fmt!("[FAILURE] !!!");
-                State {
-                    fsm: FSM::IDLE,
-                    ..zero!<State>()
-                }
-            },
-
-            _ => state,
+            State {
+                active: true,
+                current_input_addr: state.current_input_addr + address_increment,
+                remaining_size: remaining_size,
+                lit_addr_offset: state.lit_addr_offset + lit_address_increment,
+                lit_cnt: state.lit_cnt + lit_cnt_increment,
+                lit_since_last_sequence: lit_since_last_sequence,
+                seq_addr_offset: state.seq_addr_offset + seq_address_increment,
+                seq_cnt: state.seq_cnt + seq_cnt_increment,
+                ..state
+            }
         }
     }
 }
@@ -620,9 +646,9 @@ const INST_DATA_W_LOG2 = std::clog2(INST_DATA_W + u32:1);
 
 const INST_HT_SIZE = u32:512;
 const INST_HT_SIZE_W = std::clog2(INST_HT_SIZE + u32:1);
-const INST_HT_KEY_W = SYMBOL_WIDTH;
-const INST_HT_VALUE_W = SYMBOL_WIDTH + INST_ADDR_W; // original symbol + address
-const INST_HB_DATA_W = SYMBOL_WIDTH;
+const INST_HT_KEY_W = KEY_WIDTH;
+const INST_HT_VALUE_W = KEY_WIDTH + INST_ADDR_W; // original symbol + address
+const INST_HB_DATA_W = KEY_WIDTH;
 const INST_HB_SIZE = u32:1024;
 const INST_HB_OFFSET_W = std::clog2(INST_HB_SIZE);
 
@@ -691,6 +717,7 @@ proc MatchFinderInst {
 
     next (state: ()) {}
 }
+
 const TEST_ADDR_W = u32:32;
 const TEST_DATA_W = u32:64;
 const TEST_MIN_SEQ_LEN = u32:3;
@@ -700,8 +727,8 @@ const TEST_DATA_W_LOG2 = std::clog2(TEST_DATA_W + u32:1);
 const TEST_DEST_W = u32:8;
 const TEST_ID_W = u32:8;
 
-const TEST_HT_KEY_W = SYMBOL_WIDTH;
-const TEST_HT_VALUE_W = SYMBOL_WIDTH + TEST_ADDR_W; // original symbol + address
+const TEST_HT_KEY_W = KEY_WIDTH;
+const TEST_HT_VALUE_W = KEY_WIDTH + TEST_ADDR_W; // original symbol + address
 const TEST_HT_HASH_W = std::clog2(TEST_HT_SIZE);
 const TEST_HT_RAM_DATA_W = TEST_HT_VALUE_W + u32:1; // value + valid
 const TEST_HT_RAM_WORD_PARTITION_SIZE = u32:1;
@@ -711,10 +738,10 @@ const TEST_HT_RAM_INITIALIZED = true;
 const TEST_HT_SIZE_W = std::clog2(TEST_HT_SIZE + u32:1);
 
 const TEST_HB_RAM_NUM = u32:8;
-const TEST_HB_DATA_W = SYMBOL_WIDTH;
+const TEST_HB_DATA_W = KEY_WIDTH;
 const TEST_HB_OFFSET_W = std::clog2(TEST_HB_SIZE);
 const TEST_HB_RAM_SIZE = TEST_HB_SIZE / TEST_HB_RAM_NUM;
-const TEST_HB_RAM_DATA_W = SYMBOL_WIDTH / TEST_HB_RAM_NUM;
+const TEST_HB_RAM_DATA_W = KEY_WIDTH / TEST_HB_RAM_NUM;
 const TEST_HB_RAM_ADDR_W = std::clog2(TEST_HB_RAM_SIZE);
 const TEST_HB_RAM_PARTITION_SIZE = TEST_HB_RAM_DATA_W;
 const TEST_HB_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_HB_RAM_PARTITION_SIZE, TEST_HB_RAM_DATA_W);
@@ -722,7 +749,7 @@ const TEST_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR = ram::SimultaneousReadWriteBehavior:
 const TEST_HB_RAM_INITIALIZED = true;
 
 const TEST_RAM_DATA_W = TEST_DATA_W;
-const TEST_RAM_SIZE = u32:1024;
+const TEST_RAM_SIZE = u32:2048;
 const TEST_RAM_ADDR_W = TEST_ADDR_W;
 const TEST_RAM_PARTITION_SIZE = TEST_RAM_DATA_W / u32:8;
 const TEST_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_RAM_PARTITION_SIZE, TEST_RAM_DATA_W);
@@ -732,56 +759,29 @@ const TEST_RAM_ASSERT_VALID_READ = true;
 
 const TEST_OUTPUT_LIT_ADDR = uN[TEST_ADDR_W]:0x100;
 const TEST_OUTPUT_SEQ_ADDR = uN[TEST_ADDR_W]:0x200;
-const TEST_OUTPUT_ADDR_MASK = uN[TEST_ADDR_W]:0xF00;
 
-// Test data
-// 010A_0B0C_0102_0104_0A0B_0C05_0A0B_0C09
-//    ^- ----           ^--- --   ^--- --
-// Expected output
-//   literals: 010A_0B0C_0102_0104_0509
-//   sequences: (8, 7, 3), (1, 4, 3), (1, 0, 0)
-
-const TEST_DATA = uN[TEST_RAM_DATA_W][2]:[
-    u64:0x0401_0201_0C0B_0A01,
-    u64:0x090C_0B0A_050C_0B0A,
+const TEST_DATA = uN[TEST_RAM_DATA_W][16]:[
+    u64:0x1111_1111_1111_1111,
+    u64:0xAAAA_AAAA_AAAA_AAAA,
+    u64:0xBBBB_BBBB_BBBB_BBBB,
+    u64:0xCCCC_CCCC_CCCC_CCCC,
+    u64:0x1111_1111_1111_1111,
+    u64:0x2222_2222_2222_2222,
+    u64:0x1111_1111_1111_1111,
+    u64:0x4444_4444_4444_4444,
+    u64:0xAAAA_AAAA_AAAA_AAAA,
+    u64:0xBBBB_BBBB_BBBB_BBBB,
+    u64:0xCCCC_CCCC_CCCC_CCCC,
+    u64:0x5555_5555_5555_5555,
+    u64:0xAAAA_AAAA_AAAA_AAAA,
+    u64:0xBBBB_BBBB_BBBB_BBBB,
+    u64:0xCCCC_CCCC_CCCC_CCCC,
+    u64:0x9999_9999_9999_9999,
 ];
-
-const TEST_LITERALS = u8[10]:[
-    u8:0x09, u8:0x05, u8:0x04, u8:0x01, u8:0x02, u8:0x01, u8:0x0C, u8:0x0B, u8:0x0A, u8:0x01,
-];
-
-const TEST_SEQUENCES = MatchFinderSequence[3]:[
-    MatchFinderSequence {
-        literals_len: u16:8,
-        match_offset: u16:7,
-        match_len: u16:3,
-    },
-    MatchFinderSequence {
-        literals_len: u16:1,
-        match_offset: u16:4,
-        match_len: u16:3,
-    },
-    MatchFinderSequence {
-        literals_len: u16:1,
-        match_offset: u16:0,
-        match_len: u16:0,
-    },
-];
-
-struct TestState {
-    iteration: u32,
-    lit_buffer: uN[SYMBOL_WIDTH][256],
-    seq_buffer: MatchFinderSequence[32],
-    wr_addr: uN[TEST_ADDR_W],
-    wr_offset: uN[TEST_ADDR_W],
-    wr_len: uN[TEST_ADDR_W],
-}
 
 #[test_proc]
 proc MatchFinderTest {
-
     // Memory Reader + Input
-
     type MemReaderReq = mem_reader::MemReaderReq<TEST_ADDR_W>;
     type MemReaderResp = mem_reader::MemReaderResp<TEST_DATA_W, TEST_ADDR_W>;
 
@@ -790,8 +790,16 @@ proc MatchFinderTest {
     type InputBufferRamWrReq = ram::WriteReq<TEST_RAM_ADDR_W, TEST_RAM_DATA_W, TEST_RAM_NUM_PARTITIONS>;
     type InputBufferRamWrResp = ram::WriteResp;
 
+    type OutputBufferRamRdReq = ram::ReadReq<TEST_RAM_ADDR_W, TEST_RAM_NUM_PARTITIONS>;
+    type OutputBufferRamRdResp = ram::ReadResp<TEST_RAM_DATA_W>;
+    type OutputBufferRamWrReq = ram::WriteReq<TEST_RAM_ADDR_W, TEST_RAM_DATA_W, TEST_RAM_NUM_PARTITIONS>;
+    type OutputBufferRamWrResp = ram::WriteResp;
+
     type AxiAr = axi::AxiAr<TEST_ADDR_W, TEST_ID_W>;
     type AxiR = axi::AxiR<TEST_DATA_W, TEST_ID_W>;
+    type AxiAw = axi::AxiAw<TEST_ADDR_W, TEST_ID_W>;
+    type AxiW = axi::AxiW<TEST_DATA_W, TEST_RAM_NUM_PARTITIONS>;
+    type AxiB = axi::AxiB<TEST_ID_W>;
 
     // Memory Writer
 
@@ -832,7 +840,6 @@ proc MatchFinderTest {
 
     type NumEntriesLog2 = uN[TEST_HT_SIZE_W];
     type RamAddr = uN[TEST_RAM_ADDR_W];
-    type RamData = uN[TEST_RAM_DATA_W];
     type RamMask = uN[TEST_RAM_NUM_PARTITIONS];
 
     terminator: chan<bool> out;
@@ -840,14 +847,10 @@ proc MatchFinderTest {
     req_s: chan<Req> out;
     resp_r: chan<Resp> in;
 
-    mem_wr_req_r: chan<MemWriterReq> in;
-    mem_wr_packet_r: chan<MemWriterDataPacket> in;
-    mem_wr_resp_s: chan<MemWriterResp> out;
-
-    input_ram_rd_req_s: chan<InputBufferRamRdReq> out;
-    input_ram_rd_resp_r: chan<InputBufferRamRdResp> in;
     input_ram_wr_req_s: chan<InputBufferRamWrReq> out;
     input_ram_wr_resp_r: chan<InputBufferRamWrResp> in;
+    output_rd_req_s: chan<OutputBufferRamRdReq> out;
+    output_rd_resp_r: chan<OutputBufferRamRdResp>in;
 
     config(terminator: chan<bool> out) {
 
@@ -887,69 +890,15 @@ proc MatchFinderTest {
         let (hb_ram_wr_req_s, hb_ram_wr_req_r) = chan<HistoryBufferRamWrReq>[8]("hb_ram_wr_req");
         let (hb_ram_wr_resp_s, hb_ram_wr_resp_r) = chan<HistoryBufferRamWrResp>[8]("hb_ram_wr_resp");
 
-        spawn ram::RamModel<
+        unroll_for! (i, _) : (u32, ()) in range(u32:0, u32:8) {
+            spawn ram::RamModel<
             TEST_HB_RAM_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_PARTITION_SIZE,
             TEST_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_HB_RAM_INITIALIZED
-        >(
-            hb_ram_rd_req_r[0], hb_ram_rd_resp_s[0],
-            hb_ram_wr_req_r[0], hb_ram_wr_resp_s[0],
-        );
-
-        spawn ram::RamModel<
-            TEST_HB_RAM_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_PARTITION_SIZE,
-            TEST_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_HB_RAM_INITIALIZED
-        >(
-            hb_ram_rd_req_r[1], hb_ram_rd_resp_s[1],
-            hb_ram_wr_req_r[1], hb_ram_wr_resp_s[1],
-        );
-
-        spawn ram::RamModel<
-            TEST_HB_RAM_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_PARTITION_SIZE,
-            TEST_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_HB_RAM_INITIALIZED
-        >(
-            hb_ram_rd_req_r[2], hb_ram_rd_resp_s[2],
-            hb_ram_wr_req_r[2], hb_ram_wr_resp_s[2],
-        );
-
-        spawn ram::RamModel<
-            TEST_HB_RAM_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_PARTITION_SIZE,
-            TEST_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_HB_RAM_INITIALIZED
-        >(
-            hb_ram_rd_req_r[3], hb_ram_rd_resp_s[3],
-            hb_ram_wr_req_r[3], hb_ram_wr_resp_s[3],
-        );
-
-        spawn ram::RamModel<
-            TEST_HB_RAM_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_PARTITION_SIZE,
-            TEST_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_HB_RAM_INITIALIZED
-        >(
-            hb_ram_rd_req_r[4], hb_ram_rd_resp_s[4],
-            hb_ram_wr_req_r[4], hb_ram_wr_resp_s[4],
-        );
-
-        spawn ram::RamModel<
-            TEST_HB_RAM_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_PARTITION_SIZE,
-            TEST_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_HB_RAM_INITIALIZED
-        >(
-            hb_ram_rd_req_r[5], hb_ram_rd_resp_s[5],
-            hb_ram_wr_req_r[5], hb_ram_wr_resp_s[5],
-        );
-
-        spawn ram::RamModel<
-            TEST_HB_RAM_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_PARTITION_SIZE,
-            TEST_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_HB_RAM_INITIALIZED
-        >(
-            hb_ram_rd_req_r[6], hb_ram_rd_resp_s[6],
-            hb_ram_wr_req_r[6], hb_ram_wr_resp_s[6],
-        );
-
-        spawn ram::RamModel<
-            TEST_HB_RAM_DATA_W, TEST_HB_RAM_SIZE, TEST_HB_RAM_PARTITION_SIZE,
-            TEST_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_HB_RAM_INITIALIZED
-        >(
-            hb_ram_rd_req_r[7], hb_ram_rd_resp_s[7],
-            hb_ram_wr_req_r[7], hb_ram_wr_resp_s[7],
-        );
+            >(
+                hb_ram_rd_req_r[i], hb_ram_rd_resp_s[i],
+                hb_ram_wr_req_r[i], hb_ram_wr_resp_s[i],
+            );
+        }(());
 
         // History Buffer
 
@@ -1007,11 +956,44 @@ proc MatchFinderTest {
             axi_ar_s, axi_r_r,
         );
 
-        // Output Memory Writer
+        let (output_axi_aw_s, output_axi_aw_r) = chan<AxiAw>("output_axi_aw");
+        let (output_axi_w_s, output_axi_w_r) = chan<AxiW>("output_axi_w");
+        let (output_axi_b_s, output_axi_b_r) = chan<AxiB>("output_axi_b");
 
+        // IO for output RAM
+        let (output_rd_req_s, output_rd_req_r) = chan<OutputBufferRamRdReq>("output_rd_req");
+        let (output_rd_resp_s, output_rd_resp_r) = chan<OutputBufferRamRdResp>("output_rd_resp");
+        let (output_wr_req_s, output_wr_req_r) = chan<OutputBufferRamWrReq>("output_wr_req");
+        let (output_wr_resp_s, output_wr_resp_r) = chan<OutputBufferRamWrResp>("output_wr_resp");
+
+        spawn ram::RamModel<
+            TEST_RAM_DATA_W, TEST_RAM_SIZE, TEST_RAM_PARTITION_SIZE,
+            TEST_RAM_SIMULTANEOUS_RW_BEHAVIOR, TEST_RAM_INITIALIZED,
+            TEST_RAM_ASSERT_VALID_READ, TEST_RAM_ADDR_W,
+        >(
+            output_rd_req_r, output_rd_resp_s, output_wr_req_r, output_wr_resp_s
+        );
+
+        spawn axi_ram_writer::AxiRamWriter<
+            TEST_ADDR_W, TEST_DATA_W,
+            TEST_ID_W, TEST_RAM_SIZE, TEST_ADDR_W
+        >(
+            output_axi_aw_r, output_axi_w_r, output_axi_b_s,
+            output_wr_req_s, output_wr_resp_r
+        );
+
+        // IO for MemWriter <-> Encoder
         let (mem_wr_req_s, mem_wr_req_r) = chan<MemWriterReq>("mem_wr_req");
-        let (mem_wr_packet_s, mem_wr_packet_r) = chan<MemWriterDataPacket>("mem_wr_packet");
+        let (mem_wr_data_s, mem_wr_data_r) = chan<MemWriterDataPacket>("mem_wr_data");
         let (mem_wr_resp_s, mem_wr_resp_r) = chan<MemWriterResp>("mem_wr_resp");
+
+        spawn mem_writer::MemWriter<
+        TEST_ADDR_W, TEST_DATA_W, TEST_DEST_W, TEST_ID_W, u32:0
+        >(
+            mem_wr_req_r, mem_wr_data_r,
+            output_axi_aw_s, output_axi_w_s, output_axi_b_r,
+            mem_wr_resp_s
+        );
 
         // Match Finder
 
@@ -1026,157 +1008,111 @@ proc MatchFinderTest {
         >(
             req_r, resp_s,
             mem_rd_req_s, mem_rd_resp_r,
-            mem_wr_req_s, mem_wr_packet_s, mem_wr_resp_r,
+            mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r,
             ht_rd_req_s, ht_rd_resp_r, ht_wr_req_s, ht_wr_resp_r,
             hb_rd_req_s, hb_rd_resp_r, hb_wr_req_s, hb_wr_resp_r,
         );
 
-      (
-          terminator,
-          req_s, resp_r,
-          mem_wr_req_r, mem_wr_packet_r, mem_wr_resp_s,
-          input_ram_rd_req_s, input_ram_rd_resp_r, input_ram_wr_req_s, input_ram_wr_resp_r,
-      )
-
+        (
+            terminator,
+            req_s, resp_r,
+            input_ram_wr_req_s, input_ram_wr_resp_r,
+            output_rd_req_s, output_rd_resp_r,
+        )
     }
 
-    init { zero!<TestState>() }
+    init { }
 
-    next(state: TestState) {
+    next(state: ()) {
+
         let tok = join();
 
-        let tok = if state.iteration == u32:0 {
-        // Fill the input RAM
-            let tok = for ((i, test_data), tok) in enumerate(TEST_DATA) {
-                let ram_wr_req = InputBufferRamWrReq {
-                    addr: i as RamAddr,
-                    data: test_data,
-                    mask: !RamMask:0,
-                };
-                let tok = send(tok, input_ram_wr_req_s, ram_wr_req);
-                trace_fmt!("[TEST] Sent #{} data to input RAM {:#x}", i + u32:1, ram_wr_req);
-                let (tok, _) = recv(tok, input_ram_wr_resp_r);
-                tok
-            }(tok);
-
-            // Start the request
-
-            let req = Req {
-                input_addr: uN[TEST_ADDR_W]:0x0,
-                input_size: (array_size(TEST_DATA) * TEST_DATA_W / SYMBOL_WIDTH) as u32,
-                output_lit_addr: TEST_OUTPUT_LIT_ADDR,
-                output_seq_addr: TEST_OUTPUT_SEQ_ADDR,
-                zstd_params: ZstdParams<TEST_HT_SIZE_W> {
-                    num_entries_log2: NumEntriesLog2:8,
-                },
+        // arrange: create input data
+        let tok =
+        for ((i, test_data), tok) in enumerate(TEST_DATA) {
+            let ram_wr_req = InputBufferRamWrReq {
+                addr: i as RamAddr,
+                data: test_data,
+                mask: !RamMask:0,
             };
-
-            let tok = send(tok, req_s, req);
-            trace_fmt!("[TEST] Sent request to the MatchFinder: {:#x}", req);
-
+            let tok = send(tok, input_ram_wr_req_s, ram_wr_req);
+            trace_fmt!("[TEST] Sent #{} data to input RAM {:#x}", i + u32:1, ram_wr_req);
+            let (tok, _) = recv(tok, input_ram_wr_resp_r);
             tok
-        } else {
-            tok
+        }(tok);
+
+        let req = Req {
+            input_addr: uN[TEST_ADDR_W]:0x0,
+            input_size: (array_size(TEST_DATA) * TEST_DATA_W / u32:8) as u32,
+            output_lit_addr: TEST_OUTPUT_LIT_ADDR,
+            output_seq_addr: TEST_OUTPUT_SEQ_ADDR,
+            zstd_params: ZstdParams<TEST_HT_SIZE_W> {
+                num_entries_log2: NumEntriesLog2:9,
+            },
         };
 
-        let (tok, mem_wr_req, mem_wr_req_valid) = recv_if_non_blocking(
-            tok, mem_wr_req_r, state.wr_len == uN[TEST_ADDR_W]:0, zero!<MemWriterReq>()
-        );
-        let (tok, mem_wr_packet, mem_wr_packet_valid) = recv_if_non_blocking(
-            tok, mem_wr_packet_r, state.wr_len > uN[TEST_ADDR_W]:0, zero!<MemWriterDataPacket>()
-        );
-        let (tok, resp, resp_valid) = recv_if_non_blocking(
-            tok, resp_r, state.wr_len == uN[TEST_ADDR_W]:0, zero!<MatchFinderResp>()
-        );
+        // act: run match finder
+        let tok = send(tok, req_s, req);
+        trace_fmt!("[TEST] Sent request to the MatchFinder: {:#x}", req);
+        let (tok, resp) = recv(tok, resp_r);
 
-        let tok = send_if(tok, mem_wr_resp_s, mem_wr_packet_valid, MemWriterResp{status: mem_writer::MemWriterRespStatus::OKAY});
+        // assert: literals
+        assert_eq(resp.lit_cnt, u32:10);
+        for ((i, expected), tok): ((u32, uN[KEY_WIDTH]), token) in enumerate([
+            u64:0x1111_1111_1111_1111,
+            u64:0xAAAA_AAAA_AAAA_AAAA,
+            u64:0xBBBB_BBBB_BBBB_BBBB,
+            u64:0xCCCC_CCCC_CCCC_CCCC,
+            u64:0x1111_1111_1111_1111,
+            u64:0x2222_2222_2222_2222,
+            u64:0x1111_1111_1111_1111,
+            u64:0x4444_4444_4444_4444,
+            u64:0x5555_5555_5555_5555,
+            u64:0x9999_9999_9999_9999,
+        ]) {
+            let tok = send(tok, output_rd_req_s, OutputBufferRamRdReq {
+                addr: TEST_OUTPUT_LIT_ADDR / RamAddr:8 + i,
+                mask: uN[8]: 0xFF
+            });
 
-        let state = if mem_wr_req_valid {
-            TestState {
-                wr_addr: mem_wr_req.addr,
-                wr_offset: uN[TEST_ADDR_W]:0,
-                wr_len: mem_wr_req.length,
-                ..state
-            }
-        } else {
-            state
-        };
-
-        if mem_wr_req_valid {
-            trace_fmt!("[TEST] Received {:#x}", mem_wr_req);
-        } else {};
-        if mem_wr_packet_valid {
-            trace_fmt!("[TEST] Received {:#x}", mem_wr_packet);
-        } else {};
-
-        let state = if mem_wr_packet_valid {
-            if mem_wr_packet.length > state.wr_len {
-                trace_fmt!("[TEST] Invalid packet length");
-                fail!("invalid_packet_length", mem_wr_packet.length);
+            let (tok, resp) = recv(tok, output_rd_resp_r);
+            if resp.data != expected {
+                trace_fmt!("[TEST] {:#x} != {:#x} at {:#x}", resp.data, expected, TEST_OUTPUT_LIT_ADDR + i * KEY_WIDTH / u32:8);
             } else {};
-            let state = match (state.wr_addr & TEST_OUTPUT_ADDR_MASK) {
-                TEST_OUTPUT_LIT_ADDR => {
-                    trace_fmt!("[TEST] Received literals");
-                    let lit_buffer = for (i, lit_buffer) in range(u32:0, TEST_DATA_W / SYMBOL_WIDTH) {
-                        if i < mem_wr_packet.length {
-                            let literal = (mem_wr_packet.data >> (SYMBOL_WIDTH * i)) as uN[SYMBOL_WIDTH];
-                            let idx = (TEST_ADDR_W / SYMBOL_WIDTH) * (state.wr_addr - TEST_OUTPUT_LIT_ADDR + state.wr_offset) + i;
-                            update(lit_buffer, idx, literal)
-                        } else {
-                            lit_buffer
-                        }
-                    }(state.lit_buffer);
-                    TestState {
-                        lit_buffer: lit_buffer,
-                        wr_offset: state.wr_offset + mem_wr_packet.length,
-                        wr_len: state.wr_len - mem_wr_packet.length,
-                        ..state
-                    }
-                },
-                TEST_OUTPUT_SEQ_ADDR => {
-                    trace_fmt!("[TEST] Received sequence");
-                    assert_eq(uN[TEST_ADDR_W]:6, mem_wr_packet.length);
-                    let sequence = MatchFinderSequence {
-                        literals_len: (mem_wr_packet.data >> u32:32) as u16,
-                        match_offset: (mem_wr_packet.data >> u32:16) as u16,
-                        match_len: mem_wr_packet.data as u16,
-                    };
-                    let idx = ((TEST_ADDR_W / SYMBOL_WIDTH) * (state.wr_addr - TEST_OUTPUT_SEQ_ADDR + state.wr_offset)) / u32:3;
-                    let seq_buffer = update(state.seq_buffer, idx, sequence);
-                    TestState {
-                        seq_buffer: seq_buffer,
-                        wr_offset: state.wr_offset + mem_wr_packet.length,
-                        wr_len: state.wr_len - mem_wr_packet.length,
-                        ..state
-                    }
-                },
-                _ => {
-                    trace_fmt!("[TEST] Invalid write addres");
-                    fail!("invalid_wr_addr", state.wr_addr);
-                    state
-                },
-            };
-            state
-        } else {
-            state
-        };
+            assert_eq(resp.data, expected);
+            tok
+        }(join());
 
-        if resp_valid {
-            // check buffers content
-            trace_fmt!("[TEST] Received Match Finder response {:#x}", resp);
-            for ((i, test_lit), ()) in enumerate(TEST_LITERALS) {
-                assert_eq(test_lit, state.lit_buffer[i]);
-            }(());
-            for ((i, test_seq), ()) in enumerate(TEST_SEQUENCES) {
-                assert_eq(test_seq, state.seq_buffer[i]);
-            }(());
-        } else { };
+        // assert: sequences
+        assert_eq(resp.seq_cnt, u32:3);
+        for ((i, expected), tok): ((u32, uN[KEY_WIDTH]), token) in enumerate([
+            // legend:
+            // LL : literals_len,
+            // MO : match offset,
+            // ML : match len
 
-        send_if(tok, terminator, resp_valid || state.iteration > u32:1000, true);
+            //    seq1
+            //         LLLL MOMO MLML
+            u64:0x0000_0008_0007_0003,
+            //    seq2
+            //         LLLL MOMO MLML
+            u64:0x0000_0001_0004_0003,
+            //    seq3
+            //          LLLL MOMO MLML
+            u64:0x0000__0001_0000_0000
+        ]) {
+            let tok = send(tok, output_rd_req_s, OutputBufferRamRdReq {
+                addr: TEST_OUTPUT_SEQ_ADDR / RamAddr:8 + i,
+                mask: uN[8]: 0xFF
+            });
 
-        TestState {
-            iteration: state.iteration + u32:1,
-            ..state
-        }
+            let (tok, resp) = recv(tok, output_rd_resp_r);
+            if resp.data != expected {
+                trace_fmt!("[TEST] {:#x} != {:#x} at {:#x}", resp.data, expected, TEST_OUTPUT_LIT_ADDR + i * KEY_WIDTH / u32:8);
+            } else {};
+            assert_eq(resp.data, expected);
+            tok
+        }(join());
+        send(tok, terminator, true);
     }
 }
