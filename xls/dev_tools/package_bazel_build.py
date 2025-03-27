@@ -40,6 +40,13 @@ flags.mark_flag_as_required('output_dir')
 flags.mark_flag_as_required('inc_target')
 
 
+_IGNORED_MANIFEST_FILES = frozenset([
+    # This maps to a different .cache/bazel file for each binary.
+    # https://github.com/bazelbuild/proposals/blob/main/designs/2022-07-21-locating-runfiles-with-bzlmod.md
+    '_repo_mapping',
+])
+
+
 class GlobalManifest:
   """Stores all manifest mappings.
 
@@ -113,28 +120,28 @@ class Manifest:
     """
     with open(manifest) as f:
       for l in f:
-        file_map = l.split()
+        file_map = l.rstrip().split(maxsplit=1)
 
         file_name = file_map[0]
+
+        if file_name in _IGNORED_MANIFEST_FILES:
+          continue
 
         if len(file_map) == 1:
           self._all_files.append(file_name)
           self._mapped_files[file_name] = None
 
           logging.debug(' - %s - copy unique', file_name)
-        elif len(file_map) == 2:
-          file_mapped_name = file_map[1]
+          continue
 
-          self._all_files.append(file_name)
-          self._mapped_files[file_name] = file_mapped_name
+        file_mapped_name = file_map[1]
 
-          self._global_manifest.add_mapping(
-              file_name, file_mapped_name, manifest
-          )
+        self._all_files.append(file_name)
+        self._mapped_files[file_name] = file_mapped_name
 
-          logging.debug(' - %s - copy mapped - %s', file_name, file_mapped_name)
-        else:
-          logging.fatal('Unexpected line in manifest %s - %s', manifest, l)
+        self._global_manifest.add_mapping(file_name, file_mapped_name, manifest)
+
+        logging.debug(' - %s - copy mapped - %s', file_name, file_mapped_name)
 
 
 class BazelTargetPackager:
