@@ -308,6 +308,7 @@ BlockMemoryModel::BlockMemoryModel(const std::string& name, size_t size,
                                    const Value& read_disabled_value,
                                    bool show_trace)
     : name_(name),
+      initial_value_(initial_value),
       read_disabled_value_(read_disabled_value),
       show_trace_(show_trace) {
   elements_.resize(size, initial_value);
@@ -344,6 +345,9 @@ Value BlockMemoryModel::GetValueReadLastTick() const {
 bool BlockMemoryModel::DidReadLastTick() const {
   return read_last_tick_.has_value();
 }
+bool BlockMemoryModel::DidWriteLastTick() const {
+  return write_valid_last_tick_;
+}
 absl::Status BlockMemoryModel::Write(int64_t addr, const Value& value) {
   if (addr < 0 || addr >= elements_.size()) {
     return absl::OutOfRangeError(
@@ -373,9 +377,19 @@ absl::Status BlockMemoryModel::Tick() {
                 << "] = " << write_this_tick_->second;
     }
     elements_[write_this_tick_->first] = write_this_tick_->second;
+    write_valid_last_tick_ = true;
     write_this_tick_.reset();
+  } else {
+    write_valid_last_tick_ = false;
   }
   read_last_tick_ = read_this_tick_;
+  read_this_tick_.reset();
+  return absl::OkStatus();
+}
+
+absl::Status BlockMemoryModel::Reset() {
+  elements_.assign(elements_.size(), initial_value_);
+  write_this_tick_.reset();
   read_this_tick_.reset();
   return absl::OkStatus();
 }

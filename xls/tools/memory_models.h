@@ -59,14 +59,18 @@ class BlockMemoryModel {
   absl::Status Read(int64_t addr);
   Value GetValueReadLastTick() const;
   bool DidReadLastTick() const;
+  bool DidWriteLastTick() const;
   absl::Status Write(int64_t addr, const Value& value);
   absl::Status Tick();
+  absl::Status Reset();
 
  private:
   const std::string name_;
+  const Value initial_value_;
   const Value read_disabled_value_;
   std::vector<Value> elements_;
   std::optional<std::pair<int64_t, Value>> write_this_tick_;
+  bool write_valid_last_tick_ = false;
   std::optional<Value> read_this_tick_;
   std::optional<Value> read_last_tick_;
   const bool show_trace_;
