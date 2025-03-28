@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import std;
+
 // This file defines RLE common data structures
 //
 
@@ -22,6 +24,15 @@
 pub struct PlainData<SYMB_WIDTH: u32> {
     symbol: bits[SYMB_WIDTH], // symbol
     last: bool,               // flush RLE
+}
+
+// Structure contains multiple uncompressed symbols.
+// Structure is used as an output from a advanced RLE decoder.
+// FIXME: add default value DATA_WIDTH_LOG2: u32 = {std::clog2(DATA_WIDTH + u32:1) } (https://github.com/google/xls/issues/1425)
+pub struct PlainDataWithLen<DATA_WIDTH: u32, DATA_WIDTH_LOG2: u32> {
+    symbols: uN[DATA_WIDTH],
+    length: uN[DATA_WIDTH_LOG2],
+    last: bool,
 }
 
 // Structure contains compressed (symbol, counter) pairs.

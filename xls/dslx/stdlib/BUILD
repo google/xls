@@ -59,6 +59,11 @@ xls_dslx_prove_quickcheck_test(
     srcs = ["std.x"],
 )
 
+xls_dslx_library(
+    name = "acm_random_dslx",
+    srcs = ["acm_random.x"],
+)
+
 xls_dslx_test(
     name = "acm_random_dslx_test",
     srcs = ["acm_random.x"],
