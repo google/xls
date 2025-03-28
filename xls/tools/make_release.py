@@ -36,7 +36,8 @@ BINARIES = (
     'dslx/ir_convert/ir_converter_main',
     'tools/opt_main',
     'tools/codegen_main',
-    'visualization/ir_viz/app',
+    # TODO: https://github.com/google/xls/issues/2021 - Re-enable when fixed.
+    # 'visualization/ir_viz/app',
 )
 PACKAGE_UTIL = 'dev_tools/package_bazel_build'
 
