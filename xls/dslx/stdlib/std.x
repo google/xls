@@ -1081,6 +1081,90 @@ pub fn sizeof_signed<N: u32>(x: sN[N]) -> u32 { N }
 
 pub fn sizeof_unsigned<N: u32>(x: uN[N]) -> u32 { N }
 
+// Returns `x` with all but the least-significant `n` bits set to zero.
+pub fn mask_lsbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH] {
+    x & !(all_ones!<uN[WIDTH]>() << n)
+}
+
+#[test]
+fn mask_lsbs_test() {
+    assert_eq(u8:0x00, mask_lsbs(u8:0xab, u4:0));
+    assert_eq(u8:0x01, mask_lsbs(u8:0xab, u4:1));
+    assert_eq(u8:0x00, mask_lsbs(u8:0xaa, u4:1));
+    assert_eq(u8:0x00, mask_lsbs(u8:0xa0, u4:4));
+    assert_eq(u8:0x0a, mask_lsbs(u8:0xaa, u4:4));
+    assert_eq(u8:0x08, mask_lsbs(u8:0xa8, u4:4));
+    assert_eq(u8:0xa0, mask_lsbs(u8:0xa0, u4:8));
+    assert_eq(u8:0xaa, mask_lsbs(u8:0xaa, u4:8));
+    assert_eq(u8:0xa8, mask_lsbs(u8:0xa8, u4:8));
+    assert_eq(u8:0xa0, mask_lsbs(u8:0xa0, u4:12));
+    assert_eq(u8:0xaa, mask_lsbs(u8:0xaa, u4:12));
+    assert_eq(u8:0xa8, mask_lsbs(u8:0xa8, u4:12));
+}
+
+// Returns `x` with all but the most-significant `n` bits set to zero.
+pub fn mask_msbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH] {
+    x & !(all_ones!<uN[WIDTH]>() >> n)
+}
+
+#[test]
+fn mask_msbs_test() {
+    assert_eq(u8:0x00, mask_msbs(u8:0xab, u4:0));
+    assert_eq(u8:0x80, mask_msbs(u8:0xab, u4:1));
+    assert_eq(u8:0x00, mask_msbs(u8:0x2b, u4:1));
+    assert_eq(u8:0x00, mask_msbs(u8:0x0a, u4:4));
+    assert_eq(u8:0xa0, mask_msbs(u8:0xaa, u4:4));
+    assert_eq(u8:0x80, mask_msbs(u8:0x8a, u4:4));
+    assert_eq(u8:0xa0, mask_msbs(u8:0xa0, u4:8));
+    assert_eq(u8:0xaa, mask_msbs(u8:0xaa, u4:8));
+    assert_eq(u8:0xa8, mask_msbs(u8:0xa8, u4:8));
+    assert_eq(u8:0xa0, mask_msbs(u8:0xa0, u4:12));
+    assert_eq(u8:0xaa, mask_msbs(u8:0xaa, u4:12));
+    assert_eq(u8:0xa8, mask_msbs(u8:0xa8, u4:12));
+}
+
+// Returns `value` with the least-significant `n` bits set to zero.
+pub fn without_lsbs<WIDTH: u32, N_WIDTH: u32>(value: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH] {
+    value & (all_ones!<uN[WIDTH]>() << n)
+}
+
+#[test]
+fn without_lsbs_test() {
+    assert_eq(u8:0xab, without_lsbs(u8:0xab, u4:0));
+    assert_eq(u8:0xaa, without_lsbs(u8:0xab, u4:1));
+    assert_eq(u8:0xaa, without_lsbs(u8:0xaa, u4:1));
+    assert_eq(u8:0xa0, without_lsbs(u8:0xa0, u4:4));
+    assert_eq(u8:0xa0, without_lsbs(u8:0xaa, u4:4));
+    assert_eq(u8:0xa0, without_lsbs(u8:0xa8, u4:4));
+    assert_eq(u8:0x00, without_lsbs(u8:0xa0, u4:8));
+    assert_eq(u8:0x00, without_lsbs(u8:0xaa, u4:8));
+    assert_eq(u8:0x00, without_lsbs(u8:0xa8, u4:8));
+    assert_eq(u8:0x00, without_lsbs(u8:0xa0, u4:12));
+    assert_eq(u8:0x00, without_lsbs(u8:0xaa, u4:12));
+    assert_eq(u8:0x00, without_lsbs(u8:0xa8, u4:12));
+}
+
+// Returns `value` with the most-significant `n` bits set to zero.
+pub fn without_msbs<WIDTH: u32, N_WIDTH: u32>(value: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH] {
+    value & (all_ones!<uN[WIDTH]>() >> n)
+}
+
+#[test]
+fn without_msbs_test() {
+    assert_eq(u8:0xab, without_msbs(u8:0xab, u4:0));
+    assert_eq(u8:0x2b, without_msbs(u8:0xab, u4:1));
+    assert_eq(u8:0x2b, without_msbs(u8:0x2b, u4:1));
+    assert_eq(u8:0x00, without_msbs(u8:0xa0, u4:4));
+    assert_eq(u8:0x0a, without_msbs(u8:0xaa, u4:4));
+    assert_eq(u8:0x08, without_msbs(u8:0xa8, u4:4));
+    assert_eq(u8:0x00, without_msbs(u8:0xa0, u4:8));
+    assert_eq(u8:0x00, without_msbs(u8:0xaa, u4:8));
+    assert_eq(u8:0x00, without_msbs(u8:0xa8, u4:8));
+    assert_eq(u8:0x00, without_msbs(u8:0xa0, u4:12));
+    assert_eq(u8:0x00, without_msbs(u8:0xaa, u4:12));
+    assert_eq(u8:0x00, without_msbs(u8:0xa8, u4:12));
+}
+
 // Implementation of or_reduce_lsb() with choice of implementation.
 // The "do_mask_impl" template parameter chooses the implementation and is
 // subject to change while tested in different contexts.
@@ -1089,7 +1173,7 @@ fn or_reduce_lsb_impl<DO_MASK_IMPL: bool, WIDTH: u32, N_WIDTH: u32>
     (value: uN[WIDTH], n: uN[N_WIDTH]) -> bool {
     if DO_MASK_IMPL {
         // Mask the relevant bits, then compare.
-        value & ((uN[WIDTH]:1 << n) - uN[WIDTH]:1) != uN[WIDTH]:0
+        mask_lsbs(value, n) != uN[WIDTH]:0
     } else {
         // shift out uninteresting bits, then compare.
         value << (WIDTH as uN[N_WIDTH] - n) != uN[WIDTH]:0
