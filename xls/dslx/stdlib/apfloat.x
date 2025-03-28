@@ -2659,17 +2659,13 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
     let wide_c = wide_c << (WIDE_FRACTION - (FRACTION_SZ + u32:1));
 
     // Shift the operands into their correct positions.
+    // The sticky bits are set to whether anything non-zero gets shifted out.
     let rshift_ab = greater_exp - ab.bexp;
     let rshift_c = greater_exp - (c.bexp as uN[EXP_CARRY]);
     let shifted_ab = wide_ab >> rshift_ab;
     let shifted_c = wide_c >> rshift_c;
-
-    // Calculate the sticky bits.
-    let dropped_ab = wide_ab << ((WIDE_FRACTION as uN[EXP_CARRY] - rshift_ab) as uN[WIDE_FRACTION]);
-    let dropped_c = wide_c << ((WIDE_FRACTION as uN[EXP_CARRY] - rshift_c) as uN[WIDE_FRACTION]);
-    let dropped_c = if rshift_c >= (WIDE_FRACTION as uN[EXP_CARRY]) { wide_c } else { dropped_c };
-    let sticky_ab = (dropped_ab != uN[WIDE_FRACTION]:0) as uN[WIDE_FRACTION];
-    let sticky_c = (dropped_c != uN[WIDE_FRACTION]:0) as uN[WIDE_FRACTION];
+    let sticky_ab = std::or_reduce_lsb(wide_ab, rshift_ab) as uN[WIDE_FRACTION];
+    let sticky_c = std::or_reduce_lsb(wide_c, rshift_c) as uN[WIDE_FRACTION];
 
     // Add the sticky bit and extend the operands with the sign and carry bits.
     let shifted_ab = (shifted_ab | sticky_ab) as sN[WIDE_FRACTION_SIGN_CARRY];
