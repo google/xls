@@ -933,6 +933,15 @@ pub fn msb<N: u32>(x: uN[N]) -> u1
 
 Extracts the MSb (Most Significant bit) from the value `x` and returns it.
 
+#### `std::or_reduce_lsb`
+
+```dslx-snippet
+pub fn or_reduce_lsb<WIDTH: u32, N_WIDTH: u32>(value: uN[WIDTH], n: uN[N_WIDTH]) -> bool
+```
+
+Returns the or-reduction of the `n` least significant bits from `value` (i.e.,
+whether any of the `n` least-significant bits are set).
+
 #### `std::convert_to_bits_msb0`
 
 ```dslx-snippet
