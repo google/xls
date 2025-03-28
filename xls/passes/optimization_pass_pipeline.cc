@@ -71,7 +71,6 @@
 #include "xls/passes/reassociation_pass.h"
 #include "xls/passes/receive_default_value_simplification_pass.h"
 #include "xls/passes/select_lifting_pass.h"
-#include "xls/passes/select_merging_pass.h"
 #include "xls/passes/select_simplification_pass.h"
 #include "xls/passes/sparsify_select_pass.h"
 #include "xls/passes/strength_reduction_pass.h"
@@ -281,8 +280,6 @@ class PostInliningOptPassGroup : public OptimizationCompoundPass {
     Add<DeadCodeEliminationPass>();
 
     Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
-    Add<DeadCodeEliminationPass>();
-    Add<SelectMergingPass>();
     Add<DeadCodeEliminationPass>();
     Add<CapOptLevel<3, FixedPointSimplificationPass>>();
   }

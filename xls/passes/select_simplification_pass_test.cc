@@ -739,6 +739,141 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectCommoning) {
                   /*default_value=*/m::Param("z")));
 }
 
+TEST_P(SelectSimplificationPassTest, OneHotSelectFeedingOneHotSelect) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       one_hot_sel.1: bits[32] = one_hot_sel(p0, cases=[x, y])
+       ret one_hot_sel.2: bits[32] = one_hot_sel(p1, cases=[one_hot_sel.1, z])
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::OneHotSelect(m::Concat(),
+                      /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")}));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       OneHotSelectFeedingOneHotSelectWithMultipleUses) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       one_hot_sel.1: bits[32] = one_hot_sel(p0, cases=[x, y])
+       neg.2: bits[32] = neg(one_hot_sel.1)
+       one_hot_sel.3: bits[32] = one_hot_sel(p1, cases=[one_hot_sel.1, z])
+       ret add.4: bits[32] = add(neg.2, one_hot_sel.3)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_P(SelectSimplificationPassTest, PrioritySelectFeedingPrioritySelect) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32], d: bits[32]) -> bits[32] {
+       priority_sel.1: bits[32] = priority_sel(p0, cases=[x, y], default=d)
+       literal.2: bits[32] = literal(value=0)
+       ret priority_sel.3: bits[32] = priority_sel(p1, cases=[priority_sel.1, z], default=literal.2)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Concat(
+              m::BitSlice(m::Param("p1"), /*start=*/Eq(1), /*width=*/Eq(1)),
+              m::And(m::BitSlice(m::Param("p1"), /*start=*/Eq(0),
+                                 /*width=*/Eq(1)),
+                     m::Eq(m::Param("p0"), m::Literal(0))),
+              m::And(m::SignExt(m::BitSlice(m::Param("p1"), /*start=*/Eq(0),
+                                            /*width=*/Eq(1))),
+                     m::Param("p0"))),
+          /*cases=*/
+          {m::Param("x"), m::Param("y"), m::Param("d"), m::Param("z")},
+          /*default_value=*/m::Literal(0)));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       PrioritySelectFeedingPrioritySelectWithMultipleUses) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32], d: bits[32]) -> bits[32] {
+       priority_sel.1: bits[32] = priority_sel(p0, cases=[x, y], default=d)
+       neg.2: bits[32] = neg(priority_sel.1)
+       literal.3: bits[32] = literal(value=0)
+       priority_sel.4: bits[32] = priority_sel(p1, cases=[priority_sel.1, z], default=literal.3)
+       ret add.5: bits[32] = add(neg.2, priority_sel.4)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       PrioritySelectFeedingPrioritySelectDefault) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32], d: bits[32]) -> bits[32] {
+       priority_sel.1: bits[32] = priority_sel(p0, cases=[x, y], default=d)
+       literal.2: bits[32] = literal(value=0)
+       ret priority_sel.3: bits[32] = priority_sel(p1, cases=[literal.2, z], default=priority_sel.1)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(
+                  m::Concat(m::Param("p0"), m::Param("p1")),
+                  /*cases=*/
+                  {m::Literal(0), m::Param("z"), m::Param("x"), m::Param("y")},
+                  /*default_value=*/m::Param("d")));
+}
+
+TEST_P(SelectSimplificationPassTest, OneHotSelectChain) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p0: bits[3], p1: bits[2], p2: bits[4], v: bits[32], w: bits[32], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       one_hot_sel.1: bits[32] = one_hot_sel(p0, cases=[w, x, y])
+       one_hot_sel.2: bits[32] = one_hot_sel(p1, cases=[one_hot_sel.1, z])
+       ret one_hot_sel.3: bits[32] = one_hot_sel(p2, cases=[v, one_hot_sel.2, z, w])
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::OneHotSelect(
+          m::Concat(),
+          /*cases=*/{m::Param("v"), m::Param("w"), m::Param("x"), m::Param("y"),
+                     m::Param("z"), m::Param("z"), m::Param("w")}));
+}
+
+TEST_P(SelectSimplificationPassTest, OneHotSelectTree) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p0: bits[2], p1: bits[2], p2: bits[3], v: bits[32], w: bits[32], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       one_hot_sel.1: bits[32] = one_hot_sel(p0, cases=[v, w])
+       one_hot_sel.2: bits[32] = one_hot_sel(p1, cases=[y, z])
+       ret one_hot_sel.3: bits[32] = one_hot_sel(p2, cases=[one_hot_sel.1, x, one_hot_sel.2])
+     }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::OneHotSelect(m::Concat(),
+                      /*cases=*/{m::Param("v"), m::Param("w"), m::Param("x"),
+                                 m::Param("y"), m::Param("z")}));
+}
+
 TEST_P(SelectSimplificationPassTest, OneHotSelectWithLiteralZeroArms) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -1039,6 +1174,67 @@ TEST_P(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseDefault) {
   EXPECT_THAT(f->return_value(),
               m::And(m::Param("x"),
                      m::SignExt(m::Eq(m::Param("p"), m::Literal(0b00)))));
+}
+
+TEST_P(SelectSimplificationPassTest, SimpleMergeablePrioritySelects) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[1], q: bits[1], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       priority_sel.1: bits[32] = priority_sel(q, cases=[y], default=z)
+       ret priority_sel.2: bits[32] = priority_sel(p, cases=[x], default=priority_sel.1)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::Concat(m::Param("q"), m::Param("p")),
+                                /*cases=*/{m::Param("x"), m::Param("y")},
+                                /*default_value=*/m::Param("z")));
+}
+
+TEST_P(SelectSimplificationPassTest, SimpleMergeablePrioritySelectsAfterSwap) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[1], q: bits[1], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+       priority_sel.1: bits[32] = priority_sel(q, cases=[y], default=z)
+       ret priority_sel.2: bits[32] = priority_sel(p, cases=[priority_sel.1], default=x)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::Concat(m::Param("q"), m::Not(m::Param("p"))),
+                                /*cases=*/{m::Param("x"), m::Param("y")},
+                                /*default_value=*/m::Param("z")));
+}
+
+TEST_P(SelectSimplificationPassTest, ComplexMergeablePrioritySelects) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(p: bits[1], q: bits[2], x: bits[32], y: bits[32], z: bits[32], w: bits[32]) -> bits[32] {
+       priority_sel.1: bits[32] = priority_sel(q, cases=[y, z], default=w)
+       priority_sel.2: bits[32] = priority_sel(q, cases=[z, w], default=y)
+       ret priority_sel.3: bits[32] = priority_sel(p, cases=[priority_sel.1], default=priority_sel.2)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::Concat(m::Param("q"),
+                    m::And(m::Param("p"), m::Eq(m::Param("q"), m::Literal(0))),
+                    m::And(m::SignExt(m::Param("p")), m::Param("q"))),
+          /*cases=*/
+          {m::Param("y"), m::Param("z"), m::Param("w"), m::Param("z"),
+           m::Param("w")},
+          /*default_value=*/m::Param("y")));
 }
 
 TEST_P(SelectSimplificationPassTest, TwoWayOneHotSelectWhichIsNotOneHot) {

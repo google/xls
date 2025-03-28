@@ -146,7 +146,6 @@ cc_library(
         ":reassociation_pass",
         ":receive_default_value_simplification_pass",
         ":select_lifting_pass",
-        ":select_merging_pass",
         ":select_simplification_pass",
         ":sparsify_select_pass",
         ":strength_reduction_pass",
@@ -990,30 +989,6 @@ cc_library(
 )
 
 cc_library(
-    name = "select_merging_pass",
-    srcs = ["select_merging_pass.cc"],
-    hdrs = ["select_merging_pass.h"],
-    deps = [
-        ":optimization_pass",
-        ":optimization_pass_registry",
-        ":pass_base",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:node_util",
-        "//xls/ir:op",
-        "//xls/ir:value_utils",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_library(
     name = "select_simplification_pass",
     srcs = ["select_simplification_pass.cc"],
     hdrs = ["select_simplification_pass.h"],
@@ -1456,7 +1431,6 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:interval",
-        "//xls/ir:interval_ops",
         "//xls/ir:interval_set",
         "//xls/ir:interval_set_test_utils",
         "//xls/ir:ir_test_base",
@@ -2616,26 +2590,6 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/log",
-        "@googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "select_merging_pass_test",
-    srcs = ["select_merging_pass_test.cc"],
-    deps = [
-        ":optimization_pass",
-        ":pass_base",
-        ":select_merging_pass",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_matcher",
-        "//xls/ir:ir_test_base",
-        "//xls/solvers:z3_ir_equivalence_testutils",
-        "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )
