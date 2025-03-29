@@ -747,8 +747,6 @@ class AstGenerator {
   const Pos fake_pos_;
   const Span fake_span_;
 
-  absl::btree_set<BinopKind> binops_;
-
   std::unique_ptr<Module> module_;
 
   int64_t next_name_index_ = 0;
