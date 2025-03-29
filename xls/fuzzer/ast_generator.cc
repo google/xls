@@ -1894,7 +1894,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
       fake_span_, std::vector<Statement*>{body_stmt}, /*trailing_semi=*/false);
   For* for_ = module_->Make<For>(fake_span_, name_def_tree, tree_type, iterable,
                                  block, /*init=*/e.expr);
-  return TypedExpr{for_, e.type};
+  return TypedExpr{.expr = for_,
+                   .type = e.type,
+                   .last_delaying_op = e.last_delaying_op,
+                   .min_stage = e.min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Context* ctx) {
