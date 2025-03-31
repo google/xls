@@ -343,7 +343,6 @@ cc_library(
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type_info",
-        "//xls/dslx/type_system_v2:inference_table",
         "//xls/dslx/type_system_v2:inference_table_converter",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
