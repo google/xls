@@ -5,29 +5,6 @@ module main(
   input wire [15:0] d,
   output wire [31:0] out
 );
-  function automatic [15:0] priority_sel_16b_2way_snz (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1, input reg [15:0] default_value);
-    begin
-      casez (sel)
-        2'b?1: begin
-          priority_sel_16b_2way_snz = case0;
-        end
-        2'b10: begin
-          priority_sel_16b_2way_snz = case1;
-        end
-        2'b00: begin
-          `ifdef SIMULATION
-            $error("Zero selector not allowed.");
-          `endif  // SIMULATION
-          // Never taken, propagate X
-          priority_sel_16b_2way_snz = 16'dx;
-        end
-        default: begin
-          // Propagate X
-          priority_sel_16b_2way_snz = 16'dx;
-        end
-      endcase
-    end
-  endfunction
   function automatic [15:0] priority_sel_16b_2way (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1, input reg [15:0] default_value);
     begin
       casez (sel)
@@ -48,5 +25,5 @@ module main(
     end
   endfunction
 
-  assign out = {priority_sel_16b_2way_snz(p | 2'h1, x, y, d), priority_sel_16b_2way(p, x, y, d)};
+  assign out = {priority_sel_16b_2way(p | 2'h1, x, y, d), priority_sel_16b_2way(p, x, y, d)};
 endmodule

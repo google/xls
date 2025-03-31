@@ -166,7 +166,7 @@ absl::StatusOr<ArrayAssignmentPattern*> ValueToArrayAssignmentPattern(
 absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
     Node* selector, Type* tpe, int64_t num_cases, const SourceInfo& loc,
     std::string_view function_name, ModuleSection* section,
-    SelectorProperties selector_properties, const CodegenOptions& options) {
+    const CodegenOptions& options) {
   VerilogFile* file = section->file();
 
   VerilogFunction* func = section->Add<VerilogFunction>(
@@ -228,32 +228,8 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
     // Verilog doesn't support 'X, so use the less desirable 16'dxxxx format.
     x_literal = file->Make<XSentinel>(loc, tpe->GetFlatBitCount());
   }
-  if (selector_properties.never_zero) {
-    // If the selector cannot be zero, throw an error if we see zero.
-    // We still explicitly propagate X (like the default case below) for
-    // synthesis.
-    // TODO: github/xls#1481 - this should really be an assert (or assume)
-    // predicated on selector being valid, but it's a bit tricky to do. For now,
-    // it seems better to have an overactive error rather than silently
-    // propagate X.
-    Expression* error_message =
-        file->Make<QuotedString>(loc, "Zero selector not allowed.");
-    StatementBlock* case_block = case_statement->AddCaseArm(zero_label);
-    auto [macro_name, polarity] =
-        MacroNameAndPolarity(options.simulation_macro_name());
-    MacroStatementBlock* ifdef_block =
-        case_block
-            ->Add<StatementConditionalDirective>(loc, polarity, macro_name)
-            ->consequent();
-    ifdef_block->Add<SystemTaskCall>(
-        loc, "error", std::initializer_list<Expression*>{error_message});
-    case_block->Add<Comment>(loc, "Never taken, propagate X");
-    case_block->Add<BlockingAssignment>(loc, func->return_value_ref(),
-                                        x_literal);
-  } else {
-    case_statement->AddCaseArm(zero_label)
-        ->Add<BlockingAssignment>(loc, func->return_value_ref(), default_value);
-  }
+  case_statement->AddCaseArm(zero_label)
+      ->Add<BlockingAssignment>(loc, func->return_value_ref(), default_value);
 
   // Add a default case that propagates X.
   StatementBlock* case_block = case_statement->AddCaseArm(DefaultSentinel());
@@ -798,15 +774,6 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
   return absl::OkStatus();
 }
 
-absl::StatusOr<SelectorProperties> ModuleBuilder::GetSelectorProperties(
-    Node* selector) {
-  XLS_RET_CHECK(selector->GetType()->IsBits());
-  XLS_RETURN_IF_ERROR(
-      query_engine_.Populate(selector->function_base()).status());
-  return SelectorProperties{.never_zero =
-                                query_engine_.AtLeastOneBitTrue(selector)};
-}
-
 // We emit asserts if at least one of the following is true:
 //   (1) We are targeting SystemVerilog. In this case, we have a default
 //   assertion format.
@@ -1139,15 +1106,12 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
           func = node_functions_.at(function_name);
         } else {
           XLS_ASSIGN_OR_RETURN(
-              SelectorProperties selector_properties,
-              GetSelectorProperties(node->As<PrioritySelect>()->selector()));
-          XLS_ASSIGN_OR_RETURN(
               func,
               DefinePrioritySelectFunction(
                   node->As<PrioritySelect>()->selector(), /*tpe=*/element_type,
                   /*num_cases=*/node->As<PrioritySelect>()->cases().size(),
                   /*loc=*/node->loc(), function_name, functions_section_,
-                  selector_properties, options_));
+                  options_));
           node_functions_[function_name] = func;
         }
         auto priority_sel_element = [&](absl::Span<Expression* const> inputs) {
@@ -1550,16 +1514,9 @@ absl::StatusOr<std::string> ModuleBuilder::VerilogFunctionName(Node* node) {
           "%s_w%d_%db_%db", OpToString(node->op()), node->BitCountOrDie(),
           node->operand(1)->BitCountOrDie(), node->operand(2)->BitCountOrDie());
     case Op::kPrioritySel: {
-      XLS_ASSIGN_OR_RETURN(
-          SelectorProperties selector_properties,
-          GetSelectorProperties(node->As<PrioritySelect>()->selector()));
-      std::string_view never_zero_str;
-      if (selector_properties.never_zero) {
-        never_zero_str = "_snz";  // selector never zero
-      }
-      return absl::StrFormat("%s_%db_%dway%s", OpToString(node->op()),
+      return absl::StrFormat("%s_%db_%dway", OpToString(node->op()),
                              node->GetType()->GetFlatBitCount(),
-                             node->operand(0)->BitCountOrDie(), never_zero_str);
+                             node->operand(0)->BitCountOrDie());
     }
     case Op::kSDiv:
     case Op::kUDiv:
@@ -2104,15 +2061,12 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
       break;
     case Op::kPrioritySel: {
       XLS_ASSIGN_OR_RETURN(
-          SelectorProperties selector_properties,
-          GetSelectorProperties(node->As<PrioritySelect>()->selector()));
-      XLS_ASSIGN_OR_RETURN(
           func,
           DefinePrioritySelectFunction(
               node->As<PrioritySelect>()->selector(), /*tpe=*/node->GetType(),
               /*num_cases=*/node->As<PrioritySelect>()->cases().size(),
               /*loc=*/node->loc(), function_name, functions_section_,
-              selector_properties, options_));
+              options_));
       break;
     }
     case Op::kUDiv:

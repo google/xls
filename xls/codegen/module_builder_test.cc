@@ -567,37 +567,6 @@ TEST_P(ModuleBuilderTest, TwoWayPrioritySelectAsFunction) {
                                  file.Emit());
 }
 
-TEST_P(ModuleBuilderTest, NeverZeroPrioritySelectAsFunction) {
-  VerilogFile file = NewVerilogFile();
-  Package package(TestBaseName());
-  FunctionBuilder fb(TestBaseName(), &package);
-  Type* u3 = package.GetBitsType(3);
-  Type* u32 = package.GetBitsType(32);
-  BValue s_param = fb.Param("s", u3);
-  BValue x_param = fb.Param("x", u32);
-  BValue y_param = fb.Param("y", u32);
-  BValue z_param = fb.Param("z", u32);
-  BValue d_param = fb.Param("d", u32);
-  BValue selector = fb.Or(s_param, fb.Literal(Bits::PowerOfTwo(2, 3)));
-  BValue priority_select =
-      fb.PrioritySelect(selector, {x_param, y_param, z_param}, d_param);
-  XLS_ASSERT_OK(fb.Build());
-
-  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
-  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * s, mb.AddInputPort("s", u3));
-  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
-  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
-  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * z, mb.AddInputPort("z", u32));
-  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * d, mb.AddInputPort("d", u32));
-
-  XLS_ASSERT_OK(mb.EmitAsAssignment("priority_select", priority_select.node(),
-                                    {s, x, y, z, d})
-                    .status());
-
-  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 file.Emit());
-}
-
 TEST_P(ModuleBuilderTest, SimilarPrioritySelects) {
   VerilogFile file = NewVerilogFile();
   Package package(TestBaseName());
