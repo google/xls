@@ -933,34 +933,34 @@ pub fn msb<N: u32>(x: uN[N]) -> u1
 
 Extracts the MSb (Most Significant bit) from the value `x` and returns it.
 
-#### `std::mask_lsbs`
+#### `std::keep_lsbs`
 
 ```dslx-snippet
-pub fn mask_lsbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
+pub fn keep_lsbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
 ```
 
 Returns a copy of `x` with all but the `n` least-significant bits set to 0. If `n >= WIDTH`, returns `x`.
 
-#### `std::mask_msbs`
+#### `std::keep_msbs`
 
 ```dslx-snippet
-pub fn mask_msbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
+pub fn keep_msbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
 ```
 
 Returns a copy of `x` with all but the `n` most-significant bits set to 0. If `n >= WIDTH`, returns `x`.
 
-#### `std::without_lsbs`
+#### `std::clear_lsbs`
 
 ```dslx-snippet
-pub fn without_lsbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
+pub fn clear_lsbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
 ```
 
 Returns a copy of `x` with the `n` least-significant bits set to 0. If `n >= WIDTH`, returns `zero!<uN[WIDTH]>`.
 
-#### `std::without_msbs`
+#### `std::clear_msbs`
 
 ```dslx-snippet
-pub fn without_msbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
+pub fn clear_msbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
 ```
 
 Returns a copy of `x` with the `n` most-significant bits set to 0. If `n >= WIDTH`, returns `zero!<uN[WIDTH]>`.
