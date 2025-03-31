@@ -140,13 +140,13 @@ bool SampleOptions::operator==(const SampleOptions& other) const {
   auto* pipeline = proto.add_known_failure();
   pipeline->set_tool(".*codegen_main");
   pipeline->set_stderr_regex(
-      ".*Impossible to schedule proc .* as specified; cannot achieve the "
+      ".*Impossible to schedule proc .* as specified; .*: cannot achieve the "
       "specified pipeline length.*");
   // TODO(https://github.com/google/xls/issues/1141): Remove when fixed.
   auto* throughput = proto.add_known_failure();
   throughput->set_tool(".*codegen_main");
   throughput->set_stderr_regex(
-      ".*Impossible to schedule proc .* as specified; cannot achieve full "
+      ".*Impossible to schedule proc .* as specified; .*: cannot achieve full "
       "throughput.*");
   return proto;
 }
