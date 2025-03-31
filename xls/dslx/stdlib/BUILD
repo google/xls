@@ -579,6 +579,28 @@ cc_xls_ir_jit_wrapper(
     },
 )
 
+xls_dslx_library(
+    name = "abs_diff_dslx",
+    srcs = ["abs_diff.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "abs_diff_dslx_fmt_test",
+    src = "abs_diff.x",
+    opportunistic_postcondition = True,
+)
+
+xls_dslx_test(
+    name = "abs_diff_dslx_test",
+    srcs = ["abs_diff.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_prove_quickcheck_test(
+    name = "abs_diff_dslx_prove_quickcheck_test",
+    srcs = ["abs_diff.x"],
+)
+
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
