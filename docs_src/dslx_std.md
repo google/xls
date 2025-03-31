@@ -1038,7 +1038,7 @@ Extracts a bit-slice from x shifted left by `fixed_shift`. This function behaves
 as-if x as resonably infinite precision so that the shift does not drop any bits
 and that the bit slice will be in-range.
 
-If `to_exclusive <= from_excsuive`, the result will be a zero-bit `bits[0]`.
+If `to_exclusive <= from_exclusive`, the result will be a zero-bit `bits[0]`.
 
 #### `std::vslice`
 
