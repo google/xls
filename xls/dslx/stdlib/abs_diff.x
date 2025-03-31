@@ -74,13 +74,14 @@ pub fn is_zero<N: u32>(adr: AbsDiffResult<N>) -> bool {
 ///
 /// Implementation note: this is a technique also used in literature that optimizes
 /// absolute difference calculations, e.g. for motion estimation, such that you can accumulate
-/// correction terms over many calculations without needing carries at every step.
+/// correction terms over many calculations without needing carries at every step. See e.g.
+/// Jehng et al. 10.1109/78.193224 fig 11(a) for a digram exhibiting the boolean formula.
 ///
 /// Proof derivation steps given here thanks to ericastor@:
 /// ```
 /// result = z ^ signex(!carry_out)
 ///        = if carry_out { z } else { !z }  // XOR with signex == controlled-not
-///        = if y < x { z } else { !z }  // noted above
+///        = if y < x { z } else { !z }  // because carry_out = (y < x)
 ///        = if y < x { x + !y } else { !(x + !y) }  // definition of z
 ///        = if y < x { x - y - 1 } else { !(x - y - 1) }  // x - y = x + !y + 1
 ///        = if y < x { x - y - 1 } else { -(x - y - 1) - 1 }  // -q = !q + 1
