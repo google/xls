@@ -939,7 +939,7 @@ Extracts the MSb (Most Significant bit) from the value `x` and returns it.
 pub fn mask_lsbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
 ```
 
-Returns a copy of `x` with all but the `n` least-significant bits set to 0.
+Returns a copy of `x` with all but the `n` least-significant bits set to 0. If `n >= WIDTH`, returns `x`.
 
 #### `std::mask_msbs`
 
@@ -947,7 +947,7 @@ Returns a copy of `x` with all but the `n` least-significant bits set to 0.
 pub fn mask_msbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
 ```
 
-Returns a copy of `x` with all but the `n` most-significant bits set to 0.
+Returns a copy of `x` with all but the `n` most-significant bits set to 0. If `n >= WIDTH`, returns `x`.
 
 #### `std::without_lsbs`
 
@@ -955,7 +955,7 @@ Returns a copy of `x` with all but the `n` most-significant bits set to 0.
 pub fn without_lsbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
 ```
 
-Returns a copy of `x` with the `n` least-significant bits set to 0.
+Returns a copy of `x` with the `n` least-significant bits set to 0. If `n >= WIDTH`, returns `zero!<uN[WIDTH]>`.
 
 #### `std::without_msbs`
 
@@ -963,7 +963,7 @@ Returns a copy of `x` with the `n` least-significant bits set to 0.
 pub fn without_msbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH]
 ```
 
-Returns a copy of `x` with the `n` most-significant bits set to 0.
+Returns a copy of `x` with the `n` most-significant bits set to 0. If `n >= WIDTH`, returns `zero!<uN[WIDTH]>`.
 
 #### `std::or_reduce_lsb`
 
