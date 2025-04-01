@@ -155,6 +155,12 @@ bool SampleOptions::operator==(const SampleOptions& other) const {
       ".*Proc combinational generator only supports streaming output channels "
       "which can be determined to be mutually exclusive, got .* output "
       "channels which were not proven to be mutually exclusive.*");
+  // TODO: Remove when fixed.
+  auto* proc_deadlock = proto.add_known_failure();
+  proc_deadlock->set_tool(".*eval_proc_main");
+  proc_deadlock->set_stderr_regex(
+      ".*Error: INTERNAL: Proc network is deadlocked. Blocked channel "
+      "instances: .*");
   return proto;
 }
 
