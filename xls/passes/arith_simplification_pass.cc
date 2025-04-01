@@ -1644,6 +1644,49 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     }
   }
 
+  // A common pattern for creating a mask with the N least-significant bits set
+  // is:
+  //   decode(N) - 1, or equivalently (1 << N) - 1.
+  // However, this can also be rewritten to:
+  //   !(all_ones << N),
+  // removing the adder. This is always beneficial, assuming the shift has no
+  // other uses.
+  auto get_decremented = [&](const Node* node) -> Node* {
+    if (node->op() == Op::kSub) {
+      if (std::optional<Bits> rhs =
+              query_engine.KnownValueAsBits(node->operand(1));
+          rhs.has_value() && rhs->IsOne()) {
+        return node->operand(0);
+      }
+      return nullptr;
+    }
+    if (node->op() != Op::kAdd) {
+      return nullptr;
+    }
+    if (query_engine.IsAllOnes(node->operand(1))) {
+      return node->operand(0);
+    }
+    if (query_engine.IsAllOnes(node->operand(0))) {
+      return node->operand(1);
+    }
+    return nullptr;
+  };
+  if (Node* decremented = get_decremented(n);
+      decremented != nullptr && decremented->op() == Op::kDecode) {
+    VLOG(2) << "FOUND: (decode(N)) - 1, replacing with !(all_ones << N)";
+    const int64_t mask_width = n->BitCountOrDie();
+    Node* set_width = decremented->operand(0);
+    XLS_ASSIGN_OR_RETURN(Node * all_ones,
+                         n->function_base()->MakeNode<Literal>(
+                             n->loc(), Value(Bits::AllOnes(mask_width))));
+    XLS_ASSIGN_OR_RETURN(Node * inv_mask,
+                         n->function_base()->MakeNode<BinOp>(
+                             n->loc(), all_ones, set_width, Op::kShll));
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<UnOp>(inv_mask, Op::kNot).status());
+    return true;
+  }
+
   XLS_ASSIGN_OR_RETURN(bool injective_matched,
                        MatchComparisonOfInjectiveOp(n, query_engine));
   if (injective_matched) {

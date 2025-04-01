@@ -1677,6 +1677,54 @@ TEST_F(ArithSimplificationPassTest, ArithmeticShiftRightOfOneBitOne) {
   EXPECT_THAT(f->return_value(), m::Literal(1));
 }
 
+TEST_F(ArithSimplificationPassTest, CreateLsbMaskByDecodeAndSub) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(x: bits[6]) -> bits[16] {
+        literal.1: bits[16] = literal(value=1)
+        decode.2: bits[16] = decode(x, width=16)
+        ret result: bits[16] = sub(decode.2, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Not(m::Shll(m::Literal(UBits(65535, 16)), m::Param("x"))));
+}
+
+TEST_F(ArithSimplificationPassTest, CreateLsbMaskByDecodeAndAddLeft) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(x: bits[6]) -> bits[16] {
+        literal.1: bits[16] = literal(value=-1)
+        decode.2: bits[16] = decode(x, width=16)
+        ret result: bits[16] = add(decode.2, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Not(m::Shll(m::Literal(UBits(65535, 16)), m::Param("x"))));
+}
+
+TEST_F(ArithSimplificationPassTest, CreateLsbMaskByDecodeAndAddRight) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn f(x: bits[6]) -> bits[16] {
+        literal.1: bits[16] = literal(value=-1)
+        decode.2: bits[16] = decode(x, width=16)
+        ret result: bits[16] = add(literal.1, decode.2)
+     }
+  )",
+                                                       p.get()));
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Not(m::Shll(m::Literal(UBits(65535, 16)), m::Param("x"))));
+}
+
 TEST_F(ArithSimplificationPassTest, OneBitDecode) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
