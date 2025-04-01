@@ -42,6 +42,31 @@ class ProcMemoryModel {
  public:
   virtual ~ProcMemoryModel() = default;
   virtual absl::Status Tick() = 0;
+  virtual absl::Status Reset() = 0;
+};
+
+class AbstractProcMemoryModel : public ProcMemoryModel {
+ public:
+  AbstractProcMemoryModel(const std::string& name, int64_t size,
+                          ChannelQueue* read_request_channel,
+                          ChannelQueue* read_response_channel,
+                          ChannelQueue* write_request_channel,
+                          ChannelQueue* write_response_channel);
+
+  absl::Status Tick() override;
+  absl::Status Reset() override;
+
+ private:
+  std::string name_;
+
+  std::vector<Value> elements_;
+
+  Type* elements_type_;
+
+  ChannelQueue* read_request_channel_;
+  ChannelQueue* read_response_channel_;
+  ChannelQueue* write_request_channel_;
+  ChannelQueue* write_response_channel_;
 };
 
 absl::StatusOr<std::unique_ptr<ProcMemoryModel>> CreateAbstractProcMemoryModel(

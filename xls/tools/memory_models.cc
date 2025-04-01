@@ -47,77 +47,70 @@ Value XsOfType(Type* type) { return AllOnesOfType(type); }
 // Possibly replace with ram.x, which also implements different
 // simultaneous read/write behaviors.
 // This model always does read before write.
-class AbstractProcMemoryModel : public ProcMemoryModel {
- public:
-  AbstractProcMemoryModel(const std::string& name, int64_t size,
-                          ChannelQueue* read_request_channel,
-                          ChannelQueue* read_response_channel,
-                          ChannelQueue* write_request_channel,
-                          ChannelQueue* write_response_channel)
-      : name_(name),
-        read_request_channel_(read_request_channel),
-        read_response_channel_(read_response_channel),
-        write_request_channel_(write_request_channel),
-        write_response_channel_(write_response_channel) {
-    Type* read_response_type = read_response_channel->channel()->type();
-    CHECK(read_response_type->IsTuple());
-    CHECK_EQ(read_response_type->AsTupleOrDie()->element_types().size(), 1);
-    elements_type_ = read_response_type->AsTupleOrDie()->element_type(0);
+AbstractProcMemoryModel::AbstractProcMemoryModel(
+    const std::string& name, int64_t size, ChannelQueue* read_request_channel,
+    ChannelQueue* read_response_channel, ChannelQueue* write_request_channel,
+    ChannelQueue* write_response_channel)
+    : name_(name),
+      read_request_channel_(read_request_channel),
+      read_response_channel_(read_response_channel),
+      write_request_channel_(write_request_channel),
+      write_response_channel_(write_response_channel) {
+  Type* read_response_type = read_response_channel->channel()->type();
+  CHECK(read_response_type->IsTuple());
+  CHECK_EQ(read_response_type->AsTupleOrDie()->element_types().size(), 1);
+  elements_type_ = read_response_type->AsTupleOrDie()->element_type(0);
 
-    elements_.resize(size, XsOfType(elements_type_));
+  elements_.resize(size, XsOfType(elements_type_));
+}
+
+absl::Status AbstractProcMemoryModel::Tick() {
+  while (!read_request_channel_->IsEmpty()) {
+    std::optional<Value> opt_read_req = read_request_channel_->Read();
+    XLS_RET_CHECK(opt_read_req.has_value());
+    const Value& read_req = opt_read_req.value();
+    XLS_RET_CHECK(read_req.IsTuple());
+    XLS_RET_CHECK_EQ(read_req.elements().size(), 2);
+    const Value& addr = read_req.element(0);
+    XLS_ASSIGN_OR_RETURN(int64_t addr_i, addr.bits().ToUint64());
+    if (addr_i < 0 || addr_i >= elements_.size()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Read request address %s out of range [0, %li)",
+                          addr.ToString().c_str(), elements_.size()));
+    }
+    VLOG(5) << name_ << " reading from address " << addr_i << " data "
+            << elements_.at(addr_i);
+    XLS_RETURN_IF_ERROR(
+        read_response_channel_->Write(Value::Tuple({elements_.at(addr_i)})));
   }
 
-  absl::Status Tick() override {
-    while (!read_request_channel_->IsEmpty()) {
-      std::optional<Value> opt_read_req = read_request_channel_->Read();
-      XLS_RET_CHECK(opt_read_req.has_value());
-      const Value& read_req = opt_read_req.value();
-      XLS_RET_CHECK(read_req.IsTuple());
-      XLS_RET_CHECK_EQ(read_req.elements().size(), 2);
-      const Value& addr = read_req.element(0);
-      XLS_ASSIGN_OR_RETURN(int64_t addr_i, addr.bits().ToUint64());
-      if (addr_i < 0 || addr_i >= elements_.size()) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Read request address %s out of range [0, %li)",
-                            addr.ToString().c_str(), elements_.size()));
-      }
-      XLS_RETURN_IF_ERROR(
-          read_response_channel_->Write(Value::Tuple({elements_.at(addr_i)})));
+  while (!write_request_channel_->IsEmpty()) {
+    std::optional<Value> opt_write_req = write_request_channel_->Read();
+    XLS_RET_CHECK(opt_write_req.has_value());
+    const Value& write_req = opt_write_req.value();
+    XLS_RET_CHECK(write_req.IsTuple());
+    XLS_RET_CHECK_EQ(write_req.elements().size(), 3);
+    const Value& addr = write_req.element(0);
+    const Value& data = write_req.element(1);
+    XLS_ASSIGN_OR_RETURN(int64_t addr_i, addr.bits().ToUint64());
+    if (addr_i < 0 || addr_i >= elements_.size()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Write request address %s out of range [0, %li)",
+                          addr.ToString().c_str(), elements_.size()));
     }
-
-    while (!write_request_channel_->IsEmpty()) {
-      std::optional<Value> opt_write_req = write_request_channel_->Read();
-      XLS_RET_CHECK(opt_write_req.has_value());
-      const Value& write_req = opt_write_req.value();
-      XLS_RET_CHECK(write_req.IsTuple());
-      XLS_RET_CHECK_EQ(write_req.elements().size(), 3);
-      const Value& addr = write_req.element(0);
-      const Value& data = write_req.element(1);
-      XLS_ASSIGN_OR_RETURN(int64_t addr_i, addr.bits().ToUint64());
-      if (addr_i < 0 || addr_i >= elements_.size()) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Write request address %s out of range [0, %li)",
-                            addr.ToString().c_str(), elements_.size()));
-      }
-      elements_.at(addr_i) = data;
-      XLS_RETURN_IF_ERROR(write_response_channel_->Write(Value::Tuple({})));
-    }
-
-    return absl::OkStatus();
+    VLOG(5) << name_ << " writing to address " << addr_i << " with data "
+            << data;
+    elements_.at(addr_i) = data;
+    XLS_RETURN_IF_ERROR(write_response_channel_->Write(Value::Tuple({})));
   }
 
- private:
-  std::string name_;
+  return absl::OkStatus();
+}
 
-  std::vector<Value> elements_;
-
-  Type* elements_type_;
-
-  ChannelQueue* read_request_channel_;
-  ChannelQueue* read_response_channel_;
-  ChannelQueue* write_request_channel_;
-  ChannelQueue* write_response_channel_;
-};
+absl::Status AbstractProcMemoryModel::Reset() {
+  elements_.assign(elements_.size(), XsOfType(elements_type_));
+  return absl::OkStatus();
+}
 
 // TODO: Implement in XLS using XLS IR (DSLX/C++ source) google/xls#1638
 // Possibly replace with ram.x, which also implements different
@@ -192,6 +185,11 @@ class RewrittenProcMemoryModel : public ProcMemoryModel {
       elements_.at(request.addr) = request.data;
       XLS_RETURN_IF_ERROR(write_completion_channel_->Write(Value::Tuple({})));
     }
+    return absl::OkStatus();
+  }
+
+  absl::Status Reset() override {
+    elements_.assign(elements_.size(), XsOfType(elements_type_));
     return absl::OkStatus();
   }
 
