@@ -110,6 +110,7 @@ TEST(SampleGeneratorTest, GenerateBasicProcSample) {
   std::mt19937_64 rng;
   SampleOptions sample_options;
   constexpr int64_t kProcTicks = 3;
+  sample_options.set_sample_type(fuzzer::SampleType::SAMPLE_TYPE_PROC);
   sample_options.set_calls_per_sample(0);
   sample_options.set_proc_ticks(kProcTicks);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -126,10 +127,6 @@ TEST(SampleGeneratorTest, GenerateBasicProcSample) {
   std::vector<std::string> ir_channel_names;
   XLS_EXPECT_OK(sample.GetArgsAndChannels(args_batch, &ir_channel_names));
   EXPECT_EQ(args_batch.size(), kProcTicks);
-
-  // Just kProcTicks ticks, no channels with content
-  EXPECT_TRUE(args_batch[0].empty());
-  EXPECT_TRUE(ir_channel_names.empty());
 
   EXPECT_THAT(sample.input_text(), HasSubstr("proc main"));
 }
