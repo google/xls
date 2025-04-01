@@ -97,6 +97,11 @@ bool IsNameRefTo(const Expr* e, const NameDef* name_def);
 // Checks that "number" can legitmately conform to type "type".
 absl::Status ValidateNumber(const Number& number, const Type& type);
 
+// Checks that the given argument being formatted by a macro like `trace_fmt!`
+// or `vtrace_fmt!` is actually possible to format as a string.
+absl::Status ValidateFormatMacroArgument(const Type& type, const Span& span,
+                                         const FileTable& file_table);
+
 // Returns the basis of the given ColonRef.
 //
 // In valid cases this will generally be:

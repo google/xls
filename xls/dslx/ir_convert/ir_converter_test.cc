@@ -2855,7 +2855,7 @@ proc main {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, FormatMacro) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, FormatMacro) {
   constexpr std::string_view kProgram = R"(fn main() {
   trace_fmt!("Look! I don't explode!");
 })";
@@ -2870,7 +2870,7 @@ TEST(IrConverterTest, FormatMacro) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, FormatMacroStructArg) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, FormatMacroStructArg) {
   constexpr std::string_view kProgram = R"(
 struct Point {
   x: u32,
@@ -2892,7 +2892,7 @@ fn main() {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, FormatMacroNestedStructArg) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, FormatMacroNestedStructArg) {
   constexpr std::string_view kProgram = R"(
 struct U32Wrapper {
   v: u32
@@ -3030,7 +3030,7 @@ TEST(IrConverterTest, TraceFmt) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, TraceFmtSimpleNoArgs) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, TraceFmtSimpleNoArgs) {
   constexpr std::string_view kProgram = R"(fn main() {
     trace_fmt!("Hello world!");
 })";
@@ -3041,7 +3041,7 @@ TEST(IrConverterTest, TraceFmtSimpleNoArgs) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, TraceFmtSimpleWithArgs) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, TraceFmtSimpleWithArgs) {
   constexpr std::string_view kProgram = R"(fn main() {
     let foo = u32:2;
     trace_fmt!("Hello {} {:x}!", "world", foo + u32:1);

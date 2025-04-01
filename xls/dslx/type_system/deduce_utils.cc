@@ -56,6 +56,65 @@
 #include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
+namespace {
+
+// A validator for the type of an argument being formatted by a macro like
+// `trace_fmt!` or `vtrace_fmt!`.
+class FormatMacroArgumentValidator : public TypeVisitor {
+ public:
+  FormatMacroArgumentValidator(const FileTable& file_table, const Span& span)
+      : file_table_(file_table), span_(span) {}
+
+  absl::Status HandleArray(const ArrayType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleBits(const BitsType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleEnum(const EnumType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleToken(const TokenType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleStruct(const StructType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleProc(const ProcType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleTuple(const TupleType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleFunction(const FunctionType& t) override {
+    return TypeInferenceErrorStatus(
+        span_, &t, ": Cannot format an expression with function type",
+        file_table_);
+  }
+  absl::Status HandleChannel(const ChannelType& t) override {
+    return TypeInferenceErrorStatus(
+        span_, &t, ": Cannot format an expression with channel type",
+        file_table_);
+  }
+  absl::Status HandleMeta(const MetaType& t) override {
+    return TypeInferenceErrorStatus(
+        span_, &t, ": Cannot format an expression with meta type", file_table_);
+  }
+  absl::Status HandleModule(const ModuleType& t) override {
+    return TypeInferenceErrorStatus(
+        span_, &t, ": Cannot format an expression with module type",
+        file_table_);
+  }
+
+ private:
+  const FileTable& file_table_;
+  const Span& span_;
+};
+
+}  // namespace
 
 // Resolves a `TypeAlias` AST node to a `ColonRef` subject -- this requires us
 // to traverse through aliases transitively to find a subject.
@@ -388,6 +447,12 @@ absl::Status ValidateNumber(const Number& number, const Type& type) {
       absl::StrFormat("Non-bits type (%s) used to define a numeric literal.",
                       type.GetDebugTypeName()),
       file_table);
+}
+
+absl::Status ValidateFormatMacroArgument(const Type& type, const Span& span,
+                                         const FileTable& file_table) {
+  FormatMacroArgumentValidator validator(file_table, span);
+  return type.Accept(validator);
 }
 
 // When a ColonRef's subject is a NameRef, this resolves the entity referred to

@@ -1063,5 +1063,90 @@ proc P {
       TypecheckFails(HasTypeMismatch("uN[32]", "uN[64]")));
 }
 
+TEST(TypecheckV2BuiltinTest, TraceFmt) {
+  EXPECT_THAT(R"(
+fn f() { trace_fmt!("foo"); }
+)",
+              TypecheckSucceeds(HasNodeWithType(R"(trace_fmt!("foo"))", "()")));
+}
+
+TEST(TypecheckV2BuiltinTest, VtraceFmt) {
+  EXPECT_THAT(
+      R"(
+fn f() { vtrace_fmt!(1, "foo"); }
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("1", "sN[64]"),
+                HasNodeWithType(R"(vtrace_fmt!(1, "foo"))", "()"))));
+}
+
+TEST(TypecheckV2BuiltinTest, TraceFmtInteger) {
+  EXPECT_THAT(R"(
+fn f(a: u32) { trace_fmt!("a is {}", 2); }
+)",
+              TypecheckSucceeds(HasNodeWithType("2", "uN[2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, TraceTraceFmtWithTooFewArgsFails) {
+  EXPECT_THAT(R"(
+fn f(a: u32) { trace_fmt!("a is {}"); }
+)",
+              TypecheckFails(HasSubstr("trace_fmt! macro expects 1 argument(s) "
+                                       "from format but has 0 argument(s)")));
+}
+
+TEST(TypecheckV2BuiltinTest, TraceTraceFmtWithTooManyArgsFails) {
+  EXPECT_THAT(R"(
+fn f(a: u32) { trace_fmt!("a is {}", a, a); }
+)",
+              TypecheckFails(HasSubstr("trace_fmt! macro expects 1 argument(s) "
+                                       "from format but has 2 argument(s)")));
+}
+
+TEST(TypecheckV2BuiltinTest, VtraceFmtWithWrongTypeVerbosityFails) {
+  EXPECT_THAT(R"(
+fn f() { vtrace_fmt!(u64:1, "foobar"); }
+)",
+              TypecheckFails(HasSignednessMismatch("u64", "sN[64]")));
+}
+
+TEST(TypecheckV2BuiltinTest, VtraceTraceFmtInteger) {
+  EXPECT_THAT(R"(
+fn f(a: u32) { vtrace_fmt!(4, "a is {}", 2); }
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("2", "uN[2]"),
+                                      HasNodeWithType("4", "sN[64]"))));
+}
+
+TEST(TypecheckV2BuiltinTest, TraceFmtFunctionCallResult) {
+  EXPECT_THAT(R"(
+fn g() -> u32 { 2 }
+fn f(a: u32) { trace_fmt!("a is {}", g()); }
+)",
+              TypecheckSucceeds(HasNodeWithType("g()", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, TraceFmtStruct) {
+  EXPECT_THAT(
+      R"(
+struct S {
+ a: u32,
+ b: u16
+}
+
+fn f(a: S) { trace_fmt!("a is {}", a); }
+)",
+      TypecheckSucceeds(HasNodeWithType(R"(trace_fmt!("a is {}", a))", "()")));
+}
+
+TEST(TypecheckV2BuiltinTest, TraceFmtFunctionFails) {
+  EXPECT_THAT(R"(
+fn g() -> u32 { 2 }
+fn f(a: u32) { trace_fmt!("a is {}", g); }
+)",
+              TypecheckFails(
+                  HasSubstr("Cannot format an expression with function type")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

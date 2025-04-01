@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <initializer_list>
 #include <iterator>
@@ -56,6 +57,7 @@
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
+#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 namespace {
@@ -1181,6 +1183,50 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                             arg_types, module_.Make<TypeVariableTypeAnnotation>(
                                            return_type_variable))));
     return node->callee()->Accept(this);
+  }
+
+  absl::Status HandleFormatMacro(const FormatMacro* node) override {
+    // The verbosity, if specified, is considered s64, because it's historically
+    // an int64_t in the IR.
+    if (node->verbosity().has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* verbosity_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType,
+              const_cast<Expr*>(*node->verbosity()),
+              GenerateInternalTypeVariableName(*node->verbosity())));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(*node->verbosity(), verbosity_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          *node->verbosity(),
+          CreateUnOrSnAnnotation(module_, (*node->verbosity())->span(),
+                                 /*is_signed=*/true, 64)));
+    }
+
+    // The number of actual args is determined by the format string.
+    const int64_t arg_count = OperandsExpectedByFormat(node->format());
+    if (arg_count != node->args().size()) {
+      return ArgCountMismatchErrorStatus(
+          node->span(),
+          absl::StrFormat("%s macro expects %d argument(s) from format but has "
+                          "%d argument(s)",
+                          node->macro(), arg_count, node->args().size()),
+          file_table_);
+    }
+
+    // Each arg has an independent unification context.
+    for (const Expr* arg : node->args()) {
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* arg_variable,
+          table_.DefineInternalVariable(InferenceVariableKind::kType,
+                                        const_cast<Expr*>(arg),
+                                        GenerateInternalTypeVariableName(arg)));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arg, arg_variable));
+    }
+
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node, CreateUnitTupleAnnotation(module_, node->span())));
+    return DefaultHandler(node);
   }
 
   absl::Status HandleZeroOrOneMacro(const AstNode* node, ExprOrType type) {

@@ -476,67 +476,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
         ctx->file_table());
   }
 
-  // Check types of each argument.
-  struct Visitor : public TypeVisitor {
-   public:
-    explicit Visitor(DeduceCtx* ctx, Span span) : ctx_(ctx), span_(span) {}
-
-    absl::Status HandleArray(const ArrayType& t) override {
-      return absl::OkStatus();
-    }
-    absl::Status HandleBits(const BitsType& t) override {
-      return absl::OkStatus();
-    }
-    absl::Status HandleEnum(const EnumType& t) override {
-      return absl::OkStatus();
-    }
-    absl::Status HandleToken(const TokenType& t) override {
-      return absl::OkStatus();
-    }
-    absl::Status HandleStruct(const StructType& t) override {
-      return absl::OkStatus();
-    }
-    absl::Status HandleProc(const ProcType& t) override {
-      return absl::OkStatus();
-    }
-    absl::Status HandleTuple(const TupleType& t) override {
-      return absl::OkStatus();
-    }
-    absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
-      return absl::OkStatus();
-    }
-    absl::Status HandleFunction(const FunctionType& t) override {
-      return TypeInferenceErrorStatus(
-          span_, &t, ": Cannot format an expression with function type",
-          ctx_->file_table());
-    }
-    absl::Status HandleChannel(const ChannelType& t) override {
-      return TypeInferenceErrorStatus(
-          span_, &t, ": Cannot format an expression with channel type",
-          ctx_->file_table());
-    }
-    absl::Status HandleMeta(const MetaType& t) override {
-      return TypeInferenceErrorStatus(
-          span_, &t, ": Cannot format an expression with meta type",
-          ctx_->file_table());
-    }
-    absl::Status HandleModule(const ModuleType& t) override {
-      return TypeInferenceErrorStatus(
-          span_, &t, ": Cannot format an expression with module type",
-          ctx_->file_table());
-    }
-
-   private:
-    DeduceCtx* ctx_;
-    Span span_;
-  };
-
   for (Expr* arg : node->args()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          ctx->DeduceAndResolve(arg));
-
-    Visitor v(ctx, arg->span());
-    XLS_RETURN_IF_ERROR(type->Accept(v));
+    XLS_RETURN_IF_ERROR(
+        ValidateFormatMacroArgument(*type, arg->span(), ctx->file_table()));
   }
 
   // trace_fmt! (and any future friends) require threading implicit tokens for

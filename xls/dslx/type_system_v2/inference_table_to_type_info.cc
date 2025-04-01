@@ -406,6 +406,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         const FunctionAndTargetObject function_and_target_object,
         ResolveFunction(invocation->callee(), caller, caller_context));
 
+    // This is one condition for enabling an "implicit token" in v1.
+    // TODO: https://github.com/google/xls/issues/193 - Handle the condition
+    // based on root type info of the callee.
+    if (caller.has_value() && IsBuiltin(function_and_target_object.function) &&
+        GetBuiltinFnRequiresImplicitToken(invocation->callee())) {
+      GetTypeInfo(caller_context)->NoteRequiresImplicitToken(**caller, true);
+    }
+
     // This is a temporary hack for type-checking annotations we generate that
     // contain invocations of *certain* builtins like `element_count`. We can
     // remove this when we have type checking for builtin functions with <T:
@@ -727,10 +735,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     if (node->kind() == AstNodeKind::kFunction) {
-      // TODO: https://github.com/google/xls/issues/193 - When procs are
-      // supported, this should sometimes be true.
-      ti->NoteRequiresImplicitToken(*dynamic_cast<const Function*>(node),
-                                    false);
+      // Don't require an implicit token by default. `ConvertInvocation` will
+      // set this to true, for the caller of an invocation, in the narrow cases
+      // where we want it.
+      const Function& function = *dynamic_cast<const Function*>(node);
+      if (!ti->GetRequiresImplicitToken(function).has_value()) {
+        ti->NoteRequiresImplicitToken(function, false);
+      }
+    }
+    if (node->kind() == AstNodeKind::kFormatMacro) {
+      // `FormatMacro` is essentially an invocation of a "parametric builtin"
+      // represented with a custom node, so it meets the condition in
+      // `ConvertInvocation` for the caller to require an implicit token.
+      std::optional<const Function*> caller = GetContainingFunction(node);
+      if (caller.has_value()) {
+        ti->NoteRequiresImplicitToken(**caller, true);
+      }
     }
 
     // If the node itself is a `TypeAnnotation`, then, in the absence of any

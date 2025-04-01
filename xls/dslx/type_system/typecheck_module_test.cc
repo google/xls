@@ -3660,7 +3660,7 @@ const mol = u32:42;)";
   ASSERT_TRUE(tm.warnings.warnings().empty());
 }
 
-TEST(TypecheckTest, BadTraceFmtWithUseOfChannel) {
+TEST_P(TypecheckBothVersionsTest, BadTraceFmtWithUseOfChannel) {
   constexpr std::string_view kProgram =
       R"(
 proc Counter {
@@ -3688,7 +3688,7 @@ proc Counter {
                HasSubstr("Cannot format an expression with channel type")));
 }
 
-TEST(TypecheckTest, BadTraceFmtWithUseOfFunction) {
+TEST_P(TypecheckBothVersionsTest, BadTraceFmtWithUseOfFunction) {
   constexpr std::string_view kProgram =
       R"(
 pub fn some_function() -> u32 { u32:0 }

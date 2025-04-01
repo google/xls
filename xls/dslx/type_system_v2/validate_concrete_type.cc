@@ -185,6 +185,15 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(invocation);
   }
 
+  absl::Status HandleFormatMacro(const FormatMacro* macro) override {
+    for (const Expr* arg : macro->args()) {
+      const Type& type = **ti_.GetItem(arg);
+      XLS_RETURN_IF_ERROR(
+          ValidateFormatMacroArgument(type, arg->span(), file_table_));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleCast(const Cast* cast) override {
     // For a cast node we have to validate that the types being cast to/from are
     // compatible via the `IsAcceptableCast` predicate.
