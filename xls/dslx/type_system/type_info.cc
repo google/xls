@@ -111,6 +111,10 @@ absl::Status InvocationData::Add(ParametricEnv caller_env,
 
 absl::Status InvocationData::ValidateEnvForCaller(
     const ParametricEnv& env) const {
+  if (caller_ == nullptr) {
+    // With no caller, there is no way to validate the environment.
+    return absl::OkStatus();
+  }
   for (const auto& k : env.GetKeySet()) {
     if (!caller_->parametric_keys().contains(k)) {
       return absl::InternalError(

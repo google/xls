@@ -247,13 +247,23 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), rhs_variable));
       auto* lhs_tvta = module_.Make<TypeVariableTypeAnnotation>(lhs_variable);
       auto* rhs_tvta = module_.Make<TypeVariableTypeAnnotation>(rhs_variable);
+
+      // Create the synthetic AST node for the expression, and process it.
+      Expr* sum = CreateElementCountSum(module_, lhs_tvta, rhs_tvta);
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* sum_variable,
+          table_.DefineInternalVariable(InferenceVariableKind::kType, sum,
+                                        GenerateInternalTypeVariableName(sum)));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(sum, sum_variable));
+      XLS_RETURN_IF_ERROR(sum->Accept(this));
+
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           node, module_.Make<ArrayTypeAnnotation>(
                     node->span(),
                     module_.Make<ElementTypeAnnotation>(
                         lhs_tvta, /*tuple_index=*/std::nullopt,
                         /*allow_bit_vector_destructuring=*/true),
-                    CreateElementCountSum(module_, lhs_tvta, rhs_tvta))));
+                    sum)));
     } else {
       return absl::UnimplementedError(
           absl::StrCat("Type inference version 2 is a work in progress and "

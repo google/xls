@@ -360,6 +360,152 @@ TEST(TypecheckV2BuiltinTest, DecodeToStructError) {
                   "`decode` return type must be a bits type, saw `S {}`")));
 }
 
+TEST(TypecheckV2BuiltinTest, ElementCountArray) {
+  EXPECT_THAT(R"(
+const Y = element_count<u32[4]>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountIsSetCorrectly) {
+  EXPECT_THAT(R"(
+const Y = element_count<u32[4]>();
+const Z: u32[Y] = [1, ...];
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("Y", "uN[32]"),
+                                      HasNodeWithType("Z", "uN[32][4]"))));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCount2DArray) {
+  EXPECT_THAT(R"(
+const Y = element_count<u32[4][u32:5]>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountBool) {
+  EXPECT_THAT(R"(
+const Y = element_count<bool>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountUN) {
+  EXPECT_THAT(R"(
+const Y = element_count<uN[64]>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountBits) {
+  EXPECT_THAT(R"(
+const Y = element_count<u32>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountStruct) {
+  EXPECT_THAT(R"(
+struct MyPoint { x: u32, y: u32 }
+const Y = element_count<MyPoint>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountStructArray) {
+  EXPECT_THAT(R"(
+struct MyPoint { x: u32, y: u32 }
+const Y = element_count<MyPoint[2]>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountParametricArg) {
+  EXPECT_THAT(R"(
+fn f<N:u32>() -> u32 {
+  element_count<u32[N]>()
+}
+const Y = f<10>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountMissingParametric) {
+  EXPECT_THAT(
+      R"(
+fn f<N:u32>() -> u32 {
+  element_count<u32[M]>()
+}
+const Y = f<10>();
+)",
+      TypecheckFails(HasSubstr(R"(Cannot find a definition for name: "M")")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountMissingParam) {
+  EXPECT_THAT(R"(const Y: u32 = element_count();)",
+              TypecheckFails(HasSubstr(R"(Could not infer parametric(s): T)")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountParametricStruct) {
+  EXPECT_THAT(R"(
+struct T<N: u32> {
+  a: uN[N],
+  b: u32
+}
+const Y = element_count<T<u32:4>>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountAlias) {
+  EXPECT_THAT(R"(
+struct S {
+  b: u32
+}
+type A=S;
+
+const Y = element_count<A>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+// This fails with nullptr in Concretize
+TEST(TypecheckV2BuiltinTest, DISABLED_ElementCountParametricAlias) {
+  EXPECT_THAT(R"(
+struct T<N: u32> {
+  a: uN[N],
+  b: u32
+}
+type A=T;
+
+const Y = element_count<A<u32:4>>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountInstantiatedAlias) {
+  EXPECT_THAT(R"(
+struct T<N: u32> {
+  a: uN[N],
+  b: u32
+}
+type A=T<u32:4>;
+
+const Y = element_count<A>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountTuple) {
+  EXPECT_THAT(R"(const Y = element_count<(u32, bool)>();)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ElementCountUnit) {
+  EXPECT_THAT(R"(const Y = element_count<()>();)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
 TEST(TypecheckV2BuiltinTest, Enumerate) {
   EXPECT_THAT(R"(const Y = enumerate<u16, u32:3>([u16:1, u16:2, u16:3]);)",
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));

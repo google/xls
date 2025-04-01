@@ -32,10 +32,6 @@ struct FunctionAndTargetObject {
   const Function* function = nullptr;
   const std::optional<Expr*> target_object;
   std::optional<const ParametricContext*> target_struct_context;
-  // This is part of a temporary hack to allow type checking of certain
-  // builtins. Built-ins in the builtin_stubs.x file will NOT have this
-  // value set to true.
-  bool is_special_builtin = false;
 };
 
 // Class that facilitates the conversion of an `InferenceTable` to

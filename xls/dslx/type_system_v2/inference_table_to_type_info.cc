@@ -399,7 +399,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         tracer_->TraceConvertInvocation(invocation, caller_context);
     std::optional<const Function*> caller = GetContainingFunction(invocation);
     VLOG(5) << "Converting invocation: " << invocation->callee()->ToString()
-            << " with module: " << invocation->owner()->name()
+            << " with module: " << invocation->callee()->owner()->name()
             << " in module: " << module_.name()
             << " in context: " << ToString(caller_context);
     XLS_ASSIGN_OR_RETURN(
@@ -412,21 +412,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (caller.has_value() && IsBuiltin(function_and_target_object.function) &&
         GetBuiltinFnRequiresImplicitToken(invocation->callee())) {
       GetTypeInfo(caller_context)->NoteRequiresImplicitToken(**caller, true);
-    }
-
-    // This is a temporary hack for type-checking annotations we generate that
-    // contain invocations of *certain* builtins like `element_count`. We can
-    // remove this when we have type checking for builtin functions with <T:
-    // type> parametrics.
-    if (function_and_target_object.is_special_builtin) {
-      for (ExprOrType parametric : invocation->explicit_parametrics()) {
-        VLOG(5) << "Convert parametric of builtin: "
-                << ToAstNode(parametric)->ToString();
-        XLS_RETURN_IF_ERROR(
-            ConvertSubtree(ToAstNode(parametric), caller, caller_context));
-      }
-      return GenerateTypeInfo(caller_context, invocation,
-                              CreateU32Annotation(module_, invocation->span()));
     }
 
     const Function* function = function_and_target_object.function;
@@ -1617,10 +1602,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         std::optional<Function*> builtin_fn = module_.GetFunction(fn_name);
         if (builtin_fn.has_value()) {
           function_node = *builtin_fn;
-        } else if (fn_name == "element_count") {
-          VLOG(5) << "Could not find built-in function " << fn_name
-                  << "; special-casing for now";
-          return FunctionAndTargetObject{.is_special_builtin = true};
         } else {
           return TypeInferenceErrorStatus(
               name_ref->span(), nullptr,
@@ -1987,7 +1968,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
     const Expr* expr = std::get<const Expr*>(value_or_expr);
 
-    XLS_RETURN_IF_ERROR(ConvertSubtree(expr, std::nullopt, parametric_context));
+    XLS_RETURN_IF_ERROR(
+        ConvertSubtree(expr, /*function=*/std::nullopt, parametric_context));
 
     std::optional<const TypeAnnotation*> type_annotation =
         table_.GetTypeAnnotation(expr);
