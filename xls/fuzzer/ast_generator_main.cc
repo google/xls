@@ -44,6 +44,9 @@ ABSL_FLAG(bool, generate_proc, false, "Generate a proc.");
 
 ABSL_FLAG(bool, emit_stateless_proc, false, "Emit only stateless procs.");
 
+ABSL_FLAG(bool, emit_proc_spawns, true,
+          "Emit helper procs spawned by top proc.");
+
 ABSL_FLAG(bool, emit_zero_width_bits_types, false,
           "Emit zero-wdith bits types.");
 
@@ -77,6 +80,7 @@ absl::Status RealMain() {
       .emit_gate = absl::GetFlag(FLAGS_emit_gate),
       .generate_proc = absl::GetFlag(FLAGS_generate_proc),
       .emit_stateless_proc = absl::GetFlag(FLAGS_emit_stateless_proc),
+      .emit_proc_spawns = absl::GetFlag(FLAGS_emit_proc_spawns),
       .emit_zero_width_bits_types =
           absl::GetFlag(FLAGS_emit_zero_width_bits_types),
   };

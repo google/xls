@@ -105,6 +105,12 @@ struct BitsAndSignedness {
   bool signedness;
 };
 
+enum class AvailableChannelKind : uint8_t { kToChildProc, kToParentProc };
+struct AvailableChannel {
+  ProcMember* member;
+  AvailableChannelKind kind;
+};
+
 // Options that are used to configure the AST generator.
 //
 // See ast_generator_options.proto for field descriptions.
@@ -116,6 +122,7 @@ struct AstGeneratorOptions {
   bool emit_gate = true;
   bool generate_proc = false;
   bool emit_stateless_proc = false;
+  bool emit_proc_spawns = false;
   // TODO(https://github.com/google/xls/issues/1138): Switch this to default
   // true.
   bool emit_zero_width_bits_types = false;
@@ -150,9 +157,11 @@ struct Context {
     // Proc state type.
     TypeAnnotation* state_type;
 
+    int64_t spawn_depth;
+
     // Channels available to the proc next functiont that have not yet been
     // interacted with:
-    std::vector<ProcMember*> unused_channels;
+    std::vector<AvailableChannel> available_channels;
   };
 
   // Only present if generating a proc.
@@ -266,10 +275,21 @@ class AstGenerator {
       const std::string& name, int64_t call_depth,
       absl::Span<const AnnotatedType> param_types);
 
-  // Generate the proc's config function with the given name and proc parameters
-  // that are fed through to proc members.
-  absl::StatusOr<Function*> GenerateProcConfigFunction(
-      std::string name, absl::Span<Param* const> proc_feedthrough_params);
+  // TODO
+  absl::StatusOr<std::tuple<Statement*, NameDef*, NameDef*>>
+  GenerateProcConfigChannel(TypeAnnotation* element_type);
+
+  // Generate the proc's config function with the given name. proc_io, defines
+  // the number and types of the channels the proc's config function accepts.
+  // spawn_depth is the current depth of the parent procs (if any) that spawn
+  // this proc.
+  //
+  // Returns the config function and proc members.
+  absl::StatusOr<std::pair<Function*, std::vector<AvailableChannel>>>
+  GenerateProcConfigFunction(
+      std::string name,
+      absl::Span<const std::pair<TypeAnnotation*, ChannelDirection>> proc_io,
+      int64_t spawn_depth);
 
   // Generate the proc's next function with the given name.
   absl::StatusOr<AnnotatedFunction> GenerateProcNextFunction(
@@ -281,10 +301,12 @@ class AstGenerator {
                                                      TypeAnnotation* state_typ);
 
   // Generate a DSLX proc with the given name. proc_io, defines the number and
-  // types of the channels the proc's config function accepts.
+  // types of the channels the proc's config function accepts. spawn_depth is
+  // the current depth of the parent procs (if any) that spaw this proc.
   absl::StatusOr<AnnotatedProc> GenerateProc(
       const std::string& name,
-      absl::Span<const std::pair<TypeAnnotation*, ChannelDirection>> proc_io);
+      absl::Span<const std::pair<TypeAnnotation*, ChannelDirection>> proc_io,
+      int64_t spawn_depth);
 
   // Chooses a value from the environment that satisfies the predicate "take",
   // or returns nullopt if none exists.
@@ -768,6 +790,9 @@ class AstGenerator {
 
   // Set of constants defined during module generation.
   absl::btree_map<std::string, ConstantDef*> constants_;
+
+  // Procs created during generation.
+  std::vector<AnnotatedProc> procs_;
 };
 
 }  // namespace xls::dslx
