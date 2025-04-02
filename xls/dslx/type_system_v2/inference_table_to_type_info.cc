@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -32,6 +33,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -2323,11 +2325,12 @@ absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
       converter->ConvertSubtree(&module, /*function=*/std::nullopt,
                                 /*parametric_context=*/std::nullopt);
 
-  VLOG(5) << "Inference table after conversion:";
-  VLOG(5) << table.ToString();
-
-  VLOG(5) << "User module traces after conversion:";
-  VLOG(5) << module_tracer_ptr->ConvertTracesToString();
+  if (VLOG_IS_ON(5)) {
+    std::cerr << "Inference table after conversion:\n"
+              << table.ToString() << "\n"
+              << "User module traces after conversion:\n"
+              << module_tracer_ptr->ConvertTracesToString() << "\n";
+  }
 
   if (!status.ok()) {
     return status;
