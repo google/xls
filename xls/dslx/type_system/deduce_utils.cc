@@ -350,8 +350,6 @@ absl::Status ValidateTupleTypeForIndex(const TupleIndex& node, const Type& type,
 absl::Status ValidateArrayIndex(const Index& node, const Type& array_type,
                                 const Type& index_type, const TypeInfo& ti,
                                 const FileTable& file_table) {
-  // Note that these 2 problems are not actually possible in v2 due to
-  // unification to u32 before conversion to `Type`.
   std::optional<BitsLikeProperties> index_bits_like = GetBitsLike(index_type);
   if (!index_bits_like.has_value()) {
     return TypeInferenceErrorStatus(node.span(), &index_type,

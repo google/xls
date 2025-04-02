@@ -909,8 +909,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                                       const_cast<Expr*>(index),
                                       GenerateInternalTypeVariableName(index)));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(index, rhs_variable));
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        index, CreateU32Annotation(module_, index->span())));
 
     // The type of the entire expr is then ElementType(lhs_variable).
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
@@ -1196,8 +1194,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleFormatMacro(const FormatMacro* node) override {
-    // The verbosity, if specified, is considered s64, because it's historically
-    // an int64_t in the IR.
+    // The verbosity, if specified, has its own unification context.
     if (node->verbosity().has_value()) {
       XLS_ASSIGN_OR_RETURN(
           const NameRef* verbosity_variable,
@@ -1207,10 +1204,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
               GenerateInternalTypeVariableName(*node->verbosity())));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(*node->verbosity(), verbosity_variable));
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          *node->verbosity(),
-          CreateUnOrSnAnnotation(module_, (*node->verbosity())->span(),
-                                 /*is_signed=*/true, 64)));
     }
 
     // The number of actual args is determined by the format string.

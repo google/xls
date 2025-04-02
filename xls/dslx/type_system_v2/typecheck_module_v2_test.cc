@@ -703,19 +703,20 @@ const X = [u32:1, u32:2][0 + A];
               TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
-TEST(TypecheckV2Test, IndexWithTooLargeIndexTypeFails) {
+TEST(TypecheckV2Test, IndexWithU64IndexValue) {
   EXPECT_THAT("const X = [u32:1, u32:2][u64:0];",
-              TypecheckFails(HasSizeMismatch("u64", "u32")));
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
 TEST(TypecheckV2Test, IndexWithSignedIndexTypeFails) {
-  EXPECT_THAT("const X = [u32:1, u32:2][s32:0];",
-              TypecheckFails(HasSignednessMismatch("s32", "u32")));
+  EXPECT_THAT(
+      "const X = [u32:1, u32:2][s32:0];",
+      TypecheckFails(HasSubstr("sN[32] Index is not unsigned-bits typed.")));
 }
 
 TEST(TypecheckV2Test, IndexWithNonBitsIndexTypeFails) {
   EXPECT_THAT("const X = [u32:1, u32:2][[u32:0]];",
-              TypecheckFails(HasTypeMismatch("u32[1]", "u32")));
+              TypecheckFails(HasSubstr("uN[32][1] Index is not bits typed.")));
 }
 
 TEST(TypecheckV2Test, IndexOfConstantArray) {

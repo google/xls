@@ -1222,7 +1222,7 @@ TEST(TypecheckV2BuiltinTest, VtraceFmt) {
 fn f() { vtrace_fmt!(1, "foo"); }
 )",
       TypecheckSucceeds(
-          AllOf(HasNodeWithType("1", "sN[64]"),
+          AllOf(HasNodeWithType("1", "uN[1]"),
                 HasNodeWithType(R"(vtrace_fmt!(1, "foo"))", "()"))));
 }
 
@@ -1251,9 +1251,26 @@ fn f(a: u32) { trace_fmt!("a is {}", a, a); }
 
 TEST(TypecheckV2BuiltinTest, VtraceFmtWithWrongTypeVerbosityFails) {
   EXPECT_THAT(R"(
-fn f() { vtrace_fmt!(u64:1, "foobar"); }
+fn f() { vtrace_fmt!((u32:1,), "foobar"); }
 )",
-              TypecheckFails(HasSignednessMismatch("u64", "sN[64]")));
+              TypecheckFails(HasSubstr("vtrace_fmt! verbosity values must be "
+                                       "positive integers; got `(u32:1,)`")));
+}
+
+TEST(TypecheckV2BuiltinTest, VtraceFmtWithNegativeVerbosityFails) {
+  EXPECT_THAT(R"(
+fn f() { vtrace_fmt!(-1, "foobar"); }
+)",
+              TypecheckFails(HasSubstr("vtrace_fmt! verbosity values must be "
+                                       "positive integers; got `-1`")));
+}
+
+TEST(TypecheckV2BuiltinTest, VtraceFmtWithNonConstantVerbosityFails) {
+  EXPECT_THAT(R"(
+fn f(v: u32) { vtrace_fmt!(v, "foobar"); }
+)",
+              TypecheckFails(HasSubstr("vtrace_fmt! verbosity values must be "
+                                       "compile-time constants; got `v`")));
 }
 
 TEST(TypecheckV2BuiltinTest, VtraceTraceFmtInteger) {
@@ -1261,7 +1278,7 @@ TEST(TypecheckV2BuiltinTest, VtraceTraceFmtInteger) {
 fn f(a: u32) { vtrace_fmt!(4, "a is {}", 2); }
 )",
               TypecheckSucceeds(AllOf(HasNodeWithType("2", "uN[2]"),
-                                      HasNodeWithType("4", "sN[64]"))));
+                                      HasNodeWithType("4", "uN[3]"))));
 }
 
 TEST(TypecheckV2BuiltinTest, TraceFmtFunctionCallResult) {

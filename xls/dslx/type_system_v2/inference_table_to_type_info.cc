@@ -1149,6 +1149,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (const auto* unroll_for = dynamic_cast<const UnrollFor*>(node)) {
       return ExpandUnrollFor(unroll_for, parametric_context, type, ti);
     }
+    if (const auto* format_macro = dynamic_cast<const FormatMacro*>(node)) {
+      return NoteFormatMacroVerbosityConstExpr(format_macro, type, ti);
+    }
     return absl::OkStatus();
   }
 
@@ -1496,6 +1499,36 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     ti->NoteUnrolledLoop(unroll_for, ParametricEnv(), unrolled_statement_block);
+    return absl::OkStatus();
+  }
+
+  absl::Status NoteFormatMacroVerbosityConstExpr(const FormatMacro* node,
+                                                 const Type& type,
+                                                 TypeInfo* ti) {
+    if (!node->verbosity().has_value()) {
+      return absl::OkStatus();
+    }
+    absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
+        &import_data_, ti, &warning_collector_, ParametricEnv(),
+        *node->verbosity(), &type);
+    if (!value.ok()) {
+      return TypeInferenceErrorStatus(
+          (*node->verbosity())->span(), &type,
+          absl::Substitute("$0 verbosity values must be compile-time "
+                           "constants; got `$1`.",
+                           node->macro(), (*node->verbosity())->ToString()),
+          file_table_);
+    }
+    absl::StatusOr<int64_t> value_as_int64 = value->GetBitValueViaSign();
+    if (!value_as_int64.ok() || *value_as_int64 < 0) {
+      return TypeInferenceErrorStatus(
+          (*node->verbosity())->span(), &type,
+          absl::Substitute(
+              "$0 verbosity values must be positive integers; got `$1`.",
+              node->macro(), (*node->verbosity())->ToString()),
+          file_table_);
+    }
+    ti->NoteConstExpr(*node->verbosity(), *value);
     return absl::OkStatus();
   }
 
