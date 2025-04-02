@@ -2338,9 +2338,11 @@ std::unique_ptr<InferenceTableConverter> CreateInferenceTableConverter(
       std::move(tracer));
 }
 
-absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
-    InferenceTable& table, Module& module, ImportData& import_data,
-    WarningCollector& warning_collector, const FileTable& file_table) {
+absl::StatusOr<std::unique_ptr<InferenceTableConverter>>
+InferenceTableToTypeInfo(InferenceTable& table, Module& module,
+                         ImportData& import_data,
+                         WarningCollector& warning_collector,
+                         const FileTable& file_table) {
   VLOG(1) << "InferenceTableToTypeInfo: module " << &module;
   VLOG(5) << "Inference table before conversion:";
   VLOG(5) << table.ToString();
@@ -2371,7 +2373,7 @@ absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
   if (!status.ok()) {
     return status;
   }
-  return converter->GetBaseTypeInfo();
+  return converter;
 }
 
 }  // namespace xls::dslx

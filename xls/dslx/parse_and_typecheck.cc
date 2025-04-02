@@ -35,6 +35,8 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_module.h"
+#include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 #include "xls/dslx/warning_collector.h"
 
@@ -96,21 +98,37 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   std::string_view module_name = module->name();
 
   WarningCollector warnings(import_data->enabled_warnings());
-  XLS_ASSIGN_OR_RETURN(
-      TypeInfo * type_info,
-      force_version2 || module->attributes().contains(
-                            ModuleAttribute::kTypeInferenceVersion2)
-          ? TypecheckModuleV2(module.get(), import_data, &warnings)
-          : TypecheckModule(module.get(), import_data, &warnings));
-  TypecheckedModule result{module.get(), type_info, std::move(warnings)};
+  Module* module_ptr = module.get();
+  TypeInfo* type_info;
   XLS_ASSIGN_OR_RETURN(ImportTokens subject,
                        ImportTokens::FromString(module_name));
-  XLS_RETURN_IF_ERROR(import_data
-                          ->Put(subject, std::make_unique<ModuleInfo>(
-                                             std::move(module), type_info,
-                                             std::filesystem::path(path)))
-                          .status());
-  return result;
+
+  if (force_version2 ||
+      module->attributes().contains(ModuleAttribute::kTypeInferenceVersion2)) {
+    std::unique_ptr<InferenceTable> table = InferenceTable::Create(*module);
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<InferenceTableConverter> converter,
+        TypecheckModuleV2(table.get(), module_ptr, import_data, &warnings));
+    XLS_ASSIGN_OR_RETURN(
+        type_info, import_data->type_info_owner().GetRootTypeInfo(module_ptr));
+
+    XLS_RETURN_IF_ERROR(
+        import_data
+            ->Put(subject,
+                  std::make_unique<ModuleInfo>(
+                      std::move(module), type_info, std::filesystem::path(path),
+                      std::move(table), std::move(converter)))
+            .status());
+  } else {
+    XLS_ASSIGN_OR_RETURN(type_info,
+                         TypecheckModule(module_ptr, import_data, &warnings));
+    XLS_RETURN_IF_ERROR(import_data
+                            ->Put(subject, std::make_unique<ModuleInfo>(
+                                               std::move(module), type_info,
+                                               std::filesystem::path(path)))
+                            .status());
+  }
+  return TypecheckedModule{module_ptr, type_info, std::move(warnings)};
 }
 
 }  // namespace xls::dslx

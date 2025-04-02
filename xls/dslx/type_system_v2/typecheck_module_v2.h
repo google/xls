@@ -15,19 +15,21 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_TYPECHECK_MODULE_V2_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_TYPECHECK_MODULE_V2_H_
 
+#include <memory>
+
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
 // The top-level type checking function (counterpart to `TypecheckModule`) used
 // for modules that have the `kTypeInferenceVersion2` annotation.
-absl::StatusOr<TypeInfo*> TypecheckModuleV2(Module* module,
-                                            ImportData* import_data,
-                                            WarningCollector* warnings);
+absl::StatusOr<std::unique_ptr<InferenceTableConverter>> TypecheckModuleV2(
+    InferenceTable* table, Module* module, ImportData* import_data,
+    WarningCollector* warnings);
 
 }  // namespace xls::dslx
 

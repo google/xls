@@ -118,6 +118,7 @@ cc_test(
     srcs = ["inference_table_test.cc"],
     deps = [
         ":inference_table",
+        ":inference_table_converter",
         ":inference_table_to_type_info",
         ":type_annotation_utils",
         ":type_system_test_utils",

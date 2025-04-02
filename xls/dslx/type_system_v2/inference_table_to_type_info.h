@@ -30,12 +30,13 @@
 
 namespace xls::dslx {
 
-// Converts the given `InferenceTable` into a `TypeInfo`, by concretizing the
-// types associated with all nodes in the table. This is the final step of type
-// inference.
-absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
-    InferenceTable& table, Module& module, ImportData& import_data,
-    WarningCollector& warning_collector, const FileTable& file_table);
+// Converts the given `InferenceTable` to `TypeInfo`, by concretizing the types
+// associated with all nodes in the table. This is the final step of type
+absl::StatusOr<std::unique_ptr<InferenceTableConverter>>
+InferenceTableToTypeInfo(InferenceTable& table, Module& module,
+                         ImportData& import_data,
+                         WarningCollector& warning_collector,
+                         const FileTable& file_table);
 
 std::unique_ptr<InferenceTableConverter> CreateInferenceTableConverter(
     InferenceTable& table, Module& module, ImportData& import_data,
