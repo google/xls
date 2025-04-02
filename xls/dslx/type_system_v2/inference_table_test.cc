@@ -38,9 +38,10 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
-#include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
+#include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
+#include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -64,8 +65,12 @@ class InferenceTableTest : public ::testing::Test {
   absl::StatusOr<TypeInfo*> ConvertTableToTypeInfo() {
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<InferenceTableConverter> converter,
-        InferenceTableToTypeInfo(*table_, *module_, *import_data_,
-                                 *warning_collector_, file_table_));
+        CreateInferenceTableConverter(*table_, *module_, *import_data_,
+                                      *warning_collector_, file_table_,
+                                      TypeSystemTracer::Create()));
+    XLS_RETURN_IF_ERROR(
+        converter->ConvertSubtree(module_.get(), /*function=*/std::nullopt,
+                                  /*parametric_context=*/std::nullopt));
     return converter->GetBaseTypeInfo();
   }
 

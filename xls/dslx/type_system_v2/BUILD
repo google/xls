@@ -62,9 +62,9 @@ cc_library(
 )
 
 cc_library(
-    name = "inference_table_to_type_info",
-    srcs = ["inference_table_to_type_info.cc"],
-    hdrs = ["inference_table_to_type_info.h"],
+    name = "inference_table_converter_impl",
+    srcs = ["inference_table_converter_impl.cc"],
+    hdrs = ["inference_table_converter_impl.h"],
     deps = [
         ":evaluator",
         ":expand_variables",
@@ -119,9 +119,10 @@ cc_test(
     deps = [
         ":inference_table",
         ":inference_table_converter",
-        ":inference_table_to_type_info",
+        ":inference_table_converter_impl",
         ":type_annotation_utils",
         ":type_system_test_utils",
+        ":type_system_tracer",
         "//xls/common:casts",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -192,13 +193,13 @@ cc_test(
 )
 
 cc_library(
-    name = "typecheck_module_v2",
-    srcs = ["typecheck_module_v2.cc"],
-    hdrs = ["typecheck_module_v2.h"],
+    name = "populate_table",
+    srcs = ["populate_table.cc"],
+    hdrs = ["populate_table.h"],
     deps = [
         ":inference_table",
         ":inference_table_converter",
-        ":inference_table_to_type_info",
+        ":inference_table_converter_impl",
         ":type_annotation_utils",
         ":type_system_tracer",
         "//xls/common/status:status_macros",

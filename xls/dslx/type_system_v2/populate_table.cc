@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/type_system_v2/typecheck_module_v2.h"
+#include "xls/dslx/type_system_v2/populate_table.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -53,7 +53,7 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
-#include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
+#include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
@@ -1675,14 +1675,13 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
   XLS_RETURN_IF_ERROR((*builtins_module).Accept(&builtins_visitor));
 
   Module* builtins_ptr = builtins_module.get();
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<InferenceTableConverter> builtins_converter,
+      CreateInferenceTableConverter(
+          *builtins_table, *builtins_module, *import_data, *warnings,
+          import_data->file_table(), TypeSystemTracer::Create()));
   XLS_ASSIGN_OR_RETURN(TypeInfo * builtins_type_info,
-                       import_data->type_info_owner().New(builtins_ptr));
-
-  std::unique_ptr<InferenceTableConverter> builtins_converter =
-      CreateInferenceTableConverter(*builtins_table, *builtins_module,
-                                    *import_data, *warnings, builtins_type_info,
-                                    import_data->file_table(),
-                                    TypeSystemTracer::Create());
+                       import_data->GetRootTypeInfo(builtins_ptr));
 
   XLS_ASSIGN_OR_RETURN(std::filesystem::path builtins_path, BuiltinStubsPath());
   std::unique_ptr<ModuleInfo> builtins_module_info =
@@ -1695,16 +1694,14 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::unique_ptr<InferenceTableConverter>> TypecheckModuleV2(
-    InferenceTable* table, Module* module, ImportData* import_data,
-    WarningCollector* warnings) {
+absl::Status PopulateTable(InferenceTable* table, Module* module,
+                           ImportData* import_data,
+                           WarningCollector* warnings) {
   XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(import_data, warnings));
 
   PopulateInferenceTableVisitor visitor(*module, *table,
                                         import_data->file_table());
-  XLS_RETURN_IF_ERROR(module->Accept(&visitor));
-  return InferenceTableToTypeInfo(*table, *module, *import_data, *warnings,
-                                  import_data->file_table());
+  return module->Accept(&visitor);
 }
 
 }  // namespace xls::dslx

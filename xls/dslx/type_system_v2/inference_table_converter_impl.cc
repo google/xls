@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
+#include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -2329,51 +2329,21 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
 }  // namespace
 
-std::unique_ptr<InferenceTableConverter> CreateInferenceTableConverter(
-    InferenceTable& table, Module& module, ImportData& import_data,
-    WarningCollector& warning_collector, TypeInfo* type_info,
-    const FileTable& file_table, std::unique_ptr<TypeSystemTracer> tracer) {
-  return std::make_unique<InferenceTableConverterImpl>(
-      table, module, import_data, warning_collector, type_info, file_table,
-      std::move(tracer));
-}
-
 absl::StatusOr<std::unique_ptr<InferenceTableConverter>>
-InferenceTableToTypeInfo(InferenceTable& table, Module& module,
-                         ImportData& import_data,
-                         WarningCollector& warning_collector,
-                         const FileTable& file_table) {
+CreateInferenceTableConverter(InferenceTable& table, Module& module,
+                              ImportData& import_data,
+                              WarningCollector& warning_collector,
+                              const FileTable& file_table,
+                              std::unique_ptr<TypeSystemTracer> tracer) {
   VLOG(1) << "InferenceTableToTypeInfo: module " << &module;
   VLOG(5) << "Inference table before conversion:";
   VLOG(5) << table.ToString();
 
-  XLS_ASSIGN_OR_RETURN(TypeInfo * base_type_info,
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data.type_info_owner().New(&module));
-
-  std::unique_ptr<TypeSystemTracer> module_tracer = TypeSystemTracer::Create();
-  TypeSystemTracer* module_tracer_ptr = module_tracer.get();
-  std::unique_ptr<InferenceTableConverter> converter =
-      CreateInferenceTableConverter(table, module, import_data,
-                                    warning_collector, base_type_info,
-                                    file_table, std::move(module_tracer));
-  absl::Status status =
-      converter->ConvertSubtree(&module, /*function=*/std::nullopt,
-                                /*parametric_context=*/std::nullopt);
-
-  if (!status.ok()) {
-    VLOG(1) << "Inference table conversion FAILURE: " << status.message();
-  }
-  if (VLOG_IS_ON(5)) {
-    std::cerr << "Inference table after conversion:\n"
-              << table.ToString() << "\n"
-              << "User module traces after conversion:\n"
-              << module_tracer_ptr->ConvertTracesToString() << "\n";
-  }
-
-  if (!status.ok()) {
-    return status;
-  }
-  return converter;
+  return std::make_unique<InferenceTableConverterImpl>(
+      table, module, import_data, warning_collector, type_info, file_table,
+      std::move(tracer));
 }
 
 }  // namespace xls::dslx

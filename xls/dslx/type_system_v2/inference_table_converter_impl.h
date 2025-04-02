@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_TO_TYPE_INFO_H_
-#define XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_TO_TYPE_INFO_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_CONVERTER_IMPL_H_
+#define XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_CONVERTER_IMPL_H_
 
 #include <memory>
 
@@ -22,7 +22,6 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
@@ -30,19 +29,14 @@
 
 namespace xls::dslx {
 
-// Converts the given `InferenceTable` to `TypeInfo`, by concretizing the types
-// associated with all nodes in the table. This is the final step of type
+// Creates an InferenceTableConverter for the given module.
 absl::StatusOr<std::unique_ptr<InferenceTableConverter>>
-InferenceTableToTypeInfo(InferenceTable& table, Module& module,
-                         ImportData& import_data,
-                         WarningCollector& warning_collector,
-                         const FileTable& file_table);
-
-std::unique_ptr<InferenceTableConverter> CreateInferenceTableConverter(
-    InferenceTable& table, Module& module, ImportData& import_data,
-    WarningCollector& warning_collector, TypeInfo* type_info,
-    const FileTable& file_table, std::unique_ptr<TypeSystemTracer> tracer);
+CreateInferenceTableConverter(InferenceTable& table, Module& module,
+                              ImportData& import_data,
+                              WarningCollector& warning_collector,
+                              const FileTable& file_table,
+                              std::unique_ptr<TypeSystemTracer> tracer);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_TO_TYPE_INFO_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_CONVERTER_IMPL_H_

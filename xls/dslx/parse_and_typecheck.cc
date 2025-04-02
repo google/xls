@@ -15,7 +15,9 @@
 #include "xls/dslx/parse_and_typecheck.h"
 
 #include <filesystem>  // NOLINT
+#include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -23,6 +25,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/ret_check.h"
@@ -37,7 +40,9 @@
 #include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
-#include "xls/dslx/type_system_v2/typecheck_module_v2.h"
+#include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
+#include "xls/dslx/type_system_v2/populate_table.h"
+#include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -106,9 +111,24 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   if (force_version2 ||
       module->attributes().contains(ModuleAttribute::kTypeInferenceVersion2)) {
     std::unique_ptr<InferenceTable> table = InferenceTable::Create(*module);
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<InferenceTableConverter> converter,
-        TypecheckModuleV2(table.get(), module_ptr, import_data, &warnings));
+    std::unique_ptr<TypeSystemTracer> tracer = TypeSystemTracer::Create();
+    auto& tracer_ref = *tracer;
+    XLS_RETURN_IF_ERROR(
+        PopulateTable(table.get(), module.get(), import_data, &warnings));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<InferenceTableConverter> converter,
+                         CreateInferenceTableConverter(
+                             *table, *module, *import_data, warnings,
+                             import_data->file_table(), std::move(tracer)));
+    XLS_RETURN_IF_ERROR(
+        converter->ConvertSubtree(module_ptr, /*function=*/std::nullopt,
+                                  /*parametric_context=*/std::nullopt));
+    if (VLOG_IS_ON(5)) {
+      std::cerr << "Inference table after conversion:\n"
+                << table->ToString() << "\n"
+                << "User module traces after conversion:\n"
+                << tracer_ref.ConvertTracesToString() << "\n";
+    }
+
     XLS_ASSIGN_OR_RETURN(
         type_info, import_data->type_info_owner().GetRootTypeInfo(module_ptr));
 
