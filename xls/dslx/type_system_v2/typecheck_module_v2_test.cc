@@ -5354,7 +5354,8 @@ fn foo() {
   } (0);
 }
 )",
-      TypecheckFails(HasTypeMismatch("u32[>= u32:0]", "u32")));
+      TypecheckFails(
+          HasSubstr("Expect array type annotation on a for loop's iterable")));
 }
 
 TEST(TypecheckV2Test, ForInferenceFromBodyType) {
@@ -5389,22 +5390,6 @@ fn foo() {
                               HasNodeWithType("X", "sN[32]"))));
 }
 
-TEST(TypecheckV2Test, ForInferenceFromAnnotation) {
-  EXPECT_THAT(
-      R"(
-fn foo() {
-  let X = for (i, a) : (u32, u16) in 0..5 {
-    a + (i as u16)
-  } (123);
-}
-)",
-      TypecheckSucceeds(AllOf(
-          HasNodeWithType("0..5", "uN[32][5]"), HasNodeWithType("i", "uN[32]"),
-          HasNodeWithType("a", "uN[16]"),
-          HasNodeWithType("(i, a)", "(uN[32], uN[16])"),
-          HasNodeWithType("123", "uN[16]"), HasNodeWithType("X", "uN[16]"))));
-}
-
 TEST(TypecheckV2Test, ForInferenceFromResult) {
   EXPECT_THAT(
       R"(
@@ -5420,7 +5405,7 @@ fn foo() -> s32 {
                               HasNodeWithType("(i, a)", "(uN[32], sN[32])"))));
 }
 
-TEST(TypecheckV2Test, ForTypeAnnotationInitMismatch) {
+TEST(TypecheckV2Test, ForTypeAnnotationMismatch) {
   EXPECT_THAT(
       R"(
 fn foo(A : s32[5]) {
@@ -5429,33 +5414,7 @@ fn foo(A : s32[5]) {
   } (0);
 }
 )",
-      TypecheckFails(HasSignednessMismatch("s32", "u32")));
-}
-
-TEST(TypecheckV2Test, ForTypeAnnotationIterableMismatch) {
-  EXPECT_THAT(
-      R"(
-fn foo(A : s32[5]) {
-  let X = for (i, a) : (u32, u32) in A {
-    a + i
-  } (0);
-}
-)",
       TypecheckFails(HasSignednessMismatch("u32", "s32")));
-}
-
-TEST(TypecheckV2Test, ForInvalidTypeAnnotation) {
-  EXPECT_THAT(
-      R"(
-fn foo(A : s32[5]) {
-  let X = for (i, a) : (u32) in A {
-    a + i
-  } (0);
-}
-)",
-      TypecheckFails(HasSubstr(
-          "For-loop annotated type should be a tuple containing a type for the "
-          "iterable and a type for the accumulator.")));
 }
 
 TEST(TypecheckV2Test, ForInitIterableTypeMismatch) {
