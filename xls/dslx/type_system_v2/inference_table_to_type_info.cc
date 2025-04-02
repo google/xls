@@ -2325,6 +2325,9 @@ absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
       converter->ConvertSubtree(&module, /*function=*/std::nullopt,
                                 /*parametric_context=*/std::nullopt);
 
+  if (!status.ok()) {
+    VLOG(1) << "Inference table conversion FAILURE: " << status.message();
+  }
   if (VLOG_IS_ON(5)) {
     std::cerr << "Inference table after conversion:\n"
               << table.ToString() << "\n"
