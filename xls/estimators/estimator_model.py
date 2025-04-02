@@ -622,7 +622,7 @@ class RegressionEstimator(Estimator):
       e_str = _estimator_expression_cpp_expression(expression, node_identifier)
       terms.append('{!r} * {}'.format(float(self.params[2 * i + 1]), e_str))
       terms.append(
-          '{w!r} * std::log2({e} < 1.0 ? 1.0 : {e})'.format(
+          '{w!r} * std::log2(std::max(1.0, static_cast<double>({e})))'.format(
               w=float(self.params[2 * i + 2]), e=e_str
           )
       )
@@ -766,10 +766,13 @@ class AreaRegressionEstimator(RegressionEstimator):
       )
       terms.append(
           f'{repr(x_logx_coeff)} * {expression_str} *'
-          f' std::log2({expression_str})'
+          f' std::log2(std::max(1.0, static_cast<double>({expression_str})))'
       )
       terms.append(f'{repr(x_coeff)} * {expression_str}')
-      terms.append(f'{repr(logx_coeff)} * std::log2({expression_str})')
+      terms.append(
+          f'{repr(logx_coeff)} * std::log2(std::max(1.0,'
+          f' static_cast<double>({expression_str})))'
+      )
 
     terms_str = ' + '.join(terms)
     return f'return {terms_str};'

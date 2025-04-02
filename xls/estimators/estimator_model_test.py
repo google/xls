@@ -222,11 +222,9 @@ class EstimatorModelTest(absltest.TestCase):
           return std::round(
               0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
               0.0 *
-              std::log2(
-                 static_cast<float>(node->GetType()->GetFlatBitCount()) < 1.0
-                 ? 1.0
-                 : static_cast<float>(node->GetType()->GetFlatBitCount())
-              )
+              std::log2(std::max(1.0, static_cast<double>(
+                  static_cast<float>(node->GetType()->GetFlatBitCount())
+              )))
             );
         """,
     )
@@ -275,10 +273,9 @@ class EstimatorModelTest(absltest.TestCase):
         r"""
           return std::round(
               0.0 + 0.0 * static_cast<float>(node->operand_count()) +
-              0.0 * std::log2(
-                static_cast<float>(node->operand_count()) < 1.0 ? 1.0 :
+              0.0 * std::log2(std::max(1.0, static_cast<double>(
                 static_cast<float>(node->operand_count())
-              ));
+              ))));
         """,
     )
 
@@ -333,16 +330,13 @@ class EstimatorModelTest(absltest.TestCase):
         r"""
           return std::round(
               0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
-              0.0 * std::log2(
-                static_cast<float>(node->GetType()->GetFlatBitCount()) < 1.0 ?
-                 1.0 : static_cast<float>(node->GetType()->GetFlatBitCount())
-              ) +
+              0.0 * std::log2(std::max(1.0, static_cast<double>(
+                static_cast<float>(node->GetType()->GetFlatBitCount())
+              ))) +
               0.0 * static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()) +
-              0.0 * std::log2(
-                static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()) < 1.0 ?
-                  1.0 :
+              0.0 * std::log2(std::max(1.0, static_cast<double>(
                   static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount())
-              ));
+              ))));
         """,
     )
 
@@ -580,7 +574,7 @@ class EstimatorModelTest(absltest.TestCase):
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
+              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
         """.format(expr=expression_str),
     )
 
@@ -651,7 +645,7 @@ class EstimatorModelTest(absltest.TestCase):
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
+              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
         """.format(expr=expression_str),
     )
 
@@ -727,7 +721,7 @@ class EstimatorModelTest(absltest.TestCase):
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
+              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
         """.format(expr=expression_str),
     )
 
@@ -798,7 +792,7 @@ class EstimatorModelTest(absltest.TestCase):
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
+              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
         """.format(expr=expression_str),
     )
 
@@ -869,7 +863,7 @@ class EstimatorModelTest(absltest.TestCase):
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
+              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
         """.format(expr=expression_str),
     )
 
@@ -940,7 +934,7 @@ class EstimatorModelTest(absltest.TestCase):
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
+              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
         """.format(expr=expression_str),
     )
 
@@ -1003,7 +997,7 @@ class EstimatorModelTest(absltest.TestCase):
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
+              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
         """.format(expr=expression_str),
     )
 
@@ -1057,7 +1051,7 @@ class EstimatorModelTest(absltest.TestCase):
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
+              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
         """.format(expr=expression_str),
     )
 
@@ -1134,7 +1128,7 @@ class EstimatorModelTest(absltest.TestCase):
         r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
+              0.0 * std::log2(std::max(1.0, static_cast<double>({expr}))));
         """.format(expr=expression_str),
     )
 
@@ -1176,11 +1170,9 @@ class EstimatorModelTest(absltest.TestCase):
             }
             return std::round(
                 0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
-                0.0 * std::log2(
-                  static_cast<float>(node->GetType()->GetFlatBitCount()) < 1.0 ?
-                   1.0 :
+                0.0 * std::log2(std::max(1.0, static_cast<double>(
                   static_cast<float>(node->GetType()->GetFlatBitCount())
-                ));
+                ))));
           }
         """,
     )
