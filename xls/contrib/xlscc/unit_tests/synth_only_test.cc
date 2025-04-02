@@ -109,6 +109,28 @@ TEST_F(SynthOnlyTest, StdintHUint64Max) {
   RunAcDatatypeTest({}, 1, content);
 }
 
+TEST_F(SynthOnlyTest, StdPairExists) {
+  const std::string content = R"(
+    #include <utility>
+
+    long long my_package(long long a) {
+      auto result = std::pair<long long, bool>(a, true);
+      return result.first;
+    })";
+  RunAcDatatypeTest({{"a", 100}}, 100, content);
+}
+
+TEST_F(SynthOnlyTest, StdMakePairExists) {
+  const std::string content = R"(
+    #include <utility>
+
+    long long my_package(long long a) {
+      auto result = std::make_pair<long long, bool>(a, true);
+      return result.first;
+    })";
+  RunAcDatatypeTest({{"a", 100}}, 100, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc

@@ -227,6 +227,7 @@ filegroup(
         "synth_only/stdio.h",
         "synth_only/string",
         "synth_only/type_traits",
+        "synth_only/utility",
         "synth_only/vector",
         "synth_only/xls_fixed.h",
         "synth_only/xls_int.h",
