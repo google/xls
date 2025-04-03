@@ -218,6 +218,7 @@ cc_library(
         "//xls/common:source_location",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:vlog_is_on",
@@ -420,6 +421,7 @@ cc_library(
     deps = [
         ":default_verilog_simulator",
         ":module_simulator",
+        ":verilog_simulator",
         "//xls/codegen:codegen_options",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",

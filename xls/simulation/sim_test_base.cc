@@ -41,6 +41,7 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/simulation/default_verilog_simulator.h"
 #include "xls/simulation/module_simulator.h"
+#include "xls/simulation/verilog_simulator.h"
 
 namespace xls {
 
@@ -144,9 +145,11 @@ void SimTestBase::RunAndExpectEq(
       arg_set.insert(pair);
     }
     VLOG(3) << "Verilog text:\n" << result.verilog_text;
+    std::unique_ptr<verilog::VerilogSimulator> verilog_simulator =
+        verilog::GetDefaultVerilogSimulator();
     verilog::ModuleSimulator simulator(result.signature, result.verilog_text,
                                        verilog::FileType::kVerilog,
-                                       &verilog::GetDefaultVerilogSimulator());
+                                       verilog_simulator.get());
     XLS_ASSERT_OK_AND_ASSIGN(Value actual, simulator.RunFunction(arg_set));
     ASSERT_TRUE(ValuesEqual(expected, actual)) << "(Verilog simulation)";
   }

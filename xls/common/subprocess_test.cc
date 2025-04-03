@@ -187,5 +187,18 @@ TEST(SubprocessTest, ResultsUnpackToStringPair) {
               StatusIs(absl::StatusCode::kInternal, HasSubstr("bad arg")));
 }
 
+TEST(SubprocessTest, EnvironmentVariables) {
+  auto result = InvokeSubprocess(
+      {"/usr/bin/env", "bash", "-c", "echo ${FOO}"}, std::nullopt, std::nullopt,
+      {EnvironmentVariable{.name = "FOO", .value = "BAR"}});
+
+  EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
+                          /*stdout=*/"BAR\n",
+                          /*stderr=*/"",
+                          /*exit_status=*/0,
+                          /*normal_termination=*/true,
+                          /*timeout_expired=*/false)));
+}
+
 }  // namespace
 }  // namespace xls

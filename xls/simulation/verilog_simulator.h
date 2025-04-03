@@ -16,6 +16,7 @@
 #define XLS_SIMULATION_VERILOG_SIMULATOR_H_
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -112,15 +113,18 @@ class VerilogSimulator {
 // name.
 class VerilogSimulatorManager {
  public:
+  using SimulatorGenerator =
+      std::function<absl::StatusOr<std::unique_ptr<VerilogSimulator>>()>;
+
   // Returns the delay estimator with the given name, or returns an error if no
   // such estimator exists.
-  absl::StatusOr<VerilogSimulator*> GetVerilogSimulator(
+  absl::StatusOr<std::unique_ptr<VerilogSimulator>> GetVerilogSimulator(
       std::string_view name) const;
 
   // Adds a VerilogSimulator to the manager and associates it with the given
   // name.
-  absl::Status RegisterVerilogSimulator(
-      std::string_view name, std::unique_ptr<VerilogSimulator> simulator);
+  absl::Status RegisterVerilogSimulator(std::string_view name,
+                                        SimulatorGenerator simulator_generator);
 
   // Returns a list of the names of available simulators in this manager.
   absl::Span<const std::string> simulator_names() const {
@@ -128,8 +132,7 @@ class VerilogSimulatorManager {
   }
 
  private:
-  absl::flat_hash_map<std::string, std::unique_ptr<VerilogSimulator>>
-      simulators_;
+  absl::flat_hash_map<std::string, SimulatorGenerator> simulator_generators_;
   std::vector<std::string> simulator_names_;
 };
 

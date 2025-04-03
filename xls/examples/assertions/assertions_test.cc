@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -50,10 +51,10 @@ TEST(AssertionsMainTest, CombinationalTest) {
       GetXlsRunfilePath(
           "xls/examples/assertions/assertions_comb.sig.textproto"));
 
-  const verilog::VerilogSimulator& verilog_simulator =
+  std::unique_ptr<verilog::VerilogSimulator> verilog_simulator =
       verilog::GetDefaultVerilogSimulator();
-  if (!verilog_simulator.DoesSupportSystemVerilog() ||
-      !verilog_simulator.DoesSupportAssertions()) {
+  if (!verilog_simulator->DoesSupportSystemVerilog() ||
+      !verilog_simulator->DoesSupportAssertions()) {
     return;
   }
 
@@ -69,7 +70,7 @@ TEST(AssertionsMainTest, CombinationalTest) {
 
   verilog::ModuleSimulator simulator(signature, verilog_text,
                                      verilog::FileType::kSystemVerilog,
-                                     &verilog_simulator);
+                                     verilog_simulator.get());
 
   // Test normal operation
   {
@@ -112,11 +113,11 @@ TEST(AssertionsMainTest, PipelinedTest) {
       GetXlsRunfilePath(
           "xls/examples/assertions/assertions_4_stages.sig.textproto"));
 
-  const verilog::VerilogSimulator& verilog_simulator =
+  std::unique_ptr<verilog::VerilogSimulator> verilog_simulator =
       verilog::GetDefaultVerilogSimulator();
 
-  if (!verilog_simulator.DoesSupportSystemVerilog() ||
-      !verilog_simulator.DoesSupportAssertions()) {
+  if (!verilog_simulator->DoesSupportSystemVerilog() ||
+      !verilog_simulator->DoesSupportAssertions()) {
     return;
   }
 
@@ -132,7 +133,7 @@ TEST(AssertionsMainTest, PipelinedTest) {
 
   verilog::ModuleSimulator simulator(signature, verilog_text,
                                      verilog::FileType::kSystemVerilog,
-                                     &verilog_simulator);
+                                     verilog_simulator.get());
 
   // Test normal operation
   {

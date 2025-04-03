@@ -16,6 +16,7 @@
 #define XLS_COMMON_FILE_TEMP_DIRECTORY_H_
 
 #include <filesystem>  // NOLINT
+#include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -30,7 +31,8 @@ class TempDirectory {
  public:
   ~TempDirectory();
 
-  static absl::StatusOr<TempDirectory> Create();
+  static absl::StatusOr<TempDirectory> Create(
+      std::string_view name_root = "temp_directory");
 
   const std::filesystem::path& path() const;
 

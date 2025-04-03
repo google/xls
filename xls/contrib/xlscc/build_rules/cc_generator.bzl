@@ -101,6 +101,7 @@ def xls_ac_fuzz_binaries(name, deps, seed_start, seed_count, test_ac_fixed, test
                 "//xls/ir:value",
                 "//xls/passes:optimization_pass_pipeline",
                 "//xls/simulation:module_simulator",
+                "//xls/simulation:verilog_simulator",
                 "//xls/simulation:verilog_simulators",
                 "//xls/simulation:default_verilog_simulator",
             ] + deps,

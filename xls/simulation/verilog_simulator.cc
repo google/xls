@@ -131,9 +131,9 @@ VerilogSimulatorManager& GetVerilogSimulatorManagerSingleton() {
   return *manager;
 }
 
-absl::StatusOr<VerilogSimulator*> VerilogSimulatorManager::GetVerilogSimulator(
-    std::string_view name) const {
-  if (!simulators_.contains(name)) {
+absl::StatusOr<std::unique_ptr<VerilogSimulator>>
+VerilogSimulatorManager::GetVerilogSimulator(std::string_view name) const {
+  if (!simulator_generators_.contains(name)) {
     if (simulator_names_.empty()) {
       return absl::NotFoundError(
           absl::StrFormat("No simulator found named \"%s\". No "
@@ -144,16 +144,17 @@ absl::StatusOr<VerilogSimulator*> VerilogSimulatorManager::GetVerilogSimulator(
         "No simulator found named \"%s\". Available simulators: %s", name,
         absl::StrJoin(simulator_names_, ", ")));
   }
-  return simulators_.at(name).get();
+  return simulator_generators_.at(name)();
 }
 
 absl::Status VerilogSimulatorManager::RegisterVerilogSimulator(
-    std::string_view name, std::unique_ptr<VerilogSimulator> simulator) {
-  if (simulators_.contains(name)) {
+    std::string_view name,
+    VerilogSimulatorManager::SimulatorGenerator simulator_generator) {
+  if (simulator_generators_.contains(name)) {
     return absl::InternalError(
         absl::StrFormat("Simulator named %s already exists", name));
   }
-  simulators_[name] = std::move(simulator);
+  simulator_generators_[name] = std::move(simulator_generator);
   simulator_names_.push_back(std::string(name));
   std::sort(simulator_names_.begin(), simulator_names_.end());
 

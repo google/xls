@@ -15,6 +15,7 @@
 #ifndef XLS_SIMULATION_DEFAULT_VERILOG_SIMULATOR_H_
 #define XLS_SIMULATION_DEFAULT_VERILOG_SIMULATOR_H_
 
+#include <memory>
 
 #include "xls/simulation/verilog_simulator.h"
 
@@ -23,7 +24,7 @@ namespace verilog {
 
 // Returns a reference to a default verilog simulator named by
 // the --verilog_simulator flag.
-const VerilogSimulator& GetDefaultVerilogSimulator();
+std::unique_ptr<VerilogSimulator> GetDefaultVerilogSimulator();
 
 }  // namespace verilog
 }  // namespace xls

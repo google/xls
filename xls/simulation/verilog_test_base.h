@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
@@ -46,7 +47,6 @@
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_include.h"
 #include "xls/simulation/verilog_simulator.h"
-#include "xls/simulation/verilog_simulators.h"
 
 namespace xls {
 namespace verilog {
@@ -175,8 +175,8 @@ class VerilogTestBaseWithParam : public testing::TestWithParam<ParamType> {
   virtual SimulationTarget GetSimulationTarget() const = 0;
 
   // Returns the Verilog simulator as determined by the test parameter.
-  VerilogSimulator* GetSimulator() {
-    return GetVerilogSimulator(GetSimulationTarget().simulator).value();
+  VerilogSimulator* GetSimulator() const {
+    return simulators_->at(GetSimulationTarget().simulator).get();
   }
 
   // Returns whether or not the SystemVerilog or Verilog should be used as the
@@ -257,7 +257,28 @@ class VerilogTestBaseWithParam : public testing::TestWithParam<ParamType> {
                         UseSystemVerilog() ? "svtxt" : "vtxt");
     return testdata_dir / filename;
   }
+
+  // Verilog simulators can be slow to construct so keep it across test fixures.
+  static void SetUpTestSuite() {
+    simulators_ = new absl::flat_hash_map<std::string,
+                                          std::unique_ptr<VerilogSimulator>>();
+    VerilogSimulatorManager& sim_manager =
+        GetVerilogSimulatorManagerSingleton();
+    for (const std::string& name : sim_manager.simulator_names()) {
+      (*simulators_)[name] = sim_manager.GetVerilogSimulator(name).value();
+    }
+  }
+
+  static void TearDownTestSuite() { delete simulators_; }
+
+ private:
+  static absl::flat_hash_map<std::string, std::unique_ptr<VerilogSimulator>>*
+      simulators_;
 };
+
+template <typename ParamType>
+absl::flat_hash_map<std::string, std::unique_ptr<VerilogSimulator>>*
+    VerilogTestBaseWithParam<ParamType>::simulators_;
 
 class VerilogTestBase : public VerilogTestBaseWithParam<SimulationTarget> {
   SimulationTarget GetSimulationTarget() const final { return GetParam(); }

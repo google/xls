@@ -14,6 +14,7 @@
 
 #include "xls/simulation/verilog_simulators.h"
 
+#include <memory>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -22,7 +23,8 @@
 namespace xls {
 namespace verilog {
 
-absl::StatusOr<VerilogSimulator*> GetVerilogSimulator(std::string_view name) {
+absl::StatusOr<std::unique_ptr<VerilogSimulator>> GetVerilogSimulator(
+    std::string_view name) {
   return GetVerilogSimulatorManagerSingleton().GetVerilogSimulator(name);
 }
 

@@ -18,6 +18,7 @@
 
 #include <filesystem>  // NOLINT
 #include <string>
+#include <string_view>
 #include <system_error>  // NOLINT
 #include <utility>
 
@@ -55,14 +56,16 @@ absl::Status TempDirectory::Cleanup() && {
   return absl::OkStatus();
 }
 
-absl::StatusOr<TempDirectory> TempDirectory::Create() {
+absl::StatusOr<TempDirectory> TempDirectory::Create(
+    std::string_view name_root) {
   std::error_code ec;
   auto global_temp_dir = std::filesystem::temp_directory_path(ec);
   if (ec) {
     return absl::InternalError("Failed to get temporary directory path.");
   }
 
-  std::string temp_dir = (global_temp_dir / "temp_directory_XXXXXX").string();
+  std::string name_template = absl::StrCat(name_root, "_XXXXXX");
+  std::string temp_dir = (global_temp_dir / name_template).string();
   if (mkdtemp(temp_dir.data()) == nullptr) {
     return absl::UnavailableError(
         absl::StrCat("Failed to create temporary directory ", temp_dir));

@@ -53,6 +53,7 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/simulation/default_verilog_simulator.h"
 #include "xls/simulation/module_simulator.h"
+#include "xls/simulation/verilog_simulator.h"
 
 ABSL_FLAG(int, sample_count, 1, "number of samples to generate.");
 ABSL_FLAG(int, seed, 1, "seed for pseudo-randomizer");
@@ -64,7 +65,8 @@ namespace xlscc {
 
 class GeneratedTester : public XlsccTestBase {
  public:
-  GeneratedTester() = default;
+  GeneratedTester()
+      : verilog_simulator_(xls::verilog::GetDefaultVerilogSimulator()) {}
   void TestBody() override {}
 
   absl::Status RunExisting(const std::filesystem::path& cc_filename,
@@ -125,7 +127,7 @@ class GeneratedTester : public XlsccTestBase {
     VLOG(3) << "Verilog text:\n" << result.verilog_text;
     xls::verilog::ModuleSimulator simulator(
         result.signature, result.verilog_text, xls::verilog::FileType::kVerilog,
-        &xls::verilog::GetDefaultVerilogSimulator());
+        verilog_simulator_.get());
     XLS_ASSIGN_OR_RETURN(xls::Value actual, simulator.RunFunction(args));
     return actual;
   }
@@ -200,6 +202,8 @@ class GeneratedTester : public XlsccTestBase {
         RunAndExpectEqGenerated(expected, cpp_source, loc, argv));
     return result;
   }
+
+  std::unique_ptr<xls::verilog::VerilogSimulator> verilog_simulator_;
 };
 
 TEST_F(GeneratedTester, Simple) {

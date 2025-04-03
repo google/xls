@@ -133,7 +133,8 @@ absl::StatusOr<posix_spawn_file_actions_t> CreateChildFileActions(
 absl::StatusOr<pid_t> ExecInChildProcess(
     const std::vector<const char*>& argv_pointers,
     const std::optional<std::filesystem::path>& cwd, Pipe& stdout_pipe,
-    Pipe& stderr_pipe) {
+    Pipe& stderr_pipe,
+    absl::Span<const EnvironmentVariable> environment_variables) {
   // We previously used fork() & exec() here, but that's prone to many subtle
   // problems (e.g., allocating between fork() and exec() can cause arbitrary
   // problems)... and it's also slow. vfork() might have made the performance
@@ -157,10 +158,33 @@ absl::StatusOr<pid_t> ExecInChildProcess(
   XLS_ASSIGN_OR_RETURN(posix_spawn_file_actions_t file_actions,
                        CreateChildFileActions(stdout_pipe, stderr_pipe));
 
+  // posix_spawnp takes a null-terminate array of char* for environment
+  // variables. Each element has the form "NAME=VALUE".
+  std::vector<std::string> env_vars;
+  std::vector<char*> env_var_ptrs;
+  char** child_env;
+  if (environment_variables.empty()) {
+    // No extra environment variables are specified. Use the existing
+    // environment.
+    child_env = environ;
+  } else {
+    // Append environment variables to the existing environment.
+    for (int i = 0; environ[i] != nullptr; ++i) {
+      env_vars.push_back(environ[i]);
+    }
+    for (const EnvironmentVariable& var : environment_variables) {
+      env_vars.push_back(absl::StrCat(var.name, "=", var.value));
+    }
+    for (const std::string& s : env_vars) {
+      env_var_ptrs.push_back(const_cast<char*>(s.data()));
+    }
+    env_var_ptrs.push_back(nullptr);
+    child_env = env_var_ptrs.data();
+  }
   pid_t pid;
   if (int err = posix_spawnp(
           &pid, subprocess_helper.c_str(), &file_actions, nullptr,
-          const_cast<char* const*>(helper_argv_pointers.data()), environ);
+          const_cast<char* const*>(helper_argv_pointers.data()), child_env);
       err != 0) {
     return absl::InternalError(
         absl::StrCat("Cannot spawn child process: ", Strerror(err)));
@@ -255,7 +279,8 @@ absl::StatusOr<int> WaitForPid(pid_t pid) {
 absl::StatusOr<SubprocessResult> InvokeSubprocess(
     absl::Span<const std::string> argv,
     std::optional<std::filesystem::path> cwd,
-    std::optional<absl::Duration> optional_timeout) {
+    std::optional<absl::Duration> optional_timeout,
+    absl::Span<const EnvironmentVariable> environment_variables) {
   if (argv.empty()) {
     return absl::InvalidArgumentError("Cannot invoke empty argv list.");
   }
@@ -276,8 +301,9 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   XLS_ASSIGN_OR_RETURN(auto stdout_pipe, Pipe::Open());
   XLS_ASSIGN_OR_RETURN(auto stderr_pipe, Pipe::Open());
 
-  XLS_ASSIGN_OR_RETURN(pid_t pid, ExecInChildProcess(argv_pointers, cwd,
-                                                     stdout_pipe, stderr_pipe));
+  XLS_ASSIGN_OR_RETURN(pid_t pid,
+                       ExecInChildProcess(argv_pointers, cwd, stdout_pipe,
+                                          stderr_pipe, environment_variables));
 
   // Order is important here. The optional<Thread> must appear after the mutex
   // because the thread's destructor calls Join() and because the thread has

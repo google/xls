@@ -18,6 +18,7 @@
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -237,7 +238,8 @@ int main(int argc, char** argv) {
   auto simulator = GetVerilogSimulator(absl::GetFlag(FLAGS_verilog_simulator));
   QCHECK_OK(simulator) << "Unknown simulator --verilog_simulator";
 
-  const xls::verilog::VerilogSimulator* verilog_simulator = simulator.value();
+  std::unique_ptr<xls::verilog::VerilogSimulator> verilog_simulator =
+      std::move(simulator.value());
 
   QCHECK_EQ(positional_arguments.size(), 1)
       << "Expected single Verilog file argument.";
@@ -343,5 +345,5 @@ int main(int argc, char** argv) {
 
   return xls::ExitStatus(xls::RealMain(verilog_text.value(), file_type,
                                        signature_status.value(), input,
-                                       verilog_simulator));
+                                       verilog_simulator.get()));
 }

@@ -14,7 +14,9 @@
 
 #include "xls/simulation/default_verilog_simulator.h"
 
+#include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
@@ -29,12 +31,12 @@ ABSL_FLAG(std::string, verilog_simulator, "iverilog",
 namespace xls {
 namespace verilog {
 
-const VerilogSimulator& GetDefaultVerilogSimulator() {
+std::unique_ptr<VerilogSimulator> GetDefaultVerilogSimulator() {
   const std::string simulator_name = absl::GetFlag(FLAGS_verilog_simulator);
   auto simulator = GetVerilogSimulator(simulator_name);
   QCHECK_OK(simulator) << "Unknown simulator --verilog_simulator="
                        << simulator_name;
-  return *simulator.value();
+  return std::move(simulator.value());
 }
 
 }  // namespace verilog
