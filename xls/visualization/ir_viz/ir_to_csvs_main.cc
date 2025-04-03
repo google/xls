@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cmath>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <memory>
@@ -22,6 +23,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -108,6 +110,11 @@ riegeli::CsvRecord NodeRecord(const viz::Node& node) {
   // Trim off whitespace
   locations.erase(0, locations.find_first_not_of(" \n\r\t"));
   locations.erase(locations.find_last_not_of(" \n\r\t") + 1);
+  CHECK(std::isnormal(node.attributes().start()));
+  CHECK(std::isnormal(node.attributes().width()));
+  CHECK(std::isnormal(node.attributes().cycle()));
+  CHECK(std::isnormal(node.attributes().state_param_index()));
+  CHECK(std::isnormal(node.attributes().area_um()));
   return riegeli::CsvRecord(
       *kNodeHeader,
       {
@@ -156,6 +163,7 @@ riegeli::CsvRecord NodeRecord(const viz::Node& node) {
 constexpr riegeli::CsvHeaderConstant kEdgeHeader = {
     "node1", "node2", "id", "bit_width", "type", "on_critical_path"};
 riegeli::CsvRecord EdgeRecord(const viz::Edge& edge) {
+  CHECK(std::isnormal(edge.bit_width()));
   return riegeli::CsvRecord(
       *kEdgeHeader,
       {edge.source_id(), edge.target_id(), edge.id(),
