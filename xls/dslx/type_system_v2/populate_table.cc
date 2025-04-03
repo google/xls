@@ -445,61 +445,103 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleForLoopBase(const ForLoopBase* node) {
-    VLOG(5) << "HandleFor: " << node->ToString();
+    // If a type annotation is explicitly specified, it overrides the default
+    // type annotation for other components in the for loop.
+    TypeAnnotation* iterator_accumulator_type_annotation =
+        node->type_annotation();
+    TypeAnnotation* iterator_type_annotation = nullptr;
+    TypeAnnotation* accumulator_type_annotation = nullptr;
+    ArrayTypeAnnotation* iterable_type_annotation = nullptr;
+    if (iterator_accumulator_type_annotation) {
+      XLS_RETURN_IF_ERROR(iterator_accumulator_type_annotation->Accept(this));
 
-    // Both init expr and body statement block have the same type as For itself.
-    const NameRef* node_type = *table_.GetTypeVariable(node);
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->init(), node_type));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->body(), node_type));
+      TupleTypeAnnotation* tuple_type_annotation =
+          dynamic_cast<TupleTypeAnnotation*>(
+              iterator_accumulator_type_annotation);
+      if (!tuple_type_annotation || tuple_type_annotation->size() != 2) {
+        return TypeInferenceErrorStatusForAnnotation(
+            iterator_accumulator_type_annotation->span(),
+            iterator_accumulator_type_annotation,
+            " For-loop annotated type should be a tuple containing a type for "
+            "the iterable and a type for the accumulator.",
+            file_table_);
+      }
+      iterator_type_annotation = tuple_type_annotation->members()[0];
+      accumulator_type_annotation = tuple_type_annotation->members()[1];
+      iterable_type_annotation = module_.Make<ArrayTypeAnnotation>(
+          iterator_type_annotation->span(), iterator_type_annotation,
+          module_.Make<Number>(
+              iterator_type_annotation->span(), "0", NumberKind::kOther,
+              CreateU32Annotation(module_, iterator_type_annotation->span())),
+          /*dim_is_min=*/true);
+    }
 
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* iterable_type,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, node->iterable(),
-            GenerateInternalTypeVariableName(node->iterable())));
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(node->iterable(), iterable_type));
-
-    XLS_ASSIGN_OR_RETURN(const NameRef* iterable_accumulator_type,
+    // Handle iterable.
+    XLS_ASSIGN_OR_RETURN(const NameRef* iterable_type_variable,
                          table_.DefineInternalVariable(
-                             InferenceVariableKind::kType, node->names(),
-                             GenerateInternalTypeVariableName(node->names())));
+                             InferenceVariableKind::kType, node->iterable(),
+                             GenerateInternalTypeVariableName(node->iterable()),
+                             iterable_type_annotation
+                                 ? std::make_optional(iterable_type_annotation)
+                                 : std::nullopt));
     XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(node->names(), iterable_accumulator_type));
+        table_.SetTypeVariable(node->iterable(), iterable_type_variable));
+    if (iterable_type_annotation) {
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(node->iterable(), iterable_type_annotation));
+    }
+    XLS_RETURN_IF_ERROR(node->iterable()->Accept(this));
 
-    // Annotate the iterable accumulator tuple using the types variables of
-    // iterable and init.
-    std::vector<TypeAnnotation*> iterable_accumulator_types = {
+    // Handle namedef of iterator and accumulator.
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* iterable_accumulator_type_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, node->names(),
+            GenerateInternalTypeVariableName(node->names()),
+            iterator_accumulator_type_annotation
+                ? std::make_optional(iterator_accumulator_type_annotation)
+                : std::nullopt));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(
+        node->names(), iterable_accumulator_type_variable));
+    // The type of iterator and accumulator should be covariant with iterable's
+    // element type and For node type respectively.
+    const NameRef* for_node_type_variable = *table_.GetTypeVariable(node);
+    std::vector<TypeAnnotation*> iterator_accumulator_types = {
         module_.Make<ElementTypeAnnotation>(
-            module_.Make<TypeVariableTypeAnnotation>(iterable_type)),
-        module_.Make<TypeVariableTypeAnnotation>(node_type)};
+            module_.Make<TypeVariableTypeAnnotation>(iterable_type_variable)),
+        module_.Make<TypeVariableTypeAnnotation>(for_node_type_variable)};
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node->names(), module_.Make<TupleTypeAnnotation>(
-                           node->names()->span(), iterable_accumulator_types)));
-
-    // Recursively process each component.
-    XLS_RETURN_IF_ERROR(node->init()->Accept(this));
-    XLS_RETURN_IF_ERROR(node->iterable()->Accept(this));
+                           node->names()->span(), iterator_accumulator_types)));
+    // Handle explicit type annotation.
+    if (iterator_accumulator_type_annotation) {
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node->names(), iterator_accumulator_type_annotation));
+    }
     XLS_RETURN_IF_ERROR(node->names()->Accept(this));
-    TypeAnnotation* type_annotation = node->type_annotation();
-    if (type_annotation) {
-      XLS_RETURN_IF_ERROR(type_annotation->Accept(this));
-    }
-    XLS_RETURN_IF_ERROR(node->body()->Accept(this));
-    // If a type annotation is explicitly specified, it overrides the default
-    // type annotation.
-    if (type_annotation) {
+
+    // Both init expr and body statement block have the same type as For itself.
+    if (accumulator_type_annotation) {
       XLS_RETURN_IF_ERROR(
-          table_.SetTypeAnnotation(node->names(), type_annotation));
+          table_.SetTypeAnnotation(node, accumulator_type_annotation));
     }
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->init(), for_node_type_variable));
+    XLS_RETURN_IF_ERROR(node->init()->Accept(this));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->body(), for_node_type_variable));
+    XLS_RETURN_IF_ERROR(node->body()->Accept(this));
+
     return absl::OkStatus();
   }
 
   absl::Status HandleFor(const For* node) override {
+    VLOG(5) << "HandleFor: " << node->ToString();
     return HandleForLoopBase(node);
   }
 
   absl::Status HandleUnrollFor(const UnrollFor* node) override {
+    VLOG(5) << "HandleUnrollFor: " << node->ToString();
     return HandleForLoopBase(node);
   }
 
@@ -823,7 +865,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     ArrayTypeAnnotation* type_annotation = module_.Make<ArrayTypeAnnotation>(
         node->span(),
         module_.Make<TypeVariableTypeAnnotation>(endpoint_type_variable),
-        element_count, false);
+        element_count, /*dim_is_min=*/false);
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, type_annotation));
     return DefaultHandler(node);
   }

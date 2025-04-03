@@ -1387,30 +1387,31 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             &import_data_, ti, &warning_collector_, ParametricEnv(),
             unroll_for->iterable());
     const std::vector<InterpValue>* iterable_values = nullptr;
-    size_t size = 0;
+    uint64_t size = 0;
     if (const_iterable.ok()) {
       XLS_ASSIGN_OR_RETURN(iterable_values, const_iterable->GetValues());
       size = iterable_values->size();
     } else {
-      InterpValue loop_size = InterpValue::MakeToken();
-      std::optional<const TypeAnnotation*> iterable_type_annotation =
-          table_.GetTypeAnnotation(unroll_for->iterable());
-      if (iterable_type_annotation) {
-        if (auto* array_type_annotation =
-                dynamic_cast<const ArrayTypeAnnotation*>(
-                    *iterable_type_annotation)) {
-          XLS_ASSIGN_OR_RETURN(
-              loop_size, ConstexprEvaluator::EvaluateToValue(
-                             &import_data_, ti, &warning_collector_,
-                             ParametricEnv(), array_type_annotation->dim()));
+      absl::StatusOr<uint64_t> size_from_type(TypeMissingErrorStatus(
+          *unroll_for->iterable(), nullptr, file_table_));
+      std::optional<Type*> iterable_type = ti->GetItem(unroll_for->iterable());
+      if (iterable_type) {
+        if (auto iterable_array_type =
+                dynamic_cast<ArrayType*>(*iterable_type)) {
+          if (std::holds_alternative<InterpValue>(
+                  iterable_array_type->size().value())) {
+            InterpValue dim =
+                std::get<InterpValue>(iterable_array_type->size().value());
+            size_from_type = dim.GetBitValueUnsigned();
+          }
         }
       }
-      XLS_ASSIGN_OR_RETURN(size, loop_size.GetBitValueUnsigned());
+      XLS_ASSIGN_OR_RETURN(size, size_from_type);
     }
 
     bool has_result_value = !accumulator_name->IsWildcardLeaf();
     Expr* accumulator_value = unroll_for->init();
-    for (size_t i = 0; i < size; i++) {
+    for (uint64_t i = 0; i < size; i++) {
       if (has_result_value) {
         Let* accumulator =
             module_.Make<Let>(accumulator_name->span(), accumulator_name,
