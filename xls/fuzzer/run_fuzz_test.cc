@@ -128,7 +128,7 @@ class RunFuzzTest : public ::testing::Test {
     return options;
   }
 
-  absl::StatusOr<Sample> RunFuzz(
+  absl::StatusOr<std::pair<Sample, CompletedSampleKind>> RunFuzz(
       int64_t seed, SampleOptions sample_options = GetSampleOptions()) {
     std::mt19937_64 rng(seed);
 
@@ -155,12 +155,12 @@ TEST_F(RunFuzzTest, DifferentSeedsProduceDifferentSamples) {
 TEST_F(RunFuzzTest, SequentialSamplesAreDifferent) {
   std::mt19937_64 rng{42};
   XLS_ASSERT_OK_AND_ASSIGN(
-      Sample sample1,
+      auto sample1,
       GenerateSampleAndRun(file_table_, rng, GetAstGeneratorOptions(),
                            GetSampleOptions(),
                            /*run_dir=*/GetTempPath(), crasher_dir_));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Sample sample2,
+      auto sample2,
       GenerateSampleAndRun(file_table_, rng, GetAstGeneratorOptions(),
                            GetSampleOptions(),
                            /*run_dir=*/GetTempPath(), crasher_dir_));

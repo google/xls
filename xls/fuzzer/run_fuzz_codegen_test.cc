@@ -134,11 +134,12 @@ class RunFuzzCodegenTest : public ::testing::Test {
     return options;
   }
 
-  absl::StatusOr<Sample> RunFuzz(int64_t seed) {
+  absl::Status RunFuzz(int64_t seed) {
     std::mt19937_64 rng(seed);
     return GenerateSampleAndRun(file_table_, rng, GetAstGeneratorOptions(),
                                 GetSampleOptions(), /*run_dir=*/GetTempPath(),
-                                crasher_dir_);
+                                crasher_dir_)
+        .status();
   }
 
  private:

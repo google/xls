@@ -81,8 +81,9 @@ static absl::Status RealMain(const std::filesystem::path& run_dir,
   std::filesystem::path options_filename = MaybeCopyFile(options_file, run_dir);
   std::filesystem::path testvector_filename =
       MaybeCopyFile(testvector_file, run_dir);
-  return runner.RunFromFiles(input_filename, options_filename,
-                             testvector_filename);
+  return runner
+      .RunFromFiles(input_filename, options_filename, testvector_filename)
+      .status();
 }
 
 }  // namespace xls

@@ -45,11 +45,17 @@
 namespace xls {
 namespace {
 
+struct FuzzResult {
+  int64_t samples_generated;
+  int64_t samples_skipped;
+  int64_t crashers;
+};
+
 static constexpr std::string_view kBlueText = "\033[34m";
 static constexpr std::string_view kRedText = "\033[31m";
 static constexpr std::string_view kDefaultColor = "\033[0m";
 
-absl::Status GenerateAndRunSamples(
+absl::StatusOr<FuzzResult> GenerateAndRunSamples(
     int64_t worker_number,
     const dslx::AstGeneratorOptions& ast_generator_options,
     const SampleOptions& sample_options, const std::optional<uint64_t>& seed,
@@ -59,6 +65,7 @@ absl::Status GenerateAndRunSamples(
     std::optional<int64_t> sample_count,
     const std::optional<absl::Duration>& duration, bool force_failure) {
   int64_t crashers = 0;
+  int64_t skipped = 0;
   LOG(INFO) << "--- Started worker " << worker_number;
   Stopwatch stopwatch;
 
@@ -96,18 +103,19 @@ absl::Status GenerateAndRunSamples(
       run_dir = temp_run_dir->path();
     }
 
-    absl::Status sample_status =
-        GenerateSampleAndRun(file_table, rng, ast_generator_options,
-                             sample_options, run_dir, crasher_dir, summary_file,
-                             force_failure)
-            .status();
-    if (!sample_status.ok()) {
+    auto result = GenerateSampleAndRun(file_table, rng, ast_generator_options,
+                                       sample_options, run_dir, crasher_dir,
+                                       summary_file, force_failure);
+    if (!result.ok()) {
       LOG(INFO) << kRedText
                 << absl::StreamFormat(
                        "--- Worker #%d noted crasher #%d for sample number %d",
                        worker_number, crashers, sample)
                 << kDefaultColor;
       crashers++;
+    }
+    if (result.ok() && result.value().second == CompletedSampleKind::kSkipped) {
+      skipped++;
     }
 
     absl::Duration elapsed = stopwatch.GetElapsedTime();
@@ -151,12 +159,16 @@ absl::Status GenerateAndRunSamples(
 
   absl::Duration elapsed = stopwatch.GetElapsedTime();
   LOG(INFO) << absl::StreamFormat(
-      "--- Worker #%d finished! %d samples; %d crashers; %.2f samples/s; ran "
-      "for %s",
-      worker_number, sample, crashers,
+      "--- Worker #%d finished! %d samples; %d skipped; %d crashers; %.2f "
+      "samples/s; ran for %s",
+      worker_number, sample, skipped, crashers,
       static_cast<double>(sample) / absl::ToDoubleSeconds(elapsed),
       absl::FormatDuration(elapsed));
-  return absl::OkStatus();
+  return FuzzResult{
+      .samples_generated = sample,
+      .samples_skipped = skipped,
+      .crashers = crashers,
+  };
 }
 
 }  // namespace
@@ -172,7 +184,7 @@ absl::Status ParallelGenerateAndRunSamples(
     bool force_failure) {
   std::vector<std::unique_ptr<Thread>> workers;
   workers.resize(worker_count);
-  std::vector<absl::Status> worker_status;
+  std::vector<absl::StatusOr<FuzzResult>> worker_status;
   worker_status.resize(workers.size(),
                        absl::InternalError("worker did not terminate."));
   for (int64_t i = 0; i < workers.size(); ++i) {
@@ -188,14 +200,30 @@ absl::Status ParallelGenerateAndRunSamples(
                                 worker_sample_count, duration, force_failure);
     });
   }
+
+  FuzzResult total{};
+
   for (int64_t i = 0; i < workers.size(); ++i) {
     LOG(INFO) << "-- Waiting on worker " << i;
     workers[i]->Join();
-    if (!worker_status[i].ok()) {
+    if (worker_status[i].ok()) {
+      total.samples_generated += worker_status[i]->samples_generated;
+      total.samples_skipped += worker_status[i]->samples_skipped;
+      total.crashers += worker_status[i]->crashers;
+    } else {
       LOG(ERROR) << kRedText << "-- Worker #" << i
-                 << " failed: " << worker_status[i] << kDefaultColor;
+                 << " failed: " << worker_status[i].status() << kDefaultColor;
     }
   }
+
+  LOG(INFO) << absl::StreamFormat(
+      "Multiprocess Fuzzer finished! Total: %d samples; %d skipped; %d "
+      "crashes; Sample skip rate: %.4f%%.",
+
+      total.samples_generated, total.samples_skipped, total.crashers,
+      static_cast<double>(total.samples_skipped * 100) /
+          static_cast<double>(total.samples_generated));
+
   return absl::OkStatus();
 }
 

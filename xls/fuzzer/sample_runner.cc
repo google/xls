@@ -770,8 +770,9 @@ SimulateProc(const std::filesystem::path& verilog_path,
 
 }  // namespace
 
-absl::Status SampleRunner::Run(const Sample& sample) {
+absl::StatusOr<CompletedSampleKind> SampleRunner::Run(const Sample& sample) {
   std::filesystem::path input_path = run_dir_;
+
   if (sample.options().input_is_dslx()) {
     input_path /= "sample.x";
   } else {
@@ -788,7 +789,7 @@ absl::Status SampleRunner::Run(const Sample& sample) {
   return RunFromFiles(input_path, options_path, testvector_path);
 }
 
-absl::Status SampleRunner::RunFromFiles(
+absl::StatusOr<CompletedSampleKind> SampleRunner::RunFromFiles(
     const std::filesystem::path& input_path,
     const std::filesystem::path& options_path,
     const std::filesystem::path& testvector_path) {
@@ -816,18 +817,25 @@ absl::Status SampleRunner::RunFromFiles(
           fuzzer::SampleType_Name(options.sample_type()));
       break;
   }
+
+  absl::StatusOr<CompletedSampleKind> result;
+
   if (!status.ok()) {
     LOG(ERROR) << "Exception when running sample: " << status.ToString();
     XLS_RETURN_IF_ERROR(
         SetFileContents(run_dir_ / "exception.txt", status.ToString()));
+    result = status;
+  } else {
+    result = CompletedSampleKind::kSuccess;
   }
+
   if (status.code() == absl::StatusCode::kFailedPrecondition) {
     LOG(ERROR)
         << "Precondition failed, sample is not valid in the fuzz domain due to "
         << status;
-    status = absl::OkStatus();
+    result = CompletedSampleKind::kSkipped;
   }
-  return status;
+  return result;
 }
 
 absl::Status SampleRunner::RunFunction(
