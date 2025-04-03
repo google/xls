@@ -84,6 +84,16 @@ std::string ToFieldValue(T v) {
   return absl::StrCat(v);
 }
 
+bool IsNormalOrZero(double v) {
+  switch (std::fpclassify(v)) {
+    case FP_NORMAL:
+    case FP_ZERO:
+      return true;
+    default:
+      return false;
+  }
+}
+
 constexpr riegeli::CsvHeaderConstant kNodeHeader = {"name",
                                                     "label",
                                                     "ir",
@@ -110,11 +120,11 @@ riegeli::CsvRecord NodeRecord(const viz::Node& node) {
   // Trim off whitespace
   locations.erase(0, locations.find_first_not_of(" \n\r\t"));
   locations.erase(locations.find_last_not_of(" \n\r\t") + 1);
-  CHECK(std::isnormal(node.attributes().start()));
-  CHECK(std::isnormal(node.attributes().width()));
-  CHECK(std::isnormal(node.attributes().cycle()));
-  CHECK(std::isnormal(node.attributes().state_param_index()));
-  CHECK(std::isnormal(node.attributes().area_um()));
+  CHECK(IsNormalOrZero(node.attributes().start()));
+  CHECK(IsNormalOrZero(node.attributes().width()));
+  CHECK(IsNormalOrZero(node.attributes().cycle()));
+  CHECK(IsNormalOrZero(node.attributes().state_param_index()));
+  CHECK(IsNormalOrZero(node.attributes().area_um()));
   return riegeli::CsvRecord(
       *kNodeHeader,
       {
@@ -163,7 +173,7 @@ riegeli::CsvRecord NodeRecord(const viz::Node& node) {
 constexpr riegeli::CsvHeaderConstant kEdgeHeader = {
     "node1", "node2", "id", "bit_width", "type", "on_critical_path"};
 riegeli::CsvRecord EdgeRecord(const viz::Edge& edge) {
-  CHECK(std::isnormal(edge.bit_width()));
+  CHECK(IsNormalOrZero(edge.bit_width()));
   return riegeli::CsvRecord(
       *kEdgeHeader,
       {edge.source_id(), edge.target_id(), edge.id(),
