@@ -4819,3 +4819,79 @@ py_test(
     ],
 )
 
+xls_dslx_library(
+    name = "rle_block_encoder_dslx",
+    srcs = [
+        "rle_block_encoder.x",
+    ],
+    deps = [
+        ":mem_reader_simple_arbiter_dslx",
+        ":common_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
+        "//xls/modules/zstd/memory:axi_ram_writer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "rle_block_encoder_dslx_test",
+    library = "rle_block_encoder_dslx",
+)
+
+rle_block_encoder_codegen_args = common_codegen_args | {
+    "module_name": "RleBlockEncoder",
+    "worst_case_throughput": "3",
+}
+
+xls_dslx_verilog(
+    name = "rle_block_encoder_verilog",
+    codegen_args = rle_block_encoder_codegen_args,
+    dslx_top = "RleBlockEncoderInst",
+    library = ":rle_block_encoder_dslx",
+    tags = ["manual"],
+    verilog_file = "rle_block_encoder.v",
+)
+
+xls_benchmark_ir(
+    name = "rle_block_encoder_opt_ir_benchmark",
+    src = ":rle_block_encoder_verilog.opt.ir",
+    benchmark_ir_args = rle_block_encoder_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "rle_block_encoder_verilog_lib",
+    srcs = [
+        ":rle_block_encoder.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "rle_block_encoder_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "RleBlockEncoder",
+    deps = [
+        ":rle_block_encoder_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "rle_block_encoder_benchmark_synth",
+    synth_target = ":rle_block_encoder_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "rle_block_encoder_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":rle_block_encoder_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
