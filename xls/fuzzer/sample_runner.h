@@ -29,6 +29,11 @@
 
 namespace xls {
 
+enum class CompletedSampleKind : std::uint8_t {
+  kSuccess,  // Sample completed succesfully.
+  kSkipped,  // Sample triggered known failure.
+};
+
 // A class for performing various operations on a code sample.
 
 // Code sample can be in DSLX or IR. The possible operations include:
@@ -67,13 +72,14 @@ class SampleRunner {
 
   // Runs the provided sample, writing out files under the SampleRunner's
   // `run_dir` as appropriate.
-  absl::Status Run(const Sample& sample);
+  absl::StatusOr<CompletedSampleKind> Run(const Sample& sample);
 
   // Runs the provided files as a sample, writing out only outputs under the
   // SampleRunner's `run_dir`.
-  absl::Status RunFromFiles(const std::filesystem::path& input_path,
-                            const std::filesystem::path& options_path,
-                            const std::filesystem::path& testvector_path);
+  absl::StatusOr<CompletedSampleKind> RunFromFiles(
+      const std::filesystem::path& input_path,
+      const std::filesystem::path& options_path,
+      const std::filesystem::path& testvector_path);
 
   const fuzzer::SampleTimingProto& timing() const { return timing_; }
 

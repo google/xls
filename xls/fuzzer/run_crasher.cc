@@ -57,7 +57,7 @@ absl::Status RealMain(const std::filesystem::path& crasher_path,
   }
 
   LOG(INFO) << "Running crasher in directory " << run_dir;
-  return RunSample(crasher, run_dir);
+  return RunSample(crasher, run_dir).status();
 }
 
 }  // namespace
