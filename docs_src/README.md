@@ -187,9 +187,6 @@ purpose, and correspond to the components in this XLS stack diagram:
 *   [`dependency_support`](https://github.com/google/xls/tree/main/dependency_support):
     Configuration files that load, build, and expose Bazel targets for
     *external* dependencies of XLS.
-*   [`docs`](https://github.com/google/xls/tree/main/docs): Generated
-    documentation served via GitHub pages:
-    [https://google.github.io/xls/](https://google.github.io/xls/)
 *   [`docs_src`](https://github.com/google/xls/tree/main/docs_src): Markdown
     file sources, rendered to `docs` via
     [mkdocs](https://google.github.io/xls/contributing/#rendering-documentation).
@@ -279,9 +276,6 @@ purpose, and correspond to the components in this XLS stack diagram:
       [Many tools](https://google.github.io/xls/tools/) that work with the XLS
       system and its libraries in a decomposed way via command line
       interfaces.
-  *   [`uncore_rtl`](https://github.com/google/xls/tree/main/xls/uncore_rtl):
-      Helper RTL that interfaces XLS-generated blocks with device top-level
-      for e.g. FPGA experiments.
   *   [`visualization`](https://github.com/google/xls/tree/main/xls/visualization):
       Visualization tools to inspect the XLS compiler/system interactively.
       See [IR visualization](https://google.github.io/xls/ir_visualization/).
