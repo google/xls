@@ -4830,6 +4830,7 @@ xls_dslx_library(
         "zstd_enc.x",
     ],
     deps = [
+        "//xls/modules/zstd/compression:block_size_dslx",
         ":mem_writer_simple_arbiter_dslx",
         ":mem_reader_simple_arbiter_dslx",
         ":frame_header_dec_dslx",
