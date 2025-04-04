@@ -30,6 +30,7 @@ import xls.modules.zstd.memory.mem_reader;
 import xls.modules.zstd.mem_writer_simple_arbiter;
 import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;
+import xls.modules.zstd.compression.block_size;
 
 pub enum ZstdEncodeRespStatus : u1 {
     ERROR=0,
@@ -154,8 +155,25 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
             }
         } else {
             let conf = state.conf;
-            let size = std::min(conf.max_block_size, conf.bytes_left) as BlockSize;
-            let last_block: bool = state.conf.bytes_left < conf.max_block_size;
+            let size = block_size::get_block_size(conf.bytes_left, conf.max_block_size as BlockSize);
+
+            // BlockSize calculation
+            // 1. Limit BlockSize value to rfc-defined and parameter-based max value,
+            // and reduce it further in case there's not much data left to compress
+            //    * done by get_block_size
+            // 2. Try to split the input data by half or by fourth (TODO)
+            //    * use samples of data from the beginning, middle and the end of the input
+            //    * zstd C implementation uses 512 bytes from each of these parts
+            //    * fingerprint comparison - calculate differences between the regions and split in halves
+            //      in case the beginning and end differ significantly (with a threshold)
+            //    * repeat the operation to split in fourths
+            //    * the result is BlockSize, one of 32/64/96/128 KB depending on the differences in fingerprints
+            //    * see `ZSTD_splitBlock_fromBorders` and `compareFingerprints` in zstd for reference
+            //    * https://github.com/facebook/zstd/blob/d654fca78690fa15cceb8058ac47454d914a0e63/lib/compress/zstd_preSplit.c#L198
+            //    * https://github.com/facebook/zstd/blob/d654fca78690fa15cceb8058ac47454d914a0e63/lib/compress/zstd_preSplit.c#L110
+
+            let last_block: bool = state.conf.bytes_left <= size as u32;
+
             let tok1 = send(join(), bhw_req_s, BlockHeaderWriterReq{
                     addr: conf.output_offset,
                     header: BlockHeader {

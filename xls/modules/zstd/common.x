@@ -36,7 +36,6 @@ pub const OFFSET_WIDTH = u32:22;
 pub const HISTORY_BUFFER_SIZE_KB = u32:64;
 
 pub const BUFFER_WIDTH = u32:128;
-pub const MAX_BLOCK_SIZE_KB = u32:64;
 
 pub const BLOCK_PACKET_WIDTH = u32:32;
 
@@ -47,6 +46,11 @@ pub type CopyOrMatchContent = BlockData;
 pub type CopyOrMatchLength = u64;
 pub type Offset = bits[OFFSET_WIDTH];
 pub type RefillingSBLength = uN[std::clog2(AXI_DATA_W) + u32:1];
+
+// BlockSize is limited by the smallest of: (Window_Size, 128KB)
+// see https://datatracker.ietf.org/doc/html/rfc8878#name-block_content-and-block_max
+pub const MAX_BLOCK_SIZE_KB = u32:128;
+pub const MAX_BLOCK_SIZE = (MAX_BLOCK_SIZE_KB << 10) as BlockSize;
 
 pub enum BlockType : u2 {
     RAW = 0,
