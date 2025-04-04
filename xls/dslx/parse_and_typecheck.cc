@@ -25,6 +25,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -119,14 +120,22 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
                          CreateInferenceTableConverter(
                              *table, *module, *import_data, warnings,
                              import_data->file_table(), std::move(tracer)));
-    XLS_RETURN_IF_ERROR(
+    absl::Status status =
         converter->ConvertSubtree(module_ptr, /*function=*/std::nullopt,
-                                  /*parametric_context=*/std::nullopt));
+                                  /*parametric_context=*/std::nullopt);
+    if (!status.ok()) {
+      VLOG(1) << "Inference table conversion FAILURE: " << status;
+    }
+
     if (VLOG_IS_ON(5)) {
       std::cerr << "Inference table after conversion:\n"
                 << table->ToString() << "\n"
                 << "User module traces after conversion:\n"
                 << tracer_ref.ConvertTracesToString() << "\n";
+    }
+
+    if (!status.ok()) {
+      return status;
     }
 
     XLS_ASSIGN_OR_RETURN(

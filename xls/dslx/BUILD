@@ -518,6 +518,7 @@ cc_library(
         "//xls/dslx/type_system_v2:populate_table",
         "//xls/dslx/type_system_v2:type_system_tracer",
         "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/log:vlog_is_on",
         "@com_google_absl//absl/status:statusor",
