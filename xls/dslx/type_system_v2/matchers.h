@@ -24,6 +24,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
 
@@ -120,16 +121,10 @@ MATCHER_P(TypecheckFails, matcher, "") {
       result_listener);
 }
 
-// Verifies that `TypecheckV2` succeeds for the given DSLX code and the
-// resulting type info string satisfies the given `matcher`.
-MATCHER_P(TypecheckSucceeds, matcher, "") {
-  absl::StatusOr<TypecheckResult> result = TypecheckV2(arg);
-  if (!result.ok()) {
-    *result_listener << "Failed to typecheck: `" << arg
-                     << "`; status: " << result.status();
-    return false;
-  }
-  absl::StatusOr<std::string> type_info_string = TypeInfoToString(result->tm);
+template <typename M>
+bool CheckTypeInfo(TypecheckedModule module,
+                   ::testing::MatchResultListener* result_listener, M matcher) {
+  absl::StatusOr<std::string> type_info_string = TypeInfoToString(module);
   if (!type_info_string.ok()) {
     *result_listener << "Failed to convert type info to string; status: "
                      << type_info_string.status();
@@ -141,6 +136,22 @@ MATCHER_P(TypecheckSucceeds, matcher, "") {
     *result_listener << "Type info: " << *type_info_string;
   }
   return matched;
+}
+
+// Verifies that `TypecheckV2` succeeds for the given DSLX code and the
+// resulting type info string satisfies the given `matcher`.
+MATCHER_P(TypecheckSucceeds, matcher, "") {
+  absl::StatusOr<TypecheckResult> result = TypecheckV2(arg);
+  if (!result.ok()) {
+    *result_listener << "Failed to typecheck: `" << arg
+                     << "`; status: " << result.status();
+    return false;
+  }
+  return CheckTypeInfo(result->tm, result_listener, matcher);
+}
+
+MATCHER_P(HasTypeInfo, matcher, "") {
+  return CheckTypeInfo(arg.tm, result_listener, matcher);
 }
 
 }  // namespace xls::dslx

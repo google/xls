@@ -55,11 +55,20 @@ using ::testing::HasSubstr;
 class TypecheckBothVersionsTest
     : public ::testing::TestWithParam<TypeInferenceVersion> {
  public:
-  absl::StatusOr<TypecheckResult> Typecheck(std::string_view program) {
+  absl::StatusOr<TypecheckResult> Typecheck(
+      std::string_view program, std::string_view module_name = "fake",
+      ImportData* import_data = nullptr) {
+    if (import_data == nullptr) {
+      import_data_ = CreateImportDataPtrForTest();
+      import_data = import_data_.get();
+    }
     return GetParam() == TypeInferenceVersion::kVersion1
-               ? ::xls::dslx::Typecheck(program)
-               : ::xls::dslx::TypecheckV2(program);
+               ? ::xls::dslx::Typecheck(program, module_name, import_data)
+               : ::xls::dslx::TypecheckV2(program, module_name, import_data);
   }
+
+ private:
+  std::unique_ptr<ImportData> import_data_;
 };
 
 TEST(TypecheckErrorTest, EnumItemSelfReference) {
@@ -598,7 +607,23 @@ proc Bar {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, ProcWithImplAsImportedProcMember) {
+TEST_P(TypecheckBothVersionsTest, ImportPublicFunction) {
+  constexpr std::string_view kImported = R"(
+pub fn foo(x: u32) -> u32 { x }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u32 {
+  imported::foo(u32:42)
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult module,
+                           Typecheck(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(Typecheck(kProgram, "main", &import_data));
+}
+
+TEST_P(TypecheckBothVersionsTest, ProcWithImplAsImportedProcMember) {
   constexpr std::string_view kImported = R"(
 pub proc Foo {
   foo: u32,
@@ -613,13 +638,10 @@ import imported;
 proc Bar {
   subproc: imported::Foo
 })";
-  auto import_data = CreateImportDataForTest();
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule module,
-      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
-  XLS_EXPECT_OK(
-      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult module,
+                           Typecheck(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(Typecheck(kProgram, "main", &import_data));
 }
 
 TEST(TypecheckTest, UseOfConstant) {

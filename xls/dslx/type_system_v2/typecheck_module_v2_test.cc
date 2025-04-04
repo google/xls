@@ -17,7 +17,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/create_import_data.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
@@ -5662,5 +5666,59 @@ proc main {
       TypecheckFails(HasTypeMismatch("u32", "u64")));
 }
 
+TEST(TypecheckV2Test, ImportFunction) {
+  constexpr std::string_view kImported = R"(
+pub fn some_function(x: u32) -> u32 { x }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u32 {
+  let var = imported::some_function(1);
+  var
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult res,
+                           TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              ::absl_testing::IsOkAndHolds(
+                  HasTypeInfo(HasNodeWithType("var", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, ImportNonExistingFunction) {
+  constexpr std::string_view kImported = "";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u32 {
+  let var = imported::some_function(1);
+  var
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult res,
+                           TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("doesn't exist")));
+}
+
+TEST(TypecheckV2Test, ImportNonPublicFunction) {
+  constexpr std::string_view kImported = R"(
+fn some_function(x: u32) -> u32 { x }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u32 {
+  let var = imported::some_function(1);
+  var
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult res,
+                           TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
+}
 }  // namespace
 }  // namespace xls::dslx

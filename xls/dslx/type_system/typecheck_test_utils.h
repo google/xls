@@ -30,10 +30,13 @@ namespace xls::dslx {
 
 enum class TypeInferenceVersion : uint8_t { kVersion1 = 1, kVersion2 = 2 };
 
+// TODO: erinzmoore - Require all `Typecheck` callers to pass in `ImportData`
+// and delete this struct.
 struct TypecheckResult {
   // If `import_data` is not dependency injected into the `Typecheck` routine,
   // we create import data, and it owns objects with lifetimes we need for the
   // `TypecheckedModule` (e.g. the `FileTable`) so we provide it in the result.
+  // If `import_data` is passed into `Typecheck`, this will be `nullptr`.
   std::unique_ptr<ImportData> import_data;
   TypecheckedModule tm;
 };
@@ -41,11 +44,15 @@ struct TypecheckResult {
 // Helper for parsing/typechecking a snippet of DSLX text.
 //
 // If `import_data` is not provided one is created for internal use.
-absl::StatusOr<TypecheckResult> Typecheck(std::string_view text);
+absl::StatusOr<TypecheckResult> Typecheck(std::string_view program,
+                                          std::string_view module_name = "fake",
+                                          ImportData* import_data = nullptr);
 
 // Variant that prepends the `type_inference_v2` DSLX module attribute to
 // `program` to force the use of type_system_v2.
-absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program);
+absl::StatusOr<TypecheckResult> TypecheckV2(
+    std::string_view program, std::string_view module_name = "fake",
+    ImportData* import_data = nullptr);
 
 // Verifies that a failed typecheck status message indicates a type mismatch
 // between the given two types in string format.

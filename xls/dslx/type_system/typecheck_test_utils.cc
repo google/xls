@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 
+#include <memory>
 #include <string_view>
 #include <utility>
 
@@ -22,18 +23,26 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info_to_proto.h"
 #include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 
-absl::StatusOr<TypecheckResult> Typecheck(std::string_view text) {
-  auto import_data = CreateImportDataPtrForTest();
-  absl::StatusOr<TypecheckedModule> tm =
-      ParseAndTypecheck(text, "fake.x", "fake", import_data.get());
+absl::StatusOr<TypecheckResult> Typecheck(std::string_view program,
+                                          std::string_view module_name,
+                                          ImportData* import_data) {
+  std::unique_ptr<ImportData> owned_import_data;
+  if (import_data == nullptr) {
+    owned_import_data = CreateImportDataPtrForTest();
+    import_data = owned_import_data.get();
+  }
+  absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
+      program, absl::StrCat(module_name, ".x"), module_name, import_data);
+
   if (!tm.ok()) {
-    UniformContentFilesystem vfs(text);
+    UniformContentFilesystem vfs(program);
     TryPrintError(tm.status(), import_data->file_table(), vfs);
     return tm.status();
   }
@@ -41,11 +50,14 @@ absl::StatusOr<TypecheckResult> Typecheck(std::string_view text) {
   // its protobuf form.
   XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm->type_info).status());
 
-  return TypecheckResult{std::move(import_data), std::move(*tm)};
+  return TypecheckResult{std::move(owned_import_data), std::move(*tm)};
 }
 
-absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program) {
-  return Typecheck(absl::StrCat("#![feature(type_inference_v2)]\n\n", program));
+absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program,
+                                            std::string_view module_name,
+                                            ImportData* import_data) {
+  return Typecheck(absl::StrCat("#![feature(type_inference_v2)]\n\n", program),
+                   module_name, import_data);
 }
 
 }  // namespace xls::dslx

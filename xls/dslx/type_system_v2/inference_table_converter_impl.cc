@@ -440,18 +440,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // v1), because there needs to be a `TypeInfo` with separate const-exprs per
     // instantiation of a proc.
     if (!function->IsParametric() && !function->IsInProc()) {
-      // TODO: https://github.com/google/xls/issues/193 - Run this logic for all
-      // non-parametric functions that are imported. There is no way the callee
-      // node for such invocations will have the formal function type annotation
-      // in the table before we come into `ConvertInvocation`. If they only have
-      // the "actual" annotation, whose return type is `Any`, unification will
-      // fail.
       std::optional<std::string_view> builtin =
           GetBuiltinFnName(invocation->callee());
-      if (builtin.has_value()) {
+      if (builtin.has_value() || function->owner() != &module_) {
         const FunctionTypeAnnotation* ft_annotation =
             CreateFunctionTypeAnnotation(module_, *function);
-        if (builtin == "join") {
+        if (builtin.has_value() && builtin == "join") {
           ft_annotation =
               ExpandVarargs(module_, ft_annotation, actual_args.size());
         }

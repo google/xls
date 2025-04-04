@@ -67,8 +67,11 @@ namespace {
 class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
  public:
   PopulateInferenceTableVisitor(Module& module, InferenceTable& table,
-                                const FileTable& file_table)
-      : module_(module), table_(table), file_table_(file_table) {}
+                                const ImportData& import_data)
+      : module_(module),
+        table_(table),
+        file_table_(import_data.file_table()),
+        import_data_(import_data) {}
 
   absl::Status HandleConstantDef(const ConstantDef* node) override {
     VLOG(5) << "HandleConstantDef: " << node->ToString();
@@ -91,6 +94,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                                     module_.Make<ChannelTypeAnnotation>(
                                         node->span(), ChannelDirection::kIn,
                                         node->type(), node->dims())})));
+
     return DefaultHandler(node);
   }
 
@@ -142,6 +146,34 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
         return table_.SetTypeAnnotation(
             node, module_.Make<MemberTypeAnnotation>(&alias->type_annotation(),
                                                      node->attr()));
+      }
+      std::optional<ImportSubject> subject = node->ResolveImportSubject();
+      if (subject.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            ImportTokens import_subject,
+            ImportTokens::FromString(ToAstNode(node->subject())->ToString()));
+        XLS_ASSIGN_OR_RETURN(ModuleInfo * import_module,
+                             import_data_.Get(import_subject));
+        std::optional<ModuleMember*> member =
+            import_module->module().FindMemberWithName(node->attr());
+        if (!member.has_value()) {
+          return TypeInferenceErrorStatus(
+              node->span(), nullptr,
+              absl::StrFormat("Attempted to refer to a module member %s that "
+                              "doesn't exist",
+                              node->ToString()),
+              file_table_);
+        }
+        if (!IsPublic(**member)) {
+          return TypeInferenceErrorStatus(
+              node->span(), nullptr,
+              absl::StrFormat("Attempted to refer to a module member %s that "
+                              "is not public",
+                              node->ToString()),
+              file_table_);
+        }
+        table_.SetColonRefTarget(node, ToAstNode(**member));
+        return absl::OkStatus();
       }
     }
     if (std::holds_alternative<TypeRefTypeAnnotation*>(node->subject())) {
@@ -1696,6 +1728,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   Module& module_;
   InferenceTable& table_;
   const FileTable& file_table_;
+  const ImportData& import_data_;
 };
 
 }  // namespace
@@ -1712,8 +1745,8 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
                        LoadBuiltinStubs());
   std::unique_ptr<InferenceTable> builtins_table =
       InferenceTable::Create(*builtins_module);
-  PopulateInferenceTableVisitor builtins_visitor(
-      *builtins_module, *builtins_table, import_data->file_table());
+  PopulateInferenceTableVisitor builtins_visitor(*builtins_module,
+                                                 *builtins_table, *import_data);
   XLS_RETURN_IF_ERROR((*builtins_module).Accept(&builtins_visitor));
 
   Module* builtins_ptr = builtins_module.get();
@@ -1730,10 +1763,8 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
       std::make_unique<ModuleInfo>(
           std::move(builtins_module), builtins_type_info, builtins_path,
           std::move(builtins_table), std::move(builtins_converter));
-  XLS_RETURN_IF_ERROR(
-      import_data->Put(builtin_tokens, std::move(builtins_module_info))
-          .status());
-  return absl::OkStatus();
+  return import_data->Put(builtin_tokens, std::move(builtins_module_info))
+      .status();
 }
 
 absl::Status PopulateTable(InferenceTable* table, Module* module,
@@ -1741,8 +1772,7 @@ absl::Status PopulateTable(InferenceTable* table, Module* module,
                            WarningCollector* warnings) {
   XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(import_data, warnings));
 
-  PopulateInferenceTableVisitor visitor(*module, *table,
-                                        import_data->file_table());
+  PopulateInferenceTableVisitor visitor(*module, *table, *import_data);
   return module->Accept(&visitor);
 }
 
