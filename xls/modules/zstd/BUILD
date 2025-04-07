@@ -167,8 +167,8 @@ xls_dslx_verilog(
     codegen_args = common_codegen_args,
     dslx_top = "ShiftBufferAlignerInst",
     library = ":shift_buffer_dslx",
-    verilog_file = "shift_buffer_aligner.v",
     tags = ["manual"],
+    verilog_file = "shift_buffer_aligner.v",
 )
 
 xls_benchmark_ir(
@@ -189,11 +189,11 @@ verilog_library(
 synthesize_rtl(
     name = "shift_buffer_aligner_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "ShiftBufferAligner",
     deps = [
         ":shift_buffer_aligner_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -210,14 +210,14 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":shift_buffer_aligner_synth_asap7",
-    target_die_utilization_percentage = "5",
     tags = ["manual"],
+    target_die_utilization_percentage = "5",
 )
 
 xls_benchmark_verilog(
     name = "shift_buffer_aligner_verilog_benchmark",
-    verilog_target = "shift_buffer_aligner_verilog",
     tags = ["manual"],
+    verilog_target = "shift_buffer_aligner_verilog",
 )
 
 shift_buffer_storage_codegen_args = common_codegen_args | {
@@ -230,8 +230,8 @@ xls_dslx_verilog(
     codegen_args = shift_buffer_storage_codegen_args,
     dslx_top = "ShiftBufferStorageInst",
     library = ":shift_buffer_dslx",
-    verilog_file = "shift_buffer_storage.v",
     tags = ["manual"],
+    verilog_file = "shift_buffer_storage.v",
 )
 
 xls_benchmark_ir(
@@ -252,11 +252,11 @@ verilog_library(
 synthesize_rtl(
     name = "shift_buffer_storage_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "ShiftBufferStorage",
     deps = [
         ":shift_buffer_storage_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -273,18 +273,19 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":shift_buffer_storage_synth_asap7",
-    target_die_utilization_percentage = "5",
     tags = ["manual"],
+    target_die_utilization_percentage = "5",
 )
 
 xls_benchmark_verilog(
     name = "shift_buffer_storage_verilog_benchmark",
-    verilog_target = "shift_buffer_storage_verilog",
     tags = ["manual"],
+    verilog_target = "shift_buffer_storage_verilog",
 )
 
 # FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 SHIFT_BUFFER_CLOCK_PERIOD_PS = "1000"
+
 shift_buffer_codegen_args = common_codegen_args | {
     "clock_period_ps": SHIFT_BUFFER_CLOCK_PERIOD_PS,
 }
@@ -294,8 +295,8 @@ xls_dslx_verilog(
     codegen_args = shift_buffer_codegen_args,
     dslx_top = "ShiftBufferInst",
     library = ":shift_buffer_dslx",
-    verilog_file = "shift_buffer.v",
     tags = ["manual"],
+    verilog_file = "shift_buffer.v",
 )
 
 xls_benchmark_ir(
@@ -316,11 +317,11 @@ verilog_library(
 synthesize_rtl(
     name = "shift_buffer_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "ShiftBuffer",
     deps = [
         ":shift_buffer_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -337,14 +338,14 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":shift_buffer_synth_asap7",
-    target_die_utilization_percentage = "5",
     tags = ["manual"],
+    target_die_utilization_percentage = "5",
 )
 
 xls_benchmark_verilog(
     name = "shift_buffer_verilog_benchmark",
-    verilog_target = "shift_buffer_verilog",
     tags = ["manual"],
+    verilog_target = "shift_buffer_verilog",
 )
 
 cc_library(
@@ -354,6 +355,7 @@ cc_library(
     data = [
         "@zstd//:decodecorpus",
     ],
+    tags = ["manual"],
     deps = [
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",
@@ -365,7 +367,6 @@ cc_library(
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
     ],
-    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -826,8 +827,8 @@ xls_dslx_library(
     ],
     deps = [
         ":common_dslx",
-        ":ram_printer_dslx",
         ":parallel_rams_dslx",
+        ":ram_printer_dslx",
         "//xls/examples:ram_dslx",
         "//xls/modules/zstd/memory:mem_writer_dslx",
     ],
@@ -921,9 +922,9 @@ place_and_route(
     name = "sequence_executor_place_and_route",
     clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
-    min_pin_distance = "0.4",
     die_height_microns = 120,
     die_width_microns = 120,
+    min_pin_distance = "0.4",
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":sequence_executor_asap7",
@@ -1114,8 +1115,8 @@ xls_dslx_verilog(
     opt_ir_args = {
         "top": "__ram_wr_handler__RamWrRespHandlerInst__RamWrRespHandler_0__32_next",
     },
-    verilog_file = "ram_rw_handler.v",
     tags = ["manual"],
+    verilog_file = "ram_rw_handler.v",
 )
 
 xls_benchmark_ir(
@@ -1140,11 +1141,11 @@ verilog_library(
 synthesize_rtl(
     name = "ram_rw_handler_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "RamWrRespHandler",
     deps = [
         ":ram_rw_handler_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -1161,8 +1162,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":ram_rw_handler_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -1203,8 +1204,8 @@ xls_dslx_verilog(
     },
     dslx_top = "FseProbaFreqDecoderInst",
     library = ":fse_proba_freq_dec_dslx",
-    verilog_file = "fse_proba_freq_dec.v",
     tags = ["manual"],
+    verilog_file = "fse_proba_freq_dec.v",
 )
 
 xls_benchmark_ir(
@@ -1228,8 +1229,8 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "fse_proba_freq_dec_verilog_benchmark",
-    verilog_target = "fse_proba_freq_dec_verilog",
     tags = ["manual"],
+    verilog_target = "fse_proba_freq_dec_verilog",
 )
 
 verilog_library(
@@ -1244,11 +1245,11 @@ verilog_library(
 synthesize_rtl(
     name = "fse_proba_freq_dec_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "FseProbaFreqDec",
     deps = [
         ":fse_proba_freq_dec_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -1265,8 +1266,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "detailed_routing",
     synthesized_rtl = ":fse_proba_freq_dec_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -1283,7 +1284,6 @@ xls_dslx_test(
     library = ":literals_block_header_dec_dslx",
     tags = ["manual"],
 )
-
 
 xls_dslx_verilog(
     name = "literals_block_header_dec_verilog",
@@ -1308,8 +1308,8 @@ xls_dslx_library(
     name = "sequence_conf_dec_dslx",
     srcs = ["sequence_conf_dec.x"],
     deps = [
-        "//xls/modules/zstd/memory:mem_reader_dslx",
         ":common_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
 
@@ -1358,7 +1358,7 @@ xls_dslx_test(
 xls_dslx_verilog(
     name = "refilling_shift_buffer_internal_verilog",
     codegen_args = common_codegen_args | {
-        "module_name": "RefillingShiftBufferInternalInst"
+        "module_name": "RefillingShiftBufferInternalInst",
     },
     dslx_top = "RefillingShiftBufferInternalInst",
     library = ":refilling_shift_buffer_dslx",
@@ -1416,25 +1416,25 @@ xls_dslx_library(
     name = "comp_block_dec_dslx",
     srcs = ["comp_block_dec.x"],
     deps = [
-        "//xls/examples:ram_dslx",
-        "//xls/modules/zstd/memory:mem_reader_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
-        ":fse_proba_freq_dec_dslx",
-        ":literals_block_header_dec_dslx",
-        ":common_dslx",
-        ":huffman_literals_dec_dslx",
-        ":parallel_rams_dslx",
-        ":literals_buffer_dslx",
-        ":sequence_dec_dslx",
-        ":literals_decoder_dslx",
         ":command_constructor_dslx",
+        ":common_dslx",
+        ":fse_proba_freq_dec_dslx",
+        ":huffman_literals_dec_dslx",
+        ":literals_block_header_dec_dslx",
+        ":literals_buffer_dslx",
+        ":literals_decoder_dslx",
+        ":parallel_rams_dslx",
+        ":sequence_dec_dslx",
+        "//xls/examples:ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
 
 xls_dslx_test(
     name = "comp_block_dec_dslx_test",
-    library = ":comp_block_dec_dslx",
     size = "enormous",
+    library = ":comp_block_dec_dslx",
     tags = ["manual"],
 )
 
@@ -1499,17 +1499,17 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "zstd_dec_dslx_test",
+    size = "large",
     srcs = [
+        "data/comp_frame.x",
+        "data/comp_frame_fse_comp.x",
+        "data/comp_frame_fse_repeated.x",
+        "data/comp_frame_huffman.x",
+        "data/comp_frame_huffman_fse.x",
         "zstd_dec.x",
         "zstd_dec_test.x",
         "zstd_frame_testcases.x",
-        "data/comp_frame.x",
-        "data/comp_frame_huffman.x",
-        "data/comp_frame_huffman_fse.x",
-        "data/comp_frame_fse_comp.x",
-        "data/comp_frame_fse_repeated.x",
     ],
-    size = "large",
     tags = ["manual"],
     deps = zstd_dec_deps,
 )
@@ -1521,83 +1521,82 @@ zstd_dec_codegen_args = common_codegen_args | {
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
     "worst_case_throughput": "6",
-    "ram_configurations":
+    "ram_configurations": ",".join([
         ",".join([
-            ",".join([
-                "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                    latency = 5,
-                    ram_name = "history_buffer_ram{}".format(num),
-                    rd_req = "zstd_dec__ram_rd_req_{}_s".format(num),
-                    rd_resp = "zstd_dec__ram_rd_resp_{}_r".format(num),
-                    wr_req = "zstd_dec__ram_wr_req_{}_s".format(num),
-                    wr_resp = "zstd_dec__ram_wr_resp_{}_r".format(num),
-                )
-                for num in range(8)
-            ]),
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
                 latency = 5,
-                ram_name = "dpd_ram",
-                rd_req = "zstd_dec__dpd_rd_req_s",
-                rd_resp = "zstd_dec__dpd_rd_resp_r",
-                wr_req = "zstd_dec__dpd_wr_req_s",
-                wr_resp = "zstd_dec__dpd_wr_resp_r",
-            ),
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
-                ram_name = "fse_tmp_ram",
-                rd_req = "zstd_dec__tmp_rd_req_s",
-                rd_resp = "zstd_dec__tmp_rd_resp_r",
-                wr_req = "zstd_dec__tmp_wr_req_s",
-                wr_resp = "zstd_dec__tmp_wr_resp_r",
-            ),
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
-                ram_name = "fse_tmp2_ram",
-                rd_req = "zstd_dec__tmp2_rd_req_s",
-                rd_resp = "zstd_dec__tmp2_rd_resp_r",
-                wr_req = "zstd_dec__tmp2_wr_req_s",
-                wr_resp = "zstd_dec__tmp2_wr_resp_r",
-            ),
-            ",".join([
-                "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                    latency = 5,
-                    ram_name = "fse_lookup_ram{}".format(num),
-                    rd_req = "zstd_dec__fse_rd_req_s__{}".format(num),
-                    rd_resp = "zstd_dec__fse_rd_resp_r__{}".format(num),
-                    wr_req = "zstd_dec__fse_wr_req_s__{}".format(num),
-                    wr_resp = "zstd_dec__fse_wr_resp_r__{}".format(num),
-                )
-                for num in range(6)
-            ]),
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
-                ram_name = "huffman_literals_prescan_ram",
-                rd_req = "zstd_dec__huffman_lit_prescan_mem_rd_req_s",
-                rd_resp = "zstd_dec__huffman_lit_prescan_mem_rd_resp_r",
-                wr_req = "zstd_dec__huffman_lit_prescan_mem_wr_req_s",
-                wr_resp = "zstd_dec__huffman_lit_prescan_mem_wr_resp_r",
-            ),
-            # FIXME: Enable once HuffmanLiteralsDecoder has states independent of data read from RAM
-            #"{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            #    latency = 5,
-            #    ram_name = "huffman_literals_weights_ram",
-            #    rd_req = "zstd_dec__huffman_lit_weights_mem_rd_req_s",
-            #    rd_resp = "zstd_dec__huffman_lit_weights_mem_rd_resp_r",
-            #    wr_req = "zstd_dec__huffman_lit_weights_mem_wr_req_s",
-            #    wr_resp = "zstd_dec__huffman_lit_weights_mem_wr_resp_r",
-            #),
-            ",".join([
-                "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                    latency = 5,
-                    ram_name = "literals_buffer_ram{}".format(num),
-                    rd_req = "zstd_dec__litbuf_rd_req_s__{}".format(num),
-                    rd_resp = "zstd_dec__litbuf_rd_resp_r__{}".format(num),
-                    wr_req = "zstd_dec__litbuf_wr_req_s__{}".format(num),
-                    wr_resp = "zstd_dec__litbuf_wr_resp_r__{}".format(num),
-                )
-                for num in range(8)
-            ]),
+                ram_name = "history_buffer_ram{}".format(num),
+                rd_req = "zstd_dec__ram_rd_req_{}_s".format(num),
+                rd_resp = "zstd_dec__ram_rd_resp_{}_r".format(num),
+                wr_req = "zstd_dec__ram_wr_req_{}_s".format(num),
+                wr_resp = "zstd_dec__ram_wr_resp_{}_r".format(num),
+            )
+            for num in range(8)
         ]),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            ram_name = "dpd_ram",
+            rd_req = "zstd_dec__dpd_rd_req_s",
+            rd_resp = "zstd_dec__dpd_rd_resp_r",
+            wr_req = "zstd_dec__dpd_wr_req_s",
+            wr_resp = "zstd_dec__dpd_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            ram_name = "fse_tmp_ram",
+            rd_req = "zstd_dec__tmp_rd_req_s",
+            rd_resp = "zstd_dec__tmp_rd_resp_r",
+            wr_req = "zstd_dec__tmp_wr_req_s",
+            wr_resp = "zstd_dec__tmp_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            ram_name = "fse_tmp2_ram",
+            rd_req = "zstd_dec__tmp2_rd_req_s",
+            rd_resp = "zstd_dec__tmp2_rd_resp_r",
+            wr_req = "zstd_dec__tmp2_wr_req_s",
+            wr_resp = "zstd_dec__tmp2_wr_resp_r",
+        ),
+        ",".join([
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "fse_lookup_ram{}".format(num),
+                rd_req = "zstd_dec__fse_rd_req_s__{}".format(num),
+                rd_resp = "zstd_dec__fse_rd_resp_r__{}".format(num),
+                wr_req = "zstd_dec__fse_wr_req_s__{}".format(num),
+                wr_resp = "zstd_dec__fse_wr_resp_r__{}".format(num),
+            )
+            for num in range(6)
+        ]),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            ram_name = "huffman_literals_prescan_ram",
+            rd_req = "zstd_dec__huffman_lit_prescan_mem_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_prescan_mem_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_prescan_mem_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_prescan_mem_wr_resp_r",
+        ),
+        # FIXME: Enable once HuffmanLiteralsDecoder has states independent of data read from RAM
+        #"{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+        #    latency = 5,
+        #    ram_name = "huffman_literals_weights_ram",
+        #    rd_req = "zstd_dec__huffman_lit_weights_mem_rd_req_s",
+        #    rd_resp = "zstd_dec__huffman_lit_weights_mem_rd_resp_r",
+        #    wr_req = "zstd_dec__huffman_lit_weights_mem_wr_req_s",
+        #    wr_resp = "zstd_dec__huffman_lit_weights_mem_wr_resp_r",
+        #),
+        ",".join([
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "literals_buffer_ram{}".format(num),
+                rd_req = "zstd_dec__litbuf_rd_req_s__{}".format(num),
+                rd_resp = "zstd_dec__litbuf_rd_resp_r__{}".format(num),
+                wr_req = "zstd_dec__litbuf_wr_req_s__{}".format(num),
+                wr_resp = "zstd_dec__litbuf_wr_resp_r__{}".format(num),
+            )
+            for num in range(8)
+        ]),
+    ]),
 }
 
 xls_dslx_verilog(
@@ -1747,15 +1746,15 @@ xls_dslx_library(
         "comp_lookup_dec.x",
     ],
     deps = [
-        ":shift_buffer_dslx",
         ":common_dslx",
+        ":fse_proba_freq_dec_dslx",
         ":fse_table_creator_dslx",
         ":refilling_shift_buffer_dslx",
-        ":fse_proba_freq_dec_dslx",
+        ":shift_buffer_dslx",
         "//xls/examples:ram_dslx",
         "//xls/modules/zstd/memory:axi_dslx",
         "//xls/modules/zstd/memory:axi_ram_dslx",
-    ]
+    ],
 )
 
 xls_dslx_test(
@@ -1771,10 +1770,10 @@ xls_dslx_library(
     ],
     deps = [
         ":common_dslx",
-        ":refilling_shift_buffer_dslx",
         ":fse_table_creator_dslx",
+        ":refilling_shift_buffer_dslx",
         "//xls/examples:ram_dslx",
-    ]
+    ],
 )
 
 xls_dslx_test(
@@ -1790,11 +1789,11 @@ xls_dslx_library(
     ],
     deps = [
         ":comp_lookup_dec_dslx",
-        ":rle_lookup_dec_dslx",
         ":ram_mux_dslx",
         ":refilling_shift_buffer_dslx",
         ":refilling_shift_buffer_mux_dslx",
-    ]
+        ":rle_lookup_dec_dslx",
+    ],
 )
 
 xls_dslx_test(
@@ -1828,8 +1827,8 @@ xls_dslx_verilog(
     },
     dslx_top = "FseTableIterator",
     library = ":fse_table_iterator_dslx",
-    verilog_file = "fse_table_iterator.v",
     tags = ["manual"],
+    verilog_file = "fse_table_iterator.v",
 )
 
 xls_benchmark_ir(
@@ -1853,11 +1852,11 @@ verilog_library(
 synthesize_rtl(
     name = "fse_table_iterator_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "FseTableIterator",
     deps = [
         ":fse_table_iterator_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -1874,8 +1873,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":fse_table_iterator_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -1906,8 +1905,8 @@ xls_dslx_verilog(
     },
     dslx_top = "FseTableCreatorInst",
     library = ":fse_table_creator_dslx",
-    verilog_file = "fse_table_creator.v",
     tags = ["manual"],
+    verilog_file = "fse_table_creator.v",
 )
 
 xls_benchmark_ir(
@@ -1922,8 +1921,8 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "fse_table_creator_verilog_benchmark",
-    verilog_target = "fse_table_creator_verilog",
     tags = ["manual"],
+    verilog_target = "fse_table_creator_verilog",
 )
 
 verilog_library(
@@ -1937,11 +1936,11 @@ verilog_library(
 synthesize_rtl(
     name = "fse_table_creator_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "FseTableCreator",
     deps = [
         ":fse_table_creator_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -1958,8 +1957,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":fse_table_creator_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -1988,8 +1987,8 @@ xls_dslx_verilog(
     },
     dslx_top = "CommandConstructor",
     library = ":command_constructor_dslx",
-    verilog_file = "command_constructor.v",
     tags = ["manual"],
+    verilog_file = "command_constructor.v",
 )
 
 xls_benchmark_ir(
@@ -2004,8 +2003,8 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "command_constructor_verilog_benchmark",
-    verilog_target = "command_constructor_verilog",
     tags = ["manual"],
+    verilog_target = "command_constructor_verilog",
 )
 
 verilog_library(
@@ -2019,11 +2018,11 @@ verilog_library(
 synthesize_rtl(
     name = "command_constructor_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "CommandConstructor",
     deps = [
         ":command_constructor_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -2040,8 +2039,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":command_constructor_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -2082,8 +2081,8 @@ xls_dslx_verilog(
     },
     dslx_top = "RamDemuxInst",
     library = ":ram_demux_dslx",
-    verilog_file = "ram_demux.v",
     tags = ["manual"],
+    verilog_file = "ram_demux.v",
 )
 
 xls_benchmark_ir(
@@ -2109,11 +2108,11 @@ verilog_library(
 synthesize_rtl(
     name = "ram_demux_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "RamDemux",
     deps = [
         ":ram_demux_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -2130,8 +2129,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":ram_demux_synth_asap7",
-    target_die_utilization_percentage = "5",
     tags = ["manual"],
+    target_die_utilization_percentage = "5",
 )
 
 xls_dslx_verilog(
@@ -2160,8 +2159,8 @@ xls_dslx_verilog(
     opt_ir_args = {
         "top": "__ram_demux__RamDemuxNaiveInst__RamDemuxNaive_0__5_8_0_8_next",
     },
-    verilog_file = "ram_demux_naive.v",
     tags = ["manual"],
+    verilog_file = "ram_demux_naive.v",
 )
 
 xls_benchmark_ir(
@@ -2187,11 +2186,11 @@ verilog_library(
 synthesize_rtl(
     name = "ram_demux_naive_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "RamDemuxNaive",
     deps = [
         ":ram_demux_naive_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -2208,8 +2207,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":ram_demux_naive_synth_asap7",
-    target_die_utilization_percentage = "5",
     tags = ["manual"],
+    target_die_utilization_percentage = "5",
 )
 
 xls_dslx_library(
@@ -2219,8 +2218,8 @@ xls_dslx_library(
     ],
     deps = [
         ":common_dslx",
-        ":math_dslx",
         ":fse_table_creator_dslx",
+        ":math_dslx",
         ":refilling_shift_buffer_dslx",
         "//xls/examples:ram_dslx",
     ],
@@ -2242,10 +2241,10 @@ xls_dslx_verilog(
         "use_system_verilog": "false",
     },
     dslx_top = "FseDecoderInst",
-    opt_ir_args = {
-        "top": "__fse_dec__FseDecoderInst__FseDecoder_0__64_8_32_4_64_7_next"
-    },
     library = ":fse_dec_dslx",
+    opt_ir_args = {
+        "top": "__fse_dec__FseDecoderInst__FseDecoder_0__64_8_32_4_64_7_next",
+    },
     tags = ["manual"],
     verilog_file = "fse_dec.v",
 )
@@ -2334,8 +2333,8 @@ xls_dslx_verilog(
     },
     dslx_top = "RamDemux3Inst",
     library = ":ram_demux3_dslx",
-    verilog_file = "ram_demux3.v",
     tags = ["manual"],
+    verilog_file = "ram_demux3.v",
 )
 
 xls_benchmark_ir(
@@ -2389,7 +2388,7 @@ place_and_route(
 xls_dslx_library(
     name = "ram_mux_dslx",
     srcs = [
-        "ram_mux.x"
+        "ram_mux.x",
     ],
     deps = [
         "//xls/examples:ram_dslx",
@@ -2405,21 +2404,21 @@ xls_dslx_test(
 xls_dslx_library(
     name = "sequence_dec_dslx",
     srcs = [
-        "sequence_dec.x"
+        "sequence_dec.x",
     ],
     deps = [
-        ":sequence_conf_dec_dslx",
-        ":comp_lookup_dec_dslx",
-        ":ram_demux3_dslx",
         ":common_dslx",
+        ":comp_lookup_dec_dslx",
         ":fse_dec_dslx",
-        ":ram_mux_dslx",
-        ":fse_table_creator_dslx",
         ":fse_lookup_dec_dslx",
-        ":shift_buffer_dslx",
+        ":fse_table_creator_dslx",
+        ":ram_demux3_dslx",
+        ":ram_mux_dslx",
         ":refilling_shift_buffer_dslx",
-        "//xls/modules/zstd/memory:mem_reader_dslx",
+        ":sequence_conf_dec_dslx",
+        ":shift_buffer_dslx",
         "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
 
@@ -2440,13 +2439,13 @@ xls_dslx_verilog(
         "use_system_verilog": "false",
         "multi_proc": "true",
     },
-    opt_ir_args = {
-        "top": "__sequence_dec__FseLookupCtrlInst__FseLookupCtrl_0_next"
-    },
     dslx_top = "FseLookupCtrlInst",
     library = ":sequence_dec_dslx",
-    verilog_file = "fse_lookup_ctrl.v",
+    opt_ir_args = {
+        "top": "__sequence_dec__FseLookupCtrlInst__FseLookupCtrl_0_next",
+    },
     tags = ["manual"],
+    verilog_file = "fse_lookup_ctrl.v",
 )
 
 xls_benchmark_ir(
@@ -2487,8 +2486,8 @@ xls_dslx_verilog(
     },
     dslx_top = "RleLiteralsDecoderInst",
     library = ":rle_literals_dec_dslx",
-    verilog_file = "rle_literals_dec.v",
     tags = ["manual"],
+    verilog_file = "rle_literals_dec.v",
 )
 
 xls_benchmark_ir(
@@ -2512,11 +2511,11 @@ verilog_library(
 synthesize_rtl(
     name = "rle_literals_dec_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "rle_literals_dec",
     deps = [
         ":rle_literals_dec_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -2533,8 +2532,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":rle_literals_dec_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -2561,13 +2560,13 @@ xls_dslx_verilog(
         "reset": "rst",
         "use_system_verilog": "false",
     },
-    opt_ir_args = {
-        "top": "__raw_literals_dec__RawLiteralsDecoderInst__RawLiteralsDecoder_0__16_64_next"
-    },
     dslx_top = "RawLiteralsDecoderInst",
     library = ":raw_literals_dec_dslx",
-    verilog_file = "raw_literals_dec.v",
+    opt_ir_args = {
+        "top": "__raw_literals_dec__RawLiteralsDecoderInst__RawLiteralsDecoder_0__16_64_next",
+    },
     tags = ["manual"],
+    verilog_file = "raw_literals_dec.v",
 )
 
 xls_benchmark_ir(
@@ -2576,15 +2575,15 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "10",
         "delay_model": "asap7",
-        "top": "__raw_literals_dec__RawLiteralsDecoderInst__RawLiteralsDecoder_0__16_64_next"
+        "top": "__raw_literals_dec__RawLiteralsDecoderInst__RawLiteralsDecoder_0__16_64_next",
     },
     tags = ["manual"],
 )
 
 xls_benchmark_verilog(
     name = "raw_literals_dec_verilog_benchmark",
-    verilog_target = "raw_literals_dec_verilog",
     tags = ["manual"],
+    verilog_target = "raw_literals_dec_verilog",
 )
 
 verilog_library(
@@ -2598,11 +2597,11 @@ verilog_library(
 synthesize_rtl(
     name = "raw_literals_dec_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "RawLiteralsDecoder",
     deps = [
         ":raw_literals_dec_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -2619,8 +2618,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":raw_literals_dec_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -2630,8 +2629,8 @@ xls_dslx_library(
     ],
     deps = [
         ":common_dslx",
-        ":ram_printer_dslx",
         ":parallel_rams_dslx",
+        ":ram_printer_dslx",
         "//xls/examples:ram_dslx",
     ],
 )
@@ -2666,8 +2665,8 @@ xls_dslx_verilog(
     },
     dslx_top = "LiteralsBufferInst",
     library = ":literals_buffer_dslx",
-    verilog_file = "literals_buffer.v",
     tags = ["manual"],
+    verilog_file = "literals_buffer.v",
 )
 
 xls_benchmark_ir(
@@ -2682,8 +2681,8 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "literals_buffer_verilog_benchmark",
-    verilog_target = "literals_buffer_verilog",
     tags = ["manual"],
+    verilog_target = "literals_buffer_verilog",
 )
 
 verilog_library(
@@ -2697,11 +2696,11 @@ verilog_library(
 synthesize_rtl(
     name = "literals_buffer_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "LiteralsBuffer",
     deps = [
         ":literals_buffer_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -2718,8 +2717,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":literals_buffer_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -2728,18 +2727,18 @@ xls_dslx_library(
         "literals_decoder.x",
     ],
     deps = [
-        "//xls/examples:ram_dslx",
-        "//xls/modules/zstd/memory:axi_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
-        "//xls/modules/zstd/memory:mem_reader_dslx",
         ":common_dslx",
-        ":literals_buffer_dslx",
+        ":huffman_literals_dec_dslx",
         ":literals_block_header_dec_dslx",
+        ":literals_buffer_dslx",
         ":parallel_rams_dslx",
         ":ram_printer_dslx",
         ":raw_literals_dec_dslx",
         ":rle_literals_dec_dslx",
-        ":huffman_literals_dec_dslx",
+        "//xls/examples:ram_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
 
@@ -2759,16 +2758,16 @@ xls_dslx_verilog(
     codegen_args = literals_decoder_ctrl_codegen_args,
     dslx_top = "LiteralsDecoderCtrlInst",
     library = ":literals_decoder_dslx",
-    verilog_file = "literals_decoder_ctrl.v",
     tags = ["manual"],
+    verilog_file = "literals_decoder_ctrl.v",
 )
 
 xls_benchmark_ir(
     name = "literals_decoder_ctrl_opt_ir_benchmark",
     src = ":literals_decoder_ctrl_verilog.opt.ir",
     benchmark_ir_args = literals_decoder_ctrl_codegen_args | {
-		"multi_proc": "true",
-	},
+        "multi_proc": "true",
+    },
     tags = ["manual"],
 )
 
@@ -2783,11 +2782,11 @@ verilog_library(
 synthesize_rtl(
     name = "literals_decoder_ctrl_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "LiteralsDecoderCtrl",
     deps = [
         ":literals_decoder_ctrl_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -2804,8 +2803,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":literals_decoder_ctrl_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_verilog(
@@ -2831,8 +2830,8 @@ xls_dslx_verilog(
     },
     dslx_top = "LiteralsDecoderInst",
     library = ":literals_decoder_dslx",
-    verilog_file = "literals_decoder.v",
     tags = ["manual"],
+    verilog_file = "literals_decoder.v",
 )
 
 xls_benchmark_ir(
@@ -2848,8 +2847,8 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "literals_decoder_verilog_benchmark",
-    verilog_target = "literals_decoder_verilog",
     tags = ["manual"],
+    verilog_target = "literals_decoder_verilog",
 )
 
 verilog_library(
@@ -2863,11 +2862,11 @@ verilog_library(
 synthesize_rtl(
     name = "literals_decoder_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "LiteralsDecoder",
     deps = [
         ":literals_decoder_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -2884,8 +2883,8 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":literals_decoder_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -2902,10 +2901,10 @@ xls_dslx_library(
         "huffman_prescan.x",
     ],
     deps = [
-        "//xls/examples:ram_dslx",
-        "//xls/dslx/stdlib:acm_random_dslx",
         ":common_dslx",
         ":huffman_common_dslx",
+        "//xls/dslx/stdlib:acm_random_dslx",
+        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -2920,13 +2919,12 @@ prescan_codegen_args = common_codegen_args | {
     "pipeline_stages": "16",
     "clock_period_ps": "750",
     "worst_case_throughput": "1",
-    "ram_configurations":
-      "InternalRam:1R1W:huffman_prescan__internal_read_req_s" +
-        ":huffman_prescan__internal_read_rsp_r:" +
-        "huffman_prescan__internal_write_req_s:" +
-        "huffman_prescan__internal_write_rsp_r:5",
-      "io_constraints" : "huffman_prescan__read_req_s:send:" +
-        "huffman_prescan__read_rsp_r:recv:5:5",
+    "ram_configurations": "InternalRam:1R1W:huffman_prescan__internal_read_req_s" +
+                          ":huffman_prescan__internal_read_rsp_r:" +
+                          "huffman_prescan__internal_write_req_s:" +
+                          "huffman_prescan__internal_write_rsp_r:5",
+    "io_constraints": "huffman_prescan__read_req_s:send:" +
+                      "huffman_prescan__read_rsp_r:recv:5:5",
 }
 
 xls_dslx_verilog(
@@ -2934,8 +2932,8 @@ xls_dslx_verilog(
     codegen_args = prescan_codegen_args,
     dslx_top = "WeightPreScan",
     library = ":huffman_prescan_dslx",
-    verilog_file = "huffman_prescan.v",
     tags = ["manual"],
+    verilog_file = "huffman_prescan.v",
 )
 
 xls_benchmark_ir(
@@ -2947,8 +2945,8 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "huffman_prescan_verilog_benchmark",
-    verilog_target = "huffman_prescan_verilog",
     tags = ["manual"],
+    verilog_target = "huffman_prescan_verilog",
 )
 
 verilog_library(
@@ -2962,11 +2960,11 @@ verilog_library(
 synthesize_rtl(
     name = "huffman_prescan_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "HuffmanPrescan",
     deps = [
         ":huffman_prescan_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -2982,8 +2980,8 @@ place_and_route(
     min_pin_distance = "0.5",
     placement_density = "0.30",
     synthesized_rtl = ":huffman_prescan_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -2992,10 +2990,10 @@ xls_dslx_library(
         "huffman_code_builder.x",
     ],
     deps = [
-        "//xls/examples:ram_dslx",
-        "//xls/dslx/stdlib:acm_random_dslx",
         ":common_dslx",
         ":huffman_common_dslx",
+        "//xls/dslx/stdlib:acm_random_dslx",
+        "//xls/examples:ram_dslx",
     ],
 )
 
@@ -3010,8 +3008,8 @@ huffman_code_builder_codegen_args = common_codegen_args | {
     "pipeline_stages": "8",
     "clock_period_ps": "750",
     "worst_case_throughput": "1",
-    "io_constraints" : "huffman_code_builder__weight_r:recv:" +
-      "huffman_code_builder__codes_s:send:2:2",
+    "io_constraints": "huffman_code_builder__weight_r:recv:" +
+                      "huffman_code_builder__codes_s:send:2:2",
 }
 
 xls_dslx_verilog(
@@ -3019,8 +3017,8 @@ xls_dslx_verilog(
     codegen_args = huffman_code_builder_codegen_args,
     dslx_top = "WeightCodeBuilder",
     library = ":huffman_code_builder_dslx",
-    verilog_file = "huffman_code_builder.v",
     tags = ["manual"],
+    verilog_file = "huffman_code_builder.v",
 )
 
 xls_benchmark_ir(
@@ -3032,8 +3030,8 @@ xls_benchmark_ir(
 
 xls_benchmark_verilog(
     name = "huffman_code_builder_verilog_benchmark",
-    verilog_target = "huffman_code_builder_verilog",
     tags = ["manual"],
+    verilog_target = "huffman_code_builder_verilog",
 )
 
 verilog_library(
@@ -3047,11 +3045,11 @@ verilog_library(
 synthesize_rtl(
     name = "huffman_code_builder_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
     top_module = "HuffmanCodeBuilder",
     deps = [
         ":huffman_code_builder_verilog_lib",
     ],
-    tags = ["manual"],
 )
 
 benchmark_synth(
@@ -3067,8 +3065,8 @@ place_and_route(
     min_pin_distance = "0.5",
     placement_density = "0.30",
     synthesized_rtl = ":huffman_code_builder_synth_asap7",
-    target_die_utilization_percentage = "10",
     tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -3389,23 +3387,23 @@ xls_dslx_library(
         "huffman_weights_dec.x",
     ],
     deps = [
-        ":math_dslx",
-        ":huffman_prescan_dslx",
-        ":refilling_shift_buffer_dslx",
         ":comp_lookup_dec_dslx",
         ":fse_table_creator_dslx",
+        ":huffman_prescan_dslx",
+        ":math_dslx",
         ":ram_mux_dslx",
-        "//xls/modules/zstd/memory:mem_reader_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
+        ":refilling_shift_buffer_dslx",
         "//xls/examples:ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
 
 xls_dslx_test(
     name = "huffman_weights_dec_dslx_test",
+    size = "large",
     library = ":huffman_weights_dec_dslx",
     tags = ["manual"],
-    size = "large",
 )
 
 huffman_weights_dec_codegen_args = common_codegen_args | {
@@ -3413,7 +3411,7 @@ huffman_weights_dec_codegen_args = common_codegen_args | {
     "pipeline_stages": "25",
     "clock_period_ps": "750",
     "worst_case_throughput": "17",
-    "multi_proc": "true"
+    "multi_proc": "true",
 }
 
 xls_dslx_verilog(
@@ -3477,7 +3475,6 @@ xls_dslx_library(
         "huffman_literals_dec.x",
     ],
     deps = [
-        "//xls/modules/zstd/memory:axi_ram_dslx",
         ":common_dslx",
         ":huffman_axi_reader_dslx",
         ":huffman_code_builder_dslx",
@@ -3486,6 +3483,7 @@ xls_dslx_library(
         ":huffman_data_preprocessor_dslx",
         ":huffman_decoder_dslx",
         ":huffman_prescan_dslx",
+        "//xls/modules/zstd/memory:axi_ram_dslx",
     ],
 )
 
@@ -3504,12 +3502,12 @@ huffman_literals_dec_codegen_args = common_codegen_args | {
 }
 
 xls_dslx_verilog(
-     name = "huffman_literals_dec_verilog",
-     codegen_args = huffman_literals_dec_codegen_args,
-     dslx_top = "HuffmanLiteralsDecoderInst",
-     library = ":huffman_literals_dec_dslx",
-     tags = ["manual"],
-     verilog_file = "huffman_literals_dec.v",
+    name = "huffman_literals_dec_verilog",
+    codegen_args = huffman_literals_dec_codegen_args,
+    dslx_top = "HuffmanLiteralsDecoderInst",
+    library = ":huffman_literals_dec_dslx",
+    tags = ["manual"],
+    verilog_file = "huffman_literals_dec.v",
 )
 
 xls_benchmark_ir(
@@ -3558,11 +3556,11 @@ place_and_route(
 xls_dslx_library(
     name = "refilling_shift_buffer_mux_dslx",
     srcs = [
-        "refilling_shift_buffer_mux.x"
+        "refilling_shift_buffer_mux.x",
     ],
     deps = [
-        ":refilling_shift_buffer_dslx"
-    ]
+        ":refilling_shift_buffer_dslx",
+    ],
 )
 
 xls_dslx_test(
