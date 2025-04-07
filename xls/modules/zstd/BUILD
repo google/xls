@@ -1722,6 +1722,7 @@ py_test(
         "//xls/modules/zstd/external:axi_register_rd.v",
         "//xls/modules/zstd/external:axi_register_wr.v",
         "//xls/modules/zstd/external:priority_encoder.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
         "//xls/modules/zstd/rtl:zstd_dec_wrapper.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
