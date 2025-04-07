@@ -222,7 +222,7 @@ TEST_P(TypecheckBothVersionsTest, Identity) {
   XLS_EXPECT_OK(Typecheck("fn f(x: bits[3], y: bits[4]) -> bits[4] { y }"));
 }
 
-TEST(TypecheckTest, TokenIdentity) {
+TEST_P(TypecheckBothVersionsTest, TokenIdentity) {
   XLS_EXPECT_OK(Typecheck("fn f(x: token) -> token { x }"));
 }
 
@@ -1095,7 +1095,7 @@ fn f() -> MyTypeAlias { id((u32:42, u8:127)) }
 )"));
 }
 
-TEST(TypecheckTest, For) {
+TEST(TypecheckTest, ForWithRangeFunction) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
   for (i, accum): (u32, u32) in range(u32:0, u32:3) {
@@ -1105,10 +1105,20 @@ fn f() -> u32 {
 })"));
 }
 
-TEST(TypecheckTest, ForInParametricInvokedTwice) {
+TEST_P(TypecheckBothVersionsTest, For) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f() -> u32 {
+  for (i, accum): (u32, u32) in u32:0..u32:3 {
+    let new_accum: u32 = accum + i;
+    new_accum
+  }(u32:0)
+})"));
+}
+
+TEST_P(TypecheckBothVersionsTest, ForInParametricInvokedTwice) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn p<N: u32>(x: uN[N]) -> uN[N] {
-    for (idx, accum) in range(u32:0, N) {
+    for (idx, accum) in u32:0..N {
         accum
     }(uN[N]:0)
 }
@@ -1121,19 +1131,19 @@ fn two_invocation_test() {
 )"));
 }
 
-TEST(TypecheckTest, ForNoAnnotation) {
+TEST_P(TypecheckBothVersionsTest, ForNoAnnotation) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
-  for (i, accum) in range(u32:0, u32:3) {
+  for (i, accum) in u32:0..u32:3 {
     accum
   }(u32:0)
 })"));
 }
 
-TEST(TypecheckTest, ForWildcardIvar) {
+TEST_P(TypecheckBothVersionsTest, ForWildcardIvar) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
-  for (_, accum) in range(u32:0, u32:3) {
+  for (_, accum) in u32:0..u32:3 {
     accum
   }(u32:0)
 })"));
@@ -1296,43 +1306,46 @@ fn main() -> u32 {
                             "kind 'tuple'"))));
 }
 
-TEST(TypecheckTest, ForBuiltinInBody) {
+TEST_P(TypecheckBothVersionsTest, ForBuiltinInBody) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {
-  for (i, accum): (u32, u32) in range(u32:0, u32:3) {
+  for (i, accum): (u32, u32) in u32:0..u32:3 {
     trace!(accum)
   }(u32:0)
 })"));
 }
 
-TEST(TypecheckTest, ForNestedBindings) {
+TEST_P(TypecheckBothVersionsTest, ForNestedBindings) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
-  for (i, (x, y)): (u32, (u32, u8)) in range(u32:0, u32:3) {
+  for (i, (x, y)): (u32, (u32, u8)) in u32:0..u32:3 {
     (x, y)
   }((x, u8:42))
 }
 )"));
 }
 
-TEST(TypecheckTest, ForWithBadTypeTree) {
-  EXPECT_THAT(Typecheck(R"(
-fn f(x: u32) -> (u32, u8) {
-  for (i, (x, y)): (u32, u8) in range(u32:0, u32:3) {
-    (x, y)
-  }((x, u8:42))
-})"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasSubstr("uN[8]\nvs (uN[32], uN[8])"),
-                             HasSubstr("For-loop annotated accumulator type "
-                                       "did not match inferred type."))));
-}
-
-TEST(TypecheckTest, ForWithBadTypeAnnotation) {
+TEST_P(TypecheckBothVersionsTest, ForWithBadTypeTree) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
-  for (i, _): u32 in range(u32:0, u32:3) {
+  for (i, (x, y)): (u32, u8) in u32:0..u32:3 {
+    (x, y)
+  }((x, u8:42))
+})"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(), "uN[8]\nvs (uN[32], uN[8])"),
+                     HasSubstrInV1(GetParam(),
+                                   "For-loop annotated accumulator type did "
+                                   "not match inferred type."),
+                     HasTypeMismatchInV2(GetParam(), "(u32, u8)", "u8"))));
+}
+
+TEST_P(TypecheckBothVersionsTest, ForWithBadTypeAnnotation) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f(x: u32) -> (u32, u8) {
+  for (i, _): u32 in u32:0..u32:3 {
     i
   }(u32:0)
 })"),
@@ -1342,44 +1355,56 @@ fn f(x: u32) -> (u32, u8) {
                                "for the accumulator."))));
 }
 
-TEST(TypecheckTest, ForWithWrongResultType) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, ForWithWrongResultType) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
-  for (i, _): (u32, u32) in range(u32:0, u32:3) {
+  for (i, _): (u32, u32) in u32:0..u32:3 {
     i as u64
   }(u32:0)
 })"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasSubstr("uN[32] vs uN[64]"),
-                             HasSubstr("For-loop init value type did not match "
-                                       "for-loop body's result type."))));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(), "uN[32] vs uN[64]"),
+                     HasSubstrInV1(GetParam(),
+                                   "For-loop init value type did not match "
+                                   "for-loop body's result type."),
+                     HasTypeMismatchInV2(GetParam(), "(u32, u8)", "u32"))));
 }
 
-TEST(TypecheckTest, ForWithWrongNumberOfArguments) {
+TEST_P(TypecheckBothVersionsTest, ForWithWrongNumberOfArguments) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> u32 {
-  for (i, j, acc): (u32, u32, u32) in range(u32:0, u32:3) {
+  for (i, j, acc): (u32, u32, u32) in u32:0..u32:3 {
     i + j + acc
   }(u32:42)
 })"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("For-loop annotated type should specify a type for the "
-                    "iterable and a type for the accumulator; got 3 types.")));
+          AllOf(HasSubstrInV1(
+                    GetParam(),
+                    "For-loop annotated type should specify a type for the "
+                    "iterable and a type for the accumulator; got 3 types."),
+                HasSubstrInV2(
+                    GetParam(),
+                    "For-loop annotated type should be a tuple containing a "
+                    "type for the iterable and a type for the accumulator."))));
 }
 
-TEST(IrConverterTest, ForWithIndexTypeTooSmallForRange) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, ForWithIndexTypeTooSmallForRange) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn test() -> u4 {
   for(i, acc): (u4, u32) in u32:0..u32:120 {
     i as u32 + acc
   }(u32:0)
 })"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasSubstr("uN[4]\nvs uN[32]"),
-                             HasSubstr("For-loop annotated index type did not "
-                                       "match inferred type."))));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(), "uN[4]\nvs uN[32]"),
+                     HasSubstrInV1(GetParam(),
+                                   "For-loop annotated index type did not "
+                                   "match inferred type."),
+                     HasSizeMismatchInV2(GetParam(), "u4", "u32"))));
 }
 
 TEST(TypecheckTest, UnrollForSimple) {
@@ -1394,31 +1419,34 @@ fn test() -> u32 {
 TEST(TypecheckTest, UnrollForNestedBindings) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
-  unroll_for! (_, (x, y)): (u32, (u32, u8)) in range(u32:0, u32:3) {
+  unroll_for! (_, (x, y)): (u32, (u32, u8)) in u32:0..u32:3 {
     (x, y)
   }((x, u8:42))
 }
 )"));
 }
 
-TEST(TypecheckTest, UnrollForWithBadTypeTree) {
-  EXPECT_THAT(Typecheck(R"(
-fn f(x: u32) -> (u32, u8) {
-  unroll_for! (i, (x, y)): (u32, u8) in range(u32:0, u32:3) {
-    (x, y)
-  }((x, u8:42))
-})"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasSubstr("uN[8]\nvs (uN[32], uN[8])"),
-                             HasSubstr("For-loop annotated accumulator type "
-                                       "did not match inferred type."))));
-}
-
-TEST(TypecheckTest, UnrollForWithBadTypeAnnotation) {
+TEST_P(TypecheckBothVersionsTest, UnrollForWithBadTypeTree) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
-  unroll_for! (i, _): u32 in range(u32:0, u32:3) {
+  unroll_for! (i, (x, y)): (u32, u8) in u32:0..u32:3 {
+    (x, y)
+  }((x, u8:42))
+})"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(), "uN[8]\nvs (uN[32], uN[8])"),
+                     HasSubstrInV1(GetParam(),
+                                   "For-loop annotated accumulator type "
+                                   "did not match inferred type."),
+                     HasTypeMismatchInV2(GetParam(), "(u32, u8)", "u8"))));
+}
+
+TEST_P(TypecheckBothVersionsTest, UnrollForWithBadTypeAnnotation) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f(x: u32) -> (u32, u8) {
+  unroll_for! (i, _): u32 in u32:0..u32:3 {
     i
   }(u32:0)
 })"),
@@ -1428,7 +1456,7 @@ fn f(x: u32) -> (u32, u8) {
                          "for the accumulator.")));
 }
 
-TEST(TypecheckTest, UnrollForWithoutIndexAccTypeAnnotation) {
+TEST_P(TypecheckBothVersionsTest, UnrollForWithoutIndexAccTypeAnnotation) {
   XLS_EXPECT_OK(Typecheck(R"(
 proc SomeProc {
   init { () }
@@ -1441,20 +1469,23 @@ proc SomeProc {
 })"));
 }
 
-TEST(TypecheckTest, UnrollForWithWrongResultType) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, UnrollForWithWrongResultType) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
-  unroll_for! (i, _): (u32, u32) in range(u32:0, u32:3) {
+  unroll_for! (i, _): (u32, u32) in u32:0..u32:3 {
     i as u64
   }(u32:0)
 })"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasSubstr("uN[32] vs uN[64]"),
-                             HasSubstr("For-loop init value type did not match "
-                                       "for-loop body's result type."))));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(), "uN[32] vs uN[64]"),
+                     HasSubstrInV1(GetParam(),
+                                   "For-loop init value type did not match "
+                                   "for-loop body's result type."),
+                     HasTypeMismatchInV2(GetParam(), "(u32, u8)", "u32"))));
 }
 
-TEST(TypecheckTest, UnrollForWithWrongNumberOfArguments) {
+TEST_P(TypecheckBothVersionsTest, UnrollForWithWrongNumberOfArguments) {
   EXPECT_THAT(
       Typecheck(R"(
 fn test() -> u32 {
@@ -1464,23 +1495,32 @@ fn test() -> u32 {
 })"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          AllOf(HasSubstr("(uN[32], uN[32], uN[32])\nvs (uN[32], uN[32])"),
-                HasSubstr(
+          AllOf(HasSubstrInV1(GetParam(),
+                              "(uN[32], uN[32], uN[32])\nvs (uN[32], uN[32])"),
+                HasSubstrInV1(
+                    GetParam(),
                     "For-loop annotated type should specify a type for the "
-                    "iterable and a type for the accumulator; got 3 types."))));
+                    "iterable and a type for the accumulator; got 3 types."),
+                HasSubstrInV2(
+                    GetParam(),
+                    "For-loop annotated type should be a tuple containing a "
+                    "type for the iterable and a type for the accumulator."))));
 }
 
-TEST(TypecheckTest, UnrollForWithIndexTypeTooSmallForRange) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, UnrollForWithIndexTypeTooSmallForRange) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn test() -> u4 {
   unroll_for!(i, acc): (u4, u4) in u32:0..u32:120 {
     i + acc
   }(u4:0)
 })"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       AllOf(HasSubstr("uN[4]\nvs uN[32]"),
-                             HasSubstr("For-loop annotated index type did not "
-                                       "match inferred type."))));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(), "uN[4]\nvs uN[32]"),
+                     HasSubstrInV1(GetParam(),
+                                   "For-loop annotated index type did not "
+                                   "match inferred type."),
+                     HasSizeMismatchInV2(GetParam(), "u4", "u32"))));
 }
 
 // https://github.com/google/xls/issues/1717

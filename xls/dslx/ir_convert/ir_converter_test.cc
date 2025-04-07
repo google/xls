@@ -507,10 +507,25 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, TupleOfLiterals) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, CountedFor) {
+TEST(IrConverterTest, CountedForWithRangeFunction) {
   const char* program =
       R"(fn f() -> u32 {
   for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+    accum + i
+  }(u32:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedFor) {
+  const char* program =
+      R"(fn f() -> u32 {
+  for (i, accum): (u32, u32) in u32:0..u32:4 {
     accum + i
   }(u32:0)
 }
@@ -551,7 +566,7 @@ fn main() -> u7 {
 TEST(IrConverterTest, CountedForDestructuring) {
   const char* program =
       R"(fn f() -> u32 {
-  let t = for (i, (x, y)): (u32, (u32, u8)) in range(u32:0, u32:4) {
+  let t = for (i, (x, y)): (u32, (u32, u8)) in u32:0..u32:4 {
     (x + i, y)
   }((u32:0, u8:0));
   t.0
@@ -564,10 +579,10 @@ TEST(IrConverterTest, CountedForDestructuring) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, CountedForParametricConst) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedForParametricConst) {
   const char* program =
       R"(fn f<N: u32>(x: bits[N]) -> u32 {
-  for (i, accum): (u32, u32) in range(u32:0, N) {
+  for (i, accum): (u32, u32) in u32:0..N {
     accum + i
   }(u32:0)
 }
@@ -581,11 +596,12 @@ fn main() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, CountedForInvokingFunctionFromBody) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       CountedForInvokingFunctionFromBody) {
   const char* program =
       R"(fn my_id(x: u32) -> u32 { x }
 fn f() -> u32 {
-  for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+  for (i, accum): (u32, u32) in u32:0..u32:4 {
     my_id(accum + i)
   }(u32:0)
 }
@@ -596,10 +612,10 @@ fn f() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, CountedForVariableRange) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedForVariableRange) {
   const char* program =
       R"(fn f(x:u32) -> u32 {
-  for (i, accum): (u32, u32) in range(u32:0, x) {
+  for (i, accum): (u32, u32) in u32:0..x {
     accum + i
   }(u32:0)
 }
@@ -968,13 +984,13 @@ fn f(x: u2) -> u8 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, CountedForWithLoopInvariants) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedForWithLoopInvariants) {
   const char* program =
       R"(
 fn f(outer_thing_1: u32, outer_thing_2: u32) -> u32 {
   let outer_thing_3: u32 = u32:42;
   let outer_thing_4: u32 = u32:24;
-  for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+  for (i, accum): (u32, u32) in u32:0..u32:4 {
     accum + i + outer_thing_1 + outer_thing_2 + outer_thing_3 + outer_thing_4
   }(u32:0)
 }
@@ -1152,7 +1168,8 @@ fn test() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, UnrollForWithoutIndexAccTypeAnnotation) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       UnrollForWithoutIndexAccTypeAnnotation) {
   const char* kProgram = R"(
 proc SomeProc {
   init { () }
@@ -1166,7 +1183,7 @@ proc SomeProc {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
-  ExpectIr(converted, TestName());
+  ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, UnrollForNested) {
@@ -1317,7 +1334,7 @@ TEST(IrConverterTest, CountedForWithTupleAccumulator) {
   const char* program =
       R"(
 fn f() -> (u32, u32) {
-  for (i, (a, b)): (u32, (u32, u32)) in range(u32:0, u32:4) {
+  for (i, (a, b)): (u32, (u32, u32)) in u32:0..u32:4 {
     (a+b, b+u32:1)
   }((u32:0, u32:1))
 }
@@ -1641,7 +1658,7 @@ TEST(IrConverterTest, ArrayUpdateInLoop) {
   const char* program =
       R"(
 fn main() -> u8[2] {
-  for (i, accum): (u32, u8[2]) in range(u32:0, u32:2) {
+  for (i, accum): (u32, u8[2]) in u32:0..u32:2 {
     update(accum, i, i as u8)
   }(u8[2]:[0, 0])
 }
@@ -1856,7 +1873,7 @@ fn main(x: u32) -> u32 {
 TEST(IrConverterTest, FailInsideFor) {
   const char* program = R"(
 fn main(x: u32) -> u32 {
-  for (i, x): (u32, u32) in range(u32:0, u32:1) {
+  for (i, x): (u32, u32) in u32:0..u32:1 {
     fail!("failure", x)
   }(u32:0)
 }
@@ -1872,7 +1889,7 @@ fn main(x: u32) -> u32 {
 TEST(IrConverterTest, FailOutsideFor) {
   const char* program = R"(
 fn main(x: u32) -> u32 {
-  let x = for (i, x): (u32, u32) in range(u32:0, u32:1) {
+  let x = for (i, x): (u32, u32) in u32:0..u32:1 {
     x
   }(u32:0);
   fail!("failure", x)
@@ -1886,7 +1903,7 @@ fn main(x: u32) -> u32 {
 TEST(IrConverterTest, FailInsideForWithTupleAccum) {
   const char* program = R"(
 fn main(x: u32) -> (u32, u32) {
-  for (i, (x, y)): (u32, (u32, u32)) in range(u32:0, u32:1) {
+  for (i, (x, y)): (u32, (u32, u32)) in u32:0..u32:1 {
     fail!("failure", (x, y))
   }((u32:0, u32:0))
 }
@@ -1900,7 +1917,7 @@ TEST(IrConverterTest, CountedForParametricRefInBody) {
   const char* program =
       R"(
 fn f<N:u32>(init: bits[N]) -> bits[N] {
-  for (i, accum): (u32, bits[N]) in range(u32:0, u32:4) {
+  for (i, accum): (u32, bits[N]) in u32:0..u32:4 {
     accum as bits[N]
   }(init)
 }
@@ -2033,7 +2050,7 @@ fn main(x: u32, y: u16, z: u8) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, TokenIdentityFunction) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, TokenIdentityFunction) {
   std::string_view program = "fn main(x: token) -> token { x }";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
@@ -2564,7 +2581,8 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, BoundaryChannels) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, PassChannelAcrossMultipleSpawns) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       PassChannelAcrossMultipleSpawns) {
   constexpr std::string_view kProgram = R"(
   proc SomeProc {
     input: chan<u32> in;
