@@ -342,6 +342,7 @@ xls_dslx_test(
 
 # FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 AXI_RAM_READER_CLOCK_PERIOD_PS = "850"
+
 axi_ram_reader_codegen_args = common_codegen_args | {
     "clock_period_ps": AXI_RAM_READER_CLOCK_PERIOD_PS,
     "ram_configurations": "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
