@@ -125,40 +125,70 @@ module mem_writer_wrapper (
   wire [ 0:0] axi_stream_padded_tvalid;
   wire [ 0:0] axi_stream_padded_tready;
 
-  assign {axi_writer_write_req_address, axi_writer_write_req_length} = mem_writer.__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0.mem_writer__axi_writer_req_data;
-  assign axi_writer_write_req_valid = mem_writer.__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0.mem_writer__axi_writer_req_vld;
-  assign axi_writer_write_req_ready = mem_writer.__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0.mem_writer__axi_writer_req_rdy;
+  assign {axi_writer_write_req_address, axi_writer_write_req_length} = mem_writer
+    .__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0
+    .mem_writer__axi_writer_req_data;
+  assign axi_writer_write_req_valid = mem_writer
+    .__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0
+    .mem_writer__axi_writer_req_vld;
+  assign axi_writer_write_req_ready = mem_writer
+    .__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0
+    .mem_writer__axi_writer_req_rdy;
 
-  assign {padding_write_req_address, padding_write_req_length} = mem_writer.__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0.mem_writer__padding_req_data;
-  assign padding_write_req_valid = mem_writer.__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0.mem_writer__padding_req_vld;
-  assign padding_write_req_ready = mem_writer.__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0.mem_writer__padding_req_rdy;
+  assign {padding_write_req_address, padding_write_req_length} = mem_writer
+    .__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0
+    .mem_writer__padding_req_data;
+  assign padding_write_req_valid = mem_writer
+    .__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0
+    .mem_writer__padding_req_vld;
+  assign padding_write_req_ready = mem_writer
+    .__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0
+    .mem_writer__padding_req_rdy;
 
   assign { axi_stream_raw_tdata,
            axi_stream_raw_tstr,
            axi_stream_raw_tkeep,
            axi_stream_raw_tid,
            axi_stream_raw_tdest,
-           axi_stream_raw_tlast} = mem_writer.__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0.mem_writer__axi_st_raw_data;
-  assign axi_stream_raw_tvalid = mem_writer.__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0.mem_writer__axi_st_raw_vld;
-  assign axi_stream_raw_tready = mem_writer.__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0.mem_writer__axi_st_raw_rdy;
+           axi_stream_raw_tlast} = mem_writer
+    .__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0
+    .mem_writer__axi_st_raw_data;
+  assign axi_stream_raw_tvalid = mem_writer
+    .__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0
+    .mem_writer__axi_st_raw_vld;
+  assign axi_stream_raw_tready = mem_writer
+    .__mem_writer__MemWriterInst__MemWriter_0__MemWriterInternal_0__16_32_4_4_4_2_next_inst0
+    .mem_writer__axi_st_raw_rdy;
 
   assign { axi_stream_clean_tdata,
            axi_stream_clean_tstr,
            axi_stream_clean_tkeep,
            axi_stream_clean_tid,
            axi_stream_clean_tdest,
-           axi_stream_clean_tlast} = mem_writer.__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1.mem_writer__axi_st_clean_data;
-  assign axi_stream_clean_tvalid = mem_writer.__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1.mem_writer__axi_st_clean_vld;
-  assign axi_stream_clean_tready = mem_writer.__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1.mem_writer__axi_st_clean_rdy;
+           axi_stream_clean_tlast} = mem_writer
+    .__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1 // verilog_lint: waive line-length
+    .mem_writer__axi_st_clean_data;
+  assign axi_stream_clean_tvalid = mem_writer
+    .__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1 // verilog_lint: waive line-length
+    .mem_writer__axi_st_clean_vld;
+  assign axi_stream_clean_tready = mem_writer
+    .__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1 // verilog_lint: waive line-length
+    .mem_writer__axi_st_clean_rdy;
 
   assign { axi_stream_padded_tdata,
            axi_stream_padded_tstr,
            axi_stream_padded_tkeep,
            axi_stream_padded_tid,
            axi_stream_padded_tdest,
-           axi_stream_padded_tlast} = mem_writer.__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4.mem_writer__axi_st_padded_data;
-  assign axi_stream_padded_tvalid = mem_writer.__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4.mem_writer__axi_st_padded_vld;
-  assign axi_stream_padded_tready = mem_writer.__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4.mem_writer__axi_st_padded_rdy;
+           axi_stream_padded_tlast} = mem_writer
+    .__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4 // verilog_lint: waive line-length
+    .mem_writer__axi_st_padded_data;
+  assign axi_stream_padded_tvalid = mem_writer
+    .__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4 // verilog_lint: waive line-length
+    .mem_writer__axi_st_padded_vld;
+  assign axi_stream_padded_tready = mem_writer
+    .__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4 // verilog_lint: waive line-length
+    .mem_writer__axi_st_padded_rdy;
 
   mem_writer mem_writer (
       .clk(clk),
