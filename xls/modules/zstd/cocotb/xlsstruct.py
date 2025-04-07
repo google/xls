@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Provides utilities for defining Python representations of XLS structs.
+"""
+
 import random
-from dataclasses import asdict, astuple, dataclass, fields
+import dataclasses
 
 from cocotb.binary import BinaryValue
 
@@ -22,29 +26,36 @@ class TruncationError(Exception):
   pass
 
 def xls_dataclass(cls):
-  """
-  Class decorator for XLS structs.
+  """Class decorator for XLS structs.
+
   Usage:
 
-  @xls_dataclass
-  class MyStruct(XLSStruct):
-    ...
-  """
-  return dataclass(cls, repr=False)
+    @xls_dataclass
+    class MyStruct(XLSStruct):
+      ...
+  Args:
+    cls (type): The class to decorate.
 
-@dataclass
+  Returns:
+    type: The dataclass-decorated class with repr disabled.
+  """
+  return dataclasses.dataclass(cls, repr=False)
+
+@dataclasses.dataclass
 class XLSStruct:
-  """
-  Represents XLS struct on the Python side, allowing serialization/deserialization
-  to/from common formats and usage with XLS{Driver, Monitor}.
+  """Represents XLS struct on the Python side.
 
-  The intended way to use this class is to inherit from it, specify the fields with
-  <field>: <width> [= <default value>] syntax and decorate the inheriting class with
-  @XLSDataclass. Objects of this class can be instantiated and used like usual
-  dataclass objects, with a few extra methods and properties available. They can also
-  be passed as arguments to XLSChannelDriver.send and will be serialized to expected
-  bit vector. Class can be passed to XLSChannelMonitor ``struct`` constructor argument
-  to automatically deserialize all transfers to the provided struct.
+  Allows serialization/deserialization to/from common formats and usage with
+  XLS{Driver, Monitor}.
+
+  The intended way to use this class is to inherit from it, specify the fields
+  with <field>: <width> [= <default value>] syntax and decorate the inheriting
+  class with @XLSDataclass. Objects of this class can be instantiated and used
+  like usual dataclass objects, with a few extra methods and properties
+  available. They can also be passed as arguments to XLSChannelDriver.send and
+  will be serialized to expected bit vector. Class can be passed to
+  XLSChannelMonitor ``struct`` constructor argument to automatically
+  deserialize all transfers to the provided struct.
 
   Example:
 
@@ -70,29 +81,26 @@ class XLSStruct:
 
   @classmethod
   def _masks(cls):
-    """
-    Returns a list of field-sized bitmasks.
+    """Returns a list of field-sized bitmasks.
 
     For example for fields of widths 2, 3, 4
     returns [2'b11, 3'b111, 4'b1111].
     """
     masks = []
-    for field in fields(cls):
+    for field in dataclasses.fields(cls):
       width = field.type
       masks += [(1 << width) - 1]
     return masks
 
   @classmethod
   def _positions(cls):
-    """
-    Returns a list of start positions in a bit vector for
-    struct's fields.
+    """Returns a list of start positions in a bit vector for struct's fields.
 
     For example for fields of widths 1, 2, 3, 4, 5, 6
     returns [20, 18, 15, 11, 6, 0]
     """
     positions = []
-    for i, field in enumerate(fields(cls)):
+    for i, field in enumerate(dataclasses.fields(cls)):
       width = field.type
       if i == 0:
         positions += [cls.total_width - width]
@@ -103,66 +111,55 @@ class XLSStruct:
   @classmethod
   @property
   def total_width(cls):
-    """
-    Returns total bit width of the struct
-    """
-    return sum(field.type for field in fields(cls))
+    """Returns total bit width of the struct."""
+    return sum(field.type for field in dataclasses.fields(cls))
 
   @property
   def value(self):
-    """
-    Returns struct's value as a Python integer
-    """
+    """Returns struct's value as a Python integer."""
     value = 0
     masks = self._masks()
     positions = self._positions()
-    for field_val, mask, pos in zip(astuple(self), masks, positions):
+    for field_val, mask, pos in zip(
+        dataclasses.astuple(self), masks, positions):
       if field_val > mask:
-        raise TruncationError(f"Signal value is wider than its bit width")
+        raise TruncationError("Signal value is wider than its bit width")
       value |= (field_val & mask) << pos
     return value
 
   @property
   def binaryvalue(self):
-    """
-    Returns struct's value as a cocotb.binary.BinaryValue
-    """
+    """Returns struct's value as a cocotb.binary.BinaryValue."""
     return BinaryValue(self.binstr)
 
   @property
   def binstr(self):
-    """
-    Returns struct's value as a string with its binary representation
-    """
+    """Returns struct's value as a string with its binary representation."""
     return f"{self.value:>0{self.total_width}b}"
 
   @property
   def hexstr(self):
-    """
-    Returns struct's value as a string with its hex representation
-    (without leading "0x")
+    """Returns struct's value as a string with its hex representation.
+
+    The result does NOT have leading "0x".
     """
     return f"{self.value:>0{self.total_width // 4}x}"
 
   @classmethod
   def from_int(cls, value):
-    """
-    Returns an instance of the struct from Python integer
-    """
+    """Returns an instance of the struct from Python integer."""
     instance = {}
     masks = cls._masks()
     positions = cls._positions()
-    for field, mask, pos in zip(fields(cls), masks, positions):
+    for field, mask, pos in zip(dataclasses.fields(cls), masks, positions):
       instance[field.name] = (value >> pos) & mask
     return cls(**instance)
 
   @classmethod
   def randomize(cls):
-    """
-    Returns an instance of the struct with all fields' values randomized
-    """
+    """Returns an instance of the struct with all fields' values randomized."""
     instance = {}
-    for field in fields(cls):
+    for field in dataclasses.fields(cls):
       instance[field.name] = random.randrange(0, 2**field.type)
     return cls(**instance)
 
@@ -171,5 +168,7 @@ class XLSStruct:
 
   def __repr__(self):
     classname = self.__class__.__name__
-    fields = [f"{name}={hex(value)}" for name, value in asdict(self).items()]
-    return f"{classname}({', '.join(fields)})"
+    class_fields = [
+      f"{name}={hex(value)}" for name, value in dataclasses.asdict(self).items()
+    ]
+    return f"{classname}({', '.join(class_fields)})"
