@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Cocotb interfaces for XLS channels using data, valid, and ready signals."""
+
 from typing import Any, Sequence, Type, Union
 
 import cocotb
@@ -30,18 +32,21 @@ XLS_CHANNEL_OPTIONAL_SIGNALS = []
 
 
 class XLSChannel(Bus):
+  """Represents an XLS- channel with ready/valid handshake."""
   _signals = XLS_CHANNEL_SIGNALS
   _optional_signals = XLS_CHANNEL_OPTIONAL_SIGNALS
 
   def __init__(self, entity, name, clk, *, start_now=False, **kwargs: Any):
-    super().__init__(entity, name, self._signals, self._optional_signals, **kwargs)
+    super().__init__(
+      entity, name, self._signals, self._optional_signals, **kwargs
+    )
     self.clk = clk
     if start_now:
         self.start_recv_loop()
 
   @cocotb.coroutine
   async def recv_channel(self):
-    """Cocotb coroutine that acts as a proc receiving data from a channel"""
+    """Cocotb coroutine that acts as a proc receiving data from a channel."""
     self.rdy.setimmediatevalue(1)
     while True:
       await RisingEdge(self.clk)
@@ -51,20 +56,34 @@ class XLSChannel(Bus):
 
 
 class XLSChannelDriver(BusDriver):
+  """Drives transactions on an XLS channel."""
   _signals = XLS_CHANNEL_SIGNALS
   _optional_signals = XLS_CHANNEL_OPTIONAL_SIGNALS
 
-  def __init__(self, entity: SimHandleBase, name: str, clock: SimHandleBase, **kwargs: Any):
+  def __init__(
+    self,
+    entity: SimHandleBase,
+    name: str,
+    clock: SimHandleBase,
+    **kwargs: Any
+  ):
     BusDriver.__init__(self, entity, name, clock, **kwargs)
 
     self.bus.data.setimmediatevalue(0)
     self.bus.vld.setimmediatevalue(0)
 
-  async def _driver_send(self, transaction: Transaction, sync: bool = True, **kwargs: Any) -> None:
+  async def _driver_send(
+    self,
+    transaction: Transaction,
+    sync: bool = True,
+    **kwargs: Any
+  ) -> None:
     if sync:
       await RisingEdge(self.clock)
 
-    data_to_send = (transaction if isinstance(transaction, Sequence) else [transaction])
+    data_to_send = (
+      transaction if isinstance(transaction, Sequence) else [transaction]
+    )
 
     for word in data_to_send:
       self.bus.vld.value = 1
@@ -79,10 +98,18 @@ class XLSChannelDriver(BusDriver):
 
 
 class XLSChannelMonitor(BusMonitor):
+  """Monitors and decodes transactions on an XLS channel."""
   _signals = XLS_CHANNEL_SIGNALS
   _optional_signals = XLS_CHANNEL_OPTIONAL_SIGNALS
 
-  def __init__(self, entity: SimHandleBase, name: str, clock: SimHandleBase, struct: Type[XLSStruct], **kwargs: Any):
+  def __init__(
+    self,
+    entity: SimHandleBase,
+    name: str,
+    clock: SimHandleBase,
+    struct: Type[XLSStruct],
+    **kwargs: Any
+  ):
     BusMonitor.__init__(self, entity, name, clock, **kwargs)
     self.struct = struct
 
