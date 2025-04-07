@@ -106,6 +106,10 @@ TypeAnnotation* CreateStructAnnotation(
 TypeAnnotation* CreateStructAnnotation(Module& module,
                                        const StructOrProcRef& ref);
 
+// Returns the element channel type of the given channel array type.
+ChannelTypeAnnotation* GetChannelArrayElementType(
+    Module& module, const ChannelTypeAnnotation* channel_array_type);
+
 // Returns the signedness and bit count from the given type annotation, if it is
 // a bits-like annotation; otherwise, returns an error. The kind of error is
 // either:

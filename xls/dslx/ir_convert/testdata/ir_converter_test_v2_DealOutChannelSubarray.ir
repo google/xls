@@ -1,0 +1,61 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+chan test_module__the_channel__0_0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test_module__the_channel__1_0(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test_module__the_channel__0_1(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test_module__the_channel__1_1(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+
+fn __test_module__B.init() -> () {
+  ret tuple.1: () = tuple(id=1)
+}
+
+top proc __test_module__A_0_next(__state: (), init={()}) {
+  __state: () = state_read(state_element=__state, id=3)
+  __token: token = literal(value=token, id=2)
+  literal.4: bits[1] = literal(value=1, id=4)
+  next_value.5: () = next_value(param=__state, value=__state, id=5)
+}
+
+proc __test_module__A__B_0_next(__state: (), init={()}) {
+  tok: token = after_all(id=9)
+  j: bits[32] = literal(value=0, id=10)
+  literal.8: bits[1] = literal(value=1, id=8)
+  tok__1: token = send(tok, j, predicate=literal.8, channel=test_module__the_channel__0_0, id=11)
+  receive.12: (token, bits[32]) = receive(tok__1, predicate=literal.8, channel=test_module__the_channel__0_0, id=12)
+  tok__3: token = tuple_index(receive.12, index=0, id=14)
+  j__1: bits[32] = literal(value=1, id=16)
+  tok__4: token = send(tok__3, j__1, predicate=literal.8, channel=test_module__the_channel__0_1, id=17)
+  receive.18: (token, bits[32]) = receive(tok__4, predicate=literal.8, channel=test_module__the_channel__0_1, id=18)
+  __state: () = state_read(state_element=__state, id=7)
+  tuple.22: () = tuple(id=22)
+  __token: token = literal(value=token, id=6)
+  tuple_index.13: token = tuple_index(receive.12, index=0, id=13)
+  tuple_index.15: bits[32] = tuple_index(receive.12, index=1, id=15)
+  tuple_index.19: token = tuple_index(receive.18, index=0, id=19)
+  tok__5: token = tuple_index(receive.18, index=0, id=20)
+  tuple_index.21: bits[32] = tuple_index(receive.18, index=1, id=21)
+  next_value.23: () = next_value(param=__state, value=tuple.22, id=23)
+}
+
+proc __test_module__A__B_1_next(__state: (), init={()}) {
+  tok: token = after_all(id=27)
+  j: bits[32] = literal(value=0, id=28)
+  literal.26: bits[1] = literal(value=1, id=26)
+  tok__1: token = send(tok, j, predicate=literal.26, channel=test_module__the_channel__1_0, id=29)
+  receive.30: (token, bits[32]) = receive(tok__1, predicate=literal.26, channel=test_module__the_channel__1_0, id=30)
+  tok__3: token = tuple_index(receive.30, index=0, id=32)
+  j__1: bits[32] = literal(value=1, id=34)
+  tok__4: token = send(tok__3, j__1, predicate=literal.26, channel=test_module__the_channel__1_1, id=35)
+  receive.36: (token, bits[32]) = receive(tok__4, predicate=literal.26, channel=test_module__the_channel__1_1, id=36)
+  __state: () = state_read(state_element=__state, id=25)
+  tuple.40: () = tuple(id=40)
+  __token: token = literal(value=token, id=24)
+  tuple_index.31: token = tuple_index(receive.30, index=0, id=31)
+  tuple_index.33: bits[32] = tuple_index(receive.30, index=1, id=33)
+  tuple_index.37: token = tuple_index(receive.36, index=0, id=37)
+  tok__5: token = tuple_index(receive.36, index=0, id=38)
+  tuple_index.39: bits[32] = tuple_index(receive.36, index=1, id=39)
+  next_value.41: () = next_value(param=__state, value=tuple.40, id=41)
+}

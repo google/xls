@@ -192,6 +192,19 @@ TypeAnnotation* CreateStructAnnotation(Module& module,
       ref.parametrics, std::nullopt);
 }
 
+ChannelTypeAnnotation* GetChannelArrayElementType(
+    Module& module, const ChannelTypeAnnotation* channel_array_type) {
+  std::optional<std::vector<Expr*>> rest_of_dims;
+  if (channel_array_type->dims().has_value() &&
+      channel_array_type->dims()->size() > 1) {
+    rest_of_dims.emplace(channel_array_type->dims()->begin(),
+                         channel_array_type->dims()->end() - 1);
+  }
+  return module.Make<ChannelTypeAnnotation>(
+      channel_array_type->span(), channel_array_type->direction(),
+      channel_array_type->payload(), rest_of_dims);
+}
+
 absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
     const TypeAnnotation* annotation, bool ignore_missing_dimensions) {
   if (const auto* builtin_annotation =

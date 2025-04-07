@@ -375,6 +375,7 @@ absl::Status ValidateArrayIndex(const Index& node, const Type& array_type,
     return absl::OkStatus();
   }
 
+  VLOG(10) << "Array type: " << casted_array_type.ToString();
   XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value, ti.GetConstExpr(rhs));
   VLOG(10) << "Index RHS is known constexpr value: " << constexpr_value;
   XLS_ASSIGN_OR_RETURN(uint64_t constexpr_index,

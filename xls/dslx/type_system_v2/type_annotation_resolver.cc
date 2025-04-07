@@ -350,6 +350,10 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       }
       return tuple_type->members()[index];
     }
+    if (const auto* channel_type =
+            dynamic_cast<const ChannelTypeAnnotation*>(container_type)) {
+      return GetChannelArrayElementType(module_, channel_type);
+    }
     if (element_type->allow_bit_vector_destructuring()) {
       absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
           GetSignednessAndBitCount(container_type);

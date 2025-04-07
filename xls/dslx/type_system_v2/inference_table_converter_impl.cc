@@ -14,9 +14,7 @@
 
 #include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
 
-#include <cstddef>
 #include <cstdint>
-#include <iostream>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -33,7 +31,6 @@
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -93,6 +90,9 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleProc(const Proc* node) override {
+    if (!handle_parametric_entities_ && node->IsParametric()) {
+      return absl::OkStatus();
+    }
     // Proc boundaries in the enclosing module scope are a "break point." The
     // caller needs to set up a new `TypeInfo` for the proc and then dive in. We
     // only dive in if the visitor's root is the proc subtree.
@@ -531,23 +531,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                       ->self_type()
                 : std::nullopt));
     // Add parametric invocation type info to the root for the callee.
-    ParametricInvocationDetails details =
-        std::get<ParametricInvocationDetails>(invocation_context->details());
-    XLS_ASSIGN_OR_RETURN(TypeInfo * callee_base_info,
-                         import_data_.GetRootTypeInfoForNode(details.callee));
-    if (function_and_target_object.target_struct_context.has_value()) {
-      if (callee_base_info->module() ==
-          parametric_context_type_info_
-              .at(function_and_target_object.target_struct_context.value())
-              ->module()) {
-        callee_base_info = parametric_context_type_info_.at(
-            function_and_target_object.target_struct_context.value());
-      }
+    TypeInfo* invocation_type_info = nullptr;
+    if (function->owner() == &module_) {
+      TypeInfo* base_type_info =
+          GetTypeInfo(function_and_target_object.target_struct_context);
+      XLS_ASSIGN_OR_RETURN(
+          invocation_type_info,
+          import_data_.type_info_owner().New(&module_, base_type_info));
+    } else {
+      XLS_ASSIGN_OR_RETURN(TypeInfo * callee_base_info,
+                           import_data_.GetRootTypeInfoForNode(function));
+      XLS_ASSIGN_OR_RETURN(invocation_type_info,
+                           import_data_.type_info_owner().New(
+                               function->owner(), callee_base_info));
     }
-
-    XLS_ASSIGN_OR_RETURN(TypeInfo * invocation_type_info,
-                         import_data_.type_info_owner().New(
-                             details.callee->owner(), callee_base_info));
     parametric_context_type_info_.emplace(invocation_context,
                                           invocation_type_info);
 

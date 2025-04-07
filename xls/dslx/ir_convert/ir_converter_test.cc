@@ -2238,7 +2238,7 @@ fn callee(x:u32) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, HandlesChannelDecls) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesChannelDecls) {
   const std::string kProgram = R"(
 proc main {
   init { () }
@@ -2668,7 +2668,8 @@ TEST(IrConverterTest, PassChannelArraysAcrossMultipleSpawns) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ReceiveFromBoundaryChannelArrayElement) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ReceiveFromBoundaryChannelArrayElement) {
   constexpr std::string_view kProgram = R"(
   proc SomeProc {
     some_chan_array: chan<u32>[2] in;
@@ -2701,7 +2702,7 @@ TEST(IrConverterTest, ReceiveFromBoundaryChannelArrayElement) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, DealOutChannelSubarray) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, DealOutChannelSubarray) {
   constexpr std::string_view kProgram = R"(
   proc B {
     outs: chan<u32>[2] out;
@@ -2744,10 +2745,11 @@ TEST(IrConverterTest, DealOutChannelSubarray) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "A", import_data, options));
-  ExpectIr(converted, TestName());
+  // Note: the v2 IR is different due to unroll_for!.
+  ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
-TEST(IrConverterTest, LetChannelSubarrayInConfig) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, LetChannelSubarrayInConfig) {
   constexpr std::string_view kProgram = R"(
  proc B {
     outs: chan<u32>[2] out;
@@ -2793,10 +2795,11 @@ TEST(IrConverterTest, LetChannelSubarrayInConfig) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "A", import_data, options));
-  ExpectIr(converted, TestName());
+  // Note: the v2 IR is different due to unroll_for!.
+  ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
-TEST(IrConverterTest, LetChannelSubarrayInNext) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, LetChannelSubarrayInNext) {
   constexpr std::string_view kProgram = R"(
   proc A {
     outs: chan<u32>[2][2] out;
@@ -2947,7 +2950,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ChannelDecl) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ChannelDecl) {
   constexpr std::string_view kProgram = R"(fn main() {
   let _ = chan<u8>("my_chan");
   ()

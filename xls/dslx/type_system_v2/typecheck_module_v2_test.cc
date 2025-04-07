@@ -695,6 +695,22 @@ TEST(TypecheckV2Test, AnnotatedEmptyArrayMismatchFails) {
               TypecheckFails(HasTypeMismatch("u8[0]", "u8[1]")));
 }
 
+TEST(TypecheckV2Test, DecompositionOf2DArray) {
+  // Note that this type of decomposition is reverse order in DSLX compared to
+  // C++ or Java.
+  EXPECT_THAT("fn f(a: u32[4][5]) { let x = a[0]; }",
+              TypecheckSucceeds(HasNodeWithType("x", "uN[32][4]")));
+}
+
+TEST(TypecheckV2Test, OutOfBoundsDecompositionOf2DArrayFails) {
+  // Note that this type of decomposition is reverse order in DSLX compared to
+  // C++ or Java.
+  EXPECT_THAT(
+      "fn f(a: u32[5][4]) { let x = a[4]; }",
+      TypecheckFails(HasSubstr("Index has a compile-time constant value 4 that "
+                               "is out of bounds of the array type.")));
+}
+
 TEST(TypecheckV2Test, GlobalConstantEqualsIndexOfTemporaryArray) {
   EXPECT_THAT("const X = [u32:1, u32:2][0];",
               TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
@@ -5665,6 +5681,94 @@ proc main {
 }
 )",
       TypecheckFails(HasTypeMismatch("u32", "u64")));
+}
+
+TEST(TypecheckV2Test, ProcWithChannelArray) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32>[4] in;
+  init { () }
+  config(c: chan<u32>[4] in) {
+    (c,)
+  }
+  next(state: ()) {
+    unroll_for! (i, ()): (u32, ()) in u32:0..u32:4 {
+      let (_, v) = recv(token(), c[i]);
+      trace_fmt!("v: {}", v);
+    }(());
+  }
+}
+)",
+      TypecheckSucceeds(
+          HasRepeatedNodeWithType(R"(trace_fmt!("v: {}", v))", "()", 4)));
+}
+
+TEST(TypecheckV2Test, ProcWithChannelArrayOutOfBoundsFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32>[4] in;
+  init { () }
+  config(c: chan<u32>[4] in) {
+    (c,)
+  }
+  next(state: ()) {
+    unroll_for! (i, ()): (u32, ()) in u32:0..u32:5 {
+      let (_, v) = recv(token(), c[i]);
+      trace_fmt!("v: {}", v);
+    }(());
+  }
+}
+)",
+      TypecheckFails(HasSubstr("Index has a compile-time constant value 4 that "
+                               "is out of bounds of the array type.")));
+}
+
+TEST(TypecheckV2Test, ProcWith2DChannelArray) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32>[4][5] in;
+  init { () }
+  config(c: chan<u32>[4][5] in) {
+    (c,)
+  }
+  next(state: ()) {
+    unroll_for! (i, ()): (u32, ()) in u32:0..u32:5 {
+      unroll_for! (j, ()): (u32, ()) in u32:0..u32:4 {
+        let (_, v) = recv(token(), c[i][j]);
+        trace_fmt!("v: {}", v);
+      }(());
+    }(());
+  }
+}
+)",
+      TypecheckSucceeds(
+          HasRepeatedNodeWithType(R"(trace_fmt!("v: {}", v))", "()", 20)));
+}
+
+TEST(TypecheckV2Test, ProcWith2DChannelArrayIndexOutOfBoundsFails) {
+  EXPECT_THAT(
+      R"(
+proc P {
+  c: chan<u32>[4][5] in;
+  init { () }
+  config(c: chan<u32>[4][5] in) {
+    (c,)
+  }
+  next(state: ()) {
+    unroll_for! (i, ()): (u32, ()) in u32:0..u32:5 {
+      unroll_for! (j, ()): (u32, ()) in u32:0..u32:5 {
+        let (_, v) = recv(token(), c[i][j]);
+        trace_fmt!("v: {}", v);
+      }(());
+    }(());
+  }
+}
+)",
+      TypecheckFails(HasSubstr("Index has a compile-time constant value 4 that "
+                               "is out of bounds of the array type.")));
 }
 
 TEST(TypecheckV2Test, DISABLED_ImportParametricFunctionWithDefaultExpression) {
