@@ -239,7 +239,7 @@ if __name__ == "__main__":
     toplevel = "axi_writer_wrapper"
     verilog_sources = [
       "xls/modules/zstd/memory/axi_writer.v",
-      "xls/modules/zstd/memory/axi_writer_wrapper.v",
+      "xls/modules/zstd/memory/rtl/axi_writer_wrapper.v",
     ]
     test_module=[Path(__file__).stem]
     run_test(toplevel, test_module, verilog_sources)
