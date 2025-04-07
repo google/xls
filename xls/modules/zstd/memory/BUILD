@@ -541,7 +541,7 @@ py_test(
     srcs = ["mem_reader_cocotb_test.py"],
     data = [
         ":mem_reader_adv.v",
-        ":mem_reader_wrapper.v",
+        "//xls/modules/zstd/memory/rtl:mem_reader_wrapper.v",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -636,7 +636,7 @@ py_test(
     srcs = ["axi_writer_cocotb_test.py"],
     data = [
         ":axi_writer.v",
-        ":axi_writer_wrapper.v",
+        "//xls/modules/zstd/memory/rtl:axi_writer_wrapper.v",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -800,7 +800,7 @@ py_test(
     srcs = ["mem_writer_cocotb_test.py"],
     data = [
         ":mem_writer.v",
-        ":mem_writer_wrapper.v",
+        "//xls/modules/zstd/memory/rtl:mem_writer_wrapper.v",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
