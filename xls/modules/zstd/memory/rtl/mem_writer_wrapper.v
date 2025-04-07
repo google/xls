@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// This module wraps the Memory Writer verilog sources generated from DSLX to
+// form a DUT for verilog tests with consistent IO.
+
 `default_nettype none
 
 module mem_writer_wrapper (
