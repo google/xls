@@ -29,6 +29,7 @@
 namespace xls::dslx {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 
@@ -5666,6 +5667,74 @@ proc main {
       TypecheckFails(HasTypeMismatch("u32", "u64")));
 }
 
+TEST(TypecheckV2Test, DISABLED_ImportParametricFunctionWithDefaultExpression) {
+  constexpr std::string_view kImported = R"(
+pub fn some_function<N: u32, M: u32 = {N + 1}>() -> uN[M] { uN[M]:0 }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u5 {
+  let var = imported::some_function<4>();
+  var
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("var", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, ImportParametricFunction) {
+  constexpr std::string_view kImported = R"(
+pub fn some_function<N: u32>() -> uN[N] { uN[N]:0 }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u4 {
+  imported::some_function<4>()
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  HasNodeWithType("imported::some_function<4>()", "uN[4]"))));
+}
+
+TEST(TypecheckV2Test, ImportParametricFunctionInferredValue) {
+  constexpr std::string_view kImported = R"(
+pub fn some_function<N: u32 = {4}>() -> uN[N] { uN[N]:0 }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u4 {
+  imported::some_function()
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  HasNodeWithType("imported::some_function()", "uN[4]"))));
+}
+
+TEST(TypecheckV2Test, ImportParametricFunctionSizeMismatch) {
+  constexpr std::string_view kImported = R"(
+pub fn some_function<N: u32>() -> uN[N] { uN[N]:0 }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u8 {
+  imported::some_function<4>()
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSizeMismatch("uN[4]", "u8")));
+}
+
 TEST(TypecheckV2Test, ImportFunction) {
   constexpr std::string_view kImported = R"(
 pub fn some_function(x: u32) -> u32 { x }
@@ -5678,8 +5747,7 @@ fn main() -> u32 {
   var
 })";
   ImportData import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult res,
-                           TypecheckV2(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
               ::absl_testing::IsOkAndHolds(
                   HasTypeInfo(HasNodeWithType("var", "uN[32]"))));
@@ -5695,8 +5763,7 @@ fn main() -> u32 {
   var
 })";
   ImportData import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult res,
-                           TypecheckV2(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
   EXPECT_THAT(
       TypecheckV2(kProgram, "main", &import_data),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("doesn't exist")));
@@ -5714,8 +5781,7 @@ fn main() -> u32 {
   var
 })";
   ImportData import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult res,
-                           TypecheckV2(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
   EXPECT_THAT(
       TypecheckV2(kProgram, "main", &import_data),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));

@@ -530,11 +530,24 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 ? (*function_and_target_object.target_struct_context)
                       ->self_type()
                 : std::nullopt));
-    XLS_ASSIGN_OR_RETURN(
-        TypeInfo * invocation_type_info,
-        import_data_.type_info_owner().New(
-            &module_,
-            GetTypeInfo(function_and_target_object.target_struct_context)));
+    // Add parametric invocation type info to the root for the callee.
+    ParametricInvocationDetails details =
+        std::get<ParametricInvocationDetails>(invocation_context->details());
+    XLS_ASSIGN_OR_RETURN(TypeInfo * callee_base_info,
+                         import_data_.GetRootTypeInfoForNode(details.callee));
+    if (function_and_target_object.target_struct_context.has_value()) {
+      if (callee_base_info->module() ==
+          parametric_context_type_info_
+              .at(function_and_target_object.target_struct_context.value())
+              ->module()) {
+        callee_base_info = parametric_context_type_info_.at(
+            function_and_target_object.target_struct_context.value());
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(TypeInfo * invocation_type_info,
+                         import_data_.type_info_owner().New(
+                             details.callee->owner(), callee_base_info));
     parametric_context_type_info_.emplace(invocation_context,
                                           invocation_type_info);
 
@@ -709,9 +722,23 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     TypeInfo* ti = GetTypeInfo(parametric_context);
     std::optional<const TypeAnnotation*> annotation = pre_unified_type;
     if (!annotation.has_value()) {
+      Module* effective_module = &module_;
+      if (parametric_context.has_value() &&
+          std::holds_alternative<ParametricInvocationDetails>(
+              (*parametric_context)->details())) {
+        auto details = std::get<ParametricInvocationDetails>(
+            (*parametric_context)->details());
+        if (details.callee->owner() != &module_) {
+          effective_module = details.callee->owner();
+        }
+      }
+      auto resolver = TypeAnnotationResolver::Create(
+          *effective_module, table_, file_table_,
+          /*error_generator=*/*this, /*evaluator=*/*this,
+          /*parametric_struct_instantiator=*/*this, *tracer_);
       XLS_ASSIGN_OR_RETURN(
           annotation,
-          resolver_->ResolveAndUnifyTypeAnnotationsForNode(
+          resolver->ResolveAndUnifyTypeAnnotationsForNode(
               parametric_context, node, type_annotation_accept_predicate));
     }
 
@@ -2004,7 +2031,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     std::optional<const TypeAnnotation*> type_annotation =
         table_.GetTypeAnnotation(expr);
     if (!type_annotation.has_value()) {
-      type_annotation = CreateU32Annotation(module_, expr->span());
+      type_annotation = CreateU32Annotation(*expr->owner(), expr->span());
     }
     XLS_ASSIGN_OR_RETURN(InterpValue value,
                          Evaluate(ParametricContextScopedExpr(

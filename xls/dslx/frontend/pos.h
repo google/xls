@@ -109,7 +109,13 @@ class Pos {
   }
 
   bool operator<(const Pos& other) const {
-    CHECK_EQ(fileno_, other.fileno_);
+    // Allow sorting across multiple files.
+    if (fileno_ < other.fileno_) {
+      return true;
+    }
+    if (fileno_ > other.fileno_) {
+      return false;
+    }
     if (lineno_ < other.lineno_) {
       return true;
     }
