@@ -12,6 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""ZSTD test frame generator for DSLX tests
+
+This module interacts with the data_generator module and underlying Decodecorpus
+in order to generate inputs and expected outputs for the ZSTD Decoder tests in DSLX.
+
+It generates the ZSTD frame and then decodes it with the reference ZSTD library.
+Both the encoded frame and decoded data are written to a DSLX file by converting raw
+bytes of the frame and decoded data into DSLX structures.
+
+Resulting file can be included in the ZSTD Decoder DSLX test and used as the
+inputs and expected output for the testbench.
+"""
 
 import argparse
 import math
