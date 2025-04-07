@@ -15,9 +15,9 @@
 #include "xls/visualization/ir_viz/ir_to_proto.h"
 
 #include <filesystem>  // NOLINT
-#include <memory>
 #include <string_view>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
@@ -176,6 +176,37 @@ top proc the_proc(x: bits[32], y: bits[64], init={0, 42}) {
 
   VLOG(1) << proto.ir_html();
   ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), proto.ir_html());
+}
+
+TEST_F(IrToProtoTest, SimpleProcTokenDAG) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
+package test
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+
+top proc the_proc(x: bits[32], y: bits[64], init={0, 42}) {
+  tkn: token = literal(value=token)
+  rcv: (token, bits[32]) = receive(tkn, channel=in)
+  rcv_token: token = tuple_index(rcv, index=0)
+  rcv_data: bits[32] = tuple_index(rcv, index=1)
+  next_x: bits[32] = add(x, rcv_data)
+  not_y: bits[64] = not(y)
+  send: token = send(rcv_token, next_x, channel=out)
+  next (next_x, not_y)
+}
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(viz::Package proto,
+                           IrToProto(p.get(), *delay_estimator,
+                                     /*schedule=*/nullptr,
+                                     /*entry_name=*/"main",
+                                     /*token_dag=*/true));
+  // Check that arithmetic ops are filtered out.
+  for (const auto& node : proto.function_bases(0).nodes()) {
+    EXPECT_THAT(node.opcode(), Not(testing::HasSubstr("add")));
+  }
 }
 
 }  // namespace

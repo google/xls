@@ -81,12 +81,14 @@ build_test(
 
 cc_proto_library(
     name = "visualization_cc_proto",
+    visibility = ["//xls:xls_internal"],
     deps = [":visualization_proto"],
 )
 
 proto_library(
     name = "visualization_proto",
     srcs = ["visualization.proto"],
+    visibility = ["//xls:xls_internal"],
 )
 
 cc_library(
@@ -107,6 +109,7 @@ cc_library(
     name = "ir_to_proto",
     srcs = ["ir_to_proto.cc"],
     hdrs = ["ir_to_proto.h"],
+    visibility = ["//xls:xls_internal"],
     deps = [
         ":node_attribute_visitor",
         ":visualization_cc_proto",
@@ -121,9 +124,11 @@ cc_library(
         "//xls/passes:partial_info_query_engine",
         "//xls/passes:proc_state_range_query_engine",
         "//xls/passes:query_engine",
+        "//xls/passes:token_provenance_analysis",
         "//xls/passes:union_query_engine",
         "//xls/scheduling:pipeline_schedule",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

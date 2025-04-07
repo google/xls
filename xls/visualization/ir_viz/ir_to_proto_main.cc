@@ -51,6 +51,8 @@ ABSL_FLAG(std::optional<std::string>, entry_name, std::nullopt, "Entry name");
 ABSL_FLAG(bool, binary_format, false,
           "Whether to return the proto in binary serialized format (defaults "
           "to text)");
+ABSL_FLAG(bool, token_dag, false,
+          "Only output IR nodes associated with tokens");
 
 constexpr std::string_view kUsage =
     R"(Expected: ir_to_json_main --delay_model=MODEL [--pipeline_stages=N] [--entry_name=ENTRY] /path/to/file.ir)";
@@ -76,7 +78,8 @@ absl::StatusOr<FunctionBase*> GetFunctionBaseToView(Package* package) {
 absl::Status RealMain(const std::filesystem::path& ir_path,
                       std::string_view delay_model_name,
                       std::optional<int64_t> pipeline_stages,
-                      std::optional<std::string_view> entry_name) {
+                      std::optional<std::string_view> entry_name,
+                      bool token_dag) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text));
@@ -98,12 +101,13 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
         RunPipelineSchedule(
             func_base->AsFunctionOrDie(), *delay_estimator,
             SchedulingOptions().pipeline_stages(pipeline_stages.value())));
-    XLS_ASSIGN_OR_RETURN(proto, IrToProto(package.get(), *delay_estimator,
-                                          &schedule, func_base->name()));
-  } else {
     XLS_ASSIGN_OR_RETURN(proto,
-                         IrToProto(package.get(), *delay_estimator,
-                                   /*schedule=*/nullptr, func_base->name()));
+                         IrToProto(package.get(), *delay_estimator, &schedule,
+                                   func_base->name(), token_dag));
+  } else {
+    XLS_ASSIGN_OR_RETURN(
+        proto, IrToProto(package.get(), *delay_estimator,
+                         /*schedule=*/nullptr, func_base->name(), token_dag));
   }
   google::protobuf::io::OstreamOutputStream cout(&std::cout);
   if (absl::GetFlag(FLAGS_binary_format)) {
@@ -131,5 +135,6 @@ int main(int argc, char** argv) {
 
   return xls::ExitStatus(xls::RealMain(
       positional_arguments[0], absl::GetFlag(FLAGS_delay_model),
-      absl::GetFlag(FLAGS_pipeline_stages), absl::GetFlag(FLAGS_entry_name)));
+      absl::GetFlag(FLAGS_pipeline_stages), absl::GetFlag(FLAGS_entry_name),
+      absl::GetFlag(FLAGS_token_dag)));
 }

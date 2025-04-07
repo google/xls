@@ -33,13 +33,15 @@ absl::StatusOr<xls::viz::Package> IrToProto(
     Package* package, const DelayEstimator& delay_estimator,
     const AreaEstimator& area_estimator,
     const PipelineSchedule* schedule = nullptr,
-    std::optional<std::string_view> entry_name = std::nullopt);
+    std::optional<std::string_view> entry_name = std::nullopt,
+    bool token_dag = false);
 
 // Returns a proto without any area information.
 absl::StatusOr<xls::viz::Package> IrToProto(
     Package* package, const DelayEstimator& delay_estimator,
     const PipelineSchedule* schedule = nullptr,
-    std::optional<std::string_view> entry_name = std::nullopt);
+    std::optional<std::string_view> entry_name = std::nullopt,
+    bool token_dag = false);
 }  // namespace xls
 
 #endif  // XLS_VISUALIZATION_IR_VIZ_IR_TO_PROTO_H_

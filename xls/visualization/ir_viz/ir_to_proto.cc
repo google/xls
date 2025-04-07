@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -46,6 +47,7 @@
 #include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/proc_state_range_query_engine.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/token_provenance_analysis.h"
 #include "xls/passes/union_query_engine.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/visualization/ir_viz/node_attribute_visitor.h"
@@ -145,7 +147,8 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
 absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     FunctionBase* function, const DelayEstimator& delay_estimator,
     const AreaEstimator& area_estimator, const PipelineSchedule* schedule,
-    const absl::flat_hash_map<FunctionBase*, std::string>& function_ids) {
+    const absl::flat_hash_map<FunctionBase*, std::string>& function_ids,
+    bool token_dag) {
   viz::FunctionBase proto;
   proto.set_name(function->name());
   if (function->IsFunction()) {
@@ -175,7 +178,31 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
       PartialInfoQueryEngine(), ProcStateRangeQueryEngine());
   XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
 
-  for (Node* node : function->nodes()) {
+  using NodeDAG =
+      absl::flat_hash_map<xls::Node*, absl::flat_hash_set<xls::Node*>>;
+  NodeDAG node_dag;
+  if (token_dag) {
+    XLS_ASSIGN_OR_RETURN(NodeDAG token_dag, ComputeTokenDAG(function));
+    for (const auto& [node, predecessors] : token_dag) {
+      // account for nodes w/ no predecessors.
+      node_dag.try_emplace(node);
+      for (const auto& p : predecessors) {
+        node_dag[node].insert(p);
+        // ensure all precessors have a top-level entry in the dag.
+        node_dag.try_emplace(p);
+      }
+    }
+  } else {
+    for (Node* node : function->nodes()) {
+      // account for nodes w/ no operands.
+      node_dag.try_emplace(node);
+      for (Node* op : node->operands()) {
+        node_dag[node].insert(op);
+      }
+    }
+  }
+
+  for (auto& [node, operands] : node_dag) {
     viz::Node* graph_node = proto.add_nodes();
     graph_node->set_name(node->GetName());
     graph_node->set_id(GetNodeUniqueId(node, function_ids));
@@ -207,10 +234,9 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     return implicit_sink;
   };
 
-  for (Node* node : function->nodes()) {
+  for (auto& [node, operands] : node_dag) {
     bool node_on_critical_path = node_to_critical_path_entry.contains(node);
-    for (int64_t i = 0; i < node->operand_count(); ++i) {
-      Node* operand = node->operand(i);
+    for (auto& operand : operands) {
       viz::Edge* graph_edge = proto.add_edges();
       graph_edge->set_id(GetEdgeUniqueId(operand, node, function_ids));
       graph_edge->set_source_id(GetNodeUniqueId(operand, function_ids));
@@ -428,15 +454,16 @@ struct NoAreaEstimator final : public AreaEstimator {
 absl::StatusOr<viz::Package> IrToProto(
     Package* package, const DelayEstimator& delay_estimator,
     const PipelineSchedule* schedule,
-    std::optional<std::string_view> entry_name) {
+    std::optional<std::string_view> entry_name, bool token_dag) {
   NoAreaEstimator no_area;
-  return IrToProto(package, delay_estimator, no_area, schedule, entry_name);
+  return IrToProto(package, delay_estimator, no_area, schedule, entry_name,
+                   token_dag);
 }
 
 absl::StatusOr<viz::Package> IrToProto(
     Package* package, const DelayEstimator& delay_estimator,
     const AreaEstimator& area_estimator, const PipelineSchedule* schedule,
-    std::optional<std::string_view> entry_name) {
+    std::optional<std::string_view> entry_name, bool token_dag) {
   viz::Package proto;
 
   absl::flat_hash_map<FunctionBase*, std::string> function_ids =
@@ -450,7 +477,7 @@ absl::StatusOr<viz::Package> IrToProto(
             fb, delay_estimator, area_estimator,
             schedule != nullptr && schedule->function_base() == fb ? schedule
                                                                    : nullptr,
-            function_ids));
+            function_ids, token_dag));
     if (entry_name.has_value() && fb->name() == entry_name.value()) {
       entry_function_base = fb;
     }
