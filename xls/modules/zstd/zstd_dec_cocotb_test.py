@@ -319,8 +319,8 @@ if __name__ == "__main__":
   toplevel = "zstd_dec_wrapper"
   verilog_sources = [
     "xls/modules/zstd/zstd_dec.v",
-    "xls/modules/zstd/xls_fifo_wrapper.v",
-    "xls/modules/zstd/zstd_dec_wrapper.v",
+    "xls/modules/zstd/rtl/xls_fifo_wrapper.v",
+    "xls/modules/zstd/rtl/zstd_dec_wrapper.v",
     "xls/modules/zstd/external/axi_crossbar_wrapper.v",
     "xls/modules/zstd/external/axi_crossbar.v",
     "xls/modules/zstd/external/axi_crossbar_rd.v",
