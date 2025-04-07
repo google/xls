@@ -38,6 +38,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/ir/bits.h"
 
 namespace xls::dslx {
@@ -51,9 +52,10 @@ using ::testing::UnorderedElementsAre;
 
 class SolveForParametricsTest : public ::testing::Test {
  public:
-  absl::StatusOr<std::unique_ptr<Module>> Parse(std::string_view program) {
+  absl::StatusOr<std::unique_ptr<Module>> Parse(std::string_view program,
+                                                bool parse_fn_stubs = false) {
     scanner_.emplace(file_table_, Fileno(0), std::string(program));
-    parser_.emplace("test", &*scanner_);
+    parser_.emplace("test", &*scanner_, parse_fn_stubs);
     return parser_->ParseModule();
   }
 
@@ -224,6 +226,64 @@ proc Consumer {
   ASSERT_TRUE(values.contains(t));
   ASSERT_TRUE(std::holds_alternative<const TypeAnnotation*>(values.at(t)));
   ASSERT_EQ(std::get<const TypeAnnotation*>(values.at(t))->ToString(), "u32");
+}
+
+TEST_F(SolveForParametricsTest, SolveForFunctionParametric) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
+fn foo(a: u32) -> u31;
+fn g<F: type>(a: F);
+)",
+                                              /*parse_fn_stubs=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module->GetMemberOrError<Function>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* g,
+                           module->GetMemberOrError<Function>("g"));
+  const TypeAnnotation* actual_type =
+      CreateFunctionTypeAnnotation(*module, *foo);
+  const TypeAnnotation* formal_type = g->params()[0]->type_annotation();
+  const ParametricBinding* f = g->parametric_bindings()[0];
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      values, SolveForParametrics(
+                  actual_type, formal_type,
+                  absl::flat_hash_set<const ParametricBinding*>{f}, nullptr));
+  ASSERT_TRUE(values.contains(f));
+  ASSERT_TRUE(std::holds_alternative<const TypeAnnotation*>(values.at(f)));
+  ASSERT_EQ(std::get<const TypeAnnotation*>(values.at(f))->ToString(),
+            "(u32) -> u31");
+}
+
+TEST_F(SolveForParametricsTest,
+       SolveForTypesWithFunctionTakingAndReturningTypes) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
+fn f(a: u32) -> u31;
+fn g<T: type, U: type>(a: T) -> U;
+)",
+                                              /*parse_fn_stubs=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* f,
+                           module->GetMemberOrError<Function>("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* g,
+                           module->GetMemberOrError<Function>("g"));
+  const TypeAnnotation* actual_type = CreateFunctionTypeAnnotation(*module, *f);
+  const TypeAnnotation* formal_type = CreateFunctionTypeAnnotation(*module, *g);
+  const ParametricBinding* t = g->parametric_bindings()[0];
+  const ParametricBinding* u = g->parametric_bindings()[1];
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      values,
+      SolveForParametrics(actual_type, formal_type,
+                          absl::flat_hash_set<const ParametricBinding*>{t, u},
+                          nullptr));
+
+  ASSERT_TRUE(values.contains(t));
+  ASSERT_TRUE(std::holds_alternative<const TypeAnnotation*>(values.at(t)));
+  ASSERT_EQ(std::get<const TypeAnnotation*>(values.at(t))->ToString(), "u32");
+
+  ASSERT_TRUE(values.contains(u));
+  ASSERT_TRUE(std::holds_alternative<const TypeAnnotation*>(values.at(u)));
+  ASSERT_EQ(std::get<const TypeAnnotation*>(values.at(u))->ToString(), "u31");
 }
 
 TEST_F(SolveForParametricsTest, SolveForSnWithSn) {

@@ -85,6 +85,13 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleFunctionTypeAnnotation(
+      const FunctionTypeAnnotation* node) override {
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
+    last_direct_annotation_ = node;
+    return absl::OkStatus();
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     last_variable_ = std::nullopt;
     last_signedness_and_bit_count_ = std::nullopt;

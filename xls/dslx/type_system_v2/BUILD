@@ -171,6 +171,7 @@ cc_test(
     srcs = ["solve_for_parametrics_test.cc"],
     deps = [
         ":solve_for_parametrics",
+        ":type_annotation_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
