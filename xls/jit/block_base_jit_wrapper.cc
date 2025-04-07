@@ -27,10 +27,10 @@ namespace xls {
 
 const absl::flat_hash_map<std::string, Value>&
 BaseBlockJitWrapperContinuation::GetOutputPortsMap() const {
-  if (saved_outputs_.empty()) {
-    saved_outputs_ = inner_->GetOutputPortsMap();
+  if (saved_output_ports_.empty()) {
+    saved_output_ports_ = inner_->GetOutputPortsMap();
   }
-  return saved_outputs_;
+  return saved_output_ports_;
 }
 
 const absl::flat_hash_map<std::string, Value>&
@@ -52,7 +52,7 @@ absl::StatusOr<Value> BaseBlockJitWrapperContinuation::GetOutputByName(
 }
 
 absl::Status BaseBlockJitWrapperContinuation::PrepareForCycle() {
-  saved_outputs_.clear();
+  saved_output_ports_.clear();
   saved_output_registers_.clear();
   return absl::OkStatus();
 }

@@ -51,6 +51,8 @@
 namespace xls {
 namespace {
 
+using OutputPortSampleTime = BlockEvaluator::OutputPortSampleTime;
+
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
@@ -64,6 +66,7 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::Pair;
+using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 
 TEST_P(BlockEvaluatorTest, ObserverSeesValues) {
@@ -81,8 +84,12 @@ TEST_P(BlockEvaluatorTest, ObserverSeesValues) {
   BValue out = bb.OutputPort("res", add_res);
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
   CollectingEvaluationObserver observer;
-  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(b));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto cont,
+      evaluator().NewContinuation(
+          b, BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock));
   XLS_ASSERT_OK(cont->SetObserver(&observer));
+  // nb evaluator forces ports to zero at the start.
   XLS_ASSERT_OK(cont->RunOneCycle({{"foo", Value(UBits(1, 32))},
                                    {"enable", Value(UBits(0, 1))},
                                    {"rhs", Value(UBits(2, 32))}}));
@@ -92,6 +99,8 @@ TEST_P(BlockEvaluatorTest, ObserverSeesValues) {
   XLS_ASSERT_OK(cont->RunOneCycle({{"foo", Value(UBits(0, 32))},
                                    {"enable", Value(UBits(0, 1))},
                                    {"rhs", Value(UBits(4, 32))}}));
+  // NB The observer sees both the rising edge start value and the post falling
+  // edge value so there are 6 entries despite only being 3 cycles.
   EXPECT_THAT(
       observer.values(),
       UnorderedElementsAre(
@@ -115,6 +124,68 @@ TEST_P(BlockEvaluatorTest, ObserverSeesValues) {
                testing::SizeIs(3))  // The write side of the register
           ));
 }
+TEST_P(BlockEvaluatorTest, ObserverSeesValuesOnBothEdges) {
+  if (!SupportsObserver()) {
+    GTEST_SKIP() << "Observers unsupported";
+  }
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  BValue foo_inp = bb.InputPort("foo", p->GetBitsType(32));
+  BValue enable = bb.InputPort("enable", p->GetBitsType(1));
+  BValue rhs_inp = bb.InputPort("rhs", p->GetBitsType(32));
+  BValue delay = bb.InsertRegister("delay", foo_inp, enable);
+  BValue add_res = bb.Add(delay, rhs_inp);
+  BValue out = bb.OutputPort("res", add_res);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
+  CollectingEvaluationObserver observer;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto cont, evaluator().NewContinuation(
+                     b, BlockEvaluator::OutputPortSampleTime::kAfterLastClock));
+  XLS_ASSERT_OK(cont->SetObserver(&observer));
+  // nb evaluator forces ports to zero at the start.
+  XLS_ASSERT_OK(cont->RunOneCycle({{"foo", Value(UBits(1, 32))},
+                                   {"enable", Value(UBits(0, 1))},
+                                   {"rhs", Value(UBits(2, 32))}}));
+  XLS_ASSERT_OK(cont->RunOneCycle({{"foo", Value(UBits(2, 32))},
+                                   {"enable", Value(UBits(1, 1))},
+                                   {"rhs", Value(UBits(3, 32))}}));
+  XLS_ASSERT_OK(cont->RunOneCycle({{"foo", Value(UBits(0, 32))},
+                                   {"enable", Value(UBits(0, 1))},
+                                   {"rhs", Value(UBits(4, 32))}}));
+  // NB The observer sees both the rising edge start value and the post falling
+  // edge value so there are 6 entries despite only being 3 cycles.
+  EXPECT_THAT(
+      observer.values(),
+      UnorderedElementsAre(
+          Pair(foo_inp.node(),
+               ElementsAre(Value(UBits(1, 32)), Value(UBits(1, 32)),
+                           Value(UBits(2, 32)), Value(UBits(2, 32)),
+                           Value(UBits(0, 32)), Value(UBits(0, 32)))),
+          Pair(enable.node(),
+               ElementsAre(Value(UBits(0, 1)), Value(UBits(0, 1)),
+                           Value(UBits(1, 1)), Value(UBits(1, 1)),
+                           Value(UBits(0, 1)), Value(UBits(0, 1)))),
+          Pair(rhs_inp.node(),
+               ElementsAre(Value(UBits(2, 32)), Value(UBits(2, 32)),
+                           Value(UBits(3, 32)), Value(UBits(3, 32)),
+                           Value(UBits(4, 32)), Value(UBits(4, 32)))),
+          Pair(add_res.node(),
+               ElementsAre(Value(UBits(2, 32)),  // rhs + 0-value
+                           Value(UBits(2, 32)),  // cycle 1 result
+                           Value(UBits(3, 32)), Value(UBits(5, 32)),
+                           Value(UBits(6, 32)), Value(UBits(6, 32)))),
+          Pair(out.node(), ElementsAre(Value::Tuple({}), Value::Tuple({}),
+                                       Value::Tuple({}), Value::Tuple({}),
+                                       Value::Tuple({}), Value::Tuple({}))),
+          Pair(A<Node*>(),
+               ElementsAre(Value(UBits(0, 32)), Value(UBits(0, 32)),
+                           Value(UBits(0, 32)), Value(UBits(2, 32)),
+                           Value(UBits(2, 32)), Value(UBits(2, 32)))),
+          Pair(A<Node*>(),
+               testing::SizeIs(6))  // The write side of the register
+          ));
+}
 
 TEST_P(BlockEvaluatorTest, PackagesAreIndependent) {
   auto p1 = CreatePackage();
@@ -135,8 +206,12 @@ TEST_P(BlockEvaluatorTest, PackagesAreIndependent) {
   };
   auto oracle_1 = [](auto v) { return v.bits().ToUint64().value() + 1; };
   auto oracle_2 = [](auto v) { return v.bits().ToUint64().value() - 1; };
-  XLS_ASSERT_OK_AND_ASSIGN(auto e1, evaluator().NewContinuation(block1));
-  XLS_ASSERT_OK_AND_ASSIGN(auto e2, evaluator().NewContinuation(block2));
+  XLS_ASSERT_OK_AND_ASSIGN(auto e1,
+                           evaluator().NewContinuation(
+                               block1, OutputPortSampleTime::kAfterLastClock));
+  XLS_ASSERT_OK_AND_ASSIGN(auto e2,
+                           evaluator().NewContinuation(
+                               block2, OutputPortSampleTime::kAfterLastClock));
   for (const auto& inp : inputs) {
     XLS_EXPECT_OK(e1->RunOneCycle(inp));
     XLS_EXPECT_OK(e2->RunOneCycle(inp));
@@ -256,7 +331,8 @@ TEST_P(BlockEvaluatorTest, PipelinedHierarchicalRotate) {
   };
 
   // Net result is to rotate inputs by 2 delayed by 4 cycles.
-  EXPECT_THAT(evaluator().EvaluateSequentialBlock(outer, inputs),
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  outer, inputs, OutputPortSampleTime::kAtLastPosEdgeClock),
               IsOkAndHolds(ElementsAre(
                   // t = 0
                   UnorderedElementsAre(Pair("out0", Value(UBits(0, 8))),
@@ -299,6 +375,55 @@ TEST_P(BlockEvaluatorTest, PipelinedHierarchicalRotate) {
                                        Pair("out1", Value(UBits(6, 8))),
                                        Pair("out2", Value(UBits(3, 8))),
                                        Pair("out3", Value(UBits(4, 8)))))));
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  outer, inputs, OutputPortSampleTime::kAfterLastClock),
+              IsOkAndHolds(ElementsAre(
+                  // t = 0 (before the first tick).
+                  // UnorderedElementsAre(Pair("out0", Value(UBits(0, 8))),
+                  //                      Pair("out1", Value(UBits(0, 8))),
+                  //                      Pair("out2", Value(UBits(0, 8))),
+                  //                      Pair("out3", Value(UBits(0, 8)))),
+                  // t = 1
+                  UnorderedElementsAre(Pair("out0", Value(UBits(0, 8))),
+                                       Pair("out1", Value(UBits(0, 8))),
+                                       Pair("out2", Value(UBits(0, 8))),
+                                       Pair("out3", Value(UBits(0, 8)))),
+                  // t = 2
+                  UnorderedElementsAre(Pair("out0", Value(UBits(0, 8))),
+                                       Pair("out1", Value(UBits(0, 8))),
+                                       Pair("out2", Value(UBits(0, 8))),
+                                       Pair("out3", Value(UBits(0, 8)))),
+                  // t = 3
+                  UnorderedElementsAre(Pair("out0", Value(UBits(0, 8))),
+                                       Pair("out1", Value(UBits(0, 8))),
+                                       Pair("out2", Value(UBits(0, 8))),
+                                       Pair("out3", Value(UBits(0, 8)))),
+                  // t = 4
+                  UnorderedElementsAre(Pair("out0", Value(UBits(2, 8))),
+                                       Pair("out1", Value(UBits(3, 8))),
+                                       Pair("out2", Value(UBits(0, 8))),
+                                       Pair("out3", Value(UBits(1, 8)))),
+                  // t = 5
+                  UnorderedElementsAre(Pair("out0", Value(UBits(3, 8))),
+                                       Pair("out1", Value(UBits(4, 8))),
+                                       Pair("out2", Value(UBits(1, 8))),
+                                       Pair("out3", Value(UBits(2, 8)))),
+
+                  // t = 6
+                  UnorderedElementsAre(Pair("out0", Value(UBits(4, 8))),
+                                       Pair("out1", Value(UBits(5, 8))),
+                                       Pair("out2", Value(UBits(2, 8))),
+                                       Pair("out3", Value(UBits(3, 8)))),
+                  // t = 7
+                  UnorderedElementsAre(Pair("out0", Value(UBits(5, 8))),
+                                       Pair("out1", Value(UBits(6, 8))),
+                                       Pair("out2", Value(UBits(3, 8))),
+                                       Pair("out3", Value(UBits(4, 8)))),
+                  // t = 8
+                  UnorderedElementsAre(Pair("out0", Value(UBits(6, 8))),
+                                       Pair("out1", Value(UBits(7, 8))),
+                                       Pair("out2", Value(UBits(4, 8))),
+                                       Pair("out3", Value(UBits(5, 8)))))));
 }
 
 absl::flat_hash_map<std::string, Value> PushAndPopInputs(int64_t data) {
@@ -414,7 +539,8 @@ TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationNoBypassWorks) {
     input_values["rst"] = Value(UBits(0, 1));
   }
 
-  EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  block, inputs, OutputPortSampleTime::kAtLastPosEdgeClock),
               IsOkAndHolds(ElementsAre(NoTryPopValue(),  //
                                        TryPopValue(0),   //
                                        TryPopValue(0),   //
@@ -497,7 +623,8 @@ TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationWithBypassWorks) {
     input_values["rst"] = Value(UBits(0, 1));
   }
 
-  EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  block, inputs, OutputPortSampleTime::kAtLastPosEdgeClock),
               IsOkAndHolds(ElementsAre(TryPopValue(0),   //
                                        TryPopValue(0),   //
                                        TryPopValue(0),   //
@@ -592,7 +719,8 @@ TEST_P(BlockEvaluatorTest, FifoInstantiationNoBypassWorks) {
     input_values["rst"] = Value(UBits(0, 1));
   }
 
-  EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  block, inputs, OutputPortSampleTime::kAtLastPosEdgeClock),
               IsOkAndHolds(ElementsAre(NoTryPopValue(),  //
                                        TryPopValue(0),   //
                                        TryPopValue(0),   //
@@ -700,7 +828,8 @@ TEST_P(BlockEvaluatorTest, FifoInstantiationWithBypassWorks) {
     input_values["rst"] = Value(UBits(0, 1));
   }
 
-  EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  block, inputs, OutputPortSampleTime::kAtLastPosEdgeClock),
               IsOkAndHolds(ElementsAre(TryPopValue(0),   //
                                        TryPopValue(0),   //
                                        TryPopValue(0),   //
@@ -799,9 +928,10 @@ TEST_P(BlockEvaluatorTest, RunWithUInt64Errors) {
                          "bits[100]:0xf_ffff_ffff_ffff_ffff_ffff_ffff")));
 }
 
-TEST_P(BlockEvaluatorTest, PipelinedAdder) {
-  auto package = CreatePackage();
-  BlockBuilder b(TestName(), package.get());
+void PipelinedAdderCommon(BlockEvaluatorTest& bet,
+                          OutputPortSampleTime sample_time) {
+  auto package = bet.CreatePackage();
+  BlockBuilder b(bet.TestName(), package.get());
   XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
 
   BValue x = b.InputPort("x", package->GetBitsType(32));
@@ -814,7 +944,13 @@ TEST_P(BlockEvaluatorTest, PipelinedAdder) {
 
   BValue x_plus_y_d = b.InsertRegister("x_plus_y_d", x_plus_y);
 
-  b.OutputPort("out", x_plus_y_d);
+  if (sample_time == OutputPortSampleTime::kAfterLastClock) {
+    // Put a flop in the design manually.
+    b.FloppedOutputPort("out", x_plus_y_d);
+  } else {
+    // rely on the synthetic flop.
+    b.OutputPort("out", x_plus_y_d);
+  }
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
@@ -825,15 +961,20 @@ TEST_P(BlockEvaluatorTest, PipelinedAdder) {
       {{"x", 0}, {"y", 0}},
       {{"x", 0}, {"y", 0}}};
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs,
-                           evaluator().EvaluateSequentialBlock(block, inputs));
+  EXPECT_THAT(
+      bet.evaluator().EvaluateSequentialBlock(block, inputs, sample_time),
+      IsOkAndHolds(ElementsAre(UnorderedElementsAre(Pair("out", 0)),
+                               UnorderedElementsAre(Pair("out", 0)),
+                               UnorderedElementsAre(Pair("out", 3)),
+                               UnorderedElementsAre(Pair("out", 142)),
+                               UnorderedElementsAre(Pair("out", 0)))));
+}
 
-  ASSERT_EQ(outputs.size(), 5);
-  EXPECT_THAT(outputs.at(0), UnorderedElementsAre(Pair("out", 0)));
-  EXPECT_THAT(outputs.at(1), UnorderedElementsAre(Pair("out", 0)));
-  EXPECT_THAT(outputs.at(2), UnorderedElementsAre(Pair("out", 3)));
-  EXPECT_THAT(outputs.at(3), UnorderedElementsAre(Pair("out", 142)));
-  EXPECT_THAT(outputs.at(4), UnorderedElementsAre(Pair("out", 0)));
+TEST_P(BlockEvaluatorTest, PipelinedAdderRaw) {
+  PipelinedAdderCommon(*this, OutputPortSampleTime::kAfterLastClock);
+}
+TEST_P(BlockEvaluatorTest, PipelinedAdderClocked) {
+  PipelinedAdderCommon(*this, OutputPortSampleTime::kAtLastPosEdgeClock);
 }
 
 TEST_P(BlockEvaluatorTest, RegisterWithReset) {
@@ -858,15 +999,20 @@ TEST_P(BlockEvaluatorTest, RegisterWithReset) {
       {{"rst", 0}, {"x", 4}},
       {{"rst", 0}, {"x", 5}}};
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs,
-                           evaluator().EvaluateSequentialBlock(block, inputs));
-
-  ASSERT_EQ(outputs.size(), 5);
-  EXPECT_THAT(outputs.at(0), UnorderedElementsAre(Pair("out", 0)));
-  EXPECT_THAT(outputs.at(1), UnorderedElementsAre(Pair("out", 1)));
-  EXPECT_THAT(outputs.at(2), UnorderedElementsAre(Pair("out", 42)));
-  EXPECT_THAT(outputs.at(3), UnorderedElementsAre(Pair("out", 42)));
-  EXPECT_THAT(outputs.at(4), UnorderedElementsAre(Pair("out", 4)));
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  block, inputs, OutputPortSampleTime::kAfterLastClock),
+              IsOkAndHolds(ElementsAre(UnorderedElementsAre(Pair("out", 1)),
+                                       UnorderedElementsAre(Pair("out", 42)),
+                                       UnorderedElementsAre(Pair("out", 42)),
+                                       UnorderedElementsAre(Pair("out", 4)),
+                                       UnorderedElementsAre(Pair("out", 5)))));
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  block, inputs, OutputPortSampleTime::kAtLastPosEdgeClock),
+              IsOkAndHolds(ElementsAre(UnorderedElementsAre(Pair("out", 0)),
+                                       UnorderedElementsAre(Pair("out", 1)),
+                                       UnorderedElementsAre(Pair("out", 42)),
+                                       UnorderedElementsAre(Pair("out", 42)),
+                                       UnorderedElementsAre(Pair("out", 4)))));
 }
 
 TEST_P(BlockEvaluatorTest, RegisterWithLoadEnable) {
@@ -890,15 +1036,20 @@ TEST_P(BlockEvaluatorTest, RegisterWithLoadEnable) {
       {{"le", 0}, {"x", 4}},
       {{"le", 0}, {"x", 5}}};
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs,
-                           evaluator().EvaluateSequentialBlock(block, inputs));
-
-  ASSERT_EQ(outputs.size(), 5);
-  EXPECT_THAT(outputs.at(0), UnorderedElementsAre(Pair("out", 0)));
-  EXPECT_THAT(outputs.at(1), UnorderedElementsAre(Pair("out", 0)));
-  EXPECT_THAT(outputs.at(2), UnorderedElementsAre(Pair("out", 2)));
-  EXPECT_THAT(outputs.at(3), UnorderedElementsAre(Pair("out", 3)));
-  EXPECT_THAT(outputs.at(4), UnorderedElementsAre(Pair("out", 3)));
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  block, inputs, OutputPortSampleTime::kAfterLastClock),
+              IsOkAndHolds(ElementsAre(UnorderedElementsAre(Pair("out", 0)),
+                                       UnorderedElementsAre(Pair("out", 2)),
+                                       UnorderedElementsAre(Pair("out", 3)),
+                                       UnorderedElementsAre(Pair("out", 3)),
+                                       UnorderedElementsAre(Pair("out", 3)))));
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  block, inputs, OutputPortSampleTime::kAtLastPosEdgeClock),
+              IsOkAndHolds(ElementsAre(UnorderedElementsAre(Pair("out", 0)),
+                                       UnorderedElementsAre(Pair("out", 0)),
+                                       UnorderedElementsAre(Pair("out", 2)),
+                                       UnorderedElementsAre(Pair("out", 3)),
+                                       UnorderedElementsAre(Pair("out", 3)))));
 }
 
 TEST_P(BlockEvaluatorTest, RegisterWithResetAndLoadEnable) {
@@ -924,20 +1075,26 @@ TEST_P(BlockEvaluatorTest, RegisterWithResetAndLoadEnable) {
       {{"rst_n", 1}, {"le", 1}, {"x", 4}},
       {{"rst_n", 1}, {"le", 0}, {"x", 5}}};
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs,
-                           evaluator().EvaluateSequentialBlock(block, inputs));
-
-  ASSERT_EQ(outputs.size(), 5);
-  EXPECT_THAT(outputs.at(0), UnorderedElementsAre(Pair("out", 0)));
-  EXPECT_THAT(outputs.at(1), UnorderedElementsAre(Pair("out", 0)));
-  EXPECT_THAT(outputs.at(2), UnorderedElementsAre(Pair("out", 42)));
-  EXPECT_THAT(outputs.at(3), UnorderedElementsAre(Pair("out", 42)));
-  EXPECT_THAT(outputs.at(4), UnorderedElementsAre(Pair("out", 4)));
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  block, inputs, OutputPortSampleTime::kAfterLastClock),
+              IsOkAndHolds(ElementsAre(UnorderedElementsAre(Pair("out", 0)),
+                                       UnorderedElementsAre(Pair("out", 42)),
+                                       UnorderedElementsAre(Pair("out", 42)),
+                                       UnorderedElementsAre(Pair("out", 4)),
+                                       UnorderedElementsAre(Pair("out", 4)))));
+  EXPECT_THAT(evaluator().EvaluateSequentialBlock(
+                  block, inputs, OutputPortSampleTime::kAtLastPosEdgeClock),
+              IsOkAndHolds(ElementsAre(UnorderedElementsAre(Pair("out", 0)),
+                                       UnorderedElementsAre(Pair("out", 0)),
+                                       UnorderedElementsAre(Pair("out", 42)),
+                                       UnorderedElementsAre(Pair("out", 42)),
+                                       UnorderedElementsAre(Pair("out", 4)))));
 }
 
-TEST_P(BlockEvaluatorTest, AccumulatorRegister) {
-  auto package = CreatePackage();
-  BlockBuilder b(TestName(), package.get());
+void AccumulatorRegisterCommon(BlockEvaluatorTest& bet,
+                               OutputPortSampleTime sample_time) {
+  auto package = bet.CreatePackage();
+  BlockBuilder b(bet.TestName(), package.get());
   XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Register * reg,
@@ -947,15 +1104,20 @@ TEST_P(BlockEvaluatorTest, AccumulatorRegister) {
   BValue accum = b.RegisterRead(reg);
   BValue next_accum = b.Add(x, accum);
   b.RegisterWrite(reg, next_accum);
-  b.OutputPort("out", next_accum);
+  if (sample_time == OutputPortSampleTime::kAfterLastClock) {
+    // Manually flop.
+    b.FloppedOutputPort("out", next_accum);
+  } else {
+    b.OutputPort("out", next_accum);
+  }
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs = {
       {{"x", 1}}, {{"x", 2}}, {{"x", 3}}, {{"x", 4}}, {{"x", 5}}};
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs,
-                           evaluator().EvaluateSequentialBlock(block, inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, bet.evaluator().EvaluateSequentialBlock(
+                                        block, inputs, sample_time));
 
   ASSERT_EQ(outputs.size(), 5);
   EXPECT_THAT(outputs.at(0), UnorderedElementsAre(Pair("out", 1)));
@@ -963,6 +1125,12 @@ TEST_P(BlockEvaluatorTest, AccumulatorRegister) {
   EXPECT_THAT(outputs.at(2), UnorderedElementsAre(Pair("out", 6)));
   EXPECT_THAT(outputs.at(3), UnorderedElementsAre(Pair("out", 10)));
   EXPECT_THAT(outputs.at(4), UnorderedElementsAre(Pair("out", 15)));
+}
+TEST_P(BlockEvaluatorTest, AccumulatorRegisterClocked) {
+  AccumulatorRegisterCommon(*this, OutputPortSampleTime::kAtLastPosEdgeClock);
+}
+TEST_P(BlockEvaluatorTest, AccumulatorRegisterRaw) {
+  AccumulatorRegisterCommon(*this, OutputPortSampleTime::kAfterLastClock);
 }
 
 TEST_P(BlockEvaluatorTest, ChannelizedAccumulatorRegister) {
@@ -984,6 +1152,7 @@ TEST_P(BlockEvaluatorTest, ChannelizedAccumulatorRegister) {
       b.Select(input_valid_and_output_ready, {accum, x_add_accum});
 
   b.RegisterWrite(reg, next_accum);
+  // NB Channelized function uses synthetic flops for taps.
   b.OutputPort("x_rdy", out_rdy);
   b.OutputPort("out", next_accum);
   b.OutputPort("out_vld", x_vld);
@@ -1198,6 +1367,7 @@ TEST_P(BlockEvaluatorTest, ChannelizedResetHandlingActiveLow) {
   BValue next_accum =
       b.Select(input_valid_and_output_ready, {accum, x_add_accum});
 
+  // NB Channelized uses clocked taps.
   b.RegisterWrite(reg, next_accum, /*load_enable=*/std::nullopt, /*reset=*/rst);
   b.OutputPort("x_rdy", out_rdy);
   b.OutputPort("out", next_accum);
@@ -1321,11 +1491,14 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
           {"I'm emphasizing that x is ", FormatPreference::kDefault},
           /*verbosity=*/3);
 
-  b.OutputPort("y", x);
+  b.FloppedOutputPort("y", x);
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
   {
-    XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto cont,
+        evaluator().NewContinuation(
+            block, BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock));
     XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(10, 32))}}));
     BlockRunResult result{
         .outputs = cont->output_ports(),
@@ -1340,7 +1513,10 @@ TEST_P(BlockEvaluatorTest, InterpreterEventsCaptured) {
   }
 
   {
-    XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto cont,
+        evaluator().NewContinuation(
+            block, BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock));
     XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(3, 32))}}));
     BlockRunResult result{
         .outputs = cont->output_ports(),
@@ -1429,7 +1605,9 @@ TEST_P(BlockEvaluatorTest, TupleInputOutput) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont,
+                           evaluator().NewContinuation(
+                               block, OutputPortSampleTime::kAfterLastClock));
   XLS_ASSERT_OK(cont->RunOneCycle(
       {{"x", Value::Tuple(
                  {Value::Tuple({Value(UBits(0, 1)), Value(UBits(1, 2))}),
@@ -1538,7 +1716,9 @@ TEST_P(BlockEvaluatorTest, InitialRegisterValueIsZero) {
   bb.RegisterWrite(r1, bb.Literal(UBits(0xbeef, 16)),
                    /*load_enable=*/bb.Literal(UBits(0, 1)), reset);
   XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(blk));
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont,
+                           evaluator().NewContinuation(
+                               blk, OutputPortSampleTime::kAtLastPosEdgeClock));
   XLS_ASSERT_OK(cont->RunOneCycle({{"reset", Value(UBits(0, 1))}}));
   EXPECT_THAT(cont->registers(),
               UnorderedElementsAre(Pair("test1", Value(UBits(0, 16)))));
@@ -1563,7 +1743,9 @@ TEST_P(BlockEvaluatorTest, OutputPortsGetStartValue) {
   bb.RegisterWrite(r1, bb.InputPort("in", p->GetBitsType(16)),
                    /*load_enable=*/std::nullopt, reset_port);
   XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(blk));
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont,
+                           evaluator().NewContinuation(
+                               blk, OutputPortSampleTime::kAtLastPosEdgeClock));
   EXPECT_THAT(cont->registers(),
               UnorderedElementsAre(Pair("test1", Value(UBits(0, 16)))));
   XLS_ASSERT_OK(cont->RunOneCycle(
@@ -1601,29 +1783,32 @@ TEST_P(BlockEvaluatorTest, SetRegistersContinuation) {
     int32_t v4;
   };
   std::vector<Output> outputs{
-      {1, 16, 16, 16, 16},   // after cycle 1
-      {2, 1, 16, 16, 16},    // after cycle 2
-      {3, 2, 1, 16, 16},     // after cycle 3
-      {4, 3, 2, 1, 16},      // after cycle 4
-      {5, 4, 3, 2, 1},       // after cycle 5
-      {6, 5, 4, 3, 2},       // after cycle 6
-      {7, 6, 5, 4, 3},       // after cycle 7
-      {8, 7, 6, 5, 4},       // after cycle 8
-      {9, 8, 7, 6, 5},       // after cycle 9
-      {10, 9, 8, 7, 6},      // after cycle 10
-      {11, 10, 9, 8, 7},     // after cycle 11
-      {12, 11, 10, 9, 8},    // after cycle 12
-      {13, 12, 11, 10, 9},   // after cycle 13
-      {14, 13, 12, 11, 10},  // after cycle 14
-      {15, 14, 13, 12, 11},  // after cycle 15
+      {1, 1, 16, 16, 16},    // after cycle 1
+      {2, 2, 1, 16, 16},     // after cycle 2
+      {3, 3, 2, 1, 16},      // after cycle 3
+      {4, 4, 3, 2, 1},       // after cycle 4
+      {5, 5, 4, 3, 2},       // after cycle 5
+      {6, 6, 5, 4, 3},       // after cycle 6
+      {7, 7, 6, 5, 4},       // after cycle 7
+      {8, 8, 7, 6, 5},       // after cycle 8
+      {9, 9, 8, 7, 6},       // after cycle 9
+      {10, 10, 9, 8, 7},     // after cycle 10
+      {11, 11, 10, 9, 8},    // after cycle 11
+      {12, 12, 11, 10, 9},   // after cycle 12
+      {13, 13, 12, 11, 10},  // after cycle 13
+      {14, 14, 13, 12, 11},  // after cycle 14
+      {15, 15, 14, 13, 12},  // after cycle 15
   };
   auto in_it = inputs.cbegin();
   auto out_it = outputs.cbegin();
-  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont,
+                           evaluator().NewContinuation(
+                               block, OutputPortSampleTime::kAfterLastClock));
   Value sixteen = Value(UBits(16, 32));
   XLS_ASSERT_OK(cont->SetRegisters(
       {{"s1", sixteen}, {"s2", sixteen}, {"s3", sixteen}, {"s4", sixteen}}));
-  for (; in_it != inputs.cend(); ++in_it, ++out_it) {
+  int64_t i = 0;
+  for (; in_it != inputs.cend(); ++in_it, ++out_it, ++i) {
     auto expected = *out_it;
     XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(*in_it, 32))}}));
     EXPECT_THAT(
@@ -1635,10 +1820,10 @@ TEST_P(BlockEvaluatorTest, SetRegistersContinuation) {
                              Pair("v4", Value(UBits(expected.v4, 32)))));
     EXPECT_THAT(
         cont->registers(),
-        UnorderedElementsAre(Pair("s1", Value(UBits(expected.x_out, 32))),
-                             Pair("s2", Value(UBits(expected.v1, 32))),
-                             Pair("s3", Value(UBits(expected.v2, 32))),
-                             Pair("s4", Value(UBits(expected.v3, 32)))));
+        UnorderedElementsAre(Pair("s1", Value(UBits(expected.v1, 32))),
+                             Pair("s2", Value(UBits(expected.v2, 32))),
+                             Pair("s3", Value(UBits(expected.v3, 32))),
+                             Pair("s4", Value(UBits(expected.v4, 32)))));
   }
 }
 
@@ -1652,11 +1837,11 @@ TEST_P(BlockEvaluatorTest, DelaysContinuation) {
   BValue rd2 = b.InsertRegister("s2", rd1);
   BValue rd3 = b.InsertRegister("s3", rd2);
   BValue rd4 = b.InsertRegister("s4", rd3);
-  b.OutputPort("x_out", x);
-  b.OutputPort("v1", rd1);
-  b.OutputPort("v2", rd2);
-  b.OutputPort("v3", rd3);
-  b.OutputPort("v4", rd4);
+  b.FloppedOutputPort("x_out", x);
+  b.FloppedOutputPort("v1", rd1);
+  b.FloppedOutputPort("v2", rd2);
+  b.FloppedOutputPort("v3", rd3);
+  b.FloppedOutputPort("v4", rd4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
   std::vector<int32_t> inputs{1, 2,  3,  4,  5,  6,  7, 8,
@@ -1687,7 +1872,9 @@ TEST_P(BlockEvaluatorTest, DelaysContinuation) {
   };
   auto in_it = inputs.cbegin();
   auto out_it = outputs.cbegin();
-  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(block));
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont,
+                           evaluator().NewContinuation(
+                               block, OutputPortSampleTime::kAfterLastClock));
   for (; in_it != inputs.cend(); ++in_it, ++out_it) {
     auto expected = *out_it;
     XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(*in_it, 32))}}));
@@ -1698,13 +1885,41 @@ TEST_P(BlockEvaluatorTest, DelaysContinuation) {
                              Pair("v2", Value(UBits(expected.v2, 32))),
                              Pair("v3", Value(UBits(expected.v3, 32))),
                              Pair("v4", Value(UBits(expected.v4, 32)))));
-    EXPECT_THAT(
-        cont->registers(),
-        UnorderedElementsAre(Pair("s1", Value(UBits(expected.x_out, 32))),
-                             Pair("s2", Value(UBits(expected.v1, 32))),
-                             Pair("s3", Value(UBits(expected.v2, 32))),
-                             Pair("s4", Value(UBits(expected.v3, 32)))));
+    EXPECT_THAT(cont->registers(),
+                AllOf(SizeIs(9),  // Output flops.
+                      Contains(Pair("s1", Value(UBits(expected.x_out, 32)))),
+                      Contains(Pair("s2", Value(UBits(expected.v1, 32)))),
+                      Contains(Pair("s3", Value(UBits(expected.v2, 32)))),
+                      Contains(Pair("s4", Value(UBits(expected.v3, 32))))));
   }
+}
+
+TEST_P(BlockEvaluatorTest, RegUpdateHappensBeforeWireUpdate) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  BValue in_1 = bb.InputPort("in_1", p->GetBitsType(16));
+  BValue in_2 = bb.InputPort("in_2", p->GetBitsType(16));
+  BValue reg1 = bb.InsertRegister("reg1", in_1);
+  BValue reg2 = bb.InsertRegister("reg2", in_2);
+  BValue sum = bb.Add(reg1, reg2);
+  bb.OutputPort("out_1", sum);
+  BValue reg3 = bb.InsertRegister("reg3", sum);
+  bb.OutputPort("out_2", reg3);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont,
+                           evaluator().NewContinuation(
+                               block, OutputPortSampleTime::kAfterLastClock));
+  XLS_ASSERT_OK(cont->SetRegisters({
+      {"reg1", Value(UBits(0xbe00, 16))},
+      {"reg2", Value(UBits(0x00ef, 16))},
+      {"reg3", Value(UBits(0xdead, 16))},
+  }));
+  XLS_ASSERT_OK(cont->RunOneCycle(
+      {{"in_1", Value(UBits(1, 16))}, {"in_2", Value(UBits(2, 16))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out_1", Value(UBits(3, 16))),
+                                   Pair("out_2", Value(UBits(0xbeef, 16)))));
 }
 
 TEST_P(FifoTest, FifosReset) {
@@ -1737,8 +1952,10 @@ TEST_P(FifoTest, FifosReset) {
   bb.InstantiationInput(fifo_inst, "pop_ready", bb.InputPort("pop_ready", u1));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BlockContinuation> eval,
-                           evaluator().NewContinuation(block));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BlockContinuation> eval,
+      evaluator().NewContinuation(
+          block, BlockEvaluator::OutputPortSampleTime::kAfterLastClock));
   // Reset first.
   XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(1, 1))},
                                    {"push_data", ZeroOfType(u32)},
@@ -1774,23 +1991,31 @@ TEST_P(FifoTest, FifosReset) {
                     Contains(Pair("push_ready", Value(UBits(1, 1))))));
 }
 
-TEST_P(FifoTest, CutThroughLatencyCorrect) {
+void CutThroughLatencyCorrectCommon(
+    FifoTest& fft, BlockEvaluator::OutputPortSampleTime time_step) {
   // TODO(rigge): add instantiation support to block jit and remove this guard.
-  if (!SupportsFifos()) {
+  if (!fft.SupportsFifos()) {
     GTEST_SKIP();
     return;
   }
-  auto p = CreatePackage();
+  auto p = fft.CreatePackage();
   Type* u1 = p->GetBitsType(1);
   Type* u32 = p->GetBitsType(32);
   BlockBuilder bb("fifo_wrapper", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       FifoInstantiation * fifo_inst,
-      bb.block()->AddFifoInstantiation("fifo_inst", fifo_config(), u32));
+      bb.block()->AddFifoInstantiation("fifo_inst", fft.fifo_config(), u32));
+  XLS_ASSERT_OK(bb.AddClockPort("clk"));
 
-  bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
-  bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
-  bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
+  auto out_port = [&](std::string_view name, BValue val) -> BValue {
+    if (time_step == BlockEvaluator::OutputPortSampleTime::kAfterLastClock) {
+      return bb.FloppedOutputPort(name, val);
+    }
+    return bb.OutputPort(name, val);
+  };
+  out_port("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
+  out_port("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
+  out_port("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
 
   // Make reset.
   BValue reset = bb.ResetPort(
@@ -1805,7 +2030,7 @@ TEST_P(FifoTest, CutThroughLatencyCorrect) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BlockContinuation> eval,
-                           evaluator().NewContinuation(block));
+                           fft.evaluator().NewContinuation(block, time_step));
   XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
                                    {"push_data", ZeroOfType(u32)},
                                    {"push_valid", Value(UBits(1, 1))},
@@ -1826,27 +2051,43 @@ TEST_P(FifoTest, CutThroughLatencyCorrect) {
   }
   EXPECT_NE(cycles, -1) << "Did not see a pop.";
   EXPECT_EQ(cycles,
-            1 - (GetParam().fifo_config.bypass() ? 1 : 0) +
-                (GetParam().fifo_config.register_pop_outputs() ? 1 : 0));
+            1 - (fft.GetParam().fifo_config.bypass() ? 1 : 0) +
+                (fft.GetParam().fifo_config.register_pop_outputs() ? 1 : 0));
+}
+TEST_P(FifoTest, CutThroughLatencyCorrectPreFallingEdge) {
+  CutThroughLatencyCorrectCommon(
+      *this, BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock);
+}
+TEST_P(FifoTest, CutThroughLatencyCorrectPostFallingEdge) {
+  CutThroughLatencyCorrectCommon(
+      *this, BlockEvaluator::OutputPortSampleTime::kAfterLastClock);
 }
 
-TEST_P(FifoTest, BackpressureLatencyCorrect) {
+void BackpressureLatencyCorrectCommon(
+    FifoTest& fft, BlockEvaluator::OutputPortSampleTime time_step) {
   // TODO(rigge): add instantiation support to block jit and remove this guard.
-  if (!SupportsFifos()) {
+  if (!fft.SupportsFifos()) {
     GTEST_SKIP();
     return;
   }
-  auto p = CreatePackage();
+  auto p = fft.CreatePackage();
   Type* u1 = p->GetBitsType(1);
   Type* u32 = p->GetBitsType(32);
   BlockBuilder bb("fifo_wrapper", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       FifoInstantiation * fifo_inst,
-      bb.block()->AddFifoInstantiation("fifo_inst", fifo_config(), u32));
+      bb.block()->AddFifoInstantiation("fifo_inst", fft.fifo_config(), u32));
+  XLS_ASSERT_OK(bb.AddClockPort("clk"));
 
-  bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
-  bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
-  bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
+  auto out_port = [&](std::string_view name, BValue val) -> BValue {
+    if (time_step == BlockEvaluator::OutputPortSampleTime::kAfterLastClock) {
+      return bb.FloppedOutputPort(name, val);
+    }
+    return bb.OutputPort(name, val);
+  };
+  out_port("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
+  out_port("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
+  out_port("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
 
   // Make reset.
   BValue reset = bb.ResetPort(
@@ -1861,15 +2102,19 @@ TEST_P(FifoTest, BackpressureLatencyCorrect) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BlockContinuation> eval,
-                           evaluator().NewContinuation(block));
+                           fft.evaluator().NewContinuation(block, time_step));
   // Reset first.
   XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(1, 1))},
                                    {"push_data", ZeroOfType(u32)},
                                    {"push_valid", Value(UBits(0, 1))},
                                    {"pop_ready", Value(UBits(0, 1))}}));
   // Push until the fifo is full.
+  int64_t attempts = 0;
   int64_t pushed = 0;
-  while (pushed < fifo_config().depth()) {
+  while (pushed < fft.fifo_config().depth()) {
+    if (attempts++ > 10000) {
+      FAIL() << "Failed to reach end after " << attempts << " cycles";
+    }
     XLS_ASSERT_OK(eval->RunOneCycle({{"reset", Value(UBits(0, 1))},
                                      {"push_data", ZeroOfType(u32)},
                                      {"push_valid", Value(UBits(1, 1))},
@@ -1891,7 +2136,7 @@ TEST_P(FifoTest, BackpressureLatencyCorrect) {
                                    {"push_valid", Value(UBits(0, 1))},
                                    {"pop_ready", Value(UBits(1, 1))}}));
   int64_t push_ready = 1;
-  if (GetParam().fifo_config.register_push_outputs()) {
+  if (fft.GetParam().fifo_config.register_push_outputs()) {
     push_ready = 0;
   }
   EXPECT_THAT(eval->output_ports(),
@@ -1905,6 +2150,15 @@ TEST_P(FifoTest, BackpressureLatencyCorrect) {
     EXPECT_THAT(eval->output_ports(),
                 Contains(Pair("push_ready", Value(UBits(push_ready, 1)))));
   }
+}
+
+TEST_P(FifoTest, BackpressureLatencyCorrectPostFallingEdge) {
+  BackpressureLatencyCorrectCommon(
+      *this, BlockEvaluator::OutputPortSampleTime::kAfterLastClock);
+}
+TEST_P(FifoTest, BackpressureLatencyCorrectPreFallingEdge) {
+  BackpressureLatencyCorrectCommon(
+      *this, BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock);
 }
 
 }  // namespace

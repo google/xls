@@ -29,6 +29,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/ir/events.h"
 #include "xls/ir/value.h"
@@ -45,7 +46,11 @@ class BaseBlockJitWrapper;
 // worthwhile.
 class BaseBlockJitWrapperContinuation {
  public:
+  using OutputPortSampleTime = BlockEvaluator::OutputPortSampleTime;
   BlockJitContinuation* inner_continuation() const { return inner_.get(); }
+
+  // When are output ports sampled.
+  OutputPortSampleTime sample_time() const { return inner_->sample_time(); }
 
   // Get the interpreter events since the last time
   // `interpreter_events().Clear()` was called. This includes trace and
@@ -108,7 +113,7 @@ class BaseBlockJitWrapperContinuation {
 
   absl::flat_hash_map<std::string, Value> to_set_inputs_;
   absl::flat_hash_map<std::string, Value> to_set_registers_;
-  mutable absl::flat_hash_map<std::string, Value> saved_outputs_;
+  mutable absl::flat_hash_map<std::string, Value> saved_output_ports_;
   mutable absl::flat_hash_map<std::string, Value> saved_output_registers_;
 
   friend class BaseBlockJitWrapper;
@@ -127,9 +132,10 @@ class BaseBlockJitWrapper {
   template <typename RealContinuation>
     requires(
         std::is_base_of_v<BaseBlockJitWrapperContinuation, RealContinuation>)
-  std::unique_ptr<RealContinuation> NewContinuationImpl() {
+  std::unique_ptr<RealContinuation> NewContinuationImpl(
+      BlockEvaluator::OutputPortSampleTime sample_time) {
     return std::unique_ptr<RealContinuation>(
-        new RealContinuation(jit_->NewContinuation()));
+        new RealContinuation(jit_->NewContinuation(sample_time)));
   }
 
   explicit BaseBlockJitWrapper(std::unique_ptr<BlockJit> jit)

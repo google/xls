@@ -657,7 +657,8 @@ absl::Status RunBlockInterpreterAndJit(Block* block,
   auto [jit_arg_buffers, jit_arg_pointers] = std::move(jit_args);
 
   // The JIT is much faster so run many times.
-  auto jit_continuation = jit->NewContinuation();
+  auto jit_continuation = jit->NewContinuation(
+      BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock);
   XLS_ASSIGN_OR_RETURN(
       float jit_run_rate,
       CountRate(

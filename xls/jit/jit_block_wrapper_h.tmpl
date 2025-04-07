@@ -44,7 +44,6 @@ struct {{ wrapped.class_name }}Ports {
 
 class {{ wrapped.class_name}}Continuation : public xls::BaseBlockJitWrapperContinuation {
  public:
-
 {% for port in wrapped.output_ports %}
   // Get the current value of the {{port.xls_name}} port.
   xls::Value Get{{port.camel_name}}AsValue() const {
@@ -74,11 +73,12 @@ class {{ wrapped.class_name}}Continuation : public xls::BaseBlockJitWrapperConti
 
 class {{ wrapped.class_name }} final : public xls::BaseBlockJitWrapper {
  public:
+  using OutputPortSampleTime = xls::BlockEvaluator::OutputPortSampleTime;
   static absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>> Create(const xls::EvaluatorOptions& options = xls::EvaluatorOptions());
 
   std::unique_ptr<{{wrapped.class_name}}Continuation>
-  NewContinuation() {
-    return NewContinuationImpl<{{wrapped.class_name}}Continuation>();
+  NewContinuation(OutputPortSampleTime sample_time = OutputPortSampleTime::kAtLastPosEdgeClock) {
+    return NewContinuationImpl<{{wrapped.class_name}}Continuation>(sample_time);
   }
 
  private:

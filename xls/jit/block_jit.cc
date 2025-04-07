@@ -106,8 +106,9 @@ class ElaboratedBlockJitContinuation : public BlockJitContinuation {
       const BlockJit::InterfaceMetadata& metadata, BlockJit* jit,
       const JittedFunctionBase& jit_func,
       const absl::flat_hash_map<std::string, std::string>& reg_rename_map,
-      const absl::flat_hash_map<std::string, Type*>& materialized_impl_regs)
-      : BlockJitContinuation(metadata, jit, jit_func),
+      const absl::flat_hash_map<std::string, Type*>& materialized_impl_regs,
+      BlockEvaluator::OutputPortSampleTime sample_time)
+      : BlockJitContinuation(metadata, jit, jit_func, sample_time),
         reg_rename_map_(reg_rename_map),
         materialized_impl_regs_(materialized_impl_regs) {}
 
@@ -168,9 +169,11 @@ class ElaboratedBlockJitContinuation : public BlockJitContinuation {
 // elaboration behavior.
 class ElaboratedBlockJit : public BlockJit {
  public:
-  std::unique_ptr<BlockJitContinuation> NewContinuation() override {
+  std::unique_ptr<BlockJitContinuation> NewContinuation(
+      BlockEvaluator::OutputPortSampleTime sample_time) override {
     return std::make_unique<ElaboratedBlockJitContinuation>(
-        metadata_, this, function_, reg_rename_map_, materialized_impl_regs_);
+        metadata_, this, function_, reg_rename_map_, materialized_impl_regs_,
+        sample_time);
   }
 
  private:
@@ -443,19 +446,33 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
   };
 }
 
-std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation() {
+std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation(
+    BlockEvaluator::OutputPortSampleTime sample_time) {
   return std::unique_ptr<BlockJitContinuation>(
-      new BlockJitContinuation(metadata_, this, function_));
+      new BlockJitContinuation(metadata_, this, function_, sample_time));
 }
 
 absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
+  // Run to update the registers
+  InterpreterEvents fake_events;
   function_.RunJittedFunction(
       continuation.input_buffers_.current(),
-      continuation.output_buffers_.current(), continuation.temp_buffer_,
-      &continuation.GetEvents(), /*instance_context=*/&continuation.callbacks_,
-      runtime_.get(),
+      continuation.clocked_taps_output_buffers_.current(),
+      continuation.temp_buffer_, &continuation.GetEvents(),
+      /*instance_context=*/&continuation.callbacks_, runtime_.get(),
       /*continuation_point=*/0);
+  // Finalize the register writes by moving them to the read side.
   continuation.SwapRegisters();
+  if (continuation.sample_time() ==
+      BlockEvaluator::OutputPortSampleTime::kAfterLastClock) {
+    // Run again to get the output wires
+    function_.RunJittedFunction(continuation.input_buffers_.current(),
+                                *continuation.raw_taps_output_buffers_,
+                                continuation.temp_buffer_, &fake_events,
+                                /*instance_context=*/&continuation.callbacks_,
+                                runtime_.get(),
+                                /*continuation_point=*/0);
+  }
   return absl::OkStatus();
 }
 
@@ -520,28 +537,34 @@ BlockJitContinuation::IOSpace BlockJitContinuation::MakeCombinedBuffers(
 
 BlockJitContinuation::BlockJitContinuation(
     const BlockJit::InterfaceMetadata& metadata, BlockJit* jit,
-    const JittedFunctionBase& jit_func)
+    const JittedFunctionBase& jit_func,
+    BlockEvaluator::OutputPortSampleTime sample_time)
     : metadata_(metadata),
       block_jit_(jit),
+      sample_time_(sample_time),
       // Force registers to start out as zeros to match block-interpreter.
       register_buffers_memory_{jit_func.CreateInputBuffer(/*zero=*/true),
                                jit_func.CreateInputBuffer(/*zero=*/true)},
       input_port_buffers_memory_(jit_func.CreateInputBuffer()),
-      output_port_buffers_memory_(jit_func.CreateOutputBuffer()),
+      clocked_output_port_buffers_memory_(jit_func.CreateOutputBuffer()),
       input_buffers_(MakeCombinedBuffers(jit_func, metadata_,
                                          input_port_buffers_memory_,
                                          register_buffers_memory_,
                                          /*input=*/true)),
-      output_buffers_(MakeCombinedBuffers(jit_func, metadata_,
-                                          output_port_buffers_memory_,
-                                          register_buffers_memory_,
-                                          /*input=*/false)),
+      clocked_taps_output_buffers_(MakeCombinedBuffers(
+          jit_func, metadata_, clocked_output_port_buffers_memory_,
+          register_buffers_memory_,
+          /*input=*/false)),
+      raw_taps_output_buffers_(
+          sample_time_ == BlockEvaluator::OutputPortSampleTime::kAfterLastClock
+              ? std::make_optional(jit_func.CreateOutputBuffer())
+              : std::nullopt),
       temp_buffer_(jit_func.CreateTempBuffer()),
       callbacks_(InstanceContext::CreateForBlock()) {
   // since input and output share the same register pointers they need to use
   // different sides at all times.
   input_buffers_.SetActive(IOSpace::RegisterSpace::kLeft);
-  output_buffers_.SetActive(IOSpace::RegisterSpace::kRight);
+  clocked_taps_output_buffers_.SetActive(IOSpace::RegisterSpace::kRight);
 }
 
 absl::Status BlockJitContinuation::SetInputPorts(
@@ -739,6 +762,9 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
     }
     return *temporary_outputs_;
   }
+  BlockEvaluator::OutputPortSampleTime sample_time() const final {
+    return continuation_->sample_time();
+  }
   const absl::flat_hash_map<std::string, Value>& registers() final {
     if (!temporary_regs_) {
       temporary_regs_.emplace(continuation_->GetRegistersMap());
@@ -797,12 +823,13 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
 absl::StatusOr<std::unique_ptr<BlockContinuation>>
 JitBlockEvaluator::MakeNewContinuation(
     BlockElaboration&& elaboration,
-    const absl::flat_hash_map<std::string, Value>& initial_registers) const {
+    const absl::flat_hash_map<std::string, Value>& initial_registers,
+    BlockEvaluator::OutputPortSampleTime sample_time) const {
   XLS_ASSIGN_OR_RETURN(
       auto jit,
       BlockJit::Create(elaboration,
                        /*support_observer_callbacks=*/supports_observer_));
-  auto jit_cont = jit->NewContinuation();
+  auto jit_cont = jit->NewContinuation(sample_time);
   XLS_RETURN_IF_ERROR(jit_cont->SetRegisters(initial_registers));
   return std::make_unique<BlockContinuationJitWrapper>(std::move(jit_cont),
                                                        std::move(jit));

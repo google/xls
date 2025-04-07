@@ -28,6 +28,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_evaluator_test_base.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
@@ -51,6 +52,12 @@ using ::testing::ElementsAre;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
+static constexpr BlockJitContinuation::OutputPortSampleTime
+    kAtLastPosEdgeClock =
+        BlockJitContinuation::OutputPortSampleTime::kAtLastPosEdgeClock;
+static constexpr BlockJitContinuation::OutputPortSampleTime kAfterLastClock =
+    BlockJitContinuation::OutputPortSampleTime::kAfterLastClock;
+
 class BlockJitTest : public IrTestBase {};
 TEST_F(BlockJitTest, ConstantToPort) {
   auto p = CreatePackage();
@@ -60,7 +67,7 @@ TEST_F(BlockJitTest, ConstantToPort) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
-  auto cont = jit->NewContinuation();
+  auto cont = jit->NewContinuation(kAtLastPosEdgeClock);
   XLS_ASSERT_OK(jit->RunOneCycle(*cont));
 
   EXPECT_THAT(cont->GetOutputPorts(), ElementsAre(Value(UBits(42, 8))));
@@ -74,7 +81,7 @@ TEST_F(BlockJitTest, AddTwoPort) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
-  auto cont = jit->NewContinuation();
+  auto cont = jit->NewContinuation(kAtLastPosEdgeClock);
   XLS_ASSERT_OK(
       cont->SetInputPorts({Value(UBits(12, 8)), Value(UBits(30, 8))}));
   XLS_ASSERT_OK(jit->RunOneCycle(*cont));
@@ -93,7 +100,8 @@ TEST_F(BlockJitTest, ConstantToReg) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
-  auto cont = jit->NewContinuation();
+  auto cont = jit->NewContinuation(
+      BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock);
   XLS_ASSERT_OK(cont->SetRegisters({Value(UBits(2, 8))}));
   XLS_ASSERT_OK(jit->RunOneCycle(*cont));
 
@@ -112,7 +120,7 @@ TEST_F(BlockJitTest, DelaySlot) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
-  auto cont = jit->NewContinuation();
+  auto cont = jit->NewContinuation(kAtLastPosEdgeClock);
 
   XLS_ASSERT_OK(cont->SetRegisters({Value(UBits(2, 8))}));
 
@@ -127,6 +135,51 @@ TEST_F(BlockJitTest, DelaySlot) {
   EXPECT_THAT(cont->GetOutputPorts(), ElementsAre(Value(UBits(42, 8))));
 }
 
+TEST_F(BlockJitTest, DelaySlotRaw) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  auto input = bb.InputPort("input", p->GetBitsType(8));
+  bb.OutputPort("output",
+                bb.InsertRegister("reg_2", bb.InsertRegister("reg_1", input)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
+  auto cont = jit->NewContinuation(kAfterLastClock);
+
+  if (cont->GetRegisterIndices()["reg_1"] == 0) {
+    XLS_ASSERT_OK(cont->SetRegisters(
+        absl::Span<Value const>{Value(UBits(2, 8)), Value(UBits(22, 8))}));
+
+    XLS_ASSERT_OK(cont->SetInputPorts({Value(UBits(42, 8))}));
+    XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+    EXPECT_THAT(cont->GetRegisters(),
+                ElementsAre(Value(UBits(42, 8)), Value(UBits(2, 8))));
+    EXPECT_THAT(cont->GetOutputPorts(), ElementsAre(Value(UBits(2, 8))));
+
+    XLS_ASSERT_OK(cont->SetInputPorts({Value(UBits(12, 8))}));
+    XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+    EXPECT_THAT(cont->GetRegisters(),
+                ElementsAre(Value(UBits(12, 8)), Value(UBits(42, 8))));
+    EXPECT_THAT(cont->GetOutputPorts(), ElementsAre(Value(UBits(42, 8))));
+  } else {
+    XLS_ASSERT_OK(cont->SetRegisters(
+        absl::Span<Value const>{Value(UBits(22, 8)), Value(UBits(2, 8))}));
+
+    XLS_ASSERT_OK(cont->SetInputPorts({Value(UBits(42, 8))}));
+    XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+    EXPECT_THAT(cont->GetRegisters(),
+                ElementsAre(Value(UBits(2, 8)), Value(UBits(42, 8))));
+    EXPECT_THAT(cont->GetOutputPorts(), ElementsAre(Value(UBits(2, 8))));
+
+    XLS_ASSERT_OK(cont->SetInputPorts({Value(UBits(12, 8))}));
+    XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+    EXPECT_THAT(cont->GetRegisters(),
+                ElementsAre(Value(UBits(42, 8)), Value(UBits(12, 8))));
+    EXPECT_THAT(cont->GetOutputPorts(), ElementsAre(Value(UBits(42, 8))));
+  }
+}
+
 TEST_F(BlockJitTest, SetInputsWithViews) {
   auto p = CreatePackage();
   BlockBuilder bb(TestName(), p.get());
@@ -136,7 +189,7 @@ TEST_F(BlockJitTest, SetInputsWithViews) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
-  auto cont = jit->NewContinuation();
+  auto cont = jit->NewContinuation(kAtLastPosEdgeClock);
 
   int16_t input_bits1 = -12;
   int16_t input_bits2 = 54;
@@ -201,7 +254,7 @@ TEST_F(BlockJitTest, SetRegistersWithViews) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
-  auto cont = jit->NewContinuation();
+  auto cont = jit->NewContinuation(kAtLastPosEdgeClock);
 
   int16_t input_bits1 = -12;
   int16_t input_bits2 = 54;
@@ -217,6 +270,42 @@ TEST_F(BlockJitTest, SetRegistersWithViews) {
               testing::UnorderedElementsAre(
                   testing::Pair("test1", Value(UBits(0, 16))),
                   testing::Pair("test2", Value(UBits(0, 16)))));
+}
+
+TEST_F(BlockJitTest, SetRegistersWithViewsRaw) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto r1, bb.block()->AddRegister("test1", p->GetBitsType(16)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto r2, bb.block()->AddRegister("test2", p->GetBitsType(16)));
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  bb.RegisterWrite(r1, bb.Literal(UBits(0, 16)));
+  bb.RegisterWrite(r2, bb.Literal(UBits(0, 16)));
+  auto read1 = bb.RegisterRead(r1);
+  auto read2 = bb.RegisterRead(r2);
+  bb.FloppedOutputPort("output", bb.Add(read1, read2));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(b));
+  auto cont = jit->NewContinuation(kAfterLastClock);
+
+  int16_t input_bits1 = -12;
+  int16_t input_bits2 = 54;
+  int16_t output_bits = 0xdead;
+  BitsView<16> bits1(reinterpret_cast<uint8_t*>(&input_bits1));
+  BitsView<16> bits2(reinterpret_cast<uint8_t*>(&input_bits2));
+  BitsView<16> out(reinterpret_cast<uint8_t*>(&output_bits));
+  XLS_ASSERT_OK(cont->SetRegisters(absl::Span<const uint8_t* const>{
+      bits1.buffer(), bits2.buffer(), out.buffer()}));
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+
+  EXPECT_THAT(cont->GetOutputPorts(),
+              testing::ElementsAre(Value(UBits(42, 16))));
+  EXPECT_THAT(cont->GetRegistersMap(),
+              UnorderedElementsAre(Pair("test1", Value(UBits(0, 16))),
+                                   Pair("test2", Value(UBits(0, 16))),
+                                   Pair("output_reg", Value(UBits(42, 16)))));
 }
 
 TEST_F(BlockJitTest, ExternInstantiationIsAnError) {
@@ -298,7 +387,8 @@ TEST_F(BlockJitTest, RegistersAreInitiallyZero) {
                    /*load_enable=*/std::nullopt, reset_port);
   XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, BlockJit::Create(blk));
-  std::unique_ptr<BlockJitContinuation> continuation = jit->NewContinuation();
+  std::unique_ptr<BlockJitContinuation> continuation =
+      jit->NewContinuation(kAtLastPosEdgeClock);
   EXPECT_THAT(continuation->GetRegistersMap(),
               UnorderedElementsAre(Pair("test1", Value(UBits(0, 16)))));
   XLS_ASSERT_OK(
@@ -335,9 +425,11 @@ void RegisterResetBehavior(absl::Span<RegInput const> inputs) {
                    bb.InputPort("le", p.GetBitsType(1)), reset_port);
   bb.OutputPort("reg_out", bb.RegisterRead(reg));
   XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
-  XLS_ASSERT_OK_AND_ASSIGN(auto oracle,
-                           kInterpreterBlockEvaluator.NewContinuation(blk));
-  XLS_ASSERT_OK_AND_ASSIGN(auto test, kJitBlockEvaluator.NewContinuation(blk));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto oracle,
+      kInterpreterBlockEvaluator.NewContinuation(blk, kAtLastPosEdgeClock));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto test, kJitBlockEvaluator.NewContinuation(blk, kAtLastPosEdgeClock));
   for (const auto& [data, le, reset] : inputs) {
     absl::flat_hash_map<std::string, Value> input{
         {"reg_data", Value(UBits(data, 32))},

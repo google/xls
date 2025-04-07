@@ -211,8 +211,34 @@ struct BlockIOResultsAsUint64 {
 };
 
 class BlockContinuation;
+
 class BlockEvaluator {
  public:
+  // What position in a clock cycle should output ports be tapped during. This
+  // can be important for making designs testable since on a link between two
+  // blocks only one side at most needs flopping so often only one side will be
+  // configured to have it. Its often easier to look at the output as though
+  // there was a flop on it even if the block is not configured to include them.
+  // This can be done by examining the output AtLastPosEdgeClock. This can also
+  // be thought of as whether to put a synthetic flop in front of the tap for
+  // output ports.
+  enum class OutputPortSampleTime {
+    // Ports are read at the last instant before the pos-edge of the clock
+    // arrives but after all values have had time to stabilize with the data
+    // coming from the input ports. This can also be thought of as if the ports
+    // that are read had a synthetic, always load-enabled, no-reset flop between
+    // the actual output-port and the simulation tap. This synthetic flop is
+    // written on the clock edge like all other flops.
+    kAtLastPosEdgeClock,
+    // Port values are tapped as they appear after stabilizing after the last
+    // pos-edge of the clock. This means that they use the most recent input
+    // port values and whatever the most recent cycle set registers to as their
+    // value. If a block does not have --flop_outputs set this can have unusual
+    // or unexpected values which look like the value at the start of the next
+    // cycle with the inputs from the last cycle.
+    kAfterLastClock,
+  };
+
   explicit constexpr BlockEvaluator(std::string_view name) : name_(name) {}
   virtual ~BlockEvaluator() = default;
 
@@ -221,13 +247,16 @@ class BlockEvaluator {
   // cycle-by-cycle.
   absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
       Block* block,
-      const absl::flat_hash_map<std::string, Value>& initial_registers) const;
+      const absl::flat_hash_map<std::string, Value>& initial_registers,
+      OutputPortSampleTime sample_time =
+          OutputPortSampleTime::kAtLastPosEdgeClock) const;
 
   // Create a new block continuation with all registers initialized to zero
   // values. This continuation can be used to feed input values in
   // cycle-by-cycle.
   absl::StatusOr<std::unique_ptr<BlockContinuation>> NewContinuation(
-      Block* block) const;
+      Block* block, OutputPortSampleTime sample_time =
+                        OutputPortSampleTime::kAtLastPosEdgeClock) const;
 
   // The name of this evaluator for debug purposes.
   std::string_view name() const { return name_; }
@@ -237,14 +266,16 @@ class BlockEvaluator {
   // for each output port of the block.
   virtual absl::StatusOr<absl::flat_hash_map<std::string, Value>>
   EvaluateCombinationalBlock(
-      Block* block,
-      const absl::flat_hash_map<std::string, Value>& inputs) const;
+      Block* block, const absl::flat_hash_map<std::string, Value>& inputs,
+      OutputPortSampleTime sample_time =
+          OutputPortSampleTime::kAtLastPosEdgeClock) const;
 
   // Overload which accepts and returns uint64_t values instead of xls::Values.
   virtual absl::StatusOr<absl::flat_hash_map<std::string, uint64_t>>
   EvaluateCombinationalBlock(
-      Block* block,
-      const absl::flat_hash_map<std::string, uint64_t>& inputs) const;
+      Block* block, const absl::flat_hash_map<std::string, uint64_t>& inputs,
+      OutputPortSampleTime sample_time =
+          OutputPortSampleTime::kAtLastPosEdgeClock) const;
 
   // Runs the evaluator on a block feeding a sequence of values to input ports
   // and returning the resulting sequence of values from the output
@@ -253,15 +284,18 @@ class BlockEvaluator {
   virtual absl::StatusOr<std::vector<absl::flat_hash_map<std::string, Value>>>
   EvaluateSequentialBlock(
       Block* block,
-      absl::Span<const absl::flat_hash_map<std::string, Value>> inputs) const;
+      absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
+      OutputPortSampleTime sample_time =
+          OutputPortSampleTime::kAtLastPosEdgeClock) const;
 
   // Overload which accepts and returns uint64_t values instead of xls::Values.
   virtual absl::StatusOr<
       std::vector<absl::flat_hash_map<std::string, uint64_t>>>
   EvaluateSequentialBlock(
       Block* block,
-      absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs)
-      const;
+      absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
+      OutputPortSampleTime sample_time =
+          OutputPortSampleTime::kAtLastPosEdgeClock) const;
 
   // Runs the evaluator on a block.  Each input port in the block
   // should be given a sequence of data values to drive the block.
@@ -362,9 +396,10 @@ class BlockEvaluator {
 
  protected:
   virtual absl::StatusOr<std::unique_ptr<BlockContinuation>>
-  MakeNewContinuation(BlockElaboration&& elaboration,
-                      const absl::flat_hash_map<std::string, Value>&
-                          initial_registers) const = 0;
+  MakeNewContinuation(
+      BlockElaboration&& elaboration,
+      const absl::flat_hash_map<std::string, Value>& initial_registers,
+      OutputPortSampleTime sample_time) const = 0;
 
   std::string_view name_;
 };
@@ -374,10 +409,14 @@ class BlockContinuation {
  public:
   virtual ~BlockContinuation() = default;
 
-  // Get the output-ports as they exist on the current cycle. This is only valid
-  // until the next call to 'RunOneCycle'. The contents are undefined before the
-  // first call to RunOneCycle.
+  // Get the output-ports as they exist at the configured `sample_time`. This is
+  // only valid until the next call to 'RunOneCycle'. The contents are undefined
+  // before the first call to RunOneCycle.
   virtual const absl::flat_hash_map<std::string, Value>& output_ports() = 0;
+
+  // The position in the clock cycle output ports are sampled.
+  virtual BlockEvaluator::OutputPortSampleTime sample_time() const = 0;
+
   // Get the registers as they exist on the current cycle. The reference is only
   // valid until the next call to 'RunOneCycle'.
   virtual const absl::flat_hash_map<std::string, Value>& registers() = 0;

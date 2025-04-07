@@ -903,10 +903,16 @@ class StatelessBlockContinuation final : public BlockContinuation {
  public:
   StatelessBlockContinuation(BlockElaboration&& block,
                              BlockRunResult&& initial_result,
-                             Evaluate evaluator)
+                             Evaluate evaluator,
+                             BlockEvaluator::OutputPortSampleTime sample_time)
       : elaboration_(std::move(block)),
         last_result_(std::move(initial_result)),
-        evaluator_(std::move(evaluator)) {}
+        evaluator_(std::move(evaluator)),
+        sample_time_(sample_time) {}
+
+  BlockEvaluator::OutputPortSampleTime sample_time() const final {
+    return sample_time_;
+  }
 
   const absl::flat_hash_map<std::string, Value>& output_ports() final {
     return last_result_.outputs;
@@ -922,9 +928,18 @@ class StatelessBlockContinuation final : public BlockContinuation {
 
   absl::Status RunOneCycle(
       const absl::flat_hash_map<std::string, Value>& inputs) final {
+    // Run to get the next value of all registers.
     XLS_ASSIGN_OR_RETURN(
         last_result_,
         evaluator_(inputs, last_result_.reg_state, elaboration_, observer_));
+
+    if (sample_time_ == BlockEvaluator::OutputPortSampleTime::kAfterLastClock) {
+      // Propagate that register value forwards.
+      XLS_ASSIGN_OR_RETURN(
+          BlockRunResult raw,
+          evaluator_(inputs, last_result_.reg_state, elaboration_, observer_));
+      last_result_.outputs = std::move(raw.outputs);
+    }
     return absl::OkStatus();
   }
 
@@ -953,17 +968,20 @@ class StatelessBlockContinuation final : public BlockContinuation {
   BlockRunResult last_result_;
   Evaluate evaluator_;
   std::optional<EvaluationObserver*> observer_;
+  BlockEvaluator::OutputPortSampleTime sample_time_;
 };
 
 template <typename Evaluate>
-StatelessBlockContinuation(BlockElaboration&&, BlockRunResult&&, Evaluate)
+StatelessBlockContinuation(BlockElaboration&&, BlockRunResult&&, Evaluate,
+                           BlockEvaluator::OutputPortSampleTime)
     -> StatelessBlockContinuation<Evaluate>;
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<BlockContinuation>>
 InterpreterBlockEvaluator::MakeNewContinuation(
     BlockElaboration&& elaboration,
-    const absl::flat_hash_map<std::string, Value>& initial_registers) const {
+    const absl::flat_hash_map<std::string, Value>& initial_registers,
+    BlockEvaluator::OutputPortSampleTime sample_time) const {
   // We implement fifos using some extra registers stashed in the
   // register-state. We need to add these here.
   absl::flat_hash_map<std::string, Value> ext_regs = initial_registers;
@@ -981,7 +999,7 @@ InterpreterBlockEvaluator::MakeNewContinuation(
 
   auto* cont = new StatelessBlockContinuation(
       std::move(elaboration), BlockRunResult{.reg_state = std::move(ext_regs)},
-      BlockRun);
+      BlockRun, sample_time);
   return std::unique_ptr<BlockContinuation>(cont);
 }
 

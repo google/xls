@@ -297,9 +297,17 @@ class CustomScheduleFuzzer
       resets[r->name()] = r->reset_value().value_or(ZeroOfType(r->type()));
     }
     if (kInterpreter) {
-      return kInterpreterBlockEvaluator.NewContinuation(b, resets).value();
+      return kInterpreterBlockEvaluator
+          .NewContinuation(
+              b, resets,
+              BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock)
+          .value();
     }
-    return kJitBlockEvaluator.NewContinuation(b, resets).value();
+    return kJitBlockEvaluator
+        .NewContinuation(
+            b, resets,
+            BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock)
+        .value();
   }
 };
 

@@ -1820,6 +1820,23 @@ BValue BlockBuilder::OutputPort(std::string_view name, BValue operand,
   return CreateBValue(port_status.value(), loc);
 }
 
+BValue BlockBuilder::FloppedOutputPort(std::string_view name, BValue operand,
+                                       BValue reset_signal, Value reset_value,
+                                       const SourceInfo& loc) {
+  return OutputPort(
+      name,
+      InsertRegister(absl::StrCat(name, "_reg"), operand, reset_signal,
+                     reset_value, std::nullopt, loc),
+      loc);
+}
+BValue BlockBuilder::FloppedOutputPort(std::string_view name, BValue operand,
+                                       const SourceInfo& loc) {
+  return OutputPort(
+      name,
+      InsertRegister(absl::StrCat(name, "_reg"), operand, std::nullopt, loc),
+      loc);
+}
+
 BValue BlockBuilder::RegisterRead(Register* reg, const SourceInfo& loc,
                                   std::string_view name) {
   if (ErrorPending()) {

@@ -204,6 +204,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel",
+        "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
@@ -228,6 +229,7 @@ cc_library(
 cc_test(
     name = "block_interpreter_test",
     srcs = ["block_interpreter_test.cc"],
+    shard_count = 8,
     deps = [
         ":block_evaluator_test_base",
         ":ir_interpreter",

@@ -103,11 +103,13 @@ class MaterializeFifosPassTestHelper {
     XLS_ASSIGN_OR_RETURN(Block * oracle, MakeOracleBlock(args...));
     // TODO(allight): Ideally we could use the actual verilog to act as an
     // oracle but this is complicated.
-    return kOracleEvaluator.NewContinuation(oracle);
+    return kOracleEvaluator.NewContinuation(
+        oracle, BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock);
   }
 
   absl::StatusOr<std::unique_ptr<BlockContinuation>> MakeTestEval(Block* b) {
-    return kTestEvaluator.NewContinuation(b);
+    return kTestEvaluator.NewContinuation(
+        b, BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock);
   }
 
   // Compare against the interpreter as an oracle.

@@ -621,7 +621,8 @@ InterpretBlockSignature(
   return channel_info;
 }
 
-static xls::Type* GetPortTypeOrNull(Block* block, std::string_view port_name) {
+static xls::Type* GetOutputPortSampleTimeOrNull(Block* block,
+                                                std::string_view port_name) {
   for (const InputPort* port : block->GetInputPorts()) {
     if (port->name() == port_name) {
       return port->GetType();
@@ -650,6 +651,9 @@ struct StandardRamInfo {
   std::string_view wr_en;
   std::string_view wr_data;
 };
+
+constexpr BlockEvaluator::OutputPortSampleTime kClocked =
+    BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock;
 
 absl::StatusOr<absl::flat_hash_map<std::string, StandardRamInfo>> GetRamInfoMap(
     const verilog::ModuleSignatureProto& sig) {
@@ -788,8 +792,8 @@ static absl::Status RunBlock(
                 needs_observer ? kObservableJitBlockEvaluator
                                : kJitBlockEvaluator)
           : reinterpret_cast<const BlockEvaluator&>(kInterpreterBlockEvaluator);
-  XLS_ASSIGN_OR_RETURN(auto continuation,
-                       continuation_factory.NewContinuation(block, reg_state));
+  XLS_ASSIGN_OR_RETURN(auto continuation, continuation_factory.NewContinuation(
+                                              block, reg_state, kClocked));
   std::optional<JitRuntime*> jit;
   if (options.use_jit) {
     XLS_ASSIGN_OR_RETURN(jit,
@@ -846,9 +850,9 @@ static absl::Status RunBlock(
         input_set[info.channel_valid] =
             Value(xls::UBits(this_valid ? 1 : 0, 1));
         // Channels without data port will return nullptr
-        xls::Type* port_type = info.width != 0
-                                   ? GetPortTypeOrNull(block, info.channel_data)
-                                   : nullptr;
+        xls::Type* port_type = info.width != 0 ? GetOutputPortSampleTimeOrNull(
+                                                     block, info.channel_data)
+                                               : nullptr;
 
         if (port_type != nullptr) {
           input_set[info.channel_data] =

@@ -25,6 +25,7 @@
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/matchers.h"
+#include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
@@ -43,6 +44,9 @@ using Instantiation = xls::Instantiation;
 using ::testing::IsEmpty;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
+
+static constexpr BlockEvaluator::OutputPortSampleTime kAtLastPosEdgeClock =
+    BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock;
 
 class BlockInliningPassTest : public IrTestBase {};
 
@@ -94,7 +98,8 @@ TEST_F(BlockInliningPassTest, InlineBlocks) {
 
   InterpreterBlockEvaluator eval;
   XLS_ASSERT_OK_AND_ASSIGN(auto oracle, eval.NewContinuation(top));
-  XLS_ASSERT_OK_AND_ASSIGN(auto test, eval.NewContinuation(inlined));
+  XLS_ASSERT_OK_AND_ASSIGN(auto test,
+                           eval.NewContinuation(inlined, kAtLastPosEdgeClock));
   std::vector<std::pair<int64_t, int64_t>> test_vector{
       {2, 3}, {1, 0}, {0, 3}, {4, 12}, {0, 0}, {0, 0},
   };
@@ -174,7 +179,8 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithReg) {
 
   InterpreterBlockEvaluator eval;
   XLS_ASSERT_OK_AND_ASSIGN(auto oracle, eval.NewContinuation(top));
-  XLS_ASSERT_OK_AND_ASSIGN(auto test, eval.NewContinuation(inlined));
+  XLS_ASSERT_OK_AND_ASSIGN(auto test,
+                           eval.NewContinuation(inlined, kAtLastPosEdgeClock));
   std::vector<std::pair<int64_t, int64_t>> test_vector{
       {2, 3}, {1, 0}, {0, 3}, {4, 12}, {0, 0}, {0, 0},
   };

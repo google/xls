@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -26,6 +27,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -90,7 +92,8 @@ class BlockJit {
 
   // Create a new blank block with no registers or ports set. Can be cycled
   // independently of other blocks/continuations.
-  virtual std::unique_ptr<BlockJitContinuation> NewContinuation();
+  virtual std::unique_ptr<BlockJitContinuation> NewContinuation(
+      BlockEvaluator::OutputPortSampleTime sample_time);
 
   // Runs a single cycle of a block with the given continuation.
   virtual absl::Status RunOneCycle(BlockJitContinuation& continuation);
@@ -180,6 +183,8 @@ class BlockJitContinuation {
   };
 
  public:
+  // Use the same time step enum as interpreter.
+  using OutputPortSampleTime = BlockEvaluator::OutputPortSampleTime;
   virtual ~BlockJitContinuation() = default;
   // Overwrite all input-ports with given values.
   absl::Status SetInputPorts(absl::Span<const Value> values);
@@ -225,7 +230,6 @@ class BlockJitContinuation {
   }
   // Gets the pointers to the JIT ABI output pointers for each output port.
   absl::Span<uint8_t const* const> output_port_pointers() const {
-    // output ports are before the registers.
     return function_outputs().subspan(0,
                                       /*len=*/metadata_.OutputPortCount());
   }
@@ -246,9 +250,12 @@ class BlockJitContinuation {
   void ClearObserver() { callbacks_.observer = nullptr; }
   RuntimeObserver* observer() const { return callbacks_.observer; }
 
+  OutputPortSampleTime sample_time() const { return sample_time_; }
+
  protected:
   BlockJitContinuation(const BlockJit::InterfaceMetadata& metadata,
-                       BlockJit* jit, const JittedFunctionBase& jit_func);
+                       BlockJit* jit, const JittedFunctionBase& jit_func,
+                       BlockEvaluator::OutputPortSampleTime sample_time);
 
  private:
   using BufferPair = std::array<JitArgumentSet, 2>;
@@ -272,17 +279,26 @@ class BlockJitContinuation {
 
   void SwapRegisters() {
     input_buffers_.Swap();
-    output_buffers_.Swap();
+    clocked_taps_output_buffers_.Swap();
   }
   absl::Span<uint8_t* const> function_inputs() const {
     return input_buffers_.current().pointers();
   }
   absl::Span<uint8_t* const> function_outputs() const {
-    return output_buffers_.current().pointers();
+    switch (sample_time_) {
+      case OutputPortSampleTime::kAtLastPosEdgeClock:
+        return clocked_taps_output_buffers_.current().pointers();
+      case OutputPortSampleTime::kAfterLastClock:
+        return raw_taps_output_buffers_->pointers();
+    }
+    LOG(FATAL) << "unknown sample type.";
   }
 
   const BlockJit::InterfaceMetadata& metadata_;
   BlockJit* block_jit_;
+
+  // At what time in the clock cycle are output ports sampled.
+  OutputPortSampleTime sample_time_;
 
   // Buffers for the registers. Note this includes (unused) space for the input
   // ports.
@@ -290,18 +306,26 @@ class BlockJitContinuation {
   // Buffers for the input ports. Note this includes (unused) space for the
   // registers.
   JitArgumentSet input_port_buffers_memory_;
-  // Buffers for the output ports. Note this includes (unused) space for the
-  // registers.
-  JitArgumentSet output_port_buffers_memory_;
+  // Buffers for the output ports sampled as though there were flops immediately
+  // before the tap. Note this includes (unused) space for the registers.
+  JitArgumentSet clocked_output_port_buffers_memory_;
 
   // Input pointers. Memory is owned by register_buffers_memory_ and
   // input_port_buffers_memory_. Not thread safe. NB The inputs are organized as
   // <input_ports><Registers>.
   IOSpace input_buffers_;
-  // Output pointers. Memory is owned by register_buffers_memory_ and
-  // input_port_buffers_memory_. Not thread safe. NB The outputs are organized
-  // as <output_ports><Registers>.
-  IOSpace output_buffers_;
+
+  // Output pointers for pre-falling-edge data. Memory is owned by
+  // register_buffers_memory_ and pre_falling_edge_input_port_buffers_memory_.
+  // Not thread safe.  NB The outputs are organized as
+  // <output_ports><Registers>.
+  IOSpace clocked_taps_output_buffers_;
+
+  // Buffers for the output ports tapped raw (so they can be mixed with updated
+  // register values). Note this includes space for the registers though their
+  // values are ignored and they are never read. Only available if OnNegEdge
+  // sample time.
+  std::optional<JitArgumentSet> raw_taps_output_buffers_;
 
   // Temporary scratch storage. Not thread safe.
   JitTempBuffer temp_buffer_;
@@ -325,8 +349,8 @@ class JitBlockEvaluator : public BlockEvaluator {
  protected:
   absl::StatusOr<std::unique_ptr<BlockContinuation>> MakeNewContinuation(
       BlockElaboration&& elaboration,
-      const absl::flat_hash_map<std::string, Value>& initial_registers)
-      const override;
+      const absl::flat_hash_map<std::string, Value>& initial_registers,
+      BlockEvaluator::OutputPortSampleTime sample_time) const override;
 
  private:
   bool supports_observer_;

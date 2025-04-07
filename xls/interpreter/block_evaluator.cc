@@ -165,19 +165,22 @@ ConvertInputsToUint64(const absl::flat_hash_map<std::string, Value>& inputs,
 
 absl::StatusOr<absl::flat_hash_map<std::string, Value>>
 BlockEvaluator::EvaluateCombinationalBlock(
-    Block* block, const absl::flat_hash_map<std::string, Value>& inputs) const {
+    Block* block, const absl::flat_hash_map<std::string, Value>& inputs,
+    BlockEvaluator::OutputPortSampleTime sample_time) const {
   std::vector<absl::flat_hash_map<std::string, Value>> outputs;
-  XLS_ASSIGN_OR_RETURN(outputs, EvaluateSequentialBlock(block, {inputs}));
+  XLS_ASSIGN_OR_RETURN(outputs,
+                       EvaluateSequentialBlock(block, {inputs}, sample_time));
   XLS_RET_CHECK_EQ(outputs.size(), 1);
   return std::move(outputs[0]);
 }
 
 absl::StatusOr<absl::flat_hash_map<std::string, uint64_t>>
 BlockEvaluator::EvaluateCombinationalBlock(
-    Block* block,
-    const absl::flat_hash_map<std::string, uint64_t>& inputs) const {
+    Block* block, const absl::flat_hash_map<std::string, uint64_t>& inputs,
+    BlockEvaluator::OutputPortSampleTime sample_time) const {
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
-  XLS_ASSIGN_OR_RETURN(outputs, EvaluateSequentialBlock(block, {inputs}));
+  XLS_ASSIGN_OR_RETURN(outputs,
+                       EvaluateSequentialBlock(block, {inputs}, sample_time));
   XLS_RET_CHECK_EQ(outputs.size(), 1);
   return std::move(outputs[0]);
 }
@@ -185,8 +188,9 @@ BlockEvaluator::EvaluateCombinationalBlock(
 absl::StatusOr<std::vector<absl::flat_hash_map<std::string, Value>>>
 BlockEvaluator::EvaluateSequentialBlock(
     Block* block,
-    absl::Span<const absl::flat_hash_map<std::string, Value>> inputs) const {
-  XLS_ASSIGN_OR_RETURN(auto continuation, NewContinuation(block));
+    absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
+    BlockEvaluator::OutputPortSampleTime sample_time) const {
+  XLS_ASSIGN_OR_RETURN(auto continuation, NewContinuation(block, sample_time));
   std::vector<absl::flat_hash_map<std::string, Value>> outputs;
   for (const absl::flat_hash_map<std::string, Value>& input_set : inputs) {
     XLS_RETURN_IF_ERROR(continuation->RunOneCycle(input_set));
@@ -198,7 +202,8 @@ BlockEvaluator::EvaluateSequentialBlock(
 absl::StatusOr<std::vector<absl::flat_hash_map<std::string, uint64_t>>>
 BlockEvaluator::EvaluateSequentialBlock(
     Block* block,
-    absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs) const {
+    absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
+    BlockEvaluator::OutputPortSampleTime sample_time) const {
   std::vector<absl::flat_hash_map<std::string, Value>> input_values;
   for (const absl::flat_hash_map<std::string, uint64_t>& input_set : inputs) {
     absl::flat_hash_map<std::string, Value> input_value_set;
@@ -208,8 +213,8 @@ BlockEvaluator::EvaluateSequentialBlock(
   }
 
   std::vector<absl::flat_hash_map<std::string, Value>> output_values;
-  XLS_ASSIGN_OR_RETURN(output_values,
-                       EvaluateSequentialBlock(block, input_values));
+  XLS_ASSIGN_OR_RETURN(
+      output_values, EvaluateSequentialBlock(block, input_values, sample_time));
 
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
   for (const absl::flat_hash_map<std::string, Value>& output_value_set :
@@ -397,7 +402,9 @@ BlockEvaluator::EvaluateChannelizedSequentialBlock(
   int64_t max_cycle_count = inputs.size();
 
   BlockIOResults block_io_results;
-  XLS_ASSIGN_OR_RETURN(auto continuation, NewContinuation(block));
+  XLS_ASSIGN_OR_RETURN(
+      auto continuation,
+      NewContinuation(block, OutputPortSampleTime::kAtLastPosEdgeClock));
   for (int64_t cycle = 0; cycle < max_cycle_count; ++cycle) {
     absl::flat_hash_map<std::string, Value> input_set = inputs.at(cycle);
 
@@ -504,14 +511,17 @@ BlockEvaluator::EvaluateChannelizedSequentialBlockWithUint64(
 absl::StatusOr<std::unique_ptr<BlockContinuation>>
 BlockEvaluator::NewContinuation(
     Block* block,
-    const absl::flat_hash_map<std::string, Value>& initial_registers) const {
+    const absl::flat_hash_map<std::string, Value>& initial_registers,
+    BlockEvaluator::OutputPortSampleTime sample_time) const {
   XLS_ASSIGN_OR_RETURN(BlockElaboration elaboration,
                        BlockElaboration::Elaborate(block));
-  return MakeNewContinuation(std::move(elaboration), initial_registers);
+  return MakeNewContinuation(std::move(elaboration), initial_registers,
+                             sample_time);
 }
 
 absl::StatusOr<std::unique_ptr<BlockContinuation>>
-BlockEvaluator::NewContinuation(Block* block) const {
+BlockEvaluator::NewContinuation(
+    Block* block, BlockEvaluator::OutputPortSampleTime sample_time) const {
   XLS_ASSIGN_OR_RETURN(BlockElaboration elaboration,
                        BlockElaboration::Elaborate(block));
   absl::flat_hash_map<std::string, Value> regs;
@@ -525,7 +535,7 @@ BlockEvaluator::NewContinuation(Block* block) const {
           ZeroOfType(reg->type());
     }
   }
-  return MakeNewContinuation(std::move(elaboration), regs);
+  return MakeNewContinuation(std::move(elaboration), regs, sample_time);
 }
 
 }  // namespace xls

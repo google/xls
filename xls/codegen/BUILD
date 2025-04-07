@@ -1187,6 +1187,7 @@ cc_test(
         ":codegen_pass",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/interpreter:block_evaluator",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:bits",

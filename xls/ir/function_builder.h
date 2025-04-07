@@ -1036,6 +1036,12 @@ class BlockBuilder : public BuilderBase {
                    const SourceInfo& loc = SourceInfo());
   BValue OutputPort(std::string_view name, BValue operand,
                     const SourceInfo& loc = SourceInfo());
+  // Add an output port with a register in front of it.
+  BValue FloppedOutputPort(std::string_view name, BValue operand,
+                           BValue reset_signal, Value reset_value,
+                           const SourceInfo& loc = SourceInfo());
+  BValue FloppedOutputPort(std::string_view name, BValue operand,
+                           const SourceInfo& loc = SourceInfo());
 
   // Add a register read operation. The register argument comes from a
   // Block::AddRegister.
