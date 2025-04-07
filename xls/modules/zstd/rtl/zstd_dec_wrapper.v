@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// This module wraps the ZSTD Decoder verilog sources generated from DSLX to
+// form a DUT with consistent IO.
+// The wrapper also contains an AXI crossbar module for merging the traffic
+// from multiple AXI masters comming from the ZSTD Decoder into a single AXI
+// master that could be e.g. routed to the memory.
+
 `default_nettype none
 
 module zstd_dec_wrapper #(
