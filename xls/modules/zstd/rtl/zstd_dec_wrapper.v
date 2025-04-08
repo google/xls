@@ -133,16 +133,6 @@ module zstd_dec_wrapper #(
 );
 
   /*
-   * Reset loopback
-   */
-  wire                  reset_vld;
-  wire                  reset_rdy;
-  // Required for monitoring simple XLS channel in cocotb
-  wire                  reset_data;
-  // OR-ed generic reset and loopback reset in response to write to RESET CSR
-  wire                  reset;
-
-  /*
    * MemReader AXI interfaces
    */
   // RawBlockDecoder
@@ -435,15 +425,13 @@ module zstd_dec_wrapper #(
   assign csr_axi_b_buser = 1'b0;
   assign csr_axi_r_ruser = 1'b0;
   assign notify_data = notify_vld;
-  assign reset_data = reset_vld;
-  assign reset = reset_vld | rst;
 
   /*
    * ZSTD Decoder instance
    */
   ZstdDecoder ZstdDecoder (
       .clk(clk),
-      .rst(reset),
+      .rst(rst),
 
       // CSR Interface
       .zstd_dec__csr_axi_aw_r(zstd_dec__csr_axi_aw),
@@ -499,11 +487,7 @@ module zstd_dec_wrapper #(
 
       // Other ports
       .zstd_dec__notify_s_vld(notify_vld),
-      .zstd_dec__notify_s_rdy(notify_rdy),
-      // Reset loopback - response for write to RESET CSR
-      // Should be looped back to generic reset input
-      .zstd_dec__reset_s_vld(reset_vld),
-      .zstd_dec__reset_s_rdy(reset_rdy)
+      .zstd_dec__notify_s_rdy(notify_rdy)
   );
 
   assign frame_header_decoder_axi_r_rresp[2] = '0;
