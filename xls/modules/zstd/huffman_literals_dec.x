@@ -25,7 +25,7 @@ import xls.modules.zstd.huffman_prescan as prescan;
 import xls.modules.zstd.huffman_ctrl as ctrl;
 import xls.modules.zstd.huffman_weights_dec as weights_dec;
 import xls.modules.zstd.memory.axi as axi;
-import xls.modules.zstd.memory.axi_ram;
+import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.memory.mem_reader as mem_reader;
 import xls.examples.ram;
 
@@ -907,7 +907,7 @@ proc HuffmanLiteralsDecoder_test {
             ram_rd_req_huffman_r, ram_rd_resp_huffman_s, ram_wr_req_huffman_r, ram_wr_resp_huffman_s
         );
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_RAM_ADDR_W, TEST_AXI_RAM_DATA_W, TEST_AXI_RAM_DEST_W, TEST_AXI_RAM_ID_W,
             TEST_AXI_RAM_MODEL_SIZE, TEST_AXI_RAM_MODEL_BASE_ADDR, TEST_AXI_RAM_MODEL_DATA_WIDTH, TEST_AXI_RAM_MODEL_ADDR_WIDTH
         > (
@@ -933,7 +933,7 @@ proc HuffmanLiteralsDecoder_test {
             ram_rd_req_jump_table_r, ram_rd_resp_jump_table_s, ram_wr_req_jump_table_r, ram_wr_resp_jump_table_s
         );
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_RAM_ADDR_W, TEST_AXI_RAM_DATA_W, TEST_AXI_RAM_DEST_W, TEST_AXI_RAM_ID_W,
             TEST_AXI_RAM_MODEL_SIZE, TEST_AXI_RAM_MODEL_BASE_ADDR, TEST_AXI_RAM_MODEL_DATA_WIDTH, TEST_AXI_RAM_MODEL_ADDR_WIDTH
         > (
@@ -959,7 +959,7 @@ proc HuffmanLiteralsDecoder_test {
             ram_rd_req_huffman_weights_header_r, ram_rd_resp_huffman_weights_header_s, ram_wr_req_huffman_weights_header_r, ram_wr_resp_huffman_weights_header_s
         );
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_RAM_ADDR_W, TEST_AXI_RAM_DATA_W, TEST_AXI_RAM_DEST_W, TEST_AXI_RAM_ID_W,
             TEST_AXI_RAM_MODEL_SIZE, TEST_AXI_RAM_MODEL_BASE_ADDR, TEST_AXI_RAM_MODEL_DATA_WIDTH, TEST_AXI_RAM_MODEL_ADDR_WIDTH
         > (
@@ -985,7 +985,7 @@ proc HuffmanLiteralsDecoder_test {
             ram_rd_req_huffman_weights_raw_r, ram_rd_resp_huffman_weights_raw_s, ram_wr_req_huffman_weights_raw_r, ram_wr_resp_huffman_weights_raw_s
         );
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_RAM_ADDR_W, TEST_AXI_RAM_DATA_W, TEST_AXI_RAM_DEST_W, TEST_AXI_RAM_ID_W,
             TEST_AXI_RAM_MODEL_SIZE, TEST_AXI_RAM_MODEL_BASE_ADDR, TEST_AXI_RAM_MODEL_DATA_WIDTH, TEST_AXI_RAM_MODEL_ADDR_WIDTH
         > (
@@ -1011,7 +1011,7 @@ proc HuffmanLiteralsDecoder_test {
             ram_rd_req_huffman_weights_fse_lookup_r, ram_rd_resp_huffman_weights_fse_lookup_s, ram_wr_req_huffman_weights_fse_lookup_r, ram_wr_resp_huffman_weights_fse_lookup_s
         );
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_RAM_ADDR_W, TEST_AXI_RAM_DATA_W, TEST_AXI_RAM_DEST_W, TEST_AXI_RAM_ID_W,
             TEST_AXI_RAM_MODEL_SIZE, TEST_AXI_RAM_MODEL_BASE_ADDR, TEST_AXI_RAM_MODEL_DATA_WIDTH, TEST_AXI_RAM_MODEL_ADDR_WIDTH
         > (
@@ -1036,7 +1036,7 @@ proc HuffmanLiteralsDecoder_test {
             ram_rd_req_huffman_weights_fse_decoder_r, ram_rd_resp_huffman_weights_fse_decoder_s, ram_wr_req_huffman_weights_fse_decoder_r, ram_wr_resp_huffman_weights_fse_decoder_s
         );
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_RAM_ADDR_W, TEST_AXI_RAM_DATA_W, TEST_AXI_RAM_DEST_W, TEST_AXI_RAM_ID_W,
             TEST_AXI_RAM_MODEL_SIZE, TEST_AXI_RAM_MODEL_BASE_ADDR, TEST_AXI_RAM_MODEL_DATA_WIDTH, TEST_AXI_RAM_MODEL_ADDR_WIDTH
         > (
