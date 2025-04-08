@@ -3598,8 +3598,8 @@ fn trunc_zero_fractional_test() {
     assert_eq(trunc(minus_zero_dot_5_f32), minus_zero_f32);
 }
 
-// TODO(google/xls#1566): apfloat functions should take additional configuration
-enum RoundStyle : u1 {
+// TODO(google/xls#1566): more apfloat functions should take additional configuration
+pub enum RoundStyle : u1 {
     TIES_TO_EVEN = 0,
 }
 

@@ -404,6 +404,35 @@ pub fn floor(f: F32) -> F32 { apfloat::floor(f) }
 
 pub fn trunc(f: F32) -> F32 { apfloat::trunc(f) }
 
+pub fn round<ROUND_STYLE: apfloat::RoundStyle = {apfloat::RoundStyle::TIES_TO_EVEN}>
+    (f: F32) -> F32 {
+    apfloat::round<F32::EXP_SIZE, F32::FRACTION_SIZE, ROUND_STYLE>(f)
+}
+
+#[test]
+fn round_test() {
+    let minus_tiny_f32 = F32 {
+        sign: u1:1,
+        bexp: bias(min_normal_exp()),
+        fraction: u23:0b110_1011_0000_0000_0000_0000,
+    };
+    assert_eq(zero(u1:1), round<apfloat::RoundStyle::TIES_TO_EVEN>(minus_tiny_f32));
+
+    // 1.5
+    let one_dot_five =
+        F32 { sign: u1:0, bexp: bias(s8:0), fraction: u23:0b100_0000_0000_0000_0000_0000 };
+    // 2.0
+    let expected = F32 { sign: u1:0, bexp: bias(s8:1), fraction: u23:0 };
+    assert_eq(expected, round<apfloat::RoundStyle::TIES_TO_EVEN>(one_dot_five));
+
+    // -1.5
+    let minus_one_dot_five =
+        F32 { sign: u1:1, bexp: bias(s8:0), fraction: u23:0b100_0000_0000_0000_0000_0000 };
+    // -2.0
+    let expected = F32 { sign: u1:1, bexp: bias(s8:1), fraction: u23:0 };
+    assert_eq(expected, round<apfloat::RoundStyle::TIES_TO_EVEN>(minus_one_dot_five));
+}
+
 #[quickcheck]
 fn int_roundtrip(x: s25) -> bool {
     // every integer between 0 and 0x100_0000 can be exactly represented

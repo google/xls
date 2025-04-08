@@ -168,6 +168,29 @@ pub fn floor(f: BF16) -> BF16 { apfloat::floor(f) }
 
 pub fn trunc(f: BF16) -> BF16 { apfloat::trunc(f) }
 
+pub fn round<ROUND_STYLE: apfloat::RoundStyle = {apfloat::RoundStyle::TIES_TO_EVEN}>
+    (f: BF16) -> BF16 {
+    apfloat::round<BF16::EXP_SIZE, BF16::FRACTION_SIZE, ROUND_STYLE>(f)
+}
+
+#[test]
+fn round_test() {
+    let minus_tiny_bf16 = BF16 { sign: u1:1, bexp: bias(min_normal_exp()), fraction: u7:0b1101011 };
+    assert_eq(zero(u1:1), round<apfloat::RoundStyle::TIES_TO_EVEN>(minus_tiny_bf16));
+
+    // 1.5
+    let one_dot_five = BF16 { sign: u1:0, bexp: bias(s8:0), fraction: u7:0b1000000 };
+    // 2.0
+    let expected = BF16 { sign: u1:0, bexp: bias(s8:1), fraction: u7:0b0000000 };
+    assert_eq(expected, round<apfloat::RoundStyle::TIES_TO_EVEN>(one_dot_five));
+
+    // -1.5
+    let minus_one_dot_five = BF16 { sign: u1:1, bexp: bias(s8:0), fraction: u7:0b1000000 };
+    // -2.0
+    let expected = BF16 { sign: u1:1, bexp: bias(s8:1), fraction: u7:0b0000000 };
+    assert_eq(expected, round<apfloat::RoundStyle::TIES_TO_EVEN>(minus_one_dot_five));
+}
+
 pub fn from_float32(f32: apfloat::APFloat<u32:8, u32:23>) -> BF16 {
     apfloat::downcast_rne<BF16::FRACTION_SIZE, BF16::EXP_SIZE>(f32)
 }

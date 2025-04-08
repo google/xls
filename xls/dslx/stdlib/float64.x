@@ -179,3 +179,28 @@ pub fn ceil(f: F64) -> F64 { apfloat::ceil(f) }
 pub fn floor(f: F64) -> F64 { apfloat::floor(f) }
 
 pub fn trunc(f: F64) -> F64 { apfloat::trunc(f) }
+
+pub fn round<ROUND_STYLE: apfloat::RoundStyle = {apfloat::RoundStyle::TIES_TO_EVEN}>
+    (f: F64) -> F64 {
+    apfloat::round<F64::EXP_SIZE, F64::FRACTION_SIZE, ROUND_STYLE>(f)
+}
+
+#[test]
+fn round_test() {
+    let minus_tiny_f64 =
+        F64 { sign: u1:1, bexp: bias(min_normal_exp()), fraction: u52:0xf_ffff_ff00_0000 };
+    assert_eq(zero(u1:1), round<apfloat::RoundStyle::TIES_TO_EVEN>(minus_tiny_f64));
+
+    const POINT_FIVE_FRAC = u52:0x8_0000_0000_0000;
+    // 1.5
+    let one_dot_five = F64 { sign: u1:0, bexp: bias(s11:0), fraction: POINT_FIVE_FRAC };
+    // 2.0
+    let expected = F64 { sign: u1:0, bexp: bias(s11:1), fraction: u52:0 };
+    assert_eq(expected, round<apfloat::RoundStyle::TIES_TO_EVEN>(one_dot_five));
+
+    // -1.5
+    let minus_one_dot_five = F64 { sign: u1:1, bexp: bias(s11:0), fraction: POINT_FIVE_FRAC };
+    // -2.0
+    let expected = F64 { sign: u1:1, bexp: bias(s11:1), fraction: u52:0 };
+    assert_eq(expected, round<apfloat::RoundStyle::TIES_TO_EVEN>(minus_one_dot_five));
+}
