@@ -42,7 +42,6 @@ common_codegen_args = {
     "clock_period_ps": CLOCK_PERIOD_PS,
     "clock_margin_percent": "20",
     "multi_proc": "true",
-    "fifo_module": "",
     "materialize_internal_fifos": "true",
 }
 
@@ -161,7 +160,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "shift_buffer_aligner_verilog",
-    codegen_args = common_codegen_args,
+    codegen_args = common_codegen_args | {"module_name": "ShiftBufferAligner"},
     dslx_top = "ShiftBufferAlignerInst",
     library = ":shift_buffer_dslx",
     tags = ["manual"],
@@ -220,6 +219,7 @@ xls_benchmark_verilog(
 shift_buffer_storage_codegen_args = common_codegen_args | {
     "clock_period_ps": "0",
     "pipeline_stages": "2",
+    "module_name": "ShiftBufferStorage",
 }
 
 xls_dslx_verilog(
@@ -285,6 +285,7 @@ SHIFT_BUFFER_CLOCK_PERIOD_PS = "1000"
 
 shift_buffer_codegen_args = common_codegen_args | {
     "clock_period_ps": SHIFT_BUFFER_CLOCK_PERIOD_PS,
+    "module_name": "ShiftBuffer",
 }
 
 xls_dslx_verilog(
@@ -423,7 +424,7 @@ verilog_library(
     name = "frame_header_dec_verilog_lib",
     srcs = [
         ":frame_header_dec.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -519,7 +520,7 @@ verilog_library(
     name = "block_header_dec_verilog_lib",
     srcs = [
         ":block_header_dec.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -598,7 +599,7 @@ verilog_library(
     name = "raw_block_dec_verilog_lib",
     srcs = [
         ":raw_block_dec.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -676,7 +677,7 @@ verilog_library(
     name = "rle_block_dec_verilog_lib",
     srcs = [
         ":rle_block_dec.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -754,7 +755,7 @@ verilog_library(
     name = "dec_mux_verilog_lib",
     srcs = [
         ":dec_mux.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -894,7 +895,7 @@ verilog_library(
     name = "sequence_executor_lib",
     srcs = [
         ":sequence_executor.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -974,7 +975,7 @@ verilog_library(
     name = "axi_csr_accessor_verilog_lib",
     srcs = [
         ":axi_csr_accessor.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -1051,7 +1052,7 @@ verilog_library(
     name = "csr_config_verilog_lib",
     srcs = [
         ":csr_config.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -1106,6 +1107,7 @@ xls_dslx_verilog(
         "pipeline_stages": "1",
         "reset": "rst",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "RamWrRespHandlerInst",
     library = ":ram_wr_handler_dslx",
@@ -1130,7 +1132,7 @@ verilog_library(
     name = "ram_rw_handler_verilog_lib",
     srcs = [
         ":ram_rw_handler.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -1198,6 +1200,7 @@ xls_dslx_verilog(
         "pipeline_stages": "6",
         "reset": "rst",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "FseProbaFreqDecoderInst",
     library = ":fse_proba_freq_dec_dslx",
@@ -1234,7 +1237,7 @@ verilog_library(
     name = "fse_proba_freq_dec_lib",
     srcs = [
         ":fse_proba_freq_dec.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -1284,7 +1287,9 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "literals_block_header_dec_verilog",
-    codegen_args = window_buffer_codegen_args,
+    codegen_args = common_codegen_args | {
+        "module_name": "LiteralsBlockHeaderDecoder",
+    },
     dslx_top = "LiteralsHeaderDecoderInst",
     library = ":literals_block_header_dec_dslx",
     tags = ["manual"],
@@ -1319,7 +1324,9 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "sequence_conf_dec_verilog",
-    codegen_args = window_buffer_codegen_args,
+    codegen_args = common_codegen_args | {
+        "module_name": "SequenceConfDecoder",
+    },
     dslx_top = "SequenceConfDecoderInst",
     library = ":sequence_conf_dec_dslx",
     tags = ["manual"],
@@ -1376,7 +1383,7 @@ verilog_library(
     name = "refilling_shift_buffer_internal_verilog_lib",
     srcs = [
         ":refilling_shift_buffer_internal.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -1629,6 +1636,7 @@ xls_dslx_verilog(
         "pipeline_stages": "1",
         "reset": "rst",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "FseTableIterator",
     library = ":fse_table_iterator_dslx",
@@ -1707,6 +1715,7 @@ xls_dslx_verilog(
         "pipeline_stages": "4",
         "reset": "rst",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "FseTableCreatorInst",
     library = ":fse_table_creator_dslx",
@@ -1789,6 +1798,7 @@ xls_dslx_verilog(
         "pipeline_stages": "2",
         "reset": "rst",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "CommandConstructor",
     library = ":command_constructor_dslx",
@@ -1883,6 +1893,7 @@ xls_dslx_verilog(
         "pipeline_stages": "6",
         "reset": "rst",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "RamDemuxInst",
     library = ":ram_demux_dslx",
@@ -1958,6 +1969,7 @@ xls_dslx_verilog(
         "pipeline_stages": "6",
         "reset": "rst",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "RamDemuxNaiveInst",
     library = ":ram_demux_dslx",
@@ -2044,6 +2056,7 @@ xls_dslx_verilog(
         "pipeline_stages": "8",
         "reset": "rst",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "FseDecoderInst",
     library = ":fse_dec_dslx",
@@ -2135,6 +2148,7 @@ xls_dslx_verilog(
         "reset": "rst",
         "use_system_verilog": "false",
         "multi_proc": "true",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "RamDemux3Inst",
     library = ":ram_demux3_dslx",
@@ -2243,6 +2257,7 @@ xls_dslx_verilog(
         "reset": "rst",
         "use_system_verilog": "false",
         "multi_proc": "true",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "FseLookupCtrlInst",
     library = ":sequence_dec_dslx",
@@ -2288,6 +2303,7 @@ xls_dslx_verilog(
         "reset": "rst",
         "worst_case_throughput": "1",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "RleLiteralsDecoderInst",
     library = ":rle_literals_dec_dslx",
@@ -2364,6 +2380,7 @@ xls_dslx_verilog(
         "pipeline_stages": "1",
         "reset": "rst",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "RawLiteralsDecoderInst",
     library = ":raw_literals_dec_dslx",
@@ -2467,6 +2484,7 @@ xls_dslx_verilog(
         "worst_case_throughput": "1",
         "use_system_verilog": "false",
         "multi_proc": "true",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "LiteralsBufferInst",
     library = ":literals_buffer_dslx",
@@ -2632,6 +2650,7 @@ xls_dslx_verilog(
         "reset": "rst",
         "worst_case_throughput": "2",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "false",  # TODO: set to true once this option works with loopback channels
     },
     dslx_top = "LiteralsDecoderInst",
     library = ":literals_decoder_dslx",
@@ -2671,6 +2690,7 @@ synthesize_rtl(
     top_module = "LiteralsDecoder",
     deps = [
         ":literals_decoder_verilog_lib",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib",
     ],
 )
 
@@ -2730,6 +2750,7 @@ prescan_codegen_args = common_codegen_args | {
                           "huffman_prescan__internal_write_rsp_r:5",
     "io_constraints": "huffman_prescan__read_req_s:send:" +
                       "huffman_prescan__read_rsp_r:recv:5:5",
+    "materialize_internal_fifos": "false",  # TODO: remove once this option works with loopback channels
 }
 
 xls_dslx_verilog(
@@ -2769,6 +2790,7 @@ synthesize_rtl(
     top_module = "HuffmanPrescan",
     deps = [
         ":huffman_prescan_verilog_lib",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib",
     ],
 )
 
@@ -3304,6 +3326,7 @@ huffman_literals_dec_codegen_args = common_codegen_args | {
     "clock_period_ps": "0",
     "worst_case_throughput": "0",
     "minimize_worst_case_throughput": "true",
+    "materialize_internal_fifos": "false",  # TODO: remove once this option works with loopback channels
 }
 
 xls_dslx_verilog(
@@ -3337,6 +3360,7 @@ synthesize_rtl(
     top_module = "HuffmanLiteralsDecoder",
     deps = [
         ":huffman_literals_dec_verilog_lib",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper_verilog_lib",
     ],
 )
 
