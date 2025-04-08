@@ -289,7 +289,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // we skip it.
       return absl::OkStatus();
     }
-    if (!parametric_context.has_value() &&
+    if ((!parametric_context.has_value() ||
+         (*parametric_context)->is_invocation()) &&
         node->owner()->name() != module_.name()) {
       VLOG(5) << "Wrong module in ConvertSubtree; delegating to converter for  "
               << node->owner()->name();
@@ -719,8 +720,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (!annotation.has_value()) {
       Module* effective_module = &module_;
       if (parametric_context.has_value() &&
-          std::holds_alternative<ParametricInvocationDetails>(
-              (*parametric_context)->details())) {
+          (*parametric_context)->is_invocation()) {
         auto details = std::get<ParametricInvocationDetails>(
             (*parametric_context)->details());
         if (details.callee->owner() != &module_) {

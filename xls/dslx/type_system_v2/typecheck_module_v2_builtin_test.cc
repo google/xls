@@ -570,11 +570,7 @@ TEST(TypecheckV2BuiltinTest, GateReturnTypeMismatch) {
               TypecheckFails(HasSizeMismatch("u31", "u32")));
 }
 
-TEST(TypecheckV2BuiltinTest, DISABLED_OneHot) {
-  // This doesn't work yet. It gives an error in GenerateTypeInfo,
-  // probably because it needs the parametric environment in context of the main
-  // module at the invocation site at the same time it needs the function
-  // signature from the builtins module.
+TEST(TypecheckV2BuiltinTest, OneHot) {
   EXPECT_THAT(R"(const Y = one_hot(u32:2, true);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[33]")));
 }

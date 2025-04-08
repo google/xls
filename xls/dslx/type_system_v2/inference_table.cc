@@ -401,14 +401,16 @@ class InferenceTableImpl : public InferenceTable {
             ? std::vector<const TypeAnnotation*>()
             : it->second;
     if (parametric_context.has_value()) {
-      const auto& invocation_specific_annotations =
-          mutable_parametric_context_data_.at(*parametric_context)
-              .type_annotations_per_type_variable;
-      const auto invocation_specific_it =
-          invocation_specific_annotations.find(variable);
-      if (invocation_specific_it != invocation_specific_annotations.end()) {
-        absl::c_copy(invocation_specific_it->second,
-                     std::back_inserter(result));
+      if (mutable_parametric_context_data_.contains(*parametric_context)) {
+        const auto& invocation_specific_annotations =
+            mutable_parametric_context_data_.at(*parametric_context)
+                .type_annotations_per_type_variable;
+        const auto invocation_specific_it =
+            invocation_specific_annotations.find(variable);
+        if (invocation_specific_it != invocation_specific_annotations.end()) {
+          absl::c_copy(invocation_specific_it->second,
+                       std::back_inserter(result));
+        }
       }
     }
     return result;

@@ -5771,7 +5771,7 @@ proc P {
                                "is out of bounds of the array type.")));
 }
 
-TEST(TypecheckV2Test, DISABLED_ImportParametricFunctionWithDefaultExpression) {
+TEST(TypecheckV2Test, ImportParametricFunctionWithDefaultExpression) {
   constexpr std::string_view kImported = R"(
 pub fn some_function<N: u32, M: u32 = {N + 1}>() -> uN[M] { uN[M]:0 }
 )";
@@ -5785,7 +5785,7 @@ fn main() -> u5 {
   ImportData import_data = CreateImportDataForTest();
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
-              IsOkAndHolds(HasTypeInfo(HasNodeWithType("var", "uN[32]"))));
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("var", "uN[5]"))));
 }
 
 TEST(TypecheckV2Test, ImportParametricFunction) {
