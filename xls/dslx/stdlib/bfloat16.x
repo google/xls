@@ -258,3 +258,54 @@ fn float32_to_bfloat16_subnormals_flushed_to_zero(sign: u1, fraction: u23) -> bo
     type F32 = apfloat::APFloat<u32:8, u32:23>;
     from_float32(F32 { sign, bexp: u8:0, fraction }) == zero(sign)
 }
+
+// Converts the given unsigned integer to bfloat16. For u8, all values can be
+// captured exactly, so no need to round or handle overflow.
+pub fn from_uint8(x: u8) -> BF16 {
+    const MAX_EXPONENT = u4:7;
+    const BIAS = std::signed_max_value<BF16::EXP_SIZE>() as u8;  // 127
+
+    // Remove leading 1.
+    let lz = clz(x) as u4;
+    // Shifted by at last 1 so lowest bit is 0
+    let fraction = (x << (lz + u4:1))[1+:u7];
+
+    let exp = MAX_EXPONENT - lz;
+    let bexp = exp as u8 + BIAS;
+
+    let sign = u1:0;
+    let result = BF16 { sign, bexp, fraction };
+
+    // Handle special cases: zero and max negative s8.
+    if x == u8:0 { zero(sign) } else { result }
+}
+
+#[test]
+fn from_uint8_test() {
+    let expected = BF16 { sign: u1:0, bexp: u8:130, fraction: u7:64 };
+    let actual = from_uint8(u8:12);
+    assert_eq(expected, actual);
+
+    let expected = one(u1:0);
+    let actual = from_uint8(u8:1);
+    assert_eq(expected, actual);
+
+    let val = u8:35;
+    let actual = to_uint16(from_uint8(val));
+    assert_eq(val as u16, actual);
+
+    let val = u8:127;
+    let actual = to_uint16(from_uint8(val));
+    assert_eq(val as u16, actual);
+
+    let val = u8:255;
+    let actual = to_uint16(from_uint8(val));
+    assert_eq(val as u16, actual);
+
+    let val = u8:0;
+    let actual = to_uint16(from_uint8(val));
+    assert_eq(val as u16, actual);
+}
+
+#[quickcheck]
+fn uint8_roundtrip(x: u8) -> bool { to_uint16(from_uint8(x)) == x as u16 }
