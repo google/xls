@@ -18,7 +18,7 @@ import xls.examples.ram;
 import xls.modules.zstd.common ;
 import xls.modules.zstd.huffman_prescan;
 import xls.modules.zstd.memory.axi;
-import xls.modules.zstd.memory.axi_ram;
+import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.memory.mem_reader;
 import xls.modules.zstd.ram_mux;
 import xls.modules.zstd.refilling_shift_buffer;
@@ -1990,7 +1990,7 @@ proc HuffmanWeightsDecoder_test {
         let (axi_r_s, axi_r_r) = chan<AxiR>[TEST_RAM_N]("axi_r");
 
         unroll_for! (i, _) in range(u32:0, TEST_RAM_N) {
-            spawn axi_ram::AxiRamReader<
+            spawn axi_ram_reader::AxiRamReader<
                 TEST_AXI_ADDR_W, TEST_AXI_DATA_W,
                 TEST_AXI_DEST_W, TEST_AXI_ID_W,
                 TEST_RAM_SIZE,

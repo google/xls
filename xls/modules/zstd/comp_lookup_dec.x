@@ -18,7 +18,7 @@ import xls.examples.ram;
 import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;
 import xls.modules.zstd.memory.mem_reader;
-import xls.modules.zstd.memory.axi_ram;
+import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.fse_table_creator;
 import xls.modules.zstd.refilling_shift_buffer;
 import xls.modules.zstd.fse_proba_freq_dec;
@@ -1756,7 +1756,7 @@ proc CompLookupDecoderTest {
         let (testcase_axi_r_s, testcase_axi_r_r) = chan<AxiR>("testcase_axi_r");
         let (testcase_axi_ar_s, testcase_axi_ar_r) = chan<AxiAr>("testcase_axi_ar");
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_ADDR_WIDTH, TEST_AXI_DATA_WIDTH, TEST_AXI_DEST_WIDTH, TEST_AXI_ID_WIDTH,
             TEST_CASE_RAM_SIZE, TEST_CASE_RAM_BASE_ADDR, TEST_CASE_RAM_DATA_WIDTH,
             TEST_CASE_RAM_ADDR_WIDTH, TEST_CASE_RAM_NUM_PARTITIONS,
