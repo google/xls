@@ -14,7 +14,7 @@
 
 import std;
 import xls.examples.ram;
-import xls.modules.zstd.memory.axi_ram;
+import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.common;
 import xls.modules.zstd.huffman_literals_dec;
 import xls.modules.zstd.parallel_rams;
@@ -1326,7 +1326,7 @@ proc CompressBlockDecoderTest {
             >(
                 axi_ram_rd_req_r[i], axi_ram_rd_resp_s[i], axi_ram_wr_req_r[i], axi_ram_wr_resp_s[i]
             );
-            spawn axi_ram::AxiRamReader<
+            spawn axi_ram_reader::AxiRamReader<
                 TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W, TEST_CASE_RAM_SIZE,
                 TEST_CASE_RAM_BASE_ADDR, TEST_CASE_RAM_DATA_W, TEST_CASE_RAM_ADDR_W
             >(
