@@ -327,8 +327,8 @@ place_and_route(
 )
 
 xls_dslx_library(
-    name = "axi_ram_dslx",
-    srcs = ["axi_ram.x"],
+    name = "axi_ram_reader_dslx",
+    srcs = ["axi_ram_reader.x"],
     deps = [
         ":axi_dslx",
         "//xls/examples:ram_dslx",
@@ -337,73 +337,74 @@ xls_dslx_library(
 )
 
 xls_dslx_test(
-    name = "axi_ram_dslx_test",
-    library = ":axi_ram_dslx",
+    name = "axi_ram_reader_dslx_test",
+    library = ":axi_ram_reader_dslx",
 )
 
 # FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 AXI_RAM_READER_CLOCK_PERIOD_PS = "850"
 
 axi_ram_reader_codegen_args = common_codegen_args | {
+    "module_name": "axi_ram_reader",
     "clock_period_ps": AXI_RAM_READER_CLOCK_PERIOD_PS,
     "ram_configurations": "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
         latency = 5,
         ram_name = "ram",
-        rd_req = "axi_ram__rd_req_s",
-        rd_resp = "axi_ram__rd_resp_r",
-        wr_req = "axi_ram__wr_req_s",
-        wr_resp = "axi_ram__wr_resp_r",
+        rd_req = "axi_ram_reader__rd_req_s",
+        rd_resp = "axi_ram_reader__rd_resp_r",
+        wr_req = "axi_ram_reader__wr_req_s",
+        wr_resp = "axi_ram_reader__wr_resp_r",
     ),
 }
 
 xls_dslx_verilog(
-    name = "axi_ram_verilog",
+    name = "axi_ram_reader_verilog",
     codegen_args = axi_ram_reader_codegen_args,
     dslx_top = "AxiRamReaderInstWithEmptyWrites",
-    library = ":axi_ram_dslx",
+    library = ":axi_ram_reader_dslx",
     tags = ["manual"],
-    verilog_file = "axi_ram.v",
+    verilog_file = "axi_ram_reader.v",
 )
 
 verilog_library(
-    name = "axi_ram_verilog_lib",
+    name = "axi_ram_reader_verilog_lib",
     srcs = [
-        ":axi_ram.v",
+        ":axi_ram_reader.v",
     ],
     tags = ["manual"],
 )
 
 xls_benchmark_ir(
-    name = "axi_ram_opt_ir_benchmark",
-    src = ":axi_ram_verilog.opt.ir",
+    name = "axi_ram_reader_opt_ir_benchmark",
+    src = ":axi_ram_reader_verilog.opt.ir",
     benchmark_ir_args = axi_ram_reader_codegen_args,
     tags = ["manual"],
 )
 
 synthesize_rtl(
-    name = "axi_ram_synth_asap7",
+    name = "axi_ram_reader_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
     tags = ["manual"],
-    top_module = "AxiRam",
+    top_module = "axi_ram_reader",
     deps = [
-        ":axi_ram_verilog_lib",
+        ":axi_ram_reader_verilog_lib",
     ],
 )
 
 benchmark_synth(
-    name = "axi_ram_benchmark_synth",
-    synth_target = ":axi_ram_synth_asap7",
+    name = "axi_ram_reader_benchmark_synth",
+    synth_target = ":axi_ram_reader_synth_asap7",
     tags = ["manual"],
 )
 
 place_and_route(
-    name = "axi_ram_place_and_route",
+    name = "axi_ram_reader_place_and_route",
     clock_period = "750",
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
     stop_after_step = "global_routing",
-    synthesized_rtl = ":axi_ram_synth_asap7",
+    synthesized_rtl = ":axi_ram_reader_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )

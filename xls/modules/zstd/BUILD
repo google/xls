@@ -1424,7 +1424,7 @@ xls_dslx_library(
         ":parallel_rams_dslx",
         ":sequence_dec_dslx",
         "//xls/examples:ram_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
         "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
@@ -1484,7 +1484,7 @@ zstd_dec_deps = [
     "//xls/examples:ram_dslx",
     "//xls/modules/zstd/memory:mem_reader_dslx",
     "//xls/modules/zstd/memory:mem_writer_dslx",
-    "//xls/modules/zstd/memory:axi_ram_dslx",
+    "//xls/modules/zstd/memory:axi_ram_reader_dslx",
 ]
 
 xls_dslx_library(
@@ -1751,7 +1751,7 @@ xls_dslx_library(
         ":shift_buffer_dslx",
         "//xls/examples:ram_dslx",
         "//xls/modules/zstd/memory:axi_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
     ],
 )
 
@@ -2415,7 +2415,7 @@ xls_dslx_library(
         ":refilling_shift_buffer_dslx",
         ":sequence_conf_dec_dslx",
         ":shift_buffer_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
         "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
@@ -2735,7 +2735,7 @@ xls_dslx_library(
         ":rle_literals_dec_dslx",
         "//xls/examples:ram_dslx",
         "//xls/modules/zstd/memory:axi_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
         "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
@@ -3392,7 +3392,7 @@ xls_dslx_library(
         ":ram_mux_dslx",
         ":refilling_shift_buffer_dslx",
         "//xls/examples:ram_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
         "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
@@ -3481,7 +3481,7 @@ xls_dslx_library(
         ":huffman_data_preprocessor_dslx",
         ":huffman_decoder_dslx",
         ":huffman_prescan_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
     ],
 )
 
