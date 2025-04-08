@@ -178,6 +178,9 @@ struct OptimizationPassOptions : public PassOptionsBase {
 
   // Optimize for best case throughput, even at the cost of area.
   bool optimize_for_best_case_throughput = false;
+
+  // Enable resource sharing to reduce area
+  bool enable_resource_sharing = false;
 };
 
 class OptimizationContext {

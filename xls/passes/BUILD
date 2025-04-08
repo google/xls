@@ -145,6 +145,7 @@ cc_library(
         ":ram_rewrite_pass",
         ":reassociation_pass",
         ":receive_default_value_simplification_pass",
+        ":resource_sharing_pass",
         ":select_lifting_pass",
         ":select_simplification_pass",
         ":sparsify_select_pass",
@@ -961,6 +962,27 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "resource_sharing_pass",
+    srcs = ["resource_sharing_pass.cc"],
+    hdrs = ["resource_sharing_pass.h"],
+    deps = [
+        ":optimization_pass",
+        ":optimization_pass_registry",
+        ":pass_base",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "@cppitertools",
     ],
 )
 
@@ -3795,6 +3817,27 @@ cc_test(
         "//xls/ir:value",
         "@com_google_absl//absl/status:status_matchers",
         "@cppitertools",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "resource_sharing_pass_test",
+    srcs = ["resource_sharing_pass_test.cc"],
+    deps = [
+        ":optimization_pass",
+        ":pass_base",
+        ":resource_sharing_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:op",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],
 )

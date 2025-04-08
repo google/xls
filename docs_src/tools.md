@@ -196,6 +196,11 @@ purposes only.
     does not otherwise modify the pipeline being used and the pass is considered
     to have finished successfully without making any changes. Multiple passes
     may be passed at once separated by commas.
+*   `--enable_resource_sharing=true|false`: Controls whether to enable automatic
+    resource sharing optimization to save area. This optimization saves area by
+    re-using the same hardware resources (e.g., multiplier) for multiple
+    mutually-exclusive operations. This transformation might increase the
+    critical path latency. Defaults to `false`.
 
 ## [`print_bom`](https://github.com/google/xls/tree/main/xls/tools/print_bom.cc)
 

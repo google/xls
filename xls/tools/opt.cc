@@ -111,6 +111,7 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
       options.use_context_narrowing_analysis;
   pass_options.optimize_for_best_case_throughput =
       options.optimize_for_best_case_throughput;
+  pass_options.enable_resource_sharing = options.enable_resource_sharing;
   pass_options.bisect_limit = options.bisect_limit;
   pass_options.record_metrics = options.metrics != nullptr;
   PassResults results;

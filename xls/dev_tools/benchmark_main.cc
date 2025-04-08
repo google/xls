@@ -126,6 +126,8 @@ ABSL_FLAG(
     "Optimize for best case throughput, even at the cost of area. This will "
     "aggressively optimize to create opportunities for improved throughput, "
     "but at the cost of constraining the schedule and thus increasing area.");
+ABSL_FLAG(bool, enable_resource_sharing, false,
+          "Enable the resource sharing optimization to save area.");
 ABSL_FLAG(bool, run_evaluators, true,
           "Whether to run the JIT and interpreter.");
 ABSL_FLAG(bool, compare_delay_to_synthesis, false,

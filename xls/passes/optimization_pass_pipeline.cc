@@ -70,6 +70,7 @@
 #include "xls/passes/ram_rewrite_pass.h"
 #include "xls/passes/reassociation_pass.h"
 #include "xls/passes/receive_default_value_simplification_pass.h"
+#include "xls/passes/resource_sharing_pass.h"
 #include "xls/passes/select_lifting_pass.h"
 #include "xls/passes/select_simplification_pass.h"
 #include "xls/passes/sparsify_select_pass.h"
@@ -292,6 +293,7 @@ PostInliningPassGroup::PostInliningPassGroup()
   Add<IfOptLevelAtLeast<1, PostInliningOptPassGroup>>();
   Add<DeadCodeEliminationPass>();
   Add<LabelRecoveryPass>();
+  Add<ResourceSharingPass>();
 }
 std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
     bool debug_optimizations) {

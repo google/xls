@@ -108,6 +108,8 @@ ABSL_FLAG(
     "aggressively optimize to create opportunities for improved throughput, "
     "but at the cost of constraining the schedule and thus increasing area.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
+ABSL_FLAG(bool, enable_resource_sharing, false,
+          "Enable the resource sharing optimization to save area.");
 ABSL_FLAG(
     std::optional<std::string>, passes, std::nullopt,
     "Explicit list of passes to run in a specific order. Passes are named "
@@ -224,6 +226,7 @@ absl::Status RealMain(std::string_view input_path) {
       absl::GetFlag(FLAGS_use_context_narrowing_analysis);
   bool optimize_for_best_case_throughput =
       absl::GetFlag(FLAGS_optimize_for_best_case_throughput);
+  bool enable_resource_sharing = absl::GetFlag(FLAGS_enable_resource_sharing);
   std::optional<std::string> pass_list = absl::GetFlag(FLAGS_passes);
   std::optional<int64_t> bisect_limit =
       absl::GetFlag(FLAGS_passes_bisect_limit);
@@ -281,6 +284,7 @@ absl::Status RealMain(std::string_view input_path) {
               .use_context_narrowing_analysis = use_context_narrowing_analysis,
               .optimize_for_best_case_throughput =
                   optimize_for_best_case_throughput,
+              .enable_resource_sharing = enable_resource_sharing,
               .pass_pipeline = pass_pipeline,
               .bisect_limit = bisect_limit,
               .metrics = wants_metrics ? &metrics : nullptr,

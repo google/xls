@@ -47,6 +47,7 @@ struct OptOptions {
   std::vector<RamRewrite> ram_rewrites = {};
   bool use_context_narrowing_analysis = false;
   bool optimize_for_best_case_throughput = false;
+  bool enable_resource_sharing = false;
   std::variant<std::nullopt_t, std::string_view, PassPipelineProto>
       pass_pipeline = std::nullopt;
   std::optional<int64_t> bisect_limit;
