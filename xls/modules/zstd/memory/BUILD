@@ -94,6 +94,7 @@ AXI_READER_CLOCK_PERIOD_PS = "1700"
 
 axi_reader_codegen_args = common_codegen_args | {
     "clock_period_ps": AXI_READER_CLOCK_PERIOD_PS,
+    "module_name": "axi_reader",
 }
 
 xls_dslx_verilog(
@@ -164,7 +165,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "axi_stream_remove_empty_verilog",
-    codegen_args = common_codegen_args,
+    codegen_args = common_codegen_args | {"module_name": "axi_stream_remove_empty"},
     dslx_top = "AxiStreamRemoveEmptyInst",
     library = ":axi_stream_remove_empty_dslx",
     tags = ["manual"],
@@ -209,7 +210,7 @@ place_and_route(
 
 xls_dslx_verilog(
     name = "remove_empty_bytes_verilog",
-    codegen_args = common_codegen_args,
+    codegen_args = common_codegen_args | {"module_name": "remove_empty_bytes"},
     dslx_top = "RemoveEmptyBytesInst",
     library = ":axi_stream_remove_empty_dslx",
     tags = ["manual"],
@@ -275,7 +276,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "axi_stream_downscaler_verilog",
-    codegen_args = common_codegen_args,
+    codegen_args = common_codegen_args | {"module_name": "axi_stream_downscaler"},
     dslx_top = "AxiStreamDownscalerInst",
     library = ":axi_stream_downscaler_dslx",
     tags = ["manual"],
@@ -430,6 +431,7 @@ MEM_READER_CLOCK_PERIOD_PS = "2600"
 
 mem_reader_codegen_args = common_codegen_args | {
     "clock_period_ps": MEM_READER_CLOCK_PERIOD_PS,
+    "module_name": "mem_reader",
 }
 
 xls_dslx_verilog(
@@ -486,7 +488,7 @@ place_and_route(
 
 xls_dslx_verilog(
     name = "mem_reader_adv_verilog",
-    codegen_args = mem_reader_codegen_args,
+    codegen_args = mem_reader_codegen_args | {"module_name": "mem_reader_adv"},
     dslx_top = "MemReaderAdvInst",
     library = ":mem_reader_dslx",
     tags = ["manual"],
@@ -581,7 +583,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "axi_writer_verilog",
-    codegen_args = common_codegen_args,
+    codegen_args = common_codegen_args | {"module_name": "axi_writer"},
     dslx_top = "AxiWriterInst",
     library = ":axi_writer_dslx",
     tags = ["manual"],
@@ -752,7 +754,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "mem_writer_verilog",
-    codegen_args = common_codegen_args,
+    codegen_args = common_codegen_args | {"module_name": "mem_writer"},
     dslx_top = "MemWriterInst",
     library = ":mem_writer_dslx",
     tags = ["manual"],
