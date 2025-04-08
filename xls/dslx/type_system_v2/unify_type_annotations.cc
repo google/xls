@@ -320,13 +320,12 @@ class Unifier {
     // Unify the return type and argument types.
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_return_type,
                          UnifyTypeAnnotations(return_types, span));
-    std::vector<TypeAnnotation*> unified_param_types;
+    std::vector<const TypeAnnotation*> unified_param_types;
     unified_param_types.reserve(param_types.size());
     for (const std::vector<const TypeAnnotation*>& argument : param_types) {
       XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_param_type,
                            UnifyTypeAnnotations(argument, span));
-      unified_param_types.push_back(
-          const_cast<TypeAnnotation*>(unified_param_type));
+      unified_param_types.push_back(unified_param_type);
     }
     return module_.Make<FunctionTypeAnnotation>(
         unified_param_types, const_cast<TypeAnnotation*>(unified_return_type));

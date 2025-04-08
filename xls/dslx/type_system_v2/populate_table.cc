@@ -1214,7 +1214,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->callee(), function_type_variable));
 
-    std::vector<TypeAnnotation*> arg_types;
+    std::vector<const TypeAnnotation*> arg_types;
     arg_types.reserve(node->args().size());
     int self_arg_offset = 0;
     if (node->callee()->kind() == AstNodeKind::kAttr) {

@@ -1849,8 +1849,9 @@ TEST(AstClonerTest, FunctionAnnotation) {
                            module->GetMemberOrError<Function>("foo"));
   const FunctionTypeAnnotation* annotation =
       module->Make<FunctionTypeAnnotation>(
-          std::vector<TypeAnnotation*>{foo->params()[0]->type_annotation(),
-                                       foo->params()[1]->type_annotation()},
+          std::vector<const TypeAnnotation*>{
+              foo->params()[0]->type_annotation(),
+              foo->params()[1]->type_annotation()},
           foo->return_type());
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(annotation));
   EXPECT_EQ(annotation->ToString(), clone->ToString());
@@ -1866,8 +1867,9 @@ TEST(AstClonerTest, ReturnTypeAnnotation) {
                            module->GetMemberOrError<Function>("foo"));
   const ReturnTypeAnnotation* annotation =
       module->Make<ReturnTypeAnnotation>(module->Make<FunctionTypeAnnotation>(
-          std::vector<TypeAnnotation*>{foo->params()[0]->type_annotation(),
-                                       foo->params()[1]->type_annotation()},
+          std::vector<const TypeAnnotation*>{
+              foo->params()[0]->type_annotation(),
+              foo->params()[1]->type_annotation()},
           foo->return_type()));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(annotation));
   EXPECT_EQ(annotation->ToString(), clone->ToString());
@@ -1883,8 +1885,9 @@ TEST(AstClonerTest, ParamTypeAnnotation) {
                            module->GetMemberOrError<Function>("foo"));
   const ParamTypeAnnotation* annotation = module->Make<ParamTypeAnnotation>(
       module->Make<FunctionTypeAnnotation>(
-          std::vector<TypeAnnotation*>{foo->params()[0]->type_annotation(),
-                                       foo->params()[1]->type_annotation()},
+          std::vector<const TypeAnnotation*>{
+              foo->params()[0]->type_annotation(),
+              foo->params()[1]->type_annotation()},
           foo->return_type()),
       0);
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(annotation));

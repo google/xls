@@ -553,7 +553,7 @@ class ElementTypeAnnotation : public TypeAnnotation {
 class FunctionTypeAnnotation : public TypeAnnotation {
  public:
   FunctionTypeAnnotation(Module* owner,
-                         std::vector<TypeAnnotation*> param_types,
+                         std::vector<const TypeAnnotation*> param_types,
                          TypeAnnotation* return_type);
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -566,7 +566,7 @@ class FunctionTypeAnnotation : public TypeAnnotation {
 
   TypeAnnotation* return_type() const { return return_type_; }
 
-  const std::vector<TypeAnnotation*>& param_types() const {
+  const std::vector<const TypeAnnotation*>& param_types() const {
     return param_types_;
   }
 
@@ -575,7 +575,7 @@ class FunctionTypeAnnotation : public TypeAnnotation {
   std::string ToString() const override;
 
  private:
-  const std::vector<TypeAnnotation*> param_types_;
+  const std::vector<const TypeAnnotation*> param_types_;
   TypeAnnotation* return_type_;
 };
 

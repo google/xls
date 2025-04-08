@@ -407,7 +407,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
                                       (!accept_predicate.has_value() ||
                                        (*accept_predicate)(annotation));
                              }));
-    const std::vector<TypeAnnotation*>& resolved_types =
+    const std::vector<const TypeAnnotation*>& resolved_types =
         dynamic_cast<const FunctionTypeAnnotation*>(function_type)
             ->param_types();
     CHECK(param_type->param_index() < resolved_types.size());

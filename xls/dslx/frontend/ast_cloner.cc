@@ -1032,11 +1032,12 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleFunctionTypeAnnotation(
       const FunctionTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->return_type()));
-    std::vector<TypeAnnotation*> param_types;
+    std::vector<const TypeAnnotation*> param_types;
     param_types.reserve(n->param_types().size());
-    for (TypeAnnotation* argument : n->param_types()) {
+    for (const TypeAnnotation* argument : n->param_types()) {
       XLS_RETURN_IF_ERROR(ReplaceOrVisit(argument));
-      param_types.push_back(down_cast<TypeAnnotation*>(old_to_new_[argument]));
+      param_types.push_back(
+          down_cast<const TypeAnnotation*>(old_to_new_[argument]));
     }
     old_to_new_[n] = module_->Make<FunctionTypeAnnotation>(
         std::move(param_types),

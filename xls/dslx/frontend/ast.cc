@@ -1099,7 +1099,7 @@ std::string ElementTypeAnnotation::ToString() const {
 // -- class FunctionTypeAnnotation
 
 FunctionTypeAnnotation::FunctionTypeAnnotation(
-    Module* owner, std::vector<TypeAnnotation*> param_types,
+    Module* owner, std::vector<const TypeAnnotation*> param_types,
     TypeAnnotation* return_type)
     : TypeAnnotation(owner, return_type->span()),
       param_types_(std::move(param_types)),
@@ -1123,7 +1123,9 @@ std::vector<AstNode*> FunctionTypeAnnotation::GetChildren(
   // returned regardless of the `want_types` flag.
   std::vector<AstNode*> result;
   result.reserve(param_types_.size() + 1);
-  absl::c_copy(param_types_, std::back_inserter(result));
+  for (const TypeAnnotation* param : param_types_) {
+    result.push_back(const_cast<TypeAnnotation*>(param));
+  }
   result.push_back(return_type_);
   return result;
 }
