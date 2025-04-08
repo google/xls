@@ -18,7 +18,7 @@ import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;
 import xls.modules.zstd.csr_config;
 import xls.modules.zstd.sequence_executor;
-import xls.modules.zstd.memory.axi_ram;
+import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.zstd_dec;
 import xls.modules.zstd.comp_block_dec;
 import xls.modules.zstd.sequence_dec;
@@ -451,7 +451,7 @@ proc ZstdDecoderTest {
                 TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, TEST_RAM_INITIALIZED
             >(comp_ram_rd_req_r[i], comp_ram_rd_resp_s[i], comp_ram_wr_req_r[i], comp_ram_wr_resp_s[i]);
 
-            spawn axi_ram::AxiRamReader<
+            spawn axi_ram_reader::AxiRamReader<
                 TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W, TEST_RAM_SIZE,
                 TEST_RAM_BASE_ADDR, TEST_RAM_DATA_W, TEST_RAM_ADDR_W
             >(comp_axi_ar_r[i], comp_axi_r_s[i], comp_ram_rd_req_s[i], comp_ram_rd_resp_r[i]);
@@ -679,17 +679,17 @@ proc ZstdDecoderTest {
             TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, TEST_RAM_INITIALIZED,
         > (raw_ram_rd_req_r, raw_ram_rd_resp_s, raw_ram_wr_req_r, raw_ram_wr_resp_s);
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W,
             TEST_RAM_SIZE, TEST_RAM_BASE_ADDR, TEST_RAM_DATA_W, TEST_RAM_ADDR_W,
         >(fh_axi_ar_r, fh_axi_r_s, fh_ram_rd_req_s, fh_ram_rd_resp_r);
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W,
             TEST_RAM_SIZE, TEST_RAM_BASE_ADDR, TEST_RAM_DATA_W, TEST_RAM_ADDR_W,
         >(bh_axi_ar_r, bh_axi_r_s, bh_ram_rd_req_s, bh_ram_rd_resp_r);
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W,
             TEST_RAM_SIZE, TEST_RAM_BASE_ADDR, TEST_RAM_DATA_W, TEST_RAM_ADDR_W,
         >(raw_axi_ar_r, raw_axi_r_s, raw_ram_rd_req_s, raw_ram_rd_resp_r);
