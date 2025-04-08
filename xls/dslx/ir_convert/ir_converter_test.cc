@@ -3184,7 +3184,7 @@ proc main {
                        HasSubstr("tokens cannot be placed in arrays.")));
 }
 
-TEST(IrConverterTest, ArraySizeBuiltin) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ArraySizeBuiltin) {
   constexpr std::string_view program =
       R"(
 fn main(x: u8[42]) -> u32 {
@@ -3261,7 +3261,7 @@ proc Counter {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, BitCount) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, BitCount) {
   constexpr std::string_view kProgram = R"(
 struct S {
   a: u32
@@ -3288,7 +3288,7 @@ fn main() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ElementCount) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ElementCount) {
   constexpr std::string_view kProgram = R"(
 struct S {
   a: u32,

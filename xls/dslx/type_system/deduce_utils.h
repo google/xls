@@ -258,6 +258,13 @@ absl::StatusOr<const TypeAnnotation*> GetRealTypeAnnotationForSelf(
 // should not cause a type error to occur).
 bool IsAcceptableCast(const Type& from, const Type& to);
 
+// Notes the constexpr value for a builtin function invocation in `ti` if
+// applicable.
+absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
+                                            const Invocation* invocation,
+                                            const FunctionType& fn_type,
+                                            TypeInfo* ti);
+
 // Returns the TypeInfo for the given node, preferring the current TypeInfo if
 // the node is in the same module, otherwise giving the root TypeInfo for
 // the node's module.

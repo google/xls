@@ -303,29 +303,17 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
     XLS_RETURN_IF_ERROR(TypecheckIsAcceptableWideningCast(ctx, invocation));
   }
 
-  // array_size is always a constexpr result since it just needs the type
-  // information
-  if (callee_nameref->identifier() == "array_size") {
-    auto* array_type = down_cast<const ArrayType*>(fn_type->params()[0].get());
-    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
-    ctx->type_info()->NoteConstExpr(
-        invocation, InterpValue::MakeU32(static_cast<int32_t>(array_size)));
+  // Compute and note the constexpr value for functions like `array_size` and
+  // `bit_count`.
+  for (ExprOrType parametric : invocation->explicit_parametrics()) {
+    if (std::holds_alternative<TypeAnnotation*>(parametric)) {
+      auto* annotation =
+          std::get<TypeAnnotation*>(invocation->explicit_parametrics()[0]);
+      XLS_RETURN_IF_ERROR(ctx->DeduceAndResolve(annotation).status());
+    }
   }
-
-  // bit_count and element_count are similar to array_size, but uses the
-  // parametric argument rather than a value.
-  if (callee_nameref->identifier() == "bit_count" ||
-      callee_nameref->identifier() == "element_count") {
-    auto* annotation =
-        std::get<TypeAnnotation*>(invocation->explicit_parametrics()[0]);
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                         ctx->DeduceAndResolve(annotation));
-    XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         callee_nameref->identifier() == "element_count"
-                             ? GetElementCountAsInterpValue(type.get())
-                             : GetBitCountAsInterpValue(type.get()));
-    ctx->type_info()->NoteConstExpr(invocation, value);
-  }
+  XLS_RETURN_IF_ERROR(NoteBuiltinInvocationConstExpr(
+      callee_nameref->identifier(), invocation, *fn_type, ctx->type_info()));
 
   if (callee_nameref->identifier() == "cover!") {
     XLS_RETURN_IF_ERROR(TypecheckCoverBuiltinInvocation(ctx, invocation));

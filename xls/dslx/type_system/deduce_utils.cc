@@ -33,6 +33,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -1089,6 +1090,36 @@ bool IsAcceptableCast(const Type& from, const Type& to) {
     return true;
   }
   return false;
+}
+
+absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
+                                            const Invocation* invocation,
+                                            const FunctionType& fn_type,
+                                            TypeInfo* ti) {
+  // array_size is always a constexpr result since it just needs the type
+  // information
+  if (fn_name == "array_size") {
+    auto* array_type = down_cast<const ArrayType*>(fn_type.params()[0].get());
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
+    ti->NoteConstExpr(invocation,
+                      InterpValue::MakeU32(static_cast<int32_t>(array_size)));
+  }
+
+  // bit_count and element_count are similar to array_size, but use the
+  // parametric argument rather than a value.
+  if (fn_name == "bit_count" || fn_name == "element_count") {
+    CHECK_EQ(invocation->explicit_parametrics().size(), 1);
+    std::optional<const Type*> explicit_parametric_type = ti->GetItem(
+        std::get<TypeAnnotation*>(invocation->explicit_parametrics()[0]));
+    CHECK(explicit_parametric_type.has_value());
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        fn_name == "element_count"
+            ? GetElementCountAsInterpValue(*explicit_parametric_type)
+            : GetBitCountAsInterpValue(*explicit_parametric_type));
+    ti->NoteConstExpr(invocation, value);
+  }
+  return absl::OkStatus();
 }
 
 const TypeInfo& GetTypeInfoForNodeIfDifferentModule(

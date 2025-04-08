@@ -1170,6 +1170,19 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (const auto* format_macro = dynamic_cast<const FormatMacro*>(node)) {
       return NoteFormatMacroVerbosityConstExpr(format_macro, type, ti);
     }
+    if (const auto* invocation = dynamic_cast<const Invocation*>(node);
+        invocation != nullptr && IsBuiltinFn(invocation->callee())) {
+      NameRef* callee_nameref = dynamic_cast<NameRef*>(invocation->callee());
+      CHECK_NE(callee_nameref, nullptr);
+      std::optional<const Type*> callee_type =
+          ti->GetItem(invocation->callee());
+      CHECK(callee_type.has_value());
+      const auto* function_type =
+          dynamic_cast<const FunctionType*>(*callee_type);
+      CHECK_NE(function_type, nullptr);
+      return NoteBuiltinInvocationConstExpr(callee_nameref->identifier(),
+                                            invocation, *function_type, ti);
+    }
     return absl::OkStatus();
   }
 
