@@ -23,6 +23,8 @@ The sources contain:
 
 """
 
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_users"],
@@ -32,6 +34,14 @@ package(
 exports_files(
     [
         "zstd_dec_wrapper.v",
-        "xls_channel_fifo.v",
+        "xls_fifo_wrapper.v",
     ],
+)
+
+verilog_library(
+    name = "xls_fifo_wrapper_verilog_lib",
+    srcs = [
+        ":xls_fifo_wrapper.v",
+    ],
+    tags = ["manual"],
 )
