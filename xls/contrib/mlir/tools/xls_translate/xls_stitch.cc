@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
@@ -50,9 +51,10 @@ struct ChannelPortNames {
 ChannelPortNames getChannelPortNames(StringRef chan,
                                      const XlsStitchOptions& options) {
   ChannelPortNames result;
-  result.data = absl::StrCat(chan.str(), options.data_port_suffix);
-  result.ready = absl::StrCat(chan.str(), options.ready_port_suffix);
-  result.valid = absl::StrCat(chan.str(), options.valid_port_suffix);
+  std::string sanitized = vast::SanitizeIdentifier(chan);
+  result.data = absl::StrCat(sanitized, options.data_port_suffix);
+  result.ready = absl::StrCat(sanitized, options.ready_port_suffix);
+  result.valid = absl::StrCat(sanitized, options.valid_port_suffix);
   return result;
 }
 ChannelPortNames getChannelPortNames(ChanOp chan,
@@ -185,6 +187,8 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
           });
       StringRef idealInstanceName =
           instantiate.getName().value_or(instantiate.getEproc());
+      CHECK(idealInstanceName == vast::SanitizeIdentifier(idealInstanceName))
+          << "Invalid name when stitching: " << idealInstanceName.str();
       std::string instanceName =
           absl::StrCat(idealInstanceName.str(), "_",
                        instantiationCount[idealInstanceName]++);
@@ -205,6 +209,8 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
         });
     StringRef idealInstanceName =
         instantiate.getName().value_or(instantiate.getEprocName());
+    CHECK(idealInstanceName == vast::SanitizeIdentifier(idealInstanceName))
+        << "Invalid name when stitching: " << idealInstanceName.str();
     std::string instanceName = absl::StrCat(
         idealInstanceName.str(), "_", instantiationCount[idealInstanceName]++);
     AddInstantiation(localChannels, globalChannels, clk, rst, top,
