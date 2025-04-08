@@ -3612,37 +3612,42 @@ pub fn round<EXP_SZ: u32, FRACTION_SZ: u32, ROUND_STYLE: RoundStyle = {RoundStyl
         APFloatTag::NAN => qnan<EXP_SZ, FRACTION_SZ>(),
         APFloatTag::INFINITY => inf<EXP_SZ, FRACTION_SZ>(f.sign),
         APFloatTag::ZERO => zero<EXP_SZ, FRACTION_SZ>(f.sign),
+        APFloatTag::SUBNORMAL => zero<EXP_SZ, FRACTION_SZ>(f.sign),
         _ => {
             const ROUND_STYLE_IS_TIES_TO_EVEN: bool = ROUND_STYLE == RoundStyle::TIES_TO_EVEN;
             const EXP_MAX = std::mask_bits<EXP_SZ>();
             const FRACTION_MAX = std::mask_bits<FRACTION_SZ>();
             const FRACTION_SZ_PLUS_ONE = FRACTION_SZ + u32:1;
-            const FRACTION_SZ_MINUS_ONE = FRACTION_SZ - u32:1;
             const_assert!(ROUND_STYLE_IS_TIES_TO_EVEN);
             if !has_fractional_part(f) {
                 f
-            } else if has_negative_exponent(f) {
-                let round_up =
-                    rne(f.fraction, FRACTION_SZ_MINUS_ONE as uN[std::clog2(FRACTION_SZ)]);
-                if round_up {
-                    one<EXP_SZ, FRACTION_SZ>(f.sign)
-                } else {
-                    zero<EXP_SZ, FRACTION_SZ>(f.sign)
-                }
             } else {
-                let exp = unbiased_exponent(f) as uN[EXP_SZ];
-                let round_up = if exp == uN[EXP_SZ]:0 {
-                    let two_exp_0 = u1:1;
-                    let widened_fraction = two_exp_0 ++ f.fraction;
-                    rne(widened_fraction, FRACTION_SZ as uN[std::clog2(FRACTION_SZ_PLUS_ONE)])
+                let exp = unbiased_exponent(f);
+                if exp < sN[EXP_SZ]:-1 {
+                    // abs(f) < 0.5
+                    zero<EXP_SZ, FRACTION_SZ>(f.sign)
+                } else if exp == sN[EXP_SZ]:-1 {
+                    if f.fraction == uN[FRACTION_SZ]:0 {
+                        // abs(f) == 0.5
+                        zero<EXP_SZ, FRACTION_SZ>(f.sign)
+                    } else {
+                        // 0.5 < abs(f) < 1.0
+                        one<EXP_SZ, FRACTION_SZ>(f.sign)
+                    }
                 } else {
-                    let lsb_index = (FRACTION_SZ as uN[EXP_SZ] - exp);
-                    rne(f.fraction, lsb_index as uN[std::clog2(FRACTION_SZ)])
-                };
-                if round_up {
-                    round_up_no_sign_positive_exp(f)
-                } else {
-                    round_down_no_sign_positive_exp(f)
+                    let round_up = if exp == sN[EXP_SZ]:0 {
+                        let two_exp_0 = u1:1;
+                        let widened_fraction = two_exp_0 ++ f.fraction;
+                        rne(widened_fraction, FRACTION_SZ as uN[std::clog2(FRACTION_SZ_PLUS_ONE)])
+                    } else {
+                        let lsb_index = (FRACTION_SZ as uN[EXP_SZ] - exp as uN[EXP_SZ]);
+                        rne(f.fraction, lsb_index as uN[std::clog2(FRACTION_SZ)])
+                    };
+                    if round_up {
+                        round_up_no_sign_positive_exp(f)
+                    } else {
+                        round_down_no_sign_positive_exp(f)
+                    }
                 }
             }
         },
@@ -3683,13 +3688,12 @@ fn round_fractional_test() {
 }
 
 #[test]
-fn round_fractional_negative_exp_test() {
+fn round_fractional_subnormal_test() {
     const F32_EXP_SZ = u32:8;
     const F32_FRACTION_SZ = u32:23;
     let zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
     let minus_zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
-    let one_f32 = one<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
-    let minus_one_f32 = one<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
+
     // round(1e-45) == 0.0
     assert_eq(
         round(APFloat<u32:8, u32:23> { fraction: uN[F32_FRACTION_SZ]:0x1, ..zero_f32 }), zero_f32);
@@ -3697,14 +3701,105 @@ fn round_fractional_negative_exp_test() {
     assert_eq(
         round(APFloat<u32:8, u32:23> { fraction: uN[F32_FRACTION_SZ]:0x1, ..minus_zero_f32 }),
         minus_zero_f32);
-    // round(1.1754942e-38) == 1.0
+    // round(1.1754942e-38) == 0.0
     assert_eq(
         round(APFloat<u32:8, u32:23> { fraction: uN[F32_FRACTION_SZ]:0x7fffff, ..zero_f32 }),
-        one_f32);
-    // round(-1.1754942e-38) == -1.0
+        zero_f32);
+    // round(-1.1754942e-38) == -0.0
     assert_eq(
         round(APFloat<u32:8, u32:23> { fraction: uN[F32_FRACTION_SZ]:0x7fffff, ..minus_zero_f32 }),
-        minus_one_f32);
+        minus_zero_f32);
+}
+
+#[test]
+fn round_fractional_negative_exp_test() {
+    const F32_EXP_SZ = u32:8;
+    const F32_FRACTION_SZ = u32:23;
+    let zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
+    let minus_zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
+
+    let one_f32 = one<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
+    let minus_one_f32 = one<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
+    // round(1.1754945e-38) == 0.0
+    assert_eq(
+        round(
+            APFloat<u32:8, u32:23> {
+                sign: u1:0,
+                bexp: uN[F32_EXP_SZ]:0x1,
+                fraction: uN[F32_FRACTION_SZ]:0x1,
+            }), zero_f32);
+    // round(-1.1754945e-38) == -0.0
+    assert_eq(
+        round(
+            APFloat<u32:8, u32:23> {
+                sign: u1:1,
+                bexp: uN[F32_EXP_SZ]:0x1,
+                fraction: uN[F32_FRACTION_SZ]:0x1,
+            }), minus_zero_f32);
+    // round(0.49999997) == 0.0
+    assert_eq(
+        round(
+            APFloat<u32:8, u32:23> {
+                sign: u1:0,
+                bexp: uN[F32_EXP_SZ]:0x7d,
+                fraction: uN[F32_FRACTION_SZ]:0x7fffff,
+            }), zero_f32);
+    // round(-0.49999997) == -0.0
+    assert_eq(
+        round(
+            APFloat<u32:8, u32:23> {
+                sign: u1:1,
+                bexp: uN[F32_EXP_SZ]:0x7d,
+                fraction: uN[F32_FRACTION_SZ]:0x7fffff,
+            }), minus_zero_f32);
+    // round(0.5) == 0.0
+    assert_eq(
+        round(
+            APFloat<u32:8, u32:23> {
+                sign: u1:0,
+                bexp: uN[F32_EXP_SZ]:0x7e,
+                fraction: uN[F32_FRACTION_SZ]:0,
+            }), zero_f32);
+    // round(-0.5) == -0.0
+    assert_eq(
+        round(
+            APFloat<u32:8, u32:23> {
+                sign: u1:1,
+                bexp: uN[F32_EXP_SZ]:0x7e,
+                fraction: uN[F32_FRACTION_SZ]:0,
+            }), minus_zero_f32);
+    // round(0.50000006) == 1.0
+    assert_eq(
+        round(
+            APFloat<u32:8, u32:23> {
+                sign: u1:0,
+                bexp: uN[F32_EXP_SZ]:0x7e,
+                fraction: uN[F32_FRACTION_SZ]:1,
+            }), one_f32);
+    // round(-0.50000006) == -1.0
+    assert_eq(
+        round(
+            APFloat<u32:8, u32:23> {
+                sign: u1:1,
+                bexp: uN[F32_EXP_SZ]:0x7e,
+                fraction: uN[F32_FRACTION_SZ]:1,
+            }), minus_one_f32);
+    // round(0.9999999) == 1.0
+    assert_eq(
+        round(
+            APFloat<u32:8, u32:23> {
+                sign: u1:0,
+                bexp: uN[F32_EXP_SZ]:0x7e,
+                fraction: uN[F32_FRACTION_SZ]:0x7ffffe,
+            }), one_f32);
+    // round(-0.9999999) == -1.0
+    assert_eq(
+        round(
+            APFloat<u32:8, u32:23> {
+                sign: u1:1,
+                bexp: uN[F32_EXP_SZ]:0x7e,
+                fraction: uN[F32_FRACTION_SZ]:0x7ffffe,
+            }), minus_one_f32);
 }
 
 #[test]
