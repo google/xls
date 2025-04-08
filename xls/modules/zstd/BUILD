@@ -1735,8 +1735,8 @@ py_test(
         "//xls/modules/zstd/cocotb:memory",
         "//xls/modules/zstd/cocotb:utils",
         "//xls/modules/zstd/cocotb:xlsstruct",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
