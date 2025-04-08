@@ -542,6 +542,7 @@ cc_library(
         "stdlib/fp_ext_trunc.x",
     ],
     deps = [
+        ":identifier",
         ":mlir_xls",
         "//xls/codegen:module_signature",
         "//xls/codegen:xls_metrics_cc_proto",
@@ -600,6 +601,17 @@ cc_binary(
         "@llvm-project//mlir:Support",
         "@llvm-project//mlir:TensorDialect",
         "@llvm-project//mlir:TranslateLib",
+    ],
+)
+
+cc_library(
+    name = "identifier",
+    srcs = ["util/identifier.cc"],
+    hdrs = ["util/identifier.h"],
+    deps = [
+        "//xls/codegen/vast",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:Support",
     ],
 )
 

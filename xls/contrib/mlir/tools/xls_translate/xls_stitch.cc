@@ -32,6 +32,7 @@
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
+#include "xls/contrib/mlir/util/identifier.h"
 #include "xls/ir/source_location.h"
 
 namespace mlir::xls {
@@ -51,10 +52,10 @@ struct ChannelPortNames {
 ChannelPortNames getChannelPortNames(StringRef chan,
                                      const XlsStitchOptions& options) {
   ChannelPortNames result;
-  std::string sanitized = vast::SanitizeIdentifier(chan);
-  result.data = absl::StrCat(sanitized, options.data_port_suffix);
-  result.ready = absl::StrCat(sanitized, options.ready_port_suffix);
-  result.valid = absl::StrCat(sanitized, options.valid_port_suffix);
+  std::string scrubbed = CleanupIdentifier(chan);
+  result.data = absl::StrCat(scrubbed, options.data_port_suffix);
+  result.ready = absl::StrCat(scrubbed, options.ready_port_suffix);
+  result.valid = absl::StrCat(scrubbed, options.valid_port_suffix);
   return result;
 }
 ChannelPortNames getChannelPortNames(ChanOp chan,
@@ -187,7 +188,7 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
           });
       StringRef idealInstanceName =
           instantiate.getName().value_or(instantiate.getEproc());
-      CHECK(idealInstanceName == vast::SanitizeIdentifier(idealInstanceName))
+      CHECK(idealInstanceName == CleanupIdentifier(idealInstanceName))
           << "Invalid name when stitching: " << idealInstanceName.str();
       std::string instanceName =
           absl::StrCat(idealInstanceName.str(), "_",
@@ -209,7 +210,7 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
         });
     StringRef idealInstanceName =
         instantiate.getName().value_or(instantiate.getEprocName());
-    CHECK(idealInstanceName == vast::SanitizeIdentifier(idealInstanceName))
+    CHECK(idealInstanceName == CleanupIdentifier(idealInstanceName))
         << "Invalid name when stitching: " << idealInstanceName.str();
     std::string instanceName = absl::StrCat(
         idealInstanceName.str(), "_", instantiationCount[idealInstanceName]++);
