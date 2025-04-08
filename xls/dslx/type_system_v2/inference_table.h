@@ -39,6 +39,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
@@ -71,11 +72,13 @@ class ParametricContext {
       std::variant<ParametricInvocationDetails, ParametricStructDetails>;
 
   ParametricContext(uint64_t id, const AstNode* node, Details details,
+                    TypeInfo* type_info,
                     std::optional<const ParametricContext*> parent_context,
                     std::optional<const TypeAnnotation*> self_type)
       : id_(id),
         node_(node),
         details_(std::move(details)),
+        type_info_(type_info),
         parent_context_(parent_context),
         self_type_(self_type) {}
 
@@ -93,6 +96,9 @@ class ParametricContext {
   // The details about the context, which depend on whether it is for a function
   // or struct.
   const Details& details() const { return details_; }
+
+  // Derived type info for this parametric context.
+  TypeInfo* type_info() const { return type_info_; }
 
   // Returns whether this context is for an invocation as opposed to a struct.
   bool is_invocation() const {
@@ -167,6 +173,7 @@ class ParametricContext {
   const uint64_t id_;  // Just for logging.
   const AstNode* node_;
   const Details details_;
+  TypeInfo* type_info_;
   const std::optional<const ParametricContext*> parent_context_;
   const std::optional<const TypeAnnotation*> self_type_;
 };
@@ -269,7 +276,8 @@ class InferenceTable {
       const Invocation& invocation, const Function& callee,
       std::optional<const Function*> caller,
       std::optional<const ParametricContext*> parent_context,
-      std::optional<const TypeAnnotation*> self_type) = 0;
+      std::optional<const TypeAnnotation*> self_type,
+      TypeInfo* invocation_type_info = nullptr) = 0;
 
   // Retrieves all the parametric invocations that have been defined.
   virtual std::vector<const ParametricContext*> GetParametricInvocations()
@@ -279,9 +287,11 @@ class InferenceTable {
   // returns the existing one with the same values. The idea is to tie each
   // struct parameterization to a canonicalized env to avoid unnecessary
   // aliasing. The `parametric_env` does not need values for defaulted bindings.
-  virtual const ParametricContext* GetOrCreateParametricStructContext(
+  virtual absl::StatusOr<const ParametricContext*>
+  GetOrCreateParametricStructContext(
       const StructDefBase* struct_def, const AstNode* node,
-      ParametricEnv parametric_env, const TypeAnnotation* self_type) = 0;
+      ParametricEnv parametric_env, const TypeAnnotation* self_type,
+      absl::FunctionRef<absl::StatusOr<TypeInfo*>()> type_info_factory) = 0;
 
   // Returns the expression for the value of the given parametric in the given
   // invocation, if the parametric has an explicit or default expression. If it

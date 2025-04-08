@@ -46,6 +46,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
@@ -196,7 +197,8 @@ class InferenceTableImpl : public InferenceTable {
       const Invocation& node, const Function& callee,
       std::optional<const Function*> caller,
       std::optional<const ParametricContext*> parent_context,
-      std::optional<const TypeAnnotation*> self_type) override {
+      std::optional<const TypeAnnotation*> self_type,
+      TypeInfo* invocation_type_info) override {
     VLOG(5) << "Add parametric invocation: " << node.ToString()
             << " from parent context: "
             << ::xls::dslx::ToString(parent_context);
@@ -214,8 +216,8 @@ class InferenceTableImpl : public InferenceTable {
     }
     auto context = std::make_unique<ParametricContext>(
         parametric_contexts_.size(), &node,
-        ParametricInvocationDetails{&callee, caller}, parent_context,
-        self_type);
+        ParametricInvocationDetails{&callee, caller}, invocation_type_info,
+        parent_context, self_type);
     const std::vector<ParametricBinding*>& bindings =
         callee.parametric_bindings();
     const std::vector<ExprOrType>& explicit_parametrics =
@@ -258,17 +260,20 @@ class InferenceTableImpl : public InferenceTable {
     return result;
   }
 
-  const ParametricContext* GetOrCreateParametricStructContext(
+  absl::StatusOr<const ParametricContext*> GetOrCreateParametricStructContext(
       const StructDefBase* struct_def, const AstNode* node,
-      ParametricEnv parametric_env, const TypeAnnotation* self_type) override {
+      ParametricEnv parametric_env, const TypeAnnotation* self_type,
+      absl::FunctionRef<absl::StatusOr<TypeInfo*>()> type_info_factory)
+      override {
     auto& contexts = parametric_struct_contexts_[struct_def];
     const auto it = contexts.find(parametric_env);
     if (it != contexts.end()) {
       return it->second;
     }
+    XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, type_info_factory());
     auto context = std::make_unique<ParametricContext>(
         parametric_contexts_.size(), node,
-        ParametricStructDetails{struct_def, parametric_env},
+        ParametricStructDetails{struct_def, parametric_env}, type_info,
         /*parent_context=*/std::nullopt, self_type);
     const ParametricContext* result = context.get();
     parametric_contexts_.push_back(std::move(context));

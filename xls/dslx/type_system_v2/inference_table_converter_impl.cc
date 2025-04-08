@@ -350,8 +350,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     CHECK_NE(invocation, nullptr);
     XLS_RETURN_IF_ERROR(base_type_info_->AddInvocationTypeInfo(
         *invocation, data.caller.has_value() ? *data.caller : nullptr,
-        parent_env, callee_env,
-        parametric_context_type_info_.at(parametric_context)));
+        parent_env, callee_env, parametric_context->type_info()));
     return absl::OkStatus();
   }
 
@@ -522,15 +521,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // The parametric invocation now gets its own data structure set up in both
     // the `InferenceTable` and the `TypeInfo` hierarchy.
 
-    XLS_ASSIGN_OR_RETURN(
-        const ParametricContext* invocation_context,
-        table_.AddParametricInvocation(
-            *invocation, *function, caller, caller_context,
-            function_and_target_object.target_struct_context.has_value()
-                ? (*function_and_target_object.target_struct_context)
-                      ->self_type()
-                : std::nullopt));
-    // Add parametric invocation type info to the root for the callee.
     TypeInfo* invocation_type_info = nullptr;
     if (function->owner() == &module_) {
       TypeInfo* base_type_info =
@@ -545,8 +535,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                            import_data_.type_info_owner().New(
                                function->owner(), callee_base_info));
     }
-    parametric_context_type_info_.emplace(invocation_context,
-                                          invocation_type_info);
+
+    XLS_ASSIGN_OR_RETURN(
+        const ParametricContext* invocation_context,
+        table_.AddParametricInvocation(
+            *invocation, *function, caller, caller_context,
+            function_and_target_object.target_struct_context.has_value()
+                ? (*function_and_target_object.target_struct_context)
+                      ->self_type()
+                : std::nullopt,
+            invocation_type_info));
 
     // Assign the formal parametric types to the actual explicit parametric
     // arguments, now that we know the formal types.
@@ -651,7 +649,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   TypeInfo* GetTypeInfo(
       std::optional<const ParametricContext*> parametric_context) {
     if (parametric_context.has_value()) {
-      return parametric_context_type_info_.at(*parametric_context);
+      return (*parametric_context)->type_info();
     }
     if (current_proc_type_info_.has_value()) {
       return *current_proc_type_info_;
@@ -870,18 +868,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         GenerateParametricStructEnv(parent_context, *ref.def, ref.parametrics,
                                     *node->GetSpan()));
     VLOG(6) << "Struct env: " << parametric_env.ToString();
-    const ParametricContext* struct_context =
+    auto type_info_factory = [&] {
+      return import_data_.type_info_owner().New(&module_, base_type_info_);
+    };
+    XLS_ASSIGN_OR_RETURN(
+        const ParametricContext* struct_context,
         table_.GetOrCreateParametricStructContext(
-            ref.def, node, parametric_env,
-            CreateStructAnnotation(module_, ref));
-    const auto it = parametric_context_type_info_.find(struct_context);
-    if (it != parametric_context_type_info_.end()) {
+            ref.def, node, parametric_env, CreateStructAnnotation(module_, ref),
+            type_info_factory));
+    const auto it = converted_parametric_envs_.find(struct_context);
+    if (it != converted_parametric_envs_.end()) {
       return struct_context;
     }
     converted_parametric_envs_.emplace(struct_context, parametric_env);
-    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data_.type_info_owner().New(
-                                            &module_, base_type_info_));
-    parametric_context_type_info_.emplace(struct_context, ti);
+    TypeInfo* ti = struct_context->type_info();
     absl::flat_hash_map<std::string, InterpValue> env_values =
         parametric_env.ToMap();
     absl::flat_hash_map<const NameDef*, ExprOrType> value_exprs;
@@ -1298,7 +1298,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               const ParametricContext* struct_context,
               GetOrCreateParametricStructContext(parametric_context,
                                                  *struct_or_proc, colon_ref));
-          evaluation_ti = parametric_context_type_info_.at(struct_context);
+          evaluation_ti = struct_context->type_info();
         }
       }
 
@@ -1777,7 +1777,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                              invocation_context));
         }
         XLS_ASSIGN_OR_RETURN(InterpValue value, Evaluate(*expr));
-        parametric_context_type_info_.at(invocation_context)
+        (*invocation_context)
+            .type_info()
             ->NoteConstExpr(binding->name_def(), value);
         values.emplace(binding->name_def()->identifier(), value);
       } else {
@@ -1831,7 +1832,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     CHECK_NE(invocation, nullptr);
     const absl::Span<Param* const> formal_args = context_data.callee->params();
     const absl::Span<Expr* const> actual_args = invocation->args();
-    TypeInfo* ti = parametric_context_type_info_.at(invocation_context);
+    TypeInfo* ti = invocation_context->type_info();
     std::vector<const TypeAnnotation*> formal_types;
     formal_types.reserve(formal_args.size());
     for (int i = 0; i < formal_args.size(); i++) {
@@ -2211,9 +2212,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (struct_or_proc_ref.def->impl().has_value()) {
       for (const ConstantDef* constant :
            (*struct_or_proc_ref.def->impl())->GetConstants()) {
-        XLS_ASSIGN_OR_RETURN(InterpValue value,
-                             parametric_context_type_info_.at(*struct_context)
-                                 ->GetConstExpr(constant->name_def()));
+        XLS_ASSIGN_OR_RETURN(
+            InterpValue value,
+            (*struct_context)->type_info()->GetConstExpr(constant->name_def()));
         Expr* value_expr = module_.Make<Number>(
             constant->span(), value.ToString(/*humanize=*/true),
             NumberKind::kOther, nullptr);
@@ -2334,8 +2335,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   const FileTable& file_table_;
   std::unique_ptr<TypeSystemTracer> tracer_;
   std::unique_ptr<TypeAnnotationResolver> resolver_;
-  absl::flat_hash_map<const ParametricContext*, TypeInfo*>
-      parametric_context_type_info_;
   absl::flat_hash_map<const ParametricContext*, ParametricEnv>
       converted_parametric_envs_;
   absl::flat_hash_map<const ParametricContext*,
