@@ -17,7 +17,7 @@ import std;
 import xls.examples.ram;
 import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;
-import xls.modules.zstd.memory.axi_ram;
+import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.memory.mem_reader;
 import xls.modules.zstd.sequence_conf_dec;
 import xls.modules.zstd.fse_lookup_dec;
@@ -2256,7 +2256,7 @@ proc SequenceDecoderTest {
         let (ss_axi_ar_s, ss_axi_ar_r) = chan<MemAxiAr>("ss_axi_ar");
         let (ss_axi_r_s, ss_axi_r_r) = chan<MemAxiR>("ss_axi_r");
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W,
             TEST_INPUT_RAM_SIZE
         >(
@@ -2283,7 +2283,7 @@ proc SequenceDecoderTest {
         let (fl_axi_ar_s, fl_axi_ar_r) = chan<MemAxiAr>("fl_axi_ar");
         let (fl_axi_r_s, fl_axi_r_r) = chan<MemAxiR>("fl_axi_r");
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W,
             TEST_INPUT_RAM_SIZE
         >(
@@ -2311,7 +2311,7 @@ proc SequenceDecoderTest {
         let (fd_axi_ar_s, fd_axi_ar_r) = chan<MemAxiAr>("fd_axi_ar");
         let (fd_axi_r_s, fd_axi_r_r) = chan<MemAxiR>("fd_axi_r");
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W,
             TEST_INPUT_RAM_SIZE
         >(
