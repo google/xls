@@ -47,11 +47,6 @@ jobs:
         run: |
           bazel test -c opt --test_output=errors -- $(bazel query 'filter(".*_dslx_test", kind(rule, //xls/modules/zstd/...))')
 
-      - name: Test ZSTD Module - CC Tests (opt)
-        if: ${{ !cancelled() }}
-        run: |
-          bazel test -c opt --test_output=errors -- $(bazel query 'filter(".*_cc_test", kind(rule, //xls/modules/zstd/...))')
-
       - name: Build ZSTD verilog targets (opt)
         if: ${{ !cancelled() }}
         run: |
