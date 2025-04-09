@@ -1,6 +1,5 @@
 // RUN: xls_opt -arith-to-xls -canonicalize %s 2>&1 | FileCheck %s
 
-
 // CHECK-LABEL: @constants
 // CHECK-DAG: arith.constant 1
 // CHECK-DAG: arith.constant dense
