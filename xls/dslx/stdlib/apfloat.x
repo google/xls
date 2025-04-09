@@ -360,46 +360,103 @@ pub fn unflatten<EXP_SZ: u32, FRACTION_SZ: u32, TOTAL_SZ: u32 = {u32:1 + EXP_SZ 
     }
 }
 
+// TODO(google/xls#1566): more apfloat functions should take additional configuration
+pub enum RoundStyle : u1 {
+    // The input is rounded to the closest number that can be represented by an integer. In the case
+    // of an exact tie the input is rounded to the even integer.
+    TIES_TO_EVEN = 0,
+    // The input is rounded to the closest number that can be represented by an integer. In the case
+    // of an exact tie the input is rounded to the number with the larger absolute value.
+    TIES_TO_AWAY = 1,
+}
+
 // Round to nearest, ties to even (aka roundTiesToEven).
 // if truncated bits > halfway bit: round up.
 // if truncated bits < halfway bit: round down.
-// if truncated bits == halfway bit and lsb bit is odd: round up.
-// if truncated bits == halfway bit and lsb bit is even: round down.
-// TODO(google/xls#1656): Consolidate apfloat "round with ties to nearest even" logic
-fn rne<FRACTION_SZ: u32, LSB_INDEX_SZ: u32 = {std::clog2(FRACTION_SZ)}>
-    (fraction: uN[FRACTION_SZ], lsb_idx: uN[LSB_INDEX_SZ]) -> bool {
-    let lsb_bit_mask = uN[FRACTION_SZ]:1 << lsb_idx;
+// if truncated bits == halfway bit:
+//   if TIES_TO_EVEN:
+//     if halfway bit is odd: round_up
+//     if halfway bit is even: round_down
+//   if TIES_TO_AWAY: round_up
+fn round_up<FRACTION_SZ: u32, LSB_INDEX_SZ: u32 = {std::clog2(FRACTION_SZ)}>
+    (fraction: uN[FRACTION_SZ], lsb_idx: uN[LSB_INDEX_SZ], round_style: RoundStyle) -> bool {
     let halfway_idx = lsb_idx as uN[FRACTION_SZ] - uN[FRACTION_SZ]:1;
     let halfway_bit_mask = uN[FRACTION_SZ]:1 << halfway_idx;
-    let trunc_mask = (uN[FRACTION_SZ]:1 << lsb_idx) - uN[FRACTION_SZ]:1;
-    let trunc_bits = trunc_mask & fraction;
+    let trunc_bits = std::keep_lsbs(fraction, lsb_idx);
     let trunc_bits_gt_half = trunc_bits > halfway_bit_mask;
     let trunc_bits_are_halfway = trunc_bits == halfway_bit_mask;
-    let to_fraction_is_odd = (fraction & lsb_bit_mask) == lsb_bit_mask;
-    let round_to_even = trunc_bits_are_halfway && to_fraction_is_odd;
-    let round_up = trunc_bits_gt_half || round_to_even;
-    round_up
+    let halfway_rounds_up = match round_style {
+        RoundStyle::TIES_TO_EVEN => {
+            let lsb_bit_mask = uN[FRACTION_SZ]:1 << lsb_idx;
+            let to_fraction_is_odd = (fraction & lsb_bit_mask) == lsb_bit_mask;
+            to_fraction_is_odd
+        },
+        RoundStyle::TIES_TO_AWAY => true,
+    };
+    trunc_bits_gt_half || (trunc_bits_are_halfway && halfway_rounds_up)
 }
 
 #[test]
-fn rne_test() {
-    assert_eq(rne(u5:0b01101, u3:3), true);  // >halfway bit.
-    assert_eq(rne(u5:0b01001, u3:3), false);  // <halfway bit.
-    assert_eq(rne(u5:0b01100, u3:3), true);  // ==halfway bit and lsb odd.
-    assert_eq(rne(u5:0b00100, u3:3), false);  // ==halfway bit and lsb even.
-    assert_eq(rne(u5:0b000000, u3:3), false);  // 0 fraction.
-    assert_eq(rne(u8:0b11000001, u3:0b111), true);  // max lsb index, >halfway bit.
-    assert_eq(rne(u8:0b10000000, u3:0b111), false);  // max lsb index, <halfway bit.
-    assert_eq(rne(u8:0b11000000, u3:0b111), true);  // max lsb index, ==halfway bit and lsb odd.
-    assert_eq(rne(u8:0b01000000, u3:0b111), false);  // max lsb index, ==halfway bit and lsb even.
-    assert_eq(rne(u5:0b11111, u3:0b111), true);  // overflow lsb index.
+fn round_up_az_test() {
+    // >halfway bit.
+    assert_eq(round_up(u5:0b01101, u3:3, RoundStyle::TIES_TO_AWAY), true);
+    // <halfway bit.
+    assert_eq(round_up(u5:0b01001, u3:3, RoundStyle::TIES_TO_AWAY), false);
+    // ==halfway bit and lsb odd.
+    assert_eq(round_up(u5:0b01100, u3:3, RoundStyle::TIES_TO_AWAY), true);
+    // ==halfway bit and lsb even.
+    assert_eq(round_up(u5:0b00100, u3:3, RoundStyle::TIES_TO_AWAY), true);
+    // 0 fraction.
+    assert_eq(round_up(u5:0b000000, u3:3, RoundStyle::TIES_TO_AWAY), false);
+    // max lsb index, >halfway bit.
+    assert_eq(round_up(u8:0b11000001, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
+    // max lsb index, <halfway bit.
+    assert_eq(round_up(u8:0b10000000, u3:0b111, RoundStyle::TIES_TO_AWAY), false);
+    // max lsb index, ==halfway bit and lsb odd.
+    assert_eq(round_up(u8:0b11000000, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
+    // max lsb index, ==halfway bit and lsb even.
+    assert_eq(round_up(u8:0b01000000, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
+    // overflow lsb index.
+    assert_eq(round_up(u5:0b11111, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
+}
+
+#[test]
+fn round_up_ne_test() {
+    // >halfway bit.
+    assert_eq(round_up(u5:0b01101, u3:3, RoundStyle::TIES_TO_EVEN), true);
+    // <halfway bit.
+    assert_eq(round_up(u5:0b01001, u3:3, RoundStyle::TIES_TO_EVEN), false);
+    // ==halfway bit and lsb odd.
+    assert_eq(round_up(u5:0b01100, u3:3, RoundStyle::TIES_TO_EVEN), true);
+    // ==halfway bit and lsb even.
+    assert_eq(round_up(u5:0b00100, u3:3, RoundStyle::TIES_TO_EVEN), false);
+    // 0 fraction.
+    assert_eq(round_up(u5:0b000000, u3:3, RoundStyle::TIES_TO_EVEN), false);
+    // max lsb index, >halfway bit.
+    assert_eq(round_up(u8:0b11000001, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
+    // max lsb index, <halfway bit.
+    assert_eq(round_up(u8:0b10000000, u3:0b111, RoundStyle::TIES_TO_EVEN), false);
+    // max lsb index, ==halfway bit and lsb odd.
+    assert_eq(round_up(u8:0b11000000, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
+    // max lsb index, ==halfway bit and lsb even.
+    assert_eq(round_up(u8:0b01000000, u3:0b111, RoundStyle::TIES_TO_EVEN), false);
+    // overflow lsb index.
+    assert_eq(round_up(u5:0b11111, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
 }
 
 #[quickcheck]
-fn rne_overflow_always_rounds_up(f: u5) -> bool { rne(f, u3:0b111) }
+fn round_up_ne_overflow_always_rounds_up(f: u5) -> bool {
+    round_up(f, u3:0b111, RoundStyle::TIES_TO_EVEN)
+}
+
+#[quickcheck]
+fn round_up_az_overflow_always_rounds_up(f: u5) -> bool {
+    round_up(f, u3:0b111, RoundStyle::TIES_TO_AWAY)
+}
 
 // Casts the fixed point number to a floating point number using RNE
 // (Round to Nearest Even) as the rounding mode.
+// TODO(google/xls#1656): Consolidate apfloat "round with ties to nearest even" logic
 pub fn cast_from_fixed_using_rne<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u32>
     (to_cast: sN[NUM_SRC_BITS]) -> APFloat<EXP_SZ, FRACTION_SZ> {
     const UEXP_SZ: u32 = EXP_SZ + u32:1;
@@ -432,7 +489,9 @@ pub fn cast_from_fixed_using_rne<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u3
 
     // Round fraction (round to nearest, half to even).
     let lsb_idx = (num_trailing_nonzeros as uN[EXTENDED_FRACTION_SZ]) - uN[EXTENDED_FRACTION_SZ]:1;
-    let round_up = rne(extended_fraction, lsb_idx as uN[std::clog2(EXTENDED_FRACTION_SZ)]);
+    let round_up = round_up(
+        extended_fraction, lsb_idx as uN[std::clog2(EXTENDED_FRACTION_SZ)],
+        RoundStyle::TIES_TO_EVEN);
     let fraction = if round_up { fraction + uN[FRACTION_SZ]:1 } else { fraction };
 
     // Check if rounding up causes an exponent increment.
@@ -3598,14 +3657,57 @@ fn trunc_zero_fractional_test() {
     assert_eq(trunc(minus_zero_dot_5_f32), minus_zero_f32);
 }
 
-// TODO(google/xls#1566): more apfloat functions should take additional configuration
-pub enum RoundStyle : u1 {
-    TIES_TO_EVEN = 0,
+fn round_normal<EXP_SZ: u32, FRACTION_SZ: u32, ROUND_STYLE: RoundStyle = {RoundStyle::TIES_TO_EVEN}>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+
+    const ROUND_STYLE_IS_TIES_TO_EVEN: bool = ROUND_STYLE == RoundStyle::TIES_TO_EVEN;
+    const ROUND_STYLE_IS_TIES_TO_AWAY: bool = ROUND_STYLE == RoundStyle::TIES_TO_AWAY;
+    const EXP_MAX = std::mask_bits<EXP_SZ>();
+    const FRACTION_MAX = std::mask_bits<FRACTION_SZ>();
+    const FRACTION_SZ_PLUS_ONE = FRACTION_SZ + u32:1;
+    const_assert!(ROUND_STYLE_IS_TIES_TO_EVEN || ROUND_STYLE_IS_TIES_TO_AWAY);
+    if !has_fractional_part(f) {
+        f
+    } else {
+        let exp = unbiased_exponent(f);
+        if exp < sN[EXP_SZ]:-1 {
+            // abs(f) < 0.5
+            zero<EXP_SZ, FRACTION_SZ>(f.sign)
+        } else if exp == sN[EXP_SZ]:-1 {
+            if ROUND_STYLE_IS_TIES_TO_EVEN && f.fraction == uN[FRACTION_SZ]:0 {
+                // abs(f) == 0.5
+                zero<EXP_SZ, FRACTION_SZ>(f.sign)
+            } else {
+                // TIES_TO_AWAY will always be one.
+                // 0.5 < abs(f) < 1.0
+                one<EXP_SZ, FRACTION_SZ>(f.sign)
+            }
+        } else {
+            let round_up = if exp == sN[EXP_SZ]:0 {
+                let two_exp_0 = u1:1;
+                let widened_fraction = two_exp_0 ++ f.fraction;
+                round_up(
+                    widened_fraction, FRACTION_SZ as uN[std::clog2(FRACTION_SZ_PLUS_ONE)],
+                    ROUND_STYLE)
+            } else {
+                let lsb_index = (FRACTION_SZ as uN[EXP_SZ] - exp as uN[EXP_SZ]);
+                round_up(f.fraction, lsb_index as uN[std::clog2(FRACTION_SZ)], ROUND_STYLE)
+            };
+            if round_up {
+                round_up_no_sign_positive_exp(f)
+            } else {
+                round_down_no_sign_positive_exp(f)
+            }
+        }
+    }
 }
 
 // Returns an `APFloat` of the same precision as `f` rounded to the nearest integer
-// Using the "tie-to-even" rounding style:
+// Using the "tie-to-even" (RoundStyle::TIES_TO_EVEN) rounding style:
 // - in case of a tie (`f` half-way between two integers): rounding to the nearest even integer.
+// Using the "tie-to-away" (RoundStyle::TIES_TO_AWAY) rounding style:
+// - in case of a tie (`f` half-way between two integers): rounding to the integer with the largest
+//   absolute value.
 pub fn round<EXP_SZ: u32, FRACTION_SZ: u32, ROUND_STYLE: RoundStyle = {RoundStyle::TIES_TO_EVEN}>
     (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
     match tag(f) {
@@ -3613,44 +3715,7 @@ pub fn round<EXP_SZ: u32, FRACTION_SZ: u32, ROUND_STYLE: RoundStyle = {RoundStyl
         APFloatTag::INFINITY => inf<EXP_SZ, FRACTION_SZ>(f.sign),
         APFloatTag::ZERO => zero<EXP_SZ, FRACTION_SZ>(f.sign),
         APFloatTag::SUBNORMAL => zero<EXP_SZ, FRACTION_SZ>(f.sign),
-        _ => {
-            const ROUND_STYLE_IS_TIES_TO_EVEN: bool = ROUND_STYLE == RoundStyle::TIES_TO_EVEN;
-            const EXP_MAX = std::mask_bits<EXP_SZ>();
-            const FRACTION_MAX = std::mask_bits<FRACTION_SZ>();
-            const FRACTION_SZ_PLUS_ONE = FRACTION_SZ + u32:1;
-            const_assert!(ROUND_STYLE_IS_TIES_TO_EVEN);
-            if !has_fractional_part(f) {
-                f
-            } else {
-                let exp = unbiased_exponent(f);
-                if exp < sN[EXP_SZ]:-1 {
-                    // abs(f) < 0.5
-                    zero<EXP_SZ, FRACTION_SZ>(f.sign)
-                } else if exp == sN[EXP_SZ]:-1 {
-                    if f.fraction == uN[FRACTION_SZ]:0 {
-                        // abs(f) == 0.5
-                        zero<EXP_SZ, FRACTION_SZ>(f.sign)
-                    } else {
-                        // 0.5 < abs(f) < 1.0
-                        one<EXP_SZ, FRACTION_SZ>(f.sign)
-                    }
-                } else {
-                    let round_up = if exp == sN[EXP_SZ]:0 {
-                        let two_exp_0 = u1:1;
-                        let widened_fraction = two_exp_0 ++ f.fraction;
-                        rne(widened_fraction, FRACTION_SZ as uN[std::clog2(FRACTION_SZ_PLUS_ONE)])
-                    } else {
-                        let lsb_index = (FRACTION_SZ as uN[EXP_SZ] - exp as uN[EXP_SZ]);
-                        rne(f.fraction, lsb_index as uN[std::clog2(FRACTION_SZ)])
-                    };
-                    if round_up {
-                        round_up_no_sign_positive_exp(f)
-                    } else {
-                        round_down_no_sign_positive_exp(f)
-                    }
-                }
-            }
-        },
+        _ => round_normal<EXP_SZ, FRACTION_SZ, ROUND_STYLE>(f),
     }
 }
 
