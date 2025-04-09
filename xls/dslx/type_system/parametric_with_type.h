@@ -69,7 +69,7 @@ class ParametricWithType {
 
   // Expr on the parametric binding -- note that this can be null when the
   // parametric has no default expression.
-  absl::Nullable<Expr*> expr() const { return binding_.expr(); }
+  Expr* ABSL_NULLABLE expr() const { return binding_.expr(); }
 
   std::string ToString() const;
 

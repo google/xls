@@ -359,7 +359,7 @@ class CodegenPassUnit {
 
   using MetadataMap = absl::btree_map<Block*, CodegenMetadata, BlockByName>;
 
-  explicit CodegenPassUnit(absl::Nonnull<Package*> p, Block* b = nullptr)
+  explicit CodegenPassUnit(Package* ABSL_NONNULL p, Block* b = nullptr)
       : package_(p), top_block_(b) {}
 
   Package* package() { return package_; }
@@ -375,7 +375,7 @@ class CodegenPassUnit {
   }
 
   // Sets the top block.
-  void SetTopBlock(absl::Nonnull<Block*> b) { top_block_ = b; }
+  void SetTopBlock(Block* ABSL_NONNULL b) { top_block_ = b; }
 
   // Adds necessary maps from the FunctionBase to the Block.
   void AssociateBlock(FunctionBase* fb, Block* block) {
@@ -412,17 +412,17 @@ class CodegenPassUnit {
   const MetadataMap& metadata() const { return metadata_; }
 
   // Returns true if we have metadata forthe block.
-  bool HasMetadataForBlock(absl::Nonnull<Block*> block) const {
+  bool HasMetadataForBlock(Block* ABSL_NONNULL block) const {
     return metadata_.contains(block);
   }
 
   // Returns the metadata for the given block (will create one if it doesn't
   // exist).
-  CodegenMetadata& GetMetadataForBlock(absl::Nonnull<Block*> block) {
+  CodegenMetadata& GetMetadataForBlock(Block* ABSL_NONNULL block) {
     return metadata_[block];
   }
 
-  void SetMetadataForBlock(absl::Nonnull<Block*> block,
+  void SetMetadataForBlock(Block* ABSL_NONNULL block,
                            CodegenMetadata metadata) {
     metadata_[block] = std::move(metadata);
   }

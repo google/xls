@@ -153,7 +153,7 @@ class ProcLike : public AstNode {
   // Note: this should be called after type checking has been performed, at
   // which point it should be validated that the last statement, if present, is
   // a tuple expression.
-  absl::Nullable<const XlsTuple*> GetConfigTuple() const;
+  const XlsTuple* ABSL_NULLABLE GetConfigTuple() const;
 
   bool IsStateless() const {
     TypeAnnotation* return_type = init().return_type();

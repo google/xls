@@ -62,7 +62,7 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
 absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
                                             const CodegenOptions& options,
                                             CodegenPassUnit& unit, Function* f,
-                                            absl::Nonnull<Block*> block);
+                                            Block* ABSL_NONNULL block);
 
 // Converts a function into a combinational block. Function arguments become
 // input ports, function return value becomes an output port. Returns a pointer

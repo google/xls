@@ -28,7 +28,7 @@ template <typename Inner>
 class RecordIfPassChanged : public OptimizationPass {
  public:
   template <typename... Args>
-  RecordIfPassChanged(absl::Nonnull<bool*> changed, Args... args)
+  RecordIfPassChanged(bool* ABSL_NONNULL changed, Args... args)
       : OptimizationPass("temp_sort_name", "temp_long_name"),
         changed_(changed),
         inner_(std::forward<Args>(args)...) {

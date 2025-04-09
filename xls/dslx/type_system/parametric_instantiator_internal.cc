@@ -316,8 +316,7 @@ ParametricInstantiator::ParametricInstantiator(
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricWithType> typed_parametrics,
     const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics,
-    absl::Span<absl::Nonnull<const ParametricBinding*> const>
-        parametric_bindings)
+    absl::Span<const ParametricBinding* ABSL_NONNULL const> parametric_bindings)
     : span_(span),
       parametrics_span_(parametrics_span),
       args_(args),
@@ -404,7 +403,7 @@ FunctionInstantiator::Make(
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricWithType> typed_parametrics,
     const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics,
-    absl::Span<absl::Nonnull<const ParametricBinding*> const>
+    absl::Span<const ParametricBinding* ABSL_NONNULL const>
         parametric_bindings) {
   VLOG(5) << "Making FunctionInstantiator for " << function_type.ToString()
           << " with " << typed_parametrics.size() << " typed-parametrics and "
@@ -490,13 +489,13 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<StructInstantiator>>
-StructInstantiator::Make(
-    Span span, const StructType& struct_type,
-    absl::Span<const InstantiateArg> args,
-    absl::Span<std::unique_ptr<Type> const> member_types, DeduceCtx* ctx,
-    absl::Span<const ParametricWithType> typed_parametrics,
-    absl::Span<absl::Nonnull<const ParametricBinding*> const>
-        parametric_bindings) {
+StructInstantiator::Make(Span span, const StructType& struct_type,
+                         absl::Span<const InstantiateArg> args,
+                         absl::Span<std::unique_ptr<Type> const> member_types,
+                         DeduceCtx* ctx,
+                         absl::Span<const ParametricWithType> typed_parametrics,
+                         absl::Span<const ParametricBinding* ABSL_NONNULL const>
+                             parametric_bindings) {
   XLS_RET_CHECK_EQ(args.size(), member_types.size());
   return absl::WrapUnique(
       new StructInstantiator(span, struct_type, args, member_types, ctx,

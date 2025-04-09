@@ -398,7 +398,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
 absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
                                             const CodegenOptions& options,
                                             CodegenPassUnit& unit, Function* f,
-                                            absl::Nonnull<Block*> block) {
+                                            Block* ABSL_NONNULL block) {
   if (options.manual_control().has_value()) {
     return absl::UnimplementedError("Manual pipeline control not implemented");
   }

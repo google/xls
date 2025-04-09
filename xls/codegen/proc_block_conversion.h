@@ -38,7 +38,7 @@ namespace xls::verilog {
 //                            proc/function the block was created from.
 absl::Status SingleProcToPipelinedBlock(
     const PipelineSchedule& schedule, const CodegenOptions& options,
-    CodegenPassUnit& unit, Proc* proc, absl::Nonnull<Block*> block,
+    CodegenPassUnit& unit, Proc* proc, Block* ABSL_NONNULL block,
     const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks);
 
 }  // namespace xls::verilog

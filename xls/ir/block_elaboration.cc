@@ -679,7 +679,7 @@ static absl::StatusOr<std::unique_ptr<BlockInstance>> ElaborateBlock(
     BlockInstantiationPath instantiation_path = path;
     instantiation_path.path.push_back(inst);
 
-    absl::Nullable<Block*> inst_block = nullptr;
+    Block* ABSL_NULLABLE inst_block = nullptr;
     if (inst->kind() == InstantiationKind::kBlock) {
       inst_block = down_cast<BlockInstantiation*>(inst)->instantiated_block();
     }

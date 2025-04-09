@@ -1069,7 +1069,7 @@ class NegEdge final : public Expression {
 // This can be useful in cases like stitching.
 struct Connection {
   std::string port_name;
-  absl::Nullable<Expression*> expression;
+  Expression* ABSL_NULLABLE expression;
 };
 
 // Represents a module instantiation.

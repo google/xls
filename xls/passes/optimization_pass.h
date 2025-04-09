@@ -302,7 +302,7 @@ class OptimizationContext {
 template <typename QueryEngineT, typename... Args>
   requires(std::is_base_of_v<QueryEngine, QueryEngineT>)
 MaybeOwnedForwardingQueryEngine<QueryEngineT> GetSharedQueryEngine(
-    OptimizationContext& ctx, absl::Nonnull<FunctionBase*> f, Args... args) {
+    OptimizationContext& ctx, FunctionBase* ABSL_NONNULL f, Args... args) {
   return MaybeOwnedForwardingQueryEngine<QueryEngineT>(
       ctx.SharedQueryEngine<QueryEngineT>(f));
 }
