@@ -348,27 +348,12 @@ LogicalResult VectorizedCallOp::verifySymbolUses(
     }
     if (innerType != expectedInnerType) {
       return emitError(
-                 "return type in callee mismatch with scalarized call result: ")
+                 "Expected return type in callee to match scalarized "
+                 "call result type, got: ")
              << innerType << " vs expected " << expectedInnerType;
     }
   }
   return success();
-}
-
-LogicalResult VectorizedCallOp::canonicalize(VectorizedCallOp op,
-                                             PatternRewriter& rewriter) {
-  bool tensor =
-      llvm::any_of(op.getOperands(),
-                   [](Value v) { return isa<TensorType>(v.getType()); }) ||
-      llvm::any_of(op.getResultTypes(),
-                   [](Type t) { return isa<TensorType>(t); });
-  if (!tensor) {
-    // If no tensor operands or results, replace with plain call.
-    rewriter.replaceOpWithNewOp<mlir::func::CallOp>(
-        op, op.getCalleeAttr(), op->getResultTypes(), op.getOperands());
-    return success();
-  }
-  return failure();
 }
 
 OpFoldResult AddOp::fold(FoldAdaptor adaptor) {

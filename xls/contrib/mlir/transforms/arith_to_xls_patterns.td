@@ -52,24 +52,21 @@ class FCmpPat<string s, dag target> :
     Pat<(Arith_CmpFOp:$op ConstantEnumCase<Arith_CmpFPredicateAttr, s>, $lhs, $rhs, $fmf),
         target>;
 
-defvar PureCall = ConstUnitAttr;
-defvar VectorCall = ConstUnitAttr;
-
 def : FCmpPat<"oeq", (Xls_CallDslxOp (FloatLib $lhs), CS<"eq_2">,
-                       (variadic $lhs, $rhs), PureCall, VectorCall)>;
+                                     (variadic $lhs, $rhs), ConstUnitAttr)>;
 def : FCmpPat<"ogt", (Xls_CallDslxOp (FloatLib $lhs), CS<"gt_2">,
-                       (variadic $lhs, $rhs), PureCall, VectorCall)>;
+                                     (variadic $lhs, $rhs), ConstUnitAttr)>;
 def : FCmpPat<"oge", (Xls_CallDslxOp (FloatLib $lhs), CS<"gte_2">,
-                       (variadic $lhs, $rhs), PureCall, VectorCall)>;
+                                     (variadic $lhs, $rhs), ConstUnitAttr)>;
 def : FCmpPat<"olt", (Xls_CallDslxOp (FloatLib $lhs), CS<"lt_2">,
-                       (variadic $lhs, $rhs), PureCall, VectorCall)>;
+                                     (variadic $lhs, $rhs), ConstUnitAttr)>;
 def : FCmpPat<"ole", (Xls_CallDslxOp (FloatLib $lhs), CS<"lte_2">,
-                       (variadic $lhs, $rhs), PureCall, VectorCall)>;
+                                     (variadic $lhs, $rhs), ConstUnitAttr)>;
 
 // Define unordered(x, y) = is_nan(x + y)
 def : FCmpPat<"uno", (Xls_CallDslxOp (FloatLib $lhs), CS<"is_nan">,
                                      (variadic (Arith_AddFOp $lhs, $rhs, $fmf)),
-                                     PureCall, VectorCall)>;
+                                     ConstUnitAttr)>;
 
 class OppositeFCmpPat<string s, string r> :
     Pat<(Arith_CmpFOp:$op ConstantEnumCase<Arith_CmpFPredicateAttr, s>, $lhs,
@@ -135,62 +132,61 @@ def : Pat<(Arith_ConstantOp NonIndexAttr:$val),
 defvar ExtLib = CS<"xls/contrib/mlir/stdlib/fp_ext_trunc.x">;
 
 def : Pat<(Arith_NegFOp:$op $a, /*FastMathFlags=*/$_),
-  (Xls_CallDslxOp (FloatLib $a), CS<"negate">, (variadic $a), PureCall, VectorCall)>;
+  (Xls_CallDslxOp (FloatLib $a), CS<"negate">, (variadic $a), ConstUnitAttr)>;
 
 // Emits a binary float library call.
 class FloatLibcall<Op Op, string Name> :
     Pat<(Op:$op $a, $b, /*FastMathFlags=*/$_),
-        (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b),
-          PureCall, VectorCall)>;
+        (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b), ConstUnitAttr)>;
 
 def : FloatLibcall<Arith_AddFOp, "add">;
 def : FloatLibcall<Arith_MulFOp, "mul">;
 def : FloatLibcall<Arith_SubFOp, "sub">;
 
 def : Pat<(Arith_ExtFOp:$op $a, /*FastMathFlags=*/$_),
-          (Xls_CallDslxOp ExtLib, CS<"ext">, (variadic $a), PureCall, VectorCall)>;
+          (Xls_CallDslxOp ExtLib, CS<"ext">, (variadic $a), ConstUnitAttr)>;
 
 def : Pat<(Arith_TruncFOp:$op $a, /*RoundingMode=*/$_, /*FastMathFlags=*/$_),
-          (Xls_CallDslxOp ExtLib, CS<"trunc">, (variadic $a), PureCall, VectorCall),
+          (Xls_CallDslxOp ExtLib, CS<"trunc">, (variadic $a), ConstUnitAttr),
           [(ScalarOrTensorOf<F32> $a)]>;
 
 multiclass FloatToIntegralPat<Op fptoi, Op itofp, Op exti, string u> {
   def : Pat<(itofp:$op I32:$a),
           (Xls_CallDslxOp (FloatLib $op), CS<"from_"#u#"int32">, (variadic $a),
-                          PureCall, VectorCall),
+                          ConstUnitAttr),
           [(ScalarOrTensorOf<F32> $op)]>;
 
   def : Pat<(itofp:$op I32:$a),
             (Xls_CallDslxOp (FloatLib $op), CS<"from_float32">,
               (variadic (itofp $a, (returnType "$_builder.getF32Type()"))),
-              PureCall, VectorCall),
+              ConstUnitAttr),
             [(ScalarOrTensorOf<BF16> $op)]>;
 
   def : Pat<(itofp:$op I16:$a),
           (Xls_CallDslxOp (FloatLib $op), CS<"from_"#u#"int32">,
                           (variadic (exti $a, (returnType "$_builder.getI32Type()"))),
-                          PureCall, VectorCall),
+                          ConstUnitAttr),
           [(ScalarOrTensorOf<F32> $op)]>;
 
   def : Pat<(itofp:$op I16:$a),
             (Xls_CallDslxOp (FloatLib $op), CS<"from_float32">,
               (variadic (itofp $a, (returnType "$_builder.getF32Type()"))),
-              PureCall, VectorCall),
+              ConstUnitAttr),
             [(ScalarOrTensorOf<BF16> $op)]>;
 
   def : Pat<(itofp:$op I8:$a),
             (Xls_CallDslxOp (FloatLib $op), CS<"from_"#u#"int8">, (variadic $a),
-                            PureCall, VectorCall),
+                            ConstUnitAttr),
             [(ScalarOrTensorOf<BF16> $op)]>;
 
   def : Pat<(fptoi:$op F32:$a),
             (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int32">, (variadic $a),
-                            PureCall, VectorCall),
+                            ConstUnitAttr),
             [(ScalarOrTensorOf<I32> $op)]>;
 
   def : Pat<(fptoi:$op BF16:$a),
             (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int16">, (variadic $a),
-                            PureCall, VectorCall),
+                            ConstUnitAttr),
             [(ScalarOrTensorOf<I16> $op)]>;
 
   // TODO(jmolloy): to_int8 doesn't exist, so truncating the result of to_int16
@@ -198,7 +194,7 @@ multiclass FloatToIntegralPat<Op fptoi, Op itofp, Op exti, string u> {
   def : Pat<(fptoi:$op BF16:$a),
             (Arith_TruncIOp
               (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int16">, (variadic $a),
-                              PureCall, VectorCall,
+                              ConstUnitAttr,
                               (returnType "$_builder.getI16Type()"))),
             [(ScalarOrTensorOf<I8> $op)]>;
 }
@@ -283,7 +279,7 @@ class MinMaxPatBase<dag Matcher, dag Predicate> : Pat<
 
 class FPMinMaxPat<Op Op, string Name> : MinMaxPatBase<
   (Op:$op $a, $b, /*FastMathFlags=*/$_),
-  (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b), PureCall, VectorCall,
+  (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b), ConstUnitAttr,
      (returnType "boolLike(op)"))>;
 
 def : FPMinMaxPat<Arith_MaximumFOp, "gt_2">;

@@ -17,8 +17,6 @@
 #include <vector>
 
 #include "llvm/include/llvm/ADT/DenseMap.h"
-#include "llvm/include/llvm/ADT/STLExtras.h"
-#include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/ADT/StringMap.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/Support/Casting.h"
@@ -27,8 +25,6 @@
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "mlir/include/mlir/IR/SymbolTable.h"
-#include "mlir/include/mlir/IR/TypeRange.h"
-#include "mlir/include/mlir/IR/TypeUtilities.h"
 #include "mlir/include/mlir/IR/Visitors.h"
 #include "mlir/include/mlir/Pass/Pass.h"  // IWYU pragma: keep
 #include "xls/contrib/mlir/IR/xls_ops.h"
@@ -78,19 +74,8 @@ void NormalizeXlsCallsPass::runOnOperation() {
           it->second.push_back(pkgImport);
         }
 
-        FunctionType newType;
-        if (call.getIsVectorCall()) {
-          auto scalarize = [](TypeRange r) {
-            return llvm::to_vector(llvm::map_range(
-                r, [](Type t) { return getElementTypeOrSelf(t); }));
-          };
-          newType = builder.getFunctionType(scalarize(call->getOperandTypes()),
-                                            scalarize(call->getResultTypes()));
-        } else {
-          newType = builder.getFunctionType(call->getOperandTypes(),
-                                            call->getResultTypes());
-        }
-
+        auto newType = builder.getFunctionType(call->getOperandTypes(),
+                                               call->getResultTypes());
         auto func = builder.create<mlir::func::FuncOp>(
             op->getLoc(),
             llvm::formatv("{0}_{1}", path.stem(), call.getFunction()).str(),
@@ -106,15 +91,9 @@ void NormalizeXlsCallsPass::runOnOperation() {
       }
 
       OpBuilder b(op);
-      Operation* fnCall;
-      if (call.getIsVectorCall()) {
-        fnCall = b.create<mlir::xls::VectorizedCallOp>(
-            op->getLoc(), fIt->second.front(), call.getOperands());
-      } else {
-        fnCall = b.create<mlir::func::CallOp>(op->getLoc(), fIt->second.front(),
-                                              call.getOperands());
-      }
-      op->replaceAllUsesWith(fnCall->getResults());
+      auto fnCall = b.create<mlir::func::CallOp>(
+          op->getLoc(), fIt->second.front(), call.getOperands());
+      op->replaceAllUsesWith(fnCall.getResults());
       op->erase();
     }
     return WalkResult::advance();

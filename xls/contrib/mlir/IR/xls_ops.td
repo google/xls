@@ -1556,8 +1556,7 @@ def Xls_CallDslxOp : Xls_Op<"call_dslx", [DeclareOpInterfaceMethods<MemoryEffect
     StrAttr:$filename,
     StrAttr:$function,
     Variadic<AnyType>:$operands,
-    UnitAttr:$is_pure,
-    UnitAttr:$is_vector_call
+    UnitAttr:$is_pure
     // TODO(jpienaar): Expand to include search paths, define symbols etc.
   );
   let results = (outs AnyType);
@@ -2371,8 +2370,6 @@ def VectorizedCallOp : Xls_Op<"vectorized_call",
   let assemblyFormat = [{
     $callee `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
-
-  let hasCanonicalizeMethod = 1;
 }
 
 //===----------------------------------------------------------------------===//
