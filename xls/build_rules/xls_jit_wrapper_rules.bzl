@@ -346,6 +346,7 @@ def cc_xls_ir_jit_wrapper(
         jit_wrapper_args = {},
         wrapper_type = FUNCTION_WRAPPER_TYPE,
         top = "",
+        llvm_opt_level = 3,
         **kwargs):
     """Invokes the JIT wrapper generator and compiles the result as a cc_library.
 
@@ -363,6 +364,7 @@ def cc_xls_ir_jit_wrapper(
                     FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, or
                     PROC_WRAPPER_TYPE symbols. Defaults to FUNCTION_WRAPPER_TYPE
                     for compatibility.
+      llvm_opt_level: what opt level to configure aot compiled code to use.
       top: Name of the top function/proc/block.
       **kwargs: Keyword arguments. Named arguments.
     """
@@ -392,6 +394,7 @@ def cc_xls_ir_jit_wrapper(
         src = src,
         top = top,
         with_msan = XLS_IS_MSAN_BUILD,
+        llvm_opt_level = llvm_opt_level,
         # The XLS AOT compiler does not currently support cross-compilation.
     )
     aot_info_target = ":" + name + "_aot_code_for_wrapper"
