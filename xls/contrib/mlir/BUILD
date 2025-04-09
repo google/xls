@@ -48,16 +48,10 @@ td_library(
 
 gentbl_cc_library(
     name = "xls_ops_inc_gen",
-    tbl_outs = [
-        (
-            ["-gen-op-decls"],
-            "IR/xls_ops.h.inc",
-        ),
-        (
-            ["-gen-op-defs"],
-            "IR/xls_ops.cc.inc",
-        ),
-    ],
+    tbl_outs = {
+        "IR/xls_ops.h.inc": ["-gen-op-decls"],
+        "IR/xls_ops.cc.inc": ["-gen-op-defs"],
+    },
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "IR/xls_ops.td",
     deps = [":xls_ops_td_files"],
@@ -65,16 +59,10 @@ gentbl_cc_library(
 
 gentbl_cc_library(
     name = "xls_ops_attrs_inc_gen",
-    tbl_outs = [
-        (
-            ["-gen-attrdef-decls"],
-            "IR/xls_ops_attrs.h.inc",
-        ),
-        (
-            ["-gen-attrdef-defs"],
-            "IR/xls_ops_attrs.cc.inc",
-        ),
-    ],
+    tbl_outs = {
+        "IR/xls_ops_attrs.h.inc": ["-gen-attrdef-decls"],
+        "IR/xls_ops_attrs.cc.inc": ["-gen-attrdef-defs"],
+    },
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "IR/xls_ops.td",
     deps = [":xls_ops_td_files"],
@@ -82,15 +70,10 @@ gentbl_cc_library(
 
 gentbl_cc_library(
     name = "xls_transforms_passes_inc_gen",
-    tbl_outs = [
-        (
-            [
-                "-gen-pass-decls",
-                "-name=XlsTransforms",
-            ],
-            "transforms/passes.h.inc",
-        ),
-    ],
+    tbl_outs = {"transforms/passes.h.inc": [
+        "-gen-pass-decls",
+        "-name=XlsTransforms",
+    ]},
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "transforms/passes.td",
     deps = ["@llvm-project//mlir:PassBaseTdFiles"],
@@ -98,16 +81,10 @@ gentbl_cc_library(
 
 gentbl_cc_library(
     name = "xls_ops_enums_inc_gen",
-    tbl_outs = [
-        (
-            ["-gen-enum-decls"],
-            "IR/xls_ops_enums.h.inc",
-        ),
-        (
-            ["-gen-enum-defs"],
-            "IR/xls_ops_enums.cc.inc",
-        ),
-    ],
+    tbl_outs = {
+        "IR/xls_ops_enums.h.inc": ["-gen-enum-decls"],
+        "IR/xls_ops_enums.cc.inc": ["-gen-enum-defs"],
+    },
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "IR/xls_ops.td",
     deps = [":xls_ops_td_files"],
@@ -115,16 +92,10 @@ gentbl_cc_library(
 
 gentbl_cc_library(
     name = "interfaces_inc_gen",
-    tbl_outs = [
-        (
-            ["-gen-op-interface-decls"],
-            "IR/interfaces.h.inc",
-        ),
-        (
-            ["-gen-op-interface-defs"],
-            "IR/interfaces.cc.inc",
-        ),
-    ],
+    tbl_outs = {
+        "IR/interfaces.h.inc": ["-gen-op-interface-decls"],
+        "IR/interfaces.cc.inc": ["-gen-op-interface-defs"],
+    },
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "IR/interfaces.td",
     deps = [":xls_ops_td_files"],
@@ -132,22 +103,16 @@ gentbl_cc_library(
 
 gentbl_cc_library(
     name = "xls_ops_typedefs_inc_gen",
-    tbl_outs = [
-        (
-            [
-                "-gen-typedef-decls",
-                "--typedefs-dialect=xls",
-            ],
-            "IR/xls_ops_typedefs.h.inc",
-        ),
-        (
-            [
-                "-gen-typedef-defs",
-                "--typedefs-dialect=xls",
-            ],
-            "IR/xls_ops_typedefs.cc.inc",
-        ),
-    ],
+    tbl_outs = {
+        "IR/xls_ops_typedefs.h.inc": [
+            "-gen-typedef-decls",
+            "--typedefs-dialect=xls",
+        ],
+        "IR/xls_ops_typedefs.cc.inc": [
+            "-gen-typedef-defs",
+            "--typedefs-dialect=xls",
+        ],
+    },
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "IR/xls_ops.td",
     deps = [":xls_ops_td_files"],
@@ -155,12 +120,7 @@ gentbl_cc_library(
 
 gentbl_cc_library(
     name = "arith_to_xls_patterns_inc_gen",
-    tbl_outs = [
-        (
-            ["-gen-rewriters"],
-            "transforms/arith_to_xls_patterns.inc",
-        ),
-    ],
+    tbl_outs = {"transforms/arith_to_xls_patterns.inc": ["-gen-rewriters"]},
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "transforms/arith_to_xls_patterns.td",
     deps = [":xls_ops_td_files"],
@@ -168,12 +128,7 @@ gentbl_cc_library(
 
 gentbl_cc_library(
     name = "math_to_xls_patterns_inc_gen",
-    tbl_outs = [
-        (
-            ["-gen-rewriters"],
-            "transforms/math_to_xls_patterns.inc",
-        ),
-    ],
+    tbl_outs = {"transforms/math_to_xls_patterns.inc": ["-gen-rewriters"]},
     tblgen = "@llvm-project//mlir:mlir-tblgen",
     td_file = "transforms/math_to_xls_patterns.td",
     deps = [":xls_ops_td_files"],
