@@ -15,7 +15,6 @@
 #include "xls/codegen/codegen_options.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -41,89 +40,6 @@ namespace xls::verilog {
       return "kZeroLatencyBuffer";
   }
   LOG(FATAL) << "Invalid IOKind: " << static_cast<int64_t>(kind);
-}
-
-CodegenOptions::CodegenOptions(const CodegenOptions& options)
-    : entry_(options.entry_),
-      module_name_(options.module_name_),
-      output_port_name_(options.output_port_name_),
-      reset_proto_(options.reset_proto_),
-      pipeline_control_(options.pipeline_control_),
-      clock_name_(options.clock_name_),
-      generate_combinational_(options.generate_combinational_),
-      use_system_verilog_(options.use_system_verilog_),
-      separate_lines_(options.separate_lines_),
-      flop_inputs_(options.flop_inputs_),
-      flop_outputs_(options.flop_outputs_),
-      flop_inputs_kind_(options.flop_inputs_kind_),
-      flop_outputs_kind_(options.flop_outputs_kind_),
-      split_outputs_(options.split_outputs_),
-      add_idle_output_(options.add_idle_output_),
-      flop_single_value_channels_(options.flop_single_value_channels_),
-      emit_as_pipeline_(options.emit_as_pipeline_),
-      streaming_channel_data_suffix_(options.streaming_channel_data_suffix_),
-      streaming_channel_ready_suffix_(options.streaming_channel_ready_suffix_),
-      streaming_channel_valid_suffix_(options.streaming_channel_valid_suffix_),
-      array_index_bounds_checking_(options.array_index_bounds_checking_),
-      gate_recvs_(options.gate_recvs_),
-      register_merge_strategy_(options.register_merge_strategy_),
-      package_interface_(options.package_interface_),
-      emit_sv_types_(options.emit_sv_types_),
-      simulation_macro_name_(options.simulation_macro_name_),
-      assertion_macro_names_(options.assertion_macro_names_),
-      codegen_version_(options.codegen_version_),
-      fifo_module_(options.fifo_module_),
-      nodata_fifo_module_(options.nodata_fifo_module_),
-      randomize_order_seed_(options.randomize_order_seed_) {
-  for (auto& [op, op_override] : options.op_overrides_) {
-    op_overrides_.insert_or_assign(op, op_override->Clone());
-  }
-  ram_configurations_.reserve(options.ram_configurations().size());
-  for (auto& option : options.ram_configurations()) {
-    ram_configurations_.push_back(option->Clone());
-  }
-}
-
-CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
-  entry_ = options.entry_;
-  module_name_ = options.module_name_;
-  output_port_name_ = options.output_port_name_;
-  reset_proto_ = options.reset_proto_;
-  pipeline_control_ = options.pipeline_control_;
-  clock_name_ = options.clock_name_;
-  generate_combinational_ = options.generate_combinational_;
-  use_system_verilog_ = options.use_system_verilog_;
-  separate_lines_ = options.separate_lines_;
-  flop_inputs_ = options.flop_inputs_;
-  flop_outputs_ = options.flop_outputs_;
-  flop_inputs_kind_ = options.flop_inputs_kind_;
-  flop_outputs_kind_ = options.flop_outputs_kind_;
-  split_outputs_ = options.split_outputs_;
-  add_idle_output_ = options.add_idle_output_;
-  flop_single_value_channels_ = options.flop_single_value_channels_;
-  emit_as_pipeline_ = options.emit_as_pipeline_;
-  streaming_channel_data_suffix_ = options.streaming_channel_data_suffix_;
-  streaming_channel_ready_suffix_ = options.streaming_channel_ready_suffix_;
-  streaming_channel_valid_suffix_ = options.streaming_channel_valid_suffix_;
-  array_index_bounds_checking_ = options.array_index_bounds_checking_;
-  gate_recvs_ = options.gate_recvs_;
-  register_merge_strategy_ = options.register_merge_strategy_;
-  package_interface_ = options.package_interface_;
-  emit_sv_types_ = options.emit_sv_types_;
-  simulation_macro_name_ = options.simulation_macro_name_;
-  codegen_version_ = options.codegen_version_;
-  fifo_module_ = options.fifo_module_;
-  nodata_fifo_module_ = options.nodata_fifo_module_;
-  randomize_order_seed_ = options.randomize_order_seed_;
-
-  for (auto& [op, op_override] : options.op_overrides_) {
-    op_overrides_.insert_or_assign(op, op_override->Clone());
-  }
-  ram_configurations_.reserve(options.ram_configurations().size());
-  for (auto& option : options.ram_configurations()) {
-    ram_configurations_.push_back(option->Clone());
-  }
-  return *this;
 }
 
 CodegenOptions& CodegenOptions::entry(std::string_view name) {
@@ -252,8 +168,8 @@ CodegenOptions& CodegenOptions::add_idle_output(bool value) {
   return *this;
 }
 
-CodegenOptions& CodegenOptions::SetOpOverride(
-    Op kind, std::unique_ptr<OpOverride> configuration) {
+CodegenOptions& CodegenOptions::SetOpOverride(Op kind,
+                                              OpOverride configuration) {
   op_overrides_.insert_or_assign(kind, std::move(configuration));
   return *this;
 }
@@ -292,10 +208,10 @@ CodegenOptions& CodegenOptions::gate_recvs(bool value) {
 }
 
 CodegenOptions& CodegenOptions::ram_configurations(
-    absl::Span<const std::unique_ptr<RamConfiguration>> ram_configurations) {
+    absl::Span<const RamConfiguration> ram_configurations) {
   ram_configurations_.clear();
   for (auto& config : ram_configurations) {
-    ram_configurations_.push_back(config->Clone());
+    ram_configurations_.push_back(config);
   }
   return *this;
 }

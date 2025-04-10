@@ -763,6 +763,7 @@ cc_library(
         ":node_expressions",
         ":node_representation",
         ":op_override",
+        ":op_override_impls",
         ":verilog_line_map_cc_proto",
         "//xls/codegen/vast",
         "//xls/common/logging:log_lines",
@@ -1267,7 +1268,7 @@ cc_test(
         ":codegen_pass",
         ":codegen_pass_pipeline",
         ":module_signature",
-        ":op_override_impls",
+        ":op_override",
         ":signature_generator",
         ":test_fifos",
         "//xls/common:xls_gunit_main",
@@ -1478,13 +1479,7 @@ cc_library(
     name = "op_override",
     srcs = [],
     hdrs = ["op_override.h"],
-    deps = [
-        ":node_representation",
-        "//xls/ir",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
-    ],
+    deps = ["@com_google_absl//absl/container:flat_hash_map"],
 )
 
 cc_library(
@@ -1496,8 +1491,10 @@ cc_library(
         ":node_representation",
         ":op_override",
         "//xls/codegen/vast",
+        "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:op",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -1505,6 +1502,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
         "@re2",
     ],
 )
@@ -1609,6 +1607,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -1622,7 +1621,7 @@ cc_library(
         ":module_signature",
         ":module_signature_cc_proto",
         ":ram_configuration",
-        "//xls/common:casts",
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -1632,7 +1631,6 @@ cc_library(
         "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
@@ -1640,6 +1638,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -1654,7 +1653,6 @@ cc_test(
         ":module_signature_cc_proto",
         ":ram_configuration",
         ":ram_rewrite_pass",
-        "//xls/common:casts",
         "//xls/common:proto_test_utils",
         "//xls/common:visitor",
         "//xls/common:xls_gunit_main",

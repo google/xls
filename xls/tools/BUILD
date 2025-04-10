@@ -649,7 +649,7 @@ cc_library(
         "//xls/codegen:codegen_options",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",
-        "//xls/codegen:op_override_impls",
+        "//xls/codegen:op_override",
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:ram_configuration",
         "//xls/codegen:unified_generator",

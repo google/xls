@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/op_override_impls.h"
-
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -32,11 +29,13 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
+#include "absl/types/variant.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/node_representation.h"
 #include "xls/codegen/op_override.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "re2/re2.h"
@@ -91,13 +90,8 @@ static absl::StatusOr<std::string> GenerateFormatString(
   return str;
 }
 
-std::unique_ptr<OpOverride> OpOverrideAssignment::Clone() const {
-  return std::make_unique<OpOverrideAssignment>(assignment_format_string_,
-                                                placeholder_aliases_);
-}
-
-absl::StatusOr<NodeRepresentation> OpOverrideAssignment::Emit(
-    Node* node, std::string_view name,
+absl::StatusOr<NodeRepresentation> EmitOpOverrideAssignment(
+    const OpOverrideAssignment& op_override, Node* node, std::string_view name,
     absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
   LogicRef* ref = mb.DeclareVariable(name, node->GetType());
   absl::flat_hash_map<std::string, std::string> placeholders;
@@ -110,7 +104,7 @@ absl::StatusOr<NodeRepresentation> OpOverrideAssignment::Emit(
   placeholders["output"] = name;
   placeholders["width"] = absl::StrCat(node->GetType()->GetFlatBitCount());
 
-  for (const auto& itr : placeholder_aliases_) {
+  for (const auto& itr : op_override.placeholder_aliases()) {
     // Use `temp` because `placeholders[itr.first]` can cause a rehash that
     // invalidates the reference returned by `placeholders[itr.second]`.
     std::string temp = placeholders[itr.second];
@@ -119,7 +113,8 @@ absl::StatusOr<NodeRepresentation> OpOverrideAssignment::Emit(
 
   XLS_ASSIGN_OR_RETURN(
       std::string formatted_string,
-      GenerateFormatString(assignment_format_string_, placeholders, {}));
+      GenerateFormatString(op_override.assignment_format_string(), placeholders,
+                           {}));
 
   InlineVerilogStatement* raw_statement =
       mb.assignment_section()->Add<InlineVerilogStatement>(
@@ -142,12 +137,8 @@ static absl::flat_hash_map<std::string, std::string> GatePlaceholders() {
 OpOverrideGateAssignment::OpOverrideGateAssignment(std::string_view fmt_string)
     : OpOverrideAssignment(fmt_string, GatePlaceholders()) {}
 
-std::unique_ptr<OpOverride> OpOverrideAssertion::Clone() const {
-  return std::make_unique<OpOverrideAssertion>(assertion_format_string_);
-}
-
-absl::StatusOr<NodeRepresentation> OpOverrideAssertion::Emit(
-    Node* node, std::string_view name,
+absl::StatusOr<NodeRepresentation> EmitOpOverrideAssertion(
+    const OpOverrideAssertion& op_override, Node* node, std::string_view name,
     absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
   CHECK(node->Is<xls::Assert>());
   xls::Assert* asrt = node->As<xls::Assert>();
@@ -183,20 +174,16 @@ absl::StatusOr<NodeRepresentation> OpOverrideAssertion::Emit(
   }
   XLS_ASSIGN_OR_RETURN(
       std::string assert_str,
-      GenerateFormatString(assertion_format_string_, supported_placeholders,
-                           unsupported_placeholders));
+      GenerateFormatString(op_override.assertion_format_string(),
+                           supported_placeholders, unsupported_placeholders));
   return mb.assert_section()->Add<InlineVerilogStatement>(asrt->loc(),
                                                           assert_str);
 }
 
-std::unique_ptr<OpOverride> OpOverrideInstantiation::Clone() const {
-  return std::make_unique<OpOverrideInstantiation>(
-      instantiation_format_string_);
-}
-
-absl::StatusOr<NodeRepresentation> OpOverrideInstantiation::Emit(
-    Node* node, std::string_view name,
-    absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
+absl::StatusOr<NodeRepresentation> EmitOpOverrideInstantiation(
+    const OpOverrideInstantiation& op_override, Node* node,
+    std::string_view name, absl::Span<NodeRepresentation const> inputs,
+    ModuleBuilder& mb) {
   LogicRef* ref = mb.DeclareVariable(name, node->GetType());
 
   absl::flat_hash_map<std::string, std::string> placeholders;
@@ -215,12 +202,35 @@ absl::StatusOr<NodeRepresentation> OpOverrideInstantiation::Emit(
 
   XLS_ASSIGN_OR_RETURN(
       std::string formatted_string,
-      GenerateFormatString(instantiation_format_string_, placeholders, {}));
+      GenerateFormatString(op_override.instantiation_format_string(),
+                           placeholders, {}));
 
   mb.instantiation_section()->Add<InlineVerilogStatement>(node->loc(),
                                                           formatted_string);
 
   return ref;
+}
+
+absl::StatusOr<NodeRepresentation> EmitOpOverride(
+    OpOverride op_override, Node* node, std::string_view name,
+    absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
+  return absl::visit(
+      Visitor{
+          [&](const OpOverrideAssignment& override) {
+            return EmitOpOverrideAssignment(override, node, name, inputs, mb);
+          },
+          [&](const OpOverrideGateAssignment& override) {
+            return EmitOpOverrideAssignment(override, node, name, inputs, mb);
+          },
+          [&](const OpOverrideAssertion& override) {
+            return EmitOpOverrideAssertion(override, node, name, inputs, mb);
+          },
+          [&](const OpOverrideInstantiation& override) {
+            return EmitOpOverrideInstantiation(override, node, name, inputs,
+                                               mb);
+          },
+      },
+      op_override);
 }
 
 }  // namespace xls::verilog

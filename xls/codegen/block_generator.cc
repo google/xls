@@ -45,6 +45,7 @@
 #include "xls/codegen/node_expressions.h"
 #include "xls/codegen/node_representation.h"
 #include "xls/codegen/op_override.h"
+#include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/logging/log_lines.h"
@@ -481,7 +482,7 @@ class BlockGenerator {
       VLOG(3) << "Emitting logic for: " << node->GetName();
 
       // TODO(google/xls#653): support per-node overrides?
-      std::optional<OpOverride*> op_override =
+      std::optional<OpOverride> op_override =
           options_.GetOpOverride(node->op());
 
       if (op_override.has_value()) {
@@ -492,8 +493,8 @@ class BlockGenerator {
 
         XLS_ASSIGN_OR_RETURN(
             node_exprs_[node],
-            (*op_override)
-                ->Emit(node, NodeAssignmentName(node, stage), inputs, mb_));
+            EmitOpOverride(*op_override, node, NodeAssignmentName(node, stage),
+                           inputs, mb_));
         continue;
       }
 

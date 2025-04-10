@@ -15,11 +15,8 @@
 #ifndef XLS_CODEGEN_RAM_REWRITE_PASS_H_
 #define XLS_CODEGEN_RAM_REWRITE_PASS_H_
 
-#include <functional>
-
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/codegen/ram_configuration.h"
 
 namespace xls::verilog {
 
@@ -44,11 +41,6 @@ class RamRewritePass : public CodegenPass {
                                    const CodegenPassOptions& options,
                                    CodegenPassResults* results) const override;
 };
-
-// Alias for function that rewrites the block in the CodegenPassUnit for the
-// given RamConfiguration.
-using ram_rewrite_function_t = std::function<absl::StatusOr<bool>(
-    CodegenPassUnit*, const CodegenPassOptions&, const RamConfiguration&)>;
 
 }  // namespace xls::verilog
 

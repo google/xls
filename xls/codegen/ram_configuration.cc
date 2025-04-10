@@ -14,9 +14,9 @@
 
 #include "xls/codegen/ram_configuration.h"
 
+#include <array>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,6 +29,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "absl/types/variant.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace xls::verilog {
@@ -36,8 +37,8 @@ namespace {
 // Parses a split configuration string of the form
 // "(ram_name, "1RW", request_channel_name, response_channel_name[,
 // latency])".
-absl::StatusOr<std::unique_ptr<Ram1RWConfiguration>>
-Ram1RWConfigurationParseSplitString(absl::Span<const std::string_view> fields) {
+absl::StatusOr<Ram1RWConfiguration> Ram1RWConfigurationParseSplitString(
+    absl::Span<const std::string_view> fields) {
   // 1RW RAM has configuration (name, "1RW", request_channel_name,
   // response_channel_name[, latency]). If not specified, latency is assumed to
   // be 1.
@@ -63,7 +64,7 @@ Ram1RWConfigurationParseSplitString(absl::Span<const std::string_view> fields) {
           absl::StrFormat("Latency must be an integer, got %s.", fields[5]));
     }
   }
-  return std::make_unique<Ram1RWConfiguration>(
+  return Ram1RWConfiguration(
       name, latency, /*request_name=*/request_channel_name,
       /*response_name=*/response_channel_name,
       /*write_completion_name=*/write_completion_channel_name);
@@ -72,8 +73,7 @@ Ram1RWConfigurationParseSplitString(absl::Span<const std::string_view> fields) {
 // Parses a split configuration string of the form
 // "(ram_name, "1R1W", read_request_channel_name, read_response_channel_name,
 // write_request_channel_name[, latency])".
-absl::StatusOr<std::unique_ptr<Ram1R1WConfiguration>>
-Ram1R1WConfigurationParseSplitString(
+absl::StatusOr<Ram1R1WConfiguration> Ram1R1WConfigurationParseSplitString(
     absl::Span<const std::string_view> fields) {
   // 1R1W RAM has configuration (name, "1R1W", read_request_channel_name,
   // read_response_channel_name, write_request_channel_name[, latency]). If not
@@ -102,7 +102,7 @@ Ram1R1WConfigurationParseSplitString(
           absl::StrFormat("Latency must be an integer, got %s.", fields[6]));
     }
   }
-  return std::make_unique<Ram1R1WConfiguration>(
+  return Ram1R1WConfiguration(
       name, latency, /*read_request_name=*/read_request_channel_name,
       /*read_response_name=*/read_response_channel_name,
       /*write_request_name=*/write_request_channel_name,
@@ -110,12 +110,12 @@ Ram1R1WConfigurationParseSplitString(
 }
 
 // Ram configurations are in the format
-// ram_name:ram_kind[:ram_specific_configuration]. ParseString() splits the
-// configuration string on ":" and calls a ram_configuration_parser_t function
-// for the desired kind. These functions take a span of string_views and produce
-// a RamConfiguration.
+// ram_name:ram_kind[:ram_specific_configuration]. ParseRamConfiguration()
+// splits the configuration string on ":" and calls a ram_configuration_parser_t
+// function for the desired kind. These functions take a span of string_views
+// and produce a RamConfiguration.
 using ram_configuration_parser_t =
-    std::function<absl::StatusOr<std::unique_ptr<RamConfiguration>>(
+    std::function<absl::StatusOr<RamConfiguration>(
         absl::Span<const std::string_view>)>;
 
 absl::flat_hash_map<std::string, ram_configuration_parser_t>*
@@ -140,8 +140,7 @@ std::optional<ram_configuration_parser_t> GetRamConfigurationParserForRamKind(
 
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<RamConfiguration>> RamConfiguration::ParseString(
-    std::string_view text) {
+absl::StatusOr<RamConfiguration> ParseRamConfiguration(std::string_view text) {
   std::vector<std::string_view> split_str = absl::StrSplit(text, ':');
   if (split_str.size() < 2) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -161,41 +160,49 @@ absl::StatusOr<std::unique_ptr<RamConfiguration>> RamConfiguration::ParseString(
   return (*configuration_parser)(split_str);
 }
 
-std::unique_ptr<RamConfiguration> Ram1RWConfiguration::Clone() const {
-  return std::make_unique<Ram1RWConfiguration>(*this);
-}
-
-std::vector<IOConstraint> Ram1RWConfiguration::GetIOConstraints() const {
+/* static */ std::array<IOConstraint, 2> Ram1RWConfiguration::MakeIOConstraints(
+    const RamRWPortConfiguration& rw_port_configuration, int64_t latency) {
   return {
-      IOConstraint(rw_port_configuration_.request_channel_name,
+      IOConstraint(rw_port_configuration.request_channel_name,
                    IODirection::kSend,
-                   rw_port_configuration_.response_channel_name,
-                   IODirection::kReceive, /*minimum_latency=*/latency_,
-                   /*maximum_latency=*/latency_),
-      IOConstraint(rw_port_configuration_.request_channel_name,
+                   rw_port_configuration.response_channel_name,
+                   IODirection::kReceive, /*minimum_latency=*/latency,
+                   /*maximum_latency=*/latency),
+      IOConstraint(rw_port_configuration.request_channel_name,
                    IODirection::kSend,
-                   rw_port_configuration_.write_completion_channel_name,
-                   IODirection::kReceive, /*minimum_latency=*/latency_,
-                   /*maximum_latency=*/latency_),
+                   rw_port_configuration.write_completion_channel_name,
+                   IODirection::kReceive, /*minimum_latency=*/latency,
+                   /*maximum_latency=*/latency),
   };
 }
 
-std::unique_ptr<RamConfiguration> Ram1R1WConfiguration::Clone() const {
-  return std::make_unique<Ram1R1WConfiguration>(*this);
-}
-
-std::vector<IOConstraint> Ram1R1WConfiguration::GetIOConstraints() const {
+/* static */ std::array<IOConstraint, 2>
+Ram1R1WConfiguration::MakeIOConstraints(
+    const RamRPortConfiguration& r_port_configuration,
+    const RamWPortConfiguration& w_port_configuration, int64_t latency) {
   return {
       IOConstraint(
-          r_port_configuration_.request_channel_name, IODirection::kSend,
-          r_port_configuration_.response_channel_name, IODirection::kReceive,
-          /*minimum_latency=*/latency_, /*maximum_latency=*/latency_),
-      IOConstraint(w_port_configuration_.request_channel_name,
+          r_port_configuration.request_channel_name, IODirection::kSend,
+          r_port_configuration.response_channel_name, IODirection::kReceive,
+          /*minimum_latency=*/latency, /*maximum_latency=*/latency),
+      IOConstraint(w_port_configuration.request_channel_name,
                    IODirection::kSend,
-                   w_port_configuration_.write_completion_channel_name,
+                   w_port_configuration.write_completion_channel_name,
                    IODirection::kReceive,
-                   /*minimum_latency=*/latency_, /*maximum_latency=*/latency_),
+                   /*minimum_latency=*/latency, /*maximum_latency=*/latency),
   };
+}
+
+absl::Span<IOConstraint const> GetRamConfigurationIOConstraints(
+    const RamConfiguration& ram_configuration) {
+  return absl::visit([](const auto& config) { return config.io_constraints(); },
+                     ram_configuration);
+}
+
+std::string_view RamConfigurationRamName(
+    const RamConfiguration& ram_configuration) {
+  return absl::visit([](const auto& config) { return config.ram_name(); },
+                     ram_configuration);
 }
 
 }  // namespace xls::verilog

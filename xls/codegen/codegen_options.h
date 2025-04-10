@@ -41,12 +41,6 @@ class CodegenOptions {
  public:
   explicit CodegenOptions() = default;
 
-  CodegenOptions(const CodegenOptions& options);
-  CodegenOptions& operator=(const CodegenOptions& options);
-  CodegenOptions(CodegenOptions&& options) = default;
-  CodegenOptions& operator=(CodegenOptions&& options) = default;
-  ~CodegenOptions() = default;
-
   // Enum to describe which codegen version to use.
   enum class Version : uint8_t {
     kDefault = 0,
@@ -197,15 +191,14 @@ class CodegenOptions {
   bool add_idle_output() const { return add_idle_output_; }
 
   // Set an OpOverride to customize codegen for an Op.
-  CodegenOptions& SetOpOverride(Op kind,
-                                std::unique_ptr<OpOverride> configuration);
+  CodegenOptions& SetOpOverride(Op kind, OpOverride configuration);
   // Get the OpOverride for an op, if it's defined.
-  std::optional<OpOverride*> GetOpOverride(Op kind) const {
+  std::optional<OpOverride> GetOpOverride(Op kind) const {
     auto itr = op_overrides_.find(kind);
     if (itr == op_overrides_.end()) {
       return std::nullopt;
     }
-    return itr->second.get();
+    return itr->second;
   }
 
   // Emit the signal declarations and logic in the Verilog as a sequence of
@@ -266,9 +259,8 @@ class CodegenOptions {
 
   // List of channels to rewrite for RAMs.
   CodegenOptions& ram_configurations(
-      absl::Span<const std::unique_ptr<RamConfiguration>> ram_configurations);
-  absl::Span<const std::unique_ptr<RamConfiguration>> ram_configurations()
-      const {
+      absl::Span<const RamConfiguration> ram_configurations);
+  absl::Span<RamConfiguration const> ram_configurations() const {
     return ram_configurations_;
   }
 
@@ -379,14 +371,14 @@ class CodegenOptions {
   bool split_outputs_ = false;
   bool add_idle_output_ = false;
   bool flop_single_value_channels_ = false;
-  absl::flat_hash_map<Op, std::unique_ptr<OpOverride>> op_overrides_;
+  absl::flat_hash_map<Op, OpOverride> op_overrides_;
   bool emit_as_pipeline_ = false;
   std::string streaming_channel_data_suffix_ = "";
   std::string streaming_channel_ready_suffix_ = "_rdy";
   std::string streaming_channel_valid_suffix_ = "_vld";
   bool array_index_bounds_checking_ = true;
   bool gate_recvs_ = true;
-  std::vector<std::unique_ptr<RamConfiguration>> ram_configurations_;
+  std::vector<RamConfiguration> ram_configurations_;
   int64_t max_trace_verbosity_ = 0;
   RegisterMergeStrategy register_merge_strategy_ =
       RegisterMergeStrategy::kDefault;

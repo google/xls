@@ -31,7 +31,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/codegen/op_override_impls.h"
+#include "xls/codegen/op_override.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/ram_configuration.h"
 #include "xls/codegen/unified_generator.h"
@@ -115,10 +115,10 @@ struct CodegenMetadata {
         << "Must specify --pipeline_stages or --clock_period_ps (or both).";
 
     // Add IO constraints for RAMs.
-    for (const std::unique_ptr<xls::verilog::RamConfiguration>& ram_config :
+    for (const xls::verilog::RamConfiguration& ram_config :
          metadata.codegen_options.ram_configurations()) {
       for (const IOConstraint& ram_constraint :
-           ram_config->GetIOConstraints()) {
+           GetRamConfigurationIOConstraints(ram_config)) {
         metadata.scheduling_options.add_constraint(ram_constraint);
       }
     }
@@ -342,27 +342,23 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   options.max_inline_depth(p.max_inline_depth());
 
   if (!p.gate_format().empty()) {
-    options.SetOpOverride(
-        Op::kGate,
-        std::make_unique<verilog::OpOverrideGateAssignment>(p.gate_format()));
+    options.SetOpOverride(Op::kGate,
+                          verilog::OpOverrideGateAssignment(p.gate_format()));
   }
 
   if (!p.assert_format().empty()) {
-    options.SetOpOverride(
-        Op::kAssert,
-        std::make_unique<verilog::OpOverrideAssertion>(p.assert_format()));
+    options.SetOpOverride(Op::kAssert,
+                          verilog::OpOverrideAssertion(p.assert_format()));
   }
 
   if (!p.smulp_format().empty()) {
-    options.SetOpOverride(
-        Op::kSMulp,
-        std::make_unique<verilog::OpOverrideInstantiation>(p.smulp_format()));
+    options.SetOpOverride(Op::kSMulp,
+                          verilog::OpOverrideInstantiation(p.smulp_format()));
   }
 
   if (!p.umulp_format().empty()) {
-    options.SetOpOverride(
-        Op::kUMulp,
-        std::make_unique<verilog::OpOverrideInstantiation>(p.umulp_format()));
+    options.SetOpOverride(Op::kUMulp,
+                          verilog::OpOverrideInstantiation(p.umulp_format()));
   }
 
   options.streaming_channel_data_suffix(p.streaming_channel_data_suffix());
@@ -377,11 +373,11 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   options.set_assertion_macro_names(std::vector<std::string>(
       p.assertion_macro_names().begin(), p.assertion_macro_names().end()));
 
-  std::vector<std::unique_ptr<verilog::RamConfiguration>> ram_configurations;
+  std::vector<verilog::RamConfiguration> ram_configurations;
   ram_configurations.reserve(p.ram_configurations_size());
   for (const std::string& config_text : p.ram_configurations()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<verilog::RamConfiguration> config,
-                         verilog::RamConfiguration::ParseString(config_text));
+    XLS_ASSIGN_OR_RETURN(verilog::RamConfiguration config,
+                         verilog::ParseRamConfiguration(config_text));
     ram_configurations.push_back(std::move(config));
   }
   options.ram_configurations(ram_configurations);

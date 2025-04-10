@@ -41,7 +41,7 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/codegen/op_override_impls.h"
+#include "xls/codegen/op_override.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/codegen/test_fifos.h"
 #include "xls/common/logging/log_lines.h"
@@ -498,7 +498,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
             block,
             base_options().SetOpOverride(
                 Op::kAssert,
-                std::make_unique<OpOverrideAssertion>(
+                OpOverrideAssertion(
                     R"(`MY_ASSERT({condition}, "{message}", {clk}, {rst}))"))));
     if (UseSystemVerilog()) {
       EXPECT_THAT(
@@ -512,20 +512,18 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
 
   // Format string with label but assert doesn't have label.
   EXPECT_THAT(
-      GenerateVerilog(block,
-                      base_options().SetOpOverride(
-                          Op::kAssert, std::make_unique<OpOverrideAssertion>(
-                                           R"({label} foobar)"))),
+      GenerateVerilog(
+          block, base_options().SetOpOverride(
+                     Op::kAssert, OpOverrideAssertion(R"({label} foobar)"))),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Assert format string has {label} placeholder, "
                          "but assert operation has no label")));
 
   // Format string with invalid placeholder.
   EXPECT_THAT(
-      GenerateVerilog(block,
-                      base_options().SetOpOverride(
-                          Op::kAssert, std::make_unique<OpOverrideAssertion>(
-                                           R"({foobar} blargfoobar)"))),
+      GenerateVerilog(block, base_options().SetOpOverride(
+                                 Op::kAssert, OpOverrideAssertion(
+                                                  R"({foobar} blargfoobar)"))),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Invalid placeholder {foobar} in format string. "
                          "Valid placeholders: {clk}, {condition}, {label}, "
@@ -563,7 +561,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
             block,
             codegen_options("my_clk").SetOpOverride(
                 Op::kAssert,
-                std::make_unique<OpOverrideAssertion>(
+                OpOverrideAssertion(
                     R"({label}: `MY_ASSERT({condition}, "{message}") // {label})"))));
     if (UseSystemVerilog()) {
       EXPECT_THAT(
@@ -576,13 +574,13 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
   }
 
   // Format string with reset but block doesn't have reset.
-  EXPECT_THAT(GenerateVerilog(
-                  block, codegen_options("my_clk").SetOpOverride(
-                             Op::kAssert, std::make_unique<OpOverrideAssertion>(
-                                              R"({rst} foobar)"))),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Assert format string has {rst} placeholder, "
-                                 "but block has no reset signal")));
+  EXPECT_THAT(
+      GenerateVerilog(block,
+                      codegen_options("my_clk").SetOpOverride(
+                          Op::kAssert, OpOverrideAssertion(R"({rst} foobar)"))),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Assert format string has {rst} placeholder, "
+                         "but block has no reset signal")));
 }
 
 TEST_P(BlockGeneratorTest, BlockWithAssertWithInvalidSVLabel) {
@@ -626,20 +624,20 @@ TEST_P(BlockGeneratorTest, AssertCombinationalOrMissingClock) {
         GenerateVerilog(
             block, codegen_options().SetOpOverride(
                        Op::kAssert,
-                       std::make_unique<OpOverrideAssertion>(
+                       OpOverrideAssertion(
                            R"(ASSERT({label}, {condition}, "{message}"))"))));
     EXPECT_THAT(
         verilog,
         HasSubstr(R"(ASSERT(the_label, ult_4, "a is not greater than 42"))"));
   }
 
-  EXPECT_THAT(GenerateVerilog(
-                  block, codegen_options().SetOpOverride(
-                             Op::kAssert, std::make_unique<OpOverrideAssertion>(
-                                              R"({clk} foobar)"))),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Assert format string has {clk} placeholder, "
-                                 "but block has no clock signal")));
+  EXPECT_THAT(
+      GenerateVerilog(block,
+                      codegen_options().SetOpOverride(
+                          Op::kAssert, OpOverrideAssertion(R"({clk} foobar)"))),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Assert format string has {clk} placeholder, "
+                         "but block has no clock signal")));
 }
 
 TEST_P(BlockGeneratorTest, AssertFmtOnlyConsumerOfReset) {
@@ -668,7 +666,7 @@ TEST_P(BlockGeneratorTest, AssertFmtOnlyConsumerOfReset) {
           unit.top_block(),
           options.SetOpOverride(
               Op::kAssert,
-              std::make_unique<OpOverrideAssertion>(
+              OpOverrideAssertion(
                   R"(`MY_ASSERT({condition}, "{message}", {clk}, {rst}))"))));
   if (UseSystemVerilog()) {
     EXPECT_THAT(verilog,
@@ -884,7 +882,7 @@ TEST_P(BlockGeneratorTest, GatedBitsType) {
             block,
             codegen_options().SetOpOverride(
                 Op::kGate,
-                std::make_unique<OpOverrideGateAssignment>(
+                OpOverrideGateAssignment(
                     R"(my_and {output} [{width}-1:0] = my_and({condition}, {input}))"))));
     EXPECT_THAT(verilog, Not(HasSubstr(R"(wire gated_x [31:0];)")));
     EXPECT_THAT(verilog,
@@ -904,9 +902,9 @@ TEST_P(BlockGeneratorTest, SmulpWithFormat) {
   b.OutputPort("out", b.Tuple({x_smulp_y, z_smulp_z}));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
-  CodegenOptions options = codegen_options().SetOpOverride(
-      Op::kSMulp, std::make_unique<OpOverrideInstantiation>(
-                      R"(HardMultp #(
+  CodegenOptions options =
+      codegen_options().SetOpOverride(Op::kSMulp, OpOverrideInstantiation(
+                                                      R"(HardMultp #(
   .lhs_width({input0_width}),
   .rhs_width({input1_width}),
   .output_width({output_width})

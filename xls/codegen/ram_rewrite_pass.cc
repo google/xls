@@ -16,13 +16,11 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -30,14 +28,15 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "absl/types/variant.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/ram_configuration.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
@@ -349,11 +348,9 @@ absl::Status Ram1RWUpdateSignature(
   return absl::OkStatus();
 }
 
-absl::StatusOr<bool> Ram1RWRewrite(
-    CodegenPassUnit* unit, const CodegenPassOptions& pass_options,
-    const RamConfiguration& base_ram_configuration) {
-  auto& ram_config =
-      down_cast<const Ram1RWConfiguration&>(base_ram_configuration);
+absl::StatusOr<bool> Ram1RWRewrite(CodegenPassUnit* unit,
+                                   const CodegenPassOptions& pass_options,
+                                   const Ram1RWConfiguration& ram_config) {
   Block* block = unit->top_block();
 
   XLS_ASSIGN_OR_RETURN(
@@ -554,11 +551,9 @@ absl::StatusOr<bool> Ram1RWRewrite(
   return true;
 }
 
-absl::StatusOr<bool> Ram1R1WRewrite(
-    CodegenPassUnit* unit, const CodegenPassOptions& pass_options,
-    const RamConfiguration& base_ram_configuration) {
-  auto& ram_config =
-      down_cast<const Ram1R1WConfiguration&>(base_ram_configuration);
+absl::StatusOr<bool> Ram1R1WRewrite(CodegenPassUnit* unit,
+                                    const CodegenPassOptions& pass_options,
+                                    const Ram1R1WConfiguration& ram_config) {
   Block* block = unit->top_block();
 
   XLS_ASSIGN_OR_RETURN(
@@ -802,28 +797,17 @@ absl::StatusOr<bool> Ram1R1WRewrite(
   return true;
 }
 
-absl::flat_hash_map<std::string, ram_rewrite_function_t>*
-GetRamRewriteFunctionMap() {
-  static auto* singleton =
-      new absl::flat_hash_map<std::string, ram_rewrite_function_t>{
-          {"1RW", Ram1RWRewrite},
-          {"1R1W", Ram1R1WRewrite},
-      };
-  return singleton;
-}
-
 absl::StatusOr<bool> RamRewrite(CodegenPassUnit* unit,
                                 const CodegenPassOptions& pass_options,
                                 const RamConfiguration& ram_configuration) {
-  absl::flat_hash_map<std::string, ram_rewrite_function_t>*
-      rewrite_function_map = GetRamRewriteFunctionMap();
-  auto itr = rewrite_function_map->find(ram_configuration.ram_kind());
-  if (itr == rewrite_function_map->end()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("No RAM rewriter found for RAM kind %s.",
-                        ram_configuration.ram_kind()));
-  }
-  return itr->second(unit, pass_options, ram_configuration);
+  return absl::visit(Visitor{[&](const Ram1RWConfiguration& config) {
+                               return Ram1RWRewrite(unit, pass_options, config);
+                             },
+                             [&](const Ram1R1WConfiguration& config) {
+                               return Ram1R1WRewrite(unit, pass_options,
+                                                     config);
+                             }},
+                     ram_configuration);
 }
 
 }  // namespace
@@ -838,12 +822,12 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
   XLS_RET_CHECK(unit->HasTopBlock())
       << "RamRewritePass requires top_block to be set.";
 
-  for (const std::unique_ptr<RamConfiguration>& ram_configuration :
+  for (const RamConfiguration& ram_configuration :
        options.codegen_options.ram_configurations()) {
-    VLOG(2) << "Rewriting channels for ram " << ram_configuration->ram_name()
-            << ".";
+    VLOG(2) << "Rewriting channels for ram "
+            << RamConfigurationRamName(ram_configuration) << ".";
     XLS_ASSIGN_OR_RETURN(bool this_one_changed,
-                         RamRewrite(unit, options, *ram_configuration));
+                         RamRewrite(unit, options, ram_configuration));
     changed = changed || this_one_changed;
   }
 
