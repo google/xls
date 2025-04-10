@@ -10,5 +10,6 @@ def FirstResult : NativeCodeCall<"$0->getResult(0)">;
 def : Pat<(Math_Exp2Op:$op $a, /*FastMathFlags=*/$_),
           (FirstResult (Xls_CallDslxOp
             StringAttr<"xls/compute_exp2.x">,
-            StringAttr<"compute_exp2">, (variadic $a), ConstUnitAttr,
+            StringAttr<"compute_exp2">, (variadic $a),
+            ConstUnitAttr, ConstUnitAttr,
             (returnType $op)))>;

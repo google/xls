@@ -39,6 +39,7 @@ void XlsLowerPassPipeline(OpPassManager& pm,
   pm.addPass(mlir::createCanonicalizerPass());
   pm.addPass(createMathToXlsPass());
   pm.addPass(createArithToXlsPass());
+  pm.addPass(createNormalizeXlsCallsPass());
   pm.addPass(createScalarizePass());
   if (options.convert_arrays_to_bits) {
     pm.addPass(createArrayToBitsPass());
@@ -47,7 +48,6 @@ void XlsLowerPassPipeline(OpPassManager& pm,
   pm.addPass(createIndexTypeConversionPass());
   pm.addPass(createLowerCountedForPass());
   pm.addPass(mlir::createCSEPass());
-  pm.addPass(createNormalizeXlsCallsPass());
   pm.addPass(createExpandMacroOpsPass());
 }
 
