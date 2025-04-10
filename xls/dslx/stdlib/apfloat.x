@@ -3939,7 +3939,7 @@ fn round_already_round_test() {
     const F32_EXP_SZ = u32:8;
     const F32_FRACTION_SZ = u32:23;
     let one_f32 = one<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
-    assert_eq(trunc(one_f32), one_f32);
+    assert_eq(round(one_f32), one_f32);
 }
 
 #[test]
@@ -3947,13 +3947,13 @@ fn round_special() {
     const F32_EXP_SZ = u32:8;
     const F32_FRACTION_SZ = u32:23;
     let inf_f32 = inf<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
-    assert_eq(trunc(inf_f32), inf_f32);
+    assert_eq(round(inf_f32), inf_f32);
     let minus_inf_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, ..inf_f32 };
-    assert_eq(trunc(minus_inf_f32), minus_inf_f32);
+    assert_eq(round(minus_inf_f32), minus_inf_f32);
     let zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
-    assert_eq(trunc(zero_f32), zero_f32);
+    assert_eq(round(zero_f32), zero_f32);
     let minus_zero_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, ..zero_f32 };
-    assert_eq(trunc(minus_zero_f32), minus_zero_f32);
+    assert_eq(round(minus_zero_f32), minus_zero_f32);
     let qnan_f32 = qnan<F32_EXP_SZ, F32_FRACTION_SZ>();
-    assert_eq(trunc(qnan_f32), qnan_f32);
+    assert_eq(round(qnan_f32), qnan_f32);
 }
