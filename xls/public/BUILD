@@ -146,6 +146,12 @@ cc_library(
 )
 
 cc_library(
+    name = "vast",
+    hdrs = ["vast.h"],
+    deps = ["//xls/codegen/vast"],
+)
+
+cc_library(
     name = "ir_parser",
     srcs = ["ir_parser.cc"],
     hdrs = ["ir_parser.h"],
