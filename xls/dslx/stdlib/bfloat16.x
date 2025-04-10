@@ -260,30 +260,30 @@ fn from_int8_test() {
 }
 
 // NB s5 to ensure no rounding during the add occurs.
-#[quickcheck]
+#[quickcheck(exhaustive)]
 fn add_less_than_one_half_round_check(f_i: s5) -> bool {
     let f = f_i as s8;
     let flt = from_int8(f);
     let is_neg = f < s8:0;
-    let one_half_less_a_bit = BF16 { sign: is_neg, bexp: bias(s8:-2), fraction: u7:0b011_0000 };
-    round<apfloat::RoundStyle::TIES_TO_EVEN>(add(flt, one_half_less_a_bit)) == flt &&
-    round<apfloat::RoundStyle::TIES_TO_AWAY>(add(flt, one_half_less_a_bit)) == flt
+    let less_than_one_half = BF16 { sign: is_neg, bexp: bias(s8:-2), fraction: u7:0b011_0000 };
+    round<apfloat::RoundStyle::TIES_TO_EVEN>(add(flt, less_than_one_half)) == flt &&
+    round<apfloat::RoundStyle::TIES_TO_AWAY>(add(flt, less_than_one_half)) == flt
 }
 
 // NB s5 to ensure no rounding during the add occurs.
-#[quickcheck]
+#[quickcheck(exhaustive)]
 fn add_more_than_one_half_round_check(f_i: s5) -> bool {
     let f = f_i as s8;
     let flt = from_int8(f);
     let is_neg = f < s8:0;
     let flt_plus_one = from_int8(f + if is_neg { s8:-1 } else { s8:1 });
-    let one_half_plus_a_bit = BF16 { sign: is_neg, bexp: bias(s8:-1), fraction: u7:0b111_0000 };
-    round<apfloat::RoundStyle::TIES_TO_EVEN>(add(flt, one_half_plus_a_bit)) == flt_plus_one &&
-    round<apfloat::RoundStyle::TIES_TO_AWAY>(add(flt, one_half_plus_a_bit)) == flt_plus_one
+    let more_than_one_half = BF16 { sign: is_neg, bexp: bias(s8:-1), fraction: u7:0b111_0000 };
+    round<apfloat::RoundStyle::TIES_TO_EVEN>(add(flt, more_than_one_half)) == flt_plus_one &&
+    round<apfloat::RoundStyle::TIES_TO_AWAY>(add(flt, more_than_one_half)) == flt_plus_one
 }
 
 // NB s5 to ensure no rounding during the add occurs.
-#[quickcheck]
+#[quickcheck(exhaustive)]
 fn add_one_half_round_to_even_check(f_i: s5) -> bool {
     let f = f_i as s8;
     let flt = from_int8(f);
@@ -301,7 +301,7 @@ fn add_one_half_round_to_even_check(f_i: s5) -> bool {
 }
 
 // NB s5 to ensure no rounding during the add occurs.
-#[quickcheck]
+#[quickcheck(exhaustive)]
 fn add_one_half_round_to_away_check(f_i: s5) -> bool {
     let f = f_i as s8;
     let flt = from_int8(f);

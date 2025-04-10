@@ -370,7 +370,7 @@ pub enum RoundStyle : u1 {
     TIES_TO_AWAY = 1,
 }
 
-// Round to nearest, ties to even (aka roundTiesToEven).
+// Round to nearest, ties controlled by round_style.
 // if truncated bits > halfway bit: round up.
 // if truncated bits < halfway bit: round down.
 // if truncated bits == halfway bit:
@@ -378,7 +378,7 @@ pub enum RoundStyle : u1 {
 //     if halfway bit is odd: round_up
 //     if halfway bit is even: round_down
 //   if TIES_TO_AWAY: round_up
-fn round_up<FRACTION_SZ: u32, LSB_INDEX_SZ: u32 = {std::clog2(FRACTION_SZ)}>
+fn should_round_up<FRACTION_SZ: u32, LSB_INDEX_SZ: u32 = {std::clog2(FRACTION_SZ)}>
     (fraction: uN[FRACTION_SZ], lsb_idx: uN[LSB_INDEX_SZ], round_style: RoundStyle) -> bool {
     let halfway_idx = lsb_idx as uN[FRACTION_SZ] - uN[FRACTION_SZ]:1;
     let halfway_bit_mask = uN[FRACTION_SZ]:1 << halfway_idx;
@@ -399,59 +399,59 @@ fn round_up<FRACTION_SZ: u32, LSB_INDEX_SZ: u32 = {std::clog2(FRACTION_SZ)}>
 #[test]
 fn round_up_az_test() {
     // >halfway bit.
-    assert_eq(round_up(u5:0b01101, u3:3, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(should_round_up(u5:0b01101, u3:3, RoundStyle::TIES_TO_AWAY), true);
     // <halfway bit.
-    assert_eq(round_up(u5:0b01001, u3:3, RoundStyle::TIES_TO_AWAY), false);
+    assert_eq(should_round_up(u5:0b01001, u3:3, RoundStyle::TIES_TO_AWAY), false);
     // ==halfway bit and lsb odd.
-    assert_eq(round_up(u5:0b01100, u3:3, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(should_round_up(u5:0b01100, u3:3, RoundStyle::TIES_TO_AWAY), true);
     // ==halfway bit and lsb even.
-    assert_eq(round_up(u5:0b00100, u3:3, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(should_round_up(u5:0b00100, u3:3, RoundStyle::TIES_TO_AWAY), true);
     // 0 fraction.
-    assert_eq(round_up(u5:0b000000, u3:3, RoundStyle::TIES_TO_AWAY), false);
+    assert_eq(should_round_up(u5:0b000000, u3:3, RoundStyle::TIES_TO_AWAY), false);
     // max lsb index, >halfway bit.
-    assert_eq(round_up(u8:0b11000001, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(should_round_up(u8:0b11000001, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
     // max lsb index, <halfway bit.
-    assert_eq(round_up(u8:0b10000000, u3:0b111, RoundStyle::TIES_TO_AWAY), false);
+    assert_eq(should_round_up(u8:0b10000000, u3:0b111, RoundStyle::TIES_TO_AWAY), false);
     // max lsb index, ==halfway bit and lsb odd.
-    assert_eq(round_up(u8:0b11000000, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(should_round_up(u8:0b11000000, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
     // max lsb index, ==halfway bit and lsb even.
-    assert_eq(round_up(u8:0b01000000, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(should_round_up(u8:0b01000000, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
     // overflow lsb index.
-    assert_eq(round_up(u5:0b11111, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(should_round_up(u5:0b11111, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
 }
 
 #[test]
 fn round_up_ne_test() {
     // >halfway bit.
-    assert_eq(round_up(u5:0b01101, u3:3, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(should_round_up(u5:0b01101, u3:3, RoundStyle::TIES_TO_EVEN), true);
     // <halfway bit.
-    assert_eq(round_up(u5:0b01001, u3:3, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(should_round_up(u5:0b01001, u3:3, RoundStyle::TIES_TO_EVEN), false);
     // ==halfway bit and lsb odd.
-    assert_eq(round_up(u5:0b01100, u3:3, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(should_round_up(u5:0b01100, u3:3, RoundStyle::TIES_TO_EVEN), true);
     // ==halfway bit and lsb even.
-    assert_eq(round_up(u5:0b00100, u3:3, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(should_round_up(u5:0b00100, u3:3, RoundStyle::TIES_TO_EVEN), false);
     // 0 fraction.
-    assert_eq(round_up(u5:0b000000, u3:3, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(should_round_up(u5:0b000000, u3:3, RoundStyle::TIES_TO_EVEN), false);
     // max lsb index, >halfway bit.
-    assert_eq(round_up(u8:0b11000001, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(should_round_up(u8:0b11000001, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
     // max lsb index, <halfway bit.
-    assert_eq(round_up(u8:0b10000000, u3:0b111, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(should_round_up(u8:0b10000000, u3:0b111, RoundStyle::TIES_TO_EVEN), false);
     // max lsb index, ==halfway bit and lsb odd.
-    assert_eq(round_up(u8:0b11000000, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(should_round_up(u8:0b11000000, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
     // max lsb index, ==halfway bit and lsb even.
-    assert_eq(round_up(u8:0b01000000, u3:0b111, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(should_round_up(u8:0b01000000, u3:0b111, RoundStyle::TIES_TO_EVEN), false);
     // overflow lsb index.
-    assert_eq(round_up(u5:0b11111, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(should_round_up(u5:0b11111, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
 }
 
 #[quickcheck]
 fn round_up_ne_overflow_always_rounds_up(f: u5) -> bool {
-    round_up(f, u3:0b111, RoundStyle::TIES_TO_EVEN)
+    should_round_up(f, u3:0b111, RoundStyle::TIES_TO_EVEN)
 }
 
 #[quickcheck]
 fn round_up_az_overflow_always_rounds_up(f: u5) -> bool {
-    round_up(f, u3:0b111, RoundStyle::TIES_TO_AWAY)
+    should_round_up(f, u3:0b111, RoundStyle::TIES_TO_AWAY)
 }
 
 // Casts the fixed point number to a floating point number using RNE
@@ -489,7 +489,7 @@ pub fn cast_from_fixed_using_rne<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u3
 
     // Round fraction (round to nearest, half to even).
     let lsb_idx = (num_trailing_nonzeros as uN[EXTENDED_FRACTION_SZ]) - uN[EXTENDED_FRACTION_SZ]:1;
-    let round_up = round_up(
+    let round_up = should_round_up(
         extended_fraction, lsb_idx as uN[std::clog2(EXTENDED_FRACTION_SZ)],
         RoundStyle::TIES_TO_EVEN);
     let fraction = if round_up { fraction + uN[FRACTION_SZ]:1 } else { fraction };
@@ -3686,12 +3686,12 @@ fn round_normal<EXP_SZ: u32, FRACTION_SZ: u32, ROUND_STYLE: RoundStyle = {RoundS
             let round_up = if exp == sN[EXP_SZ]:0 {
                 let two_exp_0 = u1:1;
                 let widened_fraction = two_exp_0 ++ f.fraction;
-                round_up(
+                should_round_up(
                     widened_fraction, FRACTION_SZ as uN[std::clog2(FRACTION_SZ_PLUS_ONE)],
                     ROUND_STYLE)
             } else {
                 let lsb_index = (FRACTION_SZ as uN[EXP_SZ] - exp as uN[EXP_SZ]);
-                round_up(f.fraction, lsb_index as uN[std::clog2(FRACTION_SZ)], ROUND_STYLE)
+                should_round_up(f.fraction, lsb_index as uN[std::clog2(FRACTION_SZ)], ROUND_STYLE)
             };
             if round_up {
                 round_up_no_sign_positive_exp(f)
