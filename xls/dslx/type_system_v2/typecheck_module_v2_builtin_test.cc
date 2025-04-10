@@ -570,6 +570,116 @@ TEST(TypecheckV2BuiltinTest, GateReturnTypeMismatch) {
               TypecheckFails(HasSizeMismatch("u31", "u32")));
 }
 
+TEST(TypecheckV2BuiltinTest, MapTooFewArguments) {
+  EXPECT_THAT(R"(const Y = map([u32:1]);)",
+              TypecheckFails(HasSubstr(R"(Expected 2 argument(s) but got 1)")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapTooManyArguments) {
+  EXPECT_THAT(R"(const Y = map([u32:1], ctz, ctz);)",
+              TypecheckFails(HasSubstr(R"(Expected 2 argument(s) but got 3)")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapFirstArgNotArray) {
+  EXPECT_THAT(R"(
+const X = true;
+const Y = map(X, ctz);)",
+              TypecheckFails(HasSubstr("Could not infer parametric(s): N")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapSecondArgConstant) {
+  EXPECT_THAT(
+      R"(const Y = map([u32:1], u32:0);)",
+      TypecheckFails(HasSubstr(R"(An invocation callee must be a function)")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapSecondArgNotFn) {
+  EXPECT_THAT(
+      R"(
+const X = u32:0;
+const Y = map([u32:1], X);)",
+      TypecheckFails(HasSubstr(R"(Invocation callee `X` is not a function)")));
+}
+
+TEST(TypecheckV2BuiltinTest, Map) {
+  EXPECT_THAT(
+      R"(
+fn to_zero_31(x: uN[32]) -> uN[31] { u31:0 }
+const Y = map([u32:2], to_zero_31);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[31][1]")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapSizeMismatch) {
+  EXPECT_THAT(
+      R"(
+fn to_zero_31(x: uN[32]) -> uN[31] { u31:0 }
+const Y = map([u30:2], to_zero_31);
+)",
+      TypecheckFails(HasSizeMismatch("uN[30]", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapArgMismatch) {
+  EXPECT_THAT(
+      R"(
+fn to_zero_31(x: uN[32], y: u32) -> uN[31] { u31:0 }
+const Y = map([u32:2], to_zero_31);
+)",
+      TypecheckFails(HasSubstr(R"(Expected 1 argument(s) but got 2)")));
+}
+
+// This isn't allowed in v1, and will not be allowed in v2 either, because the
+// "F" type needs to be (T)->U which is not expressible currently in DSLX.
+TEST(TypecheckV2BuiltinTest, MapExplicitParametrics) {
+  EXPECT_THAT(
+      R"(
+fn to_zero_31(x: uN[32]) -> u31 { u31:0 }
+const Y = map<u32, u31, u32, u32:1>([u32:1], to_zero_31);
+)",
+      TypecheckFails(
+          HasSubstr(R"(Expected 0 parametric arguments to `map` but got 4)")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapSameFunctionDifferentArraySize) {
+  EXPECT_THAT(
+      R"(
+fn to_zero_31(x: uN[32]) -> u31 { u31:0 }
+const Y = map([u32:1], to_zero_31);
+const Z = map([u32:2, u32:3], to_zero_31);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("Y", "uN[31][1]"),
+                              HasNodeWithType("Z", "uN[31][2]"))));
+}
+
+// TODO: davidplass - finish this
+TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricFnExplicitParametrics) {
+  EXPECT_THAT(
+      R"(
+fn identity<N: u32>(input: uN[N]) -> uN[N] { input }
+const Y: u30[1] = map([u30:5], identity<u32:30>);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[30][1]")));
+}
+
+// TODO: davidplass - finish this
+TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricFnImpliedParametrics) {
+  EXPECT_THAT(
+      R"(
+fn identity<N: u32>(input: uN[N]) -> uN[N] { input }
+const Y: u30[1] = map([u30:5], identity);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[30][1]")));
+}
+
+// This is the same issue as the previous test case.
+TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricBuiltinFn) {
+  EXPECT_THAT(
+      R"(
+const Y = map([u32:1], ctz);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[32][1]")));
+}
+
 TEST(TypecheckV2BuiltinTest, OneHot) {
   EXPECT_THAT(R"(const Y = one_hot(u32:2, true);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[33]")));

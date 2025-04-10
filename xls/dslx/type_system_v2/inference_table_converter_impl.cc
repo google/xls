@@ -1734,6 +1734,82 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         file_table_);
   }
 
+  // Given an invocation of the `map` builtin, creates a FunctionTypeAnnotation
+  // for the `mapper` argument
+  absl::StatusOr<const FunctionTypeAnnotation*> CreateMapperFunctionType(
+      const Invocation* invocation,
+      const ParametricContext* invocation_context) {
+    std::vector<ExprOrType> explicit_parametrics =
+        invocation->explicit_parametrics();
+    if (!explicit_parametrics.empty()) {
+      return ArgCountMismatchErrorStatus(
+          invocation->span(),
+          absl::Substitute(
+              "Expected 0 parametric arguments to `map` but got $0.",
+              explicit_parametrics.size()),
+          file_table_);
+    }
+
+    Expr* array_arg = invocation->args()[0];
+    std::optional<const ParametricContext*> caller_context =
+        invocation_context->parent_context();
+    XLS_RETURN_IF_ERROR(
+        ConvertSubtree(array_arg, std::nullopt, caller_context));
+    XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> array_type,
+                         resolver_->ResolveAndUnifyTypeAnnotationsForNode(
+                             caller_context, array_arg));
+    CHECK(array_type.has_value());
+
+    Expr* mapper = invocation->args()[1];
+    FunctionRef* mapper_fn = dynamic_cast<FunctionRef*>(mapper);
+    std::vector<ExprOrType> fake_explicit_parametrics;
+    if (mapper_fn != nullptr && !mapper_fn->explicit_parametrics().empty()) {
+      // TODO: davidplass - finish this for explicit parametrics.
+      // Uncommenting the next line causes a disengaged value crash
+      // because there are no type variables for the mapper and/or the
+      // explicit parametric parameters.
+      // fake_explicit_parametrics = mapper_fn->explicit_parametrics();
+      mapper = mapper_fn->callee();
+    }
+
+    // Create an invocation of the mapper with array[0], to make the
+    // return type of mapper line up with the return type of `map`.
+    XLS_ASSIGN_OR_RETURN(
+        Number * index,
+        MakeTypeCheckedNumber(module_, table_, array_arg->span(), 0,
+                              CreateU32Annotation(module_, array_arg->span())));
+    Expr* array_of_0 = module_.Make<Index>(array_arg->span(), array_arg, index);
+    Invocation* mapper_invocation = module_.Make<Invocation>(
+        mapper->span(), mapper, std::vector<Expr*>{array_of_0},
+        std::move(fake_explicit_parametrics));
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* mapper_invocation_var,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Invocation*>(invocation),
+            absl::Substitute("internal_mapper_invocation_at_$0_in_$1",
+                             invocation->span().ToString(file_table_),
+                             invocation->owner()->name())));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(mapper_invocation, mapper_invocation_var));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        mapper, module_.Make<FunctionTypeAnnotation>(
+                    std::vector<const TypeAnnotation*>{
+                        module_.Make<ElementTypeAnnotation>(*array_type)},
+                    module_.Make<AnyTypeAnnotation>())));
+
+    XLS_RETURN_IF_ERROR(
+        ConvertSubtree(mapper_invocation, std::nullopt, caller_context));
+    XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> mapper_type,
+                         resolver_->ResolveAndUnifyTypeAnnotationsForNode(
+                             caller_context, mapper_invocation->callee()));
+    CHECK(mapper_type.has_value());
+    const auto* mapper_fn_type =
+        dynamic_cast<const FunctionTypeAnnotation*>(*mapper_type);
+    CHECK_NE(mapper_fn_type, nullptr);
+
+    return mapper_fn_type;
+  }
+
   // Determines any implicit parametric values in the given `invocation`, and
   // generates its `ParametricEnv` in `converted_parametric_envs_`. Also
   // populates `parametric_value_exprs_` for the invocation.
@@ -1757,16 +1833,31 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return absl::OkStatus();
     };
 
+    std::vector<ExprOrType> explicit_parametrics =
+        invocation->explicit_parametrics();
+    if (IsBuiltinFn(invocation->callee()) &&
+        invocation->callee()->ToString() == "map") {
+      XLS_ASSIGN_OR_RETURN(
+          const FunctionTypeAnnotation* mapper_fn_type,
+          CreateMapperFunctionType(invocation, invocation_context));
+
+      // These must be the first actual two parametrics because they're listed
+      // as the first two formals.
+      explicit_parametrics.push_back(
+          const_cast<FunctionTypeAnnotation*>(mapper_fn_type));
+      explicit_parametrics.push_back(
+          const_cast<TypeAnnotation*>(mapper_fn_type->return_type()));
+    }
+
     for (int i = 0; i < invocation_context->parametric_bindings().size(); i++) {
       const ParametricBinding* binding =
           invocation_context->parametric_bindings()[i];
 
-      if (i < invocation->explicit_parametrics().size() &&
+      if (i < explicit_parametrics.size() &&
           dynamic_cast<const GenericTypeAnnotation*>(
               binding->type_annotation())) {
         // This is a <T: type> reference
-        ExprOrType actual_parametric_type =
-            invocation->explicit_parametrics()[i];
+        ExprOrType actual_parametric_type = explicit_parametrics[i];
         XLS_RETURN_IF_ERROR(
             table_.AddTypeAnnotationToVariableForParametricContext(
                 invocation_context, binding,
