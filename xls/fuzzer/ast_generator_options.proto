@@ -43,6 +43,12 @@ message AstGeneratorOptionsProto {
   // `true`.
   optional bool emit_stateless_proc = 7;
 
+  // Whether to emit a top proc that spawns other procs. When true, a small
+  // helper proc may randomly be generated and spawned from the top proc, and
+  // the top proc's next function will interact with the child proc's channels.
+  // Its value is only meaningful when generate_proc is `true`.
+  optional bool emit_proc_spawns = 9;
+
   // Whether to emit zero-width bits types.
   optional bool emit_zero_width_bits_types = 8;
 }

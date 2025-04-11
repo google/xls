@@ -286,9 +286,9 @@ GetInputChannelPayloadTypesOfProc(dslx::Proc* proc,
   std::vector<std::unique_ptr<dslx::Type>> input_channel_payload_types;
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
                        tm.type_info->GetTopLevelProcTypeInfo(proc));
-  for (dslx::ProcMember* member : proc->members()) {
+  for (dslx::Param* param : proc->config().params()) {
     dslx::ChannelTypeAnnotation* channel_type =
-        dynamic_cast<dslx::ChannelTypeAnnotation*>(member->type_annotation());
+        dynamic_cast<dslx::ChannelTypeAnnotation*>(param->type_annotation());
     if (channel_type == nullptr) {
       continue;
     }
@@ -309,16 +309,16 @@ GetInputChannelPayloadTypesOfProc(dslx::Proc* proc,
 // Returns the input channel names of the proc.
 static std::vector<std::string> GetInputChannelNamesOfProc(dslx::Proc* proc) {
   std::vector<std::string> channel_names;
-  for (dslx::ProcMember* member : proc->members()) {
+  for (dslx::Param* param : proc->config().params()) {
     dslx::ChannelTypeAnnotation* channel_type =
-        dynamic_cast<dslx::ChannelTypeAnnotation*>(member->type_annotation());
+        dynamic_cast<dslx::ChannelTypeAnnotation*>(param->type_annotation());
     if (channel_type == nullptr) {
       continue;
     }
     if (channel_type->direction() != dslx::ChannelDirection::kIn) {
       continue;
     }
-    channel_names.push_back(member->identifier());
+    channel_names.push_back(param->identifier());
   }
   return channel_names;
 }
@@ -435,7 +435,9 @@ absl::StatusOr<Sample> GenerateSample(
     // If this sample is going through codegen, regenerate the sample until it's
     // legal; we currently can't verify latency-sensitive samples, which means
     // we can't have a non-blocking recv except with 1 pipeline stage.
-  } while (sample_options.codegen() && has_nb_recv && min_stages > 1);
+  } while (((sample_options.codegen() && min_stages > 1) ||
+            generator_options.emit_proc_spawns) &&
+           has_nb_recv);
 
   // Parse and type check the DSLX input to retrieve the top entity. The top
   // member must be a proc or a function.
