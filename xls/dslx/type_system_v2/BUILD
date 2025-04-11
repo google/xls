@@ -448,6 +448,7 @@ cc_library(
         "//xls/common:casts",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
+        "//xls/dslx:import_data",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node",

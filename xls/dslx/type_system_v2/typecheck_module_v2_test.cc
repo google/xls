@@ -5853,8 +5853,7 @@ fn main() -> u32 {
   ImportData import_data = CreateImportDataForTest();
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
-              ::absl_testing::IsOkAndHolds(
-                  HasTypeInfo(HasNodeWithType("var", "uN[32]"))));
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("var", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, ImportNonExistingFunction) {
@@ -5890,5 +5889,198 @@ fn main() -> u32 {
       TypecheckV2(kProgram, "main", &import_data),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
 }
+
+TEST(TypecheckV2Test, ImportConstant) {
+  constexpr std::string_view kImported = R"(
+pub const SOME_CONSTANT = u32:1;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u1 {
+  let var = imported::SOME_CONSTANT;
+  uN[var]:0
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("main", "() -> uN[1]"))));
+}
+
+TEST(TypecheckV2Test, ImportConstantLiteralSizedType) {
+  constexpr std::string_view kImported = R"(
+pub const SOME_CONSTANT = uN[4]:1;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u4 {
+  let var = imported::SOME_CONSTANT;
+  var
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("main", "() -> uN[4]"))));
+}
+
+TEST(TypecheckV2Test, ImportConstantVarSizedType) {
+  constexpr std::string_view kImported = R"(
+const SIZE = u32:5;
+pub const SOME_CONSTANT = uN[SIZE]:1;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u5 {
+  let var = imported::SOME_CONSTANT;
+  var
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("main", "() -> uN[5]"))));
+}
+
+TEST(TypecheckV2Test, ImportConstantArray) {
+  constexpr std::string_view kImported = R"(
+const SIZE = u32:5;
+pub const ARRAY = u32[SIZE]:[1, 2, 3, 4, 5];
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u32[5] {
+  let var = imported::ARRAY;
+  var
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("main", "() -> uN[32][5]"))));
+}
+
+TEST(TypecheckV2Test, ImportConstantStructSizeMismatch) {
+  constexpr std::string_view kImported = R"(
+struct Point { x: uN[8] }
+
+pub const MY_POINT = Point { x: 1 };
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> uN[5] {
+  let var = imported::MY_POINT;
+  var.x
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSizeMismatch("uN[8]", "uN[5]")));
+}
+
+TEST(TypecheckV2Test, ImportConstantSizeMismatch) {
+  constexpr std::string_view kImported = R"(
+pub const SOME_CONSTANT = u32:1;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u1 {
+  imported::SOME_CONSTANT
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSizeMismatch("u32", "u1")));
+}
+
+TEST(TypecheckV2Test, ImportConstantUnifiesTypes) {
+  constexpr std::string_view kImported = R"(
+pub const SOME_CONSTANT = uN[32]:1;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> uN[32] {
+  let var:u32 = imported::SOME_CONSTANT;
+  var
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(AllOf(
+                  HasNodeWithType("var", "uN[32]"),
+                  HasNodeWithType("imported::SOME_CONSTANT", "uN[32]")))));
+}
+
+TEST(TypecheckV2Test, ChainOfImports) {
+  constexpr std::string_view kFirstImport = R"(
+pub const SOME_CONSTANT = u32:1;
+)";
+  constexpr std::string_view kSecondImport = R"(
+import first_import;
+
+pub fn get_const() -> u32 {
+  first_import::SOME_CONSTANT
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import second_import;
+
+fn main() -> u1 {
+  uN[second_import::get_const()]:0
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(
+      TypecheckV2(kFirstImport, "first_import", &import_data).status());
+  XLS_EXPECT_OK(
+      TypecheckV2(kSecondImport, "second_import", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("main", "() -> uN[1]"))));
+}
+
+TEST(TypecheckV2Test, AssignImportedConstantTypeMismatch) {
+  constexpr std::string_view kImported = R"(
+pub const SOME_CONSTANT = s32:1;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u1 {
+  let var:u5 = imported::SOME_CONSTANT;
+  uN[var]:0
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasTypeMismatch("s32", "u5")));
+}
+
+TEST(TypecheckV2Test, ImportConstantTypeMismatch) {
+  constexpr std::string_view kImported = R"(
+pub const SOME_CONSTANT = s32:1;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u32 {
+  imported::SOME_CONSTANT
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasTypeMismatch("s32", "u32")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

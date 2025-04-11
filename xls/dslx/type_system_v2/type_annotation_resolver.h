@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
@@ -46,7 +47,7 @@ class TypeAnnotationResolver {
       Module& module, InferenceTable& table, const FileTable& file_table,
       UnificationErrorGenerator& error_generator, Evaluator& evaluator,
       ParametricStructInstantiator& parametric_struct_instantiator,
-      TypeSystemTracer& tracer);
+      TypeSystemTracer& tracer, ImportData& import_data);
 
   virtual ~TypeAnnotationResolver() = default;
 

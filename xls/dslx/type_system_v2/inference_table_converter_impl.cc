@@ -250,7 +250,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         resolver_(TypeAnnotationResolver::Create(
             module, table, file_table,
             /*error_generator=*/*this, /*evaluator=*/*this,
-            /*parametric_struct_instantiator=*/*this, *tracer_)) {}
+            /*parametric_struct_instantiator=*/*this, *tracer_, import_data_)) {
+  }
 
   static absl::StatusOr<InferenceTableConverter*> FromImportData(
       ImportData& import_data, std::string module_name,
@@ -715,6 +716,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
 
+    if (node->kind() == AstNodeKind::kImport) {
+      const Import* import = dynamic_cast<const Import*>(node);
+      XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module_info,
+                           import_data_.Get(ImportTokens(import->subject())));
+      base_type_info_->AddImport(const_cast<Import*>(import),
+                                 &imported_module_info->module(),
+                                 imported_module_info->type_info());
+      return absl::OkStatus();
+    }
+
     TypeInfo* ti = GetTypeInfo(parametric_context);
     std::optional<const TypeAnnotation*> annotation = pre_unified_type;
     if (!annotation.has_value()) {
@@ -730,7 +741,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       auto resolver = TypeAnnotationResolver::Create(
           *effective_module, table_, file_table_,
           /*error_generator=*/*this, /*evaluator=*/*this,
-          /*parametric_struct_instantiator=*/*this, *tracer_);
+          /*parametric_struct_instantiator=*/*this, *tracer_, import_data_);
       XLS_ASSIGN_OR_RETURN(
           annotation,
           resolver->ResolveAndUnifyTypeAnnotationsForNode(
@@ -1294,7 +1305,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // `ColonRef` resides (which is `ti`). In a non-parametric case like
     // `S::CONSTANT`, there is only one `TypeInfo` involved, so this logic
     // that figures out `evaluation_ti` is a no-op.
-    TypeInfo* evaluation_ti = ti;
+    XLS_ASSIGN_OR_RETURN(TypeInfo * evaluation_ti,
+                         import_data_.GetRootTypeInfoForNode(*target));
     VLOG(6) << "Checking ColonRef constexpr value for: "
             << colon_ref->ToString()
             << " with target: " << (*target)->ToString();
@@ -1570,7 +1582,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::StatusOr<InterpValue> Evaluate(
       const ParametricContextScopedExpr& scoped_expr) override {
     VLOG(7) << "Evaluate: " << scoped_expr.expr()->ToString()
-            << " with owner: " << scoped_expr.expr()->owner()
+            << " with owner: " << scoped_expr.expr()->owner()->name()
             << " in module: " << module_.name()
             << " in context: " << ToString(scoped_expr.context());
 
@@ -1583,6 +1595,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // is in a non-parametric caller and therefore cannot possibly refer to any
     // parametrics.
     TypeInfo* type_info = GetTypeInfo(scoped_expr.context());
+    if (!scoped_expr.context().has_value() &&
+        !current_proc_type_info_.has_value()) {
+      XLS_ASSIGN_OR_RETURN(type_info, import_data_.GetRootTypeInfoForNode(
+                                          scoped_expr.expr()->owner()));
+    }
     return Evaluate(scoped_expr.context(), type_info,
                     scoped_expr.type_annotation(), scoped_expr.expr());
   }

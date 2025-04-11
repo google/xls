@@ -36,6 +36,7 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
@@ -52,14 +53,15 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       Module& module, InferenceTable& table, const FileTable& file_table,
       UnificationErrorGenerator& error_generator, Evaluator& evaluator,
       ParametricStructInstantiator& parametric_struct_instantiator,
-      TypeSystemTracer& tracer)
+      TypeSystemTracer& tracer, ImportData& import_data)
       : module_(module),
         table_(table),
         file_table_(file_table),
         error_generator_(error_generator),
         evaluator_(evaluator),
         parametric_struct_instantiator_(parametric_struct_instantiator),
-        tracer_(tracer) {}
+        tracer_(tracer),
+        import_data_(import_data) {}
 
   absl::StatusOr<std::optional<const TypeAnnotation*>>
   ResolveAndUnifyTypeAnnotationsForNode(
@@ -126,6 +128,22 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     TypeSystemTrace trace = tracer_.TraceUnify(type_variable);
     VLOG(6) << "Unifying type annotations for variable "
             << type_variable->ToString();
+    // If this type variable belongs to a different table, resolve using that
+    // module.
+    if (type_variable->owner() != &module_) {
+      XLS_ASSIGN_OR_RETURN(
+          ImportTokens import_tokens,
+          ImportTokens::FromString(type_variable->owner()->name()));
+      XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module_info,
+                           import_data_.Get(import_tokens));
+      InferenceTable* imported_table = imported_module_info->inference_table();
+      auto new_resolver = TypeAnnotationResolver::Create(
+          imported_module_info->module(), *imported_table, file_table_,
+          error_generator_, evaluator_, parametric_struct_instantiator_,
+          tracer_, import_data_);
+      return new_resolver->ResolveAndUnifyTypeAnnotations(
+          parametric_context, type_variable, span, accept_predicate);
+    }
     XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
                          table_.GetTypeAnnotationsForTypeVariable(
                              parametric_context, type_variable));
@@ -537,6 +555,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
   Evaluator& evaluator_;
   ParametricStructInstantiator& parametric_struct_instantiator_;
   TypeSystemTracer& tracer_;
+  ImportData& import_data_;
 };
 
 }  // namespace
@@ -545,10 +564,10 @@ std::unique_ptr<TypeAnnotationResolver> TypeAnnotationResolver::Create(
     Module& module, InferenceTable& table, const FileTable& file_table,
     UnificationErrorGenerator& error_generator, Evaluator& evaluator,
     ParametricStructInstantiator& parametric_struct_instantiator,
-    TypeSystemTracer& tracer) {
+    TypeSystemTracer& tracer, ImportData& import_data) {
   return std::make_unique<TypeAnnotationResolverImpl>(
       module, table, file_table, error_generator, evaluator,
-      parametric_struct_instantiator, tracer);
+      parametric_struct_instantiator, tracer, import_data);
 }
 
 }  // namespace xls::dslx

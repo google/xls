@@ -64,7 +64,9 @@ class ModuleInfo {
   TypeInfo* type_info() { return type_info_; }
   const std::filesystem::path& path() const { return path_; }
   // TODO: erinzmoore - Once typechecking is complete, bar use of the inference
-  // converter.
+  // objects.
+  InferenceTable* inference_table() { return inference_table_.get(); }
+
   InferenceTableConverter* inference_table_converter() {
     return inference_table_converter_.get();
   }

@@ -172,6 +172,14 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                               node->ToString()),
               file_table_);
         }
+        InferenceTable* import_table = import_module->inference_table();
+        std::optional<const NameRef*> type_var =
+            import_table->GetTypeVariable(ToAstNode(**member));
+        // In parametric cases, we may not have a type variable for the member.
+        if (type_var.has_value()) {
+          XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+              node, module_.Make<TypeVariableTypeAnnotation>(*type_var)));
+        }
         table_.SetColonRefTarget(node, ToAstNode(**member));
         return absl::OkStatus();
       }
