@@ -873,7 +873,7 @@ fn main() -> u5[4] { map(u32[4]:[0, 1, 2, 3], f<u32:5, u32:17, u32:18>) }
           HasSubstr("Too many parametric values supplied; limit: 2 given: 3")));
 }
 
-TEST(TypecheckTest, MapImportedNonPublicFunction) {
+TEST_P(TypecheckBothVersionsTest, MapImportedNonPublicFunction) {
   constexpr std::string_view kImported = R"(
 fn some_function(x: u32) -> u32 { x }
 )";
@@ -892,7 +892,8 @@ fn main() -> u32[3] {
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
 }
 
-TEST(TypecheckTest, MapImportedNonPublicInferredParametricFunction) {
+TEST_P(TypecheckBothVersionsTest,
+       MapImportedNonPublicInferredParametricFunction) {
   constexpr std::string_view kImported = R"(
 fn some_function<N: u32>(x: bits[N]) -> bits[N] { x }
 )";
@@ -2075,30 +2076,34 @@ fn f() -> () {
                HasSubstr("Invalid number of arguments passed to 'cover!'")));
 }
 
-TEST(TypecheckErrorTest, MapBuiltinWrongArgc0) {
+TEST_P(TypecheckBothVersionsTest, MapBuiltinWrongArgc0) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() {
   map()
 }
 )"),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "Expected 2 arguments to `map` builtin but got 0 argument(s)")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Expected 2 arguments to `map` builtin but "
+                                   "got 0 argument(s)"),
+                     HasSubstrInV2(GetParam(),
+                                   "Expected 2 argument(s) but got 0"))));
 }
 
-TEST(TypecheckErrorTest, MapBuiltinWrongArgc1) {
+TEST_P(TypecheckBothVersionsTest, MapBuiltinWrongArgc1) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(x: u32[3]) -> u32[3] {
   map(x)
 }
 )"),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "Expected 2 arguments to `map` builtin but got 1 argument(s)")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Expected 2 arguments to `map` builtin but "
+                                   "got 1 argument(s)"),
+                     HasSubstrInV2(GetParam(),
+                                   "Expected 2 argument(s) but got 1"))));
 }
 
 TEST(TypecheckTest, UpdateBuiltin) {
@@ -4626,7 +4631,7 @@ fn f(tok: token) {
                  HasSubstr("Invocation callee `tok` is not a function")));
 }
 
-TEST(TypecheckErrorTest, MapOfNonFunctionInTestProc) {
+TEST_P(TypecheckBothVersionsTest, MapOfNonFunctionInTestProc) {
   EXPECT_THAT(
       Typecheck(R"(
 #[test_proc]
@@ -4644,12 +4649,15 @@ proc t {
         let (ok, result) = map(join(), result_in);
     }
 }
-)")
-          .status(),
-      IsPosError(
-          "TypeInferenceError",
-          HasSubstr("Cannot resolve callee `result_in` to a function; No "
-                    "function in module `fake` with name `result_in`")));
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Cannot resolve callee `result_in` to a function; No "
+                         "function in module `fake` with name `result_in`"),
+                     HasSubstrInV2(
+                         GetParam(),
+                         "Invocation callee `result_in` is not a function"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, ReferenceToBuiltinFunctionInNext) {
@@ -4707,7 +4715,7 @@ TEST(TypecheckErrorTest, DuplicateParametricBinding) {
       IsPosError("ParseError", HasSubstr("Duplicate parametric binding: `N`")));
 }
 
-TEST(TypecheckTest, MapOfXbitsArray) {
+TEST_P(TypecheckBothVersionsTest, MapOfXbitsArray) {
   constexpr std::string_view kProgram = R"(
 type MyXN = xN[bool:0x0][1];  // effectively a bool
 
