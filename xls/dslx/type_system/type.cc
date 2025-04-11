@@ -1014,6 +1014,17 @@ absl::StatusOr<TypeDim> ArrayType::GetTotalBitCount() const {
   return elem_bits.Mul(size_);
 }
 
+int ArrayType::ArrayDimensions() const {
+  const Type* element_type = element_type_.get();
+  int size = 1;
+  while (const ArrayType* child_type =
+             dynamic_cast<const ArrayType*>(element_type)) {
+    size++;
+    element_type = &child_type->element_type();
+  }
+  return size;
+}
+
 // -- EnumType
 
 absl::StatusOr<std::unique_ptr<Type>> EnumType::MapSize(

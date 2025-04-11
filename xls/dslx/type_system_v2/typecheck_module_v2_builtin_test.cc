@@ -811,6 +811,58 @@ TEST(TypecheckV2BuiltinTest, Umulp) {
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[16], uN[16])")));
 }
 
+TEST(TypecheckV2BuiltinTest, Update) {
+  EXPECT_THAT(R"(const Y = update([u8:1, u8:2, u8:3], u8:2, u8:42);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[8][3]")));
+}
+
+TEST(TypecheckV2BuiltinTest, UpdateWith1Tuple) {
+  EXPECT_THAT(R"(const Y = update([u8:1, u8:2, u8:3], (u8:2,), u8:42);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[8][3]")));
+}
+
+TEST(TypecheckV2BuiltinTest, UpdateMustBeArrayType) {
+  EXPECT_THAT(R"(const Y = update((u8:1, u8:2), u8:2, u8:42);)",
+              TypecheckFails(HasTypeMismatch("(u8, u8)", "Any[N]")));
+}
+
+TEST(TypecheckV2BuiltinTest, UpdateValueTypeMustMatch) {
+  EXPECT_THAT(R"(const Y = update([u8:1, u8:2, u8:3], u8:2, u9:42);)",
+              TypecheckFails(HasTypeMismatch("uN[8]", "u9")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update1DMustBeScalar) {
+  EXPECT_THAT(R"(const Y = update([u8:1, u8:2, u8:3], (u8:1, u8:0), u8:42);)",
+              TypecheckFails(HasSubstr(
+                  R"(Expected 1 element(s) in `update` index; got 2)")));
+}
+
+TEST(TypecheckV2BuiltinTest, UpdateMustBeUnsigned) {
+  EXPECT_THAT(R"(const Y = update([u8:1, u8:2, u8:3], s8:1, u8:42);)",
+              TypecheckFails(HasSubstr(
+                  R"(`update` index type must be unsigned; got `sN[8]`)")));
+}
+
+TEST(TypecheckV2BuiltinTest, UpdateMustBeBits) {
+  EXPECT_THAT(
+      R"(
+struct S {}
+const Y = update([u8:1, u8:2, u8:3], S{}, u8:42);
+)",
+      // TODO: davidplass - the error message should be "`update` index type
+      // must be a bits type" but it's failing with
+      // "TypeInferenceError: type mismatch: S ... vs. Any" instead.
+      TypecheckFails(HasTypeMismatch("S", "Any")));
+}
+
+// TODO: davidplass - This is currently failing with:
+// TypeInferenceError: type mismatch: uN[8][2][2] ... vs. Any[N]
+TEST(TypecheckV2BuiltinTest, DISABLED_Update2D) {
+  EXPECT_THAT(
+      R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], (u32:0, u32:1), [u8:42, u8:43]);)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[8][2][2]")));
+}
+
 TEST(TypecheckV2BuiltinTest, WideningCast) {
   EXPECT_THAT("const Y = widening_cast<u31>(u30:3);", TopNodeHasType("uN[31]"));
 }

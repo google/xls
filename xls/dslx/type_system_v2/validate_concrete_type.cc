@@ -19,6 +19,7 @@
 #include <variant>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -170,6 +171,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     static const auto* builtin_validators =
         new absl::flat_hash_map<std::string_view, BuiltinValidator>{
             {"decode", &TypeValidator::ValidateDecodeInvocation},
+            {"update", &TypeValidator::ValidateUpdateInvocation},
             {"widening_cast", &TypeValidator::ValidateWideningCastInvocation}};
 
     std::optional<std::string_view> builtin =
@@ -482,6 +484,57 @@ class TypeValidator : public AstNodeVisitorWithDefault {
                            return_type.ToString()),
           file_table_);
     }
+    return absl::OkStatus();
+  }
+
+  absl::Status ValidateUpdateIndexUnsigned(const Span& span, const Type& type) {
+    if (!IsBitsLike(type)) {
+      return TypeInferenceErrorStatus(
+          span, &type,
+          absl::Substitute("`update` index type must be a bits type; got `$0`",
+                           type.ToString()),
+          file_table_);
+    }
+    XLS_ASSIGN_OR_RETURN(bool is_signed, IsSigned(type));
+    if (is_signed) {
+      return TypeInferenceErrorStatus(
+          span, &type,
+          absl::Substitute("`update` index type must be unsigned; got `$0`",
+                           type.ToString()),
+          file_table_);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ValidateUpdateInvocation(const Invocation& invocation,
+                                        const FunctionType& signature) {
+    const Type& first = *signature.params()[0];
+    const ArrayType& array = first.AsArray();
+    int array_dimensions = array.ArrayDimensions();
+
+    // 1. index dimensions must match size of array.
+    const Type& index = *signature.params()[1];
+    int index_dimensions = index.IsTuple() ? index.AsTuple().size() : 1;
+    if (array_dimensions != index_dimensions) {
+      return TypeInferenceErrorStatus(
+          invocation.span(), &index,
+          absl::Substitute("Expected $0 element(s) in `update` index; got $1",
+                           array_dimensions, index_dimensions),
+          file_table_);
+    }
+
+    if (const TupleType* index_tuple = dynamic_cast<const TupleType*>(&index)) {
+      // 2. second argument must be tuple of uNs
+      for (int i = 0; i < index_tuple->size(); ++i) {
+        XLS_RETURN_IF_ERROR(ValidateUpdateIndexUnsigned(
+            invocation.span(), index_tuple->GetMemberType(i)));
+      }
+    } else {
+      // 2. second argument must be uN
+      XLS_RETURN_IF_ERROR(
+          ValidateUpdateIndexUnsigned(invocation.span(), index));
+    }
+
     return absl::OkStatus();
   }
 

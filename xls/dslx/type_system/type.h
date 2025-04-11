@@ -793,6 +793,11 @@ class ArrayType : public Type {
   const Type& element_type() const { return *element_type_; }
   const TypeDim& size() const { return size_; }
 
+  // Returns the number of dimensions (i.e., nested ArrayTypes)
+  // within this ArrayType. This is in contrast to GetAllDims
+  // which is for parametric dimensions, e.g., the N in uN[N]
+  int ArrayDimensions() const;
+
  private:
   std::unique_ptr<Type> element_type_;
   TypeDim size_;
