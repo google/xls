@@ -15,7 +15,9 @@
 #ifndef XLS_DSLX_IMPORT_ROUTINES_H_
 #define XLS_DSLX_IMPORT_ROUTINES_H_
 
+#include <filesystem>  // NOLINT
 #include <functional>
+#include <memory>
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -27,8 +29,11 @@
 
 namespace xls::dslx {
 
-// Type-checking callback lambda.
+// Type-checking callback lambdas.
 using TypecheckModuleFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
+using CreateModuleInfoFn =
+    std::function<absl::StatusOr<std::unique_ptr<ModuleInfo>>(
+        std::unique_ptr<Module>, std::filesystem::path path)>;
 
 // Imports the module identified (globally) by `subject`.
 //
@@ -50,6 +55,13 @@ using TypecheckModuleFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
 // Returns:
 //  The imported module information.
 absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
+                                     const ImportTokens& subject,
+                                     ImportData* import_data,
+                                     const Span& import_span,
+                                     VirtualizableFilesystem& vfs);
+
+// Variant that accepts a function that produces ModuleInfo directly.
+absl::StatusOr<ModuleInfo*> DoImport(const CreateModuleInfoFn& ftypecheck,
                                      const ImportTokens& subject,
                                      ImportData* import_data,
                                      const Span& import_span,

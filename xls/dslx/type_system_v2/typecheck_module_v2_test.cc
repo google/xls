@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>  // NOLINT
+#include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
@@ -25,6 +29,7 @@
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 namespace {
@@ -6082,5 +6087,27 @@ fn main() -> u32 {
                        HasTypeMismatch("s32", "u32")));
 }
 
+TEST(TypecheckV2Test, ImportConstantFromVfsWithSizeMismatch) {
+  constexpr std::string_view kImported = R"(
+pub const MY_CONSTANT: u30 = 42;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn f() -> u1 {
+  imported::MY_CONSTANT
+}
+)";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  EXPECT_THAT(TypecheckV2(kProgram, "fake_main_path", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSizeMismatch("uN[30]", "u1")));
+}
 }  // namespace
 }  // namespace xls::dslx

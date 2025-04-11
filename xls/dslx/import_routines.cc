@@ -173,7 +173,7 @@ static absl::StatusOr<DslxPath> FindExistingPath(
 }
 
 static absl::StatusOr<std::unique_ptr<ModuleInfo>> DslxPathToModuleInfo(
-    const TypecheckModuleFn& ftypecheck, ImportData* import_data,
+    const CreateModuleInfoFn& ftypecheck, ImportData* import_data,
     const ImportTokens& subject, const DslxPath& dslx_path, const Span& span,
     FileTable& file_table, VirtualizableFilesystem& vfs) {
   // We make a note about the import that's about to happen:
@@ -205,17 +205,30 @@ static absl::StatusOr<std::unique_ptr<ModuleInfo>> DslxPathToModuleInfo(
   Scanner scanner(file_table, fileno, contents);
   Parser parser(/*module_name=*/fully_qualified_name, &scanner);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
-  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, ftypecheck(module.get()));
+  return ftypecheck(std::move(module), dslx_path.source_path);
+}
 
-  VLOG(3) << "Parsing and typechecking " << fully_qualified_name << ": done";
-
-  return std::make_unique<ModuleInfo>(
-      /*module=*/std::move(module),
-      /*type_info=*/type_info,
-      /*path=*/std::move(dslx_path.source_path));
+CreateModuleInfoFn WrapTypecheckFn(TypecheckModuleFn fn) {
+  return [&](std::unique_ptr<Module> module, std::filesystem::path path)
+             -> absl::StatusOr<std::unique_ptr<ModuleInfo>> {
+    XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, fn(module.get()));
+    VLOG(3) << "Parsing and typechecking " << module->name() << ": done";
+    return std::make_unique<ModuleInfo>(/*module=*/std::move(module),
+                                        /*type_info=*/type_info,
+                                        /*path=*/std::move(path));
+  };
 }
 
 absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
+                                     const ImportTokens& subject,
+                                     ImportData* import_data,
+                                     const Span& import_span,
+                                     VirtualizableFilesystem& vfs) {
+  return DoImport(WrapTypecheckFn(ftypecheck), subject, import_data,
+                  import_span, vfs);
+}
+
+absl::StatusOr<ModuleInfo*> DoImport(const CreateModuleInfoFn& ftypecheck,
                                      const ImportTokens& subject,
                                      ImportData* import_data,
                                      const Span& import_span,
@@ -269,7 +282,7 @@ absl::StatusOr<UseImportResult> DoImportViaUse(
     // Otherwise, go through the import process.
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ModuleInfo> module_info,
                          DslxPathToModuleInfo(
-                             /*ftypecheck=*/ftypecheck,
+                             /*ftypecheck=*/WrapTypecheckFn(ftypecheck),
                              /*import_data=*/import_data,
                              /*subject=*/import_tokens,
                              /*dslx_path=*/dslx_path,
