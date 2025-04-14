@@ -40,6 +40,8 @@ pub fn zero(sign: u1) -> F64 { apfloat::zero<F64_EXP_SZ, F64_FRACTION_SZ>(sign) 
 
 pub fn one(sign: u1) -> F64 { apfloat::one<F64_EXP_SZ, F64_FRACTION_SZ>(sign) }
 
+pub fn max_normal(sign: u1) -> F64 { apfloat::max_normal<F64_EXP_SZ, F64_FRACTION_SZ>(sign) }
+
 pub fn negate(x: F64) -> F64 { apfloat::negate(x) }
 
 pub fn max_normal_exp() -> sN[F64_EXP_SZ] { apfloat::max_normal_exp<F64_EXP_SZ>() }

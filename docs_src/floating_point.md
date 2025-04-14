@@ -139,6 +139,15 @@ pub fn one<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTI
 
 Returns one or minus one depending upon the given sign parameter.
 
+### `apfloat::max_normal`
+
+```dslx-snippet
+pub fn max_normal<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ>
+```
+
+Returns the largest normal value or its negative depending upon the given sign
+parameter.
+
 ### `aploat::abs`
 
 ```dslx-snippet

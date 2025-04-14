@@ -41,6 +41,8 @@ pub fn zero(sign: u1) -> F32 { apfloat::zero<F32_EXP_SZ, F32_FRACTION_SZ>(sign) 
 
 pub fn one(sign: u1) -> F32 { apfloat::one<F32_EXP_SZ, F32_FRACTION_SZ>(sign) }
 
+pub fn max_normal(sign: u1) -> F32 { apfloat::max_normal<F32_EXP_SZ, F32_FRACTION_SZ>(sign) }
+
 pub fn negate(x: F32) -> F32 { apfloat::negate(x) }
 
 pub fn max_normal_exp() -> sN[F32_EXP_SZ] { apfloat::max_normal_exp<F32_EXP_SZ>() }

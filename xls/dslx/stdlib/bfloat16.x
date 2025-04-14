@@ -36,6 +36,10 @@ pub fn zero(sign: u1) -> BF16 { apfloat::zero<BF16::EXP_SIZE, BF16::FRACTION_SIZ
 
 pub fn one(sign: u1) -> BF16 { apfloat::one<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(sign) }
 
+pub fn max_normal(sign: u1) -> BF16 {
+    apfloat::max_normal<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(sign)
+}
+
 pub fn negate(x: BF16) -> BF16 { apfloat::negate(x) }
 
 pub fn max_normal_exp() -> s8 { apfloat::max_normal_exp<BF16::EXP_SIZE>() }

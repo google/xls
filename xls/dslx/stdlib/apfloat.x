@@ -163,6 +163,27 @@ fn one_test() {
     assert_eq(actual, expected);
 }
 
+// Returns the largest possible normal value of the APFloat type, or its negative, depending upon
+// the given sign parameter.
+pub fn max_normal<EXP_SZ: u32, FRACTION_SZ: u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ> {
+    APFloat<EXP_SZ, FRACTION_SZ> {
+        sign,
+        bexp: (std::mask_bits<EXP_SZ>() << 1),
+        fraction: std::mask_bits<FRACTION_SZ>(),
+    }
+}
+
+#[test]
+fn max_normal_test() {
+    let expected = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fffff };
+    let actual = max_normal<u32:8, u32:23>(u1:0);
+    assert_eq(actual, expected);
+
+    let expected = APFloat<u32:4, u32:2> { sign: u1:1, bexp: u4:0xe, fraction: u2:0x3 };
+    let actual = max_normal<u32:4, u32:2>(u1:1);
+    assert_eq(actual, expected);
+}
+
 // Returns the negative of x unless it is a NaN, in which case it will
 // change it from a quiet to signaling NaN or from signaling to a quiet NaN.
 pub fn negate<EXP_SZ: u32, FRACTION_SZ: u32>
