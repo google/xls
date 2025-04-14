@@ -61,9 +61,6 @@ class InferenceTableConverter {
       const Expr* callee, std::optional<const Function*> caller_function,
       std::optional<const ParametricContext*> caller_context) = 0;
 
-  // Returns true if the given function is a builtin.
-  virtual bool IsBuiltin(const Function* node) = 0;
-
   // Returns the resulting base type info for the entire conversion.
   virtual TypeInfo* GetBaseTypeInfo() = 0;
 };

@@ -297,7 +297,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return *inference_table_converter;
   }
 
-  bool IsBuiltin(const Function* node) override {
+  // Returns true if the given function is a builtin.
+  bool IsBuiltin(const Function* node) {
     return node->owner()->name() == kBuiltinStubsModuleName;
   }
 
