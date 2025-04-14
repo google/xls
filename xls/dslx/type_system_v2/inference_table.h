@@ -229,7 +229,7 @@ class ParametricContextScopedExpr {
 // Once the inference system is finished populating the table, there should be
 // enough information in it to concretize the stored type of every node, i.e.,
 // turn it into a `TypeInfo` object with concrete information. This is done via
-// the `InferenceTableToTypeInfo` utility.
+// the `InferenceTableConverter` utility.
 class InferenceTable {
  public:
   virtual ~InferenceTable();

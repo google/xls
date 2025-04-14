@@ -2547,7 +2547,7 @@ CreateInferenceTableConverter(InferenceTable& table, Module& module,
                               WarningCollector& warning_collector,
                               const FileTable& file_table,
                               std::unique_ptr<TypeSystemTracer> tracer) {
-  VLOG(1) << "InferenceTableToTypeInfo: module " << &module;
+  VLOG(1) << "CreateInferenceTableConverter: module " << &module;
   VLOG(5) << "Inference table before conversion:";
   VLOG(5) << table.ToString();
 
