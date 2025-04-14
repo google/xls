@@ -429,9 +429,10 @@ std::optional<ChannelStrictness> ChannelRefStrictness(ChannelRef ref) {
   if (std::holds_alternative<ChannelInterface*>(ref)) {
     return std::get<ChannelInterface*>(ref)->strictness();
   }
-  if (auto streaming_channel =
-          down_cast<StreamingChannel*>(std::get<Channel*>(ref))) {
-    return streaming_channel->GetStrictness();
+
+  if (std::get<Channel*>(ref)->kind() == ChannelKind::kStreaming) {
+    return down_cast<StreamingChannel*>(std::get<Channel*>(ref))
+        ->GetStrictness();
   }
   return std::nullopt;
 }

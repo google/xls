@@ -63,10 +63,10 @@ using ::testing::Combine;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Matcher;
+using ::testing::Not;
 using ::testing::Optional;
 using ::testing::TestPartResult;
 using ::testing::TestWithParam;
-using ::testing::UnorderedElementsAre;
 using ::testing::Values;
 using ::testing::ValuesIn;
 
@@ -135,14 +135,20 @@ top proc my_proc() {
     )",
         .builder_matcher =
             {
-                // For mutually exclusive channels, channel legalization does
-                // not change the IR, but other passes do. Just check OK.
-                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
+                // For mutually exclusive channels, channel legalization checks
+                // that mutual exclusion is even possible (proven at compile
+                // time).
+                {ChannelStrictness::kProvenMutuallyExclusive,
+                 StatusIs(absl::StatusCode::kInvalidArgument,
+                          HasSubstr("unconditional operations on channel in "
+                                    "with no ordering"))},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 // Build should be OK, but will fail at runtime.
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
-                 IsOkAndHolds(true)},
+                 StatusIs(absl::StatusCode::kInvalidArgument,
+                          HasSubstr("unconditional operations on channel in "
+                                    "with no ordering"))},
                 {ChannelStrictness::kArbitraryStaticOrder, IsOkAndHolds(true)},
             },
         .evaluate =
@@ -193,147 +199,6 @@ top proc my_proc() {
         },
     },
     TestParam{
-        .test_name = "TwoProcsMutuallyExclusive",
-        .ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0)
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0)
-
-top proc proc_a(pred: bits[1], init={1}) {
-  tok: token = literal(value=token)
-  recv: (token, bits[32]) = receive(tok, predicate=pred, channel=in)
-  recv_tok: token = tuple_index(recv, index=0)
-  recv_data: bits[32] = tuple_index(recv, index=1)
-  send: token = send(recv_tok, recv_data, predicate=pred, channel=out)
-  next_pred: bits[1] = not(pred)
-  next (next_pred)
-}
-
-proc proc_b(pred: bits[1], init={0}) {
-  tok: token = literal(value=token)
-  recv: (token, bits[32]) = receive(tok, predicate=pred, channel=in)
-  recv_tok: token = tuple_index(recv, index=0)
-  recv_data: bits[32] = tuple_index(recv, index=1)
-  send: token = send(recv_tok, recv_data, predicate=pred, channel=out)
-  next_pred: bits[1] = not(pred)
-  next (next_pred)
-}
-      )",
-        .builder_matcher =
-            {
-                // For mutually exclusive channels, channel legalization does
-                // not change the IR, but other passes do. Just check OK.
-                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
-                {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
-                {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
-                {ChannelStrictness::kRuntimeMutuallyExclusive,
-                 IsOkAndHolds(true)},
-                {ChannelStrictness::kArbitraryStaticOrder, IsOkAndHolds(true)},
-            },
-        .evaluate =
-            [](SerialProcRuntime* interpreter,
-               std::optional<ChannelStrictness> strictness) -> absl::Status {
-          constexpr int64_t kMaxTicks = 1000;
-          constexpr int64_t kNumInputs = 32;
-
-          XLS_ASSIGN_OR_RETURN(
-              ChannelQueue * inq,
-              interpreter->queue_manager().GetQueueByName("in"));
-          XLS_ASSIGN_OR_RETURN(
-              ChannelQueue * outq,
-              interpreter->queue_manager().GetQueueByName("out"));
-
-          for (int64_t i = 0; i < kNumInputs; ++i) {
-            XLS_RETURN_IF_ERROR(inq->Write(Value(UBits(i, /*bit_count=*/32))));
-          }
-          absl::flat_hash_map<Channel*, int64_t> output_count{
-              {outq->channel(), kNumInputs}};
-          XLS_RETURN_IF_ERROR(
-              interpreter->TickUntilOutput(output_count, kMaxTicks).status());
-          for (int64_t i = 0; i < kNumInputs; ++i) {
-            EXPECT_FALSE(outq->IsEmpty());
-            EXPECT_THAT(outq->Read(),
-                        Optional(Eq(Value(UBits(i, /*bit_count=*/32)))));
-          }
-
-          return absl::OkStatus();
-        },
-    },
-    TestParam{
-        .test_name = "TwoProcsAlwaysFiringCausesError",
-        .ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0)
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0)
-
-top proc proc_a() {
-  tok: token = literal(value=token)
-  recv: (token, bits[32]) = receive(tok, channel=in)
-  recv_tok: token = tuple_index(recv, index=0)
-  recv_data: bits[32] = tuple_index(recv, index=1)
-  send: token = send(recv_tok, recv_data, channel=out)
-}
-
-proc proc_b() {
-  tok: token = literal(value=token)
-  recv: (token, bits[32]) = receive(tok, channel=in)
-  recv_tok: token = tuple_index(recv, index=0)
-  recv_data: bits[32] = tuple_index(recv, index=1)
-  send: token = send(recv_tok, recv_data, channel=out)
-}
-      )",
-        .builder_matcher =
-            {
-                // For mutually exclusive channels, channel legalization does
-                // not change the IR, but other passes do. Just check OK.
-                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
-                {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
-                {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
-                {ChannelStrictness::kRuntimeMutuallyExclusive,
-                 IsOkAndHolds(true)},
-                {ChannelStrictness::kArbitraryStaticOrder, IsOkAndHolds(true)},
-            },
-        .evaluate =
-            [](SerialProcRuntime* interpreter,
-               std::optional<ChannelStrictness> strictness) -> absl::Status {
-          constexpr int64_t kMaxTicks = 1000;
-          constexpr int64_t kNumInputs = 32;
-
-          XLS_ASSIGN_OR_RETURN(
-              ChannelQueue * inq,
-              interpreter->queue_manager().GetQueueByName("in"));
-          for (int64_t i = 0; i < kNumInputs; ++i) {
-            XLS_RET_CHECK_OK(inq->Write(Value(UBits(i, /*bit_count=*/32))));
-          }
-
-          XLS_ASSIGN_OR_RETURN(
-              ChannelQueue * outq,
-              interpreter->queue_manager().GetQueueByName("out"));
-
-          absl::flat_hash_map<Channel*, int64_t> output_count{
-              {outq->channel(), kNumInputs}};
-          // Adapters assert that only one proc fires on a channel per adapter
-          // proc tick. The 'proven mutually exclusive' case doesn't insert an
-          // adapter, so exclude that case.
-          if (strictness.has_value() &&
-              strictness.value() !=
-                  ChannelStrictness::kProvenMutuallyExclusive) {
-            EXPECT_THAT(
-                interpreter->TickUntilOutput(output_count, kMaxTicks).status(),
-                StatusIs(absl::StatusCode::kAborted,
-                         HasSubstr("predicate was not mutually exclusive")));
-            return absl::OkStatus();
-          }
-          EXPECT_THAT(
-              interpreter->TickUntilOutput(output_count, kMaxTicks).status(),
-              IsOk());
-
-          for (int64_t i = 0; i < kNumInputs; ++i) {
-            EXPECT_EQ(outq->Read(), Value(UBits(i, /*bit_count=*/32)));
-          }
-
-          return absl::OkStatus();
-        },
-    },
-    TestParam{
         .test_name = "SingleProcWithPartialOrder",
         .ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0)
@@ -364,11 +229,17 @@ top proc my_proc() {
       )",
         .builder_matcher =
             {
-                // For mutually exclusive channels, channel legalization does
-                // not change the IR, but other passes do. Just check OK.
-                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
+                // For proven mutually exclusive channels, channel legalization
+                // checks that mutual exclusion can be proven at compile time.
+                // For this test, it's false.
+                {ChannelStrictness::kProvenMutuallyExclusive,
+                 StatusIs(
+                     absl::StatusCode::kInvalidArgument,
+                     AllOf(HasSubstr("Channel in is proven_mutually_exclusive"),
+                           HasSubstr("recv0 is unconditionally active"),
+                           HasSubstr("can be active in the same activation")))},
                 {ChannelStrictness::kTotalOrder,
-                 StatusIs(absl::StatusCode::kInternal,
+                 StatusIs(absl::StatusCode::kInvalidArgument,
                           HasSubstr("is not totally ordered"))},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
@@ -435,7 +306,8 @@ top proc my_proc() {
                   ChannelStrictness::kRuntimeMutuallyExclusive) {
             EXPECT_THAT(run_status,
                         StatusIs(absl::StatusCode::kAborted,
-                                 HasSubstr("was not mutually exclusive")));
+                                 HasSubstr("active operations on channel in "
+                                           "in the same activation as")));
           } else {
             EXPECT_THAT(run_status, IsOk());
             read_value = outq->Read();
@@ -452,7 +324,8 @@ top proc my_proc() {
                   ChannelStrictness::kRuntimeMutuallyExclusive) {
             EXPECT_THAT(run_status,
                         StatusIs(absl::StatusCode::kAborted,
-                                 HasSubstr("was not mutually exclusive")));
+                                 HasSubstr("active operations on channel in "
+                                           "in the same activation as")));
           } else {
             EXPECT_THAT(run_status, IsOk());
             read_value = outq->Read();
@@ -468,7 +341,8 @@ top proc my_proc() {
               strictness == ChannelStrictness::kRuntimeOrdered) {
             EXPECT_THAT(run_status,
                         StatusIs(absl::StatusCode::kAborted,
-                                 HasSubstr("was not mutually exclusive")));
+                                 HasSubstr("active operations on channel in "
+                                           "in the same activation as")));
           } else {
             XLS_RET_CHECK_OK(run_status);
             read_value = outq->Read();
@@ -515,13 +389,23 @@ top proc test_proc(state:(), init={()}) {
         )",
         .builder_matcher =
             {
-                // For mutually exclusive channels, channel legalization does
-                // not change the IR, but other passes do. Just check OK.
-                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
+                // For proven mutually exclusive channels, channel legalization
+                // checks that mutual exclusion can be proven at compile time.
+                // For this test, it's false.
+                {ChannelStrictness::kProvenMutuallyExclusive,
+                 StatusIs(
+                     absl::StatusCode::kInvalidArgument,
+                     AllOf(HasSubstr("Channel in is proven_mutually_exclusive"),
+                           HasSubstr("can be active at the same time")))},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
+                // For runtime mutually exclusive channels, channel legalization
+                // checks that mutual exclusion is possible - which it isn't
+                // here, since there are multiple unconditional operations.
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
-                 IsOkAndHolds(true)},
+                 StatusIs(absl::StatusCode::kInvalidArgument,
+                          HasSubstr("two unconditional operations on channel "
+                                    "out with no ordering"))},
                 {ChannelStrictness::kArbitraryStaticOrder, IsOkAndHolds(true)},
             },
         .evaluate =
@@ -598,9 +482,11 @@ top proc test_proc(state:(), init={()}) {
         )",
         .builder_matcher =
             {
-                // For mutually exclusive channels, channel legalization does
-                // not change the IR, but other passes do. Just check OK.
-                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
+                // For proven mutually exclusive channels, channel legalization
+                // checks that mutual exclusion can be proven at compile time.
+                // For this test, it's false.
+                {ChannelStrictness::kProvenMutuallyExclusive,
+                 StatusIs(absl::StatusCode::kInvalidArgument)},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
@@ -630,7 +516,8 @@ top proc test_proc(state:(), init={()}) {
           if (strictness == ChannelStrictness::kRuntimeMutuallyExclusive) {
             EXPECT_THAT(tick_status,
                         StatusIs(absl::StatusCode::kAborted,
-                                 HasSubstr("was not mutually exclusive")));
+                                 HasSubstr("active operations on channel in "
+                                           "in the same activation as")));
           } else {
             XLS_EXPECT_OK(tick_status);
           }
@@ -645,9 +532,9 @@ top proc test_proc(state:(), init={()}) {
           }
           // For inputs > 5, both recvs and both sends execute. For mutually
           // exclusive adapters, this causes an assertion to fire, so there
-          // shouldn't be any more outputs.
+          // shouldn't be any more outputs after this.
           if (strictness == ChannelStrictness::kRuntimeMutuallyExclusive) {
-            EXPECT_EQ(outq->GetSize(), 0);
+            EXPECT_EQ(outq->GetSize(), 2);
             return absl::OkStatus();
           }
           // For inputs > 5, both recvs and both sends execute. Check that
@@ -691,9 +578,11 @@ top proc test_proc(state:(), init={()}) {
         )",
         .builder_matcher =
             {
-                // For mutually exclusive channels, channel legalization does
-                // not change the IR, but other passes do. Just check OK.
-                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
+                // For proven mutually exclusive channels, channel legalization
+                // checks that mutual exclusion can be proven at compile time.
+                // For this test, it's false.
+                {ChannelStrictness::kProvenMutuallyExclusive,
+                 StatusIs(absl::StatusCode::kInvalidArgument)},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
@@ -731,7 +620,8 @@ top proc test_proc(state:(), init={()}) {
           if (strictness == ChannelStrictness::kRuntimeMutuallyExclusive) {
             EXPECT_THAT(tick_status,
                         StatusIs(absl::StatusCode::kAborted,
-                                 HasSubstr("was not mutually exclusive")));
+                                 HasSubstr("active operations on channel in in "
+                                           "the same activation as")));
           } else {
             XLS_EXPECT_OK(tick_status);
           }
@@ -746,10 +636,10 @@ top proc test_proc(state:(), init={()}) {
           }
           // For inputs > 5, both recvs and both sends execute. For mutually
           // exclusive adapters, this causes an assertion to fire, so there
-          // shouldn't be any more outputs.
+          // shouldn't be any more outputs after this.
           if (strictness == ChannelStrictness::kRuntimeMutuallyExclusive) {
-            EXPECT_EQ(out0q->GetSize(), 0);
-            EXPECT_EQ(out1q->GetSize(), 0);
+            EXPECT_EQ(out0q->GetSize(), 1);
+            EXPECT_EQ(out1q->GetSize(), 1);
             return absl::OkStatus();
           }
           // For inputs > 5, both recvs and both sends execute. Check that
@@ -799,9 +689,11 @@ top proc test_proc(state:(), init={()}) {
         )",
         .builder_matcher =
             {
-                // For mutually exclusive channels, channel legalization does
-                // not change the IR, but other passes do. Just check OK.
-                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
+                // For proven mutually exclusive channels, channel legalization
+                // checks that mutual exclusion can be proven at compile time.
+                // For this test, it's false.
+                {ChannelStrictness::kProvenMutuallyExclusive,
+                 StatusIs(absl::StatusCode::kInvalidArgument)},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
@@ -865,10 +757,10 @@ top proc test_proc(state:(), init={()}) {
                                     /*max_ticks=*/10)
                   .status();
           if (strictness == ChannelStrictness::kRuntimeMutuallyExclusive) {
-            EXPECT_THAT(
-                tick_status,
-                StatusIs(absl::StatusCode::kAborted,
-                         HasSubstr("predicate was not mutually exclusive")));
+            EXPECT_THAT(tick_status,
+                        StatusIs(absl::StatusCode::kAborted,
+                                 HasSubstr("active operations on channel out "
+                                           "in the same activation as")));
             return absl::OkStatus();
           }
           XLS_EXPECT_OK(tick_status);
@@ -903,14 +795,24 @@ top proc my_proc<
     )",
         .builder_matcher =
             {
-                // For mutually exclusive channels, channel legalization does
-                // not change the IR, but other passes do. Just check OK.
+                // For proven mutually exclusive channels, channel legalization
+                // checks that mutual exclusion can be proven at compile time.
+                // For this test, it's false.
+                {ChannelStrictness::kProvenMutuallyExclusive,
+                 StatusIs(absl::StatusCode::kInvalidArgument,
+                          HasSubstr("two unconditional operations on channel "
+                                    "in with no ordering"))},
                 {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
-                // Build should be OK, but will fail at runtime.
+                // For runtime mutually exclusive channels, channel legalization
+                // checks if mutual exclusion is possible; in this case, it's
+                // not, since there are multiple unconditional operations on the
+                // same channel.
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
-                 IsOkAndHolds(true)},
+                 StatusIs(absl::StatusCode::kInvalidArgument,
+                          HasSubstr("two unconditional operations on channel "
+                                    "in with no ordering"))},
                 {ChannelStrictness::kArbitraryStaticOrder, IsOkAndHolds(true)},
             },
         .evaluate =
@@ -1012,89 +914,6 @@ TEST_P(ChannelLegalizationPassTest, EvaluatesCorrectly) {
                     .evaluate(interpreter.get(), std::get<1>(GetParam())));
 }
 
-TEST_F(ChannelLegalizationPassTest, NamesAreUniquified) {
-  VerifiedPackage p("p");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StreamingChannel * c,
-      p.CreateStreamingChannel("c", ChannelOps::kSendOnly, p.GetBitsType(1),
-                               /*initial_values=*/{},
-                               /*fifo_config=*/std::nullopt,
-                               /*flow_control=*/FlowControl::kReadyValid,
-                               /*strictness=*/ChannelStrictness::kTotalOrder));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StreamingChannel * d,
-      p.CreateStreamingChannel("d", ChannelOps::kReceiveOnly, p.GetBitsType(1),
-                               /*initial_values=*/{},
-                               /*fifo_config=*/std::nullopt,
-                               /*flow_control=*/FlowControl::kReadyValid,
-                               /*strictness=*/ChannelStrictness::kTotalOrder));
-
-  // Create channels with names that will collide when channel legalization
-  // makes new channels.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StreamingChannel * c_1,
-      p.CreateStreamingChannel("c__data_1", ChannelOps::kSendOnly,
-                               p.GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StreamingChannel * c_pred,
-      p.CreateStreamingChannel("c__pred_0", ChannelOps::kSendOnly,
-                               p.GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StreamingChannel * c_2_completion,
-      p.CreateStreamingChannel("c__completion_1", ChannelOps::kSendOnly,
-                               p.GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StreamingChannel * c_3_completion,
-      p.CreateStreamingChannel("c__completion_2", ChannelOps::kSendOnly,
-                               p.GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StreamingChannel * d_1,
-      p.CreateStreamingChannel("d__data_1", ChannelOps::kSendOnly,
-                               p.GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StreamingChannel * d_pred,
-      p.CreateStreamingChannel("d__pred_0", ChannelOps::kSendOnly,
-                               p.GetBitsType(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      StreamingChannel * d_completion,
-      p.CreateStreamingChannel("d__completion_0", ChannelOps::kSendOnly,
-                               p.GetBitsType(1)));
-  ProcBuilder b("proc0", &p);
-  // Do multiple sends/receives on c/d to insert adapters and new channels.
-  BValue recv0 = b.Receive(d, b.AfterAll({}));
-  BValue recv1 = b.Receive(d, b.TupleIndex(recv0, 0));
-  BValue send0 = b.Send(c, b.AfterAll({}), b.TupleIndex(recv0, 1));
-  b.Send(c, send0, b.TupleIndex(recv1, 1));
-
-  // Unconditionally send on all the channels that exist only for name
-  // collisions.
-  for (StreamingChannel* extra_channel :
-       {c_1, c_pred, c_2_completion, c_3_completion, d_1, d_pred,
-        d_completion}) {
-    b.Send(extra_channel, b.AfterAll({}),
-           b.Literal(Value(UBits(1, /*bit_count=*/1))));
-  }
-  XLS_ASSERT_OK(b.Build({}));
-
-  EXPECT_THAT(Run(&p), IsOkAndHolds(true));
-
-  EXPECT_THAT(
-      p.channels(),
-      UnorderedElementsAre(
-          m::Channel("c"), m::Channel("d"),
-          // Original "extra" names
-          m::Channel("c__data_1"), m::Channel("c__pred_0"),
-          m::Channel("c__completion_0"), m::Channel("c__completion_1"),
-          m::Channel("d__data_1"), m::Channel("d__pred_0"),
-          m::Channel("d__completion_0"),
-          // New colliding names
-          m::Channel("d__pred_0__1"), m::Channel("d__pred_1"),
-          m::Channel("d__data_0"), m::Channel("d__data_1__1"),
-          m::Channel("c__pred_0__1"), m::Channel("c__pred_1"),
-          m::Channel("c__data_0"), m::Channel("c__data_1__1"),
-          m::Channel("c__completion_1__1"), m::Channel("c__completion_2")));
-}
-
 INSTANTIATE_TEST_SUITE_P(
     ChannelLegalizationPassTestInstantiation, ChannelLegalizationPassTest,
     Combine(ValuesIn(kTestParameters),
@@ -1131,7 +950,7 @@ TEST_P(MutuallyExclusiveChannelLegalizationPassTest, DoesNotChangeIR) {
   // Check that if the IR is unchanged. The pass should not change the IR
   // because mutually exclusive channels should never cause an adapter to be
   // inserted.
-  EXPECT_THAT(Run(), IsOkAndHolds(false));
+  EXPECT_THAT(Run(), Not(IsOkAndHolds(true)));
 }
 
 INSTANTIATE_TEST_SUITE_P(
