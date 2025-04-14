@@ -83,7 +83,9 @@ class TypeSystemTracer {
   virtual TypeSystemTrace TraceUnify(const NameRef* type_variable) = 0;
   virtual TypeSystemTrace TraceUnify(
       const std::vector<const TypeAnnotation*>& annotations) = 0;
-  virtual TypeSystemTrace TraceResolve(const TypeAnnotation* annotation) = 0;
+  virtual TypeSystemTrace TraceResolve(
+      const TypeAnnotation* annotation,
+      std::optional<const ParametricContext*> parametric_context) = 0;
   virtual TypeSystemTrace TraceConvertActualArgument(const AstNode* node) = 0;
   virtual TypeSystemTrace TraceConvertNode(const AstNode* node) = 0;
   virtual TypeSystemTrace TraceConvertInvocation(
@@ -94,6 +96,7 @@ class TypeSystemTracer {
   virtual TypeSystemTrace TraceEvaluate(
       std::optional<const ParametricContext*> context, const Expr* expr) = 0;
   virtual TypeSystemTrace TraceConcretize(const TypeAnnotation* annotation) = 0;
+  virtual TypeSystemTrace TraceUnroll(const AstNode* node) = 0;
 
   virtual std::string ConvertTracesToString() = 0;
 };

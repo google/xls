@@ -1,0 +1,84 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+chan test_module__ins_outs__0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test_module__ins_outs__1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test_module__ins_outs__2(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test_module__ins_outs__3(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+
+fn __test_module__SomeProc.init__4() -> () {
+  N: bits[32] = literal(value=4, id=1)
+  ret tuple.2: () = tuple(id=2)
+}
+
+fn __test_module__SomeOtherProc.init__4() -> () {
+  N: bits[32] = literal(value=4, id=3)
+  ret tuple.4: () = tuple(id=4)
+}
+
+top proc __test_module__YetAnotherProc_0_next(__state: (), init={()}) {
+  literal.9: token = literal(value=token, id=9)
+  i: bits[32] = literal(value=0, id=8)
+  literal.7: bits[1] = literal(value=1, id=7)
+  literal.12: token = literal(value=token, id=12)
+  i__1: bits[32] = literal(value=1, id=11)
+  literal.15: token = literal(value=token, id=15)
+  i__2: bits[32] = literal(value=2, id=14)
+  literal.18: token = literal(value=token, id=18)
+  i__3: bits[32] = literal(value=3, id=17)
+  __state: () = state_read(state_element=__state, id=6)
+  __token: token = literal(value=token, id=5)
+  send.10: token = send(literal.9, i, predicate=literal.7, channel=test_module__ins_outs__0, id=10)
+  send.13: token = send(literal.12, i__1, predicate=literal.7, channel=test_module__ins_outs__1, id=13)
+  send.16: token = send(literal.15, i__2, predicate=literal.7, channel=test_module__ins_outs__2, id=16)
+  send.19: token = send(literal.18, i__3, predicate=literal.7, channel=test_module__ins_outs__3, id=19)
+  tuple.20: () = tuple(id=20)
+  next_value.21: () = next_value(param=__state, value=__state, id=21)
+}
+
+proc __test_module__YetAnotherProc__SomeOtherProc_0__SomeProc_0__4_next(__state: (), init={()}) {
+  literal.27: token = literal(value=token, id=27)
+  literal.24: bits[1] = literal(value=1, id=24)
+  literal.34: token = literal(value=token, id=34)
+  literal.41: token = literal(value=token, id=41)
+  literal.48: token = literal(value=token, id=48)
+  receive.28: (token, bits[32]) = receive(literal.27, predicate=literal.24, channel=test_module__ins_outs__0, id=28)
+  receive.35: (token, bits[32]) = receive(literal.34, predicate=literal.24, channel=test_module__ins_outs__1, id=35)
+  receive.42: (token, bits[32]) = receive(literal.41, predicate=literal.24, channel=test_module__ins_outs__2, id=42)
+  receive.49: (token, bits[32]) = receive(literal.48, predicate=literal.24, channel=test_module__ins_outs__3, id=49)
+  __token: token = literal(value=token, id=22)
+  v: bits[32] = tuple_index(receive.28, index=1, id=31)
+  v__1: bits[32] = tuple_index(receive.35, index=1, id=38)
+  v__2: bits[32] = tuple_index(receive.42, index=1, id=45)
+  v__3: bits[32] = tuple_index(receive.49, index=1, id=52)
+  __state: () = state_read(state_element=__state, id=23)
+  N: bits[32] = literal(value=4, id=25)
+  i: bits[32] = literal(value=0, id=26)
+  tuple_index.29: token = tuple_index(receive.28, index=0, id=29)
+  tuple_index.30: token = tuple_index(receive.28, index=0, id=30)
+  trace.32: token = trace(__token, literal.24, format="recv: {}", data_operands=[v], id=32)
+  i__1: bits[32] = literal(value=1, id=33)
+  tuple_index.36: token = tuple_index(receive.35, index=0, id=36)
+  tuple_index.37: token = tuple_index(receive.35, index=0, id=37)
+  trace.39: token = trace(__token, literal.24, format="recv: {}", data_operands=[v__1], id=39)
+  i__2: bits[32] = literal(value=2, id=40)
+  tuple_index.43: token = tuple_index(receive.42, index=0, id=43)
+  tuple_index.44: token = tuple_index(receive.42, index=0, id=44)
+  trace.46: token = trace(__token, literal.24, format="recv: {}", data_operands=[v__2], id=46)
+  i__3: bits[32] = literal(value=3, id=47)
+  tuple_index.50: token = tuple_index(receive.49, index=0, id=50)
+  tuple_index.51: token = tuple_index(receive.49, index=0, id=51)
+  trace.53: token = trace(__token, literal.24, format="recv: {}", data_operands=[v__3], id=53)
+  tuple.54: () = tuple(id=54)
+  next_value.55: () = next_value(param=__state, value=__state, id=55)
+}
+
+proc __test_module__YetAnotherProc__SomeOtherProc_0__4_next(__state: (), init={()}) {
+  __state: () = state_read(state_element=__state, id=57)
+  tuple.60: () = tuple(id=60)
+  __token: token = literal(value=token, id=56)
+  literal.58: bits[1] = literal(value=1, id=58)
+  N: bits[32] = literal(value=4, id=59)
+  next_value.61: () = next_value(param=__state, value=tuple.60, id=61)
+}

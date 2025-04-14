@@ -46,7 +46,8 @@ enum class TraceKind : uint8_t {
   kConvertInvocation,
   kInferImplicitParametrics,
   kEvaluate,
-  kConcretize
+  kConcretize,
+  kUnroll,
 };
 
 struct TypeSystemTraceImpl {
@@ -81,6 +82,8 @@ std::string TraceKindToString(TraceKind kind) {
       return "Evaluate";
     case TraceKind::kConcretize:
       return "Concretize";
+    case TraceKind::kUnroll:
+      return "Unroll";
   }
 }
 
@@ -152,10 +155,13 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
                                      .annotations = annotations});
   }
 
-  TypeSystemTrace TraceResolve(const TypeAnnotation* annotation) override {
+  TypeSystemTrace TraceResolve(
+      const TypeAnnotation* annotation,
+      std::optional<const ParametricContext*> parametric_context) override {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kResolve,
-                                     .annotation = annotation});
+                                     .annotation = annotation,
+                                     .parametric_context = parametric_context});
   }
 
   TypeSystemTrace TraceConvertNode(const AstNode* node) override {
@@ -199,6 +205,11 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kConcretize,
                                      .annotation = annotation});
+  }
+
+  TypeSystemTrace TraceUnroll(const AstNode* node) override {
+    return Trace(TypeSystemTraceImpl{
+        .parent = stack_.top(), .kind = TraceKind::kUnroll, .node = node});
   }
 
   std::string ConvertTracesToString() override {

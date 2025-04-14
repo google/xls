@@ -308,6 +308,10 @@ class FunctionConverterVisitor : public AstNodeVisitor {
           converter_->GetUnrolledForLoop(loop);
       if (unrolled_for.has_value()) {
         return (*unrolled_for)->Accept(this);
+      } else {
+        return absl::FailedPreconditionError(
+            absl::StrCat("unroll_for! should have been unrolled by now at: ",
+                         loop->span().ToString(converter_->file_table())));
       }
     }
     for (AstNode* child : node->GetChildren(/*want_types=*/false)) {
@@ -3237,11 +3241,7 @@ std::optional<const Expr*> FunctionConverter::GetUnrolledForLoop(
 
 absl::Status FunctionConverter::HandleUnrollFor(const UnrollFor* node) {
   std::optional<const Expr*> unrolled_expr = GetUnrolledForLoop(node);
-  if (!unrolled_expr.has_value()) {
-    return absl::FailedPreconditionError(
-        absl::StrCat("unroll_for! should have been unrolled by now at: ",
-                     node->span().ToString(file_table())));
-  }
+  XLS_RET_CHECK(unrolled_expr.has_value());
   SetNodeToIr(node, node_to_ir_.at(*unrolled_expr));
   return absl::OkStatus();
 }

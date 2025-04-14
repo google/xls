@@ -197,7 +197,8 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       const TypeAnnotation* annotation,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) override {
-    TypeSystemTrace trace = tracer_.TraceResolve(annotation);
+    TypeSystemTrace trace =
+        tracer_.TraceResolve(annotation, parametric_context);
     // This is purely to avoid wasting time on annotations that clearly need no
     // resolution.
     if (GetSignednessAndBitCount(annotation).ok() || IsToken(annotation)) {

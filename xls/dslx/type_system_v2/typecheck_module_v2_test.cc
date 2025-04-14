@@ -5594,6 +5594,24 @@ fn foo() {
       TypecheckSucceeds(HasRepeatedNodeWithType("let _ = i;", "uN[32]", 5)));
 }
 
+TEST(TypecheckV2Test, UnrollForInParametricFunction) {
+  EXPECT_THAT(
+      R"(
+fn factorial<N: u32>() -> u32 {
+  unroll_for! (i, a) in 2..N + 1 {
+    a * i
+  } (1)
+}
+
+const X = factorial<3>();
+const Y = factorial<4>();
+const_assert!(X == 6);
+const_assert!(Y == 24);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32]"),
+                              HasNodeWithType("Y", "uN[32]"))));
+}
+
 TEST(TypecheckV2Test, SpawnBasicProc) {
   EXPECT_THAT(R"(
 proc Counter {
@@ -5623,6 +5641,44 @@ proc main {
 }
 )",
               TypecheckSucceeds(HasNodeWithType("spawn Counter(p, 50)", "()")));
+}
+
+TEST(TypecheckV2Test, SpawnParametricProc) {
+  EXPECT_THAT(R"(
+proc Counter<N: u32> {
+  c: chan<uN[N]> out;
+  max: uN[N];
+  init { 0 }
+  config(c: chan<uN[N]> out, max: uN[N]) {
+    (c, max)
+  }
+  next(i: uN[N]) {
+    send(join(), c, i);
+    if i == max { i } else { i + 1 }
+  }
+}
+
+proc main {
+  c16: chan<u16> in;
+  c32: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p16, c16) = chan<u16>("my_chan16");
+    let (p32, c32) = chan<u32>("my_chan32");
+    spawn Counter<16>(p16, 50);
+    spawn Counter<32>(p32, 50);
+    (c16,c32)
+  }
+  next(state: (token, u48)) {
+    let (tok16, v16) = recv(state.0, c16);
+    let (tok32, v32) = recv(tok16, c32);
+    (tok32, v32 ++ v16)
+  }
+}
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("spawn Counter<16>(p16, 50)", "()"),
+                        HasNodeWithType("spawn Counter<32>(p32, 50)", "()"))));
 }
 
 TEST(TypecheckV2Test, SpawnWithTypeMismatchFails) {

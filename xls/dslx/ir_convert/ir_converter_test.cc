@@ -2632,7 +2632,8 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, PassChannelArraysAcrossMultipleSpawns) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       PassChannelArraysAcrossMultipleSpawns) {
   constexpr std::string_view kProgram = R"(
   proc SomeProc<N: u32> {
     ins: chan<u32>[N] in;
@@ -2641,7 +2642,7 @@ TEST(IrConverterTest, PassChannelArraysAcrossMultipleSpawns) {
       (ins,)
     }
     next(state: ()) {
-      unroll_for! (i, ()): (u32, ()) in u32:0..u32:4 {
+      unroll_for! (i, _): (u32, ()) in u32:0..u32:4 {
         let (_, v) = recv(token(), ins[i]);
         trace_fmt!("recv: {}", v);
       }(());
@@ -2668,7 +2669,7 @@ TEST(IrConverterTest, PassChannelArraysAcrossMultipleSpawns) {
       (outs,)
     }
     next(state: ()) {
-      unroll_for! (i, ()): (u32, ()) in u32:0..u32:4 {
+      unroll_for! (i, _): (u32, ()) in u32:0..u32:4 {
         send(token(), outs[i], i);
       }(());
       state
@@ -2683,7 +2684,8 @@ TEST(IrConverterTest, PassChannelArraysAcrossMultipleSpawns) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertOneFunctionForTest(kProgram, "YetAnotherProc",
                                                      import_data, options));
-  ExpectIr(converted, TestName());
+  // Note: version-specific IR is due to unroll_for!.
+  ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
@@ -3013,7 +3015,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, EmptyArray) {
                        HasSubstr("Array u32[0]:[] was empty")));
 }
 
-TEST(IrConverterTest, TraceFmt) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, TraceFmt) {
   constexpr std::string_view kProgram = R"(
     fn trace_and_add(x: u32, y: u32[u32:2]) -> u32 {
       trace_fmt!("x = {}, y = {}", x, y);
@@ -3424,7 +3426,8 @@ proc Generator {
   EXPECT_EQ(converted, "package test_module\n");
 }
 
-TEST(IrConverterTest, ProcWithUnconvertibleConfigGivesUsefulError) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ProcWithUnconvertibleConfigGivesUsefulError) {
   constexpr std::string_view program =
       R"(
 proc Generator {
