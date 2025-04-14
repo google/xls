@@ -299,27 +299,6 @@ proc my_proc(t: token, s: bits[32], init={token, 45}) {
           HasSubstr("Channel 'ch' (id 42) has no associated receive node")));
 }
 
-TEST_F(VerifierTest, MultipleSendNodes) {
-  std::string input = R"(
-package test_package
-
-chan ch(bits[32], id=42, kind=streaming, ops=send_only, flow_control=none)
-
-proc my_proc(t: token, s: bits[32], init={token, 45}) {
-  send.1: token = send(t, s, channel=ch)
-  send.2: token = send(send.1, s, channel=ch)
-  next (send.2, s)
-}
-
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(
-      VerifyPackage(p.get(), /*codegen=*/true),
-      StatusIs(
-          absl::StatusCode::kInternal,
-          HasSubstr("Multiple sends associated with the same channel 'ch'")));
-}
-
 TEST_F(VerifierTest, SendOnReceiveOnlyChannel) {
   std::string input = R"(
 package test_package

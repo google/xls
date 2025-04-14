@@ -255,6 +255,43 @@ absl::StatusOr<LeafTypeTree<Node*>> ToTreeOfNodes(Node* node) {
   return result;
 }
 
+absl::StatusOr<Node*> FromTreeOfNodes(FunctionBase* f,
+                                      LeafTypeTreeView<Node*> tree,
+                                      std::string_view name, SourceInfo loc) {
+  if (tree.type()->IsArray()) {
+    ArrayType* type = tree.type()->AsArrayOrDie();
+    std::vector<Node*> elements;
+    elements.reserve(type->size());
+    for (int64_t i = 0; i < type->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(Node * element,
+                           FromTreeOfNodes(f, tree.AsView({i})));
+      elements.push_back(element);
+    }
+    return f->MakeNodeWithName<Array>(loc, elements, type->element_type(),
+                                      name);
+  }
+  if (tree.type()->IsTuple()) {
+    TupleType* type = tree.type()->AsTupleOrDie();
+    std::vector<Node*> elements;
+    elements.reserve(type->size());
+    for (int64_t i = 0; i < type->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(Node * element,
+                           FromTreeOfNodes(f, tree.AsView({i})));
+      elements.push_back(element);
+    }
+    return f->MakeNodeWithName<Tuple>(loc, elements, name);
+  }
+
+  // Flat type; this is a leaf node.
+  CHECK(tree.type()->IsBits() || tree.type()->IsToken());
+  CHECK_EQ(tree.size(), 1);
+  XLS_RET_CHECK(name.empty());
+
+  Node* leaf = tree.elements().front();
+  XLS_RET_CHECK_EQ(leaf->function_base(), f);
+  return leaf;
+}
+
 absl::StatusOr<Node*> GatherBits(Node* node, LeafTypeTreeView<Bits> mask) {
   std::vector<Node*> gathered_bits;
   absl::flat_hash_map<absl::Span<int64_t const>, Node*> index_access;

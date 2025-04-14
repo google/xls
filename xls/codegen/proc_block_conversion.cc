@@ -54,6 +54,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -809,8 +810,10 @@ static absl::Status AddOneShotOutputLogic(
 // See MakeInputReadyPortsForOutputChannels() for more.
 static absl::Status AddBubbleFlowControl(
     const CodegenOptions& options, StreamingIOPipeline& streaming_io,
-    Block* block, std::vector<Node*>& all_active_outputs_ready) {
+    Proc* proc, absl::Span<ProcInstance* const> instances, Block* block,
+    std::vector<Node*>& all_active_outputs_ready) {
   int64_t stage_count = streaming_io.pipeline_registers.size() + 1;
+  std::string_view data_suffix = options.streaming_channel_data_suffix();
   std::string_view valid_suffix = options.streaming_channel_valid_suffix();
   std::string_view ready_suffix = options.streaming_channel_ready_suffix();
 
@@ -882,6 +885,10 @@ static absl::Status AddBubbleFlowControl(
     XLS_RETURN_IF_ERROR(MakeOutputValidPortsForOutputChannels(
         all_active_inputs_valid, stage_valid_no_option,
         bubble_flow_control.next_stage_open, streaming_io.outputs, valid_suffix,
+        proc, instances, block));
+    XLS_RETURN_IF_ERROR(MakeOutputDataPortsForOutputChannels(
+        all_active_inputs_valid, stage_valid_no_option,
+        bubble_flow_control.next_stage_open, streaming_io.outputs, data_suffix,
         block));
   }
 
@@ -904,7 +911,7 @@ static absl::Status AddBubbleFlowControl(
 
   XLS_RETURN_IF_ERROR(MakeOutputReadyPortsForInputChannels(
       bubble_flow_control.data_load_enable, streaming_io.inputs, ready_suffix,
-      block));
+      proc, instances, block));
 
   VLOG(3) << "After Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -1455,7 +1462,8 @@ static absl::Status AddIdleOutput(
 // Public interface
 absl::Status SingleProcToPipelinedBlock(
     const PipelineSchedule& schedule, const CodegenOptions& options,
-    CodegenContext& context, Proc* proc, Block* ABSL_NONNULL block,
+    CodegenContext& context, Proc* proc,
+    absl::Span<ProcInstance* const> instances, Block* ABSL_NONNULL block,
     const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks) {
   VLOG(1) << absl::StrFormat("SingleProcToPipelinedBlock(proc=`%s`, block=`%s)",
                              proc->name(), block->name());
@@ -1511,7 +1519,7 @@ absl::Status SingleProcToPipelinedBlock(
   ProcConversionMetadata proc_metadata;
   std::vector<Node*> all_active_outputs_ready;
   XLS_RETURN_IF_ERROR(AddBubbleFlowControl(
-      options, streaming_io_and_pipeline, block,
+      options, streaming_io_and_pipeline, proc, instances, block,
       /*all_active_outputs_ready=*/all_active_outputs_ready));
   CHECK_GE(streaming_io_and_pipeline.stage_valid.size(), 1);
   std::copy(streaming_io_and_pipeline.stage_valid.begin() + 1,

@@ -114,6 +114,24 @@ FifoConfig FifoConfigWithDepth(int64_t depth) {
                     /*register_pop_outputs=*/false);
 }
 
+// Convenience wrapper for creating a fifo config with bypass & registered push
+// outputs. CHECK-fails if `depth` is 0.
+FifoConfig FifoConfigWithRegisteredPushAndDepth(int64_t depth) {
+  CHECK_GT(depth, 0);
+  return FifoConfig(/*depth=*/depth, /*bypass=*/true,
+                    /*register_push_outputs=*/true,
+                    /*register_pop_outputs=*/false);
+}
+
+SchedulingOptions DefaultSchedulingOptions() {
+  return SchedulingOptions()
+      .clock_period_ps(100)
+      .ffi_fallback_delay_ps(100)
+      .pipeline_stages(10)
+      // Multi-proc scheduling
+      .schedule_all_procs(true);
+}
+
 CodegenOptions DefaultCodegenOptions() {
   return CodegenOptions()
       .flop_inputs(false)
@@ -132,9 +150,10 @@ CodegenOptions DefaultCodegenOptions() {
 // in it.
 absl::StatusOr<std::pair<bool, CodegenContext>> RunBlockStitchingPass(
     Package* p, std::string_view top_name = "top_proc",
-    CodegenOptions options = DefaultCodegenOptions(),
+    SchedulingOptions scheduling_options = DefaultSchedulingOptions(),
+    CodegenOptions codegen_options = DefaultCodegenOptions(),
     bool generate_signature = true) {
-  options.module_name(top_name);
+  codegen_options.module_name(top_name);
   if (!p->GetTop().has_value()) {
     XLS_RETURN_IF_ERROR(p->SetTop(p->GetFunctionBases().front()));
   }
@@ -147,20 +166,13 @@ absl::StatusOr<std::pair<bool, CodegenContext>> RunBlockStitchingPass(
                                                   &opt_results, opt_context));
   TestDelayEstimator delay_estimator;
   XLS_ASSIGN_OR_RETURN(PipelineScheduleOrGroup schedule,
-                       Schedule(p,
-                                SchedulingOptions()
-                                    .clock_period_ps(100)
-                                    .ffi_fallback_delay_ps(100)
-                                    .pipeline_stages(10)
-                                    // Multi-proc scheduling
-                                    .schedule_all_procs(true),
-                                &delay_estimator));
+                       Schedule(p, scheduling_options, &delay_estimator));
   XLS_RET_CHECK(std::holds_alternative<PackagePipelineSchedules>(schedule));
 
   XLS_ASSIGN_OR_RETURN(
       CodegenContext context,
       PackageToPipelinedBlocks(std::get<PackagePipelineSchedules>(schedule),
-                               options, p));
+                               codegen_options, p));
   CodegenCompoundPass ccp("block_stitching_and_friends",
                           "Block stitching and friends.");
   // Some tests rely on the side effect condition pass to update the predicates
@@ -173,8 +185,8 @@ absl::StatusOr<std::pair<bool, CodegenContext>> RunBlockStitchingPass(
   PassResults results;
   XLS_ASSIGN_OR_RETURN(
       bool ccp_changed,
-      ccp.Run(p, CodegenPassOptions{.codegen_options = options}, &results,
-              context));
+      ccp.Run(p, CodegenPassOptions{.codegen_options = codegen_options},
+              &results, context));
   changed = changed || ccp_changed;
   return std::make_pair(changed, std::move(context));
 }
@@ -196,7 +208,9 @@ TEST_F(BlockStitchingPassTest, SingleBlockIsNoop) {
 
   EXPECT_THAT(
       RunBlockStitchingPass(
-          p.get(), /*top_name=*/"top_proc", /*options=*/DefaultCodegenOptions(),
+          p.get(), /*top_name=*/"top_proc",
+          /*scheduling_options=*/DefaultSchedulingOptions(),
+          /*codegen_options=*/DefaultCodegenOptions(),
           /*generate_signature=*/false),  // Don't generate signature, otherwise
                                           // we'll always get changed=true.
       IsOkAndHolds(Pair(false, _)));
@@ -653,10 +667,12 @@ TEST_F(BlockStitchingPassTest, StitchBlockWithIdleOutput) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, pb1.Build());
   XLS_ASSERT_OK(p->SetTop(proc0));
 
-  EXPECT_THAT(RunBlockStitchingPass(
-                  p.get(), /*top_name=*/"top_proc",
-                  /*options=*/DefaultCodegenOptions().add_idle_output(true)),
-              IsOkAndHolds(Pair(true, _)));
+  EXPECT_THAT(
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"top_proc",
+          /*scheduling_options=*/DefaultSchedulingOptions(),
+          /*codegen_options=*/DefaultCodegenOptions().add_idle_output(true)),
+      IsOkAndHolds(Pair(true, _)));
   EXPECT_THAT(p->blocks(), UnorderedElementsAre(m::Block("top_proc__1"),
                                                 m::Block("top_proc"),
                                                 m::Block(proc1->name())));
@@ -1237,7 +1253,8 @@ TEST_F(ProcInliningPassTest, SingleProc) {
   ASSERT_THAT(
       RunBlockStitchingPass(
           p.get(), proc->name(),
-          /*options=*/DefaultCodegenOptions(),
+          /*scheduling_options=*/DefaultSchedulingOptions(),
+          /*codegen_options=*/DefaultCodegenOptions(),
           /*generate_signature=*/false),  // Don't generate signature, otherwise
                                           // we'll always get changed=true.
       IsOkAndHolds(Pair(false, _)));
@@ -3080,13 +3097,208 @@ TEST_F(ProcInliningPassTest, BlockingReceiveBlocksSendsForDepth0Fifos) {
               IsOkAndHolds(BlockOutputsEq({{"out", {}}})));
 }
 
+TEST_F(ProcInliningPassTest, TwoSendsOneReceive) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_in,
+      p->CreateStreamingChannel("x", ChannelOps::kReceiveOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_inputs,
+      p->CreateStreamingChannel("pass_inputs", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{},
+                                /*fifo_config=*/
+                                FifoConfig(/*depth=*/1, /*bypass=*/true,
+                                           /*register_push_outputs=*/true,
+                                           /*register_pop_outputs=*/false),
+                                /*flow_control=*/FlowControl::kReadyValid,
+                                /*strictness=*/ChannelStrictness::kTotalOrder));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_result,
+      p->CreateStreamingChannel("pass_result", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfigWithDepth(1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * result_out,
+      p->CreateStreamingChannel("result_out", ChannelOps::kSendOnly, u32));
+
+  {
+    // Proc "A"
+    //
+    // while true:
+    //   x = rcv(x_in)
+    //   send(pass_inputs, x)
+    //   send(pass_inputs, x)
+    //   result = rcv(pass_result)
+    //   send(result_out, result)
+    ProcBuilder ab("A", p.get());
+    BValue rcv_x = ab.Receive(x_in, ab.Literal(Value::Token()));
+    BValue send_inputs =
+        ab.Send(pass_inputs, ab.TupleIndex(rcv_x, 0), ab.TupleIndex(rcv_x, 1));
+    send_inputs = ab.Send(pass_inputs, send_inputs, ab.TupleIndex(rcv_x, 1));
+
+    BValue rcv_result = ab.Receive(pass_result, send_inputs);
+    ab.Send(result_out, ab.TupleIndex(rcv_result, 0),
+            ab.TupleIndex(rcv_result, 1));
+
+    XLS_ASSERT_OK(ab.Build());
+  }
+
+  {
+    // Proc "B"
+    //
+    // active = False
+    // acc = 0
+    // while true:
+    //   x = rcv(pass_inputs)
+    //   acc += x
+    //   if active:
+    //     send (pass_result, acc)
+    //   active = !active
+    ProcBuilder bb("B", p.get());
+    BValue active = bb.StateElement("active", Value(UBits(0, 1)));
+    BValue acc = bb.StateElement("acc", Value(UBits(0, 32)));
+    BValue rcv_x = bb.Receive(pass_inputs, bb.Literal(Value::Token()));
+    BValue sum = bb.Add(acc, bb.TupleIndex(rcv_x, 1));
+    bb.SendIf(pass_result, bb.Literal(Value::Token()), active, sum);
+    bb.Next(acc, sum);
+    bb.Next(active, bb.Not(active));
+    XLS_ASSERT_OK(bb.Build());
+  }
+
+  EXPECT_EQ(p->procs().size(), 2);
+  XLS_EXPECT_OK(
+      EvalAndExpect(p.get(), {{"x", {2, 5, 7}}}, {{"result_out", {4, 14, 28}}})
+          .status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (auto [changed, unit]),
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"A",
+          /*scheduling_options=*/
+          DefaultSchedulingOptions().worst_case_throughput(2)));
+  EXPECT_TRUE(changed);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
+  // A, B, and the top block.
+  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"x", {2, 5, 7}}}),
+              IsOkAndHolds(BlockOutputsEq({{"result_out", {4, 14, 28}}})));
+}
+
+TEST_F(ProcInliningPassTest, TwoReceivesOneSend) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_in,
+      p->CreateStreamingChannel("x", ChannelOps::kReceiveOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_inputs,
+      p->CreateStreamingChannel("pass_inputs", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{},
+                                /*fifo_config=*/
+                                FifoConfig(/*depth=*/1, /*bypass=*/true,
+                                           /*register_push_outputs=*/true,
+                                           /*register_pop_outputs=*/false),
+                                /*flow_control=*/FlowControl::kReadyValid,
+                                /*strictness=*/ChannelStrictness::kTotalOrder));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_result,
+      p->CreateStreamingChannel("pass_result", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{},
+                                /*fifo_config=*/FifoConfigWithDepth(1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * result_out,
+      p->CreateStreamingChannel("result_out", ChannelOps::kSendOnly, u32));
+
+  {
+    // Proc "A"
+    //
+    // new_input = true
+    // last_input = 0
+    // while true:
+    //   if new_input:
+    //     last_input = rcv(x_in)
+    //   send(pass_inputs, last_input)
+    //   if !new_input:
+    //     result = rcv(pass_result)
+    //     send(result_out, result)
+    //   new_input = !new_input
+    ProcBuilder ab("A", p.get());
+    BValue new_input = ab.StateElement("new_input", UBits(1, 1));
+    BValue last_input = ab.StateElement("last_input", UBits(0, 32));
+    BValue rcv_x = ab.ReceiveIf(x_in, ab.Literal(Value::Token()), new_input);
+    BValue received_input = ab.TupleIndex(rcv_x, 1);
+    BValue current_input =
+        ab.PrioritySelect(new_input, {received_input}, last_input);
+    BValue send_inputs =
+        ab.Send(pass_inputs, ab.TupleIndex(rcv_x, 0), current_input);
+
+    BValue done = ab.Not(new_input);
+    BValue rcv_result = ab.ReceiveIf(pass_result, send_inputs, done);
+    ab.SendIf(result_out, ab.TupleIndex(rcv_result, 0), /*pred=*/done,
+              ab.TupleIndex(rcv_result, 1));
+    ab.Next(new_input, done);
+    ab.Next(last_input, received_input, new_input);
+
+    XLS_ASSERT_OK(ab.Build());
+  }
+
+  {
+    // Proc "B"
+    //
+    // acc = 0
+    // while true:
+    //   x1 = rcv(pass_inputs)
+    //   x2 = rcv(pass_inputs)
+    //   acc += x1
+    //   acc += x2
+    //   send(pass_result, acc)
+    ProcBuilder bb("B", p.get());
+    BValue acc = bb.StateElement("acc", Value(UBits(0, 32)));
+    BValue rcv_x1 = bb.Receive(pass_inputs, bb.Literal(Value::Token()));
+    BValue rcv_x2 = bb.Receive(pass_inputs, bb.TupleIndex(rcv_x1, 0));
+    BValue sum = bb.Add(acc, bb.TupleIndex(rcv_x1, 1));
+    sum = bb.Add(sum, bb.TupleIndex(rcv_x2, 1));
+    bb.Send(pass_result, bb.TupleIndex(rcv_x2, 0), sum);
+    bb.Next(acc, sum);
+    XLS_ASSERT_OK(bb.Build());
+  }
+
+  EXPECT_EQ(p->procs().size(), 2);
+  XLS_EXPECT_OK(
+      EvalAndExpect(p.get(), {{"x", {2, 5, 7}}}, {{"result_out", {4, 14, 28}}})
+          .status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (auto [changed, unit]),
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"A",
+          /*scheduling_options=*/
+          DefaultSchedulingOptions().worst_case_throughput(2)));
+  EXPECT_TRUE(changed);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
+  // A, B, and the top block.
+  EXPECT_EQ(p->blocks().size(), 3);
+  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"x", {2, 5, 7}}}),
+              IsOkAndHolds(BlockOutputsEq({{"result_out", {4, 14, 28}}})));
+}
+
 // In the original proc inlining test, these
 // 'SingleValueChannelWithVariantElements' tests had a single value channel for
 // `pass_inputs`. This was fine in proc inlining because the inter-proc channel
 // became a wire within the inlined proc, and proc codegen ensured the input
 // from `x` was valid when sending on `pass_inputs`. With multi-proc, the
 // situation is different because the two procs tick truly independently, so
-// we need this channel to be streaming to synchronize the two procs.
+// we need this channel to be streaming to synchronize the two procs. And now,
+// with multiplexed channels, we also need at least one of `pass_inputs` and
+// `pass_result` to be non-bypass, and if `pass_inputs` is bypass-enabled, it
+// must have at least one set of outputs registered.
 //
 // Note that the original test also relied on the behavior of single value
 // channels holding their output. The tuple accumulator proc received twice for
@@ -3110,16 +3322,17 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_inputs,
-      p->CreateStreamingChannel("pass_inputs", ChannelOps::kSendReceive,
-                                u32_u64, /*initial_values=*/{},
-                                /*fifo_config=*/FifoConfigWithDepth(0),
-                                /*flow_control=*/FlowControl::kReadyValid,
-                                /*strictness=*/ChannelStrictness::kTotalOrder));
+      p->CreateStreamingChannel(
+          "pass_inputs", ChannelOps::kSendReceive, u32_u64,
+          /*initial_values=*/{},
+          /*fifo_config=*/FifoConfigWithRegisteredPushAndDepth(1),
+          /*flow_control=*/FlowControl::kReadyValid,
+          /*strictness=*/ChannelStrictness::kTotalOrder));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_result,
       p->CreateStreamingChannel(
           "pass_result", ChannelOps::kSendReceive, u32_u64,
-          /*initial_values=*/{}, /*fifo_config=*/FifoConfigWithDepth(0)));
+          /*initial_values=*/{}, /*fifo_config=*/FifoConfigWithDepth(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * result0_out,
@@ -3134,6 +3347,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
     // while true:
     //   x = rcv(x_in)  // streaming
     //   y = rcv(y_in)  // single-value
+    //   send(pass_inputs, (x, y))
     //   send(pass_inputs, (x, y))
     //   (result0, result1) = rcv(pass_result)
     //   send(result0_out, result0)
@@ -3166,13 +3380,17 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
                                {"result1_out", {20, 40, 60}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (auto [changed, context]),
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"A",
+          /*scheduling_options=*/
+          DefaultSchedulingOptions().worst_case_throughput(2)));
   EXPECT_TRUE(changed);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  // A, B, adapter, and the top block.
-  EXPECT_EQ(p->blocks().size(), 4);
+  // A, B, and the top block.
+  EXPECT_EQ(p->blocks().size(), 3);
   EXPECT_THAT(
       EvalBlock(top_block, context.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
       IsOkAndHolds(BlockOutputsEq(
@@ -3193,16 +3411,17 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_inputs,
-      p->CreateStreamingChannel("pass_inputs", ChannelOps::kSendReceive,
-                                u32_u64, /*initial_values=*/{},
-                                /*fifo_config=*/FifoConfigWithDepth(0),
-                                /*flow_control=*/FlowControl::kReadyValid,
-                                /*strictness=*/ChannelStrictness::kTotalOrder));
+      p->CreateStreamingChannel(
+          "pass_inputs", ChannelOps::kSendReceive, u32_u64,
+          /*initial_values=*/{},
+          /*fifo_config=*/FifoConfigWithRegisteredPushAndDepth(1),
+          /*flow_control=*/FlowControl::kReadyValid,
+          /*strictness=*/ChannelStrictness::kTotalOrder));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_result,
       p->CreateStreamingChannel(
           "pass_result", ChannelOps::kSendReceive, u32_u64,
-          /*initial_values=*/{}, /*fifo_config=*/FifoConfigWithDepth(0)));
+          /*initial_values=*/{}, /*fifo_config=*/FifoConfigWithDepth(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * result0_out,
@@ -3217,6 +3436,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
     // while true:
     //   x = rcv(x_in)  // streaming
     //   y = rcv(y_in)  // single-value
+    //   send(pass_inputs, (x+1, y+1))
     //   send(pass_inputs, (x+1, y+1))
     //   (result0, result1) = rcv(pass_result)
     //   send(result0_out, result0)
@@ -3249,12 +3469,16 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
                                {"result1_out", {22, 44, 66}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (auto [changed, context]),
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"A",
+          /*scheduling_options=*/
+          DefaultSchedulingOptions().worst_case_throughput(2)));
   EXPECT_TRUE(changed);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_EQ(p->blocks().size(), 4);
+  EXPECT_EQ(p->blocks().size(), 3);
   EXPECT_THAT(
       EvalBlock(top_block, context.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
       IsOkAndHolds(BlockOutputsEq(
@@ -3274,16 +3498,17 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_inputs,
-      p->CreateStreamingChannel("pass_inputs", ChannelOps::kSendReceive,
-                                u32_u32, /*initial_values=*/{},
-                                /*fifo_config=*/FifoConfigWithDepth(0),
-                                /*flow_control=*/FlowControl::kReadyValid,
-                                /*strictness=*/ChannelStrictness::kTotalOrder));
+      p->CreateStreamingChannel(
+          "pass_inputs", ChannelOps::kSendReceive, u32_u32,
+          /*initial_values=*/{},
+          /*fifo_config=*/FifoConfigWithRegisteredPushAndDepth(1),
+          /*flow_control=*/FlowControl::kReadyValid,
+          /*strictness=*/ChannelStrictness::kTotalOrder));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_result,
       p->CreateStreamingChannel(
           "pass_result", ChannelOps::kSendReceive, u32_u32,
-          /*initial_values=*/{}, /*fifo_config=*/FifoConfigWithDepth(0)));
+          /*initial_values=*/{}, /*fifo_config=*/FifoConfigWithDepth(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * result0_out,
@@ -3298,6 +3523,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
     // while true:
     //   x = rcv(x_in)  // streaming
     //   y = rcv(y_in)  // single-value
+    //   send(pass_inputs, (y, x+y))
     //   send(pass_inputs, (y, x+y))
     //   (result0, result1) = rcv(pass_result)
     //   send(result0_out, result0)
@@ -3330,10 +3556,14 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
                                {"result1_out", {24, 54, 88}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (auto [changed, context]),
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"A",
+          /*scheduling_options=*/
+          DefaultSchedulingOptions().worst_case_throughput(2)));
   EXPECT_TRUE(changed);
-  EXPECT_EQ(p->blocks().size(), 4);
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       EvalBlock(top_block, context.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
@@ -3354,16 +3584,17 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_inputs,
-      p->CreateStreamingChannel("pass_inputs", ChannelOps::kSendReceive,
-                                u32_u32, /*initial_values=*/{},
-                                /*fifo_config=*/FifoConfigWithDepth(0),
-                                /*flow_control=*/FlowControl::kReadyValid,
-                                /*strictness=*/ChannelStrictness::kTotalOrder));
+      p->CreateStreamingChannel(
+          "pass_inputs", ChannelOps::kSendReceive, u32_u32,
+          /*initial_values=*/{},
+          /*fifo_config=*/FifoConfigWithRegisteredPushAndDepth(1),
+          /*flow_control=*/FlowControl::kReadyValid,
+          /*strictness=*/ChannelStrictness::kTotalOrder));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * pass_result,
       p->CreateStreamingChannel(
           "pass_result", ChannelOps::kSendReceive, u32_u32,
-          /*initial_values=*/{}, /*fifo_config=*/FifoConfigWithDepth(0)));
+          /*initial_values=*/{}, /*fifo_config=*/FifoConfigWithDepth(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * result0_out,
@@ -3378,6 +3609,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
     // while true:
     //   x = rcv(x_in)  // streaming
     //   y = rcv(y_in)  // single-value
+    //   send(pass_inputs, (x, x+y))  // single-value
     //   send(pass_inputs, (x, x+y))  // single-value
     //   (result0, result1) = rcv(pass_result)
     //   send(result0_out, result0)
@@ -3410,10 +3642,13 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
                                {"result1_out", {24, 54, 88}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (auto [changed, context]),
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"A", /*scheduling_options=*/
+          DefaultSchedulingOptions().worst_case_throughput(2)));
   EXPECT_TRUE(changed);
-  EXPECT_EQ(p->blocks().size(), 4);
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       EvalBlock(top_block, context.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
@@ -4076,12 +4311,15 @@ TEST_F(ProcInliningPassTest, MultipleSends) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (auto [changed, context]),
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"A", /*scheduling_options=*/
+          DefaultSchedulingOptions().worst_case_throughput(2)));
   EXPECT_TRUE(changed);
 
-  // top, A, B, and adapter
-  EXPECT_EQ(p->blocks().size(), 4);
+  // A, B, and top
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       // Seems to hang on last output unless you give another input.
@@ -4133,19 +4371,22 @@ TEST_F(ProcInliningPassTest, MultipleSendsInDifferentOrder) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (auto [changed, context]),
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"A", /*scheduling_options=*/
+          DefaultSchedulingOptions().worst_case_throughput(2)));
   EXPECT_TRUE(changed);
 
-  // top, A, B, and adapter
-  EXPECT_EQ(p->blocks().size(), 4);
+  // A, B, and top
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
 }
 
-TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth0) {
+TEST_F(ProcInliningPassTest, MultipleReceivesFifoWithBypass) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -4154,11 +4395,12 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth0) {
       p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * a_to_b,
-      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{},
-                                /*fifo_config=*/FifoConfigWithDepth(0),
-                                /*flow_control=*/FlowControl::kReadyValid,
-                                /*strictness=*/ChannelStrictness::kTotalOrder));
+      p->CreateStreamingChannel(
+          "a_to_b", ChannelOps::kSendReceive, u32,
+          /*initial_values=*/{},
+          /*fifo_config=*/FifoConfigWithRegisteredPushAndDepth(1),
+          /*flow_control=*/FlowControl::kReadyValid,
+          /*strictness=*/ChannelStrictness::kTotalOrder));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
@@ -4189,12 +4431,15 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth0) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (auto [changed, context]),
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"A", /*scheduling_options=*/
+          DefaultSchedulingOptions().worst_case_throughput(2)));
   EXPECT_TRUE(changed);
 
-  // top, A, B, and adapter
-  EXPECT_EQ(p->blocks().size(), 4);
+  // A, B, and top
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
@@ -4245,12 +4490,15 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth1) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (auto [changed, context]),
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"A", /*scheduling_options=*/
+          DefaultSchedulingOptions().worst_case_throughput(2)));
   EXPECT_TRUE(changed);
 
-  // top, A, B, and adapter
-  EXPECT_EQ(p->blocks().size(), 4);
+  // A, B, and top
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
@@ -4269,7 +4517,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTick) {
       p->CreateStreamingChannel(
           "a_to_b", ChannelOps::kSendReceive, u32,
           /*initial_values=*/{},
-          /*fifo_config=*/FifoConfigWithDepth(0),
+          /*fifo_config=*/FifoConfigWithRegisteredPushAndDepth(1),
           /*flow_control=*/FlowControl::kReadyValid,
           /*strictness=*/ChannelStrictness::kRuntimeMutuallyExclusive));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -4289,19 +4537,23 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTick) {
     //     x = rcv(a_to_b) + 2
     //   send(out, x)
     //   st = st + 1
-    TokenlessProcBuilder bb("B", "tkn", p.get());
+    ProcBuilder bb("B", p.get());
     BValue st = bb.StateElement("st", Value(UBits(0, 2)));
-    BValue st_eq_0 = bb.Eq(st, bb.Literal(UBits(0, 2)));
-    BValue st_eq_1 = bb.Eq(st, bb.Literal(UBits(1, 2)));
-    BValue st_eq_2 = bb.Eq(st, bb.Literal(UBits(2, 2)));
-    BValue tmp0 = bb.ReceiveIf(a_to_b, st_eq_0);
-    BValue tmp1 =
-        bb.Add(bb.ReceiveIf(a_to_b, st_eq_1), bb.Literal(UBits(1, 32)));
-    BValue tmp2 =
-        bb.Add(bb.ReceiveIf(a_to_b, st_eq_2), bb.Literal(UBits(2, 32)));
+    BValue tkn = bb.Literal(Value::Token());
+    BValue recv0 =
+        bb.ReceiveIf(a_to_b, tkn, bb.Eq(st, bb.Literal(UBits(0, 2))));
+    BValue tmp0 = bb.TupleIndex(recv0, 1);
+    BValue recv1 =
+        bb.ReceiveIf(a_to_b, tkn, bb.Eq(st, bb.Literal(UBits(1, 2))));
+    BValue tmp1 = bb.Add(bb.TupleIndex(recv1, 1), bb.Literal(UBits(1, 32)));
+    BValue recv2 =
+        bb.ReceiveIf(a_to_b, tkn, bb.Eq(st, bb.Literal(UBits(2, 2))));
+    BValue tmp2 = bb.Add(bb.TupleIndex(recv2, 1), bb.Literal(UBits(2, 32)));
+    tkn = bb.AfterAll({bb.TupleIndex(recv0, 0), bb.TupleIndex(recv1, 0),
+                       bb.TupleIndex(recv2, 0)});
     BValue x = bb.Select(st, {tmp0, tmp1, tmp2, bb.Literal(UBits(0, 32))});
-    bb.Trace(bb.AfterAll({}), bb.Literal(Value(UBits(1, 1))), {x}, "x = {}");
-    bb.Send(ch_out, x);
+    bb.Trace(tkn, bb.Literal(Value(UBits(1, 1))), {x}, "x = {}");
+    bb.Send(ch_out, tkn, x);
     bb.Next(st, bb.Add(st, bb.Literal(UBits(1, 2))));
     XLS_ASSERT_OK(bb.Build());
   }
@@ -4315,8 +4567,8 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTick) {
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
-  // top, A, B, and adapter
-  EXPECT_EQ(p->blocks().size(), 4);
+  // A, B, and top
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       EvalBlock(top_block, context.metadata(),
@@ -4387,8 +4639,8 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTickFifoDepth0) {
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
-  // top, A, B, and adapter
-  EXPECT_EQ(p->blocks().size(), 4);
+  // A, B, and top
+  EXPECT_EQ(p->blocks().size(), 3);
 
   EXPECT_THAT(
       EvalBlock(p->GetBlock("A").value(), context.metadata(),
@@ -4457,12 +4709,16 @@ TEST_F(ProcInliningPassTest, MultipleSendsAndReceives) {
                               {{"out", {11, 102, 13, 142, 133}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
-                           RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      (auto [changed, context]),
+      RunBlockStitchingPass(
+          p.get(), /*top_name=*/"A",
+          /*scheduling_options=*/
+          DefaultSchedulingOptions().worst_case_throughput(2)));
   EXPECT_TRUE(changed);
 
-  // top, A, B, send adapter, and receive adapter
-  EXPECT_EQ(p->blocks().size(), 5);
+  // A, B, and top
+  EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3, 42, 123}}},
@@ -4503,12 +4759,16 @@ TEST_F(ProcInliningPassTest, ReceiveIfsWithFalseCondition) {
     //   send(out0, x)
     //   send(out1, y)
     //   st = !st
-    TokenlessProcBuilder bb("B", "tkn", p.get());
+    ProcBuilder bb("B", p.get());
     BValue st = bb.StateElement("st", Value(UBits(0, 1)));
-    BValue x = bb.Add(bb.ReceiveIf(a_to_b, st), bb.Literal(UBits(100, 32)));
-    BValue y = bb.ReceiveIf(a_to_b, bb.Not(st));
-    bb.Send(ch_out0, x);
-    bb.Send(ch_out1, y);
+    BValue rcv_x = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), st);
+    BValue x = bb.Add(bb.TupleIndex(rcv_x, 1), bb.Literal(UBits(100, 32)));
+    BValue rcv_y = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), bb.Not(st));
+    BValue y = bb.TupleIndex(rcv_y, 1);
+    BValue tok =
+        bb.AfterAll({bb.TupleIndex(rcv_x, 0), bb.TupleIndex(rcv_y, 0)});
+    bb.Send(ch_out0, tok, x);
+    bb.Send(ch_out1, tok, y);
     bb.Next(st, bb.Not(st));
     XLS_ASSERT_OK(bb.Build());
   }
