@@ -148,7 +148,7 @@ pub fn max_normal<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ,
 Returns the largest normal value or its negative depending upon the given sign
 parameter.
 
-### `aploat::abs`
+### `apfloat::abs`
 
 ```dslx-snippet
 pub fn abs<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ>
