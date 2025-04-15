@@ -993,28 +993,33 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
           HandleSliceBoundInternal(start_and_width.start, is_signed));
       XLS_RETURN_IF_ERROR(
           HandleSliceBoundInternal(start_and_width.width, is_signed));
-
-      if (std::holds_alternative<WidthSlice*>(node->rhs())) {
-        // For a `WidthSlice` we need to also make sure the `start` in the
-        // original AST gets the correct type of u32, because it's used in IR
-        // conversion. For a generic `Slice`, this is not necessary or
-        // desirable; the actual `start` and `limit` nodes from the AST are
-        // throw-away exprs without specific type rules, and the `StartAndWidth`
-        // created above is what gets used later.
-        Expr* width_slice_start = std::get<WidthSlice*>(node->rhs())->start();
-        XLS_ASSIGN_OR_RETURN(
-            const NameRef* start_variable,
-            table_.DefineInternalVariable(
-                InferenceVariableKind::kType,
-                const_cast<Expr*>(width_slice_start),
-                GenerateInternalTypeVariableName(width_slice_start)));
-        XLS_RETURN_IF_ERROR(
-            table_.SetTypeVariable(width_slice_start, start_variable));
-        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-            width_slice_start,
-            CreateU32Annotation(module_, width_slice_start->span())));
+      if (std::holds_alternative<Slice*>(node->rhs())) {
+        // For a regular slice, we don't want to traverse the RHS, because the
+        // exprs in `start_and_width` will be used henceforth, and the
+        // `HandleSliceBoundInternal` calls above will have typechecked those
+        // already. The original RHS will also not have a type variable, which
+        // would be a precondition for its processing.
+        return node->lhs()->Accept(this);
       }
 
+      // For a `WidthSlice` we need to also make sure the `start` in the
+      // original AST gets the correct type of u32, because it's used in IR
+      // conversion. For a generic `Slice`, this is not necessary or
+      // desirable; the actual `start` and `limit` nodes from the AST are
+      // throw-away exprs without specific type rules, and the `StartAndWidth`
+      // created above is what gets used later.
+      Expr* width_slice_start = std::get<WidthSlice*>(node->rhs())->start();
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* start_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType,
+              const_cast<Expr*>(width_slice_start),
+              GenerateInternalTypeVariableName(width_slice_start)));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(width_slice_start, start_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          width_slice_start,
+          CreateU32Annotation(module_, width_slice_start->span())));
       return DefaultHandler(node);
     }
 

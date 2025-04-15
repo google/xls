@@ -115,6 +115,12 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleSlice(const Slice* slice) override {
+    // Slices get replaced with `StartAndWith` objects in `TypeInfo`, so there
+    // is no point in trying to compute the type info of the slice itself.
+    return absl::OkStatus();
+  }
+
   absl::Status HandleInvocation(const Invocation* node) override {
     // Exclude the arguments of invocations, but otherwise do the equivalent of
     // DefaultHandler. We exclude the arguments, because when an argument should

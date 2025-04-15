@@ -5057,6 +5057,15 @@ const Z = 0b100111[X:Y];
               TypecheckSucceeds(HasNodeWithType("Z", "uN[2]")));
 }
 
+TEST(TypecheckV2Test, SliceWithBinopInBound) {
+  EXPECT_THAT(R"(
+const A = s32:4;
+const B = s32:2;
+const X = 0b100111[A - B:4];
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[2]")));
+}
+
 TEST(TypecheckV2Test, SliceByParametrics) {
   EXPECT_THAT(R"(
 fn f<A: s32, B: s32>(value: u32) -> uN[(B - A) as u32] { value[A:B] }
