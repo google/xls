@@ -3275,7 +3275,7 @@ TEST(TypecheckV2Test, PatternMismatch) {
     }
 }
 )",
-              TypecheckFails(HasSizeMismatch("uN[3]", "u8")));
+              TypecheckFails(HasSizeMismatch("u3", "u8")));
 }
 
 TEST(TypecheckV2Test, PatternMatcherWrongType) {
@@ -5359,6 +5359,22 @@ fn foo() {
                               HasNodeWithType("X", "sN[32]"))));
 }
 
+TEST(TypecheckV2Test, ForWithDestructuredAcc) {
+  EXPECT_THAT(
+      R"(
+const X = for (i, (x, y, (a, b))) : (u32, (u32, u32, (u32, u32))) in u32:0..3 {
+  (x + i, y + i, (x + 2, y + 2))
+  } ((0, 0, (1, 1)));
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("X", "(uN[32], uN[32], (uN[32], uN[32]))"),
+                HasNodeWithType("x", "uN[32]"), HasNodeWithType("y", "uN[32]"),
+                HasNodeWithType("a", "uN[32]"), HasNodeWithType("b", "uN[32]"),
+                HasNodeWithType("(x, y, (a, b))",
+                                "(uN[32], uN[32], (uN[32], uN[32]))"),
+                HasNodeWithType("(a, b)", "(uN[32], uN[32])"))));
+}
+
 TEST(TypecheckV2Test, ForCompositeType) {
   EXPECT_THAT(
       R"(
@@ -5710,7 +5726,7 @@ proc main {
   next(state: ()) { () }
 }
 )",
-              TypecheckFails(HasSizeMismatch("u32", "uN[64]")));
+              TypecheckFails(HasSizeMismatch("u32", "u64")));
 }
 
 TEST(TypecheckV2Test, BadChannelDeclAssignmentFails) {

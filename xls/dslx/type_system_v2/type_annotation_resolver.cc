@@ -147,7 +147,8 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
                          table_.GetTypeAnnotationsForTypeVariable(
                              parametric_context, type_variable));
-    if (accept_predicate.has_value()) {
+    if (accept_predicate.has_value() && !annotations.empty()) {
+      tracer_.TraceFilter(annotations);
       FilterAnnotations(annotations, *accept_predicate);
     }
     XLS_ASSIGN_OR_RETURN(

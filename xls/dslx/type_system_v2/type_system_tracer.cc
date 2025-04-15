@@ -48,6 +48,7 @@ enum class TraceKind : uint8_t {
   kEvaluate,
   kConcretize,
   kUnroll,
+  kFilter
 };
 
 struct TypeSystemTraceImpl {
@@ -84,6 +85,8 @@ std::string TraceKindToString(TraceKind kind) {
       return "Concretize";
     case TraceKind::kUnroll:
       return "Unroll";
+    case TraceKind::kFilter:
+      return "Filter";
   }
 }
 
@@ -152,6 +155,13 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
       const std::vector<const TypeAnnotation*>& annotations) override {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kUnify,
+                                     .annotations = annotations});
+  }
+
+  TypeSystemTrace TraceFilter(
+      const std::vector<const TypeAnnotation*>& annotations) override {
+    return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
+                                     .kind = TraceKind::kFilter,
                                      .annotations = annotations});
   }
 

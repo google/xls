@@ -563,7 +563,7 @@ fn main() -> u7 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, CountedForDestructuring) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, CountedForDestructuring) {
   const char* program =
       R"(fn f() -> u32 {
   let t = for (i, (x, y)): (u32, (u32, u8)) in u32:0..u32:4 {
@@ -1330,7 +1330,8 @@ fn test() -> (u32, u32) {
   ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
-TEST(IrConverterTest, CountedForWithTupleAccumulator) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       CountedForWithTupleAccumulator) {
   const char* program =
       R"(
 fn f() -> (u32, u32) {
@@ -1913,7 +1914,8 @@ fn main(x: u32) -> (u32, u32) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, CountedForParametricRefInBody) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       CountedForParametricRefInBody) {
   const char* program =
       R"(
 fn f<N:u32>(init: bits[N]) -> bits[N] {

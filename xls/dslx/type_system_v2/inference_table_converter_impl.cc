@@ -169,10 +169,11 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleNameDefTree(const NameDefTree* node) override {
-    if (!node->IsRestOfTupleLeaf()) {
-      nodes_.push_back(node);
+    if (node->is_leaf()) {
+      return ToAstNode(node->leaf())->Accept(this);
     }
-    for (auto child : node->Flatten()) {
+    nodes_.push_back(node);
+    for (auto child : node->nodes()) {
       XLS_RETURN_IF_ERROR(ToAstNode(child)->Accept(this));
     }
     return absl::OkStatus();

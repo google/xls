@@ -120,6 +120,14 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleProc(const Proc* node) override {
+    VLOG(5) << "HandleProc: " << node->ToString();
+    handle_proc_functions_ = true;
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
+    handle_proc_functions_ = false;
+    return absl::OkStatus();
+  }
+
   absl::Status HandleProcMember(const ProcMember* node) override {
     VLOG(5) << "HandleProcMember: " << node->ToString();
     XLS_RETURN_IF_ERROR(DefineTypeVariableForVariableOrConstant(node).status());
@@ -483,16 +491,31 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   // a tuple (e.g., outside a `let` assignment).
   absl::Status HandleNameDefTree(const NameDefTree* node) override {
     VLOG(5) << "HandleNameDefTree: " << node->ToString();
+
+    // Dive through leaf wrapper trees without dealing with the wrapper; e.g. in
+    // `(x, y)`, the `x` and `y` are each a `NameDefTree` that contains nothing
+    // but the one leaf `NameDef`.
     if (node->is_leaf()) {
       return DefaultHandler(node);
     }
-    std::vector<TypeAnnotation*> member_types;
-    for (const NameDefTree* child_node : node->nodes()) {
-      XLS_RETURN_IF_ERROR(child_node->Accept(this));
-      XLS_ASSIGN_OR_RETURN(TypeAnnotation * member_type,
-                           GetOrMakeTypeAnnotationForNDF(child_node));
 
-      member_types.push_back(member_type);
+    std::vector<TypeAnnotation*> member_types;
+    std::optional<const NameRef*> parent_var = table_.GetTypeVariable(node);
+    for (int i = 0; i < node->nodes().size(); i++) {
+      const NameDefTree* child = node->nodes()[i];
+      const AstNode* actual_child =
+          child->is_leaf() ? ToAstNode(child->leaf()) : child;
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* child_var,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, const_cast<AstNode*>(actual_child),
+              absl::StrCat(parent_var.has_value()
+                               ? (*parent_var)->identifier()
+                               : GenerateInternalTypeVariableName(node),
+                           ".", i)));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(actual_child, child_var));
+      member_types.push_back(
+          module_.Make<TypeVariableTypeAnnotation>(child_var));
     }
     TupleTypeAnnotation* tuple_annotation =
         module_.Make<TupleTypeAnnotation>(node->span(), member_types);
@@ -1052,6 +1075,14 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleFunction(const Function* node) override {
+    // Proc functions are reachable via both the `Module` and the `Proc`, as an
+    // oddity of how procs are set up in the AST. We only want to handle them in
+    // the context of the `Proc`, because at that point we will have processed
+    // the members they may be using.
+    if (node->IsInProc() && !handle_proc_functions_) {
+      return absl::OkStatus();
+    }
+
     VLOG(5) << "HandleFunction: " << node->ToString()
             << ", parametric: " << node->IsParametric();
     for (const ParametricBinding* binding : node->parametric_bindings()) {
@@ -1482,37 +1513,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return variable;
   }
 
-  // Helper to either read a type annotation or member variable for a
-  // `NameDefNode` or create one if it doesn't exist.
-  absl::StatusOr<TypeAnnotation*> GetOrMakeTypeAnnotationForNDF(
-      const NameDefTree* node) {
-    std::optional<const TypeAnnotation*> type = table_.GetTypeAnnotation(node);
-    if (type.has_value()) {
-      return const_cast<TypeAnnotation*>(*type);
-    }
-    const AstNode* definer_node =
-        node->is_leaf() ? ToAstNode(node->leaf()) : node;
-    std::optional<const NameRef*> member_var =
-        table_.GetTypeVariable(definer_node);
-    if (!member_var.has_value()) {
-      if (node->is_leaf()) {
-        XLS_ASSIGN_OR_RETURN(
-            member_var,
-            table_.DefineInternalVariable(
-                InferenceVariableKind::kType, ToAstNode(node->leaf()),
-                GenerateInternalTypeVariableName(node)));
-      } else {
-        XLS_ASSIGN_OR_RETURN(
-            member_var,
-            table_.DefineInternalVariable(
-                InferenceVariableKind::kType, const_cast<NameDefTree*>(node),
-                GenerateInternalTypeVariableName(node)));
-      }
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(definer_node, *member_var));
-    }
-    return module_.Make<TypeVariableTypeAnnotation>(*member_var);
-  }
-
   // Generates a name for an internal inference variable that will be used as
   // the type for the given node. The name is only relevant for traceability.
   template <typename T>
@@ -1561,7 +1561,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
   // Variant for `NameDefTree`.
   std::string GenerateInternalTypeVariableName(const NameDefTree* node) {
-    return absl::Substitute("internal_type_ndf_at_$0_in_$1",
+    return absl::Substitute("internal_type_ndt_at_$0_in_$1",
                             node->span().ToString(file_table_), module_.name());
   }
 
@@ -1759,6 +1759,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   const FileTable& file_table_;
   ImportData& import_data_;
   TypecheckModuleFn typecheck_imported_module_;
+  bool handle_proc_functions_ = false;
 };
 
 }  // namespace

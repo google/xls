@@ -83,6 +83,8 @@ class TypeSystemTracer {
   virtual TypeSystemTrace TraceUnify(const NameRef* type_variable) = 0;
   virtual TypeSystemTrace TraceUnify(
       const std::vector<const TypeAnnotation*>& annotations) = 0;
+  virtual TypeSystemTrace TraceFilter(
+      const std::vector<const TypeAnnotation*>& annotations) = 0;
   virtual TypeSystemTrace TraceResolve(
       const TypeAnnotation* annotation,
       std::optional<const ParametricContext*> parametric_context) = 0;
