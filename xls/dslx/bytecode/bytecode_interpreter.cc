@@ -1457,9 +1457,11 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kAndReduce:
       return RunBuiltinAndReduce(bytecode, stack_);
     case Builtin::kAssertEq:
-      return RunBuiltinAssertEq(bytecode, stack_, frames_.back(), options_);
+      return RunBuiltinAssertEq(bytecode, stack_, frames_.back(), options_,
+                                proc_id());
     case Builtin::kAssertLt:
-      return RunBuiltinAssertLt(bytecode, stack_, frames_.back(), options_);
+      return RunBuiltinAssertLt(bytecode, stack_, frames_.back(), options_,
+                                proc_id());
     case Builtin::kBitSliceUpdate:
       return RunBuiltinBitSliceUpdate(bytecode, stack_);
     case Builtin::kClz:
@@ -1472,8 +1474,11 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinEnumerate(bytecode, stack_);
     case Builtin::kFail: {
       XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
-      return FailureErrorStatus(bytecode.source_span(), value.ToString(),
-                                file_table());
+      std::string message{value.ToString()};
+      if (proc_id().has_value()) {
+        message += absl::StrFormat(" (called from %s)", proc_id()->ToString());
+      }
+      return FailureErrorStatus(bytecode.source_span(), message, file_table());
     }
     case Builtin::kAssert: {
       XLS_ASSIGN_OR_RETURN(InterpValue label, Pop());
@@ -1482,7 +1487,12 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       XLS_ASSIGN_OR_RETURN(std::string label_as_string,
                            InterpValueAsString(label));
       if (predicate.IsFalse()) {
-        return FailureErrorStatus(bytecode.source_span(), label_as_string,
+        std::string message{label_as_string};
+        if (proc_id().has_value()) {
+          message +=
+              absl::StrFormat(" (called from %s)", proc_id()->ToString());
+        }
+        return FailureErrorStatus(bytecode.source_span(), message,
                                   file_table());
       }
 

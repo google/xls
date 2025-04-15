@@ -23,6 +23,7 @@
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
+#include "xls/dslx/frontend/proc_id.h"
 
 namespace xls::dslx {
 
@@ -83,10 +84,12 @@ absl::Status RunBuiltinXorReduce(const Bytecode& bytecode,
 
 absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
                                 InterpreterStack& stack, const Frame& frame,
-                                const BytecodeInterpreterOptions& options);
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id);
 absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
                                 InterpreterStack& stack, const Frame& frame,
-                                const BytecodeInterpreterOptions& options);
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id);
 
 // Returns a differences string in the style of Rust's pretty_assertions.
 // All lines are indented by two positions.
