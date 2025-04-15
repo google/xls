@@ -763,6 +763,11 @@ class TupleType : public Type {
 // These will nest in the case of multidimensional arrays.
 class ArrayType : public Type {
  public:
+  struct InnerMostElementType {
+    const Type& element_type;
+    const ArrayType& array_type;
+    bool all_dims_known;
+  };
   static std::string GetDebugName() { return "ArrayType"; }
 
   ArrayType(std::unique_ptr<Type> element_type, const TypeDim& size);
@@ -789,6 +794,7 @@ class ArrayType : public Type {
     return std::make_unique<ArrayType>(element_type_->CloneToUnique(),
                                        size_.Clone());
   }
+  InnerMostElementType GetInnermostElementType() const;
 
   const Type& element_type() const { return *element_type_; }
   const TypeDim& size() const { return size_; }

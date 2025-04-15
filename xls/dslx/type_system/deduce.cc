@@ -172,6 +172,26 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceProcMember(const ProcMember* node,
   return std::move(param_type);
 }
 
+std::optional<const ChannelType*> GetChannelType(const Type* param_type) {
+  // If an array: resolve to nested element type.
+  const Type* element_type = param_type;
+  const ArrayType* array_type = dynamic_cast<const ArrayType*>(param_type);
+  if (array_type != nullptr) {
+    const auto& [innermost_element_type, innermost_array_type, all_dims_known] =
+        array_type->GetInnermostElementType();
+    if (!all_dims_known) {
+      return std::nullopt;
+    }
+    element_type = &innermost_element_type;
+  }
+  const ChannelType* channel_type =
+      dynamic_cast<const ChannelType*>(element_type);
+  if (channel_type != nullptr) {
+    return channel_type;
+  }
+  return std::nullopt;
+}
+
 absl::StatusOr<std::unique_ptr<Type>> DeduceParam(const Param* node,
                                                   DeduceCtx* ctx) {
   VLOG(5) << "DeduceParam: " << node->ToString();
@@ -197,26 +217,14 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceParam(const Param* node,
   // Stack depth 2: Module "<top>" + the config function being looked at.
   bool is_root_proc =
       f->tag() == FunctionTag::kProcConfig && ctx->fn_stack().size() == 2;
-  bool is_channel_like_param =
-      dynamic_cast<ChannelType*>(param_type.get()) != nullptr;
-  ChannelDirection direction = ChannelDirection::kIn;
-  if (is_channel_like_param) {
-    direction = dynamic_cast<ChannelType*>(param_type.get())->direction();
-  } else {
-    ArrayType* array_type = dynamic_cast<ArrayType*>(param_type.get());
-    is_channel_like_param = array_type != nullptr &&
-                            dynamic_cast<const ChannelType*>(
-                                &array_type->element_type()) != nullptr &&
-                            array_type->size().GetAsInt64().ok();
-    if (is_channel_like_param) {
-      direction = dynamic_cast<const ChannelType*>(&array_type->element_type())
-                      ->direction();
-    }
-  }
+  std::optional<const ChannelType*> channel_type =
+      GetChannelType(param_type.get());
+  bool is_channel_like_param = channel_type.has_value();
   bool is_param_constexpr = ctx->type_info()->IsKnownConstExpr(node);
   if (is_root_proc && is_channel_like_param && !is_param_constexpr) {
-    XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         CreateChannelReference(direction, param_type.get()));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        CreateChannelReference((*channel_type)->direction(), param_type.get()));
     ctx->type_info()->NoteConstExpr(node, value);
     ctx->type_info()->NoteConstExpr(node->name_def(), value);
   }

@@ -1014,6 +1014,22 @@ absl::StatusOr<TypeDim> ArrayType::GetTotalBitCount() const {
   return elem_bits.Mul(size_);
 }
 
+ArrayType::InnerMostElementType ArrayType::GetInnermostElementType() const {
+  const ArrayType* array_type = this;
+  bool all_dims_known = true;
+  while (true) {
+    all_dims_known = all_dims_known && array_type->size().GetAsInt64().ok();
+    const ArrayType* nested_array_type =
+        dynamic_cast<const ArrayType*>(&array_type->element_type());
+    if (nested_array_type == nullptr) {
+      break;
+    }
+    array_type = nested_array_type;
+  }
+  return {std::cref(array_type->element_type()), std::cref(*array_type),
+          all_dims_known};
+}
+
 int ArrayType::ArrayDimensions() const {
   const Type* element_type = element_type_.get();
   int size = 1;

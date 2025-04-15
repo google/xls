@@ -2769,6 +2769,49 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, DealOutChannelSubarray) {
   ExpectVersionSpecificIr(converted, TestName(), GetParam());
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       DealOutBoundaryChannelSubarray) {
+  constexpr std::string_view kProgram = R"(
+  proc B {
+    outs: chan<u32>[2] out;
+    ins: chan<u32>[2] in;
+
+    init {}
+
+    config(outs: chan<u32>[2] out, ins: chan<u32>[2] in) {
+      (outs, ins)
+    }
+
+    next(state: ()) {
+      unroll_for!(j, tok) : (u32, token) in u32:0..u32:2 {
+        let tok = send(tok, outs[j], j);
+        let(tok, _) = recv(tok, ins[j]);
+        tok
+      }(join());
+    }
+  }
+
+  proc A {
+    init {}
+
+    config(outs : chan<u32>[2][2] out, ins: chan<u32>[2][2] in) {
+      unroll_for!(i, _) : (u32, ()) in u32:0..u32:2 {
+        spawn B(outs[i], ins[i]);
+      }(());
+    }
+
+    next(state: ()) { state }
+  }
+  )";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(ConvertOneFunctionForTest(kProgram, "A", import_data, options));
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, LetChannelSubarrayInConfig) {
   constexpr std::string_view kProgram = R"(
  proc B {
