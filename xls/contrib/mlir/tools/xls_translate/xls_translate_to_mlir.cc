@@ -181,13 +181,13 @@ class TranslationState {
 // Type Translation
 //===----------------------------------------------------------------------===//
 
-Type translateType(::xls::Type* xls_type, OpBuilder& builder,
-                   MLIRContext* ctx) {
+Type translateType(::xls::Type* xls_type, OpBuilder& builder) {
+  MLIRContext* ctx = builder.getContext();
   switch (xls_type->kind()) {
     case ::xls::TypeKind::kTuple: {
       SmallVector<Type> types;
       for (auto* type : xls_type->AsTupleOrDie()->element_types()) {
-        types.push_back(translateType(type, builder, ctx));
+        types.push_back(translateType(type, builder));
       }
       return TupleType::get(ctx, types);
     }
@@ -197,8 +197,7 @@ Type translateType(::xls::Type* xls_type, OpBuilder& builder,
     case ::xls::TypeKind::kArray: {
       return ArrayType::get(
           xls_type->AsArrayOrDie()->size(),
-          translateType(xls_type->AsArrayOrDie()->element_type(), builder,
-                        ctx));
+          translateType(xls_type->AsArrayOrDie()->element_type(), builder));
     }
     case ::xls::TypeKind::kToken: {
       return TokenType::get(ctx);
@@ -213,7 +212,6 @@ Type translateType(::xls::Type* xls_type, OpBuilder& builder,
 absl::StatusOr<Operation*> translateBitsLiteral(const ::xls::Bits& b,
                                                 Location loc,
                                                 OpBuilder& builder,
-                                                MLIRContext* ctx,
                                                 TranslationState& state) {
   APInt converted_value;
 
@@ -239,12 +237,12 @@ absl::StatusOr<Operation*> translateBitsLiteral(const ::xls::Bits& b,
 
 absl::StatusOr<Operation*> translateLiteral(const ::xls::Value& b,
                                             OpBuilder& builder,
-                                            MLIRContext* ctx,
                                             TranslationState& state) {
+  MLIRContext* ctx = builder.getContext();
   switch (b.kind()) {
     case ::xls::ValueKind::kBits:
       return translateBitsLiteral(b.bits(), builder.getUnknownLoc(), builder,
-                                  ctx, state);
+                                  state);
 
     case ::xls::ValueKind::kToken: {
       return builder.create<xls::AfterAllOp>(builder.getUnknownLoc(),
@@ -257,7 +255,7 @@ absl::StatusOr<Operation*> translateLiteral(const ::xls::Value& b,
       SmallVector<Type> types;
 
       for (auto& xls_member : b.elements()) {
-        auto member = translateLiteral(xls_member, builder, ctx, state);
+        auto member = translateLiteral(xls_member, builder, state);
         if (!member.ok()) {
           return member.status();
         }
@@ -320,7 +318,6 @@ absl::StatusOr<Location> translateLoc(const ::xls::SourceInfo& xls_loc,
 //===----------------------------------------------------------------------===//
 
 absl::StatusOr<Operation*> translateOp(::xls::ArithOp& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto opr_lhs =
       state.getMlirValue(node.operands()[::xls::ArithOp::kLhsOperand]->id());
@@ -334,7 +331,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ArithOp& node, OpBuilder& builder,
     return opr_rhs.status();
   }
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -352,7 +349,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ArithOp& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::PartialProductOp& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto opr_lhs = state.getMlirValue(
       node.operands()[::xls::PartialProductOp::kLhsOperand]->id());
@@ -366,8 +363,8 @@ absl::StatusOr<Operation*> translateOp(::xls::PartialProductOp& node,
     return opr_rhs.status();
   }
 
-  auto result_type = translateType(
-      node.GetType()->AsTupleOrDie()->element_type(0), builder, ctx);
+  auto result_type =
+      translateType(node.GetType()->AsTupleOrDie()->element_type(0), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -395,7 +392,7 @@ absl::StatusOr<Operation*> translateOp(::xls::PartialProductOp& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::CompareOp& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto opr_lhs =
       state.getMlirValue(node.operands()[::xls::CompareOp::kLhsOperand]->id());
@@ -409,7 +406,7 @@ absl::StatusOr<Operation*> translateOp(::xls::CompareOp& node,
     return opr_rhs.status();
   }
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -443,7 +440,6 @@ absl::StatusOr<Operation*> translateOp(::xls::CompareOp& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::BinOp& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto opr_lhs =
       state.getMlirValue(node.operands()[::xls::BinOp::kLhsOperand]->id());
@@ -456,7 +452,7 @@ absl::StatusOr<Operation*> translateOp(::xls::BinOp& node, OpBuilder& builder,
     return opr_rhs.status();
   }
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -488,7 +484,6 @@ absl::StatusOr<Operation*> translateOp(::xls::BinOp& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::UnOp& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto operand =
       state.getMlirValue(node.operands()[::xls::UnOp::kArgOperand]->id());
@@ -517,7 +512,7 @@ absl::StatusOr<Operation*> translateOp(::xls::UnOp& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ExtendOp& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto operand =
       state.getMlirValue(node.operands()[::xls::ExtendOp::kArgOperand]->id());
@@ -525,7 +520,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ExtendOp& node,
     return operand.status();
   }
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -543,7 +538,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ExtendOp& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::TupleIndex& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto operand =
       state.getMlirValue(node.operands()[::xls::TupleIndex::kArgOperand]->id());
@@ -551,7 +546,7 @@ absl::StatusOr<Operation*> translateOp(::xls::TupleIndex& node,
     return operand.status();
   }
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -562,7 +557,6 @@ absl::StatusOr<Operation*> translateOp(::xls::TupleIndex& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Array& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   SmallVector<Value> operands_vec;
   for (auto* xls_operand : node.operands()) {
@@ -574,7 +568,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Array& node, OpBuilder& builder,
   }
   ValueRange operands(operands_vec);
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -584,7 +578,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Array& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ArrayIndex& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto xls_arg =
       state.getMlirValue(node.operands()[::xls::ArrayIndex::kArgOperand]->id());
@@ -602,7 +596,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ArrayIndex& node,
     return xls_arg.status();
   }
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -613,7 +607,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ArrayIndex& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ArrayConcat& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   SmallVector<Value> operands_vec;
   for (auto* xls_operand : node.operands()) {
@@ -625,7 +619,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ArrayConcat& node,
   }
   ValueRange operands(operands_vec);
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -635,7 +629,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ArrayConcat& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ArraySlice& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto array = state.getMlirValue(
       node.operands()[::xls::ArraySlice::kArrayOperand]->id());
@@ -648,7 +642,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ArraySlice& node,
     return start.status();
   }
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -659,7 +653,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ArraySlice& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ArrayUpdate& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto array_to_update = state.getMlirValue(node.array_to_update()->id());
   if (!array_to_update.ok()) {
@@ -690,7 +684,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ArrayUpdate& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::BitSlice& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto arg =
       state.getMlirValue(node.operands()[::xls::BitSlice::kArgOperand]->id());
@@ -709,7 +703,7 @@ absl::StatusOr<Operation*> translateOp(::xls::BitSlice& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::BitSliceUpdate& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto to_update = state.getMlirValue(node.to_update()->id());
   if (!to_update.ok()) {
@@ -738,7 +732,7 @@ absl::StatusOr<Operation*> translateOp(::xls::BitSliceUpdate& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::DynamicBitSlice& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto arg = state.getMlirValue(
       node.operands()[::xls::DynamicBitSlice::kArgOperand]->id());
@@ -762,7 +756,6 @@ absl::StatusOr<Operation*> translateOp(::xls::DynamicBitSlice& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Concat& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   SmallVector<Value> operands_vec;
   uint64_t result_width = 0;
@@ -786,7 +779,6 @@ absl::StatusOr<Operation*> translateOp(::xls::Concat& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Tuple& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   SmallVector<Value> operands_vec;
   for (auto* xls_operand : node.operands()) {
@@ -807,7 +799,6 @@ absl::StatusOr<Operation*> translateOp(::xls::Tuple& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Literal& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
@@ -816,17 +807,16 @@ absl::StatusOr<Operation*> translateOp(::xls::Literal& node, OpBuilder& builder,
 
   switch (node.GetType()->kind()) {
     case ::xls::TypeKind::kBits:
-      return translateBitsLiteral(node.value().bits(), *loc, builder, ctx,
-                                  state);
+      return translateBitsLiteral(node.value().bits(), *loc, builder, state);
     default: {
-      auto result_type = translateType(node.GetType(), builder, ctx);
+      auto result_type = translateType(node.GetType(), builder);
 
       // Create literal with region:
       auto literal_op = builder.create<xls::LiteralOp>(*loc, result_type);
       builder.setInsertionPointToStart(&literal_op.getRegion().emplaceBlock());
 
       // Construct value using ops:
-      auto final_op = translateLiteral(node.value(), builder, ctx, state);
+      auto final_op = translateLiteral(node.value(), builder, state);
       if (!final_op.ok()) {
         return final_op.status();
       }
@@ -841,7 +831,6 @@ absl::StatusOr<Operation*> translateOp(::xls::Literal& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::NaryOp& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   SmallVector<Value> operands_vec;
   for (auto* xls_operand : node.operands()) {
@@ -876,7 +865,7 @@ absl::StatusOr<Operation*> translateOp(::xls::NaryOp& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::BitwiseReductionOp& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto operand = state.getMlirValue(
       node.operands()[::xls::BitwiseReductionOp::kOperandOperand]->id());
@@ -905,7 +894,6 @@ absl::StatusOr<Operation*> translateOp(::xls::BitwiseReductionOp& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Encode& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto arg =
       state.getMlirValue(node.operands()[::xls::Encode::kArgOperand]->id());
@@ -923,7 +911,6 @@ absl::StatusOr<Operation*> translateOp(::xls::Encode& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Decode& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto arg =
       state.getMlirValue(node.operands()[::xls::Decode::kArgOperand]->id());
@@ -943,7 +930,6 @@ absl::StatusOr<Operation*> translateOp(::xls::Decode& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::OneHot& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto arg =
       state.getMlirValue(node.operands()[::xls::OneHot::kInputOperand]->id());
@@ -963,7 +949,7 @@ absl::StatusOr<Operation*> translateOp(::xls::OneHot& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::OneHotSelect& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto selector = state.getMlirValue(
       node.operands()[::xls::OneHotSelect::kSelectorOperand]->id());
@@ -991,7 +977,6 @@ absl::StatusOr<Operation*> translateOp(::xls::OneHotSelect& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Invoke& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto fn = state.getFunction(node.to_apply()->name());
   if (!fn.ok()) {
@@ -1008,7 +993,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Invoke& node, OpBuilder& builder,
   }
   ValueRange operands(operands_vec);
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -1018,7 +1003,6 @@ absl::StatusOr<Operation*> translateOp(::xls::Invoke& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Map& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto fn = state.getFunction(node.to_apply()->name());
   if (!fn.ok()) {
@@ -1031,7 +1015,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Map& node, OpBuilder& builder,
     return array.status();
   }
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -1041,7 +1025,6 @@ absl::StatusOr<Operation*> translateOp(::xls::Map& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Select& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto selector = state.getMlirValue(node.selector()->id());
   if (!selector.ok()) {
@@ -1070,7 +1053,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Select& node, OpBuilder& builder,
     default_value = maybe_default_val.value();
   }
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -1081,7 +1064,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Select& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::PrioritySelect& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto selector = state.getMlirValue(
       node.operands()[::xls::PrioritySelect::kSelectorOperand]->id());
@@ -1104,7 +1087,7 @@ absl::StatusOr<Operation*> translateOp(::xls::PrioritySelect& node,
     return default_value.status();
   }
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -1115,7 +1098,7 @@ absl::StatusOr<Operation*> translateOp(::xls::PrioritySelect& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::AfterAll& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   SmallVector<Value> operands_vec;
   for (auto* xls_operand : node.operands()) {
@@ -1136,8 +1119,9 @@ absl::StatusOr<Operation*> translateOp(::xls::AfterAll& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ChannelNode& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
+                                       OpBuilder& builder,
                                        TranslationState& state) {
+  MLIRContext* ctx = builder.getContext();
   auto chn = state.getChannel(node.channel_name());
   if (!chn.ok()) {
     return chn.status();
@@ -1158,7 +1142,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ChannelNode& node,
   }
 
   auto token_type = TokenType::get(ctx);
-  auto data_type = translateType(node.GetPayloadType(), builder, ctx);
+  auto data_type = translateType(node.GetPayloadType(), builder);
   auto valid_type = builder.getIntegerType(1);
 
   auto loc = translateLoc(node.loc(), builder, state);
@@ -1207,7 +1191,6 @@ absl::StatusOr<Operation*> translateOp(::xls::ChannelNode& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Gate& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto data = state.getMlirValue(node.data()->id());
   if (!data.ok()) {
@@ -1228,8 +1211,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Gate& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::CountedFor& node,
-                                       OpBuilder& builder, MLIRContext* ctx,
-
+                                       OpBuilder& builder,
                                        TranslationState& state) {
   auto initial_value = state.getMlirValue(node.initial_value()->id());
   if (!initial_value.ok()) {
@@ -1255,7 +1237,7 @@ absl::StatusOr<Operation*> translateOp(::xls::CountedFor& node,
     return body.status();
   }
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -1266,7 +1248,6 @@ absl::StatusOr<Operation*> translateOp(::xls::CountedFor& node,
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Trace& node, OpBuilder& builder,
-                                       MLIRContext* ctx,
                                        TranslationState& state) {
   auto token = state.getMlirValue(node.token()->id());
   if (!token.ok()) {
@@ -1288,7 +1269,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Trace& node, OpBuilder& builder,
   }
   ValueRange args(args_vec);
 
-  auto result_type = translateType(node.GetType(), builder, ctx);
+  auto result_type = translateType(node.GetType(), builder);
   auto loc = translateLoc(node.loc(), builder, state);
   if (!loc.ok()) {
     return loc.status();
@@ -1301,77 +1282,77 @@ absl::StatusOr<Operation*> translateOp(::xls::Trace& node, OpBuilder& builder,
 }
 
 absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
-                                          OpBuilder& builder, MLIRContext* ctx,
+                                          OpBuilder& builder,
                                           TranslationState& state) {
   absl::StatusOr<Operation*> op;
 
   if (auto* xls_op = dynamic_cast<::xls::Literal*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::BinOp*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::ArithOp*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::PartialProductOp*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::UnOp*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::CompareOp*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::NaryOp*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op =
                  dynamic_cast<::xls::BitwiseReductionOp*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::ExtendOp*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Tuple*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::TupleIndex*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Array*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::ArrayIndex*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::ArrayConcat*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::ArraySlice*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::ArrayUpdate*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::BitSlice*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::BitSliceUpdate*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::DynamicBitSlice*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Concat*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Encode*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Decode*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::OneHot*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::OneHotSelect*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Invoke*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Select*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::PrioritySelect*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Map*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::AfterAll*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::ChannelNode*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Gate*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::CountedFor*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Trace*>(&xls_node)) {
-    op = translateOp(*xls_op, builder, ctx, state);
+    op = translateOp(*xls_op, builder, state);
   } else if (dynamic_cast<::xls::Param*>(&xls_node)) {
     return absl::InternalError(
         "Param not handeled during function translation.");
@@ -1411,19 +1392,18 @@ absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
 
 absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
                                              OpBuilder& builder,
-                                             MLIRContext* ctx,
                                              TranslationState& state) {
+  MLIRContext* ctx = builder.getContext();
   // Argument types + names:
   SmallVector<Type> mlir_arg_types;
   SmallVector<Location> mlir_arg_locs;
   for (auto* arg : xls_func.params()) {
-    mlir_arg_types.push_back(translateType(arg->GetType(), builder, ctx));
+    mlir_arg_types.push_back(translateType(arg->GetType(), builder));
     mlir_arg_locs.push_back(NameLoc::get(StringAttr::get(ctx, arg->name())));
   }
 
   // Return type:
-  auto return_type =
-      translateType(xls_func.GetType()->return_type(), builder, ctx);
+  auto return_type = translateType(xls_func.GetType()->return_type(), builder);
 
   // Create Function:
   auto funcType =
@@ -1474,7 +1454,7 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
       continue;
     }
 
-    auto op = translateAnyOp(*n, builder, ctx, state);
+    auto op = translateAnyOp(*n, builder, state);
     if (!op.ok()) {
       return op;
     }
@@ -1503,8 +1483,9 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
 //===----------------------------------------------------------------------===//
 
 absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
-                                         OpBuilder& builder, MLIRContext* ctx,
+                                         OpBuilder& builder,
                                          TranslationState& state) {
+  MLIRContext* ctx = builder.getContext();
   // New function base scope
   state.newFunctionBaseContext(/*is_proc=*/true);
 
@@ -1519,7 +1500,7 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
   // State types and initial value:
   for (int64_t i = 0; i < xls_proc.StateElements().size(); i++) {
     auto xls_elem = xls_proc.StateElements()[i];
-    auto elem_type = translateType(xls_elem->type(), builder, ctx);
+    auto elem_type = translateType(xls_elem->type(), builder);
     // TODO(schilkp): Initial state!
     body->addArgument(elem_type, builder.getUnknownLoc());
     auto mlir_elem = body->getArgument(i);
@@ -1562,7 +1543,7 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
       next_value_ops[state_elem_name].push_back(xls_next);
       continue;
     }
-    auto op = translateAnyOp(*n, builder, ctx, state);
+    auto op = translateAnyOp(*n, builder, state);
     if (!op.ok()) {
       return op;
     }
@@ -1615,7 +1596,7 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
         predicates_vec.push_back(*predicate);
       }
 
-      auto elem_type = translateType(state_elem->type(), builder, ctx);
+      auto elem_type = translateType(state_elem->type(), builder);
 
       builder.setInsertionPointToEnd(body);
       auto next = builder.create<NextValueOp>(
@@ -1656,11 +1637,12 @@ FlopKind convertFlopKind(::xls::FlopKind kind) {
 }
 
 absl::Status translateChannel(::xls::Channel& xls_chn, OpBuilder& builder,
-                              MLIRContext* ctx, TranslationState& state) {
+                              TranslationState& state) {
+  MLIRContext* ctx = builder.getContext();
   auto chn = builder.create<xls::ChanOp>(
       builder.getUnknownLoc(),
       /*name=*/builder.getStringAttr(xls_chn.name()),
-      /*type=*/TypeAttr::get(translateType(xls_chn.type(), builder, ctx)),
+      /*type=*/TypeAttr::get(translateType(xls_chn.type(), builder)),
       /*fifo_config=*/nullptr,
       /*input_flop_kind=*/nullptr,
       /*output_flop_kind=*/nullptr,
@@ -1695,7 +1677,7 @@ absl::Status translateChannel(::xls::Channel& xls_chn, OpBuilder& builder,
 //===----------------------------------------------------------------------===//
 
 absl::Status translatePackage(::xls::Package& xls_pkg, OpBuilder& builder,
-                              MLIRContext* ctx, ModuleOp module) {
+                              ModuleOp module) {
   TranslationState state;
 
   // Translate file numbers:
@@ -1710,7 +1692,7 @@ absl::Status translatePackage(::xls::Package& xls_pkg, OpBuilder& builder,
   // Translate all channels:
   for (auto* c : xls_pkg.channels()) {
     builder.setInsertionPointToEnd(module.getBody());
-    if (auto err = translateChannel(*c, builder, ctx, state); !err.ok()) {
+    if (auto err = translateChannel(*c, builder, state); !err.ok()) {
       return err;
     }
   }
@@ -1718,7 +1700,7 @@ absl::Status translatePackage(::xls::Package& xls_pkg, OpBuilder& builder,
   // Translate all functions:
   for (const auto& f : xls_pkg.functions()) {
     builder.setInsertionPointToEnd(module.getBody());
-    auto func = translateFunction(*f, builder, ctx, state);
+    auto func = translateFunction(*f, builder, state);
     if (!func.ok()) {
       return func.status();
     }
@@ -1727,7 +1709,7 @@ absl::Status translatePackage(::xls::Package& xls_pkg, OpBuilder& builder,
   // Translate all procs:
   for (const auto& p : xls_pkg.procs()) {
     builder.setInsertionPointToEnd(module.getBody());
-    auto proc = translateProc(*p, builder, ctx, state);
+    auto proc = translateProc(*p, builder, state);
     if (!proc.ok()) {
       return proc.status();
     }
@@ -1759,7 +1741,7 @@ OwningOpRef<Operation*> XlsToMlirXlsTranslate(llvm::SourceMgr& mgr,
   }
 
   // Translate package from XLS IR to MLIR:
-  if (auto err = translatePackage(**package, builder, ctx, module.get());
+  if (auto err = translatePackage(**package, builder, module.get());
       !err.ok()) {
     llvm::errs() << err.message() << "\n";
     return {};
