@@ -502,6 +502,34 @@ const BAR: u32[3] = [u32:0, u32:1, u32:3];
   EXPECT_EQ(values.at(n), InterpValueOrTypeAnnotation(InterpValue::MakeU32(3)));
 }
 
+TEST_F(SolveForParametricsTest, SolveForArrayOfArray) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
+fn foo<T: type, N: u32>(a: T[N]) -> T[N] { a }
+const BAR: u8[3][2] = [[u8:0, u8:1], [u8:3, u8:4], [u8:4, u8:5]];
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module->GetMemberOrError<Function>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* bar,
+                           module->GetMemberOrError<ConstantDef>("BAR"));
+  const ParametricBinding* t = foo->parametric_bindings()[0];
+  const ParametricBinding* n = foo->parametric_bindings()[1];
+  const Param* a = foo->params()[0];
+  absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>
+      values;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      values,
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{t, n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
+  EXPECT_EQ(values.size(), 2);
+  EXPECT_TRUE(values.contains(t));
+  EXPECT_TRUE(values.contains(n));
+  EXPECT_EQ(ToString(values.at(t)), "u8[3]");
+  EXPECT_EQ(ToString(values.at(n)), "u32:2");
+}
+
 TEST_F(SolveForParametricsTest, SolveForArrayOfTupleGenericType) {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
 fn foo<T: type, N: u32>(a: T[N]) -> T[N] { a }

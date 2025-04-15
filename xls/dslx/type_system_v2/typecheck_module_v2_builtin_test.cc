@@ -855,12 +855,41 @@ const Y = update([u8:1, u8:2, u8:3], S{}, u8:42);
       TypecheckFails(HasTypeMismatch("S", "Any")));
 }
 
-// TODO: davidplass - This is currently failing with:
-// TypeInferenceError: type mismatch: uN[8][2][2] ... vs. Any[N]
-TEST(TypecheckV2BuiltinTest, DISABLED_Update2D) {
+TEST(TypecheckV2BuiltinTest, Update2D) {
   EXPECT_THAT(
       R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], (u32:0, u32:1), [u8:42, u8:43]);)",
       TypecheckSucceeds(HasNodeWithType("Y", "uN[8][2][2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update3D) {
+  EXPECT_THAT(
+      R"(
+const Y = update(
+      [[[u8:1, u8:2], [u8:3, u8:4]], [[u8:5, u8:6], [u8:7, u8:8]]],
+      (u32:0, u32:1, u32:2),
+      [[u8:15, u8:16], [u8:17, u8:18]]);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[8][2][2][2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update2DMismatchNewValue) {
+  EXPECT_THAT(
+      R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], (u32:0, u32:1), [u8:42]);)",
+      TypecheckFails(HasTypeMismatch("uN[8][2]", "u8[1]")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update2DMismatchIndex) {
+  EXPECT_THAT(
+      R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], (u32:0, u32:1, u32:1), [u8:42, u8:43]);)",
+      TypecheckFails(
+          HasSubstr(R"(Expected 2 element(s) in `update` index; got 3)")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update2DMismatchIndexScalar) {
+  EXPECT_THAT(
+      R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], u32:0, [u8:42, u8:43]);)",
+      TypecheckFails(
+          HasSubstr(R"(Expected 2 element(s) in `update` index; got 1)")));
 }
 
 TEST(TypecheckV2BuiltinTest, WideningCast) {

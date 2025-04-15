@@ -75,7 +75,13 @@ class Visitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleArrayTypeAnnotation(
       const ArrayTypeAnnotation* node) override {
-    return HandlePossibleIntegerAnnotation(node);
+    absl::Status initial_result = HandlePossibleIntegerAnnotation(node);
+    if (initial_result.ok() && !last_signedness_and_bit_count_.has_value()) {
+      // Not an integer annotation, but an array of something that it still
+      // needs to retain for resolution later.
+      last_direct_annotation_ = node;
+    }
+    return initial_result;
   }
 
   absl::Status HandleTupleTypeAnnotation(
