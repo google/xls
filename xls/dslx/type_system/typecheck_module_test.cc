@@ -644,7 +644,7 @@ proc Bar {
   XLS_EXPECT_OK(Typecheck(kProgram, "main", &import_data));
 }
 
-TEST(TypecheckTest, UseOfConstant) {
+TEST_P(TypecheckBothVersionsTest, UseOfConstant) {
   constexpr std::string_view kImported = R"(
 pub const MY_CONSTANT: u32 = u32:42;
 )";
@@ -662,9 +662,10 @@ fn f() -> u32 {
   auto vfs = std::make_unique<FakeFilesystem>(
       files, /*cwd=*/std::filesystem::path("/"));
   ImportData import_data = CreateImportDataForTest(std::move(vfs));
-  absl::StatusOr<TypecheckedModule> main_module =
-      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data);
-  XLS_EXPECT_OK(main_module.status()) << main_module.status();
+  absl::StatusOr<TypecheckResult> result =
+      Typecheck(kProgram, "fake_main_path", &import_data);
+  XLS_EXPECT_OK(result.status()) << result.status();
+  ;
 }
 
 TEST(TypecheckTest, UseOfStdlibModule) {

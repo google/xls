@@ -6151,6 +6151,23 @@ fn main() -> u1 {
                        HasTypeMismatch("s32", "u5")));
 }
 
+TEST(TypecheckV2Test, ImportNonExistingConstant) {
+  constexpr std::string_view kImported = R"(
+pub const SOME_CONSTANT = s32:1;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u32 {
+  imported::SOME_OTHER_CONSTANT
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("doesn't exist")));
+}
+
 TEST(TypecheckV2Test, ImportConstantTypeMismatch) {
   constexpr std::string_view kImported = R"(
 pub const SOME_CONSTANT = s32:1;
@@ -6190,5 +6207,141 @@ fn f() -> u1 {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSizeMismatch("uN[30]", "u1")));
 }
+
+TEST(TypecheckV2Test, UseConstant) {
+  constexpr std::string_view kImported = R"(
+pub const SOME_CONSTANT = s32:1;
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::SOME_CONSTANT;
+
+fn main() -> s32 {
+  let var = SOME_CONSTANT;
+  var
+})";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("var", "sN[32]"))));
+}
+
+TEST(TypecheckV2Test, UseNonPublicConstant) {
+  constexpr std::string_view kImported = R"(
+const SOME_CONSTANT = s32:1;
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::SOME_OTHER_CONSTANT;
+
+fn main() -> u32 {
+  SOME_OTHER_CONSTANT
+})";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kNotFound,
+                       HasSubstr("Could not find member")));
+}
+
+TEST(TypecheckV2Test, UseNonExistingConstant) {
+  constexpr std::string_view kImported = R"(
+pub const SOME_CONSTANT = s32:1;
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::SOME_OTHER_CONSTANT;
+
+fn main() -> u32 {
+  SOME_OTHER_CONSTANT
+})";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kNotFound,
+                       HasSubstr("Could not find member")));
+}
+
+TEST(TypecheckV2Test, UseConstantTypeMismatch) {
+  constexpr std::string_view kImported = R"(
+pub const SOME_CONSTANT = s32:1;
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::SOME_CONSTANT;
+
+fn main() -> u32 {
+  SOME_CONSTANT
+})";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  EXPECT_THAT(TypecheckV2(kProgram, "fake_main_path", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasTypeMismatch("s32", "u32")));
+}
+
+TEST(TypecheckV2Test, UseMultipleConstants) {
+  constexpr std::string_view kImported = R"(
+pub const FIVE = u3:5;
+pub const FOUR = u3:4;
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::{FOUR, FIVE};
+
+fn main() -> u3 {
+  FIVE - FOUR
+})";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "fake_main_path", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("main", "() -> uN[3]"))));
+}
+
+// `use` for functions is not yet supported.
+TEST(TypecheckV2Test, DISABLED_UseFunction) {
+  constexpr std::string_view kImported = R"(
+pub fn get_val() -> u5[3] {
+  u5[3]:[1, 2, 3]
+}
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::get_val;
+
+fn main() -> u5 {
+  get_val()[1]
+})";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  EXPECT_THAT(TypecheckV2(kProgram, "fake_main_path", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("get_val()[1]", "u5"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

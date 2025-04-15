@@ -89,6 +89,33 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleUse(const Use* node) override {
+    VLOG(5) << "HandleUse: " << node->ToString();
+    for (UseSubject& subject : const_cast<Use*>(node)->LinearizeToSubjects()) {
+      XLS_ASSIGN_OR_RETURN(
+          UseImportResult result,
+          DoImportViaUse(typecheck_imported_module_, subject, &import_data_,
+                         subject.name_def().span(), import_data_.file_table(),
+                         import_data_.vfs()));
+      CHECK(result.imported_member != nullptr);
+      InferenceTable* imported_table =
+          result.imported_module->inference_table();
+      for (NameDef* name_def :
+           ModuleMemberGetNameDefs(*result.imported_member)) {
+        std::optional<const NameRef*> type_var =
+            imported_table->GetTypeVariable(name_def);
+        std::optional<NameDef*> subject_name_def =
+            subject.use_tree_entry().GetLeafNameDef();
+        if (type_var.has_value() && subject_name_def.has_value()) {
+          XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+              ToAstNode(*subject_name_def),
+              module_.Make<TypeVariableTypeAnnotation>(*type_var)));
+        }
+      }
+    }
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleConstantDef(const ConstantDef* node) override {
     VLOG(5) << "HandleConstantDef: " << node->ToString();
     XLS_ASSIGN_OR_RETURN(const NameRef* variable,
