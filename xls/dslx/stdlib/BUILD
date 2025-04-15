@@ -181,6 +181,28 @@ xls_dslx_opt_ir(
 )
 
 xls_dslx_library(
+    name = "hfloat16_dslx",
+    srcs = ["hfloat16.x"],
+)
+
+xls_dslx_prove_quickcheck_test(
+    name = "hfloat16_dslx_prove_quickcheck_test",
+    srcs = ["hfloat16.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "hfloat16_dslx_fmt_test",
+    src = "hfloat16.x",
+    opportunistic_postcondition = True,
+)
+
+xls_dslx_test(
+    name = "hfloat16_dslx_test",
+    srcs = ["hfloat16.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_library(
     name = "float32_dslx",
     srcs = ["float32.x"],
 )

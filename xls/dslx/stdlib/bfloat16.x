@@ -42,19 +42,25 @@ pub fn max_normal(sign: u1) -> BF16 {
 
 pub fn negate(x: BF16) -> BF16 { apfloat::negate(x) }
 
-pub fn max_normal_exp() -> s8 { apfloat::max_normal_exp<BF16::EXP_SIZE>() }
+pub fn max_normal_exp() -> sN[BF16::EXP_SIZE] { apfloat::max_normal_exp<BF16::EXP_SIZE>() }
 
-pub fn min_normal_exp() -> s8 { apfloat::min_normal_exp<BF16::EXP_SIZE>() }
+pub fn min_normal_exp() -> sN[BF16::EXP_SIZE] { apfloat::min_normal_exp<BF16::EXP_SIZE>() }
 
-pub fn unbiased_exponent(f: BF16) -> s8 {
+pub fn unbiased_exponent(f: BF16) -> sN[BF16::EXP_SIZE] {
     apfloat::unbiased_exponent<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f)
 }
 
-pub fn bias(unbiased_exponent_in: s8) -> u8 { apfloat::bias(unbiased_exponent_in) }
+pub fn bias(unbiased_exponent_in: sN[BF16::EXP_SIZE]) -> uN[BF16::EXP_SIZE] {
+    apfloat::bias(unbiased_exponent_in)
+}
 
-pub fn flatten(f: BF16) -> u16 { apfloat::flatten<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f) }
+pub fn flatten(f: BF16) -> uN[BF16::TOTAL_SIZE] {
+    apfloat::flatten<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f)
+}
 
-pub fn unflatten(f: u16) -> BF16 { apfloat::unflatten<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f) }
+pub fn unflatten(f: uN[BF16::TOTAL_SIZE]) -> BF16 {
+    apfloat::unflatten<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f)
+}
 
 pub fn ldexp(f: BF16, e: s32) -> BF16 { apfloat::ldexp(f, e) }
 
@@ -179,19 +185,33 @@ pub fn round<ROUND_STYLE: apfloat::RoundStyle = {apfloat::RoundStyle::TIES_TO_EV
 
 #[test]
 fn round_test() {
-    let minus_tiny_bf16 = BF16 { sign: u1:1, bexp: bias(min_normal_exp()), fraction: u7:0b1101011 };
+    let minus_tiny_bf16 = BF16 {
+        sign: u1:1,
+        bexp: bias(min_normal_exp()),
+        fraction: std::unsigned_max_value<BF16::FRACTION_SIZE>(),
+    };
     assert_eq(zero(u1:1), round<apfloat::RoundStyle::TIES_TO_EVEN>(minus_tiny_bf16));
 
     // 1.5
-    let one_dot_five = BF16 { sign: u1:0, bexp: bias(s8:0), fraction: u7:0b1000000 };
+    let one_dot_five = BF16 {
+        sign: u1:0,
+        bexp: bias(sN[BF16::EXP_SIZE]:0),
+        fraction: uN[BF16::FRACTION_SIZE]:1 << (BF16::FRACTION_SIZE - u32:1),
+    };
     // 2.0
-    let expected = BF16 { sign: u1:0, bexp: bias(s8:1), fraction: u7:0b0000000 };
+    let expected =
+        BF16 { sign: u1:0, bexp: bias(sN[BF16::EXP_SIZE]:1), fraction: uN[BF16::FRACTION_SIZE]:0 };
     assert_eq(expected, round<apfloat::RoundStyle::TIES_TO_EVEN>(one_dot_five));
 
     // -1.5
-    let minus_one_dot_five = BF16 { sign: u1:1, bexp: bias(s8:0), fraction: u7:0b1000000 };
+    let minus_one_dot_five = BF16 {
+        sign: u1:1,
+        bexp: bias(sN[BF16::EXP_SIZE]:0),
+        fraction: uN[BF16::FRACTION_SIZE]:1 << (BF16::FRACTION_SIZE - u32:1),
+    };
     // -2.0
-    let expected = BF16 { sign: u1:1, bexp: bias(s8:1), fraction: u7:0b0000000 };
+    let expected =
+        BF16 { sign: u1:1, bexp: bias(sN[BF16::EXP_SIZE]:1), fraction: uN[BF16::FRACTION_SIZE]:0 };
     assert_eq(expected, round<apfloat::RoundStyle::TIES_TO_EVEN>(minus_one_dot_five));
 }
 
@@ -325,17 +345,25 @@ fn uint_roundtrip(x: u7) -> bool { to_uint<u32:7>(from_int8(x as s8)) == x }
 fn uint_roundtrip_as_u16(x: u7) -> bool { to_uint16(from_int8(x as s8)) == x as u16 }
 
 #[quickcheck]
-fn float32_to_bfloat16_no_precision_loss(sign: u1, exp: u8, frac_part: u7) -> bool {
-    type F32 = apfloat::APFloat<u32:8, u32:23>;
-    (exp == u8:0) || (exp == u8::MAX) ||
-    (from_float32(F32 { sign, bexp: exp, fraction: frac_part ++ u16:0 }) ==
-    BF16 { sign, bexp: exp, fraction: frac_part })
+fn float32_to_bfloat16_no_precision_loss
+    (sign: u1, bexp: uN[BF16::EXP_SIZE], fraction: uN[BF16::FRACTION_SIZE]) -> bool {
+    const F32_EXP_SZ = u32:8;
+    const F32_FRACTION_SZ = u32:23;
+    let bexp_f32 = bexp;
+    let fraction_f32 = fraction ++ uN[F32_FRACTION_SZ - BF16::FRACTION_SIZE]:0;
+    type F32 = apfloat::APFloat<F32_EXP_SZ, F32_FRACTION_SZ>;
+    const BF16_EXP_MAX = std::unsigned_max_value<BF16::EXP_SIZE>();
+    (bexp == uN[BF16::EXP_SIZE]:0) || (bexp == BF16_EXP_MAX) ||
+    (from_float32(F32 { sign, bexp: bexp_f32, fraction: fraction_f32 }) ==
+    BF16 { sign, bexp, fraction })
 }
 
 #[quickcheck]
 fn float32_to_bfloat16_subnormals_flushed_to_zero(sign: u1, fraction: u23) -> bool {
-    type F32 = apfloat::APFloat<u32:8, u32:23>;
-    from_float32(F32 { sign, bexp: u8:0, fraction }) == zero(sign)
+    const F32_EXP_SZ = u32:8;
+    const F32_FRACTION_SZ = u32:23;
+    type F32 = apfloat::APFloat<F32_EXP_SZ, F32_FRACTION_SZ>;
+    from_float32(F32 { sign, bexp: uN[F32_EXP_SZ]:0, fraction }) == zero(sign)
 }
 
 // Converts the given unsigned integer to bfloat16. For u8, all values can be
