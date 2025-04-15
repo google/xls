@@ -12,23 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_V2_POPULATE_TABLE_H_
-#define XLS_DSLX_TYPE_SYSTEM_V2_POPULATE_TABLE_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_V2_TYPECHECK_MODULE_V2_H_
+#define XLS_DSLX_TYPE_SYSTEM_V2_TYPECHECK_MODULE_V2_H_
 
-#include "absl/status/status.h"
+#include <filesystem>  // NOLINT
+#include <memory>
+
+#include "absl/status/statusor.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/import_routines.h"
-#include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
-// Populates the inference table with type variables and annotations.
-absl::Status PopulateTable(InferenceTable* table, Module* module,
-                           ImportData* import_data, WarningCollector* warnings,
-                           TypecheckModuleFn typecheck_imported_module);
+// The top-level type checking function (counterpart to `TypecheckModuleV1`)
+// used for modules that have the `kTypeInferenceVersion2` annotation.
+absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
+    std::unique_ptr<Module> module, std::filesystem::path path,
+    ImportData* import_data, WarningCollector* warnings);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_V2_POPULATE_TABLE_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPECHECK_MODULE_V2_H_

@@ -24,14 +24,12 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 
-// Type-checking callback lambdas.
-using TypecheckModuleFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
-using CreateModuleInfoFn =
+// Type-checking callback lambda.
+using TypecheckModuleFn =
     std::function<absl::StatusOr<std::unique_ptr<ModuleInfo>>(
         std::unique_ptr<Module>, std::filesystem::path path)>;
 
@@ -55,13 +53,6 @@ using CreateModuleInfoFn =
 // Returns:
 //  The imported module information.
 absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
-                                     const ImportTokens& subject,
-                                     ImportData* import_data,
-                                     const Span& import_span,
-                                     VirtualizableFilesystem& vfs);
-
-// Variant that accepts a function that produces ModuleInfo directly.
-absl::StatusOr<ModuleInfo*> DoImport(const CreateModuleInfoFn& ftypecheck,
                                      const ImportTokens& subject,
                                      ImportData* import_data,
                                      const Span& import_span,

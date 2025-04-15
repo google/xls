@@ -56,11 +56,10 @@
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/virtualizable_file_system.h"
-#include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
@@ -165,15 +164,14 @@ std::optional<Command> ParseCommand(std::string_view str) {
 // callbacks, without an extra `void*` parameter through which context can be
 // provided.
 struct DslxGlobals {
-  DslxGlobals(dslx::ImportData import_data_in,
-              std::unique_ptr<dslx::Module> module_in,
+  DslxGlobals(dslx::ImportData import_data_in, dslx::Module* module_in,
               dslx::TypeInfo* type_info_in)
       : import_data(std::move(import_data_in)),
-        module(std::move(module_in)),
+        module(module_in),
         type_info(type_info_in) {}
 
   dslx::ImportData import_data;
-  std::unique_ptr<dslx::Module> module;
+  dslx::Module* module;
   dslx::TypeInfo* type_info;
 };
 
@@ -251,7 +249,7 @@ void PopulateTrieFromModule(std::string prefix, dslx::Module* module,
 Trie PopulateIdentifierTrie() {
   Globals& globals = GetSingletonGlobals();
   Trie trie;
-  PopulateTrieFromModule("", globals.dslx->module.get(), &trie);
+  PopulateTrieFromModule("", globals.dslx->module, &trie);
   for (const auto& import_entry : globals.dslx->module->GetImportByName()) {
     if (auto maybe_imported_info =
             globals.dslx->type_info->GetImported(import_entry.second)) {
@@ -267,13 +265,13 @@ Trie PopulateIdentifierTrie() {
 // `GetSingletonGlobals().module`.
 absl::Status UpdateIr() {
   Globals& globals = GetSingletonGlobals();
-  XLS_ASSIGN_OR_RETURN(dslx::PackageConversionData data,
-                       ConvertModuleToPackage(globals.dslx->module.get(),
-                                              &globals.dslx->import_data,
-                                              dslx::ConvertOptions{}));
+  XLS_ASSIGN_OR_RETURN(
+      dslx::PackageConversionData data,
+      ConvertModuleToPackage(globals.dslx->module, &globals.dslx->import_data,
+                             dslx::ConvertOptions{}));
   globals.ir_package = std::move(data).package;
   XLS_ASSIGN_OR_RETURN(std::string mangled_name,
-                       dslx::MangleDslxName(globals.dslx->module.get()->name(),
+                       dslx::MangleDslxName(globals.dslx->module->name(),
                                             "main", /*convention=*/{}));
   XLS_RETURN_IF_ERROR(globals.ir_package->SetTopByName(mangled_name));
   XLS_RETURN_IF_ERROR(
@@ -331,11 +329,12 @@ absl::Status CommandReload() {
   }
 
   std::unique_ptr<dslx::Module> module = std::move(maybe_module).value();
-  dslx::WarningCollector warnings(import_data.enabled_warnings());
-  XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * type_info,
-                       TypecheckModule(module.get(), &import_data, &warnings));
+  XLS_ASSIGN_OR_RETURN(
+      dslx::TypecheckedModule typechecked_module,
+      TypecheckModule(std::move(module), globals.dslx_path, &import_data));
   globals.dslx = std::make_unique<DslxGlobals>(std::move(import_data),
-                                               std::move(module), type_info);
+                                               typechecked_module.module,
+                                               typechecked_module.type_info);
   globals.identifier_trie = PopulateIdentifierTrie();
 
   std::cout << "Successfully loaded " << globals.dslx_path << "\n";
@@ -392,7 +391,7 @@ absl::Status CommandVerilog(std::optional<std::string> function_name) {
           << (function_name ? *function_name : "<none>");
   XLS_RETURN_IF_ERROR(UpdateIr());
   Package* package = GetSingletonGlobals().ir_package.get();
-  dslx::Module* module = GetSingletonGlobals().dslx->module.get();
+  dslx::Module* module = GetSingletonGlobals().dslx->module;
   FunctionBase* main;
   if (function_name) {
     XLS_ASSIGN_OR_RETURN(main, FindFunction(*function_name, module, package));

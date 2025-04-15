@@ -517,6 +517,7 @@ cc_library(
         "//xls/dslx/type_system_v2:inference_table_converter_impl",
         "//xls/dslx/type_system_v2:populate_table",
         "//xls/dslx/type_system_v2:type_system_tracer",
+        "//xls/dslx/type_system_v2:typecheck_module_v2",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

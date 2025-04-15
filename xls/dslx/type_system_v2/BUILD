@@ -167,6 +167,28 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "typecheck_module_v2",
+    srcs = ["typecheck_module_v2.cc"],
+    hdrs = ["typecheck_module_v2.h"],
+    deps = [
+        ":inference_table",
+        ":inference_table_converter",
+        ":inference_table_converter_impl",
+        ":populate_table",
+        ":type_system_tracer",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:import_data",
+        "//xls/dslx:warning_collector",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:vlog_is_on",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
 cc_test(
     name = "solve_for_parametrics_test",
     srcs = ["solve_for_parametrics_test.cc"],

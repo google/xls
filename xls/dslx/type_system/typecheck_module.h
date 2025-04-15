@@ -15,12 +15,14 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_TYPECHECK_MODULE_H_
 #define XLS_DSLX_TYPE_SYSTEM_TYPECHECK_MODULE_H_
 
+#include <filesystem>  // NOLINT
+#include <memory>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -34,11 +36,12 @@ namespace xls::dslx {
 //   warnings: Object that collects warnings flagged during the typechecking
 //      process.
 //
-// Returns type information mapping from AST nodes in the module to their
-// deduced/checked type. The owner for the type info is within the import_cache.
-absl::StatusOr<TypeInfo*> TypecheckModule(Module* module,
-                                          ImportData* import_data,
-                                          WarningCollector* warnings);
+// Returns the `ModuleInfo` with the type information mapping from AST nodes in
+// the module to their deduced/checked type. The owner for the type info is
+// within the import_cache.
+absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModule(
+    std::unique_ptr<Module> module, std::filesystem::path path,
+    ImportData* import_data, WarningCollector* warnings);
 
 // Forward decl for the internal declarations below.
 class DeduceCtx;

@@ -14,10 +14,12 @@
 
 #include "xls/dslx/type_system/typecheck_module.h"
 
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -395,18 +397,19 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
 
 }  // namespace typecheck_internal
 
-absl::StatusOr<TypeInfo*> TypecheckModule(Module* module,
-                                          ImportData* import_data,
-                                          WarningCollector* warnings) {
+absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModule(
+    std::unique_ptr<Module> module, std::filesystem::path path,
+    ImportData* import_data, WarningCollector* warnings) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       import_data->type_info_owner().New(module));
+                       import_data->type_info_owner().New(module.get()));
 
-  auto typecheck_module =
-      [import_data, warnings](Module* module) -> absl::StatusOr<TypeInfo*> {
-    return TypecheckModule(module, import_data, warnings);
+  auto typecheck_module = [import_data, warnings](
+                              std::unique_ptr<Module> module,
+                              std::filesystem::path path) {
+    return TypecheckModule(std::move(module), path, import_data, warnings);
   };
 
-  DeduceCtx ctx(type_info, module,
+  DeduceCtx ctx(type_info, module.get(),
                 /*deduce_function=*/&Deduce,
                 /*typecheck_function=*/&TypecheckFunction,
                 /*typecheck_module=*/typecheck_module,
@@ -414,12 +417,12 @@ absl::StatusOr<TypeInfo*> TypecheckModule(Module* module,
                 warnings, /*parent=*/nullptr);
 
   XLS_RET_CHECK(ctx.fn_stack().empty());
-  ctx.AddFnStackEntry(FnStackEntry::MakeTop(module));
+  ctx.AddFnStackEntry(FnStackEntry::MakeTop(module.get()));
   XLS_RET_CHECK_EQ(ctx.fn_stack().back().f(), nullptr);
 
   for (const ModuleMember& member : module->top()) {
     absl::Status status = typecheck_internal::TypecheckModuleMember(
-        member, module, import_data, &ctx);
+        member, module.get(), import_data, &ctx);
     if (!status.ok()) {
       return MaybeExpandTypeErrorData(status, ctx);
     }
@@ -429,7 +432,10 @@ absl::StatusOr<TypeInfo*> TypecheckModule(Module* module,
     XLS_RET_CHECK_EQ(ctx.fn_stack().back().f(), nullptr);
   }
 
-  return type_info;
+  XLS_ASSIGN_OR_RETURN(ImportTokens subject,
+                       ImportTokens::FromString(module->name()));
+  return std::make_unique<ModuleInfo>(std::move(module), type_info,
+                                      std::filesystem::path(path));
 }
 
 }  // namespace xls::dslx

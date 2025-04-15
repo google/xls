@@ -44,6 +44,7 @@
 #include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
 #include "xls/dslx/type_system_v2/populate_table.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
+#include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -105,58 +106,25 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
 
   WarningCollector warnings(import_data->enabled_warnings());
   Module* module_ptr = module.get();
-  TypeInfo* type_info;
   XLS_ASSIGN_OR_RETURN(ImportTokens subject,
                        ImportTokens::FromString(module_name));
 
-  if (force_version2 ||
-      module->attributes().contains(ModuleAttribute::kTypeInferenceVersion2)) {
-    std::unique_ptr<InferenceTable> table = InferenceTable::Create(*module);
-    std::unique_ptr<TypeSystemTracer> tracer = TypeSystemTracer::Create();
-    auto& tracer_ref = *tracer;
-    XLS_RETURN_IF_ERROR(
-        PopulateTable(table.get(), module.get(), import_data, &warnings));
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<InferenceTableConverter> converter,
-                         CreateInferenceTableConverter(
-                             *table, *module, *import_data, warnings,
-                             import_data->file_table(), std::move(tracer)));
-    absl::Status status =
-        converter->ConvertSubtree(module_ptr, /*function=*/std::nullopt,
-                                  /*parametric_context=*/std::nullopt);
-    if (!status.ok()) {
-      VLOG(1) << "Inference table conversion FAILURE: " << status;
-    }
+  using ExtendedTypecheckModuleFn =
+      absl::StatusOr<std::unique_ptr<ModuleInfo>> (*)(
+          std::unique_ptr<Module>, std::filesystem::path path, ImportData*,
+          WarningCollector*);
+  ExtendedTypecheckModuleFn version_entry_point =
+      force_version2 || module->attributes().contains(
+                            ModuleAttribute::kTypeInferenceVersion2)
+          ? &TypecheckModuleV2
+          : static_cast<ExtendedTypecheckModuleFn>(&TypecheckModule);
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ModuleInfo> module_info,
+      version_entry_point(std::move(module), path, import_data, &warnings));
 
-    if (VLOG_IS_ON(5)) {
-      std::cerr << "Inference table after conversion:\n"
-                << table->ToString() << "\n"
-                << "User module traces after conversion:\n"
-                << tracer_ref.ConvertTracesToString() << "\n";
-    }
-
-    if (!status.ok()) {
-      return status;
-    }
-
-    XLS_ASSIGN_OR_RETURN(
-        type_info, import_data->type_info_owner().GetRootTypeInfo(module_ptr));
-
-    XLS_RETURN_IF_ERROR(
-        import_data
-            ->Put(subject,
-                  std::make_unique<ModuleInfo>(
-                      std::move(module), type_info, std::filesystem::path(path),
-                      std::move(table), std::move(converter)))
-            .status());
-  } else {
-    XLS_ASSIGN_OR_RETURN(type_info,
-                         TypecheckModule(module_ptr, import_data, &warnings));
-    XLS_RETURN_IF_ERROR(import_data
-                            ->Put(subject, std::make_unique<ModuleInfo>(
-                                               std::move(module), type_info,
-                                               std::filesystem::path(path)))
-                            .status());
-  }
+  TypeInfo* type_info = module_info->type_info();
+  XLS_RETURN_IF_ERROR(
+      import_data->Put(subject, std::move(module_info)).status());
   return TypecheckedModule{module_ptr, type_info, std::move(warnings)};
 }
 

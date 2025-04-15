@@ -69,12 +69,12 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
  public:
   PopulateInferenceTableVisitor(Module& module, InferenceTable& table,
                                 ImportData& import_data,
-                                WarningCollector& warnings)
+                                TypecheckModuleFn typecheck_imported_module)
       : module_(module),
         table_(table),
         file_table_(import_data.file_table()),
         import_data_(import_data),
-        warnings_(warnings) {}
+        typecheck_imported_module_(std::move(typecheck_imported_module)) {}
 
   absl::Status HandleImport(const Import* node) override {
     VLOG(5) << "HandleImport: " << node->ToString();
@@ -82,30 +82,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     if (import_data_.Contains(import_subject)) {
       return DefaultHandler(node);
     }
-    CreateModuleInfoFn create_module_info_fn =
-        [&](std::unique_ptr<Module> import_module, std::filesystem::path path)
-        -> absl::StatusOr<std::unique_ptr<ModuleInfo>> {
-      std::unique_ptr<InferenceTable> import_table =
-          InferenceTable::Create(*import_module);
-      XLS_RETURN_IF_ERROR(PopulateTable(import_table.get(), import_module.get(),
-                                        &import_data_, &warnings_));
-      XLS_ASSIGN_OR_RETURN(
-          std::unique_ptr<InferenceTableConverter> converter,
-          CreateInferenceTableConverter(
-              *import_table, *import_module, import_data_, warnings_,
-              import_data_.file_table(), TypeSystemTracer::Create()));
-      XLS_RETURN_IF_ERROR(converter->ConvertSubtree(
-          import_module.get(), /*function=*/std::nullopt,
-          /*parametric_context=*/std::nullopt));
-      XLS_ASSIGN_OR_RETURN(
-          TypeInfo * import_type_info,
-          import_data_.type_info_owner().GetRootTypeInfo(import_module.get()));
-      return std::make_unique<ModuleInfo>(
-          std::move(import_module), import_type_info, path,
-          std::move(import_table), std::move(converter));
-    };
-
-    XLS_RETURN_IF_ERROR(DoImport(create_module_info_fn, import_subject,
+    XLS_RETURN_IF_ERROR(DoImport(typecheck_imported_module_, import_subject,
                                  &import_data_, node->span(),
                                  import_data_.vfs())
                             .status());
@@ -1781,7 +1758,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   InferenceTable& table_;
   const FileTable& file_table_;
   ImportData& import_data_;
-  WarningCollector& warnings_;
+  TypecheckModuleFn typecheck_imported_module_;
 };
 
 }  // namespace
@@ -1799,7 +1776,8 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
   std::unique_ptr<InferenceTable> builtins_table =
       InferenceTable::Create(*builtins_module);
   PopulateInferenceTableVisitor builtins_visitor(
-      *builtins_module, *builtins_table, *import_data, *warnings);
+      *builtins_module, *builtins_table, *import_data,
+      /*typecheck_imported_module=*/nullptr);
   XLS_RETURN_IF_ERROR((*builtins_module).Accept(&builtins_visitor));
 
   Module* builtins_ptr = builtins_module.get();
@@ -1821,12 +1799,12 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
 }
 
 absl::Status PopulateTable(InferenceTable* table, Module* module,
-                           ImportData* import_data,
-                           WarningCollector* warnings) {
+                           ImportData* import_data, WarningCollector* warnings,
+                           TypecheckModuleFn typecheck_imported_module) {
   XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(import_data, warnings));
 
   PopulateInferenceTableVisitor visitor(*module, *table, *import_data,
-                                        *warnings);
+                                        std::move(typecheck_imported_module));
   return module->Accept(&visitor);
 }
 

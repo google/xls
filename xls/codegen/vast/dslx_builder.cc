@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -302,13 +303,10 @@ DslxBuilder::DslxBuilder(
       resolver_(resolver),
       warnings_(warnings),
       type_info_(GetTypeInfoOrDie(import_data_, &module_)),
-      deduce_ctx_(
-          type_info_, &module_, dslx::Deduce, &dslx::TypecheckFunction,
-          [this](dslx::Module*) {
-            return dslx::TypecheckModule(&module_, &import_data_, &warnings_);
-          },
-          dslx::TypecheckInvocation, &import_data_, &warnings_,
-          /*parent=*/nullptr),
+      deduce_ctx_(type_info_, &module_, dslx::Deduce, &dslx::TypecheckFunction,
+                  /*typecheck_module=*/nullptr, dslx::TypecheckInvocation,
+                  &import_data_, &warnings_,
+                  /*parent=*/nullptr),
       vast_type_map_(vast_type_map) {
   deduce_ctx_.fn_stack().push_back(dslx::FnStackEntry::MakeTop(&module_));
 }
@@ -528,9 +526,11 @@ absl::StatusOr<dslx::Import*> DslxBuilder::GetOrImportModule(
             << import_tokens.ToString();
     XLS_ASSIGN_OR_RETURN(dslx::ModuleInfo * mod_info,
                          dslx::DoImport(
-                             [this](dslx::Module* module) {
-                               return dslx::TypecheckModule(
-                                   module, &import_data_, &warnings_);
+                             [this](std::unique_ptr<dslx::Module> module,
+                                    std::filesystem::path path) {
+                               return dslx::TypecheckModule(std::move(module),
+                                                            path, &import_data_,
+                                                            &warnings_);
                              },
                              import_tokens, &import_data_, dslx::Span::Fake(),
                              import_data_.vfs()));

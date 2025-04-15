@@ -29,6 +29,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -64,6 +65,7 @@
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/function_converter.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -522,21 +524,22 @@ absl::Status AddContentsToPackage(
     const ConvertOptions& convert_options, ImportData* import_data,
     PackageConversionData* conv, bool* printed_error) {
   // Parse the module text.
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<Module> module,
-      ParseText(import_data->vfs(), import_data->file_table(), file_contents,
-                module_name,
-                /*print_on_error=*/true,
-                /*filename=*/path.value_or("<UNKNOWN>"), printed_error));
-  WarningCollector warnings(import_data->enabled_warnings());
-  absl::StatusOr<TypeInfo*> type_info =
-      TypecheckModule(module.get(), import_data, &warnings);
-  if (!type_info.ok()) {
-    *printed_error = TryPrintError(
-        type_info.status(), import_data->file_table(), import_data->vfs());
-    return type_info.status();
+  const std::string_view path_value = path.value_or("<UNKNOWN>");
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
+                       ParseText(import_data->vfs(), import_data->file_table(),
+                                 file_contents, module_name,
+                                 /*print_on_error=*/true,
+                                 /*filename=*/path_value, printed_error));
+  absl::StatusOr<TypecheckedModule> typechecked_module =
+      TypecheckModule(std::move(module), path_value, import_data);
+  if (!typechecked_module.ok()) {
+    *printed_error =
+        TryPrintError(typechecked_module.status(), import_data->file_table(),
+                      import_data->vfs());
+    return typechecked_module.status();
   }
 
+  WarningCollector& warnings = typechecked_module->warnings;
   if (convert_options.warnings_as_errors && !warnings.warnings().empty()) {
     if (printed_error != nullptr) {
       *printed_error = true;
@@ -548,11 +551,11 @@ absl::Status AddContentsToPackage(
 
   if (entry.has_value()) {
     XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
-        module.get(), entry.value(), /*import_data=*/import_data,
+        typechecked_module->module, entry.value(), /*import_data=*/import_data,
         /*parametric_env=*/nullptr, convert_options, conv));
   } else {
-    XLS_RETURN_IF_ERROR(ConvertModuleIntoPackage(module.get(), import_data,
-                                                 convert_options, conv));
+    XLS_RETURN_IF_ERROR(ConvertModuleIntoPackage(
+        typechecked_module->module, import_data, convert_options, conv));
   }
   return absl::OkStatus();
 }

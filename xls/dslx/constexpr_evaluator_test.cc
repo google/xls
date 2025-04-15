@@ -40,7 +40,6 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -56,9 +55,9 @@ Expr* GetSingleBodyExpr(Function* f) {
 }
 
 struct TestData {
-  std::unique_ptr<Module> module;
+  Module* module = nullptr;
   std::unique_ptr<ImportData> import_data;
-  TypeInfo* type_info;
+  TypeInfo* type_info = nullptr;
 };
 
 absl::StatusOr<TestData> CreateTestData(std::string_view module_text) {
@@ -67,12 +66,11 @@ absl::StatusOr<TestData> CreateTestData(std::string_view module_text) {
   Parser parser{"test", &s};
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
-  TestData test_data{std::move(module), std::move(import_data)};
-  WarningCollector warnings(kAllWarningsSet);
-  XLS_ASSIGN_OR_RETURN(test_data.type_info,
-                       TypecheckModule(test_data.module.get(),
-                                       test_data.import_data.get(), &warnings));
-  return std::move(test_data);
+  XLS_ASSIGN_OR_RETURN(TypecheckedModule typechecked_module,
+                       TypecheckModule(std::move(module),
+                                       /*path=*/"test", import_data.get()));
+  return TestData{typechecked_module.module, std::move(import_data),
+                  typechecked_module.type_info};
 }
 
 absl::StatusOr<Type*> GetType(TypeInfo* ti, Expr* expr) {
@@ -98,7 +96,7 @@ fn Foo() -> u64 {
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(TestData test_data, CreateTestData(kModule));
-  Module* module = test_data.module.get();
+  Module* module = test_data.module;
   TypeInfo* type_info = test_data.type_info;
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
@@ -123,7 +121,7 @@ const kFoo = u32:7;
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(TestData test_data, CreateTestData(kModule));
-  Module* module = test_data.module.get();
+  Module* module = test_data.module;
   TypeInfo* type_info = test_data.type_info;
   XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * constant_def,
                            module->GetConstantDef("kFoo"));
@@ -149,7 +147,7 @@ fn Foo() -> u64 {
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(TestData test_data, CreateTestData(kModule));
-  Module* module = test_data.module.get();
+  Module* module = test_data.module;
   TypeInfo* type_info = test_data.type_info;
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
@@ -172,7 +170,7 @@ fn main() -> u32 {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(TestData test_data, CreateTestData(kProgram));
-  Module* module = test_data.module.get();
+  Module* module = test_data.module;
   TypeInfo* type_info = test_data.type_info;
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
@@ -202,7 +200,7 @@ fn Foo() -> MyStruct {
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(TestData test_data, CreateTestData(kModule));
-  Module* module = test_data.module.get();
+  Module* module = test_data.module;
   TypeInfo* type_info = test_data.type_info;
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
@@ -238,7 +236,7 @@ fn main() -> MyStruct {
 )";
 
   XLS_ASSERT_OK_AND_ASSIGN(TestData test_data, CreateTestData(kProgram));
-  Module* module = test_data.module.get();
+  Module* module = test_data.module;
   TypeInfo* type_info = test_data.type_info;
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
