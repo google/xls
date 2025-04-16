@@ -415,30 +415,14 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     return resolved_types[param_type->param_index()];
   }
 
-  absl::StatusOr<std::optional<const TypeAnnotation*>> ResolveSelfType(
+  absl::StatusOr<const TypeAnnotation*> ResolveSelfType(
       std::optional<const ParametricContext*> parametric_context,
       const SelfTypeAnnotation* self_type) {
-    std::optional<const TypeAnnotation*> expanded;
-    // TODO: erinzmoore - Store the referenced struct type in the TypeAnnotation
-    // itself.
-    if (self_type->owner() != &module_) {
-      XLS_ASSIGN_OR_RETURN(
-          ImportTokens import_tokens,
-          ImportTokens::FromString(self_type->owner()->name()));
-      XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module_info,
-                           import_data_.Get(import_tokens));
-      expanded =
-          imported_module_info->inference_table()->GetTypeAnnotation(self_type);
-    } else {
-      expanded = table_.GetTypeAnnotation(self_type);
+    if (parametric_context.has_value() &&
+        (*parametric_context)->self_type().has_value()) {
+      return *(*parametric_context)->self_type();
     }
-    if (expanded.has_value()) {
-      return expanded;
-    }
-    if (parametric_context.has_value()) {
-      return (*parametric_context)->self_type();
-    }
-    return std::nullopt;
+    return self_type->struct_ref();
   }
 
   // Determines if the given `type_variable` has any annotations in the table
@@ -505,10 +489,10 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       return const_cast<TypeAnnotation*>(result);
     }
     if (const auto* self_type = dynamic_cast<const SelfTypeAnnotation*>(node)) {
-      XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> expanded,
+      XLS_ASSIGN_OR_RETURN(const TypeAnnotation* expanded,
                            ResolveSelfType(parametric_context, self_type));
-      CHECK(expanded.has_value());
-      return const_cast<TypeAnnotation*>(*expanded);
+      CHECK(expanded != nullptr);
+      return const_cast<TypeAnnotation*>(expanded);
     }
     return std::nullopt;
   }

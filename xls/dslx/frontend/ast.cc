@@ -1181,8 +1181,11 @@ std::string ArrayTypeAnnotation::ToString() const {
 // -- class SelfTypeAnnotation
 
 SelfTypeAnnotation::SelfTypeAnnotation(Module* owner, Span span,
-                                       bool explicit_type)
-    : TypeAnnotation(owner, std::move(span)), explicit_type_(explicit_type) {}
+                                       bool explicit_type,
+                                       TypeAnnotation* struct_ref)
+    : TypeAnnotation(owner, std::move(span)),
+      explicit_type_(explicit_type),
+      struct_ref_(struct_ref) {}
 
 SelfTypeAnnotation::~SelfTypeAnnotation() = default;
 

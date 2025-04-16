@@ -703,7 +703,8 @@ class ArrayTypeAnnotation : public TypeAnnotation {
 // the typechecking deduction step, the type will be determined by context.
 class SelfTypeAnnotation : public TypeAnnotation {
  public:
-  SelfTypeAnnotation(Module* owner, Span span, bool explicit_type);
+  SelfTypeAnnotation(Module* owner, Span span, bool explicit_type,
+                     TypeAnnotation* struct_ref);
 
   ~SelfTypeAnnotation() override;
 
@@ -723,8 +724,11 @@ class SelfTypeAnnotation : public TypeAnnotation {
 
   bool explicit_type() const { return explicit_type_; }
 
+  TypeAnnotation* struct_ref() const { return struct_ref_; }
+
  private:
   bool explicit_type_;
+  TypeAnnotation* struct_ref_;
 };
 
 // Represents the `type` in a `<T: type>` annotation.

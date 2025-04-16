@@ -34,7 +34,6 @@
 #include "absl/functional/bind_front.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -215,6 +214,12 @@ absl::StatusOr<BuiltinType> Parser::TokenToBuiltinType(const Token& tok) {
 absl::Status Parser::ParseErrorStatus(const Span& span,
                                       std::string_view message) const {
   return xls::dslx::ParseErrorStatus(span, message, file_table());
+}
+
+absl::StatusOr<Function*> Parser::ParseImplFunction(
+    const Pos& start_pos, bool is_public, Bindings& bindings,
+    TypeAnnotation* struct_ref) {
+  return ParseFunctionInternal(start_pos, is_public, bindings, struct_ref);
 }
 
 absl::StatusOr<Function*> Parser::ParseFunction(
@@ -874,8 +879,9 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   if (tok.IsTypeKeyword()) {  // Builtin types.
     Pos start_pos = tok.span().start();
     if (tok.GetKeyword() == Keyword::kSelfType) {
-      return module_->Make<SelfTypeAnnotation>(tok.span(),
-                                               /*explicit_type=*/true);
+      return ParseErrorStatus(tok.span(),
+                              "Parameter with type `Self` must be named `self` "
+                              "and can only be used in `impl` functions");
     }
     if (allow_generic_type && tok.GetKeyword() == Keyword::kType) {
       return module_->Make<GenericTypeAnnotation>(tok.span());
@@ -1729,7 +1735,8 @@ absl::StatusOr<Import*> Parser::ParseImport(Bindings& bindings) {
 }
 
 absl::StatusOr<Function*> Parser::ParseFunctionInternal(
-    const Pos& start_pos, bool is_public, Bindings& outer_bindings) {
+    const Pos& start_pos, bool is_public, Bindings& outer_bindings,
+    TypeAnnotation* struct_ref) {
   XLS_ASSIGN_OR_RETURN(Token fn_tok, PopKeywordOrError(Keyword::kFn));
 
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(outer_bindings));
@@ -1745,12 +1752,22 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
                          ParseParametricBindings(bindings));
   }
 
-  XLS_ASSIGN_OR_RETURN(std::vector<Param*> params, ParseParams(bindings));
+  XLS_ASSIGN_OR_RETURN(std::vector<Param*> params,
+                       ParseParams(bindings, struct_ref));
 
   XLS_ASSIGN_OR_RETURN(bool dropped_arrow, TryDropToken(TokenKind::kArrow));
   TypeAnnotation* return_type = nullptr;
   if (dropped_arrow) {
-    XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(bindings));
+    XLS_ASSIGN_OR_RETURN(bool is_self, PeekTokenIs(Keyword::kSelfType));
+    if (is_self) {
+      CHECK(struct_ref != nullptr);
+      XLS_ASSIGN_OR_RETURN(Token self_tok,
+                           PopKeywordOrError(Keyword::kSelfType));
+      return_type = module_->Make<SelfTypeAnnotation>(
+          self_tok.span(), /*explicit_type=*/true, struct_ref);
+    } else {
+      XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(bindings));
+    }
   }
 
   StatementBlock* body = nullptr;
@@ -3301,13 +3318,20 @@ Parser::ParseNameDefOrWildcard(Bindings& bindings) {
   return ParseNameDef(bindings);
 }
 
-absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings) {
+absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings,
+                                          TypeAnnotation* struct_ref) {
   TypeAnnotation* type;
   XLS_ASSIGN_OR_RETURN(NameDef * name, ParseNameDef(bindings));
   XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
-  if (name->identifier() == KeywordToString(Keyword::kSelf) && !peek_is_colon) {
-    type = module_->Make<SelfTypeAnnotation>(name->span(),
-                                             /*explicit_type=*/false);
+  if (name->identifier() == KeywordToString(Keyword::kSelf)) {
+    CHECK(struct_ref != nullptr);
+    bool explicit_type = peek_is_colon;
+    type = module_->Make<SelfTypeAnnotation>(name->span(), explicit_type,
+                                             struct_ref);
+    if (peek_is_colon) {
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kColon));
+      XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kSelfType));
+    }
   } else {
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
@@ -3336,9 +3360,10 @@ absl::StatusOr<ProcMember*> Parser::ParseProcMember(
   return member;
 }
 
-absl::StatusOr<std::vector<Param*>> Parser::ParseParams(Bindings& bindings) {
+absl::StatusOr<std::vector<Param*>> Parser::ParseParams(
+    Bindings& bindings, TypeAnnotation* struct_ref) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-  auto sub_production = [&] { return ParseParam(bindings); };
+  auto sub_production = [&] { return ParseParam(bindings, struct_ref); };
   XLS_ASSIGN_OR_RETURN(
       std::vector<Param*> params,
       ParseCommaSeq<Param*>(sub_production, TokenKind::kCParen));
@@ -3468,9 +3493,9 @@ absl::StatusOr<Impl*> Parser::ParseImpl(const Pos& start_pos, bool is_public,
           ParseConstantDef(member_start_pos, next_is_public, impl_bindings));
       members.push_back(constant);
     } else if (peek->IsKeyword(Keyword::kFn)) {
-      XLS_ASSIGN_OR_RETURN(
-          Function * function,
-          ParseFunction(member_start_pos, next_is_public, impl_bindings));
+      XLS_ASSIGN_OR_RETURN(Function * function,
+                           ParseImplFunction(member_start_pos, next_is_public,
+                                             impl_bindings, type));
       members.push_back(function);
     } else {
       return ParseErrorStatus(

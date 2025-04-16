@@ -123,6 +123,11 @@ class Parser : public TokenParser {
       const Pos& start_pos, bool is_public, Bindings& bindings,
       absl::flat_hash_map<std::string, Function*>* name_to_fn = nullptr);
 
+  absl::StatusOr<Function*> ParseImplFunction(const Pos& start_pos,
+                                              bool is_public,
+                                              Bindings& bindings,
+                                              TypeAnnotation* struct_ref);
+
   absl::StatusOr<Lambda*> ParseLambda(Bindings& bindings);
 
   absl::StatusOr<ModuleMember> ParseProc(const Pos& start_pos, bool is_public,
@@ -498,7 +503,8 @@ class Parser : public TokenParser {
   absl::StatusOr<Conditional*> ParseConditionalNode(
       Bindings& bindings, ExprRestrictions restrictions);
 
-  absl::StatusOr<Param*> ParseParam(Bindings& bindings);
+  absl::StatusOr<Param*> ParseParam(Bindings& bindings,
+                                    TypeAnnotation* struct_ref = nullptr);
 
   // Parses a member declaration in the body of a `proc` definition.
   absl::StatusOr<ProcMember*> ParseProcMember(Bindings& bindings,
@@ -508,7 +514,8 @@ class Parser : public TokenParser {
   // after ')' is consumed.
   //
   // Permits trailing commas.
-  absl::StatusOr<std::vector<Param*>> ParseParams(Bindings& bindings);
+  absl::StatusOr<std::vector<Param*>> ParseParams(
+      Bindings& bindings, TypeAnnotation* struct_ref = nullptr);
 
   absl::StatusOr<NameDefTree*> ParseTuplePattern(const Pos& start_pos,
                                                  Bindings& bindings);
@@ -591,9 +598,9 @@ class Parser : public TokenParser {
   absl::StatusOr<ExprOrType> ParseParametricArg(Bindings& bindings);
 
   // Parses a function out of the token stream.
-  absl::StatusOr<Function*> ParseFunctionInternal(const Pos& start_pos,
-                                                  bool is_public,
-                                                  Bindings& outer_bindings);
+  absl::StatusOr<Function*> ParseFunctionInternal(
+      const Pos& start_pos, bool is_public, Bindings& outer_bindings,
+      TypeAnnotation* struct_ref = nullptr);
 
   // Parses an import statement into an `Import` AST node.
   absl::StatusOr<Import*> ParseImport(Bindings& bindings);

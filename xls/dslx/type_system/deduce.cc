@@ -1851,10 +1851,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTypeRefTypeAnnotation(
 absl::StatusOr<std::unique_ptr<Type>> DeduceSelfTypeAnnotation(
     const SelfTypeAnnotation* node, DeduceCtx* ctx) {
   VLOG(5) << "DeduceSelfTypeAnnotation: " << node->ToString();
-
-  XLS_ASSIGN_OR_RETURN(const TypeAnnotation* real_type,
-                       GetRealTypeAnnotationForSelf(node, ctx->file_table()));
-  return ctx->Deduce(real_type);
+  return ctx->Deduce(node->struct_ref());
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceMatchArm(const MatchArm* node,

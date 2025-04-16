@@ -736,12 +736,9 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleSelfTypeAnnotation(
       const SelfTypeAnnotation* node) override {
     VLOG(5) << "HandleSelfTypeAnnotation: " << node->ToString();
-    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* real_type,
-                         GetRealTypeAnnotationForSelf(node, file_table_));
-    VLOG(5) << "Real TypeAnnotation for Self: " << real_type->ToString();
     XLS_ASSIGN_OR_RETURN(
         std::optional<StructOrProcRef> struct_or_proc_ref,
-        GetStructOrProcRef(real_type, file_table_, import_data_));
+        GetStructOrProcRef(node->struct_ref(), file_table_, import_data_));
     // There are two paths for handling of `Self`.
     // - Within a parametric struct, it gets left alone here, and when the
     //   conversion step scrubs struct parametrics via
@@ -751,7 +748,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     //   because the conversion logic will not send it down the parametric
     //   scrubbing path.
     if (!struct_or_proc_ref->def->IsParametric()) {
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, real_type));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, node->struct_ref()));
     }
     return DefaultHandler(node);
   }
