@@ -828,13 +828,19 @@ TEST(TypecheckV2BuiltinTest, UpdateMustBeArrayType) {
 
 TEST(TypecheckV2BuiltinTest, UpdateValueTypeMustMatch) {
   EXPECT_THAT(R"(const Y = update([u8:1, u8:2, u8:3], u8:2, u9:42);)",
-              TypecheckFails(HasTypeMismatch("uN[8]", "u9")));
+              TypecheckFails(HasTypeMismatch("uN[8]", "uN[9]")));
 }
 
-TEST(TypecheckV2BuiltinTest, Update1DMustBeScalar) {
-  EXPECT_THAT(R"(const Y = update([u8:1, u8:2, u8:3], (u8:1, u8:0), u8:42);)",
-              TypecheckFails(HasSubstr(
-                  R"(Expected 1 element(s) in `update` index; got 2)")));
+TEST(TypecheckV2BuiltinTest, Update1DIndexAndValueDimensionMismatch) {
+  EXPECT_THAT(
+      R"(const Y = update([u8:1, u8:2, u8:3], (u8:1, u8:0), u8:42);)",
+      TypecheckFails(HasSubstr(
+          R"(Array dimension in `update` expected to be larger than the number of indices (2); got 1)")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update1DValueDimensionMismatch) {
+  EXPECT_THAT(R"(const Y = update([u8:1, u8:2, u8:3], u32:0, [u8:42, u8:43]);)",
+              TypecheckFails(HasSizeMismatch("uN[8][2]", "uN[8]")));
 }
 
 TEST(TypecheckV2BuiltinTest, UpdateMustBeUnsigned) {
@@ -843,31 +849,83 @@ TEST(TypecheckV2BuiltinTest, UpdateMustBeUnsigned) {
                   R"(`update` index type must be unsigned; got `sN[8]`)")));
 }
 
-TEST(TypecheckV2BuiltinTest, UpdateMustBeBits) {
+TEST(TypecheckV2BuiltinTest, UpdateIndexMustBeBits) {
   EXPECT_THAT(
       R"(
 struct S {}
 const Y = update([u8:1, u8:2, u8:3], S{}, u8:42);
 )",
-      // TODO: davidplass - the error message should be "`update` index type
-      // must be a bits type" but it's failing with
-      // "TypeInferenceError: type mismatch: S ... vs. Any" instead.
+      // TODO: davidplass - ideally, the error message would be "`update` index
+      // type must be a bits type" but it's failing with "TypeInferenceError:
+      // type mismatch: S ... vs. Any" instead.
+      // Same for the next test
       TypecheckFails(HasTypeMismatch("S", "Any")));
 }
 
-TEST(TypecheckV2BuiltinTest, Update2D) {
+TEST(TypecheckV2BuiltinTest, UpdateValueMustBeBits) {
   EXPECT_THAT(
-      R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], (u32:0, u32:1), [u8:42, u8:43]);)",
+      R"(
+struct S {}
+const Y = update([u8:1, u8:2, u8:3], u32:0, S{});
+)",
+      TypecheckFails(HasTypeMismatch("S", "Any")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update2DScalar) {
+  EXPECT_THAT(
+      R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], (u32:0, u32:1), u8:42);)",
       TypecheckSucceeds(HasNodeWithType("Y", "uN[8][2][2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update2DVector) {
+  EXPECT_THAT(
+      R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], u32:0, [u8:42, u8:43]);)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[8][2][2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update2DAll) {
+  EXPECT_THAT(R"(
+const Y = update([[u8:1, u8:2], [u8:3, u8:4]],
+                 (),
+                 [[u8:3, u8:4], [u8:5, u8:6]]);
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[8][2][2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update2DAllMismatchType) {
+  EXPECT_THAT(R"(
+const Y = update([[u8:1, u8:2], [u8:3, u8:4]],
+                 (),
+                 [[u9:3, u9:4], [u9:5, u9:6]]);
+)",
+              TypecheckFails(HasTypeMismatch("uN[8]", "uN[9]")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update2DAllMismatchSize) {
+  EXPECT_THAT(
+      R"(
+const Y = update([[u8:1, u8:2], [u8:3, u8:4]],
+                 (),
+                 [[u8:5], [u8:6]]);
+)",
+      TypecheckFails(HasTypeMismatch("uN[8][2][2]", "uN[8][1][2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update2DValueSizeMismatch) {
+  EXPECT_THAT(R"(
+const Y = update([[u8:1, u8:2], [u8:3, u8:4]],
+                 (u32:0, u32:1),
+                 [u8:42, u8:43]);
+)",
+              TypecheckFails(HasTypeMismatch("uN[8]", "uN[8][2]")));
 }
 
 TEST(TypecheckV2BuiltinTest, Update3D) {
   EXPECT_THAT(
       R"(
-const Y = update(
-      [[[u8:1, u8:2], [u8:3, u8:4]], [[u8:5, u8:6], [u8:7, u8:8]]],
-      (u32:0, u32:1, u32:2),
-      [[u8:15, u8:16], [u8:17, u8:18]]);
+const Y = update([[[u8:1, u8:2], [u8:3, u8:4]], [[u8:5, u8:6], [u8:7, u8:8]]],
+                 (u32:0, u32:1, u32:2),
+                 u8:15);
 )",
       TypecheckSucceeds(HasNodeWithType("Y", "uN[8][2][2][2]")));
 }
@@ -875,21 +933,26 @@ const Y = update(
 TEST(TypecheckV2BuiltinTest, Update2DMismatchNewValue) {
   EXPECT_THAT(
       R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], (u32:0, u32:1), [u8:42]);)",
-      TypecheckFails(HasTypeMismatch("uN[8][2]", "u8[1]")));
+      TypecheckFails(HasTypeMismatch("uN[8]", "uN[8][1]")));
+}
+
+TEST(TypecheckV2BuiltinTest, Update2DNewValueSizeMismatch) {
+  EXPECT_THAT(
+      R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], u32:0, [u8:42, u8:43, u8:44]);)",
+      TypecheckFails(HasTypeMismatch("uN[8][2]", "uN[8][3]")));
 }
 
 TEST(TypecheckV2BuiltinTest, Update2DMismatchIndex) {
   EXPECT_THAT(
       R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], (u32:0, u32:1, u32:1), [u8:42, u8:43]);)",
-      TypecheckFails(
-          HasSubstr(R"(Expected 2 element(s) in `update` index; got 3)")));
+      TypecheckFails(HasSubstr(
+          R"(Array dimension in `update` expected to be larger than the number of indices (3); got 2)")));
 }
 
-TEST(TypecheckV2BuiltinTest, Update2DMismatchIndexScalar) {
+TEST(TypecheckV2BuiltinTest, Update2DIndexScalar) {
   EXPECT_THAT(
       R"(const Y = update([[u8:1, u8:2], [u8:3, u8:4]], u32:0, [u8:42, u8:43]);)",
-      TypecheckFails(
-          HasSubstr(R"(Expected 2 element(s) in `update` index; got 1)")));
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[8][2][2]")));
 }
 
 TEST(TypecheckV2BuiltinTest, WideningCast) {

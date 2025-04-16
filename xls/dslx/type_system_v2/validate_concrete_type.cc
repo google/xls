@@ -509,30 +509,45 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   absl::Status ValidateUpdateInvocation(const Invocation& invocation,
                                         const FunctionType& signature) {
     const Type& first = *signature.params()[0];
-    const ArrayType& array = first.AsArray();
-    int array_dimensions = array.ArrayDimensions();
+    const ArrayType& array_type = first.AsArray();
+    const Type& index_type = *signature.params()[1];
 
-    // 1. index dimensions must match size of array.
-    const Type& index = *signature.params()[1];
-    int index_dimensions = index.IsTuple() ? index.AsTuple().size() : 1;
-    if (array_dimensions != index_dimensions) {
-      return TypeInferenceErrorStatus(
-          invocation.span(), &index,
-          absl::Substitute("Expected $0 element(s) in `update` index; got $1",
-                           array_dimensions, index_dimensions),
-          file_table_);
-    }
-
-    if (const TupleType* index_tuple = dynamic_cast<const TupleType*>(&index)) {
-      // 2. second argument must be tuple of uNs
+    // 1. index must be tuple of uNs or scalar uN
+    if (const TupleType* index_tuple =
+            dynamic_cast<const TupleType*>(&index_type)) {
       for (int i = 0; i < index_tuple->size(); ++i) {
         XLS_RETURN_IF_ERROR(ValidateUpdateIndexUnsigned(
             invocation.span(), index_tuple->GetMemberType(i)));
       }
     } else {
-      // 2. second argument must be uN
       XLS_RETURN_IF_ERROR(
-          ValidateUpdateIndexUnsigned(invocation.span(), index));
+          ValidateUpdateIndexUnsigned(invocation.span(), index_type));
+    }
+
+    // 2. `value` must be an appropriate type for each index
+    int index_dimensions =
+        index_type.IsTuple() ? index_type.AsTuple().size() : 1;
+    const Type* element_type = &array_type;
+    for (int64_t i = 0; i < index_dimensions; ++i) {
+      if (auto* sub_array = dynamic_cast<const ArrayType*>(element_type)) {
+        element_type = &sub_array->element_type();
+      } else {
+        return TypeInferenceErrorStatus(
+            invocation.span(), &index_type,
+            absl::Substitute("Array dimension in `update` expected to be "
+                             "larger than the number of indices ($0); got $1",
+                             index_dimensions,
+                             array_type.GetAllDims().size() - 1),
+            file_table_);
+      }
+    }
+
+    // 3. Base types must match
+    const Type& value_type = *signature.params()[2];
+    if (*element_type != value_type) {
+      return TypeMismatchErrorStatus(*element_type, value_type,
+                                     invocation.span(), invocation.span(),
+                                     file_table_);
     }
 
     return absl::OkStatus();

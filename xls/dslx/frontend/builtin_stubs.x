@@ -90,7 +90,7 @@ fn token() -> token;
 fn trace!<T: type>(value: T) -> T;
 
 // `index` can be a scalar or a tuple, depending on the dimensions of `array`.
-fn update<T: type, U: type, N: u32>(array: T[N], index: U, new_value: T) -> T[N];
+fn update<T: type, U: type, V: type, N: u32>(array: T[N], index: U, new_value: V) -> T[N];
 
 fn umulp<N: u32>(x: uN[N], y: uN[N]) -> (uN[N], uN[N]);
 
