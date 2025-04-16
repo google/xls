@@ -76,12 +76,17 @@
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "re2/re2.h"
 
@@ -211,6 +216,48 @@ absl::Status RunDslxTestProc(ImportData* import_data, TypeInfo* type_info,
   return absl::OkStatus();
 }
 
+// Pass that adds any asserts in a qc function to the goal and removes the
+// assert nodes.
+class QuickCheckProveAssertsNotFiredPass final
+    : public OptimizationFunctionBasePass {
+ public:
+  QuickCheckProveAssertsNotFiredPass()
+      : OptimizationFunctionBasePass("quickcheck-assert-suplement",
+                                     "add asserts to quickcheck goal") {}
+  ~QuickCheckProveAssertsNotFiredPass() = default;
+
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* fb, const OptimizationPassOptions& options,
+      PassResults* results, OptimizationContext& context) const override {
+    XLS_RET_CHECK(fb->IsFunction()) << "not a qc function";
+    xls::Function* f = fb->AsFunctionOrDie();
+    XLS_RET_CHECK(f->return_value()->GetType()->IsBits())
+        << "not a qc function";
+    XLS_RET_CHECK_EQ(f->return_value()->GetType()->GetFlatBitCount(), 1)
+        << "not a qc function";
+    std::vector<Node*> ret = {f->return_value()};
+    for (Node* n : context.ReverseTopoSort(f)) {
+      if (n->Is<Assert>()) {
+        Assert* a = n->As<Assert>();
+        XLS_RETURN_IF_ERROR(a->ReplaceUsesWith(a->token()));
+        ret.push_back(a->condition());
+        XLS_RETURN_IF_ERROR(fb->RemoveNode(a));
+      }
+    }
+
+    if (ret.size() == 1) {
+      return false;
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_ret,
+        fb->MakeNodeWithName<NaryOp>(f->return_value()->loc(), ret, Op::kAnd,
+                                     "result_and_asserts_pass"));
+    XLS_RETURN_IF_ERROR(f->set_return_value(new_ret));
+    return true;
+  }
+};
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>>
@@ -732,10 +779,19 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     }
 
     // Note: we need this to eliminate unoptimized IR constructs that are not
-    // currently handled for translation; e.g. bounded-for-loops and non-inlined
-    // function calls.
+    // currently handled for translation; e.g. bounded-for-loops, asserts and
+    // non-inlined function calls.
+    auto pipeline = CreateOptimizationPassPipeline();
+
+    // By the time this pass executes only the single top function is left.
+    // Strip any remaining asserts from it and 'and' them to the quickcheck
+    // goal.
+    pipeline->Add<QuickCheckProveAssertsNotFiredPass>();
+    pipeline->Add<DeadCodeEliminationPass>();
+    PassResults results;
+    OptimizationContext ctx;
     const absl::Status opt_status =
-        RunOptimizationPassPipeline(&package).status();
+        pipeline->Run(conv.package.get(), {}, &results, ctx).status();
     if (handle_if_error(opt_status)) {
       continue;
     }
