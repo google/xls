@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -198,7 +199,8 @@ void Permute(const IntVector &permutation, Array *array_to_permute) {
   if (permutation.empty()) {
     return;
   }
-  std::vector<typeof((*array_to_permute)[0])> temp(permutation.size());
+  std::vector<std::remove_reference_t<decltype((*array_to_permute)[0])>> temp(
+      permutation.size());
   for (size_t i = 0; i < permutation.size(); ++i) {
     temp[i] = std::move((*array_to_permute)[i]);
   }
