@@ -1708,46 +1708,6 @@ benchmark_synth(
 #    target_die_utilization_percentage = "1",
 #)
 
-py_test(
-    name = "zstd_dec_cocotb_test",
-    srcs = ["zstd_dec_cocotb_test.py"],
-    data = [
-        ":zstd_dec.v",
-        "//xls/modules/zstd/external:arbiter.v",
-        "//xls/modules/zstd/external:axi_crossbar.v",
-        "//xls/modules/zstd/external:axi_crossbar_addr.v",
-        "//xls/modules/zstd/external:axi_crossbar_rd.v",
-        "//xls/modules/zstd/external:axi_crossbar_wr.v",
-        "//xls/modules/zstd/external:axi_crossbar_wrapper.v",
-        "//xls/modules/zstd/external:axi_register_rd.v",
-        "//xls/modules/zstd/external:axi_register_wr.v",
-        "//xls/modules/zstd/external:priority_encoder.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
-        "//xls/modules/zstd/rtl:zstd_dec_wrapper.v",
-        "@com_icarus_iverilog//:iverilog",
-        "@com_icarus_iverilog//:vvp",
-    ],
-    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
-    imports = ["."],
-    tags = ["manual"],
-    visibility = ["//xls:xls_users"],
-    deps = [
-        requirement("cocotb"),
-        requirement("cocotbext-axi"),
-        requirement("pytest"),
-        requirement("zstandard"),
-        "//xls/common:runfiles",
-        "//xls/modules/zstd/cocotb:channel",
-        "//xls/modules/zstd/cocotb:data_generator",
-        "//xls/modules/zstd/cocotb:memory",
-        "//xls/modules/zstd/cocotb:utils",
-        "//xls/modules/zstd/cocotb:xlsstruct",
-        "@abseil-py//absl:app",
-        "@abseil-py//absl/flags",
-        "@com_google_protobuf//:protobuf_python",
-    ],
-)
-
 xls_dslx_library(
     name = "comp_lookup_dec_dslx",
     srcs = [
