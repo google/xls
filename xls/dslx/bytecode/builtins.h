@@ -64,6 +64,9 @@ absl::Status BuiltinRangeInternal(InterpreterStack& stack);
 
 absl::Status RunBuiltinAndReduce(const Bytecode& bytecode,
                                  InterpreterStack& stack);
+// ceil(log2(x))
+absl::Status RunBuiltinCeilLog2(const Bytecode& bytecode,
+                                InterpreterStack& stack);
 absl::Status RunBuiltinClz(const Bytecode& bytecode, InterpreterStack& stack);
 absl::Status RunBuiltinCover(const Bytecode& bytecode, InterpreterStack& stack);
 absl::Status RunBuiltinCtz(const Bytecode& bytecode, InterpreterStack& stack);

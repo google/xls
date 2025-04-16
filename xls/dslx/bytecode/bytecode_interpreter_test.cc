@@ -1733,6 +1733,17 @@ fn main() -> u32 {
   EXPECT_EQ(int_value, 0xdeadbeef);
 }
 
+TEST_F(BytecodeInterpreterTest, BuiltinCeilLog2) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32 {
+  ceillog2(u32:0xdeadbeef)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
+  EXPECT_EQ(int_value, 32);
+}
+
 TEST_F(BytecodeInterpreterTest, BuiltinClz) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32 {

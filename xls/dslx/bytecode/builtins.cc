@@ -459,6 +459,18 @@ absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
   return absl::OkStatus();
 }
 
+absl::Status RunBuiltinCeilLog2(const Bytecode& bytecode,
+                                InterpreterStack& stack) {
+  VLOG(3) << "Executing builtin ceillog2.";
+  XLS_RET_CHECK(!stack.empty());
+
+  XLS_ASSIGN_OR_RETURN(InterpValue input, stack.Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue result, input.CeilOfLog2());
+  stack.Push(result);
+
+  return absl::OkStatus();
+}
+
 absl::Status RunBuiltinClz(const Bytecode& bytecode, InterpreterStack& stack) {
   VLOG(3) << "Executing builtin clz.";
   XLS_RET_CHECK(!stack.empty());

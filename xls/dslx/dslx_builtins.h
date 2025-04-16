@@ -38,6 +38,7 @@ namespace xls::dslx {
   X("bit_count", kBitCount)                    \
   X("bit_slice_update", kBitSliceUpdate)       \
   X("checked_cast", kCheckedCast)              \
+  X("ceillog2", kCeilLog2)                     \
   X("clz", kClz)                               \
   X("cover!", kCover)                          \
   X("ctz", kCtz)                               \

@@ -1462,6 +1462,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinAssertLt(bytecode, stack_, frames_.back(), options_);
     case Builtin::kBitSliceUpdate:
       return RunBuiltinBitSliceUpdate(bytecode, stack_);
+    case Builtin::kCeilLog2:
+      return RunBuiltinCeilLog2(bytecode, stack_);
     case Builtin::kClz:
       return RunBuiltinClz(bytecode, stack_);
     case Builtin::kCover:
