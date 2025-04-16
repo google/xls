@@ -718,6 +718,162 @@ proc MatchFinderInst {
     next (state: ()) {}
 }
 
+const COCOTB_ADDR_W = u32:32;
+const COCOTB_DATA_W = u32:64;
+const COCOTB_MIN_SEQ_LEN = u32:3;
+const COCOTB_DATA_W_LOG2 = std::clog2(COCOTB_DATA_W + u32:1);
+const COCOTB_DEST_W = u32:8;
+const COCOTB_ID_W = u32:8;
+
+const COCOTB_HT_SIZE = u32:512;
+const COCOTB_HT_SIZE_W = std::clog2(COCOTB_HT_SIZE + u32:1);
+const COCOTB_HT_KEY_W = KEY_WIDTH;
+const COCOTB_HT_VALUE_W = KEY_WIDTH + COCOTB_ADDR_W;
+const COCOTB_HT_HASH_W = std::clog2(COCOTB_HT_SIZE);
+const COCOTB_HT_RAM_DATA_W = COCOTB_HT_VALUE_W + u32:1;
+const COCOTB_HT_RAM_WORD_PARTITION_SIZE = u32:1;
+const COCOTB_HT_RAM_NUM_PARTITIONS = ram::num_partitions(COCOTB_HT_RAM_WORD_PARTITION_SIZE, COCOTB_HT_RAM_DATA_W);
+const COCOTB_HT_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
+const COCOTB_HT_RAM_INITIALIZED = true;
+
+const COCOTB_HB_DATA_W = KEY_WIDTH;
+const COCOTB_HB_SIZE = u32:1024;
+const COCOTB_HB_OFFSET_W = std::clog2(COCOTB_HB_SIZE);
+const COCOTB_HB_RAM_NUM = u32:8;
+const COCOTB_HB_RAM_SIZE = COCOTB_HB_SIZE / COCOTB_HB_RAM_NUM;
+const COCOTB_HB_RAM_DATA_W = KEY_WIDTH / COCOTB_HB_RAM_NUM;
+const COCOTB_HB_RAM_ADDR_W = std::clog2(COCOTB_HB_RAM_SIZE);
+const COCOTB_HB_RAM_PARTITION_SIZE = COCOTB_HB_RAM_DATA_W;
+const COCOTB_HB_RAM_NUM_PARTITIONS = ram::num_partitions(COCOTB_HB_RAM_PARTITION_SIZE, COCOTB_HB_RAM_DATA_W);
+const COCOTB_HB_RAM_SIMULTANEOUS_RW_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
+const COCOTB_HB_RAM_INITIALIZED = true;
+
+const COCOTB_RAM_DATA_W = COCOTB_DATA_W;
+const COCOTB_RAM_SIZE = u32:2048;
+const COCOTB_RAM_ADDR_W = COCOTB_ADDR_W;
+const COCOTB_RAM_PARTITION_SIZE = COCOTB_RAM_DATA_W / u32:8;
+const COCOTB_RAM_NUM_PARTITIONS = ram::num_partitions(COCOTB_RAM_PARTITION_SIZE, COCOTB_RAM_DATA_W);
+const COCOTB_RAM_SIMULTANEOUS_RW_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
+const COCOTB_RAM_INITIALIZED = true;
+const COCOTB_RAM_ASSERT_VALID_READ = true;
+
+proc MatchFinderCocotbInst {
+    type MemReaderReq = mem_reader::MemReaderReq<COCOTB_ADDR_W>;
+    type MemReaderResp = mem_reader::MemReaderResp<COCOTB_DATA_W, COCOTB_ADDR_W>;
+
+    type MemWriterReq = mem_writer::MemWriterReq<COCOTB_ADDR_W>;
+    type MemWriterResp = mem_writer::MemWriterResp;
+    type MemWriterDataPacket = mem_writer::MemWriterDataPacket<COCOTB_DATA_W, COCOTB_ADDR_W>;
+
+    type HashTableRdReq = hash_table::HashTableReadReq<COCOTB_HT_KEY_W, COCOTB_HT_SIZE, COCOTB_HT_SIZE_W>;
+    type HashTableRdResp = hash_table::HashTableReadResp<COCOTB_HT_VALUE_W>;
+    type HashTableWrReq = hash_table::HashTableWriteReq<COCOTB_HT_KEY_W, COCOTB_HT_VALUE_W, COCOTB_HT_SIZE, COCOTB_HT_SIZE_W>;
+    type HashTableWrResp = hash_table::HashTableWriteResp;
+    type HashTableRamRdReq = ram::ReadReq<COCOTB_HT_HASH_W, COCOTB_HT_RAM_NUM_PARTITIONS>;
+    type HashTableRamRdResp = ram::ReadResp<COCOTB_HT_RAM_DATA_W>;
+    type HashTableRamWrReq = ram::WriteReq<COCOTB_HT_HASH_W, COCOTB_HT_RAM_DATA_W, COCOTB_HT_RAM_NUM_PARTITIONS>;
+    type HashTableRamWrResp = ram::WriteResp;
+
+    type HistoryBufferRdReq = history_buffer::HistoryBufferReadReq<COCOTB_HB_OFFSET_W>;
+    type HistoryBufferRdResp = history_buffer::HistoryBufferReadResp<COCOTB_HB_DATA_W>;
+    type HistoryBufferWrReq = history_buffer::HistoryBufferWriteReq<COCOTB_HB_DATA_W>;
+    type HistoryBufferWrResp = history_buffer::HistoryBufferWriteResp;
+    type HistoryBufferRamRdReq = ram::ReadReq<COCOTB_HB_RAM_ADDR_W, COCOTB_HB_RAM_NUM_PARTITIONS>;
+    type HistoryBufferRamRdResp = ram::ReadResp<COCOTB_HB_RAM_DATA_W>;
+    type HistoryBufferRamWrReq = ram::WriteReq<COCOTB_HB_RAM_ADDR_W, COCOTB_HB_RAM_DATA_W, COCOTB_HB_RAM_NUM_PARTITIONS>;
+    type HistoryBufferRamWrResp = ram::WriteResp;
+
+    type AxiAr = axi::AxiAr<COCOTB_ADDR_W, COCOTB_ID_W>;
+    type AxiR = axi::AxiR<COCOTB_DATA_W, COCOTB_ID_W>;
+    type AxiAw = axi::AxiAw<COCOTB_ADDR_W, COCOTB_ID_W>;
+    type AxiW = axi::AxiW<COCOTB_DATA_W, COCOTB_RAM_NUM_PARTITIONS>;
+    type AxiB = axi::AxiB<COCOTB_ID_W>;
+
+    type Req = MatchFinderReq<COCOTB_HT_SIZE_W, COCOTB_ADDR_W>;
+    type Resp = MatchFinderResp;
+
+    config (
+        // Req & Resp
+        req_r: chan<Req> in,
+        resp_s: chan<Resp> out,
+        // External AXI bussies
+        axi_aw_s: chan<AxiAw> out,
+        axi_w_s: chan<AxiW> out,
+        axi_b_r: chan<AxiB> in,
+        axi_ar_s: chan<AxiAr> out,
+        axi_r_r: chan<AxiR> in,
+        // hash table
+        ht_ram_rd_req_s: chan<HashTableRamRdReq> out,
+        ht_ram_rd_resp_r: chan<HashTableRamRdResp> in,
+        ht_ram_wr_req_s: chan<HashTableRamWrReq> out,
+        ht_ram_wr_resp_r: chan<HashTableRamWrResp> in,
+        // history buffer
+        hb_ram_rd_req_s: chan<HistoryBufferRamRdReq>[8] out,
+        hb_ram_rd_resp_r: chan<HistoryBufferRamRdResp>[8] in,
+        hb_ram_wr_req_s: chan<HistoryBufferRamWrReq>[8] out,
+        hb_ram_wr_resp_r: chan<HistoryBufferRamWrResp>[8] in,
+    ) {
+        let (ht_rd_req_s, ht_rd_req_r) = chan<HashTableRdReq, u32:1>("ht_rd_req");
+        let (ht_rd_resp_s, ht_rd_resp_r) = chan<HashTableRdResp, u32:1>("ht_rd_resp");
+        let (ht_wr_req_s, ht_wr_req_r) = chan<HashTableWrReq, u32:1>("ht_wr_req");
+        let (ht_wr_resp_s, ht_wr_resp_r) = chan<HashTableWrResp, u32:1>("ht_wr_resp");
+        let (hb_rd_req_s, hb_rd_req_r) = chan<HistoryBufferRdReq, u32:1>("hb_rd_req");
+        let (hb_rd_resp_s, hb_rd_resp_r) = chan<HistoryBufferRdResp, u32:1>("hb_rd_resp");
+        let (hb_wr_req_s, hb_wr_req_r) = chan<HistoryBufferWrReq, u32:1>("hb_wr_req");
+        let (hb_wr_resp_s, hb_wr_resp_r) = chan<HistoryBufferWrResp, u32:1>("hb_wr_resp");
+        let (mem_wr_req_s, mem_wr_req_r) = chan<MemWriterReq, u32:1>("mem_wr_req");
+        let (mem_wr_data_s, mem_wr_data_r) = chan<MemWriterDataPacket, u32:1>("mem_wr_data");
+        let (mem_wr_resp_s, mem_wr_resp_r) = chan<MemWriterResp, u32:1>("mem_wr_resp");
+        let (mem_rd_req_s, mem_rd_req_r) = chan<MemReaderReq, u32:1>("mem_rd_req");
+        let (mem_rd_resp_s, mem_rd_resp_r) = chan<MemReaderResp, u32:1>("mem_rd_resp");
+
+        spawn hash_table::HashTable<COCOTB_HT_KEY_W, COCOTB_HT_VALUE_W, COCOTB_HT_SIZE, COCOTB_HT_SIZE_W>(
+            ht_rd_req_r, ht_rd_resp_s,
+            ht_wr_req_r, ht_wr_resp_s,
+            ht_ram_rd_req_s, ht_ram_rd_resp_r,
+            ht_ram_wr_req_s, ht_ram_wr_resp_r,
+        );
+
+        spawn history_buffer::HistoryBuffer<COCOTB_HB_SIZE, COCOTB_HB_DATA_W>(
+            hb_rd_req_r, hb_rd_resp_s,
+            hb_wr_req_r, hb_wr_resp_s,
+            hb_ram_rd_req_s, hb_ram_rd_resp_r,
+            hb_ram_wr_req_s, hb_ram_wr_resp_r,
+        );
+
+        spawn mem_reader::MemReader<
+            COCOTB_DATA_W, COCOTB_ADDR_W, COCOTB_DEST_W, COCOTB_ID_W
+        >(
+            mem_rd_req_r, mem_rd_resp_s,
+            axi_ar_s, axi_r_r,
+        );
+
+        spawn mem_writer::MemWriter<
+            COCOTB_ADDR_W, COCOTB_DATA_W, COCOTB_DEST_W, COCOTB_ID_W, u32:0
+        >(
+            mem_wr_req_r, mem_wr_data_r,
+            axi_aw_s, axi_w_s, axi_b_r,
+            mem_wr_resp_s
+        );
+
+        spawn MatchFinder<
+            COCOTB_ADDR_W, COCOTB_DATA_W, COCOTB_HT_SIZE, COCOTB_HB_SIZE, COCOTB_MIN_SEQ_LEN,
+            COCOTB_DATA_W_LOG2,
+            COCOTB_HT_KEY_W, COCOTB_HT_VALUE_W, COCOTB_HT_SIZE_W,
+            COCOTB_HB_DATA_W, COCOTB_HB_OFFSET_W,
+        >(
+            req_r, resp_s,
+            mem_rd_req_s, mem_rd_resp_r,
+            mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r,
+            ht_rd_req_s, ht_rd_resp_r, ht_wr_req_s, ht_wr_resp_r,
+            hb_rd_req_s, hb_rd_resp_r, hb_wr_req_s, hb_wr_resp_r,
+        );
+    }
+
+    init {}
+    next (state: ()) { }
+}
+
 const TEST_ADDR_W = u32:32;
 const TEST_DATA_W = u32:64;
 const TEST_MIN_SEQ_LEN = u32:3;
