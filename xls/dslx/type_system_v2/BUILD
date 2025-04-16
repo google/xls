@@ -74,6 +74,7 @@ cc_library(
         ":inference_table_converter",
         ":parametric_struct_instantiator",
         ":solve_for_parametrics",
+        ":type_annotation_filter",
         ":type_annotation_resolver",
         ":type_annotation_utils",
         ":type_system_tracer",
@@ -326,6 +327,26 @@ cc_library(
 )
 
 cc_library(
+    name = "type_annotation_filter",
+    srcs = ["type_annotation_filter.cc"],
+    hdrs = ["type_annotation_filter.h"],
+    deps = [
+        ":expand_variables",
+        ":import_utils",
+        ":inference_table",
+        ":type_annotation_utils",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:import_data",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "type_annotation_utils",
     srcs = ["type_annotation_utils.cc"],
     hdrs = ["type_annotation_utils.h"],
@@ -342,7 +363,6 @@ cc_library(
         "//xls/ir:number_parser",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/functional:any_invocable",
-        "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -404,6 +424,7 @@ cc_library(
         ":import_utils",
         ":inference_table",
         ":parametric_struct_instantiator",
+        ":type_annotation_filter",
         ":type_annotation_utils",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
@@ -438,6 +459,7 @@ cc_library(
     hdrs = ["type_system_tracer.h"],
     deps = [
         ":inference_table",
+        ":type_annotation_filter",
         "//xls/common:indent",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
@@ -489,6 +511,7 @@ cc_library(
         ":import_utils",
         ":inference_table",
         ":parametric_struct_instantiator",
+        ":type_annotation_filter",
         ":type_annotation_utils",
         ":type_system_tracer",
         ":unify_type_annotations",

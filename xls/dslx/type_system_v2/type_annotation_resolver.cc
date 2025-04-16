@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -41,6 +40,7 @@
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/type_system_v2/unify_type_annotations.h"
@@ -67,9 +67,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
   absl::StatusOr<std::optional<const TypeAnnotation*>>
   ResolveAndUnifyTypeAnnotationsForNode(
       std::optional<const ParametricContext*> parametric_context,
-      const AstNode* node,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) override {
+      const AstNode* node, TypeAnnotationFilter filter) override {
     TypeSystemTrace trace = tracer_.TraceUnify(node);
     VLOG(6) << "ResolveAndUnifyTypeAnnotationsForNode " << node->ToString();
     const std::optional<const NameRef*> type_variable =
@@ -103,7 +101,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
             node->parent()->ToString(), node_span->ToString(file_table_)));
       }
       return ResolveAndUnifyTypeAnnotations(parametric_context, *type_variable,
-                                            *node_span, accept_predicate);
+                                            *node_span, filter);
     } else {
       std::optional<const TypeAnnotation*> annotation =
           table_.GetTypeAnnotation(node);
@@ -113,7 +111,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
         XLS_ASSIGN_OR_RETURN(
             const TypeAnnotation* result,
             ResolveAndUnifyTypeAnnotations(parametric_context, {*annotation},
-                                           *node->GetSpan(), accept_predicate));
+                                           *node->GetSpan(), filter));
         return result;
       }
 
@@ -124,8 +122,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* type_variable, const Span& span,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) override {
+      TypeAnnotationFilter filter) override {
     TypeSystemTrace trace = tracer_.TraceUnify(type_variable);
     VLOG(6) << "Unifying type annotations for variable "
             << type_variable->ToString();
@@ -143,19 +140,18 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
           error_generator_, evaluator_, parametric_struct_instantiator_,
           tracer_, import_data_);
       return new_resolver->ResolveAndUnifyTypeAnnotations(
-          parametric_context, type_variable, span, accept_predicate);
+          parametric_context, type_variable, span, filter);
     }
     XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
                          table_.GetTypeAnnotationsForTypeVariable(
                              parametric_context, type_variable));
-    if (accept_predicate.has_value() && !annotations.empty()) {
-      tracer_.TraceFilter(annotations);
-      FilterAnnotations(annotations, *accept_predicate);
+    if (!filter.IsNone() && !annotations.empty()) {
+      tracer_.TraceFilter(filter, annotations);
+      FilterAnnotations(annotations, filter);
     }
-    XLS_ASSIGN_OR_RETURN(
-        const TypeAnnotation* result,
-        ResolveAndUnifyTypeAnnotations(parametric_context, annotations, span,
-                                       accept_predicate));
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* result,
+                         ResolveAndUnifyTypeAnnotations(
+                             parametric_context, annotations, span, filter));
     VLOG(6) << "Unified type for variable " << type_variable->ToString() << ": "
             << result->ToString();
     return result;
@@ -164,29 +160,26 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*> annotations, const Span& span,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) override {
-    XLS_RETURN_IF_ERROR(ResolveIndirectTypeAnnotations(
-        parametric_context, annotations, accept_predicate));
+      TypeAnnotationFilter filter) override {
+    XLS_RETURN_IF_ERROR(ResolveIndirectTypeAnnotations(parametric_context,
+                                                       annotations, filter));
     TypeSystemTrace trace = tracer_.TraceUnify(annotations);
     return UnifyTypeAnnotations(module_, table_, file_table_, error_generator_,
                                 evaluator_, parametric_struct_instantiator_,
                                 parametric_context, annotations, span,
-                                accept_predicate, import_data_);
+                                import_data_);
   }
 
   absl::Status ResolveIndirectTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*>& annotations,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) override {
+      TypeAnnotationFilter filter) override {
     std::vector<const TypeAnnotation*> result;
     for (const TypeAnnotation* annotation : annotations) {
-      if (!accept_predicate.has_value() || (*accept_predicate)(annotation)) {
-        XLS_ASSIGN_OR_RETURN(
-            const TypeAnnotation* resolved_annotation,
-            ResolveIndirectTypeAnnotations(parametric_context, annotation,
-                                           accept_predicate));
+      if (!filter.Filter(annotation)) {
+        XLS_ASSIGN_OR_RETURN(const TypeAnnotation* resolved_annotation,
+                             ResolveIndirectTypeAnnotations(
+                                 parametric_context, annotation, filter));
         result.push_back(resolved_annotation);
       }
     }
@@ -196,9 +189,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
 
   absl::StatusOr<const TypeAnnotation*> ResolveIndirectTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
-      const TypeAnnotation* annotation,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) override {
+      const TypeAnnotation* annotation, TypeAnnotationFilter filter) override {
     TypeSystemTrace trace =
         tracer_.TraceResolve(annotation, parametric_context);
     // This is purely to avoid wasting time on annotations that clearly need no
@@ -217,7 +208,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       ObservableCloneReplacer replace_indirect(
           &replaced_anything, [&](const AstNode* node) {
             return ReplaceIndirectTypeAnnotations(node, parametric_context,
-                                                  annotation, accept_predicate);
+                                                  annotation, filter);
           });
       ObservableCloneReplacer replace_type_aliases(
           &replaced_anything, [&](const AstNode* node) {
@@ -242,19 +233,17 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
   // type of the given struct member independently of the struct type. For
   // example, if `member_type` refers to `SomeStruct.foo`, and the type
   // annotation of the referenced `foo` field is `u32[5]`, then the result will
-  // be the `u32[5]` annotation. The `accept_predicate` may be used to exclude
-  // type annotations dependent on an implicit parametric that this utility is
-  // being used to help infer.
+  // be the `u32[5]` annotation. The `filter` may be used to exclude type
+  // annotations dependent on an implicit parametric that this utility is being
+  // used to help infer.
   absl::StatusOr<const TypeAnnotation*> ResolveMemberType(
       std::optional<const ParametricContext*> parametric_context,
-      const MemberTypeAnnotation* member_type,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) {
+      const MemberTypeAnnotation* member_type, TypeAnnotationFilter filter) {
     VLOG(6) << "Resolve member type: " << member_type->ToString();
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* object_type,
-        ResolveIndirectTypeAnnotations(
-            parametric_context, member_type->struct_type(), accept_predicate));
+        ResolveIndirectTypeAnnotations(parametric_context,
+                                       member_type->struct_type(), filter));
     absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
         GetSignednessAndBitCount(object_type);
     if (signedness_and_bit_count.ok()) {
@@ -306,7 +295,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
               std::optional<const TypeAnnotation*> member_type,
               ResolveAndUnifyTypeAnnotationsForNode(
                   parametric_context, std::get<ConstantDef*>(*impl_member),
-                  accept_predicate));
+                  filter));
           CHECK(member_type.has_value());
           return parametric_struct_instantiator_
               .GetParametricFreeStructMemberType(
@@ -336,18 +325,16 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
   // Converts `element_type` into a regular `TypeAnnotation` that expresses the
   // element type of the given array or tuple, independently of the array or
   // tuple type. For example, if `element_type` refers to an array whose type is
-  // actually `u32[5]`, then the result will be a `u32` annotation. The
-  // `accept_predicate` may be used to exclude type annotations dependent on an
-  // implicit parametric that this utility is being used to help infer.
+  // actually `u32[5]`, then the result will be a `u32` annotation. The `filter`
+  // may be used to exclude type annotations dependent on an implicit parametric
+  // that this utility is being used to help infer.
   absl::StatusOr<const TypeAnnotation*> ResolveElementType(
       std::optional<const ParametricContext*> parametric_context,
-      const ElementTypeAnnotation* element_type,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) {
-    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* container_type,
-                         ResolveIndirectTypeAnnotations(
-                             parametric_context, element_type->container_type(),
-                             accept_predicate));
+      const ElementTypeAnnotation* element_type, TypeAnnotationFilter filter) {
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* container_type,
+        ResolveIndirectTypeAnnotations(parametric_context,
+                                       element_type->container_type(), filter));
     if (const auto* array_type =
             dynamic_cast<const ArrayTypeAnnotation*>(container_type)) {
       return array_type->element_type();
@@ -395,19 +382,14 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
 
   absl::StatusOr<const TypeAnnotation*> ResolveReturnType(
       std::optional<const ParametricContext*> parametric_context,
-      const ReturnTypeAnnotation* return_type,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) {
+      const ReturnTypeAnnotation* return_type, TypeAnnotationFilter filter) {
     VLOG(6) << "Resolve return type: " << return_type->ToString()
             << " in context: " << ToString(parametric_context);
-    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* function_type,
-                         ResolveIndirectTypeAnnotations(
-                             parametric_context, return_type->function_type(),
-                             [&](const TypeAnnotation* annotation) {
-                               return annotation != return_type &&
-                                      (!accept_predicate.has_value() ||
-                                       (*accept_predicate)(annotation));
-                             }));
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* function_type,
+        ResolveIndirectTypeAnnotations(
+            parametric_context, return_type->function_type(),
+            filter.Chain(TypeAnnotationFilter::BlockRecursion(return_type))));
     TypeAnnotation* result_type =
         dynamic_cast<const FunctionTypeAnnotation*>(function_type)
             ->return_type();
@@ -417,18 +399,13 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
 
   absl::StatusOr<const TypeAnnotation*> ResolveParamType(
       std::optional<const ParametricContext*> parametric_context,
-      const ParamTypeAnnotation* param_type,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) {
+      const ParamTypeAnnotation* param_type, TypeAnnotationFilter filter) {
     VLOG(6) << "Resolve param type: " << param_type->ToString();
-    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* function_type,
-                         ResolveIndirectTypeAnnotations(
-                             parametric_context, param_type->function_type(),
-                             [&](const TypeAnnotation* annotation) {
-                               return annotation != param_type &&
-                                      (!accept_predicate.has_value() ||
-                                       (*accept_predicate)(annotation));
-                             }));
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* function_type,
+        ResolveIndirectTypeAnnotations(
+            parametric_context, param_type->function_type(),
+            filter.Chain(TypeAnnotationFilter::BlockRecursion(param_type))));
     const std::vector<const TypeAnnotation*>& resolved_types =
         dynamic_cast<const FunctionTypeAnnotation*>(function_type)
             ->param_types();
@@ -484,49 +461,47 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
   absl::StatusOr<std::optional<AstNode*>> ReplaceIndirectTypeAnnotations(
       const AstNode* node,
       std::optional<const ParametricContext*> parametric_context,
-      const TypeAnnotation* annotation,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) {
+      const TypeAnnotation* annotation, TypeAnnotationFilter filter) {
     if (const auto* variable_type_annotation =
             dynamic_cast<const TypeVariableTypeAnnotation*>(node)) {
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* unified,
           ResolveAndUnifyTypeAnnotations(
               parametric_context, variable_type_annotation->type_variable(),
-              annotation->span(), accept_predicate));
+              annotation->span(), filter));
       return const_cast<TypeAnnotation*>(unified);
     }
     if (const auto* member_type =
             dynamic_cast<const MemberTypeAnnotation*>(node)) {
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* result,
-          ResolveMemberType(parametric_context, member_type, accept_predicate));
+          ResolveMemberType(parametric_context, member_type, filter));
       VLOG(5) << "Member type expansion for: " << member_type->member_name()
               << " yielded: " << result->ToString();
       return const_cast<TypeAnnotation*>(result);
     }
     if (const auto* element_type =
             dynamic_cast<const ElementTypeAnnotation*>(node)) {
-      XLS_ASSIGN_OR_RETURN(const TypeAnnotation* result,
-                           ResolveElementType(parametric_context, element_type,
-                                              accept_predicate));
+      XLS_ASSIGN_OR_RETURN(
+          const TypeAnnotation* result,
+          ResolveElementType(parametric_context, element_type, filter));
       return const_cast<TypeAnnotation*>(result);
     }
     if (const auto* return_type =
             dynamic_cast<const ReturnTypeAnnotation*>(node)) {
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* result,
-          ResolveReturnType(parametric_context, return_type, accept_predicate));
+          ResolveReturnType(parametric_context, return_type, filter));
       return const_cast<TypeAnnotation*>(result);
     }
     if (const auto* param_type =
             dynamic_cast<const ParamTypeAnnotation*>(node)) {
-      if (accept_predicate.has_value() && !(*accept_predicate)(param_type)) {
+      if (filter.Filter(param_type)) {
         return module_.Make<AnyTypeAnnotation>();
       }
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* result,
-          ResolveParamType(parametric_context, param_type, accept_predicate));
+          ResolveParamType(parametric_context, param_type, filter));
       return const_cast<TypeAnnotation*>(result);
     }
     if (const auto* self_type = dynamic_cast<const SelfTypeAnnotation*>(node)) {

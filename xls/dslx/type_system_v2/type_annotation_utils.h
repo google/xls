@@ -23,7 +23,6 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -185,12 +184,6 @@ absl::StatusOr<StartAndWidthExprs> CreateSliceStartAndWidthExprs(
 
 // Creates a literal representing 0 without a type annotation.
 Number* CreateUntypedZero(Module& module, const Span& span);
-
-// Removes any annotations in the given vector for which `accept_predicate`
-// returns false.
-void FilterAnnotations(
-    std::vector<const TypeAnnotation*>& annotations,
-    absl::FunctionRef<bool(const TypeAnnotation*)> accept_predicate);
 
 // Creates an Expr calculating the number of elements in a Range. If the number
 // is negative (i.e. `range->end() < range.start()`) the result is clamped to 0.

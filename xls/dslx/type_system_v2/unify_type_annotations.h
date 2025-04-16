@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_UNIFY_TYPE_ANNOTATIONS_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_UNIFY_TYPE_ANNOTATIONS_H_
 
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -27,6 +28,7 @@
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/type_annotation_filter.h"
 
 namespace xls::dslx {
 
@@ -52,8 +54,8 @@ class UnificationErrorGenerator {
 // annotations that have been associated with the given type variable. If the
 // information has unreconcilable conflicts, returns an error. The given
 // `parametric_context` argument is used as a context for the evaluation of any
-// expressions inside the type annotations. If an `accept_predicate` is
-// specified, then annotations not accepted by the predicate are ignored.
+// expressions inside the type annotations. If a `filter` is  then annotations
+// not accepted by the filter are ignored.
 absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     Module& module, InferenceTable& inference_table,
     const FileTable& file_table, UnificationErrorGenerator& error_generator,
@@ -61,8 +63,6 @@ absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     ParametricStructInstantiator& parametric_struct_instantiator,
     std::optional<const ParametricContext*> parametric_context,
     std::vector<const TypeAnnotation*> annotations, const Span& span,
-    std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-        accept_predicate,
     const ImportData& import_data);
 
 }  // namespace xls::dslx

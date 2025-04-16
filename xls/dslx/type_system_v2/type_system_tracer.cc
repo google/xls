@@ -33,6 +33,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/type_annotation_filter.h"
 
 namespace xls::dslx {
 
@@ -59,6 +60,7 @@ struct TypeSystemTraceImpl {
   std::optional<const TypeAnnotation*> annotation;
   std::optional<const NameRef*> inference_variable;
   std::optional<const ParametricContext*> parametric_context;
+  std::optional<TypeAnnotationFilter> filter;
   std::optional<std::vector<const TypeAnnotation*>> annotations;
   std::optional<absl::flat_hash_set<const ParametricBinding*>> bindings;
 };
@@ -103,6 +105,9 @@ std::string TraceImplToString(const TypeSystemTraceImpl& impl) {
   if (impl.inference_variable.has_value()) {
     pieces.push_back(
         absl::StrCat("var: ", (*impl.inference_variable)->ToString()));
+  }
+  if (impl.filter.has_value()) {
+    pieces.push_back(absl::StrCat("filter: ", impl.filter->ToString()));
   }
   if (impl.annotation.has_value()) {
     pieces.push_back(
@@ -159,9 +164,11 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
   }
 
   TypeSystemTrace TraceFilter(
+      TypeAnnotationFilter filter,
       const std::vector<const TypeAnnotation*>& annotations) override {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kFilter,
+                                     .filter = filter,
                                      .annotations = annotations});
   }
 

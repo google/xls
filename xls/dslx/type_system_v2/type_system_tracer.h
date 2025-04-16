@@ -26,6 +26,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/type_annotation_filter.h"
 
 namespace xls::dslx {
 
@@ -84,6 +85,7 @@ class TypeSystemTracer {
   virtual TypeSystemTrace TraceUnify(
       const std::vector<const TypeAnnotation*>& annotations) = 0;
   virtual TypeSystemTrace TraceFilter(
+      TypeAnnotationFilter filter,
       const std::vector<const TypeAnnotation*>& annotations) = 0;
   virtual TypeSystemTrace TraceResolve(
       const TypeAnnotation* annotation,

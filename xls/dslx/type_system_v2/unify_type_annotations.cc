@@ -37,6 +37,7 @@
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
@@ -63,8 +64,6 @@ class Unifier {
           UnificationErrorGenerator& error_generator, Evaluator& evaluator,
           ParametricStructInstantiator& parametric_struct_instantiator,
           std::optional<const ParametricContext*> parametric_context,
-          std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-              accept_predicate,
           const ImportData& import_data)
       : module_(module),
         table_(table),
@@ -73,7 +72,6 @@ class Unifier {
         evaluator_(evaluator),
         parametric_struct_instantiator_(parametric_struct_instantiator),
         parametric_context_(parametric_context),
-        accept_predicate_(accept_predicate),
         import_data_(import_data) {}
 
   // Overload that unifies specific type annotations.
@@ -81,19 +79,13 @@ class Unifier {
       std::vector<const TypeAnnotation*> annotations, const Span& span) {
     // Remove all singular `Any` annotations, and if that's all we had, the
     // result is one singular `Any`.
-    FilterAnnotations(annotations, [&](const TypeAnnotation* annotation) {
-      const auto* any_annotation =
-          dynamic_cast<const AnyTypeAnnotation*>(annotation);
-      return any_annotation == nullptr || any_annotation->multiple();
-    });
+    FilterAnnotations(annotations, TypeAnnotationFilter::FilterSingleAny());
     if (annotations.empty()) {
       return module_.Make<AnyTypeAnnotation>();
     }
     // Remove all multiple `Any` annotations, and if that's all we had, the
     // result is one multiple `Any`.
-    FilterAnnotations(annotations, [&](const TypeAnnotation* annotation) {
-      return dynamic_cast<const AnyTypeAnnotation*>(annotation) == nullptr;
-    });
+    FilterAnnotations(annotations, TypeAnnotationFilter::FilterMultiAny());
     if (annotations.empty()) {
       return module_.Make<AnyTypeAnnotation>(/*multiple=*/true);
     }
@@ -611,8 +603,6 @@ class Unifier {
   Evaluator& evaluator_;
   ParametricStructInstantiator& parametric_struct_instantiator_;
   std::optional<const ParametricContext*> parametric_context_;
-  std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-      accept_predicate_;
   const ImportData& import_data_;
 };
 
@@ -624,12 +614,10 @@ absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     ParametricStructInstantiator& parametric_struct_instantiator,
     std::optional<const ParametricContext*> parametric_context,
     std::vector<const TypeAnnotation*> annotations, const Span& span,
-    std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-        accept_predicate,
     const ImportData& import_data) {
   Unifier unifier(module, table, file_table, error_generator, evaluator,
                   parametric_struct_instantiator, parametric_context,
-                  accept_predicate, import_data);
+                  import_data);
   return unifier.UnifyTypeAnnotations(annotations, span);
 }
 

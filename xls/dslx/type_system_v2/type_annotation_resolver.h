@@ -28,6 +28,7 @@
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/type_system_v2/unify_type_annotations.h"
 
@@ -58,23 +59,20 @@ class TypeAnnotationResolver {
   ResolveAndUnifyTypeAnnotationsForNode(
       std::optional<const ParametricContext*> parametric_context,
       const AstNode* node,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate = std::nullopt) = 0;
+      TypeAnnotationFilter filter = TypeAnnotationFilter::None()) = 0;
 
   // Overload that unifies the type annotations for a given type variable,
   // resolving any indirect ones before invoking unification.
   virtual absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* type_variable, const Span& span,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) = 0;
+      TypeAnnotationFilter filter) = 0;
 
   // Overload that resolves and unifies specific type annotations.
   virtual absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*> annotations, const Span& span,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) = 0;
+      TypeAnnotationFilter filter) = 0;
 
   // Returns `annotation` with any indirect annotations resolved into direct
   // annotations. An indirect annotation is an internally-generated one that
@@ -93,9 +91,7 @@ class TypeAnnotationResolver {
   // predicate is not applied to the input `annotation` itself.
   virtual absl::StatusOr<const TypeAnnotation*> ResolveIndirectTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
-      const TypeAnnotation* annotation,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) = 0;
+      const TypeAnnotation* annotation, TypeAnnotationFilter filter) = 0;
 
   // Overload that deeply resolves all `TypeVariableTypeAnnotation`s within a
   // vector of annotations. If `accept_predicate` is specified, then any
@@ -104,8 +100,7 @@ class TypeAnnotationResolver {
   virtual absl::Status ResolveIndirectTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*>& annotations,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) = 0;
+      TypeAnnotationFilter filter) = 0;
 };
 
 }  // namespace xls::dslx

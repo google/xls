@@ -59,12 +59,12 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_zero_value.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
-#include "xls/dslx/type_system_v2/expand_variables.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
 #include "xls/dslx/type_system_v2/solve_for_parametrics.h"
+#include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_resolver.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
@@ -359,16 +359,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (const auto* invocation = dynamic_cast<const Invocation*>(node)) {
         XLS_RETURN_IF_ERROR(ConvertInvocation(invocation, parametric_context));
       } else {
-        XLS_RETURN_IF_ERROR(GenerateTypeInfo(
-            parametric_context, node,
-            /*pre_unified_type=*/
-            std::nullopt,
-            /*type_annotation_accept_predicate=*/
-            [&](const TypeAnnotation* annotation) {
-              return !filter_param_type_annotations ||
-                     dynamic_cast<const ParamTypeAnnotation*>(annotation) ==
-                         nullptr;
-            }));
+        XLS_RETURN_IF_ERROR(
+            GenerateTypeInfo(parametric_context, node,
+                             /*pre_unified_type=*/
+                             std::nullopt,
+                             filter_param_type_annotations
+                                 ? TypeAnnotationFilter::FilterParamTypes()
+                                 : TypeAnnotationFilter::None()));
       }
     }
     return absl::OkStatus();
@@ -650,10 +647,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_RETURN_IF_ERROR(
         ConvertSubtree(parametric_free_type, caller, caller_context));
 
-    XLS_ASSIGN_OR_RETURN(
-        parametric_free_type,
-        resolver_->ResolveIndirectTypeAnnotations(
-            invocation_context, parametric_free_type, std::nullopt));
+    XLS_ASSIGN_OR_RETURN(parametric_free_type,
+                         resolver_->ResolveIndirectTypeAnnotations(
+                             invocation_context, parametric_free_type,
+                             TypeAnnotationFilter::None()));
     const FunctionTypeAnnotation* parametric_free_function_type =
         down_cast<const FunctionTypeAnnotation*>(parametric_free_type);
 
@@ -736,8 +733,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       std::optional<const ParametricContext*> parametric_context,
       const AstNode* node,
       std::optional<const TypeAnnotation*> pre_unified_type = std::nullopt,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          type_annotation_accept_predicate = std::nullopt) {
+      TypeAnnotationFilter type_annotation_filter =
+          TypeAnnotationFilter::None()) {
     // Don't generate type info for the rest of tuple wildcard.
     if (node->kind() == AstNodeKind::kRestOfTuple) {
       return absl::OkStatus();
@@ -801,9 +798,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           /*error_generator=*/*this, /*evaluator=*/*this,
           /*parametric_struct_instantiator=*/*this, *tracer_, import_data_);
       XLS_ASSIGN_OR_RETURN(
-          annotation,
-          resolver->ResolveAndUnifyTypeAnnotationsForNode(
-              parametric_context, node, type_annotation_accept_predicate));
+          annotation, resolver->ResolveAndUnifyTypeAnnotationsForNode(
+                          parametric_context, node, type_annotation_filter));
     }
 
     if (node->kind() == AstNodeKind::kFunction) {
@@ -1053,7 +1049,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     XLS_ASSIGN_OR_RETURN(annotation, resolver_->ResolveIndirectTypeAnnotations(
                                          parametric_context, annotation,
-                                         /*accept_predicate=*/std::nullopt));
+                                         TypeAnnotationFilter::None()));
     if (dynamic_cast<const AnyTypeAnnotation*>(annotation) != nullptr) {
       return absl::InvalidArgumentError(
           "Attempting to concretize `Any` type, which means there was "
@@ -2053,7 +2049,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return InferImplicitParametrics(
         invocation_context->parent_context(), invocation_context,
         implicit_parametrics, formal_types, actual_args, ti, actual_arg_ti,
-        /*caller_accept_predicate=*/[](const TypeAnnotation*) { return true; },
+        /*caller_type_annotation_filter=*/TypeAnnotationFilter::None(),
         /*pre_use_actual_arg=*/
         [&](const Expr* actual_arg) {
           // If an argument is essentially being used to figure out its own
@@ -2073,11 +2069,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // Attempts to infer the values of the specified implicit parametrics in an
   // invocation or struct instance, using the types of the regular arguments or
   // members being passed. If not all of `implicit_parametrics` can be
-  // determined, this function returns an error. The `caller_accept_predicate`
-  // allows the caller to filter some type annotations of the actual arguments
-  // from consideration. The `pre_use_actual_arg` callback allows the caller to
-  // be notified and do any desired prework before some actual argument gets
-  // used to infer parametrics.
+  // determined, this function returns an error. The
+  // `caller_type_annotation_filter` allows the caller to filter some type
+  // annotations of the actual arguments from consideration. The
+  // `pre_use_actual_arg` callback allows the caller to be notified and do any
+  // desired prework before some actual argument gets used to infer parametrics.
   absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>>
   InferImplicitParametrics(
       std::optional<const ParametricContext*> actual_arg_context,
@@ -2086,8 +2082,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       absl::Span<const TypeAnnotation* const> formal_types,
       absl::Span<Expr* const> actual_args, TypeInfo* output_ti,
       TypeInfo* actual_arg_ti,
-      absl::FunctionRef<bool(const TypeAnnotation*)> caller_accept_predicate =
-          [](const TypeAnnotation*) { return true; },
+      TypeAnnotationFilter caller_type_annotation_filter =
+          TypeAnnotationFilter::None(),
       absl::FunctionRef<absl::Status(const Expr*)> pre_use_actual_arg =
           [](const Expr*) { return absl::OkStatus(); }) {
     TypeSystemTrace trace =
@@ -2115,14 +2111,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // therefore dependent on the parametric we are solving for. Let's unify
       // just the independent annotations(s) for the purposes of solving for the
       // variable.
-      auto accept_predicate = [&](const TypeAnnotation* annotation) {
-        return caller_accept_predicate(annotation) &&
-               dynamic_cast<const ParamTypeAnnotation*>(annotation) ==
-                   nullptr &&
-               !HasAnyReferencesWithMissingTypeInfo(actual_arg_ti, annotation);
-      };
+      TypeAnnotationFilter filter =
+          caller_type_annotation_filter
+              .Chain(TypeAnnotationFilter::FilterParamTypes())
+              .Chain(TypeAnnotationFilter::FilterRefsWithMissingTypeInfo(
+                  actual_arg_ti));
       XLS_RETURN_IF_ERROR(resolver_->ResolveIndirectTypeAnnotations(
-          actual_arg_context, actual_arg_annotations, accept_predicate));
+          actual_arg_context, actual_arg_annotations, filter));
       if (actual_arg_annotations.empty()) {
         VLOG(6) << "The actual argument type variable: "
                 << (*actual_arg_type_var)->ToString()
@@ -2133,7 +2128,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           const TypeAnnotation* actual_arg_type,
           resolver_->ResolveAndUnifyTypeAnnotations(
               actual_arg_context, actual_arg_annotations,
-              actual_args[i]->span(), caller_accept_predicate));
+              actual_args[i]->span(), caller_type_annotation_filter));
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(actual_arg_type, std::nullopt, actual_arg_context));
       VLOG(5) << "Infer using actual type: " << actual_arg_type->ToString()
@@ -2152,14 +2147,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         // `SolveForParametrics` does not yield user-presentable errors. When it
         // errors, it means the formal and actual argument types are not
         // reconcilable.
-        XLS_ASSIGN_OR_RETURN(
-            const TypeAnnotation* direct_actual_arg_type,
-            resolver_->ResolveIndirectTypeAnnotations(
-                actual_arg_context, actual_arg_type, std::nullopt));
+        XLS_ASSIGN_OR_RETURN(const TypeAnnotation* direct_actual_arg_type,
+                             resolver_->ResolveIndirectTypeAnnotations(
+                                 actual_arg_context, actual_arg_type,
+                                 TypeAnnotationFilter::None()));
         XLS_ASSIGN_OR_RETURN(
             const TypeAnnotation* direct_formal_arg_type,
             resolver_->ResolveIndirectTypeAnnotations(
-                target_context, formal_types[i], std::nullopt));
+                target_context, formal_types[i], TypeAnnotationFilter::None()));
         return TypeMismatchError(actual_arg_context, direct_actual_arg_type,
                                  direct_formal_arg_type);
       }
@@ -2301,20 +2296,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               parent_context, /*target_context=*/std::nullopt,
               implicit_parametrics, formal_member_types, actual_member_exprs,
               instance_type_info, instance_type_info,
-              /*caller_accept_predicate=*/
-              [&](const TypeAnnotation* annotation) {
-                // When inferring a parametric using a member of the actual
-                // struct, we may have e.g. a member with 2 annotations like
-                // `decltype(Foo<N>.x)` and `uN[32]`. The decltype one in this
-                // example is not useful for the inference of `N`, and more
-                // generally, any decltype-ish annotation that refers back to
-                // the struct we are processing is going to be unhelpful, so we
-                // weed those out here.
-                absl::StatusOr<bool> refers_to_struct =
-                    RefersToStruct(parent_context, annotation, struct_def);
-                CHECK(refers_to_struct.ok());
-                return !(*refers_to_struct);
-              }));
+              // When inferring a parametric using a member of the actual
+              // struct, we may have e.g. a member with 2 annotations like
+              // `decltype(Foo<N>.x)` and `uN[32]`. The decltype one in this
+              // example is not useful for the inference of `N`, and more
+              // generally, any decltype-ish annotation that refers back to
+              // the struct we are processing is going to be unhelpful, so we
+              // weed those out here.
+              TypeAnnotationFilter::FilterReferencesToStruct(
+                  &table_, parent_context, &struct_def, &import_data_)));
+
       implicit_parametrics.clear();
       for (const auto& [name, value] : new_values) {
         XLS_RETURN_IF_ERROR(set_value(bindings.at(name), value));
@@ -2347,34 +2338,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return CreateStructAnnotation(module_, const_cast<StructDef*>(&struct_def),
                                   resolved_parametrics_vector,
                                   instantiator_node);
-  }
-
-  // Determines whether the given type annotation has any reference to the given
-  // `struct_def`, taking into consideration the expansions of any variable or
-  // indirect type annotations in the annotation tree.
-  absl::StatusOr<bool> RefersToStruct(
-      std::optional<const ParametricContext*> parametric_context,
-      const TypeAnnotation* annotation, const StructDef& struct_def) {
-    if (auto* element_annotation =
-            dynamic_cast<const ElementTypeAnnotation*>(annotation)) {
-      annotation = element_annotation->container_type();
-    }
-    if (auto* member_annotation =
-            dynamic_cast<const MemberTypeAnnotation*>(annotation)) {
-      const std::vector<const TypeAnnotation*> annotations =
-          ExpandVariables(member_annotation, table_, parametric_context);
-      for (const TypeAnnotation* annotation : annotations) {
-        XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
-                             GetStructOrProcDef(annotation, import_data_));
-        if (def.has_value() && *def == &struct_def) {
-          return true;
-        }
-      }
-      return false;
-    }
-    XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
-                         GetStructOrProcDef(annotation, import_data_));
-    return def.has_value() && *def == &struct_def;
   }
 
   // Converts the type of the given struct `member` into one that has any
@@ -2509,24 +2472,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                          Concretize(annotation2, parametric_context));
     return TypeMismatchErrorStatus(*type1, *type2, annotation1->span(),
                                    annotation2->span(), file_table_);
-  }
-
-  // Returns true if `annotation` contains any `NameRef` whose type info has not
-  // (yet) been generated. The effective `TypeInfo` is either `default_ti`; or,
-  // for invocation-scoped annotations, the `TypeInfo` for the relevant
-  // parametric invocation.
-  bool HasAnyReferencesWithMissingTypeInfo(TypeInfo* ti,
-                                           const TypeAnnotation* annotation) {
-    FreeVariables vars =
-        GetFreeVariablesByLambda(annotation, [&](const NameRef& ref) {
-          if (!std::holds_alternative<const NameDef*>(ref.name_def())) {
-            return false;
-          }
-          const NameDef* name_def = std::get<const NameDef*>(ref.name_def());
-          return !ti->GetItem(name_def).has_value() &&
-                 !ti->IsKnownConstExpr(name_def);
-        });
-    return vars.GetFreeVariableCount() > 0;
   }
 
   InferenceTable& table_;
