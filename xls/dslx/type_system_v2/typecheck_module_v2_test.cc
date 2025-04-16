@@ -6343,5 +6343,118 @@ fn main() -> u5 {
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("get_val()[1]", "u5"))));
 }
 
+TEST(TypecheckV2Test, ImportStruct) {
+  constexpr std::string_view kImported = R"(
+pub struct S { x: u5[2] }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u5 {
+  let s = imported::S{x: [1, 2]};
+  s.x[1]
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("s", "S { x: uN[5][2] }"),
+                                     HasNodeWithType("s.x", "uN[5]")))));
+}
+
+TEST(TypecheckV2Test, ImportStructImpl) {
+  constexpr std::string_view kImported = R"(
+pub struct S { x: u5 }
+
+impl S {
+  fn X(self) -> u5 { self.x }
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u5 {
+  let s = imported::S{x: 1};
+  s.X()
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("s.X()", "uN[5]"),
+                                     HasNodeWithType("s", "S { x: uN[5] }")))));
+}
+
+TEST(TypecheckV2Test, ImportStructAsTypeTwoLevels) {
+  constexpr std::string_view kFirst = R"(
+pub struct S { x: u5 }
+)";
+  constexpr std::string_view kSecond = R"(
+import first;
+
+type T = first::S;
+)";
+  constexpr std::string_view kProgram = R"(
+import second;
+
+fn main() -> u5 {
+  let s = second::T{x: 1};
+  s.x
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kFirst, "first", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kSecond, "second", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("s.x", "uN[5]"),
+                                     HasNodeWithType("s", "S { x: uN[5] }")))));
+}
+
+TEST(TypecheckV2Test, ImportStructAsType) {
+  constexpr std::string_view kImported = R"(
+pub struct S { x: u5 }
+
+impl S {
+  fn X(self) -> u5 { self.x }
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+type T = imported::S;
+
+fn main() -> u5 {
+  let s = T{x: 1};
+  s.X()
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("s.X()", "uN[5]"),
+                                     HasNodeWithType("s", "S { x: uN[5] }")))));
+}
+
+// TODO: erinzmoore - Add support for calling imported static impl functions.
+TEST(TypecheckV2Test, DISABLED_ImportImplUseStaticFunction) {
+  constexpr std::string_view kImported = R"(
+pub struct S { x: u5 }
+
+impl S {
+  fn X() -> u5[2] { [1, 2] }
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u5 {
+  imported::S::X()[0]
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("main()", "() -> uN[5]"))));
+}
 }  // namespace
 }  // namespace xls::dslx

@@ -30,13 +30,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
-#include "absl/types/variant.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/visitor.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
@@ -368,92 +365,6 @@ const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
                  !absl::IsInvalidArgument(signedness_and_bit_count.status())
              ? array_annotation
              : nullptr;
-}
-
-absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
-    const TypeAnnotation* annotation, const FileTable& file_table) {
-  const auto* type_ref_annotation =
-      dynamic_cast<const TypeRefTypeAnnotation*>(annotation);
-  if (type_ref_annotation == nullptr) {
-    return std::nullopt;
-  }
-
-  // Collect parametrics and instantiator by walking through any type
-  // aliases before getting the struct or proc definition.
-  std::vector<ExprOrType> parametrics = type_ref_annotation->parametrics();
-  std::optional<const StructInstanceBase*> instantiator =
-      type_ref_annotation->instantiator();
-  TypeDefinition maybe_alias =
-      type_ref_annotation->type_ref()->type_definition();
-
-  while (std::holds_alternative<TypeAlias*>(maybe_alias) &&
-         dynamic_cast<TypeRefTypeAnnotation*>(
-             &std::get<TypeAlias*>(maybe_alias)->type_annotation())) {
-    type_ref_annotation = dynamic_cast<TypeRefTypeAnnotation*>(
-        &std::get<TypeAlias*>(maybe_alias)->type_annotation());
-    if (!parametrics.empty() && !type_ref_annotation->parametrics().empty()) {
-      return TypeInferenceErrorStatus(
-          annotation->span(), /* type= */ nullptr,
-          absl::StrFormat(
-              "Parametric values defined multiple times for annotation: `%s`",
-              annotation->ToString()),
-          file_table);
-    }
-
-    parametrics =
-        parametrics.empty() ? type_ref_annotation->parametrics() : parametrics;
-    instantiator = instantiator.has_value()
-                       ? instantiator
-                       : type_ref_annotation->instantiator();
-    maybe_alias = type_ref_annotation->type_ref()->type_definition();
-  }
-
-  std::optional<const StructDefBase*> def =
-      GetStructOrProcDef(type_ref_annotation);
-  if (!def.has_value()) {
-    return std::nullopt;
-  }
-  return StructOrProcRef{
-      .def = *def, .parametrics = parametrics, .instantiator = instantiator};
-}
-
-std::optional<const StructDefBase*> GetStructOrProcDef(
-    const TypeAnnotation* annotation) {
-  const auto* type_ref_annotation =
-      dynamic_cast<const TypeRefTypeAnnotation*>(annotation);
-  if (type_ref_annotation == nullptr) {
-    return std::nullopt;
-  }
-  const TypeDefinition& def =
-      type_ref_annotation->type_ref()->type_definition();
-  return absl::visit(
-      Visitor{[](TypeAlias* alias) -> std::optional<const StructDefBase*> {
-                return GetStructOrProcDef(&alias->type_annotation());
-              },
-              [](StructDef* struct_def) -> std::optional<const StructDefBase*> {
-                return struct_def;
-              },
-              [](ProcDef* proc_def) -> std::optional<const StructDefBase*> {
-                return proc_def;
-              },
-              [](ColonRef* colon_ref) -> std::optional<const StructDefBase*> {
-                if (std::holds_alternative<TypeRefTypeAnnotation*>(
-                        colon_ref->subject())) {
-                  return GetStructOrProcDef(
-                      std::get<TypeRefTypeAnnotation*>(colon_ref->subject()));
-                }
-                return std::nullopt;
-              },
-              [](EnumDef*) -> std::optional<const StructDefBase*> {
-                return std::nullopt;
-              },
-              [](UseTreeEntry*) -> std::optional<const StructDefBase*> {
-                // TODO(https://github.com/google/xls/issues/352): 2025-01-23
-                // Resolve possible Struct or Proc definition through the extern
-                // UseTreeEntry.
-                return std::nullopt;
-              }},
-      def);
 }
 
 absl::Status VerifyAllParametricsSatisfied(

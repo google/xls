@@ -38,6 +38,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -171,7 +172,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     return UnifyTypeAnnotations(module_, table_, file_table_, error_generator_,
                                 evaluator_, parametric_struct_instantiator_,
                                 parametric_context, annotations, span,
-                                accept_predicate);
+                                accept_predicate, import_data_);
   }
 
   absl::Status ResolveIndirectTypeAnnotations(
@@ -278,8 +279,9 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     }
     // It's not a bits-like type, so the only other thing that would have
     // members is a struct (or impl).
-    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
-                         GetStructOrProcRef(object_type, file_table_));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<StructOrProcRef> struct_or_proc_ref,
+        GetStructOrProcRef(object_type, file_table_, import_data_));
     if (!struct_or_proc_ref.has_value()) {
       return absl::InvalidArgumentError(absl::Substitute(
           "Invalid access of member `$0` of non-struct type: `$1`",
@@ -436,11 +438,23 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     return resolved_types[param_type->param_index()];
   }
 
-  std::optional<const TypeAnnotation*> ResolveSelfType(
+  absl::StatusOr<std::optional<const TypeAnnotation*>> ResolveSelfType(
       std::optional<const ParametricContext*> parametric_context,
       const SelfTypeAnnotation* self_type) {
-    std::optional<const TypeAnnotation*> expanded =
-        table_.GetTypeAnnotation(self_type);
+    std::optional<const TypeAnnotation*> expanded;
+    // TODO: erinzmoore - Store the referenced struct type in the TypeAnnotation
+    // itself.
+    if (self_type->owner() != &module_) {
+      XLS_ASSIGN_OR_RETURN(
+          ImportTokens import_tokens,
+          ImportTokens::FromString(self_type->owner()->name()));
+      XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module_info,
+                           import_data_.Get(import_tokens));
+      expanded =
+          imported_module_info->inference_table()->GetTypeAnnotation(self_type);
+    } else {
+      expanded = table_.GetTypeAnnotation(self_type);
+    }
     if (expanded.has_value()) {
       return expanded;
     }
@@ -516,8 +530,8 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       return const_cast<TypeAnnotation*>(result);
     }
     if (const auto* self_type = dynamic_cast<const SelfTypeAnnotation*>(node)) {
-      std::optional<const TypeAnnotation*> expanded =
-          ResolveSelfType(parametric_context, self_type);
+      XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> expanded,
+                           ResolveSelfType(parametric_context, self_type));
       CHECK(expanded.has_value());
       return const_cast<TypeAnnotation*>(*expanded);
     }

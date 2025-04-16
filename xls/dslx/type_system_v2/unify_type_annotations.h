@@ -23,6 +23,7 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
@@ -61,7 +62,8 @@ absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     std::optional<const ParametricContext*> parametric_context,
     std::vector<const TypeAnnotation*> annotations, const Span& span,
     std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-        accept_predicate);
+        accept_predicate,
+    const ImportData& import_data);
 
 }  // namespace xls::dslx
 

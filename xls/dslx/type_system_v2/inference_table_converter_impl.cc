@@ -60,6 +60,7 @@
 #include "xls/dslx/type_system/type_zero_value.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/expand_variables.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
@@ -80,8 +81,11 @@ namespace {
 class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
  public:
   explicit ConversionOrderVisitor(const AstNode* root,
-                                  bool handle_parametric_entities)
-      : root_(root), handle_parametric_entities_(handle_parametric_entities) {}
+                                  bool handle_parametric_entities,
+                                  const ImportData& import_data)
+      : root_(root),
+        handle_parametric_entities_(handle_parametric_entities),
+        import_data_(import_data) {}
 
   absl::Status HandleFunction(const Function* node) override {
     if (!handle_parametric_entities_ && node->IsParametric()) {
@@ -105,8 +109,8 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleImpl(const Impl* node) override {
-    std::optional<const StructDefBase*> def =
-        GetStructOrProcDef(node->struct_ref());
+    XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
+                         GetStructOrProcDef(node->struct_ref(), import_data_));
     CHECK(def.has_value());
     if (!handle_parametric_entities_ && (*def)->IsParametric()) {
       return absl::OkStatus();
@@ -234,6 +238,7 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
  private:
   const AstNode* const root_;
   const bool handle_parametric_entities_;
+  const ImportData& import_data_;
   std::vector<const AstNode*> nodes_;
 };
 
@@ -342,10 +347,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                        filter_param_type_annotations);
     }
     ConversionOrderVisitor visitor(
-        node, parametric_context.has_value() &&
-                  (node == function ||
-                   (node->parent() != nullptr &&
-                    node->parent()->kind() == AstNodeKind::kImpl)));
+        node,
+        parametric_context.has_value() &&
+            (node == function ||
+             (node->parent() != nullptr &&
+              node->parent()->kind() == AstNodeKind::kImpl)),
+        import_data_);
     XLS_RETURN_IF_ERROR(node->Accept(&visitor));
     for (const AstNode* node : visitor.nodes()) {
       VLOG(5) << "Next node: " << node->ToString();
@@ -1106,8 +1113,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
       return type;
     }
-    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc,
-                         GetStructOrProcRef(annotation, file_table_));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<StructOrProcRef> struct_or_proc,
+        GetStructOrProcRef(annotation, file_table_, import_data_));
     if (struct_or_proc.has_value()) {
       const StructDefBase* struct_def_base = struct_or_proc->def;
       CHECK(struct_def_base != nullptr);
@@ -1368,7 +1376,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             std::optional<StructOrProcRef> struct_or_proc,
             GetStructOrProcRef(
                 std::get<TypeRefTypeAnnotation*>(colon_ref->subject()),
-                file_table_));
+                file_table_, import_data_));
         if (struct_or_proc.has_value() && struct_or_proc->def->IsParametric()) {
           XLS_ASSIGN_OR_RETURN(
               const ParametricContext* struct_context,
@@ -1758,7 +1766,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                                            *target_object));
       XLS_ASSIGN_OR_RETURN(
           std::optional<StructOrProcRef> struct_or_proc_ref,
-          GetStructOrProcRef(*target_object_type, file_table_));
+          GetStructOrProcRef(*target_object_type, file_table_, import_data_));
       if (!struct_or_proc_ref.has_value()) {
         return TypeInferenceErrorStatus(
             attr->span(), nullptr,
@@ -2302,7 +2310,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 // generally, any decltype-ish annotation that refers back to
                 // the struct we are processing is going to be unhelpful, so we
                 // weed those out here.
-                return !RefersToStruct(parent_context, annotation, struct_def);
+                absl::StatusOr<bool> refers_to_struct =
+                    RefersToStruct(parent_context, annotation, struct_def);
+                CHECK(refers_to_struct.ok());
+                return !(*refers_to_struct);
               }));
       implicit_parametrics.clear();
       for (const auto& [name, value] : new_values) {
@@ -2341,7 +2352,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // Determines whether the given type annotation has any reference to the given
   // `struct_def`, taking into consideration the expansions of any variable or
   // indirect type annotations in the annotation tree.
-  bool RefersToStruct(
+  absl::StatusOr<bool> RefersToStruct(
       std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation, const StructDef& struct_def) {
     if (auto* element_annotation =
@@ -2353,15 +2364,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const std::vector<const TypeAnnotation*> annotations =
           ExpandVariables(member_annotation, table_, parametric_context);
       for (const TypeAnnotation* annotation : annotations) {
-        std::optional<const StructDefBase*> def =
-            GetStructOrProcDef(annotation);
+        XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
+                             GetStructOrProcDef(annotation, import_data_));
         if (def.has_value() && *def == &struct_def) {
           return true;
         }
       }
       return false;
     }
-    std::optional<const StructDefBase*> def = GetStructOrProcDef(annotation);
+    XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
+                         GetStructOrProcDef(annotation, import_data_));
     return def.has_value() && *def == &struct_def;
   }
 

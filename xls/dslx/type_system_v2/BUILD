@@ -69,6 +69,7 @@ cc_library(
     deps = [
         ":evaluator",
         ":expand_variables",
+        ":import_utils",
         ":inference_table",
         ":inference_table_converter",
         ":parametric_struct_instantiator",
@@ -100,7 +101,6 @@ cc_library(
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:type_zero_value",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/functional:function_ref",
@@ -221,6 +221,7 @@ cc_library(
     srcs = ["populate_table.cc"],
     hdrs = ["populate_table.h"],
     deps = [
+        ":import_utils",
         ":inference_table",
         ":inference_table_converter",
         ":inference_table_converter_impl",
@@ -305,12 +306,31 @@ cc_library(
 )
 
 cc_library(
+    name = "import_utils",
+    srcs = ["import_utils.cc"],
+    hdrs = ["import_utils.h"],
+    deps = [
+        ":type_annotation_utils",
+        "//xls/common:visitor",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:errors",
+        "//xls/dslx:import_data",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_library(
     name = "type_annotation_utils",
     srcs = ["type_annotation_utils.cc"],
     hdrs = ["type_annotation_utils.h"],
     deps = [
         "//xls/common:casts",
-        "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
@@ -327,8 +347,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -383,12 +401,14 @@ cc_library(
     hdrs = ["unify_type_annotations.h"],
     deps = [
         ":evaluator",
+        ":import_utils",
         ":inference_table",
         ":parametric_struct_instantiator",
         ":type_annotation_utils",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
         "//xls/dslx:errors",
+        "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
@@ -466,6 +486,7 @@ cc_library(
     hdrs = ["type_annotation_resolver.h"],
     deps = [
         ":evaluator",
+        ":import_utils",
         ":inference_table",
         ":parametric_struct_instantiator",
         ":type_annotation_utils",

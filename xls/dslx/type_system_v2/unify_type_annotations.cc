@@ -31,8 +31,10 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -62,7 +64,8 @@ class Unifier {
           ParametricStructInstantiator& parametric_struct_instantiator,
           std::optional<const ParametricContext*> parametric_context,
           std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-              accept_predicate)
+              accept_predicate,
+          const ImportData& import_data)
       : module_(module),
         table_(table),
         file_table_(file_table),
@@ -70,7 +73,8 @@ class Unifier {
         evaluator_(evaluator),
         parametric_struct_instantiator_(parametric_struct_instantiator),
         parametric_context_(parametric_context),
-        accept_predicate_(accept_predicate) {}
+        accept_predicate_(accept_predicate),
+        import_data_(import_data) {}
 
   // Overload that unifies specific type annotations.
   absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
@@ -94,8 +98,9 @@ class Unifier {
       return module_.Make<AnyTypeAnnotation>(/*multiple=*/true);
     }
     if (annotations.size() == 1) {
-      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
-                           GetStructOrProcRef(annotations[0], file_table_));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<StructOrProcRef> struct_or_proc_ref,
+          GetStructOrProcRef(annotations[0], file_table_, import_data_));
       if (!struct_or_proc_ref.has_value() &&
           annotations[0]->owner() == &module_) {
         // This is here mainly for preservation of shorthand annotations
@@ -142,16 +147,18 @@ class Unifier {
           CastAllOrError<ChannelTypeAnnotation>(annotations));
       return UnifyChannelTypeAnnotations(channel_annotations, span);
     }
-    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> first_struct_or_proc,
-                         GetStructOrProcRef(annotations[0], file_table_));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<StructOrProcRef> first_struct_or_proc,
+        GetStructOrProcRef(annotations[0], file_table_, import_data_));
     if (first_struct_or_proc.has_value()) {
       const auto* struct_def =
           dynamic_cast<const StructDef*>(first_struct_or_proc->def);
       CHECK(struct_def != nullptr);
       std::vector<const TypeAnnotation*> annotations_to_unify;
       for (const TypeAnnotation* annotation : annotations) {
-        XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> next_struct_or_proc,
-                             GetStructOrProcRef(annotation, file_table_));
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<StructOrProcRef> next_struct_or_proc,
+            GetStructOrProcRef(annotation, file_table_, import_data_));
         if (!next_struct_or_proc.has_value() ||
             next_struct_or_proc->def != struct_def) {
           return error_generator_.TypeMismatchError(parametric_context_,
@@ -419,8 +426,9 @@ class Unifier {
     // of the enclosing function. We are in a position now to decide if `N` is
     // 32 or not.
     for (const TypeAnnotation* annotation : annotations) {
-      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
-                           GetStructOrProcRef(annotation, file_table_));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<StructOrProcRef> struct_or_proc_ref,
+          GetStructOrProcRef(annotation, file_table_, import_data_));
       CHECK(struct_or_proc_ref.has_value());
       if (struct_or_proc_ref->instantiator.has_value()) {
         instantiator = struct_or_proc_ref->instantiator;
@@ -605,6 +613,7 @@ class Unifier {
   std::optional<const ParametricContext*> parametric_context_;
   std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
       accept_predicate_;
+  const ImportData& import_data_;
 };
 
 }  // namespace
@@ -616,10 +625,11 @@ absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     std::optional<const ParametricContext*> parametric_context,
     std::vector<const TypeAnnotation*> annotations, const Span& span,
     std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-        accept_predicate) {
+        accept_predicate,
+    const ImportData& import_data) {
   Unifier unifier(module, table, file_table, error_generator, evaluator,
                   parametric_struct_instantiator, parametric_context,
-                  accept_predicate);
+                  accept_predicate, import_data);
   return unifier.UnifyTypeAnnotations(annotations, span);
 }
 

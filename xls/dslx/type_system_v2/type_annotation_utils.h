@@ -155,16 +155,6 @@ const TypeAnnotation* GetReturnType(Module& module, const Function& fn);
 const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
     const TypeAnnotation* annotation);
 
-// Resolves the definition and parametrics for the struct or proc type referred
-// to by `annotation`.
-absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
-    const TypeAnnotation* annotation, const FileTable& file_table);
-
-// Resolves the struct base definition for the struct or proc type referred to
-// by `annotation`.
-std::optional<const StructDefBase*> GetStructOrProcDef(
-    const TypeAnnotation* annotation);
-
 // Verifies that all `bindings` either have a value in `actual_parametrics` or
 // a default expression. Note that this is not a requirement in all situations
 // where parametrics can be explicitly passed. In situations where they can be
