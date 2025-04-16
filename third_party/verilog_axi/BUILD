@@ -27,10 +27,17 @@ AXI interface that forms the IO of the ZSTD Decoder verilog wrapper used in the 
 Source: https://github.com/alexforencich/verilog-axi
 """
 
+load("@rules_license//rules:license.bzl", "license")
+
 package(
-    default_applicable_licenses = ["//:license"],
+    default_applicable_licenses = [":license"],
     default_visibility = ["//xls:xls_users"],
     licenses = ["notice"],
+)
+
+license(
+    name = "license",
+    package_name = "verilog_axi",
 )
 
 exports_files(
@@ -44,5 +51,6 @@ exports_files(
         "axi_register_rd.v",
         "axi_register_wr.v",
         "priority_encoder.v",
+        "LICENSE",
     ],
 )
