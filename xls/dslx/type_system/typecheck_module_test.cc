@@ -2107,7 +2107,7 @@ fn f(x: u32[3]) -> u32[3] {
                                    "Expected 2 argument(s) but got 1"))));
 }
 
-TEST(TypecheckTest, UpdateBuiltin) {
+TEST_P(TypecheckBothVersionsTest, UpdateBuiltin) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32[3] {
   let x: u32[3] = u32[3]:[0, 1, 2];
@@ -2116,7 +2116,7 @@ fn f() -> u32[3] {
 )"));
 }
 
-TEST(TypecheckTest, UpdateBuiltin2D) {
+TEST_P(TypecheckBothVersionsTest, UpdateBuiltin2D) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32[2][3] {
   let x: u32[2][3] = u32[2][3]:[[u32:0,u32:1], [u32:2,u32:3], [u32:3,u32:4]];
@@ -2125,31 +2125,42 @@ fn f() -> u32[2][3] {
 )"));
 }
 
-TEST(TypecheckTest, UpdateBuiltinNotAnIndex) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, UpdateBuiltinNotAnIndex) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn f() -> u32[2][3] {
   let x: u32[2][3] = u32[2][3]:[[u32:0,u32:1], [u32:2,u32:3], [u32:3,u32:4]];
   update(x, [u32:0, u32:1], u32:3)
 }
 )"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Want index value at argno 1 to either be a "
-                                 "`uN` or a tuple of `uN`s")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Want index value at argno 1 to either be a "
+                                   "`uN` or a tuple of `uN`s"),
+                     HasSubstrInV2(GetParam(),
+                                   "`update` index type must be a bits type; "
+                                   "got `uN[32][2]`"))));
 }
 
-TEST(TypecheckTest, UpdateBuiltinIndexTupleHasSigned) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, UpdateBuiltinIndexTupleHasSigned) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn f() -> u32[2][3] {
   let x: u32[2][3] = u32[2][3]:[[u32:0,u32:1], [u32:2,u32:3], [u32:3,u32:4]];
   update(x, (u32:0, s32:1), u32:3)
 }
 )"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Want index value within tuple to be `uN`; "
-                                 "member 1 was `sN[32]`")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Want index value within tuple to be `uN`; "
+                              "member 1 was `sN[32]`"),
+                HasSubstrInV2(
+                    GetParam(),
+                    "`update` index type must be unsigned; got `sN[32]`"))));
 }
 
-TEST(TypecheckTest, UpdateBuiltinOutOfDimensions) {
+TEST_P(TypecheckBothVersionsTest, UpdateBuiltinOutOfDimensions) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() -> u32[2][3] {
@@ -2159,11 +2170,16 @@ fn f() -> u32[2][3] {
 )"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "Want argument 0 type uN[32][2][3] dimensions: 2 to be larger")));
+          AllOf(
+              HasSubstrInV1(GetParam(),
+                            "Want argument 0 type uN[32][2][3] dimensions: 2 "
+                            "to be larger"),
+              HasSubstrInV2(GetParam(),
+                            "Array dimension in `update` expected to be larger "
+                            "than the number of indices (3); got 2"))));
 }
 
-TEST(TypecheckTest, UpdateBuiltinTypeMismatch) {
+TEST_P(TypecheckBothVersionsTest, UpdateBuiltinTypeMismatch) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() -> u32[2][3] {
@@ -2171,11 +2187,14 @@ fn f() -> u32[2][3] {
   update(x, (u1:0, u32:1), u8:3)
 }
 )"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Want argument 0 element type uN[32] to match")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Want argument 0 element type uN[32] to match"),
+                HasSizeMismatchInV2(GetParam(), "uN[32]", "uN[8]"))));
 }
 
-TEST(TypecheckTest, UpdateBuiltinEmptyIndex) {
+TEST_P(TypecheckBothVersionsTest, UpdateBuiltinEmptyIndex) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32[2][3] {
   let x: u32[2][3] = u32[2][3]:[[u32:0,u32:1], [u32:2,u32:3], [u32:3,u32:4]];
@@ -2309,14 +2328,17 @@ fn f(x: u32, y: u17, z: u15) -> u32 {
 )"));
 }
 
-TEST(TypecheckErrorTest, UpdateIncompatibleValue) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, UpdateIncompatibleValue) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn f(x: u32[5]) -> u32[5] {
   update(x, u32:1, u8:0)
 }
 )"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("uN[32] to match argument 2 type uN[8]")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "uN[32] to match argument 2 type uN[8]"),
+                     HasSizeMismatchInV2(GetParam(), "uN[32]", "uN[8]"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, MissingAnnotation) {
