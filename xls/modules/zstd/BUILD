@@ -4017,9 +4017,18 @@ xls_dslx_test(
 
 history_buffer_codegen_args = common_codegen_args | {
     "module_name": "HistoryBuffer",
-    "clock_period_ps": "750",
-    "pipeline_stages": "8",
-    "worst_case_throughput": "1",
+    "clock_period_ps": CLOCK_PERIOD_PS,
+    "ram_configurations": ",".join([
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            ram_name = "ram{}".format(num),
+            rd_req = "history_buffer__ram_read_req_s__{}".format(num),
+            rd_resp = "history_buffer__ram_read_resp_r__{}".format(num),
+            wr_req = "history_buffer__ram_write_req_s__{}".format(num),
+            wr_resp = "history_buffer__ram_write_resp_r__{}".format(num),
+        )
+        for num in range(8)
+    ]),
 }
 
 xls_dslx_verilog(
@@ -4099,9 +4108,8 @@ xls_dslx_test(
 
 match_finder_codegen_args = common_codegen_args | {
     "module_name": "MatchFinder",
-    "pipeline_stages": "8",
-    "worst_case_throughput": "2",
-    "recover_after_minimizing_clock": "true",
+    "worst_case_throughput": "5",
+    "clock_period_ps": CLOCK_PERIOD_PS,
 }
 
 xls_dslx_verilog(
@@ -4112,11 +4120,43 @@ xls_dslx_verilog(
     verilog_file = "match_finder.v",
 )
 
+match_finder_cocotb_codegen_args = common_codegen_args | {
+    "module_name": "MatchFinder",
+    "clock_period_ps": CLOCK_PERIOD_PS,
+    "worst_case_throughput": "5",
+    "ram_configurations": ",".join([
+       "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 5,
+           ram_name = "hb_ram{}".format(num),
+           rd_req = "match_finder__hb_ram_rd_req_s__{}".format(num),
+           rd_resp = "match_finder__hb_ram_rd_resp_r__{}".format(num),
+           wr_req = "match_finder__hb_ram_wr_req_s__{}".format(num),
+           wr_resp = "match_finder__hb_ram_wr_resp_r__{}".format(num),
+       )
+       for num in range(8)
+    ] + [
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+           latency = 5,
+           ram_name = "ht_ram",
+           rd_req = "match_finder__ht_ram_rd_req_s",
+           rd_resp = "match_finder__ht_ram_rd_resp_r",
+           wr_req = "match_finder__ht_ram_wr_req_s",
+           wr_resp = "match_finder__ht_ram_wr_resp_r",
+    )])
+}
+
+xls_dslx_verilog(
+    name = "match_finder_cocotb_verilog",
+    codegen_args = match_finder_cocotb_codegen_args,
+    dslx_top = "MatchFinderCocotbInst",
+    library = ":match_finder_dslx",
+    verilog_file = "match_finder_cocotb.v",
+)
+
 xls_benchmark_ir(
     name = "match_finder_opt_ir_benchmark",
     codegen_args = match_finder_codegen_args,
     src = ":match_finder_verilog.opt.ir",
-    benchmark_ir_args = match_finder_codegen_args,
 )
 
 xls_benchmark_verilog(
@@ -4154,6 +4194,34 @@ place_and_route(
     stop_after_step = "global_routing",
     synthesized_rtl = ":match_finder_asap7",
     target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "match_finder_cocotb_test",
+    srcs = ["match_finder_cocotb_test.py"],
+    data = [
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:match_finder_wrapper.v",
+        "//xls/modules/zstd/rtl:ram_1r1w.v",
+        ":match_finder_cocotb.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        requirement("pytest"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@com_google_protobuf//:protobuf_python",
+    ],
 )
 
 xls_dslx_library(
