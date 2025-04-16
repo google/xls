@@ -47,6 +47,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/function_jit.h"
+#include "xls/public/c_api.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_impl_helpers.h"
 #include "xls/public/c_api_vast.h"
@@ -269,6 +270,15 @@ bool xls_parse_typed_value(const char* input, char** error_out,
   return false;
 }
 
+bool xls_value_get_kind(const struct xls_value* value, char** error_out,
+  xls_value_kind* kind_out) {
+  CHECK(value != nullptr);
+  const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
+  *error_out = nullptr;
+  *kind_out = static_cast<xls_value_kind>(cpp_value->kind());
+  return true;
+}
+
 bool xls_value_get_bits(const struct xls_value* value, char** error_out,
                         struct xls_bits** bits_out) {
   CHECK(value != nullptr);
@@ -426,6 +436,51 @@ bool xls_bits_get_bit(const struct xls_bits* bits, int64_t index) {
   CHECK(bits != nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   return cpp_bits->Get(index);
+}
+
+
+bool xls_bits_to_bytes(const struct xls_bits* bits, char** error_out,
+                       uint8_t **bytes_out, size_t* byte_count_out) {
+  CHECK(bits != nullptr);
+  CHECK(bytes_out != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(byte_count_out != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  auto bytes = cpp_bits->ToBytes();
+  *byte_count_out = bytes.size();
+  *bytes_out = (uint8_t *) malloc(bytes.size());
+  std::copy(bytes.begin(), bytes.end(), *bytes_out);
+  return true;
+}
+
+bool xls_bits_to_uint64(const struct xls_bits* bits, char** error_out,
+                        uint64_t* value_out) {
+  CHECK(bits != nullptr);
+  CHECK(value_out != nullptr);
+  CHECK(error_out != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  auto result = cpp_bits->ToUint64();
+  if (!result.ok()) {
+    *error_out = xls::ToOwnedCString(result.status().ToString());
+    return false;
+  }
+  *value_out = result.value();
+  return true;
+}
+
+bool xls_bits_to_int64(const struct xls_bits* bits, char** error_out,
+                       int64_t* value_out) {
+  CHECK(bits != nullptr);
+  CHECK(value_out != nullptr);
+  CHECK(error_out != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  auto result = cpp_bits->ToInt64();
+  if (!result.ok()) {
+    *error_out = xls::ToOwnedCString(result.status().ToString());
+    return false;
+  }
+  *value_out = result.value();
+  return true;
 }
 
 struct xls_bits* xls_bits_width_slice(const struct xls_bits* bits,

@@ -43,6 +43,15 @@
 
 extern "C" {
 
+typedef int32_t xls_value_kind;
+enum {
+  xls_value_kind_invalid,
+  xls_value_kind_bits,
+  xls_value_kind_array,
+  xls_value_kind_tuple,
+  xls_value_kind_token,
+};
+
 // Opaque structs.
 struct xls_bits;
 struct xls_function;
@@ -133,6 +142,11 @@ bool xls_value_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
 bool xls_value_make_sbits(int64_t bit_count, int64_t value, char** error_out,
                           struct xls_value** xls_value_out);
 
+// Returns the kind of the given value -- the caller must free the returned
+// string via `xls_c_str_free`.
+bool xls_value_get_kind(const struct xls_value* value, char** error_out,
+                        xls_value_kind* kind_out);
+
 // Returns a new array-kind XLS value which the caller must free. There must be
 // at least one element and all provided elements must be of the same type
 // otherwise an error result is returned.
@@ -198,6 +212,19 @@ bool xls_bits_eq(const struct xls_bits* a, const struct xls_bits* b);
 // That is, if the bits value is `0b01`, then `xls_bits_get_bit(bits, 0)`
 // returns 1, `xls_bits_get_bit(bits, 1)` returns 0.
 bool xls_bits_get_bit(const struct xls_bits* bits, int64_t index);
+
+// Returns the bytes in the given bits value -- the caller must free the returned
+// The caller must also free the `bytes_out` pointer itself via `free`.
+bool xls_bits_to_bytes(const struct xls_bits* bits, char** error_out,
+                       uint8_t **bytes_out, size_t* byte_count_out);
+
+// Converts the given bits value to a signed or unsigned integer 64-bit integer value.
+// if the conversion is not possible, false is returned and `error_out` contains the error
+// message. The caller must free the `value_out` pointer itself via `free`.
+bool xls_bits_to_uint64(const struct xls_bits* bits, char** error_out,
+                        uint64_t* value_out);
+bool xls_bits_to_int64(const struct xls_bits* bits, char** error_out,
+                       int64_t* value_out);
 
 struct xls_bits* xls_bits_width_slice(const struct xls_bits* bits,
                                       int64_t start, int64_t width);
