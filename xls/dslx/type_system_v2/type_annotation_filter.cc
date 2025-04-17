@@ -28,6 +28,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
@@ -85,8 +86,15 @@ bool HasAnyReferencesWithMissingTypeInfo(const TypeInfo* ti,
           return false;
         }
         const NameDef* name_def = std::get<const NameDef*>(ref.name_def());
-        return !ti->GetItem(name_def).has_value() &&
-               !ti->IsKnownConstExpr(name_def);
+        bool result = name_def->parent() != nullptr &&
+                      name_def->parent()->kind() != AstNodeKind::kFunction &&
+                      !ti->GetItem(name_def).has_value() &&
+                      !ti->IsKnownConstExpr(name_def);
+        if (result) {
+          VLOG(6) << "Found free var " << name_def->ToString()
+                  << " in annotation " << annotation->ToString();
+        }
+        return result;
       });
   return vars.GetFreeVariableCount() > 0;
 }

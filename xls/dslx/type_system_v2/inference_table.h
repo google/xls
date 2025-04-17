@@ -105,6 +105,11 @@ class ParametricContext {
     return std::holds_alternative<ParametricInvocationDetails>(details_);
   }
 
+  // Returns whether this context is for a struct.
+  bool is_struct() const {
+    return std::holds_alternative<ParametricStructDetails>(details_);
+  }
+
   // The parent parametric context. In a scenario where `f` calls `g`, and they
   // are both parametric functions, a `g` context would have an `f` context as
   // its parent. An `f` context might then have no parent, if `f` is not called

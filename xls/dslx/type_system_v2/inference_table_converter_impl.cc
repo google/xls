@@ -383,8 +383,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         std::get<ParametricInvocationDetails>(parametric_context->details());
     if (parametric_context->parent_context().has_value() &&
         (*parametric_context->parent_context())->is_invocation()) {
-      parent_env =
-          converted_parametric_envs_.at(*parametric_context->parent_context());
+      const auto it = converted_parametric_envs_.find(
+          *parametric_context->parent_context());
+      // Note that if a parametric function `g` is invoked by a default
+      // parametric expr for a function `f`, there is a chicken-and-egg problem
+      // where we cannot have produced the `ParametricEnv` for `f` at the time
+      // we deal with the `g` invocation. However, because such invocations boil
+      // down to constants without being converted to IR, we don't care if we
+      // properly key the `TypeInfo` for that `g` invocation for access by IR
+      // conversion (and v1 does not achieve that either).
+      if (it != converted_parametric_envs_.end()) {
+        parent_env = it->second;
+      }
     }
     ParametricEnv callee_env =
         converted_parametric_envs_.at(parametric_context);
@@ -567,9 +577,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // the `InferenceTable` and the `TypeInfo` hierarchy.
 
     TypeInfo* invocation_type_info = nullptr;
+    std::optional<const ParametricContext*> caller_or_target_struct_context =
+        function_and_target_object.target_struct_context.has_value()
+            ? function_and_target_object.target_struct_context
+            : caller_context;
     if (function->owner() == &module_) {
-      TypeInfo* base_type_info =
-          GetTypeInfo(function_and_target_object.target_struct_context);
+      TypeInfo* base_type_info = GetTypeInfo(caller_or_target_struct_context);
       XLS_ASSIGN_OR_RETURN(
           invocation_type_info,
           import_data_.type_info_owner().New(&module_, base_type_info));
@@ -659,9 +672,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
         caller_context, *table_.GetTypeVariable(invocation),
         parametric_free_function_type->return_type()));
-    XLS_RETURN_IF_ERROR(
-        GenerateTypeInfo(function_and_target_object.target_struct_context,
-                         invocation->callee()));
+    XLS_RETURN_IF_ERROR(GenerateTypeInfo(caller_or_target_struct_context,
+                                         invocation->callee()));
     for (int i = 0; i < parametric_free_function_type->param_types().size();
          i++) {
       const TypeAnnotation* formal_type =
@@ -691,8 +703,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                            PushProcTypeInfo(*function->proc()));
     }
     XLS_RETURN_IF_ERROR(ConvertSubtree(function, function, invocation_context));
-    return GenerateTypeInfo(function_and_target_object.target_struct_context,
-                            invocation);
+    return GenerateTypeInfo(caller_context, invocation);
   }
 
   // Gets the output `TypeInfo` corresponding to the given
@@ -1242,12 +1253,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       CHECK_NE(callee_nameref, nullptr);
       std::optional<const Type*> callee_type =
           ti->GetItem(invocation->callee());
-      CHECK(callee_type.has_value());
-      const auto* function_type =
-          dynamic_cast<const FunctionType*>(*callee_type);
-      CHECK_NE(function_type, nullptr);
-      return NoteBuiltinInvocationConstExpr(callee_nameref->identifier(),
-                                            invocation, *function_type, ti);
+      if (callee_type.has_value()) {
+        const auto* function_type =
+            dynamic_cast<const FunctionType*>(*callee_type);
+        CHECK_NE(function_type, nullptr);
+        return NoteBuiltinInvocationConstExpr(callee_nameref->identifier(),
+                                              invocation, *function_type, ti);
+      }
     }
     return absl::OkStatus();
   }
@@ -1714,7 +1726,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     const AstNode* function_node = nullptr;
     std::optional<Expr*> target_object;
     std::optional<const ParametricContext*> target_struct_context =
-        caller_context;
+        caller_context.has_value() && (*caller_context)->is_struct()
+            ? caller_context
+            : std::nullopt;
     if (const auto* colon_ref = dynamic_cast<const ColonRef*>(callee)) {
       std::optional<const AstNode*> target =
           table_.GetColonRefTarget(colon_ref);

@@ -1665,6 +1665,22 @@ const X = foo(u24:5);
       TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
 }
 
+TEST(TypecheckV2Test, InferenceOfParametricUsingAnnotationWithInvocation) {
+  // This is based on a similar pattern that occurs in std.x, with the inference
+  // of the implicit parametrics for `assert_eq` being the potential trouble
+  // area.
+  EXPECT_THAT(
+      R"(
+fn sizeof<S: bool, N: u32>(x: xN[S][N]) -> u32 { N }
+fn foo() {
+  let x = uN[32]:0xffffffff;
+  let y: uN[sizeof(x) + u32:2] = x as uN[sizeof(x) + u32:2];
+  assert_eq(y, uN[34]:0xffffffff);
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("y", "uN[34]")));
+}
+
 // See https://github.com/google/xls/issues/1615
 TEST(TypecheckV2Test, ParametricStructWithWrongOrderParametricValues) {
   EXPECT_THAT(
@@ -4804,6 +4820,16 @@ const Y = Data{a: 120}.foo(256);
 )",
       TypecheckSucceeds(AllOf(HasNodeWithType("X", "(uN[3], uN[6], uN[16])"),
                               HasNodeWithType("Y", "(uN[7], uN[9], uN[16])"))));
+}
+
+TEST(TypecheckV2Test, ParametricContextStackingViaDefault) {
+  EXPECT_THAT(
+      R"(
+fn g<A: u32>(x: uN[A]) -> u32 { 32 }
+fn f<A: u32, B: u32 = {g(A)}>(a: uN[A])-> uN[B] { a }
+const X = f(u32:5);
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
 TEST(TypecheckV2Test, TypeAliasSelfReference) {
