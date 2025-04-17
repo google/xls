@@ -872,28 +872,78 @@ fn upcast_test() {
     assert_eq(upcast<BF16_EXP_SZ, BF16_FRACTION_SZ>(one_bf16), one_bf16);
 }
 
+fn does_lsb_round_up<FRACTION_SZ: u32>
+    (lsb_index: u32, fraction: uN[FRACTION_SZ], round_style: RoundStyle) -> bool {
+    // retained
+    //    |
+    //    |  /- round-bit
+    //    |  |
+    //    |  |  /- sticky
+    // /----\|/--\
+    // ABCDEFGHIJK
+    assert!(lsb_index >= u32:1, "apfloat_round_without_residue");
+    assert!(lsb_index <= FRACTION_SZ as u32, "apfloat_round_without_lsb");
+    // Extract the first bit which needs to be cut.
+    let first_lost_bit_idx = lsb_index - u32:1;
+    let round_bit = fraction[first_lost_bit_idx+:u1];
+    match round_style {
+        RoundStyle::TIES_TO_EVEN => {
+            // Extract the last bit which is retained.
+            let lsb = lsb_index < FRACTION_SZ && fraction[lsb_index+:u1];
+            // Whether any bits before the round_bit are 1.
+            let sticky = std::or_reduce_lsb(fraction, lsb_index - u32:1);
+
+            //  L R S
+            //  X 0 X   --> Round down (less than half)
+            //  0 1 0   --> Round down (half, already even)
+            //  1 1 0   --> Round up (half, to even)
+            //  X 1 1   --> Round up (greater than half)
+            (round_bit && sticky) || (round_bit && lsb)
+        },
+        RoundStyle::TIES_TO_AWAY => { round_bit },
+    }
+}
+
+#[test]
+fn does_lsb_round_up_test() {
+    // 0b1000.0
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10000, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10000, RoundStyle::TIES_TO_AWAY), false);
+    // 0b1000.1
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10001, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10001, RoundStyle::TIES_TO_AWAY), true);
+    // 0b1001.1
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10011, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10011, RoundStyle::TIES_TO_AWAY), true);
+    // 0b100.11
+    assert_eq(does_lsb_round_up(u32:2, u5:0b10011, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(does_lsb_round_up(u32:2, u5:0b10011, RoundStyle::TIES_TO_AWAY), true);
+    // 0b10.011
+    assert_eq(does_lsb_round_up(u32:3, u5:0b10011, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b10011, RoundStyle::TIES_TO_AWAY), false);
+    // 0b.00011
+    assert_eq(does_lsb_round_up(u32:5, u5:0b00011, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:5, u5:0b00011, RoundStyle::TIES_TO_AWAY), false);
+    // 0b.10000
+    assert_eq(does_lsb_round_up(u32:5, u5:0b10000, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:5, u5:0b10000, RoundStyle::TIES_TO_AWAY), true);
+    // 0b.10011
+    assert_eq(does_lsb_round_up(u32:5, u5:0b10011, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(does_lsb_round_up(u32:5, u5:0b10011, RoundStyle::TIES_TO_AWAY), true);
+}
+
 // Rounds a normal apfloat to lower precision in fractional bits, while the
-// exponent size remains fixed. Ties round to even (LSB = 0). The result is
+// exponent size remains fixed. Ties round based on RoundStyle. The result is
 // undefined for subnormals, NaN and infinity.
-fn downcast_fractional_rne<TO_FRACTION_SZ: u32, FROM_FRACTION_SZ: u32, EXP_SZ: u32>
-    (f: APFloat<EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<EXP_SZ, TO_FRACTION_SZ> {
+fn downcast_fractional<TO_FRACTION_SZ: u32, FROM_FRACTION_SZ: u32, EXP_SZ: u32>
+    (f: APFloat<EXP_SZ, FROM_FRACTION_SZ>, round_style: RoundStyle)
+    -> APFloat<EXP_SZ, TO_FRACTION_SZ> {
     const_assert!(FROM_FRACTION_SZ >= TO_FRACTION_SZ);
 
     let lsb_index = FROM_FRACTION_SZ - TO_FRACTION_SZ;
-
-    // Extract the bits of the input fraction used to decide the direction of rounding.
-    let lsb = f.fraction[lsb_index+:u1];
-    let round = f.fraction[lsb_index - u32:1+:u1];
-    let sticky = std::or_reduce_lsb(f.fraction, lsb_index - u32:1);
-
     let truncated_fraction = f.fraction[lsb_index as s32:FROM_FRACTION_SZ as s32];
 
-    //  L R S
-    //  X 0 X   --> Round down (less than half)
-    //  0 1 0   --> Round down (half, already even)
-    //  1 1 0   --> Round up (half, to even)
-    //  X 1 1   --> Round up (greater than half)
-    let round_up = (round && sticky) || (round && lsb);
+    let round_up = does_lsb_round_up(lsb_index, f.fraction, round_style);
 
     let renormalize = round_up && and_reduce(truncated_fraction);
 
@@ -912,6 +962,92 @@ fn downcast_fractional_rne<TO_FRACTION_SZ: u32, FROM_FRACTION_SZ: u32, EXP_SZ: u
 }
 
 #[test]
+fn downcast_fractional_raz_fp32_to_bf16_test() {
+    const F32_EXP_SZ = u32:8;
+    const F32_FRACTION_SZ = u32:23;
+    const BF16_EXP_SZ = u32:8;
+    const BF16_FRACTION_SZ = u32:7;
+
+    // normals
+    let one_bf16 = one<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
+    let one_f32 = one<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
+    assert_eq(downcast_fractional<BF16_FRACTION_SZ>(one_f32, RoundStyle::TIES_TO_AWAY), one_bf16);
+
+    let minus_one_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:1, ..one_bf16 };
+    let minus_one_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, ..one_f32 };
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(minus_one_f32, RoundStyle::TIES_TO_AWAY),
+        minus_one_bf16);
+
+    // fraction with no rounding necessary
+    let one_dot_5_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { fraction: u23:0x400000, ..one_f32 };
+    let one_dot_5_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { fraction: u7:0x40, ..one_bf16 };
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(one_dot_5_f32, RoundStyle::TIES_TO_AWAY),
+        one_dot_5_bf16);
+
+    // rounds down
+    let pi_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x490fdb };
+    let pi_bf16 =
+        APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u7:0x49 };
+    assert_eq(downcast_fractional<BF16_FRACTION_SZ>(pi_f32, RoundStyle::TIES_TO_AWAY), pi_bf16);
+
+    // rounds up
+    let one_third_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x7d, fraction: u23:0x2aaaab };
+    let one_third_bf16 =
+        APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x7d, fraction: u7:0x2b };
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(one_third_f32, RoundStyle::TIES_TO_AWAY),
+        one_third_bf16);
+
+    // rounds up, tie to away
+    let rne_up_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x408000 };
+    let rne_up_bf16 =
+        APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u7:0x41 };
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(rne_up_f32, RoundStyle::TIES_TO_AWAY), rne_up_bf16);
+
+    // rounds up, tie to away
+    let rne_up_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x418000 };
+    let rne_up_bf16 =
+        APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u7:0x42 };
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(rne_up_f32, RoundStyle::TIES_TO_AWAY), rne_up_bf16);
+
+    // round up to inf
+    let inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
+    let just_above_max_normal_bf16 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fe000 };
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(just_above_max_normal_bf16, RoundStyle::TIES_TO_AWAY),
+        inf_bf16);
+
+    let just_below_max_normal_bf16 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, bexp: u8:0xfe, fraction: u23:0x7fe000 };
+    let minus_inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(just_below_max_normal_bf16, RoundStyle::TIES_TO_AWAY),
+        minus_inf_bf16);
+
+    // round up to inf
+    let max_normal_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fffff };
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(max_normal_f32, RoundStyle::TIES_TO_AWAY), inf_bf16);
+
+    let minus_max_normal_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, bexp: u8:0xfe, fraction: u23:0x7fffff };
+    let minus_inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(minus_max_normal_f32, RoundStyle::TIES_TO_AWAY),
+        minus_inf_bf16);
+}
+
+#[test]
 fn downcast_fractional_rne_fp32_to_bf16_test() {
     const F32_EXP_SZ = u32:8;
     const F32_FRACTION_SZ = u32:23;
@@ -921,73 +1057,175 @@ fn downcast_fractional_rne_fp32_to_bf16_test() {
     // normals
     let one_bf16 = one<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
     let one_f32 = one<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(one_f32), one_bf16);
+    assert_eq(downcast_fractional<BF16_FRACTION_SZ>(one_f32, RoundStyle::TIES_TO_EVEN), one_bf16);
 
     let minus_one_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:1, ..one_bf16 };
     let minus_one_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, ..one_f32 };
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(minus_one_f32), minus_one_bf16);
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(minus_one_f32, RoundStyle::TIES_TO_EVEN),
+        minus_one_bf16);
 
     // fraction with no rounding necessary
     let one_dot_5_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { fraction: u23:0x400000, ..one_f32 };
     let one_dot_5_bf16 = APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { fraction: u7:0x40, ..one_bf16 };
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(one_dot_5_f32), one_dot_5_bf16);
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(one_dot_5_f32, RoundStyle::TIES_TO_EVEN),
+        one_dot_5_bf16);
 
     // rounds down
     let pi_f32 =
         APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x490fdb };
     let pi_bf16 =
         APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u7:0x49 };
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(pi_f32), pi_bf16);
+    assert_eq(downcast_fractional<BF16_FRACTION_SZ>(pi_f32, RoundStyle::TIES_TO_EVEN), pi_bf16);
 
     // rounds up
     let one_third_f32 =
         APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x7d, fraction: u23:0x2aaaab };
     let one_third_bf16 =
         APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x7d, fraction: u7:0x2b };
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(one_third_f32), one_third_bf16);
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(one_third_f32, RoundStyle::TIES_TO_EVEN),
+        one_third_bf16);
 
     // rounds down, tie to even
     let rne_down_f32 =
         APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x408000 };
     let rne_down_bf16 =
         APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u7:0x40 };
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(rne_down_f32), rne_down_bf16);
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(rne_down_f32, RoundStyle::TIES_TO_EVEN), rne_down_bf16);
 
     // rounds up, tie to even
     let rne_up_f32 =
         APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x418000 };
     let rne_up_bf16 =
         APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u7:0x42 };
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(rne_up_f32), rne_up_bf16);
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(rne_up_f32, RoundStyle::TIES_TO_EVEN), rne_up_bf16);
 
     // round up to inf
     let inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:0);
     let just_above_max_normal_bf16 =
         APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fe000 };
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(just_above_max_normal_bf16), inf_bf16);
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(just_above_max_normal_bf16, RoundStyle::TIES_TO_EVEN),
+        inf_bf16);
 
     let just_below_max_normal_bf16 =
         APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, bexp: u8:0xfe, fraction: u23:0x7fe000 };
     let minus_inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(just_below_max_normal_bf16), minus_inf_bf16);
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(just_below_max_normal_bf16, RoundStyle::TIES_TO_EVEN),
+        minus_inf_bf16);
 
     // round up to inf
     let max_normal_f32 =
         APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fffff };
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(max_normal_f32), inf_bf16);
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(max_normal_f32, RoundStyle::TIES_TO_EVEN), inf_bf16);
 
     let minus_max_normal_f32 =
         APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, bexp: u8:0xfe, fraction: u23:0x7fffff };
     let minus_inf_bf16 = inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(u1:1);
-    assert_eq(downcast_fractional_rne<BF16_FRACTION_SZ>(minus_max_normal_f32), minus_inf_bf16);
+    assert_eq(
+        downcast_fractional<BF16_FRACTION_SZ>(minus_max_normal_f32, RoundStyle::TIES_TO_EVEN),
+        minus_inf_bf16);
 }
 
-// Round the apfloat to an apfloat with smaller fraction and/or smaller exponent size.
-// Ties round to even (LSB = 0) and denormal inputs and outputs get flushed to zero.
-// Values with exponents above the target exponent range will overflow to infinity.
-// Values with exponents below the target exponent range will underflow to zero.
-pub fn downcast_rne<TO_FRACTION_SZ: u32, TO_EXP_SZ: u32, FROM_FRACTION_SZ: u32, FROM_EXP_SZ: u32>
-    (f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
+// Perform downcasting that converts a normal number into a subnormal with the same number of
+// fraction bits. f_cast must have an unbiased exponent less than the minumum normal exponent of the
+// target float type (checked via assert!).
+fn downcast_to_subnormal<TO_EXP_SZ: u32, FRACTION_SZ: u32, FROM_EXP_SZ: u32>
+    (f_cast: APFloat<FROM_EXP_SZ, FRACTION_SZ>, round_style: RoundStyle)
+    -> APFloat<TO_EXP_SZ, FRACTION_SZ> {
+    const TO_BIAS = std::signed_max_value<TO_EXP_SZ>() as sN[FROM_EXP_SZ];
+    let uexp = unbiased_exponent(f_cast);
+    // Check for over- and underflow of the exponent in the target type.
+    assert!(
+        uexp < (min_normal_exp<TO_EXP_SZ>() as sN[FROM_EXP_SZ]),
+        "apfloat_downcast_to_subnormal_called_on_normal_number");
+
+    // either a zero or a subnormal.
+    // 32 bits is more than large enough for any reasonable
+    // floating point numbers exponent. Narrowing should crush it down.
+    let right_shift_cnt = -(TO_BIAS + uexp) as u32 + u32:1;
+    if right_shift_cnt > (FRACTION_SZ + u32:1) {
+        // actually underflows
+        zero<TO_EXP_SZ, FRACTION_SZ>(f_cast.sign)
+    } else {
+        // Add the implied leading 1.
+        let full_frac = u1:0b1 ++ f_cast.fraction;
+        let unrounded_subnormal_frac = (full_frac >> right_shift_cnt) as uN[FRACTION_SZ];
+
+        let round_up = does_lsb_round_up(right_shift_cnt as u32, full_frac, round_style);
+
+        let subnormal_frac = if round_up {
+            unrounded_subnormal_frac + uN[FRACTION_SZ]:1
+        } else {
+            unrounded_subnormal_frac
+        };
+
+        // Technically the subnormal frac is good enough but this is
+        // easier to see through.
+        let rounds_to_normal = right_shift_cnt == u32:1 && subnormal_frac == uN[FRACTION_SZ]:0;
+
+        if rounds_to_normal {
+            APFloat { sign: f_cast.sign, bexp: uN[TO_EXP_SZ]:1, fraction: uN[FRACTION_SZ]:0 }
+        } else {
+            APFloat { sign: f_cast.sign, bexp: uN[TO_EXP_SZ]:0, fraction: subnormal_frac }
+        }
+    }
+}
+
+// Round the apfloat to an apfloat with smaller fraction and/or smaller exponent
+// size. Ties round to 'round_style'. Values with exponents above the target
+// exponent range will overflow to infinity. Values with exponents below the
+// target exponent range will result in subnormal result or zero.
+//
+// f must be normal.
+fn downcast_normal<TO_FRACTION_SZ: u32, TO_EXP_SZ: u32, FROM_FRACTION_SZ: u32, FROM_EXP_SZ: u32>
+    (f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>, round_style: RoundStyle)
+    -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
+    assert!(tag(f) == APFloatTag::NORMAL, "apfloat_downcast_normal_called_on_non_normal");
+    // Downcast the fraction. This may increment the exponent.
+    let f_cast = if FROM_FRACTION_SZ > TO_FRACTION_SZ {
+        downcast_fractional<TO_FRACTION_SZ>(f, round_style)
+    } else {
+        APFloat { sign: f.sign, bexp: f.bexp, fraction: f.fraction as uN[TO_FRACTION_SZ] }
+    };
+    const INF_EXP = std::unsigned_max_value<FROM_EXP_SZ>();
+    const CAN_GENERATE_SUBNORMALS = FROM_EXP_SZ > TO_EXP_SZ;
+    // Check for overflow to infinity due to rounding the fractional part up.
+    if FROM_FRACTION_SZ > TO_FRACTION_SZ && f_cast.bexp == INF_EXP {
+        inf<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign)
+    } else {
+        // Check for over- and underflow of the exponent in the target type.
+        const TO_BIAS = std::signed_max_value<TO_EXP_SZ>() as sN[FROM_EXP_SZ];
+        let uexp = unbiased_exponent<FROM_EXP_SZ, TO_FRACTION_SZ>(f_cast);
+        if CAN_GENERATE_SUBNORMALS && uexp > TO_BIAS {
+            // NB In the no-subnormals case the fraction/bias is already inf.
+            inf<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign)
+        } else if CAN_GENERATE_SUBNORMALS && uexp <= -TO_BIAS {
+            downcast_to_subnormal<TO_EXP_SZ>(f_cast, round_style)
+        } else {
+            APFloat {
+                sign: f_cast.sign,
+                bexp: bias(uexp as sN[TO_EXP_SZ]),
+                fraction: f_cast.fraction,
+            }
+        }
+    }
+}
+
+// Round the apfloat to an apfloat with smaller fraction and/or smaller exponent
+// size. Ties round to 'round_style'. Values with exponents above the target
+// exponent range will overflow to infinity. Values with exponents below the
+// target exponent range will result in subnormal result or zero.
+// Subnormal inputs are flushed to zero before conversion.
+pub fn downcast<TO_FRACTION_SZ: u32, TO_EXP_SZ: u32, FROM_FRACTION_SZ: u32, FROM_EXP_SZ: u32>
+    (f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>, round_style: RoundStyle)
+    -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
     const_assert!(FROM_EXP_SZ >= TO_EXP_SZ);
     const_assert!(FROM_FRACTION_SZ >= TO_FRACTION_SZ);
     // Guard against using this method on identical types.
@@ -997,37 +1235,390 @@ pub fn downcast_rne<TO_FRACTION_SZ: u32, TO_EXP_SZ: u32, FROM_FRACTION_SZ: u32, 
         APFloatTag::NAN => qnan<TO_EXP_SZ, TO_FRACTION_SZ>(),
         APFloatTag::INFINITY => inf<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
         APFloatTag::ZERO => zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
-        APFloatTag::SUBNORMAL => zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign),
-        APFloatTag::NORMAL => {
-            // Downcast the fraction. This may increment the exponent.
-            let f_cast = if FROM_FRACTION_SZ > TO_FRACTION_SZ {
-                downcast_fractional_rne<TO_FRACTION_SZ>(f)
-            } else {
-                APFloat { sign: f.sign, bexp: f.bexp, fraction: f.fraction as uN[TO_FRACTION_SZ] }
-            };
-            const INF_EXP = std::unsigned_max_value<FROM_EXP_SZ>();
-            // Check for overflow to infinity due to rounding the fractional part up.
-            if FROM_FRACTION_SZ > TO_FRACTION_SZ && f_cast.bexp == INF_EXP {
-                inf<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign)
-            } else {
-                // Check for over- and underflow of the exponent in the target type.
-                const TO_BIAS = std::signed_max_value<TO_EXP_SZ>() as sN[FROM_EXP_SZ];
-                let uexp = unbiased_exponent<FROM_EXP_SZ, TO_FRACTION_SZ>(f_cast);
-                if FROM_EXP_SZ > TO_EXP_SZ && uexp > TO_BIAS {
-                    inf<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign)
-                } else if FROM_EXP_SZ > TO_EXP_SZ && uexp <= -TO_BIAS {
-                    // Tiny values including subnormals in the target type are flushed to zero.
-                    zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign)
-                } else {
-                    APFloat {
-                        sign: f_cast.sign,
-                        bexp: bias(uexp as sN[TO_EXP_SZ]),
-                        fraction: f_cast.fraction,
-                    }
-                }
-            }
+        APFloatTag::SUBNORMAL => {
+            // TODO(allight): We could try to convert a subnormal to a subnormal but its not clear
+            // if this would ever actually be required with reasonable bit-widths.
+            zero<TO_EXP_SZ, TO_FRACTION_SZ>(f.sign)
         },
+        APFloatTag::NORMAL => downcast_normal<TO_FRACTION_SZ, TO_EXP_SZ>(f, round_style),
     }
+}
+
+#[quickcheck]
+fn does_downcast_stay_within_one_ulp_rounded(f: APFloat<u32:8, u32:13>) -> bool {
+    type HF16 = APFloat<u32:5, u32:10>;
+    let to_away = downcast<HF16::FRACTION_SIZE, HF16::EXP_SIZE>(f, RoundStyle::TIES_TO_AWAY);
+    let to_even = downcast<HF16::FRACTION_SIZE, HF16::EXP_SIZE>(f, RoundStyle::TIES_TO_EVEN);
+
+    let one_ulp_away = if is_nan(to_away) {
+        !is_nan(to_even)
+    } else if is_inf(to_away) {
+        // to-away rounded up to infinity but even didn't
+        unbiased_exponent(to_even) == max_normal_exp<HF16::EXP_SIZE>() &&
+        to_even.fraction == all_ones!<u10>()
+    } else if to_even.bexp == u5:0 && to_even.fraction == u10:0 {
+        // to_even rounded down to zero but to_away rounded away from it.
+        to_away.bexp == u5:0 && to_away.fraction == u10:1
+    } else if !is_zero_or_subnormal(to_away) && is_zero_or_subnormal(to_even) {
+        // to-away rounded up to normal but even didn't
+        to_away.bexp == u5:1 && to_away.fraction == u10:0 && to_even.fraction == all_ones!<u10>()
+    } else if to_even.bexp != to_away.bexp {
+        // to-away rounded up but to_even rounded down
+        to_even.bexp + u5:1 == to_away.bexp && to_even.fraction == all_ones!<u10>() &&
+        to_away.fraction == u10:0
+    } else {
+        // subnormals different rounding
+        to_even.fraction + u10:1 == to_away.fraction
+    };
+    to_away.sign == to_even.sign && (to_away == to_even || one_ulp_away)
+}
+
+#[test]
+fn downcast_special() {
+    const F32_EXP_SZ = u32:8;
+    const F32_FRACTION_SZ = u32:23;
+    const FP16_EXP_SZ = u32:5;
+    const FP16_FRACTION_SZ = u32:10;
+
+    // qnan -> qnan
+    let qnan_f32 = qnan<F32_EXP_SZ, F32_FRACTION_SZ>();
+    let qnan_fp16 = qnan<FP16_EXP_SZ, FP16_FRACTION_SZ>();
+    assert_eq(
+        downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(qnan_f32, RoundStyle::TIES_TO_EVEN), qnan_fp16);
+    assert_eq(
+        downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(qnan_f32, RoundStyle::TIES_TO_AWAY), qnan_fp16);
+
+    // inf -> inf
+    let inf_f32 = inf<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
+    let inf_fp16 = inf<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:0);
+    assert_eq(downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(inf_f32, RoundStyle::TIES_TO_EVEN), inf_fp16);
+    assert_eq(downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(inf_f32, RoundStyle::TIES_TO_AWAY), inf_fp16);
+
+    let minus_inf_f32 = inf<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
+    let minus_inf_fp16 = inf<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:1);
+    assert_eq(
+        downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_inf_f32, RoundStyle::TIES_TO_EVEN),
+        minus_inf_fp16);
+    assert_eq(
+        downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_inf_f32, RoundStyle::TIES_TO_AWAY),
+        minus_inf_fp16);
+
+    // +/- 0.0 -> same-signed 0
+    let zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
+    let zero_fp16 = zero<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:0);
+    assert_eq(
+        downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(zero_f32, RoundStyle::TIES_TO_EVEN), zero_fp16);
+    assert_eq(
+        downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(zero_f32, RoundStyle::TIES_TO_AWAY), zero_fp16);
+
+    let minus_zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
+    let minus_zero_fp16 = zero<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:1);
+    assert_eq(
+        downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_zero_f32, RoundStyle::TIES_TO_EVEN),
+        minus_zero_fp16);
+    assert_eq(
+        downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_zero_f32, RoundStyle::TIES_TO_AWAY),
+        minus_zero_fp16);
+
+    // stays normalized
+    type F32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ>;
+    const SMALLER_EXP_SZ = F32_EXP_SZ - u32:4;
+    type Smaller = APFloat<SMALLER_EXP_SZ, F32_FRACTION_SZ>;
+    let f = F32 {
+        sign: u1:0,
+        bexp: bias<F32_EXP_SZ>(min_normal_exp<SMALLER_EXP_SZ>() as s8),
+        fraction: u23:0x123,
+    };
+    let exp = Smaller { sign: u1:0, bexp: u4:1, fraction: u23:0x123 };
+    assert_eq(downcast<F32_FRACTION_SZ, SMALLER_EXP_SZ>(f, RoundStyle::TIES_TO_EVEN), exp);
+    assert_eq(downcast<F32_FRACTION_SZ, SMALLER_EXP_SZ>(f, RoundStyle::TIES_TO_AWAY), exp);
+}
+
+#[test]
+fn downcast_generates_subnormal() {
+    // unbiased exponent is -1, 0, inf, or subnormal/zero
+    type E2F5 = APFloat<u32:2, u32:5>;
+    type E4F6 = APFloat<u32:4, u32:6>;
+
+    // binary float 0b0.001000
+    let not_subnormal = E4F6 {
+        sign: false,
+        bexp: bias<E4F6::EXP_SIZE>(min_normal_exp<E2F5::EXP_SIZE>() as s4 - s4:3),
+        fraction: u6:0b000000,
+    };
+    let expected = E2F5 { sign: false, bexp: u2:0, fraction: u5:0b00100 };
+    assert_eq(downcast<u32:5, u32:2>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected);
+    assert_eq(downcast<u32:5, u32:2>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected);
+
+    // Check rounding occurs.
+    // slightly larger ranges
+    type E6F8 = APFloat<u32:6, u32:8>;
+    // Middle.
+    let not_subnormal = E6F8 {
+        sign: false,
+        bexp: bias<E6F8::EXP_SIZE>(min_normal_exp<E4F6::EXP_SIZE>() as s6 - s6:3),
+        // 0b1.0101_0000
+        fraction: u8:0b0101_0000,
+    };
+    // 0b0.001010[10000]
+    let expected_to_even = E4F6 { sign: false, bexp: u4:0, fraction: u6:0b00_1010 };
+    let expected_to_away = E4F6 { sign: false, bexp: u4:0, fraction: u6:0b00_1011 };
+    assert_eq(downcast<u32:6, u32:4>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected_to_even);
+    assert_eq(downcast<u32:6, u32:4>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected_to_away);
+
+    // always down.
+    let not_subnormal = E6F8 {
+        sign: false,
+        bexp: bias<E6F8::EXP_SIZE>(min_normal_exp<E4F6::EXP_SIZE>() as s6 - s6:4),
+        // 0b1.0101_0000
+        fraction: u8:0b0101_0000,
+    };
+    // 0b0.000101[010000]
+    let expected = E4F6 { sign: false, bexp: u4:0, fraction: u6:0b00_0101 };
+    assert_eq(downcast<u32:6, u32:4>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected);
+    assert_eq(downcast<u32:6, u32:4>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected);
+
+    // always up.
+    let not_subnormal = E6F8 {
+        sign: false,
+        bexp: bias<E6F8::EXP_SIZE>(min_normal_exp<E4F6::EXP_SIZE>() as s6 - s6:5),
+        // 0b1.0101_0000
+        fraction: u8:0b0101_0000,
+    };
+    // 0b0.000010[1010000]
+    let expected = E4F6 { sign: false, bexp: u4:0, fraction: u6:0b00_0011 };
+    assert_eq(downcast<u32:6, u32:4>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected);
+    assert_eq(downcast<u32:6, u32:4>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected);
+
+    // always up all the way off.
+    let not_subnormal = E6F8 {
+        sign: false,
+        bexp: bias<E6F8::EXP_SIZE>(min_normal_exp<E4F6::EXP_SIZE>() as s6 - s6:7),
+        // 0b1.0101_0000
+        fraction: u8:0b0101_0000,
+    };
+    // 0b0.000000[101010000]
+    let expected = E4F6 { sign: false, bexp: u4:0, fraction: u6:0b00_0001 };
+    assert_eq(downcast<u32:6, u32:4>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected);
+    assert_eq(downcast<u32:6, u32:4>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected);
+
+    type F32 = APFloat<u32:8, u32:23>;
+    type HF16 = APFloat<u32:5, u32:10>;
+    let not_subnormal = F32 {
+        sign: false,
+        bexp: bias<u32:8>(min_normal_exp<HF16::EXP_SIZE>() as s8 - s8:1),
+        fraction: u23:0,
+    };
+    let expected = HF16 { sign: false, bexp: u5:0, fraction: u10:0b10_0000_0000 };
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected);
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected);
+
+    let not_subnormal = F32 {
+        sign: false,
+        bexp: bias<u32:8>(min_normal_exp<HF16::EXP_SIZE>() as s8 - s8:2),
+        fraction: u23:0,
+    };
+    let expected = HF16 { sign: false, bexp: u5:0, fraction: u10:0b01_0000_0000 };
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected);
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected);
+
+    let not_subnormal = F32 {
+        sign: false,
+        bexp: bias<u32:8>(min_normal_exp<HF16::EXP_SIZE>() as s8 - s8:3),
+        fraction: u23:0,
+    };
+    let expected = HF16 { sign: false, bexp: u5:0, fraction: u10:0b00_1000_0000 };
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected);
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected);
+
+    let not_subnormal = F32 {
+        sign: false,
+        bexp: bias<u32:8>(min_normal_exp<HF16::EXP_SIZE>() as s8 - s8:4),
+        fraction: u23:0,
+    };
+    let expected = HF16 { sign: false, bexp: u5:0, fraction: u10:0b00_0100_0000 };
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected);
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected);
+
+    let not_subnormal = F32 {
+        sign: false,
+        bexp: bias<u32:8>(min_normal_exp<HF16::EXP_SIZE>() as s8 - s8:10),
+        fraction: u23:0,
+    };
+    let expected = HF16 { sign: false, bexp: u5:0, fraction: u10:0b00_0000_0001 };
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected);
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected);
+
+    let not_subnormal = F32 {
+        sign: false,
+        bexp: bias<u32:8>(min_normal_exp<HF16::EXP_SIZE>() as s8 - s8:11),
+        fraction: u23:0,
+    };
+    let expected_away = HF16 { sign: false, bexp: u5:0, fraction: u10:0b00_0000_0001 };
+    let expected_even = HF16 { sign: false, bexp: u5:0, fraction: u10:0b00_0000_0000 };
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected_even);
+    assert_eq(downcast<u32:10, u32:5>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected_away);
+}
+
+#[test]
+fn downcast_rounds_subnormal_to_normal() {
+    type E4F6 = APFloat<u32:4, u32:6>;
+    type E6F8 = APFloat<u32:6, u32:8>;
+
+    // binary float 0b0.000000000000111111111 = 0b1.11111111 * 2**-7
+    let not_subnormal = E6F8 { sign: false, bexp: bias<u32:6>(s6:-7), fraction: u8:0b1111_1111 };
+
+    // ends up with a subnormal with 3 1s off the end of the mantisa and all
+    // other bits 1. This rounds up to pushing it out of the subnormal regime.
+    let expected = E4F6 { sign: false, bexp: bias<u32:4>(s4:-6), fraction: u6:0 };
+    assert_eq(downcast<u32:6, u32:4>(not_subnormal, RoundStyle::TIES_TO_EVEN), expected);
+    assert_eq(downcast<u32:6, u32:4>(not_subnormal, RoundStyle::TIES_TO_AWAY), expected);
+}
+
+// Round the apfloat to an apfloat with smaller fraction and/or smaller exponent size.
+// Ties round to even (LSB = 0) and denormal inputs are treated as zero and denormal outputs get
+// flushed to zero. Values with exponents above the target exponent range will
+// overflow to infinity. Values with exponents below the target exponent range
+// will underflow to zero. Can round to infinity.
+// Deprecated: Use 'downcast' instead.
+pub fn downcast_rne<TO_FRACTION_SZ: u32, TO_EXP_SZ: u32, FROM_FRACTION_SZ: u32, FROM_EXP_SZ: u32>
+    (f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
+    subnormals_to_zero(downcast<TO_FRACTION_SZ, TO_EXP_SZ>(f, RoundStyle::TIES_TO_EVEN))
+}
+
+#[test]
+fn downcast_raz_fp32_to_fp16_test() {
+    const F32_EXP_SZ = u32:8;
+    const F32_FRACTION_SZ = u32:23;
+    const FP16_EXP_SZ = u32:5;
+    const FP16_FRACTION_SZ = u32:10;
+
+    // qnan -> qnan
+    let qnan_f32 = qnan<F32_EXP_SZ, F32_FRACTION_SZ>();
+    let qnan_fp16 = qnan<FP16_EXP_SZ, FP16_FRACTION_SZ>();
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(qnan_f32, RoundStyle::TIES_TO_AWAY)), qnan_fp16);
+
+    // inf -> inf
+    let inf_f32 = inf<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
+    let inf_fp16 = inf<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:0);
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(inf_f32, RoundStyle::TIES_TO_AWAY)), inf_fp16);
+
+    let minus_inf_f32 = inf<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
+    let minus_inf_fp16 = inf<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:1);
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_inf_f32, RoundStyle::TIES_TO_AWAY)),
+        minus_inf_fp16);
+
+    // +/- 0.0 -> same-signed 0
+    let zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
+    let zero_fp16 = zero<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:0);
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(zero_f32, RoundStyle::TIES_TO_AWAY)), zero_fp16);
+
+    let minus_zero_f32 = zero<F32_EXP_SZ, F32_FRACTION_SZ>(u1:1);
+    let minus_zero_fp16 = zero<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:1);
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_zero_f32, RoundStyle::TIES_TO_AWAY)),
+        minus_zero_fp16);
+
+    // subnormals flushed to same-signed 0.0
+    let subnormal_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0, fraction: u23:0x7fffff };
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(subnormal_f32, RoundStyle::TIES_TO_AWAY)),
+        zero_fp16);
+
+    let minus_subnormal_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, ..subnormal_f32 };
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_subnormal_f32, RoundStyle::TIES_TO_AWAY)),
+        minus_zero_fp16);
+
+    // normals
+    let one_fp16 = one<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:0);
+    let one_f32 = one<F32_EXP_SZ, F32_FRACTION_SZ>(u1:0);
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(one_f32, RoundStyle::TIES_TO_AWAY)), one_fp16);
+
+    let minus_one_fp16 = APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { sign: u1:1, ..one_fp16 };
+    let minus_one_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, ..one_f32 };
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_one_f32, RoundStyle::TIES_TO_AWAY)),
+        minus_one_fp16);
+
+    // fraction with no rounding necessary
+    let one_dot_5_f32 = APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { fraction: u23:0x400000, ..one_f32 };
+    let one_dot_5_fp16 = APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { fraction: u10:0x200, ..one_fp16 };
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(one_dot_5_f32, RoundStyle::TIES_TO_AWAY)),
+        one_dot_5_fp16);
+
+    // rounds down
+    let not_that_close_to_four_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x7fc000 };
+    let almost_four_fp16 =
+        APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { sign: u1:0, bexp: u5:0x10, fraction: u10:0x3fe };
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(
+                not_that_close_to_four_f32, RoundStyle::TIES_TO_AWAY)), almost_four_fp16);
+
+    // rounds up tie to away
+    let getting_closer_to_four_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x7fe000 };
+    let four_fp16 =
+        APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { sign: u1:0, bexp: u5:0x10, fraction: u10:0x3ff };
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(
+                getting_closer_to_four_f32, RoundStyle::TIES_TO_AWAY)), four_fp16);
+
+    // rounds up tie to away.
+    let even_closer_to_four_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x7ff000 };
+    let four_fp16 =
+        APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { sign: u1:0, bexp: u5:0x11, fraction: u10:0x0 };
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(
+                even_closer_to_four_f32, RoundStyle::TIES_TO_AWAY)), four_fp16);
+
+    // rounds up
+    let soooo_close_to_four_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0x80, fraction: u23:0x7ff100 };
+    let four_fp16 =
+        APFloat<FP16_EXP_SZ, FP16_FRACTION_SZ> { sign: u1:0, bexp: u5:0x11, fraction: u10:0x0 };
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(
+                soooo_close_to_four_f32, RoundStyle::TIES_TO_AWAY)), four_fp16);
+
+    // round up to inf
+    let max_normal_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:0, bexp: u8:0xfe, fraction: u23:0x7fffff };
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(max_normal_f32, RoundStyle::TIES_TO_AWAY)),
+        inf_fp16);
+
+    let minus_max_normal_f32 =
+        APFloat<F32_EXP_SZ, F32_FRACTION_SZ> { sign: u1:1, bexp: u8:0xfe, fraction: u23:0x7fffff };
+    let minus_inf_fp16 = inf<FP16_EXP_SZ, FP16_FRACTION_SZ>(u1:1);
+    assert_eq(
+        subnormals_to_zero(
+            downcast<FP16_FRACTION_SZ, FP16_EXP_SZ>(minus_max_normal_f32, RoundStyle::TIES_TO_AWAY)),
+        minus_inf_fp16);
 }
 
 #[test]
