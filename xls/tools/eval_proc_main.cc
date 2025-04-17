@@ -493,7 +493,7 @@ static absl::Status EvaluateProcs(
 
   if (expected_outputs_for_channels.empty()) {
     for (const Channel* channel : package->channels()) {
-      if (!channel->CanSend()) {
+      if (channel->supported_ops() != ChannelOps::kSendOnly) {
         continue;
       }
       XLS_ASSIGN_OR_RETURN(ChannelQueue * out_queue,
