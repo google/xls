@@ -41,6 +41,7 @@
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/make_value_format_descriptor.h"
@@ -390,7 +391,8 @@ GetAssertFormattedStrings(const InterpreterStack::FormattedInterpValue& lhs,
 
 absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
                                 InterpreterStack& stack, const Frame& frame,
-                                const BytecodeInterpreterOptions& options) {
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id) {
   VLOG(3) << "Executing builtin AssertEq.";
   XLS_RET_CHECK_GE(stack.size(), 2);
 
@@ -424,6 +426,10 @@ absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
                                  lhs_values[*i].ToHumanString(),
                                  rhs_values[*i].ToHumanString());
     }
+    if (caller_proc_id.has_value()) {
+      message += absl::StrFormat(" (called from %s)",
+                                 caller_proc_id.value().ToString());
+    }
     return FailureErrorStatus(bytecode.source_span(), message,
                               stack.file_table());
   }
@@ -433,7 +439,8 @@ absl::Status RunBuiltinAssertEq(const Bytecode& bytecode,
 
 absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
                                 InterpreterStack& stack, const Frame& frame,
-                                const BytecodeInterpreterOptions& options) {
+                                const BytecodeInterpreterOptions& options,
+                                const std::optional<ProcId>& caller_proc_id) {
   VLOG(3) << "Executing builtin AssertLt.";
   XLS_RET_CHECK_GE(stack.size(), 2);
 
@@ -452,6 +459,10 @@ absl::Status RunBuiltinAssertLt(const Bytecode& bytecode,
                                                    bytecode, frame, options));
     std::string message = absl::StrFormat(
         "\n  lhs: %s\n was not less than rhs: %s", lhs_string, rhs_string);
+    if (caller_proc_id.has_value()) {
+      message += absl::StrFormat(" (called from %s)",
+                                 caller_proc_id.value().ToString());
+    }
     return FailureErrorStatus(bytecode.source_span(), message,
                               stack.file_table());
   }
