@@ -294,7 +294,7 @@ absl::StatusOr<Operation*> translateLiteral(const ::xls::Value& b,
 //===----------------------------------------------------------------------===//
 
 absl::StatusOr<Location> translateLoc(const ::xls::SourceInfo& xls_loc,
-                                      mlir::Builder& builder,
+                                      Builder& builder,
                                       TranslationState& state) {
   SmallVector<Location> locs;
   for (auto loc : xls_loc.locations) {

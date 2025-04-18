@@ -69,10 +69,12 @@
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/public/function_builder.h"
 #include "xls/public/ir.h"
@@ -83,7 +85,6 @@
 namespace mlir::xls {
 namespace {
 
-using ::llvm::dyn_cast_if_present;
 using ::llvm::zip;
 using ::mlir::func::FuncOp;
 using ::xls::BuilderBase;
@@ -141,7 +142,7 @@ class TranslationState {
   const Package& getPackage() const { return package_; }
   Package& getPackage() { return package_; }
 
-  void addFunction(llvm::StringRef name, ::xls::Function* func) {
+  void addFunction(StringRef name, ::xls::Function* func) {
     func_map_[name] = func;
   }
 
@@ -154,20 +155,20 @@ class TranslationState {
     return it == channel_map_.end() ? nullptr : it->second;
   }
 
-  const PackageInfo* getPackageInfo(llvm::StringRef name) const {
+  const PackageInfo* getPackageInfo(StringRef name) const {
     auto it = package_map_.find(name);
     return it == package_map_.end() ? nullptr : &it->second;
   }
 
-  void setPackageInfo(llvm::StringRef name, PackageInfo&& info) {
+  void setPackageInfo(StringRef name, PackageInfo&& info) {
     package_map_.try_emplace(name, std::move(info));
   }
 
-  void addLinkage(llvm::StringRef name, TranslationLinkage linkage) {
+  void addLinkage(StringRef name, TranslationLinkage linkage) {
     linkage_map_[name] = linkage;
   }
 
-  const TranslationLinkage* getLinkage(llvm::StringRef name) const {
+  const TranslationLinkage* getLinkage(StringRef name) const {
     auto it = linkage_map_.find(name);
     return it == linkage_map_.end() ? nullptr : &it->second;
   }
@@ -176,10 +177,9 @@ class TranslationState {
 
   ::xls::Type* getType(Type t) const;
 
-  LogicalResult recordOpaqueTypes(mlir::func::FuncOp func,
-                                  ::xls::Function* xls_func);
+  LogicalResult recordOpaqueTypes(FuncOp func, ::xls::Function* xls_func);
 
-  ::xls::Function* getFunction(llvm::StringRef name) const {
+  ::xls::Function* getFunction(StringRef name) const {
     auto it = func_map_.find(name);
     return it == func_map_.end() ? nullptr : it->second;
   }
@@ -202,10 +202,10 @@ class TranslationState {
 
 ::xls::SourceInfo TranslationState::getLoc(Operation* op) const {
   Location loc = op->getLoc();
-  if (isa<mlir::UnknownLoc>(loc)) {
+  if (isa<UnknownLoc>(loc)) {
     return ::xls::SourceInfo();
   }
-  auto file_loc = dyn_cast<mlir::FileLineColLoc>(loc);
+  auto file_loc = dyn_cast<FileLineColLoc>(loc);
   if (!file_loc) {
     return ::xls::SourceInfo();
   }
@@ -263,11 +263,11 @@ class TranslationState {
   return xls_type;
 }
 
-LogicalResult TranslationState::recordOpaqueTypes(mlir::func::FuncOp func,
+LogicalResult TranslationState::recordOpaqueTypes(FuncOp func,
                                                   ::xls::Function* xls_func) {
-  ::xls::FunctionType* xls_func_type = xls_func->GetType();  // NOLINT
+  ::xls::FunctionType* xls_func_type = xls_func->GetType();
   for (auto [mlirType, xls_type] :
-       llvm::zip(func.getArgumentTypes(), xls_func_type->parameters())) {
+       zip(func.getArgumentTypes(), xls_func_type->parameters())) {
     if (isa<OpaqueType>(mlirType)) {
       type_map_[mlirType] = xls_type;
     }
@@ -279,8 +279,7 @@ LogicalResult TranslationState::recordOpaqueTypes(mlir::func::FuncOp func,
     return_types =
         xls_func_type->return_type()->AsTupleOrDie()->element_types();
   }
-  for (auto [mlirType, xls_type] :
-       llvm::zip(func.getResultTypes(), return_types)) {
+  for (auto [mlirType, xls_type] : zip(func.getResultTypes(), return_types)) {
     if (isa<OpaqueType>(mlirType)) {
       type_map_[mlirType] = xls_type;
     }
@@ -333,7 +332,7 @@ XLS_BINARY_OP(UmodOp, UMod);
 #define XLS_MUL_OP(TYPE, BUILDER)                                             \
   BValue convertOp(TYPE op, const TranslationState& state, BuilderBase& fb) { \
     auto result_type =                                                        \
-        cast<IntegerType>(mlir::getElementTypeOrSelf(op.getResult()));        \
+        cast<IntegerType>(getElementTypeOrSelf(op.getResult()));              \
     return fb.BUILDER(state.getXlsValue(op.getLhs()),                         \
                       state.getXlsValue(op.getRhs()), result_type.getWidth(), \
                       state.getLoc(op));                                      \
@@ -342,16 +341,16 @@ XLS_MUL_OP(SmulOp, SMul);
 XLS_MUL_OP(UmulOp, UMul);
 
 // Partial Products
-#define XLS_PARTIAL_PROD_OP(TYPE, BUILDER)                                \
-  BValue convertOp(TYPE op, TranslationState& state, BuilderBase& fb) {   \
-    auto element_type =                                                   \
-        cast<IntegerType>(mlir::getElementTypeOrSelf(op.getResultLhs())); \
-                                                                          \
-    BValue out = fb.BUILDER(state.getXlsValue(op.getLhs()),               \
-                            state.getXlsValue(op.getRhs()),               \
-                            element_type.getWidth(), state.getLoc(op));   \
-    state.setMultiResultValue(op, out, fb);                               \
-    return out;                                                           \
+#define XLS_PARTIAL_PROD_OP(TYPE, BUILDER)                              \
+  BValue convertOp(TYPE op, TranslationState& state, BuilderBase& fb) { \
+    auto element_type =                                                 \
+        cast<IntegerType>(getElementTypeOrSelf(op.getResultLhs()));     \
+                                                                        \
+    BValue out = fb.BUILDER(state.getXlsValue(op.getLhs()),             \
+                            state.getXlsValue(op.getRhs()),             \
+                            element_type.getWidth(), state.getLoc(op)); \
+    state.setMultiResultValue(op, out, fb);                             \
+    return out;                                                         \
   }
 XLS_PARTIAL_PROD_OP(SmulpOp, SMulp);
 XLS_PARTIAL_PROD_OP(UmulpOp, UMulp);
@@ -377,7 +376,7 @@ XLS_BINARY_OP(ShraOp, Shra);
 #define XLS_EXTENSION_OP(TYPE, BUILDER)                                       \
   BValue convertOp(TYPE op, const TranslationState& state, BuilderBase& fb) { \
     auto element_type =                                                       \
-        cast<IntegerType>(mlir::getElementTypeOrSelf(op.getResult()));        \
+        cast<IntegerType>(getElementTypeOrSelf(op.getResult()));              \
     return fb.BUILDER(state.getXlsValue(op.getOperand()),                     \
                       element_type.getWidth(), state.getLoc(op));             \
   };
@@ -396,29 +395,27 @@ BValue convertOp(ArrayOp op, const TranslationState& state, BuilderBase& fb) {
   return fb.Array(values, values.front().GetType(), state.getLoc(op));
 }
 
-::xls::Value nestedArrayZero(ArrayType type, BuilderBase& fb) {  // NOLINT
+::xls::Value nestedArrayZero(ArrayType type, BuilderBase& fb) {
   if (auto arrayType = dyn_cast<ArrayType>(type.getElementType())) {
-    std::vector<::xls::Value> elements(type.getNumElements(),  // NOLINT
+    std::vector<::xls::Value> elements(type.getNumElements(),
                                        nestedArrayZero(arrayType, fb));
-    return ::xls::Value::ArrayOwned(std::move(elements));  // NOLINT
+    return ::xls::Value::ArrayOwned(std::move(elements));
   }
   if (auto float_type = dyn_cast<FloatType>(type.getElementType())) {
     int mantissa_width = float_type.getFPMantissaWidth() - 1;
     int exponent_width =
         float_type.getWidth() - float_type.getFPMantissaWidth();
-    // NOLINTNEXTLINE
     std::vector<::xls::Value> elements = {
-        ::xls::Value(::xls::UBits(0, 1)),                            // NOLINT
-        ::xls::Value(::xls::UBits(0, exponent_width)),               // NOLINT
-        ::xls::Value(::xls::UBits(0, mantissa_width))};              // NOLINT
-    auto zeroTuple = ::xls::Value::TupleOwned(std::move(elements));  // NOLINT
-    std::vector<::xls::Value> arrayElements(type.getNumElements(),   // NOLINT
-                                            zeroTuple);
-    return ::xls::Value::ArrayOwned(std::move(arrayElements));  // NOLINT
+        ::xls::Value(::xls::UBits(0, 1)),
+        ::xls::Value(::xls::UBits(0, exponent_width)),
+        ::xls::Value(::xls::UBits(0, mantissa_width))};
+    auto zeroTuple = ::xls::Value::TupleOwned(std::move(elements));
+    std::vector<::xls::Value> arrayElements(type.getNumElements(), zeroTuple);
+    return ::xls::Value::ArrayOwned(std::move(arrayElements));
   }
   std::vector<uint64_t> zeroes(type.getNumElements());
-  return ::xls::Value::UBitsArray(  // NOLINT
-             zeroes, type.getElementType().getIntOrFloatBitWidth())
+  return ::xls::Value::UBitsArray(zeroes,
+                                  type.getElementType().getIntOrFloatBitWidth())
       .value();
 }
 
@@ -440,7 +437,6 @@ BValue convertOp(ArrayIndexStaticOp op, const TranslationState& state,
                  BuilderBase& fb) {
   constexpr int kIndexBits = 32;  // Just picked arbitrarily.
   return fb.ArrayIndex(state.getXlsValue(op.getArray()),
-                       // NOLINTNEXTLINE
                        {fb.Literal(::xls::UBits(op.getIndex(), kIndexBits))},
                        state.getLoc(op));
 }
@@ -543,7 +539,6 @@ BValue convertOp(DecodeOp op, const TranslationState& state, BuilderBase& fb) {
 BValue convertOp(OneHotOp op, const TranslationState& state, BuilderBase& fb) {
   return fb.OneHot(
       state.getXlsValue(op.getOperand()), /*priority=*/
-      // NOLINTNEXTLINE
       op.getLsbPrio() ? ::xls::LsbOrMsb::kLsb : ::xls::LsbOrMsb::kMsb,
       state.getLoc(op));
 };
@@ -584,11 +579,11 @@ BValue convertOp(PrioritySelOp op, const TranslationState& state,
 }
 
 FailureOr<PackageInfo> importDslxInstantiation(
-    ImportDslxFilePackageOp file_import_op, llvm::StringRef dslx_snippet,
+    ImportDslxFilePackageOp file_import_op, StringRef dslx_snippet,
     Package& package);
 
 absl::StatusOr<::xls::Function*> getFunction(TranslationState& state,
-                                             const llvm::StringRef fn_name) {
+                                             const StringRef fn_name) {
   if (auto result = state.getFunction(fn_name)) {
     return result;
   }
@@ -616,8 +611,7 @@ absl::StatusOr<::xls::Function*> getFunction(TranslationState& state,
                                        state.getPackage()))) {
       return absl::InvalidArgumentError("Failed to import DSLX snippet");
     }
-    func_name =
-        llvm::StringRef(func_name).drop_front(3).split('(').first.trim();
+    func_name = StringRef(func_name).drop_front(3).split('(').first.trim();
   }
 
   if (package_info == nullptr) {
@@ -678,8 +672,7 @@ BValue coerceFloatResult(Value mlir_result, BValue xls_result,
   return floatBitsToTuple(xls_result, float_type, fb);
 }
 
-BValue convertOp(mlir::func::CallOp call, TranslationState& state,
-                 BuilderBase& fb) {
+BValue convertOp(func::CallOp call, TranslationState& state, BuilderBase& fb) {
   std::vector<BValue> args;
   for (auto arg : call.getOperands()) {
     args.push_back(state.getXlsValue(arg));
@@ -738,7 +731,6 @@ BValue convertOp(CountedForOp counted_for_op, TranslationState& state,
                        state.getLoc(counted_for_op));
 }
 
-// NOLINTNEXTLINE
 ::xls::Bits convertAPInt(llvm::APInt apInt) {
   // Doing this in a simple loop, not the most efficient and could be improved
   // if needed (was just avoiding needing to think about the endianness).
@@ -746,7 +738,6 @@ BValue convertOp(CountedForOp counted_for_op, TranslationState& state,
   for (unsigned i : llvm::seq(0u, apInt.getBitWidth())) {
     bits[i] = apInt[i];
   }
-  // NOLINTNEXTLINE
   return ::xls::Bits(bits);
 }
 
@@ -762,11 +753,10 @@ BValue convertOp(CountedForOp counted_for_op, TranslationState& state,
     for (unsigned i : llvm::seq(0u, bitWidth)) {
       bits[i] = intVal[i];
     }
-    // NOLINTNEXTLINE
     return ::xls::Value(::xls::Bits(bits));
   }
   if (auto float_attr = dyn_cast<FloatAttr>(attr)) {
-    mlir::FloatType float_type = cast<mlir::FloatType>(float_attr.getType());
+    FloatType float_type = cast<FloatType>(float_attr.getType());
     int mantissa_width = float_type.getFPMantissaWidth() - 1;
     int exponent_width =
         float_type.getWidth() - float_type.getFPMantissaWidth();
@@ -990,9 +980,9 @@ BValue convertOp(GateOp op, TranslationState& state, BuilderBase& fb) {
 }
 
 FailureOr<PackageInfo> importDslxInstantiation(
-    ImportDslxFilePackageOp file_import_op, llvm::StringRef dslx_snippet,
+    ImportDslxFilePackageOp file_import_op, StringRef dslx_snippet,
     Package& package) {
-  ::llvm::StringRef path = file_import_op.getFilename();
+  StringRef path = file_import_op.getFilename();
 
   std::string module_name = "imported_module";
   absl::StatusOr<std::string> package_string_or;
@@ -1008,7 +998,7 @@ FailureOr<PackageInfo> importDslxInstantiation(
   std::string dslx;
   llvm::raw_string_ostream os(dslx);
   os << "import " << importModule << " as im;\n";
-  for (llvm::StringRef x : llvm::split(dslx_snippet, 0x7B)) {
+  for (StringRef x : llvm::split(dslx_snippet, 0x7B)) {
     os << x << (x.ends_with("}") ? "" : "{ im::");
   }
   os.flush();
@@ -1095,14 +1085,12 @@ FailureOr<PackageInfo> importDslxFile(ImportDslxFilePackageOp file_import_op,
                      file_import_op);
 }
 
-// NOLINTNEXTLINE
 FailureOr<::xls::Value> zeroLiteral(Type type) {
   if (auto int_type = dyn_cast<IntegerType>(type)) {
-    // NOLINTNEXTLINE
     return ::xls::Value(convertAPInt(llvm::APInt(int_type.getWidth(), 0)));
   }
   if (auto array_type = dyn_cast<ArrayType>(type)) {
-    std::vector<::xls::Value> values;  // NOLINT
+    std::vector<::xls::Value> values;
     values.reserve(array_type.getNumElements());
     for (int i = 0; i < array_type.getNumElements(); ++i) {
       auto value = zeroLiteral(array_type.getElementType());
@@ -1111,10 +1099,10 @@ FailureOr<::xls::Value> zeroLiteral(Type type) {
       }
       values.push_back(*value);
     }
-    return ::xls::Value::ArrayOwned(std::move(values));  // NOLINT
+    return ::xls::Value::ArrayOwned(std::move(values));
   }
   if (auto tuple_type = dyn_cast<TupleType>(type)) {
-    std::vector<::xls::Value> values;  // NOLINT
+    std::vector<::xls::Value> values;
     values.reserve(tuple_type.size());
     for (int i = 0; i < tuple_type.size(); ++i) {
       auto value = zeroLiteral(tuple_type.getType(i));
@@ -1123,19 +1111,18 @@ FailureOr<::xls::Value> zeroLiteral(Type type) {
       }
       values.push_back(*value);
     }
-    return ::xls::Value::TupleOwned(std::move(values));  // NOLINT
+    return ::xls::Value::TupleOwned(std::move(values));
   }
   if (auto float_type = dyn_cast<FloatType>(type)) {
-    std::vector<::xls::Value> values(3);  // NOLINT
+    std::vector<::xls::Value> values(3);
     // Note that getFPMantissaWidth() includes the sign bit.
     int exponent_width =
         float_type.getWidth() - float_type.getFPMantissaWidth();
-    values[0] = ::xls::Value(convertAPInt(llvm::APInt(1, 0)));  // NOLINT
-    values[1] =
-        ::xls::Value(convertAPInt(llvm::APInt(exponent_width, 0)));  // NOLINT
-    values[2] = ::xls::Value(                                        // NOLINT
+    values[0] = ::xls::Value(convertAPInt(llvm::APInt(1, 0)));
+    values[1] = ::xls::Value(convertAPInt(llvm::APInt(exponent_width, 0)));
+    values[2] = ::xls::Value(
         convertAPInt(llvm::APInt(float_type.getFPMantissaWidth() - 1, 0)));
-    return ::xls::Value::TupleOwned(std::move(values));  // NOLINT
+    return ::xls::Value::TupleOwned(std::move(values));
   }
   llvm::errs() << "Unsupported type: " << type << "\n";
   return failure();
@@ -1182,7 +1169,7 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
             // Constants
             ConstantScalarOp, arith::ConstantOp, LiteralOp,
             // Control flow
-            mlir::func::CallOp, CountedForOp, MapOp,
+            func::CallOp, CountedForOp, MapOp,
             // Casts
             arith::BitcastOp, arith::IndexCastOp,
             // CSP ops
@@ -1191,7 +1178,7 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
             TraceOp,
             // Misc. side-effecting ops
             GateOp>([&](auto t) { return convertOp(t, translation_state, fb); })
-        .Case<mlir::func::ReturnOp, YieldOp>([&](auto ret) {
+        .Case<func::ReturnOp, YieldOp>([&](auto ret) {
           if (ret.getNumOperands() == 1) {
             return out = value_map[ret.getOperand(0)];
           }
@@ -1282,7 +1269,7 @@ bool isVerilogImport(Operation* op, const ModuleOp& module,
 // The ffi verifier insist that there is a parameter in the converted
 // xls_func with the name used in the template.
 LogicalResult getArgumentNamesForVerilogImport(
-    func::FuncOp& func, XlsRegionOpInterface& xls_region,
+    FuncOp& func, XlsRegionOpInterface& xls_region,
     const TranslationState& translation_state, FunctionBuilder& fb,
     ArrayRef<Type> argumentTypes, DenseMap<Value, BValue>& valueMap) {
   // Set the argument names in the value map, using the xls.name
@@ -1295,7 +1282,7 @@ LogicalResult getArgumentNamesForVerilogImport(
       xls_region.getBodyRegion().getArguments();
   StringRef attrName = "xls.name";
   ArrayRef<Attribute> attrArgs = argAttrs->getValue();
-  for (auto [argValue, attr] : llvm::zip(argValues, attrArgs)) {
+  for (auto [argValue, attr] : zip(argValues, attrArgs)) {
     auto dictAttr = dyn_cast<DictionaryAttr>(attr);
     auto nameAttr = dictAttr.getNamed(attrName);
     ::xls::Type* xls_type = translation_state.getType(argValue.getType());
@@ -1310,10 +1297,10 @@ LogicalResult getArgumentNamesForVerilogImport(
 
 // Generates the code template for the foreign function that is being imported.
 // It is used to create the FFI tag for importation of foreign function/verilog.
-FailureOr<std::string> generateCodeTemplate(mlir::func::FuncOp func,
+FailureOr<std::string> generateCodeTemplate(FuncOp func,
                                             ::xls::Function* xlsFunc,
-                                            llvm::StringRef funcName,
-                                            llvm::StringRef resultName,
+                                            StringRef funcName,
+                                            StringRef resultName,
                                             Type resultType) {
   std::string codeTemplate;
   llvm::raw_string_ostream os(codeTemplate);
@@ -1354,7 +1341,7 @@ LogicalResult annotateForeignFunction(FuncOp func, ::xls::Function& xlsFunc) {
   if (resultAttrs && !resultAttrs->getValue().empty()) {
     auto attributeValues = resultAttrs->getValue();
     for (auto attr : attributeValues) {
-      mlir::DictionaryAttr dictAttr = dyn_cast<mlir::DictionaryAttr>(attr);
+      DictionaryAttr dictAttr = dyn_cast<DictionaryAttr>(attr);
       if (!dictAttr) {
         continue;
       }
@@ -1431,9 +1418,9 @@ absl::StatusOr<::xls::Function*> wrapDslxFunctionIfNeeded(
   }
 }
 
-FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
-    Operation* op, llvm::StringRef dslx_search_path,
-    DslxPackageCache& dslx_cache) {
+FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
+                                                 StringRef dslx_search_path,
+                                                 DslxPackageCache& dslx_cache) {
   // Treating the outer most module as a package.
   ModuleOp module = dyn_cast<ModuleOp>(op);
   if (!module) {
@@ -1470,11 +1457,11 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
 
     std::string name =
         ::xls::verilog::SanitizeIdentifier(chan_op.getSymName().str());
-    ::xls::ChannelOps kind = ::xls::ChannelOps::kSendReceive;  // NOLINT
+    ::xls::ChannelOps kind = ::xls::ChannelOps::kSendReceive;
     if (!chan_op.getSendSupported()) {
-      kind = ::xls::ChannelOps::kReceiveOnly;  // NOLINT
+      kind = ::xls::ChannelOps::kReceiveOnly;
     } else if (!chan_op.getRecvSupported()) {
-      kind = ::xls::ChannelOps::kSendOnly;  // NOLINT
+      kind = ::xls::ChannelOps::kSendOnly;
     }
 
     std::optional<::xls::FifoConfig> fifo_config = std::nullopt;
@@ -1646,7 +1633,7 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
                 dyn_cast_if_present<NextValueOp>(yield.getDefiningOp())) {
           auto next_value = cast<NextValueOp>(def);
           for (auto [pred, value] :
-               llvm::zip(next_value.getPredicates(), next_value.getValues())) {
+               zip(next_value.getPredicates(), next_value.getValues())) {
             fb.Next(valueMap[arg], valueMap[value], /*pred=*/valueMap[pred]);
           }
         } else {
@@ -1662,7 +1649,7 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
       assert(isa<FuncOp>(op) && "Expected func op");
       FunctionBuilder fb(xls_region.getName(), package.get());
       if (isImportedVerilog) {
-        auto func = cast<func::FuncOp>(op);
+        auto func = cast<FuncOp>(op);
         ArrayRef<Type> argumentTypes = func.getArgumentTypes();
         if (failed(getArgumentNamesForVerilogImport(func, xls_region,
                                                     translation_state, fb,
@@ -1754,8 +1741,8 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
       }
       func.setPrivate();
     });
-    mlir::PassManager pm(op->getContext());
-    pm.addPass(mlir::createSymbolDCEPass());
+    PassManager pm(op->getContext());
+    pm.addPass(createSymbolDCEPass());
     if (pm.run(op).failed()) {
       return op->emitError("Failed to run SymbolDCE pass");
     }

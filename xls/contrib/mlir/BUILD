@@ -507,6 +507,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel",
+        "//xls/ir:channel_ops",
         "//xls/ir:foreign_function",
         "//xls/ir:foreign_function_data_cc_proto",
         "//xls/ir:format_strings",
