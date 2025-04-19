@@ -915,6 +915,12 @@ bool xls_type_to_string(struct xls_type* type, char** error_out,
   return true;
 }
 
+int64_t xls_type_get_flat_bit_count(struct xls_type* type) {
+  CHECK(type != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  return xls_type->GetFlatBitCount();
+}
+
 bool xls_function_get_name(struct xls_function* function, char** error_out,
                            char** string_out) {
   CHECK(function != nullptr);

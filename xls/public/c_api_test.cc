@@ -286,17 +286,6 @@ TEST(XlsCApiTest, ParseTypedValueAndFreeIt) {
   xls_value_free(value);
 }
 
-// Helper for invoking APIs where we want to immediately free the C-API-provided
-// string and convert it into a C++ type.
-//
-// This is useful for temporaries like for display in error messages we we want
-// convenience instead of explicitly showing how the lifetimes are used.
-static std::string ToOwnedCppString(char* cstr) {
-  std::string result = std::string(cstr);
-  xls_c_str_free(cstr);
-  return result;
-}
-
 // Takes a bits-based value and flattens it to a bits buffer and checks it's the
 // same as the bits inside the value.
 TEST(XlsCApiTest, FlattenBitsValueToBits) {
@@ -2207,6 +2196,48 @@ fn get_type_last_val(x: bits[32] id=1) -> bits[32] {
 }
 )";
   EXPECT_EQ(std::string_view{package_str}, kWant);
+}
+
+TEST(XlsCApiTest, TypeGetFlatBitCount) {
+  xls_package* package = xls_package_create("my_package");
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  // Simple bits type
+  xls_type* u32_type = xls_package_get_bits_type(package, 32);
+  EXPECT_EQ(xls_type_get_flat_bit_count(u32_type), 32);
+
+  // Token type
+  xls_type* token_type = xls_package_get_token_type(package);
+  EXPECT_EQ(xls_type_get_flat_bit_count(token_type), 0);
+
+  // Tuple type
+  xls_type* u8_type = xls_package_get_bits_type(package, 8);
+  xls_type* u16_type = xls_package_get_bits_type(package, 16);
+  xls_type* tuple_members[] = {u8_type, u16_type};
+  xls_type* tuple_type = xls_package_get_tuple_type(package, tuple_members, 2);
+  EXPECT_EQ(xls_type_get_flat_bit_count(tuple_type), 24);  // 8 + 16
+
+  // Array type
+  xls_type* u4_type = xls_package_get_bits_type(package, 4);
+  xls_type* array_type = xls_package_get_array_type(package, u4_type, 3);
+  EXPECT_EQ(xls_type_get_flat_bit_count(array_type), 12);  // 4 * 3
+
+  // Nested tuple and array
+  // ((bits[2], bits[3]), bits[1][5])
+  xls_type* u2_type = xls_package_get_bits_type(package, 2);
+  xls_type* u3_type = xls_package_get_bits_type(package, 3);
+  xls_type* inner_tuple_members[] = {u2_type, u3_type};
+  xls_type* inner_tuple_type =
+      xls_package_get_tuple_type(package, inner_tuple_members, 2);  // 2 + 3 = 5
+
+  xls_type* u1_type = xls_package_get_bits_type(package, 1);
+  xls_type* inner_array_type =
+      xls_package_get_array_type(package, u1_type, 5);  // 1 * 5 = 5
+
+  xls_type* outer_tuple_members[] = {inner_tuple_type, inner_array_type};
+  xls_type* nested_type =
+      xls_package_get_tuple_type(package, outer_tuple_members, 2);
+  EXPECT_EQ(xls_type_get_flat_bit_count(nested_type), 10);  // 5 + 5
 }
 
 }  // namespace
