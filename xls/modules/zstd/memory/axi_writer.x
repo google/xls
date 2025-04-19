@@ -124,6 +124,7 @@ pub proc AxiWriter<
     next(state: State) {
         const BYTES_IN_TRANSFER = DATA_W_DIV8 as Addr;
         const MAX_AXI_BURST_BYTES = Addr:256 * BYTES_IN_TRANSFER;
+        const MAX_LANE = std::unsigned_max_value<LANE_W>();
 
         let tok_0 = join();
 
@@ -273,7 +274,7 @@ pub proc AxiWriter<
             Fsm::AXI_WRITE_W => {
                 let last = state.burst_counter == state.burst_end;
                 let low_lane = state.req_low_lane;
-                let high_lane = if (last) { state.req_high_lane } else {Lane:3};
+                let high_lane = if (last) { state.req_high_lane } else {MAX_LANE};
                 let mask = common::lane_mask<DATA_W_DIV8>(low_lane, high_lane);
 
                 AxiW {
