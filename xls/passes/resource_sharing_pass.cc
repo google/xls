@@ -40,6 +40,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/post_dominator_analysis.h"
 #include "ortools/graph/graph.h"
 #include "ortools/graph/cliques.h"
 
@@ -260,12 +261,26 @@ bool AreMutuallyExclusive(
   return false;
 }
 
+// This function returns true if @node_to_check reaches @point_in_the_graph,
+// false otherwise.
+bool DoesReach(const absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
+                   &reachability_result,
+               Node *point_in_the_graph, Node *node_to_check) {
+  // Fetch the set of nodes that reach @point_in_the_graph
+  auto iter = reachability_result.find(point_in_the_graph);
+  CHECK(iter != reachability_result.end());
+  const absl::flat_hash_set<Node *> &reaching_nodes = iter->second;
+
+  // Check if the specified node reaches @point_in_the_graph
+  return reaching_nodes.contains(node_to_check);
+}
+
 std::optional<uint32_t> GetSelectCaseNumberOfNode(
     const absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
         &reachability_result,
     Node *node, Node *select_case, uint32_t select_case_number) {
   // Check if @node reaches the select case given as input
-  if (!reachability_result.at(select_case).contains(node)) {
+  if (!DoesReach(reachability_result, select_case, node)) {
     return {};
   }
 
@@ -408,8 +423,8 @@ ComputeReachabilityAnalysis(FunctionBase *f, OptimizationContext &context) {
 // In other words, some mutually-exclusive pairs of instructions might not be
 // detected by this analysis.
 // Hence, this analysis can be improved in the future.
-absl::flat_hash_map<Node *,
-                    absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
+absl::StatusOr<absl::flat_hash_map<
+    Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>>
 ComputeMutualExclusionAnalysis(
     FunctionBase *f, OptimizationContext &context,
     absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
@@ -418,6 +433,22 @@ ComputeMutualExclusionAnalysis(
                       absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
       mutual_exclusivity_relation;
 
+  // Run the post-dominance analysis.
+  //
+  // The result of this analysis is used to determine whether a given node @n is
+  // mutually exclusive with another node @m where both of them reach a select
+  // node @s.
+  //
+  // In more detail, the post-dominance analysis result is used to guarantee the
+  // following code will lead to conclude @n isn't mutually exclusive with @m:
+  // n = ...
+  // m = ...
+  // s = priority_sel(selector, cases=[n, m])
+  // i = add(n, s)
+  // return i
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<PostDominatorAnalysis> post_dominators,
+                       PostDominatorAnalysis::Run(f));
+
   // Compute the mutual exclusion binary relation between instructions
   for (const auto &[n, s] : reachability_result) {
     // Find the next select
@@ -425,7 +456,7 @@ ComputeMutualExclusionAnalysis(
       continue;
     }
 
-    // Compute the mutually-exclusive instructions
+    // Compute the mutually-exclusive instructions created by the select @n
     absl::Span<Node *const> cases = GetCases(n);
     for (uint32_t case_number = 0; case_number < cases.length();
          case_number++) {
@@ -435,31 +466,60 @@ ComputeMutualExclusionAnalysis(
       // are mutually exclusive with the nodes that reach the next cases
       for (Node *current_case_reaching_node :
            reachability_result[current_case]) {
+        // Do not bother looking at nodes that we will not be able to fold
+        if (!CanTarget(current_case_reaching_node)) {
+          continue;
+        }
+
+        // Only nodes that are post-dominated by the select are considered to be
+        // mutually exclusive with another node
+        if (!post_dominators->NodeIsPostDominatedBy(current_case_reaching_node,
+                                                    n)) {
+          continue;
+        }
+
         // Check if the current reaching node reaches the other cases
         for (uint32_t case_number_2 = case_number + 1;
              case_number_2 < cases.length(); case_number_2++) {
           Node *current_case_2 = cases[case_number_2];
-          if (reachability_result[current_case_2].contains(
-                  current_case_reaching_node)) {
+          if (DoesReach(reachability_result, current_case_2,
+                        current_case_reaching_node)) {
             continue;
           }
 
-          // The current reaching node does not reach the current other case.
+          // The current reaching node @current_case_reaching_node does not
+          // reach the other case @current_case_2.
+          //
           // Add as mutually-exclusive all reaching nodes of the current other
-          // case that also do not reach @current_case_reaching_node
+          // case @current_case_2 that also do not reach
+          // @current_case_reaching_node.
           for (Node *other_case_reaching_node :
                reachability_result[current_case_2]) {
-            if (reachability_result[current_case].contains(
-                    other_case_reaching_node)) {
+            // Do not bother looking at nodes that we will not be able to fold
+            if (!CanTarget(other_case_reaching_node)) {
               continue;
             }
-            if (current_case_reaching_node < other_case_reaching_node) {
-              mutual_exclusivity_relation[n][current_case_reaching_node].insert(
-                  other_case_reaching_node);
-            } else {
-              mutual_exclusivity_relation[n][other_case_reaching_node].insert(
-                  current_case_reaching_node);
+
+            // Only nodes that are post-dominated by the select are considered
+            // to be mutually exclusive with another node
+            if (!post_dominators->NodeIsPostDominatedBy(
+                    other_case_reaching_node, n)) {
+              continue;
             }
+
+            // If @other_case_reaching_node reaches @current_case, then it
+            // cannot be mutually exclusive with @current_case_reaching_node
+            if (DoesReach(reachability_result, current_case,
+                          other_case_reaching_node)) {
+              continue;
+            }
+
+            // @current_case_reaching_node and @other_case_reaching_node are
+            // mutually exclusive.
+            mutual_exclusivity_relation[n][current_case_reaching_node].insert(
+                other_case_reaching_node);
+            mutual_exclusivity_relation[n][other_case_reaching_node].insert(
+                current_case_reaching_node);
           }
         }
       }
@@ -473,7 +533,7 @@ ComputeMutualExclusionAnalysis(
     for (const auto &[n0, s0] : mer.second) {
       VLOG(4) << "  " << n0->ToString();
       for (auto n1 : s0) {
-        VLOG(4) << "    -> " << n1->ToString();
+        VLOG(4) << "    <-> " << n1->ToString();
       }
     }
   }
@@ -491,14 +551,25 @@ std::vector<std::unique_ptr<BinaryFoldingAction>> ComputeFoldableActions(
         &reachability_result) {
   std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions;
 
-  // Compute all possible foldable actions
+  // Identify as many folding actions that are legal as possible by our current
+  // analyses.
   for (const auto &mer : mutual_exclusivity_relation) {
     Node *select = mer.first;
     for (const auto &[n0, s0] : mer.second) {
+      // Skip nodes that cannot be folded
       if (!CanTarget(n0)) {
         continue;
       }
-      for (auto n1 : s0) {
+
+      // Find nodes that n0 can fold into
+      for (Node *n1 : s0) {
+        // Since the mutual exclusive relation is symmetric, use only one side
+        // of it
+        if (n1->id() < n0->id()) {
+          continue;
+        }
+
+        // Skip nodes that cannot be folded
         if (!CanTarget(n1)) {
           continue;
         }
@@ -647,6 +718,7 @@ absl::StatusOr<bool> PerformFoldingActions(
     // Fold
     //
     // - Step 0: Get the subset of the bits of the selector that are relevant
+    VLOG(3) << "    Step 0: generate the new selector";
     Node *selector = folding->GetSelector();
     std::vector<Node *> from_bits;
     from_bits.reserve(froms_to_use.size());
@@ -659,8 +731,11 @@ absl::StatusOr<bool> PerformFoldingActions(
     absl::c_reverse(from_bits);
     XLS_ASSIGN_OR_RETURN(Node * new_selector,
                          f->MakeNode<Concat>(selector->loc(), from_bits));
+    VLOG(3) << "      " << new_selector->ToString();
 
     // - Step 1: Create a new select for each input
+    VLOG(3) << "    Step 1: generate the priority selects, one per input of "
+               "the folding target";
     std::vector<Node *> new_operands;
     for (uint32_t op_id = 0; op_id < to_node->operand_count(); op_id++) {
       // Fetch the current operand for the target of the folding action.
@@ -679,27 +754,34 @@ absl::StatusOr<bool> PerformFoldingActions(
           f->MakeNode<PrioritySelect>(selector->loc(), new_selector,
                                       operand_select_cases, to_operand));
       new_operands.push_back(operand_select);
+      VLOG(3) << "      " << operand_select->ToString();
     }
     CHECK_EQ(new_operands.size(), 2);
 
     // - Step 2: Replace the operands of the @to_node to use the results of the
     //           new selectors computed at Step 1.
-    for (uint32_t op_id = 0; op_id < to_node->operand_count(); op_id++) {
+    VLOG(3) << "    Step 2: update the target of the folding transformation";
+    for (int64_t op_id = 0LL; op_id < to_node->operand_count(); op_id++) {
       XLS_RETURN_IF_ERROR(
           to_node->ReplaceOperandNumber(op_id, new_operands[op_id], true));
     }
+    VLOG(3) << "      " << to_node->ToString();
 
     // - Step 3: Replace every source of the folding action with the new
     // @to_node
+    VLOG(3)
+        << "    Step 3: update the def-use chains to use the new folded node";
     for (auto [from_node, from_node_case_number] : froms_to_use) {
       XLS_RETURN_IF_ERROR(from_node->ReplaceUsesWith(to_node));
     }
 
     // - Step 4: Remove all the sources of the folding action as they are now
     //           dead
+    VLOG(3) << "    Step 4: remove the sources of the folding transformation";
     for (auto [from_node, from_node_case_number] : froms_to_use) {
       XLS_RETURN_IF_ERROR(f->RemoveNode(from_node));
     }
+    VLOG(3) << "    Folding completed";
   }
 
   return modified;
@@ -728,8 +810,10 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   // Compute the mutually exclusive binary relation between IR instructions
   absl::flat_hash_map<Node *,
                       absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
-      mutual_exclusivity_relation =
-          ComputeMutualExclusionAnalysis(f, context, reachability_result);
+      mutual_exclusivity_relation;
+  XLS_ASSIGN_OR_RETURN(
+      mutual_exclusivity_relation,
+      ComputeMutualExclusionAnalysis(f, context, reachability_result));
 
   // Identify the set of legal folding actions
   std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions =
