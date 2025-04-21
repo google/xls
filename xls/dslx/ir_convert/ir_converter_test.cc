@@ -732,7 +732,7 @@ fn f(x: u2) -> u8 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, EnumUse) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, EnumUse) {
   const char* program =
       R"(
 enum Foo : u32 {
@@ -935,7 +935,7 @@ fn f(x: u32[1]) -> u32[1] {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, SingleElementEnumArrayParam) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, SingleElementEnumArrayParam) {
   const char* program =
       R"(
 enum Foo : u2 {}

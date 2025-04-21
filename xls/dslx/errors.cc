@@ -195,4 +195,27 @@ absl::Status CheckedCastErrorStatus(const Span& span,
       span.ToString(file_table), from_value.ToString(), to_type->ToString()));
 }
 
+absl::Status NotConstantErrorStatus(const Span& span, const Expr* expr,
+                                    const FileTable& file_table) {
+  return absl::InvalidArgumentError(
+      absl::StrFormat("NotConstantError: %s expr `%s` is not a constexpr.",
+                      span.ToString(file_table), expr->ToString()));
+}
+
+absl::Status RedefinedNameErrorStatus(const Span& span, const AstNode* expr,
+                                      std::string_view name,
+                                      const FileTable& file_table) {
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "RedefinedNameErrorStatus: %s duplicated name `%s` in `%s` is found.",
+      span.ToString(file_table), name, expr->ToString()));
+}
+
+absl::Status UndefinedNameErrorStatus(const Span& span, const AstNode* expr,
+                                      std::string_view name,
+                                      const FileTable& file_table) {
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "UndefinedNameErrorStatus: %s name `%s` in `%s` is undefined.",
+      span.ToString(file_table), name, expr->ToString()));
+}
+
 }  // namespace xls::dslx

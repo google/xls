@@ -115,6 +115,21 @@ absl::Status CheckedCastErrorStatus(const Span& span,
                                     const Type* to_type,
                                     const FileTable& file_table);
 
+// To be raised when an expression is expected to be a constant while it is
+// actually not.
+absl::Status NotConstantErrorStatus(const Span& span, const Expr* expr,
+                                    const FileTable& file_table);
+
+// To be raised when using a duplicated name where not allowed.
+absl::Status RedefinedNameErrorStatus(const Span& span, const AstNode* expr,
+                                      std::string_view name,
+                                      const FileTable& file_table);
+
+// To be raised when using a name that is not defined.
+absl::Status UndefinedNameErrorStatus(const Span& span, const AstNode* expr,
+                                      std::string_view name,
+                                      const FileTable& file_table);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_ERRORS_H_

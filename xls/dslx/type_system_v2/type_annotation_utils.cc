@@ -365,6 +365,17 @@ const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
              : nullptr;
 }
 
+std::optional<const EnumDef*> GetEnumDef(const TypeAnnotation* annotation) {
+  if (const auto* type_ref_type_annotation =
+          dynamic_cast<const TypeRefTypeAnnotation*>(annotation)) {
+    if (const auto* enum_def = std::get_if<EnumDef*>(
+            &type_ref_type_annotation->type_ref()->type_definition())) {
+      return *enum_def;
+    }
+  }
+  return std::nullopt;
+}
+
 absl::Status VerifyAllParametricsSatisfied(
     const std::vector<ParametricBinding*>& bindings,
     const std::vector<ExprOrType>& actual_parametrics,

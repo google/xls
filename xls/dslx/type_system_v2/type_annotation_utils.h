@@ -154,6 +154,10 @@ const TypeAnnotation* GetReturnType(Module& module, const Function& fn);
 const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
     const TypeAnnotation* annotation);
 
+// Gets the enum definition for the enum type referred to by `annotation`. This
+// function does not perform type resolution.
+std::optional<const EnumDef*> GetEnumDef(const TypeAnnotation* annotation);
+
 // Verifies that all `bindings` either have a value in `actual_parametrics` or
 // a default expression. Note that this is not a requirement in all situations
 // where parametrics can be explicitly passed. In situations where they can be

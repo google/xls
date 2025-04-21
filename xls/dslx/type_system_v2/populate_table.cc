@@ -30,6 +30,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -171,6 +172,20 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
             << AstNodeKindToString(ToAstNode(node->subject())->kind());
 
     if (std::holds_alternative<NameRef*>(node->subject())) {
+      std::variant<const NameDef*, BuiltinNameDef*> any_name_def =
+          std::get<NameRef*>(node->subject())->name_def();
+      if (auto* name_def = std::get_if<const NameDef*>(&any_name_def)) {
+        if (auto enum_def =
+                dynamic_cast<const EnumDef*>((*name_def)->definer())) {
+          return table_.SetTypeAnnotation(
+              node, module_.Make<TypeRefTypeAnnotation>(
+                        (*name_def)->span(),
+                        module_.Make<TypeRef>(
+                            enum_def->span(),
+                            TypeDefinition(const_cast<EnumDef*>(enum_def))),
+                        std::vector<ExprOrType>(), std::nullopt));
+        }
+      }
       XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_def,
                            GetStructOrProcRef(node, import_data_));
       if (struct_def.has_value()) {
@@ -1344,6 +1359,78 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                             arg_types, module_.Make<TypeVariableTypeAnnotation>(
                                            return_type_variable))));
     return node->callee()->Accept(this);
+  }
+
+  absl::Status HandleEnumDef(const EnumDef* node) override {
+    // When we come in here with an example like:
+    //   enum MyEnum : u8 {
+    //     A = 1;
+    //     B = 2;
+    //   }
+    //
+    // and this function will make it look like this:
+    //   Node               Annotation                    Variable
+    //   ---------------------------------------------------------
+    //   MyEnum             TypeRefTypeAnnotation(MyEnum) T0
+    //   1                  u8                            T1
+    //   2                  u8                            T1
+    //
+    // The EnumDef itself is annotated with a type ref to itself, while its
+    // member values are annotated with EnumDef's annotation and any annotations
+    // they have.
+    VLOG(5) << "HandleEnumDef: " << node->ToString();
+
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* enum_type_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<EnumDef*>(node),
+            GenerateInternalTypeVariableName(node),
+            node->type_annotation()
+                ? std::make_optional(node->type_annotation())
+                : std::nullopt));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, enum_type_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node, module_.Make<TypeRefTypeAnnotation>(
+                  node->span(),
+                  module_.Make<TypeRef>(
+                      node->span(), TypeDefinition(const_cast<EnumDef*>(node))),
+                  std::vector<ExprOrType>(), std::nullopt)));
+
+    if (node->values().empty()) {
+      if (!node->type_annotation()) {
+        return TypeInferenceErrorStatus(
+            *node->GetSpan(), nullptr,
+            absl::Substitute("Enum `$0` has no type annotation and no value.",
+                             node->ToString()),
+            file_table_);
+      }
+    } else {
+      // Enum values share a separate type variable for the underlying numeric
+      // type.
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* value_type_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType,
+              const_cast<Expr*>(node->values()[0].value),
+              GenerateInternalTypeVariableName(node->values()[0].value)));
+      absl::flat_hash_set<std::string> names;
+      for (const EnumMember& value : node->values()) {
+        // Check for duplicated value names.
+        if (!names.emplace(value.name_def->identifier()).second) {
+          return RedefinedNameErrorStatus(value.name_def->span(), node,
+                                          value.name_def->identifier(),
+                                          file_table_);
+        }
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeVariable(value.value, value_type_variable));
+      }
+      if (node->type_annotation()) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node->values()[0].value,
+                                                     node->type_annotation()));
+      }
+    }
+
+    return DefaultHandler(node);
   }
 
   absl::Status HandleFormatMacro(const FormatMacro* node) override {

@@ -100,6 +100,34 @@ class Unifier {
         return annotations[0];
       }
     }
+    if (std::optional<const EnumDef*> first_enum_def =
+            GetEnumDef(annotations[0])) {
+      // For enum type unification, we just need to check if every resolved type
+      // annotation refers to the same enum.
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<const EnumDef*> tuple_annotations,
+          CastAllOrError<EnumDef>(
+              annotations,
+              [&first_enum_def](
+                  const TypeAnnotation* annotation) -> const EnumDef* {
+                if (std::optional<const EnumDef*> enum_def =
+                        GetEnumDef(annotation)) {
+                  if (*enum_def == first_enum_def) {
+                    return *first_enum_def;
+                  }
+                }
+                return nullptr;
+              }));
+      // If the unified type is not defined by this module, clone it.
+      if (annotations[0]->owner() != &module_) {
+        return module_.Make<TypeRefTypeAnnotation>(
+            span,
+            module_.Make<TypeRef>(
+                span, TypeDefinition(const_cast<EnumDef*>(*first_enum_def))),
+            std::vector<ExprOrType>(), std::nullopt);
+      }
+      return annotations[0];
+    }
     if (const auto* first_tuple_annotation =
             dynamic_cast<const TupleTypeAnnotation*>(annotations[0])) {
       XLS_ASSIGN_OR_RETURN(

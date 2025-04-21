@@ -277,7 +277,12 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       return member.type_annotation;
     }
     // It's not a bits-like type, so the only other thing that would have
-    // members is a struct (or impl).
+    // members is an enum or struct (or impl).
+    // The type annotation of enum member is just the enum itself.
+    if (std::optional<const EnumDef*> enum_def = GetEnumDef(object_type)) {
+      return object_type;
+    }
+    // It must be a struct then.
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                          GetStructOrProcRef(object_type, import_data_));
     if (!struct_or_proc_ref.has_value()) {

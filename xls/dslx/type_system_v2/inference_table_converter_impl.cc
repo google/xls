@@ -1123,6 +1123,54 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
       return type;
     }
+    if (std::optional<const EnumDef*> enum_def = GetEnumDef(annotation)) {
+      TypeInfo* ti = GetTypeInfo(parametric_context);
+      std::vector<InterpValue> members;
+      BitsType* underlying_type = nullptr;
+
+      // Handle special case: if the enum has no values, its explicitly
+      // annotated type should be used.
+      if ((*enum_def)->values().empty()) {
+        CHECK((*enum_def)->type_annotation());
+        XLS_ASSIGN_OR_RETURN(
+            std::unique_ptr<Type> type,
+            Concretize((*enum_def)->type_annotation(), parametric_context));
+        ti->SetItem((*enum_def)->type_annotation(), std::move(type));
+        XLS_ASSIGN_OR_RETURN(
+            underlying_type,
+            ti->GetItemAs<BitsType>((*enum_def)->type_annotation()));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            underlying_type,
+            ti->GetItemAs<BitsType>((*enum_def)->values()[0].value));
+
+        for (const EnumMember& value : (*enum_def)->values()) {
+          absl::StatusOr<InterpValue> evaluated_value =
+              ti->GetConstExpr(value.value);
+          // Evaluate any enum value that has not been evaluated, such as const
+          // expressions.
+          if (!evaluated_value.ok()) {
+            evaluated_value = ConstexprEvaluator::EvaluateToValue(
+                &import_data_, ti, &warning_collector_, ParametricEnv(),
+                value.value);
+            if (!evaluated_value.ok()) {
+              return NotConstantErrorStatus(value.value->span(), value.value,
+                                            file_table_);
+            }
+            ti->NoteConstExpr(value.value, *evaluated_value);
+          }
+          // Evaluated enum value has numeric type, which needs to be converted
+          // to enum type.
+          XLS_ASSIGN_OR_RETURN(auto bits, evaluated_value->GetBits());
+          InterpValue enum_value = InterpValue::MakeEnum(
+              bits, evaluated_value->IsSigned(), *enum_def);
+          ti->NoteConstExpr(value.value, enum_value);
+          members.push_back(enum_value);
+        }
+      }
+      return std::make_unique<EnumType>(**enum_def, underlying_type->size(),
+                                        underlying_type->is_signed(), members);
+    }
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc,
                          GetStructOrProcRef(annotation, import_data_));
     if (struct_or_proc.has_value()) {
@@ -1345,6 +1393,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::Status NoteColonRefIfConstExpr(
       std::optional<const ParametricContext*> parametric_context,
       const ColonRef* colon_ref, const Type& type, TypeInfo* ti) {
+    // Handle enum here, at this point its type is concretized and all its
+    // values are evaluated as constexpr.
+    if (const auto* enum_type = dynamic_cast<const EnumType*>(&type)) {
+      const EnumDef& enum_def = enum_type->nominal_type();
+      absl::StatusOr<Expr*> enum_value = enum_def.GetValue(colon_ref->attr());
+      if (!enum_value.ok()) {
+        return UndefinedNameErrorStatus(colon_ref->span(), colon_ref,
+                                        colon_ref->attr(), file_table_);
+      }
+      XLS_ASSIGN_OR_RETURN(InterpValue value, ti->GetConstExpr(*enum_value));
+      ti->NoteConstExpr(colon_ref, value);
+      return absl::OkStatus();
+    }
+
     const std::optional<const AstNode*> target =
         table_.GetColonRefTarget(colon_ref);
 

@@ -5663,6 +5663,306 @@ const_assert!(Y == 24);
                               HasNodeWithType("Y", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, EnumBool) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum {
+  A = false,
+  B = true,
+}
+fn f(x: MyEnum) -> MyEnum {
+  let y = x;
+  y
+}
+const_assert!(MyEnum::A as u1 == u1:0);
+const_assert!(MyEnum::B as u1 == u1:1);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "MyEnum"),
+                              HasNodeWithType("x", "MyEnum"),
+                              HasNodeWithType("y", "MyEnum"))));
+}
+
+TEST(TypecheckV2Test, EnumInt) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum {
+  A = s8:0,
+  B = -128,
+  C = 127,
+}
+fn f(x: MyEnum) -> MyEnum {
+  x
+}
+const_assert!(MyEnum::A as s8 == 0);
+const_assert!(MyEnum::B as s8 == -128);
+const_assert!(MyEnum::C as s8 == 127);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "MyEnum"))));
+}
+
+TEST(TypecheckV2Test, EnumWithAnnotation) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u9 {
+  A = 256,
+}
+fn f(x: MyEnum) -> MyEnum {
+  x
+}
+const_assert!(MyEnum::A as u9 == 256);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "MyEnum"),
+                              HasNodeWithType("x", "MyEnum"))));
+}
+
+TEST(TypecheckV2Test, EnumMixedConstLiterals) {
+  EXPECT_THAT(
+      R"(
+const X = u8:42;
+const Y = u8:10;
+enum MyEnum {
+  A = 64,
+  B = X,
+  C = Y + Y,
+}
+fn f(x: MyEnum) -> MyEnum {
+  x
+}
+const_assert!(MyEnum::A as u8 == 64);
+const_assert!(MyEnum::B as u8 == 42);
+const_assert!(MyEnum::C as u8 == 20);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "MyEnum"))));
+}
+
+TEST(TypecheckV2Test, EnumOutOfRange) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 0,
+  B = 256,
+}
+)",
+      TypecheckFails(HasSizeMismatch("uN[9]", "u8")));
+}
+
+TEST(TypecheckV2Test, EnumValueTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum {
+  A = u8:1,
+  B = u16:2,
+}
+)",
+      TypecheckFails(HasTypeMismatch("u8", "u16")));
+}
+
+TEST(TypecheckV2Test, EnumAnnotationTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = u16:1,
+}
+)",
+      TypecheckFails(HasTypeMismatch("u8", "u16")));
+}
+
+TEST(TypecheckV2Test, EnumInvalidType) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 0,
+  B = "A",
+}
+)",
+      TypecheckFails(HasTypeMismatch("u8[u32:1]", "u8")));
+}
+
+TEST(TypecheckV2Test, EnumNoTypeOrValue) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum {
+}
+)",
+      TypecheckFails(HasSubstr("has no type annotation and no value")));
+}
+
+TEST(TypecheckV2Test, EnumTypeAlias) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 1,
+  B = 2,
+}
+type Alias1 = MyEnum;
+type Alias2 = Alias1;
+fn f(x : Alias2) -> Alias1 {
+  x
+}
+const_assert!(Alias1::A as u8 == 1);
+const_assert!(Alias2::A as u8 == 1);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "MyEnum"),
+                              HasNodeWithType("Alias1", "MyEnum"),
+                              HasNodeWithType("Alias2", "MyEnum"),
+                              HasNodeWithType("x", "MyEnum"))));
+}
+
+TEST(TypecheckV2Test, EnumValue) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 1,
+  B = 2,
+}
+const x = MyEnum::B;
+const_assert!(x as u8 == 2);
+)",
+      TypecheckSucceeds(HasNodeWithType("x", "MyEnum")));
+}
+
+TEST(TypecheckV2Test, EnumValueTypeAlias) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 1,
+  B = 2,
+}
+type Alias1 = MyEnum;
+type Alias2 = Alias1;
+type Alias3 = Alias2;
+const x = Alias2::A;
+const y = Alias3::B;
+const_assert!(x as u8 == 1);
+const_assert!(y as u8 == 2);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("x", "MyEnum"),
+                              HasNodeWithType("y", "MyEnum"))));
+}
+
+TEST(TypecheckV2Test, EnumCastToInt) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 1,
+  B = 2,
+}
+const x = MyEnum::A as u8;
+const y = MyEnum::B as u4;
+const_assert!(x == u8:1);
+const_assert!(y == u4:2);
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("x", "uN[8]"), HasNodeWithType("y", "uN[4]"))));
+}
+
+TEST(TypecheckV2Test, IntCastToEnum) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 1,
+  B = 2,
+}
+const x = u8:1 as MyEnum;
+const y = u8:2 as MyEnum;
+const_assert!(x == MyEnum::A);
+const_assert!(y == MyEnum::B);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("x", "MyEnum"),
+                              HasNodeWithType("y", "MyEnum"))));
+}
+
+TEST(TypecheckV2Test, EnumInvalidImplicitCastToInt) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 1,
+  B = 2,
+}
+const x : u8 = MyEnum::A;
+)",
+      TypecheckFails(HasTypeMismatch("MyEnum", "u8")));
+}
+
+TEST(TypecheckV2Test, EnumInvalidImplicitCastFromInt) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 1,
+  B = 2,
+}
+const x : MyEnum = u8:1;
+)",
+      TypecheckFails(HasTypeMismatch("u8", "MyEnum")));
+}
+
+TEST(TypecheckV2Test, EnumInvalidNameRef) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 1,
+  B = 2,
+}
+const x = MyEnum::C;
+)",
+      TypecheckFails(HasSubstr("name `C` in `MyEnum::C` is undefined")));
+}
+
+TEST(TypecheckV2Test, EnumDuplicatedMember) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 1,
+  A = 2,
+}
+)",
+      TypecheckFails(HasSubstr("duplicated name `A`")));
+}
+
+TEST(TypecheckV2Test, EnumSelfReference) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = MyEnum::A,
+}
+)",
+      TypecheckFails(
+          HasSubstr("Cannot find a definition for name: \"MyEnum\"")));
+}
+
+TEST(TypecheckV2Test, EnumOtherReference) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum1 : u8 {
+  A = 10,
+}
+const B : u8 = 20;
+enum MyEnum2 : u8 {
+  A = B,
+  B = MyEnum1::A as u8,
+}
+const x = MyEnum2::A;
+const y = MyEnum2::B;
+const_assert!(x as u8 == 20);
+const_assert!(y as u8 == 10);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("x", "MyEnum2"),
+                              HasNodeWithType("y", "MyEnum2"))));
+}
+
+TEST(TypecheckV2Test, EnumBinop) {
+  EXPECT_THAT(
+      R"(
+enum MyEnum : u8 {
+  A = 1,
+  B = 2,
+}
+const C = MyEnum::A + MyEnum::B;
+)",
+      TypecheckFails(HasSubstr(
+          "Binary operations can only be applied to bits-typed operands")));
+}
+
 TEST(TypecheckV2Test, SpawnBasicProc) {
   EXPECT_THAT(R"(
 proc Counter {
