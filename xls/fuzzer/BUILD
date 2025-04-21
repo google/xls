@@ -396,6 +396,8 @@ generate_crasher_regression_tests(
         "crashers/crasher_2024-09-20_67c5.x",
         # TODO(https://github.com/google/xls/issues/2011): Remove when no longer flaky
         "crashers/crasher_2025-03-19_2e1f.x",
+        # TODO(https://github.com/google/xls/issues/2046): Remove when fixed.
+        "crashers/crasher_2025-04-20_ad5c.x",
     ],
     prefix = package_name(),
     tags = {
