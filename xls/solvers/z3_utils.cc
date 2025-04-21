@@ -102,7 +102,7 @@ Z3_sort CreateTupleSort(Z3_context ctx, const Type& type) {
 Z3_solver CreateSolver(Z3_context ctx, int num_threads) {
   Z3_params params = Z3_mk_params(ctx);
   Z3_params_inc_ref(ctx, params);
-  Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "sat.threads"),
+  Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "smt.threads"),
                      num_threads);
   Z3_params_set_uint(ctx, params, Z3_mk_string_symbol(ctx, "threads"),
                      num_threads);

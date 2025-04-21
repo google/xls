@@ -52,9 +52,9 @@ def load_external_repositories():
 
     http_archive(
         name = "z3",
-        urls = ["https://github.com/Z3Prover/z3/archive/z3-4.12.2.tar.gz"],
-        sha256 = "9f58f3710bd2094085951a75791550f547903d75fe7e2fcb373c5f03fc761b8f",
-        strip_prefix = "z3-z3-4.12.2",
+        urls = ["https://github.com/Z3Prover/z3/archive/z3-4.14.1.tar.gz"],
+        integrity = "sha256-gaAsLGTGTWw98jP1kYa5VieZCtoMTC/JAcnCWnByZyo=",
+        strip_prefix = "z3-z3-4.14.1",
         build_file = "//dependency_support/z3:bundled.BUILD.bazel",
     )
 
