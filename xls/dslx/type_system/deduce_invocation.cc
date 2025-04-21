@@ -87,8 +87,9 @@ static Invocation* CreateElementInvocation(
   return result;
 }
 
+template <typename Resolution>
 static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
-    const Invocation* node, DeduceCtx* ctx) {
+    const Invocation* node, DeduceCtx* ctx, Resolution resolve_fn) {
   const absl::Span<Expr* const>& args = node->args();
   if (args.size() != 2) {
     return ArgCountMismatchErrorStatus(
@@ -146,6 +147,32 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
     XLS_RETURN_IF_ERROR(ctx->type_info()->AddInvocationTypeInfo(
         *node, caller, caller_bindings, tab.parametric_env,
         /*derived_type_info=*/nullptr));
+  }
+
+  // We can't blindly resolve the function or else we might fail due to look up
+  // a parametric builtin.
+  bool callee_needs_implicit_token = false;
+  if (IsBuiltinFn(callee)) {
+    callee_needs_implicit_token = GetBuiltinFnRequiresImplicitToken(callee);
+  } else {
+    XLS_ASSIGN_OR_RETURN(Function * fn, resolve_fn(callee, ctx, node->span()));
+    XLS_RET_CHECK(fn != nullptr);
+
+    XLS_ASSIGN_OR_RETURN(TypeInfo * root_type_info,
+                         ctx->import_data()->GetRootTypeInfoForNode(fn));
+    std::optional<bool> callee_opt =
+        root_type_info->GetRequiresImplicitToken(*fn);
+    XLS_RET_CHECK(callee_opt.has_value())
+        << "user-defined function should have an annotation for whether it "
+           "requires an implicit token: "
+        << fn->identifier();
+    callee_needs_implicit_token = callee_opt.value();
+  }
+
+  // If the callee function needs an implicit token type (e.g. because it has
+  // a fail!() or cover!() operation transitively) then so do we.
+  if (callee_needs_implicit_token) {
+    UseImplicitToken(ctx);
   }
 
   ArrayType* arg0_array_type = dynamic_cast<ArrayType*>(arg0_type.get());
@@ -352,20 +379,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
         ctx->file_table());
   }
 
-  // Map is special.
-  if (IsBuiltinFn(node->callee(), "map")) {
-    return DeduceMapInvocation(node, ctx);
-  }
-
-  // Gather up the type of all the (actual) arguments.
-  std::vector<InstantiateArg> args;
-  XLS_RETURN_IF_ERROR(AppendArgsForInstantiation(node, node->callee(),
-                                                 node->args(), ctx, &args));
-
-  // Find the callee as a DSLX Function from the expression.
-  auto resolve_fn = [](const Instantiation* node,
-                       DeduceCtx* ctx) -> absl::StatusOr<Function*> {
-    Expr* callee = node->callee();
+  auto resolve_callee = [](Expr* callee, DeduceCtx* ctx,
+                           const Span& base_span) -> absl::StatusOr<Function*> {
     // Check for attr associated with an impl function.
     if (auto* attr = dynamic_cast<Attr*>(callee); attr != nullptr) {
       XLS_ASSIGN_OR_RETURN(std::optional<Function*> impl_fn,
@@ -392,21 +407,36 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
         fn = dynamic_cast<Function*>(definer);
         if (fn == nullptr) {
           return TypeInferenceErrorStatus(
-              node->callee()->span(), nullptr,
+              callee->span(), nullptr,
               absl::StrFormat("Invocation callee `%s` is not a function",
-                              node->callee()->ToString()),
+                              callee->ToString()),
               ctx->file_table());
         }
       }
     } else {
       return TypeInferenceErrorStatus(
-          node->span(), nullptr,
+          base_span, nullptr,
           "An invocation callee must be a function, with a possible scope "
           "indicated using `::` or `.` in the case of an instance method",
           ctx->file_table());
     }
     return fn;
   };
+  // Find the callee as a DSLX Function from the expression.
+  auto resolve_fn = [&](const Instantiation* node,
+                        DeduceCtx* ctx) -> absl::StatusOr<Function*> {
+    Expr* callee = node->callee();
+    return resolve_callee(callee, ctx, node->span());
+  };
+  // Map is special.
+  if (IsBuiltinFn(node->callee(), "map")) {
+    return DeduceMapInvocation(node, ctx, resolve_callee);
+  }
+
+  // Gather up the type of all the (actual) arguments.
+  std::vector<InstantiateArg> args;
+  XLS_RETURN_IF_ERROR(AppendArgsForInstantiation(node, node->callee(),
+                                                 node->args(), ctx, &args));
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndParametricEnv tab,

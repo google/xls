@@ -71,9 +71,11 @@
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/ir/verifier.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
@@ -1898,6 +1900,8 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   std::vector<std::string> free = mapped_fn->GetFreeParametricKeys();
   absl::btree_set<std::string> free_set(free.begin(), free.end());
   CallingConvention convention = GetCallingConvention(mapped_fn);
+  bool is_implicit_token = convention == CallingConvention::kImplicitToken;
+
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
       MangleDslxName(lookup_module->name(), mapped_fn->identifier(), convention,
@@ -1905,9 +1909,84 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   VLOG(5) << "Getting function with mangled name: " << mangled_name
           << " from package: " << package()->name();
   XLS_ASSIGN_OR_RETURN(xls::Function * f, package()->GetFunction(mangled_name));
-  return Def(node, [&](const SourceInfo& loc) -> BValue {
-    return function_builder_->Map(arg, f, loc);
-  });
+  size_t arg_size = arg.GetType()->AsArrayOrDie()->size();
+  xls::Type* output_type = package()->GetArrayType(
+      arg_size,
+      is_implicit_token
+          ? f->return_value()->GetType()->AsTupleOrDie()->element_type(1)
+          : f->return_value()->GetType());
+  std::string synthetic_function_name = absl::StrFormat(
+      "__SYNTHETIC_LOOP_BODY_%s_CALLING_%s__MAP_%d", function_builder_->name(),
+      mangled_name, GetAndBumpCountedForCount());
+  if (is_implicit_token) {
+    // add args for token and activation.
+    XLS_RET_CHECK(implicit_token_data_.has_value()) << absl::StreamFormat(
+        "If callee (%s @ %s) requires an implicit token, caller must require "
+        "a token as well (property is transitive across call graph).",
+        map_fn_name, node->span().ToString(file_table()));
+    // Prepend the token and the control predicate boolean on the args.
+    BValue entry_token = implicit_token_data_->entry_token;
+    BValue control_pred = implicit_token_data_->create_control_predicate();
+    return DefWithStatus(
+        node, [&](const SourceInfo& loc) -> absl::StatusOr<BValue> {
+          FunctionBuilder syn(synthetic_function_name, package());
+          BValue loop_idx = syn.Param("idx", package()->GetBitsType(32), loc);
+          BValue loop_data = syn.Param(
+              "token_and_array",
+              package()->GetTupleType({package()->GetTokenType(), output_type}),
+              loc);
+          BValue activated =
+              syn.Param("activated", package()->GetBitsType(1), loc);
+          BValue input_array = syn.Param("input_array", arg.GetType());
+          BValue array_val =
+              syn.TupleIndex(loop_data, 1, loc, "out_array_value");
+          BValue tok_and_new_val = syn.Invoke(
+              {syn.TupleIndex(loop_data, 0, loc, "token_value"), activated,
+               syn.ArrayIndex(input_array, {loop_idx}, loc, "input_value")},
+              f, loc, absl::StrFormat("map_%s_call", map_fn_name));
+          syn.Tuple(
+              {syn.TupleIndex(tok_and_new_val, 0),
+               syn.ArrayUpdate(array_val, syn.TupleIndex(tok_and_new_val, 1),
+                               {loop_idx}, loc, "map_iteration")});
+          XLS_ASSIGN_OR_RETURN(
+              xls::Function * loop_fn, syn.Build(),
+              _ << "Unable to build for-loop synthetic method for "
+                << node->ToString());
+          VLOG(5) << "desugared map into loop over function "
+                  << loop_fn->DumpIr();
+          BValue arg_and_tok = function_builder_->CountedFor(
+              function_builder_->Tuple(
+                  {entry_token,
+                   function_builder_->Literal(ZeroOfType(output_type))}),
+              arg_size, /*stride=*/1, loop_fn, {control_pred, arg}, loc,
+              absl::StrFormat("map_invocation__%s", map_fn_name));
+          implicit_token_data_->control_tokens.push_back(
+              function_builder_->TupleIndex(arg_and_tok, 0));
+          return function_builder_->TupleIndex(arg_and_tok, 1);
+        });
+  }
+  return DefWithStatus(
+      node, [&](const SourceInfo& loc) -> absl::StatusOr<BValue> {
+        FunctionBuilder syn(synthetic_function_name, package());
+        BValue loop_idx = syn.Param("idx", package()->GetBitsType(32), loc);
+        BValue array = syn.Param("array_val", output_type, loc);
+        BValue input_array = syn.Param("input_array", arg.GetType());
+        syn.ArrayUpdate(
+            array,
+            syn.Invoke({syn.ArrayIndex(input_array, {loop_idx})}, f, loc,
+                       absl::StrFormat("map_%s_call", map_fn_name)),
+            {loop_idx}, loc, "map_iteration");
+        XLS_ASSIGN_OR_RETURN(
+            xls::Function * loop_fn, syn.Build(),
+            _ << "Unable to build for-loop synthetic method for "
+              << node->ToString());
+        VLOG(5) << "desugared map into loop over function "
+                << loop_fn->DumpIr();
+        return function_builder_->CountedFor(
+            function_builder_->Literal(ZeroOfType(output_type)),
+            /*trip_count=*/arg_size, /*stride=*/1, loop_fn, {arg}, loc,
+            absl::StrFormat("map_invocation__%s", map_fn_name));
+      });
 }
 
 absl::Status FunctionConverter::HandleIndex(const Index* node) {

@@ -3419,6 +3419,46 @@ fn main() -> (u5[3], u6[3]) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, MapInvocationWithImplicitToken) {
+  constexpr std::string_view program =
+      R"(
+fn f(x: u32) -> u64 {
+    assert!(x != u32:42, "foobar");
+    u16:0 ++ x ++ u16:4
+}
+
+fn main() -> u64[4] {
+    map(u32[4]:[0, 1, 2, 3], f)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, MapInvocationWithStruct) {
+  constexpr std::string_view program =
+      R"(
+struct Foo { x: u32, y: u32 }
+struct Bar { a: u16, b: u16, c: u32 }
+fn f(x: Foo) -> Bar {
+    assert!(x.x != u32:42, "foobar");
+    Bar { a: x.x[0+:u16], b: x.x[16+:u16], c: x.y }
+}
+
+fn main(lst: Foo[u32:6]) -> Bar[u32:6] {
+    map(lst, f)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ConvertFilesToPackageFailsTypeCheck) {
   constexpr std::string_view program =

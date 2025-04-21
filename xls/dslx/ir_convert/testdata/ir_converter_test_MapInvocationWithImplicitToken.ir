@@ -1,0 +1,45 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __itok__test_module__f(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3) -> (token, bits[64]) {
+  literal.4: bits[32] = literal(value=42, id=4)
+  not.7: bits[1] = not(__activated, id=7)
+  ne.5: bits[1] = ne(x, literal.4, id=5)
+  or.8: bits[1] = or(not.7, ne.5, id=8)
+  literal.11: bits[16] = literal(value=0, id=11)
+  assert.9: token = assert(__token, or.8, message="Assertion failure via assert! @ test_module.x:3:12-3:35", label="foobar", id=9)
+  concat.12: bits[48] = concat(literal.11, x, id=12)
+  literal.13: bits[16] = literal(value=4, id=13)
+  after_all.15: token = after_all(assert.9, id=15)
+  concat.14: bits[64] = concat(concat.12, literal.13, id=14)
+  literal.6: bits[8][6] = literal(value=[102, 111, 111, 98, 97, 114], id=6)
+  tuple.10: () = tuple(id=10)
+  ret tuple.16: (token, bits[64]) = tuple(after_all.15, concat.14, id=16)
+}
+
+fn __SYNTHETIC_LOOP_BODY___itok__test_module__main_CALLING___itok__test_module__f__MAP_0(idx: bits[32] id=24, token_and_array: (token, bits[64][4]) id=25, activated: bits[1] id=26, input_array: bits[32][4] id=27) -> (token, bits[64][4]) {
+  token_value: token = tuple_index(token_and_array, index=0, id=29)
+  input_value: bits[32] = array_index(input_array, indices=[idx], id=30)
+  map_f_call: (token, bits[64]) = invoke(token_value, activated, input_value, to_apply=__itok__test_module__f, id=31)
+  out_array_value: bits[64][4] = tuple_index(token_and_array, index=1, id=28)
+  tuple_index.33: bits[64] = tuple_index(map_f_call, index=1, id=33)
+  tuple_index.32: token = tuple_index(map_f_call, index=0, id=32)
+  map_iteration: bits[64][4] = array_update(out_array_value, tuple_index.33, indices=[idx], id=34)
+  ret tuple.35: (token, bits[64][4]) = tuple(tuple_index.32, map_iteration, id=35)
+}
+
+fn __itok__test_module__main(__token: token id=17, __activated: bits[1] id=18) -> (token, bits[64][4]) {
+  literal.36: bits[64][4] = literal(value=[0, 0, 0, 0], id=36)
+  literal.19: bits[32] = literal(value=0, id=19)
+  literal.20: bits[32] = literal(value=1, id=20)
+  literal.21: bits[32] = literal(value=2, id=21)
+  literal.22: bits[32] = literal(value=3, id=22)
+  tuple.37: (token, bits[64][4]) = tuple(__token, literal.36, id=37)
+  array.23: bits[32][4] = array(literal.19, literal.20, literal.21, literal.22, id=23)
+  map_invocation__f: (token, bits[64][4]) = counted_for(tuple.37, trip_count=4, stride=1, body=__SYNTHETIC_LOOP_BODY___itok__test_module__main_CALLING___itok__test_module__f__MAP_0, invariant_args=[__activated, array.23], id=38)
+  tuple_index.39: token = tuple_index(map_invocation__f, index=0, id=39)
+  after_all.41: token = after_all(tuple_index.39, id=41)
+  tuple_index.40: bits[64][4] = tuple_index(map_invocation__f, index=1, id=40)
+  ret tuple.42: (token, bits[64][4]) = tuple(after_all.41, tuple_index.40, id=42)
+}

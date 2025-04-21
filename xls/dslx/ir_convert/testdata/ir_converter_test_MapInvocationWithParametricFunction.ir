@@ -10,6 +10,12 @@ fn __test_module__f__17_5(x: bits[32] id=1) -> bits[5] {
   ret add.6: bits[5] = add(bit_slice.4, bit_slice.5, id=6)
 }
 
+fn __SYNTHETIC_LOOP_BODY___test_module__main_CALLING___test_module__f__17_5__MAP_0(idx: bits[32] id=18, array_val: bits[5][4] id=19, input_array: bits[32][4] id=20) -> bits[5][4] {
+  array_index.21: bits[32] = array_index(input_array, indices=[idx], id=21)
+  map_f_call: bits[5] = invoke(array_index.21, to_apply=__test_module__f__17_5, id=22)
+  ret map_iteration: bits[5][4] = array_update(array_val, map_f_call, indices=[idx], id=23)
+}
+
 fn __test_module__f__3_6(x: bits[32] id=7) -> bits[6] {
   K: bits[32] = literal(value=3, id=9)
   bit_slice.10: bits[6] = bit_slice(x, start=0, width=6, id=10)
@@ -18,18 +24,26 @@ fn __test_module__f__3_6(x: bits[32] id=7) -> bits[6] {
   ret add.12: bits[6] = add(bit_slice.10, bit_slice.11, id=12)
 }
 
+fn __SYNTHETIC_LOOP_BODY___test_module__main_CALLING___test_module__f__3_6__MAP_1(idx: bits[32] id=31, array_val: bits[6][4] id=32, input_array: bits[32][4] id=33) -> bits[6][4] {
+  array_index.34: bits[32] = array_index(input_array, indices=[idx], id=34)
+  map_f_call: bits[6] = invoke(array_index.34, to_apply=__test_module__f__3_6, id=35)
+  ret map_iteration: bits[6][4] = array_update(array_val, map_f_call, indices=[idx], id=36)
+}
+
 fn __test_module__main() -> (bits[5][4], bits[6][4]) {
   literal.13: bits[32] = literal(value=0, id=13)
   literal.14: bits[32] = literal(value=1, id=14)
   literal.15: bits[32] = literal(value=2, id=15)
   literal.16: bits[32] = literal(value=3, id=16)
-  literal.19: bits[32] = literal(value=0, id=19)
-  literal.20: bits[32] = literal(value=1, id=20)
-  literal.21: bits[32] = literal(value=2, id=21)
-  literal.22: bits[32] = literal(value=3, id=22)
+  literal.26: bits[32] = literal(value=0, id=26)
+  literal.27: bits[32] = literal(value=1, id=27)
+  literal.28: bits[32] = literal(value=2, id=28)
+  literal.29: bits[32] = literal(value=3, id=29)
+  literal.24: bits[5][4] = literal(value=[0, 0, 0, 0], id=24)
   array.17: bits[32][4] = array(literal.13, literal.14, literal.15, literal.16, id=17)
-  array.23: bits[32][4] = array(literal.19, literal.20, literal.21, literal.22, id=23)
-  map.18: bits[5][4] = map(array.17, to_apply=__test_module__f__17_5, id=18)
-  map.24: bits[6][4] = map(array.23, to_apply=__test_module__f__3_6, id=24)
-  ret tuple.25: (bits[5][4], bits[6][4]) = tuple(map.18, map.24, id=25)
+  literal.37: bits[6][4] = literal(value=[0, 0, 0, 0], id=37)
+  array.30: bits[32][4] = array(literal.26, literal.27, literal.28, literal.29, id=30)
+  map_invocation__f: bits[5][4] = counted_for(literal.24, trip_count=4, stride=1, body=__SYNTHETIC_LOOP_BODY___test_module__main_CALLING___test_module__f__17_5__MAP_0, invariant_args=[array.17], id=25)
+  map_invocation__f__1: bits[6][4] = counted_for(literal.37, trip_count=4, stride=1, body=__SYNTHETIC_LOOP_BODY___test_module__main_CALLING___test_module__f__3_6__MAP_1, invariant_args=[array.30], id=38)
+  ret tuple.39: (bits[5][4], bits[6][4]) = tuple(map_invocation__f, map_invocation__f__1, id=39)
 }
