@@ -171,18 +171,18 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
             << AstNodeKindToString(ToAstNode(node->subject())->kind());
 
     if (std::holds_alternative<NameRef*>(node->subject())) {
-      AstNode* def = ToAstNode(std::get<NameRef*>(node->subject())->name_def());
-      if (const NameDef* name_def = dynamic_cast<const NameDef*>(def)) {
-        if (const auto* struct_def =
-                dynamic_cast<const StructDefBase*>(name_def->definer())) {
-          XLS_ASSIGN_OR_RETURN(std::optional<const AstNode*> def,
-                               HandleStructAttributeReferenceInternal(
-                                   node, *struct_def, {}, node->attr()));
-          if (def.has_value()) {
-            return PropagateDefToRef(*def, node);
-          }
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_def,
+                           GetStructOrProcRef(node, import_data_));
+      if (struct_def.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<const AstNode*> def,
+            HandleStructAttributeReferenceInternal(
+                node, *struct_def->def, struct_def->parametrics, node->attr()));
+        if (def.has_value()) {
+          return PropagateDefToRef(*def, node);
         }
       }
+      AstNode* def = ToAstNode(std::get<NameRef*>(node->subject())->name_def());
       if (auto* builtin_name_def = dynamic_cast<BuiltinNameDef*>(def)) {
         // This would be a built-in member of a built-in type, like `u32::ZERO`.
         return table_.SetTypeAnnotation(
@@ -215,13 +215,13 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // associated impl.
     if (std::holds_alternative<ColonRef*>(node->subject())) {
       auto* sub_col_ref = std::get<ColonRef*>(node->subject());
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<const StructDefBase*> struct_def,
-          ResolveColonRefToStructDefBase(sub_col_ref, import_data_));
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_def,
+                           GetStructOrProcRef(sub_col_ref, import_data_));
       CHECK(struct_def.has_value());
-      XLS_ASSIGN_OR_RETURN(std::optional<const AstNode*> ref,
-                           HandleStructAttributeReferenceInternal(
-                               node, **struct_def, {}, node->attr()));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<const AstNode*> ref,
+          HandleStructAttributeReferenceInternal(
+              node, *struct_def->def, struct_def->parametrics, node->attr()));
       CHECK(ref.has_value());
 
       XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,

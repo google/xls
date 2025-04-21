@@ -944,8 +944,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         GenerateParametricStructEnv(parent_context, *ref.def, ref.parametrics,
                                     *node->GetSpan()));
     VLOG(6) << "Struct env: " << parametric_env.ToString();
+    XLS_ASSIGN_OR_RETURN(TypeInfo * struct_base_ti,
+                         import_data_.GetRootTypeInfoForNode(ref.def));
     auto type_info_factory = [&] {
-      return import_data_.type_info_owner().New(&module_, base_type_info_);
+      return import_data_.type_info_owner().New(ref.def->owner(),
+                                                struct_base_ti);
     };
     XLS_ASSIGN_OR_RETURN(
         const ParametricContext* struct_context,
@@ -1377,20 +1380,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             << colon_ref->ToString()
             << " with target: " << (*target)->ToString();
     if ((*target)->kind() == AstNodeKind::kConstantDef) {
-      if (std::holds_alternative<TypeRefTypeAnnotation*>(
-              colon_ref->subject())) {
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc,
+                           GetStructOrProcRef(colon_ref, import_data_));
+      if (struct_or_proc.has_value() && struct_or_proc->def->IsParametric()) {
         XLS_ASSIGN_OR_RETURN(
-            std::optional<StructOrProcRef> struct_or_proc,
-            GetStructOrProcRef(
-                std::get<TypeRefTypeAnnotation*>(colon_ref->subject()),
-                import_data_));
-        if (struct_or_proc.has_value() && struct_or_proc->def->IsParametric()) {
-          XLS_ASSIGN_OR_RETURN(
-              const ParametricContext* struct_context,
-              GetOrCreateParametricStructContext(parametric_context,
-                                                 *struct_or_proc, colon_ref));
-          evaluation_ti = struct_context->type_info();
-        }
+            const ParametricContext* struct_context,
+            GetOrCreateParametricStructContext(parametric_context,
+                                               *struct_or_proc, colon_ref));
+        evaluation_ti = struct_context->type_info();
       }
 
       // Evaluate the value, and note it if successful.

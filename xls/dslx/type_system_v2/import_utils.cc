@@ -81,36 +81,56 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
 }
 
 template <typename T>
-absl::StatusOr<std::optional<const StructDefBase*>> ResolveToStructBase(
+absl::StatusOr<std::optional<StructOrProcRef>> ResolveToStructOrProcRef(
     T node, const ImportData& import_data) {
   return absl::visit(
-      Visitor{[&](TypeAlias* alias)
-                  -> absl::StatusOr<std::optional<const StructDefBase*>> {
-                return GetStructOrProcDef(&alias->type_annotation(),
-                                          import_data);
-              },
-              [](StructDef* struct_def)
-                  -> absl::StatusOr<std::optional<const StructDefBase*>> {
-                return struct_def;
-              },
-              [](ProcDef* proc_def)
-                  -> absl::StatusOr<std::optional<const StructDefBase*>> {
-                return proc_def;
-              },
-              [&](ColonRef* colon_ref)
-                  -> absl::StatusOr<std::optional<const StructDefBase*>> {
-                return ResolveColonRefToStructDefBase(colon_ref, import_data);
-              },
-              [](UseTreeEntry*)
-                  -> absl::StatusOr<std::optional<const StructDefBase*>> {
-                // TODO(https://github.com/google/xls/issues/352): 2025-01-23
-                // Resolve possible Struct or Proc definition through the extern
-                // UseTreeEntry.
-                return std::nullopt;
-              },
-              [](auto*) -> absl::StatusOr<std::optional<const StructDefBase*>> {
-                return std::nullopt;
-              }},
+      Visitor{
+          [&](TypeAlias* alias)
+              -> absl::StatusOr<std::optional<StructOrProcRef>> {
+            return GetStructOrProcRef(&alias->type_annotation(), import_data);
+          },
+          [&](TypeRefTypeAnnotation* type_annotation)
+              -> absl::StatusOr<std::optional<StructOrProcRef>> {
+            return GetStructOrProcRef(type_annotation, import_data);
+          },
+          [](StructDef* struct_def)
+              -> absl::StatusOr<std::optional<StructOrProcRef>> {
+            return StructOrProcRef{.def = struct_def};
+          },
+          [](ProcDef* proc_def)
+              -> absl::StatusOr<std::optional<StructOrProcRef>> {
+            return StructOrProcRef{.def = proc_def};
+          },
+          [&](NameRef* name_ref)
+              -> absl::StatusOr<std::optional<StructOrProcRef>> {
+            return ResolveToStructOrProcRef(name_ref->name_def(), import_data);
+          },
+          [&](const NameDef* name_def)
+              -> absl::StatusOr<std::optional<StructOrProcRef>> {
+            if (auto* struct_def =
+                    dynamic_cast<StructDefBase*>(name_def->definer())) {
+              return StructOrProcRef{.def = struct_def};
+            }
+            if (auto* type_alias =
+                    dynamic_cast<TypeAlias*>(name_def->definer())) {
+              return GetStructOrProcRef(&type_alias->type_annotation(),
+                                        import_data);
+            }
+            return std::nullopt;
+          },
+          [&](ColonRef* colon_ref)
+              -> absl::StatusOr<std::optional<StructOrProcRef>> {
+            return GetStructOrProcRef(colon_ref, import_data);
+          },
+          [](UseTreeEntry*) -> absl::StatusOr<std::optional<StructOrProcRef>> {
+            // TODO(https://github.com/google/xls/issues/352): 2025-01-23
+            // Resolve possible Struct or Proc definition through the extern
+            // UseTreeEntry.
+            return std::nullopt;
+          },
+          [](auto*) -> absl::StatusOr<std::optional<StructOrProcRef>> {
+            return std::nullopt;
+          }},
       node);
 }
 
@@ -147,9 +167,8 @@ absl::StatusOr<ModuleMember> GetPublicModuleMember(
   return **member;
 }
 
-absl::StatusOr<std::optional<const StructDefBase*>>
-ResolveColonRefToStructDefBase(ColonRef* colon_ref,
-                               const ImportData& import_data) {
+absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
+    const ColonRef* colon_ref, const ImportData& import_data) {
   XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
                        GetImportedModuleInfo(colon_ref, import_data));
   if (import_module.has_value()) {
@@ -157,13 +176,9 @@ ResolveColonRefToStructDefBase(ColonRef* colon_ref,
         ModuleMember member,
         GetPublicModuleMember((*import_module)->module(), colon_ref,
                               import_data.file_table()));
-    return ResolveToStructBase(member, import_data);
+    return ResolveToStructOrProcRef(member, import_data);
   }
-  if (std::holds_alternative<TypeRefTypeAnnotation*>(colon_ref->subject())) {
-    return GetStructOrProcDef(
-        std::get<TypeRefTypeAnnotation*>(colon_ref->subject()), import_data);
-  }
-  return std::nullopt;
+  return ResolveToStructOrProcRef(colon_ref->subject(), import_data);
 }
 
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
@@ -175,7 +190,12 @@ absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
   }
   const TypeDefinition& def =
       type_ref_annotation->type_ref()->type_definition();
-  return ResolveToStructBase(def, import_data);
+  XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> ref,
+                       ResolveToStructOrProcRef(def, import_data));
+  if (!ref.has_value()) {
+    return std::nullopt;
+  }
+  return ref->def;
 }
 
 }  // namespace xls::dslx

@@ -6559,5 +6559,80 @@ fn main() -> u32 {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasTypeMismatch("uN[5]", "u32")));
 }
+
+TEST(TypecheckV2Test, ImportedImplParametric) {
+  constexpr std::string_view kImported = R"(
+pub struct Empty<X: u32> { }
+
+impl Empty<X> {
+   const IMPORTED = 2 * X;
+}
+
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> uN[6] {
+    type MyEmpty = imported::Empty<3>;
+    uN[MyEmpty::IMPORTED]:0
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  AllOf(HasNodeWithType("main", "() -> uN[6]"),
+                        HasNodeWithType("uN[MyEmpty::IMPORTED]:0", "uN[6]")))));
+}
+
+TEST(TypecheckV2Test, ImportedImplTypeAlias) {
+  constexpr std::string_view kImported = R"(
+pub struct Empty<X: u32> { }
+
+impl Empty<X> {
+   const IMPORTED = u32:2 * X;
+}
+
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+type MyEmpty = imported::Empty<5>;
+
+fn main() -> uN[10] {
+    let var = uN[MyEmpty::IMPORTED]:0;
+    var
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("var", "uN[10]"))));
+}
+
+TEST(TypecheckV2Test, ImportedImplTypeAliasWithFunction) {
+  constexpr std::string_view kImported = R"(
+pub struct Empty { }
+
+impl Empty {
+   fn some_val() -> u5 {
+       u5:4
+   }
+}
+
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+type MyEmpty = imported::Empty;
+
+fn main() -> uN[5] {
+    MyEmpty::some_val()
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  HasNodeWithType("MyEmpty::some_val()", "uN[5]"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

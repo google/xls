@@ -64,10 +64,29 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
         tracer_(tracer),
         import_data_(import_data) {}
 
+  absl::StatusOr<std::unique_ptr<TypeAnnotationResolver>> ResolverForNode(
+      const AstNode* node) {
+    XLS_ASSIGN_OR_RETURN(ImportTokens import_tokens,
+                         ImportTokens::FromString(node->owner()->name()));
+    XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module_info,
+                         import_data_.Get(import_tokens));
+    InferenceTable* imported_table = imported_module_info->inference_table();
+    return TypeAnnotationResolver::Create(
+        imported_module_info->module(), *imported_table, file_table_,
+        error_generator_, evaluator_, parametric_struct_instantiator_, tracer_,
+        import_data_);
+  }
+
   absl::StatusOr<std::optional<const TypeAnnotation*>>
   ResolveAndUnifyTypeAnnotationsForNode(
       std::optional<const ParametricContext*> parametric_context,
       const AstNode* node, TypeAnnotationFilter filter) override {
+    if (node->owner() != &module_) {
+      XLS_ASSIGN_OR_RETURN(auto new_resolver, ResolverForNode(node));
+      return new_resolver->ResolveAndUnifyTypeAnnotationsForNode(
+          parametric_context, node, filter);
+    }
+
     TypeSystemTrace trace = tracer_.TraceUnify(node);
     VLOG(6) << "ResolveAndUnifyTypeAnnotationsForNode " << node->ToString();
     const std::optional<const NameRef*> type_variable =
@@ -129,16 +148,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     // If this type variable belongs to a different table, resolve using that
     // module.
     if (type_variable->owner() != &module_) {
-      XLS_ASSIGN_OR_RETURN(
-          ImportTokens import_tokens,
-          ImportTokens::FromString(type_variable->owner()->name()));
-      XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module_info,
-                           import_data_.Get(import_tokens));
-      InferenceTable* imported_table = imported_module_info->inference_table();
-      auto new_resolver = TypeAnnotationResolver::Create(
-          imported_module_info->module(), *imported_table, file_table_,
-          error_generator_, evaluator_, parametric_struct_instantiator_,
-          tracer_, import_data_);
+      XLS_ASSIGN_OR_RETURN(auto new_resolver, ResolverForNode(type_variable));
       return new_resolver->ResolveAndUnifyTypeAnnotations(
           parametric_context, type_variable, span, filter);
     }

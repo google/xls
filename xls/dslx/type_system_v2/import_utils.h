@@ -19,6 +19,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -30,6 +31,10 @@ namespace xls::dslx {
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
     const TypeAnnotation* annotation, const ImportData& import_data);
 
+// Variant that takes a ColonRef.
+absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
+    const ColonRef* colon_ref, const ImportData& import_data);
+
 // Resolves the struct base definition for the struct or proc type referred to
 // by `annotation`.
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
@@ -40,11 +45,6 @@ absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
 absl::StatusOr<ModuleMember> GetPublicModuleMember(const Module& module,
                                                    const ColonRef* node,
                                                    const FileTable& file_table);
-
-// Attempts to resolve the given `ColonRef` to a struct.
-absl::StatusOr<std::optional<const StructDefBase*>>
-ResolveColonRefToStructDefBase(ColonRef* colon_ref,
-                               const ImportData& import_data);
 
 // Retrieves the `ModuleInfo` for the given `ColonRef`.
 absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
