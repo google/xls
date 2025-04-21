@@ -35,6 +35,21 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
     const TypeAnnotation* annotation, const ImportData& import_data);
 
+// Finds and returns a public module member for the given `ColonRef`. Returns
+// an error if it doesn't exist or isn't public.
+absl::StatusOr<ModuleMember> GetPublicModuleMember(const Module& module,
+                                                   const ColonRef* node,
+                                                   const FileTable& file_table);
+
+// Attempts to resolve the given `ColonRef` to a struct.
+absl::StatusOr<std::optional<const StructDefBase*>>
+ResolveColonRefToStructDefBase(ColonRef* colon_ref,
+                               const ImportData& import_data);
+
+// Retrieves the `ModuleInfo` for the given `ColonRef`.
+absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
+    const ColonRef* colon_ref, const ImportData& import_data);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_IMPORT_UTILS_H_

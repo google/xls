@@ -29,6 +29,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
 
@@ -79,11 +80,6 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
       .def = *def, .parametrics = parametrics, .instantiator = instantiator};
 }
 
-// Forward declaration for internal resolution helper.
-absl::StatusOr<std::optional<const StructDefBase*>>
-ResolveColonRefToStructDefBase(ColonRef* colon_ref,
-                               const ImportData& import_data);
-
 template <typename T>
 absl::StatusOr<std::optional<const StructDefBase*>> ResolveToStructBase(
     T node, const ImportData& import_data) {
@@ -118,18 +114,50 @@ absl::StatusOr<std::optional<const StructDefBase*>> ResolveToStructBase(
       node);
 }
 
-absl::StatusOr<std::optional<const StructDefBase*>>
-ResolveColonRefToStructDefBase(ColonRef* colon_ref,
-                               const ImportData& import_data) {
+absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
+    const ColonRef* colon_ref, const ImportData& import_data) {
   std::optional<ImportSubject> subject = colon_ref->ResolveImportSubject();
   if (subject.has_value() && std::holds_alternative<Import*>(*subject)) {
     Import* import = std::get<Import*>(*subject);
-    XLS_ASSIGN_OR_RETURN(ModuleInfo * import_module,
-                         import_data.Get(ImportTokens(import->subject())));
-    std::optional<ModuleMember*> member =
-        import_module->module().FindMemberWithName(colon_ref->attr());
-    CHECK(member.has_value());
-    return ResolveToStructBase(**member, import_data);
+    return import_data.Get(ImportTokens(import->subject()));
+  }
+  return std::nullopt;
+}
+
+absl::StatusOr<ModuleMember> GetPublicModuleMember(
+    const Module& module, const ColonRef* node, const FileTable& file_table) {
+  std::optional<const ModuleMember*> member =
+      module.FindMemberWithName(node->attr());
+  if (!member.has_value()) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("Attempted to refer to a module member %s that "
+                        "doesn't exist",
+                        node->ToString()),
+        file_table);
+  }
+  if (!IsPublic(**member)) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("Attempted to refer to a module member %s that "
+                        "is not public",
+                        node->ToString()),
+        file_table);
+  }
+  return **member;
+}
+
+absl::StatusOr<std::optional<const StructDefBase*>>
+ResolveColonRefToStructDefBase(ColonRef* colon_ref,
+                               const ImportData& import_data) {
+  XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
+                       GetImportedModuleInfo(colon_ref, import_data));
+  if (import_module.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        ModuleMember member,
+        GetPublicModuleMember((*import_module)->module(), colon_ref,
+                              import_data.file_table()));
+    return ResolveToStructBase(member, import_data);
   }
   if (std::holds_alternative<TypeRefTypeAnnotation*>(colon_ref->subject())) {
     return GetStructOrProcDef(

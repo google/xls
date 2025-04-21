@@ -50,7 +50,6 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
-#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
@@ -170,6 +169,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleColonRef(const ColonRef* node) override {
     VLOG(5) << "HandleColonRef: " << node->ToString() << " of subject kind: "
             << AstNodeKindToString(ToAstNode(node->subject())->kind());
+
     if (std::holds_alternative<NameRef*>(node->subject())) {
       AstNode* def = ToAstNode(std::get<NameRef*>(node->subject())->name_def());
       if (const NameDef* name_def = dynamic_cast<const NameDef*>(def)) {
@@ -199,42 +199,36 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
             node, module_.Make<MemberTypeAnnotation>(&alias->type_annotation(),
                                                      node->attr()));
       }
-      std::optional<ImportSubject> subject = node->ResolveImportSubject();
-      if (subject.has_value()) {
-        XLS_ASSIGN_OR_RETURN(
-            ImportTokens import_subject,
-            ImportTokens::FromString(ToAstNode(node->subject())->ToString()));
-        XLS_ASSIGN_OR_RETURN(ModuleInfo * import_module,
-                             import_data_.Get(import_subject));
-        std::optional<ModuleMember*> member =
-            import_module->module().FindMemberWithName(node->attr());
-        if (!member.has_value()) {
-          return TypeInferenceErrorStatus(
-              node->span(), nullptr,
-              absl::StrFormat("Attempted to refer to a module member %s that "
-                              "doesn't exist",
-                              node->ToString()),
-              file_table_);
-        }
-        if (!IsPublic(**member)) {
-          return TypeInferenceErrorStatus(
-              node->span(), nullptr,
-              absl::StrFormat("Attempted to refer to a module member %s that "
-                              "is not public",
-                              node->ToString()),
-              file_table_);
-        }
-        InferenceTable* import_table = import_module->inference_table();
-        std::optional<const NameRef*> type_var =
-            import_table->GetTypeVariable(ToAstNode(**member));
-        // In parametric cases, we may not have a type variable for the member.
-        if (type_var.has_value()) {
-          XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-              node, module_.Make<TypeVariableTypeAnnotation>(*type_var)));
-        }
-        table_.SetColonRefTarget(node, ToAstNode(**member));
+      XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
+                           GetImportedModuleInfo(node, import_data_));
+      if (import_module.has_value()) {
+        XLS_ASSIGN_OR_RETURN(ModuleMember member,
+                             GetPublicModuleMember((*import_module)->module(),
+                                                   node, file_table_));
+        XLS_RETURN_IF_ERROR(SetCrossTableTypeAnnotation(
+            node, (*import_module)->inference_table(), ToAstNode(member)));
+        table_.SetColonRefTarget(node, ToAstNode(member));
         return absl::OkStatus();
       }
+    }
+    // A double colon ref should resolve to a struct definition with an
+    // associated impl.
+    if (std::holds_alternative<ColonRef*>(node->subject())) {
+      auto* sub_col_ref = std::get<ColonRef*>(node->subject());
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<const StructDefBase*> struct_def,
+          ResolveColonRefToStructDefBase(sub_col_ref, import_data_));
+      CHECK(struct_def.has_value());
+      XLS_ASSIGN_OR_RETURN(std::optional<const AstNode*> ref,
+                           HandleStructAttributeReferenceInternal(
+                               node, **struct_def, {}, node->attr()));
+      CHECK(ref.has_value());
+
+      XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
+                           GetImportedModuleInfo(sub_col_ref, import_data_));
+      CHECK(import_module.has_value());
+      return SetCrossTableTypeAnnotation(
+          node, (*import_module)->inference_table(), *ref);
     }
     if (std::holds_alternative<TypeRefTypeAnnotation*>(node->subject())) {
       // This is something like `S<parametrics>::CONSTANT` or
@@ -1588,6 +1582,19 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   std::string GenerateInternalTypeVariableName(const NameDefTree* node) {
     return absl::Substitute("internal_type_ndt_at_$0_in_$1",
                             node->span().ToString(file_table_), module_.name());
+  }
+
+  absl::Status SetCrossTableTypeAnnotation(const AstNode* node,
+                                           const InferenceTable* other_table,
+                                           const AstNode* external_reference) {
+    std::optional<const NameRef*> type_var =
+        other_table->GetTypeVariable(external_reference);
+    // In parametric cases, we may not have a type variable for the member.
+    if (type_var.has_value()) {
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node, module_.Make<TypeVariableTypeAnnotation>(*type_var)));
+    }
+    return absl::OkStatus();
   }
 
   // Propagates the type from the def for `ref`, to `ref` itself in the

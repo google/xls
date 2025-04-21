@@ -6418,7 +6418,7 @@ pub struct S { x: u5 }
   constexpr std::string_view kSecond = R"(
 import first;
 
-type T = first::S;
+pub type T = first::S;
 )";
   constexpr std::string_view kProgram = R"(
 import second;
@@ -6461,10 +6461,9 @@ fn main() -> u5 {
                                      HasNodeWithType("s", "S { x: uN[5] }")))));
 }
 
-// TODO: erinzmoore - Add support for calling imported static impl functions.
-TEST(TypecheckV2Test, DISABLED_ImportImplUseStaticFunction) {
+TEST(TypecheckV2Test, ImportImplUseStaticFunction) {
   constexpr std::string_view kImported = R"(
-pub struct S { x: u5 }
+pub struct S {}
 
 impl S {
   fn X() -> u5[2] { [1, 2] }
@@ -6480,7 +6479,85 @@ fn main() -> u5 {
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
   EXPECT_THAT(
       TypecheckV2(kProgram, "main", &import_data),
-      IsOkAndHolds(HasTypeInfo(HasNodeWithType("main()", "() -> uN[5]"))));
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("main", "() -> uN[5]"))));
+}
+
+TEST(TypecheckV2Test, ImportNonPublicStructUseStaticFunction) {
+  constexpr std::string_view kImported = R"(
+struct S {}
+
+impl S {
+  fn X() -> u5[2] { [1, 2] }
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u5 {
+  imported::S::X()[0]
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
+}
+
+TEST(TypecheckV2Test, ImportedMissingStaticFunctionOnImpl) {
+  constexpr std::string_view kImported = R"(
+pub struct S {}
+
+impl S { }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u5 {
+  imported::S::X()[0]
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("is not defined by the impl")));
+}
+
+TEST(TypecheckV2Test, ImportedStaticFunctionOnStructWithoutImpl) {
+  constexpr std::string_view kImported = R"(
+pub struct S {}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u5 {
+  imported::S::X()[0]
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("no impl defining")));
+}
+
+TEST(TypecheckV2Test, ImportImplUseStaticConstantTypeMismatch) {
+  constexpr std::string_view kImported = R"(
+pub struct S {}
+
+impl S {
+  const SOME_ARRAY = u5[2]:[1, 2];
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> u32 {
+  imported::S::SOME_ARRAY[1]
+})";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasTypeMismatch("uN[5]", "u32")));
 }
 }  // namespace
 }  // namespace xls::dslx
