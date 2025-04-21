@@ -33,8 +33,7 @@
 namespace xls::dslx {
 
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
-    const TypeAnnotation* annotation, const FileTable& file_table,
-    const ImportData& import_data) {
+    const TypeAnnotation* annotation, const ImportData& import_data) {
   const auto* type_ref_annotation =
       dynamic_cast<const TypeRefTypeAnnotation*>(annotation);
   if (type_ref_annotation == nullptr) {
@@ -60,7 +59,7 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
           absl::StrFormat(
               "Parametric values defined multiple times for annotation: `%s`",
               annotation->ToString()),
-          file_table);
+          import_data.file_table());
     }
 
     parametrics =

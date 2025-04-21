@@ -28,8 +28,7 @@ namespace xls::dslx {
 // Resolves the definition and parametrics for the struct or proc type referred
 // to by `annotation`.
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
-    const TypeAnnotation* annotation, const FileTable& file_table,
-    const ImportData& import_data);
+    const TypeAnnotation* annotation, const ImportData& import_data);
 
 // Resolves the struct base definition for the struct or proc type referred to
 // by `annotation`.

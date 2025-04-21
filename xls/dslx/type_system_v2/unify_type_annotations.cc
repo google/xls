@@ -90,9 +90,8 @@ class Unifier {
       return module_.Make<AnyTypeAnnotation>(/*multiple=*/true);
     }
     if (annotations.size() == 1) {
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<StructOrProcRef> struct_or_proc_ref,
-          GetStructOrProcRef(annotations[0], file_table_, import_data_));
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                           GetStructOrProcRef(annotations[0], import_data_));
       if (!struct_or_proc_ref.has_value() &&
           annotations[0]->owner() == &module_) {
         // This is here mainly for preservation of shorthand annotations
@@ -139,18 +138,16 @@ class Unifier {
           CastAllOrError<ChannelTypeAnnotation>(annotations));
       return UnifyChannelTypeAnnotations(channel_annotations, span);
     }
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<StructOrProcRef> first_struct_or_proc,
-        GetStructOrProcRef(annotations[0], file_table_, import_data_));
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> first_struct_or_proc,
+                         GetStructOrProcRef(annotations[0], import_data_));
     if (first_struct_or_proc.has_value()) {
       const auto* struct_def =
           dynamic_cast<const StructDef*>(first_struct_or_proc->def);
       CHECK(struct_def != nullptr);
       std::vector<const TypeAnnotation*> annotations_to_unify;
       for (const TypeAnnotation* annotation : annotations) {
-        XLS_ASSIGN_OR_RETURN(
-            std::optional<StructOrProcRef> next_struct_or_proc,
-            GetStructOrProcRef(annotation, file_table_, import_data_));
+        XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> next_struct_or_proc,
+                             GetStructOrProcRef(annotation, import_data_));
         if (!next_struct_or_proc.has_value() ||
             next_struct_or_proc->def != struct_def) {
           return error_generator_.TypeMismatchError(parametric_context_,
@@ -418,9 +415,8 @@ class Unifier {
     // of the enclosing function. We are in a position now to decide if `N` is
     // 32 or not.
     for (const TypeAnnotation* annotation : annotations) {
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<StructOrProcRef> struct_or_proc_ref,
-          GetStructOrProcRef(annotation, file_table_, import_data_));
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                           GetStructOrProcRef(annotation, import_data_));
       CHECK(struct_or_proc_ref.has_value());
       if (struct_or_proc_ref->instantiator.has_value()) {
         instantiator = struct_or_proc_ref->instantiator;

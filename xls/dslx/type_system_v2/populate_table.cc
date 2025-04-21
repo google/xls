@@ -244,9 +244,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       const auto* annotation =
           std::get<TypeRefTypeAnnotation*>(node->subject());
       XLS_RETURN_IF_ERROR(annotation->Accept(this));
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<StructOrProcRef> struct_or_proc_ref,
-          GetStructOrProcRef(annotation, file_table_, import_data_));
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                           GetStructOrProcRef(annotation, import_data_));
       if (struct_or_proc_ref.has_value()) {
         XLS_RETURN_IF_ERROR(HandleStructAttributeReferenceInternal(
                                 node, *struct_or_proc_ref->def,
@@ -685,7 +684,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     VLOG(5) << "HandleTypeRefTypeAnnotation: " << node->ToString();
 
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
-                         GetStructOrProcRef(node, file_table_, import_data_));
+                         GetStructOrProcRef(node, import_data_));
     if (!struct_or_proc_ref.has_value() ||
         struct_or_proc_ref->parametrics.empty()) {
       return DefaultHandler(node);
@@ -736,9 +735,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleSelfTypeAnnotation(
       const SelfTypeAnnotation* node) override {
     VLOG(5) << "HandleSelfTypeAnnotation: " << node->ToString();
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<StructOrProcRef> struct_or_proc_ref,
-        GetStructOrProcRef(node->struct_ref(), file_table_, import_data_));
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                         GetStructOrProcRef(node->struct_ref(), import_data_));
     // There are two paths for handling of `Self`.
     // - Within a parametric struct, it gets left alone here, and when the
     //   conversion step scrubs struct parametrics via
@@ -1724,9 +1722,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // creates additional pitfalls, like erroneously naming two different
     // arguments the same thing.
     XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<StructOrProcRef> struct_or_proc_ref,
-        GetStructOrProcRef(node->struct_ref(), file_table_, import_data_));
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                         GetStructOrProcRef(node->struct_ref(), import_data_));
     if (!struct_or_proc_ref.has_value()) {
       return TypeInferenceErrorStatusForAnnotation(
           node->span(), node->struct_ref(),

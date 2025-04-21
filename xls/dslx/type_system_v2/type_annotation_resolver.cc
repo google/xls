@@ -268,9 +268,8 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     }
     // It's not a bits-like type, so the only other thing that would have
     // members is a struct (or impl).
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<StructOrProcRef> struct_or_proc_ref,
-        GetStructOrProcRef(object_type, file_table_, import_data_));
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                         GetStructOrProcRef(object_type, import_data_));
     if (!struct_or_proc_ref.has_value()) {
       return absl::InvalidArgumentError(absl::Substitute(
           "Invalid access of member `$0` of non-struct type: `$1`",

@@ -1120,9 +1120,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
       return type;
     }
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<StructOrProcRef> struct_or_proc,
-        GetStructOrProcRef(annotation, file_table_, import_data_));
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc,
+                         GetStructOrProcRef(annotation, import_data_));
     if (struct_or_proc.has_value()) {
       const StructDefBase* struct_def_base = struct_or_proc->def;
       CHECK(struct_def_base != nullptr);
@@ -1384,7 +1383,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             std::optional<StructOrProcRef> struct_or_proc,
             GetStructOrProcRef(
                 std::get<TypeRefTypeAnnotation*>(colon_ref->subject()),
-                file_table_, import_data_));
+                import_data_));
         if (struct_or_proc.has_value() && struct_or_proc->def->IsParametric()) {
           XLS_ASSIGN_OR_RETURN(
               const ParametricContext* struct_context,
@@ -1776,7 +1775,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                                            *target_object));
       XLS_ASSIGN_OR_RETURN(
           std::optional<StructOrProcRef> struct_or_proc_ref,
-          GetStructOrProcRef(*target_object_type, file_table_, import_data_));
+          GetStructOrProcRef(*target_object_type, import_data_));
       if (!struct_or_proc_ref.has_value()) {
         return TypeInferenceErrorStatus(
             attr->span(), nullptr,
