@@ -3605,4 +3605,84 @@ TEST_F(ParserTest, ReadStubFile) {
   XLS_EXPECT_OK(parser.ParseModule());
 }
 
+TEST_F(ParserTest, BasicChannelAttributeUsage) {
+  RoundTrip(R"(#![feature(channel_attributes)]
+
+proc AProc {
+    a: chan<u32> out;
+    b: chan<u32> in;
+    config() {
+        let (a, b) = 
+        #[channel(depth=1, bypass=true, register_push_outputs=true, register_pop_outputs=true, input_flop_kind=flop, output_flop_kind=zero_latency)]
+        chan<u32>("foo");
+    }
+    init {}
+    next(_: ()) {}
+})");
+
+  RoundTrip(R"(#![feature(channel_attributes)]
+
+proc AProc {
+    a: chan<u32> out;
+    b: chan<u32> in;
+    config() {
+        let (a, b) = 
+        #[channel(depth=1, bypass=true, register_push_outputs=true, register_pop_outputs=true, input_flop_kind=flop)]
+        chan<u32>("foo");
+    }
+    init {}
+    next(_: ()) {}
+})");
+
+  RoundTrip(R"(#![feature(channel_attributes)]
+
+proc AProc {
+    a: chan<u32> out;
+    b: chan<u32> in;
+    config() {
+        let (a, b) = 
+        #[channel(depth=1, bypass=true, register_push_outputs=true, register_pop_outputs=true)]
+        chan<u32>("foo");
+    }
+    init {}
+    next(_: ()) {}
+})");
+
+  RoundTrip(R"(#![feature(channel_attributes)]
+
+proc AProc {
+    a: chan<u32> out;
+    b: chan<u32> in;
+    config() {
+        let (a, b) = 
+        #[channel(depth=0)]
+        chan<u32>("foo");
+    }
+    init {}
+    next(_: ()) {}
+})");
+}
+
+TEST_F(ParserTest, CannotUseOldDepthSyntaxWithChannelAttributes) {
+  constexpr std::string_view kProgram = (R"(#![feature(channel_attributes)]
+
+proc AProc {
+    a: chan<u32> out;
+    b: chan<u32> in;
+    config() {
+        let (a, b) = chan<u32, u32:0>("foo");
+    }
+    init {}
+    next(_: ()) {}
+})");
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(
+      parser.ParseModule().status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr("Cannot specify fifo depth when new-style channel "
+                    "attributes are enabled, please use the new syntax.")));
+}
+
 }  // namespace xls::dslx

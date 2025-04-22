@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
-#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -28,14 +27,12 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/base/no_destructor.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -997,12 +994,20 @@ std::string ChannelDecl::ToStringInternal() const {
   }
 
   std::string fifo_depth_str;
-  if (fifo_depth_.has_value()) {
-    fifo_depth_str = absl::StrCat(", ", fifo_depth_.value()->ToString());
+  if (fifo_depth().has_value()) {
+    fifo_depth_str = absl::StrCat(", ", (*fifo_depth())->ToString());
   }
-  return absl::StrFormat("chan<%s%s>%s(%s)", type_->ToString(), fifo_depth_str,
-                         absl::StrJoin(dims, ""),
-                         channel_name_expr_.ToString());
+  std::string channel_attribute_str;
+  if (channel_config().has_value()) {
+    channel_attribute_str =
+        absl::StrCat("\n#[channel(",
+                     absl::StrJoin(channel_config()->GetDslxKwargs(), ", ",
+                                   absl::PairFormatter("=")),
+                     ")]\n");
+  }
+  return absl::StrFormat(
+      "%schan<%s%s>%s(%s)", channel_attribute_str, type_->ToString(),
+      fifo_depth_str, absl::StrJoin(dims, ""), channel_name_expr_.ToString());
 }
 
 TypeAnnotation::~TypeAnnotation() = default;

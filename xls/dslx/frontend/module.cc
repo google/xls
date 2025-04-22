@@ -88,6 +88,9 @@ std::string Module::ToString() const {
             case ModuleAttribute::kAllowUseSyntax:
               absl::StrAppend(out, "#![feature(use_syntax)]");
               break;
+            case ModuleAttribute::kChannelAttributes:
+              absl::StrAppend(out, "#![feature(channel_attributes)]");
+              break;
           }
         });
     return absl::StrCat(header, "\n\n", body);

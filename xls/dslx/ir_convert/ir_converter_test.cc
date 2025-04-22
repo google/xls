@@ -3605,6 +3605,67 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
   ExpectIr(converted, TestName());
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ChannelAttributes) {
+  constexpr std::string_view kProgram = R"(#![feature(channel_attributes)]
+proc producer {
+  c: chan<u32> out;
+  init {
+    u32:0
+  }
+  config(input_c: chan<u32> out) {
+    (input_c,)
+  }
+  next(i: u32) {
+    let tok = send(join(), c, i);
+    i + u32:1
+  }
+}
+
+proc consumer {
+  c: chan<u32> in;
+  init {
+    u32:0
+  }
+  config(input_c: chan<u32> in) {
+    (input_c,)
+  }
+  next(i: u32) {
+    let (tok, i) = recv(join(), c);
+    i + i
+  }
+}
+
+proc main {
+  init { () }
+  config() {
+    let (p, c) =
+    #[channel(depth=0)]
+    chan<u32>("my_chan0");
+    spawn producer(p);
+    spawn consumer(c);
+
+    let (p, c) = 
+    #[channel(depth=1, register_push_outputs=true, register_pop_outputs=true, bypass=false)]
+    chan<u32>("my_chan1");
+    spawn producer(p);
+    spawn consumer(c);
+
+    let (p, c) = 
+    #[channel(depth=0, input_flop_kind=zero_latency, output_flop_kind=flop)]
+    chan<u32>("my_chan2");
+    spawn producer(p);
+    spawn consumer(c);
+    ()
+  }
+  next(state: ()) { () }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 INSTANTIATE_TEST_SUITE_P(IrConverterWithBothTypecheckVersionsTestSuite,
                          IrConverterWithBothTypecheckVersionsTest,
                          testing::Values(TypeInferenceVersion::kVersion1,

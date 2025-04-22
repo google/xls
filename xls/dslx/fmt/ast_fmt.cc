@@ -37,6 +37,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "cppitertools/enumerate.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -54,6 +55,7 @@
 #include "xls/dslx/frontend/token.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
@@ -421,6 +423,31 @@ DocRef FmtSvTypeAttribute(std::string_view name, DocArena& arena) {
   pieces.push_back(arena.MakeText("sv_type"));
   pieces.push_back(arena.oparen());
   pieces.push_back(arena.MakeText(absl::StrFormat("\"%s\"", name)));
+  pieces.push_back(arena.cparen());
+  pieces.push_back(arena.cbracket());
+  pieces.push_back(arena.hard_line());
+  return ConcatNGroup(arena, pieces);
+}
+
+DocRef FmtChannelAttribute(const ChannelConfig& config, DocArena& arena) {
+  std::vector<DocRef> pieces{
+      arena.MakeText("#"),
+      arena.obracket(),
+      arena.MakeText("channel"),
+      arena.oparen(),
+  };
+  for (const auto& [idx, key_value] :
+       ::iter::enumerate(config.GetDslxKwargs())) {
+    const auto& [key, value] = key_value;
+    pieces.push_back(arena.MakeText(key));
+    pieces.push_back(arena.equals());
+    pieces.push_back(arena.MakeText(value));
+    if (idx < config.GetDslxKwargs().size() - 1) {
+      pieces.push_back(arena.comma());
+      pieces.push_back(arena.space());
+    }
+  }
+
   pieces.push_back(arena.cparen());
   pieces.push_back(arena.cbracket());
   pieces.push_back(arena.hard_line());
@@ -915,12 +942,19 @@ DocRef Fmt(const Cast& n, Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const ChannelDecl& n, Comments& comments, DocArena& arena) {
+  std::optional<DocRef> channel_attribute;
+  if (n.channel_config().has_value()) {
+    channel_attribute = FmtChannelAttribute(*n.channel_config(), arena);
+  }
   std::vector<DocRef> pieces{
+      channel_attribute.value_or(arena.empty()),
       arena.Make(Keyword::kChan),
       arena.oangle(),
       Fmt(*n.type(), comments, arena),
   };
-  if (n.fifo_depth().has_value()) {
+  // channel_config().has_value() -> fifo_config().has_value(), but we've
+  // already handled it above.
+  if (!n.channel_config().has_value() && n.fifo_depth().has_value()) {
     pieces.push_back(arena.comma());
     pieces.push_back(arena.space());
     pieces.push_back(Fmt(*n.fifo_depth().value(), comments, arena));
@@ -2939,6 +2973,10 @@ absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
           break;
         case ModuleAttribute::kAllowUseSyntax:
           pieces.push_back(arena_.MakeText("#![feature(use_syntax)]"));
+          pieces.push_back(arena_.hard_line());
+          break;
+        case ModuleAttribute::kChannelAttributes:
+          pieces.push_back(arena_.MakeText("#![feature(channel_attributes)]"));
           pieces.push_back(arena_.hard_line());
           break;
       }

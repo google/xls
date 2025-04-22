@@ -72,6 +72,9 @@ enum class ModuleAttribute : uint8_t {
 
   // Enable "use" syntax instead of "import" for this module.
   kAllowUseSyntax,
+
+  // Enable #channel() attributes for this module.
+  kChannelAttributes,
 };
 
 // Represents a syntactic module in the AST.

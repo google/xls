@@ -2245,6 +2245,28 @@ TEST_F(ModuleFmtTest, SimpleProcWithChannelArrayDecl) {
 )");
 }
 
+TEST_F(ModuleFmtTest, SimpleProcWithChannelDeclWithChannelConfig) {
+  DoFmt(
+      R"(#![feature(channel_attributes)]
+
+pub proc p {
+    cin: chan<u32> in;
+    cout: chan<u32> out;
+
+    config() {
+        let (cin, cout) = #[channel(depth=0)]
+                          chan<u32>("c");
+        let _ = #[channel(depth=1, bypass=true, register_push_outputs=true, register_pop_outputs=true, input_flop_kind=skid, output_flop_kind=zero_latency)]
+                chan<u32>("unused");
+        (cin, cout)
+    }
+
+    init { () }
+
+    next(state: ()) { () }
+}
+)");
+}
 TEST_F(ModuleFmtTest, SimpleProcWithChannelDeclWithFifoDepth) {
   DoFmt(
       R"(pub proc p {

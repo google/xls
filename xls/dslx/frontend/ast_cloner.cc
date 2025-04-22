@@ -192,18 +192,17 @@ class AstCloner : public AstNodeVisitor {
       new_dims = std::move(new_dims_vector);
     }
 
-    std::optional<Expr*> new_fifo_depth;
+    ChannelDeclMetadata new_metadata = n->metadata();
     if (n->fifo_depth().has_value()) {
       XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->fifo_depth().value()));
-      new_fifo_depth =
-          down_cast<Expr*>(old_to_new_.at(n->fifo_depth().value()));
+      new_metadata = down_cast<Expr*>(old_to_new_.at(n->fifo_depth().value()));
     }
 
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->type()));
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(&n->channel_name_expr()));
     old_to_new_[n] = module_->Make<ChannelDecl>(
         n->span(), down_cast<TypeAnnotation*>(old_to_new_.at(n->type())),
-        new_dims, new_fifo_depth,
+        new_dims, new_metadata,
         *down_cast<Expr*>(old_to_new_.at(&n->channel_name_expr())),
         n->in_parens());
     return absl::OkStatus();

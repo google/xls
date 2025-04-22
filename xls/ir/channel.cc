@@ -15,6 +15,7 @@
 #include "xls/ir/channel.h"
 
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -24,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -59,11 +61,52 @@ FifoConfigProto FifoConfig::ToProto(int64_t width) const {
   return proto;
 }
 
+absl::Status FifoConfig::Validate() const {
+  if (depth_ == 0) {
+    if (!bypass_) {
+      return absl::FailedPreconditionError(
+          "Zero-depth FIFOs are direct connections, and hence cannot be "
+          "bypass-less");
+    }
+    if (register_push_outputs_ || register_pop_outputs_) {
+      return absl::FailedPreconditionError(
+          "Zero-depth FIFOs are memory-less/direct connections, and hence do "
+          "not support registers");
+    }
+  }
+  if (depth_ == 1) {
+    if (register_pop_outputs_) {
+      return absl::FailedPreconditionError(
+          "register_pop_outputs adds an extra FIFO entry for the output and "
+          "still requires a depth>=1 FIFO in front of the output stage, so "
+          "we require depth>=2");
+      // Please file a github issue if you have different FIFO needs :)
+    }
+  }
+  return absl::OkStatus();
+}
+
 std::string FifoConfig::ToString() const {
   return absl::StrFormat(
-      "FifoConfig{ depth: %d, bypass: %d, register_push_outputs: %d, "
-      "register_pop_outputs: %d }",
-      depth_, bypass_, register_push_outputs_, register_pop_outputs_);
+      "FifoConfig{ %s }",
+      absl::StrJoin(GetDslxKwargs(), ", ", absl::PairFormatter(": ")));
+}
+
+std::vector<std::pair<std::string, std::string>> FifoConfig::GetDslxKwargs()
+    const {
+  if (depth_ == 0) {
+    // depth == 0 is a special case where all the other kwargs don't need to be
+    // specified because depth 0 only supports one configuration.
+    return {{"depth", "0"}};
+  }
+  std::vector<std::pair<std::string, std::string>> kwargs;
+  kwargs.push_back({"depth", absl::StrCat(depth_)});
+  kwargs.push_back({"bypass", bypass_ ? "true" : "false"});
+  kwargs.push_back(
+      {"register_push_outputs", register_push_outputs_ ? "true" : "false"});
+  kwargs.push_back(
+      {"register_pop_outputs", register_pop_outputs_ ? "true" : "false"});
+  return kwargs;
 }
 
 namespace {
@@ -196,13 +239,15 @@ std::string Channel::ToString() const {
             channel_config->fifo_config()->register_pop_outputs() ? "true"
                                                                   : "false");
       }
-      if (channel_config->input_flop_kind()) {
-        absl::StrAppendFormat(&result, ", input_flop_kind=%v",
-                              *channel_config->input_flop_kind());
+      if (channel_config->input_flop_kind().has_value()) {
+        absl::StrAppendFormat(
+            &result, ", input_flop_kind=%s",
+            FlopKindToString(*channel_config->input_flop_kind()));
       }
-      if (channel_config->output_flop_kind()) {
-        absl::StrAppendFormat(&result, ", output_flop_kind=%v",
-                              *channel_config->output_flop_kind());
+      if (channel_config->output_flop_kind().has_value()) {
+        absl::StrAppendFormat(
+            &result, ", output_flop_kind=%s",
+            FlopKindToString(*channel_config->output_flop_kind()));
       }
     }
   }
@@ -424,6 +469,27 @@ FlowControl ChannelRefFlowControl(ChannelRef ref) {
     return streaming_channel->GetFlowControl();
   }
   return FlowControl::kNone;
+}
+
+std::string ChannelConfig::ToString() const {
+  return absl::StrFormat(
+      "ChannelConfig(%s)",
+      absl::StrJoin(GetDslxKwargs(), ", ", absl::PairFormatter("=")));
+}
+std::vector<std::pair<std::string, std::string>> ChannelConfig::GetDslxKwargs()
+    const {
+  std::vector<std::pair<std::string, std::string>> kwargs;
+  if (fifo_config().has_value()) {
+    absl::c_copy(fifo_config()->GetDslxKwargs(), std::back_inserter(kwargs));
+  }
+  if (input_flop_kind().has_value()) {
+    kwargs.push_back({"input_flop_kind", FlopKindToString(*input_flop_kind())});
+  }
+  if (output_flop_kind().has_value()) {
+    kwargs.push_back(
+        {"output_flop_kind", FlopKindToString(*output_flop_kind())});
+  }
+  return kwargs;
 }
 
 }  // namespace xls

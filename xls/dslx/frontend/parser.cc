@@ -58,6 +58,7 @@
 #include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/frontend/scanner_keywords.inc"
 #include "xls/dslx/frontend/token.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/code_template.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/foreign_function_data.pb.h"
@@ -283,6 +284,8 @@ absl::Status Parser::ParseModuleAttribute() {
       module_->AddAttribute(ModuleAttribute::kAllowUseSyntax);
     } else if (feature == "type_inference_v2") {
       module_->AddAttribute(ModuleAttribute::kTypeInferenceVersion2);
+    } else if (feature == "channel_attributes") {
+      module_->AddAttribute(ModuleAttribute::kChannelAttributes);
     } else {
       return ParseErrorStatus(
           attribute_span,
@@ -563,6 +566,152 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   return result;
 }
 
+absl::StatusOr<ChannelConfig> Parser::ParseExprAttribute(Bindings& bindings,
+                                                         const Pos& hash_pos) {
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
+  XLS_ASSIGN_OR_RETURN(
+      Token attribute_tok,
+      PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
+                      "Expected attribute identifier"));
+  const std::string& attribute_name = attribute_tok.GetStringValue();
+  if (attribute_name == "channel") {
+    // TODO: google/xls#1023 - consider moving or allowing the channel attribute
+    // to the outside of the let binding, e.g.
+    // #[channel()] let _ = chan<...>("...");
+    ChannelKind kind = ChannelKind::kStreaming;
+    std::optional<int64_t> depth;
+    std::optional<bool> bypass;
+    std::optional<bool> register_push_outputs;
+    std::optional<bool> register_pop_outputs;
+    std::optional<FlopKind> input_flop_kind;
+    std::optional<FlopKind> output_flop_kind;
+    auto parse_kv_pair = [&]() -> absl::StatusOr<std::monostate> {
+      XLS_ASSIGN_OR_RETURN(Token key_tok,
+                           PopTokenOrError(TokenKind::kIdentifier));
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
+      std::string_view key = key_tok.GetStringValue();
+      if (key == "kind") {
+        XLS_ASSIGN_OR_RETURN(Token value_tok,
+                             PopTokenOrError(TokenKind::kIdentifier));
+        XLS_ASSIGN_OR_RETURN(kind,
+                             StringToChannelKind(value_tok.GetStringValue()));
+      } else if (key == "depth") {
+        depth.emplace();
+        XLS_ASSIGN_OR_RETURN(Token value_tok,
+                             PopTokenOrError(TokenKind::kNumber));
+        XLS_ASSIGN_OR_RETURN(*depth, value_tok.GetValueAsInt64());
+      } else if (key == "register_push_outputs") {
+        XLS_ASSIGN_OR_RETURN(Token value_tok,
+                             PopTokenOrError(TokenKind::kKeyword));
+        switch (value_tok.GetKeyword()) {
+          case xls::dslx::Keyword::kTrue:
+            register_push_outputs.emplace(true);
+            break;
+          case xls::dslx::Keyword::kFalse:
+            register_push_outputs.emplace(false);
+            break;
+          default:
+            return ParseErrorStatus(
+                value_tok.span(),
+                absl::StrFormat("Expected boolean for register_push_outputs, "
+                                "got %s.",
+                                value_tok.ToErrorString()));
+        }
+      } else if (key == "register_pop_outputs") {
+        XLS_ASSIGN_OR_RETURN(Token value_tok,
+                             PopTokenOrError(TokenKind::kKeyword));
+        switch (value_tok.GetKeyword()) {
+          case xls::dslx::Keyword::kTrue:
+            register_pop_outputs.emplace(true);
+            break;
+          case xls::dslx::Keyword::kFalse:
+            register_pop_outputs.emplace(false);
+            break;
+          default:
+            return ParseErrorStatus(
+                value_tok.span(),
+                absl::StrFormat("Expected boolean for register_pop_outputs, "
+                                "got %s.",
+                                value_tok.ToErrorString()));
+        }
+      } else if (key == "bypass") {
+        XLS_ASSIGN_OR_RETURN(Token value_tok,
+                             PopTokenOrError(TokenKind::kKeyword));
+        switch (value_tok.GetKeyword()) {
+          case xls::dslx::Keyword::kTrue:
+            bypass.emplace(true);
+            break;
+          case xls::dslx::Keyword::kFalse:
+            bypass.emplace(false);
+            break;
+          default:
+            return ParseErrorStatus(
+                value_tok.span(),
+                absl::StrFormat("Expected boolean for bypass, got %s.",
+                                value_tok.ToErrorString()));
+        }
+      } else if (key == "input_flop_kind") {
+        XLS_ASSIGN_OR_RETURN(Token value_tok,
+                             PopTokenOrError(TokenKind::kIdentifier));
+        std::string_view value = value_tok.GetStringValue();
+        absl::StatusOr<FlopKind> flop_kind = StringToFlopKind(value);
+        if (!flop_kind.ok()) {
+          return ParseErrorStatus(
+              value_tok.span(),
+              absl::StrFormat("Expected flop kind for output_flop_kind, got "
+                              "error %s for value %s.",
+                              flop_kind.status().message(), value));
+        }
+        input_flop_kind.emplace(*flop_kind);
+      } else if (key == "output_flop_kind") {
+        XLS_ASSIGN_OR_RETURN(Token value_tok,
+                             PopTokenOrError(TokenKind::kIdentifier));
+        std::string_view value = value_tok.GetStringValue();
+        absl::StatusOr<FlopKind> flop_kind = StringToFlopKind(value);
+        if (!flop_kind.ok()) {
+          return ParseErrorStatus(
+              value_tok.span(),
+              absl::StrFormat("Expected flop kind for output_flop_kind, got "
+                              "error %s for value %s.",
+                              flop_kind.status().message(), value));
+        }
+        output_flop_kind.emplace(*flop_kind);
+      } else {
+        return ParseErrorStatus(
+            key_tok.span(),
+            absl::StrFormat("Unknown key %s for channel attribute.", key));
+      }
+      return std::monostate();
+    };
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+    XLS_RETURN_IF_ERROR(
+        ParseCommaSeq<std::monostate>(parse_kv_pair, TokenKind::kCParen)
+            .status());
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+    std::optional<FifoConfig> fifo_config;
+    if (depth.has_value() || bypass.has_value() ||
+        register_push_outputs.has_value() || register_pop_outputs.has_value()) {
+      depth = depth.value_or(1);
+      bypass = bypass.value_or(*depth == 0 ? true : false);
+      register_push_outputs = register_push_outputs.value_or(false);
+      register_pop_outputs = register_pop_outputs.value_or(false);
+      fifo_config.emplace(*depth, *bypass, *register_push_outputs,
+                          *register_pop_outputs);
+    }
+    ChannelConfig channel_config;
+    if (fifo_config.has_value() || input_flop_kind.has_value() ||
+        output_flop_kind.has_value()) {
+      channel_config = channel_config.WithFifoConfig(fifo_config);
+      channel_config = channel_config.WithInputFlopKind(input_flop_kind);
+      channel_config = channel_config.WithOutputFlopKind(output_flop_kind);
+    }
+    return channel_config;
+  }
+  return ParseErrorStatus(
+      attribute_tok.span(),
+      absl::StrFormat("Unknown attribute: '%s'", attribute_name));
+}
+
 absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
                             TypeDefinition, std::nullptr_t>>
 Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
@@ -576,16 +725,6 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                       "Expected attribute identifier"));
   const std::string& attribute_name = attribute_tok.GetStringValue();
 
-  if (attribute_name == "test") {
-    XLS_ASSIGN_OR_RETURN(Token cbrack, PopTokenOrError(TokenKind::kCBrack));
-    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-    if (peek->IsKeyword(Keyword::kFn)) {
-      return ParseTestFunction(bindings, Span(hash_pos, cbrack.span().limit()));
-    }
-
-    return ParseErrorStatus(
-        peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
-  }
   if (attribute_name == "dslx_format_disable") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     XLS_ASSIGN_OR_RETURN(bool is_public, TryDropKeyword(Keyword::kPub));
@@ -622,10 +761,6 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     }
     f->set_extern_verilog_module(*parsed_ffi_annotation);
     return f;
-  }
-  if (attribute_name == "test_proc") {
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
-    return ParseTestProc(bindings);
   }
   if (attribute_name == "quickcheck") {
     return ParseQuickCheck(name_to_fn, bindings, hash_pos);
@@ -669,6 +804,20 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                             "#[sv_type(\"name\")] is only valid on type-alias, "
                             "struct or enum definitions");
   }
+  if (attribute_name == "test") {
+    XLS_ASSIGN_OR_RETURN(Token cbrack, PopTokenOrError(TokenKind::kCBrack));
+    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+    if (peek->IsKeyword(Keyword::kFn)) {
+      return ParseTestFunction(bindings, Span(hash_pos, cbrack.span().limit()));
+    }
+
+    return ParseErrorStatus(
+        peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
+  }
+  if (attribute_name == "test_proc") {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+    return ParseTestProc(bindings);
+  }
   return ParseErrorStatus(
       attribute_tok.span(),
       absl::StrFormat("Unknown attribute: '%s'", attribute_name));
@@ -676,7 +825,30 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
 
 absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
                                               ExprRestrictions restrictions) {
+  XLS_ASSIGN_OR_RETURN(std::optional<Token> hash,
+                       TryPopToken(TokenKind::kHash));
+  std::optional<ChannelConfig> channel_config;
+  if (hash.has_value()) {
+    absl::flat_hash_map<std::string, std::string> attributes;
+
+    XLS_ASSIGN_OR_RETURN(channel_config,
+                         ParseExprAttribute(bindings, hash->span().start()));
+    if (channel_config.has_value() &&
+        !module_->attributes().contains(ModuleAttribute::kChannelAttributes)) {
+      return ParseErrorStatus(
+          hash->span(),
+          "#[channel()] syntax is not enabled for this module; enable with "
+          "`#![feature(channel_attributes)]` at module scope");
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  if (channel_config.has_value() && !peek->IsKeyword(Keyword::kChan)) {
+    return ParseErrorStatus(
+        peek->span(), absl::StrFormat("Channel config must be specified before "
+                                      "a channel declaration (got %s).",
+                                      peek->ToString()));
+  }
 
   XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard expr_depth, BumpExpressionDepth());
 
@@ -689,7 +861,7 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
     return ParseUnrollFor(bindings);
   }
   if (peek->IsKeyword(Keyword::kChan)) {
-    return ParseChannelDecl(bindings);
+    return ParseChannelDecl(bindings, channel_config);
   }
   if (peek->IsKeyword(Keyword::kSpawn)) {
     return ParseSpawn(bindings);
@@ -2995,7 +3167,8 @@ absl::StatusOr<ModuleMember> Parser::ParseProc(const Pos& start_pos,
                              Keyword::kProc);
 }
 
-absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings& bindings) {
+absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(
+    Bindings& bindings, const std::optional<ChannelConfig>& channel_config) {
   XLS_ASSIGN_OR_RETURN(Token channel, PopKeywordOrError(Keyword::kChan));
 
   std::optional<std::vector<Expr*>> dims = std::nullopt;
@@ -3020,13 +3193,31 @@ absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings& bindings) {
   }
   XLS_ASSIGN_OR_RETURN(Token cangle_tok, PopTokenOrError(TokenKind::kCAngle));
 
-  std::optional<Expr*> fifo_depth;
+  ChannelDeclMetadata channel_metadata = std::monostate{};
+  if (channel_config.has_value()) {
+    channel_metadata = *channel_config;
+  }
+
   if (fifo_depth_parametric.has_value()) {
-    if (std::holds_alternative<Expr*>(fifo_depth_parametric.value())) {
-      fifo_depth = std::get<Expr*>(fifo_depth_parametric.value());
+    if (module_->attributes().contains(ModuleAttribute::kChannelAttributes)) {
+      return ParseErrorStatus(
+          ExprOrTypeSpan(*fifo_depth_parametric),
+          "Cannot specify fifo depth when new-style channel attributes are "
+          "enabled, please use the new syntax.");
+    }
+    if (channel_config.has_value()) {
+      // Should not happen because the previous check for
+      // #[feature(channel_attributes)] should prevent this from happening, but
+      // let's double check.
+      return ParseErrorStatus(
+          ExprOrTypeSpan(*fifo_depth_parametric),
+          "Cannot specify both fifo depth and channel config.");
+    }
+    if (std::holds_alternative<Expr*>(*fifo_depth_parametric)) {
+      channel_metadata = std::get<Expr*>(*fifo_depth_parametric);
     } else {
       return ParseErrorStatus(
-          ExprOrTypeSpan(fifo_depth_parametric.value()),
+          ExprOrTypeSpan(*fifo_depth_parametric),
           "Expected fifo depth to be expression, got type.");
     }
   }
@@ -3045,7 +3236,8 @@ absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings& bindings) {
 
   XLS_RET_CHECK_NE(channel_name_expr, nullptr);
   return module_->Make<ChannelDecl>(Span(channel.span().start(), limit_pos),
-                                    type, dims, fifo_depth, *channel_name_expr);
+                                    type, dims, channel_metadata,
+                                    *channel_name_expr);
 }
 
 absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings& bindings,

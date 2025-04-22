@@ -81,7 +81,8 @@ class ChannelScopeTest : public ::testing::Test {
     type_info_->SetItem(data_type_annot, MetaType(BitsType::MakeU32()));
     String* name_expr = module_->Make<String>(Span::Fake(), name);
     return module_->Make<ChannelDecl>(Span::Fake(), data_type_annot, dims,
-                                      /*fifo_depth=*/std::nullopt, *name_expr);
+                                      /*channel_metadata=*/std::monostate{},
+                                      *name_expr);
   }
 
   Param* MakeU32Param(

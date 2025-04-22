@@ -76,6 +76,7 @@ cc_library(
         "//xls/dslx/frontend:proc",
         "//xls/dslx/frontend:token",
         "//xls/dslx/frontend:token_utils",
+        "//xls/ir:channel",
         "//xls/ir:format_strings",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
@@ -85,6 +86,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
+        "@cppitertools",
     ],
 )
 

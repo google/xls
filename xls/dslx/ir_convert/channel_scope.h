@@ -164,7 +164,7 @@ class ChannelScope {
  private:
   absl::StatusOr<ChannelOrArray> DefineChannelOrArrayInternal(
       std::string_view short_name, ChannelOps ops, xls::Type* type,
-      std::optional<FifoConfig> fifo_config,
+      std::optional<ChannelConfig> channel_config,
       const std::optional<std::vector<Expr*>>& dims);
 
   absl::Status DefineProtoChannelOrArray(
@@ -182,12 +182,12 @@ class ChannelScope {
 
   absl::StatusOr<xls::Type*> GetChannelType(const ChannelDecl* decl) const;
 
-  absl::StatusOr<std::optional<FifoConfig>> CreateFifoConfig(
+  absl::StatusOr<std::optional<ChannelConfig>> CreateChannelConfig(
       const ChannelDecl* decl) const;
 
-  absl::StatusOr<Channel*> CreateChannel(std::string_view name, ChannelOps ops,
-                                         xls::Type* type,
-                                         std::optional<FifoConfig> fifo_config);
+  absl::StatusOr<Channel*> CreateChannel(
+      std::string_view name, ChannelOps ops, xls::Type* type,
+      std::optional<ChannelConfig> channel_config);
 
   absl::StatusOr<ChannelOrArray> EvaluateIndex(const ProcId& proc_id,
                                                const Index* index,

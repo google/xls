@@ -44,6 +44,7 @@
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/frontend/token.h"
 #include "xls/dslx/frontend/token_parser.h"
+#include "xls/ir/channel.h"
 
 namespace xls::dslx {
 
@@ -535,7 +536,9 @@ class Parser : public TokenParser {
   absl::StatusOr<Match*> ParseMatch(Bindings& bindings);
 
   // Parses a channel declaration.
-  absl::StatusOr<ChannelDecl*> ParseChannelDecl(Bindings& bindings);
+  absl::StatusOr<ChannelDecl*> ParseChannelDecl(
+      Bindings& bindings,
+      const std::optional<ChannelConfig>& channel_config = std::nullopt);
 
   // Parses a for loop construct; e.g.
   //
@@ -648,6 +651,9 @@ class Parser : public TokenParser {
                               TypeDefinition, std::nullptr_t>>
   ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                  Bindings& bindings, const Pos& hash_pos);
+
+  absl::StatusOr<ChannelConfig> ParseExprAttribute(Bindings& bindings,
+                                                   const Pos& hash_pos);
 
   // Parses a "spawn" statement, which creates & initializes a proc.
   absl::StatusOr<Spawn*> ParseSpawn(Bindings& bindings);

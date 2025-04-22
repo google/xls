@@ -87,19 +87,19 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArray(
   XLS_ASSIGN_OR_RETURN(std::string short_name,
                        InterpValueAsString(name_interp_value));
   XLS_ASSIGN_OR_RETURN(xls::Type * type, GetChannelType(decl));
-  XLS_ASSIGN_OR_RETURN(std::optional<FifoConfig> fifo_config,
-                       CreateFifoConfig(decl));
+  XLS_ASSIGN_OR_RETURN(std::optional<ChannelConfig> channel_config,
+                       CreateChannelConfig(decl));
   XLS_ASSIGN_OR_RETURN(
       ChannelOrArray channel_or_array,
       DefineChannelOrArrayInternal(short_name, ChannelOps::kSendReceive, type,
-                                   std::move(fifo_config), decl->dims()));
+                                   channel_config, decl->dims()));
   decl_to_channel_or_array_[decl] = channel_or_array;
   return channel_or_array;
 }
 
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
     std::string_view short_name, ChannelOps ops, xls::Type* type,
-    std::optional<FifoConfig> fifo_config,
+    std::optional<ChannelConfig> channel_config,
     const std::optional<std::vector<Expr*>>& dims) {
   XLS_ASSIGN_OR_RETURN(std::string base_channel_name,
                        CreateBaseChannelName(short_name));
@@ -107,7 +107,7 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
   if (!dims.has_value()) {
     XLS_ASSIGN_OR_RETURN(
         Channel * channel,
-        CreateChannel(base_channel_name, ops, type, fifo_config));
+        CreateChannel(base_channel_name, ops, type, channel_config));
     return channel;
   }
   ChannelArray* array = &arrays_.emplace_back(ChannelArray(base_channel_name));
@@ -116,8 +116,9 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
   for (const std::string& suffix : suffixes) {
     std::string channel_name =
         absl::StrCat(base_channel_name, kNameAndDimsSeparator, suffix);
-    XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         CreateChannel(channel_name, ops, type, fifo_config));
+    XLS_ASSIGN_OR_RETURN(
+        Channel * channel,
+        CreateChannel(channel_name, ops, type, channel_config));
     array->AddChannel(channel_name, channel);
   }
   return array;
@@ -138,10 +139,11 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
   ChannelOps op = type_annot->direction() == ChannelDirection::kIn
                       ? ChannelOps::kReceiveOnly
                       : ChannelOps::kSendOnly;
-  XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
-                       DefineChannelOrArrayInternal(
-                           param->identifier(), op, ir_type,
-                           /*fifo_config=*/std::nullopt, type_annot->dims()));
+  XLS_ASSIGN_OR_RETURN(
+      ChannelOrArray channel_or_array,
+      DefineChannelOrArrayInternal(param->identifier(), op, ir_type,
+                                   /*channel_config=*/std::nullopt,
+                                   type_annot->dims()));
   XLS_RETURN_IF_ERROR(DefineProtoChannelOrArray(channel_or_array, type_annot,
                                                 ir_type, type_info));
   return channel_or_array;
@@ -312,8 +314,14 @@ absl::StatusOr<xls::Type*> ChannelScope::GetChannelType(
                   function_context_->bindings);
 }
 
-absl::StatusOr<std::optional<FifoConfig>> ChannelScope::CreateFifoConfig(
+absl::StatusOr<std::optional<ChannelConfig>> ChannelScope::CreateChannelConfig(
     const ChannelDecl* decl) const {
+  if (decl->channel_config().has_value()) {
+    XLS_RET_CHECK(!decl->fifo_depth().has_value())
+        << "Cannot specify both fifo_depth and channel_config.";
+    return decl->channel_config();
+  }
+
   std::optional<int64_t> fifo_depth;
   if (decl->fifo_depth().has_value()) {
     // Note: warning collect is nullptr since all warnings should have been
@@ -331,31 +339,32 @@ absl::StatusOr<std::optional<FifoConfig>> ChannelScope::CreateFifoConfig(
                           fifo_depth_value.ToHumanString()));
     }
     XLS_ASSIGN_OR_RETURN(fifo_depth, fifo_depth_value.bits().ToInt64());
+    // We choose bypass=true FIFOs by default and register push outputs (ready).
+    // The idea is to avoid combo loops introduced by pop->push ready
+    // combinational paths. For depth zero FIFOs, we do not register push
+    // outputs as for now we think of these FIFOs as direct connections.
+    // TODO: google/xls#1391 - we should have a better way to specify fifo
+    // configuration.
+    return ChannelConfig().WithFifoConfig(FifoConfig(
+        /*depth=*/*fifo_depth,
+        /*bypass=*/true,
+        /*register_push_outputs=*/*fifo_depth != 0,
+        /*register_pop_outputs=*/false));
   }
 
-  if (!fifo_depth.has_value()) {
-    return default_fifo_config_;
-  }
-  // We choose bypass=true FIFOs by default and register push outputs (ready).
-  // The idea is to avoid combo loops introduced by pop->push ready
-  // combinational paths. For depth zero FIFOs, we do not register push outputs
-  // as for now we think of these FIFOs as direct connections.
-  // TODO: google/xls#1391 - we should have a better way to specify fifo
-  // configuration.
-  return FifoConfig(
-      /*depth=*/*fifo_depth,
-      /*bypass=*/true,
-      /*register_push_outputs=*/*fifo_depth != 0,
-      /*register_pop_outputs=*/false);
+  return ChannelConfig().WithFifoConfig(default_fifo_config_);
 }
 
 absl::StatusOr<Channel*> ChannelScope::CreateChannel(
     std::string_view name, ChannelOps ops, xls::Type* type,
-    std::optional<FifoConfig> fifo_config) {
-  return conversion_info_->package->CreateStreamingChannel(
-      name, ops, type,
-      /*initial_values=*/{},
-      /*fifo_config=*/fifo_config);
+    std::optional<ChannelConfig> channel_config) {
+  if (channel_config.has_value()) {
+    return conversion_info_->package->CreateStreamingChannel(
+        name, ops, type,
+        /*initial_values=*/{},
+        /*channel_config=*/*channel_config);
+  }
+  return conversion_info_->package->CreateStreamingChannel(name, ops, type);
 }
 
 absl::StatusOr<ChannelOrArray> ChannelScope::GetChannelArrayElement(

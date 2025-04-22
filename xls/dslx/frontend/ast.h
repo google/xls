@@ -41,6 +41,7 @@
 #include "xls/dslx/frontend/ast_node.h"  // IWYU pragma: export
 #include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/format_strings.h"
 
@@ -3939,18 +3940,33 @@ class Let : public AstNode {
   bool is_const_;
 };
 
+// We currently have two different ways to configure channels:
+//  1. `chan<TYPE, u32:DEPTH>`, where IR conversion constexpr-evaluates DEPTH
+//  and chooses other fifo config values (bypass, register_*_outputs) based on
+//  DEPTH==0. This is the older form.
+//  2. #[channel(depth=DEPTH, ...)], the newer form. It does not constexpr-
+//  evaluate DEPTH, but allows the user to specify all fifo config values
+//  as well as IO flopping.
+//
+// The second form is experimental and requires enabling the
+// `channel_attributes` feature. For now, we use a variant to hold either of
+// these two forms.
+// TODO: google/xls#1561 - decide if we the second form is the way to go and
+// remove the old form.
+using ChannelDeclMetadata = std::variant<Expr*, ChannelConfig, std::monostate>;
+
 // A channel declaration, e.g., `let (p, c) = chan<u32>("my_chan");`
 // -------------------------------------------^^^^^^^^^^^^^^^^^^^^ this part.
 class ChannelDecl : public Expr {
  public:
   ChannelDecl(Module* owner, Span span, TypeAnnotation* type,
               std::optional<std::vector<Expr*>> dims,
-              std::optional<Expr*> fifo_depth, Expr& channel_name_expr,
+              ChannelDeclMetadata channel_metadata, Expr& channel_name_expr,
               bool in_parens = false)
       : Expr(owner, std::move(span), in_parens),
         type_(type),
         dims_(std::move(dims)),
-        fifo_depth_(fifo_depth),
+        metadata_(std::move(channel_metadata)),
         channel_name_expr_(channel_name_expr) {}
 
   ~ChannelDecl() override;
@@ -3975,7 +3991,19 @@ class ChannelDecl : public Expr {
 
   TypeAnnotation* type() const { return type_; }
   const std::optional<std::vector<Expr*>>& dims() const { return dims_; }
-  std::optional<Expr*> fifo_depth() const { return fifo_depth_; }
+  std::optional<Expr*> fifo_depth() const {
+    if (std::holds_alternative<Expr*>(metadata_)) {
+      return std::get<Expr*>(metadata_);
+    }
+    return std::nullopt;
+  }
+  std::optional<ChannelConfig> channel_config() const {
+    if (std::holds_alternative<ChannelConfig>(metadata_)) {
+      return std::get<ChannelConfig>(metadata_);
+    }
+    return std::nullopt;
+  }
+  ChannelDeclMetadata metadata() const { return metadata_; }
   Expr& channel_name_expr() const { return channel_name_expr_; }
 
   Precedence GetPrecedenceWithoutParens() const final {
@@ -3987,7 +4015,7 @@ class ChannelDecl : public Expr {
 
   TypeAnnotation* type_;
   std::optional<std::vector<Expr*>> dims_;
-  std::optional<Expr*> fifo_depth_;
+  ChannelDeclMetadata metadata_;
   Expr& channel_name_expr_;
 };
 

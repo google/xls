@@ -28,7 +28,6 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.pb.h"
@@ -63,30 +62,7 @@ class FifoConfig {
   bool bypass() const { return bypass_; }
   bool register_push_outputs() const { return register_push_outputs_; }
   bool register_pop_outputs() const { return register_pop_outputs_; }
-  absl::Status Validate() const {
-    if (depth_ == 0) {
-      if (!bypass_) {
-        return absl::FailedPreconditionError(
-            "Zero-depth FIFOs are direct connections, and hence cannot be "
-            "bypass-less");
-      }
-      if (register_push_outputs_ || register_pop_outputs_) {
-        return absl::FailedPreconditionError(
-            "Zero-depth FIFOs are memory-less/direct connections, and hence do "
-            "not support registers");
-      }
-    }
-    if (depth_ == 1) {
-      if (register_pop_outputs_) {
-        return absl::FailedPreconditionError(
-            "register_pop_outputs adds an extra FIFO entry for the output and "
-            "still requires a depth>=1 FIFO in front of the output stage, so "
-            "we require depth>=2");
-        // Please file a github issue if you have different FIFO needs :)
-      }
-    }
-    return absl::OkStatus();
-  }
+  absl::Status Validate() const;
 
   bool operator==(const FifoConfig& other) const = default;
   bool operator<=>(const FifoConfig& other) const = default;
@@ -97,6 +73,10 @@ class FifoConfig {
   FifoConfigProto ToProto(int64_t width) const;
 
   std::string ToString() const;
+  // Returns a vector of key-value pairs for the DSLX kwargs for this config,
+  // e.g. {{"fifo_depth", "10"}, {"bypass", "true"}, {"register_push_outputs",
+  // "true"}, {"register_pop_outputs", "true"}}.
+  std::vector<std::pair<std::string, std::string>> GetDslxKwargs() const;
 
   template <typename H>
   friend H AbslHashValue(H h, const FifoConfig& config) {
@@ -147,7 +127,16 @@ void AbslStringify(Sink& sink, FlopKind value) {
 absl::StatusOr<std::optional<FlopKind>> FlopKindFromProto(FlopKindProto f);
 
 inline std::string FlopKindToString(FlopKind kind) {
-  return absl::StrCat(kind);
+  switch (kind) {
+    case FlopKind::kNone:
+      return "none";
+    case FlopKind::kFlop:
+      return "flop";
+    case FlopKind::kSkid:
+      return "skid";
+    case FlopKind::kZeroLatency:
+      return "zero_latency";
+  }
 }
 absl::StatusOr<FlopKind> StringToFlopKind(std::string_view str);
 
@@ -186,6 +175,11 @@ class ChannelConfig {
   ChannelConfigProto ToProto(int64_t width) const;
 
   std::string ToString() const;
+
+  // Returns a vector of key-value pairs for the DSLX kwargs for this config,
+  // e.g. {{"fifo_depth", "10"}, {"bypass", "true"}, {"input_flop_kind",
+  // "none"}}.
+  std::vector<std::pair<std::string, std::string>> GetDslxKwargs() const;
 
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const ChannelConfig& value) {
