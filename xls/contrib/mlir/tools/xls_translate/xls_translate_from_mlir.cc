@@ -42,6 +42,7 @@
 #include "llvm/include/llvm/ADT/TypeSwitch.h"
 #include "llvm/include/llvm/Support/Casting.h"  // IWYU pragma: keep
 #include "llvm/include/llvm/Support/LogicalResult.h"
+#include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
@@ -99,6 +100,9 @@ using ValueMap = DenseMap<Value, BValue>;
 
 // The default name of the result for imported Verilog module.
 constexpr StringLiteral kResultName("out");
+
+// The package name for imported DSLX instantiations.
+constexpr StringLiteral kImportedModuleName("imported_module");
 
 // Tracks imported package and the renaming due to import.
 struct PackageInfo {
@@ -582,45 +586,17 @@ FailureOr<PackageInfo> importDslxInstantiation(
     ImportDslxFilePackageOp file_import_op, StringRef dslx_snippet,
     Package& package);
 
-absl::StatusOr<::xls::Function*> getFunction(TranslationState& state,
-                                             const StringRef fn_name) {
-  if (auto result = state.getFunction(fn_name)) {
-    return result;
-  }
-  const auto* linkage = state.getLinkage(fn_name);
-  bool has_linkage = linkage != nullptr;
-  std::string func_name =
-      has_linkage ? linkage->getFunction().str() : fn_name.str();
-
-  const PackageInfo* package_info =
-      has_linkage
-          ? state.getPackageInfo(linkage->getPackage().getLeafReference())
-          : nullptr;
-
-  // Handle function instantiations.
-  if (func_name.starts_with("fn ")) {
-    if (!func_name.ends_with("}")) {
-      return absl::InvalidArgumentError(
-          "Invalid DSLX snippet, must be a function ending with `}`");
-    }
-    if (package_info == nullptr) {
-      return absl::InvalidArgumentError(
-          "Invalid DSLX snippet, must be extern linked");
-    }
-    if (failed(importDslxInstantiation(package_info->op, func_name,
-                                       state.getPackage()))) {
-      return absl::InvalidArgumentError("Failed to import DSLX snippet");
-    }
-    func_name = StringRef(func_name).drop_front(3).split('(').first.trim();
-  }
-
+absl::StatusOr<::xls::Function*> GetFunctionFromPackageInfo(
+    TranslationState& state, const PackageInfo* package_info,
+    const StringRef func_name, const std::string_view package_name,
+    const std::string_view func_name_str) {
   if (package_info == nullptr) {
-    return state.getPackage().GetFunction(func_name);
+    return state.getPackage().GetFunction(func_name_str);
   }
 
   // Use the mangled function name to find the XLS function in the package.
   absl::StatusOr<std::string> mangled_func_name =
-      ::xls::MangleDslxName(package_info->package->name(), func_name);
+      ::xls::MangleDslxName(package_name, func_name_str);
   if (!mangled_func_name.ok()) {
     return absl::InvalidArgumentError(absl::StrCat(
         "Failed to mangle name: ", mangled_func_name.status().message()));
@@ -636,9 +612,49 @@ absl::StatusOr<::xls::Function*> getFunction(TranslationState& state,
 
   auto fn = state.getPackage().GetFunction(mangled_func_name.value());
   if (fn.ok()) {
-    state.addFunction(fn_name, fn.value());
+    state.addFunction(func_name, fn.value());
   }
   return fn;
+}
+
+absl::StatusOr<::xls::Function*> getFunction(TranslationState& state,
+                                             const StringRef fn_name) {
+  if (auto result = state.getFunction(fn_name)) {
+    return result;
+  }
+  const auto* linkage = state.getLinkage(fn_name);
+  bool has_linkage = linkage != nullptr;
+  std::string func_name =
+      has_linkage ? linkage->getFunction().str() : fn_name.str();
+
+  const PackageInfo* package_info =
+      has_linkage
+          ? state.getPackageInfo(linkage->getPackage().getLeafReference())
+          : nullptr;
+  std::string package_name = has_linkage ? package_info->package->name() : "";
+
+  // Handle function instantiations.
+  if (func_name.starts_with("fn ")) {
+    if (!func_name.ends_with("}")) {
+      return absl::InvalidArgumentError(
+          "Invalid DSLX snippet, must be a function ending with `}`");
+    }
+    if (package_info == nullptr) {
+      return absl::InvalidArgumentError(
+          "Invalid DSLX snippet, must be extern linked");
+    }
+    auto result = importDslxInstantiation(package_info->op, func_name,
+                                          state.getPackage());
+    if (failed(result)) {
+      return absl::InvalidArgumentError("Failed to import DSLX snippet");
+    }
+    func_name = StringRef(func_name).drop_front(3).split('(').first.trim();
+    return GetFunctionFromPackageInfo(state, &*result, fn_name,
+                                      kImportedModuleName, func_name);
+  }
+
+  return GetFunctionFromPackageInfo(state, package_info, fn_name, package_name,
+                                    func_name);
 }
 
 // Converts a float value from a Bits to a tuple of (sign, exponent,
@@ -979,61 +995,6 @@ BValue convertOp(GateOp op, TranslationState& state, BuilderBase& fb) {
                  state.getXlsValue(op.getData()), state.getLoc(op));
 }
 
-FailureOr<PackageInfo> importDslxInstantiation(
-    ImportDslxFilePackageOp file_import_op, StringRef dslx_snippet,
-    Package& package) {
-  StringRef path = file_import_op.getFilename();
-
-  std::string module_name = "imported_module";
-  absl::StatusOr<std::string> package_string_or;
-
-  // Note: this is not bullet proof. The experience if these are wrong would
-  // be suboptimal.
-  std::string importModule = llvm::join(
-      std::filesystem::path(std::string_view(path)).parent_path(), ".");
-  importModule +=
-      "." + std::filesystem::path(std::string_view(path)).stem().string();
-
-  // Construct a DSLX module with import.
-  std::string dslx;
-  llvm::raw_string_ostream os(dslx);
-  os << "import " << importModule << " as im;\n";
-  for (StringRef x : llvm::split(dslx_snippet, 0x7B)) {
-    os << x << (x.ends_with("}") ? "" : "{ im::");
-  }
-  os.flush();
-
-  // Note: using a different pathname here else XLS considers this a circular
-  // import.
-  const ::xls::ConvertDslxToIrOptions options{
-      .dslx_stdlib_path = ::xls::GetDefaultDslxStdlibPath(),
-      .warnings_as_errors = false,
-  };
-  package_string_or = ::xls::ConvertDslxToIr(dslx, "<instantiated module>",
-                                             module_name, options);
-  if (!package_string_or.ok()) {
-    llvm::errs() << "Failed to convert DSLX to IR: "
-                 << package_string_or.status().message() << "\n";
-    return failure();
-  }
-  absl::StatusOr<std::unique_ptr<Package>> package_or =
-      ::xls::ParsePackage(package_string_or.value(), std::nullopt);
-  if (!package_or.ok()) {
-    llvm::errs() << "Failed to parse package: " << package_or.status().message()
-                 << "\n";
-    return failure();
-  }
-  absl::StatusOr<Package::PackageMergeResult> merge_result =
-      package.ImportFromPackage(package_or->get());
-  if (!merge_result.ok()) {
-    llvm::errs() << "Failed to add package: " << merge_result.status().message()
-                 << "\n";
-    return failure();
-  }
-  return PackageInfo(std::move(package_or.value()), *merge_result,
-                     file_import_op);
-}
-
 // Attempts to find the given DSLX file. Tries fileName directory, and also
 // tries prepending the runfiles directory.
 FailureOr<std::filesystem::path> findDslxFile(
@@ -1055,6 +1016,70 @@ FailureOr<std::filesystem::path> findDslxFile(
   }
   llvm::errs() << "Failed to find DSLX file: " << file_name << "\n";
   return failure();
+}
+
+FailureOr<PackageInfo> importDslxInstantiation(
+    ImportDslxFilePackageOp file_import_op, StringRef dslx_snippet,
+    Package& package) {
+  StringRef path = file_import_op.getFilename();
+
+  absl::StatusOr<std::string> package_string_or;
+
+  // Note: this is not bullet proof. The experience if these are wrong would
+  // be suboptimal.
+  auto fsPath = std::filesystem::path(std::string_view(path));
+  if (auto found = findDslxFile(path.str(), fsPath); succeeded(found)) {
+    fsPath = *found;
+  } else {
+    return failure();
+  }
+  std::string importModule = llvm::join(fsPath.parent_path(), ".");
+  std::string packageName = fsPath.stem();
+  importModule += "." + packageName;
+
+  // Construct a DSLX module with import.
+  std::string dslx;
+  llvm::raw_string_ostream os(dslx);
+  // Read the file in path into a string.
+  std::string file_contents;
+  auto fileOrErr = llvm::MemoryBuffer::getFileOrSTDIN(path);
+  if (fileOrErr.getError()) {
+    llvm::errs() << "Failed to read file: " << path << "\n";
+    return failure();
+  }
+  os << (*fileOrErr)->getBuffer();
+  os << "\n// Imported.\n" << dslx_snippet << "\n";
+  os.flush();
+
+  // Note: using a different pathname here else XLS considers this a circular
+  // import.
+  const ::xls::ConvertDslxToIrOptions options{
+      .dslx_stdlib_path = ::xls::GetDefaultDslxStdlibPath(),
+      .warnings_as_errors = false,
+  };
+  package_string_or = ::xls::ConvertDslxToIr(dslx, "<instantiated module>",
+                                             kImportedModuleName, options);
+  if (!package_string_or.ok()) {
+    llvm::errs() << "Failed to convert DSLX to IR: "
+                 << package_string_or.status().message() << "\n";
+    return failure();
+  }
+  absl::StatusOr<std::unique_ptr<Package>> package_or =
+      ::xls::ParsePackage(package_string_or.value(), std::nullopt);
+  if (!package_or.ok()) {
+    llvm::errs() << "Failed to parse package: " << package_or.status().message()
+                 << "\n";
+    return failure();
+  }
+  absl::StatusOr<Package::PackageMergeResult> merge_result =
+      package.ImportFromPackage(package_or->get());
+  if (!merge_result.ok()) {
+    llvm::errs() << "Failed to add package: " << merge_result.status().message()
+                 << "\n";
+    return failure();
+  }
+  return PackageInfo(std::move(package_or.value()), *merge_result,
+                     file_import_op);
 }
 
 FailureOr<PackageInfo> importDslxFile(ImportDslxFilePackageOp file_import_op,

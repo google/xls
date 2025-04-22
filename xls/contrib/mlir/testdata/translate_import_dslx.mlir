@@ -3,10 +3,10 @@
 
 // XLS: fn sub
 // XLS-DAG: invoke{{.*}}=__struct_type__int_to_float
+// XLS-DAG: invoke{{.*}}=__imported_module__dtp
 // XLS-DAG: invoke{{.*}}=__dot_product__dot_product_fixed_test
-// XLS-DAG: invoke{{.*}}=__struct_type__int_to_float
+// XLS-DAG: invoke{{.*}}=__imported_module__imp_int_to_float
 // XLS-DAG: invoke{{.*}}=__struct_type__float_to_int
-// XLS-DAG: invoke{{.*}}=__dot_product__dot_product_fixed_test
 
 // XLS-OPT-NOT: fn {{.*}}dot_product
 // XLS-OPT: fn sub
@@ -30,10 +30,11 @@ func.func private @float_to_int_opaque(%a: !xls.opaque<"a">) -> i32 attributes
 // This imports + instantiates function.
 func.func private @bar(%a: !xls.array<4 x i32>, %b: !xls.array<4 x i32>) -> i32 attributes
   {xls.linkage = #xls.translation_linkage<@dot_product:
-    "fn dot_product_fixed_test(a : s32[4], b: s32[4]) -> s32 { dot_product_fixed<u32:32, u32:4>(a, b) }"> }
+    "fn dtp(a : s32[4], b: s32[4]) -> s32 { dot_product_fixed<u32:32, u32:4>(a, b) }"> }
 
 func.func private @int_to_float32(%a: i32) -> tuple<ui1, ui8, ui23> attributes
-  {xls.linkage = #xls.translation_linkage<@struct_type:"int_to_float">}
+  {xls.linkage = #xls.translation_linkage<@struct_type:
+    "fn imp_int_to_float(a : s32) -> float32 { int_to_float(a) }"> }
 
 func.func @sub(%a: !xls.array<4 x i32>, %b: !xls.array<4 x i32>, %c: i32, %d: !xls.opaque<"a">) -> (i32, !xls.opaque<"a">) {
   %0 = func.call @bar(%a, %b) : (!xls.array<4 x i32>, !xls.array<4 x i32>) -> i32
