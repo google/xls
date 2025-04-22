@@ -399,80 +399,108 @@ pub enum RoundStyle : u1 {
 //     if halfway bit is odd: round_up
 //     if halfway bit is even: round_down
 //   if TIES_TO_AWAY: round_up
-fn should_round_up<FRACTION_SZ: u32, LSB_INDEX_SZ: u32 = {std::clog2(FRACTION_SZ)}>
-    (fraction: uN[FRACTION_SZ], lsb_idx: uN[LSB_INDEX_SZ], round_style: RoundStyle) -> bool {
-    let halfway_idx = lsb_idx as uN[FRACTION_SZ] - uN[FRACTION_SZ]:1;
-    let halfway_bit_mask = uN[FRACTION_SZ]:1 << halfway_idx;
-    let trunc_bits = std::keep_lsbs(fraction, lsb_idx);
-    let trunc_bits_gt_half = trunc_bits > halfway_bit_mask;
-    let trunc_bits_are_halfway = trunc_bits == halfway_bit_mask;
-    let halfway_rounds_up = match round_style {
+fn does_lsb_round_up<FRACTION_SZ: u32>
+    (lsb_index: u32, fraction: uN[FRACTION_SZ], round_style: RoundStyle) -> bool {
+    // retained
+    //    |
+    //    |  /- round-bit
+    //    |  |
+    //    |  |  /- sticky
+    // /----\|/--\
+    // ABCDEFGHIJK
+    assert!(lsb_index >= u32:1, "apfloat_round_without_residue");
+    assert!(lsb_index <= FRACTION_SZ as u32, "apfloat_round_without_lsb");
+    // Extract the first bit which needs to be cut.
+    let first_lost_bit_idx = lsb_index - u32:1;
+    let round_bit = fraction[first_lost_bit_idx+:u1];
+    match round_style {
         RoundStyle::TIES_TO_EVEN => {
-            let lsb_bit_mask = uN[FRACTION_SZ]:1 << lsb_idx;
-            let to_fraction_is_odd = (fraction & lsb_bit_mask) == lsb_bit_mask;
-            to_fraction_is_odd
+            // Extract the last bit which is retained.
+            let lsb = lsb_index < FRACTION_SZ && fraction[lsb_index+:u1];
+            // Whether any bits before the round_bit are 1.
+            let sticky = std::or_reduce_lsb(fraction, lsb_index - u32:1);
+
+            //  L R S
+            //  X 0 X   --> Round down (less than half)
+            //  0 1 0   --> Round down (half, already even)
+            //  1 1 0   --> Round up (half, to even)
+            //  X 1 1   --> Round up (greater than half)
+            (round_bit && sticky) || (round_bit && lsb)
         },
-        RoundStyle::TIES_TO_AWAY => true,
-    };
-    trunc_bits_gt_half || (trunc_bits_are_halfway && halfway_rounds_up)
+        RoundStyle::TIES_TO_AWAY => { round_bit },
+    }
+}
+
+#[test]
+fn does_lsb_round_up_test() {
+    // 0b1000.0
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10000, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10000, RoundStyle::TIES_TO_AWAY), false);
+    // 0b1000.1
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10001, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10001, RoundStyle::TIES_TO_AWAY), true);
+    // 0b1001.1
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10011, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(does_lsb_round_up(u32:1, u5:0b10011, RoundStyle::TIES_TO_AWAY), true);
+    // 0b100.11
+    assert_eq(does_lsb_round_up(u32:2, u5:0b10011, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(does_lsb_round_up(u32:2, u5:0b10011, RoundStyle::TIES_TO_AWAY), true);
+    // 0b10.011
+    assert_eq(does_lsb_round_up(u32:3, u5:0b10011, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b10011, RoundStyle::TIES_TO_AWAY), false);
+    // 0b.00011
+    assert_eq(does_lsb_round_up(u32:5, u5:0b00011, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:5, u5:0b00011, RoundStyle::TIES_TO_AWAY), false);
+    // 0b.10000
+    assert_eq(does_lsb_round_up(u32:5, u5:0b10000, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:5, u5:0b10000, RoundStyle::TIES_TO_AWAY), true);
+    // 0b.10011
+    assert_eq(does_lsb_round_up(u32:5, u5:0b10011, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(does_lsb_round_up(u32:5, u5:0b10011, RoundStyle::TIES_TO_AWAY), true);
 }
 
 #[test]
 fn round_up_az_test() {
     // >halfway bit.
-    assert_eq(should_round_up(u5:0b01101, u3:3, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b01101, RoundStyle::TIES_TO_AWAY), true);
     // <halfway bit.
-    assert_eq(should_round_up(u5:0b01001, u3:3, RoundStyle::TIES_TO_AWAY), false);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b01001, RoundStyle::TIES_TO_AWAY), false);
     // ==halfway bit and lsb odd.
-    assert_eq(should_round_up(u5:0b01100, u3:3, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b01100, RoundStyle::TIES_TO_AWAY), true);
     // ==halfway bit and lsb even.
-    assert_eq(should_round_up(u5:0b00100, u3:3, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b00100, RoundStyle::TIES_TO_AWAY), true);
     // 0 fraction.
-    assert_eq(should_round_up(u5:0b000000, u3:3, RoundStyle::TIES_TO_AWAY), false);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b000000, RoundStyle::TIES_TO_AWAY), false);
     // max lsb index, >halfway bit.
-    assert_eq(should_round_up(u8:0b11000001, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(does_lsb_round_up(u32:0b111, u8:0b11000001, RoundStyle::TIES_TO_AWAY), true);
     // max lsb index, <halfway bit.
-    assert_eq(should_round_up(u8:0b10000000, u3:0b111, RoundStyle::TIES_TO_AWAY), false);
+    assert_eq(does_lsb_round_up(u32:0b111, u8:0b10000000, RoundStyle::TIES_TO_AWAY), false);
     // max lsb index, ==halfway bit and lsb odd.
-    assert_eq(should_round_up(u8:0b11000000, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(does_lsb_round_up(u32:0b111, u8:0b11000000, RoundStyle::TIES_TO_AWAY), true);
     // max lsb index, ==halfway bit and lsb even.
-    assert_eq(should_round_up(u8:0b01000000, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
-    // overflow lsb index.
-    assert_eq(should_round_up(u5:0b11111, u3:0b111, RoundStyle::TIES_TO_AWAY), true);
+    assert_eq(does_lsb_round_up(u32:0b111, u8:0b01000000, RoundStyle::TIES_TO_AWAY), true);
 }
 
 #[test]
 fn round_up_ne_test() {
     // >halfway bit.
-    assert_eq(should_round_up(u5:0b01101, u3:3, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b01101, RoundStyle::TIES_TO_EVEN), true);
     // <halfway bit.
-    assert_eq(should_round_up(u5:0b01001, u3:3, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b01001, RoundStyle::TIES_TO_EVEN), false);
     // ==halfway bit and lsb odd.
-    assert_eq(should_round_up(u5:0b01100, u3:3, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b01100, RoundStyle::TIES_TO_EVEN), true);
     // ==halfway bit and lsb even.
-    assert_eq(should_round_up(u5:0b00100, u3:3, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b00100, RoundStyle::TIES_TO_EVEN), false);
     // 0 fraction.
-    assert_eq(should_round_up(u5:0b000000, u3:3, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:3, u5:0b000000, RoundStyle::TIES_TO_EVEN), false);
     // max lsb index, >halfway bit.
-    assert_eq(should_round_up(u8:0b11000001, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(does_lsb_round_up(u32:0b111, u8:0b11000001, RoundStyle::TIES_TO_EVEN), true);
     // max lsb index, <halfway bit.
-    assert_eq(should_round_up(u8:0b10000000, u3:0b111, RoundStyle::TIES_TO_EVEN), false);
+    assert_eq(does_lsb_round_up(u32:0b111, u8:0b10000000, RoundStyle::TIES_TO_EVEN), false);
     // max lsb index, ==halfway bit and lsb odd.
-    assert_eq(should_round_up(u8:0b11000000, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
+    assert_eq(does_lsb_round_up(u32:0b111, u8:0b11000000, RoundStyle::TIES_TO_EVEN), true);
     // max lsb index, ==halfway bit and lsb even.
-    assert_eq(should_round_up(u8:0b01000000, u3:0b111, RoundStyle::TIES_TO_EVEN), false);
-    // overflow lsb index.
-    assert_eq(should_round_up(u5:0b11111, u3:0b111, RoundStyle::TIES_TO_EVEN), true);
-}
-
-#[quickcheck]
-fn round_up_ne_overflow_always_rounds_up(f: u5) -> bool {
-    should_round_up(f, u3:0b111, RoundStyle::TIES_TO_EVEN)
-}
-
-#[quickcheck]
-fn round_up_az_overflow_always_rounds_up(f: u5) -> bool {
-    should_round_up(f, u3:0b111, RoundStyle::TIES_TO_AWAY)
+    assert_eq(does_lsb_round_up(u32:0b111, u8:0b01000000, RoundStyle::TIES_TO_EVEN), false);
 }
 
 // Casts the fixed point number to a floating point number using RNE
@@ -510,9 +538,15 @@ pub fn cast_from_fixed_using_rne<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u3
 
     // Round fraction (round to nearest, half to even).
     let lsb_idx = (num_trailing_nonzeros as uN[EXTENDED_FRACTION_SZ]) - uN[EXTENDED_FRACTION_SZ]:1;
-    let round_up = should_round_up(
-        extended_fraction, lsb_idx as uN[std::clog2(EXTENDED_FRACTION_SZ)],
-        RoundStyle::TIES_TO_EVEN);
+    let round_up = if lsb_idx == uN[EXTENDED_FRACTION_SZ]:0 {
+        // already exact
+        false
+    } else if lsb_idx > EXTENDED_FRACTION_SZ as uN[EXTENDED_FRACTION_SZ] {
+        // Overflowed lsb idx
+        true
+    } else {
+        does_lsb_round_up(lsb_idx as u32, extended_fraction, RoundStyle::TIES_TO_EVEN)
+    };
     let fraction = if round_up { fraction + uN[FRACTION_SZ]:1 } else { fraction };
 
     // Check if rounding up causes an exponent increment.
@@ -870,66 +904,6 @@ fn upcast_test() {
     assert_eq(upcast<BF16_EXP_SZ, BF16_FRACTION_SZ>(neg_denormal_bf16), neg_zero_bf16);
     assert_eq(upcast<BF16_EXP_SZ, BF16_FRACTION_SZ>(zero_bf16), zero_bf16);
     assert_eq(upcast<BF16_EXP_SZ, BF16_FRACTION_SZ>(one_bf16), one_bf16);
-}
-
-fn does_lsb_round_up<FRACTION_SZ: u32>
-    (lsb_index: u32, fraction: uN[FRACTION_SZ], round_style: RoundStyle) -> bool {
-    // retained
-    //    |
-    //    |  /- round-bit
-    //    |  |
-    //    |  |  /- sticky
-    // /----\|/--\
-    // ABCDEFGHIJK
-    assert!(lsb_index >= u32:1, "apfloat_round_without_residue");
-    assert!(lsb_index <= FRACTION_SZ as u32, "apfloat_round_without_lsb");
-    // Extract the first bit which needs to be cut.
-    let first_lost_bit_idx = lsb_index - u32:1;
-    let round_bit = fraction[first_lost_bit_idx+:u1];
-    match round_style {
-        RoundStyle::TIES_TO_EVEN => {
-            // Extract the last bit which is retained.
-            let lsb = lsb_index < FRACTION_SZ && fraction[lsb_index+:u1];
-            // Whether any bits before the round_bit are 1.
-            let sticky = std::or_reduce_lsb(fraction, lsb_index - u32:1);
-
-            //  L R S
-            //  X 0 X   --> Round down (less than half)
-            //  0 1 0   --> Round down (half, already even)
-            //  1 1 0   --> Round up (half, to even)
-            //  X 1 1   --> Round up (greater than half)
-            (round_bit && sticky) || (round_bit && lsb)
-        },
-        RoundStyle::TIES_TO_AWAY => { round_bit },
-    }
-}
-
-#[test]
-fn does_lsb_round_up_test() {
-    // 0b1000.0
-    assert_eq(does_lsb_round_up(u32:1, u5:0b10000, RoundStyle::TIES_TO_EVEN), false);
-    assert_eq(does_lsb_round_up(u32:1, u5:0b10000, RoundStyle::TIES_TO_AWAY), false);
-    // 0b1000.1
-    assert_eq(does_lsb_round_up(u32:1, u5:0b10001, RoundStyle::TIES_TO_EVEN), false);
-    assert_eq(does_lsb_round_up(u32:1, u5:0b10001, RoundStyle::TIES_TO_AWAY), true);
-    // 0b1001.1
-    assert_eq(does_lsb_round_up(u32:1, u5:0b10011, RoundStyle::TIES_TO_EVEN), true);
-    assert_eq(does_lsb_round_up(u32:1, u5:0b10011, RoundStyle::TIES_TO_AWAY), true);
-    // 0b100.11
-    assert_eq(does_lsb_round_up(u32:2, u5:0b10011, RoundStyle::TIES_TO_EVEN), true);
-    assert_eq(does_lsb_round_up(u32:2, u5:0b10011, RoundStyle::TIES_TO_AWAY), true);
-    // 0b10.011
-    assert_eq(does_lsb_round_up(u32:3, u5:0b10011, RoundStyle::TIES_TO_EVEN), false);
-    assert_eq(does_lsb_round_up(u32:3, u5:0b10011, RoundStyle::TIES_TO_AWAY), false);
-    // 0b.00011
-    assert_eq(does_lsb_round_up(u32:5, u5:0b00011, RoundStyle::TIES_TO_EVEN), false);
-    assert_eq(does_lsb_round_up(u32:5, u5:0b00011, RoundStyle::TIES_TO_AWAY), false);
-    // 0b.10000
-    assert_eq(does_lsb_round_up(u32:5, u5:0b10000, RoundStyle::TIES_TO_EVEN), false);
-    assert_eq(does_lsb_round_up(u32:5, u5:0b10000, RoundStyle::TIES_TO_AWAY), true);
-    // 0b.10011
-    assert_eq(does_lsb_round_up(u32:5, u5:0b10011, RoundStyle::TIES_TO_EVEN), true);
-    assert_eq(does_lsb_round_up(u32:5, u5:0b10011, RoundStyle::TIES_TO_AWAY), true);
 }
 
 // Rounds a normal apfloat to lower precision in fractional bits, while the
@@ -4298,12 +4272,10 @@ fn round_normal<EXP_SZ: u32, FRACTION_SZ: u32, ROUND_STYLE: RoundStyle = {RoundS
             let round_up = if exp == sN[EXP_SZ]:0 {
                 let two_exp_0 = u1:1;
                 let widened_fraction = two_exp_0 ++ f.fraction;
-                should_round_up(
-                    widened_fraction, FRACTION_SZ as uN[std::clog2(FRACTION_SZ_PLUS_ONE)],
-                    ROUND_STYLE)
+                does_lsb_round_up(FRACTION_SZ as u32, widened_fraction, ROUND_STYLE)
             } else {
                 let lsb_index = (FRACTION_SZ as uN[EXP_SZ] - exp as uN[EXP_SZ]);
-                should_round_up(f.fraction, lsb_index as uN[std::clog2(FRACTION_SZ)], ROUND_STYLE)
+                does_lsb_round_up(lsb_index as u32, f.fraction, ROUND_STYLE)
             };
             if round_up {
                 round_up_no_sign_positive_exp(f)
@@ -4568,4 +4540,32 @@ fn round_special() {
     assert_eq(round(minus_zero_f32), minus_zero_f32);
     let qnan_f32 = qnan<F32_EXP_SZ, F32_FRACTION_SZ>();
     assert_eq(round(qnan_f32), qnan_f32);
+}
+
+#[quickcheck]
+fn round_never_assert_fails(f: APFloat<u32:8, u32:23>) -> bool {
+    // nb asserts are checked.
+    round(f);
+    true
+}
+
+#[quickcheck]
+fn downcast_never_assert_fails(f: APFloat<u32:8, u32:23>, round_style: RoundStyle) -> bool {
+    // nb asserts are checked.
+    downcast<u32:10, u32:8>(f, round_style);
+    downcast<u32:7, u32:8>(f, round_style);
+    downcast<u32:3, u32:4>(f, round_style);
+    downcast<u32:2, u32:5>(f, round_style);
+    true
+}
+
+#[quickcheck]
+fn cast_from_fixed_using_rne_never_assert_fails(v: s64) -> bool {
+    // nb asserts are checked.
+    cast_from_fixed_using_rne<u32:4, u32:4>(v);
+    cast_from_fixed_using_rne<u32:8, u32:8>(v);
+    cast_from_fixed_using_rne<u32:8, u32:23>(v);
+    cast_from_fixed_using_rne<u32:20, u32:43>(v);
+    cast_from_fixed_using_rne<u32:25, u32:60>(v);
+    true
 }
