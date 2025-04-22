@@ -304,6 +304,11 @@ TEST(XlsCApiTest, FlattenBitsValueToBits) {
   ASSERT_TRUE(xls_parse_typed_value("bits[32]:0x42", &error_out, &value));
   absl::Cleanup free_value([value] { xls_value_free(value); });
 
+  xls_value_kind kind = xls_value_kind_invalid;
+  ASSERT_TRUE(xls_value_get_kind(value, &error_out, &kind));
+  EXPECT_EQ(kind, xls_value_kind_bits);
+  ASSERT_EQ(error_out, nullptr);
+
   // Get the bits from within the value. Note that it's owned by the caller.
   xls_bits* value_bits = nullptr;
   ASSERT_TRUE(xls_value_get_bits(value, &error_out, &value_bits));
@@ -335,6 +340,10 @@ TEST(XlsCApiTest, FlattenTupleValueToBits) {
   xls_value* elements[] = {u3_7, u2_0};
   xls_value* tuple = xls_value_make_tuple(/*element_count=*/2, elements);
   absl::Cleanup free_tuple([tuple] { xls_value_free(tuple); });
+
+  xls_value_kind kind = xls_value_kind_invalid;
+  ASSERT_TRUE(xls_value_get_kind(tuple, &error_out, &kind));
+  EXPECT_EQ(kind, xls_value_kind_tuple);
 
   // Get the elements and check they are equal to the originals.
   xls_value* u3_7_extracted = nullptr;
@@ -389,6 +398,10 @@ TEST(XlsCApiTest, MakeArrayValue) {
     ASSERT_TRUE(xls_value_make_array(
         /*element_count=*/2, elements, &error_out, &array));
     absl::Cleanup free_array([array] { xls_value_free(array); });
+
+    xls_value_kind kind = xls_value_kind_invalid;
+    ASSERT_TRUE(xls_value_get_kind(array, &error_out, &kind));
+    EXPECT_EQ(kind, xls_value_kind_array);
 
     char* value_str = nullptr;
     ASSERT_TRUE(xls_value_to_string(array, &value_str));

@@ -347,6 +347,32 @@ struct xls_value* xls_value_clone(const struct xls_value* value) {
   return reinterpret_cast<xls_value*>(new xls::Value(*cpp_value));
 }
 
+bool xls_value_get_kind(const struct xls_value* value, char** error_out,
+                        xls_value_kind* kind_out) {
+  CHECK(value != nullptr);
+  const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
+  *error_out = nullptr;
+  switch (cpp_value->kind()) {
+    case xls::ValueKind::kBits:
+      *kind_out = xls_value_kind_bits;
+      break;
+    case xls::ValueKind::kToken:
+      *kind_out = xls_value_kind_token;
+      break;
+    case xls::ValueKind::kArray:
+      *kind_out = xls_value_kind_array;
+      break;
+    case xls::ValueKind::kTuple:
+      *kind_out = xls_value_kind_tuple;
+      break;
+    case xls::ValueKind::kInvalid:
+      *error_out = xls::ToOwnedCString(
+          absl::InvalidArgumentError("Value is invalid").ToString());
+      return false;
+  }
+  return true;
+}
+
 bool xls_value_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
                           struct xls_value** xls_value_out) {
   CHECK(error_out != nullptr);

@@ -43,6 +43,15 @@
 
 extern "C" {
 
+typedef int32_t xls_value_kind;
+enum {
+  xls_value_kind_invalid,
+  xls_value_kind_bits,
+  xls_value_kind_array,
+  xls_value_kind_tuple,
+  xls_value_kind_token,
+};
+
 // Opaque structs.
 struct xls_bits;
 struct xls_function;
@@ -129,6 +138,11 @@ bool xls_parse_typed_value(const char* input, char** error_out,
 
 bool xls_value_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
                           struct xls_value** xls_value_out);
+
+// Returns the kind of the given value. The caller must free the returned
+// `error_out` string via `xls_c_str_free` if an error is returned.
+bool xls_value_get_kind(const struct xls_value* value, char** error_out,
+                        xls_value_kind* kind_out);
 
 bool xls_value_make_sbits(int64_t bit_count, int64_t value, char** error_out,
                           struct xls_value** xls_value_out);
