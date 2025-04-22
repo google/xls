@@ -150,6 +150,41 @@ cc_test(
 )
 
 xls_dslx_test(
+    name = "float32_downcast_test",
+    srcs = ["float32_downcast_test.x"],
+)
+
+xls_dslx_opt_ir(
+    name = "float32_downcast",
+    srcs = ["float32_downcast_test.x"],
+    dslx_top = "f64_to_f32",
+    ir_file = "float32_downcast.ir",
+    opt_ir_file = "float32_downcast.opt.ir",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "float32_downcast_jit_wrapper",
+    src = ":float32_downcast",
+    jit_wrapper_args = {
+        "class_name": "F64ToF32",
+        "namespace": "xls::fp",
+    },
+)
+
+cc_test(
+    name = "float32_downcast_test_cc",
+    srcs = ["float32_downcast_test.cc"],
+    tags = ["optonly"],
+    deps = [
+        ":float32_downcast_jit_wrapper",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "@com_google_absl//absl/base",
+        "@googletest//:gtest",
+    ],
+)
+
+xls_dslx_test(
     name = "float32_upcast_test",
     srcs = ["float32_upcast_test.x"],
 )
