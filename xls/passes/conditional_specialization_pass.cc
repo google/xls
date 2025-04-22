@@ -962,11 +962,13 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     //
     // If this node has an implicit use then we can't propagate any conditions
     // from the users because this value is unconditionally live and therefore
-    // its computed value should not be changed.
+    // its computed value should not be changed. Similarly, if this node is a
+    // Send then the data input can only be controlled by the predicate, not by
+    // any successors of the Send.
     //
-    // Similarly, if this node is a StateRead's predicate, then its value can
+    // In addition, if this node is a StateRead's predicate, then its value can
     // affect throughput and so shouldn't be changed.
-    if (!f->HasImplicitUse(node) &&
+    if (!f->HasImplicitUse(node) && !node->Is<Send>() &&
         absl::c_none_of(node->users(),
                         [](Node* user) { return user->Is<StateRead>(); })) {
       VLOG(4) << absl::StreamFormat(

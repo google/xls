@@ -1025,6 +1025,32 @@ TEST_F(ConditionalSpecializationPassTest, SendChange) {
                   /*predicate=*/A<const Node*>())));
 }
 
+TEST_F(ConditionalSpecializationPassTest, DoesNotSpecializeSendPredicate) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> p,
+                           ParsePackageNoVerify(R"(
+      package my_package
+      chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+
+      top proc Delay_proc(value1: bits[32], value2: bits[32], tkn: token, init={1, 2, token}) {
+        literal.2: bits[1] = literal(value=1, id=2)
+        literal.5: bits[32] = literal(value=400, id=5)
+        eq.3: bits[1] = eq(value1, literal.5, id=3)
+        sel.4: bits[32] = sel(eq.3, cases=[literal.5, value2], id=4)
+        send.1: token = send(tkn, sel.4, predicate=eq.3, channel=out, id=1)
+        next_value.6: () = next_value(param=value1, value=value1, id=6)
+        next_value.7: () = next_value(param=value2, value=value2, id=7)
+        next_value.8: () = next_value(param=tkn, value=send.1, predicate=eq.3, id=8)
+      }
+    )"));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * f, p->GetProc("Delay_proc"));
+  EXPECT_THAT(f->GetNode("send.1"), IsOkAndHolds(m::Send(
+                                        /*token=*/m::StateRead("tkn"),
+                                        /*data=*/m::StateRead("value2"),
+                                        /*predicate=*/m::Eq())));
+}
+
 TEST_F(ConditionalSpecializationPassTest, NextValueNoChangeLiteralPred) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> p,
                            ParsePackageNoVerify(R"(
