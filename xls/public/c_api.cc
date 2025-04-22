@@ -16,6 +16,7 @@
 
 #include <string.h>  // NOLINT(modernize-deprecated-headers)
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -454,6 +455,50 @@ bool xls_bits_get_bit(const struct xls_bits* bits, int64_t index) {
   return cpp_bits->Get(index);
 }
 
+bool xls_bits_to_bytes(const struct xls_bits* bits, char** error_out,
+                       uint8_t** bytes_out, size_t* byte_count_out) {
+  CHECK(bits != nullptr);
+  CHECK(bytes_out != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(byte_count_out != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  std::vector<uint8_t> bytes = cpp_bits->ToBytes();
+  *byte_count_out = bytes.size();
+  *bytes_out = new uint8_t[bytes.size()];
+  std::copy(bytes.begin(), bytes.end(), *bytes_out);
+  return true;
+}
+
+bool xls_bits_to_uint64(const struct xls_bits* bits, char** error_out,
+                        uint64_t* value_out) {
+  CHECK(bits != nullptr);
+  CHECK(value_out != nullptr);
+  CHECK(error_out != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  absl::StatusOr<uint64_t> result = cpp_bits->ToUint64();
+  if (!result.ok()) {
+    *error_out = xls::ToOwnedCString(result.status().ToString());
+    return false;
+  }
+  *value_out = result.value();
+  return true;
+}
+
+bool xls_bits_to_int64(const struct xls_bits* bits, char** error_out,
+                       int64_t* value_out) {
+  CHECK(bits != nullptr);
+  CHECK(value_out != nullptr);
+  CHECK(error_out != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  absl::StatusOr<int64_t> result = cpp_bits->ToInt64();
+  if (!result.ok()) {
+    *error_out = xls::ToOwnedCString(result.status().ToString());
+    return false;
+  }
+  *value_out = result.value();
+  return true;
+}
+
 struct xls_bits* xls_bits_width_slice(const struct xls_bits* bits,
                                       int64_t start, int64_t width) {
   CHECK(bits != nullptr);
@@ -702,6 +747,10 @@ void xls_c_strs_free(char** c_strs, size_t count) {
     free(c_strs[i]);
   }
   delete[] c_strs;
+}
+
+void xls_bytes_free(uint8_t *bytes) {
+  delete[] bytes;
 }
 
 bool xls_value_to_string(const struct xls_value* v, char** string_out) {
