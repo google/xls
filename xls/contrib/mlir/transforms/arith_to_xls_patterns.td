@@ -206,6 +206,16 @@ multiclass FloatToIntegralPat<Op fptoi, Op itofp, Op exti, string u> {
 defm : FloatToIntegralPat<Arith_FPToSIOp, Arith_SIToFPOp, Arith_ExtSIOp, "">;
 defm : FloatToIntegralPat<Arith_FPToUIOp, Arith_UIToFPOp, Arith_ExtUIOp, "u">;
 
+// TODO(jpienaar): This can be made more templated, like the above.
+def : Pat<(Arith_FPToSIOp:$op BF16:$a),
+  (Xls_CallDslxOp (FloatLib $a),
+    CS<"fn to_int_imp(a : BF16) -> s32 { apfloat::to_int<BF16::EXP_SIZE, BF16::FRACTION_SIZE, u32:32>(a) }">,
+    (variadic $a), PureCall, VectorCall), [(ScalarOrTensorOf<I32> $op)]>;
+def : Pat<(Arith_FPToUIOp:$op BF16:$a),
+  (Xls_CallDslxOp (FloatLib $a),
+    CS<"fn to_int_imp(a : BF16) -> u32 { apfloat::to_uint<u32:32>(a) }">,
+    (variadic $a), PureCall, VectorCall), [(ScalarOrTensorOf<I32> $op)]>;
+
 defvar IntOfFloatBitwidth = NativeCodeCall<
   "$_builder.getIntegerType($0.getType().getIntOrFloatBitWidth())">;
 defvar FloatOfIntBitwidth = NativeCodeCall<
