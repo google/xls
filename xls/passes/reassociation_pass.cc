@@ -677,6 +677,23 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
         return GetOperandInfo(1, is_signed);
       }
     }();
+    // For mul which can change size overflow is more complicated since the
+    // operands overflow state persists even if this node can't overflow. EG if
+    // one of the operands is only 0 or 1 or the result is extended then no
+    // overflow can happen on this node but parents could still have overflowed
+    // preventing reassociation. Since overflow simply pessimizes the
+    // reassociation this is a safe transition to include.
+    //
+    // TODO(allight): A more sophisticated analysis could be beneficial here.
+    // For example if we can recognize that this is a mul(0|1, X) we can forward
+    // with a smaller mul. This would require some rather radical rewrites
+    // however and chained multiplies are pretty rare anyway. This to-do is
+    // mostly just an observation that we simply pessimizing the analysis here
+    // and avoiding doing that in some cases (where its safe) may be worthwhile.
+    if (op->OpIn({Op::kSMul, Op::kUMul})) {
+      overflow =
+          overflow || lhs_elements.overflows() || rhs_elements.overflows();
+    }
     return AssociativeElements::Combine(query_engine_, op, real_op,
                                         lhs_elements, rhs_elements, overflow);
   }

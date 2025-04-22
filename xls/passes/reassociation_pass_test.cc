@@ -1145,5 +1145,43 @@ TEST_F(ReassociationPassTest, MultipleUsersReassociatesEarly) {
               m::Add(m::Add(m::Add(), m::Add()), m::Add(m::Add(), m::Param())));
 }
 
+TEST_F(ReassociationPassTest, MulOverflow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue inp = fb.Param("inp", p->GetBitsType(4));
+  BValue inp_sq = fb.UMul(inp, inp);
+  BValue one_or_zero = fb.ZeroExtend(fb.Param("bit", p->GetBitsType(1)), 4);
+  BValue mul_3 = fb.UMul(inp_sq, one_or_zero);
+  fb.UMul(mul_3, fb.Literal(UBits(0b1001, 4)), 8);
+
+  XLS_ASSERT_OK(fb.Build().status());
+  // Since the mul_3 can't be reassociated through this is already balanced.
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ReassociationPassTest, MulOverflow2) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue inp = fb.Param("inp", p->GetBitsType(4));
+  BValue inp_sq = fb.UMul(inp, inp);
+  BValue inp_cube = fb.UMul(inp_sq, inp);
+  BValue inp_quad = fb.UMul(inp_cube, inp);
+  BValue inp_quint = fb.UMul(inp_quad, inp);
+  BValue one_or_zero = fb.ZeroExtend(fb.Param("bit", p->GetBitsType(1)), 4);
+  BValue mul_3 = fb.UMul(inp_quint, one_or_zero);
+  fb.UMul(mul_3, fb.Literal(UBits(0b1001, 4)), 8);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ScopedRecordIr sri(p.get(), "_ir");
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // No reassociation through the extending mul.
+  EXPECT_THAT(
+      f->return_value(),
+      AllOf(m::Type("bits[8]"),
+            m::UMul(AllOf(m::UMul(), m::Type("bits[4]")), m::Literal())));
+  EXPECT_EQ(MaxOpDepth({Op::kUMul}, f), 4);
+}
+
 }  // namespace
 }  // namespace xls
