@@ -98,3 +98,11 @@ def load_external_repositories():
         urls = ["https://github.com/facebook/zstd/archive/fdfb2aff39dc498372d8c9e5f2330b692fea9794.zip"],
         build_file = "//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel",
     )
+
+    http_archive(
+        name = "com_github_alexforencich_verilog_axi",
+        sha256 = "f3b58406b51950584cc7b0c67b0710cef10cb14e1f5576e97a2f0b1c0b12fcbe",
+        strip_prefix = "verilog-axi-516bd5dadc3365b7f9e225d2af8fe0b8d804fe53",
+        urls = ["https://github.com/alexforencich/verilog-axi/archive/516bd5dadc3365b7f9e225d2af8fe0b8d804fe53.zip"],
+        build_file = "//dependency_support/com_github_alexforencich_verilog_axi:bundled.BUILD.bazel",
+    )
