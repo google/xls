@@ -6200,6 +6200,53 @@ fn main() -> u5 {
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("var", "uN[5]"))));
 }
 
+TEST(TypecheckV2Test, ImportParametricFunctionWithMultipleInvocations) {
+  constexpr std::string_view kImported = R"(
+pub fn add_one(x: u32) -> u32 { x + 1 }
+
+pub fn some_function<N: u32, M: u32 = { add_one(N) }>() -> uN[M] { uN[M]:0 }
+
+pub fn another_fn() -> u3 { some_function<2>() }
+
+pub fn parametric_call<M: u32>() -> uN[M] { some_function<3, M>() }
+
+)";
+  constexpr std::string_view kInt = R"(
+import imported;
+
+pub fn mid() -> u32 { imported::some_function<31>() }
+
+pub fn default_import<N: u32, M: u32 = { imported::add_one(N) }>() -> uN[M] { uN[M]:0 }
+
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+import int;
+
+const VAR = imported::some_function<4>();
+const VAR2 = imported::some_function<3, 6>();
+const VAR3 = imported::some_function<7>();
+const VAR4 = imported::another_fn();
+const VAR5 = imported::parametric_call<15>();
+const VAR6 = int::mid();
+
+fn main() -> u26 {
+   int::default_import<25>()
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  XLS_EXPECT_OK(TypecheckV2(kInt, "int", &import_data).status());
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(AllOf(
+          HasNodeWithType("VAR", "uN[5]"), HasNodeWithType("VAR2", "uN[6]"),
+          HasNodeWithType("VAR4", "uN[3]"), HasNodeWithType("VAR5", "uN[15]"),
+          HasNodeWithType("VAR6", "uN[32]"),
+          HasNodeWithType("int::default_import<25>()", "uN[26]"),
+          HasNodeWithType("VAR3", "uN[8]")))));
+}
+
 TEST(TypecheckV2Test, ImportParametricFunction) {
   constexpr std::string_view kImported = R"(
 pub fn some_function<N: u32>() -> uN[N] { uN[N]:0 }
