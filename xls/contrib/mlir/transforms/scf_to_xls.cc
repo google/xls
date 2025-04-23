@@ -74,7 +74,7 @@ LogicalResult rewriteFor(mlir::scf::ForOp op, mlir::PatternRewriter& rewriter) {
         // Sink anything that can be constant folded.
         llvm::SmallVector<OpFoldResult> results;
         return succeeded(op->fold(results)) && results.size() == 1 &&
-               results[0].is<Attribute>();
+               isa<Attribute>(results[0]);
       });
 
   auto xls_for = rewriter.create<ForOp>(
