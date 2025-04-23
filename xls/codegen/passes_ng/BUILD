@@ -143,3 +143,79 @@ cc_test(
         "@googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "block_utils",
+    hdrs = ["block_utils.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:xls_ir_interface_cc_proto",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "passes_ng_test_fixtures",
+    testonly = True,
+    hdrs = ["passes_ng_test_fixtures.h"],
+    deps = [
+        ":block_channel_slot",
+        "//xls/codegen:block_conversion_test_fixture",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:block_evaluator",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:register",
+        "//xls/ir:verifier",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "block_channel_slot",
+    srcs = ["block_channel_slot.cc"],
+    hdrs = ["block_channel_slot.h"],
+    deps = [
+        ":block_utils",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:xls_ir_interface_cc_proto",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "block_channel_slot_test",
+    srcs = ["block_channel_slot_test.cc"],
+    deps = [
+        ":block_channel_slot",
+        ":passes_ng_test_fixtures",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:verifier",
+        "@googletest//:gtest",
+    ],
+)
