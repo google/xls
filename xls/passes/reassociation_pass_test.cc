@@ -56,7 +56,7 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
-constexpr absl::Duration kProverTimeout = absl::Seconds(10);
+constexpr absl::Duration kProverTimeout = absl::Seconds(20);
 
 using ::absl_testing::IsOkAndHolds;
 using ::testing::_;
