@@ -62,6 +62,17 @@ class ResourceSharingPassTest : public IrTestBase {
   }
 };
 
+uint64_t NumberOfMultiplications(Function *f) {
+  uint64_t c = 0;
+  for (Node *node : f->nodes()) {
+    if (node->OpIn({Op::kSMul, Op::kUMul})) {
+      c++;
+    }
+  }
+
+  return c;
+}
+
 void InterpretAndCheck(Function *f, const std::vector<uint32_t> &inputs,
                        uint32_t expected_output) {
   // Translate the inputs to IR values
@@ -105,17 +116,8 @@ fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: 
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
-  uint32_t number_of_umul = 0;
-  for (Node *node : f->nodes()) {
-    if (!node->Is<ArithOp>()) {
-      continue;
-    }
-    Node *arith_node = node->As<ArithOp>();
-    if (arith_node->op() == Op::kUMul) {
-      number_of_umul++;
-    }
-  }
-  EXPECT_EQ(number_of_umul, 1);
+  uint64_t number_of_muls = NumberOfMultiplications(f);
+  EXPECT_EQ(number_of_muls, 1);
 
   // We expect the resource sharing optimization to have preserved the
   // inputs/outputs pairs we know to be valid.
@@ -150,17 +152,8 @@ fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: 
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
-  uint32_t number_of_smul = 0;
-  for (Node *node : f->nodes()) {
-    if (!node->Is<ArithOp>()) {
-      continue;
-    }
-    Node *arith_node = node->As<ArithOp>();
-    if (arith_node->op() == Op::kSMul) {
-      number_of_smul++;
-    }
-  }
-  EXPECT_EQ(number_of_smul, 1);
+  uint64_t number_of_muls = NumberOfMultiplications(f);
+  EXPECT_EQ(number_of_muls, 1);
 
   // We expect the resource sharing optimization to have preserved the
   // inputs/outputs pairs we know to be valid.
@@ -207,17 +200,8 @@ fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: 
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
-  uint32_t number_of_umul = 0;
-  for (Node *node : f->nodes()) {
-    if (!node->Is<ArithOp>()) {
-      continue;
-    }
-    Node *arith_node = node->As<ArithOp>();
-    if (arith_node->op() == Op::kUMul) {
-      number_of_umul++;
-    }
-  }
-  EXPECT_EQ(number_of_umul, 1);
+  uint64_t number_of_muls = NumberOfMultiplications(f);
+  EXPECT_EQ(number_of_muls, 1);
 
   // We expect the resource sharing optimization to have preserved the
   // inputs/outputs pairs we know to be valid.
@@ -266,17 +250,8 @@ fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: 
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
-  uint32_t number_of_smul = 0;
-  for (Node *node : f->nodes()) {
-    if (!node->Is<ArithOp>()) {
-      continue;
-    }
-    Node *arith_node = node->As<ArithOp>();
-    if (arith_node->op() == Op::kSMul) {
-      number_of_smul++;
-    }
-  }
-  EXPECT_EQ(number_of_smul, 1);
+  uint64_t number_of_muls = NumberOfMultiplications(f);
+  EXPECT_EQ(number_of_muls, 1);
 
   // We expect the resource sharing optimization to have preserved the
   // inputs/outputs pairs we know to be valid.
@@ -344,6 +319,47 @@ fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: 
   // inputs/outputs pairs we know to be valid.
   InterpretAndCheck(f, {0, 2, 3, 3, 3}, 20);
   InterpretAndCheck(f, {1, 2, 3, 3, 3}, 22);
+}
+
+TEST_F(ResourceSharingPassTest,
+       MergeMultiplicationsThatAreNotPostDominatedBySelect) {
+  const std::string program = R"(
+fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: bits[32], z: bits[32]) -> bits[32] {
+  literal.72: bits[32] = literal(value=0)
+  literal.71: bits[32] = literal(value=1)
+  eq.75: bits[1] = eq(op, literal.72)
+  bit_slice.73: bits[31] = bit_slice(op, start=1, width=31)
+  eq.74: bits[1] = eq(op, literal.71)
+  t: bits[32] = umul(k, z)
+  literal.77: bits[32] = literal(value=4294967295)
+  not.92: bits[1] = not(eq.75)
+  or_reduce.78: bits[1] = or_reduce(bit_slice.73)
+  concat.79: bits[2] = concat(eq.74, eq.75)
+  umul.80: bits[32] = umul(i, j)
+  v1: bits[32] = add(t, literal.77)
+  sign_ext.93: bits[32] = sign_ext(not.92, new_bit_count=32)
+  after_all.44: token = after_all()
+  not.91: bits[1] = not(or_reduce.78)
+  v: bits[32] = priority_sel(concat.79, cases=[umul.80, v1], default=literal.72)
+  v1__1: bits[32] = and(v1, sign_ext.93)
+  ret add.86: bits[32] = add(v, v1__1)
+})";
+
+  // Create the function
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+
+  // We expect the transformation successfully completed and it returned true
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // We expect the result function has only one multiplication in its body
+  uint64_t number_of_muls = NumberOfMultiplications(f);
+  EXPECT_EQ(number_of_muls, 1);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(f, {0, 2, 3, 0, 0}, 6);
+  InterpretAndCheck(f, {1, 0, 0, 2, 3}, 10);
 }
 
 }  // namespace

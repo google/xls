@@ -33,14 +33,17 @@
 #include "cppitertools/enumerate.hpp"
 #include "cppitertools/zip.hpp"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/post_dominator_analysis.h"
+#include "xls/passes/query_engine.h"
 #include "ortools/graph/graph.h"
 #include "ortools/graph/cliques.h"
 
@@ -185,6 +188,127 @@ class FoldingGraph {
       std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions);
   void IdentifyCliques(void);
 };
+
+// This function returns true if @node erases @source, false otherwise.
+bool DoesErase(Node *source, Node *node, uint32_t case_number,
+               absl::Span<const TreeBitLocation> selector_bits,
+               const BddQueryEngine &bdd_engine) {
+  // We currently only handle erasing when performed by a bitwise AND operation.
+  if (node->op() != Op::kAnd) {
+    return false;
+  }
+  VLOG(5) << "Catcher:   Found a potential eraser: " << node->ToString();
+
+  // Check if @node erases @source
+  for (Node *input : node->operands()) {
+    // Find the input that is not @source
+    if (input == source) {
+      continue;
+    }
+
+    // Check if @input is guaranteed to be "0" (and therefore erase
+    // @source through this def-use chain) when @condition is not true
+    VLOG(5) << "Catcher:     Condition to erase: " << input->ToString();
+    for (const auto &[t_number, t] : iter::enumerate(selector_bits)) {
+      if (t_number == case_number) {
+        continue;
+      }
+
+      // Prepare the values that can be assumed when checked if the current
+      // def-use chain gets erased.
+      std::vector<std::pair<TreeBitLocation, bool>> assumed_values;
+      assumed_values.push_back(std::make_pair(t, true));
+      assumed_values.push_back(
+          std::make_pair(selector_bits[case_number], false));
+
+      // Check if the current def-use chain gets erased.
+      std::optional<Bits> and_input_when_not_selected =
+          bdd_engine.ImpliedNodeValue(assumed_values, input);
+      if (and_input_when_not_selected &&
+          and_input_when_not_selected->IsZero()) {
+        return true;
+      }
+    }
+  }
+
+  // We cannot guarantee @node erases @source.
+  return false;
+}
+
+// This function returns true if it exists a def-use chain from @node that can
+// reach the end of that chain without reaching neither @select nor a node that
+// generates a "0" (erasing). The function returns false otherwise.
+//
+// This function performs the analysis following all def-use chains that go from
+// @source and go through @node.
+absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
+    Node *source, Node *node, Node *select, uint32_t case_number,
+    absl::Span<const TreeBitLocation> selector_bits,
+    const BddQueryEngine &bdd_engine,
+    const absl::flat_hash_map<Node *, bool> &nodes_with_side_effects) {
+  // Check if we have already analyzed the current node
+  auto it = nodes_with_side_effects.find(node);
+  if (it != nodes_with_side_effects.end()) {
+    // We have already analyzed the current node.
+    // Return the result of such analysis.
+    bool analysis_result = it->second;
+    return analysis_result;
+  }
+
+  // The node given as input has not been analyzed yet.
+  // Let's analyze @node.
+  VLOG(5) << "Catcher: Analyze " << node->ToString();
+
+  // Check if we reached @select.
+  // If we did, then we can return false for this def-use chain.
+  if (node == select) {
+    VLOG(5) << "Catcher:   Found select";
+    return false;
+  }
+
+  // Check if the current node of the current def-use chain erases the
+  // computation specified by @source
+  if ((source != nullptr) &&
+      DoesErase(source, node, case_number, selector_bits, bdd_engine)) {
+    return false;
+  }
+
+  // We did not find @select yet and we did not find a node that erases @source.
+  // Now it is the time to check if we have reached the end of the def-use
+  // chain.
+  absl::Span<Node *const> users = node->users();
+  if (users.empty()) {
+    // We reached the end of the def-use chain, which means we didn't encounter
+    // the following nodes through this def-use chain:
+    // 1: the select given as input
+    // 2: an instruction that erases the effects of @source.
+    //
+    // Hence, we found an effect of @node that reaches the end of the function
+    // without going through @select.
+    VLOG(5) << "Catcher:     Found a def-use chain without reaching the select "
+               "or an eraser";
+    return true;
+  }
+
+  // We are not at the end of the def-use chain.
+  // Therefore, we need to continue the search through this def-use chain by
+  // going through all users of @node, one by one.
+  for (Node *user : node->users()) {
+    // Check all def-use chains that go from @node through @user.
+    XLS_ASSIGN_OR_RETURN(bool has_side_effects,
+                         HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
+                             node, user, select, case_number, selector_bits,
+                             bdd_engine, nodes_with_side_effects));
+    if (has_side_effects) {
+      // We found a def-use chain through @user that reaches the end without
+      // having @select or an eraser.
+      return true;
+    }
+  }
+
+  // All def-use chains from @node have @select or they have an eraser.
+  return false;
+}
 
 // This function permutes the order of the elements of the array
 // @array_to_permute following the permutations listed in @permutation.
@@ -413,6 +537,77 @@ ComputeReachabilityAnalysis(FunctionBase *f, OptimizationContext &context) {
   return reachability_result;
 }
 
+// This function returns true if there is a def-use chain from @n that can reach
+// the end of that chain without reaching either @select or a node that
+// generates a "0" (erasing). The function returns false otherwise. To do it,
+// this function checks all def-use chains that start from @n.
+//
+// For example, let us assume the only def-use chain that starts from @n is the
+// following one. In this case, this function returns false because this def-use
+// chain reaches @select.
+//    @n:       v0 = ...
+//              v1 = add(v0, 3)
+//    @select:  v2 = priority_sel(s, cases=[v1, 2])
+//
+// Another example: this function returns false for the following def-use chain
+// because it reaches a node that erases the propagated value.
+//    @n:       v0 = ...
+//              v1 = add(v0, 3)
+//              v2 = and(v1, 0)
+//
+// Another example: this function returns false for the following def-use chain
+// assuming @c is equal to 0 when @selector_bits[case_number] is false and at
+// least one other bit in @selector_bits is true:
+//    @n:       v0 = ...
+//              v1 = add(v0, 3)
+//              v2 = and(v1, c)
+//
+// Another example: this function returns true in the following def-use chain
+// assuming @last has no user (and therefore @last is at the end of the def-use
+// chain):
+//     @n:      v0 = ...
+//              v1 = add(v0, 3)
+//              v2 = add(v1, 2)
+//
+// This function can have false positives (i.e., the function can return true
+// even if that's not the case), and it cannot have false negative (i.e., return
+// false only when @n is guaranteed to be only in def-use chains that either
+// reach @select or get erased). As such, improving this function with a more
+// accurate analysis means reducing the number of false positives.
+absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
+    Node *n, Node *select, uint32_t case_number,
+    absl::Span<const TreeBitLocation> selector_bits,
+    const BddQueryEngine &bdd_engine, FunctionBase *f,
+    PostDominatorAnalysis &post_dominators,
+    absl::flat_hash_map<Node *, bool> &nodes_with_side_effects) {
+  // If @n is post-dominated by @select, then all def-use chains that
+  // go through @n are guaranteed to reach @select.
+  // Hence, we can return false without exploring all def-use chains.
+  //
+  // This post-dominance-based check is not necessary neither to reduce the
+  // number of false positive nor to guarantee correctness of the analysis
+  // performed by this function. We perform this post-dominance-based check to
+  // speedup the computation performed by this analysis: checking the
+  // post-dominator tree is much faster than checking all def-use chains that go
+  // through @n.
+  if (post_dominators.NodeIsPostDominatedBy(n, select)) {
+    return false;
+  }
+
+  // Run the more expensive analysis to understand whether @n can be used
+  // directly or indirectly on nodes after @select without going through
+  // @select.
+  XLS_ASSIGN_OR_RETURN(bool has_side_effects,
+                       HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
+                           nullptr, n, select, case_number, selector_bits,
+                           bdd_engine, nodes_with_side_effects));
+
+  // Memoize the result of the analysis
+  nodes_with_side_effects[n] = has_side_effects;
+
+  return has_side_effects;
+}
+
 // This function computes the set of mutual exclusive pairs of instructions.
 // Each pair of instruction is associated with the select (of any kind) that
 // made them mutually exclusive.
@@ -433,6 +628,9 @@ ComputeMutualExclusionAnalysis(
                       absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
       mutual_exclusivity_relation;
 
+  // Run the BDD analysis
+  BddQueryEngine *bdd_engine = context.SharedQueryEngine<BddQueryEngine>(f);
+
   // Run the post-dominance analysis.
   //
   // The result of this analysis is used to determine whether a given node @n is
@@ -451,16 +649,35 @@ ComputeMutualExclusionAnalysis(
 
   // Compute the mutual exclusion binary relation between instructions
   for (const auto &[n, s] : reachability_result) {
-    // Find the next select
-    if (!n->OpIn({Op::kSel, Op::kPrioritySel, Op::kOneHotSel})) {
+    // Find the next select.
+    //
+    // At the moment, we only handle priority selects. We should extend the
+    // analysis to include other selects.
+    if (!n->Is<PrioritySelect>()) {
       continue;
+    }
+    VLOG(5) << "Select = " << n->ToString();
+
+    // Prepare the TreeBitLocation for all bits of the selector.
+    // This will be used by the BDD query engine to identify nodes that stop the
+    // propagation of a node in a def-use chain.
+    Node *selector = GetSelector(n);
+    absl::Span<Node *const> cases = GetCases(n);
+    std::vector<TreeBitLocation> selector_bits;
+    selector_bits.reserve(cases.length());
+    for (uint32_t case_number = 0; case_number < cases.length();
+         case_number++) {
+      selector_bits.emplace_back(selector, case_number);
     }
 
     // Compute the mutually-exclusive instructions created by the select @n
-    absl::Span<Node *const> cases = GetCases(n);
+    absl::flat_hash_map<Node *, bool> nodes_with_side_effects;
     for (uint32_t case_number = 0; case_number < cases.length();
          case_number++) {
       Node *current_case = cases[case_number];
+      VLOG(5) << "  Case number = " << case_number;
+      VLOG(5) << "  Selection condition = " << selector_bits[case_number];
+      VLOG(5) << "  Case " << current_case->ToString();
 
       // Check if any of the nodes that reach the current case (including it)
       // are mutually exclusive with the nodes that reach the next cases
@@ -470,13 +687,22 @@ ComputeMutualExclusionAnalysis(
         if (!CanTarget(current_case_reaching_node)) {
           continue;
         }
+        VLOG(5) << "    Check " << current_case_reaching_node->ToString();
 
-        // Only nodes that are post-dominated by the select are considered to be
-        // mutually exclusive with another node
-        if (!post_dominators->NodeIsPostDominatedBy(current_case_reaching_node,
-                                                    n)) {
+        // Only nodes that either reach the target select or they get erased
+        // before reaching the end of any def-use chain that starts from them
+        // are considered for the computation of mutual-exclusive binary
+        // relation.
+        XLS_ASSIGN_OR_RETURN(
+            bool has_side_effects,
+            HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
+                current_case_reaching_node, n, case_number, selector_bits,
+                *bdd_engine, f, *post_dominators, nodes_with_side_effects));
+        if (has_side_effects) {
           continue;
         }
+        VLOG(5) << "      Identify the nodes that are mutually exclusive with "
+                   "this node";
 
         // Check if the current reaching node reaches the other cases
         for (uint32_t case_number_2 = case_number + 1;
@@ -486,6 +712,12 @@ ComputeMutualExclusionAnalysis(
                         current_case_reaching_node)) {
             continue;
           }
+
+          // Compute the condition for which nodes are selected through the
+          // current case of the select @n.
+          VLOG(5) << "        Case number = " << case_number_2;
+          VLOG(5) << "        Selection condition = "
+                  << selector_bits[case_number_2];
 
           // The current reaching node @current_case_reaching_node does not
           // reach the other case @current_case_2.
@@ -499,13 +731,8 @@ ComputeMutualExclusionAnalysis(
             if (!CanTarget(other_case_reaching_node)) {
               continue;
             }
-
-            // Only nodes that are post-dominated by the select are considered
-            // to be mutually exclusive with another node
-            if (!post_dominators->NodeIsPostDominatedBy(
-                    other_case_reaching_node, n)) {
-              continue;
-            }
+            VLOG(5) << "          Check "
+                    << other_case_reaching_node->ToString();
 
             // If @other_case_reaching_node reaches @current_case, then it
             // cannot be mutually exclusive with @current_case_reaching_node
@@ -513,6 +740,20 @@ ComputeMutualExclusionAnalysis(
                           other_case_reaching_node)) {
               continue;
             }
+
+            // Only nodes that either reach the target select or they get erased
+            // before reaching the end of any def-use chain that starts from
+            // them are considered for the computation of mutual-exclusive
+            // binary relation.
+            XLS_ASSIGN_OR_RETURN(
+                bool has_side_effects,
+                HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
+                    other_case_reaching_node, n, case_number_2, selector_bits,
+                    *bdd_engine, f, *post_dominators, nodes_with_side_effects));
+            if (has_side_effects) {
+              continue;
+            }
+            VLOG(5) << "            It is mutually exclusive";
 
             // @current_case_reaching_node and @other_case_reaching_node are
             // mutually exclusive.
