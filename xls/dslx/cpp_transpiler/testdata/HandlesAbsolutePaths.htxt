@@ -23,5 +23,6 @@ std::string MyEnumToDslxString(MyEnum value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MyEnumToValue(MyEnum input);
 absl::StatusOr<MyEnum> MyEnumFromValue(const ::xls::Value& value);
 absl::Status VerifyMyEnum(MyEnum value);
+std::ostream& operator<<(std::ostream& os, MyEnum value);
 
 #endif  // TMP_FAKE_PATH_H_

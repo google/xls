@@ -95,16 +95,18 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
     CppSource to_value = ToValueFunction();
     CppSource from_value = FromValueFunction();
     CppSource verify = VerifyFunction();
+    CppSource stream = OperatorStreamFunction();
 
-    return CppSource{.header = absl::StrJoin(
-                         {enum_decl, num_elements_def, width_def,
-                          to_string.header, to_dslx_string.header,
-                          to_value.header, from_value.header, verify.header},
-                         "\n"),
-                     .source = absl::StrJoin(
-                         {to_string.source, to_dslx_string.source,
-                          to_value.source, from_value.source, verify.source},
-                         "\n\n")};
+    return CppSource{
+        .header = absl::StrJoin(
+            {enum_decl, num_elements_def, width_def, to_string.header,
+             to_dslx_string.header, to_value.header, from_value.header,
+             verify.header, stream.header},
+            "\n"),
+        .source = absl::StrJoin(
+            {to_string.source, to_dslx_string.source, to_value.source,
+             from_value.source, verify.source, stream.source},
+            "\n\n")};
   }
 
   int64_t dslx_bit_count() const {
@@ -249,6 +251,27 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
     pieces.push_back(
         absl::StrFormat("XLS_RETURN_IF_ERROR(Verify%s(result));", cpp_type()));
     pieces.push_back("return result;");
+    std::string body = absl::StrJoin(pieces, "\n");
+    return CppSource{
+        .header = absl::StrCat(signature, ";"),
+        .source = absl::StrFormat("%s {\n%s\n}", signature, Indent(body, 2))};
+  }
+  CppSource OperatorStreamFunction() const {
+    std::string signature = absl::StrFormat(
+        "std::ostream& operator<<(std::ostream& os, %s value)", cpp_type());
+    std::vector<std::string> pieces;
+    pieces.push_back(absl::StrFormat("switch (value) {"));
+    for (const EnumValue& ev : enum_values_) {
+      pieces.push_back(absl::StrFormat("  case %s::%s:", cpp_type(), ev.name));
+      pieces.push_back(
+          absl::StrFormat("    os << \"%s::%s\";", cpp_type(), ev.name));
+      pieces.push_back("    break;");
+    }
+    pieces.push_back("  default:");
+    pieces.push_back(absl::StrFormat(
+        "    return os << absl::StrFormat(\"<unknown> (%%v)\", value);"));
+    pieces.push_back("}");
+    pieces.push_back("return os;");
     std::string body = absl::StrJoin(pieces, "\n");
     return CppSource{
         .header = absl::StrCat(signature, ";"),

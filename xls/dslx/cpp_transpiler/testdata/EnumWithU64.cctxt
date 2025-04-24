@@ -88,3 +88,20 @@ absl::Status VerifyMyEnum(MyEnum value) {
   }
   return absl::OkStatus();
 }
+
+std::ostream& operator<<(std::ostream& os, MyEnum value) {
+  switch (value) {
+    case MyEnum::kMIN:
+      os << "MyEnum::kMIN";
+      break;
+    case MyEnum::kMID:
+      os << "MyEnum::kMID";
+      break;
+    case MyEnum::kMAX:
+      os << "MyEnum::kMAX";
+      break;
+    default:
+      return os << absl::StrFormat("<unknown> (%v)", value);
+  }
+  return os;
+}
