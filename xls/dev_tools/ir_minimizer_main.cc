@@ -108,9 +108,9 @@ fairly self contained. Reduction may not be as effective with larger samples
 Currently the algorithm is such that the number of live nodes in the function
 should go down monotonically.
 
-The reducer supports two modes of operation. In the first mode, an external test
-executable is passed in. This test should return a zero exit status if the IR
-exhibits the bug. Example invocation:
+The reducer supports three modes of operation. In the first mode, an external
+test executable is passed in. This test should return a zero exit status if the
+IR exhibits the bug. Example invocation:
 
   ir_minimizer_main --test_executable=/foo/test.sh IR_FILE
 
@@ -118,6 +118,12 @@ The second mode specifically reduces a test case where the JIT results differ
 from the interpreter results. Example invocation:
 
   ir_minimizer_main --test_llvm_jit --use_optimization_pipeline \
+    --input='bits[32]:42; bits[1]:0' IR_FILE
+
+The third mode specifically reduces a test case where the optimized results
+differ from the unoptimized results. Example invocation:
+
+  ir_minimizer_main --test_optimizer --use_optimization_pipeline \
     --input='bits[32]:42; bits[1]:0' IR_FILE
 
 )";
@@ -135,20 +141,20 @@ ABSL_FLAG(
     bool, can_extract_single_proc, false,
     "Whether to extract a single proc from a network. Selected proc might not "
     "be top. All internal channels are changed to be recv/send only.");
-ABSL_FLAG(bool, can_extract_segments, false,
-          "Whether to allow the minimizer to extract segments of the IR. This "
-          "transform entirely removes some segment of logic and makes a new "
-          "function which contains only that piece of logic. It does this by "
-          "selecting a random node in a function/proc, creating a new package "
-          "with a new function. This new function then has the "
-          "expression used to compute the node copied in and this new package "
-          "is used as the sample to check. This new function is marked as (and "
-          "named identically to) TOP and all other code is removed. This "
-          "option may not be used if any (relevant) flag which prevents "
-          "changes to external API are passed (--can_remove_{sends,receives,"
-          "params}=false, --preserve_channels=<anything>, or "
-          "--test_llvm_jit). NB The extracted segment will always be a "
-          "function.");
+ABSL_FLAG(
+    bool, can_extract_segments, false,
+    "Whether to allow the minimizer to extract segments of the IR. This "
+    "transform entirely removes some segment of logic and makes a new "
+    "function which contains only that piece of logic. It does this by "
+    "selecting a random node in a function/proc, creating a new package "
+    "with a new function. This new function then has the "
+    "expression used to compute the node copied in and this new package "
+    "is used as the sample to check. This new function is marked as (and "
+    "named identically to) TOP and all other code is removed. This "
+    "option may not be used if any (relevant) flag which prevents "
+    "changes to external API are passed (--can_remove_{sends,receives,"
+    "params}=false, --preserve_channels=<anything>, --test_llvm_jit, or "
+    "--test_optimizer). NB The extracted segment will always be a function.");
 ABSL_FLAG(int64_t, extract_segments_limit, 256,
           "Maximum number of nodes remaining to support extracting segments "
           "in. This just makes convergence happen more quickly since the "
@@ -160,10 +166,10 @@ ABSL_FLAG(
     "extracts the update path for a small number of state elements. This "
     "option may not be used if any (relevant) flag which prevents "
     "changes to external API are passed (--can_remove_{sends,receives,"
-    "params}=false, --preserve_channels=<anything>, or test_llvm_jit). This "
-    "minimization can only trigger if the entire IR package contains **only** "
-    "a single proc. NB The pass extraction runs the CSE and DCE passes as part "
-    "of extraction.");
+    "params}=false, --preserve_channels=<anything>, --test_llvm_jit, or "
+    "--test_optimizer). This minimization can only trigger if the entire IR "
+    "package contains **only** a single proc. NB The pass extraction runs the "
+    "CSE and DCE passes as part of extraction.");
 ABSL_FLAG(
     std::string, test_executable, "",
     "Path to test executable to run during minimization. The test accepts "
