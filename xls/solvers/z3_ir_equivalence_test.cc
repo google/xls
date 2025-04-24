@@ -53,6 +53,13 @@ using ::testing::Not;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
+static constexpr bool kHasMsan =
+#if defined(ABSL_HAVE_MEMORY_SANITIZER)
+    true;
+#else
+    false;
+#endif
+
 class EquivalenceTest : public IrTestBase {};
 
 TEST_F(EquivalenceTest, NoOpIsEquivalent) {
@@ -245,6 +252,9 @@ void ScopedNonEquivalentTransform(Function* f) {
 }
 
 TEST_F(EquivalenceTest, ScopedDetectsNonEquivalentTransform) {
+  if (kHasMsan) {
+    GTEST_SKIP() << "Skipping ScopedVerifyEquivalence test; MSAN is enabled.";
+  }
   std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(absl::StrCat(TestName(), "_test_function"), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
@@ -254,10 +264,10 @@ TEST_F(EquivalenceTest, ScopedDetectsNonEquivalentTransform) {
 
   EXPECT_NONFATAL_FAILURE(
       ScopedNonEquivalentTransform(f),
-      absl::StrCat(
-          __FILE__, ":", kScopedNonEquivalentTransformCheckLine,
-          ": ScopedVerifyEquivalence failed to prove equivalence of function ",
-          f->name(), " before & after changes"));
+      absl::StrCat(__FILE__, ":", kScopedNonEquivalentTransformCheckLine,
+                   ": ScopedVerifyEquivalence failed to prove equivalence of "
+                   "function ",
+                   f->name(), " before & after changes"));
 }
 
 TEST_F(EquivalenceTest, DetectsReturnTypeChange) {
@@ -280,6 +290,9 @@ void ScopedReturnTypeChange(Function* f) {
 }
 
 TEST_F(EquivalenceTest, ScopedDetectsReturnTypeChange) {
+  if (kHasMsan) {
+    GTEST_SKIP() << "Skipping ScopedVerifyEquivalence test; MSAN is enabled.";
+  }
   std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
@@ -343,6 +356,10 @@ void ScopedParamShift(Function* f) {
 }
 
 TEST_F(EquivalenceTest, ScopedDetectsParamShift) {
+  if (kHasMsan) {
+    GTEST_SKIP() << "Skipping ScopedVerifyEquivalence test; MSAN is enabled.";
+  }
+
   std::unique_ptr<Package> p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x1 = fb.Param("x1", p->GetBitsType(16));

@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -50,6 +51,14 @@
 namespace xls::solvers::z3 {
 
 namespace {
+
+static constexpr bool kHasMsan =
+#if defined(ABSL_HAVE_MEMORY_SANITIZER)
+    true;
+#else
+    false;
+#endif
+
 class FuncInterpreter final : public IrInterpreter {
  public:
   explicit FuncInterpreter(
@@ -102,25 +111,32 @@ ScopedVerifyEquivalence::ScopedVerifyEquivalence(Function* f,
 }
 
 ScopedVerifyEquivalence::~ScopedVerifyEquivalence() {
-  testing::ScopedTrace trace(
-      loc_.file_name(), loc_.line(),
-      absl::StrCat(
-          "ScopedVerifyEquivalence failed to prove equivalence of function ",
-          f_->name(), " before & after changes"));
-  absl::StatusOr<ProverResult> result =
-      TryProveEquivalence(original_f_, f_, timeout_);
-  EXPECT_THAT(result, IsOkAndHolds(VariantWith<ProvenTrue>(_)));
-  if (result.ok() && std::holds_alternative<ProvenFalse>(*result)) {
-    testing::Test::RecordProperty(
-        "original",
-        DumpWithNodeValues(original_f_, std::get<ProvenFalse>(*result))
-            .value_or(original_f_->DumpIr()));
-    testing::Test::RecordProperty(
-        "final", DumpWithNodeValues(f_, std::get<ProvenFalse>(*result))
-                     .value_or(f_->DumpIr()));
-  } else if (testing::Test::HasFailure()) {
-    testing::Test::RecordProperty("original", original_f_->DumpIr());
-    testing::Test::RecordProperty("final", f_->DumpIr());
+  if constexpr (kHasMsan) {
+    // Z3 is substantially slower in MSAN mode, and we already get proofs from
+    // non-MSAN runs. No need to try the proof.
+    LOG(INFO) << "Skipping Z3 proof, as we're built with MSAN enabled.";
+    return;
+  } else {
+    testing::ScopedTrace trace(
+        loc_.file_name(), loc_.line(),
+        absl::StrCat(
+            "ScopedVerifyEquivalence failed to prove equivalence of function ",
+            f_->name(), " before & after changes"));
+    absl::StatusOr<ProverResult> result =
+        TryProveEquivalence(original_f_, f_, timeout_);
+    EXPECT_THAT(result, IsOkAndHolds(VariantWith<ProvenTrue>(_)));
+    if (result.ok() && std::holds_alternative<ProvenFalse>(*result)) {
+      testing::Test::RecordProperty(
+          "original",
+          DumpWithNodeValues(original_f_, std::get<ProvenFalse>(*result))
+              .value_or(original_f_->DumpIr()));
+      testing::Test::RecordProperty(
+          "final", DumpWithNodeValues(f_, std::get<ProvenFalse>(*result))
+                       .value_or(f_->DumpIr()));
+    } else if (testing::Test::HasFailure()) {
+      testing::Test::RecordProperty("original", original_f_->DumpIr());
+      testing::Test::RecordProperty("final", f_->DumpIr());
+    }
   }
 }
 
