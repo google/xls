@@ -22,6 +22,8 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
 # cc_proto_library is used in this file
 
+# TEMP CHANGE NEEDED TO TEST INTERNAL CONFIGURATION
+
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
