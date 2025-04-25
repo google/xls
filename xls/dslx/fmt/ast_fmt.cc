@@ -1732,6 +1732,12 @@ DocRef Fmt(const Let& n, Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Range& n, Comments& comments, DocArena& arena) {
+  if (n.inclusive_end()) {
+    return ConcatNGroup(
+        arena,
+        {Fmt(*n.start(), comments, arena), arena.break0(), arena.dot_dot(),
+         arena.break0(), arena.equals(), Fmt(*n.end(), comments, arena)});
+  }
   return ConcatNGroup(
       arena, {Fmt(*n.start(), comments, arena), arena.break0(), arena.dot_dot(),
               arena.break0(), Fmt(*n.end(), comments, arena)});

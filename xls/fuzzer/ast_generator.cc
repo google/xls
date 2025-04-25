@@ -985,6 +985,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     auto start = InterpValue::MakeBits(is_signed, start_bits);
     auto max = InterpValue::MakeMaxValue(is_signed, bit_count);
     bool start_lt_max = start.Lt(max).value().IsTrue();
+    bool inclusive_end = RandomBool(0.2);
 
     TypedExpr limit_type_expr;
     // 30% of the time make a random number, rest of the time make it a
@@ -1009,7 +1010,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
                                   start_type_expr.type};
     }
     Range* range = module_->Make<Range>(fake_span_, start_type_expr.expr,
-                                        limit_type_expr.expr);
+                                        inclusive_end, limit_type_expr.expr);
     return module_->Make<NameDefTree>(fake_span_, range);
   }
 
@@ -1433,7 +1434,7 @@ ArrayTypeAnnotation* AstGenerator::MakeArrayType(TypeAnnotation* element_type,
 }
 
 Range* AstGenerator::MakeRange(Expr* zero, Expr* arg) {
-  return module_->Make<Range>(fake_span_, zero, arg);
+  return module_->Make<Range>(fake_span_, zero, RandomBool(0.2), arg);
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(

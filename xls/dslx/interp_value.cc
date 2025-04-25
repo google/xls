@@ -505,6 +505,15 @@ std::optional<InterpValue> InterpValue::Decrement() const {
   return InterpValue(tag_, bits_ops::Decrement(b));
 }
 
+absl::StatusOr<InterpValue> InterpValue::IncrementZeroExtendIfOverflow() const {
+  XLS_ASSIGN_OR_RETURN(Bits bits, GetBits());
+  if (*this == MakeMaxValue(IsSigned(), bits.bit_count())) {
+    XLS_ASSIGN_OR_RETURN(InterpValue extended, ZeroExt(bits.bit_count() + 1));
+    XLS_ASSIGN_OR_RETURN(bits, extended.GetBits());
+  }
+  return InterpValue(tag_, bits_ops::Increment(bits));
+}
+
 absl::StatusOr<InterpValue> InterpValue::Min(const InterpValue& other) const {
   XLS_ASSIGN_OR_RETURN(InterpValue lt, Lt(other));
   if (lt.IsTrue()) {
