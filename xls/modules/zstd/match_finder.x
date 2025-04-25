@@ -21,7 +21,7 @@ import xls.modules.zstd.common as common;
 import xls.modules.zstd.memory.mem_reader as mem_reader;
 import xls.modules.zstd.memory.mem_writer as mem_writer;
 import xls.modules.zstd.memory.axi as axi;
-import xls.modules.zstd.memory.axi_ram as axi_ram;
+import xls.modules.zstd.memory.axi_ram_reader as axi_ram_reader;
 import xls.modules.zstd.history_buffer as history_buffer;
 import xls.modules.zstd.hash_table as hash_table;
 import xls.modules.zstd.aligned_parallel_ram as aligned_parallel_ram;
@@ -986,7 +986,7 @@ proc MatchFinderTest {
         let (axi_ar_s, axi_ar_r) = chan<AxiAr>("axi_ar");
         let (axi_r_s, axi_r_r) = chan<AxiR>("axi_r");
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_ADDR_W, TEST_DATA_W,
             TEST_DEST_W, TEST_ID_W,
             TEST_RAM_SIZE,

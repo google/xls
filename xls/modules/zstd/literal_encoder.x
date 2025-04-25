@@ -18,7 +18,7 @@ import std;
 
 import xls.examples.ram;
 import xls.modules.zstd.memory.axi;
-import xls.modules.zstd.memory.axi_ram;
+import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.memory.mem_reader;
 import xls.modules.zstd.memory.mem_writer;
 import xls.modules.zstd.mem_writer_simple_arbiter;
@@ -345,7 +345,7 @@ proc LiteralsEncoderTest {
         let (mem_axi_ar_s, mem_axi_ar_r) = chan<AxiAr>("mem_axi_ar");
         let (mem_axi_r_s, mem_axi_r_r) = chan<AxiR>("mem_axi_r");
 
-        spawn axi_ram::AxiRamReader<
+        spawn axi_ram_reader::AxiRamReader<
             TEST_ADDR_W, TEST_DATA_W,
             TEST_DEST_W, TEST_ID_W,
             TEST_RAM_SIZE,
