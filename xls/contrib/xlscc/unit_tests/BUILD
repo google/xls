@@ -317,6 +317,7 @@ cc_test(
         "//xls/contrib/xlscc:cc_parser",
         "//xls/contrib/xlscc:expr_clone",
         "@googletest//:gtest",
+        "@llvm-project//clang:ast",
     ],
 )
 
