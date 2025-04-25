@@ -1657,16 +1657,20 @@ DocRef Fmt(const Conditional& n, Comments& comments, DocArena& arena) {
       arena.break1(),
   };
 
-  CHECK(std::holds_alternative<StatementBlock*>(n.alternate()));
-  const StatementBlock* else_block = std::get<StatementBlock*>(n.alternate());
-  pieces.push_back(arena.ccurl());
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.Make(Keyword::kElse));
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.ocurl());
-  pieces.push_back(arena.break1());
-  pieces.push_back(FmtBlock(*else_block, comments, arena, /*add_curls=*/false));
-  pieces.push_back(arena.break1());
+  if (n.HasElse()) {
+    CHECK(std::holds_alternative<StatementBlock*>(n.alternate()));
+    const StatementBlock* else_block = std::get<StatementBlock*>(n.alternate());
+    pieces.push_back(arena.ccurl());
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.Make(Keyword::kElse));
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.ocurl());
+    pieces.push_back(arena.break1());
+    pieces.push_back(
+        FmtBlock(*else_block, comments, arena, /*add_curls=*/false));
+    pieces.push_back(arena.break1());
+  }
+
   pieces.push_back(arena.ccurl());
   return ConcatNGroup(arena, pieces);
 }

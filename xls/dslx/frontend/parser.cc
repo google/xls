@@ -901,20 +901,28 @@ absl::StatusOr<Conditional*> Parser::ParseConditionalNode(
                       MakeRestrictions({ExprRestriction::kNoStructLiteral})));
   XLS_ASSIGN_OR_RETURN(StatementBlock * consequent,
                        ParseBlockExpression(bindings));
-  XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kElse));
+
+  XLS_ASSIGN_OR_RETURN(bool has_else, PeekTokenIs(Keyword::kElse));
 
   std::variant<StatementBlock*, Conditional*> alternate;
-
-  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-  if (peek->IsKeyword(Keyword::kIf)) {  // else if
-    XLS_ASSIGN_OR_RETURN(alternate,
-                         ParseConditionalNode(bindings, kNoRestrictions));
-  } else {
-    XLS_ASSIGN_OR_RETURN(alternate, ParseBlockExpression(bindings));
+  if (has_else) {
+    XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kElse));
+    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+    if (peek->IsKeyword(Keyword::kIf)) {  // else if
+      XLS_ASSIGN_OR_RETURN(alternate,
+                           ParseConditionalNode(bindings, kNoRestrictions));
+    } else {  // normal else
+      XLS_ASSIGN_OR_RETURN(alternate, ParseBlockExpression(bindings));
+    }
+  } else {  // if without else, add artificial empty block
+    alternate = module_->Make<StatementBlock>(Span(GetPos(), GetPos()),
+                                              std::vector<Statement*>(),
+                                              /*trailing_semi=*/true);
   }
 
   auto* outer_conditional = module_->Make<Conditional>(
-      Span(if_kw.span().start(), GetPos()), test, consequent, alternate);
+      Span(if_kw.span().start(), GetPos()), test, consequent, alternate,
+      /*in_parens=*/false, has_else);
   for (StatementBlock* block : outer_conditional->GatherBlocks()) {
     block->SetEnclosing(outer_conditional);
   }
