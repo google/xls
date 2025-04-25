@@ -78,7 +78,7 @@ static absl::StatusOr<DslxPath> FindExistingPath(
   absl::Span<std::string const> pieces = subject.pieces();
   std::optional<std::string> subject_parent_path;
   const absl::flat_hash_set<std::string> builtins = {
-      "std", "apfloat", "float32", "float64", "bfloat16"};
+      "std", "apfloat", "float32", "float64", "bfloat16", "hfloat16"};
 
   // Initialize subject and parent subject path.
   std::filesystem::path subject_path;
