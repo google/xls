@@ -21,7 +21,7 @@ namespace clang {
 }
 
 namespace xlscc {
-  clang::Expr* Clone(clang::ASTContext& ctx, const clang::Expr* expr);
+  const clang::Expr* Clone(clang::ASTContext& ctx, const clang::Expr* expr);
 }  // namespace xlscc
 
 #endif  // XLS_CONTRIB_XLSCC_EXPR_CLONE_H_

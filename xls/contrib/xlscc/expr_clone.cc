@@ -14,8 +14,6 @@
 
 #include "xls/contrib/xlscc/expr_clone.h"
 
-#include <clang/AST/Expr.h>
-
 #include <vector>
 
 #include "clang/AST/StmtVisitor.h"
@@ -23,34 +21,34 @@
 namespace xlscc {
 namespace {
 
-class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
+class ExprClone : public clang::ConstStmtVisitor<ExprClone, clang::Expr*> {
  public:
   explicit ExprClone(clang::ASTContext& ctx_) : ctx(ctx_) {}
 
-  clang::Expr* VisitIntegerLiteral(clang::IntegerLiteral* expr) {
+  clang::Expr* VisitIntegerLiteral(const clang::IntegerLiteral* expr) {
     return clang::IntegerLiteral::Create(ctx, expr->getValue(), expr->getType(),
                                          expr->getLocation());
   }
 
-  clang::Expr* VisitCharacterLiteral(clang::CharacterLiteral* expr) {
+  clang::Expr* VisitCharacterLiteral(const clang::CharacterLiteral* expr) {
     return new (ctx)
         clang::CharacterLiteral(expr->getValue(), expr->getKind(),
                                 expr->getType(), expr->getLocation());
   }
 
-  clang::Expr* VisitFloatingLiteral(clang::FloatingLiteral* expr) {
+  clang::Expr* VisitFloatingLiteral(const clang::FloatingLiteral* expr) {
     return clang::FloatingLiteral::Create(ctx, expr->getValue(),
                                           expr->isExact(), expr->getType(),
                                           expr->getLocation());
   }
 
-  clang::Expr* VisitStringLiteral(clang::StringLiteral* expr) {
+  clang::Expr* VisitStringLiteral(const clang::StringLiteral* expr) {
     return clang::StringLiteral::Create(ctx, expr->getString(), expr->getKind(),
                                         expr->isPascal(), expr->getType(),
                                         expr->getExprLoc());
   }
 
-  clang::Expr* VisitUserDefinedLiteral(clang::UserDefinedLiteral* expr) {
+  clang::Expr* VisitUserDefinedLiteral(const clang::UserDefinedLiteral* expr) {
     std::vector<clang::Expr*> args;
     for (auto* arg : expr->arguments()) {
       args.push_back(Visit(arg));
@@ -61,30 +59,36 @@ class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
         expr->getFPFeatures());
   }
 
-  clang::Expr* VisitCompoundLiteralExpr(clang::CompoundLiteralExpr* expr) {
+  clang::Expr* VisitCompoundLiteralExpr(
+      const clang::CompoundLiteralExpr* expr) {
     return new (ctx) clang::CompoundLiteralExpr(
         expr->getLParenLoc(), expr->getTypeSourceInfo(), expr->getType(),
         expr->getValueKind(), Visit(expr->getInitializer()),
         expr->getObjectKind());
   }
 
-  clang::Expr* VisitDeclRefExpr(clang::DeclRefExpr* expr) {
+  clang::Expr* VisitDeclRefExpr(const clang::DeclRefExpr* expr) {
     clang::TemplateArgumentListInfo template_args;
     expr->copyTemplateArgumentsInto(template_args);
+    // `Create()` requires non-const decl pointers.
+    auto* decl = const_cast<clang::ValueDecl*>(expr->getDecl());
+    auto* found_decl = const_cast<clang::NamedDecl*>(expr->getFoundDecl());
+    // Ultimately, `Clone()` return a const pointer, so its users cannot break
+    // const correctness.
     return clang::DeclRefExpr::Create(
-        ctx, expr->getQualifierLoc(), expr->getTemplateKeywordLoc(),
-        expr->getDecl(), expr->refersToEnclosingVariableOrCapture(),
-        expr->getNameInfo(), expr->getType(), expr->getValueKind(),
-        expr->getFoundDecl(), &template_args, expr->isNonOdrUse());
+        ctx, expr->getQualifierLoc(), expr->getTemplateKeywordLoc(), decl,
+        expr->refersToEnclosingVariableOrCapture(), expr->getNameInfo(),
+        expr->getType(), expr->getValueKind(), found_decl, &template_args,
+        expr->isNonOdrUse());
   }
 
-  clang::Expr* VisitImplicitCastExpr(clang::ImplicitCastExpr* expr) {
+  clang::Expr* VisitImplicitCastExpr(const clang::ImplicitCastExpr* expr) {
     return clang::ImplicitCastExpr::Create(
         ctx, expr->getType(), expr->getCastKind(), Visit(expr->getSubExpr()),
         nullptr, expr->getValueKind(), expr->getFPFeatures());
   }
 
-  clang::Expr* VisitCStyleCastExpr(clang::CStyleCastExpr* expr) {
+  clang::Expr* VisitCStyleCastExpr(const clang::CStyleCastExpr* expr) {
     return clang::CStyleCastExpr::Create(
         ctx, expr->getType(), expr->getValueKind(), expr->getCastKind(),
         Visit(expr->getSubExpr()), nullptr, expr->getFPFeatures(),
@@ -92,7 +96,8 @@ class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
         expr->getRParenLoc());
   }
 
-  clang::Expr* VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr* expr) {
+  clang::Expr* VisitCXXFunctionalCastExpr(
+      const clang::CXXFunctionalCastExpr* expr) {
     return clang::CXXFunctionalCastExpr::Create(
         ctx, expr->getType(), expr->getValueKind(),
         expr->getTypeInfoAsWritten(), expr->getCastKind(),
@@ -100,7 +105,7 @@ class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
         expr->getLParenLoc(), expr->getRParenLoc());
   }
 
-  clang::Expr* VisitCXXStaticCastExpr(clang::CXXStaticCastExpr* expr) {
+  clang::Expr* VisitCXXStaticCastExpr(const clang::CXXStaticCastExpr* expr) {
     return clang::CXXStaticCastExpr::Create(
         ctx, expr->getType(), expr->getValueKind(), expr->getCastKind(),
         Visit(expr->getSubExpr()), nullptr, expr->getTypeInfoAsWritten(),
@@ -108,7 +113,7 @@ class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
         expr->getAngleBrackets());
   }
 
-  clang::Expr* VisitCXXDynamicCastExpr(clang::CXXDynamicCastExpr* expr) {
+  clang::Expr* VisitCXXDynamicCastExpr(const clang::CXXDynamicCastExpr* expr) {
     return clang::CXXDynamicCastExpr::Create(
         ctx, expr->getType(), expr->getValueKind(), expr->getCastKind(),
         Visit(expr->getSubExpr()), nullptr, expr->getTypeInfoAsWritten(),
@@ -116,21 +121,21 @@ class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
   }
 
   clang::Expr* VisitCXXReinterpretCastExpr(
-      clang::CXXReinterpretCastExpr* expr) {
+      const clang::CXXReinterpretCastExpr* expr) {
     return clang::CXXReinterpretCastExpr::Create(
         ctx, expr->getType(), expr->getValueKind(), expr->getCastKind(),
         Visit(expr->getSubExpr()), nullptr, expr->getTypeInfoAsWritten(),
         expr->getOperatorLoc(), expr->getRParenLoc(), expr->getAngleBrackets());
   }
 
-  clang::Expr* VisitCXXConstCastExpr(clang::CXXConstCastExpr* expr) {
+  clang::Expr* VisitCXXConstCastExpr(const clang::CXXConstCastExpr* expr) {
     return clang::CXXConstCastExpr::Create(
         ctx, expr->getType(), expr->getValueKind(), Visit(expr->getSubExpr()),
         expr->getTypeInfoAsWritten(), expr->getOperatorLoc(),
         expr->getRParenLoc(), expr->getAngleBrackets());
   }
 
-  clang::Expr* VisitMemberExpr(clang::MemberExpr* expr) {
+  clang::Expr* VisitMemberExpr(const clang::MemberExpr* expr) {
     clang::TemplateArgumentListInfo template_args;
     if (expr->hasExplicitTemplateArgs()) {
       expr->copyTemplateArgumentsInto(template_args);
@@ -143,7 +148,7 @@ class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
         expr->getObjectKind(), expr->isNonOdrUse());
   }
 
-  clang::Expr* VisitCallExpr(clang::CallExpr* expr) {
+  clang::Expr* VisitCallExpr(const clang::CallExpr* expr) {
     std::vector<clang::Expr*> args;
     for (auto* arg : expr->arguments()) {
       args.push_back(Visit(arg));
@@ -154,39 +159,40 @@ class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
                                    expr->getNumArgs(), expr->getADLCallKind());
   }
 
-  clang::Expr* VisitUnaryOperator(clang::UnaryOperator* expr) {
+  clang::Expr* VisitUnaryOperator(const clang::UnaryOperator* expr) {
     return clang::UnaryOperator::Create(
         ctx, Visit(expr->getSubExpr()), expr->getOpcode(), expr->getType(),
         expr->getValueKind(), expr->getObjectKind(), expr->getOperatorLoc(),
         expr->canOverflow(), expr->getFPOptionsOverride());
   }
 
-  clang::Expr* VisitBinaryOperator(clang::BinaryOperator* expr) {
+  clang::Expr* VisitBinaryOperator(const clang::BinaryOperator* expr) {
     return clang::BinaryOperator::Create(
         ctx, Visit(expr->getLHS()), Visit(expr->getRHS()), expr->getOpcode(),
         expr->getType(), expr->getValueKind(), expr->getObjectKind(),
         expr->getOperatorLoc(), expr->getFPFeatures());
   }
 
-  clang::Expr* VisitConditionalOperator(clang::ConditionalOperator* expr) {
+  clang::Expr* VisitConditionalOperator(
+      const clang::ConditionalOperator* expr) {
     return new (ctx) clang::ConditionalOperator(
         Visit(expr->getCond()), expr->getQuestionLoc(), Visit(expr->getLHS()),
         expr->getColonLoc(), Visit(expr->getRHS()), expr->getType(),
         expr->getValueKind(), expr->getObjectKind());
   }
 
-  clang::Expr* VisitParenExpr(clang::ParenExpr* expr) {
+  clang::Expr* VisitParenExpr(const clang::ParenExpr* expr) {
     return new (ctx) clang::ParenExpr(expr->getBeginLoc(), expr->getEndLoc(),
                                       Visit(expr->getSubExpr()));
   }
 
-  clang::Expr* VisitArraySubscriptExpr(clang::ArraySubscriptExpr* expr) {
+  clang::Expr* VisitArraySubscriptExpr(const clang::ArraySubscriptExpr* expr) {
     return new (ctx) clang::ArraySubscriptExpr(
         Visit(expr->getLHS()), Visit(expr->getRHS()), expr->getType(),
         expr->getValueKind(), expr->getObjectKind(), expr->getRBracketLoc());
   }
 
-  clang::Expr* VisitInitListExpr(clang::InitListExpr* expr) {
+  clang::Expr* VisitInitListExpr(const clang::InitListExpr* expr) {
     std::vector<clang::Expr*> inits;
     for (auto* init : expr->inits()) {
       inits.push_back(Visit(init));
@@ -198,12 +204,13 @@ class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
   }
 
   clang::Expr* VisitDesignatedInitUpdateExpr(
-      clang::DesignatedInitUpdateExpr* expr) {
+      const clang::DesignatedInitUpdateExpr* expr) {
     return new (ctx) clang::DesignatedInitUpdateExpr(
         ctx, expr->getBeginLoc(), Visit(expr->getBase()), expr->getEndLoc());
   }
 
-  clang::Expr* VisitCXXOperatorCallExpr(clang::CXXOperatorCallExpr* expr) {
+  clang::Expr* VisitCXXOperatorCallExpr(
+      const clang::CXXOperatorCallExpr* expr) {
     std::vector<clang::Expr*> args;
     for (auto* arg : expr->arguments()) {
       args.push_back(Visit(arg));
@@ -214,7 +221,7 @@ class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
         expr->getFPFeatures());
   }
 
-  clang::Expr* VisitCXXMemberCallExpr(clang::CXXMemberCallExpr* expr) {
+  clang::Expr* VisitCXXMemberCallExpr(const clang::CXXMemberCallExpr* expr) {
     std::vector<clang::Expr*> args;
     for (auto* arg : expr->arguments()) {
       args.push_back(Visit(arg));
@@ -225,7 +232,7 @@ class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
   }
 
   clang::Expr* VisitCXXTemporaryObjectExpr(
-      clang::CXXTemporaryObjectExpr* expr) {
+      const clang::CXXTemporaryObjectExpr* expr) {
     std::vector<clang::Expr*> args;
     for (auto* arg : expr->arguments()) {
       args.push_back(Visit(arg));
@@ -243,10 +250,9 @@ class ExprClone : public clang::StmtVisitor<ExprClone, clang::Expr*> {
 
 }  // namespace
 
-clang::Expr* Clone(clang::ASTContext& ctx, const clang::Expr* expr) {
+const clang::Expr* Clone(clang::ASTContext& ctx, const clang::Expr* expr) {
   ExprClone cloner(ctx);
-  // FIXME: get rid of this const cast
-  return cloner.Visit(const_cast<clang::Expr*>(expr));
+  return cloner.Visit(expr);
 }
 
 }  // namespace xlscc
