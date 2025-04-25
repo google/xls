@@ -2131,6 +2131,15 @@ TEST_F(ParserTest, MatchWithNumberRangePattern) {
 })");
 }
 
+TEST_F(ParserTest, MatchWithNumberRangePatternInclusiveEnd) {
+  RoundTrip(R"(fn f(x: u32) {
+    match x {
+        u32:42..=u32:64 => u32:64,
+        _ => u32:42,
+    }
+})");
+}
+
 TEST_F(ParserTest, MatchWithRestOfTuple) {
   RoundTrip(R"(const FOO = u32:64;
 fn f(x: u32) {
@@ -2866,6 +2875,18 @@ TEST_F(ParserTest, Range) {
 })");
   RoundTripExpr(R"({
     let foo = a..b;
+    foo
+})",
+                {"a", "b"});
+}
+
+TEST_F(ParserTest, RangeInclusiveEnd) {
+  RoundTripExpr(R"({
+    let foo = u32:0..=u32:0xFFFFFFFF;
+    foo
+})");
+  RoundTripExpr(R"({
+    let foo = a..=b;
     foo
 })",
                 {"a", "b"});

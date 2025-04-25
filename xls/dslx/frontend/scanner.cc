@@ -546,6 +546,8 @@ absl::StatusOr<Token> Scanner::Pop() {
       if (TryDropChar('.')) {
         if (TryDropChar('.')) {
           result = Token(TokenKind::kEllipsis, mk_span());
+        } else if (TryDropChar('=')) {
+          result = Token(TokenKind::kDoubleDotEquals, mk_span());
         } else {
           result = Token(TokenKind::kDoubleDot, mk_span());
         }

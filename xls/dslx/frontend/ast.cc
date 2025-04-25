@@ -2293,13 +2293,18 @@ NameRef::~NameRef() = default;
 
 // -- class Range
 
-Range::Range(Module* owner, Span span, Expr* start, Expr* end, bool in_parens)
-    : Expr(owner, std::move(span), in_parens), start_(start), end_(end) {}
+Range::Range(Module* owner, Span span, Expr* start, bool inclusive_end,
+             Expr* end, bool in_parens)
+    : Expr(owner, std::move(span), in_parens),
+      start_(start),
+      end_(end),
+      inclusive_end_(inclusive_end) {}
 
 Range::~Range() = default;
 
 std::string Range::ToStringInternal() const {
-  return absl::StrFormat("%s..%s", start_->ToString(), end_->ToString());
+  return absl::StrFormat("%s..%s%s", start_->ToString(),
+                         inclusive_end_ ? "=" : "", end_->ToString());
 }
 
 // -- class Cast

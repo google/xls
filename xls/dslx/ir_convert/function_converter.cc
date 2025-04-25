@@ -1296,6 +1296,7 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
   ParametricEnv bindings(parametric_env_map_);
 
   const auto* range_op = dynamic_cast<const Range*>(iterable);
+  bool inclusive_end = false;
   if (range_op != nullptr) {
     XLS_ASSIGN_OR_RETURN(
         start_value, ConstexprEvaluator::EvaluateToValue(
@@ -1305,6 +1306,7 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
         limit_value, ConstexprEvaluator::EvaluateToValue(
                          import_data_, current_type_info_, kNoWarningCollector,
                          bindings, range_op->end(), nullptr));
+    inclusive_end = range_op->inclusive_end();
   } else {
     const auto* iterable_call = dynamic_cast<const Invocation*>(iterable);
     if (iterable_call == nullptr) {
@@ -1344,12 +1346,17 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
   XLS_ASSIGN_OR_RETURN(int64_t start_int, start_value.GetBitValueViaSign());
   XLS_ASSIGN_OR_RETURN(int64_t bit_width, start_value.GetBitCount());
 
-  XLS_ASSIGN_OR_RETURN(InterpValue start_ge_limit, start_value.Ge(limit_value));
-  if (start_ge_limit.IsTrue()) {
+  XLS_ASSIGN_OR_RETURN(InterpValue start_gt_limit, start_value.Gt(limit_value));
+  if (start_gt_limit.IsTrue()) {
     return RangeData{start_int, 0, bit_width};
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue trip_count, limit_value.Sub(start_value));
+  if (inclusive_end) {
+    trip_count = InterpValue::MakeUnsigned(trip_count.GetBitsOrDie());
+    XLS_ASSIGN_OR_RETURN(trip_count,
+                         trip_count.IncrementZeroExtendIfOverflow());
+  }
   XLS_RET_CHECK(trip_count.IsBits());
   int64_t trip_count_int;
   if (trip_count.IsSigned()) {
@@ -1764,8 +1771,16 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
                 }
                 return function_builder_->ULt(lhs, rhs, loc);
               };
+              auto le = [&](const BValue& lhs, const BValue& rhs) {
+                if (signed_input) {
+                  return function_builder_->SLe(lhs, rhs, loc);
+                }
+                return function_builder_->ULe(lhs, rhs, loc);
+              };
               return function_builder_->And(ge(matched_value, start),
-                                            lt(matched_value, limit));
+                                            n->inclusive_end()
+                                                ? le(matched_value, limit)
+                                                : lt(matched_value, limit));
             },
             [&](NameRef* n) -> absl::StatusOr<BValue> {
               // Comparing for equivalence to a (referenced) name.

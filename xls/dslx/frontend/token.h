@@ -76,6 +76,7 @@ namespace xls::dslx {
   X(kHat, HAT, "^")                                                    \
   X(kFatArrow, FAT_ARROW, "=>")                                        \
   X(kDoubleDot, DOUBLE_DOT, "..")                                      \
+  X(kDoubleDotEquals, DOUBLE_DOT_EQUALS, "..=")                        \
   X(kEllipsis, ELLIPSIS, "...")                                        \
   X(kHash, HASH, "#")                                                  \
   X(kString, STRING, "string")                                         \
