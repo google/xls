@@ -503,6 +503,44 @@ TEST_F(FunctionFmtTest, ConditionalWithElseIfAfterLet) {
   EXPECT_EQ(got, original);
 }
 
+TEST_F(FunctionFmtTest, ConditionalWithoutElseShort) {
+  const std::string_view original =
+      R"(fn f(x:bool){if x {trace_fmt!("Hello DSLX");};})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"trace_fmt!"}));
+  const std::string_view want =
+      R"(fn f(x: bool) { if x { trace_fmt!("Hello DSLX"); }; })";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, ConditionalWithoutElseMultiStatementCausesHardBreaks) {
+  const std::string_view original =
+      R"(fn f(x:bool){if x{trace_fmt!("Hello");trace_fmt!("DSLX");};})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"trace_fmt!"}));
+  const std::string_view want =
+      R"(fn f(x: bool) {
+    if x {
+        trace_fmt!("Hello");
+        trace_fmt!("DSLX");
+    };
+})";
+  EXPECT_EQ(got, want);
+}
+
+TEST_F(FunctionFmtTest, ConditionalWithElseIfButWithoutElse) {
+  const std::string_view original =
+      R"(fn f(a:bool[2]){if a[0]{trace_fmt!("A0");}else if a[1]{trace_fmt!("A1");};})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original, {"trace_fmt!"}));
+  const std::string_view want =
+      R"(fn f(a: bool[2]) {
+    if a[0] {
+        trace_fmt!("A0");
+    } else if a[1] {
+        trace_fmt!("A1");
+    };
+})";
+  EXPECT_EQ(got, want);
+}
+
 TEST_F(FunctionFmtTest, ConditionalWithUnnecessaryParens) {
   const std::string_view original =
       "fn f(a:u32,b:u32)->u32{if(a<b){a}else if(b<a){b}else{a}}";
@@ -2700,6 +2738,23 @@ TEST_F(ModuleFmtTest, IfElseIf) {
     } else {
         u32:42
     }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, IfWithoutElse) {
+  DoFmt(
+      R"(fn elseif_without_else(s: bool, x: u32) { if s == true { trace_fmt!("{}", x); }; }
+)");
+}
+
+TEST_F(ModuleFmtTest, IfElseIfWithoutElse) {
+  DoFmt(R"(fn elseif_without_else(s: bool, x: u32, y: u32) {
+    if s == true {
+        trace_fmt!("{}", x);
+    } else if x == u32:7 {
+        trace_fmt!("{}", y);
+    };
 }
 )");
 }

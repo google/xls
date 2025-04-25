@@ -1611,10 +1611,12 @@ DocRef FmtConditionalMultiline(const Conditional& n, Comments& comments,
       FmtBlock(*n.consequent(), comments, arena, /*add_curls=*/false),
       arena.hard_line()};
 
+  bool has_else = n.HasElse();
   std::variant<StatementBlock*, Conditional*> alternate = n.alternate();
   while (std::holds_alternative<Conditional*>(alternate)) {
     Conditional* elseif = std::get<Conditional*>(alternate);
     alternate = elseif->alternate();
+    has_else = elseif->HasElse();
     pieces.push_back(arena.ccurl());
     pieces.push_back(arena.space());
     pieces.push_back(arena.Make(Keyword::kElse));
@@ -1626,17 +1628,19 @@ DocRef FmtConditionalMultiline(const Conditional& n, Comments& comments,
     pieces.push_back(arena.hard_line());
   }
 
-  CHECK(std::holds_alternative<StatementBlock*>(alternate));
-
-  StatementBlock* else_block = std::get<StatementBlock*>(alternate);
-  pieces.push_back(arena.ccurl());
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.Make(Keyword::kElse));
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.ocurl());
-  pieces.push_back(arena.hard_line());
-  pieces.push_back(FmtBlock(*else_block, comments, arena, /*add_curls=*/false));
-  pieces.push_back(arena.hard_line());
+  if (has_else) {
+    CHECK(std::holds_alternative<StatementBlock*>(alternate));
+    StatementBlock* else_block = std::get<StatementBlock*>(alternate);
+    pieces.push_back(arena.ccurl());
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.Make(Keyword::kElse));
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.ocurl());
+    pieces.push_back(arena.hard_line());
+    pieces.push_back(
+        FmtBlock(*else_block, comments, arena, /*add_curls=*/false));
+    pieces.push_back(arena.hard_line());
+  }
   pieces.push_back(arena.ccurl());
 
   return ConcatNGroup(arena, pieces);
@@ -1657,16 +1661,20 @@ DocRef Fmt(const Conditional& n, Comments& comments, DocArena& arena) {
       arena.break1(),
   };
 
-  CHECK(std::holds_alternative<StatementBlock*>(n.alternate()));
-  const StatementBlock* else_block = std::get<StatementBlock*>(n.alternate());
-  pieces.push_back(arena.ccurl());
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.Make(Keyword::kElse));
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.ocurl());
-  pieces.push_back(arena.break1());
-  pieces.push_back(FmtBlock(*else_block, comments, arena, /*add_curls=*/false));
-  pieces.push_back(arena.break1());
+  if (n.HasElse()) {
+    CHECK(std::holds_alternative<StatementBlock*>(n.alternate()));
+    const StatementBlock* else_block = std::get<StatementBlock*>(n.alternate());
+    pieces.push_back(arena.ccurl());
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.Make(Keyword::kElse));
+    pieces.push_back(arena.space());
+    pieces.push_back(arena.ocurl());
+    pieces.push_back(arena.break1());
+    pieces.push_back(
+        FmtBlock(*else_block, comments, arena, /*add_curls=*/false));
+    pieces.push_back(arena.break1());
+  }
+
   pieces.push_back(arena.ccurl());
   return ConcatNGroup(arena, pieces);
 }
