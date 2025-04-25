@@ -34,7 +34,6 @@
 #include "llvm/include/llvm/Support/Casting.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
-#include "xls/contrib/xlscc/unit_tests/clang_util.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/source_location.h"

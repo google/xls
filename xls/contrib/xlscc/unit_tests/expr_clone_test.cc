@@ -19,7 +19,6 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/cc_parser.h"
-#include "xls/contrib/xlscc/unit_tests/clang_util.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 
 void CheckStmtsEq(const clang::Stmt* first, const clang::Stmt* second) {
