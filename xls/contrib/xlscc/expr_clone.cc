@@ -203,12 +203,6 @@ class ExprClone : public clang::ConstStmtVisitor<ExprClone, clang::Expr*> {
     return cloned;
   }
 
-  clang::Expr* VisitDesignatedInitUpdateExpr(
-      const clang::DesignatedInitUpdateExpr* expr) {
-    return new (ctx) clang::DesignatedInitUpdateExpr(
-        ctx, expr->getBeginLoc(), Visit(expr->getBase()), expr->getEndLoc());
-  }
-
   clang::Expr* VisitCXXOperatorCallExpr(
       const clang::CXXOperatorCallExpr* expr) {
     std::vector<clang::Expr*> args;
