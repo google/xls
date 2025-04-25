@@ -16,6 +16,7 @@
 
 #include <string.h>  // NOLINT(modernize-deprecated-headers)
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -347,6 +348,32 @@ struct xls_value* xls_value_clone(const struct xls_value* value) {
   return reinterpret_cast<xls_value*>(new xls::Value(*cpp_value));
 }
 
+bool xls_value_get_kind(const struct xls_value* value, char** error_out,
+                        xls_value_kind* kind_out) {
+  CHECK(value != nullptr);
+  const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
+  *error_out = nullptr;
+  switch (cpp_value->kind()) {
+    case xls::ValueKind::kBits:
+      *kind_out = xls_value_kind_bits;
+      break;
+    case xls::ValueKind::kToken:
+      *kind_out = xls_value_kind_token;
+      break;
+    case xls::ValueKind::kArray:
+      *kind_out = xls_value_kind_array;
+      break;
+    case xls::ValueKind::kTuple:
+      *kind_out = xls_value_kind_tuple;
+      break;
+    case xls::ValueKind::kInvalid:
+      *error_out = xls::ToOwnedCString(
+          absl::InvalidArgumentError("Value is invalid").ToString());
+      return false;
+  }
+  return true;
+}
+
 bool xls_value_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
                           struct xls_value** xls_value_out) {
   CHECK(error_out != nullptr);
@@ -426,6 +453,50 @@ bool xls_bits_get_bit(const struct xls_bits* bits, int64_t index) {
   CHECK(bits != nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
   return cpp_bits->Get(index);
+}
+
+bool xls_bits_to_bytes(const struct xls_bits* bits, char** error_out,
+                       uint8_t** bytes_out, size_t* byte_count_out) {
+  CHECK(bits != nullptr);
+  CHECK(bytes_out != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(byte_count_out != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  std::vector<uint8_t> bytes = cpp_bits->ToBytes();
+  *byte_count_out = bytes.size();
+  *bytes_out = new uint8_t[bytes.size()];
+  std::copy(bytes.begin(), bytes.end(), *bytes_out);
+  return true;
+}
+
+bool xls_bits_to_uint64(const struct xls_bits* bits, char** error_out,
+                        uint64_t* value_out) {
+  CHECK(bits != nullptr);
+  CHECK(value_out != nullptr);
+  CHECK(error_out != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  absl::StatusOr<uint64_t> result = cpp_bits->ToUint64();
+  if (!result.ok()) {
+    *error_out = xls::ToOwnedCString(result.status().ToString());
+    return false;
+  }
+  *value_out = result.value();
+  return true;
+}
+
+bool xls_bits_to_int64(const struct xls_bits* bits, char** error_out,
+                       int64_t* value_out) {
+  CHECK(bits != nullptr);
+  CHECK(value_out != nullptr);
+  CHECK(error_out != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  absl::StatusOr<int64_t> result = cpp_bits->ToInt64();
+  if (!result.ok()) {
+    *error_out = xls::ToOwnedCString(result.status().ToString());
+    return false;
+  }
+  *value_out = result.value();
+  return true;
 }
 
 struct xls_bits* xls_bits_width_slice(const struct xls_bits* bits,
@@ -677,6 +748,8 @@ void xls_c_strs_free(char** c_strs, size_t count) {
   }
   delete[] c_strs;
 }
+
+void xls_bytes_free(uint8_t* bytes) { delete[] bytes; }
 
 bool xls_value_to_string(const struct xls_value* v, char** string_out) {
   CHECK(v != nullptr);

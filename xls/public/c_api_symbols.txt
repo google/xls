@@ -15,8 +15,11 @@ xls_bits_shift_right_arithmetic
 xls_bits_shift_right_logical
 xls_bits_smul
 xls_bits_sub
+xls_bits_to_bytes
 xls_bits_to_debug_string
+xls_bits_to_int64
 xls_bits_to_string
+xls_bits_to_uint64
 xls_bits_umul
 xls_bits_width_slice
 xls_bits_xor
@@ -56,6 +59,7 @@ xls_builder_base_add_xor
 xls_builder_base_add_xor_reduce
 xls_builder_base_add_zero_extend
 xls_bvalue_free
+xls_bytes_free
 xls_c_str_free
 xls_c_strs_free
 xls_convert_dslx_path_to_ir
@@ -172,6 +176,7 @@ xls_value_from_bits_owned
 xls_value_get_bits
 xls_value_get_element
 xls_value_get_element_count
+xls_value_get_kind
 xls_value_make_array
 xls_value_make_false
 xls_value_make_sbits

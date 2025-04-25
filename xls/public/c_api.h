@@ -43,6 +43,15 @@
 
 extern "C" {
 
+typedef int32_t xls_value_kind;
+enum {
+  xls_value_kind_invalid,
+  xls_value_kind_bits,
+  xls_value_kind_array,
+  xls_value_kind_tuple,
+  xls_value_kind_token,
+};
+
 // Opaque structs.
 struct xls_bits;
 struct xls_function;
@@ -130,6 +139,11 @@ bool xls_parse_typed_value(const char* input, char** error_out,
 bool xls_value_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
                           struct xls_value** xls_value_out);
 
+// Returns the kind of the given value. The caller must free the returned
+// `error_out` string via `xls_c_str_free` if an error is returned.
+bool xls_value_get_kind(const struct xls_value* value, char** error_out,
+                        xls_value_kind* kind_out);
+
 bool xls_value_make_sbits(int64_t bit_count, int64_t value, char** error_out,
                           struct xls_value** xls_value_out);
 
@@ -199,6 +213,23 @@ bool xls_bits_eq(const struct xls_bits* a, const struct xls_bits* b);
 // returns 1, `xls_bits_get_bit(bits, 1)` returns 0.
 bool xls_bits_get_bit(const struct xls_bits* bits, int64_t index);
 
+// Converts the given bits value to a byte array, whose length is saved in
+// byte_count_out. The caller must free the returned `bytes_out` pointer
+// via `xls_bytes_free` if xls_bits_to_bytes returns true.
+// If the conversion fails and it returns false, error_out is populated
+// with an error message and the caller must free the
+// `error_out` pointer with `xls_c_str_free`.
+bool xls_bits_to_bytes(const struct xls_bits* bits, char** error_out,
+                       uint8_t** bytes_out, size_t* byte_count_out);
+
+// Converts the given bits value to a signed or unsigned integer 64-bit integer
+// value. If the conversion is not possible, false is returned, `error_out`
+// contains the error message and the caller must free the `error_out` pointer
+// with `xls_c_str_free`.
+bool xls_bits_to_uint64(const struct xls_bits* bits, char** error_out,
+                        uint64_t* value_out);
+bool xls_bits_to_int64(const struct xls_bits* bits, char** error_out,
+                       int64_t* value_out);
 struct xls_bits* xls_bits_width_slice(const struct xls_bits* bits,
                                       int64_t start, int64_t width);
 
@@ -304,6 +335,10 @@ void xls_c_str_free(char* c_str);
 
 // Frees an array of C strings that were provided by this XLS public API.
 void xls_c_strs_free(char** c_strs, size_t count);
+
+// Frees the given `bytes` -- the bytes should have been allocated by the
+// XLS library where ownership was passed back to the caller.
+void xls_bytes_free(uint8_t* bytes);
 
 // Returns a string representation of the given IR package `p`.
 bool xls_package_to_string(const struct xls_package* p, char** string_out);

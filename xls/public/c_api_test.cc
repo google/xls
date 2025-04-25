@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <functional>
 #include <initializer_list>
@@ -304,6 +305,11 @@ TEST(XlsCApiTest, FlattenBitsValueToBits) {
   ASSERT_TRUE(xls_parse_typed_value("bits[32]:0x42", &error_out, &value));
   absl::Cleanup free_value([value] { xls_value_free(value); });
 
+  xls_value_kind kind = xls_value_kind_invalid;
+  ASSERT_TRUE(xls_value_get_kind(value, &error_out, &kind));
+  EXPECT_EQ(kind, xls_value_kind_bits);
+  ASSERT_EQ(error_out, nullptr);
+
   // Get the bits from within the value. Note that it's owned by the caller.
   xls_bits* value_bits = nullptr;
   ASSERT_TRUE(xls_value_get_bits(value, &error_out, &value_bits));
@@ -335,6 +341,10 @@ TEST(XlsCApiTest, FlattenTupleValueToBits) {
   xls_value* elements[] = {u3_7, u2_0};
   xls_value* tuple = xls_value_make_tuple(/*element_count=*/2, elements);
   absl::Cleanup free_tuple([tuple] { xls_value_free(tuple); });
+
+  xls_value_kind kind = xls_value_kind_invalid;
+  ASSERT_TRUE(xls_value_get_kind(tuple, &error_out, &kind));
+  EXPECT_EQ(kind, xls_value_kind_tuple);
 
   // Get the elements and check they are equal to the originals.
   xls_value* u3_7_extracted = nullptr;
@@ -390,6 +400,10 @@ TEST(XlsCApiTest, MakeArrayValue) {
         /*element_count=*/2, elements, &error_out, &array));
     absl::Cleanup free_array([array] { xls_value_free(array); });
 
+    xls_value_kind kind = xls_value_kind_invalid;
+    ASSERT_TRUE(xls_value_get_kind(array, &error_out, &kind));
+    EXPECT_EQ(kind, xls_value_kind_array);
+
     char* value_str = nullptr;
     ASSERT_TRUE(xls_value_to_string(array, &value_str));
     absl::Cleanup free_value_str([value_str] { xls_c_str_free(value_str); });
@@ -420,6 +434,78 @@ TEST(XlsCApiTest, MakeBitsFromUint8DataWithMsbPadding) {
   EXPECT_EQ(xls_bits_get_bit(bits, 3), 0);
   EXPECT_EQ(xls_bits_get_bit(bits, 4), 1);
   EXPECT_EQ(xls_bits_get_bit(bits, 5), 1);
+}
+
+TEST(XlsCApiTest, BitsToBytes) {
+  char* error_out = nullptr;
+  xls_bits* bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(32, 0x0A0B0C0D, &error_out, &bits));
+  uint8_t* bytes = nullptr;
+  size_t byte_count = 0;
+
+  absl::Cleanup free_memory([&error_out, &bits, &bytes] {
+    xls_c_str_free(error_out);
+    xls_bits_free(bits);
+    xls_bytes_free(bytes);
+  });
+
+  ASSERT_TRUE(xls_bits_to_bytes(bits, &error_out, &bytes, &byte_count));
+  EXPECT_EQ(byte_count, 4);
+  EXPECT_EQ(bytes[0], 0x0D);
+  EXPECT_EQ(bytes[1], 0x0C);
+  EXPECT_EQ(bytes[2], 0x0B);
+  EXPECT_EQ(bytes[3], 0x0A);
+}
+
+TEST(XlsCApiTest, BitsToBytesWithPadding) {
+  char* error_out = nullptr;
+  xls_bits* bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(
+      34, 0b11'0000'0000'0000'0000'0000'0000'0000'0000, &error_out, &bits));
+  uint8_t* bytes = nullptr;
+  size_t byte_count = 0;
+
+  absl::Cleanup free_memory([&error_out, &bits, &bytes] {
+    xls_c_str_free(error_out);
+    xls_bits_free(bits);
+    xls_bytes_free(bytes);
+  });
+
+  ASSERT_TRUE(xls_bits_to_bytes(bits, &error_out, &bytes, &byte_count));
+  EXPECT_EQ(byte_count, 5);
+  EXPECT_EQ(bytes[0], 0x00);
+  EXPECT_EQ(bytes[1], 0x00);
+  EXPECT_EQ(bytes[2], 0x00);
+  EXPECT_EQ(bytes[3], 0x00);
+  EXPECT_EQ(bytes[4], 0b11);
+}
+
+TEST(XlsCApiTest, BitsToUint64Fit) {
+  char* error_out = nullptr;
+  xls_bits* bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(64, 0x0A0B0C0D, &error_out, &bits));
+  absl::Cleanup free_memory([&error_out, &bits] {
+    xls_c_str_free(error_out);
+    xls_bits_free(bits);
+  });
+
+  uint64_t value = 0;
+  ASSERT_TRUE(xls_bits_to_uint64(bits, &error_out, &value));
+  EXPECT_EQ(value, 0x0A0B0C0D);
+}
+
+TEST(XlsCApiTest, BitsToInt64Fit) {
+  char* error_out = nullptr;
+  xls_bits* bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(64, 0x0A0B0C0D, &error_out, &bits));
+  absl::Cleanup free_memory([&error_out, &bits] {
+    xls_c_str_free(error_out);
+    xls_bits_free(bits);
+  });
+
+  int64_t value = 0;
+  ASSERT_TRUE(xls_bits_to_int64(bits, &error_out, &value));
+  EXPECT_EQ(value, 0x0A0B0C0D);
 }
 
 TEST(XlsCApiTest, MakeSbitsDoesNotFit) {
