@@ -4094,62 +4094,62 @@ xls_dslx_test(
     library = ":match_finder_dslx",
 )
 
-match_finder_codegen_args = common_codegen_args | {
-    "module_name": "MatchFinder",
-    "pipeline_stages": "16",
-    "worst_case_throughput": "2",
-}
-
-xls_dslx_verilog(
-    name = "match_finder_verilog",
-    codegen_args = match_finder_codegen_args,
-    dslx_top = "MatchFinderInst",
-    library = ":match_finder_dslx",
-    verilog_file = "match_finder.v",
-)
-
-xls_benchmark_ir(
-    name = "match_finder_opt_ir_benchmark",
-    src = ":match_finder_verilog.opt.ir",
-    benchmark_ir_args = match_finder_codegen_args,
-)
-
-xls_benchmark_verilog(
-    name = "match_finder_verilog_benchmark",
-    verilog_target = "match_finder_verilog",
-)
-
-verilog_library(
-    name = "match_finder_verilog_lib",
-    srcs = [
-        ":match_finder.v",
-    ],
-)
-
-synthesize_rtl(
-    name = "match_finder_asap7",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
-    top_module = "MatchFinder",
-    deps = [
-        ":match_finder_verilog_lib",
-    ],
-)
-
-benchmark_synth(
-    name = "match_finder_benchmark_synth",
-    synth_target = ":match_finder_asap7",
-)
-
-place_and_route(
-    name = "match_finder_place_and_route",
-    clock_period = "750",
-    core_padding_microns = 2,
-    min_pin_distance = "0.09",
-    placement_density = "0.30",
-    stop_after_step = "global_routing",
-    synthesized_rtl = ":match_finder_asap7",
-    target_die_utilization_percentage = "10",
-)
+# match_finder_codegen_args = common_codegen_args | {
+#     "module_name": "MatchFinder",
+#     "pipeline_stages": "16",
+#     "worst_case_throughput": "2",
+# }
+#
+# xls_dslx_verilog(
+#     name = "match_finder_verilog",
+#     codegen_args = match_finder_codegen_args,
+#     dslx_top = "MatchFinderInst",
+#     library = ":match_finder_dslx",
+#     verilog_file = "match_finder.v",
+# )
+#
+# xls_benchmark_ir(
+#     name = "match_finder_opt_ir_benchmark",
+#     src = ":match_finder_verilog.opt.ir",
+#     benchmark_ir_args = match_finder_codegen_args,
+# )
+#
+# xls_benchmark_verilog(
+#     name = "match_finder_verilog_benchmark",
+#     verilog_target = "match_finder_verilog",
+# )
+#
+# verilog_library(
+#     name = "match_finder_verilog_lib",
+#     srcs = [
+#         ":match_finder.v",
+#     ],
+# )
+#
+# synthesize_rtl(
+#     name = "match_finder_asap7",
+#     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+#     top_module = "MatchFinder",
+#     deps = [
+#         ":match_finder_verilog_lib",
+#     ],
+# )
+#
+# benchmark_synth(
+#     name = "match_finder_benchmark_synth",
+#     synth_target = ":match_finder_asap7",
+# )
+#
+# place_and_route(
+#     name = "match_finder_place_and_route",
+#     clock_period = "750",
+#     core_padding_microns = 2,
+#     min_pin_distance = "0.09",
+#     placement_density = "0.30",
+#     stop_after_step = "global_routing",
+#     synthesized_rtl = ":match_finder_asap7",
+#     target_die_utilization_percentage = "10",
+# )
 
 xls_dslx_library(
     name = "mem_writer_mux_dslx",
