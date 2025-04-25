@@ -19,64 +19,8 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/cc_parser.h"
+#include "xls/contrib/xlscc/unit_tests/clang_util.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
-
-// From cc_parser_test
-template <typename ClangT>
-const ClangT* GetStmtInCompoundStmt(const clang::CompoundStmt* stmt) {
-  for (const clang::Stmt* body_st : stmt->children()) {
-    if (const clang::LabelStmt* label =
-            clang::dyn_cast<clang::LabelStmt>(body_st);
-        label != nullptr) {
-      body_st = label->getSubStmt();
-    }
-
-    const ClangT* ret;
-    if (const clang::CompoundStmt* cmpnd_stmt =
-            clang::dyn_cast<clang::CompoundStmt>(body_st);
-        cmpnd_stmt != nullptr) {
-      ret = GetStmtInCompoundStmt<ClangT>(cmpnd_stmt);
-    } else {
-      ret = clang::dyn_cast<const ClangT>(body_st);
-    }
-    if (ret != nullptr) {
-      return ret;
-    }
-  }
-
-  return nullptr;
-}
-
-// From cc_parser_test
-template <typename ClangT>
-const ClangT* GetStmtInFunction(const clang::FunctionDecl* func) {
-  const clang::Stmt* body = func->getBody();
-  if (body == nullptr) {
-    return nullptr;
-  }
-
-  for (const clang::Stmt* body_st : body->children()) {
-    if (const clang::LabelStmt* label =
-            clang::dyn_cast<clang::LabelStmt>(body_st);
-        label != nullptr) {
-      body_st = label->getSubStmt();
-    }
-
-    const ClangT* ret;
-    if (const clang::CompoundStmt* cmpnd_stmt =
-            clang::dyn_cast<clang::CompoundStmt>(body_st);
-        cmpnd_stmt != nullptr) {
-      ret = GetStmtInCompoundStmt<ClangT>(cmpnd_stmt);
-    } else {
-      ret = clang::dyn_cast<const ClangT>(body_st);
-    }
-    if (ret != nullptr) {
-      return ret;
-    }
-  }
-
-  return nullptr;
-}
 
 void CheckStmtsEq(const clang::Stmt* first, const clang::Stmt* second) {
   ASSERT_NE(first, second);

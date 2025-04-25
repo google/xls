@@ -28,7 +28,7 @@ cc_library(
     name = "unit_test",
     testonly = 1,
     srcs = ["unit_test.cc"],
-    hdrs = ["unit_test.h"],
+    hdrs = ["clang_util.h", "unit_test.h"],
     deps = [
         "//xls/codegen:module_signature_cc_proto",
         "//xls/common:source_location",
