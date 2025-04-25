@@ -1598,7 +1598,7 @@ const Y = zero!<S::X>();
                   "Expected a type argument in `zero!<S::X>()`; saw `S::X`"))));
 }
 
-TEST(TypecheckTest, ZeroMacroImportedType) {
+TEST_P(TypecheckBothVersionsTest, ZeroMacroImportedType) {
   constexpr std::string_view kImported = R"(
 pub type foo_t = u32;
 )";
@@ -1607,11 +1607,8 @@ import imported;
 const Y = zero!<imported::foo_t>();
 )";
   auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule module,
-      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
-  XLS_ASSERT_OK(
-      ParseAndTypecheck(kProgram, "fake_main_path.x.x", "main", &import_data));
+  XLS_EXPECT_OK(Typecheck(kImported, "imported", &import_data));
+  XLS_ASSERT_OK(Typecheck(kProgram, "main", &import_data));
 }
 
 TEST_P(TypecheckBothVersionsTest, DerivedParametricStructUsingNonDefault) {

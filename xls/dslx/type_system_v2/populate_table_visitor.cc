@@ -1471,18 +1471,35 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
   absl::Status HandleZeroOrOneMacro(const AstNode* node, ExprOrType type) {
-    if (std::holds_alternative<TypeAnnotation*>(type)) {
-      // If the "type" is a type annotation, that's the type.
-      XLS_RETURN_IF_ERROR(
-          table_.SetTypeAnnotation(node, std::get<TypeAnnotation*>(type)));
-      return DefaultHandler(node);
+    if (std::holds_alternative<Expr*>(type)) {
+      Expr* expr = std::get<Expr*>(type);
+      if (ColonRef* colon_ref = dynamic_cast<ColonRef*>(expr)) {
+        XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
+                             GetImportedModuleInfo(colon_ref, import_data_));
+        if (import_module.has_value()) {
+          XLS_ASSIGN_OR_RETURN(ModuleMember member,
+                               GetPublicModuleMember((*import_module)->module(),
+                                                     colon_ref, file_table_));
+          if (std::holds_alternative<TypeAlias*>(member)) {
+            XLS_RETURN_IF_ERROR(SetCrossTableTypeAnnotation(
+                node, (*import_module)->inference_table(),
+                ToAstNode(&std::get<TypeAlias*>(member)->name_def())));
+            return DefaultHandler(node);
+          }
+        }
+      }
+      // If it's a non-import "expr", that's an error (just like in V1)
+      return TypeInferenceErrorStatus(
+          *node->GetSpan(), nullptr,
+          absl::Substitute("Expected a type argument in `$0`; saw `$1`.",
+                           node->ToString(), std::get<Expr*>(type)->ToString()),
+          file_table_);
     }
-    // If it's an "expr", that's an error (just like in V1)
-    return TypeInferenceErrorStatus(
-        *node->GetSpan(), nullptr,
-        absl::Substitute("Expected a type argument in `$0`; saw `$1`.",
-                         node->ToString(), std::get<Expr*>(type)->ToString()),
-        file_table_);
+
+    // If the "type" is not an expr, then it is the type annotation.
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeAnnotation(node, std::get<TypeAnnotation*>(type)));
+    return DefaultHandler(node);
   }
 
   absl::Status HandleZeroMacro(const ZeroMacro* node) override {
@@ -1678,6 +1695,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     if (type_var.has_value()) {
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           node, module_.Make<TypeVariableTypeAnnotation>(*type_var)));
+    } else {
+      std::optional<const TypeAnnotation*> annotation =
+          other_table->GetTypeAnnotation(external_reference);
+      if (annotation.has_value()) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, *annotation));
+      }
     }
     return absl::OkStatus();
   }

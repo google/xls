@@ -3315,8 +3315,7 @@ TEST(TypecheckV2Test, ZeroMacroArray) {
               TypecheckSucceeds(HasNodeWithType("Y", "uN[10][2]")));
 }
 
-TEST(TypecheckV2Test, DISABLED_ZeroMacroEnum) {
-  // Type inference v2 cannot handle enums yet.
+TEST(TypecheckV2Test, ZeroMacroEnum) {
   EXPECT_THAT(R"(
 enum E: u2 { ZERO=0, ONE=1, TWO=2}
 const Y = zero!<E>();)",
@@ -3389,13 +3388,18 @@ const Y = zero!<S::X>();
               TypecheckFails(HasSubstr("in `zero!<S::X>()`")));
 }
 
-// We don't support imports in the type system yet.
-TEST(TypecheckV2Test, DISABLED_ZeroMacroImportedType) {
-  EXPECT_THAT(R"(
+TEST(TypecheckV2Test, ZeroMacroImportedType) {
+  constexpr std::string_view kImported = R"(
+pub type X = u10;
+)";
+  constexpr std::string_view kProgram = R"(
 import imported;
 const Y = zero!<imported::X>();
-)",
-              TypecheckSucceeds(HasNodeWithType("Y", "uN[10]")));
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "uN[10]"))));
 }
 
 TEST(TypecheckV2Test, GlobalConstantEqualsLShiftOfLiterals) {
@@ -3553,13 +3557,18 @@ const Y = all_ones!<S::X>();
               TypecheckFails(HasSubstr("in `all_ones!<S::X>()`")));
 }
 
-// We don't support imports in the type system yet.
-TEST(TypecheckV2Test, DISABLED_AllOnesMacroImportedType) {
-  EXPECT_THAT(R"(
+TEST(TypecheckV2Test, AllOnesMacroImportedType) {
+  constexpr std::string_view kImported = R"(
+pub type X = u10;
+)";
+  constexpr std::string_view kProgram = R"(
 import imported;
 const Y = all_ones!<imported::X>();
-)",
-              TypecheckSucceeds(HasNodeWithType("Y", "uN[10]")));
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "uN[10]"))));
 }
 
 TEST(TypecheckV2Test, UnassignedReturnValueIgnored) {
