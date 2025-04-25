@@ -466,9 +466,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "block_header_opt_ir_benchmark",
     src = ":block_header_verilog.opt.ir",
-    benchmark_ir_args = common_codegen_args | {
-        "inline_procs": "false",
-    },
+    benchmark_ir_args = common_codegen_args,
     tags = ["manual"],
 )
 
@@ -476,7 +474,7 @@ verilog_library(
     name = "block_header_verilog_lib",
     srcs = [
         ":block_header.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -3875,10 +3873,6 @@ xls_dslx_verilog(
     },
     dslx_top = "HashTableInst",
     library = ":hash_table_dslx",
-    opt_ir_args = {
-        "inline_procs": "true",
-        "top": "__hash_table__HashTableInst__HashTable_0__HashTableWriteRespHandler_0_next",
-    },
     verilog_file = "hash_table.v",
 )
 
@@ -3956,10 +3950,6 @@ xls_dslx_verilog(
     dslx_top = "AlignedParallelRamInst",
     library = ":aligned_parallel_ram_dslx",
     tags = ["manual"],
-    opt_ir_args = {
-        "inline_procs": "true",
-        "top": "__aligned_parallel_ram__AlignedParallelRamInst__AlignedParallelRam_0__10_64_7_8_1_8_128_1024_next",
-    },
     verilog_file = "aligned_parallel_ram.v",
 )
 
@@ -4038,10 +4028,6 @@ xls_dslx_verilog(
     dslx_top = "HistoryBufferInst",
     library = ":history_buffer_dslx",
     tags = ["manual"],
-    opt_ir_args = {
-        "inline_procs": "true",
-        "top": "__history_buffer__HistoryBufferInst__HistoryBuffer_0__64_10_7_8_1_8_128_1024_next",
-    },
     verilog_file = "history_buffer.v",
 )
 
@@ -4097,7 +4083,7 @@ xls_dslx_library(
         "//xls/modules/zstd/memory:mem_reader_dslx",
         "//xls/modules/zstd/memory:mem_writer_dslx",
         "//xls/modules/zstd/memory:axi_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
         ":hash_table_dslx",
         ":history_buffer_dslx",
     ],
@@ -4119,10 +4105,6 @@ xls_dslx_verilog(
     codegen_args = match_finder_codegen_args,
     dslx_top = "MatchFinderInst",
     library = ":match_finder_dslx",
-    opt_ir_args = {
-        "inline_procs": "true",
-        "top": "__match_finder__MatchFinderInst__MatchFinder_0__32_64_7_8_10_1024_8_512_10_40_3_next",
-    },
     verilog_file = "match_finder.v",
 )
 
@@ -4200,19 +4182,12 @@ xls_dslx_verilog(
     library = ":mem_writer_mux_dslx",
     tags = ["manual"],
     verilog_file = "mem_writer_mux.v",
-    opt_ir_args = {
-        "inline_procs": "false",
-    },
 )
 
 xls_benchmark_ir(
     name = "mem_writer_mux_opt_ir_benchmark",
     src = ":mem_writer_mux_verilog.opt.ir",
     codegen_args = mem_writer_mux_codegen_args,
-    benchmark_ir_args = {
-        "inline_procs": "true",
-        "top": "__mem_writer_mux__MemWriterMuxInst__MemWriterMux_0__32_32_0_5_3_next",
-    },
     tags = ["manual"],
 )
 
@@ -4282,19 +4257,12 @@ xls_dslx_verilog(
     library = ":mem_reader_mux_dslx",
     tags = ["manual"],
     verilog_file = "mem_reader_mux.v",
-    opt_ir_args = {
-        "inline_procs": "false",
-    },
 )
 
 xls_benchmark_ir(
     name = "mem_reader_mux_opt_ir_benchmark",
     src = ":mem_reader_mux_verilog.opt.ir",
     codegen_args = mem_reader_mux_codegen_args,
-    benchmark_ir_args = {
-        "inline_procs": "true",
-        "top": "__mem_reader_mux__MemReaderMuxInst__MemReaderMux_0__32_32_0_5_3_next",
-    },
     tags = ["manual"],
 )
 
@@ -4344,7 +4312,7 @@ xls_dslx_library(
         ":mem_reader_simple_arbiter_dslx",
         ":mem_copy_dslx",
         "//xls/modules/zstd/memory:axi_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
     ],
 )
 
@@ -4383,19 +4351,12 @@ xls_dslx_verilog(
     library = ":mem_writer_simple_arbiter_dslx",
     tags = ["manual"],
     verilog_file = "mem_writer_simple_arbiter.v",
-    opt_ir_args = {
-        "inline_procs": "false",
-    },
 )
 
 xls_benchmark_ir(
     name = "mem_writer_simple_arbiter_opt_ir_benchmark",
     src = ":mem_writer_simple_arbiter_verilog.opt.ir",
     codegen_args = mem_writer_simple_arbiter_codegen_args,
-    benchmark_ir_args = {
-        "inline_procs": "true",
-        "top": "__mem_writer_simple_arbiter__MemWriterSimpleArbiterInst__MemWriterSimpleArbiter_0__32_32_5_3_next",
-    },
     tags = ["manual"],
 )
 
@@ -4403,7 +4364,7 @@ verilog_library(
     name = "mem_writer_simple_arbiter_verilog_lib",
     srcs = [
         ":mem_writer_simple_arbiter.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -4467,19 +4428,12 @@ xls_dslx_verilog(
     library = ":mem_reader_simple_arbiter_dslx",
     tags = ["manual"],
     verilog_file = "mem_reader_simple_arbiter.v",
-    opt_ir_args = {
-        "inline_procs": "false",
-    },
 )
 
 xls_benchmark_ir(
     name = "mem_reader_simple_arbiter_opt_ir_benchmark",
     src = ":mem_reader_simple_arbiter_verilog.opt.ir",
     codegen_args = mem_reader_simple_arbiter_codegen_args,
-    benchmark_ir_args = {
-        "inline_procs": "true",
-        "top": "__mem_reader_simple_arbiter__MemReaderSimpleArbiterInst__MemReaderSimpleArbiter_0__32_32_5_3_next",
-    },
     tags = ["manual"],
 )
 
@@ -4487,7 +4441,7 @@ verilog_library(
     name = "mem_reader_simple_arbiter_verilog_lib",
     srcs = [
         ":mem_reader_simple_arbiter.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -4551,9 +4505,6 @@ xls_dslx_verilog(
     library = ":sequence_header_writer_dslx",
     tags = ["manual"],
     verilog_file = "sequence_conf_enc.v",
-    opt_ir_args = {
-        "inline_procs": "false",
-    },
 )
 
 
@@ -4561,9 +4512,6 @@ xls_benchmark_ir(
     name = "sequence_header_writer_opt_ir_benchmark",
     src = ":sequence_header_writer_verilog.opt.ir",
     codegen_args = sequence_header_writer_codegen_args,
-    benchmark_ir_args = {
-        "inline_procs": "false",
-    },
     tags = ["manual"],
 )
 
@@ -4628,10 +4576,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "mem_copy_opt_ir_benchmark",
     src = ":mem_copy_verilog.opt.ir",
-    benchmark_ir_args = common_codegen_args | {
-        "inline_procs": "true",
-        "top": "__mem_copy__RawMemcopyInst__RawMemcopy_0__RawMemcopyInternal_0__32_64_next"
-    },
+    benchmark_ir_args = common_codegen_args,
     tags = ["manual"],
 )
 
@@ -4639,7 +4584,7 @@ verilog_library(
     name = "mem_copy_verilog_lib",
     srcs = [
         ":mem_copy.v",
-        ":xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -4697,10 +4642,6 @@ xls_dslx_verilog(
     dslx_top = "FrameHeaderEncoderInst",
     library = ":frame_header_enc_dslx",
     tags = ["manual"],
-    opt_ir_args = {
-        "inline_procs": "true",
-        "top": "__frame_header_enc__FrameHeaderEncoderInst__FrameHeaderEncoder_0__16_32_5_22_next",
-    },
     verilog_file = "frame_header_enc.v",
 )
 
@@ -4770,7 +4711,7 @@ xls_dslx_test(
     deps = [
         ":zstd_encoder_dslx",
         "//xls/modules/zstd/memory:axi_dslx",
-        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
         "//xls/modules/zstd/memory:axi_ram_writer_dslx",
     ]
 )
@@ -4786,20 +4727,13 @@ xls_dslx_verilog(
     dslx_top = "ZstdEncoderInst",
     library = ":zstd_encoder_dslx",
     tags = ["manual"],
-    opt_ir_args = {
-        "inline_procs": "true",
-        "top": "__zstd_enc__ZstdEncoderInst__ZstdEncoder_0__32_32_next",
-    },
     verilog_file = "zstd_enc.v",
 )
 
 xls_benchmark_ir(
     name = "zstd_encoder_opt_ir_benchmark",
     src = ":zstd_encoder_verilog.opt.ir",
-    benchmark_ir_args = zstd_encoder_codegen_args | {
-        "inline_procs": "true",
-        "top": "__zstd_enc__ZstdEncoderInst__ZstdEncoder_0__32_32_next",
-    },
+    benchmark_ir_args = zstd_encoder_codegen_args,
     tags = ["manual"],
 )
 

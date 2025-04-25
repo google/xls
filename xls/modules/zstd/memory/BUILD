@@ -861,10 +861,7 @@ xls_benchmark_ir(
     name = "axi_ram_writer_opt_ir_benchmark",
     src = ":axi_ram_writer_verilog.opt.ir",
     codegen_args = axi_ram_writer_codegen_args,
-    benchmark_ir_args = common_codegen_args | {
-        "inline_procs": "true",
-        "top": "__axi_ram_writer__AxiRamWriterInst__AxiRamWriter_0__AxiRamWriterRequester_0__32_32_4_8_4_7_128_next",
-    },
+    benchmark_ir_args = common_codegen_args,
     tags = ["manual"],
 )
 
