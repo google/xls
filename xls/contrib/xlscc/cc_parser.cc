@@ -481,7 +481,8 @@ struct XlsUnrollAttrInfo : public clang::ParsedAttrInfo {
       if (Attr.isArgExpr(0)) {
         args[0] = Attr.getArgAsExpr(0);
       } else {
-        std::string_view arg_name = Attr.getArgAsIdent(0)->Ident->getName();
+        std::string_view arg_name =
+            Attr.getArgAsIdent(0)->getIdentifierInfo()->getName();
         if (absl::EqualsIgnoreCase(arg_name, "no")) {
           const clang::PresumedLoc presumed_loc =
               S.getSourceManager().getPresumedLoc(Attr.getLoc());
@@ -549,8 +550,8 @@ struct XlsChannelStrictnessAttrInfo : public clang::ParsedAttrInfo {
     std::string strictness_str;
     clang::SourceLocation arg_loc;
     if (Attr.isArgIdent(0)) {
-      strictness_str = Attr.getArgAsIdent(0)->Ident->getName();
-      arg_loc = Attr.getArgAsIdent(0)->Loc;
+      strictness_str = Attr.getArgAsIdent(0)->getIdentifierInfo()->getName();
+      arg_loc = Attr.getArgAsIdent(0)->getLoc();
     } else {
       args[0] = Attr.getArgAsExpr(0);
       arg_loc = args[0]->getExprLoc();
