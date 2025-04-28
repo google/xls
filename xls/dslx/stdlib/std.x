@@ -608,6 +608,40 @@ fn mask_bits_test() {
     assert_eq(u13:0x1fff, mask_bits<u32:13>());
 }
 
+// The result of comparing two values.
+pub enum Ordering : s2 {
+    Less = -1,
+    Equal = 0,
+    Greater = 1,
+}
+
+// Compares two integers of the same sign and width.
+//
+// The reason to use this over a comparison operator such as `<` is that this exhaustively
+// handles all 3 cases; you can match on the result.
+pub fn compare<S: bool, N: u32>(lhs: xN[S][N], rhs: xN[S][N]) -> Ordering {
+    if lhs < rhs {
+        Ordering::Less
+    } else if lhs > rhs {
+        Ordering::Greater
+    } else {
+        Ordering::Equal
+    }
+}
+
+#[test]
+fn test_compare() {
+    // Unsigned comparisons
+    assert_eq(compare(u8:1, u8:2), Ordering::Less);
+    assert_eq(compare(u8:2, u8:2), Ordering::Equal);
+    assert_eq(compare(u8:3, u8:2), Ordering::Greater);
+
+    // Signed comparisons
+    assert_eq(compare(s8:-1, s8:0), Ordering::Less);
+    assert_eq(compare(s8:0, s8:0), Ordering::Equal);
+    assert_eq(compare(s8:1, s8:0), Ordering::Greater);
+}
+
 // "Explicit signed comparison" helpers for working with unsigned values, can be
 // a bit more convenient and a bit more explicit intent than doing casting of
 // left hand side and right hand side.
