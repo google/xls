@@ -839,7 +839,7 @@ fn f() -> bool { p(u7:0) }
   }
 }
 
-TEST(TypecheckTest, MapOfParametric) {
+TEST_P(TypecheckBothVersionsTest, MapOfParametric) {
   constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> bits[N] { x }
 
@@ -850,7 +850,7 @@ fn f() -> u32[3] {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, MapOfParametricExplicit) {
+TEST_P(TypecheckBothVersionsTest, MapOfParametricExplicit) {
   constexpr std::string_view kProgram =
       R"(
 fn f<N:u32, K:u32>(x: u32) -> uN[N] { x as uN[N] + K as uN[N] }
@@ -860,7 +860,8 @@ fn main() -> u5[4] { map(u32[4]:[0, 1, 2, 3], f<u32:5, u32:17>) }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, MapOfParametricExplicitWithWrongNumberOfArgs) {
+TEST_P(TypecheckBothVersionsTest,
+       MapOfParametricExplicitWithWrongNumberOfArgs) {
   constexpr std::string_view kProgram =
       R"(
 fn f<N:u32, K:u32>(x: u32) -> uN[N] { x as uN[N] + K as uN[N] }
@@ -968,7 +969,7 @@ fn g() -> u32 { f(u32: 5) }
                        HasSubstr("Recursion of function `f` detected")));
 }
 
-TEST(TypecheckErrorTest, HigherOrderRecursionCausesError) {
+TEST_P(TypecheckBothVersionsTest, HigherOrderRecursionCausesError) {
   constexpr std::string_view kProgram = R"(
 fn h<Y: u32>(y: bits[Y]) -> bits[Y] { h(y) }
 fn g() -> u32[3] {
@@ -2034,6 +2035,7 @@ fn f(x: u32) -> u2 {
 
 // This test adds a literal u5 to a parametric-typed number -- which only works
 // when that parametric-type number is also coincidentally a u5.
+// TODO: davidplass - this fails in v2 because of a module mismatch
 TEST(TypecheckErrorTest, ParametricMapNonPolymorphic) {
   EXPECT_THAT(Typecheck(R"(
 fn add_one<N: u32>(x: bits[N]) -> bits[N] { x + u5:1 }
