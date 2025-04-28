@@ -75,6 +75,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return module->Accept(this);
   }
 
+  absl::Status PopulateFromInvocation(const Invocation* invocation) override {
+    return invocation->Accept(this);
+  }
+
   absl::Status HandleImport(const Import* node) override {
     VLOG(5) << "HandleImport: " << node->ToString();
     ImportTokens import_subject = ImportTokens(node->subject());

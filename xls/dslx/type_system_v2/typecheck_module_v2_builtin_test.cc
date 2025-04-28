@@ -581,10 +581,11 @@ TEST(TypecheckV2BuiltinTest, MapTooManyArguments) {
 }
 
 TEST(TypecheckV2BuiltinTest, MapFirstArgNotArray) {
-  EXPECT_THAT(R"(
+  EXPECT_THAT(
+      R"(
 const X = true;
 const Y = map(X, ctz);)",
-              TypecheckFails(HasSubstr("Could not infer parametric(s): N")));
+      TypecheckFails(HasSubstr("requires a specified bit count")));
 }
 
 TEST(TypecheckV2BuiltinTest, MapSecondArgConstant) {
@@ -630,7 +631,7 @@ const Y = map([u32:2], to_zero_31);
 
 // This isn't allowed in v1, and will not be allowed in v2 either, because the
 // "F" type needs to be (T)->U which is not expressible currently in DSLX.
-TEST(TypecheckV2BuiltinTest, MapExplicitParametrics) {
+TEST(TypecheckV2BuiltinTest, MapWithParametricsForbidden) {
   EXPECT_THAT(
       R"(
 fn to_zero_31(x: uN[32]) -> u31 { u31:0 }
@@ -651,18 +652,71 @@ const Z = map([u32:2, u32:3], to_zero_31);
                               HasNodeWithType("Z", "uN[31][2]"))));
 }
 
-// TODO: davidplass - finish this
-TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricFnExplicitParametrics) {
+TEST(TypecheckV2BuiltinTest, MapParametricMapperExplicit) {
   EXPECT_THAT(
       R"(
-fn identity<N: u32>(input: uN[N]) -> uN[N] { input }
-const Y: u30[1] = map([u30:5], identity<u32:30>);
+fn identity<IDENT_N: u32>(input: uN[IDENT_N]) -> uN[IDENT_N] { input }
+fn f() -> u30[2] {
+  map([u30:5, u30:6], identity<u32:30>)
+}
 )",
-      TypecheckSucceeds(HasNodeWithType("Y", "uN[30][1]")));
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("f", "() -> uN[30][2]"),
+                HasNodeWithType("identity", "(uN[30]) -> uN[30]"))));
+}
+
+TEST(TypecheckV2BuiltinTest, MapParametricMapperImplied) {
+  EXPECT_THAT(
+      R"(
+fn identity<IDENT_N: u32>(input: uN[IDENT_N]) -> uN[IDENT_N] { input }
+fn f() -> u30[2] {
+  map([u30:5, u30:6], identity)
+}
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("f", "() -> uN[30][2]"),
+                HasNodeWithType("identity", "(uN[30]) -> uN[30]"))));
+}
+
+TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricMapperImpliedConst) {
+  EXPECT_THAT(
+      R"(
+fn identity<IDENT_N: u32>(input: uN[IDENT_N]) -> uN[IDENT_N] { input }
+const Y = map([u30:5, u30:6], identity);
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("Y", "uN[30][2]"),
+                HasNodeWithType("identity", "(uN[30]) -> uN[30]"))));
 }
 
 // TODO: davidplass - finish this
-TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricFnImpliedParametrics) {
+TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricMapperExplicitConstExpr) {
+  EXPECT_THAT(
+      R"(
+fn identity<IDENT_N: u32>(input: uN[IDENT_N]) -> uN[IDENT_N] { input }
+const Y = map([u30:5, u30:6], identity<u32:30>);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[30][2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapParametricMapperExplicitReturnParametric) {
+  EXPECT_THAT(
+      R"(
+fn mapper<IDENT_IN: u32, IDENT_OUT: u32>(input: uN[IDENT_IN]) -> uN[IDENT_OUT] {
+  zero!<uN[IDENT_OUT]>()
+}
+
+fn f() -> u31[2] {
+  map([u30:5, u30:6], mapper<u32:30, u32:31>)
+}
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("f", "() -> uN[31][2]"),
+                HasNodeWithType("mapper", "(uN[30]) -> uN[31]"))));
+}
+
+// TODO: davidplass - finish this
+TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricMapperImpliedConstWithHint) {
   EXPECT_THAT(
       R"(
 fn identity<N: u32>(input: uN[N]) -> uN[N] { input }
@@ -671,13 +725,10 @@ const Y: u30[1] = map([u30:5], identity);
       TypecheckSucceeds(HasNodeWithType("Y", "uN[30][1]")));
 }
 
-// This is the same issue as the previous test case.
-TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricBuiltinFn) {
-  EXPECT_THAT(
-      R"(
-const Y = map([u32:1], ctz);
-)",
-      TypecheckSucceeds(HasNodeWithType("Y", "uN[32][1]")));
+TEST(TypecheckV2BuiltinTest, MapParametricBuiltinMapperImpliedConst) {
+  // This probably works because ctz is in the same module as map.
+  EXPECT_THAT(R"(const Y = map([u32:1], ctz);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32][1]")));
 }
 
 TEST(TypecheckV2BuiltinTest, OneHot) {

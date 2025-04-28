@@ -63,6 +63,7 @@
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/populate_table_visitor.h"
 #include "xls/dslx/type_system_v2/solve_for_parametrics.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 #include "xls/dslx/type_system_v2/type_annotation_resolver.h"
@@ -1910,13 +1911,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     Expr* mapper = invocation->args()[1];
     FunctionRef* mapper_fn = dynamic_cast<FunctionRef*>(mapper);
-    std::vector<ExprOrType> fake_explicit_parametrics;
+    std::vector<ExprOrType> mapper_explicit_parametrics;
     if (mapper_fn != nullptr && !mapper_fn->explicit_parametrics().empty()) {
-      // TODO: davidplass - finish this for explicit parametrics.
-      // Uncommenting the next line causes a disengaged value crash
-      // because there are no type variables for the mapper and/or the
-      // explicit parametric parameters.
-      // fake_explicit_parametrics = mapper_fn->explicit_parametrics();
+      mapper_explicit_parametrics = mapper_fn->explicit_parametrics();
       mapper = mapper_fn->callee();
     }
 
@@ -1929,7 +1926,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     Expr* array_of_0 = module_.Make<Index>(array_arg->span(), array_arg, index);
     Invocation* mapper_invocation = module_.Make<Invocation>(
         mapper->span(), mapper, std::vector<Expr*>{array_of_0},
-        std::move(fake_explicit_parametrics));
+        std::move(mapper_explicit_parametrics));
     XLS_ASSIGN_OR_RETURN(
         const NameRef* mapper_invocation_var,
         table_.DefineInternalVariable(
@@ -1939,11 +1936,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                              invocation->owner()->name())));
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(mapper_invocation, mapper_invocation_var));
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        mapper, module_.Make<FunctionTypeAnnotation>(
-                    std::vector<const TypeAnnotation*>{
-                        module_.Make<ElementTypeAnnotation>(*array_type)},
-                    module_.Make<AnyTypeAnnotation>())));
+
+    std::unique_ptr<PopulateTableVisitor> visitor =
+        CreatePopulateTableVisitor(&module_, &table_, &import_data_,
+                                   /*typecheck_imported_module=*/nullptr);
+    XLS_RETURN_IF_ERROR(visitor->PopulateFromInvocation(mapper_invocation));
 
     XLS_RETURN_IF_ERROR(
         ConvertSubtree(mapper_invocation, std::nullopt, caller_context));

@@ -72,6 +72,7 @@ cc_library(
         ":inference_table",
         ":inference_table_converter",
         ":parametric_struct_instantiator",
+        ":populate_table_visitor",
         ":solve_for_parametrics",
         ":type_annotation_filter",
         ":type_annotation_resolver",
