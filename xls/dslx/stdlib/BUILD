@@ -628,6 +628,23 @@ xls_dslx_prove_quickcheck_test(
     srcs = ["abs_diff.x"],
 )
 
+xls_dslx_library(
+    name = "fixed_point_dslx",
+    srcs = ["fixed_point.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "fixed_point_dslx_fmt_test",
+    src = "fixed_point.x",
+    opportunistic_postcondition = True,
+)
+
+xls_dslx_test(
+    name = "fixed_point_dslx_test",
+    srcs = ["fixed_point.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
