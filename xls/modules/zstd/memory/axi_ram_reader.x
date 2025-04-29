@@ -102,9 +102,6 @@ proc AxiRamReaderRequester<
 
         // validate bundle
         let ar_bundle_ok = ar_bundle_valid && ((ar_bundle.size as u32 + u32:3) <= AXI_DATA_W_LOG2);
-        //if ar_bundle_valid {
-        //    trace_fmt!("{:#x}", ar_bundle);
-        //} else {};
 
         let error = ar_bundle_valid && !ar_bundle_ok;
         let tok = send_if(tok, sync_s, error, Sync {
@@ -129,9 +126,6 @@ proc AxiRamReaderRequester<
             mask: !uN[RAM_NUM_PARTITIONS]:0,
         };
         let tok = send_if(join(), rd_req_s, do_read_from_ram, ram_read_req);
-        if do_read_from_ram {
-            trace_fmt!("Sent RAM read request {:#x}", ram_read_req);
-        } else {};
 
         // send sync
         let resp = if addr_valid {
@@ -252,13 +246,9 @@ proc AxiRamReaderResponder<
 
         // receive sync
         let (tok, sync_data) = recv(tok, sync_r);
-        trace_fmt!("Received sync {:#x}", sync_data);
 
         // receive RAM read respose
         let (tok, ram_read_resp) = recv_if(tok, rd_resp_r, sync_data.do_recv_ram_resp, zero!<ReadResp>());
-        if sync_data.do_recv_ram_resp {
-            trace_fmt!("Received RAM response {:#x}", ram_read_resp);
-        } else {};
 
         let mask = (uN[RAM_DATA_W]:1 << sync_data.read_data_size) as uN[RAM_DATA_W] - uN[RAM_DATA_W]:1;
         let mask = (mask << state.data_size);
@@ -692,7 +682,6 @@ proc AxiRamReaderTest {
             for (j, tok): (u32, token) in u32:0..TEST_RAM_SIZE {
                 if (j <= data_len) {
                     let (tok, data) = recv(tok, axi_r_r);
-                    trace_fmt!("Received data #{} {:#x}", j, data);
                     // compute address
                     let araddr = match axi_ar_bundle.burst {
                         AxiAxBurst::FIXED => {

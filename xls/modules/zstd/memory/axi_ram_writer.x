@@ -79,12 +79,10 @@ proc AxiRamWriterRequesterInternal<
                 let tok = send(tok, sync_s, Sync { id: state.conf.id, error_code: axi::AxiWriteResp::DECERR });
                 State { active: false, conf: zero!<Conf>() }
             } else {
-                trace_fmt!("Receiving new burst, conf: {:#x}", conf);
                 State { active: true, conf }
             }
         } else {
             let (tok, axi_w) = recv(tok, axi_w_r);
-            trace_fmt!("Received data packet: {:#x}, writing to {:#x}", axi_w, state.conf.addr);
 
             let (new_addr, supported_mode) = if state.conf.burst == axi::AxiAxBurst::INCR {
                 (state.conf.addr + uN[RAM_ADDR_W]:1, true)
@@ -167,7 +165,6 @@ proc AxiRamWriterRequester<
 
     next(state: ()) {
         let (tok, aw_bundle) = recv(join(), axi_aw_r);
-        trace_fmt!("Received AW bundle: {:#x}", aw_bundle);
         // convert received address to ram cell address
         let addr = (aw_bundle.addr / DATA_W_BYTES);
         let tok = send(tok, conf_s, Conf {
@@ -207,7 +204,6 @@ proc AxiRamWriterResponder<
             resp: sync.error_code
         };
 
-        trace_fmt!("AXI response {:#x}", axi_response);
         send(tok, axi_b_s, axi_response);
     }
 }
