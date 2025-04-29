@@ -150,12 +150,13 @@ class ParametricContext {
   std::string ToString() const {
     return absl::Substitute(
         "ParametricContext(id=$0, parent_id=$1, self_type=$2, node=$3, "
-        "data=($4))",
+        "data=($4), type_info_module=$5)",
         id_,
         parent_context_.has_value() ? std::to_string((*parent_context_)->id_)
                                     : "none",
         self_type_.has_value() ? (*self_type_)->ToString() : "none",
-        node_->ToString(), DetailsToString(details_));
+        node_->ToString(), DetailsToString(details_),
+        type_info_ != nullptr ? type_info_->module()->name() : "none");
   }
 
  private:

@@ -325,7 +325,7 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
           HasSubstr("Node: N"), HasSubstr("Variable: N"),
           HasSubstr("Variable: M"), HasSubstr("Parametric contexts:"),
           HasSubstr("ParametricContext(id=0, parent_id=none, self_type=none, "
-                    "node=foo(u4:1), data=(foo, caller: bar))"),
+                    "node=foo(u4:1), data=(foo, caller: bar)"),
           HasSubstr("ParametricContext(id=1, parent_id=none, self_type=none, "
                     "node=foo<u32:5>(u5:3, u25:4), data=(foo, caller: bar)")));
 }

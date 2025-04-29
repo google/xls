@@ -678,7 +678,7 @@ fn f() -> u30[2] {
                 HasNodeWithType("identity", "(uN[30]) -> uN[30]"))));
 }
 
-TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricMapperImpliedConst) {
+TEST(TypecheckV2BuiltinTest, MapParametricMapperImpliedConst) {
   EXPECT_THAT(
       R"(
 fn identity<IDENT_N: u32>(input: uN[IDENT_N]) -> uN[IDENT_N] { input }
@@ -689,12 +689,19 @@ const Y = map([u30:5, u30:6], identity);
                 HasNodeWithType("identity", "(uN[30]) -> uN[30]"))));
 }
 
-// TODO: davidplass - finish this
-TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricMapperExplicitConstExpr) {
+TEST(TypecheckV2BuiltinTest, MapParametricMapperExplicitConstExpr) {
   EXPECT_THAT(
       R"(
-fn identity<IDENT_N: u32>(input: uN[IDENT_N]) -> uN[IDENT_N] { input }
-const Y = map([u30:5, u30:6], identity<u32:30>);
+fn one<M: u32>(input: uN[M]) -> uN[M] { uN[M]:1 }
+const Y = map([u30:5, u30:6], one<u32:30>);
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[30][2]")));
+}
+
+TEST(TypecheckV2BuiltinTest, MapParametricMapperBuiltin) {
+  EXPECT_THAT(
+      R"(
+const Y = map([u30:5, u30:6], rev<u32:30>);
 )",
       TypecheckSucceeds(HasNodeWithType("Y", "uN[30][2]")));
 }
@@ -715,8 +722,7 @@ fn f() -> u31[2] {
                 HasNodeWithType("mapper", "(uN[30]) -> uN[31]"))));
 }
 
-// TODO: davidplass - finish this
-TEST(TypecheckV2BuiltinTest, DISABLED_MapParametricMapperImpliedConstWithHint) {
+TEST(TypecheckV2BuiltinTest, MapParametricMapperImpliedConstWithHint) {
   EXPECT_THAT(
       R"(
 fn identity<N: u32>(input: uN[N]) -> uN[N] { input }
@@ -726,7 +732,6 @@ const Y: u30[1] = map([u30:5], identity);
 }
 
 TEST(TypecheckV2BuiltinTest, MapParametricBuiltinMapperImpliedConst) {
-  // This probably works because ctz is in the same module as map.
   EXPECT_THAT(R"(const Y = map([u32:1], ctz);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32][1]")));
 }

@@ -850,6 +850,14 @@ fn f() -> u32[3] {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+TEST_P(TypecheckBothVersionsTest, MapOfParametricConst) {
+  constexpr std::string_view kProgram = R"(
+fn one<M: u32>(input: uN[M]) -> uN[M] { uN[M]:1}
+const Y = map([u30:5, u30:6], one<u32:30>);
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 TEST_P(TypecheckBothVersionsTest, MapOfParametricExplicit) {
   constexpr std::string_view kProgram =
       R"(

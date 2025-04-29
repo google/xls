@@ -404,9 +404,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     const auto* invocation =
         dynamic_cast<const Invocation*>(parametric_context->node());
     CHECK_NE(invocation, nullptr);
-    XLS_RETURN_IF_ERROR(base_type_info_->AddInvocationTypeInfo(
-        *invocation, data.caller.has_value() ? *data.caller : nullptr,
-        parent_env, callee_env, parametric_context->type_info()));
+
+    if (parametric_context->type_info()->module() == invocation->owner()) {
+      XLS_RETURN_IF_ERROR(base_type_info_->AddInvocationTypeInfo(
+          *invocation, data.caller.has_value() ? *data.caller : nullptr,
+          parent_env, callee_env, parametric_context->type_info()));
+    }
     return absl::OkStatus();
   }
 
@@ -604,6 +607,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                       ->self_type()
                 : std::nullopt,
             invocation_type_info));
+    VLOG(5) << "ConvertInvocation for: " << invocation->ToString()
+            << " for module: " << module_.name()
+            << " with invocation_type_info of module "
+            << invocation_type_info->module()->name()
+            << " in invocation (parametric) context: "
+            << ToString(invocation_context);
 
     // Assign the formal parametric types to the actual explicit parametric
     // arguments, now that we know the formal types.
@@ -895,7 +904,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     ti->SetItem(node, **type);
     XLS_RETURN_IF_ERROR(NoteIfConstExpr(parametric_context, node, **type, ti));
     VLOG(5) << "Generated type: " << (*ti->GetItem(node))->ToString()
-            << " for node: " << node->ToString();
+            << " for node: " << node->ToString() << " in ti module "
+            << ti->module()->name();
     return absl::OkStatus();
   }
 
