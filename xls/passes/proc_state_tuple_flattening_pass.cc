@@ -226,14 +226,18 @@ absl::Status FlattenState(Proc* proc) {
                            DecomposeNode(next->value()));
       XLS_RET_CHECK_EQ(value_components.size(), num_components);
       for (int64_t i = 0; i < value_components.size(); ++i) {
-        Node*& value_component = value_components[i];
+        Node* value = value_components[i];
         AbstractStateElement& element = elements[elements_offset + i];
 
-        if (value_component == state_read) {
-          // The next value for this param is just itself; we preserve that by
-          // referencing the placeholder, which will eventually be replaced by
-          // the new param node.
-          value_component = element.placeholder;
+        if (value->Is<StateRead>()) {
+          // If the value is itself a state param, it will be invalid after
+          // ReplaceProcState(). Insert an identity so the value will still be
+          // valid.
+          XLS_ASSIGN_OR_RETURN(
+              Node * value_identity,
+              proc->MakeNode<UnOp>(value->loc(), value, Op::kIdentity));
+          identities.push_back(value_identity);
+          value = value_identity;
         }
 
         std::optional<Node*> predicate = next->predicate();
@@ -250,7 +254,7 @@ absl::Status FlattenState(Proc* proc) {
         element.next_values.push_back(NextValue{
             .name = absl::StrCat(next->GetName(), component_suffix(i)),
             .loc = next->loc(),
-            .value = value_component,
+            .value = value,
             .predicate = predicate,
         });
       }

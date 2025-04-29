@@ -336,6 +336,44 @@ TEST_P(ProcStateFlatteningPassTest, NextPredicateIsState) {
                                      m::Not(m::StateRead(StartsWith("b")))))));
 }
 
+// We previously had a use-after-free bug if we flattened state while one
+// element referenced the current value of a later state element; this is a
+// regression test to make sure we don't re-introduce that bug.
+TEST_P(ProcStateFlatteningPassTest, NextValueDependsOnLaterState) {
+  auto p = CreatePackage();
+  Value zero_value = Value(UBits(0, 1));
+  Value zero_tuple_value = Value::Tuple({zero_value, zero_value});
+
+  ProcBuilder pb("p", p.get());
+  BValue a = pb.StateElement("a", zero_value);
+  BValue b = pb.StateElement("b", zero_value);
+  BValue c = pb.StateElement("c", zero_tuple_value);
+  BValue zero = pb.Literal(zero_value);
+  BValue zero_tuple = pb.Literal(zero_tuple_value);
+  pb.Next(a, b);
+  pb.Next(b, zero);
+  pb.Next(c, zero_tuple);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {}));
+  ASSERT_EQ(proc->GetStateElementCount(), 3);
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_EQ(proc->GetStateElementCount(), 4);
+
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(m::StateRead("a"), m::StateRead("b"))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{1})),
+              ElementsAre(m::Next(m::StateRead("b"), m::Literal(0))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(int64_t{2})),
+      ElementsAre(m::Next(m::StateRead("c_0"),
+                          m::TupleIndex(m::Literal(zero_tuple_value), 0))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(int64_t{3})),
+      ElementsAre(m::Next(m::StateRead("c_1"),
+                          m::TupleIndex(m::Literal(zero_tuple_value), 1))));
+}
+
 INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateFlatteningPassTest,
                          testing::Values(NextValueType::kNextStateVector,
                                          NextValueType::kNextValueNodes),
