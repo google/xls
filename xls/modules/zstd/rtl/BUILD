@@ -34,6 +34,7 @@ package(
 exports_files(
     [
         "zstd_dec_wrapper.v",
+        "zstd_enc_wrapper.v",
         "xls_fifo_wrapper.v",
     ],
 )
