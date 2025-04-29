@@ -1111,6 +1111,20 @@ Splits a `bits` value into the N most significant bits and the remaining least s
 returning them as a tuple: `(msbs, lsbs)`. This function ensures that all bits of the argument
 are used.
 
+Example:
+
+```dslx-snippet
+fn test_split_msbs() {
+    assert_eq(split_msbs<u32:0>(u5:0b10101), (uN[0]:0, u5:0b10101));
+    assert_eq(split_msbs<u32:1>(u5:0b10101), (u1:0b1, u4:0b0101));
+    assert_eq(split_msbs<u32:2>(u5:0b10101), (u2:0b10, u3:0b101));
+    assert_eq(split_msbs<u32:3>(u5:0b10101), (u3:0b101, u2:0b01));
+    assert_eq(split_msbs<u32:4>(u5:0b10101), (u4:0b1010, u1:0b1));
+    assert_eq(split_msbs<u32:5>(u5:0b10101), (u5:0b10101, uN[0]:0));
+}
+```
+
+
 #### `std::split_lsbs`
 
 ```dslx-snippet
@@ -1121,6 +1135,19 @@ pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}, FROM_START: s32 = {N as s32}
 Splits a `bits` value into the remaining (i.e. `X-N`) most significant bits and the N least
 significant bits, returning them as a tuple: `(msbs, lsbs)`. This function ensures that all bits
 of the argument are used.
+
+Example:
+
+```dslx-snippet
+fn test_split_lsbs() {
+    assert_eq(split_lsbs<u32:5>(u5:0b10101), (uN[0]:0, u5:0b10101));
+    assert_eq(split_lsbs<u32:4>(u5:0b10101), (u1:0b1, u4:0b0101));
+    assert_eq(split_lsbs<u32:3>(u5:0b10101), (u2:0b10, u3:0b101));
+    assert_eq(split_lsbs<u32:2>(u5:0b10101), (u3:0b101, u2:0b01));
+    assert_eq(split_lsbs<u32:1>(u5:0b10101), (u4:0b1010, u1:0b1));
+    assert_eq(split_lsbs<u32:0>(u5:0b10101), (u5:0b10101, uN[0]:0));
+}
+```
 
 ### Mathematical Functions
 
