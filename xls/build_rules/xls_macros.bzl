@@ -632,7 +632,10 @@ Examples:
     )
 
     codegen_target = "{}.default_{}.codegen".format(name, delay_model)
-    verilog_file = codegen_target + ".v"
+    if full_codegen_args.get("use_system_verilog", "false") == "true":
+        verilog_file = codegen_target + ".sv"
+    else:
+        verilog_file = codegen_target + ".v"
     xls_ir_verilog(
         name = codegen_target,
         src = ":{}".format(opt_ir_target),
