@@ -1126,6 +1126,34 @@ pub fn is_pow2<N: u32>(x: uN[N]) -> bool
 
 Returns true when x is a non-zero power-of-two.
 
+#### `std::is_even`
+
+```dslx-snippet
+pub fn is_even<S: bool, N: u32>(x: xN[S][N]) -> bool
+```
+
+Returns true when `x` is an even integer.
+
+Example:
+
+```dslx
+#[test]
+fn is_even_test() {
+    assert_eq(is_even(u32:0), true);
+    assert_eq(is_even(u32:1), false);
+    assert_eq(is_even(u32:2), true);
+    assert_eq(is_even(u32:3), false);
+
+    assert_eq(is_even(s32:-3), false);
+    assert_eq(is_even(s32:-2), true);
+    assert_eq(is_even(s32:-1), false);
+    assert_eq(is_even(s32:0), true);
+    assert_eq(is_even(s32:1), false);
+    assert_eq(is_even(s32:2), true);
+    assert_eq(is_even(s32:3), false);
+}
+```
+
 #### `std::?add`
 
 ```dslx-snippet
