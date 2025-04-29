@@ -1250,7 +1250,7 @@ pub proc ZstdDecoder<
         let (fh_mem_rd_req_s,  fh_mem_rd_req_r) = chan<MemReaderReq, CHANNEL_DEPTH>("fh_mem_rd_req");
         let (fh_mem_rd_resp_s, fh_mem_rd_resp_r) = chan<MemReaderResp, CHANNEL_DEPTH>("fh_mem_rd_resp");
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, CHANNEL_DEPTH>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
            fh_mem_rd_req_r, fh_mem_rd_resp_s,
            fh_axi_ar_s, fh_axi_r_r,
         );
@@ -1268,7 +1268,7 @@ pub proc ZstdDecoder<
         let (bh_mem_rd_req_s, bh_mem_rd_req_r) = chan<MemReaderReq, CHANNEL_DEPTH>("bh_mem_rd_req");
         let (bh_mem_rd_resp_s, bh_mem_rd_resp_r) = chan<MemReaderResp, CHANNEL_DEPTH>("bh_mem_rd_resp");
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, CHANNEL_DEPTH>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
             bh_mem_rd_req_r, bh_mem_rd_resp_s,
             bh_axi_ar_s, bh_axi_r_r,
         );
@@ -1286,7 +1286,7 @@ pub proc ZstdDecoder<
         let (raw_mem_rd_req_s, raw_mem_rd_req_r) = chan<MemReaderReq, CHANNEL_DEPTH>("raw_mem_rd_req");
         let (raw_mem_rd_resp_s, raw_mem_rd_resp_r) = chan<MemReaderResp, CHANNEL_DEPTH>("raw_mem_rd_resp");
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, CHANNEL_DEPTH>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
            raw_mem_rd_req_r, raw_mem_rd_resp_s,
            raw_axi_ar_s, raw_axi_r_r,
         );

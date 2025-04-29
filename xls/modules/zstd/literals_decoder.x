@@ -771,7 +771,7 @@ pub proc LiteralsDecoder<
         let (lit_header_mem_rd_req_s, lit_header_mem_rd_req_r) = chan<MemReaderReq, CHANNEL_DEPTH>("lit_header_mem_rd_req");
         let (lit_header_mem_rd_resp_s, lit_header_mem_rd_resp_r) = chan<MemReaderResp, CHANNEL_DEPTH>("lit_header_mem_rd_resp");
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, CHANNEL_DEPTH>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
            lit_header_mem_rd_req_r, lit_header_mem_rd_resp_s,
            lit_header_axi_ar_s, lit_header_axi_r_r
         );
@@ -788,7 +788,7 @@ pub proc LiteralsDecoder<
         let (raw_lit_mem_rd_req_s, raw_lit_mem_rd_req_r) = chan<MemReaderReq, CHANNEL_DEPTH>("raw_lit_mem_rd_req");
         let (raw_lit_mem_rd_resp_s, raw_lit_mem_rd_resp_r) = chan<MemReaderResp, CHANNEL_DEPTH>("raw_lit_mem_rd_resp");
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, CHANNEL_DEPTH>(
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W>(
            raw_lit_mem_rd_req_r, raw_lit_mem_rd_resp_s,
            raw_lit_axi_ar_s, raw_lit_axi_r_r
         );

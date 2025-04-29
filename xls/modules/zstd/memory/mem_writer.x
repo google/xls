@@ -227,11 +227,11 @@ pub proc MemWriter<
         axi_b_r: chan<AxiB> in,
         resp_s: chan<MemWriterResp> out,
     ) {
-        let (axi_writer_req_s, axi_writer_req_r) = chan<AxiWriterReq, u32:0>("axi_writer_req");
-        let (padding_req_s, padding_req_r) = chan<PaddingReq, u32:0>("padding_req");
-        let (axi_st_raw_s, axi_st_raw_r) = chan<AxiStream, u32:0>("axi_st_raw");
-        let (axi_st_clean_s, axi_st_clean_r) = chan<AxiStream, u32:0>("axi_st_clean");
-        let (axi_st_padded_s, axi_st_padded_r) = chan<AxiStream, u32:0>("axi_st_padded");
+        let (axi_writer_req_s, axi_writer_req_r) = chan<AxiWriterReq, u32:1>("axi_writer_req");
+        let (padding_req_s, padding_req_r) = chan<PaddingReq, u32:1>("padding_req");
+        let (axi_st_raw_s, axi_st_raw_r) = chan<AxiStream, u32:1>("axi_st_raw");
+        let (axi_st_clean_s, axi_st_clean_r) = chan<AxiStream, u32:1>("axi_st_clean");
+        let (axi_st_padded_s, axi_st_padded_r) = chan<AxiStream, u32:1>("axi_st_padded");
 
         spawn MemWriterInternal<
             ADDR_W, DATA_W, DEST_W, ID_W, WRITER_ID

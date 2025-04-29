@@ -66,7 +66,7 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_D
         let (mem_rd_req_s, mem_rd_req_r) = chan<MemRdReq, u32:1>("mem_rd_req");
         let (mem_rd_resp_s, mem_rd_resp_r) = chan<MemRdResp, u32:1>("mem_rd_resp");
 
-        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W, u32:1> (
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W> (
             mem_rd_req_r,
             mem_rd_resp_s,
             axi_ar_s,
