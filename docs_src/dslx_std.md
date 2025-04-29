@@ -1113,7 +1113,8 @@ are used.
 
 Example:
 
-```dslx-snippet
+```dslx
+#[test]
 fn test_split_msbs() {
     assert_eq(split_msbs<u32:0>(u5:0b10101), (uN[0]:0, u5:0b10101));
     assert_eq(split_msbs<u32:1>(u5:0b10101), (u1:0b1, u4:0b0101));
@@ -1138,7 +1139,8 @@ of the argument are used.
 
 Example:
 
-```dslx-snippet
+```dslx
+#[test]
 fn test_split_lsbs() {
     assert_eq(split_lsbs<u32:5>(u5:0b10101), (uN[0]:0, u5:0b10101));
     assert_eq(split_lsbs<u32:4>(u5:0b10101), (u1:0b1, u4:0b0101));
