@@ -41,3 +41,10 @@ class AxiRamWriteFromFile(AxiRamWrite):
   def __init__(self, *args, path: os.PathLike, **kwargs):
     init_axi_mem(path, kwargs)
     super().__init__(*args, **kwargs)
+
+class AxiRamFromArray(AxiRam):
+  def __init__(self, *args, arr: bytearray, **kwargs):
+    sparse_mem = SparseMemory(size=kwargs["size"])
+    sparse_mem.write(0x0, arr)
+    kwargs["mem"] = sparse_mem
+    super().__init__(*args, **kwargs)
