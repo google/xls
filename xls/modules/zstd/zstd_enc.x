@@ -20,6 +20,7 @@
 
 import std;
 
+import xls.examples.ram;
 import xls.modules.zstd.mem_copy;
 import xls.modules.zstd.frame_header_dec;
 import xls.modules.zstd.frame_header_enc;
@@ -28,6 +29,7 @@ import xls.modules.zstd.memory.mem_writer;
 import xls.modules.zstd.memory.mem_reader;
 import xls.modules.zstd.mem_writer_simple_arbiter;
 import xls.modules.zstd.common;
+import xls.modules.zstd.memory.axi;
 
 pub enum ZstdEncodeRespStatus : u1 {
     ERROR=0,
@@ -144,7 +146,6 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
         )
     }
     next(state: State) {
-        let tok = join();
         if !state.active {
             let (tok, conf) = recv(join(), conf_r);
             State {
@@ -155,7 +156,7 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
             let conf = state.conf;
             let size = std::min(conf.max_block_size, conf.bytes_left) as BlockSize;
             let last_block: bool = state.conf.bytes_left < conf.max_block_size;
-            let tok1 = send(tok, bhw_req_s, BlockHeaderWriterReq{
+            let tok1 = send(join(), bhw_req_s, BlockHeaderWriterReq{
                     addr: conf.output_offset,
                     header: BlockHeader {
                         last: last_block,
@@ -165,9 +166,9 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
                 }
             );
             trace_fmt!("writing block header to {:#x}", conf.output_offset);
-            let (tok1, bhw_resp) = recv(tok, bhw_resp_r);
+            let (tok1, bhw_resp) = recv(tok1, bhw_resp_r);
 
-            let tok2 = send(tok, memcpy_req_s, RawMemcopyReq {
+            let tok2 = send(join(), memcpy_req_s, RawMemcopyReq {
                 lit_addr: conf.input_offset,
                 lit_cnt: size as Data,
                 out_addr: conf.output_offset + BLOCK_HEADER_LENGTH_BYTES
@@ -357,3 +358,74 @@ proc ZstdEncoderInst {
 
     next(state: ()) { }
 }
+
+const COCOTB_INST_MEM_WRITER_ID = u32:0;
+const COCOTB_INST_ADDR_W = u32:32;
+const COCOTB_INST_DATA_W = u32:32;
+const COCOTB_INST_ID_W = u32:8;
+const COCOTB_INST_DEST_W = u32:8;
+
+const COCOTB_INST_RAM_SIZE = u32:2048;
+const COCOTB_INST_RAM_ADDR_W = COCOTB_INST_ADDR_W;
+const COCOTB_INST_RAM_PARTITION_SIZE = COCOTB_INST_DATA_W / u32:8;
+
+proc ZstdEncoderCocotbInst {
+    type MemReaderReq = mem_reader::MemReaderReq<COCOTB_INST_ADDR_W>;
+    type MemReaderResp = mem_reader::MemReaderResp<COCOTB_INST_DATA_W, COCOTB_INST_ADDR_W>;
+    type MemWriterReq = mem_writer::MemWriterReq<COCOTB_INST_ADDR_W>;
+    type MemWriterData = mem_writer::MemWriterDataPacket<COCOTB_INST_DATA_W, COCOTB_INST_ADDR_W>;
+    type MemWriterResp = mem_writer::MemWriterResp;
+    type MemWriterStatus = mem_writer::MemWriterRespStatus;
+
+    type AxiAr = axi::AxiAr<COCOTB_INST_ADDR_W, COCOTB_INST_ID_W>;
+    type AxiR = axi::AxiR<COCOTB_INST_DATA_W, COCOTB_INST_ID_W>;
+    type AxiAw = axi::AxiAw<COCOTB_INST_ADDR_W, COCOTB_INST_ID_W>;
+    type AxiW = axi::AxiW<COCOTB_INST_DATA_W, COCOTB_INST_RAM_PARTITION_SIZE>;
+    type AxiB = axi::AxiB<COCOTB_INST_ID_W>;
+
+    type Req = ZstdEncodeReq<COCOTB_INST_ADDR_W, COCOTB_INST_DATA_W>;
+    type Resp = ZstdEncodeResp;
+
+    init {}
+
+    config(
+        enc_req_r: chan<Req> in,
+        enc_resp_s: chan<Resp> out,
+        axi_aw_s: chan<AxiAw> out,
+        axi_w_s: chan<AxiW> out,
+        axi_b_r: chan<AxiB> in,
+        axi_ar_s: chan<AxiAr> out,
+        axi_r_r: chan<AxiR> in,
+    ) {
+        let (mem_wr_req_s, mem_wr_req_r) = chan<MemWriterReq, u32:1>("mem_wr_req");
+        let (mem_wr_data_s, mem_wr_data_r) = chan<MemWriterData, u32:1>("mem_wr_data");
+        let (mem_wr_resp_s, mem_wr_resp_r) = chan<MemWriterResp, u32:1>("mem_wr_resp");
+        let (mem_rd_req_s, mem_rd_req_r) = chan<MemReaderReq, u32:1>("mem_rd_req");
+        let (mem_rd_resp_s, mem_rd_resp_r) = chan<MemReaderResp, u32:1>("mem_rd_resp");
+
+        spawn mem_reader::MemReader<
+        COCOTB_INST_DATA_W, COCOTB_INST_ADDR_W, COCOTB_INST_DEST_W, COCOTB_INST_ID_W,
+        >(
+            mem_rd_req_r, mem_rd_resp_s,
+            axi_ar_s, axi_r_r,
+        );
+
+        spawn mem_writer::MemWriter<
+        COCOTB_INST_ADDR_W, COCOTB_INST_DATA_W, COCOTB_INST_DEST_W, COCOTB_INST_ID_W, COCOTB_INST_MEM_WRITER_ID
+        >(
+            mem_wr_req_r, mem_wr_data_r,
+            axi_aw_s, axi_w_s, axi_b_r,
+            mem_wr_resp_s
+        );
+
+        spawn  ZstdEncoder<COCOTB_INST_ADDR_W, COCOTB_INST_DATA_W>
+        (
+            enc_req_r, enc_resp_s,
+            mem_rd_req_s, mem_rd_resp_r,
+            mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r
+        );
+    }
+
+    next(state: ()) { }
+}
+

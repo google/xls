@@ -4700,6 +4700,7 @@ xls_dslx_library(
         ":frame_header_enc_dslx",
         ":block_header_dslx",
         ":mem_copy_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
     ],
 )
 
@@ -4730,9 +4731,25 @@ xls_dslx_verilog(
     verilog_file = "zstd_enc.v",
 )
 
+xls_dslx_verilog(
+    name = "zstd_encoder_benchmark_verilog",
+    codegen_args = zstd_encoder_codegen_args,
+    dslx_top = "ZstdEncoderCocotbInst",
+    library = ":zstd_encoder_dslx",
+    tags = ["manual"],
+    verilog_file = "zstd_enc_cocotb.v",
+)
+
 xls_benchmark_ir(
     name = "zstd_encoder_opt_ir_benchmark",
     src = ":zstd_encoder_verilog.opt.ir",
+    benchmark_ir_args = zstd_encoder_codegen_args,
+    tags = ["manual"],
+)
+
+xls_benchmark_ir(
+    name = "zstd_encoder_benchmark_opt_ir_benchmark",
+    src = ":zstd_encoder_benchmark_verilog.opt.ir",
     benchmark_ir_args = zstd_encoder_codegen_args,
     tags = ["manual"],
 )
@@ -4772,3 +4789,33 @@ place_and_route(
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
+
+py_test(
+    name = "zstd_enc_cocotb_test",
+    srcs = ["zstd_enc_cocotb_test.py"],
+    data = [
+        ":zstd_enc_cocotb.v",
+        "//xls/modules/zstd/rtl:zstd_enc_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        requirement("pytest"),
+        requirement("zstandard"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
