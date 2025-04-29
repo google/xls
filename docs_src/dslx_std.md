@@ -1100,10 +1100,10 @@ errors. For new code the
 [DSLX first-class slicing syntax](https://google.github.io/xls/dslx_reference/#bit-slice-expressions)
 (either range-slicing or width-slicing) is preferred.
 
-#### `std::split_n_msbs`
+#### `std::split_msbs`
 
 ```dslx-snippet
-pub fn split_n_msbs<N: u32, X: u32, Z: u32 = {X - N}, FROM_START: s32 = {Z as s32}>
+pub fn split_msbs<N: u32, X: u32, Z: u32 = {X - N}, FROM_START: s32 = {Z as s32}>
     (x: bits[X]) -> (bits[N], bits[Z])
 ```
 
@@ -1111,10 +1111,10 @@ Splits a `bits` value into the N most significant bits and the remaining least s
 returning them as a tuple: `(msbs, lsbs)`. This function ensures that all bits of the argument
 are used.
 
-#### `std::split_n_lsbs`
+#### `std::split_lsbs`
 
 ```dslx-snippet
-pub fn split_n_lsbs<N: u32, X: u32, Y: u32 = {X - N}, FROM_START: s32 = {N as s32}>
+pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}, FROM_START: s32 = {N as s32}>
     (x: bits[X]) -> (bits[Y], bits[N])
 ```
 

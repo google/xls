@@ -1074,27 +1074,27 @@ fn test_vslice() {
 // bits).
 //
 // This function ensures that ensures that all bits of the argument are used.
-pub fn split_n_msbs<N: u32, X: u32, Z: u32 = {X - N}, FROM_START: s32 = {Z as s32}>
+pub fn split_msbs<N: u32, X: u32, Z: u32 = {X - N}, FROM_START: s32 = {Z as s32}>
     (x: bits[X]) -> (bits[N], bits[Z]) {
-    assert!(N <= X, "split_n_msbs_requires_n_less_equal_x");
+    assert!(N <= X, "split_msbs_requires_n_less_equal_x");
     let msbs = x[FROM_START:];
     let lsbs = x[0:FROM_START];
     (msbs, lsbs)
 }
 
 #[test]
-fn test_split_n_msbs() {
-    assert_eq(split_n_msbs<u32:0>(u5:0b10101), (uN[0]:0, u5:0b10101));
-    assert_eq(split_n_msbs<u32:1>(u5:0b10101), (u1:0b1, u4:0b0101));
-    assert_eq(split_n_msbs<u32:2>(u5:0b10101), (u2:0b10, u3:0b101));
-    assert_eq(split_n_msbs<u32:3>(u5:0b10101), (u3:0b101, u2:0b01));
-    assert_eq(split_n_msbs<u32:4>(u5:0b10101), (u4:0b1010, u1:0b1));
-    assert_eq(split_n_msbs<u32:5>(u5:0b10101), (u5:0b10101, uN[0]:0));
+fn test_split_msbs() {
+    assert_eq(split_msbs<u32:0>(u5:0b10101), (uN[0]:0, u5:0b10101));
+    assert_eq(split_msbs<u32:1>(u5:0b10101), (u1:0b1, u4:0b0101));
+    assert_eq(split_msbs<u32:2>(u5:0b10101), (u2:0b10, u3:0b101));
+    assert_eq(split_msbs<u32:3>(u5:0b10101), (u3:0b101, u2:0b01));
+    assert_eq(split_msbs<u32:4>(u5:0b10101), (u4:0b1010, u1:0b1));
+    assert_eq(split_msbs<u32:5>(u5:0b10101), (u5:0b10101, uN[0]:0));
 }
 
 #[quickcheck(exhaustive)]
-fn prop_split_n_msbs(n: uN[4], o: uN[3]) -> bool {
-    let (n2, o2) = split_n_msbs<4>(n ++ o);
+fn prop_split_msbs(n: uN[4], o: uN[3]) -> bool {
+    let (n2, o2) = split_msbs<4>(n ++ o);
     n == n2 && o == o2
 }
 
@@ -1102,27 +1102,27 @@ fn prop_split_n_msbs(n: uN[4], o: uN[3]) -> bool {
 // bits).
 //
 // This function ensures that ensures that all bits of the argument are used.
-pub fn split_n_lsbs<N: u32, X: u32, Y: u32 = {X - N}, FROM_START: s32 = {N as s32}>
+pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}, FROM_START: s32 = {N as s32}>
     (x: bits[X]) -> (bits[Y], bits[N]) {
-    assert!(N <= X, "split_n_lsbs_requires_n_less_equal_x");
+    assert!(N <= X, "split_lsbs_requires_n_less_equal_x");
     let msbs = x[FROM_START:];
     let lsbs = x[0:FROM_START];
     (msbs, lsbs)
 }
 
 #[test]
-fn test_split_n_lsbs() {
-    assert_eq(split_n_lsbs<u32:5>(u5:0b10101), (uN[0]:0, u5:0b10101));
-    assert_eq(split_n_lsbs<u32:4>(u5:0b10101), (u1:0b1, u4:0b0101));
-    assert_eq(split_n_lsbs<u32:3>(u5:0b10101), (u2:0b10, u3:0b101));
-    assert_eq(split_n_lsbs<u32:2>(u5:0b10101), (u3:0b101, u2:0b01));
-    assert_eq(split_n_lsbs<u32:1>(u5:0b10101), (u4:0b1010, u1:0b1));
-    assert_eq(split_n_lsbs<u32:0>(u5:0b10101), (u5:0b10101, uN[0]:0));
+fn test_split_lsbs() {
+    assert_eq(split_lsbs<u32:5>(u5:0b10101), (uN[0]:0, u5:0b10101));
+    assert_eq(split_lsbs<u32:4>(u5:0b10101), (u1:0b1, u4:0b0101));
+    assert_eq(split_lsbs<u32:3>(u5:0b10101), (u2:0b10, u3:0b101));
+    assert_eq(split_lsbs<u32:2>(u5:0b10101), (u3:0b101, u2:0b01));
+    assert_eq(split_lsbs<u32:1>(u5:0b10101), (u4:0b1010, u1:0b1));
+    assert_eq(split_lsbs<u32:0>(u5:0b10101), (u5:0b10101, uN[0]:0));
 }
 
 #[quickcheck(exhaustive)]
-fn prop_split_n_lsbs(n: uN[4], o: uN[3]) -> bool {
-    let (n2, o2) = split_n_lsbs<3>(n ++ o);
+fn prop_split_lsbs(n: uN[4], o: uN[3]) -> bool {
+    let (n2, o2) = split_lsbs<3>(n ++ o);
     n == n2 && o == o2
 }
 
