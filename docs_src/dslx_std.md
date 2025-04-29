@@ -2,8 +2,8 @@
 
 This page documents the DSLX **built-in functions** (i.e., functions that don't
 require an import and are available in the top-level namespace) and **standard
-library modules** (i.e., which are imported with an unqualified name like `import
-std`).
+library modules** (i.e., which are imported with an unqualified name like
+`import std`).
 
 Generally, built-in functions have some capabilities that cannot be easily done
 in a user-defined function, and thus do not live in the standard library.
@@ -24,11 +24,12 @@ e.g., special side-effects".
 
 !!! NOTE
     A brief note on "Parallel Primitives": the DSL is expected to grow
-    additional support for use of high-level parallel primitives over time, adding
-    operators for order-insensitive reductions, scans, groupings, and similar. By
-    making these operations known to the compiler in their high-level form, we
-    potentially enable optimizations and analyses on their higher-level ("lifted")
-    form. As of now, `map` is the sole parallel-primitive-oriented built-in.
+    additional support for use of high-level parallel primitives over time,
+    adding operators for order-insensitive reductions, scans, groupings, and
+    similar. By making these operations known to the compiler in their
+    high-level form, we potentially enable optimizations and analyses on their
+    higher-level ("lifted") form. As of now, `map` is the sole
+    parallel-primitive-oriented built-in.
 
 ### `array_size`
 
@@ -255,9 +256,9 @@ fn test_clz_ctz() {
 
 ### `decode`
 
-Converts a binary-encoded value into a one-hot value. Given
-`n`, interpreted as an unsigned number, the `n`-th result bit and only the `n`-th
-result bit is set. Has the following signature:
+Converts a binary-encoded value into a one-hot value. Given `n`, interpreted as
+an unsigned number, the `n`-th result bit and only the `n`-th result bit is set.
+Has the following signature:
 
 ```
 fn decode<uN[W]>(x: uN[N]) -> uN[W]
