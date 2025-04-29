@@ -35,6 +35,7 @@ package(
 exports_files(
     [
         "zstd_dec_wrapper.sv",
+        "zstd_enc_wrapper.v",
         "xls_fifo_wrapper.sv",
         "ram_demux_wrapper.v",
         "ram_1r1w.v",
