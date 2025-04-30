@@ -578,18 +578,29 @@ pub fn is_even<S: bool, N: u32>(x: xN[S][N]) -> bool { lsb(x as uN[N]) == u1:0 }
 
 #[test]
 fn is_even_test() {
-    assert_eq(is_even(u32:0), true);
-    assert_eq(is_even(u32:1), false);
-    assert_eq(is_even(u32:2), true);
-    assert_eq(is_even(u32:3), false);
+    assert_eq(is_even(uN[0]:0), true);
 
-    assert_eq(is_even(s32:-3), false);
-    assert_eq(is_even(s32:-2), true);
-    assert_eq(is_even(s32:-1), false);
-    assert_eq(is_even(s32:0), true);
-    assert_eq(is_even(s32:1), false);
-    assert_eq(is_even(s32:2), true);
-    assert_eq(is_even(s32:3), false);
+    assert_eq(is_even(sN[0]:0), true);
+
+    assert_eq(is_even(u1:0), true);
+    assert_eq(is_even(u1:1), false);
+
+    assert_eq(is_even(s1:0), true);
+    assert_eq(is_even(s1:-1), false);
+
+    assert_eq(is_even(u2:0), true);
+    assert_eq(is_even(u2:1), false);
+    assert_eq(is_even(u2:2), true);
+    assert_eq(is_even(u2:3), false);
+
+    assert_eq(is_even(s3:-4), true);
+    assert_eq(is_even(s3:-3), false);
+    assert_eq(is_even(s3:-2), true);
+    assert_eq(is_even(s3:-1), false);
+    assert_eq(is_even(s3:0), true);
+    assert_eq(is_even(s3:1), false);
+    assert_eq(is_even(s3:2), true);
+    assert_eq(is_even(s3:3), false);
 }
 
 // Adjacent integers are always of opposite parity.
