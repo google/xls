@@ -15,6 +15,7 @@
 #include "xls/passes/proc_state_tuple_flattening_pass.h"
 
 #include <cstdint>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -24,6 +25,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -33,6 +35,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -372,6 +375,39 @@ TEST_P(ProcStateFlatteningPassTest, NextValueDependsOnLaterState) {
       proc->next_values(proc->GetStateRead(int64_t{3})),
       ElementsAre(m::Next(m::StateRead("c_1"),
                           m::TupleIndex(m::Literal(zero_tuple_value), 1))));
+}
+
+// We previously had a bug where a later state element's `next_value` that
+// directly referenced an earlier state element's value would end up referencing
+// the placeholder literal, rather than its replacement state element. This is
+// a regression test to make sure we don't re-introduce that bug.
+TEST_P(ProcStateFlatteningPassTest, NextValueDependsOnEarlierState) {
+  // NOTE: We use a parsed proc here to encourage the pass to run in the exact
+  // required order. It's difficult to trigger the bug otherwise.
+  constexpr static std::string_view kProc = R"(
+proc regression(state_1: bits[1], state_2: bits[1], state_3: (bits[1], bits[1]), init={0, 0, (0x0, 0x0)}) {
+  state_2: bits[1] = state_read(state_element=state_2, id=27354)
+  literal.2210: token = literal(value=token, id=2210)
+  state_1: bits[1] = state_read(state_element=state_1, id=27350)
+  literal.40170: bits[1] = literal(value=1, id=40170)
+  state_3: (bits[1], bits[1]) = state_read(state_element=state_3, id=40213)
+  literal.40241: (bits[1], bits[1]) = literal(value=(0x0, 0x0), id=40241)
+  send.2001: token = send(literal.2210, state_2, channel=ch, id=2001)
+  next_value.27375: () = next_value(param=state_1, value=literal.40170, id=27375)
+  next_value.27379: () = next_value(param=state_2, value=state_1, id=27379)
+  next_value.40220: () = next_value(param=state_3, value=literal.40241, id=40220)
+}
+)";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK(
+      p->CreateStreamingChannel("ch", ChannelOps::kSendOnly, p->GetBitsType(1))
+          .status());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(kProc, p.get()));
+
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
+                                                /*include_state=*/false);
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
 INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateFlatteningPassTest,

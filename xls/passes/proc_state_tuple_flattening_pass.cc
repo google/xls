@@ -269,6 +269,27 @@ absl::Status FlattenState(Proc* proc) {
       XLS_RETURN_IF_ERROR(proc->RemoveNode(next));
     }
 
+    // Before we replace the references to the old state param, we need to
+    // ensure that any users that are also being replaced have an identity node
+    // put in place; this prevents us from accidentally referencing the
+    // placeholder after it's intended to be replaced with the new state param.
+    Node* state_read_identity = nullptr;
+    // Copy the users of the state read to avoid invalidating the iterator.
+    std::vector<Node*> users(state_read->users().begin(),
+                             state_read->users().end());
+    for (Node* user : users) {
+      if (!user->OpIn({Op::kStateRead, Op::kNext})) {
+        continue;
+      }
+      if (state_read_identity == nullptr) {
+        XLS_ASSIGN_OR_RETURN(
+            state_read_identity,
+            proc->MakeNode<UnOp>(state_read->loc(), state_read, Op::kIdentity));
+        identities.push_back(state_read_identity);
+      }
+      user->ReplaceOperand(state_read, state_read_identity);
+    }
+
     // Create a node of the same type as the old state param but constructed
     // from the new (decomposed) state params placeholders.
     XLS_ASSIGN_OR_RETURN(
