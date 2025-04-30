@@ -175,6 +175,16 @@ SCHEDULING_FIELDS = {
                              "(full throughput).\n" +
                              "\n" +
                              "If zero or negative, no throughput bound will be enforced.",
+    "dynamic_throughput_objective_weight": "If set, the scheduler will attempt to optimize for " +
+                                           "dynamic throughput as well as for area; the value " +
+                                           "controls how strongly this is prioritized. e.g., if " +
+                                           "set to 1024.0 (the default value), the scheduler " +
+                                           "will consider improving the dynamic throughput of " +
+                                           "one state element by 1 cycle (assuming that all " +
+                                           "data-dependent feedback paths are equally likely) to " +
+                                           "be worth adding up to 1024 flops. Only relevant if " +
+                                           "using the SDC scheduler with --worst_case_throughput " +
+                                           "set to a value != 1.",
     "additional_input_delay_ps": "The additional delay added to each input. Note that " +
                                  "flow-controlled channel operations all have inputs and " +
                                  "outputs, so this delay is added to sends and receives.",

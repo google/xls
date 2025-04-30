@@ -65,6 +65,10 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   }
   scheduling_options.minimize_worst_case_throughput(
       proto.minimize_worst_case_throughput());
+  if (proto.has_dynamic_throughput_objective_weight()) {
+    scheduling_options.dynamic_throughput_objective_weight(
+        proto.dynamic_throughput_objective_weight());
+  }
   if (proto.additional_input_delay_ps() != 0) {
     scheduling_options.additional_input_delay_ps(
         proto.additional_input_delay_ps());

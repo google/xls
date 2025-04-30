@@ -31,6 +31,7 @@
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -55,6 +56,7 @@ class SDCSchedulingModel {
   absl::Status AddDefUseConstraints(Node* node, std::optional<Node*> user);
   absl::Status AddCausalConstraint(Node* node, std::optional<Node*> user);
   absl::Status AddLifetimeConstraint(Node* node, std::optional<Node*> user);
+  absl::Status AddThroughputConstraint(StateRead* state_read, Next* next_value);
   absl::Status AddBackedgeConstraints(const BackedgeConstraint& constraint);
   absl::Status AddSchedulingConstraint(const SchedulingConstraint& constraint);
   absl::Status AddIOConstraint(const IOConstraint& constraint);
@@ -73,7 +75,7 @@ class SDCSchedulingModel {
   void SetPipelineLength(std::optional<int64_t> pipeline_length);
   void MinimizePipelineLength();
 
-  void SetObjective();
+  void SetObjective(std::optional<double> throughput_weight);
   void RemoveObjective();
 
   absl::StatusOr<int64_t> ExtractPipelineLength(
@@ -104,6 +106,11 @@ class SDCSchedulingModel {
   absl::flat_hash_map<Node*, operations_research::math_opt::Variable>
   GetLifetimeVars() const {
     return lifetime_var_;
+  }
+
+  absl::flat_hash_map<Node*, operations_research::math_opt::Variable>
+  GetUnwantedInverseThroughputVars() const {
+    return unwanted_inverse_throughput_var_;
   }
 
   operations_research::math_opt::LinearConstraint DiffAtMostConstraint(
@@ -174,6 +181,11 @@ class SDCSchedulingModel {
   // the last user.
   absl::flat_hash_map<Node*, operations_research::math_opt::Variable>
       lifetime_var_;
+
+  // Inverse throughput associated with node; the number of cycles between a
+  // `next_value` node and its associated `param`.
+  absl::flat_hash_map<Node*, operations_research::math_opt::Variable>
+      unwanted_inverse_throughput_var_;
 
   // A placeholder node to represent an artificial sink node on the
   // data-dependence graph.
@@ -249,7 +261,8 @@ class SDCScheduler {
       std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
       SchedulingFailureBehavior failure_behavior,
       bool check_feasibility = false,
-      std::optional<int64_t> worst_case_throughput = std::nullopt);
+      std::optional<int64_t> worst_case_throughput = std::nullopt,
+      std::optional<double> dynamic_throughput_objective_weight = std::nullopt);
 
  private:
   SDCScheduler(FunctionBase* f, absl::flat_hash_set<Node*> dead_after_synthesis,

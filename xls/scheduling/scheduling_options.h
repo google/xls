@@ -344,6 +344,18 @@ class SchedulingOptions {
     return worst_case_throughput_;
   }
 
+  // Sets/gets the weight of the dynamic throughput objective for the SDC
+  // scheduler. Only relevant if worst-case throughput is set to a value != 1.
+  // std::nullopt disables the dynamic throughput objective.
+  SchedulingOptions& dynamic_throughput_objective_weight(
+      std::optional<double> value) {
+    dynamic_throughput_objective_weight_ = value;
+    return *this;
+  }
+  std::optional<double> dynamic_throughput_objective_weight() const {
+    return dynamic_throughput_objective_weight_;
+  }
+
   // Sets/gets the additional delay added to each input.
   //
   // TODO(tedhong): 2022-02-11, Update so that this sets/gets the
@@ -546,6 +558,7 @@ class SchedulingOptions {
   bool recover_after_minimizing_clock_;
   bool minimize_worst_case_throughput_;
   std::optional<int64_t> worst_case_throughput_;
+  std::optional<double> dynamic_throughput_objective_weight_;
   std::optional<int64_t> additional_input_delay_ps_;
   std::optional<int64_t> additional_output_delay_ps_;
   std::optional<int64_t> ffi_fallback_delay_ps_;

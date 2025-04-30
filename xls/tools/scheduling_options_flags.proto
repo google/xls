@@ -62,4 +62,5 @@ message SchedulingOptionsFlagsProto {
   optional bool minimize_worst_case_throughput = 26;
   optional bool recover_after_minimizing_clock = 27;
   optional int64 opt_level = 30;
+  optional double dynamic_throughput_objective_weight = 32;
 }

@@ -93,6 +93,15 @@ control the scheduler.
     NOTE: If set to 0 or a negative value, no throughput minimum will be
     enforced.
 
+-   `--dynamic_throughput_objective_weight=...` is disabled by default. If set,
+    the scheduler will attempt to optimize for dynamic throughput as well as for
+    area; the value controls how strongly this is prioritized. e.g., if set to
+    1024.0 (the default value), the scheduler will consider improving the
+    dynamic throughput of one state element by 1 cycle (assuming that all
+    data-dependent feedback paths are equally likely) to be worth adding up to
+    1024 flops. Only relevant if using the SDC scheduler with
+    --worst_case_throughput set to a value != 1.
+
 -   `--additional_input_delay_ps=...` adds additional input delay to the inputs.
     This can be helpful to meet timing when integrating XLS designs with other
     RTL. Note that flow-controlled channel operations all have inputs and

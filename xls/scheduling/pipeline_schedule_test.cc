@@ -1469,6 +1469,59 @@ TEST_F(PipelineScheduleTest, SuggestIncreasedClockPeriodWhenNecessary) {
                        HasSubstr("Try increasing `--clock_period_ps`")));
 }
 
+TEST_F(PipelineScheduleTest, OptimizeForDynamicThroughput) {
+  Package package = Package(TestName());
+  Type* u1 = package.GetBitsType(1);
+  Type* u2 = package.GetBitsType(2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u2));
+
+  ProcBuilder pb(TestName(), &package);
+  BValue tkn = pb.Literal(Value::Token());
+  BValue state = pb.StateElement("state", Value(Bits(1)));
+  BValue recv = pb.Receive(ch_in, tkn);
+  BValue recv_tkn = pb.TupleIndex(recv, 0);
+  BValue change = pb.TupleIndex(recv, 1);
+  BValue extended_value = pb.SignExtend(pb.Xor(state, change), 2);
+  BValue next_state = pb.OrReduce(extended_value);
+  pb.Next(state, next_state);
+  pb.Send(ch_out, pb.MinDelay(recv_tkn, 1), extended_value);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+
+  // If we don't optimize for dynamic throughput, we end up with throughput = 2,
+  // since that lets the scheduler reduce the area very slightly.
+  //
+  // NOTE: This is a VERY contrived example, but there are real examples of this
+  // happening in the wild.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(
+          proc, *delay_estimator,
+          SchedulingOptions().clock_period_ps(10).worst_case_throughput(2)));
+  EXPECT_EQ(schedule.cycle(next_state.node()) - schedule.cycle(state.node()),
+            1);
+
+  // On the other hand, if we do optimize for dynamic throughput, we end up with
+  // full throughput.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule2,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions()
+                              .clock_period_ps(10)
+                              .worst_case_throughput(2)
+                              .dynamic_throughput_objective_weight(1024.0)));
+  EXPECT_EQ(schedule2.cycle(next_state.node()) - schedule2.cycle(state.node()),
+            0);
+}
+
 // Proc next state does not depend on param; next state can now be scheduled in
 // an earlier stage than the param node's use, so (all else being equal), the
 // scheduler prefers to schedule the param node ASAP, in the same stage as the

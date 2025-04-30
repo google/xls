@@ -57,6 +57,8 @@ namespace {
 using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 namespace math_opt = ::operations_research::math_opt;
 
+constexpr double kObjectiveScaling = 1024;
+
 // A helper function to compute each node's delay by calling the delay
 // estimator; treats all dead-after-synthesis nodes as having a delay of 0.
 absl::StatusOr<DelayMap> ComputeNodeDelays(
@@ -218,6 +220,13 @@ SDCSchedulingModel::SDCSchedulingModel(
         node,
         model_.AddContinuousVariable(
             0.0, kInfinity, absl::StrFormat("lifetime_%s", node->GetName())));
+    if (node->Is<Next>()) {
+      unwanted_inverse_throughput_var_.emplace(
+          node, model_.AddContinuousVariable(
+                    0.0, kInfinity,
+                    absl::StrFormat("unwanted_inverse_throughput_%s",
+                                    node->GetName())));
+    }
   }
 
   if (func_->IsFunction()) {
@@ -241,14 +250,29 @@ SDCSchedulingModel::SDCSchedulingModel(
 
 absl::Status SDCSchedulingModel::AddDefUseConstraints(
     Node* node, std::optional<Node*> user) {
+  // Nodes must be scheduled no later than their users.
   XLS_RETURN_IF_ERROR(AddCausalConstraint(node, user));
+
+  if (node->Is<StateRead>() && user.has_value() && user.value()->Is<Next>()) {
+    Next* next = user.value()->As<Next>();
+    if (next->state_read() == node) {
+      XLS_RETURN_IF_ERROR(AddThroughputConstraint(node->As<StateRead>(), next));
+    }
+    if (next->value() != node && next->predicate() != node) {
+      XLS_RET_CHECK_EQ(next->state_read(), node);
+      // We don't need to keep the param's value alive to this user, so no need
+      // for a lifetime constraint.
+      return absl::OkStatus();
+    }
+  }
+
   // If the user is dead after synthesis, we don't count its contribution to the
   // lifetime, assuming the synthesis tool will be able to strip any pipeline
   // registers used to persist the value.
-  if (!user.has_value() || !dead_after_synthesis_.contains(*user)) {
-    XLS_RETURN_IF_ERROR(AddLifetimeConstraint(node, user));
+  if (user.has_value() && dead_after_synthesis_.contains(*user)) {
+    return absl::OkStatus();
   }
-  return absl::OkStatus();
+  return AddLifetimeConstraint(node, user);
 }
 
 absl::Status SDCSchedulingModel::AddCausalConstraint(
@@ -290,6 +314,32 @@ absl::Status SDCSchedulingModel::AddLifetimeConstraint(
   VLOG(2) << "Setting lifetime constraint: "
           << absl::StrFormat("lifetime[%s] + cycle[%s] - cycle[%s] ≥ 0",
                              node->GetName(), node->GetName(), user_str);
+
+  return absl::OkStatus();
+}
+
+absl::Status SDCSchedulingModel::AddThroughputConstraint(StateRead* state_read,
+                                                         Next* next_value) {
+  XLS_RET_CHECK(func_->IsProc());
+
+  StateElement* state_element = state_read->state_element();
+
+  math_opt::Variable cycle_at_param = cycle_var_.at(state_read);
+  math_opt::Variable cycle_at_next = cycle_var_.at(next_value);
+  math_opt::Variable unwanted_inverse_throughput_at_next =
+      unwanted_inverse_throughput_var_.at(next_value);
+
+  model_.AddLinearConstraint(
+      // TODO: https://github.com/google/xls/issues/2071 - incorporate target
+      // throughput in the RHS of this constraint.
+      unwanted_inverse_throughput_at_next + cycle_at_param - cycle_at_next >= 0,
+      absl::StrFormat("throughput_%s_%s", state_read->GetName(),
+                      next_value->GetName()));
+  VLOG(2) << "Setting throughput constraint: "
+          << absl::StreamFormat(
+                 "unwanted_inverse_throughput[%s] + cycle[%s] - cycle[%s] ≥ 0",
+                 state_element->name(), state_read->GetName(),
+                 next_value->GetName());
 
   return absl::OkStatus();
 }
@@ -491,13 +541,25 @@ absl::Status SDCSchedulingModel::AddSendThenRecvConstraint(
   return absl::OkStatus();
 }
 
-void SDCSchedulingModel::SetObjective() {
+void SDCSchedulingModel::SetObjective(std::optional<double> throughput_weight) {
   math_opt::LinearExpression objective;
   for (Node* node : topo_sort_) {
+    // Maximize throughput at the user-specified weight.
+    if (auto it = unwanted_inverse_throughput_var_.find(node);
+        it != unwanted_inverse_throughput_var_.end() &&
+        throughput_weight.value_or(0.0) != 0.0) {
+      CHECK(node->Is<Next>());
+      int64_t num_paths =
+          node->function_base()
+              ->next_values(node->As<Next>()->state_read()->As<StateRead>())
+              .size();
+      objective += (kObjectiveScaling * *throughput_weight / num_paths) *
+                   unwanted_inverse_throughput_var_.at(node);
+    }
     // Minimize node lifetimes.
     // The scaling makes the tie-breaker small in comparison, and is a power
     // of two so that there's no imprecision (just add to exponent).
-    objective += 1024 *
+    objective += kObjectiveScaling *
                  static_cast<double>(node->GetType()->GetFlatBitCount()) *
                  lifetime_var_.at(node);
     // This acts as a tie-breaker for under-constrained problems, favoring ASAP
@@ -988,7 +1050,8 @@ absl::Status SDCScheduler::BuildError(
 absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
     std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
     SchedulingFailureBehavior failure_behavior, bool check_feasibility,
-    std::optional<int64_t> worst_case_throughput) {
+    std::optional<int64_t> worst_case_throughput,
+    std::optional<double> dynamic_throughput_objective_weight) {
   model_.SetClockPeriod(clock_period_ps);
   if (worst_case_throughput.has_value()) {
     XLS_RETURN_IF_ERROR(model_.SetWorstCaseThroughput(*worst_case_throughput));
@@ -1016,7 +1079,7 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler::Schedule(
   if (check_feasibility) {
     model_.RemoveObjective();
   } else {
-    model_.SetObjective();
+    model_.SetObjective(dynamic_throughput_objective_weight);
   }
 
   XLS_ASSIGN_OR_RETURN(math_opt::SolveResult result, solver_->Solve());

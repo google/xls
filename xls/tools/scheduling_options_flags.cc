@@ -83,6 +83,15 @@ ABSL_FLAG(std::optional<int64_t>, worst_case_throughput, std::nullopt,
           "If zero, no throughput bound will be enforced.\n"
           "If negative, XLS will find the fastest throughput achievable given "
           "all other constraints specified.");
+ABSL_FLAG(
+    std::optional<double>, dynamic_throughput_objective_weight, std::nullopt,
+    "If set, the scheduler will attempt to optimize for dynamic throughput as "
+    "well as for area; the value controls how strongly this is prioritized. "
+    "e.g., if set to 1024.0 (the default value), the scheduler will consider "
+    "improving the dynamic throughput of one state element by 1 cycle "
+    "(assuming that all data-dependent feedback paths are equally likely) to "
+    "be worth adding up to 1024 flops. Only relevant if using the SDC "
+    "scheduler with --worst_case_throughput set to a value != 1.");
 ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
           "The additional delay added to each input.");
 ABSL_FLAG(int64_t, additional_output_delay_ps, 0,
@@ -204,6 +213,14 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
     proto.set_worst_case_throughput(
         absl::GetFlag(FLAGS_worst_case_throughput)
             .value_or(proto.minimize_worst_case_throughput() ? 0 : 1));
+  }
+  {
+    any_flags_set |=
+        FLAGS_dynamic_throughput_objective_weight.IsSpecifiedOnCommandLine();
+    if (absl::GetFlag(FLAGS_dynamic_throughput_objective_weight).has_value()) {
+      proto.set_dynamic_throughput_objective_weight(
+          *absl::GetFlag(FLAGS_dynamic_throughput_objective_weight));
+    }
   }
   POPULATE_FLAG(additional_input_delay_ps);
   POPULATE_FLAG(additional_output_delay_ps);

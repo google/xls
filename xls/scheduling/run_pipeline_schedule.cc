@@ -569,7 +569,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         sdc_scheduler->Schedule(options.pipeline_stages(), clock_period_ps,
                                 options.failure_behavior(),
                                 /*check_feasibility=*/false,
-                                worst_case_throughput);
+                                worst_case_throughput,
+                                options.dynamic_throughput_objective_weight());
     if (!schedule_cycle_map.ok()) {
       if (absl::IsInvalidArgument(schedule_cycle_map.status())) {
         // The scheduler was able to explain the failure; report it up without

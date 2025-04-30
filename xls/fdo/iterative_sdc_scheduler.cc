@@ -443,7 +443,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
       model.SetPipelineLength(min_pipeline_length);
     }
 
-    model.SetObjective();
+    model.SetObjective(/*throughput_weight=*/std::nullopt);
 
     XLS_ASSIGN_OR_RETURN(
         math_opt::SolveResult result,
