@@ -151,6 +151,7 @@ def generate_test_data(test_cases, xfer_base=0x0, seed=1234):
     if xfer_length == 0:
       req += [MemReaderReq(addr=xfer_addr, length=0)]
       resp += [MemReaderResp(status=0, data=0, length=0, last=1)]
+      resp += [MemReaderResp(status=0, data=0, length=0, last=1)]
 
     assert xfer_max_addr < mem_size, "Max address outside the memory span"
     req += [MemReaderReq(addr=xfer_addr, length=xfer_length)]

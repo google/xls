@@ -75,6 +75,249 @@ struct AxiWriterState<
     req_high_lane: uN[LANE_W],
 }
 
+struct AxiWriterInternalWConfig<ADDR_W: u32, LANE_W: u32> {
+    addr: uN[ADDR_W],
+    len: uN[ADDR_W],
+    aw_len: u8,
+    req_low_lane: uN[LANE_W],
+    req_high_lane: uN[LANE_W],
+}
+
+struct AxiWriterInternalWState<ADDR_W: u32, LANE_W: u32> {
+    active: bool,
+    conf: AxiWriterInternalWConfig<ADDR_W, LANE_W>
+}
+
+struct AxiWriterInternalState<ADDR_W: u32> {
+    active: bool,
+    addr: uN[ADDR_W],
+    len: uN[ADDR_W],
+    is_err: bool,
+    bundle_id: uN[ADDR_W],
+}
+
+
+pub proc AxiWriterInternalW<
+    ADDR_W: u32, DATA_W: u32, DEST_W: u32, ID_W: u32,
+
+    DATA_W_DIV8: u32 = {DATA_W / u32:8},
+    LANE_W: u32 = {std::clog2(DATA_W / u32:8)}
+> {
+    type State = AxiWriterInternalWState<ADDR_W, LANE_W>;
+    type Conf = AxiWriterInternalWConfig<ADDR_W, LANE_W>;
+
+    type AxiStream = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
+    type AxiW = axi::AxiW<DATA_W, DATA_W_DIV8>;
+
+    type Addr = uN[ADDR_W];
+    type Lane = uN[LANE_W];
+    type Id = uN[ID_W];
+    type Length = uN[ADDR_W];
+
+    conf_r: chan<Conf> in;
+    resp_s: chan<()> out;
+    axi_w_s: chan<AxiW> out;
+    axi_st_r: chan<AxiStream> in;
+
+    init { zero!<State>() }
+    config(
+        conf_r: chan<Conf> in,
+        resp_s: chan<()> out,
+        axi_w_s: chan<AxiW> out,
+        axi_st_r: chan<AxiStream> in
+    ) {
+        (
+            conf_r, resp_s,
+            axi_w_s, axi_st_r
+        )
+    }
+    next(state: State) {
+        const MAX_LANE = std::unsigned_max_value<LANE_W>();
+
+        let tok = join();
+        let conf = state.conf;
+
+        if !state.active {
+            let (tok, conf) = recv(tok, conf_r);
+            State {
+                active: true,
+                conf: conf
+            }
+        } else {
+            let (tok, r_data) = recv(tok, axi_st_r);
+            let is_last_group = (conf.aw_len == u8:0);
+            let is_last_tran = (conf.len == Addr:0);
+
+            let low_lane = conf.req_low_lane;
+            let high_lane = if is_last_group { conf.req_high_lane } else { MAX_LANE };
+            let mask = common::lane_mask<DATA_W_DIV8>(low_lane, high_lane);
+
+            let tok = send(tok, axi_w_s,  AxiW {
+                data: r_data.data,
+                strb: mask,
+                last: is_last_group,
+            });
+
+            if is_last_group {
+                let tok = send(tok, resp_s, ());
+                zero!<State>()
+            } else {
+                State {
+                    active: true,
+                    conf: Conf {
+                        aw_len: conf.aw_len - u8:1,
+                        req_low_lane: uN[LANE_W]:0,
+                        ..conf
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+pub proc AxiWriterNoFsm<
+    ADDR_W: u32, DATA_W: u32, DEST_W: u32, ID_W: u32,
+
+    DATA_W_DIV8: u32 = {DATA_W / u32:8},
+    LANE_W: u32 = {std::clog2(DATA_W / u32:8)}
+> {
+    type State = AxiWriterInternalState<ADDR_W>;
+    type Req = AxiWriterRequest<ADDR_W>;
+    type Wconf = AxiWriterInternalWConfig<ADDR_W, LANE_W>;
+
+    type AxiStream = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
+    type AxiAw = axi::AxiAw<ADDR_W, ID_W>;
+    type AxiW = axi::AxiW<DATA_W, DATA_W_DIV8>;
+    type AxiB = axi::AxiB<ID_W>;
+    type AxiResp = axi::AxiWriteResp;
+    type AxiAxSize = axi::AxiAxSize;
+    type AxiAxBurst = axi::AxiAxBurst;
+
+    type Addr = uN[ADDR_W];
+    type Lane = uN[LANE_W];
+    type Id = uN[ID_W];
+    type Length = uN[ADDR_W];
+
+    req_r: chan<Req> in;
+    resp_s: chan<AxiWriterResp> out;
+    axi_aw_s: chan<AxiAw> out;
+    axi_b_r: chan<AxiB> in;
+
+    wconf_s: chan<Wconf> out;
+    wresp_r: chan<()> in;
+
+
+    config(
+        req_r: chan<Req> in,
+        resp_s: chan<AxiWriterResp> out,
+        axi_aw_s: chan<AxiAw> out,
+        axi_w_s: chan<AxiW> out,
+        axi_b_r: chan<AxiB> in,
+        axi_st_r: chan<AxiStream> in
+    ) {
+        let (wconf_s, wconf_r) = chan<Wconf, u32:1>("wconf");
+        let (wresp_s, wresp_r) = chan<(), u32:1>("wresp");
+
+
+        spawn AxiWriterInternalW<ADDR_W, DATA_W, DEST_W, ID_W>
+        (
+            wconf_r, wresp_s,
+            axi_w_s, axi_st_r
+        );
+
+        (
+            req_r, resp_s, axi_aw_s, axi_b_r,
+            wconf_s, wresp_r
+        )
+    }
+
+    init {
+        zero!<State>()
+    }
+
+    next(state: State) {
+        const BYTES_IN_TRANSFER = DATA_W_DIV8 as Addr;
+        const MAX_AXI_BURST_BYTES = Addr:256 * BYTES_IN_TRANSFER;
+        const MAX_LANE = std::unsigned_max_value<LANE_W>();
+
+        let tok = join();
+        if (!state.active) {
+            let (tok, req) = recv(tok, req_r);
+            State {
+                active: true,
+                addr: req.address,
+                len: req.length,
+                ..state
+            }
+        } else {
+            let aligned_addr = common::align<DATA_W_DIV8>(state.addr); // OK
+            let aligned_offset = common::offset<DATA_W_DIV8>(state.addr) as Addr; // OK
+
+            let bytes_to_max_burst = MAX_AXI_BURST_BYTES - aligned_offset as Addr; // OK?
+            let bytes_to_4k = common::bytes_to_4k_boundary(state.addr); // OK
+
+            let tran_len = std::min(state.len, std::min(bytes_to_4k, bytes_to_max_burst)); // OK
+            let (req_low_lane, req_high_lane) = common::get_lanes<DATA_W_DIV8>(state.addr, tran_len); // OK
+            let adjusted_tran_len = aligned_offset as Addr + tran_len; // OK
+            let rest = std::mod_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) != Length:0; // OK
+            let aw_len = if rest {
+                std::div_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) as u8 // OK
+            } else {
+                (std::div_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) - Length:1) as u8 // OK
+            };
+
+            let next_addr = state.addr + tran_len; // OK
+            let next_len = state.len - tran_len; // OK
+
+            let aw_bundle = AxiAw {
+                id: uN[ID_W]:1 + state.bundle_id as uN[ID_W],
+                addr: aligned_addr,
+                size: common::axsize<DATA_W_DIV8>(),
+                len: aw_len,
+                burst: AxiAxBurst::INCR,
+            };
+
+            let tok = send(tok, axi_aw_s, aw_bundle);
+            let tok = send(tok, wconf_s,
+                Wconf {
+                    addr: aligned_addr,
+                    len: next_len,
+                    aw_len: aw_len,
+                    req_high_lane: req_high_lane,
+                    req_low_lane: req_low_lane
+                }
+            );
+
+            let (tok, _) = recv(tok, wresp_r);
+            let (tok, axi_b) = recv(tok, axi_b_r);
+            let is_err = axi_b.resp != AxiResp::OKAY;
+
+            let is_last_tran = (next_len == Addr:0);
+            if is_last_tran || is_err {
+                let status = if state.is_err { AxiWriterRespStatus::ERROR } else { AxiWriterRespStatus::OKAY };
+                let tok = send(tok, resp_s, AxiWriterResp {
+                    status: status
+                });
+                State {
+                    bundle_id: state.bundle_id + Addr:1,
+                    ..zero!<State>()
+                }
+            } else {
+                State {
+                    bundle_id: state.bundle_id + Addr:1,
+                    active: true,
+                    addr: next_addr,
+                    len: next_len,
+                    is_err: is_err,
+                }
+            }
+        }
+
+    }
+}
+
+
 pub proc AxiWriter<
     ADDR_W: u32, DATA_W: u32, DEST_W: u32, ID_W: u32,
     DATA_W_DIV8: u32 = {DATA_W / u32:8},
@@ -372,7 +615,7 @@ proc AxiWriterTest {
         let (axi_b_s, axi_b_r) = chan<TestAxiB>("axi_b");
         let (axi_st_read_s, axi_st_read_r) = chan<TestAxiStream>("axi_st");
 
-        spawn AxiWriter<
+        spawn AxiWriterNoFsm<
             TEST_ADDR_W, TEST_DATA_W, TEST_DEST_W, TEST_ID_W
         >(write_req_r, write_resp_s, axi_aw_s, axi_w_s, axi_b_r, axi_st_read_r);
         (terminator, write_req_s, write_resp_r, axi_aw_r, axi_w_r, axi_b_s, axi_st_read_s)

@@ -14,6 +14,9 @@
 
 // This file contains implementation of AxiReader proc that can be used to
 // to issue  AXI read requests as an AXI Manager device
+// The AxiReader starts by getting a request.
+// It sends a read address (AR), then waits for the AxiReaderInternalR to handle all the read data (R).
+// After that, it either sends another AR or returns a response if there's no more data
 
 import std;
 
@@ -39,7 +42,7 @@ pub enum AxiReaderError: u1 {
     TRANSFER_ERROR = 0,
 }
 
-// Returnes true if the provided data width is correct,
+// Returns true if the provided data width is correct,
 // according to the AXI specification. Otherwise it retuns false.
 fn is_valid_axi_data_width(x: u32) -> bool {
     match (x) {
@@ -73,6 +76,240 @@ struct AxiReaderState<
     req_tran: u8,              // requested transfer length
     req_low_lane: uN[LANE_W],  // low byte lane calculated for the first tra
     req_high_lane: uN[LANE_W], // high byte lane calculated  from the request
+}
+
+struct AxiReaderInternalRConfig<ADDR_W: u32, LANE_W: u32> {
+    addr: uN[ADDR_W],
+    len: uN[ADDR_W],
+    ar_len: u8,              // transfer len requested in the last AR
+    req_low_lane: uN[LANE_W],  // low byte lane calculated for the first transaction
+    req_high_lane: uN[LANE_W], // high byte lane calculated  from the request
+}
+
+struct AxiReaderInternalRState<ADDR_W: u32, LANE_W: u32> {
+    active: bool,
+    conf: AxiReaderInternalRConfig<ADDR_W, LANE_W>
+}
+
+struct AxiReaderInternalState<ADDR_W: u32> {
+    active: bool,
+    addr: uN[ADDR_W],
+    len: uN[ADDR_W]
+}
+
+pub proc AxiReaderInternalR<
+    ADDR_W: u32, DATA_W: u32, DEST_W: u32, ID_W: u32,
+
+    DATA_W_DIV8:u32 = {DATA_W / u32:8},
+    LANE_W: u32 = {std::clog2(DATA_W_DIV8)},
+    LANE_DATA_W_DIV8_PLUS_ONE: u32 = {std::clog2(DATA_W_DIV8) + u32:1},
+    TRAN_W: u32 = {std::clog2((u32:1 << ADDR_W) / DATA_W_DIV8)},
+> {
+    type State = AxiReaderInternalRState<ADDR_W, LANE_W>;
+    type Conf = AxiReaderInternalRConfig<ADDR_W, LANE_W>;
+
+    type AxiR = axi::AxiR<DATA_W, ID_W>;
+    type AxiStream = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
+    type AxiRResp = axi::AxiReadResp;
+
+    type Data = uN[DATA_W];
+    type Length = uN[ADDR_W];
+    type Addr = uN[ADDR_W];
+    type Lane = uN[LANE_W];
+
+    conf_r: chan<Conf> in;
+    resp_s: chan<bool> out;
+    axi_r_r: chan<AxiR> in;
+    axi_st_s: chan<AxiStream> out;
+
+    init { zero!<State>() }
+    config(
+        conf_r: chan<Conf> in,
+        resp_s: chan<bool> out,
+        axi_r_r: chan<AxiR> in,
+        axi_st_s: chan<AxiStream> out,
+    ) {
+        (
+            conf_r, resp_s,
+            axi_r_r, axi_st_s
+        )
+    }
+    next(state: State) {
+        const MAX_LANE = !Lane:0;
+
+        let tok = join();
+        let conf = state.conf;
+
+        if (!state.active) {
+            let (tok, conf) = recv(tok, conf_r);
+            State {
+                active: true,
+                conf: conf
+            }
+        } else {
+            let (tok, axi_r) = recv(tok, axi_r_r);
+            let is_err = axi_r.resp != AxiRResp::OKAY;
+            let is_last_group = (conf.ar_len == u8:0);
+            let is_last_tran = (conf.len == Addr:0);
+
+            let low_lane = conf.req_low_lane;
+            let high_lane = if is_last_group { conf.req_high_lane } else { MAX_LANE };
+            let mask = common::lane_mask<DATA_W_DIV8>(low_lane, high_lane);
+
+            let tok = send_if(tok, axi_st_s, !is_err,
+                AxiStream {
+                    data: axi_r.data,
+                    str: mask,
+                    keep: mask,
+                    last: is_last_group & is_last_tran,
+                    id: uN[ID_W]:0,
+                    dest: uN[DEST_W]:0,
+                }
+            );
+
+            if is_last_group {
+                let tok = send(tok, resp_s, is_err);
+                zero!<State>()
+            } else {
+                State {
+                    active: true,
+                    conf: Conf {
+                        ar_len: conf.ar_len - u8:1,
+                        req_low_lane: uN[LANE_W]:0,
+                        ..conf
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub proc AxiReaderNoFsm<
+    ADDR_W: u32, DATA_W: u32, DEST_W: u32, ID_W: u32,
+
+    DATA_W_DIV8:u32 = {DATA_W / u32:8},
+    LANE_W: u32 = {std::clog2(DATA_W_DIV8)},
+    LANE_DATA_W_DIV8_PLUS_ONE: u32 = {std::clog2(DATA_W_DIV8) + u32:1},
+    TRAN_W: u32 = {std::clog2((u32:1 << ADDR_W) / DATA_W_DIV8)},
+> {
+    type State = AxiReaderInternalState<ADDR_W>;
+    type Req = AxiReaderReq<ADDR_W>;
+    type Resp = axi::AxiReadResp;
+    type Error = AxiReaderError;
+    type Rconf = AxiReaderInternalRConfig<ADDR_W, LANE_W>;
+
+    type AxiAr = axi::AxiAr<ADDR_W, ID_W>;
+    type AxiR = axi::AxiR<DATA_W, ID_W>;
+    type AxiStream = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
+
+    type Data = uN[DATA_W];
+    type Length = uN[ADDR_W];
+    type Addr = uN[ADDR_W];
+    type Lane = uN[LANE_W];
+
+    const_assert!(is_valid_axi_data_width(DATA_W));
+    const_assert!(is_valid_axi_addr_width(ADDR_W));
+
+    req_r: chan<Req> in;
+    axi_ar_s: chan<AxiAr> out;
+    err_s: chan<Error> out;
+
+    rconf_s: chan<Rconf> out;
+    rresp_r: chan<bool> in;
+
+    init { zero!<State>() }
+
+    config(
+        req_r: chan<Req> in,
+        axi_ar_s: chan<AxiAr> out,
+        axi_r_r: chan<AxiR> in,
+        axi_st_s: chan<AxiStream> out,
+        err_s: chan<Error> out
+    ) {
+        let (rconf_s, rconf_r) = chan<Rconf, u32:1>("rconf");
+        let (rresp_s, rresp_r) = chan<bool, u32:1>("rresp");
+
+        spawn AxiReaderInternalR<ADDR_W, DATA_W, DEST_W, ID_W>
+        (
+            rconf_r, rresp_s, axi_r_r, axi_st_s
+        );
+
+        (
+            req_r, axi_ar_s, err_s,
+            rconf_s, rresp_r
+        )
+    }
+
+    next(state: State) {
+        const BYTES_IN_TRANSFER = DATA_W_DIV8 as Addr;
+        const MAX_AXI_BURST_BYTES = Addr:256 * BYTES_IN_TRANSFER;
+        const MAX_LANE = !Lane:0;
+
+        let tok = join();
+        if !state.active {
+            let (tok, req) = recv(tok, req_r);
+            State {
+                active: true,
+                addr: req.addr,
+                len: req.len
+            }
+        } else {
+            // send AR
+            let aligned_addr = common::align<DATA_W_DIV8>(state.addr);
+            let aligned_offset = common::offset<DATA_W_DIV8>(state.addr);
+
+            let bytes_to_max_burst = MAX_AXI_BURST_BYTES - aligned_offset as Length;
+            let bytes_to_4k = common::bytes_to_4k_boundary(state.addr);
+
+            let tran_len = std::min(state.len, std::min(bytes_to_4k, bytes_to_max_burst));
+            let (req_low_lane, req_high_lane) = common::get_lanes<DATA_W_DIV8>(state.addr, tran_len);
+            let adjusted_tran_len = aligned_offset as Addr + tran_len;
+            let rest = std::mod_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) != Length:0;
+            let ar_len = if rest {
+                std::div_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) as u8
+            } else {
+                (std::div_pow2(adjusted_tran_len, BYTES_IN_TRANSFER) - Length:1) as u8
+            };
+
+            let next_addr = state.addr + tran_len;
+            let next_len = state.len - tran_len;
+
+            let tok1 = send(tok, axi_ar_s, axi::AxiAr {
+                    id: uN[ID_W]:0,
+                    addr: aligned_addr,
+                    region: u4:0,
+                    len: ar_len,
+                    size: common::axsize<DATA_W_DIV8>(),
+                    burst: axi::AxiAxBurst::INCR,
+                    cache: axi::AxiArCache::DEV_NO_BUF,
+                    prot: u3:0,
+                    qos: u4:0,
+                }
+            );
+            let tok2 = send(tok, rconf_s, Rconf {
+                addr: aligned_addr,
+                len: next_len,
+                ar_len: ar_len,
+                req_high_lane: req_high_lane,
+                req_low_lane: req_low_lane
+            });
+            let (tok, is_err) = recv(join(tok1, tok2), rresp_r);
+            let tok = send_if(tok, err_s, is_err, Error::TRANSFER_ERROR);
+
+
+            let next_len_or_exit = if is_err { Addr:0 } else { next_len };
+
+            if next_len_or_exit == Addr:0 {
+                zero!<State>()
+            } else {
+                State {
+                    active: true,
+                    addr: next_addr,
+                    len: next_len_or_exit
+                }
+            }
+        }
+    }
 }
 
 
@@ -317,7 +554,7 @@ proc AxiReaderTest {
         let (axi_st_s, axi_st_r) = chan<AxiStream>("axi_st");
         let (err_s, err_r) = chan<Error>("error");
 
-        spawn AxiReader<TEST_ADDR_W, TEST_DATA_W, TEST_DEST_W, TEST_ID_W>(
+        spawn AxiReaderNoFsm<TEST_ADDR_W, TEST_DATA_W, TEST_DEST_W, TEST_ID_W>(
             req_r, axi_ar_s, axi_r_r, axi_st_s, err_s);
 
         (terminator, req_s, axi_ar_r, axi_r_s, axi_st_r, err_r)
