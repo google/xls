@@ -986,6 +986,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "@com_google_ortools//ortools/graph",
@@ -3893,8 +3894,10 @@ cc_test(
         "//xls/ir:op",
         "//xls/ir:value",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
+        "@cppitertools",
         "@googletest//:gtest",
     ],
 )

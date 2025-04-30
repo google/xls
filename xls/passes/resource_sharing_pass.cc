@@ -28,6 +28,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/random/random.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "cppitertools/enumerate.hpp"
@@ -72,15 +73,35 @@ namespace xls {
 // (e.g., a single IR node, or a set of nodes) of the folding operation.
 class FoldingAction {
  public:
-  Node *GetTo(void) const;
+  // This function returns the destination of the folding action.
+  Node *GetTo() const;
 
-  Node *GetSelect(void) const;
+  // This function returns the select node that makes the sources and the
+  // destination of the folding action mutually exclusive.
+  Node *GetSelect() const;
 
-  Node *GetSelector(void) const;
+  // This function returns the selector of the select related to the folding
+  // action.
+  Node *GetSelector() const;
 
-  uint32_t GetToCaseNumber(void) const;
+  // This function returns the number of the case within the select related to
+  // the folding action of the destination of such action.
+  //
+  // For example, consider the following code:
+  //    m0 = umul(p0, p1)
+  //    m1 = umul(p2, p3)
+  //    r = select(s, cases=[m0, m1])
+  // and let us assume the folding action is from m0 to m1.
+  // Since the destination of the folding is m1, which is case 1, then this
+  // function returns "1".
+  uint32_t GetToCaseNumber() const;
+
+  // This function returns true if the operation performed by the nodes involved
+  // is signed (e.g., smul), false otherwise (e.g., umul).
+  bool IsSigned() const;
 
  protected:
+  // This is the constructor that sub-classes need to invoke.
   FoldingAction(Node *to, Node *select, uint32_t to_case_number);
 
  private:
@@ -113,9 +134,9 @@ class BinaryFoldingAction : public FoldingAction {
   BinaryFoldingAction(Node *from, Node *to, Node *select,
                       uint32_t from_case_number, uint32_t to_case_number);
 
-  Node *GetFrom(void) const;
+  Node *GetFrom() const;
 
-  uint32_t GetFromCaseNumber(void) const;
+  uint32_t GetFromCaseNumber() const;
 
  private:
   Node *from_;
@@ -149,7 +170,11 @@ class NaryFoldingAction : public FoldingAction {
       const absl::flat_hash_set<std::pair<Node *, uint32_t>> &from, Node *to,
       Node *select, uint32_t to_case_number);
 
-  absl::flat_hash_set<std::pair<Node *, uint32_t>> GetFrom(void) const;
+  NaryFoldingAction(const std::vector<BinaryFoldingAction *> &edges);
+
+  absl::flat_hash_set<std::pair<Node *, uint32_t>> GetFrom() const;
+
+  uint64_t GetNumberOfFroms() const;
 
  private:
   absl::flat_hash_set<std::pair<Node *, uint32_t>> from_;
@@ -170,7 +195,21 @@ class FoldingGraph {
   // Each outermost set includes the set of edges of the graph that creates a
   // clique within that graph.
   absl::flat_hash_set<absl::flat_hash_set<BinaryFoldingAction *>>
-  GetEdgeCliques(void) const;
+  GetEdgeCliques() const;
+
+  // This function returns all the nodes of the folding graph.
+  std::vector<Node *> GetNodes() const;
+
+  // This function returns all the edges of the folding graph.
+  std::vector<BinaryFoldingAction *> GetEdges() const;
+
+  // This function returns the in-degree of the node @n.
+  uint64_t GetInDegree(Node *n) const;
+
+  // This function returns all the edges of the folding graph that have @n as
+  // destination.
+  // In other words, these are edges that have @n as head.
+  std::vector<BinaryFoldingAction *> GetEdgesTo(Node *n) const;
 
  private:
   using NodeIndex = int32_t;
@@ -186,7 +225,7 @@ class FoldingGraph {
       absl::Span<const std::unique_ptr<BinaryFoldingAction>> foldable_actions);
   void AddEdges(
       std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions);
-  void IdentifyCliques(void);
+  void IdentifyCliques();
 };
 
 // This function returns true if @node erases @source, false otherwise.
@@ -431,6 +470,11 @@ std::optional<std::unique_ptr<BinaryFoldingAction>> CanMapInto(
     return {};
   }
 
+  // We currently only fold nodes that have the same op
+  if (node_to_map->op() != folding_destination->op()) {
+    return {};
+  }
+
   // Check @node_to_map and @folding_destination reach only one case of the
   // select
   bool node_to_map_found = false;
@@ -467,6 +511,19 @@ std::optional<std::unique_ptr<BinaryFoldingAction>> CanMapInto(
     return {};
   }
 
+  // Check the bit-widths
+  ArithOp *from_mul = node_to_map->As<ArithOp>();
+  ArithOp *to_mul = folding_destination->As<ArithOp>();
+  if (from_mul->BitCountOrDie() > to_mul->BitCountOrDie()) {
+    return {};
+  }
+  for (auto [operand_from_mul, operand_to_mul] :
+       iter::zip(from_mul->operands(), to_mul->operands())) {
+    if (operand_from_mul->BitCountOrDie() > operand_to_mul->BitCountOrDie()) {
+      return {};
+    }
+  }
+
   // @node_to_map can fold into @folding_destination
   std::unique_ptr<BinaryFoldingAction> f =
       std::make_unique<BinaryFoldingAction>(node_to_map, folding_destination,
@@ -474,31 +531,6 @@ std::optional<std::unique_ptr<BinaryFoldingAction>> CanMapInto(
                                             folding_destination_case_number);
 
   return f;
-}
-
-// Check if the two nodes given as input are compatible for folding.
-bool AreCompatible(Node *n0, Node *n1) {
-  ArithOp *from_mul = n0->As<ArithOp>();
-  ArithOp *to_mul = n1->As<ArithOp>();
-
-  // We currently handle only folding between multiplications with the same
-  // bitwidth
-  //
-  // - Check if the result has the same bitwidth
-  if (from_mul->BitCountOrDie() != to_mul->BitCountOrDie()) {
-    return false;
-  }
-
-  // - Check if the operands have the same bitwidth
-  CHECK_EQ(from_mul->operand_count(), to_mul->operand_count());
-  for (auto [operand_from_mul, operand_to_mul] :
-       iter::zip(from_mul->operands(), to_mul->operands())) {
-    if (operand_from_mul->BitCountOrDie() != operand_to_mul->BitCountOrDie()) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 // Check if we are currently capable to potentially handle the node given as
@@ -509,7 +541,29 @@ bool CanTarget(Node *n) {
     return false;
   }
   ArithOp *binop = n->As<ArithOp>();
-  return binop->OpIn({Op::kUMul, Op::kSMul});
+  if (binop->OpIn({Op::kUMul, Op::kSMul})) {
+    return true;
+  }
+
+  return false;
+}
+
+// Check if we are currently capable to potentially handle the node given as
+// input for folding.
+bool CanTarget(Node *n, Node *selector,
+               const absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>
+                   &reachability_result) {
+  // We currently handle only multiplications
+  if (!CanTarget(n)) {
+    return false;
+  }
+
+  // Check if @n reaches the selector.
+  // In this case, @n cannot be considered for this select
+  if (!DoesReach(reachability_result, selector, n)) {
+    return true;
+  }
+  return false;
 }
 
 // Compute the reachability analysis.
@@ -670,7 +724,7 @@ ComputeMutualExclusionAnalysis(
       selector_bits.emplace_back(selector, case_number);
     }
 
-    // Compute the mutually-exclusive instructions created by the select @n
+    // Identify the mutually-exclusive instructions created by the select @n
     absl::flat_hash_map<Node *, bool> nodes_with_side_effects;
     for (uint32_t case_number = 0; case_number < cases.length();
          case_number++) {
@@ -684,7 +738,8 @@ ComputeMutualExclusionAnalysis(
       for (Node *current_case_reaching_node :
            reachability_result[current_case]) {
         // Do not bother looking at nodes that we will not be able to fold
-        if (!CanTarget(current_case_reaching_node)) {
+        if (!CanTarget(current_case_reaching_node, selector,
+                       reachability_result)) {
           continue;
         }
         VLOG(5) << "    Check " << current_case_reaching_node->ToString();
@@ -728,7 +783,8 @@ ComputeMutualExclusionAnalysis(
           for (Node *other_case_reaching_node :
                reachability_result[current_case_2]) {
             // Do not bother looking at nodes that we will not be able to fold
-            if (!CanTarget(other_case_reaching_node)) {
+            if (!CanTarget(other_case_reaching_node, selector,
+                           reachability_result)) {
               continue;
             }
             VLOG(5) << "          Check "
@@ -815,13 +871,6 @@ std::vector<std::unique_ptr<BinaryFoldingAction>> ComputeFoldableActions(
           continue;
         }
 
-        // Both nodes can be targeted by resource sharing
-        //
-        // Check if they are compatible
-        if (!AreCompatible(n0, n1)) {
-          continue;
-        }
-
         // The nodes can be targeted by resource sharing and they are
         // compatible.
         //
@@ -853,18 +902,26 @@ std::vector<std::unique_ptr<BinaryFoldingAction>> ComputeFoldableActions(
   return foldable_actions;
 }
 
-// This function chooses the subset of foldable actions to perform and decide
-// their total order to perform them.
-std::vector<NaryFoldingAction *> SelectFoldingActions(
-    FoldingGraph *folding_graph) {
-  std::vector<NaryFoldingAction *> folding_actions_to_perform;
+// This function implements the heuristics that selects the sub-set of legal
+// folding actions to perform based on the cliques of the folding graph.
+// This function is a profitability guard of the resource sharing optimization.
+//
+// This heuristics works particularly well when folding actions are symmetric.
+// For example, when only multiplications that have the same bit-widths are
+// considered.
+std::vector<std::unique_ptr<NaryFoldingAction>>
+SelectFoldingActionsBasedOnCliques(FoldingGraph *folding_graph) {
+  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
 
   // Choose all of them matching the maximum cliques of the folding graph
   for (const absl::flat_hash_set<BinaryFoldingAction *> &clique :
        folding_graph->GetEdgeCliques()) {
+    VLOG(3) << "  New clique";
+
     // Get the destination that is shared among all elements in the clique
     BinaryFoldingAction *first_action = *clique.begin();
     Node *to = first_action->GetTo();
+    VLOG(3) << "    To: " << to->ToString();
     uint32_t to_case_number = first_action->GetToCaseNumber();
 
     // Get the select
@@ -885,14 +942,182 @@ std::vector<NaryFoldingAction *> SelectFoldingActions(
         // destination we chose.
         continue;
       }
+      VLOG(3) << "    From: " << binary_folding->GetFrom()->ToString();
       froms.insert(std::make_pair(binary_folding->GetFrom(),
                                   binary_folding->GetFromCaseNumber()));
     }
 
     // Create a single n-ary folding action for the whole clique
-    NaryFoldingAction *new_action =
-        new NaryFoldingAction(froms, to, select, to_case_number);
-    folding_actions_to_perform.push_back(new_action);
+    std::unique_ptr<NaryFoldingAction> new_action =
+        std::make_unique<NaryFoldingAction>(froms, to, select, to_case_number);
+    folding_actions_to_perform.push_back(std::move(new_action));
+  }
+
+  // Sort the cliques based on their size
+  auto size_comparator = [](std::unique_ptr<NaryFoldingAction> &f0,
+                            std::unique_ptr<NaryFoldingAction> &f1) -> bool {
+    return f0->GetNumberOfFroms() > f1->GetNumberOfFroms();
+  };
+  absl::c_sort(folding_actions_to_perform, size_comparator);
+
+  return folding_actions_to_perform;
+}
+
+// This function implements the heuristic that selects the sub-set of legal
+// folding actions to perform based on the in-degree of the nodes of the
+// folding graph.
+// This function is a profitability guard of the resource sharing optimization.
+//
+// This heuristics works particularly well when folding actions are asymmetric
+// and when there is a high correlation between bit-widths of a node and the
+// number of compatible nodes that are mutually exclusive with it.
+//
+// This situation occurs when when multiplications with different bit-widths are
+// considered and when many nodes can be folded into the few one that have high
+// bit-widths.
+std::vector<std::unique_ptr<NaryFoldingAction>>
+SelectFoldingActionsBasedOnInDegree(FoldingGraph *folding_graph) {
+  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
+
+  // Get the nodes of the folding graph
+  std::vector<Node *> nodes = folding_graph->GetNodes();
+
+  // Sort the nodes based on their in-degree
+  auto in_degree_comparator = [folding_graph](Node *n0, Node *n1) {
+    return folding_graph->GetInDegree(n0) > folding_graph->GetInDegree(n1);
+  };
+  absl::c_sort(nodes, in_degree_comparator);
+
+  // Prioritize folding actions where the target is the node with higher
+  // in-degree
+  for (Node *n : nodes) {
+    VLOG(3) << "  [" << folding_graph->GetInDegree(n) << "] " << n->ToString();
+
+    // Get all edges that end to @n
+    std::vector<BinaryFoldingAction *> edges_to_n =
+        folding_graph->GetEdgesTo(n);
+    if (edges_to_n.empty()) {
+      continue;
+    }
+
+    // Create the hyper-edge by merging all these edges
+    // Notice this is possible because all edges in @edges_to_n are guaranteed
+    // to have @n as destination.
+    std::unique_ptr<NaryFoldingAction> new_action =
+        std::make_unique<NaryFoldingAction>(edges_to_n);
+    folding_actions_to_perform.push_back(std::move(new_action));
+  }
+
+  return folding_actions_to_perform;
+}
+
+// This function implements the heuristic that randomly selects the sub-set of
+// legal folding actions to perform. This function is a profitability guard of
+// the resource sharing optimization.
+std::vector<std::unique_ptr<NaryFoldingAction>> SelectRandomlyFoldingActions(
+    FoldingGraph *folding_graph) {
+  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
+
+  // Get all edges of the folding graph
+  std::vector<BinaryFoldingAction *> edges = folding_graph->GetEdges();
+
+  // Compute the number of edges we will choose
+  uint64_t target_edges = edges.size() * 0.1;
+
+  // Create the PRVG that we will use to select the edges.
+  absl::BitGen prvg;
+
+  // Select the sub-set of the edges chosen randomly
+  absl::flat_hash_map<Node *, std::vector<uint64_t>> indexes_of_selected_edges;
+  for (uint64_t i = 0; i < target_edges; i++) {
+    // Choose a new edge
+    //
+    // Because we want all edges to have equal probability to be chosen, we use
+    // the uniform distribution for the PRVG.
+    uint64_t index = absl::Uniform(prvg, 0u, edges.size());
+    CHECK_LT(index, edges.size());
+    BinaryFoldingAction *edge = edges[index];
+
+    // Keep track of the current edge
+    Node *destination = edge->GetTo();
+    indexes_of_selected_edges[destination].push_back(index);
+  }
+
+  // Merge chosen binary folding actions that have the same destination
+  absl::flat_hash_set<std::pair<Node *, uint32_t>> froms;
+  for (auto &[destination, indexes] : indexes_of_selected_edges) {
+    CHECK_GT(indexes.size(), 0);
+
+    // Collect all sources that target @destination
+    Node *select = nullptr;
+    uint32_t to_case_number;
+    for (uint64_t index : indexes) {
+      // Fetch the edge
+      BinaryFoldingAction *edge = edges[index];
+
+      // Keep track of the select
+      if (select == nullptr) {
+        select = edge->GetSelect();
+        to_case_number = edge->GetToCaseNumber();
+      }
+      CHECK_EQ(edge->GetSelect(), select);
+
+      // Add the source of the edge to a list
+      froms.insert(std::make_pair(edge->GetFrom(), edge->GetFromCaseNumber()));
+    }
+    CHECK_NE(select, nullptr);
+
+    // Create a single n-ary folding action
+    std::unique_ptr<NaryFoldingAction> new_action =
+        std::make_unique<NaryFoldingAction>(froms, destination, select,
+                                            to_case_number);
+
+    // Add the new n-ary folding action to the list of actions to perform
+    folding_actions_to_perform.push_back(std::move(new_action));
+  }
+
+  return folding_actions_to_perform;
+}
+
+// This function chooses the subset of foldable actions to perform and decide
+// their total order to perform them.
+std::vector<std::unique_ptr<NaryFoldingAction>> SelectFoldingActions(
+    FoldingGraph *folding_graph,
+    ResourceSharingPass::ProfitabilityGuard heuristics) {
+  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
+  VLOG(3) << "Choosing the best folding actions";
+
+  // Decide the sub-set of legal folding actions to perform
+  switch (heuristics) {
+    case ResourceSharingPass::ProfitabilityGuard::kInDegree:
+      folding_actions_to_perform =
+          SelectFoldingActionsBasedOnInDegree(folding_graph);
+      break;
+
+    case ResourceSharingPass::ProfitabilityGuard::kCliques:
+      folding_actions_to_perform =
+          SelectFoldingActionsBasedOnCliques(folding_graph);
+      break;
+
+    case ResourceSharingPass::ProfitabilityGuard::kRandom:
+      folding_actions_to_perform = SelectRandomlyFoldingActions(folding_graph);
+      break;
+  }
+
+  // Print the folding actions we selected
+  if (VLOG_IS_ON(2)) {
+    VLOG(2) << "  We selected " << folding_actions_to_perform.size()
+            << " folding actions to perform";
+    for (const std::unique_ptr<NaryFoldingAction> &folding :
+         folding_actions_to_perform) {
+      VLOG(2) << "    To [" << folding->GetToCaseNumber() << "] "
+              << folding->GetTo()->ToString();
+      for (auto [from_node, from_node_case_number] : folding->GetFrom()) {
+        VLOG(2) << "      From [" << from_node_case_number << "] "
+                << from_node->ToString();
+      }
+      VLOG(2) << "      Select " << folding->GetSelect()->ToString();
+    }
   }
 
   return folding_actions_to_perform;
@@ -901,24 +1126,17 @@ std::vector<NaryFoldingAction *> SelectFoldingActions(
 // This function performs the folding actions specified in its input following
 // the order specified.
 absl::StatusOr<bool> PerformFoldingActions(
-    FunctionBase *f,
-    const std::vector<NaryFoldingAction *> &folding_actions_to_perform) {
+    FunctionBase *f, const std::vector<std::unique_ptr<NaryFoldingAction>>
+                         &folding_actions_to_perform) {
   bool modified = false;
   VLOG(2) << "There are " << folding_actions_to_perform.size()
           << " folding actions to perform";
 
   // Perform the folding actions specified
   absl::flat_hash_set<Node *> node_modified;
-  for (NaryFoldingAction *folding : folding_actions_to_perform) {
+  for (const std::unique_ptr<NaryFoldingAction> &folding :
+       folding_actions_to_perform) {
     modified = true;
-    VLOG(2) << "  Next folding to perform:\n";
-    for (auto [from_node, from_node_case_number] : folding->GetFrom()) {
-      VLOG(2) << "    From [" << from_node_case_number << "] "
-              << from_node->ToString();
-    }
-    VLOG(2) << "    To [" << folding->GetToCaseNumber() << "] "
-            << folding->GetTo()->ToString();
-    VLOG(2) << "    Select " << folding->GetSelect()->ToString();
 
     // Fetch the nodes to fold that have not been folded already
     std::vector<std::pair<Node *, uint32_t>> froms_to_use;
@@ -932,7 +1150,6 @@ absl::StatusOr<bool> PerformFoldingActions(
     // Check if we have a folding action to perform with the current nodes.
     Node *to_node = folding->GetTo();
     if ((froms_to_use.empty()) || node_modified.contains(to_node)) {
-      VLOG(2) << "    Not possible because of prior folding already performed";
       continue;
     }
 
@@ -949,12 +1166,17 @@ absl::StatusOr<bool> PerformFoldingActions(
                               std::pair<Node *, uint32_t> p1) -> bool {
       return p0.second < p1.second;
     };
-    std::sort(froms_to_use.begin(), froms_to_use.end(), from_comparator);
-    VLOG(2) << "    Froms that were not involved in prior foldings";
+    absl::c_sort(froms_to_use, from_comparator);
+
+    // Print the folding we are about to perform
+    VLOG(2) << "  Next folding to perform:\n";
+    VLOG(2) << "    To [" << folding->GetToCaseNumber() << "] "
+            << folding->GetTo()->ToString();
     for (auto [from_node, from_node_case_number] : froms_to_use) {
-      VLOG(2) << "      [" << from_node_case_number << "] "
+      VLOG(2) << "    From [" << from_node_case_number << "] "
               << from_node->ToString();
     }
+    VLOG(2) << "    Select " << folding->GetSelect()->ToString();
 
     // Fold
     //
@@ -978,15 +1200,33 @@ absl::StatusOr<bool> PerformFoldingActions(
     VLOG(3) << "    Step 1: generate the priority selects, one per input of "
                "the folding target";
     std::vector<Node *> new_operands;
+    Op extension_op = folding->IsSigned() ? Op::kSignExt : Op::kZeroExt;
     for (uint32_t op_id = 0; op_id < to_node->operand_count(); op_id++) {
       // Fetch the current operand for the target of the folding action.
       Node *to_operand = to_node->operand(op_id);
+      int64_t to_operand_bitwidth = to_operand->BitCountOrDie();
 
       // Generate all select cases, one for each source of the folding action
       std::vector<Node *> operand_select_cases;
       for (auto [from_node, from_node_case_number] : froms_to_use) {
+        // Fetch the operand of the current source of the folding action
         Node *from_operand = from_node->operand(op_id);
-        operand_select_cases.push_back(from_operand);
+        CHECK_LE(from_operand->BitCountOrDie(), to_operand->BitCountOrDie());
+
+        // Check if we need to cast it
+        Node *from_operand_casted = from_operand;
+        if (from_operand->BitCountOrDie() < to_operand->BitCountOrDie()) {
+          // Cast the operand to the bitwidth of the related operand of the
+          // target of the folding action
+          XLS_ASSIGN_OR_RETURN(
+              from_operand_casted,
+              f->MakeNode<ExtendOp>(selector->loc(), from_operand,
+                                    to_operand_bitwidth, extension_op));
+        }
+
+        // Append the current operand of the current source of the folding
+        // action
+        operand_select_cases.push_back(from_operand_casted);
       }
 
       // Generate a select between them
@@ -1013,7 +1253,19 @@ absl::StatusOr<bool> PerformFoldingActions(
     VLOG(3)
         << "    Step 3: update the def-use chains to use the new folded node";
     for (auto [from_node, from_node_case_number] : froms_to_use) {
-      XLS_RETURN_IF_ERROR(from_node->ReplaceUsesWith(to_node));
+      CHECK_LE(from_node->BitCountOrDie(), to_node->BitCountOrDie());
+
+      // Check if we need to take a slice of the result
+      Node *to_node_to_use = to_node;
+      if (from_node->BitCountOrDie() < to_node->BitCountOrDie()) {
+        // Take a slice of the result of the target of the folding action
+        XLS_ASSIGN_OR_RETURN(to_node_to_use,
+                             f->MakeNode<BitSlice>(from_node->loc(), to_node, 0,
+                                                   from_node->BitCountOrDie()));
+      }
+
+      // Replace
+      XLS_RETURN_IF_ERROR(from_node->ReplaceUsesWith(to_node_to_use));
     }
 
     // - Step 4: Remove all the sources of the folding action as they are now
@@ -1065,17 +1317,12 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
                              mutual_exclusivity_relation};
 
   // Select the folding actions to perform
-  std::vector<NaryFoldingAction *> folding_actions_to_perform =
-      SelectFoldingActions(&folding_graph);
+  std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform =
+      SelectFoldingActions(&folding_graph, profitability_guard_);
 
   // Perform the folding
   XLS_ASSIGN_OR_RETURN(modified,
                        PerformFoldingActions(f, folding_actions_to_perform));
-
-  // Free the memory
-  for (NaryFoldingAction *a : folding_actions_to_perform) {
-    delete a;
-  }
 
   return modified;
 }
@@ -1083,16 +1330,18 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
 FoldingAction::FoldingAction(Node *to, Node *select, uint32_t to_case_number)
     : to_{to}, select_{select}, to_case_number_{to_case_number} {}
 
-Node *FoldingAction::GetTo(void) const { return to_; }
+Node *FoldingAction::GetTo() const { return to_; }
 
-Node *FoldingAction::GetSelect(void) const { return select_; }
+Node *FoldingAction::GetSelect() const { return select_; }
 
-Node *FoldingAction::GetSelector(void) const {
+Node *FoldingAction::GetSelector() const {
   Node *s = ::xls::GetSelector(select_);
   return s;
 }
 
-uint32_t FoldingAction::GetToCaseNumber(void) const { return to_case_number_; }
+uint32_t FoldingAction::GetToCaseNumber() const { return to_case_number_; }
+
+bool FoldingAction::IsSigned() const { return this->to_->op() == Op::kSMul; }
 
 BinaryFoldingAction::BinaryFoldingAction(Node *from, Node *to, Node *select,
                                          uint32_t from_case_number,
@@ -1101,9 +1350,9 @@ BinaryFoldingAction::BinaryFoldingAction(Node *from, Node *to, Node *select,
       from_{from},
       from_case_number_{from_case_number} {}
 
-Node *BinaryFoldingAction::GetFrom(void) const { return from_; }
+Node *BinaryFoldingAction::GetFrom() const { return from_; }
 
-uint32_t BinaryFoldingAction::GetFromCaseNumber(void) const {
+uint32_t BinaryFoldingAction::GetFromCaseNumber() const {
   return from_case_number_;
 }
 
@@ -1112,10 +1361,22 @@ NaryFoldingAction::NaryFoldingAction(
     Node *select, uint32_t to_case_number)
     : FoldingAction{to, select, to_case_number}, from_{from} {}
 
+NaryFoldingAction::NaryFoldingAction(
+    const std::vector<BinaryFoldingAction *> &edges)
+    : FoldingAction{edges[0]->GetTo(), edges[0]->GetSelect(),
+                    edges[0]->GetToCaseNumber()} {
+  for (BinaryFoldingAction *binary_folding : edges) {
+    from_.insert(std::make_pair(binary_folding->GetFrom(),
+                                binary_folding->GetFromCaseNumber()));
+  }
+}
+
 absl::flat_hash_set<std::pair<Node *, uint32_t>> NaryFoldingAction::GetFrom(
     void) const {
   return from_;
 }
+
+uint64_t NaryFoldingAction::GetNumberOfFroms() const { return from_.size(); }
 
 FoldingGraph::FoldingGraph(
     std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
@@ -1139,15 +1400,34 @@ FoldingGraph::FoldingGraph(
   // Print the folding graph
   if (VLOG_IS_ON(2)) {
     VLOG(2) << "Folding graph";
+
+    // Print the folding graph following outgoing edges
+    VLOG(2) << "  Following outgoing edges:";
     for (NodeIndex node_index : graph_->AllNodes()) {
       Node *from_node = nodes_[node_index];
-      VLOG(2) << "  [" << node_index << "] " << from_node->ToString();
+      VLOG(2) << "    [" << node_index << "] " << from_node->ToString();
       for (EdgeIndex edge_index : graph_->OutgoingArcs(node_index)) {
         NodeIndex to_node_index = graph_->Head(edge_index);
         Node *to_node = nodes_[to_node_index];
         CHECK_EQ(edges_[edge_index]->GetFrom(), from_node);
         CHECK_EQ(edges_[edge_index]->GetTo(), to_node);
-        VLOG(2) << "    -> [" << to_node_index << "] " << to_node->ToString();
+        VLOG(2) << "      -> [" << to_node_index << "] " << to_node->ToString();
+      }
+    }
+
+    // Print the folding graph following incoming edges
+    VLOG(2) << "  Following incoming edges:";
+    for (NodeIndex node_index : graph_->AllNodes()) {
+      Node *to_node = nodes_[node_index];
+      VLOG(2) << "    [" << node_index << "] " << to_node->ToString();
+      for (EdgeIndex edge_index : graph_->IncomingArcs(node_index)) {
+        CHECK_EQ(graph_->Head(edge_index), node_index);
+        NodeIndex from_node_index = graph_->Tail(edge_index);
+        Node *from_node = nodes_[from_node_index];
+        CHECK_EQ(edges_[edge_index]->GetFrom(), from_node);
+        CHECK_EQ(edges_[edge_index]->GetTo(), to_node);
+        VLOG(2) << "      -> [" << from_node_index << "] "
+                << from_node->ToString();
       }
     }
   }
@@ -1204,7 +1484,7 @@ void FoldingGraph::AddEdges(
   }
 }
 
-void FoldingGraph::IdentifyCliques(void) {
+void FoldingGraph::IdentifyCliques() {
   auto graph_descriptor = [this](int from_node, int to_node) -> bool {
     for (EdgeIndex outgoing_edge : this->graph_->OutgoingArcs(from_node)) {
       if (this->graph_->Head(outgoing_edge) == to_node) {
@@ -1229,7 +1509,7 @@ void FoldingGraph::IdentifyCliques(void) {
 }
 
 absl::flat_hash_set<absl::flat_hash_set<BinaryFoldingAction *>>
-FoldingGraph::GetEdgeCliques(void) const {
+FoldingGraph::GetEdgeCliques() const {
   absl::flat_hash_set<absl::flat_hash_set<BinaryFoldingAction *>> cliques;
 
   // Find all the cliques of edges
@@ -1263,6 +1543,51 @@ FoldingGraph::GetEdgeCliques(void) const {
 
   return cliques;
 }
+
+std::vector<Node *> FoldingGraph::GetNodes() const { return nodes_; }
+
+std::vector<BinaryFoldingAction *> FoldingGraph::GetEdges() const {
+  std::vector<BinaryFoldingAction *> edges;
+
+  // Collect all the edges
+  for (auto &edge : edges_) {
+    BinaryFoldingAction *edge_raw = edge.get();
+    edges.push_back(edge_raw);
+  }
+
+  return edges;
+}
+
+uint64_t FoldingGraph::GetInDegree(Node *n) const {
+  NodeIndex node_id = node_to_index_.at(n);
+  uint64_t in_degree = graph_->InDegree(node_id);
+
+  return in_degree;
+}
+
+std::vector<BinaryFoldingAction *> FoldingGraph::GetEdgesTo(Node *n) const {
+  std::vector<BinaryFoldingAction *> edges_to_n;
+
+  // Get the index of @n
+  NodeIndex node_id = node_to_index_.at(n);
+
+  // Get the indexes of the incoming edges of @n
+  for (EdgeIndex edge_index : graph_->IncomingArcs(node_id)) {
+    CHECK_EQ(graph_->Head(edge_index), node_id);
+
+    // Get the edge
+    BinaryFoldingAction *f = edges_[edge_index].get();
+
+    // Add the current edge
+    edges_to_n.push_back(f);
+  }
+
+  return edges_to_n;
+}
+
+ResourceSharingPass::ResourceSharingPass()
+    : OptimizationFunctionBasePass(kName, "Resource Sharing"),
+      profitability_guard_{ProfitabilityGuard::kInDegree} {}
 
 REGISTER_OPT_PASS(ResourceSharingPass);
 

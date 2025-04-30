@@ -28,15 +28,26 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "resource_sharing";
 
-  explicit ResourceSharingPass()
-      : OptimizationFunctionBasePass(kName, "Resource Sharing") {}
+  explicit ResourceSharingPass();
 
   ~ResourceSharingPass() override = default;
+
+  enum class ProfitabilityGuard {
+    kInDegree,
+
+    kCliques,
+
+    kRandom,  // This heuristic makes this pass not deterministic when different
+              // seeds of the PRVG are used.
+  };
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results, OptimizationContext& context) const override;
+
+ private:
+  ProfitabilityGuard profitability_guard_;
 };
 
 }  // namespace xls
