@@ -435,6 +435,7 @@ MEM_READER_CLOCK_PERIOD_PS = "2600"
 mem_reader_codegen_args = common_codegen_args | {
     "clock_period_ps": MEM_READER_CLOCK_PERIOD_PS,
     "module_name": "mem_reader",
+    "worst_case_throughput": "2"
 }
 
 xls_dslx_verilog(
@@ -736,6 +737,12 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+
+mem_writer_codegen_args = common_codegen_args | {
+    "worst_case_throughput": "4",
+    "module_name": "mem_writer"
+}
+
 xls_dslx_library(
     name = "mem_writer_dslx",
     srcs = ["mem_writer.x"],
@@ -756,7 +763,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "mem_writer_verilog",
-    codegen_args = common_codegen_args | {"module_name": "mem_writer"},
+    codegen_args = mem_writer_codegen_args,
     dslx_top = "MemWriterInst",
     library = ":mem_writer_dslx",
     tags = ["manual"],

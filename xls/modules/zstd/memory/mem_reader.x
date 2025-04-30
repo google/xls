@@ -62,6 +62,110 @@ struct MemReaderState<AXI_ADDR_W: u32, DSLX_ADDR_W: u32> {
     base: uN[AXI_ADDR_W],
 }
 
+struct MemReaderInternalState {
+    active: bool
+}
+
+proc MemReaderInternalNoFsm<
+    // DSLX side parameters
+    DSLX_DATA_W: u32, DSLX_ADDR_W: u32,
+    // AXI side parameters
+    AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_DEST_W: u32, AXI_ID_W: u32,
+    // parameters calculated from other values
+    DSLX_DATA_W_DIV8: u32 = {DSLX_DATA_W / u32:8},
+    AXI_DATA_W_DIV8: u32 = {AXI_DATA_W / u32:8},
+    AXI_TO_DSLX_RATIO: u32 = {AXI_DATA_W / DSLX_DATA_W},
+    AXI_TO_DSLX_RATIO_W: u32 = {std::clog2((AXI_DATA_W / DSLX_DATA_W) + u32:1)}
+> {
+    type Req = MemReaderReq<DSLX_ADDR_W>;
+    type Resp = MemReaderResp<DSLX_DATA_W, DSLX_ADDR_W>;
+    type Length = uN[DSLX_ADDR_W];
+
+    type AxiReaderReq = axi_reader::AxiReaderReq<AXI_ADDR_W>;
+    type AxiReaderError = axi_reader::AxiReaderError;
+    type AxiAr = axi::AxiAr<AXI_ADDR_W, AXI_ID_W>;
+    type AxiR = axi::AxiR<AXI_DATA_W, AXI_ID_W>;
+    type AxiStreamInput = axi_st::AxiStream<AXI_DATA_W, AXI_DEST_W, AXI_ID_W, AXI_DATA_W_DIV8>;
+    type AxiStreamOutput = axi_st::AxiStream<DSLX_DATA_W, AXI_DEST_W, AXI_ID_W, DSLX_DATA_W_DIV8>;
+
+    type State = MemReaderInternalState;
+    type Fsm = MemReaderFsm;
+
+    // Assumptions related to parameters
+    const_assert!(DSLX_DATA_W % u32:8 == u32:0);       // DSLX-side data width should be divisible by 8
+    const_assert!(AXI_DATA_W % u32:8 == u32:0);        // AXI-side data width should be divisible by 8
+    const_assert!(AXI_DATA_W >= DSLX_DATA_W);          // AXI-side width should be wider or has the same width as DSLX-side
+    const_assert!(AXI_DATA_W % DSLX_DATA_W == u32:0);  // DSLX-side width should be a multiple of AXI-side width
+
+    // checks for parameters
+    const_assert!(DSLX_DATA_W_DIV8 == DSLX_DATA_W / u32:8);
+    const_assert!(AXI_DATA_W_DIV8 == AXI_DATA_W / u32:8);
+    const_assert!(AXI_TO_DSLX_RATIO == AXI_DATA_W / DSLX_DATA_W);
+    const_assert!(AXI_TO_DSLX_RATIO_W == std::clog2((AXI_DATA_W / DSLX_DATA_W) + u32:1));
+
+    req_r: chan<Req> in;
+    resp_s: chan<Resp> out;
+
+    reader_req_s: chan<AxiReaderReq> out;
+    reader_err_r: chan<AxiReaderError> in;
+
+    axi_st_out_r: chan<AxiStreamOutput> in;
+
+    config(
+        req_r: chan<Req> in,
+        resp_s: chan<Resp> out,
+        reader_req_s: chan<AxiReaderReq> out,
+        reader_err_r: chan<AxiReaderError> in,
+        axi_st_out_r: chan<AxiStreamOutput> in,
+    ) {
+        (req_r, resp_s, reader_req_s, reader_err_r, axi_st_out_r)
+    }
+
+    init { zero!<State>() }
+
+    next(state: State) {
+        type Resp = MemReaderResp<DSLX_DATA_W, DSLX_ADDR_W>;
+        type DslxData = uN[DSLX_DATA_W];
+        type DslxLength = uN[DSLX_ADDR_W];
+        type AxiLength = uN[AXI_ADDR_W];
+        type AxiStr = uN[AXI_DATA_W_DIV8];
+        type AxiKeep = uN[AXI_DATA_W_DIV8];
+        type Status = MemReaderStatus;
+
+        const READER_RESP_ERROR = Resp { status: Status::ERROR, ..zero!<Resp>() };
+        const READER_RESP_ZERO = Resp { status: Status::OKAY, last: true, ..zero!<Resp>() };
+
+        let tok = join();
+
+        if (!state.active) {
+            let (tok, req) = recv(tok, req_r);
+            let tok = send_if(tok, reader_req_s, req.length != Length:0, axi_reader::AxiReaderReq {
+                addr: req.addr,
+                len: req.length
+            });
+
+            let tok = send_if(tok, resp_s, req.length == Length:0, READER_RESP_ZERO); // explicitly handle zero length corner-case
+
+            State {
+                active: req.length != Length:0,
+            }
+        } else {
+            // simultaneously check for error and a new stream message
+            let (tok, _, error) = recv_non_blocking(tok, reader_err_r, zero!<AxiReaderError>());
+            let (tok, st, st_received) = recv_non_blocking(tok, axi_st_out_r, zero!<AxiStreamOutput>());
+
+            let length = std::popcount(st.str | st.keep) as Length;
+            let tok = send_if(tok, resp_s, !error && st_received, Resp { status: Status::OKAY, data: st.data, length, last: st.last });
+            let tok = send_if(tok, resp_s, error, READER_RESP_ERROR);
+            let next_active = (!st_received || !st.last) && !error;
+
+            State {
+                active: next_active,
+            }
+        }
+    }
+}
+
 // A proc implementing the logic for issuing requests to AxiReader,
 // receiving the data, and convering the data to the specified output format.
 proc MemReaderInternal<
@@ -229,7 +333,7 @@ pub proc MemReaderAdv<
     type AxiAr = axi::AxiAr<AXI_ADDR_W, AXI_ID_W>;
     type AxiStreamInput = axi_st::AxiStream<AXI_DATA_W, AXI_DEST_W, AXI_ID_W, AXI_DATA_W_DIV8>;
     type AxiStreamOutput = axi_st::AxiStream<DSLX_DATA_W, AXI_DEST_W, AXI_ID_W, DSLX_DATA_W_DIV8>;
-    type AxiReaderError = axi_reader::AxiReaderError;
+    type AxiReaderError =  axi_reader::AxiReaderError;
 
     config(
         req_r: chan<Req> in,
@@ -244,12 +348,12 @@ pub proc MemReaderAdv<
         let (axi_st_remove_s, axi_st_remove_r) = chan<AxiStreamOutput, u32:1>("axi_st_remove");
         let (axi_st_out_s, axi_st_out_r) = chan<AxiStreamOutput, u32:1>("axi_st_out");
 
-        spawn MemReaderInternal<
+        spawn MemReaderInternalNoFsm<
             DSLX_DATA_W, DSLX_ADDR_W,
             AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W,
         >(req_r, resp_s, reader_req_s, reader_err_r, axi_st_out_r);
 
-        spawn axi_reader::AxiReader<
+        spawn axi_reader::AxiReaderNoFsm<
             AXI_ADDR_W, AXI_DATA_W, AXI_DEST_W, AXI_ID_W
         >(reader_req_r, axi_ar_s, axi_r_r, axi_st_in_s, reader_err_s);
 
@@ -297,11 +401,11 @@ pub proc MemReader<
         let (axi_st_in_s, axi_st_in_r) = chan<AxiStreamInput, u32:1>("axi_st_in");
         let (axi_st_out_s, axi_st_out_r) = chan<AxiStreamOutput, u32:1>("axi_st_out");
 
-        spawn MemReaderInternal<
+        spawn MemReaderInternalNoFsm<
             DATA_W, ADDR_W, DATA_W, ADDR_W, DEST_W, ID_W
         >(req_r, resp_s, reader_req_s, reader_err_r, axi_st_out_r);
 
-        spawn axi_reader::AxiReader<
+        spawn axi_reader::AxiReaderNoFsm<
             ADDR_W, DATA_W, DEST_W, ID_W
         >(reader_req_r, axi_ar_s, axi_r_r, axi_st_in_s, reader_err_s);
 

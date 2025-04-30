@@ -70,6 +70,90 @@ struct MemWriterState<
     axi_writer_req: axi_writer::AxiWriterRequest<ADDR_W>,
 }
 
+struct MemWriterInternalState<
+    ADDR_W: u32
+> {
+    active: bool,
+    req_len: sN[ADDR_W]
+}
+
+proc MemWriterInternalNoFsm<
+    ADDR_W: u32, DATA_W: u32, DEST_W: u32, ID_W: u32, WRITER_ID: u32,
+    DATA_W_DIV8: u32 = {DATA_W / u32:8}
+> {
+    type Req = MemWriterReq<ADDR_W>;
+    type Data = MemWriterDataPacket<DATA_W, ADDR_W>;
+    type AxiWriterReq = axi_writer::AxiWriterRequest<ADDR_W>;
+    type PaddingReq = axi_writer::AxiWriterRequest<ADDR_W>;
+    type AxiStream = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
+    type State = MemWriterInternalState<ADDR_W>;
+    type Fsm = MemWriterFsm;
+
+    type Length = uN[ADDR_W];
+    type sLength = sN[ADDR_W];
+    type Strobe = uN[DATA_W_DIV8];
+    type Id = uN[ID_W];
+    type Dest = uN[DEST_W];
+
+    req_in_r: chan<Req> in;
+    data_in_r: chan<Data> in;
+    axi_writer_req_s: chan<AxiWriterReq> out;
+    padding_req_s: chan<PaddingReq> out;
+    axi_st_raw_s: chan<AxiStream> out;
+
+    config(
+        req_in_r: chan<Req> in,
+        data_in_r: chan<Data> in,
+        axi_writer_req_s: chan<AxiWriterReq> out,
+        padding_req_s: chan<PaddingReq> out,
+        axi_st_raw_s: chan<AxiStream> out,
+    ) {
+
+        (req_in_r, data_in_r, axi_writer_req_s, padding_req_s, axi_st_raw_s)
+    }
+
+    init { zero!<State>() }
+
+    next(state: State) {
+        let tok = join();
+        if !state.active {
+            let (tok, req) = recv(tok, req_in_r);
+
+            let axi_writer_req =  AxiWriterReq {
+                address: req.addr,
+                length: req.length
+            };
+
+            let tok = send(tok, axi_writer_req_s, axi_writer_req);
+            let tok = send(tok, padding_req_s, axi_writer_req);
+
+            State {
+                active: true,
+                req_len: req.length as sLength
+            }
+        } else {
+            let (tok, data_in) =  recv(tok, data_in_r);
+
+            let next_req_len = state.req_len - data_in.length as sLength;
+            let str_keep = ((Length:1 << data_in.length) - Length:1) as Strobe;
+
+            let tok = send(tok, axi_st_raw_s, AxiStream {
+                data: data_in.data,
+                str: str_keep,
+                keep: str_keep,
+                last: (next_req_len <= sLength:0),
+                id: WRITER_ID as Id,
+                dest: WRITER_ID as Dest
+            });
+
+            State {
+                active: next_req_len > sLength:0,
+                req_len: next_req_len
+            }
+        }
+    }
+}
+
 proc MemWriterInternal<
     ADDR_W: u32, DATA_W: u32, DEST_W: u32, ID_W: u32, WRITER_ID: u32,
     DATA_W_DIV8: u32 = {DATA_W / u32:8}
@@ -233,7 +317,7 @@ pub proc MemWriter<
         let (axi_st_clean_s, axi_st_clean_r) = chan<AxiStream, u32:1>("axi_st_clean");
         let (axi_st_padded_s, axi_st_padded_r) = chan<AxiStream, u32:1>("axi_st_padded");
 
-        spawn MemWriterInternal<
+        spawn MemWriterInternalNoFsm<
             ADDR_W, DATA_W, DEST_W, ID_W, WRITER_ID
         >(req_in_r, data_in_r, axi_writer_req_s, padding_req_s, axi_st_raw_s);
         spawn axi_stream_remove_empty::AxiStreamRemoveEmpty<
@@ -242,7 +326,7 @@ pub proc MemWriter<
         spawn axi_stream_add_empty::AxiStreamAddEmpty<
             DATA_W, DEST_W, ID_W, ADDR_W
         >(padding_req_r, axi_st_clean_r, axi_st_padded_s);
-        spawn axi_writer::AxiWriter<
+        spawn axi_writer::AxiWriterNoFsm<
             ADDR_W, DATA_W, DEST_W, ID_W
         >(axi_writer_req_r, resp_s, axi_aw_s, axi_w_s, axi_b_r, axi_st_padded_r);
 
