@@ -1292,6 +1292,23 @@ pub fn compare<S: bool, N: u32>(lhs: xN[S][N], rhs: xN[S][N]) -> Ordering
 
 Compares two integers of the same sign and width, returns `Ordering`.
 
+Example:
+
+```dslx
+#[test]
+fn test_compare() {
+    // Unsigned comparisons
+    assert_eq(compare(u8:1, u8:2), Ordering::Less);
+    assert_eq(compare(u8:2, u8:2), Ordering::Equal);
+    assert_eq(compare(u8:3, u8:2), Ordering::Greater);
+
+    // Signed comparisons
+    assert_eq(compare(s8:-1, s8:0), Ordering::Less);
+    assert_eq(compare(s8:0, s8:0), Ordering::Equal);
+    assert_eq(compare(s8:1, s8:0), Ordering::Greater);
+}
+```
+
 #### `Signed comparison - std::{sge, sgt, sle, slt}`
 
 ```dslx-snippet

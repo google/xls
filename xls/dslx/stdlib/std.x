@@ -615,17 +615,73 @@ pub enum Ordering : s2 {
     Greater = 1,
 }
 
+fn compare_unsigned<N: u32>(lhs: uN[N], rhs: uN[N]) -> Ordering {
+    // Zero-extend both to N+1 bits so that subtraction underflow sets the MSB to '1'
+    let lhs_ext = lhs as uN[N + u32:1];
+    let rhs_ext = rhs as uN[N + u32:1];
+
+    // Subtract in N+1 bits; the top bit is 1 exactly when lhs<rhs
+    let diff_ext: uN[N + u32:1] = lhs_ext - rhs_ext;
+    let less = msb(diff_ext);
+
+    let not_equal: u1 = lhs != rhs;
+
+    //    Mapping:
+    //      lhs<rhs  ⟹ less=1, not_equal=1 ⟹ bits = 11₂ ⟹ -1
+    //      lhs=rhs  ⟹ less=0, not_equal=0 ⟹ bits = 00₂ ⟹  0
+    //      lhs>rhs  ⟹ less=0, not_equal=1 ⟹ bits = 01₂ ⟹ +1
+
+    let packed: u2 = less ++ not_equal;
+    packed as Ordering
+}
+
+fn compare_signed<N: u32>(lhs: sN[N], rhs: sN[N]) -> Ordering {
+    // Sign-extend both to N+1 bits so that subtraction overflow never occurs
+    let lhs_sext = lhs as sN[N + u32:1];
+    let rhs_sext = rhs as sN[N + u32:1];
+
+    // Subtract in N+1 bits; the top bit is 1 exactly when lhs<rhs
+    let diff_ext: sN[N + u32:1] = lhs_sext - rhs_sext;
+    let less: u1 = msb(diff_ext);
+
+    let not_equal: u1 = lhs != rhs;
+
+    //    Mapping:
+    //      lhs<rhs  ⟹ less=1, not_equal=1 ⟹ bits = 11₂ ⟹ -1
+    //      lhs=rhs  ⟹ less=0, not_equal=0 ⟹ bits = 00₂ ⟹  0
+    //      lhs>rhs  ⟹ less=0, not_equal=1 ⟹ bits = 01₂ ⟹ +1
+
+    let packed: u2 = less ++ not_equal;
+    packed as Ordering
+}
+
+#[quickcheck(exhaustive)]
+fn prop_compare_unsigned_matches_corresponding_comparison(lhs: u4, rhs: u4) -> bool {
+    match compare_unsigned(lhs, rhs) {
+        Ordering::Less => lhs < rhs,
+        Ordering::Equal => lhs == rhs,
+        Ordering::Greater => lhs > rhs,
+    }
+}
+
+#[quickcheck(exhaustive)]
+fn prop_compare_signed_matches_corresponding_comparison(lhs: s4, rhs: s4) -> bool {
+    match compare_signed(lhs, rhs) {
+        Ordering::Less => lhs < rhs,
+        Ordering::Equal => lhs == rhs,
+        Ordering::Greater => lhs > rhs,
+    }
+}
+
 // Compares two integers of the same sign and width.
 //
 // The reason to use this over a comparison operator such as `<` is that this exhaustively
 // handles all 3 cases; you can match on the result.
 pub fn compare<S: bool, N: u32>(lhs: xN[S][N], rhs: xN[S][N]) -> Ordering {
-    if lhs < rhs {
-        Ordering::Less
-    } else if lhs > rhs {
-        Ordering::Greater
+    if S {
+        compare_signed(lhs as sN[N], rhs as sN[N])
     } else {
-        Ordering::Equal
+        compare_unsigned(lhs as uN[N], rhs as uN[N])
     }
 }
 
