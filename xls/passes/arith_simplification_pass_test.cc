@@ -22,15 +22,15 @@
 #include <string>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/log.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/function_interpreter.h"
@@ -2203,6 +2203,25 @@ void UmulFuzz(const Bits& multiplicand, const Bits& result, int64_t var_width,
 FUZZ_TEST(ArithSimplificationPassFuzzTest, UmulFuzz)
     .WithDomains(ArbitraryBits(16), ArbitraryBits(16), fuzztest::InRange(1, 40),
                  fuzztest::Arbitrary<bool>(), fuzztest::Arbitrary<bool>());
+
+// Test for rewriting add(sign_ext(c: bits[1]), K) to Select(c, [K, K-1]).
+TEST_F(ArithSimplificationPassTest, AddSignExtPlusConstant) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn add_sign_ext(c:bits[1]) -> bits[4] {
+       s:bits[4] = sign_ext(c, new_bit_count=4)
+       k:bits[4] = literal(value=3)
+       ret result: bits[4] = add(s, k)
+     }
+  )",
+                                                       p.get()));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // Expect Select(c, [3, 2]) since sign_ext(c) is 0 or -1 (0xF) => 0+3=3,
+  // -1+3=2
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("c"), {m::Literal(3), m::Literal(2)}));
+}
 
 }  // namespace
 }  // namespace xls
