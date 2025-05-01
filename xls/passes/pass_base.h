@@ -42,6 +42,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/stopwatch.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
 
@@ -583,6 +584,100 @@ CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
   }
   return aggregate_result;
 }
+
+// Abstract base class for passes that operate at function/proc scope. The
+// derived class must define RunOnFunctionBaseInternal.
+template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
+          typename... ContextT>
+class FunctionBasePass : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
+ public:
+  using PassBase<IrT, OptionsT, ResultsT, ContextT...>::PassBase;
+
+  // Runs the pass on a single function/proc.
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const OptionsT& options,
+                                         PassResults* results,
+                                         ContextT&... context) const {
+    VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
+                                  this->long_name(), f->name(),
+                                  results->invocations.size());
+    VLOG(3) << "Before:";
+    XLS_VLOG_LINES(3, f->DumpIr());
+
+    XLS_ASSIGN_OR_RETURN(bool changed, RunOnFunctionBaseInternal(
+                                           f, options, results, context...));
+
+    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+    XLS_VLOG_LINES(3, f->DumpIr());
+    return changed;
+  }
+
+ protected:
+  // Iterates over each function and proc in the package calling
+  // RunOnFunctionBase.
+  absl::StatusOr<bool> RunInternal(Package* p, const OptionsT& options,
+                                   PassResults* results,
+                                   ContextT&... context) const override {
+    bool changed = false;
+    for (FunctionBase* f : p->GetFunctionBases()) {
+      XLS_ASSIGN_OR_RETURN(
+          bool function_changed,
+          RunOnFunctionBaseInternal(f, options, results, context...));
+      changed = changed || function_changed;
+    }
+    return changed;
+  }
+
+  virtual absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const OptionsT& options, PassResults* results,
+      ContextT&... context) const = 0;
+};
+
+// Abstract base class for passes that operate at proc scope. The derived class
+// must define RunOnProcInternal.
+template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
+          typename... ContextT>
+class ProcPass : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
+ public:
+  using PassBase<IrT, OptionsT, ResultsT, ContextT...>::PassBase;
+
+  // Proc the pass on a single proc.
+  absl::StatusOr<bool> RunOnProc(Proc* proc, const OptionsT& options,
+                                 PassResults* results,
+                                 ContextT&... context) const {
+    VLOG(2) << absl::StreamFormat("Running %s on proc %s [pass #%d]",
+                                  this->long_name(), proc->name(),
+                                  results->invocations.size());
+    VLOG(3) << "Before:";
+    XLS_VLOG_LINES(3, proc->DumpIr());
+
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         RunOnProcInternal(proc, options, results, context...));
+
+    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+    XLS_VLOG_LINES(3, proc->DumpIr());
+    return changed;
+  }
+
+ protected:
+  // Iterates over each proc in the package calling RunOnProc.
+  absl::StatusOr<bool> RunInternal(Package* p, const OptionsT& options,
+                                   PassResults* results,
+                                   ContextT&... context) const override {
+    bool changed = false;
+    for (const auto& proc : p->procs()) {
+      XLS_ASSIGN_OR_RETURN(
+          bool proc_changed,
+          RunOnProcInternal(proc.get(), options, results, context...));
+      changed = changed || proc_changed;
+    }
+    return changed;
+  }
+
+  virtual absl::StatusOr<bool> RunOnProcInternal(
+      Proc* proc, const OptionsT& options, PassResults* results,
+      ContextT&... context) const = 0;
+};
 
 }  // namespace xls
 

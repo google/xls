@@ -476,30 +476,13 @@ inline bool OptimizationPassOptions::splits_enabled() const {
 
 // Abstract base class for passes operate at function/proc scope. The derived
 // class must define RunOnFunctionBaseInternal.
-class OptimizationFunctionBasePass : public OptimizationPass {
+class OptimizationFunctionBasePass
+    : public FunctionBasePass<Package, OptimizationPassOptions, PassResults,
+                              OptimizationContext> {
  public:
-  OptimizationFunctionBasePass(std::string_view short_name,
-                               std::string_view long_name)
-      : OptimizationPass(short_name, long_name) {}
-
-  // Runs the pass on a single function/proc.
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const OptimizationPassOptions& options,
-                                         PassResults* results,
-                                         OptimizationContext& context) const;
+  using FunctionBasePass::FunctionBasePass;
 
  protected:
-  // Iterates over each function and proc in the package calling
-  // RunOnFunctionBase.
-  absl::StatusOr<bool> RunInternal(Package* p,
-                                   const OptimizationPassOptions& options,
-                                   PassResults* results,
-                                   OptimizationContext& context) const override;
-
-  virtual absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext& context) const = 0;
-
   // Calls the given function for every node in the graph in a loop until no
   // further simplifications are possible.  simplify_f should return true if the
   // IR was modified. simplify_f can add or remove nodes including the node
@@ -512,30 +495,10 @@ class OptimizationFunctionBasePass : public OptimizationPass {
       std::function<absl::StatusOr<bool>(Node*)> simplify_f) const;
 };
 
-// Abstract base class for passes operate on procs. The derived
-// class must define RunOnProcInternal.
-class OptimizationProcPass : public OptimizationPass {
- public:
-  OptimizationProcPass(std::string_view short_name, std::string_view long_name)
-      : OptimizationPass(short_name, long_name) {}
-
-  // Proc the pass on a single proc.
-  absl::StatusOr<bool> RunOnProc(Proc* proc,
-                                 const OptimizationPassOptions& options,
-                                 PassResults* results,
-                                 OptimizationContext& context) const;
-
- protected:
-  // Iterates over each proc in the package calling RunOnProc.
-  absl::StatusOr<bool> RunInternal(Package* p,
-                                   const OptimizationPassOptions& options,
-                                   PassResults* results,
-                                   OptimizationContext& context) const override;
-
-  virtual absl::StatusOr<bool> RunOnProcInternal(
-      Proc* proc, const OptimizationPassOptions& options, PassResults* results,
-      OptimizationContext& context) const = 0;
-};
+// Abstract base class for passes operate on procs. The derived class must
+// define RunOnProcInternal.
+using OptimizationProcPass = ProcPass<Package, OptimizationPassOptions,
+                                      PassResults, OptimizationContext>;
 
 }  // namespace xls
 
