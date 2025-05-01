@@ -941,7 +941,14 @@ class ChannelNode : public Node {
         has_predicate_(has_predicate) {}
 
   const std::string& channel_name() const { return channel_name_; }
+
+  // Return either the channel (old-style proc) or the channel reference
+  // (new-style proc) for this channel op node.
   absl::StatusOr<ChannelRef> GetChannelRef() const;
+
+  // Return the channel interface for this channel op node.
+  // Returns an error if the function is not a new-style proc.
+  absl::StatusOr<ChannelInterface*> GetChannelInterface() const;
 
   // Returns the direction this node communicates on the channel.
   ChannelDirection direction() const { return direction_; }

@@ -470,6 +470,17 @@ absl::StatusOr<ChannelRef> ChannelNode::GetChannelRef() const {
   return package()->GetChannel(channel_name());
 }
 
+absl::StatusOr<ChannelInterface*> ChannelNode::GetChannelInterface() const {
+  Proc* proc = function_base()->AsProcOrDie();
+  if (!proc->is_new_style_proc()) {
+    return absl::InvalidArgumentError(
+        "ChannelNode::GetChannelInterface() is only supported for new-style "
+        "procs.");
+  }
+
+  return proc->GetChannelInterface(channel_name(), direction());
+}
+
 Type* ChannelNode::GetPayloadType() const {
   return function_base()
       ->AsProcOrDie()

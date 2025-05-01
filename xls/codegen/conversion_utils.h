@@ -98,6 +98,9 @@ absl::StatusOr<std::optional<Node*>> ResetNotAsserted(Block* block);
 // If options specify it, adds and returns an input for a reset signal.
 absl::Status MaybeAddResetPort(Block* block, const CodegenOptions& options);
 
+// If options specify it, adds and returns an input for a clock signal.
+absl::Status MaybeAddClockPort(Block* block, const CodegenOptions& options);
+
 // Send/receive nodes are not cloned from the proc into the block, but the
 // network of tokens connecting these send/receive nodes *is* cloned. This
 // function removes the token operations.

@@ -414,12 +414,7 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
   }
 
   XLS_RET_CHECK_OK(MaybeAddResetPort(block, options));
-
-  if (!options.clock_name().has_value()) {
-    return absl::InvalidArgumentError(
-        "Clock name must be specified when generating a pipelined block");
-  }
-  XLS_RETURN_IF_ERROR(block->AddClockPort(options.clock_name().value()));
+  XLS_RET_CHECK_OK(MaybeAddClockPort(block, options));
 
   // Flopping inputs and outputs can be handled as a transformation to the
   // schedule. This makes the later code for creation of the pipeline simpler.
@@ -487,7 +482,7 @@ absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
     std::string_view name_prefix, std::optional<Node*> load_enable,
     Node* node) {
   Block* block = node->function_base()->AsBlockOrDie();
-  XLS_RET_CHECK(block->GetResetPort().has_value());
+
   Type* node_type = node->GetType();
   std::string name = absl::StrFormat("__%s_reg", name_prefix);
 
@@ -507,7 +502,7 @@ absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
                               /*loc=*/node->loc(),
                               /*data=*/node,
                               /*load_enable=*/load_enable,
-                              /*reset=*/block->GetResetPort().value(),
+                              /*reset=*/block->GetResetPort(),
                               /*reg=*/reg)
                           .status());
 
