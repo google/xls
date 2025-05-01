@@ -137,6 +137,7 @@ cc_library(
         ":pass_base",
         ":pass_pipeline_cc_proto",
         ":proc_state_array_flattening_pass",
+        ":proc_state_bits_shattering_pass",
         ":proc_state_narrowing_pass",
         ":proc_state_optimization_pass",
         ":proc_state_provenance_narrowing_pass",
@@ -2193,6 +2194,30 @@ cc_library(
 )
 
 cc_library(
+    name = "proc_state_bits_shattering_pass",
+    srcs = ["proc_state_bits_shattering_pass.cc"],
+    hdrs = ["proc_state_bits_shattering_pass.h"],
+    deps = [
+        ":optimization_pass",
+        ":optimization_pass_registry",
+        ":pass_base",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:op",
+        "//xls/ir:state_element",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "@cppitertools",
+    ],
+)
+
+cc_library(
     name = "ram_rewrite_pass",
     srcs = ["ram_rewrite_pass.cc"],
     hdrs = ["ram_rewrite_pass.h"],
@@ -2331,6 +2356,29 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "proc_state_bits_shattering_pass_test",
+    srcs = ["proc_state_bits_shattering_pass_test.cc"],
+    deps = [
+        ":optimization_pass",
+        ":pass_base",
+        ":proc_state_bits_shattering_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:state_element",
+        "//xls/ir:value",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],

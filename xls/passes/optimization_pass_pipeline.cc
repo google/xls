@@ -62,6 +62,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/proc_state_array_flattening_pass.h"
+#include "xls/passes/proc_state_bits_shattering_pass.h"
 #include "xls/passes/proc_state_narrowing_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
 #include "xls/passes/proc_state_provenance_narrowing_pass.h"
@@ -231,6 +232,8 @@ class PostInliningOptPassGroup : public OptimizationCompoundPass {
     // simplification to simplify tuple structures left over from flattening.
     // TODO(meheff): Consider running proc state optimization more than once.
     Add<ProcStateFlatteningFixedPointPass>();
+    Add<ProcStateBitsShatteringPass>();
+    Add<ProcStateTupleFlatteningPass>();
     Add<IdentityRemovalPass>();
     Add<DataflowSimplificationPass>();
     Add<CapOptLevel<3, NextValueOptimizationPass>>();
@@ -270,6 +273,8 @@ class PostInliningOptPassGroup : public OptimizationCompoundPass {
     Add<BddCsePass>();
     Add<DeadCodeEliminationPass>();
 
+    Add<ProcStateBitsShatteringPass>();
+    Add<ProcStateTupleFlatteningPass>();
     Add<CapOptLevel<3, FixedPointSimplificationPass>>();
 
     Add<UselessAssertRemovalPass>();
