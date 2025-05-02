@@ -49,6 +49,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
+#include "xls/dev_tools/pass_metrics.h"
 #include "xls/estimators/delay_model/analyze_critical_path.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
@@ -203,57 +204,10 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
   std::cout << absl::StreamFormat("Optimization time: %dms\n",
                                   DurationToMs(total_time));
   std::cout << absl::StreamFormat("Dynamic pass count: %d\n",
-                                  pass_results.invocations.size());
+                                  pass_results.total_invocations);
 
-  // Aggregate run times by the pass name and print a table of the aggregate
-  // execution time of each pass in descending order.
-  absl::flat_hash_map<std::string, absl::Duration> pass_times;
-  absl::flat_hash_map<std::string, int64_t> pass_counts;
-  absl::flat_hash_map<std::string, int64_t> changed_counts;
-  for (const PassInvocation& invocation : pass_results.invocations) {
-    pass_times[invocation.pass_name] += invocation.run_duration;
-    ++pass_counts[invocation.pass_name];
-    changed_counts[invocation.pass_name] += invocation.ir_changed ? 1 : 0;
-  }
-  std::vector<std::string> pass_names;
-  for (const auto& pair : pass_times) {
-    pass_names.push_back(pair.first);
-  }
-  std::sort(pass_names.begin(), pass_names.end(),
-            [&](const std::string& a, const std::string& b) {
-              // Sort by time (at the same resolution we show), breaking ties by
-              // # of times run, # of times changed, and finally pass name.
-              int64_t a_time = DurationToMs(pass_times.at(a));
-              int64_t b_time = DurationToMs(pass_times.at(b));
-              if (a_time > b_time) {
-                return true;
-              }
-              if (a_time < b_time) {
-                return false;
-              }
-              if (pass_counts.at(a) > pass_counts.at(b)) {
-                return true;
-              }
-              if (pass_counts.at(a) < pass_counts.at(b)) {
-                return false;
-              }
-              if (changed_counts.at(a) > changed_counts.at(b)) {
-                return true;
-              }
-              if (changed_counts.at(a) < changed_counts.at(b)) {
-                return false;
-              }
-              return a > b;
-            });
-  std::cout << "Pass run durations (# of times pass changed IR / # of times "
-               "pass was run):"
-            << '\n';
-  for (const std::string& name : pass_names) {
-    std::cout << absl::StreamFormat("  %-20s : %-5dms (%3d / %3d)\n", name,
-                                    DurationToMs(pass_times.at(name)),
-                                    changed_counts.at(name),
-                                    pass_counts.at(name));
-  }
+  // Print table(s) of pass metrics.
+  std::cout << SummarizePassPipelineMetrics(pass_results.ToProto());
   return absl::OkStatus();
 }
 
@@ -847,12 +801,13 @@ absl::Status RealMain(std::string_view path) {
       XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
                            SetUpSchedulingOptions(
                                scheduling_options_flags_proto, package.get()));
-      absl::Duration scheduling_time;
+      PassPipelineMetricsProto sched_metrics;
       XLS_ASSIGN_OR_RETURN(schedules,
                            Schedule(package.get(), scheduling_options,
-                                    &delay_estimator, &scheduling_time));
-      std::cout << absl::StreamFormat("Scheduling time: %dms\n",
-                                      scheduling_time / absl::Milliseconds(1));
+                                    &delay_estimator, &sched_metrics));
+      std::cout << absl::StreamFormat(
+          "Scheduling time: %dms\n",
+          PassPipelineDuration(sched_metrics) / absl::Milliseconds(1));
       XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
           f, effective_clock_period_ps, delay_estimator, query_engine,
           &schedules, synthesizer.get()));
@@ -864,13 +819,14 @@ absl::Status RealMain(std::string_view path) {
                     scheduling_options_flags_proto.clock_period_ps())
               : std::nullopt));
     }
-    absl::Duration codegen_time;
+    PassPipelineMetricsProto codegen_metrics;
     XLS_ASSIGN_OR_RETURN(CodegenResult codegen_result,
                          Codegen(package.get(), scheduling_options_flags_proto,
                                  codegen_flags_proto, delay_model_flag_passed,
-                                 &schedules, &codegen_time));
-    std::cout << absl::StreamFormat("Codegen time: %dms\n",
-                                    codegen_time / absl::Milliseconds(1));
+                                 &schedules, &codegen_metrics));
+    std::cout << absl::StreamFormat(
+        "Codegen time: %dms\n",
+        PassPipelineDuration(codegen_metrics) / absl::Milliseconds(1));
 
     std::cout << absl::StreamFormat(
         "Lines of Verilog: %d\n",

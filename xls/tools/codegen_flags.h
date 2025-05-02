@@ -29,6 +29,8 @@ ABSL_DECLARE_FLAG(std::string, output_schedule_ir_path);
 ABSL_DECLARE_FLAG(std::string, output_block_ir_path);
 ABSL_DECLARE_FLAG(std::string, output_signature_path);
 ABSL_DECLARE_FLAG(std::string, output_verilog_line_map_path);
+ABSL_DECLARE_FLAG(std::string, output_scheduling_pass_metrics_path);
+ABSL_DECLARE_FLAG(std::string, output_codegen_pass_metrics_path);
 ABSL_DECLARE_FLAG(std::string, top);
 ABSL_DECLARE_FLAG(std::optional<std::string>,
                   codegen_options_used_textproto_file);

@@ -179,13 +179,13 @@ class ProcStateLegalizationPassShim : public OptimizationFunctionBasePass {
     SchedulingUnit sched = SchedulingUnit::CreateForSingleFunction(fb);
     SchedulingPassResults results;
     if (pass_results) {
-      results.invocations = std::move(pass_results->invocations);
+      results.invocation = std::move(pass_results->invocation);
     }
     XLS_ASSIGN_OR_RETURN(bool res,
                          proc_state_sched_pass_.RunOnFunctionBase(
                              fb, &sched, SchedulingPassOptions(), &results));
     if (pass_results) {
-      pass_results->invocations = std::move(results.invocations);
+      pass_results->invocation = std::move(results.invocation);
     }
     return res;
   }

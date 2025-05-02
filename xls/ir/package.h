@@ -70,6 +70,7 @@ struct TransformMetrics {
   // Node::RemoveOptionalOperand).
   int64_t operands_removed = 0;
 
+  static TransformMetrics FromProto(const TransformMetricsProto& proto);
   TransformMetrics operator+(const TransformMetrics& other) const;
   TransformMetrics operator-(const TransformMetrics& other) const;
   std::string ToString() const;

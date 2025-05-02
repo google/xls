@@ -53,6 +53,21 @@ class SchedulingWrapperPass : public SchedulingPass {
         reschedule_new_nodes_(reschedule_new_nodes) {}
   ~SchedulingWrapperPass() override = default;
 
+  bool IsCompound() const override { return wrapped_pass_->IsCompound(); }
+
+  absl::StatusOr<bool> RunNested(
+      SchedulingUnit* unit, const SchedulingPassOptions& options,
+      SchedulingPassResults* results, PassInvocation& invocation,
+      absl::Span<const SchedulingInvariantChecker* const> invariant_checkers)
+      const override {
+    return wrapped_pass_->RunNested(
+        unit->GetPackage(),
+        OptimizationPassOptions(options)
+            .WithOptLevel(opt_level_)
+            .WithEliminateNoopNext(eliminate_noop_next_),
+        results, context_, invocation, /*invariant_checkers=*/{});
+  }
+
  protected:
   absl::StatusOr<bool> RunInternal(
       SchedulingUnit* unit, const SchedulingPassOptions& options,
