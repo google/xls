@@ -1011,6 +1011,9 @@ static absl::Status RunBlock(
       }
     }
     if (all_output_queues_empty) {
+      if (absl::GetFlag(FLAGS_show_trace)) {
+        LOG(INFO) << "Finished at cycle " << cycle;
+      }
       break;
     }
 
