@@ -14,6 +14,7 @@
 
 // Arbitrary-precision floating point routines.
 import std;
+import abs_diff;
 
 pub struct APFloat<EXP_SZ: u32, FRACTION_SZ: u32> {
     sign: bits[1],  // Sign bit.
@@ -2810,17 +2811,8 @@ fn compound_adder<WIDTH: u32>(a: uN[WIDTH], b: uN[WIDTH]) -> (uN[WIDTH], uN[WIDT
 // Note, this returns -0 if (a == b), which is used in our application, which is good
 // for testing if strictly |a| > |b|.
 fn sign_magnitude_difference<WIDTH: u32>(a: uN[WIDTH], b: uN[WIDTH]) -> (bool, uN[WIDTH]) {
-    // 1's complement internally, then use the following observation.
-    //    abs(|A| - |B|) =   |A| + |~B| + 1 iff |A| - |B| >  0 (end around carry needed)
-    //                     ~(|A| + |~B|)    iff |A| - |B| <= 0
-    // We use the compound_adder() to efficiently prepare sum + 1 to select result
-
-    type WidthWithCarry = uN[WIDTH + u32:1];
-    let (sum, incremented_sum) = compound_adder(a as WidthWithCarry, !b as WidthWithCarry);
-    let a_is_less_equal: bool = !sum[-1:];  // Sign bit overflow in the carry
-
-    let abs_difference = if a_is_less_equal { !sum } else { incremented_sum };
-    (a_is_less_equal, abs_difference as uN[WIDTH])
+    let abs_diff_result = abs_diff::abs_diff(a, b);
+    (!abs_diff::is_x_larger(abs_diff_result), abs_diff::to_corrected(abs_diff_result))
 }
 
 #[test]

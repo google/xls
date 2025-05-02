@@ -340,6 +340,7 @@ fn bfloat16_bits_to_float32_bits_upcast_is_zero_pad(x: bits[BF16_TOTAL_SZ]) -> b
         absl::flat_hash_map<std::filesystem::path, std::string>{
             {"/test.x", kProgram},
             {"/stdlib/std.x", get_stdlib_contents("std.x")},
+            {"/stdlib/abs_diff.x", get_stdlib_contents("abs_diff.x")},
             {"/stdlib/apfloat.x", get_stdlib_contents("apfloat.x")},
             {"/stdlib/bfloat16.x", get_stdlib_contents("bfloat16.x")},
             {"/stdlib/float32.x", get_stdlib_contents("float32.x")},

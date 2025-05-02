@@ -77,20 +77,42 @@ xls_dslx_fmt_test(
 )
 
 xls_dslx_library(
-    name = "apfloat_dslx",
-    srcs = ["apfloat.x"],
+    name = "abs_diff_dslx",
+    srcs = ["abs_diff.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "abs_diff_dslx_fmt_test",
+    src = "abs_diff.x",
+    opportunistic_postcondition = True,
 )
 
 xls_dslx_test(
-    name = "apfloat_dslx_test",
-    srcs = ["apfloat.x"],
+    name = "abs_diff_dslx_test",
+    srcs = ["abs_diff.x"],
     dslx_test_args = {"compare": "jit"},
 )
 
 xls_dslx_prove_quickcheck_test(
-    name = "apfloat_dslx_prove_quickcheck_test",
+    name = "abs_diff_dslx_prove_quickcheck_test",
+    srcs = ["abs_diff.x"],
+)
+
+xls_dslx_library(
+    name = "apfloat_dslx",
     srcs = ["apfloat.x"],
-    deps = [":apfloat_dslx"],
+    deps = [":abs_diff_dslx"],
+)
+
+xls_dslx_test(
+    name = "apfloat_dslx_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":apfloat_dslx",
+)
+
+xls_dslx_prove_quickcheck_test(
+    name = "apfloat_dslx_prove_quickcheck_test",
+    library = ":apfloat_dslx",
 )
 
 xls_dslx_fmt_test(
@@ -604,28 +626,6 @@ cc_xls_ir_jit_wrapper(
         "class_name": "F32Trunc",
         "namespace": "xls::fp",
     },
-)
-
-xls_dslx_library(
-    name = "abs_diff_dslx",
-    srcs = ["abs_diff.x"],
-)
-
-xls_dslx_fmt_test(
-    name = "abs_diff_dslx_fmt_test",
-    src = "abs_diff.x",
-    opportunistic_postcondition = True,
-)
-
-xls_dslx_test(
-    name = "abs_diff_dslx_test",
-    srcs = ["abs_diff.x"],
-    dslx_test_args = {"compare": "jit"},
-)
-
-xls_dslx_prove_quickcheck_test(
-    name = "abs_diff_dslx_prove_quickcheck_test",
-    srcs = ["abs_diff.x"],
 )
 
 xls_dslx_library(
