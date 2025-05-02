@@ -1797,6 +1797,47 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     }
   }
 
+  // Pattern: add(sign_ext(c: u1), K) => sel(c, [K, K-1])
+  // For a boolean 'c' sign-extended to N bits, sign_ext(c) is either 0 or all
+  // ones (-1). Simplify add(sign_ext(c), K) to select(c, [K, K-1]) for a
+  // bitwise op.
+  if (n->op() == Op::kAdd) {
+    Node* sign_ext = nullptr;
+    Node* const_node = nullptr;
+    if (n->operand(0)->op() == Op::kSignExt &&
+        n->operand(0)->As<ExtendOp>()->operand(0)->BitCountOrDie() == 1 &&
+        query_engine.IsFullyKnown(n->operand(1))) {
+      sign_ext = n->operand(0);
+      const_node = n->operand(1);
+    } else if (n->operand(1)->op() == Op::kSignExt &&
+               n->operand(1)->As<ExtendOp>()->operand(0)->BitCountOrDie() ==
+                   1 &&
+               query_engine.IsFullyKnown(n->operand(0))) {
+      sign_ext = n->operand(1);
+      const_node = n->operand(0);
+    }
+    if (sign_ext != nullptr) {
+      Bits k_bits = *query_engine.KnownValueAsBits(const_node);
+      int64_t width = n->BitCountOrDie();
+      if (k_bits.bit_count() == width) {
+        Bits k_minus_one = bits_ops::Sub(k_bits, UBits(1, width));
+        XLS_ASSIGN_OR_RETURN(
+            Literal * literal_k,
+            n->function_base()->MakeNode<Literal>(n->loc(), Value(k_bits)));
+        XLS_ASSIGN_OR_RETURN(Literal * literal_km1,
+                             n->function_base()->MakeNode<Literal>(
+                                 n->loc(), Value(k_minus_one)));
+        Node* cond = sign_ext->As<ExtendOp>()->operand(0);
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<Select>(
+                                 cond,
+                                 std::vector<Node*>({literal_k, literal_km1}),
+                                 /*default_value=*/std::nullopt)
+                                .status());
+        return true;
+      }
+    }
+  }
+
   return false;
 }
 
