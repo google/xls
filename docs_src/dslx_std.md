@@ -1137,31 +1137,33 @@ Returns true when `x` is an even integer.
 Example:
 
 ```dslx
+import std;
+
 #[test]
 fn is_even_test() {
-    assert_eq(is_even(uN[0]:0), true);
+    assert_eq(std::is_even(uN[0]:0), true);
 
-    assert_eq(is_even(sN[0]:0), true);
+    assert_eq(std::is_even(sN[0]:0), true);
 
-    assert_eq(is_even(u1:0), true);
-    assert_eq(is_even(u1:1), false);
+    assert_eq(std::is_even(u1:0), true);
+    assert_eq(std::is_even(u1:1), false);
 
-    assert_eq(is_even(s1:0), true);
-    assert_eq(is_even(s1:-1), false);
+    assert_eq(std::is_even(s1:0), true);
+    assert_eq(std::is_even(s1:-1), false);
 
-    assert_eq(is_even(u2:0), true);
-    assert_eq(is_even(u2:1), false);
-    assert_eq(is_even(u2:2), true);
-    assert_eq(is_even(u2:3), false);
+    assert_eq(std::is_even(u2:0), true);
+    assert_eq(std::is_even(u2:1), false);
+    assert_eq(std::is_even(u2:2), true);
+    assert_eq(std::is_even(u2:3), false);
 
-    assert_eq(is_even(s3:-4), true);
-    assert_eq(is_even(s3:-3), false);
-    assert_eq(is_even(s3:-2), true);
-    assert_eq(is_even(s3:-1), false);
-    assert_eq(is_even(s3:0), true);
-    assert_eq(is_even(s3:1), false);
-    assert_eq(is_even(s3:2), true);
-    assert_eq(is_even(s3:3), false);
+    assert_eq(std::is_even(s3:-4), true);
+    assert_eq(std::is_even(s3:-3), false);
+    assert_eq(std::is_even(s3:-2), true);
+    assert_eq(std::is_even(s3:-1), false);
+    assert_eq(std::is_even(s3:0), true);
+    assert_eq(std::is_even(s3:1), false);
+    assert_eq(std::is_even(s3:2), true);
+    assert_eq(std::is_even(s3:3), false);
 }
 ```
 
