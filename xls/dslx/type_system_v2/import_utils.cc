@@ -198,4 +198,64 @@ absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
   return ref->def;
 }
 
+template <typename T>
+absl::StatusOr<std::optional<const EnumDef*>> ResolveToEnumDef(
+    T node, const ImportData& import_data) {
+  return absl::visit(
+      Visitor{
+          [&](TypeAlias* alias)
+              -> absl::StatusOr<std::optional<const EnumDef*>> {
+            const TypeAnnotation* type_annotation = &alias->type_annotation();
+            if (const TypeRefTypeAnnotation* type_ref_type_annotation =
+                    dynamic_cast<const TypeRefTypeAnnotation*>(
+                        type_annotation)) {
+              return ResolveToEnumDef(
+                  type_ref_type_annotation->type_ref()->type_definition(),
+                  import_data);
+            }
+            return std::nullopt;
+          },
+          [&](ColonRef* colon_ref)
+              -> absl::StatusOr<std::optional<const EnumDef*>> {
+            XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
+                                 GetImportedModuleInfo(colon_ref, import_data));
+            if (import_module.has_value()) {
+              XLS_ASSIGN_OR_RETURN(
+                  ModuleMember member,
+                  GetPublicModuleMember((*import_module)->module(), colon_ref,
+                                        import_data.file_table()));
+              return ResolveToEnumDef(member, import_data);
+            }
+            return std::nullopt;
+          },
+          [](EnumDef* enum_def)
+              -> absl::StatusOr<std::optional<const EnumDef*>> {
+            return enum_def;
+          },
+          [](auto* n) -> absl::StatusOr<std::optional<const EnumDef*>> {
+            return std::nullopt;
+          }},
+      node);
+}
+
+absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
+    const TypeAnnotation* annotation, const ImportData& import_data) {
+  if (const auto* type_ref_type_annotation =
+          dynamic_cast<const TypeRefTypeAnnotation*>(annotation)) {
+    return ResolveToEnumDef(
+        type_ref_type_annotation->type_ref()->type_definition(), import_data);
+  }
+  return std::nullopt;
+}
+
+bool IsImport(const ColonRef* colon_ref) {
+  if (colon_ref->ResolveImportSubject().has_value()) {
+    return true;
+  }
+  if (std::holds_alternative<ColonRef*>(colon_ref->subject())) {
+    return IsImport(std::get<ColonRef*>(colon_ref->subject()));
+  }
+  return false;
+}
+
 }  // namespace xls::dslx

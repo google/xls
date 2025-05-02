@@ -460,7 +460,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // based on root type info of the callee.
     if (caller.has_value() && IsBuiltin(function_and_target_object.function) &&
         GetBuiltinFnRequiresImplicitToken(invocation->callee())) {
-      GetTypeInfo(caller_context)->NoteRequiresImplicitToken(**caller, true);
+      XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                           GetTypeInfo((*caller)->owner(), caller_context));
+      ti->NoteRequiresImplicitToken(**caller, true);
     }
 
     const Function* function = function_and_target_object.function;
@@ -574,18 +576,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         function_and_target_object.target_struct_context.has_value()
             ? function_and_target_object.target_struct_context
             : caller_context;
-    if (function->owner() == &module_) {
-      TypeInfo* base_type_info = GetTypeInfo(caller_or_target_struct_context);
-      XLS_ASSIGN_OR_RETURN(
-          invocation_type_info,
-          import_data_.type_info_owner().New(&module_, base_type_info));
-    } else {
-      XLS_ASSIGN_OR_RETURN(TypeInfo * callee_base_info,
-                           import_data_.GetRootTypeInfoForNode(function));
-      XLS_ASSIGN_OR_RETURN(invocation_type_info,
-                           import_data_.type_info_owner().New(
-                               function->owner(), callee_base_info));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * base_type_info,
+        GetTypeInfo(function->owner(), caller_or_target_struct_context));
+    XLS_ASSIGN_OR_RETURN(
+        invocation_type_info,
+        import_data_.type_info_owner().New(function->owner(), base_type_info));
 
     XLS_ASSIGN_OR_RETURN(
         const ParametricContext* invocation_context,
@@ -707,16 +703,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
   // Gets the output `TypeInfo` corresponding to the given
   // `parametric_context`, which may be `nullopt`, in which case it returns
-  // the base type info.
-  TypeInfo* GetTypeInfo(
+  // the base type info. If the proposed type info doesn't belong to the
+  // provided module, its root type info is returned.
+  absl::StatusOr<TypeInfo*> GetTypeInfo(
+      const Module* module,
       std::optional<const ParametricContext*> parametric_context) {
-    if (parametric_context.has_value()) {
-      return (*parametric_context)->type_info();
-    }
+    TypeInfo* return_ti = base_type_info_;
     if (!proc_type_info_stack_.empty()) {
-      return proc_type_info_stack_.top();
+      return_ti = proc_type_info_stack_.top();
     }
-    return base_type_info_;
+    if (parametric_context.has_value()) {
+      return_ti = (*parametric_context)->type_info();
+    }
+    if (return_ti->module() != module) {
+      return import_data_.GetRootTypeInfo(module);
+    }
+    return return_ti;
   }
 
   // Retrieves the `ParametricEnv` corresponding to `parametric_context` if the
@@ -810,7 +812,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return absl::OkStatus();
     }
 
-    TypeInfo* ti = GetTypeInfo(parametric_context);
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                         GetTypeInfo(node->owner(), parametric_context));
     std::optional<const TypeAnnotation*> annotation = pre_unified_type;
     if (!annotation.has_value()) {
       Module* effective_module = &module_;
@@ -918,7 +921,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                     *node->GetSpan()));
     VLOG(6) << "Struct env: " << parametric_env.ToString();
     XLS_ASSIGN_OR_RETURN(TypeInfo * struct_base_ti,
-                         import_data_.GetRootTypeInfoForNode(ref.def));
+                         GetTypeInfo(ref.def->owner(), parent_context));
     auto type_info_factory = [&] {
       return import_data_.type_info_owner().New(ref.def->owner(),
                                                 struct_base_ti);
@@ -1096,8 +1099,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
       return type;
     }
-    if (std::optional<const EnumDef*> enum_def = GetEnumDef(annotation)) {
-      TypeInfo* ti = GetTypeInfo(parametric_context);
+    XLS_ASSIGN_OR_RETURN(std::optional<const EnumDef*> enum_def,
+                         GetEnumDef(annotation, import_data_));
+    if (enum_def.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          TypeInfo * ti, GetTypeInfo((*enum_def)->owner(), parametric_context));
       std::vector<InterpValue> members;
       BitsType* underlying_type = nullptr;
 
@@ -1243,6 +1249,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
     if (const auto* colon_ref = dynamic_cast<const ColonRef*>(node)) {
+      // Imports should have already been marked constexpr in their own module.
+      if (IsImport(colon_ref)) {
+        return absl::OkStatus();
+      }
       return NoteColonRefIfConstExpr(parametric_context, colon_ref, type, ti);
     }
     if (const auto* number = dynamic_cast<const Number*>(node)) {
@@ -1697,11 +1707,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // The only scoped expr there is the expression being passed for `X`, which
     // is in a non-parametric caller and therefore cannot possibly refer to any
     // parametrics.
-    TypeInfo* type_info = GetTypeInfo(scoped_expr.context());
-    if (!scoped_expr.context().has_value() && proc_type_info_stack_.empty()) {
-      XLS_ASSIGN_OR_RETURN(type_info, import_data_.GetRootTypeInfoForNode(
-                                          scoped_expr.expr()->owner()));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * type_info,
+        GetTypeInfo(scoped_expr.expr()->owner(), scoped_expr.context()));
     return Evaluate(scoped_expr.context(), type_info,
                     scoped_expr.type_annotation(), scoped_expr.expr());
   }
@@ -2085,7 +2093,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       formal_types.push_back(param->type_annotation());
     }
 
-    TypeInfo* actual_arg_ti = GetTypeInfo(invocation_context->parent_context());
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * actual_arg_ti,
+        GetTypeInfo(&module_, invocation_context->parent_context()));
     return InferImplicitParametrics(
         invocation_context->parent_context(), invocation_context,
         implicit_parametrics, formal_types, actual_args, ti, actual_arg_ti,
@@ -2288,9 +2298,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // for parametric function invocations, and the differences are in the
     // logistics. We build this as a map, `resolved_parametrics`, and convert it
     // to a vector at the end.
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                         GetTypeInfo(struct_def.owner(), parent_context));
     XLS_ASSIGN_OR_RETURN(TypeInfo * instance_type_info,
-                         import_data_.type_info_owner().New(
-                             &module_, GetTypeInfo(parent_context)));
+                         import_data_.type_info_owner().New(&module_, ti));
     ParametricBindings bindings(struct_def.parametric_bindings());
     absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
     auto set_value = [&](const ParametricBinding* binding,

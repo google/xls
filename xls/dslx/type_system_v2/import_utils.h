@@ -50,6 +50,13 @@ absl::StatusOr<ModuleMember> GetPublicModuleMember(const Module& module,
 absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
     const ColonRef* colon_ref, const ImportData& import_data);
 
+// Gets the enum definition for the enum type referred to by `annotation`.
+absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
+    const TypeAnnotation* annotation, const ImportData& import_data);
+
+// Returns whether `colon_ref` is imported from a different module.
+bool IsImport(const ColonRef* colon_ref);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_IMPORT_UTILS_H_

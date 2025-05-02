@@ -7075,5 +7075,159 @@ fn f() -> IntAlias { IntAlias:0 }
       TypecheckFails(HasTypeMismatch("uN[1]", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, ImportedEnum) {
+  constexpr std::string_view kImported = R"(
+pub enum MyEnum {
+  A = s8:0,
+  B = -128,
+  C = 127,
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+const MY_ENUM_A = imported::MyEnum::A;
+
+const_assert!(imported::MyEnum::A as s8 == 0);
+const_assert!(imported::MyEnum::B as s8 == -128);
+const_assert!(imported::MyEnum::C as s8 == 127);
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("MY_ENUM_A", "MyEnum"))));
+}
+
+TEST(TypecheckV2Test, ImportedEnumAsType) {
+  constexpr std::string_view kImported = R"(
+pub enum MyEnum {
+  A = s8:0,
+  B = -128,
+  C = 127,
+}
+
+pub type E = MyEnum;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+type A = imported::E;
+
+fn f(x: A) -> A {
+  x
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("A", "MyEnum"),
+                                             HasNodeWithType("x", "MyEnum")))));
+}
+
+TEST(TypecheckV2Test, ImportedEnumAsTypeTwoLevel) {
+  constexpr std::string_view kFirst = R"(
+pub enum MyEnum {
+  A = s8:0,
+  B = -128,
+  C = 127,
+}
+)";
+
+  constexpr std::string_view kSecond = R"(
+import first;
+
+pub type E = first::MyEnum;
+)";
+  constexpr std::string_view kProgram = R"(
+import second;
+
+type A = second::E;
+
+fn f(x: A) -> A {
+  x
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kFirst, "first", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kSecond, "second", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(AllOf(HasNodeWithType("A", "MyEnum"),
+                                             HasNodeWithType("x", "MyEnum")))));
+}
+
+TEST(TypecheckV2Test, ImportedEnumInFunction) {
+  constexpr std::string_view kImported = R"(
+pub enum MyEnum {
+  A = s8:0,
+  B = -128,
+  C = 127,
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn f(x: imported::MyEnum) -> imported::MyEnum {
+  x
+}
+const_assert!(f(imported::MyEnum::A) as s8 == 0);
+const_assert!(f(imported::MyEnum::B) as s8 == -128);
+const_assert!(f(imported::MyEnum::C) as s8 == 127);
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("x", "MyEnum"))));
+}
+
+TEST(TypecheckV2Test, ImportedArrayOfEnum) {
+  constexpr std::string_view kImported = R"(
+pub enum MyEnum : u2 {
+    A = 0,
+    B = 1,
+    C = 2,
+}
+
+pub const ENUMS = MyEnum[3]:[MyEnum::A, MyEnum::B, MyEnum::C];
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main(i: u2) -> imported::MyEnum {
+    imported::ENUMS[i]
+}
+
+const_assert!(main(u2:0) == imported::MyEnum::A);
+const_assert!(main(u2:1) == imported::MyEnum::B);
+const_assert!(main(u2:2) == imported::MyEnum::C);
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  HasNodeWithType("imported::ENUMS[i]", "MyEnum"))));
+}
+
+TEST(TypecheckV2Test, ZeroMacroImportedEnum) {
+  constexpr std::string_view kImported = R"(
+pub enum E: u2 { ZERO=0, ONE=1, TWO=2}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+const Y = zero!<imported::E>();
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "E"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

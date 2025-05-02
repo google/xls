@@ -216,36 +216,31 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             node, module_.Make<MemberTypeAnnotation>(&alias->type_annotation(),
                                                      node->attr()));
       }
-      XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
-                           GetImportedModuleInfo(node, import_data_));
-      if (import_module.has_value()) {
-        XLS_ASSIGN_OR_RETURN(ModuleMember member,
-                             GetPublicModuleMember((*import_module)->module(),
-                                                   node, file_table_));
-        XLS_RETURN_IF_ERROR(SetCrossTableTypeAnnotation(
-            node, (*import_module)->inference_table(), ToAstNode(member)));
-        table_.SetColonRefTarget(node, ToAstNode(member));
-        return absl::OkStatus();
-      }
     }
     // A double colon ref should resolve to a struct definition with an
-    // associated impl.
+    // associated impl or to an imported enum.
     if (std::holds_alternative<ColonRef*>(node->subject())) {
       auto* sub_col_ref = std::get<ColonRef*>(node->subject());
-      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_def,
-                           GetStructOrProcRef(sub_col_ref, import_data_));
-      CHECK(struct_def.has_value());
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<const AstNode*> ref,
-          HandleStructAttributeReferenceInternal(
-              node, *struct_def->def, struct_def->parametrics, node->attr()));
-      CHECK(ref.has_value());
-
       XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
                            GetImportedModuleInfo(sub_col_ref, import_data_));
       CHECK(import_module.has_value());
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_def,
+                           GetStructOrProcRef(sub_col_ref, import_data_));
+      if (struct_def.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<const AstNode*> ref,
+            HandleStructAttributeReferenceInternal(
+                node, *struct_def->def, struct_def->parametrics, node->attr()));
+        CHECK(ref.has_value());
+
+        return SetCrossTableTypeAnnotation(
+            node, (*import_module)->inference_table(), *ref);
+      }
+      XLS_ASSIGN_OR_RETURN(ModuleMember member,
+                           GetPublicModuleMember((*import_module)->module(),
+                                                 sub_col_ref, file_table_));
       return SetCrossTableTypeAnnotation(
-          node, (*import_module)->inference_table(), *ref);
+          node, (*import_module)->inference_table(), ToAstNode(member));
     }
     if (std::holds_alternative<TypeRefTypeAnnotation*>(node->subject())) {
       // This is something like `S<parametrics>::CONSTANT` or
@@ -265,6 +260,17 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       }
       return table_.SetTypeAnnotation(
           node, module_.Make<MemberTypeAnnotation>(annotation, node->attr()));
+    }
+    XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
+                         GetImportedModuleInfo(node, import_data_));
+    if (import_module.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          ModuleMember member,
+          GetPublicModuleMember((*import_module)->module(), node, file_table_));
+      XLS_RETURN_IF_ERROR(SetCrossTableTypeAnnotation(
+          node, (*import_module)->inference_table(), ToAstNode(member)));
+      table_.SetColonRefTarget(node, ToAstNode(member));
+      return absl::OkStatus();
     }
     return absl::UnimplementedError(
         "Type inference version 2 is a work in progress and has limited "
@@ -1607,6 +1613,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                 ToAstNode(&std::get<TypeAlias*>(member)->name_def())));
             return DefaultHandler(node);
           }
+          XLS_RETURN_IF_ERROR(SetCrossTableTypeAnnotation(
+              node, (*import_module)->inference_table(), ToAstNode(member)));
+          return DefaultHandler(node);
         }
       }
       // If it's a non-import "expr", that's an error (just like in V1)
