@@ -719,6 +719,25 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return base_type_info_;
   }
 
+  // Retrieves the `ParametricEnv` corresponding to `parametric_context` if the
+  // context is not `nullopt`, it is for an invocation, and we have converted
+  // the invocation.
+  //
+  // TODO: https://github.com/google/xls/issues/193 - we should probably stop
+  // limiting this to invocations once the bytecode interpreter is able to
+  // look up type info for parametric impls.
+  ParametricEnv GetParametricEnv(
+      std::optional<const ParametricContext*> parametric_context) {
+    if (parametric_context.has_value() &&
+        (*parametric_context)->is_invocation()) {
+      const auto it = converted_parametric_envs_.find(*parametric_context);
+      if (it != converted_parametric_envs_.end()) {
+        return it->second;
+      }
+    }
+    return ParametricEnv{};
+  }
+
   bool IsProcAtTopOfTypeInfoStack(const Proc* proc) {
     absl::StatusOr<TypeInfo*> ti =
         base_type_info_->GetTopLevelProcTypeInfo(proc);
@@ -1105,8 +1124,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           // expressions.
           if (!evaluated_value.ok()) {
             evaluated_value = ConstexprEvaluator::EvaluateToValue(
-                &import_data_, ti, &warning_collector_, ParametricEnv(),
-                value.value);
+                &import_data_, ti, &warning_collector_,
+                GetParametricEnv(parametric_context), value.value);
             if (!evaluated_value.ok()) {
               return NotConstantErrorStatus(value.value->span(), value.value,
                                             file_table_);
@@ -1187,8 +1206,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       VLOG(6) << "Checking constant def value: " << constant_def->ToString()
               << " with type: " << type.ToString();
       absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
-          &import_data_, ti, &warning_collector_, ParametricEnv(),
-          constant_def->value(), &type);
+          &import_data_, ti, &warning_collector_,
+          GetParametricEnv(parametric_context), constant_def->value(), &type);
       if (value.ok()) {
         VLOG(6) << "Constant def: " << constant_def->ToString()
                 << " has value: " << value->ToString();
@@ -1231,7 +1250,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       ti->NoteConstExpr(number, value);
     }
     if (const auto* let = dynamic_cast<const Let*>(node)) {
-      return NoteLetIfConstExpr(let, type, ti);
+      return NoteLetIfConstExpr(let, parametric_context, type, ti);
     }
     if (const auto* index = dynamic_cast<const Index*>(node)) {
       // A `Slice` actually has its bounds stored in `TypeInfo` out-of-band from
@@ -1243,7 +1262,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
     if (const auto* const_assert = dynamic_cast<const ConstAssert*>(node)) {
-      return CheckConstAssert(const_assert, type, ti);
+      return CheckConstAssert(const_assert, parametric_context, type, ti);
     }
     if (const auto* unroll_for = dynamic_cast<const UnrollFor*>(node)) {
       return ExpandUnrollFor(unroll_for, parametric_context, type, ti);
@@ -1308,23 +1327,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     if (is_generic_slice) {
-      ti->AddSliceStartAndWidth(
-          std::get<Slice*>(index->rhs()),
-          parametric_context.has_value()
-              ? converted_parametric_envs_.at(*parametric_context)
-              : ParametricEnv{},
-          StartAndWidth{*start, width});
+      ti->AddSliceStartAndWidth(std::get<Slice*>(index->rhs()),
+                                GetParametricEnv(parametric_context),
+                                StartAndWidth{*start, width});
     }
     return absl::OkStatus();
   }
 
   // Used when a `ConstAssert` is concretized, to actually check if the asserted
   // expression holds.
-  absl::Status CheckConstAssert(const ConstAssert* node, const Type& type,
-                                TypeInfo* ti) {
+  absl::Status CheckConstAssert(
+      const ConstAssert* node,
+      std::optional<const ParametricContext*> parametric_context,
+      const Type& type, TypeInfo* ti) {
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
-        &import_data_, ti, &warning_collector_, ParametricEnv(), node->arg(),
-        &type);
+        &import_data_, ti, &warning_collector_,
+        GetParametricEnv(parametric_context), node->arg(), &type);
     if (!value.ok()) {
       return TypeInferenceErrorStatus(
           node->span(), nullptr,
@@ -1408,7 +1426,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
       // Evaluate the value, and note it if successful.
       absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
-          &import_data_, evaluation_ti, &warning_collector_, ParametricEnv(),
+          &import_data_, evaluation_ti, &warning_collector_,
+          GetParametricEnv(parametric_context),
           dynamic_cast<const ConstantDef*>(*target)->value(), &type);
       if (value.ok()) {
         VLOG(6) << "Noting constexpr for ColonRef: " << colon_ref->ToString()
@@ -1419,11 +1438,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return absl::OkStatus();
   }
 
-  absl::Status NoteLetIfConstExpr(const Let* let, const Type& type,
-                                  TypeInfo* ti) {
+  absl::Status NoteLetIfConstExpr(
+      const Let* let,
+      std::optional<const ParametricContext*> parametric_context,
+      const Type& type, TypeInfo* ti) {
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
-        &import_data_, ti, &warning_collector_, ParametricEnv(), let->rhs(),
-        &type);
+        &import_data_, ti, &warning_collector_,
+        GetParametricEnv(parametric_context), let->rhs(), &type);
     if (let->is_const()) {
       if (!value.ok()) {
         return value.status();
@@ -1507,8 +1528,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // values directly.
     absl::StatusOr<InterpValue> const_iterable =
         ConstexprEvaluator::EvaluateToValue(
-            &import_data_, ti, &warning_collector_, ParametricEnv(),
-            unroll_for->iterable());
+            &import_data_, ti, &warning_collector_,
+            GetParametricEnv(parametric_context), unroll_for->iterable());
     const std::vector<InterpValue>* iterable_values = nullptr;
     uint64_t size = 0;
     if (const_iterable.ok()) {
@@ -1615,18 +1636,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (has_result_value) {
       absl::StatusOr<InterpValue> const_result =
           ConstexprEvaluator::EvaluateToValue(
-              &import_data_, ti, &warning_collector_, ParametricEnv(),
+              &import_data_, ti, &warning_collector_,
+              GetParametricEnv(parametric_context),
               std::get<Expr*>(unrolled_statements.back()->wrapped()));
       if (const_result.ok()) {
         ti->NoteConstExpr(unroll_for, *const_result);
       }
     }
 
-    ParametricEnv parametric_env;
-    if (parametric_context.has_value()) {
-      parametric_env = converted_parametric_envs_.at(*parametric_context);
-    }
-    ti->NoteUnrolledLoop(unroll_for, parametric_env, unrolled_statement_block);
+    ti->NoteUnrolledLoop(unroll_for, GetParametricEnv(parametric_context),
+                         unrolled_statement_block);
     return absl::OkStatus();
   }
 
@@ -1719,13 +1738,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       type_info->SetItem(number->type_annotation(),
                          MetaType(type->CloneToUnique()));
     }
-    // Note: the `ParametricEnv` is irrelevant here, because we have guaranteed
-    // that any parametric that may be referenced by the expr has been noted as
-    // a normal constexpr in `type_info`.
-    XLS_ASSIGN_OR_RETURN(InterpValue result,
-                         ConstexprEvaluator::EvaluateToValue(
-                             &import_data_, type_info, &warning_collector_,
-                             ParametricEnv(), expr, /*type=*/nullptr));
+
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue result,
+        ConstexprEvaluator::EvaluateToValue(
+            &import_data_, type_info, &warning_collector_,
+            GetParametricEnv(parametric_context), expr, /*type=*/nullptr));
     VLOG(7) << "Evaluation result for: " << expr->ToString()
             << " in context: " << ToString(parametric_context)
             << " value: " << result.ToString();

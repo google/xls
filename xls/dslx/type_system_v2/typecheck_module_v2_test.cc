@@ -2571,6 +2571,22 @@ const X = foo(foo<24>(4) + foo<24>(5));
                   "const X = foo(foo<24>(4) + foo<24>(5));", "uN[24]")));
 }
 
+TEST(TypecheckV2Test, NestedParametricFunctionCallInArrayDim) {
+  // This test is based on similar usage of `checked_cast(max(...))` in std.x.
+  EXPECT_THAT(R"(
+fn max<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> xN[S][N] {
+  if x > y { x } else { y }
+}
+
+fn foo<A: u32, B: u32>() -> u32 {
+  let foo = uN[checked_cast<u32>(max(s32:0, A as s32 - B as s32))]:0;
+  foo as u32
+}
+const X = foo<10, 5>();
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
 TEST(TypecheckV2Test,
      ParametricFunctionUsingGlobalConstantInParametricDefault) {
   EXPECT_THAT(R"(
