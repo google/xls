@@ -32,6 +32,12 @@ fn bit_slice_update<N: u32, U: u32, V: u32>(x: uN[N], y: uN[U], z: uN[V]) -> uN[
 
 fn checked_cast<DEST: type, SRC: type>(x: SRC) -> DEST;
 
+// This must be before ceillog2 so that the parser uses the BuiltinNameDef for ceillog2,
+// and not the subsequent stub.
+fn encode<N: u32, M: u32={ceillog2(N)}>(x: uN[N]) -> uN[M];
+
+fn ceillog2<N: u32>(x: uN[N]) -> uN[N];
+
 fn clz<N: u32>(x: uN[N]) -> uN[N];
 
 fn cover!<N: u32>(name: u8[N], condition: u1) -> ();

@@ -289,6 +289,11 @@ TEST(TypecheckV2BuiltinTest, CheckedCastImplicitDestinationFails) {
               TypecheckFails(HasSubstr("Could not infer parametric(s): DEST")));
 }
 
+TEST(TypecheckV2BuiltinTest, CeilLog2) {
+  EXPECT_THAT(R"(const Y = ceillog2(u8:3);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[8]")));
+}
+
 TEST(TypecheckV2BuiltinTest, Clz) {
   EXPECT_THAT(R"(const Y = clz(u8:3);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[8]")));
@@ -358,6 +363,30 @@ TEST(TypecheckV2BuiltinTest, DecodeToStructError) {
   const Y = decode<S>(u5:1);)",
               TypecheckFails(HasSubstr(
                   "`decode` return type must be a bits type, saw `S {}`")));
+}
+
+TEST(TypecheckV2BuiltinTest, Encode) {
+  EXPECT_THAT(R"(const Y = encode(u32:0xbeef);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[5]")));
+}
+
+TEST(TypecheckV2BuiltinTest, EncodeSizeMismatch) {
+  EXPECT_THAT(R"(const Y:u32 = encode(u32:0xbeef);)",
+              TypecheckFails(HasSizeMismatch("u32", "uN[5]")));
+}
+
+TEST(TypecheckV2BuiltinTest, EncodeExplicitParametrics) {
+  EXPECT_THAT(R"(const Y = encode<u32:32, u32:5>(u32:0xbeef);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[5]")));
+}
+
+TEST(TypecheckV2BuiltinTest, EncodeOfEncode) {
+  EXPECT_THAT(R"(
+const X0 = encode(u32:0x00010000);
+const X1 = encode(X0);
+const X2 = encode(X1);
+)",
+              TypecheckSucceeds(HasNodeWithType("X2", "uN[2]")));
 }
 
 TEST(TypecheckV2BuiltinTest, ElementCountArray) {
