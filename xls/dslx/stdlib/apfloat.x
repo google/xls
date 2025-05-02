@@ -3100,18 +3100,17 @@ pub fn mul<EXP_SZ: u32, FRACTION_SZ: u32>
     // "ROUNDING_FRACTION", but it's easier to understand the code if it has its own name).
     const STICKY_FRACTION: u32 = FRACTION_SZ + u32:1;
 
+    // 0. Check if either operand is 0 (flushing subnorms to 0).
+    let has_0_arg = is_zero_or_subnormal(x) || is_zero_or_subnormal(y);
+
     // 1. Get and expand mantissas.
     let x_fraction = (x.fraction as uN[WIDE_FRACTION]) |
                      (uN[WIDE_FRACTION]:1 << (FRACTION_SZ as uN[WIDE_FRACTION]));
     let y_fraction = (y.fraction as uN[WIDE_FRACTION]) |
                      (uN[WIDE_FRACTION]:1 << (FRACTION_SZ as uN[WIDE_FRACTION]));
 
-    // 1a. Flush subnorms to 0.
-    let x_fraction = if is_zero_or_subnormal(x) { uN[WIDE_FRACTION]:0 } else { x_fraction };
-    let y_fraction = if is_zero_or_subnormal(y) { uN[WIDE_FRACTION]:0 } else { y_fraction };
-
-    // 2. Multiply integer mantissas.
-    let fraction = x_fraction * y_fraction;
+    // 2. Multiply integer mantissas, flushing subnormals to 0.
+    let fraction = if has_0_arg { uN[WIDE_FRACTION]:0 } else { x_fraction * y_fraction };
 
     // 3. Add non-biased exponents.
     //  - Remove the bias from the exponents, add them, then restore the bias.
@@ -3129,8 +3128,7 @@ pub fn mul<EXP_SZ: u32, FRACTION_SZ: u32>
     // to capture that "extra" exponent.
     // Since we just flush subnormals, we don't have to do any of that.
     // Instead, if we're multiplying by 0, the result is 0.
-    let exp =
-        if is_zero_or_subnormal(x) || is_zero_or_subnormal(y) { sN[SIGNED_EXP]:0 } else { exp };
+    let exp = if has_0_arg { sN[SIGNED_EXP]:0 } else { exp };
 
     // 4. Normalize. Adjust the fraction until our leading 1 is
     // bit 47 (the first past the 46 bits of actual fraction).
@@ -3213,7 +3211,6 @@ pub fn mul<EXP_SZ: u32, FRACTION_SZ: u32>
 
     // - NaNs. NaN trumps infinities, so we handle it last.
     //   inf * 0 = NaN, i.e.,
-    let has_0_arg = is_zero_or_subnormal(x) || is_zero_or_subnormal(y);
     let has_nan_arg = is_nan<EXP_SZ, FRACTION_SZ>(x) || is_nan<EXP_SZ, FRACTION_SZ>(y);
     let has_inf_arg = is_inf<EXP_SZ, FRACTION_SZ>(x) || is_inf<EXP_SZ, FRACTION_SZ>(y);
     let is_result_nan = has_nan_arg || (has_0_arg && has_inf_arg);
@@ -3263,10 +3260,10 @@ fn mul_no_round
     let a_fraction = (a.fraction as uN[WIDE_FRACTION]) | (uN[WIDE_FRACTION]:1 << FRACTION_SZ);
     let b_fraction = (b.fraction as uN[WIDE_FRACTION]) | (uN[WIDE_FRACTION]:1 << FRACTION_SZ);
 
-    // Flush subnorms.
-    let a_fraction = if a.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { a_fraction };
-    let b_fraction = if b.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { b_fraction };
-    let fraction = a_fraction * b_fraction;
+    let has_0_arg = a.bexp == uN[EXP_SZ]:0 || b.bexp == uN[EXP_SZ]:0;
+
+    // Flush subnorms, and multiply.
+    let fraction = if has_0_arg { uN[WIDE_FRACTION]:0 } else { a_fraction * b_fraction };
 
     // Normalize - shift left one place if the top bit is 0.
     let fraction_shift = fraction[-1:] as uN[WIDE_FRACTION];
@@ -3304,7 +3301,6 @@ fn mul_no_round
 
     // - NaNs. NaN trumps infinities, so we handle it last.
     //   inf * 0 = NaN, i.e.,
-    let has_0_arg = a.bexp == uN[EXP_SZ]:0 || b.bexp == uN[EXP_SZ]:0;
     let has_nan_arg = is_nan(a) || is_nan(b);
     let has_inf_arg = is_inf(a) || is_inf(b);
     let is_result_nan = has_nan_arg || (has_0_arg && has_inf_arg);
@@ -3356,9 +3352,10 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
 
     let ab = mul_no_round<EXP_SZ, FRACTION_SZ>(a, b);
 
-    let greater_exp =
-        if ab.bexp > c.bexp as uN[EXP_CARRY] { ab.bexp } else { c.bexp as uN[EXP_CARRY] };
-    let greater_sign = if ab.bexp > c.bexp as uN[EXP_CARRY] { ab.sign } else { c.sign };
+    let (ab_exp_smaller, exp_difference) =
+        sign_magnitude_difference(ab.bexp, c.bexp as uN[EXP_CARRY]);
+    let (greater_exp, greater_sign) =
+        if ab_exp_smaller { (c.bexp as uN[EXP_CARRY], c.sign) } else { (ab.bexp, ab.sign) };
 
     // Make the implicit '1' explicit and flush subnormal "c" to 0 (already
     // done for ab inside mul_no_round()).
@@ -3373,8 +3370,8 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>
 
     // Shift the operands into their correct positions.
     // The sticky bits are set to whether anything non-zero gets shifted out.
-    let rshift_ab = greater_exp - ab.bexp;
-    let rshift_c = greater_exp - (c.bexp as uN[EXP_CARRY]);
+    let rshift_ab = if ab_exp_smaller { exp_difference } else { uN[EXP_CARRY]:0 };
+    let rshift_c = if ab_exp_smaller { uN[EXP_CARRY]:0 } else { exp_difference };
     let shifted_ab = wide_ab >> rshift_ab;
     let shifted_c = wide_c >> rshift_c;
     let sticky_ab = std::or_reduce_lsb(wide_ab, rshift_ab) as uN[WIDE_FRACTION];
