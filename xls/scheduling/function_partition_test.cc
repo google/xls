@@ -117,16 +117,16 @@ TEST_F(FunctionPartitionTest, LinearGraphCut) {
   FunctionBuilder fb(TestName(), p.get());
   auto x = fb.Param("x", p->GetBitsType(32));
   auto bit_slice = fb.BitSlice(x, /*start=*/0, /*width=*/16);
-  auto zext = fb.ZeroExtend(bit_slice, /*new_bit_count=*/128);
-  fb.Negate(zext);
+  auto zero_ext = fb.ZeroExtend(bit_slice, /*new_bit_count=*/128);
+  fb.Negate(zero_ext);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   {
-    auto partition =
-        MinCostFunctionPartition(f, {x.node(), bit_slice.node(), zext.node()});
+    auto partition = MinCostFunctionPartition(
+        f, {x.node(), bit_slice.node(), zero_ext.node()});
     EXPECT_THAT(partition.first,
                 UnorderedElementsAre(x.node(), bit_slice.node()));
-    EXPECT_THAT(partition.second, UnorderedElementsAre(zext.node()));
+    EXPECT_THAT(partition.second, UnorderedElementsAre(zero_ext.node()));
   }
 
   {

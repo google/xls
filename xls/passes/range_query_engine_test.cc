@@ -2444,10 +2444,10 @@ TEST_F(RangeQueryEngineTest, ExactGivenValue) {
   BValue y = fb.Param("y", p->GetBitsType(8));
   // NB z is [0,4]
   BValue z = fb.Param("z", p->GetBitsType(2));
-  BValue zext = fb.ZeroExtend(z, 8);
+  BValue z_extended = fb.ZeroExtend(z, 8);
   // We will have a precise known-value of 12 for this.
   BValue xy = fb.Add(x, y);
-  BValue xyz = fb.Add(xy, zext);
+  BValue xyz = fb.Add(xy, z_extended);
   // Always true: 12 + [0,3] == [12,15] < 25
   BValue ltxyz = fb.ULt(xyz, fb.Literal(UBits(25, 8)));
 
@@ -2473,8 +2473,8 @@ TEST_F(RangeQueryEngineTest, ExactGivenValue) {
             BitsLTT(y.node(), {Interval::Maximal(8)}));
   EXPECT_EQ(engine.GetIntervalSetTree(z.node()),
             BitsLTT(z.node(), {Interval::Maximal(2)}));
-  EXPECT_EQ(engine.GetIntervalSetTree(zext.node()),
-            BitsLTT(zext.node(), {Interval::Maximal(2).ZeroExtend(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(z_extended.node()),
+            BitsLTT(z_extended.node(), {Interval::Maximal(2).ZeroExtend(8)}));
   EXPECT_EQ(engine.GetIntervalSetTree(xy.node()),
             BitsLTT(xy.node(), {Interval::Precise(UBits(12, 8))}));
   EXPECT_EQ(engine.GetIntervalSetTree(xyz.node()),
@@ -2490,10 +2490,10 @@ TEST_F(RangeQueryEngineTest, RangeGivenValue) {
   BValue y = fb.Param("y", p->GetBitsType(8));
   // NB z is [0,4]
   BValue z = fb.Param("z", p->GetBitsType(2));
-  BValue zext = fb.ZeroExtend(z, 8);
+  BValue z_extended = fb.ZeroExtend(z, 8);
   // We will have a known range of [0, 12] for this
   BValue xy = fb.Add(x, y);
-  BValue xyz = fb.Add(xy, zext);
+  BValue xyz = fb.Add(xy, z_extended);
   // Always true: [0, 12] + [0,3] == [0,15] < 25
   BValue ltxyz = fb.ULt(xyz, fb.Literal(UBits(25, 8)));
 
@@ -2519,8 +2519,8 @@ TEST_F(RangeQueryEngineTest, RangeGivenValue) {
             BitsLTT(y.node(), {Interval::Maximal(8)}));
   EXPECT_EQ(engine.GetIntervalSetTree(z.node()),
             BitsLTT(z.node(), {Interval::Maximal(2)}));
-  EXPECT_EQ(engine.GetIntervalSetTree(zext.node()),
-            BitsLTT(zext.node(), {Interval::Maximal(2).ZeroExtend(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(z_extended.node()),
+            BitsLTT(z_extended.node(), {Interval::Maximal(2).ZeroExtend(8)}));
   EXPECT_EQ(engine.GetIntervalSetTree(xy.node()),
             BitsLTT(xy.node(), {Interval(UBits(0, 8), UBits(12, 8))}));
   EXPECT_EQ(engine.GetIntervalSetTree(xyz.node()),

@@ -1112,8 +1112,8 @@ absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
                          HandleBitSlice(GetBitVec(update->update_value()), 0,
                                         update->to_update()->BitCountOrDie()));
   } else {
-    ext_update_value = op_translator.Zext(GetBitVec(update->update_value()),
-                                          update->BitCountOrDie());
+    ext_update_value = op_translator.ZeroExt(GetBitVec(update->update_value()),
+                                             update->BitCountOrDie());
   }
   // Shift mask and to_update over.
   Z3_ast shift_mask = op_translator.Shll(mask, start);
@@ -1487,8 +1487,8 @@ static Z3_ast DoMul(Z3_context ctx, Z3_ast lhs, Z3_ast rhs, bool is_signed,
 
 absl::Status IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
   // In XLS IR, multiply operands can potentially be of different widths. In Z3,
-  // they can't, so we need to zext (for a umul) the operands to the size of the
-  // result.
+  // they can't, so we need to zero-extend (for a umul) the operands to the size
+  // of the result.
   if (IsZeroLen(mul->operand(0)) || IsZeroLen(mul->operand(1))) {
     XLS_ASSIGN_OR_RETURN(Z3_ast res,
                          TranslateLiteralBits(UBits(0, mul->BitCountOrDie())));
@@ -1534,8 +1534,8 @@ absl::Status IrTranslator::HandleMulp(PartialProductOp* mul, bool is_signed) {
   }
   Z3_symbol offset_symbol = GetNewSymbol();
   // In XLS IR, multiply operands can potentially be of different widths. In Z3,
-  // they can't, so we need to zext (for a umul) the operands to the size of the
-  // result.
+  // they can't, so we need to zero-extend (for a umul) the operands to the size
+  // of the result.
   if (IsZeroLen(mul->operand(0)) || IsZeroLen(mul->operand(1))) {
     Z3_sort op_sort = Z3_mk_bv_sort(ctx_, mul->width());
     Z3_ast offset = Z3_mk_const(ctx_, offset_symbol, op_sort);

@@ -951,7 +951,8 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
             n->ReplaceUsesWithNew<ExtendOp>(
                  operand, /*new_bit_count=*/n->BitCountOrDie(), Op::kZeroExt)
                 .status());
-        *which_transform = "random replace with zext(operand): " + n->GetName();
+        *which_transform =
+            "random replace with zero_ext(operand): " + n->GetName();
         return SimplificationResult::kDidChange;
       }
     }

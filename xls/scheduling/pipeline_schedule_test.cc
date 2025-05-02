@@ -469,7 +469,7 @@ TEST_F(PipelineScheduleTest, LongPipelineLength) {
   Type* u32 = p->GetBitsType(32);
   auto x = fb.Param("x", u32);
   auto bitslice = fb.BitSlice(x, /*start=*/7, /*width=*/20);
-  auto zext = fb.ZeroExtend(bitslice, /*new_bit_count=*/32);
+  auto zero_ext = fb.ZeroExtend(bitslice, /*new_bit_count=*/32);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
@@ -487,7 +487,8 @@ TEST_F(PipelineScheduleTest, LongPipelineLength) {
   for (int64_t i = 1; i < 99; ++i) {
     EXPECT_THAT(schedule.nodes_in_cycle(i), UnorderedElementsAre());
   }
-  EXPECT_THAT(schedule.nodes_in_cycle(99), UnorderedElementsAre(zext.node()));
+  EXPECT_THAT(schedule.nodes_in_cycle(99),
+              UnorderedElementsAre(zero_ext.node()));
 }
 
 TEST_F(PipelineScheduleTest, ClockPeriodMargin) {

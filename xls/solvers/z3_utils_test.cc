@@ -71,7 +71,7 @@ TEST_F(Z3UtilsTest, NodeValueBits) {
 
   Z3OpTranslator t(ctx_);
   Z3_ast param = t.MakeBvParam(1, "p");
-  Z3_ast extended_param = t.ZextBy1b(param);
+  Z3_ast extended_param = t.ZeroExtBy1b(param);
   Z3_ast is_all_z = t.EqZero(extended_param);
   Z3_ast all_one = t.Fill(true, /*bit_count=*/2);
   Z3_ast is_all_o = t.Eq(extended_param, all_one);
@@ -99,7 +99,7 @@ TEST_F(Z3UtilsTest, NodeValueBitsBigger) {
 
   Z3OpTranslator t(ctx_);
   Z3_ast param = t.MakeBvParam(256, "p");
-  Z3_ast extended_param = t.ZextBy1b(param);
+  Z3_ast extended_param = t.ZeroExtBy1b(param);
   Z3_ast is_all_z = t.EqZero(extended_param);
   Z3_ast all_one = t.Fill(true, /*bit_count=*/257);
   Z3_ast is_all_o = t.Eq(extended_param, all_one);

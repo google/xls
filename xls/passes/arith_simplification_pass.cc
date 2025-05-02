@@ -1368,7 +1368,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
               n->function_base()->MakeNode<Concat>(
                   concat->loc(), concat->operands().subspan(1)));
         }
-        VLOG(2) << "FOUND: Removal of zext of shift amount";
+        VLOG(2) << "FOUND: Removal of zero_ext of shift amount";
         XLS_RETURN_IF_ERROR(n->ReplaceOperandNumber(1, new_shift_amount,
                                                     /*type_must_match=*/false));
         return true;
@@ -1392,7 +1392,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
                            n->function_base()->MakeNode<Concat>(
                                concat->loc(), concat->operands().subspan(1)));
     }
-    VLOG(2) << "FOUND: Removal of zext of decode index";
+    VLOG(2) << "FOUND: Removal of zero_ext of decode index";
 
     int64_t n_width = n->BitCountOrDie();
     int64_t operand_width = new_index->BitCountOrDie();

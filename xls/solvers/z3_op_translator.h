@@ -63,13 +63,13 @@ class Z3OpTranslator {
   Z3_ast True() { return Z3_mk_true(z3_ctx_); }
   Z3_ast False() { return Z3_mk_false(z3_ctx_); }
 
-  Z3_ast ZextBy1b(Z3_ast arg) { return Z3_mk_zero_ext(z3_ctx_, 1, arg); }
-  Z3_ast SextBy1b(Z3_ast arg) { return Z3_mk_sign_ext(z3_ctx_, 1, arg); }
+  Z3_ast ZeroExtBy1b(Z3_ast arg) { return Z3_mk_zero_ext(z3_ctx_, 1, arg); }
+  Z3_ast SignExtBy1b(Z3_ast arg) { return Z3_mk_sign_ext(z3_ctx_, 1, arg); }
 
   // Left shift by 'r'. Handles coercing types internally.
   Z3_ast Shll(Z3_ast l, Z3_ast r);
 
-  Z3_ast Zext(Z3_ast bits, int64_t new_bit_count);
+  Z3_ast ZeroExt(Z3_ast bits, int64_t new_bit_count);
 
   // Extracts bit "bitno" from the given argument, returns a single-bit
   // bitvector result.
@@ -162,7 +162,7 @@ class Z3OpTranslator {
   // Returns whether lhs < rhs -- this is determined by zero-extending the
   // values and testing whether lhs - rhs < 0
   Z3_ast ULt(Z3_ast lhs, Z3_ast rhs) {
-    return Msb(Sub(ZextBy1b(lhs), ZextBy1b(rhs)));
+    return Msb(Sub(ZeroExtBy1b(lhs), ZeroExtBy1b(rhs)));
   }
   Z3_ast ULe(Z3_ast lhs, Z3_ast rhs) { return Or(ULt(lhs, rhs), Eq(lhs, rhs)); }
   Z3_ast UGt(Z3_ast lhs, Z3_ast rhs) { return Not(ULe(lhs, rhs)); }
@@ -184,7 +184,7 @@ class Z3OpTranslator {
   // Returns whether lhs < rhs -- this is determined by sign-extending the
   // values and testing whether lhs - rhs < 0
   Z3_ast SLt(Z3_ast lhs, Z3_ast rhs) {
-    return Msb(Sub(SextBy1b(lhs), SextBy1b(rhs)));
+    return Msb(Sub(SignExtBy1b(lhs), SignExtBy1b(rhs)));
   }
 
   Z3_ast Min(Z3_ast lhs, Z3_ast rhs) {

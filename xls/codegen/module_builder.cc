@@ -1555,8 +1555,8 @@ VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
       slice->loc());
   int64_t width = slice->width();
 
-  LogicRef* zexted_operand = func->AddRegDef(
-      slice->loc(), "zexted_operand",
+  LogicRef* extended_operand = func->AddRegDef(
+      slice->loc(), "extended_operand",
       file->BitVectorType(slice->to_slice()->BitCountOrDie() + width,
                           slice->loc()),
       /*init=*/nullptr);
@@ -1572,10 +1572,10 @@ VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
       file->GreaterThanEquals(start, op_width, slice->loc());
   // Pad with width zeros
   func->AddStatement<BlockingAssignment>(
-      slice->loc(), zexted_operand,
+      slice->loc(), extended_operand,
       file->Concat({zeros, operand}, slice->loc()));
   Expression* sliced_operand =
-      file->PartSelect(zexted_operand, start, width, slice->loc());
+      file->PartSelect(extended_operand, start, width, slice->loc());
   func->AddStatement<BlockingAssignment>(
       slice->loc(), func->return_value_ref(),
       file->Ternary(out_of_bounds, zeros, sliced_operand, slice->loc()));

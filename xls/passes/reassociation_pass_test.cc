@@ -831,9 +831,9 @@ TEST_F(ReassociationPassTest, SubUnderflowZeroExtend3) {
   FunctionBuilder fb(TestName(), p.get());
 
   BValue small = fb.Param("small", p->GetBitsType(2));
-  BValue zext_17 = fb.ZeroExtend(small, 17);
-  BValue slice_8 = fb.BitSlice(zext_17, 0, 8);
-  BValue slice_16 = fb.BitSlice(zext_17, 0, 16);
+  BValue zero_ext_17 = fb.ZeroExtend(small, 17);
+  BValue slice_8 = fb.BitSlice(zero_ext_17, 0, 8);
+  BValue slice_16 = fb.BitSlice(zero_ext_17, 0, 16);
   BValue top_bits = fb.Literal(UBits(0, 8));
   BValue ext_16 = fb.Concat({top_bits, slice_8});
   BValue add_v = fb.Add(slice_16, fb.Literal(UBits(0, 16)));
