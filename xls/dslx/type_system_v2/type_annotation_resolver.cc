@@ -113,14 +113,34 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
         // both. We want the programmer to write that type on the `X` line at
         // a minimum, which will then predictably propagate to `Y` if they
         // don't say otherwise.
-        return absl::InvalidArgumentError(absl::Substitute(
-            "TypeInferenceError: A variable or constant cannot be defined "
-            "with an implicit type. `$0` at $1 must have a type annotation "
-            "on at least one side of its assignment.",
-            node->parent()->ToString(), node_span->ToString(file_table_)));
+        return TypeInferenceErrorStatus(
+            *node_span, /*type=*/nullptr,
+            absl::Substitute("A variable or constant cannot be defined with an "
+                             "implicit type. `$0` must have a type annotation "
+                             "on at least one side of its assignment.",
+                             node->parent()->ToString()),
+            file_table_);
       }
-      return ResolveAndUnifyTypeAnnotations(parametric_context, *type_variable,
-                                            *node_span, filter);
+      if (const auto* loop = dynamic_cast<const ForLoopBase*>(node);
+          loop && !VariableHasAnyExplicitTypeAnnotations(parametric_context,
+                                                         *type_variable)) {
+        // Disallow this with similar rationale to the const/NameDef case above.
+        return TypeInferenceErrorStatus(
+            *node_span, /*type=*/nullptr,
+            absl::Substitute(
+                "Loop cannot have an implicit result type derived from init "
+                "expression `$0`. Either this expression or the loop "
+                "accumulator declaration must have a type.",
+                loop->init()->ToString()),
+            file_table_);
+      }
+      absl::StatusOr<const TypeAnnotation*> result =
+          ResolveAndUnifyTypeAnnotations(parametric_context, *type_variable,
+                                         *node_span, filter);
+      if (result.ok()) {
+        trace.SetResult(*result);
+      }
+      return result;
     } else {
       std::optional<const TypeAnnotation*> annotation =
           table_.GetTypeAnnotation(node);
@@ -131,9 +151,13 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
             const TypeAnnotation* result,
             ResolveAndUnifyTypeAnnotations(parametric_context, {*annotation},
                                            *node->GetSpan(), filter));
+        trace.SetResult(result);
         return result;
       }
 
+      if (annotation.has_value()) {
+        trace.SetResult(*annotation);
+      }
       return annotation;
     }
   }
@@ -164,6 +188,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
                              parametric_context, annotations, span, filter));
     VLOG(6) << "Unified type for variable " << type_variable->ToString() << ": "
             << result->ToString();
+    trace.SetResult(result);
     return result;
   }
 
@@ -174,10 +199,14 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     XLS_RETURN_IF_ERROR(ResolveIndirectTypeAnnotations(parametric_context,
                                                        annotations, filter));
     TypeSystemTrace trace = tracer_.TraceUnify(annotations);
-    return UnifyTypeAnnotations(module_, table_, file_table_, error_generator_,
-                                evaluator_, parametric_struct_instantiator_,
-                                parametric_context, annotations, span,
-                                import_data_);
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* result,
+        UnifyTypeAnnotations(module_, table_, file_table_, error_generator_,
+                             evaluator_, parametric_struct_instantiator_,
+                             parametric_context, annotations, span,
+                             import_data_));
+    trace.SetResult(result);
+    return result;
   }
 
   absl::Status ResolveIndirectTypeAnnotations(
@@ -235,6 +264,7 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
         break;
       }
     }
+    trace.SetResult(annotation);
     return annotation;
   }
 
@@ -347,8 +377,9 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       const ElementTypeAnnotation* element_type, TypeAnnotationFilter filter) {
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* container_type,
-        ResolveIndirectTypeAnnotations(parametric_context,
-                                       element_type->container_type(), filter));
+        ResolveIndirectTypeAnnotations(
+            parametric_context, element_type->container_type(),
+            filter.Chain(TypeAnnotationFilter::BlockRecursion(element_type))));
     if (const auto* array_type =
             dynamic_cast<const ArrayTypeAnnotation*>(container_type)) {
       return array_type->element_type();
@@ -362,9 +393,9 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
             "`tuple.<number>` syntax instead.",
             file_table_);
       }
-      XLS_ASSIGN_OR_RETURN(
-          uint64_t index,
-          (*element_type->tuple_index())->GetAsUint64(file_table_));
+      XLS_ASSIGN_OR_RETURN(uint32_t index, evaluator_.EvaluateU32OrExpr(
+                                               parametric_context,
+                                               *element_type->tuple_index()));
       if (index >= tuple_type->members().size()) {
         return TypeInferenceErrorStatusForAnnotation(
             tuple_type->span(), tuple_type,

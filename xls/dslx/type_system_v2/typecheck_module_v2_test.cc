@@ -3286,7 +3286,7 @@ fn main() {
 TEST(TypecheckV2Test, PatternMismatch) {
   EXPECT_THAT(R"(fn f(t: (u8, u32)) -> u32 {
     match t {
-        (u3:42, y) => y,
+        (u3:1, y) => y,
         (_, y) => y + 1,
     }
 }
@@ -5443,7 +5443,7 @@ fn foo() {
       TypecheckFails(HasTypeMismatch("u32[>= u32:0]", "u32")));
 }
 
-TEST(TypecheckV2Test, ForInferenceFromBodyType) {
+TEST(TypecheckV2Test, ForInferenceFromBodyTypeFails) {
   EXPECT_THAT(
       R"(
 fn foo() {
@@ -5452,11 +5452,22 @@ fn foo() {
   } (0);
 }
 )",
-      TypecheckSucceeds(AllOf(HasNodeWithType("u32:0..5", "uN[32][5]"),
-                              HasNodeWithType("i", "uN[32]"),
-                              HasNodeWithType("a", "sN[32]"),
-                              HasNodeWithType("(i, a)", "(uN[32], sN[32])"),
-                              HasNodeWithType("X", "sN[32]"))));
+      TypecheckFails(
+          HasSubstr("Loop cannot have an implicit result type derived from "
+                    "init expression `0`")));
+}
+
+TEST(TypecheckV2Test, ForInferenceFromLhsType) {
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  let X:s32 = for (i, a) in u32:0..5 {
+    a + (i as s32)
+  } (0);
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "sN[32]"),
+                              HasNodeWithType("a", "sN[32]"))));
 }
 
 TEST(TypecheckV2Test, ForInferenceFromInitType) {
@@ -5565,7 +5576,9 @@ fn foo() {
   } (0);
 }
 )",
-      TypecheckFails(HasTypeMismatch("(uN[32], uN[0])", "(Any, Any, Any)")));
+      TypecheckFails(
+          HasSubstr("For-loop iterator and accumulator name tuple "
+                    "must contain 2 top-level elements; got: `(i, a, _)`")));
 }
 
 TEST(TypecheckV2Test, ForBodyTypeMismatch) {
@@ -5579,6 +5592,15 @@ fn foo() {
 }
 )",
       TypecheckFails(HasSizeMismatch("u32", "uN[64]")));
+}
+
+TEST(TypecheckV2Test, SliceDestructuredAccumulator) {
+  EXPECT_THAT(R"(
+const X = for (i, (q, r)): (u32, (u8, u16)) in u32:0..1 {
+    (q, r[0:s32:16])
+}((0, 0));
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "(uN[8], uN[16])")));
 }
 
 TEST(TypecheckV2Test, UnrollFor) {

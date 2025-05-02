@@ -172,17 +172,6 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleNameDefTree(const NameDefTree* node) override {
-    if (node->is_leaf()) {
-      return ToAstNode(node->leaf())->Accept(this);
-    }
-    nodes_.push_back(node);
-    for (auto child : node->nodes()) {
-      XLS_RETURN_IF_ERROR(ToAstNode(child)->Accept(this));
-    }
-    return absl::OkStatus();
-  }
-
   absl::Status HandleConstantDef(const ConstantDef* node) override {
     if (node->type_annotation() != nullptr) {
       XLS_RETURN_IF_ERROR(node->type_annotation()->Accept(this));
@@ -858,21 +847,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
 
-    // If we have a let assignment or a NameDefTree to a tuple type, destructure
-    // the assignment.
-    if (dynamic_cast<const TupleTypeAnnotation*>(*annotation) &&
-        (dynamic_cast<const Let*>(node) ||
-         dynamic_cast<const NameDefTree*>(node))) {
-      const NameDefTree* name_def_tree = dynamic_cast<const NameDefTree*>(node);
-      if (name_def_tree == nullptr) {
-        const auto* let = dynamic_cast<const Let*>(node);
-        name_def_tree = let->name_def_tree();
-      }
-      XLS_RETURN_IF_ERROR(DestructureNameDefTree(
-          parametric_context, name_def_tree,
-          dynamic_cast<const TupleTypeAnnotation*>(*annotation)));
-    }
-
     // Any annotation which actually gets used as the type of a node should be
     // converted itself, in order to generate type info for expressions that are
     // embedded in it, so those do not disrupt evaluations that occur in
@@ -907,37 +881,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             << " for node: " << node->ToString() << " in ti module "
             << ti->module()->name();
     return absl::OkStatus();
-  }
-
-  // Applies the appropriate type annotations to the names on the LHS of a
-  // destructuring let, using the unified annotation for the RHS.
-  absl::Status DestructureNameDefTree(
-      std::optional<const ParametricContext*> parametric_context,
-      const NameDefTree* node,
-      const TupleTypeAnnotation* unified_rhs_type_annotation) {
-    const auto add_annotation =
-        [&](AstNode* name_def, TypeOrAnnotation type,
-            std::optional<InterpValue> _) -> absl::Status {
-      if (std::holds_alternative<const TypeAnnotation*>(type)) {
-        std::optional<const NameRef*> type_var =
-            table_.GetTypeVariable(name_def);
-
-        const auto* type_annotation = std::get<const TypeAnnotation*>(type);
-        if (type_var.has_value() &&
-            // Don't attach a TypeVariableTypeAnnotation because it is an
-            // indirect TypeAnnotation that may already link back to the node
-            // via the TypeVariable.
-            !dynamic_cast<const TypeVariableTypeAnnotation*>(type_annotation)) {
-          XLS_RETURN_IF_ERROR(
-              table_.AddTypeAnnotationToVariableForParametricContext(
-                  parametric_context, *type_var, type_annotation));
-        }
-      }
-      return absl::OkStatus();
-    };
-    return MatchTupleNodeToType(add_annotation, node,
-                                unified_rhs_type_annotation, file_table_,
-                                std::nullopt);
   }
 
   // Gets or creates the `ParametricContext` for a parameterization of a struct.

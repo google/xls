@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system_v2/unify_type_annotations.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <variant>
@@ -203,17 +204,24 @@ class Unifier {
   // tuple type amounts to unifying the annotations for each member.
   absl::StatusOr<const TupleTypeAnnotation*> UnifyTupleTypeAnnotations(
       std::vector<const TupleTypeAnnotation*> annotations, const Span& span) {
-    const int member_count = annotations[0]->members().size();
     std::vector<const TupleTypeAnnotation*> expanded_annotations;
+    size_t max_static_member_count = 0;
+    for (const TupleTypeAnnotation* tuple_annotation : annotations) {
+      if (!tuple_annotation->HasMultipleAny()) {
+        max_static_member_count = std::max(max_static_member_count,
+                                           tuple_annotation->members().size());
+      }
+    }
 
     for (const TupleTypeAnnotation* tuple_annotation : annotations) {
-      if (tuple_annotation->members().size() != member_count) {
+      if (tuple_annotation->members().size() != max_static_member_count) {
         // If the sizes don't match, the annotation must contain an
         // `AnyAnnotation` with `multiple = true`. Attempt to expand the
         // multiple any to match the size.
         std::vector<TypeAnnotation*> expanded_members;
-        expanded_members.reserve(member_count);
-        int delta = member_count - tuple_annotation->members().size();
+        expanded_members.reserve(max_static_member_count);
+        int delta =
+            max_static_member_count - tuple_annotation->members().size();
         for (auto* member : tuple_annotation->members()) {
           const auto* any_annotation = dynamic_cast<AnyTypeAnnotation*>(member);
           if (any_annotation != nullptr && any_annotation->multiple()) {
@@ -227,15 +235,20 @@ class Unifier {
         tuple_annotation = module_.Make<TupleTypeAnnotation>(
             tuple_annotation->span(), expanded_members);
       }
-      if (tuple_annotation->members().size() != member_count) {
-        return error_generator_.TypeMismatchError(
-            parametric_context_, tuple_annotation, annotations[0]);
+      if (tuple_annotation->members().size() != max_static_member_count) {
+        return TypeInferenceErrorStatus(
+            tuple_annotation->span(), /*type=*/nullptr,
+            absl::Substitute("Cannot match a $0-element tuple to $1 values.",
+                             max_static_member_count,
+                             tuple_annotation->members().size()),
+            file_table_);
       }
       expanded_annotations.push_back(tuple_annotation);
     }
 
-    std::vector<TypeAnnotation*> unified_member_annotations(member_count);
-    for (int i = 0; i < member_count; i++) {
+    std::vector<TypeAnnotation*> unified_member_annotations(
+        max_static_member_count);
+    for (int i = 0; i < max_static_member_count; i++) {
       std::vector<const TypeAnnotation*> annotations_for_member;
       annotations_for_member.reserve(annotations.size());
       for (const TupleTypeAnnotation* annotation : expanded_annotations) {

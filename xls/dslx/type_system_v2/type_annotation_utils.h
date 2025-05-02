@@ -179,6 +179,11 @@ CloneReplacer NameRefMapper(
 Expr* CreateElementCountSum(Module& module, TypeAnnotation* lhs,
                             TypeAnnotation* rhs);
 
+// Creates an `Expr` representing `element_count<lhs>() +
+// element_count<rhs>()`.
+Expr* CreateElementCountOffset(Module& module, TypeAnnotation* lhs,
+                               int64_t offset);
+
 // Converts a `Slice` or `WidthSlice` node into a `StartAndWidthExprs` struct.
 // The values given in the slice node are used verbatim when absolute, but when
 // an index in the slice is negative, which has the meaning `size - abs(index)`,

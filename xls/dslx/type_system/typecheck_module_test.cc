@@ -4221,7 +4221,8 @@ fn f(x: (u32)) -> u32 {
           absl::StatusCode::kInvalidArgument,
           AllOf(HasSubstrInV1(GetParam(),
                               "Cannot match a 1-element tuple to 2 values."),
-                HasTypeMismatchInV2(GetParam(), "(Any, Any)", "(u32,)"))));
+                HasSubstrInV2(GetParam(),
+                              "Cannot match a 2-element tuple to 1 values."))));
 }
 
 TEST_P(TypecheckBothVersionsTest, MatchOnTupleWithRestOfTupleSkipsEnd) {

@@ -524,42 +524,117 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return table_.SetTypeAnnotation(node, any_type);
   }
 
-  // Recursively define tuple type annotations for the `NameDefTree`. This is
-  // similar to `HandleXlsTuple` but without access to an explicit type
-  // annotation. It's only necessary when a `NameDefTree` is not associated with
-  // a tuple (e.g., outside a `let` assignment).
+  // Recursively handles a `NameDefTree`, propagating the unified type of the
+  // tree downward to children (i.e. the children's types are element types of
+  // the tree's type variable). This function sets the root-level type to be a
+  // tuple of `Any` types, the rationale being that a `NameDefTree` itself does
+  // not provide any top-level type information but the allowable size of the
+  // tuple. A `NameDefTree` must be used in a context where this tuple of `Any`
+  // will get unified against a source of actual type information.
   absl::Status HandleNameDefTree(const NameDefTree* node) override {
     VLOG(5) << "HandleNameDefTree: " << node->ToString();
 
-    // Dive through leaf wrapper trees without dealing with the wrapper; e.g. in
-    // `(x, y)`, the `x` and `y` are each a `NameDefTree` that contains nothing
-    // but the one leaf `NameDef`.
     if (node->is_leaf()) {
       return DefaultHandler(node);
     }
 
     std::vector<TypeAnnotation*> member_types;
-    std::optional<const NameRef*> parent_var = table_.GetTypeVariable(node);
+    const NameRef* variable = *table_.GetTypeVariable(node);
+
     for (int i = 0; i < node->nodes().size(); i++) {
       const NameDefTree* child = node->nodes()[i];
-      const AstNode* actual_child =
-          child->is_leaf() ? ToAstNode(child->leaf()) : child;
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* child_var,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<AstNode*>(actual_child),
-              absl::StrCat(parent_var.has_value()
-                               ? (*parent_var)->identifier()
-                               : GenerateInternalTypeVariableName(node),
-                           ".", i)));
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(actual_child, child_var));
       member_types.push_back(
-          module_.Make<TypeVariableTypeAnnotation>(child_var));
+          module_.Make<AnyTypeAnnotation>(child->IsRestOfTupleLeaf()));
     }
     TupleTypeAnnotation* tuple_annotation =
         module_.Make<TupleTypeAnnotation>(node->span(), member_types);
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, tuple_annotation));
-    return DefaultHandler(node);
+    return HandleNameDefTreeChildren(
+        node, module_.Make<TypeVariableTypeAnnotation>(variable));
+  }
+
+  // Handles all the children of `subtree`, with `type` being the type of
+  // `subtree` itself (a TVTA for unification of the whole tuple, or
+  // user-specified type).
+  absl::Status HandleNameDefTreeChildren(const NameDefTree* subtree,
+                                         const TypeAnnotation* type) {
+    std::optional<int> rest_of_tuple_index;
+    for (int i = 0; i < subtree->nodes().size(); i++) {
+      if (subtree->nodes()[i]->IsRestOfTupleLeaf()) {
+        rest_of_tuple_index = i;
+        break;
+      }
+      XLS_RETURN_IF_ERROR(HandleNameDefTreeChild(subtree, type, i));
+    }
+
+    if (rest_of_tuple_index.has_value()) {
+      for (int i = subtree->nodes().size() - 1; i > *rest_of_tuple_index; i--) {
+        if (subtree->nodes()[i]->IsRestOfTupleLeaf()) {
+          return TypeInferenceErrorStatus(
+              subtree->nodes()[i]->span(), /*type=*/nullptr,
+              "`..` can only be used once per tuple pattern.", file_table_);
+        }
+        XLS_RETURN_IF_ERROR(HandleNameDefTreeChild(
+            subtree, type, i, /*use_right_based_index_in_type=*/true));
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  // Annotates child `i` of `tree` to be `ElementType(tree_type, i)`, meaning it
+  // derives its type from the unified type of its parent. The element type
+  // annotation will refer to it using a right-based index if
+  // `use_right_based_index_in_type` is true, which implies there is a
+  // rest-of-tuple node somewhere before child `i`. This function also sets a
+  // type variable on the child so that its parent-derived type will be unified
+  // with any other information that traversing it picks up (e.g. if it is a
+  // literal).
+  absl::Status HandleNameDefTreeChild(
+      const NameDefTree* tree, const TypeAnnotation* tree_type, int i,
+      bool use_right_based_index_in_type = false) {
+    const NameDefTree* child = tree->nodes()[i];
+    const AstNode* actual_child =
+        child->is_leaf() ? ToAstNode(child->leaf()) : child;
+    const TypeAnnotation* element_type = nullptr;
+    if (use_right_based_index_in_type) {
+      // Index from the right uses element count - i.
+      Expr* offset = CreateElementCountOffset(
+          module_, const_cast<TypeAnnotation*>(tree_type),
+          tree->nodes().size() - i);
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* offset_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, const_cast<Expr*>(offset),
+              GenerateInternalTypeVariableName(offset)));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(offset, offset_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          offset, CreateU32Annotation(module_, child->span())));
+      XLS_RETURN_IF_ERROR(offset->Accept(this));
+      element_type = module_.Make<ElementTypeAnnotation>(tree_type, offset);
+    } else {
+      // Index from the left just uses a literal.
+      XLS_ASSIGN_OR_RETURN(
+          Number * index,
+          MakeTypeCheckedNumber(module_, table_, child->span(), i,
+                                CreateU32Annotation(module_, child->span())));
+      element_type = module_.Make<ElementTypeAnnotation>(tree_type, index);
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* child_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<AstNode*>(actual_child),
+            absl::Substitute("internal_type_ndt_at_$0_in_$1",
+                             child->span().ToString(file_table_),
+                             module_.name())));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(actual_child, child_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(actual_child, element_type));
+    if (child->is_leaf()) {
+      XLS_RETURN_IF_ERROR(ToAstNode(child->leaf())->Accept(this));
+    } else {
+      XLS_RETURN_IF_ERROR(HandleNameDefTreeChildren(child, element_type));
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleForLoopBase(const ForLoopBase* node) {
@@ -608,35 +683,54 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       XLS_RETURN_IF_ERROR(
           table_.SetTypeAnnotation(node->iterable(), iterable_type_annotation));
     }
-    XLS_RETURN_IF_ERROR(node->iterable()->Accept(this));
 
     // Handle namedef of iterator and accumulator.
+    if (!node->names()->IsIrrefutable() || node->names()->nodes().size() != 2) {
+      return TypeInferenceErrorStatus(
+          node->names()->span(),
+          /*type=*/nullptr,
+          absl::Substitute("For-loop iterator and accumulator name tuple must "
+                           "contain 2 top-level elements; got: `$0`",
+                           node->names()->ToString()),
+          file_table_);
+    }
+    NameDefTree* iterator_ndt = node->names()->nodes()[0];
+    AstNode* iterator = iterator_ndt->is_leaf()
+                            ? ToAstNode(iterator_ndt->leaf())
+                            : iterator_ndt;
     XLS_ASSIGN_OR_RETURN(
-        const NameRef* iterable_accumulator_type_variable,
+        const NameRef* iterator_type_variable,
         table_.DefineInternalVariable(
-            InferenceVariableKind::kType, node->names(),
-            GenerateInternalTypeVariableName(node->names()),
+            InferenceVariableKind::kType, iterator,
+            absl::Substitute("internal_type_iterator_at_$0_in_$1",
+                             node->span().ToString(file_table_),
+                             module_.name()),
             iterator_accumulator_type_annotation
                 ? std::make_optional(iterator_accumulator_type_annotation)
                 : std::nullopt));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(
-        node->names(), iterable_accumulator_type_variable));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(iterator, iterator_type_variable));
     // The type of iterator and accumulator should be covariant with iterable's
     // element type and For node type respectively.
     const NameRef* for_node_type_variable = *table_.GetTypeVariable(node);
-    std::vector<TypeAnnotation*> iterator_accumulator_types = {
-        module_.Make<ElementTypeAnnotation>(
-            module_.Make<TypeVariableTypeAnnotation>(iterable_type_variable)),
-        module_.Make<TypeVariableTypeAnnotation>(for_node_type_variable)};
+    NameDefTree* accumulator_ndt = node->names()->nodes()[1];
+    AstNode* accumulator = accumulator_ndt->is_leaf()
+                               ? ToAstNode(accumulator_ndt->leaf())
+                               : accumulator_ndt;
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(accumulator, for_node_type_variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node->names(), module_.Make<TupleTypeAnnotation>(
-                           node->names()->span(), iterator_accumulator_types)));
+        iterator,
+        module_.Make<ElementTypeAnnotation>(
+            module_.Make<TypeVariableTypeAnnotation>(iterable_type_variable))));
+
     // Handle explicit type annotation.
     if (iterator_accumulator_type_annotation) {
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          node->names(), iterator_accumulator_type_annotation));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(iterator, iterator_type_annotation));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(accumulator, accumulator_type_annotation));
     }
-    XLS_RETURN_IF_ERROR(node->names()->Accept(this));
 
     // Both init expr and body statement block have the same type as For itself.
     if (accumulator_type_annotation) {
@@ -645,11 +739,34 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->init(), for_node_type_variable));
-    XLS_RETURN_IF_ERROR(node->init()->Accept(this));
-    XLS_RETURN_IF_ERROR(
-        table_.SetTypeVariable(node->body(), for_node_type_variable));
-    XLS_RETURN_IF_ERROR(node->body()->Accept(this));
 
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* body_type_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, node->body(),
+            absl::Substitute("internal_type_loop_body_at_$0_in_$1",
+                             node->span().ToString(file_table_),
+                             module_.name())));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->body(), body_type_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node->body(),
+        module_.Make<TypeVariableTypeAnnotation>(for_node_type_variable)));
+
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node->names(),
+        module_.Make<TupleTypeAnnotation>(
+            node->names()->span(), std::vector<TypeAnnotation*>{
+                                       module_.Make<TypeVariableTypeAnnotation>(
+                                           iterator_type_variable),
+                                       module_.Make<TypeVariableTypeAnnotation>(
+                                           for_node_type_variable)})));
+
+    XLS_RETURN_IF_ERROR(node->iterable()->Accept(this));
+    XLS_RETURN_IF_ERROR(node->init()->Accept(this));
+    XLS_RETURN_IF_ERROR(iterator->Accept(this));
+    XLS_RETURN_IF_ERROR(accumulator->Accept(this));
+    XLS_RETURN_IF_ERROR(node->body()->Accept(this));
     return absl::OkStatus();
   }
 
@@ -992,7 +1109,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         const NameRef* lhs_variable,
         table_.DefineInternalVariable(
             InferenceVariableKind::kType, const_cast<Expr*>(node->lhs()),
-            GenerateInternalTypeVariableName(node->lhs())));
+            GenerateInternalTypeVariableName(node->lhs()) + "_index_lhs"));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), lhs_variable));
     auto* lhs_tvta = module_.Make<TypeVariableTypeAnnotation>(lhs_variable);
 
@@ -1543,6 +1660,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                 : std::make_optional(node->type_annotation())));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->name_def_tree(), variable));
     if (node->type_annotation() != nullptr) {
       XLS_RETURN_IF_ERROR(
           table_.SetTypeAnnotation(node, node->type_annotation()));

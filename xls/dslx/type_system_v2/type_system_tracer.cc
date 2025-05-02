@@ -63,6 +63,7 @@ struct TypeSystemTraceImpl {
   std::optional<TypeAnnotationFilter> filter;
   std::optional<std::vector<const TypeAnnotation*>> annotations;
   std::optional<absl::flat_hash_set<const ParametricBinding*>> bindings;
+  std::optional<const TypeAnnotation*> result_annotation;
 };
 
 std::string TraceKindToString(TraceKind kind) {
@@ -132,6 +133,10 @@ std::string TraceImplToString(const TypeSystemTraceImpl& impl) {
   if (impl.parametric_context.has_value()) {
     pieces.push_back(
         absl::StrCat("context: ", (*impl.parametric_context)->ToString()));
+  }
+  if (impl.result_annotation.has_value()) {
+    pieces.push_back(
+        absl::StrCat("result: ", (*impl.result_annotation)->ToString()));
   }
   return absl::StrJoin(pieces, ", ");
 }
@@ -268,6 +273,10 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
 
 std::unique_ptr<TypeSystemTracer> TypeSystemTracer::Create() {
   return std::make_unique<TypeSystemTracerImpl>();
+}
+
+void TypeSystemTrace::SetResult(const TypeAnnotation* annotation) {
+  impl_->result_annotation = annotation;
 }
 
 }  // namespace xls::dslx

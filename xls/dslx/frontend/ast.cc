@@ -27,6 +27,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/no_destructor.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -1083,8 +1084,7 @@ std::string MemberTypeAnnotation::ToString() const {
 
 ElementTypeAnnotation::ElementTypeAnnotation(
     Module* owner, const TypeAnnotation* container_type,
-    std::optional<const Number*> tuple_index,
-    bool allow_bit_vector_destructuring)
+    std::optional<const Expr*> tuple_index, bool allow_bit_vector_destructuring)
     : TypeAnnotation(owner, container_type->span()),
       container_type_(container_type),
       tuple_index_(tuple_index),
@@ -1097,7 +1097,7 @@ std::string ElementTypeAnnotation::ToString() const {
       "ElementTypeAnnotation: ",
       tuple_index_.has_value()
           ? absl::Substitute("$0.$1", container_type_->ToString(),
-                             (*tuple_index_)->ToStringNoType())
+                             (*tuple_index_)->ToString())
           : container_type_->ToString());
 }
 
@@ -2346,6 +2346,13 @@ std::string TupleTypeAnnotation::ToString() const {
         absl::StrAppend(out, t->ToString());
       });
   return absl::StrFormat("(%s%s)", guts, members_.size() == 1 ? "," : "");
+}
+
+bool TupleTypeAnnotation::HasMultipleAny() const {
+  return absl::c_any_of(members_, [](const TypeAnnotation* annotation) {
+    const auto* any = dynamic_cast<const AnyTypeAnnotation*>(annotation);
+    return any != nullptr && any->multiple();
+  });
 }
 
 // -- class Statement

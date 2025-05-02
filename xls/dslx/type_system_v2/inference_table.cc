@@ -471,6 +471,8 @@ class InferenceTableImpl : public InferenceTable {
     }
     for (const auto& [node, data] : node_data_) {
       absl::StrAppendFormat(&result, "Node: %s\n", node->ToString());
+      absl::StrAppendFormat(&result, "  Kind: %s\n",
+                            AstNodeKindToString(node->kind()));
       absl::StrAppendFormat(&result, "  Address: 0x%x\n", (uint64_t)node);
       absl::StrAppendFormat(&result, "  Module: %s\n", node->owner()->name());
       if (data.type_variable.has_value()) {
@@ -593,8 +595,20 @@ class InferenceTableImpl : public InferenceTable {
     // Refine and check the associated type variable.
     if (node_data.type_variable.has_value() &&
         node_data.type_annotation.has_value()) {
-      type_annotations_per_type_variable_[*node_data.type_variable].push_back(
-          *node_data.type_annotation);
+      // If a node has `X` as its variable and `TVTA(X)` as its annotation, the
+      // annotation is not useful and could lead to infinite looping elsewhere.
+      if (const auto* tvta = dynamic_cast<const TypeVariableTypeAnnotation*>(
+              *node_data.type_annotation)) {
+        absl::StatusOr<InferenceVariable*> variable =
+            GetVariable(tvta->type_variable());
+        if (variable.ok() && *variable == *node_data.type_variable) {
+          node_data.type_annotation = std::nullopt;
+        }
+      }
+      if (node_data.type_annotation.has_value()) {
+        type_annotations_per_type_variable_[*node_data.type_variable].push_back(
+            *node_data.type_annotation);
+      }
     }
     return absl::OkStatus();
   }

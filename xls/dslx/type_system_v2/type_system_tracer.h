@@ -57,6 +57,8 @@ class TypeSystemTrace {
   TypeSystemTrace(TypeSystemTrace&) = delete;
   TypeSystemTrace& operator=(TypeSystemTrace&) = delete;
 
+  void SetResult(const TypeAnnotation* annotation);
+
   ~TypeSystemTrace() {
     if (cleanup_) {
       std::move(cleanup_)();

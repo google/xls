@@ -383,6 +383,7 @@ class TupleTypeAnnotation : public TypeAnnotation {
   const std::vector<TypeAnnotation*>& members() const { return members_; }
   int64_t size() const { return members_.size(); }
   bool empty() const { return members_.empty(); }
+  bool HasMultipleAny() const;
 
  private:
   std::vector<TypeAnnotation*> members_;
@@ -516,7 +517,7 @@ class MemberTypeAnnotation : public TypeAnnotation {
 class ElementTypeAnnotation : public TypeAnnotation {
  public:
   ElementTypeAnnotation(Module* owner, const TypeAnnotation* container_type,
-                        std::optional<const Number*> tuple_index = std::nullopt,
+                        std::optional<const Expr*> tuple_index = std::nullopt,
                         bool allow_bit_vector_destructuring = false);
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -528,9 +529,7 @@ class ElementTypeAnnotation : public TypeAnnotation {
   }
 
   const TypeAnnotation* container_type() const { return container_type_; }
-  const std::optional<const Number*>& tuple_index() const {
-    return tuple_index_;
-  }
+  const std::optional<const Expr*>& tuple_index() const { return tuple_index_; }
 
   bool allow_bit_vector_destructuring() const {
     return allow_bit_vector_destructuring_;
@@ -544,7 +543,7 @@ class ElementTypeAnnotation : public TypeAnnotation {
 
  private:
   const TypeAnnotation* container_type_;
-  const std::optional<const Number*> tuple_index_;
+  const std::optional<const Expr*> tuple_index_;
   const bool allow_bit_vector_destructuring_;
 };
 

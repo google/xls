@@ -428,6 +428,7 @@ cc_library(
         "//xls/ir:format_preference",
         "//xls/ir:format_strings",
         "//xls/ir:number_parser",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:no_destructor",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",

@@ -421,6 +421,18 @@ Expr* CreateElementCountSum(Module& module, TypeAnnotation* lhs,
       CreateElementCountInvocation(module, rhs), Span::None());
 }
 
+Expr* CreateElementCountOffset(Module& module, TypeAnnotation* lhs,
+                               int64_t offset) {
+  if (offset == 0) {
+    return CreateElementCountInvocation(module, lhs);
+  }
+  return module.Make<Binop>(
+      lhs->span(), BinopKind::kSub, CreateElementCountInvocation(module, lhs),
+      module.Make<Number>(lhs->span(), absl::StrCat(offset), NumberKind::kOther,
+                          /*type_annotation=*/nullptr),
+      Span::None());
+}
+
 absl::StatusOr<StartAndWidthExprs> CreateSliceStartAndWidthExprs(
     Module& module, TypeAnnotation* source_array_type, const AstNode* slice) {
   CHECK(slice->kind() == AstNodeKind::kSlice ||
