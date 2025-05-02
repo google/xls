@@ -38,7 +38,7 @@ namespace xls::tools {
 // this consolidated library).
 struct OptOptions {
   int64_t opt_level = xls::kMaxOptLevel;
-  std::string_view top;
+  std::string top;
   std::string ir_dump_path = "";
   std::optional<std::string> ir_path = std::nullopt;
   std::vector<std::string> skip_passes;
@@ -51,25 +51,27 @@ struct OptOptions {
   std::variant<std::nullopt_t, std::string_view, PassPipelineProto>
       pass_pipeline = std::nullopt;
   std::optional<int64_t> bisect_limit;
-  PipelineMetricsProto* metrics = nullptr;
   bool debug_optimizations = false;
+};
 
-  // TODO(allight): adding out-arguments like this (and metrics) is not very
-  // clean.
-  // If not null the pass-results to populate.
-  PassResults* results = nullptr;
+// Metadata which can be optionally returned from
+// the optimizer.
+struct OptMetadata {
+  PassPipelineMetricsProto metrics;
 };
 
 // Helper used in the opt_main tool, optimizes the given IR for a particular
 // top-level entity (e.g., function, proc, etc) at the given opt level and
 // modifies the package in place.
-absl::Status OptimizeIrForTop(Package* package, const OptOptions& options);
+absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
+                              OptMetadata* metadata = nullptr);
 
 // Helper used in the opt_main tool, optimizes the given IR for a particular
 // top-level entity (e.g., function, proc, etc) at the given opt level and
 // returns the resulting optimized IR.
 absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
-                                             const OptOptions& options);
+                                             const OptOptions& options,
+                                             OptMetadata* metadata = nullptr);
 }  // namespace xls::tools
 
 #endif  // XLS_TOOLS_OPT_H_

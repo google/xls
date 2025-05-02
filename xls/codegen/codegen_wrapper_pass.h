@@ -43,9 +43,21 @@ class CodegenWrapperPass : public CodegenPass {
         context_(context) {}
   ~CodegenWrapperPass() override = default;
 
+  bool IsCompound() const override { return wrapped_pass_->IsCompound(); }
+
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,
                                    CodegenPassResults* results) const override;
+
+  absl::StatusOr<bool> RunNested(
+      CodegenPassUnit* unit, const CodegenPassOptions& options,
+      CodegenPassResults* results, PassInvocation& invocation,
+      absl::Span<const CodegenInvariantChecker* const> invariant_checkers)
+      const override {
+    return wrapped_pass_->RunNested(
+        unit->package(), OptimizationPassOptions(options), results, context_,
+        invocation, /*invariant_checkers=*/{});
+  }
 
  private:
   std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass_;
