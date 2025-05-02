@@ -39,6 +39,7 @@
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/stopwatch.h"
+#include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/bits.h"
@@ -294,7 +295,7 @@ bool Translator::LValueContainsOnlyChannels(
 
 absl::Status Translator::SendLValueConditions(
     const std::shared_ptr<LValue>& lvalue,
-    std::vector<xls::BValue>* lvalue_conditions, const xls::SourceInfo& loc) {
+    std::vector<TrackedBValue>* lvalue_conditions, const xls::SourceInfo& loc) {
   for (const auto& [idx, compound_lval] : lvalue->get_compounds()) {
     XLS_RETURN_IF_ERROR(
         SendLValueConditions(compound_lval, lvalue_conditions, loc));
@@ -315,7 +316,7 @@ absl::Status Translator::SendLValueConditions(
 // Must match order in SendLValueConditions
 absl::StatusOr<std::shared_ptr<LValue>> Translator::TranslateLValueConditions(
     const std::shared_ptr<LValue>& outer_lvalue,
-    xls::BValue lvalue_conditions_tuple, const xls::SourceInfo& loc,
+    TrackedBValue lvalue_conditions_tuple, const xls::SourceInfo& loc,
     int64_t* at_index) {
   if (outer_lvalue == nullptr) {
     return nullptr;
@@ -338,7 +339,7 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::TranslateLValueConditions(
   if (at_index == nullptr) {
     at_index = &at_index_storage;
   }
-  xls::BValue translated_condition =
+  TrackedBValue translated_condition =
       context().fb->TupleIndex(lvalue_conditions_tuple, *at_index, loc);
   ++(*at_index);
 
@@ -390,9 +391,9 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   xls::Type* context_lvals_xls_type = nullptr;
   absl::flat_hash_map<const clang::NamedDecl*, uint64_t> context_field_indices;
   std::vector<const clang::NamedDecl*> variable_fields_order;
-  xls::BValue lvalue_conditions_tuple;
+  TrackedBValue lvalue_conditions_tuple;
   {
-    std::vector<xls::BValue> full_context_tuple_values;
+    std::vector<TrackedBValue> full_context_tuple_values;
     std::vector<std::shared_ptr<CField>> full_context_fields;
 
     XLS_ASSIGN_OR_RETURN(const clang::VarDecl* on_reset_var_decl,
@@ -410,7 +411,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
 
     context().sf->SortNamesDeterministically(variable_fields_order);
 
-    std::vector<xls::BValue> lvalue_conditions;
+    std::vector<TrackedBValue> lvalue_conditions;
 
     for (const clang::NamedDecl* decl : variable_fields_order) {
       // Don't mark access
@@ -433,8 +434,9 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
       }
     }
 
-    lvalue_conditions_tuple = context().fb->Tuple(lvalue_conditions, loc,
-                                                  /*name=*/"lvalue_conditions");
+    lvalue_conditions_tuple =
+        context().fb->Tuple(ToNativeBValues(lvalue_conditions), loc,
+                            /*name=*/"lvalue_conditions");
     std::vector<std::shared_ptr<CType>> lvalue_conds_tuple_fields;
     lvalue_conds_tuple_fields.resize(lvalue_conditions.size(),
                                      std::make_shared<CBoolType>());
@@ -496,7 +498,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   CValue context_tuple_out;
   {
     std::vector<std::shared_ptr<CField>> context_out_fields;
-    std::vector<xls::BValue> context_out_tuple_values;
+    std::vector<TrackedBValue> context_out_tuple_values;
 
     absl::flat_hash_set<const clang::NamedDecl*> vars_accessed_in_body_set;
     for (const std::pair<const clang::NamedDecl*, int64_t>& accessed :
@@ -520,7 +522,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
       // TODO(seanhaskell): This should allow for direct-in derived values
       // b/321114633
       if (schedule_asap && outer_context.variables.contains(decl)) {
-        const xls::BValue& rvalue = outer_context.variables.at(decl).rvalue();
+        const TrackedBValue& rvalue = outer_context.variables.at(decl).rvalue();
 
         if (rvalue.valid() &&
             !EvaluateNode(rvalue.node(), loc, /*do_check=*/false).ok()) {
@@ -558,7 +560,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         std::make_shared<CInternalTuple>(context_tuple_elem_types);
 
     // Set later if needed
-    xls::BValue outer_on_reset_value =
+    TrackedBValue outer_on_reset_value =
         context().fb->Literal(xls::UBits(0, 1), loc);
 
     // Must match if(uses_on_reset) below
@@ -688,10 +690,10 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   {
     IOOp op;
     op.op = OpType::kSend;
-    std::vector<xls::BValue> sp = {context_tuple_out.rvalue(),
-                                   context().full_condition_bval(loc)};
-    op.ret_value =
-        context().fb->Tuple(sp, loc, /*name=*/"context_out_send_tup");
+    std::vector<TrackedBValue> sp = {context_tuple_out.rvalue(),
+                                     context().full_condition_bval(loc)};
+    op.ret_value = context().fb->Tuple(ToNativeBValues(sp), loc,
+                                       /*name=*/"context_out_send_tup");
     XLS_ASSIGN_OR_RETURN(ctx_out_op_ptr,
                          AddOpToChannel(op, context_out_channel, loc));
   }
@@ -721,7 +723,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   ctx_in_op_ptr->after_ops.push_back(ctx_out_op_ptr);
 
   // Unpack context tuple
-  xls::BValue context_tuple_recvd = ctx_in_op_ptr->input_value.rvalue();
+  TrackedBValue context_tuple_recvd = ctx_in_op_ptr->input_value.rvalue();
   {
     // Don't assign to variables that aren't changed in the loop body,
     // as this creates extra state
@@ -796,13 +798,13 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     // Set up IR generation
     xls::FunctionBuilder body_builder(loop_name, package_);
 
-    xls::BValue context_struct_val =
+    TrackedBValue context_struct_val =
         body_builder.Param(absl::StrFormat("%s_context_vars", name_prefix),
                            context_struct_xls_type, loc);
-    xls::BValue context_lvalues_val =
+    TrackedBValue context_lvalues_val =
         body_builder.Param(absl::StrFormat("%s_context_lvals", name_prefix),
                            context_lvals_xls_type, loc);
-    xls::BValue context_on_reset_val =
+    TrackedBValue context_on_reset_val =
         body_builder.Param(absl::StrFormat("%s_on_reset", name_prefix),
                            package_->GetBitsType(1), loc);
 
@@ -869,7 +871,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
     for (const clang::NamedDecl* decl : variable_fields_order) {
       const CValue& outer_value = prev_context.variables.at(decl);
-      xls::BValue param_bval;
+      TrackedBValue param_bval;
       if (context_field_indices.contains(decl)) {
         const uint64_t field_idx = context_field_indices.at(decl);
         param_bval =
@@ -901,7 +903,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     }
 
     // Generate initial loop condition, before body, for narrowing
-    xls::BValue initial_loop_cond = context().fb->Literal(xls::UBits(1, 1));
+    TrackedBValue initial_loop_cond = context().fb->Literal(xls::UBits(1, 1));
 
     // always_first_iter = true for do loops, and this optimization opportunity
     // doesn't apply to them
@@ -915,7 +917,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       initial_loop_cond = cond_cval.rvalue();
     }
 
-    xls::BValue do_break = context().fb->Literal(xls::UBits(0, 1));
+    TrackedBValue do_break = context().fb->Literal(xls::UBits(0, 1));
 
     // Generate body
     // Don't apply continue conditions to increment
@@ -941,7 +943,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
       // break_condition is the assignment condition
       if (context().relative_break_condition.valid()) {
-        xls::BValue break_cond = context().relative_break_condition;
+        TrackedBValue break_cond = context().relative_break_condition;
         do_break = context().fb->Or(do_break, break_cond, loc);
       }
     }
@@ -955,7 +957,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
       XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_expr, loc));
       CHECK(cond_cval.type()->Is<CBoolType>());
-      xls::BValue break_on_cond_val = context().fb->Not(cond_cval.rvalue());
+      TrackedBValue break_on_cond_val = context().fb->Not(cond_cval.rvalue());
 
       do_break = context().fb->Or(do_break, break_on_cond_val, loc);
     }
@@ -964,7 +966,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     const uint64_t total_context_values =
         context_cvars_struct_ctype->fields().size();
 
-    std::vector<xls::BValue> tuple_values;
+    std::vector<TrackedBValue> tuple_values;
     tuple_values.resize(total_context_values);
     for (const clang::NamedDecl* decl : variable_fields_order) {
       if (!context_field_indices.contains(decl)) {
@@ -974,10 +976,10 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       tuple_values[field_idx] = context().variables.at(decl).rvalue();
     }
 
-    xls::BValue ret_ctx =
+    TrackedBValue ret_ctx =
         MakeStructXLS(tuple_values, *context_cvars_struct_ctype, loc);
-    std::vector<xls::BValue> return_bvals = {ret_ctx, do_break,
-                                             initial_loop_cond};
+    std::vector<TrackedBValue> return_bvals = {ret_ctx, do_break,
+                                               initial_loop_cond};
 
     // For GenerateIRBlock_Prepare() / GenerateInvokeWithIO()
     extra_return_count += return_bvals.size();
@@ -995,7 +997,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       return_bvals.push_back(op.ret_value);
     }
 
-    xls::BValue ret_val = MakeFlexTuple(return_bvals, loc);
+    TrackedBValue ret_val = MakeFlexTuple(return_bvals, loc);
     generated_func->return_value_count = return_bvals.size();
     XLS_ASSIGN_OR_RETURN(generated_func->xls_func,
                          body_builder.BuildWithReturnValue(ret_val));
@@ -1103,21 +1105,21 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   context().in_pipelined_for_body = true;
   context().sf = temp_sf.get();
 
-  xls::BValue token = pb.Literal(xls::Value::Token());
+  TrackedBValue token = pb.Literal(xls::Value::Token());
 
-  xls::BValue placeholder_cond = pb.Literal(xls::UBits(1, 1));
+  TrackedBValue placeholder_cond = pb.Literal(xls::UBits(1, 1));
 
   XLSCC_CHECK(context_out_channel->generated.has_value(), loc);
   XLSCC_CHECK_NE(context_out_channel->generated.value(), nullptr, loc);
 
-  xls::BValue receive =
+  TrackedBValue receive =
       pb.ReceiveIf(context_out_channel->generated.value(), token,
                    /*pred=*/placeholder_cond, loc,
                    /*name=*/absl::StrFormat("%s_receive_context", name_prefix));
   token = pb.TupleIndex(
       receive, 0, loc,
       /*name=*/absl::StrFormat("%s_receive_context_token", name_prefix));
-  xls::BValue received_context_tuple = pb.TupleIndex(
+  TrackedBValue received_context_tuple = pb.TupleIndex(
       receive, 1, loc,
       /*name=*/absl::StrFormat("%s_receive_context_tup", name_prefix));
 
@@ -1125,7 +1127,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
       PipelinedLoopContentsReturn contents_ret,
       GenerateIR_PipelinedLoopContents(pipelined_loop_proc, pb, token,
                                        received_context_tuple,
-                                       /*in_state_condition=*/xls::BValue(),
+                                       /*in_state_condition=*/TrackedBValue(),
                                        /*in_fsm=*/false));
 
   auto* receive_node = receive.node()->As<xls::Receive>();
@@ -1153,8 +1155,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
 absl::StatusOr<Translator::PipelinedLoopContentsReturn>
 Translator::GenerateIR_PipelinedLoopContents(
     const PipelinedLoopSubProc& pipelined_loop_proc, xls::ProcBuilder& pb,
-    xls::BValue token_in, xls::BValue received_context_tuple,
-    xls::BValue in_state_condition, bool in_fsm,
+    TrackedBValue token_in, TrackedBValue received_context_tuple,
+    TrackedBValue in_state_condition, bool in_fsm,
     absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>*
         state_element_for_variable,
     int nesting_level) {
@@ -1203,7 +1205,7 @@ Translator::GenerateIR_PipelinedLoopContents(
   }
 
   // Construct initial state
-  xls::BValue last_iter_broke_in =
+  TrackedBValue last_iter_broke_in =
       pb.StateElement(absl::StrFormat("%s__last_iter_broke", name_prefix),
                       xls::Value(xls::UBits(1, 1)));
   xls::StateElement* last_iter_broke_state =
@@ -1212,13 +1214,14 @@ Translator::GenerateIR_PipelinedLoopContents(
   XLS_ASSIGN_OR_RETURN(
       xls::Value default_lval_conds,
       CreateDefaultRawValue(context_out_lval_conds_ctype, loc));
-  xls::BValue lvalue_cond_value =
+  TrackedBValue lvalue_cond_value =
       pb.StateElement(absl::StrFormat("%s__lvalue_conditions", name_prefix),
                       default_lval_conds);
   xls::StateElement* lvalue_cond_state =
       lvalue_cond_value.node()->As<xls::StateRead>()->state_element();
 
-  absl::flat_hash_map<const clang::NamedDecl*, xls::BValue> state_reads_by_decl;
+  absl::flat_hash_map<const clang::NamedDecl*, TrackedBValue>
+      state_reads_by_decl;
 
   for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
     if (!context_field_indices.contains(decl)) {
@@ -1241,7 +1244,7 @@ Translator::GenerateIR_PipelinedLoopContents(
           xls::Value def,
           CreateDefaultRawValue(prev_value.type(), GetLoc(*decl)));
 
-      xls::BValue state_read_bval = pb.StateElement(
+      TrackedBValue state_read_bval = pb.StateElement(
           absl::StrFormat("%s_%s", name_prefix, decl->getNameAsString()), def);
       xls::StateElement* state_elem =
           state_read_bval.node()->As<xls::StateRead>()->state_element();
@@ -1252,34 +1255,34 @@ Translator::GenerateIR_PipelinedLoopContents(
       xls::StateElement* state_elem =
           prepared.state_element_for_variable.at(decl);
       state_reads_by_decl[decl] =
-          xls::BValue(pb.proc()->GetStateRead(state_elem), &pb);
+          TrackedBValue(pb.proc()->GetStateRead(state_elem), &pb);
     }
   }
 
   // For utility functions like MakeStructXls()
   PushContextGuard pb_guard(*this, in_state_condition, loc);
 
-  xls::BValue token = token_in;
+  TrackedBValue token = token_in;
 
-  xls::BValue received_on_reset = pb.TupleIndex(
+  TrackedBValue received_on_reset = pb.TupleIndex(
       received_context_tuple, 0, loc,
       /*name=*/absl::StrFormat("%s_receive_on_reset", name_prefix));
-  xls::BValue received_context = pb.TupleIndex(
+  TrackedBValue received_context = pb.TupleIndex(
       received_context_tuple, 1, loc,
       /*name=*/absl::StrFormat("%s_receive_context_data", name_prefix));
 
-  xls::BValue received_lvalue_conds = pb.TupleIndex(
+  TrackedBValue received_lvalue_conds = pb.TupleIndex(
       received_context_tuple, 2, loc,
       /*name=*/absl::StrFormat("%s_receive_context_lvalues", name_prefix));
 
-  xls::BValue use_context_in = last_iter_broke_in;
+  TrackedBValue use_context_in = last_iter_broke_in;
 
-  xls::BValue lvalue_conditions_tuple = context().fb->Select(
+  TrackedBValue lvalue_conditions_tuple = context().fb->Select(
       use_context_in, received_lvalue_conds, lvalue_cond_value, loc,
       /*name=*/absl::StrFormat("%s__lvalue_conditions_tuple", name_prefix));
 
   // Deal with on_reset
-  xls::BValue on_reset_bval;
+  TrackedBValue on_reset_bval;
 
   if (generated_func.uses_on_reset) {
     // received_on_reset is only valid in the first iteration, but that's okay
@@ -1290,14 +1293,14 @@ Translator::GenerateIR_PipelinedLoopContents(
   }
 
   // Add selects for changed context variables
-  xls::BValue selected_context;
+  TrackedBValue selected_context;
 
   {
     const uint64_t total_context_values =
         context_cvars_struct_ctype->fields().size();
 
-    std::vector<xls::BValue> context_values;
-    context_values.resize(total_context_values, xls::BValue());
+    std::vector<TrackedBValue> context_values;
+    context_values.resize(total_context_values, TrackedBValue());
 
     for (const clang::NamedDecl* decl : variable_fields_order) {
       if (!context_field_indices.contains(decl)) {
@@ -1327,10 +1330,10 @@ Translator::GenerateIR_PipelinedLoopContents(
       }
       const uint64_t field_idx = context_field_indices.at(decl);
       CHECK_LT(field_idx, context_values.size());
-      xls::BValue context_val = context_values.at(field_idx);
-      xls::BValue prev_state_val = state_reads_by_decl.at(decl);
+      TrackedBValue context_val = context_values.at(field_idx);
+      TrackedBValue prev_state_val = state_reads_by_decl.at(decl);
 
-      xls::BValue selected_val =
+      TrackedBValue selected_val =
           pb.Select(use_context_in, context_val, prev_state_val, loc);
       context_values[field_idx] = selected_val;
     }
@@ -1357,7 +1360,7 @@ Translator::GenerateIR_PipelinedLoopContents(
   prepared.orig_token = token;
   prepared.token = prepared.orig_token;
 
-  xls::BValue save_full_condition = context().full_condition;
+  TrackedBValue save_full_condition = context().full_condition;
 
   PushContextGuard pb_guard_block(*this, loc);
 
@@ -1384,13 +1387,13 @@ Translator::GenerateIR_PipelinedLoopContents(
 
   token = prepared.token;
 
-  xls::BValue updated_context = pb.TupleIndex(
+  TrackedBValue updated_context = pb.TupleIndex(
       fsm_ret.return_value, 0, loc,
       /*name=*/absl::StrFormat("%s_updated_context", name_prefix));
-  xls::BValue do_break = pb.TupleIndex(
+  TrackedBValue do_break = pb.TupleIndex(
       fsm_ret.return_value, 1, loc,
       /*name=*/absl::StrFormat("%s_do_break_from_func", name_prefix));
-  xls::BValue initial_loop_cond = pb.TupleIndex(
+  TrackedBValue initial_loop_cond = pb.TupleIndex(
       fsm_ret.return_value, 2, loc,
       /*name=*/absl::StrFormat("%s_initial_loop_cond", name_prefix));
 
@@ -1408,7 +1411,7 @@ Translator::GenerateIR_PipelinedLoopContents(
         "Pipelined loops with FSMs nested in pipelined loops without FSMs"));
   }
 
-  xls::BValue update_state_condition;
+  TrackedBValue update_state_condition;
 
   if (in_fsm) {
     update_state_condition = pb.And(
@@ -1433,10 +1436,10 @@ Translator::GenerateIR_PipelinedLoopContents(
   next_state_values.insert(
       {lvalue_cond_state, NextStateValue{.value = lvalue_conditions_tuple}});
 
-  xls::BValue update_state_elements = update_state_condition;
+  TrackedBValue update_state_elements = update_state_condition;
 
   if (in_fsm && (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl)) {
-    xls::BValue literal_1 = pb.Literal(xls::UBits(1, 1), loc);
+    TrackedBValue literal_1 = pb.Literal(xls::UBits(1, 1), loc);
     token = pb.Trace(
         token, literal_1,
         /*args=*/
@@ -1450,23 +1453,23 @@ Translator::GenerateIR_PipelinedLoopContents(
         /*verbosity=*/0, loc);
   }
 
-  std::vector<xls::BValue> out_tuple_values;
+  std::vector<TrackedBValue> out_tuple_values;
   out_tuple_values.resize(context_in_field_indices.size());
   for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
     if (!context_field_indices.contains(decl)) {
       continue;
     }
     const uint64_t field_idx = context_field_indices.at(decl);
-    xls::BValue val = GetStructFieldXLS(updated_context, field_idx,
-                                        *context_cvars_struct_ctype, loc);
+    TrackedBValue val = GetStructFieldXLS(updated_context, field_idx,
+                                          *context_cvars_struct_ctype, loc);
 
     NextStateValue next_state_value = {
         .priority = nesting_level, .extra_label = name_prefix, .value = val};
-    xls::BValue out_bval = val;
+    TrackedBValue out_bval = val;
 
     if (in_fsm) {
       // Could add loop condition here.. but it's FSM only
-      xls::BValue guarded_update_state_elements = pb.And(
+      TrackedBValue guarded_update_state_elements = pb.And(
           update_state_elements, initial_loop_cond, loc, /*name=*/
           absl::StrFormat("%s_guarded_update_state_elements", name_prefix));
 
@@ -1488,14 +1491,14 @@ Translator::GenerateIR_PipelinedLoopContents(
     }
   }
 
-  xls::BValue out_tuple =
+  TrackedBValue out_tuple =
       MakeStructXLS(out_tuple_values, *context_in_cvars_struct_ctype, loc);
 
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
     CHECK(context().fb == &pb);
 
-    xls::BValue ret_next =
+    TrackedBValue ret_next =
         pb.TupleIndex(fsm_ret.return_value,
                       prepared.return_index_for_static.at(namedecl), loc,
                       /*name=*/

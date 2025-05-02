@@ -46,6 +46,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
+#include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/bits.h"
@@ -552,13 +553,13 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   for (const clang::NamedDecl* namedecl : next_static_value_decls) {
     const int64_t ret_idx = prepared.return_index_for_static.at(namedecl);
-    xls::BValue next_val =
+    TrackedBValue next_val =
         GetFlexTupleField(fsm_ret.return_value, ret_idx,
                           prepared.xls_func->return_value_count, body_loc);
     xls::StateElement* state_elem =
         prepared.state_element_for_variable.at(namedecl);
     xls::StateRead* state_read = pb.proc()->GetStateRead(state_elem);
-    xls::BValue prev_val(state_read, &pb);
+    TrackedBValue prev_val(state_read, &pb);
 
     XLS_ASSIGN_OR_RETURN(bool is_on_reset, DeclIsOnReset(namedecl));
 
@@ -739,19 +740,19 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
 }
 
 absl::Status Translator::GenerateDefaultIOOp(
-    xls::Channel* channel, bool is_send, xls::BValue token,
-    std::vector<xls::BValue>& final_tokens, xls::ProcBuilder& pb,
+    xls::Channel* channel, bool is_send, TrackedBValue token,
+    std::vector<TrackedBValue>& final_tokens, xls::ProcBuilder& pb,
     const xls::SourceInfo& loc) {
-  xls::BValue final_token;
+  TrackedBValue final_token;
 
-  xls::BValue pred_0 = pb.Literal(xls::UBits(0, 1), loc);
+  TrackedBValue pred_0 = pb.Literal(xls::UBits(0, 1), loc);
 
   xls::Value data_0_val = xls::ZeroOfType(channel->type());
-  xls::BValue data_0 = pb.Literal(data_0_val, loc);
+  TrackedBValue data_0 = pb.Literal(data_0_val, loc);
 
   if (!is_send) {
     XLSCC_CHECK(channel->CanReceive(), loc);
-    xls::BValue tup = pb.ReceiveIf(
+    TrackedBValue tup = pb.ReceiveIf(
         channel, token, pred_0, loc,
         /*name=*/absl::StrFormat("%s_default_op", channel->name()));
     final_token = pb.TupleIndex(
@@ -778,15 +779,15 @@ absl::Status Translator::GenerateDefaultIOOps(PreparedBlock& prepared,
     return absl::OkStatus();
   }
 
-  std::vector<xls::BValue> final_tokens = {prepared.token};
+  std::vector<TrackedBValue> final_tokens = {prepared.token};
 
   for (const auto& [channel, is_send] : unused_xls_channel_ops_) {
     XLS_RETURN_IF_ERROR(GenerateDefaultIOOp(
         channel, is_send, prepared.orig_token, final_tokens, pb, body_loc));
   }
 
-  prepared.token =
-      pb.AfterAll(final_tokens, body_loc, /*name=*/"after_default_io_ops");
+  prepared.token = pb.AfterAll(ToNativeBValues(final_tokens), body_loc,
+                               /*name=*/"after_default_io_ops");
 
   return absl::OkStatus();
 }
@@ -890,7 +891,7 @@ absl::StatusOr<Translator::LayoutFSMStatesReturn> Translator::LayoutFSMStates(
     }
 
     states.back()->invokes_to_generate.push_back(
-        {.op = op, .extra_condition = xls::BValue()});
+        {.op = op, .extra_condition = TrackedBValue()});
 
     std::set<ChannelBundle> for_op =
         GetChannelsUsedByOp(op, sub_proc, body_loc);
@@ -961,7 +962,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
   const std::string fsm_prefix =
       absl::StrFormat("__fsm_%s", prepared.xls_func->xls_func->name());
 
-  xls::BValue changed_state_last_activation;
+  TrackedBValue changed_state_last_activation;
   const bool states_can_have_multiple_parts =
       merge_states_ && has_pipelined_loop;
 
@@ -973,14 +974,14 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
   }
 
   // Set up state with wrap-around, if needed
-  xls::BValue state_index;
+  TrackedBValue state_index;
   int64_t state_bits = 0;
   xls::Value initial_state_index;
   xls::Type* args_type;
-  xls::BValue args_from_last_state;
+  TrackedBValue args_from_last_state;
   xls::Value initial_args_val;
 
-  xls::BValue state_read;
+  TrackedBValue state_read;
 
   // In merge states mode, FSM state elements are always created for storing
   // IO op inputs
@@ -1012,22 +1013,22 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
                       /*name=*/absl::StrFormat("%s_state_args", fsm_prefix));
   }
 
-  xls::BValue origin_token = prepared.token;
-  std::vector<xls::BValue> sink_tokens;
+  TrackedBValue origin_token = prepared.token;
+  std::vector<TrackedBValue> sink_tokens;
 
-  std::vector<xls::BValue> next_args_by_state;
+  std::vector<TrackedBValue> next_args_by_state;
   next_args_by_state.resize(states.size());
 
-  std::vector<xls::BValue> go_to_next_state_by_state;
+  std::vector<TrackedBValue> go_to_next_state_by_state;
   go_to_next_state_by_state.resize(states.size(),
                                    pb.Literal(xls::UBits(1, 1), body_loc));
 
-  xls::BValue last_ret_val;
+  TrackedBValue last_ret_val;
 
   auto set_args_for_state =
       [this, &prepared, &pb, io_ops_with_args_ordered, state_by_io_op](
           const State& state, auto apply_to_state_elem,
-          const xls::BValue& args_from_last_state, const xls::SourceInfo& loc,
+          const TrackedBValue& args_from_last_state, const xls::SourceInfo& loc,
           const std::list<InvokeToGenerate>* filter_list =
               nullptr) -> absl::Status {
     XLSCC_CHECK(args_from_last_state.valid(), loc);
@@ -1064,7 +1065,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
   absl::flat_hash_set<const xls::Node*> prev_state_io_nodes;
 
-  absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens;
+  absl::flat_hash_map<const IOOp*, TrackedBValue> op_tokens;
 
   // Generate IR for the individual states
   for (std::unique_ptr<State>& state : states) {
@@ -1083,7 +1084,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     }
 
     // Set all op tokens from previous states to the input of this state
-    absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens_prev = op_tokens;
+    absl::flat_hash_map<const IOOp*, TrackedBValue> op_tokens_prev = op_tokens;
     for (auto [op, _] : op_tokens_prev) {
       CHECK_NE(prepared.orig_token.node(), nullptr);
       op_tokens[op] = prepared.orig_token;
@@ -1093,7 +1094,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     // and save values from previous states
     if (state_index.valid()) {
       XLSCC_CHECK_GT(state_bits, 0, body_loc);
-      xls::BValue this_state_index = pb.Literal(
+      TrackedBValue this_state_index = pb.Literal(
           xls::UBits(state->index, state_bits), body_loc,
           absl::StrFormat("%s_state_%i_index", fsm_prefix, state->index));
       state->in_this_state = pb.Eq(
@@ -1119,14 +1120,14 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     //  exchange any data with the outside world between iterations.
     CHECK_EQ(prepared.args.size(),
              prepared.xls_func->xls_func->params().size());
-    for (const xls::BValue& arg : prepared.args) {
+    for (const TrackedBValue& arg : prepared.args) {
       CHECK(arg.valid());
     }
-    last_ret_val =
-        pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc,
-                  /*name=*/
-                  absl::StrFormat("%s_state_%i_default_invoke", fsm_prefix,
-                                  state->index));
+    last_ret_val = pb.Invoke(ToNativeBValues(prepared.args),
+                             prepared.xls_func->xls_func, body_loc,
+                             /*name=*/
+                             absl::StrFormat("%s_state_%i_default_invoke",
+                                             fsm_prefix, state->index));
     XLSCC_CHECK(last_ret_val.valid(), body_loc);
 
     // States should be in parallel in the token graph
@@ -1163,8 +1164,8 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
         generate_fsms_for_pipelined_loops_ || invokes_after_loop.empty(),
         body_loc);
 
-    xls::BValue state_token_out = prepared.token;
-    xls::BValue first_iter = pb.Literal(xls::UBits(1, 1), body_loc);
+    TrackedBValue state_token_out = prepared.token;
+    TrackedBValue first_iter = pb.Literal(xls::UBits(1, 1), body_loc);
 
     if (!invokes_before_loop.empty()) {
       PushContextGuard context_guard(*this, first_iter, body_loc);
@@ -1190,7 +1191,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
         //   data dependencies.
         // - It should ensure that the logic remains inactive when its state
         //   is not active, which may save power.
-        xls::BValue before_loop_args_selector = pb.And(
+        TrackedBValue before_loop_args_selector = pb.And(
             changed_state_last_activation, state->in_this_state, body_loc,
             /*name=*/
             absl::StrFormat("%s_state_%i_before_loop_args_selector", fsm_prefix,
@@ -1198,10 +1199,11 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
         auto select_elem =
             [this, before_loop_args_selector, prepared, fsm_prefix, &state](
-                xls::ProcBuilder& pb, const xls::BValue& state_elem,
-                const IOOp* op_ptr, const xls::SourceInfo& loc) -> xls::BValue {
+                xls::ProcBuilder& pb, const TrackedBValue& state_elem,
+                const IOOp* op_ptr,
+                const xls::SourceInfo& loc) -> TrackedBValue {
           const int64_t arg_idx = prepared.arg_index_for_op.at(op_ptr);
-          xls::BValue ret = pb.Select(
+          TrackedBValue ret = pb.Select(
               before_loop_args_selector,
               /*on_true=*/prepared.args.at(arg_idx),
               /*on_false=*/state_elem, loc,
@@ -1218,14 +1220,15 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
       }
     }
 
-    xls::BValue last_iter;
+    TrackedBValue last_iter;
 
     if (!invokes_for_loop.empty()) {
       if (!invokes_before_loop.empty() && states_can_have_multiple_parts) {
         // Update inputs to loop FSM based on before IO op updates to
         // prepared.args
         last_ret_val = pb.Invoke(
-            prepared.args, prepared.xls_func->xls_func, body_loc,
+            ToNativeBValues(prepared.args), prepared.xls_func->xls_func,
+            body_loc,
             /*name=*/
             absl::StrFormat("%s_state_%i_default_invoke_after_before_ops",
                             fsm_prefix, state->index));
@@ -1247,7 +1250,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
       last_ret_val = sub_fsm_ret.return_value;
 
       if (!invokes_before_loop.empty() && states_can_have_multiple_parts) {
-        xls::BValue first_iter_literal = first_iter;
+        TrackedBValue first_iter_literal = first_iter;
 
         // The first_iter flag is a state element. It's safe to use,
         // as it can't depend on side effecting ops earlier in the token chain,
@@ -1285,8 +1288,8 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
       if (generate_fsms_for_pipelined_loops_ &&
           (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl)) {
         // op_tokens will skip path to sink
-        xls::BValue literal_1 = pb.Literal(xls::UBits(1, 1), body_loc);
-        xls::BValue trace_out;
+        TrackedBValue literal_1 = pb.Literal(xls::UBits(1, 1), body_loc);
+        TrackedBValue trace_out;
         if (states_can_have_multiple_parts) {
           trace_out = pb.Trace(
               state_token_out, literal_1,
@@ -1337,14 +1340,14 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     // Save return values for this state
     if (state_index.valid()) {
       XLSCC_CHECK(state->in_this_state.valid(), body_loc);
-      std::vector<xls::BValue> next_args_by_state_elems;
+      std::vector<TrackedBValue> next_args_by_state_elems;
       next_args_by_state_elems.reserve(
           arg_indices_ordered_by_state_elems.size());
       for (int64_t arg_idx : arg_indices_ordered_by_state_elems) {
         next_args_by_state_elems.push_back(prepared.args.at(arg_idx));
       }
       next_args_by_state.at(state->index) =
-          pb.Tuple(next_args_by_state_elems, body_loc);
+          pb.Tuple(ToNativeBValues(next_args_by_state_elems), body_loc);
     }
 
     // Check for references to data from IO ops in previous states
@@ -1382,9 +1385,10 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     // (With only 1 state, FSM state elements will not exist)
     if (states.size() > 1) {
       auto pass_through_elem =
-          [](xls::ProcBuilder& pb, const xls::BValue& state_elem,
-             const IOOp* op_ptr,
-             const xls::SourceInfo& loc) -> xls::BValue { return state_elem; };
+          [](xls::ProcBuilder& pb, const TrackedBValue& state_elem,
+             const IOOp* op_ptr, const xls::SourceInfo& loc) -> TrackedBValue {
+        return state_elem;
+      };
       XLS_RETURN_IF_ERROR(set_args_for_state(*state, pass_through_elem,
                                              args_from_last_state, body_loc));
     }
@@ -1392,29 +1396,29 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
   XLSCC_CHECK(!sink_tokens.empty(), body_loc);
 
-  prepared.token =
-      pb.AfterAll(sink_tokens, body_loc, /*name=*/"after_sink_tokens");
+  prepared.token = pb.AfterAll(ToNativeBValues(sink_tokens), body_loc,
+                               /*name=*/"after_sink_tokens");
 
-  xls::BValue returns_this_activation_vars = go_to_next_state_by_state.at(0);
+  TrackedBValue returns_this_activation_vars = go_to_next_state_by_state.at(0);
 
   absl::btree_multimap<const xls::StateElement*, NextStateValue>
       fsm_next_state_values;
 
-  xls::BValue go_to_next_state;
+  TrackedBValue go_to_next_state;
 
   // Construct the next FSM state
   if (state_index.valid()) {
-    xls::BValue final_state_index =
+    TrackedBValue final_state_index =
         pb.Literal(xls::UBits(states.size() - 1, state_bits), body_loc,
                    absl::StrFormat("%s_final_state_index", fsm_prefix));
-    xls::BValue in_last_state =
+    TrackedBValue in_last_state =
         pb.Eq(state_index, final_state_index, body_loc,
               absl::StrFormat("%s_in_final_state", fsm_prefix));
-    xls::BValue state_one =
+    TrackedBValue state_one =
         pb.Literal(xls::UBits(1, state_bits), body_loc,
                    absl::StrFormat("%s_state_one", fsm_prefix));
 
-    xls::BValue following_state_index = pb.Select(
+    TrackedBValue following_state_index = pb.Select(
         in_last_state,
         /*on_true=*/
         pb.Literal(initial_state_index, body_loc,
@@ -1423,16 +1427,17 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
         pb.Add(state_index, state_one, body_loc,
                absl::StrFormat("%s_state_plus_one", fsm_prefix)));
 
-    std::optional<xls::BValue> default_go_to_next_state = std::nullopt;
+    std::optional<TrackedBValue> default_go_to_next_state = std::nullopt;
     if (next_args_by_state.size() < (1 << state_bits)) {
       default_go_to_next_state =
           pb.Literal(xls::UBits(0, 1), body_loc,
                      absl::StrFormat("%s_default_next_state", fsm_prefix));
     }
 
-    xls::BValue go_to_next_state_in_state = pb.Select(
+    TrackedBValue go_to_next_state_in_state = pb.Select(
         state_index,
-        /*cases=*/go_to_next_state_by_state, default_go_to_next_state, body_loc,
+        /*cases=*/ToNativeBValues(go_to_next_state_by_state),
+        default_go_to_next_state, body_loc,
         /*name=*/absl::StrFormat("%s_go_to_next_state_in_state", fsm_prefix));
 
     go_to_next_state =
@@ -1440,7 +1445,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
                context().full_condition_bval(body_loc), body_loc,
                /*name=*/absl::StrFormat("%s_go_to_next_state", fsm_prefix));
 
-    xls::BValue next_state_index =
+    TrackedBValue next_state_index =
         pb.Select(go_to_next_state,
                   /*on_true=*/
                   following_state_index,
@@ -1453,22 +1458,23 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
                /*name=*/
                absl::StrFormat("%s_returns_this_activation_vars", fsm_prefix));
 
-    std::optional<xls::BValue> initial_args_bval = std::nullopt;
+    std::optional<TrackedBValue> initial_args_bval = std::nullopt;
     if (next_args_by_state.size() < (1 << state_bits)) {
       initial_args_bval =
           pb.Literal(initial_args_val, body_loc,
                      absl::StrFormat("%s_initial_args", fsm_prefix));
     }
-    xls::BValue args_from_this_state =
+    TrackedBValue args_from_this_state =
         pb.Select(state_index,
-                  /*cases=*/next_args_by_state,
+                  /*cases=*/ToNativeBValues(next_args_by_state),
                   /*default_value=*/initial_args_bval, body_loc,
                   absl::StrFormat("%s_next_args", fsm_prefix));
 
-    std::vector<xls::BValue> next_state_elements = {next_state_index,
-                                                    args_from_this_state};
+    std::vector<TrackedBValue> next_state_elements = {next_state_index,
+                                                      args_from_this_state};
 
-    xls::BValue next_tuple = pb.Tuple(next_state_elements, body_loc);
+    TrackedBValue next_tuple =
+        pb.Tuple(ToNativeBValues(next_state_elements), body_loc);
 
     fsm_next_state_values.insert(
         {state_read.node()->As<xls::StateRead>()->state_element(),
@@ -1500,7 +1506,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
   if (generate_fsms_for_pipelined_loops_ &&
       (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl)) {
-    xls::BValue literal_1 = pb.Literal(xls::UBits(1, 1), body_loc);
+    TrackedBValue literal_1 = pb.Literal(xls::UBits(1, 1), body_loc);
     if (state_index.valid()) {
       prepared.token = pb.Trace(
           prepared.token, literal_1,
@@ -1568,10 +1574,10 @@ std::set<ChannelBundle> Translator::GetChannelsUsedByOp(
 absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
     PreparedBlock& outer_prepared,
     const std::list<Translator::InvokeToGenerate>& invokes_to_generate,
-    xls::BValue origin_token, xls::ProcBuilder& pb, const State& outer_state,
+    TrackedBValue origin_token, xls::ProcBuilder& pb, const State& outer_state,
     const std::string& fsm_prefix,
-    absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
-    xls::BValue first_ret_val, int outer_nesting_level,
+    absl::flat_hash_map<const IOOp*, TrackedBValue>& op_tokens,
+    TrackedBValue first_ret_val, int outer_nesting_level,
     const xls::SourceInfo& body_loc) {
   XLSCC_CHECK(outer_state.in_this_state.valid(), body_loc);
 
@@ -1603,21 +1609,21 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
   const int64_t context_out_ret_idx =
       outer_prepared.return_index_for_op.at(&invoke_context_out.op);
 
-  xls::BValue ret_io_value =
+  TrackedBValue ret_io_value =
       GetFlexTupleField(first_ret_val, context_out_ret_idx,
                         outer_prepared.xls_func->return_value_count, body_loc);
 
-  xls::BValue context_out = pb.TupleIndex(
+  TrackedBValue context_out = pb.TupleIndex(
       ret_io_value, /*idx=*/0, body_loc, /*name=*/
       absl::StrFormat("%s_context_out", sub_proc_invoked->name_prefix));
-  xls::BValue enter_condition = pb.TupleIndex(
+  TrackedBValue enter_condition = pb.TupleIndex(
       ret_io_value, /*idx=*/1, body_loc, /*name=*/
       absl::StrFormat("%s_enter_condition", sub_proc_invoked->name_prefix));
   CHECK_EQ(enter_condition.GetType()->GetFlatBitCount(), 1);
 
   if (generate_fsms_for_pipelined_loops_ &&
       (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl)) {
-    xls::BValue literal_1 = pb.Literal(xls::UBits(1, 1), body_loc);
+    TrackedBValue literal_1 = pb.Literal(xls::UBits(1, 1), body_loc);
     origin_token =
         pb.Trace(origin_token, /*condition=*/literal_1,
                  /*args=*/{outer_state.in_this_state, enter_condition},
@@ -1673,7 +1679,7 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
           &outer_prepared.state_element_for_variable,
           /*nesting_level=*/nesting_level));
 
-  xls::BValue context_in = contents_ret.out_tuple;
+  TrackedBValue context_in = contents_ret.out_tuple;
 
   // Get context in from inner FSM
   const int64_t context_in_arg_idx =
@@ -1684,13 +1690,14 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
 
   // Need an invoke for the context receive operation
   // (args have been updated)
-  xls::BValue context_receive_ret_val = pb.Invoke(
-      outer_prepared.args, outer_prepared.xls_func->xls_func, body_loc,
-      /*name=*/
-      absl::StrFormat("%s_state_%i_context_receive_invoke", fsm_prefix,
-                      outer_state.index));
+  TrackedBValue context_receive_ret_val =
+      pb.Invoke(ToNativeBValues(outer_prepared.args),
+                outer_prepared.xls_func->xls_func, body_loc,
+                /*name=*/
+                absl::StrFormat("%s_state_%i_context_receive_invoke",
+                                fsm_prefix, outer_state.index));
 
-  xls::BValue not_enter_condition = pb.Not(
+  TrackedBValue not_enter_condition = pb.Not(
       enter_condition, body_loc,
       /*name=*/
       absl::StrFormat("%s_not_enter_condition", sub_proc_invoked->name_prefix));
@@ -1713,11 +1720,11 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
       .token_out = contents_ret.token_out};
 }
 
-xls::BValue Translator::ConditionWithExtra(xls::BuilderBase& builder,
-                                           xls::BValue condition,
-                                           const InvokeToGenerate& invoke,
-                                           const xls::SourceInfo& op_loc) {
-  xls::BValue ret = condition;
+TrackedBValue Translator::ConditionWithExtra(xls::BuilderBase& builder,
+                                             TrackedBValue condition,
+                                             const InvokeToGenerate& invoke,
+                                             const xls::SourceInfo& op_loc) {
+  TrackedBValue ret = condition;
   XLSCC_CHECK(ret.valid(), op_loc);
   if (invoke.extra_condition.valid()) {
     ret = builder.And(ret, invoke.extra_condition, op_loc);
@@ -1728,21 +1735,22 @@ xls::BValue Translator::ConditionWithExtra(xls::BuilderBase& builder,
   return ret;
 }
 
-absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
-    const InvokeToGenerate& invoke, xls::BValue before_token,
-    PreparedBlock& prepared, xls::BValue& last_ret_val, xls::ProcBuilder& pb) {
+absl::StatusOr<TrackedBValue> Translator::GenerateIOInvoke(
+    const InvokeToGenerate& invoke, TrackedBValue before_token,
+    PreparedBlock& prepared, TrackedBValue& last_ret_val,
+    xls::ProcBuilder& pb) {
   const IOOp& op = invoke.op;
   xls::SourceInfo op_loc = op.op_location;
   const int64_t return_index = prepared.return_index_for_op.at(&op);
 
-  xls::BValue ret_io_value = GetFlexTupleField(
+  TrackedBValue ret_io_value = GetFlexTupleField(
       last_ret_val, return_index, prepared.xls_func->return_value_count, op_loc,
       /*op_name=*/
       absl::StrFormat("%s_ret_io_value", op.final_param_name));
 
-  xls::BValue arg_io_val;
+  TrackedBValue arg_io_val;
 
-  xls::BValue new_token;
+  TrackedBValue new_token;
   const ChannelBundle* bundle_ptr = nullptr;
 
   if (op.op != OpType::kTrace) {
@@ -1756,10 +1764,10 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
 
     CHECK_NE(xls_channel, nullptr);
 
-    xls::BValue condition = ret_io_value;
+    TrackedBValue condition = ret_io_value;
     CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
-    xls::BValue receive;
+    TrackedBValue receive;
     if (op.is_blocking) {
       receive = pb.ReceiveIf(xls_channel, before_token, condition, op_loc,
                              /*name=*/Debug_OpName(op));
@@ -1771,7 +1779,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
         pb.TupleIndex(receive, 0, op_loc,
                       /*name=*/absl::StrFormat("%s_token", Debug_OpName(op)));
 
-    xls::BValue in_val;
+    TrackedBValue in_val;
     if (op.is_blocking) {
       in_val =
           pb.TupleIndex(receive, 1, op_loc,
@@ -1792,10 +1800,10 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/true});
 
     CHECK_NE(xls_channel, nullptr);
-    xls::BValue val =
+    TrackedBValue val =
         pb.TupleIndex(ret_io_value, 0, op_loc,
                       /*name=*/absl::StrFormat("%s_value", Debug_OpName(op)));
-    xls::BValue condition = pb.TupleIndex(
+    TrackedBValue condition = pb.TupleIndex(
         ret_io_value, 1, op_loc, absl::StrFormat("%s_pred", Debug_OpName(op)));
     CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
@@ -1812,33 +1820,33 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     unused_xls_channel_ops_.remove(
         {bundle_ptr->read_response, /*is_send=*/false});
 
-    xls::BValue addr =
+    TrackedBValue addr =
         pb.TupleIndex(ret_io_value, 0, op_loc,
                       /*name=*/absl::StrFormat("%s_addr", Debug_OpName(op)));
-    xls::BValue condition =
+    TrackedBValue condition =
         pb.TupleIndex(ret_io_value, 1, op_loc,
                       /*name=*/absl::StrFormat("%s_cond", Debug_OpName(op)));
     CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
 
     // TODO(google/xls#861): supported masked memory operations.
-    xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
-    xls::BValue send_tuple_with_mask = pb.Tuple({addr, mask}, op_loc);
+    TrackedBValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
+    TrackedBValue send_tuple_with_mask = pb.Tuple({addr, mask}, op_loc);
     new_token = pb.SendIf(bundle_ptr->read_request, before_token, condition,
                           send_tuple_with_mask, op_loc,
                           /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
 
-    xls::BValue receive =
+    TrackedBValue receive =
         pb.ReceiveIf(bundle_ptr->read_response, new_token, condition, op_loc,
                      /*name=*/Debug_OpName(op));
 
     new_token =
         pb.TupleIndex(receive, 0, op_loc,
                       /*name=*/absl::StrFormat("%s_token", Debug_OpName(op)));
-    xls::BValue response_tup = pb.TupleIndex(
+    TrackedBValue response_tup = pb.TupleIndex(
         receive, 1, op_loc,
         /*name=*/absl::StrFormat("%s_response_tup", Debug_OpName(op)));
-    xls::BValue response = pb.TupleIndex(
+    TrackedBValue response = pb.TupleIndex(
         response_tup, 0, op_loc,
         /*name=*/absl::StrFormat("%s_response", Debug_OpName(op)));
 
@@ -1854,29 +1862,29 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
         {bundle_ptr->write_response, /*is_send=*/false});
 
     // This has (addr, value)
-    xls::BValue send_tuple = pb.TupleIndex(
+    TrackedBValue send_tuple = pb.TupleIndex(
         ret_io_value, 0, op_loc,
         /*name=*/absl::StrFormat("%s_send_tup", Debug_OpName(op)));
-    xls::BValue condition = pb.TupleIndex(
+    TrackedBValue condition = pb.TupleIndex(
         ret_io_value, 1, op_loc, absl::StrFormat("%s_pred", Debug_OpName(op)));
     CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
     condition = ConditionWithExtra(pb, condition, invoke, op_loc);
 
     // This has (addr, value, mask)
-    xls::BValue addr =
+    TrackedBValue addr =
         pb.TupleIndex(send_tuple, 0, op_loc,
                       /*name=*/absl::StrFormat("%s_addr", Debug_OpName(op)));
-    xls::BValue value =
+    TrackedBValue value =
         pb.TupleIndex(send_tuple, 1, op_loc,
                       /*name=*/absl::StrFormat("%s_value", Debug_OpName(op)));
     // TODO(google/xls#861): supported masked memory operations.
-    xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
-    xls::BValue send_tuple_with_mask = pb.Tuple({addr, value, mask}, op_loc);
+    TrackedBValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
+    TrackedBValue send_tuple_with_mask = pb.Tuple({addr, value, mask}, op_loc);
     new_token = pb.SendIf(bundle_ptr->write_request, before_token, condition,
                           send_tuple_with_mask, op_loc,
                           /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
 
-    xls::BValue receive =
+    TrackedBValue receive =
         pb.ReceiveIf(bundle_ptr->write_response, new_token, condition, op_loc,
                      /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
     new_token =
@@ -1899,20 +1907,20 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
   // The function is invoked again with the value received from the channel
   //  for each read() Op. The final invocation will produce all complete
   //  outputs.
-  last_ret_val =
-      pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc,
-                /*name=*/absl::StrFormat("invoke_%s", Debug_OpName(invoke.op)));
+  last_ret_val = pb.Invoke(
+      ToNativeBValues(prepared.args), prepared.xls_func->xls_func, op_loc,
+      /*name=*/absl::StrFormat("invoke_%s", Debug_OpName(invoke.op)));
   XLSCC_CHECK(last_ret_val.valid(), op_loc);
   return new_token;
 }
 
-absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithAfterOps(
-    IOSchedulingOption option, xls::BValue origin_token,
+absl::StatusOr<TrackedBValue> Translator::GenerateIOInvokesWithAfterOps(
+    IOSchedulingOption option, TrackedBValue origin_token,
     const std::list<Translator::InvokeToGenerate>& invokes_to_generate,
-    absl::flat_hash_map<const IOOp*, xls::BValue>& op_tokens,
-    xls::BValue& last_ret_val, Translator::PreparedBlock& prepared,
+    absl::flat_hash_map<const IOOp*, TrackedBValue>& op_tokens,
+    TrackedBValue& last_ret_val, Translator::PreparedBlock& prepared,
     xls::ProcBuilder& pb, const xls::SourceInfo& body_loc) {
-  std::vector<xls::BValue> fan_ins_tokens;
+  std::vector<TrackedBValue> fan_ins_tokens;
   for (const InvokeToGenerate& invoke : invokes_to_generate) {
     const IOOp& op = invoke.op;
     if (op.scheduling_option != option) {
@@ -1921,25 +1929,25 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithAfterOps(
 
     xls::SourceInfo op_loc = op.op_location;
 
-    xls::BValue before_token = origin_token;
+    TrackedBValue before_token = origin_token;
     if (!op.after_ops.empty()) {
       XLSCC_CHECK(op.scheduling_option == option, op_loc);
 
-      std::vector<xls::BValue> after_tokens;
+      std::vector<TrackedBValue> after_tokens;
       after_tokens.reserve(op.after_ops.size());
       for (const IOOp* after_op : op.after_ops) {
         XLSCC_CHECK(after_op->scheduling_option == option, op_loc);
         XLSCC_CHECK_NE(&op, after_op, op_loc);
-        xls::BValue after_token = op_tokens.at(after_op);
+        TrackedBValue after_token = op_tokens.at(after_op);
         after_tokens.push_back(after_token);
       }
       before_token = pb.AfterAll(
-          after_tokens, body_loc,
+          ToNativeBValues(after_tokens), body_loc,
           /*name=*/absl::StrFormat("after_tokens_%s", op.final_param_name));
     }
 
     XLS_ASSIGN_OR_RETURN(
-        xls::BValue new_token,
+        TrackedBValue new_token,
         GenerateIOInvoke(invoke, before_token, prepared, last_ret_val, pb));
 
     CHECK(!op_tokens.contains(&op));
@@ -1949,14 +1957,15 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokesWithAfterOps(
   }
 
   if (!fan_ins_tokens.empty()) {
-    return pb.AfterAll(fan_ins_tokens, body_loc, /*name=*/"fan_ins_tokens");
+    return pb.AfterAll(ToNativeBValues(fan_ins_tokens), body_loc,
+                       /*name=*/"fan_ins_tokens");
   }
 
-  return xls::BValue();
+  return TrackedBValue();
 }
 
-absl::StatusOr<xls::BValue> Translator::GenerateTrace(
-    xls::BValue trace_out_value, xls::BValue before_token, const IOOp& op,
+absl::StatusOr<TrackedBValue> Translator::GenerateTrace(
+    TrackedBValue trace_out_value, TrackedBValue before_token, const IOOp& op,
     xls::ProcBuilder& pb, const InvokeToGenerate& invoke) {
   switch (op.trace_type) {
     case TraceType::kNull:
@@ -1966,25 +1975,26 @@ absl::StatusOr<xls::BValue> Translator::GenerateTrace(
       const uint64_t tuple_count =
           trace_out_value.GetType()->AsTupleOrDie()->size();
       CHECK_GE(tuple_count, 1);
-      xls::BValue condition =
+      TrackedBValue condition =
           pb.TupleIndex(trace_out_value, 0, op.op_location,
                         /*name=*/absl::StrFormat("%s_cond", Debug_OpName(op)));
       CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       condition = ConditionWithExtra(pb, condition, invoke, op.op_location);
-      std::vector<xls::BValue> args;
+      std::vector<TrackedBValue> args;
       for (int tuple_idx = 1; tuple_idx < tuple_count; ++tuple_idx) {
-        xls::BValue arg = pb.TupleIndex(
+        TrackedBValue arg = pb.TupleIndex(
             trace_out_value, tuple_idx, op.op_location,
             /*name=*/absl::StrFormat("%s_arg_%i", Debug_OpName(op), tuple_idx));
         args.push_back(arg);
       }
 
-      return pb.Trace(before_token, /*condition=*/condition, args,
+      return pb.Trace(before_token, /*condition=*/condition,
+                      ToNativeBValues(args),
                       /*format_string=*/op.trace_message_string,
                       /*verbosity=*/0, op.op_location);
     }
     case TraceType::kAssert: {
-      xls::BValue condition = pb.Not(trace_out_value, op.op_location);
+      TrackedBValue condition = pb.Not(trace_out_value, op.op_location);
       condition = ConditionWithExtra(pb, condition, invoke, op.op_location);
       // Assert condition is !fire
       return pb.Assert(before_token,
@@ -2148,7 +2158,7 @@ Translator::GenerateIRBlockPrepare(
     XLS_ASSIGN_OR_RETURN(xls::Value this_init_val,
                          EvaluateBVal(this_cval.rvalue(), body_loc));
 
-    xls::BValue elem_bval = pb.StateElement("this", this_init_val, body_loc);
+    TrackedBValue elem_bval = pb.StateElement("this", this_init_val, body_loc);
     xls::StateElement* state_elem =
         elem_bval.node()->As<xls::StateRead>()->state_element();
 
@@ -2164,7 +2174,7 @@ Translator::GenerateIRBlockPrepare(
 
     // Don't need to worry about sharing for this, as it's only used when a
     // static variable is declared in the loop body
-    xls::BValue elem_bval = pb.StateElement(
+    TrackedBValue elem_bval = pb.StateElement(
         XLSNameMangle(clang::GlobalDecl(namedecl)), initval.rvalue(), body_loc);
     xls::StateElement* state_elem =
         elem_bval.node()->As<xls::StateRead>()->state_element();
@@ -2181,12 +2191,12 @@ Translator::GenerateIRBlockPrepare(
   // Generate control receive (with direct-ins)
   if (caller_sub_function != nullptr) {
     CHECK_NE(caller_sub_function->direct_ins_channel, nullptr);
-    xls::BValue direct_ins_tup_recvd = pb.Receive(
+    TrackedBValue direct_ins_tup_recvd = pb.Receive(
         caller_sub_function->direct_ins_channel, prepared.token, body_loc,
         /*name=*/"direct_ins_receive");
     prepared.token = pb.TupleIndex(direct_ins_tup_recvd, 0, body_loc,
                                    /*name=*/"direct_ins_receive_token");
-    xls::BValue direct_ins_tup =
+    TrackedBValue direct_ins_tup =
         pb.TupleIndex(direct_ins_tup_recvd, 1, body_loc,
                       /*name=*/"direct_ins_tup");
 
@@ -2212,11 +2222,11 @@ Translator::GenerateIRBlockPrepare(
     xls::Channel* xls_channel = bundle.regular;
     unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/false});
 
-    xls::BValue receive = pb.Receive(xls_channel, prepared.token);
+    TrackedBValue receive = pb.Receive(xls_channel, prepared.token);
     prepared.token = pb.TupleIndex(
         receive, 0, body_loc,
         /*name=*/absl::StrFormat("%s_token", xls_channel->name()));
-    xls::BValue direct_in_value = pb.TupleIndex(
+    TrackedBValue direct_in_value = pb.TupleIndex(
         receive, 1, body_loc,
         /*name=*/absl::StrFormat("%s_value", xls_channel->name()));
 
@@ -2249,7 +2259,7 @@ Translator::GenerateIRBlockPrepare(
       case xlscc::SideEffectingParameterType::kIOOp: {
         const IOOp& op = *param.io_op;
         if (op.op == OpType::kRead || op.op == OpType::kRecv) {
-          xls::BValue val =
+          TrackedBValue val =
               pb.Literal(xls::ZeroOfType(param.xls_io_param_type), body_loc);
           prepared.arg_index_for_op[&op] = prepared.args.size();
           prepared.args.push_back(val);
@@ -2257,7 +2267,7 @@ Translator::GenerateIRBlockPrepare(
         break;
       }
       case xlscc::SideEffectingParameterType::kStatic: {
-        xls::BValue bval(
+        TrackedBValue bval(
             pb.proc()->GetStateRead(
                 prepared.state_element_for_variable.at(param.static_value)),
             &pb);
@@ -2297,7 +2307,7 @@ std::optional<ChannelBundle> Translator::GetChannelBundleForOp(
 }
 
 absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
-    xls::ProcBuilder& pb, xls::BValue token,
+    xls::ProcBuilder& pb, TrackedBValue token,
     const absl::btree_multimap<const xls::StateElement*, NextStateValue>&
         next_state_values,
     const xls::SourceInfo& loc) {
@@ -2309,11 +2319,11 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
           absl::StrFormat("No next values for state element %s", elem->name()));
     }
     xls::StateRead* state_read = pb.proc()->GetStateRead(elem);
-    xls::BValue read_bval(state_read, &pb);
+    TrackedBValue read_bval(state_read, &pb);
     if (values_for_elem == 1) {
       const NextStateValue& next_state_value =
           next_state_values.find(elem)->second;
-      xls::BValue next_state_value_bval;
+      TrackedBValue next_state_value_bval;
       if (next_state_value.condition.valid()) {
         next_state_value_bval =
             pb.Select(next_state_value.condition,
@@ -2355,13 +2365,13 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
               });
 
     // Construct the next state value
-    xls::BValue next_state_value_bval;
+    TrackedBValue next_state_value_bval;
 
     {
       // Separate lists for priority select
-      std::vector<xls::BValue> conditions;
+      std::vector<TrackedBValue> conditions;
       conditions.reserve(next_state_values_sorted_by_priority.size() + 1);
-      std::vector<xls::BValue> values;
+      std::vector<TrackedBValue> values;
       values.reserve(next_state_values_sorted_by_priority.size() + 1);
 
       for (const NextStateValue& next_value :
@@ -2374,13 +2384,13 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
       // goes first in Concat
       std::reverse(values.begin(), values.end());
 
-      xls::BValue selector = pb.Concat(
-          conditions, loc,
+      TrackedBValue selector = pb.Concat(
+          ToNativeBValues(conditions), loc,
           /*name=*/absl::StrFormat("%s_all_conditions", elem->name()));
 
       // Default to no change of state when all selectors are 0
       next_state_value_bval = pb.PrioritySelect(
-          selector, values, /*default_value=*/read_bval, loc,
+          selector, ToNativeBValues(values), /*default_value=*/read_bval, loc,
           /*name=*/absl::StrFormat("%s_select_next_value", elem->name()));
     }
 
@@ -2390,7 +2400,7 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
 
     // Generate asserts for same priority conditions being mutually exclusive
     {
-      absl::btree_multimap<int64_t, xls::BValue> all_conditions_by_priority;
+      absl::btree_multimap<int64_t, TrackedBValue> all_conditions_by_priority;
 
       for (const NextStateValue& next_value :
            next_state_values_sorted_by_priority) {
@@ -2404,7 +2414,7 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
            priority_it =
                all_conditions_by_priority.upper_bound(priority_it->first)) {
         // Loop through the next states in this priority
-        std::vector<xls::BValue> conditions_this_priority;
+        std::vector<TrackedBValue> conditions_this_priority;
         for (auto it =
                  all_conditions_by_priority.lower_bound(priority_it->first);
              it != all_conditions_by_priority.upper_bound(priority_it->first);
@@ -2414,14 +2424,14 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
         }
 
         // Assert that one_hot(x) == x
-        xls::BValue conditions_bval =
-            pb.Concat(conditions_this_priority, loc,
+        TrackedBValue conditions_bval =
+            pb.Concat(ToNativeBValues(conditions_this_priority), loc,
                       /*name=*/
                       absl::StrFormat("%s_all_conditions_priority_%i",
                                       elem->name(), priority_it->first));
-        xls::BValue one_hot_wide =
+        TrackedBValue one_hot_wide =
             pb.OneHot(conditions_bval, xls::LsbOrMsb::kMsb, loc);
-        xls::BValue one_hot =
+        TrackedBValue one_hot =
             pb.BitSlice(one_hot_wide, /*start=*/0,
                         /*width=*/conditions_this_priority.size(), loc);
         token = pb.Assert(

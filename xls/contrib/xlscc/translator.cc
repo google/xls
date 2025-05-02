@@ -76,6 +76,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
+#include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
@@ -188,7 +189,7 @@ TranslationContext& Translator::PushContext() {
   auto ocond = context().full_condition;
   context_stack_.push_front(context());
   context().full_condition_on_enter_block = ocond;
-  context().relative_condition = xls::BValue();
+  context().relative_condition = TrackedBValue();
   context().propagate_up = true;
   context().propagate_break_up = true;
   context().propagate_continue_up = true;
@@ -241,7 +242,7 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
   }
 
   if (propagate_break_up && popped.relative_break_condition.valid()) {
-    xls::BValue saved_popped_relative_break_condition =
+    TrackedBValue saved_popped_relative_break_condition =
         popped.relative_break_condition;
 
     if (popped.relative_break_condition.valid() &&
@@ -258,7 +259,7 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
   }
 
   if (propagate_continue_up && popped.relative_continue_condition.valid()) {
-    xls::BValue saved_popped_relative_continue_condition =
+    TrackedBValue saved_popped_relative_continue_condition =
         popped.relative_continue_condition;
 
     if (popped.relative_continue_condition.valid() &&
@@ -322,7 +323,7 @@ TranslationContext& Translator::context() {
   return context_stack_.front();
 }
 
-absl::Status Translator::and_condition(xls::BValue and_condition,
+absl::Status Translator::and_condition(TrackedBValue and_condition,
                                        const xls::SourceInfo& loc) {
   if (!and_condition.valid()) {
     return absl::OkStatus();
@@ -398,7 +399,7 @@ absl::StatusOr<CValue> Translator::StructUpdate(
   }
 
   // No tuple update, so we need to rebuild the tuple
-  std::vector<xls::BValue> bvals;
+  std::vector<TrackedBValue> bvals;
   absl::flat_hash_map<int64_t, std::shared_ptr<LValue>> compounds;
 
   if (struct_before.lvalue() != nullptr) {
@@ -432,12 +433,13 @@ absl::StatusOr<CValue> Translator::StructUpdate(
   for (auto it = stype.fields().begin(); it != stype.fields().end(); it++) {
     std::shared_ptr<CField> fp = *it;
     XLS_ASSIGN_OR_RETURN(bool has_lvals, fp->type()->ContainsLValues(*this));
-    xls::BValue bval;
+    TrackedBValue bval;
     if (fp->index() != cfield.index()) {
       bval = GetStructFieldXLS(struct_before.rvalue(), fp->index(), stype, loc);
     } else {
-      bval = rvalue.rvalue().valid() ? rvalue.rvalue()
-                                     : context().fb->Tuple({}, loc);
+      bval = rvalue.rvalue().valid()
+                 ? rvalue.rvalue()
+                 : TrackedBValue(context().fb->Tuple({}, loc));
       if (has_lvals) {
         compounds[fp->index()] = rvalue.lvalue();
       }
@@ -445,7 +447,7 @@ absl::StatusOr<CValue> Translator::StructUpdate(
     bvals.push_back(bval);
   }
 
-  xls::BValue new_tuple = MakeStructXLS(bvals, stype, loc);
+  TrackedBValue new_tuple = MakeStructXLS(bvals, stype, loc);
 
   std::shared_ptr<LValue> lval;
 
@@ -463,14 +465,16 @@ absl::StatusOr<CValue> Translator::StructUpdate(
   return ret;
 }
 
-xls::BValue Translator::MakeStructXLS(
-    const std::vector<xls::BValue>& bvals_reverse, const CStructType& stype,
+TrackedBValue Translator::MakeStructXLS(
+    const std::vector<TrackedBValue>& bvals_reverse, const CStructType& stype,
     const xls::SourceInfo& loc) {
-  std::vector<xls::BValue> bvals = bvals_reverse;
+  std::vector<TrackedBValue> bvals = bvals_reverse;
   std::reverse(bvals.begin(), bvals.end());
   XLSCC_CHECK_EQ(bvals.size(), stype.fields().size(), loc);
-  xls::BValue ret =
-      stype.no_tuple_flag() ? bvals[0] : context().fb->Tuple(bvals, loc);
+  TrackedBValue ret =
+      stype.no_tuple_flag()
+          ? bvals[0]
+          : TrackedBValue(context().fb->Tuple(ToNativeBValues(bvals), loc));
   return ret;
 }
 
@@ -483,13 +487,14 @@ xls::Value Translator::MakeStructXLS(
   return ret;
 }
 
-xls::BValue Translator::GetStructFieldXLS(xls::BValue val, int64_t index,
-                                          const CStructType& type,
-                                          const xls::SourceInfo& loc) {
+TrackedBValue Translator::GetStructFieldXLS(TrackedBValue val, int64_t index,
+                                            const CStructType& type,
+                                            const xls::SourceInfo& loc) {
   XLSCC_CHECK_LT(index, type.fields().size(), loc);
-  return type.no_tuple_flag() ? val
-                              : context().fb->TupleIndex(
-                                    val, type.fields().size() - 1 - index, loc);
+  return type.no_tuple_flag()
+             ? val
+             : TrackedBValue(context().fb->TupleIndex(
+                   val, type.fields().size() - 1 - index, loc));
 }
 
 absl::StatusOr<xls::Value> Translator::GetStructFieldXLS(
@@ -515,19 +520,22 @@ absl::StatusOr<xls::Type*> Translator::GetStructXLSType(
   return type.no_tuple_flag() ? members[0] : package_->GetTupleType(members);
 }
 
-xls::BValue Translator::MakeFlexTuple(const std::vector<xls::BValue>& bvals,
-                                      const xls::SourceInfo& loc) {
+TrackedBValue Translator::MakeFlexTuple(const std::vector<TrackedBValue>& bvals,
+                                        const xls::SourceInfo& loc) {
   XLSCC_CHECK(!bvals.empty(), loc);
-  return (bvals.size() == 1) ? bvals[0] : context().fb->Tuple(bvals, loc);
+  return (bvals.size() == 1)
+             ? bvals[0]
+             : TrackedBValue(context().fb->Tuple(ToNativeBValues(bvals), loc));
 }
 
-xls::BValue Translator::GetFlexTupleField(xls::BValue val, int64_t index,
-                                          int64_t n_fields,
-                                          const xls::SourceInfo& loc,
-                                          std::string_view op_name) {
+TrackedBValue Translator::GetFlexTupleField(TrackedBValue val, int64_t index,
+                                            int64_t n_fields,
+                                            const xls::SourceInfo& loc,
+                                            std::string_view op_name) {
   XLSCC_CHECK_GT(n_fields, 0, loc);
   return (n_fields == 1) ? val
-                         : context().fb->TupleIndex(val, index, loc, op_name);
+                         : TrackedBValue(context().fb->TupleIndex(
+                               val, index, loc, op_name));
 }
 
 xls::Type* Translator::GetFlexTupleType(
@@ -537,24 +545,24 @@ xls::Type* Translator::GetFlexTupleType(
 }
 
 absl::StatusOr<CValue> Translator::GetArrayElement(const CValue& arr_val,
-                                                   xls::BValue index_bval,
+                                                   TrackedBValue index_bval,
                                                    const xls::SourceInfo& loc) {
   XLSCC_CHECK(index_bval.GetType()->IsBits(), loc);
   XLSCC_CHECK(arr_val.type()->Is<CArrayType>(), loc);
   auto arr_type = arr_val.type()->As<CArrayType>();
-  xls::BValue rval;
+  TrackedBValue rval;
 
   if (arr_type->GetUseTuple()) {
     XLSCC_CHECK(arr_val.rvalue().GetType()->IsTuple(), loc);
-    std::vector<xls::BValue> cases;
+    std::vector<TrackedBValue> cases;
     cases.reserve(arr_type->GetSize());
     for (int i = 0; i < arr_type->GetSize(); ++i) {
-      xls::BValue elem = context().fb->TupleIndex(arr_val.rvalue(), i, loc);
+      TrackedBValue elem = context().fb->TupleIndex(arr_val.rvalue(), i, loc);
       cases.push_back(elem);
     }
-    XLS_ASSIGN_OR_RETURN(xls::BValue default_value,
+    XLS_ASSIGN_OR_RETURN(TrackedBValue default_value,
                          CreateDefaultValue(arr_type->GetElementType(), loc));
-    rval = context().fb->Select(index_bval, cases,
+    rval = context().fb->Select(index_bval, ToNativeBValues(cases),
                                 /*default_value=*/default_value, loc);
   } else {
     XLSCC_CHECK(arr_val.rvalue().GetType()->IsArray(), loc);
@@ -565,7 +573,7 @@ absl::StatusOr<CValue> Translator::GetArrayElement(const CValue& arr_val,
 }
 
 absl::StatusOr<CValue> Translator::UpdateArrayElement(
-    const CValue& arr_val, xls::BValue index_bval, const CValue& rvalue,
+    const CValue& arr_val, TrackedBValue index_bval, const CValue& rvalue,
     const xls::SourceInfo& loc) {
   // Assign to an array element
   // (...)[index] = rvalue
@@ -587,24 +595,24 @@ absl::StatusOr<CValue> Translator::UpdateArrayElement(
   XLSCC_CHECK(!element_has_lvalues, loc);
   XLSCC_CHECK(rvalue.rvalue().valid(), loc);
 
-  xls::BValue rval;
+  TrackedBValue rval;
 
   if (arr_type->GetUseTuple()) {
     XLSCC_CHECK(arr_val.rvalue().GetType()->IsTuple(), loc);
-    std::vector<xls::BValue> elems;
+    std::vector<TrackedBValue> elems;
     elems.reserve(arr_type->GetSize());
     for (int i = 0; i < arr_type->GetSize(); ++i) {
-      xls::BValue i_literal =
+      TrackedBValue i_literal =
           context().fb->Literal(xls::UBits(i, index_bval.BitCountOrDie()), loc);
-      xls::BValue elem = context().fb->TupleIndex(arr_val.rvalue(), i, loc);
-      xls::BValue this_elem = context().fb->Eq(index_bval, i_literal, loc);
+      TrackedBValue elem = context().fb->TupleIndex(arr_val.rvalue(), i, loc);
+      TrackedBValue this_elem = context().fb->Eq(index_bval, i_literal, loc);
       elem = context().fb->Select(this_elem,
                                   /*on_true=*/rvalue.rvalue(),
                                   /*on_false=*/elem, loc);
       elems.push_back(elem);
     }
 
-    rval = context().fb->Tuple(elems, loc);
+    rval = context().fb->Tuple(ToNativeBValues(elems), loc);
   } else {
     XLSCC_CHECK(arr_val.rvalue().GetType()->IsArray(), loc);
     rval = context().fb->ArrayUpdate(arr_val.rvalue(), rvalue.rvalue(),
@@ -614,32 +622,33 @@ absl::StatusOr<CValue> Translator::UpdateArrayElement(
   return CValue(rval, arr_val.type());
 }
 
-xls::BValue Translator::MakeFunctionReturn(
-    const std::vector<xls::BValue>& bvals, const xls::SourceInfo& loc) {
+TrackedBValue Translator::MakeFunctionReturn(
+    const std::vector<TrackedBValue>& bvals, const xls::SourceInfo& loc) {
   return MakeFlexTuple(bvals, loc);
 }
 
-xls::BValue Translator::UpdateFlexTupleField(xls::BValue tuple_val,
-                                             xls::BValue new_val, int index,
-                                             int n_fields,
-                                             const xls::SourceInfo& loc) {
+TrackedBValue Translator::UpdateFlexTupleField(TrackedBValue tuple_val,
+                                               TrackedBValue new_val, int index,
+                                               int n_fields,
+                                               const xls::SourceInfo& loc) {
   if (n_fields == 1) {
     return new_val;
   }
 
-  std::vector<xls::BValue> new_args;
+  std::vector<TrackedBValue> new_args;
   new_args.reserve(n_fields);
   for (int i = 0; i < n_fields; ++i) {
-    new_args.push_back(
-        (i == index) ? new_val : context().fb->TupleIndex(tuple_val, i, loc));
+    new_args.push_back((i == index) ? new_val
+                                    : TrackedBValue(context().fb->TupleIndex(
+                                          tuple_val, i, loc)));
   }
-  return context().fb->Tuple(new_args, loc);
+  return context().fb->Tuple(ToNativeBValues(new_args), loc);
 }
 
-xls::BValue Translator::GetFunctionReturn(xls::BValue val, int index,
-                                          int expected_returns,
-                                          const clang::FunctionDecl* /*func*/,
-                                          const xls::SourceInfo& loc) {
+TrackedBValue Translator::GetFunctionReturn(TrackedBValue val, int index,
+                                            int expected_returns,
+                                            const clang::FunctionDecl* /*func*/,
+                                            const xls::SourceInfo& loc) {
   return GetFlexTupleField(val, index, expected_returns, loc);
 }
 
@@ -722,7 +731,7 @@ absl::Status Translator::GenerateThisLValues(
 
     XLSCC_CHECK(prev_this_cval.rvalue().valid(), loc);
 
-    xls::BValue prev_field_rvalue;
+    TrackedBValue prev_field_rvalue;
 
     XLS_ASSIGN_OR_RETURN(bool field_must_have_rvalue,
                          TypeMustHaveRValue(*field_type));
@@ -832,7 +841,7 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
       XLS_ASSIGN_OR_RETURN(xls::Type * xls_type,
                            TranslateTypeToXLS(thisctype, body_loc));
 
-      xls::BValue this_bval = context().fb->Param("this", xls_type, body_loc);
+      TrackedBValue this_bval = context().fb->Param("this", xls_type, body_loc);
 
       XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
                            GetThisDecl(body_loc, /*for_declaration=*/true));
@@ -915,7 +924,7 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
     XLSCC_CHECK(!used_parameter_names.contains(safe_param_name), GetLoc(*p));
     used_parameter_names.insert(safe_param_name);
 
-    xls::BValue pbval =
+    TrackedBValue pbval =
         context().fb->Param(safe_param_name, xls_type, body_loc);
 
     // Create CValue without type check
@@ -1016,7 +1025,7 @@ absl::Status Translator::GenerateIR_Ctor_Initializers(
 }
 
 absl::Status Translator::PushLValueSelectConditions(
-    std::shared_ptr<LValue> lvalue, std::vector<xls::BValue>& return_bvals,
+    std::shared_ptr<LValue> lvalue, std::vector<TrackedBValue>& return_bvals,
     const xls::SourceInfo& loc) {
   if (!lvalue->is_select()) {
     return absl::OkStatus();
@@ -1040,14 +1049,14 @@ absl::Status Translator::PushLValueSelectConditions(
 }
 
 absl::StatusOr<std::shared_ptr<LValue>> Translator::PopLValueSelectConditions(
-    std::list<xls::BValue>& unpacked_returns,
+    std::list<TrackedBValue>& unpacked_returns,
     std::shared_ptr<LValue> lvalue_translated, const xls::SourceInfo& loc) {
   if (!lvalue_translated->is_select()) {
     return lvalue_translated;
   }
 
   XLSCC_CHECK(!unpacked_returns.empty(), loc);
-  xls::BValue selector = unpacked_returns.front();
+  TrackedBValue selector = unpacked_returns.front();
   unpacked_returns.pop_front();
 
   std::shared_ptr<LValue> true_lval = lvalue_translated->lvalue_true();
@@ -1065,7 +1074,7 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::PopLValueSelectConditions(
   return std::make_shared<LValue>(selector, true_lval, false_lval);
 }
 
-absl::StatusOr<xls::BValue> Translator::Generate_LValue_Return(
+absl::StatusOr<TrackedBValue> Translator::Generate_LValue_Return(
     std::shared_ptr<LValue> lvalue, const xls::SourceInfo& loc) {
   if (lvalue->channel_leaf() != nullptr) {
     return context().fb->Tuple({}, loc);
@@ -1089,9 +1098,9 @@ absl::StatusOr<xls::BValue> Translator::Generate_LValue_Return(
     lvalue->leaf()->dump();
     // Fall through to error
   } else if (lvalue->is_select()) {
-    std::vector<xls::BValue> tuple_bvals;
+    std::vector<TrackedBValue> tuple_bvals;
     XLS_RETURN_IF_ERROR(PushLValueSelectConditions(lvalue, tuple_bvals, loc));
-    return context().fb->Tuple(tuple_bvals, loc);
+    return context().fb->Tuple(ToNativeBValues(tuple_bvals), loc);
   }
 
   return absl::UnimplementedError(
@@ -1100,8 +1109,8 @@ absl::StatusOr<xls::BValue> Translator::Generate_LValue_Return(
 }
 
 absl::StatusOr<CValue> Translator::Generate_LValue_Return_Call(
-    std::shared_ptr<LValue> lval_untranslated, xls::BValue unpacked_return,
-    std::shared_ptr<CType> return_type, xls::BValue* this_inout,
+    std::shared_ptr<LValue> lval_untranslated, TrackedBValue unpacked_return,
+    std::shared_ptr<CType> return_type, TrackedBValue* this_inout,
     std::shared_ptr<LValue>* this_lval,
     const absl::flat_hash_map<IOChannel*, IOChannel*>&
         caller_channels_by_callee_channel,
@@ -1112,19 +1121,19 @@ absl::StatusOr<CValue> Translator::Generate_LValue_Return_Call(
                               caller_channels_by_callee_channel, loc));
 
   if (lval->channel_leaf() != nullptr) {
-    return CValue(xls::BValue(), return_type, /*disable_type_check=*/true,
+    return CValue(TrackedBValue(), return_type, /*disable_type_check=*/true,
                   lval);
   }
 
   if (lval->is_select()) {
-    xls::BValue selector_value_tuple = unpacked_return;
+    TrackedBValue selector_value_tuple = unpacked_return;
 
-    XLS_ASSIGN_OR_RETURN(std::list<xls::BValue> selector_values,
+    XLS_ASSIGN_OR_RETURN(std::list<TrackedBValue> selector_values,
                          UnpackTuple(selector_value_tuple, loc));
     XLS_ASSIGN_OR_RETURN(std::shared_ptr<LValue> ret_lval,
                          PopLValueSelectConditions(selector_values, lval, loc));
 
-    return CValue(xls::BValue(), return_type, /*disable_type_check=*/true,
+    return CValue(TrackedBValue(), return_type, /*disable_type_check=*/true,
                   ret_lval);
   }
 
@@ -1136,7 +1145,7 @@ absl::StatusOr<CValue> Translator::Generate_LValue_Return_Call(
       XLSCC_CHECK_NE(this_inout, nullptr, loc);
       XLSCC_CHECK_NE(this_lval, nullptr, loc);
 
-      return CValue(xls::BValue(), return_type, /*disable_type_check=*/true,
+      return CValue(TrackedBValue(), return_type, /*disable_type_check=*/true,
                     *this_lval);
     }
 
@@ -1145,7 +1154,7 @@ absl::StatusOr<CValue> Translator::Generate_LValue_Return_Call(
       const clang::ValueDecl* decl = decl_ref->getDecl();
 
       if (context().sf->static_values.contains(decl)) {
-        return CValue(xls::BValue(), return_type, /*disable_type_check=*/true,
+        return CValue(TrackedBValue(), return_type, /*disable_type_check=*/true,
                       lval);
       }
     }
@@ -1159,11 +1168,11 @@ absl::StatusOr<CValue> Translator::Generate_LValue_Return_Call(
       lval->leaf()->getStmtClassName()));
 }
 
-absl::StatusOr<std::list<xls::BValue>> Translator::UnpackTuple(
-    xls::BValue tuple_val, const xls::SourceInfo& loc) {
+absl::StatusOr<std::list<TrackedBValue>> Translator::UnpackTuple(
+    TrackedBValue tuple_val, const xls::SourceInfo& loc) {
   xls::Type* type = tuple_val.GetType();
   XLSCC_CHECK(type->IsTuple(), loc);
-  std::list<xls::BValue> ret;
+  std::list<TrackedBValue> ret;
   for (int64_t i = 0; i < type->AsTupleOrDie()->size(); ++i) {
     ret.push_back(context().fb->TupleIndex(tuple_val, i, loc));
   }
@@ -1194,7 +1203,7 @@ absl::Status Translator::GenerateIR_SubBlockStub(
   auto control_in_ctype =
       std::make_shared<CIntType>(kNumSubBlockModeBits, /*is_signed=*/false);
 
-  std::vector<xls::BValue> direct_in_tuple_values;
+  std::vector<TrackedBValue> direct_in_tuple_values;
   std::vector<std::shared_ptr<CType>> direct_in_tuple_types;
 
   // Get the direct in params
@@ -1215,7 +1224,7 @@ absl::Status Translator::GenerateIR_SubBlockStub(
   auto direct_ins_ctype =
       std::make_shared<CInternalTuple>(direct_in_tuple_types);
   auto direct_ins_tuple_value =
-      context().fb->Tuple(direct_in_tuple_values, body_loc,
+      context().fb->Tuple(ToNativeBValues(direct_in_tuple_values), body_loc,
                           /*name=*/"direct_in_tuple_inner");
   xls::Type* direct_ins_type = direct_ins_tuple_value.GetType();
 
@@ -1243,10 +1252,10 @@ absl::Status Translator::GenerateIR_SubBlockStub(
   {
     IOOp op;
     op.op = OpType::kSend;
-    std::vector<xls::BValue> sp = {direct_ins_tuple_value,
-                                   context().full_condition_bval(body_loc)};
-    op.ret_value =
-        context().fb->Tuple(sp, body_loc, /*name=*/"direct_ins_send_tup");
+    std::vector<TrackedBValue> sp = {direct_ins_tuple_value,
+                                     context().full_condition_bval(body_loc)};
+    op.ret_value = context().fb->Tuple(ToNativeBValues(sp), body_loc,
+                                       /*name=*/"direct_ins_send_tup");
     XLS_RETURN_IF_ERROR(
         AddOpToChannel(op, direct_ins_channel, body_loc).status());
   }
@@ -1284,7 +1293,7 @@ absl::Status Translator::GenerateIR_Function_Body(
     }
   }
 
-  vector<xls::BValue> return_bvals;
+  vector<TrackedBValue> return_bvals;
 
   // First static returns
   for (const clang::NamedDecl* decl :
@@ -1310,7 +1319,7 @@ absl::Status Translator::GenerateIR_Function_Body(
       }
       // LValue related returns (select conditions)
       XLS_ASSIGN_OR_RETURN(
-          xls::BValue lvalue_return,
+          TrackedBValue lvalue_return,
           Generate_LValue_Return(context().return_cval.lvalue(), body_loc));
       return_bvals.emplace_back(lvalue_return);
     } else {
@@ -1339,7 +1348,7 @@ absl::Status Translator::GenerateIR_Function_Body(
 
   sf.return_lvalue = context().return_cval.lvalue();
 
-  xls::BValue return_bval;
+  TrackedBValue return_bval;
 
   if (return_bvals.size() == 1) {
     // XLS functions return the last value added to the FunctionBuilder
@@ -1649,7 +1658,7 @@ absl::StatusOr<CValue> Translator::CreateInitValue(
     const std::shared_ptr<CType>& ctype, const clang::Expr* initializer,
     const xls::SourceInfo& loc) {
   std::shared_ptr<LValue> lvalue = nullptr;
-  xls::BValue init_val;
+  TrackedBValue init_val;
 
   bool is_channel = false;
 
@@ -1685,7 +1694,7 @@ absl::StatusOr<CValue> Translator::CreateInitValue(
       return absl::UnimplementedError(ErrorMessage(
           loc, "References to side effecting operations not supported"));
     }
-    return CValue(xls::BValue(), ctype,
+    return CValue(TrackedBValue(), ctype,
                   /*disable_type_check=*/false, lval);
   }
 
@@ -1733,7 +1742,7 @@ absl::StatusOr<CValue> Translator::TranslateEnumConstantDecl(
   int width = ctype->GetBitWidth();
   auto val = int_type->is_signed() ? xls::Value(xls::SBits(ext_val, width))
                                    : xls::Value(xls::UBits(ext_val, width));
-  xls::BValue init_val = context().fb->Literal(val, loc);
+  TrackedBValue init_val = context().fb->Literal(val, loc);
   return CValue(init_val, ctype, /*disable_type_check=*/false);
 }
 
@@ -1845,7 +1854,7 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
       XLS_ASSIGN_OR_RETURN(
           std::shared_ptr<CType> type,
           TranslateTypeFromClang(var_decl->getType(), global_loc));
-      XLS_ASSIGN_OR_RETURN(xls::BValue bval,
+      XLS_ASSIGN_OR_RETURN(TrackedBValue bval,
                            CreateDefaultValue(type, global_loc));
       value = CValue(bval, type);
     }
@@ -1859,7 +1868,7 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
 
 absl::StatusOr<CValue> Translator::PrepareRValueWithSelect(
     const CValue& lvalue, const CValue& rvalue,
-    const xls::BValue& relative_condition, const xls::SourceInfo& loc) {
+    const TrackedBValue& relative_condition, const xls::SourceInfo& loc) {
   CValue rvalue_to_use = rvalue;
   // Avoid generating unnecessary selects
   absl::StatusOr<xls::Value> const_var_cond = xls::Value(xls::UBits(1, 1));
@@ -1891,7 +1900,7 @@ absl::StatusOr<CValue> Translator::PrepareRValueWithSelect(
     auto select_lvalue = std::make_shared<LValue>(
         relative_condition, rvalue_to_use.lvalue(), lvalue.lvalue());
 
-    rvalue_to_use = CValue(xls::BValue(), rvalue_to_use.type(),
+    rvalue_to_use = CValue(TrackedBValue(), rvalue_to_use.type(),
                            /*disable_type_check=*/false, select_lvalue);
   }
   return rvalue_to_use;
@@ -1983,7 +1992,7 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
   return absl::OkStatus();
 }
 
-int64_t Translator::ArrayBValueWidth(xls::BValue array_bval) {
+int64_t Translator::ArrayBValueWidth(TrackedBValue array_bval) {
   xls::Type* type = array_bval.node()->GetType();
   CHECK(type->IsArray() || type->IsTuple());
   if (type->IsArray()) {
@@ -1993,7 +2002,7 @@ int64_t Translator::ArrayBValueWidth(xls::BValue array_bval) {
 }
 
 absl::StatusOr<int64_t> Translator::EvaluateBValInt64(
-    xls::BValue bval, const xls::SourceInfo& loc, bool do_check) {
+    TrackedBValue bval, const xls::SourceInfo& loc, bool do_check) {
   absl::StatusOr<xls::Value> val_result = EvaluateBVal(bval, loc, do_check);
   if (!val_result.ok()) {
     return val_result.status();
@@ -2004,9 +2013,9 @@ absl::StatusOr<int64_t> Translator::EvaluateBValInt64(
   return const_index;
 }
 
-absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
-    xls::BValue array_to_update, xls::BValue start_index,
-    xls::BValue slice_to_write, const xls::SourceInfo& loc) {
+absl::StatusOr<TrackedBValue> Translator::UpdateArraySlice(
+    TrackedBValue array_to_update, TrackedBValue start_index,
+    TrackedBValue slice_to_write, const xls::SourceInfo& loc) {
   XLSCC_CHECK(array_to_update.GetType()->IsArray(), loc);
   XLSCC_CHECK(slice_to_write.GetType()->IsArray(), loc);
   XLSCC_CHECK(start_index.GetType()->IsBits(), loc);
@@ -2030,7 +2039,7 @@ absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
 
     int64_t remaining_width = total_width;
 
-    std::vector<xls::BValue> parts;
+    std::vector<TrackedBValue> parts;
 
     if (const_index > 0) {
       parts.push_back(context().fb->ArraySlice(
@@ -2050,7 +2059,8 @@ absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
           remaining_width, loc));
     }
 
-    xls::BValue updated_array_const = context().fb->ArrayConcat(parts, loc);
+    TrackedBValue updated_array_const =
+        context().fb->ArrayConcat(ToNativeBValues(parts), loc);
     const int64_t updated_array_width = ArrayBValueWidth(updated_array_const);
 
     XLSCC_CHECK_EQ(total_width, updated_array_width, loc);
@@ -2059,7 +2069,7 @@ absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
     return updated_array_const;
   }
 
-  xls::BValue updated_array_dynamic = array_to_update;
+  TrackedBValue updated_array_dynamic = array_to_update;
 
   // Dynamic index case: update elements one by one
   if (total_width <= slice_width) {
@@ -2068,13 +2078,13 @@ absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
   }
 
   for (uint64_t si = 0; si < slice_width; ++si) {
-    xls::BValue slice_idx_bval =
+    TrackedBValue slice_idx_bval =
         context().fb->Literal(xls::UBits(si, start_index.BitCountOrDie()), loc);
     XLSCC_CHECK(slice_idx_bval.valid(), loc);
-    xls::BValue index_bval =
+    TrackedBValue index_bval =
         context().fb->Add(start_index, slice_idx_bval, loc);
     XLSCC_CHECK(index_bval.valid(), loc);
-    xls::BValue slice_bval =
+    TrackedBValue slice_bval =
         context().fb->ArrayIndex(slice_to_write, {slice_idx_bval}, loc);
     XLSCC_CHECK(slice_bval.valid(), loc);
     updated_array_dynamic = context().fb->ArrayUpdate(
@@ -2100,7 +2110,7 @@ absl::Status Translator::Assign(std::shared_ptr<LValue> lvalue,
   }
   // Apply ! the select condition to assign to false expression
   {
-    xls::BValue sel_cond = context().fb->Not(lvalue->cond(), loc);
+    TrackedBValue sel_cond = context().fb->Not(lvalue->cond(), loc);
     PushContextGuard condition_guard(*this, loc);
     XLS_RETURN_IF_ERROR(and_condition(sel_cond, loc));
     XLS_RETURN_IF_ERROR(Assign(lvalue->lvalue_false(), rvalue, loc));
@@ -2274,7 +2284,7 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
                            GenerateIR_Expr(subscript_sub_expr->getIdx(), loc));
       XLSCC_CHECK(index_cv.type()->Is<CIntType>(), loc);
 
-      XLS_ASSIGN_OR_RETURN(xls::BValue updated_array,
+      XLS_ASSIGN_OR_RETURN(TrackedBValue updated_array,
                            UpdateArraySlice(base_cv.rvalue(), index_cv.rvalue(),
                                             rvalue.rvalue(), loc));
 
@@ -2380,7 +2390,7 @@ absl::Status Translator::DeclareStatic(
   // Static declarations containing only LValues
   if (init.rvalue().kind() == xls::ValueKind::kInvalid) {
     return DeclareVariable(lvalue,
-                           CValue(xls::BValue(), init.type(),
+                           CValue(TrackedBValue(), init.type(),
                                   /*disable_type_check=*/false, init_lvalue),
                            loc, check_unique_ids);
   }
@@ -2397,7 +2407,7 @@ absl::Status Translator::DeclareStatic(
   XLS_ASSIGN_OR_RETURN(xls::Type * xls_type,
                        TranslateTypeToXLS(init.type(), loc));
 
-  const xls::BValue bval = context().fb->Param(xls_name, xls_type, loc);
+  const TrackedBValue bval = context().fb->Param(xls_name, xls_type, loc);
 
   XLSCC_CHECK(bval.valid(), loc);
 
@@ -2418,16 +2428,16 @@ absl::StatusOr<CValue> Translator::Generate_Synthetic_ByOne(
     const xls::SourceInfo& loc) {
   auto sub_type = std::dynamic_pointer_cast<CIntType>(sub_value.type());
   const int width = sub_type->width();
-  xls::BValue literal_one = context().fb->Literal(
+  TrackedBValue literal_one = context().fb->Literal(
       sub_type->is_signed() ? xls::SBits(1, width) : xls::UBits(1, width));
-  xls::BValue result_val =
+  TrackedBValue result_val =
       context().fb->AddBinOp(xls_op, sub_value.rvalue(), literal_one, loc);
   // No extra bits because this is only for built-ins
   std::shared_ptr<CType> result_type = sub_value.type();
 
   XLS_RETURN_IF_ERROR(Assign(sub_expr, CValue(result_val, result_type), loc));
 
-  xls::BValue ret = is_pre ? result_val : sub_value.rvalue();
+  TrackedBValue ret = is_pre ? result_val : sub_value.rvalue();
   return CValue(ret, result_type);
 }
 
@@ -2448,7 +2458,7 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
     if (context().lvalue_mode) {
       // Include & in the lvalue expression, so that Assign()
       // can just look for that
-      return CValue(xls::BValue(), result_pointer_type,
+      return CValue(TrackedBValue(), result_pointer_type,
                     /*disable_type_check=*/false,
                     std::make_shared<LValue>(uop));
     }
@@ -2493,7 +2503,7 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
 
     XLSCC_CHECK(*lhs_cv.type() == *pointee_type, loc);
 
-    xls::BValue array_slice_in = base_cv.rvalue();
+    TrackedBValue array_slice_in = base_cv.rvalue();
 
     XLSCC_CHECK(array_slice_in.GetType()->IsArray(), loc);
 
@@ -2501,7 +2511,7 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
     const int64_t array_slice_in_size =
         array_slice_in.GetType()->AsArrayOrDie()->size();
 
-    xls::BValue sliced_array = context().fb->ArraySlice(
+    TrackedBValue sliced_array = context().fb->ArraySlice(
         array_slice_in, array_idx_cv.rvalue(), array_slice_in_size, loc);
 
     XLSCC_CHECK(sliced_array.GetType()->IsArray(), loc);
@@ -2521,7 +2531,7 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
   XLS_ASSIGN_OR_RETURN(shared_ptr<CType> resolved_type,
                        ResolveTypeInstance(result_type));
 
-  XLS_ASSIGN_OR_RETURN(xls::BValue lhs_cvc,
+  XLS_ASSIGN_OR_RETURN(TrackedBValue lhs_cvc,
                        GenTypeConvert(lhs_cv, result_type, loc));
   CValue lhs_cvcv(lhs_cvc, lhs_cv.type());
 
@@ -2609,7 +2619,7 @@ absl::StatusOr<CValue> Translator::Generate_BinaryOp(
       XLS_ASSIGN_OR_RETURN(rhs_cv, GenerateIR_Expr(rhs, loc));
     }
 
-    XLS_ASSIGN_OR_RETURN(xls::BValue rhs_cvc,
+    XLS_ASSIGN_OR_RETURN(TrackedBValue rhs_cvc,
                          GenTypeConvert(rhs_cv, input_type, loc));
     CValue rhs_cvcv(rhs_cvc, input_type, /*disable_type_check=*/false,
                     rhs_cv.lvalue());
@@ -2628,7 +2638,7 @@ absl::StatusOr<CValue> Translator::Generate_BinaryOp(
                              GenerateIR_Expr(lhs_cv.lvalue()->leaf(), loc));
       }
 
-      XLS_ASSIGN_OR_RETURN(xls::BValue lhs_cvc,
+      XLS_ASSIGN_OR_RETURN(TrackedBValue lhs_cvc,
                            GenTypeConvert(lhs_cv, input_type, loc));
       CValue lhs_cvcv(lhs_cvc, lhs_cv.type());
 
@@ -2649,7 +2659,7 @@ absl::StatusOr<CValue> Translator::Generate_BinaryOp(
         result = CValue(
             context().fb->AddNaryOp(
                 xls_op,
-                std::vector<xls::BValue>{lhs_cvcv.rvalue(), rhs_cvcv.rvalue()},
+                std::vector<NATIVE_BVAL>{lhs_cvcv.rvalue(), rhs_cvcv.rvalue()},
                 loc),
             result_type);
 
@@ -2692,14 +2702,14 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
     if (!true_cv.type()->Is<CReferenceType>()) {
       XLS_ASSIGN_OR_RETURN(std::shared_ptr<LValue> true_lval,
                            CreateReferenceValue(true_expr, loc));
-      true_cv = CValue(xls::BValue(),
+      true_cv = CValue(TrackedBValue(),
                        std::make_shared<CReferenceType>(true_cv.type()),
                        /*disable_type_check=*/false, true_lval);
     }
     if (!false_cv.type()->Is<CReferenceType>()) {
       XLS_ASSIGN_OR_RETURN(std::shared_ptr<LValue> false_lval,
                            CreateReferenceValue(false_expr, loc));
-      false_cv = CValue(xls::BValue(),
+      false_cv = CValue(TrackedBValue(),
                         std::make_shared<CReferenceType>(false_cv.type()),
                         /*disable_type_check=*/false, false_lval);
     }
@@ -2711,7 +2721,7 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
       XLSCC_CHECK_NE(false_cv.lvalue(), nullptr, loc);
       auto select_lvalue = std::make_shared<LValue>(
           sel_val.rvalue(), true_cv.lvalue(), false_cv.lvalue());
-      return CValue(xls::BValue(), result_type, /*disable_type_check=*/false,
+      return CValue(TrackedBValue(), result_type, /*disable_type_check=*/false,
                     select_lvalue);
     }
     // RValue mode
@@ -2724,7 +2734,7 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
 }
 
 absl::StatusOr<CValue> Translator::Generate_TernaryOp(
-    xls::BValue cond, CValue true_cv, CValue false_cv,
+    TrackedBValue cond, CValue true_cv, CValue false_cv,
     std::shared_ptr<CType> result_type, const xls::SourceInfo& loc) {
   if (true_cv.lvalue() != nullptr && false_cv.lvalue() != nullptr) {
     XLS_ASSIGN_OR_RETURN(bool result_has_lval,
@@ -2738,7 +2748,7 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
     }
     XLSCC_CHECK(*true_cv.type() == *false_cv.type(), loc);
     return CValue(
-        xls::BValue(), true_cv.type(), /*disable_type_check=*/false,
+        TrackedBValue(), true_cv.type(), /*disable_type_check=*/false,
         std::make_shared<LValue>(cond, true_cv.lvalue(), false_cv.lvalue()));
   }
   if (true_cv.lvalue() != nullptr || false_cv.lvalue() != nullptr) {
@@ -2746,12 +2756,12 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
         ErrorMessage(loc, "Ternary on mixed LValue type and RValue types"));
   }
 
-  XLS_ASSIGN_OR_RETURN(xls::BValue true_val,
+  XLS_ASSIGN_OR_RETURN(TrackedBValue true_val,
                        GenTypeConvert(true_cv, result_type, loc));
-  XLS_ASSIGN_OR_RETURN(xls::BValue false_val,
+  XLS_ASSIGN_OR_RETURN(TrackedBValue false_val,
                        GenTypeConvert(false_cv, result_type, loc));
 
-  xls::BValue ret_val = context().fb->Select(cond, true_val, false_val, loc);
+  TrackedBValue ret_val = context().fb->Select(cond, true_val, false_val, loc);
   return CValue(ret_val, result_type);
 }
 
@@ -3004,9 +3014,9 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
     XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> return_type,
                          TranslateTypeFromClang(call->getType(), loc));
     XLSCC_CHECK(value_cval.type()->Is<CFloatType>(), loc);
-    xls::BValue sliced = context().fb->BitSlice(value_cval.rvalue(),
-                                                /*start=*/128,
-                                                /*width=*/64, loc);
+    TrackedBValue sliced = context().fb->BitSlice(value_cval.rvalue(),
+                                                  /*start=*/128,
+                                                  /*width=*/64, loc);
     return std::make_pair(true, CValue(sliced, return_type));
   }
 
@@ -3024,7 +3034,7 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
   }
 
   IOOp op = {.op = OpType::kTrace, .trace_message_string = message_string};
-  xls::BValue condition = context().full_condition_bval(loc);
+  TrackedBValue condition = context().full_condition_bval(loc);
 
   if (funcdecl->getNameAsString() == "__xlscc_assert") {
     XLSCC_CHECK(call->getNumArgs() == 2 || call->getNumArgs() == 3, loc);
@@ -3043,7 +3053,7 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
       XLS_ASSIGN_OR_RETURN(op.label_string, GetStringLiteral(label_arg, loc));
     }
   } else if (funcdecl->getNameAsString() == "__xlscc_trace") {
-    std::vector<xls::BValue> tuple_parts = {condition};
+    std::vector<TrackedBValue> tuple_parts = {condition};
     for (int arg = 1; arg < call->getNumArgs(); ++arg) {
       XLS_ASSIGN_OR_RETURN(CValue arg_cval,
                            GenerateIR_Expr(call->getArg(arg), loc));
@@ -3064,7 +3074,7 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
     }
 
     op.trace_type = TraceType::kTrace;
-    op.ret_value = context().fb->Tuple(tuple_parts, loc);
+    op.ret_value = context().fb->Tuple(ToNativeBValues(tuple_parts), loc);
   } else {
     XLSCC_CHECK("Internal consistency failure" == nullptr, loc);
   }
@@ -3089,8 +3099,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
   CValue this_value_orig;
 
   const clang::Expr* this_expr = nullptr;
-  xls::BValue thisval;
-  xls::BValue* pthisval = nullptr;
+  TrackedBValue thisval;
+  TrackedBValue* pthisval = nullptr;
   std::shared_ptr<LValue> this_lval;
 
   int skip_args = 0;
@@ -3243,7 +3253,7 @@ absl::StatusOr<bool> Translator::ApplyArrayAssignHack(
 
       XLS_ASSIGN_OR_RETURN(CValue lvalue_initial, GenerateIR_Expr(lvalue, loc));
 
-      xls::BValue this_inout = lvalue_initial.rvalue();
+      TrackedBValue this_inout = lvalue_initial.rvalue();
       XLS_ASSIGN_OR_RETURN(
           CValue f_return,
           GenerateIR_Call(to_call, {ivalue, rvalue}, &this_inout,
@@ -3286,7 +3296,7 @@ absl::StatusOr<const clang::Stmt*> Translator::GetFunctionBody(
 
 absl::Status Translator::GetChannelsForExprOrNull(
     const clang::Expr* object, std::vector<ConditionedIOChannel>* output,
-    const xls::SourceInfo& loc, xls::BValue condition) {
+    const xls::SourceInfo& loc, TrackedBValue condition) {
   MaskSideEffectsGuard guard(*this);
 
   XLS_ASSIGN_OR_RETURN(CValue cval, GenerateIR_Expr(object, GetLoc(*object)));
@@ -3301,22 +3311,24 @@ absl::Status Translator::GetChannelsForExprOrNull(
 absl::Status Translator::GetChannelsForLValue(
     const std::shared_ptr<LValue>& lvalue,
     std::vector<ConditionedIOChannel>* output, const xls::SourceInfo& loc,
-    xls::BValue condition) {
+    TrackedBValue condition) {
   XLSCC_CHECK_NE(lvalue, nullptr, loc);
 
   if (lvalue->is_select()) {
     XLSCC_CHECK(lvalue->cond().valid(), loc);
 
-    xls::BValue and_condition =
-        condition.valid() ? context().fb->And(condition, lvalue->cond(), loc)
-                          : lvalue->cond();
+    TrackedBValue and_condition =
+        condition.valid()
+            ? TrackedBValue(context().fb->And(condition, lvalue->cond(), loc))
+            : lvalue->cond();
     XLS_RETURN_IF_ERROR(GetChannelsForLValue(lvalue->lvalue_true(), output, loc,
                                              and_condition));
 
-    xls::BValue not_lval_cond = context().fb->Not(lvalue->cond(), loc);
-    xls::BValue and_not_condition =
-        condition.valid() ? context().fb->And(condition, not_lval_cond, loc)
-                          : not_lval_cond;
+    TrackedBValue not_lval_cond = context().fb->Not(lvalue->cond(), loc);
+    TrackedBValue and_not_condition =
+        condition.valid()
+            ? TrackedBValue(context().fb->And(condition, not_lval_cond, loc))
+            : not_lval_cond;
     XLS_RETURN_IF_ERROR(GetChannelsForLValue(lvalue->lvalue_false(), output,
                                              loc, and_not_condition));
     return absl::OkStatus();
@@ -3335,7 +3347,7 @@ absl::Status Translator::GetChannelsForLValue(
 // this_inout can be nullptr for non-members
 absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const clang::FunctionDecl* funcdecl,
-    std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
+    std::vector<const clang::Expr*> expr_args, TrackedBValue* this_inout,
     std::shared_ptr<LValue>* this_lval, const xls::SourceInfo& loc) {
   // Ensure callee has been parsed
   XLS_RETURN_IF_ERROR(GetFunctionBody(funcdecl).status());
@@ -3379,7 +3391,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         loc));
   }
 
-  std::vector<xls::BValue> args;
+  std::vector<TrackedBValue> args;
   int expected_returns = 0;
 
   // Add this if needed
@@ -3528,7 +3540,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       }
     }
 
-    xls::BValue pass_bval = argv.rvalue();
+    TrackedBValue pass_bval = argv.rvalue();
     std::shared_ptr<CType> pass_type = argv.type();
 
     if (argv.type()->Is<CPointerType>() || argv.type()->Is<CArrayType>()) {
@@ -3811,14 +3823,14 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         for (auto caller_it = range.first; caller_it != range.second;
              ++caller_it) {
           IOOp* caller_op = caller_it->second;
-          xls::BValue args_val;
+          TrackedBValue args_val;
           if (caller_op == nullptr) {
             // Masked, insert dummy argument
             args_val = context().fb->Literal(
                 xls::ZeroOfType(side_effecting_param.xls_io_param_type), loc);
           } else {
             // May be empty for sends
-            xls::BValue io_value = caller_op->input_value.rvalue();
+            TrackedBValue io_value = caller_op->input_value.rvalue();
 
             args_val = io_value;
           }
@@ -3859,10 +3871,11 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     return CValue();
   }
 
-  xls::BValue raw_return = context().fb->Invoke(args, func->xls_func, loc);
+  TrackedBValue raw_return =
+      context().fb->Invoke(ToNativeBValues(args), func->xls_func, loc);
   XLSCC_CHECK(expected_returns == 0 || raw_return.valid(), loc);
 
-  list<xls::BValue> unpacked_returns;
+  list<TrackedBValue> unpacked_returns;
   if (expected_returns == 1) {
     unpacked_returns.emplace_back(raw_return);
   } else {
@@ -3880,7 +3893,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const ConstValue& initval = func->static_values.at(namedecl);
 
     XLSCC_CHECK(!unpacked_returns.empty(), loc);
-    xls::BValue static_output = unpacked_returns.front();
+    TrackedBValue static_output = unpacked_returns.front();
     unpacked_returns.pop_front();
 
     // Skip assignment to on reset static, as assignment to globals is an error
@@ -3913,10 +3926,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
   // Then explicit return
   if (funcdecl->getReturnType()->isVoidType()) {
-    retval = CValue(xls::BValue(), shared_ptr<CType>(new CVoidType()));
+    retval = CValue(TrackedBValue(), shared_ptr<CType>(new CVoidType()));
   } else if (func->return_lvalue != nullptr) {
     XLSCC_CHECK(!unpacked_returns.empty(), loc);
-    xls::BValue unpacked_value = unpacked_returns.front();
+    TrackedBValue unpacked_value = unpacked_returns.front();
     unpacked_returns.pop_front();
 
     XLS_ASSIGN_OR_RETURN(retval, Generate_LValue_Return_Call(
@@ -3977,7 +3990,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
       XLSCC_CHECK(!unpacked_returns.empty(), loc);
 
-      xls::BValue io_value = unpacked_returns.front();
+      TrackedBValue io_value = unpacked_returns.front();
 
       // Might be masked
       if (caller_op != nullptr) {
@@ -4033,7 +4046,7 @@ absl::StatusOr<CValue> Translator::ResolveCast(
   if (inheritance.base_field != nullptr) {
     XLSCC_CHECK(inheritance.resolved_struct != nullptr, loc);
 
-    xls::BValue val =
+    TrackedBValue val =
         GetStructFieldXLS(sub.rvalue(), inheritance.base_field->index(),
                           *inheritance.resolved_struct, loc);
 
@@ -4067,7 +4080,7 @@ absl::StatusOr<CValue> Translator::ResolveCast(
         std::string(*sub.type()), std::string(*to_type)));
   }
 
-  XLS_ASSIGN_OR_RETURN(xls::BValue subc, GenTypeConvert(sub, to_type, loc));
+  XLS_ASSIGN_OR_RETURN(TrackedBValue subc, GenTypeConvert(sub, to_type, loc));
 
   return CValue(subc, to_type, /*disable_type_check=*/true, sub.lvalue());
 }
@@ -4177,7 +4190,7 @@ absl::StatusOr<CValue> Translator::HandleConstructors(
       underlying_type = underlying_type->As<CArrayType>()->GetElementType();
     };
   }
-  XLS_ASSIGN_OR_RETURN(xls::BValue single_element,
+  XLS_ASSIGN_OR_RETURN(TrackedBValue single_element,
                        CreateDefaultValue(underlying_type, loc));
   std::vector<const clang::Expr*> args;
   args.reserve(ctor->getNumArgs());
@@ -4188,7 +4201,7 @@ absl::StatusOr<CValue> Translator::HandleConstructors(
   XLS_ASSIGN_OR_RETURN(
       CValue ret, GenerateIR_Call(ctor->getConstructor(), args, &single_element,
                                   /*this_lval=*/&this_lval, loc));
-  xls::BValue result;
+  TrackedBValue result;
   if (ctype->Is<CArrayType>()) {
     XLS_ASSIGN_OR_RETURN(result,
                          BuildCArrayTypeValue(ctype, single_element, loc));
@@ -4247,7 +4260,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
         context().fb->Literal(xls::UBits(charlit->getValue(), 8), loc), ctype);
   }
   if (auto bl = clang::dyn_cast<const clang::CXXBoolLiteralExpr>(expr)) {
-    xls::BValue val =
+    TrackedBValue val =
         context().fb->Literal(xls::UBits(bl->getValue() ? 1 : 0, 1), loc);
     return CValue(val, shared_ptr<CType>(new CBoolType()));
   }
@@ -4274,7 +4287,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
                          TranslateTypeFromClang(cast->getType(), loc));
 
     if (to_type->Is<CVoidType>()) {
-      return CValue(xls::BValue(), to_type);
+      return CValue(TrackedBValue(), to_type);
     }
 
     // Sometimes array types are converted to pointer types via ImplicitCast,
@@ -4351,12 +4364,12 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
                          std::string(*octype),
                          ctor->getConstructor()->getQualifiedNameAsString()));
       }
-      XLS_ASSIGN_OR_RETURN(xls::BValue dv, CreateDefaultValue(octype, loc));
+      XLS_ASSIGN_OR_RETURN(TrackedBValue dv, CreateDefaultValue(octype, loc));
       return CValue(dv, octype);
     }
     if (ctor->getNumArgs() == 1) {
       XLS_ASSIGN_OR_RETURN(CValue pv, GenerateIR_Expr(ctor->getArg(0), loc));
-      XLS_ASSIGN_OR_RETURN(xls::BValue converted,
+      XLS_ASSIGN_OR_RETURN(TrackedBValue converted,
                            GenTypeConvert(pv, octype, loc));
       return CValue(converted, octype, /*disable_type_check=*/false,
                     pv.lvalue());
@@ -4427,7 +4440,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     XLS_ASSIGN_OR_RETURN(
         shared_ptr<CType> ctype,
         TranslateTypeFromClang(scalar_init_expr->getType(), loc));
-    XLS_ASSIGN_OR_RETURN(xls::BValue def, CreateDefaultValue(ctype, loc));
+    XLS_ASSIGN_OR_RETURN(TrackedBValue def, CreateDefaultValue(ctype, loc));
     return CValue(def, ctype);
   }
   // Implicitly generated value, as in an incomplete initializer list
@@ -4436,7 +4449,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     XLS_ASSIGN_OR_RETURN(
         shared_ptr<CType> ctype,
         TranslateTypeFromClang(implicit_value_init_expr->getType(), loc));
-    XLS_ASSIGN_OR_RETURN(xls::BValue def, CreateDefaultValue(ctype, loc));
+    XLS_ASSIGN_OR_RETURN(TrackedBValue def, CreateDefaultValue(ctype, loc));
     return CValue(def, ctype);
   }
   if (auto* default_init_expr =
@@ -4499,7 +4512,7 @@ absl::Status Translator::MinSizeArraySlices(CValue& true_cv, CValue& false_cv,
         true_cv.type()->As<CArrayType>()->GetUseTuple());
     XLSCC_CHECK(true_cv.rvalue().valid(), loc);
     XLSCC_CHECK(false_cv.rvalue().valid(), loc);
-    xls::BValue bval_0 = context().fb->Literal(xls::UBits(0, 32), loc);
+    TrackedBValue bval_0 = context().fb->Literal(xls::UBits(0, 32), loc);
     true_cv = CValue(
         context().fb->ArraySlice(true_cv.rvalue(), bval_0, min_size, loc),
         result_type);
@@ -4595,7 +4608,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
   XLSCC_CHECK_EQ(cfield.name(),
                  absl::implicit_cast<const clang::NamedDecl*>(field), loc);
 
-  xls::BValue bval;
+  TrackedBValue bval;
 
   // Structs must have rvalue even if they also have lvalue
   if (cfield.type()->Is<CInstantiableTypeAlias>() ||
@@ -4627,24 +4640,24 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
   return CValue(bval, cfield.type(), /*disable_type_check=*/false, lval);
 }
 
-absl::StatusOr<xls::BValue> Translator::CreateDefaultValue(
+absl::StatusOr<TrackedBValue> Translator::CreateDefaultValue(
     std::shared_ptr<CType> t, const xls::SourceInfo& loc) {
   if (t->Is<CPointerType>()) {
-    return xls::BValue();
+    return TrackedBValue();
   }
 
   XLS_ASSIGN_OR_RETURN(xls::Value value, CreateDefaultRawValue(t, loc));
   return context().fb->Literal(value, loc);
 }
 
-absl::StatusOr<xls::BValue> Translator::BuildCArrayTypeValue(
-    std::shared_ptr<CType> t, xls::BValue elem_val,
+absl::StatusOr<TrackedBValue> Translator::BuildCArrayTypeValue(
+    std::shared_ptr<CType> t, TrackedBValue elem_val,
     const xls::SourceInfo& loc) {
   XLSCC_CHECK_NE(t, nullptr, loc);
   XLSCC_CHECK(t->Is<CArrayType>(), loc);
   auto it = t->As<CArrayType>();
-  std::vector<xls::BValue> element_vals;
-  xls::BValue sub_elem_val;
+  std::vector<TrackedBValue> element_vals;
+  TrackedBValue sub_elem_val;
   if (it->GetElementType()->Is<CArrayType>()) {
     XLS_ASSIGN_OR_RETURN(
         sub_elem_val,
@@ -4656,9 +4669,10 @@ absl::StatusOr<xls::BValue> Translator::BuildCArrayTypeValue(
   XLS_ASSIGN_OR_RETURN(xls::Type * xls_elem_type,
                        TranslateTypeToXLS(it->GetElementType(), loc));
   if (it->GetUseTuple()) {
-    return context().fb->Tuple(std::move(element_vals), loc);
+    return context().fb->Tuple(ToNativeBValues(element_vals), loc);
   } else {
-    return context().fb->Array(element_vals, xls_elem_type, loc);
+    return context().fb->Array(ToNativeBValues(element_vals), xls_elem_type,
+                               loc);
   }
 }
 
@@ -4725,7 +4739,7 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
 absl::StatusOr<CValue> Translator::CreateDefaultCValue(
     const std::shared_ptr<CType>& t, const xls::SourceInfo& loc) {
   std::shared_ptr<LValue> lval;
-  XLS_ASSIGN_OR_RETURN(xls::BValue this_bval, CreateDefaultValue(t, loc));
+  XLS_ASSIGN_OR_RETURN(TrackedBValue this_bval, CreateDefaultValue(t, loc));
   XLS_ASSIGN_OR_RETURN(bool contains_lvalues, t->ContainsLValues(*this));
   if (contains_lvalues) {
     if (t->Is<CStructType>() || t->Is<CInstantiableTypeAlias>()) {
@@ -4776,7 +4790,7 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
       return absl::InvalidArgumentError(
           ErrorMessage(loc, "Wrong number of initializers"));
     }
-    std::vector<xls::BValue> element_vals;
+    std::vector<TrackedBValue> element_vals;
     for (int i = 0; i < array_t->GetSize(); ++i) {
       const clang::Expr* this_init;
       if (i < init_list->getNumInits()) {
@@ -4784,7 +4798,7 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
       } else {
         this_init = init_list->getArrayFiller();
       }
-      xls::BValue this_val;
+      TrackedBValue this_val;
       if (auto init_list_expr =
               clang::dyn_cast<const clang::InitListExpr>(this_init)) {
         CValue this_cval;
@@ -4803,13 +4817,14 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
       XLSCC_CHECK(this_val.valid(), loc);
       element_vals.push_back(this_val);
     }
-    xls::BValue rval;
+    TrackedBValue rval;
     if (array_t->GetUseTuple()) {
-      rval = context().fb->Tuple(std::move(element_vals), loc);
+      rval = context().fb->Tuple(ToNativeBValues(element_vals), loc);
     } else {
       XLS_ASSIGN_OR_RETURN(xls::Type * xls_elem_type,
                            TranslateTypeToXLS(array_t->GetElementType(), loc));
-      rval = context().fb->Array(element_vals, xls_elem_type, loc);
+      rval = context().fb->Array(ToNativeBValues(element_vals), xls_elem_type,
+                                 loc);
     }
     return CValue(rval, t);
   }
@@ -5015,18 +5030,18 @@ class ShortCircuitVisitor : public xls::DfsVisitorWithDefault {
 };
 }  // namespace
 
-absl::Status Translator::ShortCircuitBVal(xls::BValue& bval,
+absl::Status Translator::ShortCircuitBVal(TrackedBValue& bval,
                                           const xls::SourceInfo& loc) {
   ShortCircuitVisitor visitor;
   XLS_RETURN_IF_ERROR(bval.node()->Accept(&visitor));
   auto iter = visitor.rewrites().find(bval.node());
   if (iter != visitor.rewrites().end()) {
-    bval = xls::BValue(iter->second, context().fb);
+    bval = TrackedBValue(iter->second, context().fb);
   }
   return absl::OkStatus();
 }
 
-absl::StatusOr<xls::Value> Translator::EvaluateBVal(xls::BValue bval,
+absl::StatusOr<xls::Value> Translator::EvaluateBVal(TrackedBValue bval,
                                                     const xls::SourceInfo& loc,
                                                     bool do_check) {
   return EvaluateNode(bval.node(), loc, do_check);
@@ -5096,7 +5111,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_LocalChannel(
   IOChannel* new_channel_ptr = AddChannel(new_channel, loc);
   auto lvalue = std::make_shared<LValue>(new_channel_ptr);
 
-  CValue cval(/*rvalue=*/xls::BValue(), channel_type,
+  CValue cval(/*rvalue=*/TrackedBValue(), channel_type,
               /*disable_type_check=*/true, lvalue);
 
   ChannelBundle bundle = {.regular = xls_channel};
@@ -5269,7 +5284,7 @@ absl::Status Translator::GenerateIR_ReturnStmt(const clang::ReturnStmt* rts,
 
     if (!return_type_has_lvalues) {
       XLS_ASSIGN_OR_RETURN(CValue rv, GenerateIR_Expr(rvalue, loc));
-      XLS_ASSIGN_OR_RETURN(xls::BValue crv,
+      XLS_ASSIGN_OR_RETURN(TrackedBValue crv,
                            GenTypeConvert(rv, context().return_type, loc));
       return_cval = CValue(crv, context().return_type);
     } else {
@@ -5285,9 +5300,10 @@ absl::Status Translator::GenerateIR_ReturnStmt(const clang::ReturnStmt* rts,
       if (context().last_return_condition.valid()) {
         // If there are multiple returns with the same condition, this will
         // take the first one
-        xls::BValue this_cond = context().full_condition.valid()
-                                    ? context().full_condition
-                                    : context().fb->Literal(xls::UBits(1, 1));
+        TrackedBValue this_cond =
+            context().full_condition.valid()
+                ? context().full_condition
+                : TrackedBValue(context().fb->Literal(xls::UBits(1, 1)));
 
         // Select the previous return instead of this one if
         //  the last return condition is true or this one is false
@@ -5307,12 +5323,12 @@ absl::Status Translator::GenerateIR_ReturnStmt(const clang::ReturnStmt* rts,
         // Scenario E  (sel_prev_ret_cond = true):
         //  return earnier_on;               // take this return value
         //  if(something true) return last;
-        xls::BValue sel_prev_ret_cond = context().fb->Or(
+        TrackedBValue sel_prev_ret_cond = context().fb->Or(
             context().last_return_condition, context().fb->Not(this_cond));
 
         if (!return_type_has_lvalues) {
           XLSCC_CHECK(context().return_cval.rvalue().valid(), loc);
-          xls::BValue return_bval = context().fb->Select(
+          TrackedBValue return_bval = context().fb->Select(
               sel_prev_ret_cond, context().return_cval.rvalue(),
               return_cval.rvalue(), loc);
           context().return_cval = CValue(return_bval, context().return_type);
@@ -5336,7 +5352,7 @@ absl::Status Translator::GenerateIR_ReturnStmt(const clang::ReturnStmt* rts,
     }
   }
 
-  xls::BValue reach_here_cond = context().full_condition_bval(loc);
+  TrackedBValue reach_here_cond = context().full_condition_bval(loc);
 
   if (!context().have_returned_condition.valid()) {
     context().have_returned_condition = reach_here_cond;
@@ -5414,7 +5430,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
   } else if (const auto* pasm =
                  clang::dyn_cast<const clang::GCCAsmStmt>(stmt)) {
     std::string sasm = pasm->getAsmString();
-    vector<xls::BValue> args;
+    vector<TrackedBValue> args;
 
     // Go in reverse to avoid having to deal with eg %10 matching %1.
     // TODO: This is really ugly. Really we should just inline the ir directly
@@ -5483,7 +5499,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
 
     // No type conversion in or out: inline IR can do whatever it wants.
     // If you use inline IR, you should know exactly what you're doing.
-    xls::BValue fret = context().fb->Invoke(args, af, loc);
+    TrackedBValue fret = context().fb->Invoke(ToNativeBValues(args), af, loc);
 
     XLS_RETURN_IF_ERROR(
         Assign(pasm->getOutputExpr(0), CValue(fret, out_val.type()), loc));
@@ -5598,7 +5614,7 @@ int Debug_CountNodes(const xls::Node* node,
   return ret;
 }
 
-std::string Debug_NodeToInfix(xls::BValue bval) {
+std::string Debug_NodeToInfix(TrackedBValue bval) {
   if (bval.node() == nullptr) {
     return "[null]";
   }
@@ -5803,7 +5819,8 @@ absl::StatusOr<Z3_lbool> Translator::CheckAssumptions(
   return seh.status();
 }
 
-absl::StatusOr<bool> Translator::BitMustBe(bool assert_value, xls::BValue& bval,
+absl::StatusOr<bool> Translator::BitMustBe(bool assert_value,
+                                           TrackedBValue& bval,
                                            Z3_solver& solver, Z3_context ctx,
                                            const xls::SourceInfo& loc) {
   // Invalid is interpreted as literal 1
@@ -5905,7 +5922,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
   }
 
   // Scan all cases to create default condition
-  std::vector<xls::BValue> case_conds;
+  std::vector<TrackedBValue> case_conds;
   for (const clang::Stmt* stmt : flat_statements) {
     if (auto case_it = clang::dyn_cast<const clang::CaseStmt>(stmt)) {
       const xls::SourceInfo loc = GetLoc(*case_it);
@@ -5919,35 +5936,37 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
       if (case_it->getRHS() != nullptr) {
         return absl::UnimplementedError(ErrorMessage(loc, "Case RHS"));
       }
-      xls::BValue case_condition =
+      TrackedBValue case_condition =
           context().fb->Eq(switch_val.rvalue(), case_val.rvalue(), loc);
       case_conds.emplace_back(case_condition);
     }
   }
 
-  xls::BValue accum_cond;
+  TrackedBValue accum_cond;
 
   // for indexing into case_conds
   int case_idx = 0;
   for (const clang::Stmt* stmt : flat_statements) {
     const xls::SourceInfo loc = GetLoc(*stmt);
-    xls::BValue cond;
+    TrackedBValue cond;
 
     if (clang::isa<clang::CaseStmt>(stmt)) {
       cond = case_conds[case_idx++];
     } else if (clang::isa<clang::DefaultStmt>(stmt)) {
       cond = (case_conds.empty())
                  ? context().fb->Literal(xls::UBits(1, 1), loc)
-                 : context().fb->Not(context().fb->Or(case_conds, loc), loc);
+                 : context().fb->Not(
+                       context().fb->Or(ToNativeBValues(case_conds), loc), loc);
     } else {
       // For anything other than a case or break, translate it through
       //  the default path. case and break  can still occur inside of
       //  CompoundStmts, and will be processed in GenerateIR_Stmt().
 
       // No condition = false
-      xls::BValue and_accum = accum_cond.valid()
-                                  ? accum_cond
-                                  : context().fb->Literal(xls::UBits(0, 1));
+      TrackedBValue and_accum =
+          accum_cond.valid()
+              ? accum_cond
+              : TrackedBValue(context().fb->Literal(xls::UBits(0, 1)));
       // Break goes through this path, sets hit_break
       auto ocond = context().full_condition;
       PushContextGuard stmt_guard(*this, and_accum, loc);
@@ -5959,7 +5978,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
       XLS_RETURN_IF_ERROR(GenerateIR_Compound(stmt, ctx));
 
       if (context().hit_break) {
-        accum_cond = xls::BValue();
+        accum_cond = TrackedBValue();
       }
       continue;
     }
@@ -6355,7 +6374,7 @@ absl::StatusOr<bool> Translator::ExprIsChannel(const clang::Expr* object,
   return TypeIsChannel(object->getType(), loc);
 }
 
-absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
+absl::StatusOr<TrackedBValue> Translator::GenTypeConvert(
     CValue const& in, std::shared_ptr<CType> out_type,
     const xls::SourceInfo& loc) {
   XLSCC_CHECK_NE(in.type().get(), nullptr, loc);
@@ -6367,7 +6386,7 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
     return in.rvalue();
   }
   if (out_type->Is<CVoidType>()) {
-    return xls::BValue();
+    return TrackedBValue();
   }
   if (out_type->Is<CArrayType>()) {
     return in.rvalue();
@@ -6419,7 +6438,7 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
           loc, "Cannot convert type %s to int", std::string(*in.type())));
     }
     int expr_width = in.type()->GetBitWidth();
-    xls::BValue return_value = in.rvalue();
+    TrackedBValue return_value = in.rvalue();
     if (expr_width == out_type->GetBitWidth()) {
       return return_value;
     }
@@ -6445,7 +6464,7 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
                    in.debug_string().c_str(), std::string(*out_type)));
 }
 
-absl::StatusOr<xls::BValue> Translator::GenBoolConvert(
+absl::StatusOr<TrackedBValue> Translator::GenBoolConvert(
     CValue const& in, const xls::SourceInfo& loc) {
   if (!(in.type()->Is<CBoolType>() || in.type()->Is<CIntType>())) {
     return absl::UnimplementedError(ErrorMessage(
@@ -6455,7 +6474,7 @@ absl::StatusOr<xls::BValue> Translator::GenBoolConvert(
   if (in.type()->GetBitWidth() == 1) {
     return in.rvalue();
   }
-  xls::BValue const0 =
+  TrackedBValue const0 =
       context().fb->Literal(xls::UBits(0, in.type()->GetBitWidth()), loc);
   return context().fb->Ne(in.rvalue(), const0, loc);
 }

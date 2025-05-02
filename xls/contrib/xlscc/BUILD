@@ -103,6 +103,19 @@ cc_library(
 )
 
 cc_library(
+    name = "tracked_bvalue",
+    srcs = ["tracked_bvalue.cc"],
+    hdrs = ["tracked_bvalue.h"],
+    deps = [
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+    ],
+)
+
+cc_library(
     name = "translator",
     srcs = [
         "translate_block.cc",
@@ -119,6 +132,7 @@ cc_library(
         ":cc_parser",
         ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
+        ":tracked_bvalue",
         ":xlscc_logging",
         "//xls/common:math_util",
         "//xls/common:stopwatch",

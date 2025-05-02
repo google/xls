@@ -30,6 +30,7 @@
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/OperatorKinds.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/bits.h"
@@ -59,7 +60,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     IOOpReturn ret;
     ret.generate_expr = false;
     if (op.op != OpType::kTrace) {
-      XLS_ASSIGN_OR_RETURN(xls::BValue default_bval,
+      XLS_ASSIGN_OR_RETURN(TrackedBValue default_bval,
                            CreateDefaultValue(channel->item_type, loc));
       op.input_value = CValue(default_bval, channel->item_type);
     }
@@ -106,7 +107,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
       safe_param_name = absl::StrFormat("default_op%i", op.channel_op_index);
     }
 
-    xls::BValue pbval =
+    TrackedBValue pbval =
         context().fb->Param(safe_param_name, xls_param_type, loc);
 
     // Check for duplicate params
@@ -122,7 +123,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
 
     op.final_param_name = final_param_name;
 
-    xls::BValue input_io_value = pbval;
+    TrackedBValue input_io_value = pbval;
 
     if (channel_item_type) {
       XLSCC_CHECK(input_io_value.valid(), loc);
@@ -349,7 +350,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     const CValue assignment_value) {
   const IOOpReturn no_op_return = {.generate_expr = true};
 
-  xls::BValue op_condition = context().full_condition_bval(loc);
+  TrackedBValue op_condition = context().full_condition_bval(loc);
   CHECK(op_condition.valid());
 
   const clang::Expr* object = nullptr;
@@ -414,12 +415,13 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
   for (const ConditionedIOChannel& conditioned_channel : channels) {
     const clang::Expr* assign_ret_value_to = nullptr;
 
-    xls::BValue this_channel_condition = conditioned_channel.condition;
+    TrackedBValue this_channel_condition = conditioned_channel.condition;
     IOChannel* channel = conditioned_channel.channel;
 
-    xls::BValue channel_specific_condition =
+    TrackedBValue channel_specific_condition =
         this_channel_condition.valid()
-            ? context().fb->And(op_condition, this_channel_condition, loc)
+            ? TrackedBValue(
+                  context().fb->And(op_condition, this_channel_condition, loc))
             : op_condition;
 
     // Short circuit the op condition if possible
@@ -460,7 +462,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         CValue addr_val_unconverted = arg_vals.at(0);
         XLSCC_CHECK(addr_val_unconverted.valid(), loc);
         XLS_ASSIGN_OR_RETURN(
-            xls::BValue addr_val,
+            TrackedBValue addr_val,
             GenTypeConvert(
                 addr_val_unconverted,
                 CChannelType::MemoryAddressType(channel->memory_size), loc));
@@ -488,9 +490,9 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         CValue out_val = arg_vals.at(0);
         XLSCC_CHECK(out_val.valid(), loc);
 
-        std::vector<xls::BValue> sp = {out_val.rvalue(),
-                                       channel_specific_condition};
-        op.ret_value = context().fb->Tuple(sp, loc);
+        std::vector<TrackedBValue> sp = {out_val.rvalue(),
+                                         channel_specific_condition};
+        op.ret_value = context().fb->Tuple(ToNativeBValues(sp), loc);
         op.op = OpType::kSend;
         op.is_blocking = true;
       } else {  // memory write(addr, value)
@@ -502,7 +504,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         CValue addr_val_unconverted = arg_vals.at(0);
         XLSCC_CHECK(addr_val_unconverted.valid(), loc);
         XLS_ASSIGN_OR_RETURN(
-            xls::BValue addr_val,
+            TrackedBValue addr_val,
             GenTypeConvert(
                 addr_val_unconverted,
                 CChannelType::MemoryAddressType(channel->memory_size), loc));
@@ -511,9 +513,9 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         auto addr_val_tup =
             context().fb->Tuple({addr_val, data_val.rvalue()}, loc);
 
-        std::vector<xls::BValue> sp = {addr_val_tup,
-                                       channel_specific_condition};
-        op.ret_value = context().fb->Tuple(sp, loc);
+        std::vector<TrackedBValue> sp = {addr_val_tup,
+                                         channel_specific_condition};
+        op.ret_value = context().fb->Tuple(ToNativeBValues(sp), loc);
         op.op = OpType::kWrite;
         op.is_blocking = true;
       }
@@ -526,7 +528,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       op.is_blocking = true;
 
       XLS_ASSIGN_OR_RETURN(
-          xls::BValue addr_val_converted,
+          TrackedBValue addr_val_converted,
           GenTypeConvert(addr_val,
                          CChannelType::MemoryAddressType(channel->memory_size),
                          loc));
@@ -538,15 +540,15 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         auto addr_val_tup = context().fb->Tuple(
             {addr_val_converted, assignment_value.rvalue()}, loc);
 
-        std::vector<xls::BValue> sp = {addr_val_tup,
-                                       channel_specific_condition};
-        op.ret_value = context().fb->Tuple(sp, loc);
+        std::vector<TrackedBValue> sp = {addr_val_tup,
+                                         channel_specific_condition};
+        op.ret_value = context().fb->Tuple(ToNativeBValues(sp), loc);
 
       } else {
         op.op = OpType::kRead;
-        std::vector<xls::BValue> sp = {addr_val_converted,
-                                       channel_specific_condition};
-        op.ret_value = context().fb->Tuple(sp, loc);
+        std::vector<TrackedBValue> sp = {addr_val_converted,
+                                         channel_specific_condition};
+        op.ret_value = context().fb->Tuple(ToNativeBValues(sp), loc);
       }
     } else if (op_name == "size") {
       XLSCC_CHECK_GT(channel->memory_size, 0, loc);
@@ -593,8 +595,10 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     if (all_is_blocking.value()) {
       XLS_RETURN_IF_ERROR(Assign(all_assign_ret_value_to, ret.value, loc));
     } else {
-      xls::BValue read_ready = context().fb->TupleIndex(ret.value.rvalue(), 1);
-      xls::BValue read_value = context().fb->TupleIndex(ret.value.rvalue(), 0);
+      TrackedBValue read_ready =
+          context().fb->TupleIndex(ret.value.rvalue(), 1);
+      TrackedBValue read_value =
+          context().fb->TupleIndex(ret.value.rvalue(), 0);
 
       if (!ret.value.type()->Is<CInternalTuple>()) {
         return absl::UnimplementedError(
@@ -660,7 +664,7 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateChannelParam(
     return lvalue;
   }
 
-  CValue cval(/*rvalue=*/xls::BValue(), channel_type,
+  CValue cval(/*rvalue=*/TrackedBValue(), channel_type,
               /*disable_type_check=*/true, lvalue);
 
   XLS_RETURN_IF_ERROR(DeclareVariable(channel_name, cval, loc));
@@ -668,9 +672,9 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateChannelParam(
   return lvalue;
 }
 
-absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
-    const IOOp& op, xls::BValue retval, const xls::SourceInfo& loc) {
-  xls::BValue op_condition;
+absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
+    const IOOp& op, TrackedBValue retval, const xls::SourceInfo& loc) {
+  TrackedBValue op_condition;
 
   switch (op.op) {
     case OpType::kNull:
@@ -719,7 +723,7 @@ absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
   // Short circuit the op condition if possible
   XLS_RETURN_IF_ERROR(ShortCircuitBVal(op_condition, loc));
 
-  xls::BValue new_retval;
+  TrackedBValue new_retval;
 
   switch (op.op) {
     case OpType::kNull:
@@ -735,7 +739,7 @@ absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
     case OpType::kSend:
     case OpType::kWrite:
     case OpType::kRead: {
-      xls::BValue data = context().fb->TupleIndex(retval, /*idx=*/0, loc);
+      TrackedBValue data = context().fb->TupleIndex(retval, /*idx=*/0, loc);
       new_retval = context().fb->Tuple({data, op_condition}, loc);
       break;
     }
@@ -748,12 +752,12 @@ absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
           break;
         case TraceType::kTrace: {
           const uint64_t tuple_count = retval.GetType()->AsTupleOrDie()->size();
-          std::vector<xls::BValue> tuple_parts = {op_condition};
+          std::vector<TrackedBValue> tuple_parts = {op_condition};
           for (int i = 1; i < tuple_count; ++i) {
             tuple_parts.push_back(
                 context().fb->TupleIndex(retval, /*idx=*/i, loc));
           }
-          new_retval = context().fb->Tuple(tuple_parts, loc);
+          new_retval = context().fb->Tuple(ToNativeBValues(tuple_parts), loc);
           break;
         }
       }
