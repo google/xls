@@ -7028,5 +7028,52 @@ fn main() -> uN[5] {
                   HasNodeWithType("MyEmpty::some_val()", "uN[5]"))));
 }
 
+TEST(TypecheckV2Test, QuickcheckFn) {
+  EXPECT_THAT(
+      R"(
+#[quickcheck]
+fn f() -> bool { true }
+)",
+      TypecheckSucceeds(HasNodeWithType("f", "() -> uN[1]")));
+}
+
+TEST(TypecheckV2Test, QuickcheckFnBoolAlias) {
+  EXPECT_THAT(
+      R"(
+type BoolAlias = bool;
+#[quickcheck]
+fn f() -> BoolAlias { true }
+)",
+      TypecheckSucceeds(HasNodeWithType("f", "() -> uN[1]")));
+}
+
+TEST(TypecheckV2Test, QuickcheckFnU1) {
+  EXPECT_THAT(
+      R"(
+#[quickcheck]
+fn f() -> u1 { u1:1 }
+)",
+      TypecheckSucceeds(HasNodeWithType("f", "() -> uN[1]")));
+}
+
+TEST(TypecheckV2Test, QuickcheckFnNotBool) {
+  EXPECT_THAT(
+      R"(
+#[quickcheck]
+fn f() -> u32 { u32:0 }
+)",
+      TypecheckFails(HasTypeMismatch("uN[1]", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, QuickcheckFnAliasNotBool) {
+  EXPECT_THAT(
+      R"(
+type IntAlias = u32;
+#[quickcheck]
+fn f() -> IntAlias { IntAlias:0 }
+)",
+      TypecheckFails(HasTypeMismatch("uN[1]", "uN[32]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

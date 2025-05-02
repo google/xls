@@ -234,6 +234,20 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(forexpr);
   }
 
+  absl::Status HandleQuickCheck(const QuickCheck* node) override {
+    std::optional<const Type*> fn_return_type = ti_.GetItem(node->fn()->body());
+    CHECK(fn_return_type.has_value());
+    std::optional<BitsLikeProperties> fn_return_type_bits_like =
+        GetBitsLike(**fn_return_type);
+    std::optional<BitsLikeProperties> node_bits_like = GetBitsLike(*type_);
+    CHECK(node_bits_like.has_value());
+    if (*node_bits_like != *fn_return_type_bits_like) {
+      return TypeMismatchErrorStatus(*type_, **fn_return_type, node->span(),
+                                     node->fn()->body()->span(), file_table_);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     if (node->parent() != nullptr) {
       if (const auto* binop = dynamic_cast<Binop*>(node->parent());

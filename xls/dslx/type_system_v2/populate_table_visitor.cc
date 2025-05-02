@@ -1680,6 +1680,19 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
+  absl::Status HandleQuickCheck(const QuickCheck* node) override {
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node, CreateBoolAnnotation(module_, node->span())));
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* quickcheck_variable,
+        table_.DefineInternalVariable(InferenceVariableKind::kType,
+                                      const_cast<QuickCheck*>(node),
+                                      GenerateInternalTypeVariableName(node)));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, quickcheck_variable));
+
+    return DefaultHandler(node);
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     for (AstNode* child : node->GetChildren(/*want_types=*/true)) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
@@ -1768,6 +1781,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   template <>
   std::string GenerateInternalTypeVariableName(const Expr* node) {
     return absl::Substitute("internal_type_expr_at_$0_in_$1",
+                            node->span().ToString(file_table_), module_.name());
+  }
+  // Specialization for `Quickcheck` nodes, which do not have an identifier.
+  template <>
+  std::string GenerateInternalTypeVariableName(const QuickCheck* node) {
+    return absl::Substitute("internal_type_quickcheck_at_$0_in_$1",
                             node->span().ToString(file_table_), module_.name());
   }
 
