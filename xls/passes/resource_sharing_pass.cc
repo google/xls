@@ -976,7 +976,11 @@ SelectFoldingActionsBasedOnCliques(FoldingGraph *folding_graph) {
 // considered and when many nodes can be folded into the few one that have high
 // bit-widths.
 std::vector<std::unique_ptr<NaryFoldingAction>>
-SelectFoldingActionsBasedOnInDegree(FoldingGraph *folding_graph) {
+SelectFoldingActionsBasedOnInDegree(
+    FoldingGraph *folding_graph,
+    absl::flat_hash_map<
+        Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
+        &mutual_exclusivity_relation) {
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
 
   // Get the nodes of the folding graph
@@ -1000,11 +1004,55 @@ SelectFoldingActionsBasedOnInDegree(FoldingGraph *folding_graph) {
       continue;
     }
 
+    // Remove folding actions that are from a node that is not mutually
+    // exclusive with all the others.
+    // To this end, we give priority to folding actions that save
+    // higher bit-width operations.
+    //
+    // Step 0: Sort the folding actions based on the bit-width of the source
+    auto source_bitwidth_comparator = [](BinaryFoldingAction *a0,
+                                         BinaryFoldingAction *a1) -> bool {
+      Node *a0_source = a0->GetFrom();
+      Node *a1_source = a1->GetFrom();
+      return a0_source->BitCountOrDie() > a1_source->BitCountOrDie();
+    };
+    absl::c_sort(edges_to_n, source_bitwidth_comparator);
+
+    // Step 1: Remove folding actions that are from a node that is not mutually
+    // exclusive with all the others.
+    std::vector<BinaryFoldingAction *> subset_of_edges_to_n;
+    for (BinaryFoldingAction *a : edges_to_n) {
+      // Fetch the source of the current folding action
+      Node *a_source = a->GetFrom();
+
+      // Check if @a_source is mutually-exclusive with all other nodes already
+      // confirmed (i.e., the sources of @subset_of_edges_to_n)
+      bool is_a_mutually_exclusive = true;
+      for (BinaryFoldingAction *previous_action : subset_of_edges_to_n) {
+        Node *previous_node = previous_action->GetFrom();
+        Node *select = previous_action->GetSelect();
+        if (select != a->GetSelect()) {
+          continue;
+        }
+        if (!AreMutuallyExclusive(mutual_exclusivity_relation, a_source,
+                                  previous_node, select)) {
+          is_a_mutually_exclusive = false;
+          break;
+        }
+      }
+
+      // Consider the current folding action only if its source is mutually
+      // exclusive with the other sources
+      if (is_a_mutually_exclusive) {
+        subset_of_edges_to_n.push_back(a);
+      }
+    }
+
     // Create the hyper-edge by merging all these edges
     // Notice this is possible because all edges in @edges_to_n are guaranteed
     // to have @n as destination.
     std::unique_ptr<NaryFoldingAction> new_action =
-        std::make_unique<NaryFoldingAction>(edges_to_n);
+        std::make_unique<NaryFoldingAction>(subset_of_edges_to_n);
     folding_actions_to_perform.push_back(std::move(new_action));
   }
 
@@ -1083,15 +1131,18 @@ std::vector<std::unique_ptr<NaryFoldingAction>> SelectRandomlyFoldingActions(
 // their total order to perform them.
 std::vector<std::unique_ptr<NaryFoldingAction>> SelectFoldingActions(
     FoldingGraph *folding_graph,
-    ResourceSharingPass::ProfitabilityGuard heuristics) {
+    ResourceSharingPass::ProfitabilityGuard heuristics,
+    absl::flat_hash_map<
+        Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
+        &mutual_exclusivity_relation) {
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform;
   VLOG(3) << "Choosing the best folding actions";
 
   // Decide the sub-set of legal folding actions to perform
   switch (heuristics) {
     case ResourceSharingPass::ProfitabilityGuard::kInDegree:
-      folding_actions_to_perform =
-          SelectFoldingActionsBasedOnInDegree(folding_graph);
+      folding_actions_to_perform = SelectFoldingActionsBasedOnInDegree(
+          folding_graph, mutual_exclusivity_relation);
       break;
 
     case ResourceSharingPass::ProfitabilityGuard::kCliques:
@@ -1318,7 +1369,8 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
 
   // Select the folding actions to perform
   std::vector<std::unique_ptr<NaryFoldingAction>> folding_actions_to_perform =
-      SelectFoldingActions(&folding_graph, profitability_guard_);
+      SelectFoldingActions(&folding_graph, profitability_guard_,
+                           mutual_exclusivity_relation);
 
   // Perform the folding
   XLS_ASSIGN_OR_RETURN(modified,

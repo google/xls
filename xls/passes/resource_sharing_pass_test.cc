@@ -400,6 +400,43 @@ fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: 
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
 }
 
+TEST_F(ResourceSharingPassTest, NotPossibleFolding4) {
+  const std::string program = R"(
+    fn function_0(x: bits[2], y: bits[32]) -> bits[32] {
+      bit_slice.3: bits[16] = bit_slice(y, start=16, width=16)
+      literal.4: bits[16] = literal(value=4)
+      literal.8: bits[32] = literal(value=8)
+      bit_slice.5: bits[16] = bit_slice(y, start=0, width=16)
+      umul.6: bits[16] = umul(bit_slice.3, literal.4)
+      umul.7: bits[16] = umul(bit_slice.5, literal.8)
+      concat.9: bits[32] = concat(umul.6, umul.7)
+      umul.10: bits[32] = umul(y, literal.8)
+      literal.11: bits[32] = literal(value=0)
+      ret priority_sel.12: bits[32] = priority_sel(x, cases=[concat.9, umul.10], default=literal.11)
+    })";
+
+  // Create the function
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+
+  // We expect the transformation to be applicable
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(f, {-2 /* bits = 10 */, 3}, {2, 32}, 24);
+  InterpretAndCheck(f,
+                    {
+                        1,      // bits = 01
+                        131074  // "10" for the most significant 16 bits,
+                                // and "10" for the least significant 16 bits
+                    },
+                    {2, 32},
+                    524288    // 2 times 4 stored in the top 16 bits
+                        + 16  // 2 times 8
+  );
+}
+
 TEST_F(ResourceSharingPassTest,
        MergeMultiplicationsThatAreNotPostDominatedBySelect) {
   const std::string program = R"(
