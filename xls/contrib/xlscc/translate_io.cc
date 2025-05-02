@@ -214,7 +214,8 @@ absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,
     return TypeIsChannel(subst->getReplacementType(), loc);
   }
 
-  if (type->getTypeClass() == clang::Type::TypeClass::TemplateSpecialization) {
+  if (type->getTypeClass() == clang::Type::TypeClass::TemplateSpecialization &&
+      type->isRecordType()) {
     // Up-cast to avoid multiple inheritance of getAsRecordDecl()
     std::shared_ptr<CInstantiableTypeAlias> ret(
         new CInstantiableTypeAlias(type->getAsRecordDecl()));

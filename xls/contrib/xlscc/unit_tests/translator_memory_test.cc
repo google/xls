@@ -507,6 +507,66 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemory) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
+TEST_F(TranslatorMemoryTest, IOProcClassArrayUsing) {
+  const std::string content = R"(
+       template<bool regs, typename T, int N>
+       struct MyMemoryBase {
+       };
+
+       template<typename T, int N>
+       struct MyMemoryBase<true, T, N> {
+         using type = T[N];
+       };
+
+       template<typename T, int N>
+       struct MyMemoryBase<false, T, N> {
+         using type = __xls_memory<T, N>;
+       };
+
+       template<typename T, int N, bool regs>
+       using MyMemory = typename MyMemoryBase<regs, T, N>::type;
+
+       class Block {
+        public:
+         MyMemory<short, 21, true> foo_store;
+         __xls_channel<long, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          out.write(3*foo_store[13]);
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(0, 64)),
+                    xls::Value(xls::SBits(0, 64)),
+                    xls::Value(xls::SBits(0, 64))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc::HLSBlock meta, GetBlockSpec());
+
+  const std::string ref_meta_str = R"(
+    channels {
+      name: "out"
+      is_input: false
+      type: CHANNEL_TYPE_FIFO
+      width_in_bits: 64
+    }
+    name: "Block"
+  )";
+
+  xlscc::HLSBlock ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
+}
+
 TEST_F(TranslatorMemoryTest, IOProcClassMemorySubroutine) {
   const std::string content = R"(
        class Block {
