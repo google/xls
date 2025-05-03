@@ -533,6 +533,68 @@ proc doomed {
               IsTestResult(TestResult::kParseOrTypecheckError, 0, 0, 0));
 }
 
+TEST_P(RunRoutinesTest, TestProcExpectedToFailOnAssert) {
+  if (GetParam() != RunnerType::kDslxInterpreter) {
+    GTEST_SKIP() << "expected_fail_label attribute is only supported on dslx "
+                    "interpreter for test_procs";
+  }
+
+  constexpr std::string_view kProgram = R"(
+#[test_proc(expected_fail_label="my_fail")]
+proc tester {
+    terminator: chan<bool> out;
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+    init {}
+    next(_: ()) {
+        assert!(false, "my_fail");
+        send(join(), terminator, true);
+    }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  constexpr const char* kModuleName = "test";
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, std::string(temp_file.path()),
+                   options));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+}
+
+TEST_P(RunRoutinesTest, TestProcExpectedToFailOnFail) {
+  if (GetParam() != RunnerType::kDslxInterpreter) {
+    GTEST_SKIP() << "expected_fail_label attribute is only supported on dslx "
+                    "interpreter for test_procs";
+  }
+
+  constexpr std::string_view kProgram = R"(
+#[test_proc(expected_fail_label="my_fail")]
+proc tester {
+    terminator: chan<bool> out;
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+    init {}
+    next(_: ()) {
+        fail!("my_fail", ());
+        send(join(), terminator, true);
+    }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  constexpr const char* kModuleName = "test";
+  ParseAndTestOptions options;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, std::string(temp_file.path()),
+                   options));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+}
+
 // Verifies that the QuickCheck mechanism can find counter-examples for a simple
 // erroneous function.
 TEST(QuickcheckTest, QuickCheckBits) {
