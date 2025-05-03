@@ -1518,6 +1518,43 @@ fn f(p: Point) -> Point {
   EXPECT_EQ(splatted->identifier(), "p");
 }
 
+TEST_F(ParserTest, ParseTestProcWithExpectedFailAttribute) {
+  constexpr std::string_view text =
+      R"(#[test_proc(expected_fail_label="my_fail")]
+proc tester {
+    terminator: chan<bool> out;
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+    init {}
+    next(_: ()) {
+        assert!(false, "my_fail");
+        send(join(), terminator, true);
+    }
+})";
+  RoundTrip(std::string(text));
+}
+
+TEST_F(ParserTest, ParseTestProcWithUnknownAttribute) {
+  constexpr std::string_view text = R"(#[test_proc(unknown_attribute)]
+proc tester {
+    terminator: chan<bool> out;
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+    init {}
+    next(_: ()) {
+        send(join(), terminator, true);
+    }
+})";
+  Scanner s{file_table_, Fileno(0), std::string(text)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule().status(),
+              IsPosError("ParseError",
+                         HasSubstr("Unknown parameter name in the #[test_proc] "
+                                   "attribute: 'unknown_attribute'")));
+}
+
 TEST_F(ParserTest, ConcatFunction) {
   // TODO(leary): 2021-01-24 Notably just "bits" is not a valid type here,
   // should make a test that doesn't make it through typechecking if it's not a
