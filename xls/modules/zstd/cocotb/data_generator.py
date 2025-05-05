@@ -58,4 +58,3 @@ def GenerateFrame(seed, btype, output_path):
   args.append("-vvvvvvv")
 
   CallDecodecorpus(args)
-
