@@ -81,7 +81,7 @@ handy to also have a `SIGNED_EXP_SZ` symbol that was equal to 9. This can be
 done as follows:
 
 ```dslx-snippet
-fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = EXP_SZ + u32:1>(
+fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = {EXP_SZ + u32:1}>(
       exp: uN[EXP_SZ]) -> sN[SIGNED_EXP_SZ] {
     exp as sN[SIGNED_EXP_SZ] - sN[SIGNED_EXP_SZ]:???
 }
@@ -193,12 +193,12 @@ fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = {EXP_SZ + u32:1}>
 }
 
 pub fn float_to_int
-    <EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ: u32, WIDE_EXP_SZ: u32 = {EXP_SZ + u32:1},
-     WIDE_FRACTION_SZ: u32 = {FRACTION_SZ + u32:1}>
+    <RESULT_SZ: u32, EXP_SZ: u32, FRACTION_SZ: u32, WIDE_RESULT_SZ: u32 = {RESULT_SZ + u32:1},
+     WIDE_EXP_SZ: u32 = {EXP_SZ + u32:1}, WIDE_FRACTION_SZ: u32 = {FRACTION_SZ + u32:1}>
     (x: float<EXP_SZ, FRACTION_SZ>) -> sN[RESULT_SZ] {
     let exp = unbias_exponent(x.bexp);
 
-    let fraction = uN[WIDE_FRACTION_SZ]:1 << FRACTION_SZ | (x.fraction as uN[WIDE_FRACTION_SZ]);
+    let fraction = uN[WIDE_RESULT_SZ]:1 << FRACTION_SZ | (x.fraction as uN[WIDE_RESULT_SZ]);
 
     let fraction = if (exp as u32) < FRACTION_SZ {
         fraction >> (FRACTION_SZ - (exp as u32))
@@ -222,6 +222,24 @@ Note that `unbias_exponent()` didn't need type specification, since the type
 could be inferred from the argument! (Also note that this implementation doesn't
 contain the fixes from the missing cases from the previous tutorial. Exercise to
 the reader: apply those fixes here, too!)
+
+By listing `RESULT_SZ` as the first parametric value of `float_to_int()`, it
+allows calling it with only the result size specified, because `EXP_SZ` and
+`FRACTION_SZ` can be inferred from the argument.
+
+```dslx-snippet
+pub type float32 = float<u32:8, u32:23>;
+
+#[test]
+fn test_float32_to_int32 {
+  let test_input = float32 {
+    sign: u1:0x0,
+    bexp: u8:0x8e,
+    fraction: u23:0x3eef00
+  };
+  assert_eq(s32:0xbeef, float_to_int<u32:32>(test_input))
+}
+```
 
 This technique underlies all of XLS' floating-point libraries. Common operations
 are defined in common files, such as
