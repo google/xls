@@ -56,6 +56,7 @@ cc_library(
     srcs = ["filesystem.cc"],
     hdrs = ["filesystem.h"],
     deps = [
+        ":temp_file",
         "//xls/common/status:error_code_to_status",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

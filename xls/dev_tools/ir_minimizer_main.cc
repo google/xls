@@ -250,6 +250,10 @@ ABSL_FLAG(
 ABSL_FLAG(
     bool, can_inline, true,
     "Whether individual invokes & maps can be inlined as a simplification.");
+ABSL_FLAG(std::string, output_path, "-",
+          "Path where the minimized IR will be written. Will print to stdout "
+          "if not set or set to '-'. If stopped early, will contain the latest "
+          "known-failing IR.");
 
 namespace xls {
 namespace {
@@ -1279,7 +1283,8 @@ absl::Status CleanUp(FunctionBase* f, bool can_remove_params) {
   return absl::OkStatus();
 }
 
-absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
+absl::Status RealMain(std::string_view path, std::string_view output_path,
+                      const int64_t failed_attempt_limit,
                       const int64_t total_attempt_limit,
                       const int64_t simplifications_between_tests,
                       const int64_t failed_attempts_between_tests_limit) {
@@ -1306,6 +1311,9 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
   XLS_RETURN_IF_ERROR(VerifyStillFails(
       knownf_ir_text, inputs,
       "Originally-provided main function provided does not fail", &test_cache));
+  if (output_path != "-") {
+    XLS_RETURN_IF_ERROR(SetFileContentsAtomically(output_path, knownf_ir_text));
+  }
 
   const bool can_remove_params = absl::GetFlag(FLAGS_can_remove_params);
 
@@ -1324,6 +1332,10 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
                          StillFails(cleaned_up_ir_text, inputs, &test_cache));
     if (still_fails) {
       knownf_ir_text = cleaned_up_ir_text;
+      if (output_path != "-") {
+        XLS_RETURN_IF_ERROR(
+            SetFileContentsAtomically(output_path, cleaned_up_ir_text));
+      }
     } else {
       LOG(INFO) << "=== Original main function does not fail after cleanup";
     }
@@ -1508,6 +1520,10 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
     // reset our failed simplification attempt count since we see we've made
     // some forward progress.
     knownf_ir_text = known_failure.package_ir_text;
+    if (output_path != "-") {
+      XLS_RETURN_IF_ERROR(
+          SetFileContentsAtomically(output_path, knownf_ir_text));
+    }
     std::cerr << "---\ntransforms: "
               << absl::StrJoin(
                      candidate_changes, ", ",
@@ -1525,7 +1541,11 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
     candidate_changes.clear();
   }
 
-  std::cout << knownf_ir_text;
+  if (output_path == "-") {
+    std::cout << knownf_ir_text;
+  } else {
+    XLS_RETURN_IF_ERROR(SetFileContentsAtomically(output_path, knownf_ir_text));
+  }
 
   // Run the last test verification without the cache.
   XLS_RETURN_IF_ERROR(VerifyStillFails(knownf_ir_text, inputs,
@@ -1586,9 +1606,10 @@ int main(int argc, char** argv) {
         << absl::StrJoin(failures, " ");
   }
 
-  return xls::ExitStatus(xls::RealMain(
-      positional_arguments[0], absl::GetFlag(FLAGS_failed_attempt_limit),
-      absl::GetFlag(FLAGS_total_attempt_limit),
-      absl::GetFlag(FLAGS_simplifications_between_tests),
-      absl::GetFlag(FLAGS_failed_attempts_between_tests_limit)));
+  return xls::ExitStatus(
+      xls::RealMain(positional_arguments[0], absl::GetFlag(FLAGS_output_path),
+                    absl::GetFlag(FLAGS_failed_attempt_limit),
+                    absl::GetFlag(FLAGS_total_attempt_limit),
+                    absl::GetFlag(FLAGS_simplifications_between_tests),
+                    absl::GetFlag(FLAGS_failed_attempts_between_tests_limit)));
 }

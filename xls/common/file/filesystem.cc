@@ -40,6 +40,7 @@
 #include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/io/zero_copy_stream_impl.h"
 #include "google/protobuf/text_format.h"
+#include "xls/common/file/temp_file.h"
 #include "xls/common/status/error_code_to_status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -209,6 +210,18 @@ absl::StatusOr<std::string> GetFileContents(
 absl::Status SetFileContents(const std::filesystem::path& file_name,
                              std::string_view content) {
   return SetFileContentsOrAppend(file_name, content, SetOrAppend::kSet);
+}
+
+absl::Status SetFileContentsAtomically(const std::filesystem::path& file_name,
+                                       std::string_view content) {
+  if (file_name == "/dev/null") {
+    return absl::OkStatus();
+  }
+  XLS_ASSIGN_OR_RETURN(TempFile temp_file,
+                       TempFile::CreateWithContent(content));
+  std::error_code ec;
+  std::filesystem::rename(std::move(temp_file).Release(), file_name, ec);
+  return ErrorCodeToStatus(ec);
 }
 
 absl::Status AppendStringToFile(const std::filesystem::path& file_name,

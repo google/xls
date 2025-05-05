@@ -100,6 +100,21 @@ absl::StatusOr<std::string> GetFileContents(
 absl::Status SetFileContents(const std::filesystem::path& file_name,
                              std::string_view content);
 
+// Writes the data provided in `content` to the file `file_name`, overwriting
+// any existing content. Fails if directory does not exist.
+//
+// NOTE: Will return OK iff all of the data in `content` was written.
+// May write some of the data and return an error.
+//
+// The file update should be atomic.
+//
+// Typical return codes (not guaranteed exhaustive):
+//  * StatusCode::kOk
+//  * StatusCode::kPermissionDenied (file not writable)
+//  * StatusCode::kUnknown (a Write or Open error occurred)
+absl::Status SetFileContentsAtomically(const std::filesystem::path& file_name,
+                                       std::string_view content);
+
 // Writes the contents of data into the file file_name, appending to any
 // existing content.
 //
