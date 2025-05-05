@@ -195,7 +195,7 @@ class FoldingGraph {
   // Each outermost set includes the set of edges of the graph that creates a
   // clique within that graph.
   absl::flat_hash_set<absl::flat_hash_set<BinaryFoldingAction *>>
-  GetEdgeCliques() const;
+  GetEdgeCliques();
 
   // This function returns all the nodes of the folding graph.
   std::vector<Node *> GetNodes() const;
@@ -1483,9 +1483,6 @@ FoldingGraph::FoldingGraph(
       }
     }
   }
-
-  // Identify the cliques within the graph
-  IdentifyCliques();
 }
 
 void FoldingGraph::AddNodes(
@@ -1537,6 +1534,9 @@ void FoldingGraph::AddEdges(
 }
 
 void FoldingGraph::IdentifyCliques() {
+  if (!this->cliques_.empty()) {
+    return;
+  }
   auto graph_descriptor = [this](int from_node, int to_node) -> bool {
     for (EdgeIndex outgoing_edge : this->graph_->OutgoingArcs(from_node)) {
       if (this->graph_->Head(outgoing_edge) == to_node) {
@@ -1561,8 +1561,11 @@ void FoldingGraph::IdentifyCliques() {
 }
 
 absl::flat_hash_set<absl::flat_hash_set<BinaryFoldingAction *>>
-FoldingGraph::GetEdgeCliques() const {
+FoldingGraph::GetEdgeCliques() {
   absl::flat_hash_set<absl::flat_hash_set<BinaryFoldingAction *>> cliques;
+
+  // Identify the cliques within the graph
+  IdentifyCliques();
 
   // Find all the cliques of edges
   for (const absl::flat_hash_set<NodeIndex> &node_clique : cliques_) {
