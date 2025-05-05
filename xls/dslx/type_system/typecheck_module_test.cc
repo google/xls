@@ -2449,12 +2449,10 @@ TEST_P(TypecheckBothVersionsTest, ConstantArrayEmptyMembersWrongCountVsDecl) {
 TEST_P(TypecheckBothVersionsTest, MatchNoArms) {
   EXPECT_THAT(
       Typecheck("fn f(x: u8) -> u8 { let _ = match x {}; x }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               AllOf(HasSubstrInV1(GetParam(), "Match construct has no arms"),
-                     // TODO: improve this error message in v2; similar for
-                     // other match tests with this error message.
-                     HasSubstrInV2(GetParam(),
-                                   "Attempting to concretize `Any` type"))));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(), "Match construct has no arms"),
+                HasSubstrInV2(GetParam(), "`match` expression has no arms"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, MatchArmMismatch) {
@@ -2481,6 +2479,8 @@ const X: u32 = p<u32:42>();
           absl::StatusCode::kInvalidArgument,
           AllOf(HasSubstrInV1(GetParam(),
                               "Match construct cannot match on this type."),
+                // TODO: improve this error message in v2; similar for
+                // other tests with this error message.
                 HasSubstrInV2(GetParam(),
                               "Attempting to concretize `Any` type"))));
 }

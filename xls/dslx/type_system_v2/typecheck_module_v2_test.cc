@@ -3321,6 +3321,14 @@ TEST(TypecheckV2Test, PatternMatcherWrongType) {
               TypecheckFails(HasTypeMismatch("(u8, u32)", "uN[6]")));
 }
 
+TEST(TypecheckV2Test, MatchWithNoArms) {
+  EXPECT_THAT(R"(
+const X = u32:0;
+const Z = match X {};
+)",
+              TypecheckFails(HasSubstr("`match` expression has no arms")));
+}
+
 TEST(TypecheckV2Test, ZeroMacroNumber) {
   EXPECT_THAT("const Y = zero!<u10>();",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[10]")));

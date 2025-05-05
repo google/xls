@@ -451,6 +451,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->matched(), matched_var_type));
 
+    if (node->arms().empty()) {
+      return TypeInferenceErrorStatus(node->span(), /*type=*/nullptr,
+                                      "`match` expression has no arms.",
+                                      file_table_);
+    }
+
     for (const MatchArm* arm : node->arms()) {
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arm->expr(), arm_type));
       for (const NameDefTree* pattern : arm->patterns()) {
