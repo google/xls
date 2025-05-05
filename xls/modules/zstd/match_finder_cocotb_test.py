@@ -15,18 +15,18 @@
 
 import random
 import cocotb
+import cocotbext.axi.axi_channels as axi
 
 from pathlib import Path
 from cocotb.clock import Clock
 from cocotb.triggers import Event, ClockCycles
-from cocotbext.axi.axi_channels import AxiAWBus, AxiWBus, AxiBBus, AxiWriteBus, AxiARBus, AxiRBus, AxiReadBus, AxiBus, AxiBTransaction, AxiBSource, AxiBSink, AxiBMonitor, AxiRTransaction, AxiRSource, AxiRSink, AxiRMonitor
 from xls.modules.zstd.cocotb.channel import (
   XLSChannel,
   XLSChannelDriver,
   XLSChannelMonitor,
 )
 from xls.modules.zstd.cocotb.memory import AxiRamFromArray
-from xls.modules.zstd.cocotb.utils import reset, run_test
+from xls.modules.zstd.cocotb.utils import reset, run_test, connect_axi_bus
 from xls.modules.zstd.cocotb.xlsstruct import XLSStruct, xls_dataclass
 
 DATA_W = 64
@@ -51,17 +51,17 @@ LIT_CNT=None
 STATUS=None
 
 signal_widths = {"bresp": 3}
-AxiBBus._signal_widths = signal_widths
-AxiBTransaction._signal_widths = signal_widths
-AxiBSource._signal_widths = signal_widths
-AxiBSink._signal_widths = signal_widths
-AxiBMonitor._signal_widths = signal_widths
+axi.AxiBBus._signal_widths = signal_widths
+axi.AxiBTransaction._signal_widths = signal_widths
+axi.AxiBSource._signal_widths = signal_widths
+axi.AxiBSink._signal_widths = signal_widths
+axi.AxiBMonitor._signal_widths = signal_widths
 signal_widths = {"rresp": 3, "rlast": 1}
-AxiRBus._signal_widths = signal_widths
-AxiRTransaction._signal_widths = signal_widths
-AxiRSource._signal_widths = signal_widths
-AxiRSink._signal_widths = signal_widths
-AxiRMonitor._signal_widths = signal_widths
+axi.AxiRBus._signal_widths = signal_widths
+axi.AxiRTransaction._signal_widths = signal_widths
+axi.AxiRSource._signal_widths = signal_widths
+axi.AxiRSink._signal_widths = signal_widths
+axi.AxiRMonitor._signal_widths = signal_widths
 
 @xls_dataclass
 class Req(XLSStruct):
@@ -86,40 +86,6 @@ def set_termination_event(monitor, event, transactions):
     LIT_CNT = resp.lit_cnt
     STATUS = resp.status
   monitor.add_callback(terminate_cb)
-
-
-def connect_axi_read_bus(dut, name=""):
-  AXI_AR = "axi_ar"
-  AXI_R = "axi_r"
-
-  if name != "":
-      name += "_"
-
-  bus_axi_ar = AxiARBus.from_prefix(dut, name + AXI_AR)
-  bus_axi_r = AxiRBus.from_prefix(dut, name + AXI_R)
-
-  return AxiReadBus(bus_axi_ar, bus_axi_r)
-
-def connect_axi_write_bus(dut, name=""):
-  AXI_AW = "axi_aw"
-  AXI_W = "axi_w"
-  AXI_B = "axi_b"
-
-  if name != "":
-      name += "_"
-
-  bus_axi_aw = AxiAWBus.from_prefix(dut, name + AXI_AW)
-  bus_axi_b = AxiBBus.from_prefix(dut, name + AXI_B)
-  bus_axi_w = AxiWBus.from_prefix(dut, name + AXI_W)
-
-  return AxiWriteBus(bus_axi_aw, bus_axi_w, bus_axi_b)
-
-def connect_axi_bus(dut, name=""):
-  bus_axi_read = connect_axi_read_bus(dut, name)
-  bus_axi_write = connect_axi_write_bus(dut, name)
-
-  return AxiBus(bus_axi_write, bus_axi_read)
-
 
 def simple_decode(literals, sequences):
   def word_from_bytes(bytes, ix):
