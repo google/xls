@@ -286,15 +286,28 @@ pub fn cast_from_fixed_using_rz<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
 Casts the fixed point number to a floating point number using RZ (Round to Zero)
 as the [rounding mode](https://en.wikipedia.org/wiki/Rounding).
 
-### `apfloat::upcast`
+### `apfloat::upcast_with_denorms`
 
 ```dslx-snippet
-pub fn upcast<TO_EXP_SZ: u32, TO_FRACTION_SZ: u32, FROM_EXP_SZ: u32, FROM_FRACTION_SZ: u32>
+pub fn upcast_with_denorms<TO_EXP_SZ: u32, TO_FRACTION_SZ: u32, FROM_EXP_SZ: u32, FROM_FRACTION_SZ: u32>
     (f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
 ```
 
-Upcast the given apfloat to another (larger) apfloat representation. Note:
-denormal inputs get flushed to zero.
+Upcast the given apfloat to an apfloat with fraction and exponent size at least
+as large as the input's. Subnormal inputs are supported; they are converted to
+normal numbers of the same value when the exponent size is larger, or preserved
+otherwise. To treat subnormals as zero, use `upcast_daz` (which is a convenience
+wrapper that calls `subnormals_to_zero` before calling this function).
+
+### `apfloat::upcast_daz`
+
+```dslx-snippet
+pub fn upcast_daz<TO_EXP_SZ: u32, TO_FRACTION_SZ: u32, FROM_EXP_SZ: u32, FROM_FRACTION_SZ: u32>
+    (f: APFloat<FROM_EXP_SZ, FROM_FRACTION_SZ>) -> APFloat<TO_EXP_SZ, TO_FRACTION_SZ> {
+```
+
+Upcast the given apfloat to an apfloat with fraction and exponent size at least
+as large as the input's. Subnormal inputs are treated as zero.
 
 ### `apfloat::downcast_rne`
 

@@ -31,10 +31,8 @@ ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
 
 namespace xls {
 
-// The DSLX implementation flushes input subnormals to 0, so we do that
-// here as well.
 static double ComputeExpected(fp::F32ToF64* jit_wrapper, float input) {
-  return static_cast<double>(FlushSubnormal(input));
+  return static_cast<double>(input);
 }
 
 // Computes FP upcast via DSLX & the JIT.

@@ -17,7 +17,7 @@ import float32;
 import float64;
 
 fn f32_to_f64(f: float32::F32) -> float64::F64 {
-    apfloat::upcast<float64::F64_EXP_SZ, float64::F64_FRACTION_SZ>(f)
+    apfloat::upcast_with_denorms<float64::F64_EXP_SZ, float64::F64_FRACTION_SZ>(f)
 }
 
 #[test]

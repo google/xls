@@ -318,7 +318,7 @@ const BF16_TOTAL_SZ: u32 = u32:16;
 fn bfloat16_bits_to_float32_bits_upcast_is_zero_pad(x: bits[BF16_TOTAL_SZ]) -> bool {
     (x ++ bits[u32:16]:0 ==
     float32::flatten(
-        apfloat::upcast<float32::F32_EXP_SZ, float32::F32_FRACTION_SZ>(bfloat16::unflatten(x))))
+        apfloat::upcast_daz<float32::F32_EXP_SZ, float32::F32_FRACTION_SZ>(bfloat16::unflatten(x))))
 }
 )";
   constexpr const char* kModuleName = "test";
