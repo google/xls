@@ -22,6 +22,7 @@ import cocotb
 from cocotb.runner import check_results_file
 from cocotb.runner import get_runner
 from cocotb.triggers import ClockCycles
+import cocotbext.axi.axi_channels as axi
 
 from xls.common import runfiles
 
@@ -102,3 +103,35 @@ async def reset(clk, rst, cycles=1):
   rst.value = 1
   await ClockCycles(clk, cycles)
   rst.value = 0
+
+def connect_axi_read_bus(dut, name=""):
+  AXI_AR = "axi_ar"
+  AXI_R = "axi_r"
+
+  if name != "":
+      name += "_"
+
+  bus_axi_ar = axi.AxiARBus.from_prefix(dut, name + AXI_AR)
+  bus_axi_r = axi.AxiRBus.from_prefix(dut, name + AXI_R)
+
+  return axi.AxiReadBus(bus_axi_ar, bus_axi_r)
+
+def connect_axi_write_bus(dut, name=""):
+  AXI_AW = "axi_aw"
+  AXI_W = "axi_w"
+  AXI_B = "axi_b"
+
+  if name != "":
+      name += "_"
+
+  bus_axi_aw = axi.AxiAWBus.from_prefix(dut, name + AXI_AW)
+  bus_axi_b = axi.AxiBBus.from_prefix(dut, name + AXI_B)
+  bus_axi_w = axi.AxiWBus.from_prefix(dut, name + AXI_W)
+
+  return axi.AxiWriteBus(bus_axi_aw, bus_axi_w, bus_axi_b)
+
+def connect_axi_bus(dut, name=""):
+  bus_axi_read = connect_axi_read_bus(dut, name)
+  bus_axi_write = connect_axi_write_bus(dut, name)
+
+  return axi.AxiBus(bus_axi_write, bus_axi_read)

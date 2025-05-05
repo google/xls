@@ -26,7 +26,7 @@ from xls.modules.zstd.cocotb.channel import (
   XLSChannelMonitor,
 )
 from xls.modules.zstd.cocotb.memory import AxiRamFromArray
-from xls.modules.zstd.cocotb.utils import reset, run_test
+from xls.modules.zstd.cocotb.utils import reset, run_test, connect_axi_bus
 from xls.modules.zstd.cocotb.xlsstruct import XLSStruct, xls_dataclass
 from xls.modules.zstd.cocotb.data_generator import DecompressFrame
 
@@ -75,38 +75,6 @@ def set_termination_event(monitor, event, transactions):
     if monitor.stats.received_transactions == transactions:
       event.set()
   monitor.add_callback(terminate_cb)
-
-def connect_axi_read_bus(dut, name=""):
-  AXI_AR = "axi_ar"
-  AXI_R = "axi_r"
-
-  if name != "":
-      name += "_"
-
-  bus_axi_ar = axi.AxiARBus.from_prefix(dut, name + AXI_AR)
-  bus_axi_r = axi.AxiRBus.from_prefix(dut, name + AXI_R)
-
-  return axi.AxiReadBus(bus_axi_ar, bus_axi_r)
-
-def connect_axi_write_bus(dut, name=""):
-  AXI_AW = "axi_aw"
-  AXI_W = "axi_w"
-  AXI_B = "axi_b"
-
-  if name != "":
-      name += "_"
-
-  bus_axi_aw = axi.AxiAWBus.from_prefix(dut, name + AXI_AW)
-  bus_axi_b = axi.AxiBBus.from_prefix(dut, name + AXI_B)
-  bus_axi_w = axi.AxiWBus.from_prefix(dut, name + AXI_W)
-
-  return axi.AxiWriteBus(bus_axi_aw, bus_axi_w, bus_axi_b)
-
-def connect_axi_bus(dut, name=""):
-  bus_axi_read = connect_axi_read_bus(dut, name)
-  bus_axi_write = connect_axi_write_bus(dut, name)
-
-  return axi.AxiBus(bus_axi_write, bus_axi_read)
 
 def generate_random_bytes():
   # we do it this way so that there's a bigger probability of symbols repeating
