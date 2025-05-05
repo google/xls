@@ -199,6 +199,8 @@ cc_library(
     srcs = ["expr_clone.cc"],
     hdrs = ["expr_clone.h"],
     deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@llvm-project//clang:ast",
     ],
 )

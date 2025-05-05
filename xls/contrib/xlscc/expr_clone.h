@@ -15,13 +15,16 @@
 #ifndef XLS_CONTRIB_XLSCC_EXPR_CLONE_H_
 #define XLS_CONTRIB_XLSCC_EXPR_CLONE_H_
 
+#include "absl/status/statusor.h"
+
 namespace clang {
   class ASTContext;
   class Expr;
 }
 
 namespace xlscc {
-  const clang::Expr* Clone(clang::ASTContext& ctx, const clang::Expr* expr);
+  // Clones the given Clang expression AST or an error if it contains unsupported statements
+  absl::StatusOr<const clang::Expr*> Clone(clang::ASTContext& ctx, const clang::Expr* expr);
 }  // namespace xlscc
 
 #endif  // XLS_CONTRIB_XLSCC_EXPR_CLONE_H_

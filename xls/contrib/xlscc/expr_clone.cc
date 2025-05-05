@@ -16,6 +16,7 @@
 
 #include <vector>
 
+#include "absl/strings/str_cat.h"
 #include "clang/AST/StmtVisitor.h"
 
 namespace xlscc {
@@ -238,15 +239,23 @@ class ExprClone : public clang::ConstStmtVisitor<ExprClone, clang::Expr*> {
         expr->requiresZeroInitialization());
   }
 
+  clang::Expr* VisitExpr(const clang::Expr* expr) { return nullptr; }
+
  private:
   clang::ASTContext& ctx;
 };
 
 }  // namespace
 
-const clang::Expr* Clone(clang::ASTContext& ctx, const clang::Expr* expr) {
+absl::StatusOr<const clang::Expr*> Clone(clang::ASTContext& ctx,
+                                         const clang::Expr* expr) {
   ExprClone cloner(ctx);
-  return cloner.Visit(expr);
+  auto cloned = cloner.Visit(expr);
+  if (cloned) {
+    return cloned;
+  }
+  return absl::UnimplementedError(
+      absl::StrCat("Unsupported: clone ", expr->getStmtClassName()));
 }
 
 }  // namespace xlscc

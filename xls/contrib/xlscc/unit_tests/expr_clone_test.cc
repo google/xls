@@ -146,7 +146,9 @@ class ExprCloneTest : public XlsccTestBase {
     llvm::errs() << "=> Original:\n";
     ret_val->dump(llvm::errs(), top_fn->getASTContext());
 
-    auto* ret_val_clone = xlscc::Clone(top_fn->getASTContext(), ret_val);
+    auto result = xlscc::Clone(top_fn->getASTContext(), ret_val);
+    XLS_ASSERT_OK(result);
+    auto* ret_val_clone = *result;
     ASSERT_NE(ret_val_clone, nullptr);
     llvm::errs() << "=> Cloned:\n";
     ret_val_clone->dump(llvm::errs(), top_fn->getASTContext());
@@ -340,6 +342,26 @@ TEST_F(ExprCloneTest, CloneComplexExpr) {
       return a[i] ? (float) a[i] * (bar(b) << 1) : 3.14;
     }
   )");
+}
+
+TEST_F(ExprCloneTest, CloneUnsupportedExpr) {
+  xlscc::CCParser parser;
+  XLS_ASSERT_OK(ScanTempFileWithContent(
+      R"(
+        auto foo(int a) {
+          return [a](int b) { return a + b; };
+        }
+      )",
+      {}, &parser, /*=top_name*/ "foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_fn, parser.GetTopFunction());
+  ASSERT_NE(top_fn, nullptr);
+  auto* ret_stmt = GetStmtInFunction<clang::ReturnStmt>(top_fn);
+  ASSERT_NE(ret_stmt, nullptr);
+  auto* ret_val = ret_stmt->getRetValue();
+  ASSERT_NE(ret_val, nullptr);
+  auto result = xlscc::Clone(top_fn->getASTContext(), ret_val);
+  ASSERT_FALSE(result.ok());
+  ASSERT_EQ(result.status().code(), absl::StatusCode::kUnimplemented);
 }
 
 }  // namespace
