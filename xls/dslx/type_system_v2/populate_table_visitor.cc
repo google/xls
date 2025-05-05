@@ -1383,6 +1383,26 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return DefaultHandler(node);
   }
 
+  // Returns true if the given callee can only be called within a proc.
+  bool ProcOnlyFunction(const Expr* callee) {
+    static const absl::flat_hash_set<std::string> kShouldBeInProc = {
+        "join",
+        "recv",
+        "recv_if",
+        "send",
+        "send_if",
+        "recv_non_blocking",
+        "recv_if_non_blocking",
+    };
+    std::optional<std::string_view> builtin_name =
+        GetBuiltinFnName(const_cast<Expr*>(callee));
+    if (!builtin_name.has_value()) {
+      return false;
+    }
+
+    return kShouldBeInProc.contains(*builtin_name);
+  }
+
   absl::Status HandleInvocation(const Invocation* node) override {
     // When we come in here with an example like:
     //   let x: u32 = foo(a, b);
@@ -1411,6 +1431,15 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // conversion.
 
     VLOG(5) << "HandleInvocation: " << node->ToString();
+
+    // If we're outside a proc, we can't call proc-only builtins.
+    if (!handle_proc_functions_ && ProcOnlyFunction(node->callee())) {
+      return TypeInferenceErrorStatus(
+          *node->GetSpan(), nullptr,
+          absl::Substitute("Cannot call `$0` outside a `proc`",
+                           node->callee()->ToString()),
+          file_table_);
+    }
 
     for (ExprOrType parametric : node->explicit_parametrics()) {
       if (std::holds_alternative<Expr*>(parametric)) {

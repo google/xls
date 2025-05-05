@@ -1155,8 +1155,14 @@ TEST(TypecheckV2BuiltinTest, TokenAssignmentMismatch) {
 
 TEST(TypecheckV2BuiltinTest, Join) {
   EXPECT_THAT(R"(
-  const T = token();
-  const Y = join(T);
+proc P {
+  init { }
+  config() { }
+  next(state: ()) {
+    const T = token();
+    const Y = join(T);
+  }
+}
 )",
               TypecheckSucceeds(AllOf(HasNodeWithType("T", "token"),
                                       HasNodeWithType("Y", "token"))));
@@ -1164,8 +1170,15 @@ TEST(TypecheckV2BuiltinTest, Join) {
 
 TEST(TypecheckV2BuiltinTest, Join2) {
   EXPECT_THAT(R"(
-  const T = token();
-  const Y = join(T, T);
+proc P {
+  init { }
+  config() { }
+
+  next(state: ()) {
+    const T = token();
+    const Y = join(T, T);
+  }
+}
 )",
               TypecheckSucceeds(AllOf(HasNodeWithType("T", "token"),
                                       HasNodeWithType("Y", "token"))));
@@ -1173,8 +1186,15 @@ TEST(TypecheckV2BuiltinTest, Join2) {
 
 TEST(TypecheckV2BuiltinTest, Join0) {
   EXPECT_THAT(R"(
-  const T = token();
-  const Y = join();
+proc P {
+  init { }
+  config() { }
+
+  next(state: ()) {
+    const T = token();
+    const Y = join();
+  }
+}
 )",
               TypecheckSucceeds(AllOf(HasNodeWithType("T", "token"),
                                       HasNodeWithType("Y", "token"))));
@@ -1183,10 +1203,17 @@ TEST(TypecheckV2BuiltinTest, Join0) {
 TEST(TypecheckV2BuiltinTest, Join012) {
   EXPECT_THAT(
       R"(
-  const T = token();
-  const X = join();
-  const Y = join(T);
-  const Z = join(T, T);
+proc P {
+  init { }
+  config() { }
+
+  next(state: ()) {
+    const T = token();
+    const X = join();
+    const Y = join(T);
+    const Z = join(T, T);
+  }
+}
 )",
       TypecheckSucceeds(
           AllOf(HasNodeWithType("T", "token"), HasNodeWithType("X", "token"),
@@ -1196,7 +1223,14 @@ TEST(TypecheckV2BuiltinTest, Join012) {
 TEST(TypecheckV2BuiltinTest, JoinMismatchReturnType) {
   EXPECT_THAT(
       R"(
-  const X:u32 = join();
+proc P {
+  init { }
+  config() { }
+
+  next(state: ()) {
+    const X:u32 = join();
+  }
+}
 )",
       TypecheckFails(HasTypeMismatch("u32", "token")));
 }
@@ -1204,7 +1238,14 @@ TEST(TypecheckV2BuiltinTest, JoinMismatchReturnType) {
 TEST(TypecheckV2BuiltinTest, JoinMismatchParamType) {
   EXPECT_THAT(
       R"(
-  const X = join(u32:0);
+proc P {
+  init { }
+  config() { }
+
+  next(state: ()) {
+    const X = join(u32:0);
+  }
+}
 )",
       TypecheckFails(HasTypeMismatch("u32", "token")));
 }
@@ -1212,9 +1253,26 @@ TEST(TypecheckV2BuiltinTest, JoinMismatchParamType) {
 TEST(TypecheckV2BuiltinTest, JoinMismatchSecondParamType) {
   EXPECT_THAT(
       R"(
-  const X = join(token(), u32:0);
+proc P {
+  init { }
+  config() { }
+
+  next(state: ()) {
+    const X = join(token(), u32:0);
+  }
+}
 )",
       TypecheckFails(HasTypeMismatch("u32", "token")));
+}
+
+TEST(TypecheckV2BuiltinTest, JoinOutsideProc) {
+  EXPECT_THAT(
+      R"(
+fn f() -> () {
+  join(token(), token());
+}
+)",
+      TypecheckFails(HasSubstr("Cannot call `join` outside a `proc`")));
 }
 
 TEST(TypecheckV2BuiltinTest, Send) {
@@ -1287,6 +1345,16 @@ proc P {
 }
 )",
       TypecheckFails(HasTypeMismatch("chan<uN[32]>[2] out", "chan<Any> out")));
+}
+
+TEST(TypecheckV2BuiltinTest, SendOutsideProc) {
+  EXPECT_THAT(
+      R"(
+fn f(c: chan<u8> out) -> () {
+  send(token(), c, u8:0);
+}
+)",
+      TypecheckFails(HasSubstr("Cannot call `send` outside a `proc`")));
 }
 
 TEST(TypecheckV2BuiltinTest, SendIf) {
@@ -1393,6 +1461,16 @@ proc P {
 }
 )",
       TypecheckFails(HasTypeMismatch("chan<uN[32]>[2] in", "chan<Any> in")));
+}
+
+TEST(TypecheckV2BuiltinTest, RecvOutsideProc) {
+  EXPECT_THAT(
+      R"(
+fn f(c: chan<u8> in) -> () {
+  recv(token(), c);
+}
+)",
+      TypecheckFails(HasSubstr("Cannot call `recv` outside a `proc`")));
 }
 
 TEST(TypecheckV2BuiltinTest, RecvIf) {

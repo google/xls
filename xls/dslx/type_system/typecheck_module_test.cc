@@ -85,16 +85,20 @@ TEST(TypecheckErrorTest, TypeAliasSelfReference) {
                        HasSubstr("Cannot find a definition for name: \"T\"")));
 }
 
-TEST(TypecheckErrorTest, RecvInFunction) {
+TEST_P(TypecheckBothVersionsTest, RecvInFunction) {
   std::string_view text = R"(
 fn f(tok: token, output_r: chan<u8> in, expected: u8) -> token {
   let (tok, value) = recv(tok, output_r);
   tok
 }
 )";
-  EXPECT_THAT(Typecheck(text),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot recv() outside of a proc")));
+  EXPECT_THAT(
+      Typecheck(text),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(), "Cannot recv() outside of a proc"),
+                HasSubstrInV2(GetParam(),
+                              "Cannot call `recv` outside a `proc`"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, ParametricWhoseTypeIsDeterminedByArgBinding) {
@@ -4715,7 +4719,7 @@ proc t {
     init {  }
 
     next(state: ()) {
-        let (ok, result) = map(join(), result_in);
+        let (ok, result) = map([u32:0], result_in);
     }
 }
 )"),
