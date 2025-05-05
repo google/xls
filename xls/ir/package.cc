@@ -876,6 +876,17 @@ absl::StatusOr<FunctionBase*> FindTop(Package* p,
   return top.value();
 }
 
+/* static */ TransformMetrics TransformMetrics::FromProto(
+    const TransformMetricsProto& proto) {
+  TransformMetrics ret;
+  ret.nodes_added = proto.nodes_added();
+  ret.nodes_removed = proto.nodes_removed();
+  ret.nodes_replaced = proto.nodes_replaced();
+  ret.operands_replaced = proto.operands_replaced();
+  ret.operands_removed = proto.operands_removed();
+  return ret;
+}
+
 TransformMetrics TransformMetrics::operator+(
     const TransformMetrics& other) const {
   return TransformMetrics{
@@ -912,6 +923,7 @@ TransformMetricsProto TransformMetrics::ToProto() const {
   ret.set_nodes_removed(nodes_removed);
   ret.set_nodes_replaced(nodes_replaced);
   ret.set_operands_replaced(operands_replaced);
+  ret.set_operands_removed(operands_removed);
   return ret;
 }
 

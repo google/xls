@@ -448,20 +448,20 @@ class EvalInvariantChecker : public OptimizationInvariantChecker {
   absl::Status Run(Package* package, const OptimizationPassOptions& options,
                    PassResults* results,
                    OptimizationContext& context) const override {
-    if (results->invocations.empty()) {
+    if (results->total_invocations == 0) {
       std::cerr << "// Evaluating entry function at start of pipeline.\n";
     } else {
       std::cerr << "// Evaluating entry function after pass: "
-                << results->invocations.back().pass_name << "\n";
+                << results->GetLatestInvocation().pass_name << "\n";
     }
     XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets_, use_jit_,
                              // Runs between passes don't give useful coverage
                              // information.
                              /*eval_observer=*/std::nullopt,
-                             /*actual_src=*/results->invocations.empty()
+                             /*actual_src=*/results->total_invocations == 0
                                  ? std::string("start of pipeline")
-                                 : results->invocations.back().pass_name,
+                                 : results->GetLatestInvocation().pass_name,
                              /*expected_src=*/"before optimizations")
                             .status());
     return absl::OkStatus();
