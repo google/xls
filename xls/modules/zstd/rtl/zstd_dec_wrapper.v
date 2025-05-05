@@ -15,7 +15,7 @@
 // This module wraps the ZSTD Decoder verilog sources generated from DSLX to
 // form a DUT with consistent IO.
 // The wrapper also contains an AXI crossbar module for merging the traffic
-// from multiple AXI masters comming from the ZSTD Decoder into a single AXI
+// from multiple AXI Managers comming from the ZSTD Decoder into a single AXI
 // master that could be e.g. routed to the memory.
 
 `default_nettype none
@@ -35,7 +35,7 @@ module zstd_dec_wrapper #(
     input wire clk,
     input wire rst,
 
-    // AXI Master interface for the memory connection
+    // AXI Manager interface for the memory connection
     output wire [M_AXI_ID_W-1:0]    memory_axi_aw_awid,
     output wire [AXI_ADDR_W-1:0]    memory_axi_aw_awaddr,
     output wire [7:0]               memory_axi_aw_awlen,
@@ -81,7 +81,7 @@ module zstd_dec_wrapper #(
     input  wire                     memory_axi_r_rvalid,
     output wire                     memory_axi_r_rready,
 
-    // AXI Slave interface for the CSR access
+    // AXI Subordinate interface for the CSR access
     input wire [S_AXI_ID_W-1:0]     csr_axi_aw_awid,
     input wire [AXI_ADDR_W-1:0]     csr_axi_aw_awaddr,
     input wire [7:0]                csr_axi_aw_awlen,
@@ -512,7 +512,7 @@ module zstd_dec_wrapper #(
       .rst(rst),
 
       /*
-       * AXI slave interfaces
+       * AXI Subordinate interfaces
        */
       // FrameHeaderDecoder
       .s00_axi_awid('0),
@@ -691,7 +691,7 @@ module zstd_dec_wrapper #(
       .s03_axi_rready('0),
 
       /*
-       * AXI master interface
+       * AXI Manager interface
        */
       // Outside-facing AXI interface of the ZSTD Decoder
       .m00_axi_awid(memory_axi_aw_awid),
