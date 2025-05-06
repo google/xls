@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -389,6 +390,24 @@ class InferenceTable {
   // Retrieves the previously stored start and width expressions for a slice.
   virtual std::optional<StartAndWidthExprs> GetSliceStartAndWidthExprs(
       const AstNode* node) = 0;
+
+  // Caches the given unified type for the given type variable in the given
+  // context. The `transitive_variable_dependencies` must include all the
+  // inference variables that factored into the unified type. The cached unified
+  // type will then automatically be invalidated if any of those variables
+  // change.
+  virtual void SetCachedUnifiedTypeForVariable(
+      std::optional<const ParametricContext*> parametric_context,
+      const NameRef* variable,
+      const absl::flat_hash_set<const NameRef*>&
+          transitive_variable_dependencies,
+      const TypeAnnotation* unified_type) = 0;
+
+  // Retrieves the cached unified type for the given variable in the given
+  // context, if one has been cached and it is still valid.
+  virtual std::optional<const TypeAnnotation*> GetCachedUnifiedTypeForVariable(
+      std::optional<const ParametricContext*> parametric_context,
+      const NameRef* variable) = 0;
 
   // Converts the table to string for debugging purposes.
   virtual std::string ToString() const = 0;

@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -176,19 +177,51 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       return new_resolver->ResolveAndUnifyTypeAnnotations(
           parametric_context, type_variable, span, filter);
     }
+
+    std::optional<const TypeAnnotation*> cached =
+        table_.GetCachedUnifiedTypeForVariable(parametric_context,
+                                               type_variable);
+    if (cached.has_value() &&
+        dynamic_cast<const AnyTypeAnnotation*>(*cached) == nullptr) {
+      VLOG(6) << "Using cached type for " << type_variable->ToString();
+      trace.SetResult(*cached);
+      return *cached;
+    }
+
     XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
                          table_.GetTypeAnnotationsForTypeVariable(
                              parametric_context, type_variable));
+    bool filtered_top_level = false;
     if (!filter.IsNone() && !annotations.empty()) {
       tracer_.TraceFilter(filter, annotations);
+      const int original_size = annotations.size();
       FilterAnnotations(annotations, filter);
+      filtered_top_level = annotations.size() != original_size;
     }
-    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* result,
-                         ResolveAndUnifyTypeAnnotations(
-                             parametric_context, annotations, span, filter));
+    int reject_count = 0;
+    absl::flat_hash_set<const NameRef*> variables_traversed;
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* result,
+        ResolveAndUnifyTypeAnnotations(
+            parametric_context, annotations, span,
+            TypeAnnotationFilter::CaptureRejectCount(&reject_count)
+                .Chain(TypeAnnotationFilter::CaptureVariables(
+                    &variables_traversed))
+                .Chain(filter)));
     VLOG(6) << "Unified type for variable " << type_variable->ToString() << ": "
             << result->ToString();
     trace.SetResult(result);
+
+    // Cache the result only if we actually considered all the deps of the
+    // variable, and came up with a non-Any result.
+    if (!filtered_top_level && reject_count == 0 &&
+        dynamic_cast<const AnyTypeAnnotation*>(result) == nullptr) {
+      VLOG(6) << "Caching unified type: " << result->ToString()
+              << " for variable: " << type_variable->ToString();
+      table_.SetCachedUnifiedTypeForVariable(parametric_context, type_variable,
+                                             variables_traversed, result);
+    }
+
     return result;
   }
 

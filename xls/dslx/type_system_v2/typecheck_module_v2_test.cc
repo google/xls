@@ -5627,6 +5627,32 @@ const X = for (i, (q, r)): (u32, (u8, u16)) in u32:0..1 {
               TypecheckSucceeds(HasNodeWithType("X", "(uN[8], uN[16])")));
 }
 
+TEST(TypecheckV2Test, IterativeDivMod) {
+  // This is a copy of the function in std.x, which is of interest because it
+  // takes an unacceptable amount of time to type check without caching.
+  EXPECT_THAT(R"(
+pub fn iterative_div_mod<N: u32, M: u32>(n: uN[N], d: uN[M]) -> (uN[N], uN[M]) {
+    // Zero extend divisor by 1 bit.
+    let divisor = d as uN[M + u32:1];
+
+    for (i, (q, r)): (u32, (uN[N], uN[M])) in u32:0.. N {
+        // Shift the next bit of n into r.
+        let r = r ++ n[(N - u32:1 - i)+:u1];
+        let (q, r) = if r >= divisor {
+            (q as uN[N - u32:1] ++ u1:1, r - divisor)
+        } else {
+            (q as uN[N - u32:1] ++ u1:0, r)
+        };
+        // Remove the MSB of r; guaranteed to be 0 because r < d.
+        (q, r[0:M as s32])
+    }((uN[N]:0, uN[M]:0))
+}
+
+const X = iterative_div_mod(u32:20, u32:3);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "(uN[32], uN[32])")));
+}
+
 TEST(TypecheckV2Test, UnrollFor) {
   // Verify that the loop is unrolled 5 times, and is also constant-folded.
   EXPECT_THAT(

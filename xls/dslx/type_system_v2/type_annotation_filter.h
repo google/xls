@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -59,6 +60,15 @@ class TypeAnnotationFilter {
   // Creates a filter that excludes the given specific annotation, with the goal
   // of preventing recursion on an analysis of it.
   static TypeAnnotationFilter BlockRecursion(const TypeAnnotation* annotation);
+
+  // Creates a filter that accepts everything but records all inference
+  // variables encountered into the given container.
+  static TypeAnnotationFilter CaptureVariables(
+      absl::flat_hash_set<const NameRef*>* container);
+
+  // Creates a filter that accepts everything but captures the number of
+  // annotations rejected by any chain after it.
+  static TypeAnnotationFilter CaptureRejectCount(int* count);
 
   // Treat like a value object and allow copy and move.
   TypeAnnotationFilter(const TypeAnnotationFilter&);

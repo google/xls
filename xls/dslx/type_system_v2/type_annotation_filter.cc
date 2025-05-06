@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
@@ -51,6 +52,8 @@ enum class TypeAnnotationFilterKind : uint8_t {
   kSingleAny,
   kMultiAny,
   kBlockRecursion,
+  kCaptureVariables,
+  kCaptureRejectCount,
   kMissingTypeInfo,
   kStructRef
 };
@@ -67,6 +70,10 @@ std::string KindToString(TypeAnnotationFilterKind kind) {
       return "multi-any";
     case TypeAnnotationFilterKind::kBlockRecursion:
       return "block-recursion";
+    case TypeAnnotationFilterKind::kCaptureVariables:
+      return "capture-vars";
+    case TypeAnnotationFilterKind::kCaptureRejectCount:
+      return "capture-reject-count";
     case TypeAnnotationFilterKind::kMissingTypeInfo:
       return "refs-with-missing-type-info";
     case TypeAnnotationFilterKind::kStructRef:
@@ -135,9 +142,19 @@ class FilterElement {
                 std::string_view custom_string = "")
       : kind_(kind),
         filter_(std::move(filter)),
+        count_(nullptr),
+        custom_string_(custom_string) {}
+
+  FilterElement(TypeAnnotationFilterKind kind, int* count,
+                std::string_view custom_string = "")
+      : kind_(kind),
+        filter_([](const TypeAnnotation*) { return false; }),
+        count_(count),
         custom_string_(custom_string) {}
 
   TypeAnnotationFilterKind kind() const { return kind_; }
+
+  void IncrementCount() { ++*count_; }
 
   bool Filter(const TypeAnnotation* annotation) const {
     return filter_(annotation);
@@ -153,7 +170,8 @@ class FilterElement {
  private:
   const TypeAnnotationFilterKind kind_;
   FilterClosure filter_;
-  std::string_view custom_string_;
+  int* const count_;
+  std::string custom_string_;
 };
 
 }  // namespace
@@ -163,7 +181,7 @@ class TypeAnnotationFilter::Impl {
   explicit Impl(FilterElement element) : chain_{std::move(element)} {}
   explicit Impl(std::list<FilterElement> chain) : chain_(std::move(chain)) {}
 
-  const std::list<FilterElement>& chain() const { return chain_; }
+  std::list<FilterElement>& chain() { return chain_; }
 
  private:
   std::list<FilterElement> chain_;
@@ -255,6 +273,25 @@ TypeAnnotationFilter TypeAnnotationFilter::BlockRecursion(
       /*custom_string=*/annotation->ToString())));
 }
 
+TypeAnnotationFilter TypeAnnotationFilter::CaptureVariables(
+    absl::flat_hash_set<const NameRef*>* container) {
+  return TypeAnnotationFilter(std::make_unique<Impl>(FilterElement(
+      TypeAnnotationFilterKind::kCaptureVariables,
+      [container](const TypeAnnotation* candidate) {
+        if (const auto* tvta =
+                dynamic_cast<const TypeVariableTypeAnnotation*>(candidate)) {
+          container->insert(tvta->type_variable());
+        }
+        return false;
+      })));
+}
+
+TypeAnnotationFilter TypeAnnotationFilter::CaptureRejectCount(int* count) {
+  *count = 0;
+  return TypeAnnotationFilter(std::make_unique<Impl>(
+      FilterElement(TypeAnnotationFilterKind::kCaptureRejectCount, count)));
+}
+
 bool TypeAnnotationFilter::IsNone() const {
   return absl::c_all_of(impl_->chain(), [](const FilterElement& element) {
     return element.kind() == TypeAnnotationFilterKind::kNone;
@@ -269,9 +306,20 @@ TypeAnnotationFilter TypeAnnotationFilter::Chain(TypeAnnotationFilter other) {
 }
 
 bool TypeAnnotationFilter::Filter(const TypeAnnotation* annotation) {
-  return absl::c_any_of(impl_->chain(), [&](const FilterElement& element) {
-    return element.Filter(annotation);
-  });
+  std::list<FilterElement*> rejection_counters;
+  for (FilterElement& element : impl_->chain()) {
+    if (element.kind() == TypeAnnotationFilterKind::kCaptureRejectCount) {
+      rejection_counters.push_back(&element);
+    }
+    bool filtered = element.Filter(annotation);
+    if (filtered) {
+      for (FilterElement* rejection_counter : rejection_counters) {
+        rejection_counter->IncrementCount();
+      }
+      return true;
+    }
+  }
+  return false;
 }
 
 std::string TypeAnnotationFilter::ToString() const {

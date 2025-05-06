@@ -150,6 +150,81 @@ struct MutableParametricContextData {
       type_annotations_per_type_variable;
 };
 
+// An auxiliary data structure for holding cached unification data associated
+// with an `InferenceTable`.
+class UnificationCache {
+ public:
+  void SetUnifiedTypeForVariable(
+      std::optional<const ParametricContext*> parametric_context,
+      const NameRef* variable,
+      const absl::flat_hash_set<const NameRef*>&
+          transitive_variable_dependencies,
+      const TypeAnnotation* unified_type) {
+    const NameDef* variable_name_def =
+        std::get<const NameDef*>(variable->name_def());
+    if (!parametric_context.has_value()) {
+      cache_[variable_name_def].cached_type = unified_type;
+    } else {
+      cache_[variable_name_def]
+          .cached_type_per_parametric_context[*parametric_context] =
+          unified_type;
+    }
+    for (const NameRef* dep : transitive_variable_dependencies) {
+      transitive_consumers_[std::get<const NameDef*>(dep->name_def())].insert(
+          variable_name_def);
+    }
+  }
+
+  std::optional<const TypeAnnotation*> GetUnifiedTypeForVariable(
+      std::optional<const ParametricContext*> parametric_context,
+      const NameRef* variable) {
+    const auto it = cache_.find(std::get<const NameDef*>(variable->name_def()));
+    if (it == cache_.end()) {
+      return std::nullopt;
+    }
+    if (parametric_context.has_value()) {
+      const auto type_for_context =
+          it->second.cached_type_per_parametric_context.find(
+              *parametric_context);
+      if (type_for_context !=
+          it->second.cached_type_per_parametric_context.end()) {
+        return type_for_context->second;
+      }
+    }
+    return it->second.cached_type;
+  }
+
+  void InvalidateVariable(const NameRef* variable) {
+    VLOG(6) << "Invalidating unification cache for variable due to a direct "
+               "change: "
+            << variable->ToString();
+    const auto* def = std::get<const NameDef*>(variable->name_def());
+    cache_.erase(def);
+    const auto consumers = transitive_consumers_.find(def);
+    if (consumers != transitive_consumers_.end()) {
+      for (const NameDef* consumer : consumers->second) {
+        VLOG(5) << "Invalidating unification cache for variable: "
+                << consumer->ToString()
+                << " due to dependency on changed variable: "
+                << variable->ToString();
+        cache_.erase(consumer);
+      }
+      transitive_consumers_.erase(consumers);
+    }
+  }
+
+ private:
+  struct VariableState {
+    std::optional<const TypeAnnotation*> cached_type;
+    absl::flat_hash_map<const ParametricContext*, const TypeAnnotation*>
+        cached_type_per_parametric_context;
+  };
+
+  absl::flat_hash_map<const NameDef*, VariableState> cache_;
+  absl::flat_hash_map<const NameDef*, absl::flat_hash_set<const NameDef*>>
+      transitive_consumers_;
+};
+
 class InferenceTableImpl : public InferenceTable {
  public:
   explicit InferenceTableImpl(Module& module) : module_(module) {}
@@ -333,6 +408,7 @@ class InferenceTableImpl : public InferenceTable {
                                          return remove_predicate(annotation);
                                        }),
                         annotations.end());
+      cache_.InvalidateVariable(variable->name_ref());
     }
     return absl::OkStatus();
   }
@@ -558,6 +634,23 @@ class InferenceTableImpl : public InferenceTable {
                                   : it->second.slice_start_and_width_exprs;
   }
 
+  void SetCachedUnifiedTypeForVariable(
+      std::optional<const ParametricContext*> parametric_context,
+      const NameRef* variable,
+      const absl::flat_hash_set<const NameRef*>&
+          transitive_variable_dependencies,
+      const TypeAnnotation* unified_type) override {
+    cache_.SetUnifiedTypeForVariable(parametric_context, variable,
+                                     transitive_variable_dependencies,
+                                     unified_type);
+  }
+
+  std::optional<const TypeAnnotation*> GetCachedUnifiedTypeForVariable(
+      std::optional<const ParametricContext*> parametric_context,
+      const NameRef* variable) override {
+    return cache_.GetUnifiedTypeForVariable(parametric_context, variable);
+  }
+
  private:
   void AddVariable(const NameDef* name_def,
                    std::unique_ptr<InferenceVariable> variable) {
@@ -591,6 +684,8 @@ class InferenceTableImpl : public InferenceTable {
     if (inserted) {
       node_data.order_added = node_data_.size();
     }
+    std::optional<const InferenceVariable*> old_variable =
+        node_data.type_variable;
     mutator(node_data);
     // Refine and check the associated type variable.
     if (node_data.type_variable.has_value() &&
@@ -610,6 +705,12 @@ class InferenceTableImpl : public InferenceTable {
             *node_data.type_annotation);
       }
     }
+    if (old_variable.has_value()) {
+      cache_.InvalidateVariable((*old_variable)->name_ref());
+    }
+    if (node_data.type_variable.has_value()) {
+      cache_.InvalidateVariable((*node_data.type_variable)->name_ref());
+    }
     return absl::OkStatus();
   }
 
@@ -624,6 +725,7 @@ class InferenceTableImpl : public InferenceTable {
     } else {
       type_annotations_per_type_variable_[variable].push_back(annotation);
     }
+    cache_.InvalidateVariable(variable->name_ref());
   }
 
   Module& module_;
@@ -652,6 +754,7 @@ class InferenceTableImpl : public InferenceTable {
       const StructDefBase*,
       absl::flat_hash_map<ParametricEnv, const ParametricContext*>>
       parametric_struct_contexts_;
+  UnificationCache cache_;
 };
 
 }  // namespace

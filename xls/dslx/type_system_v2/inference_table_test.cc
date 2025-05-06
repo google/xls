@@ -425,5 +425,177 @@ TEST_F(InferenceTableTest, Clone) {
   EXPECT_EQ(table_->GetTypeVariable(cloned_add_node->rhs()), t0);
 }
 
+TEST_F(InferenceTableTest, SimpleCaching) {
+  NameDef* x = module_->Make<NameDef>(Span::Fake(), "x", /*definer=*/nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const NameRef* t0,
+      table_->DefineInternalVariable(InferenceVariableKind::kType, x, "T0"));
+
+  TypeAnnotation* u32_auto = CreateU32Annotation(*module_, Span::Fake());
+  table_->MarkAsAutoLiteral(u32_auto);
+  TypeAnnotation* u64 =
+      CreateUnOrSnAnnotation(*module_, Span::Fake(), false, 64);
+  XLS_EXPECT_OK(table_->SetTypeVariable(x, t0));
+  XLS_EXPECT_OK(table_->SetTypeAnnotation(x, u32_auto));
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0),
+            std::nullopt);
+
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t0, {}, u64);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0), u64);
+}
+
+TEST_F(InferenceTableTest, CachingInvalidationOfCachedVariable) {
+  NameDef* x = module_->Make<NameDef>(Span::Fake(), "x", /*definer=*/nullptr);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const NameRef* t0,
+      table_->DefineInternalVariable(InferenceVariableKind::kType, x, "T0"));
+  TypeAnnotation* u64 =
+      CreateUnOrSnAnnotation(*module_, Span::Fake(), false, 64);
+
+  XLS_EXPECT_OK(table_->SetTypeVariable(x, t0));
+
+  // Setting a type annotation on a node associated with the variable should
+  // invalidate the cache.
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t0, {}, u64);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0), u64);
+  XLS_EXPECT_OK(table_->SetTypeAnnotation(x, u64));
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0),
+            std::nullopt);
+
+  // Adding an annotation to the variable should invalidate the cache.
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t0, {}, u64);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0), u64);
+  XLS_EXPECT_OK(table_->AddTypeAnnotationToVariableForParametricContext(
+      std::nullopt, t0, u64));
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0),
+            std::nullopt);
+
+  // Removing type annotations from the variable should invalidate the cache.
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t0, {}, u64);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0), u64);
+  XLS_EXPECT_OK(table_->RemoveTypeAnnotationsFromTypeVariable(
+      t0, [](const TypeAnnotation*) { return true; }));
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0),
+            std::nullopt);
+
+  // Changing the variable on a node should invalidate both variables.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const NameRef* t1,
+      table_->DefineInternalVariable(InferenceVariableKind::kType, x, "T1"));
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t0, {}, u64);
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t1, {}, u64);
+  XLS_EXPECT_OK(table_->SetTypeVariable(x, t1));
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0),
+            std::nullopt);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t1),
+            std::nullopt);
+}
+
+TEST_F(InferenceTableTest, CachingInvalidationOfDeps) {
+  NameDef* x = module_->Make<NameDef>(Span::Fake(), "x", /*definer=*/nullptr);
+  NameDef* y = module_->Make<NameDef>(Span::Fake(), "y", /*definer=*/nullptr);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const NameRef* t0,
+      table_->DefineInternalVariable(InferenceVariableKind::kType, x, "T0"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const NameRef* t1,
+      table_->DefineInternalVariable(InferenceVariableKind::kType, x, "T1"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const NameRef* t2,
+      table_->DefineInternalVariable(InferenceVariableKind::kType, x, "T2"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const NameRef* t3,
+      table_->DefineInternalVariable(InferenceVariableKind::kType, x, "T3"));
+
+  TypeAnnotation* u64 =
+      CreateUnOrSnAnnotation(*module_, Span::Fake(), false, 64);
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t0, {t1, t3}, u64);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0), u64);
+
+  // Manipulating t1 or t3 should clear the t0 cache.
+  XLS_EXPECT_OK(table_->AddTypeAnnotationToVariableForParametricContext(
+      std::nullopt, t1, u64));
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0),
+            std::nullopt);
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t0, {t1, t3}, u64);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0), u64);
+  XLS_EXPECT_OK(table_->RemoveTypeAnnotationsFromTypeVariable(
+      t1, [](const TypeAnnotation*) { return true; }));
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0),
+            std::nullopt);
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t0, {t1, t3}, u64);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0), u64);
+  XLS_EXPECT_OK(table_->SetTypeVariable(y, t3));
+  XLS_EXPECT_OK(table_->SetTypeAnnotation(y, u64));
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0),
+            std::nullopt);
+
+  // Manipulating a non-dep var has no effect.
+  table_->SetCachedUnifiedTypeForVariable(std::nullopt, t0, {t1, t3}, u64);
+  XLS_EXPECT_OK(table_->AddTypeAnnotationToVariableForParametricContext(
+      std::nullopt, t2, u64));
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, t0), u64);
+}
+
+TEST_F(InferenceTableTest, CachingForSpecificParametricContext) {
+  ParseAndInitModuleAndTable(R"(
+    fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+    fn bar() {
+      foo<u32:4>(u4:1);
+      foo<u32:5>(u5:3);
+    }
+)");
+
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module_->GetMemberOrError<Function>("foo"));
+  ASSERT_EQ(foo->parametric_bindings().size(), 1);
+  ASSERT_EQ(foo->params().size(), 1);
+  XLS_ASSERT_OK(
+      table_->DefineParametricVariable(*foo->parametric_bindings()[0]));
+  for (const Param* param : foo->params()) {
+    XLS_ASSERT_OK(table_->SetTypeAnnotation(param, param->type_annotation()));
+  }
+  const NameDef* n = foo->parametric_bindings()[0]->name_def();
+  const NameRef* n_ref = module_->Make<NameRef>(Span::Fake(), "n", n);
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* bar,
+                           module_->GetMemberOrError<Function>("bar"));
+  ASSERT_EQ(bar->body()->statements().size(), 2);
+  const Invocation* invocation1 = down_cast<const Invocation*>(
+      ToAstNode(bar->body()->statements().at(0)->wrapped()));
+  const Invocation* invocation2 = down_cast<const Invocation*>(
+      ToAstNode(bar->body()->statements().at(1)->wrapped()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricContext* parametric_context1,
+      table_->AddParametricInvocation(*invocation1, *foo, bar,
+                                      /*caller_invocation=*/std::nullopt,
+                                      /*self_type=*/std::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricContext* parametric_context2,
+      table_->AddParametricInvocation(*invocation2, *foo, bar,
+                                      /*caller_invocation=*/std::nullopt,
+                                      /*self_type=*/std::nullopt));
+
+  EXPECT_THAT(table_->GetParametricInvocations(),
+              ElementsAre(parametric_context1, parametric_context2));
+
+  TypeAnnotation* u4 = CreateUnOrSnAnnotation(*module_, Span::Fake(), false, 4);
+  table_->SetCachedUnifiedTypeForVariable(parametric_context1, n_ref, {}, u4);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(parametric_context1, n_ref),
+            u4);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(std::nullopt, n_ref),
+            std::nullopt);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(parametric_context2, n_ref),
+            std::nullopt);
+
+  TypeAnnotation* u5 = CreateUnOrSnAnnotation(*module_, Span::Fake(), false, 5);
+  table_->SetCachedUnifiedTypeForVariable(parametric_context2, n_ref, {}, u5);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(parametric_context1, n_ref),
+            u4);
+  EXPECT_EQ(table_->GetCachedUnifiedTypeForVariable(parametric_context2, n_ref),
+            u5);
+}
+
 }  // namespace
 }  // namespace xls::dslx
