@@ -2566,6 +2566,22 @@ const_assert!(X == u32:1);
 )"));
 }
 
+TEST_P(TypecheckBothVersionsTest, MatchArmDuplicated) {
+  EXPECT_THAT(
+      Typecheck(R"(
+const X = u32:1;
+const Y = u32:2;
+const Z = match X {
+  u32:1 => X,
+  u32:0 => X,
+  u32:1 => Y,
+  _ => Y
+};
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Exact-duplicate pattern match detected `u32:1`")));
+}
+
 TEST_P(TypecheckBothVersionsTest, ArrayOfConsts) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u4 {

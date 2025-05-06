@@ -3097,6 +3097,47 @@ const Z:u31 = match X {
               TypecheckFails(HasSizeMismatch("u32", "u31")));
 }
 
+TEST(TypecheckV2Test, MatchArmDuplicated) {
+  EXPECT_THAT(R"(
+const X = u32:1;
+const Y = u32:2;
+const Z = match X {
+  u32:1 => X,
+  u32:0 => X,
+  u32:1 => Y,
+  _ => Y
+};
+)",
+              TypecheckFails(
+                  HasSubstr("Exact-duplicate pattern match detected `u32:1`")));
+}
+
+TEST(TypecheckV2Test, MatchNonExhaustive) {
+  EXPECT_THAT(R"(
+fn f(x: u1) -> u32 {
+    match x {
+        true => u32:64,
+    }
+}
+)",
+              TypecheckFails(HasSubstr("`match` patterns are not exhaustive")));
+}
+
+TEST(TypecheckV2Test, MatchAlreadyExhaustive) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn f(x: u4) -> u32 {
+    match x {
+        u4:0..u4:15 => u32:64,
+        u4:15 => u32:32,
+        u4:2 => u32:42,
+    }
+}
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "`match` is already exhaustive before this pattern");
+}
+
 TEST(TypecheckV2Test, PatternMatch) {
   EXPECT_THAT(R"(
 fn f(t: (u8, u32)) -> u32 {
