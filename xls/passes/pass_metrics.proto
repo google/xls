@@ -20,23 +20,19 @@ import "google/protobuf/duration.proto";
 import "xls/ir/transform_metrics.proto";
 
 message PassResultProto {
-  // The short name of the pass.
-  optional string pass_name = 1;
-  // Whether the pass changed the IR.
-  optional int64 changed = 2;
-  // Transformation metrics such as number of nodes added, etc.
+  // How many times the pass was run.
+  optional int64 run_count = 1;
+  // How many runs changed the IR.
+  optional int64 changed_count = 2;
+  // Aggregate transformation metrics across the runs.
+  // TODO(allight): Consider holding de-aggregated metrics?
   optional TransformMetricsProto metrics = 3;
   // Total duration of the running of the pass.
   optional google.protobuf.Duration pass_duration = 4;
-  // For fixed point compound passes this is the number of iterations of the
-  // pass.
-  optional int64 fixed_point_iterations = 5;
-
-  // For compound passes, this is the results of the passes invoked by the pass.
-  repeated PassResultProto nested_results = 7;
 }
 
 // Overall metrics for a pass pipeline.
 message PipelineMetricsProto {
-  optional PassResultProto pass_results = 1;
+  // Map from pass short_name to overal metrics for that pass.
+  map<string, PassResultProto> pass_results = 1;
 }

@@ -29,7 +29,4 @@ message TransformMetricsProto {
   // Number of operands replaced (number of calls to
   // Node::ReplaceOperand[Number]).
   optional int64 operands_replaced = 4;
-  // Number of operands removed (number of calls to
-  // Node::RemoveOptionalOperand).
-  optional int64 operands_removed = 5;
 }

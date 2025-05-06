@@ -108,7 +108,7 @@ absl::StatusOr<bool> SchedulingOptimizationFunctionBasePass::RunOnFunctionBase(
   XLS_RET_CHECK_EQ(f->package(), s->GetPackage());
   VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
                                 long_name(), f->name(),
-                                results->total_invocations);
+                                results->invocations.size());
   VLOG(3) << "Before:";
   XLS_VLOG_LINES(3, f->DumpIr());
 

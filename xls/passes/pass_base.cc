@@ -27,33 +27,73 @@
 #include "xls/passes/pass_metrics.pb.h"
 
 namespace xls {
-namespace {
 
-void InvocationToProto(const PassInvocation& invocation,
-                       PassResultProto* proto) {
-  proto->set_pass_name(invocation.pass_name);
-  proto->set_changed(invocation.ir_changed);
-  absl::Duration rem;
-  int64_t s =
-      absl::IDivDuration(invocation.run_duration, absl::Seconds(1), &rem);
-  int64_t n =
-      absl::IDivDuration(invocation.run_duration, absl::Nanoseconds(1), &rem);
-  proto->mutable_pass_duration()->set_seconds(s);
-  proto->mutable_pass_duration()->set_nanos(n);
-  *proto->mutable_metrics() = invocation.metrics.ToProto();
-  proto->set_fixed_point_iterations(invocation.fixed_point_iterations);
-  for (const PassInvocation& nested_invocation :
-       invocation.nested_invocations) {
-    InvocationToProto(nested_invocation, proto->add_nested_results());
+void CompoundPassResult::AddSinglePassResult(std::string_view pass_name,
+                                             bool changed,
+                                             absl::Duration duration,
+                                             const TransformMetrics& metrics) {
+  SinglePassResult& result = pass_results_[pass_name];
+  ++result.run_count;
+  result.changed_count += changed ? 1 : 0;
+  result.duration = result.duration + duration;
+  result.metrics = result.metrics + metrics;
+}
+
+void CompoundPassResult::AccumulateCompoundPassResult(
+    const CompoundPassResult& other) {
+  changed_ = changed_ || other.changed_;
+  for (const auto& [pass_name, other_pass_result] : other.pass_results_) {
+    SinglePassResult& pass_result = pass_results_[pass_name];
+    pass_result.changed_count += other_pass_result.changed_count;
+    pass_result.run_count += other_pass_result.run_count;
+    pass_result.duration = pass_result.duration + other_pass_result.duration;
+    pass_result.metrics = pass_result.metrics + other_pass_result.metrics;
   }
 }
 
-}  // namespace
+std::string CompoundPassResult::ToString() const {
+  std::string s;
+  std::vector<std::string> pass_names;
+  for (const auto& [name, _] : pass_results_) {
+    pass_names.push_back(name);
+  }
+  std::sort(pass_names.begin(), pass_names.end(),
+            [&](const std::string& a, const std::string& b) {
+              return pass_results_.at(a).duration >
+                     pass_results_.at(b).duration;
+            });
 
-PipelineMetricsProto PassResults::ToProto() const {
-  PipelineMetricsProto proto;
-  InvocationToProto(invocation, proto.mutable_pass_results());
-  return proto;
+  s = "Compound pass statistics:\n";
+  for (const std::string& name : pass_names) {
+    SinglePassResult result = pass_results_.at(name);
+    absl::StrAppendFormat(
+        &s, "  %15s: changed %d/%d, total time %s, metrics %s\n", name,
+        result.changed_count, result.run_count, FormatDuration(result.duration),
+        result.metrics.ToString());
+  }
+  return s;
+}
+
+PassResultProto SinglePassResult::ToProto() const {
+  PassResultProto res;
+  res.set_run_count(run_count);
+  res.set_changed_count(changed_count);
+  *res.mutable_metrics() = metrics.ToProto();
+
+  absl::Duration rem;
+  int64_t s = absl::IDivDuration(duration, absl::Seconds(1), &rem);
+  int64_t n = absl::IDivDuration(duration, absl::Nanoseconds(1), &rem);
+  res.mutable_pass_duration()->set_seconds(s);
+  res.mutable_pass_duration()->set_nanos(n);
+  return res;
+}
+
+PipelineMetricsProto CompoundPassResult::ToProto() const {
+  PipelineMetricsProto res;
+  for (const auto& [name, result] : pass_results_) {
+    res.mutable_pass_results()->insert({name, result.ToProto()});
+  }
+  return res;
 }
 
 }  // namespace xls

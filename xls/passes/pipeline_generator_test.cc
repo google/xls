@@ -52,7 +52,7 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
-class PipelineGeneratorTest : public IrTestBase {};
+class PassBaseTest : public IrTestBase {};
 
 class CountPass final : public OptimizationFunctionBasePass {
  public:
@@ -186,7 +186,7 @@ class TestPipelineGenerator : public OptimizationPipelineGenerator {
   mutable int32_t b_count_ = 0;
 };
 
-TEST_F(PipelineGeneratorTest, PipelineGeneratorSingle) {
+TEST_F(PassBaseTest, PipelineGeneratorSingle) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Literal(UBits(0, 64));
@@ -206,7 +206,7 @@ TEST_F(PipelineGeneratorTest, PipelineGeneratorSingle) {
   EXPECT_EQ(gen.b_count(), 1);
 }
 
-TEST_F(PipelineGeneratorTest, PipelineGeneratorFixedPoint) {
+TEST_F(PassBaseTest, PipelineGeneratorFixedPoint) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Literal(UBits(0, 64));
@@ -225,7 +225,7 @@ TEST_F(PipelineGeneratorTest, PipelineGeneratorFixedPoint) {
   EXPECT_EQ(gen.b_count(), 3);
 }
 
-TEST_F(PipelineGeneratorTest, PipelineGeneratorMissingPass) {
+TEST_F(PassBaseTest, PipelineGeneratorMissingPass) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Literal(UBits(0, 64));
@@ -238,7 +238,7 @@ TEST_F(PipelineGeneratorTest, PipelineGeneratorMissingPass) {
                       ".*Unable to add pass 'foobar' to pipeline.*")));
 }
 
-TEST_F(PipelineGeneratorTest, PipelineGeneratorUnmatchedFixedpointOpen) {
+TEST_F(PassBaseTest, PipelineGeneratorUnmatchedFixedpointOpen) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Literal(UBits(0, 64));
@@ -250,7 +250,7 @@ TEST_F(PipelineGeneratorTest, PipelineGeneratorUnmatchedFixedpointOpen) {
                   testing::MatchesRegex(".*Unmatched '\\[' in pipeline.*")));
 }
 
-TEST_F(PipelineGeneratorTest, PipelineGeneratorUnmatchedFixedpointClose) {
+TEST_F(PassBaseTest, PipelineGeneratorUnmatchedFixedpointClose) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Literal(UBits(0, 64));
@@ -262,7 +262,7 @@ TEST_F(PipelineGeneratorTest, PipelineGeneratorUnmatchedFixedpointClose) {
                   testing::MatchesRegex(".*Unmatched '\\]' in pipeline.*")));
 }
 
-TEST_F(PipelineGeneratorTest, PipelineGeneratorCapOptLevelOptions) {
+TEST_F(PassBaseTest, PipelineGeneratorCapOptLevelOptions) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Literal(Value::Tuple({}));
@@ -301,7 +301,7 @@ TEST_F(PipelineGeneratorTest, PipelineGeneratorCapOptLevelOptions) {
                                  })));
 }
 
-TEST_F(PipelineGeneratorTest, PipelineGeneratorMinOptLevel) {
+TEST_F(PassBaseTest, PipelineGeneratorMinOptLevel) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Literal(UBits(0, 64));

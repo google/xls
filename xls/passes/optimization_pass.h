@@ -357,24 +357,6 @@ class DynamicCapOptLevel : public OptimizationPass {
     return res;
   }
 
-  bool IsCompound() const override { return inner_.IsCompound(); }
-
-  InnerPass* inner_pass() { return &inner_; }
-
-  absl::StatusOr<bool> RunNested(
-      Package* ir, const OptimizationPassOptions& options, PassResults* results,
-      OptimizationContext& context, PassInvocation& invocation,
-      absl::Span<const typename OptimizationPass::InvariantChecker* const>
-          invariant_checkers) const override {
-    if (VLOG_IS_ON(4) && level_ < options.opt_level) {
-      VLOG(4) << "Lowering opt-level of compount pass '" << inner_.long_name()
-              << "' (" << inner_.short_name() << ") to " << level_;
-    }
-    return inner_.RunNested(
-        ir, options.WithOptLevel(std::min(level_, options.opt_level)), results,
-        context, invocation, invariant_checkers);
-  }
-
  protected:
   absl::StatusOr<bool> RunInternal(
       Package* ir, const OptimizationPassOptions& options, PassResults* results,
@@ -413,26 +395,6 @@ class DynamicIfOptLevelAtLeast : public OptimizationPass {
     XLS_ASSIGN_OR_RETURN(PassPipelineProto::Element res, inner_.ToProto());
     res.mutable_options()->set_min_opt_level(level_);
     return res;
-  }
-
-  bool IsCompound() const override { return inner_.IsCompound(); }
-
-  InnerPass* inner_pass() { return &inner_; }
-
-  absl::StatusOr<bool> RunNested(
-      Package* ir, const OptimizationPassOptions& options, PassResults* results,
-      OptimizationContext& context, PassInvocation& invocation,
-      absl::Span<const typename OptimizationPass::InvariantChecker* const>
-          invariant_checkers) const override {
-    if (options.opt_level < level_) {
-      VLOG(4) << "Skipping compount pass '" << inner_.long_name() << "' ("
-              << inner_.short_name()
-              << ") because opt-level is lower than minimum level of "
-              << level_;
-      return false;
-    }
-    return inner_.RunNested(ir, options, results, context, invocation,
-                            invariant_checkers);
   }
 
  protected:

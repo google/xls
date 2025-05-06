@@ -291,7 +291,7 @@ absl::Status RealMain(std::string_view input_path) {
               .debug_optimizations = debug_optimizations,
               .results = &results,
           }));
-  VLOG(2) << "Ran " << results.total_invocations << " passes";
+  VLOG(2) << "Ran " << results.invocations.size() << " passes";
   if (absl::GetFlag(FLAGS_pipeline_metrics_proto)) {
     XLS_RETURN_IF_ERROR(
         SetFileContents(*absl::GetFlag(FLAGS_pipeline_metrics_proto),
@@ -310,7 +310,7 @@ absl::Status RealMain(std::string_view input_path) {
     XLS_RETURN_IF_ERROR(SetFileContents(output_path, opt_ir));
   }
   if (absl::GetFlag(FLAGS_passes_bisect_limit_is_error) && bisect_limit &&
-      results.total_invocations >= *bisect_limit) {
+      results.invocations.size() >= *bisect_limit) {
     return absl::InternalError("passes bisect limit was reached.");
   }
   return absl::OkStatus();

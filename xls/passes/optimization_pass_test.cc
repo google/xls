@@ -40,9 +40,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/ram_rewrite.pb.h"
-#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
-#include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -68,22 +66,6 @@ class DummyPass : public OptimizationPass {
 
  private:
   bool change_;
-};
-
-// Pass which adds a single literal node to the graph.
-class NodeAdderPass : public OptimizationFunctionBasePass {
- public:
-  NodeAdderPass() : OptimizationFunctionBasePass("node_adder", "Node adder") {}
-  ~NodeAdderPass() override = default;
-
- protected:
-  absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext& context) const override {
-    XLS_RETURN_IF_ERROR(
-        f->MakeNode<Literal>(SourceInfo(), Value(UBits(0, 32))).status());
-    return true;
-  }
 };
 
 // BuildShift0 builds an IR that initially looks like this:
@@ -142,12 +124,12 @@ TEST(PassesTest, AddPasses) {
       pass_mgr.Run(p.get(), OptimizationPassOptions(), &results, context),
       IsOkAndHolds(false));
   std::vector<std::string> invocation_names;
-  invocation_names.reserve(results.invocation.nested_invocations.size());
-  for (const PassInvocation& invocation :
-       results.invocation.nested_invocations) {
+  invocation_names.reserve(results.invocations.size());
+  for (const PassInvocation& invocation : results.invocations) {
     invocation_names.push_back(invocation.pass_name);
   }
-  EXPECT_THAT(invocation_names, ElementsAre("d1", "d2", "d3", "C1", "d6"));
+  EXPECT_THAT(invocation_names,
+              ElementsAre("d1", "d2", "d3", "d4", "d5", "d6"));
 }
 
 // Invariant checker which returns an error if the package has function with a
@@ -433,7 +415,6 @@ class RecordPass : public OptimizationFunctionBasePass {
  private:
   std::vector<int64_t>* record_;
 };
-
 TEST(PassesTest, CapOptLevel) {
   // Verify the test invariant checker works as expected.
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
@@ -465,47 +446,6 @@ TEST(PassesTest, CapOptLevel) {
   }
 }
 
-TEST(PassesTest, CapOptLevelWithInvariantChecker) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
-                           Parser::ParsePackage(kInvariantTesterPackage));
-  OptimizationCompoundPass passes("test", "test");
-  passes.Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-  passes.Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-  passes.Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-  CounterChecker* checker = passes.AddInvariantChecker<CounterChecker>();
-
-  PassResults res;
-  OptimizationContext ctx;
-  ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res, ctx),
-              IsOkAndHolds(true));
-  EXPECT_EQ(checker->run_count(), 4);
-}
-
-TEST(PassesTest, CapOptLevelWithCompoundPassAndInvariantChecker) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
-                           Parser::ParsePackage(kInvariantTesterPackage));
-  OptimizationCompoundPass passes("test", "test");
-  CounterChecker* checker = passes.AddInvariantChecker<CounterChecker>();
-
-  OptimizationCompoundPass* sub_passes =
-      passes
-          .Add<CapOptLevel<kMaxOptLevel, OptimizationCompoundPass>>("sub",
-                                                                    "sub")
-          ->inner_pass();
-  sub_passes->Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-  sub_passes->Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-  sub_passes->Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-
-  PassResults res;
-  OptimizationContext ctx;
-  ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res, ctx),
-              IsOkAndHolds(true));
-
-  // The invariant checker runs at the beginning of each compound pass and after
-  // each pass which changes the IR.
-  EXPECT_EQ(checker->run_count(), 5);
-}
-
 TEST(PassesTest, OptLevelIsAtLeast) {
   // Verify the test invariant checker works as expected.
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
@@ -527,55 +467,6 @@ TEST(PassesTest, OptLevelIsAtLeast) {
                            &res, ctx),
                 IsOkAndHolds(false));
     EXPECT_THAT(record, ElementsAre(0));
-  }
-}
-
-TEST(PassesTest, OptLevelIsAtLeastWithCompoundPassAndInvariantChecker) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
-                           Parser::ParsePackage(kInvariantTesterPackage));
-  {
-    OptimizationCompoundPass passes("test", "test");
-    CounterChecker* checker = passes.AddInvariantChecker<CounterChecker>();
-
-    OptimizationCompoundPass* sub_passes =
-        passes
-            .Add<IfOptLevelAtLeast<1, OptimizationCompoundPass>>("sub", "sub")
-            ->inner_pass();
-    sub_passes->Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-    sub_passes->Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-    sub_passes->Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-
-    PassResults res;
-    OptimizationContext ctx;
-    ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions().WithOptLevel(0),
-                           &res, ctx),
-                IsOkAndHolds(false));
-
-    // The inner pass should not run so only the invariant checker only runs at
-    // the top-level.
-    EXPECT_EQ(checker->run_count(), 1);
-  }
-
-  {
-    OptimizationCompoundPass passes("test", "test");
-    CounterChecker* checker = passes.AddInvariantChecker<CounterChecker>();
-
-    OptimizationCompoundPass* sub_passes =
-        passes
-            .Add<IfOptLevelAtLeast<1, OptimizationCompoundPass>>("sub", "sub")
-            ->inner_pass();
-    sub_passes->Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-    sub_passes->Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-    sub_passes->Add<CapOptLevel<kMaxOptLevel, NodeAdderPass>>();
-
-    PassResults res;
-    OptimizationContext ctx;
-    ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions().WithOptLevel(1),
-                           &res, ctx),
-                IsOkAndHolds(true));
-
-    // The inner pass ran so the checker should have run after each pass.
-    EXPECT_EQ(checker->run_count(), 5);
   }
 }
 

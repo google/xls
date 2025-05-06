@@ -421,7 +421,6 @@ py_test(
     srcs = ["opt_main_test.py"],
     data = [
         ":opt_main",
-        "//xls/dev_tools:pipeline_metrics_main",
         "//xls/modules/aes:aes_ctr.ir",
         "//xls/passes:default_optimization_pipeline_proto",
     ],

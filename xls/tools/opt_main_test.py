@@ -26,9 +26,6 @@ from xls.common import runfiles
 from xls.passes import pass_pipeline_pb2
 
 OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
-PIPELINE_METRICS_MAIN_PATH = runfiles.get_path(
-    'xls/dev_tools/pipeline_metrics_main'
-)
 
 ADD_ZERO_IR = """package add_zero
 
@@ -298,26 +295,6 @@ class OptMainTest(parameterized.TestCase):
           ]).decode('utf-8')
       )
     self.assertNotEqual(oracle_output.result(), test_output.result())
-
-  def test_dump_metrics(self):
-    ir_file = runfiles.get_path('xls/modules/aes/aes_ctr.ir')
-
-    # Dump metrics to a file.
-    metrics_file = self.create_tempfile()
-    subprocess.check_call([
-        OPT_MAIN_PATH,
-        f'--pipeline_metrics_textproto={metrics_file.full_path}',
-        ir_file,
-    ])
-
-    # Generate a table of the metrics.
-    metrics_output = subprocess.check_output(
-        [PIPELINE_METRICS_MAIN_PATH, metrics_file.full_path]
-    ).decode('utf-8')
-
-    # The table should include a line for cse pass (common subexpression
-    # elimination).
-    self.assertIn('cse', metrics_output)
 
 
 if __name__ == '__main__':
