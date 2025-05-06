@@ -109,11 +109,8 @@ inline bool WarningIsEnabled(WarningKindSet set, WarningKind warning) {
 
 // TODO(leary): 2024-03-15 Enable "should use fail if" by default after some
 // propagation time.
-// TODO(cdleary): 2025-02-03 Enable "already exhaustive match" by default after
-// some propagation time.
-inline constexpr WarningKindSet kDefaultWarningsSet = DisableWarning(
-    DisableWarning(kAllWarningsSet, WarningKind::kShouldUseAssert),
-    WarningKind::kAlreadyExhaustiveMatch);
+inline constexpr WarningKindSet kDefaultWarningsSet =
+    DisableWarning(kAllWarningsSet, WarningKind::kShouldUseAssert);
 
 // Converts a string representation of a warnings to its corresponding enum
 // value.

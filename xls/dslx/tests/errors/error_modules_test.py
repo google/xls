@@ -1287,16 +1287,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
 
   def test_already_exhaustive_match_warning(self):
-    # Note: this flag is disabled by default, for now.
     stderr = self._run(
         'xls/dslx/tests/errors/unnecessary_trailing_match_pattern.x',
-        want_err_retcode=False,
-    )
-    self.assertNotIn('Match is already exhaustive', stderr)
-
-    stderr = self._run(
-        'xls/dslx/tests/errors/unnecessary_trailing_match_pattern.x',
-        enable_warnings={'already_exhaustive_match'},
         want_err_retcode=True,
     )
     self.assertIn('Match is already exhaustive', stderr)
