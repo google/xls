@@ -2867,6 +2867,9 @@ absl::Status FunctionConverter::HandleFunction(
 
   ScopedTypeInfoSwap stis(this, type_info);
 
+  std::string scope = f.impl().has_value()
+                          ? ToAstNode((*f.impl())->struct_ref())->ToString()
+                          : "";
   // We use a function builder for the duration of converting this AST Function.
   const bool requires_implicit_token = GetRequiresImplicitToken(node);
   XLS_ASSIGN_OR_RETURN(
@@ -2874,7 +2877,7 @@ absl::Status FunctionConverter::HandleFunction(
       MangleDslxName(module_->name(), f.identifier(),
                      requires_implicit_token ? CallingConvention::kImplicitToken
                                              : CallingConvention::kTypical,
-                     f.GetFreeParametricKeySet(), parametric_env));
+                     f.GetFreeParametricKeySet(), parametric_env, scope));
   auto ir_builder =
       std::make_unique<FunctionBuilder>(mangled_name, package(), true);
 
@@ -3259,6 +3262,8 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   Expr* callee = node->callee();
   std::string callee_name;
   Module* m;
+  Function* f = nullptr;
+  std::string_view scope = "";
   if (auto* name_ref = dynamic_cast<NameRef*>(callee)) {
     if (std::optional<const UseTreeEntry*> use_tree_entry =
             IsExternNameRef(*name_ref)) {
@@ -3276,28 +3281,42 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   } else if (auto* colon_ref = dynamic_cast<ColonRef*>(callee)) {
     callee_name = colon_ref->attr();
     std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
-    XLS_RET_CHECK(import.has_value());
-    std::optional<const ImportedInfo*> info =
-        current_type_info_->GetImported(import.value());
-    m = (*info)->module;
+    if (import.has_value()) {
+      std::optional<const ImportedInfo*> info =
+          current_type_info_->GetImported(import.value());
+      m = (*info)->module;
+    } else {
+      NameRef* name_ref =
+          dynamic_cast<NameRef*>(ToAstNode(colon_ref->subject()));
+      XLS_RET_CHECK(name_ref != nullptr);
+      XLS_ASSIGN_OR_RETURN(std::optional<StructDef*> struct_def,
+                           StructDefFromExpr(name_ref, current_type_info_));
+      XLS_RET_CHECK(struct_def.has_value());
+      f = *(*struct_def)->GetImplFunction(colon_ref->attr());
+      m = f->owner();
+      scope = (*struct_def)->identifier();
+    }
   } else {
     return absl::InternalError("Invalid callee: " + callee->ToString());
   }
 
-  std::optional<Function*> maybe_f = m->GetFunction(callee_name);
-  if (!maybe_f.has_value()) {
-    // For e.g. builtins that are not in the module we just provide the name
-    // directly.
-    return callee_name;
+  if (f == nullptr) {
+    std::optional<Function*> maybe_f = m->GetFunction(callee_name);
+    if (!maybe_f.has_value()) {
+      // For e.g. builtins that are not in the module we just provide the name
+      // directly.
+      return callee_name;
+    }
+    f = maybe_f.value();
   }
-  Function* f = maybe_f.value();
 
   // We have to mangle the parametric bindings into the name to get the fully
   // resolved symbol.
   absl::btree_set<std::string> free_keys = f->GetFreeParametricKeySet();
   const CallingConvention convention = GetCallingConvention(f);
   if (!f->IsParametric()) {
-    return MangleDslxName(m->name(), f->identifier(), convention, free_keys);
+    return MangleDslxName(m->name(), f->identifier(), convention, free_keys,
+                          /*parametric_env=*/nullptr, scope);
   }
 
   std::optional<const ParametricEnv*> resolved_parametric_env =
@@ -3309,7 +3328,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
                                 (*resolved_parametric_env)->ToString());
   XLS_RET_CHECK(!(*resolved_parametric_env)->empty());
   return MangleDslxName(m->name(), f->identifier(), convention, free_keys,
-                        resolved_parametric_env.value());
+                        resolved_parametric_env.value(), scope);
 }
 
 std::optional<const Expr*> FunctionConverter::GetUnrolledForLoop(

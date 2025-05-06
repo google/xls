@@ -3697,6 +3697,9 @@ absl::StatusOr<Impl*> Parser::ParseImpl(const Pos& start_pos, bool is_public,
   Span span(start_pos, GetPos());
   auto* impl = module_->Make<Impl>(span, type, std::move(members), is_public);
   (*struct_def)->set_impl(impl);
+  for (Function* f : impl->GetFunctions()) {
+    f->set_impl(impl);
+  }
   return impl;
 }
 

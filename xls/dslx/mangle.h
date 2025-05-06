@@ -46,7 +46,7 @@ absl::StatusOr<std::string> MangleDslxName(
     std::string_view module_name, std::string_view function_name,
     CallingConvention convention,
     const absl::btree_set<std::string>& free_keys = {},
-    const ParametricEnv* parametric_env = nullptr);
+    const ParametricEnv* parametric_env = nullptr, std::string_view scope = "");
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_MANGLE_H_

@@ -21,9 +21,7 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -33,7 +31,6 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -43,6 +40,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc_id.h"
+#include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -452,15 +450,24 @@ class InvocationVisitor : public ExprVisitor {
   absl::StatusOr<CalleeInfo> HandleColonRefInvocation(
       const ColonRef* colon_ref) {
     std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
-    XLS_RET_CHECK(import.has_value());
-    std::optional<const ImportedInfo*> info =
-        type_info_->GetImported(import.value());
-    XLS_RET_CHECK(info.has_value());
-    Module* module = (*info)->module;
-    XLS_ASSIGN_OR_RETURN(Function * f,
-                         module->GetMemberOrError<Function>(colon_ref->attr()));
+    if (import.has_value()) {
+      std::optional<const ImportedInfo*> info =
+          type_info_->GetImported(import.value());
+      XLS_RET_CHECK(info.has_value());
+      Module* module = (*info)->module;
+      XLS_ASSIGN_OR_RETURN(
+          Function * f, module->GetMemberOrError<Function>(colon_ref->attr()));
+      return CalleeInfo{
+          .module = module, .callee = f, .type_info = (*info)->type_info};
+    }
+    NameRef* name_ref = dynamic_cast<NameRef*>(ToAstNode(colon_ref->subject()));
+    XLS_RET_CHECK(name_ref != nullptr);
+    XLS_ASSIGN_OR_RETURN(std::optional<StructDef*> struct_def,
+                         StructDefFromExpr(name_ref, type_info_));
+    XLS_RET_CHECK(struct_def.has_value());
+    Function* f = *(*struct_def)->GetImplFunction(colon_ref->attr());
     return CalleeInfo{
-        .module = module, .callee = f, .type_info = (*info)->type_info};
+        .module = f->owner(), .callee = f, .type_info = type_info_};
   }
 
   absl::StatusOr<std::optional<CalleeInfo>> HandleMapInvocation(
