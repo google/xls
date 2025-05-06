@@ -573,6 +573,54 @@ fn is_pow2_test() {
     assert_eq(is_pow2(u8:8), true);
 }
 
+// Returns true when `x` is an even integer.
+pub fn is_even<S: bool, N: u32>(x: xN[S][N]) -> bool { lsb(x as uN[N]) == u1:0 }
+
+#[test]
+fn is_even_test() {
+    assert_eq(is_even(uN[0]:0), true);
+
+    assert_eq(is_even(sN[0]:0), true);
+
+    assert_eq(is_even(u1:0), true);
+    assert_eq(is_even(u1:1), false);
+
+    assert_eq(is_even(s1:0), true);
+    assert_eq(is_even(s1:-1), false);
+
+    assert_eq(is_even(u2:0), true);
+    assert_eq(is_even(u2:1), false);
+    assert_eq(is_even(u2:2), true);
+    assert_eq(is_even(u2:3), false);
+
+    assert_eq(is_even(s3:-4), true);
+    assert_eq(is_even(s3:-3), false);
+    assert_eq(is_even(s3:-2), true);
+    assert_eq(is_even(s3:-1), false);
+    assert_eq(is_even(s3:0), true);
+    assert_eq(is_even(s3:1), false);
+    assert_eq(is_even(s3:2), true);
+    assert_eq(is_even(s3:3), false);
+}
+
+// Adjacent integers are always of opposite parity.
+#[quickcheck(exhaustive)]
+fn prop_is_even_adjacent_diff_unsigned(x: u4) -> bool {
+    let even_x = is_even(x);
+    let even_xp1 = is_even(x + u4:1);
+    let even_xm1 = is_even(x - u4:1);
+    even_x != even_xp1 && even_x != even_xm1
+}
+
+// Adjacent integers are always of opposite parity.
+#[quickcheck(exhaustive)]
+fn prop_is_even_adjacent_diff_signed(x: s4) -> bool {
+    let even_x = is_even(x);
+    let even_xp1 = is_even(x + s4:1);
+    let even_xm1 = is_even(x - s4:1);
+    even_x != even_xp1 && even_x != even_xm1
+}
+
 // Returns x % y where y must be a non-zero power-of-two.
 pub fn mod_pow2<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
     // TODO(leary): 2020-06-11 Add assertion y is a power of two and non-zero.
