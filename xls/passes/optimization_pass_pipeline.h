@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/package.h"
+#include "xls/passes/inlining_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_pipeline.pb.h"
 
@@ -54,7 +55,16 @@ class PreInliningPassGroup : public OptimizationCompoundPass {
 class UnrollingAndInliningPassGroup : public OptimizationCompoundPass {
  public:
   static constexpr std::string_view kName = "full-inlining";
-  explicit UnrollingAndInliningPassGroup();
+  explicit UnrollingAndInliningPassGroup(
+      InliningPass::InlineDepth inline_depth =
+          InliningPass::InlineDepth::kFull);
+};
+
+class IterativeSimplifyAndUnrollPassGroup
+    : public OptimizationFixedPointCompoundPass {
+ public:
+  static constexpr std::string_view kName = "simplify-and-unroll";
+  explicit IterativeSimplifyAndUnrollPassGroup();
 };
 
 // Passes that flatten proc state of aggregate types into individual elements.

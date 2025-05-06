@@ -28,8 +28,13 @@ namespace xls {
 
 class InliningPass : public OptimizationPass {
  public:
+  enum class InlineDepth {
+    kFull,
+    kLeafOnly,
+  };
   static constexpr std::string_view kName = "inlining";
-  InliningPass() : OptimizationPass(kName, "Inlines invocations") {}
+  InliningPass(InlineDepth depth = InlineDepth::kFull)
+      : OptimizationPass(kName, "Inlines invocations"), depth_(depth) {}
 
   // Inline a single invoke instruction. Provided for test and utility
   // (ir_minimizer) use.
@@ -37,11 +42,14 @@ class InliningPass : public OptimizationPass {
   // have invokes in the function code.
   static absl::Status InlineOneInvoke(Invoke* invoke);
 
+  absl::StatusOr<PassPipelineProto::Element> ToProto() const override;
+
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,
                                    const OptimizationPassOptions& options,
                                    PassResults* results,
                                    OptimizationContext& context) const override;
+  InlineDepth depth_;
 };
 
 }  // namespace xls
