@@ -12,9 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CONTRIB_XLSCC_UTILS_H_
-#define XLS_CONTRIB_XLSCC_UTILS_H_
+#ifndef XLS_CONTRIB_XLSCC_NODE_MANIPULATION_H_
+#define XLS_CONTRIB_XLSCC_NODE_MANIPULATION_H_
 
-namespace xlscc {}  // namespace xlscc
+#include "xls/ir/node.h"
 
-#endif  // XLS_CONTRIB_XLSCC_UTILS_H_
+namespace xlscc {
+
+xls::Node* RemoveIdentities(xls::Node* node);
+
+}  // namespace xlscc
+
+#endif  // XLS_CONTRIB_XLSCC_NODE_MANIPULATION_H_
