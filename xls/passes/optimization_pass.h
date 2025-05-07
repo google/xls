@@ -453,6 +453,7 @@ class DynamicIfOptLevelAtLeast : public OptimizationPass {
   int64_t level_;
   InnerPass inner_;
 };
+
 }  // namespace internal
 
 // Wrapper that uses templates to force opt-level to a specific max value for
@@ -497,6 +498,43 @@ class WithOptLevel : public InnerPass {
     return InnerPass::RunInternal(ir, options.WithOptLevel(kLevel), results,
                                   context);
   }
+};
+
+// Wrapper that disables the pass unless resource sharing is enabled.
+template <typename InnerPass>
+  requires(std::is_base_of_v<OptimizationPass, InnerPass>)
+class IfResourceSharingEnabled : public OptimizationPass {
+ public:
+  template <typename... Args>
+  explicit IfResourceSharingEnabled(Args... args)
+      : OptimizationPass("short", "long"), inner_(std::forward<Args>(args)...) {
+    short_name_ =
+        absl::StrFormat("%s(enable_resource_sharing)", inner_.short_name());
+    long_name_ = absl::StrFormat("%s when resource sharing is enabled",
+                                 inner_.long_name());
+  }
+
+  absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
+    XLS_ASSIGN_OR_RETURN(PassPipelineProto::Element res, inner_.ToProto());
+    res.mutable_options()->set_requires_resource_sharing(true);
+    return res;
+  }
+
+ protected:
+  absl::StatusOr<bool> RunInternal(
+      Package* ir, const OptimizationPassOptions& options, PassResults* results,
+      OptimizationContext& context) const override {
+    if (!options.enable_resource_sharing) {
+      VLOG(4) << "Skipping pass '" << inner_.long_name() << "' ("
+              << inner_.short_name()
+              << ") because resource sharing is disabled";
+      return false;
+    }
+    return inner_.Run(ir, options, results, context);
+  }
+
+ private:
+  InnerPass inner_;
 };
 
 // Whether optimizations which split operations into multiple pieces should be

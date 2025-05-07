@@ -67,6 +67,11 @@ class Adder final : public OptimizationPassGenerator {
             ::xls::internal::DynamicIfOptLevelAtLeast<OptimizationWrapperPass>>(
             options.min_opt_level(), std::move(base));
       }
+      if (options.requires_resource_sharing()) {
+        base = std::make_unique<
+            ::xls::IfResourceSharingEnabled<OptimizationWrapperPass>>(
+            std::move(base));
+      }
       pass->AddOwned(std::move(base));
     };
     // Unpack the argument tuple.

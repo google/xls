@@ -24,6 +24,8 @@ message PassPipelineProto {
     optional int64 min_opt_level = 1;
     // Opt level cap
     optional int64 max_opt_level = 2;
+    // Whether this pass will be skipped if resource sharing is not enabled
+    optional bool requires_resource_sharing = 3;
   }
 
   message Pipeline {

@@ -594,6 +594,30 @@ TEST(PassesTest, WithOptLevel) {
   EXPECT_THAT(record, ElementsAre(kMaxOptLevel, 1));
 }
 
+TEST(PassesTest, IfResourceSharingEnabled) {
+  // Verify the test invariant checker works as expected.
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(kInvariantTesterPackage));
+  std::vector<int64_t> record;
+  OptimizationCompoundPass passes("test", "test");
+  passes.Add<RecordPass>(&record);
+  passes.Add<IfResourceSharingEnabled<RecordPass>>(&record);
+  PassResults res;
+  OptimizationContext ctx;
+  {
+    OptimizationPassOptions options;
+    options.enable_resource_sharing = true;
+    ASSERT_THAT(passes.Run(p.get(), options, &res, ctx), IsOkAndHolds(false));
+    EXPECT_THAT(record, ElementsAre(kMaxOptLevel, kMaxOptLevel));
+  }
+  record.clear();
+  {
+    ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res, ctx),
+                IsOkAndHolds(false));
+    EXPECT_THAT(record, ElementsAre(kMaxOptLevel));
+  }
+}
+
 class NaiveDcePass : public OptimizationFunctionBasePass {
  public:
   NaiveDcePass() : OptimizationFunctionBasePass("naive_dce", "naive dce") {}
