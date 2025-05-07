@@ -120,13 +120,11 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
   pass_options.record_metrics = options.metrics != nullptr;
   PassResults results;
   OptimizationContext context;
-  XLS_RETURN_IF_ERROR(pipeline
-                          ->Run(package, pass_options,
-                                options.results ? options.results : &results,
-                                context)
-                          .status());
+  PassResults* results_ptr = options.results ? options.results : &results;
+  XLS_RETURN_IF_ERROR(
+      pipeline->Run(package, pass_options, results_ptr, context).status());
   if (options.metrics) {
-    *options.metrics = results.aggregate_results.ToProto();
+    *options.metrics = results_ptr->ToProto();
   }
   return absl::OkStatus();
 }
