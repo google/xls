@@ -18,6 +18,7 @@
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
@@ -31,6 +32,7 @@ absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
                                   const TypeInfo& ti,
                                   const TypeAnnotation* annotation,
                                   WarningCollector& warning_collector,
+                                  const ImportData& import_data,
                                   const FileTable& file_table);
 
 }  // namespace xls::dslx

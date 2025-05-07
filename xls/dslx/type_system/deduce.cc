@@ -35,7 +35,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
@@ -1339,13 +1338,6 @@ static absl::Status Unify(NameDefTree* name_def_tree, const Type& other,
   }
 
   return absl::OkStatus();
-}
-
-static std::string PatternsToString(MatchArm* arm) {
-  return absl::StrJoin(arm->patterns(), " | ",
-                       [](std::string* out, NameDefTree* ndt) {
-                         absl::StrAppend(out, ndt->ToString());
-                       });
 }
 
 static absl::Status ValidateMatchable(const Type& type, const Span& span,

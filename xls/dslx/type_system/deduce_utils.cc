@@ -31,6 +31,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
@@ -1148,6 +1149,13 @@ absl::StatusOr<InterpValue> GetElementCountAsInterpValue(const Type* type) {
     return InterpValue::MakeU32(struct_type->members().size());
   }
   return GetBitCountAsInterpValue(type);
+}
+
+std::string PatternsToString(const MatchArm* arm) {
+  return absl::StrJoin(arm->patterns(), " | ",
+                       [](std::string* out, NameDefTree* ndt) {
+                         absl::StrAppend(out, ndt->ToString());
+                       });
 }
 
 }  // namespace xls::dslx
