@@ -1311,7 +1311,46 @@ pub fn umul_with_overflow<V: u32>(x: uN[N], y: uN[M]) -> (bool, uN[V])
 Returns a 2-tuple indicating overflow (boolean) and a product `(x * y) as
 uN[V]`. An overflow occurs if the result does not fit within a `uN[V]`.
 
-### Misc Functions
+### Comparison Functions
+
+#### `'exhaustive' comparison - std::compare and std::Ordering`
+
+```dslx-snippet
+pub enum Ordering : s2 {
+    Less = -1,
+    Equal = 0,
+    Greater = 1,
+}
+```
+
+The result of comparing two values. Exhaustively covers all three cases (as
+opposed to using `==`, `<` or `>`, which can only cover one or two of the
+cases). You can `match` on results of this type. Avoids "boolean blindness".
+
+```dslx-snippet
+pub fn compare<S: bool, N: u32>(lhs: xN[S][N], rhs: xN[S][N]) -> Ordering
+```
+
+Compares two integers of the same sign and width, returns `Ordering`.
+
+Example:
+
+```dslx
+import std;
+
+#[test]
+fn test_compare() {
+    // Unsigned comparisons
+    assert_eq(std::compare(u8:1, u8:2), std::Ordering::Less);
+    assert_eq(std::compare(u8:2, u8:2), std::Ordering::Equal);
+    assert_eq(std::compare(u8:3, u8:2), std::Ordering::Greater);
+
+    // Signed comparisons
+    assert_eq(std::compare(s8:-1, s8:0), std::Ordering::Less);
+    assert_eq(std::compare(s8:0, s8:0), std::Ordering::Equal);
+    assert_eq(std::compare(s8:1, s8:0), std::Ordering::Greater);
+}
+```
 
 #### `Signed comparison - std::{sge, sgt, sle, slt}`
 
@@ -1325,6 +1364,8 @@ pub fn slt<N: u32>(x: uN[N], y: uN[N]) -> bool
 **Explicit signed comparison** helpers for working with unsigned values, can be
 a bit more convenient and a bit more explicit intent than doing casting of left
 hand side and right hand side.
+
+### Misc Functions
 
 #### `std::find_index`
 
