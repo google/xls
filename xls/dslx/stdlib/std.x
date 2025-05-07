@@ -202,7 +202,7 @@ pub fn iterative_div_mod<N: u32, M: u32>(n: uN[N], d: uN[M]) -> (uN[N], uN[M]) {
     // Zero extend divisor by 1 bit.
     let divisor = d as uN[M + u32:1];
 
-    for (i, (q, r)): (u32, (uN[N], uN[M])) in range(u32:0, N) {
+    for (i, (q, r)): (u32, (uN[N], uN[M])) in u32:0..N {
         // Shift the next bit of n into r.
         let r = r ++ n[(N - u32:1 - i)+:u1];
         let (q, r) = if r >= divisor {
@@ -335,7 +335,7 @@ pub fn abs<BITS: u32>(x: sN[BITS]) -> sN[BITS] { if x < sN[BITS]:0 { -x } else {
 // The bool at index 0 in the array because the MSb (most significant bit) in
 // the result.
 pub fn convert_to_bits_msb0<N: u32>(x: bool[N]) -> uN[N] {
-    for (i, accum): (u32, uN[N]) in range(u32:0, N) {
+    for (i, accum): (u32, uN[N]) in u32:0..N {
         accum | (x[i] as uN[N]) << ((N - i - u32:1) as uN[N])
     }(uN[N]:0)
 }
@@ -356,7 +356,7 @@ fn convert_to_bits_msb0_test() {
 // This variant puts the LSb (least significant bit) of the word at index 0 in
 // the resulting array.
 pub fn convert_to_bools_lsb0<N: u32>(x: uN[N]) -> bool[N] {
-    for (idx, partial): (u32, bool[N]) in range(u32:0, N) {
+    for (idx, partial): (u32, bool[N]) in u32:0..N {
         update(partial, idx, x[idx+:bool])
     }(bool[N]:[false, ...])
 }
@@ -389,7 +389,7 @@ fn convert_to_from_bools(x: u4) -> bool {
 // ultimately discarded from the unselected match arm.
 pub fn find_index<BITS: u32, ELEMS: u32>(array: uN[BITS][ELEMS], x: uN[BITS]) -> (bool, u32) {
     // Compute all the positions that are equal to our target.
-    let bools: bool[ELEMS] = for (i, accum): (u32, bool[ELEMS]) in range(u32:0, ELEMS) {
+    let bools: bool[ELEMS] = for (i, accum): (u32, bool[ELEMS]) in u32:0..ELEMS {
         update(accum, i, array[i] == x)
     }((bool[ELEMS]:[false, ...]));
 
@@ -682,7 +682,7 @@ pub fn upow<N: u32>(x: uN[N], n: uN[N]) -> uN[N] {
     let result = uN[N]:1;
     let p = x;
 
-    let work = for (i, (n, p, result)) in range(u32:0, N) {
+    let work = for (i, (n, p, result)) in u32:0..N {
         let result = if (n & uN[N]:1) == uN[N]:1 { result * p } else { result };
 
         (n >> 1, p * p, result)
@@ -694,7 +694,7 @@ pub fn spow<N: u32>(x: sN[N], n: uN[N]) -> sN[N] {
     let result = sN[N]:1;
     let p = x;
 
-    let work = for (i, (n, p, result)): (u32, (uN[N], sN[N], sN[N])) in range(u32:0, N) {
+    let work = for (i, (n, p, result)): (u32, (uN[N], sN[N], sN[N])) in u32:0..N {
         let result = if (n & uN[N]:1) == uN[N]:1 { result * p } else { result };
 
         (n >> uN[N]:1, p * p, result)
@@ -722,7 +722,7 @@ fn test_spow() {
 
 // Count the number of bits that are 1.
 pub fn popcount<N: u32>(x: bits[N]) -> bits[N] {
-    let (x, acc) = for (i, (x, acc)): (u32, (bits[N], bits[N])) in range(u32:0, N) {
+    let (x, acc) = for (i, (x, acc)): (u32, (bits[N], bits[N])) in u32:0..N {
         let acc = if (x & bits[N]:1) as u1 { acc + bits[N]:1 } else { acc };
         let x = x >> 1;
         (x, acc)
@@ -1444,7 +1444,7 @@ fn clzt_test() {
     // to builtin clz()
     assert_eq(clzt(uN[717]:1 << 710), u10:6);
 
-    const TEST_UP_TO = 555;  // Test a bit beyond implemented 512
+    const TEST_UP_TO = u32:555;  // Test a bit beyond implemented 512
     for (N, _): (u32, ()) in 0..TEST_UP_TO {
         let number = uN[TEST_UP_TO + 1]:1 << N;
         let expectd_leading_zeres = (TEST_UP_TO - N) as u10;
@@ -1459,8 +1459,8 @@ fn prop_clzt_same_as_clz(x: u64) -> bool { clz(x) == clzt(x) as u64 }
 /// items) after the `valid` mask is applied.
 pub fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool[COUNT]) -> bool {
     const INIT_ALL_DISTINCT = true;
-    for (i, all_distinct) in range(u32:0, COUNT) {
-        for (j, all_distinct) in range(u32:0, COUNT) {
+    for (i, all_distinct) in u32:0..COUNT {
+        for (j, all_distinct) in u32:0..COUNT {
             if i != j && valid[i] && valid[j] && items[i] == items[j] {
                 false
             } else {
