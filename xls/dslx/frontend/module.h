@@ -179,12 +179,12 @@ class Module : public AstNode {
                         T::GetDebugTypeName(), name_, target_name));
   }
 
-  std::optional<Function*> GetFunction(std::string_view target_name);
+  std::optional<Function*> GetFunction(std::string_view target_name) const;
 
   // Gets a test construct in this module with the given "target_name", or
   // returns a NotFoundError.
-  absl::StatusOr<TestFunction*> GetTest(std::string_view target_name);
-  absl::StatusOr<TestProc*> GetTestProc(std::string_view target_name);
+  absl::StatusOr<TestFunction*> GetTest(std::string_view target_name) const;
+  absl::StatusOr<TestProc*> GetTestProc(std::string_view target_name) const;
 
   absl::Span<ModuleMember const> top() const { return top_; }
   absl::Span<ModuleMember> top() { return absl::MakeSpan(top_); }

@@ -253,7 +253,7 @@ class DslxInterpreterTestRunner final : public AbstractTestRunner {
 class DslxInterpreterParsedTestRunner : public AbstractParsedTestRunner {
  public:
   DslxInterpreterParsedTestRunner(ImportData* import_data, TypeInfo* type_info,
-                                  Module* entry_module)
+                                  const Module* entry_module)
       : import_data_(import_data),
         type_info_(type_info),
         entry_module_(entry_module) {}
@@ -268,7 +268,7 @@ class DslxInterpreterParsedTestRunner : public AbstractParsedTestRunner {
  private:
   ImportData* import_data_;
   TypeInfo* type_info_;
-  Module* entry_module_;
+  const Module* entry_module_;
 };
 
 struct ParseAndProveResult {

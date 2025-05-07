@@ -164,7 +164,7 @@ void HandleError(TestResultData& result, const absl::Status& status,
 };
 
 absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
-                                 Module* module, TestFunction* tf,
+                                 const Module* module, TestFunction* tf,
                                  const BytecodeInterpreterOptions& options) {
   auto cache = std::make_unique<BytecodeCache>();
   import_data->SetBytecodeCache(std::move(cache));
@@ -181,7 +181,7 @@ absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
 }
 
 absl::Status RunDslxTestProc(ImportData* import_data, TypeInfo* type_info,
-                             Module* module, TestProc* tp,
+                             const Module* module, TestProc* tp,
                              const BytecodeInterpreterOptions& options) {
   auto cache = std::make_unique<BytecodeCache>();
   import_data->SetBytecodeCache(std::move(cache));
