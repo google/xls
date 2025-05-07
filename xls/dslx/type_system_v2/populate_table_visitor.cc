@@ -49,6 +49,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
+#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -457,7 +458,20 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                                       file_table_);
     }
 
-    for (const MatchArm* arm : node->arms()) {
+    absl::flat_hash_set<std::string> seen_patterns;
+    for (MatchArm* arm : node->arms()) {
+      // Identify syntactically identical match arms.
+      std::string patterns_string = PatternsToString(arm);
+      if (auto [it, inserted] = seen_patterns.insert(patterns_string);
+          !inserted) {
+        return TypeInferenceErrorStatus(
+            arm->GetPatternSpan(), nullptr,
+            absl::StrFormat("Exact-duplicate pattern match detected `%s`; only "
+                            "the first could possibly match",
+                            patterns_string),
+            file_table_);
+      }
+
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arm->expr(), arm_type));
       for (const NameDefTree* pattern : arm->patterns()) {
         XLS_RETURN_IF_ERROR(table_.SetTypeVariable(pattern, matched_var_type));

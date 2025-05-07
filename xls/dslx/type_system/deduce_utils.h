@@ -19,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -293,6 +294,8 @@ absl::StatusOr<InterpValue> GetBitCountAsInterpValue(const Type* type);
 //  struct        number of top-level members
 absl::StatusOr<InterpValue> GetElementCountAsInterpValue(const Type* type);
 
+// Returns the patterns of the arm as a string.
+std::string PatternsToString(const MatchArm* arm);
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_

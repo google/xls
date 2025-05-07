@@ -3097,6 +3097,21 @@ const Z:u31 = match X {
               TypecheckFails(HasSizeMismatch("u32", "u31")));
 }
 
+TEST(TypecheckV2Test, MatchArmDuplicated) {
+  EXPECT_THAT(R"(
+const X = u32:1;
+const Y = u32:2;
+const Z = match X {
+  u32:1 => X,
+  u32:0 => X,
+  u32:1 => Y,
+  _ => Y
+};
+)",
+              TypecheckFails(
+                  HasSubstr("Exact-duplicate pattern match detected `u32:1`")));
+}
+
 TEST(TypecheckV2Test, PatternMatch) {
   EXPECT_THAT(R"(
 fn f(t: (u8, u32)) -> u32 {
