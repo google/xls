@@ -22,7 +22,8 @@
 
 namespace xls {
 
-// Invariant checker which just runs xls::Verifier.
+// Invariant checker which verifies that all optimization query engines have
+// internally consistent state.
 class QueryEngineChecker : public OptimizationInvariantChecker {
  public:
   absl::Status Run(Package* p, const OptimizationPassOptions& options,
