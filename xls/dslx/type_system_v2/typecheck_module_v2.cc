@@ -18,6 +18,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <utility>
 
 #include "absl/log/log.h"
@@ -40,6 +41,7 @@ namespace xls::dslx {
 absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<Module> module, std::filesystem::path path,
     ImportData* import_data, WarningCollector* warnings) {
+  std::string_view module_name = module->name();
   std::unique_ptr<InferenceTable> table = InferenceTable::Create(*module);
   std::unique_ptr<TypeSystemTracer> tracer = TypeSystemTracer::Create();
   auto& tracer_ref = *tracer;
@@ -66,6 +68,11 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
               << table->ToString() << "\n"
               << "User module traces after conversion:\n"
               << tracer_ref.ConvertTracesToString() << "\n";
+  }
+
+  if (VLOG_IS_ON(3)) {
+    std::cerr << "Stats for module " << module_name << ":\n\n"
+              << tracer_ref.ConvertStatsToString() << "\n";
   }
 
   if (!status.ok()) {

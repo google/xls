@@ -24,11 +24,15 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "xls/common/indent.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -56,6 +60,7 @@ struct TypeSystemTraceImpl {
   TypeSystemTraceImpl* parent = nullptr;
   TraceKind kind;
   int level = 0;
+  std::optional<absl::Time> start_time;
   std::optional<const AstNode*> node;
   std::optional<const TypeAnnotation*> annotation;
   std::optional<const NameRef*> inference_variable;
@@ -234,7 +239,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
         .parent = stack_.top(), .kind = TraceKind::kUnroll, .node = node});
   }
 
-  std::string ConvertTracesToString() override {
+  std::string ConvertTracesToString() const override {
     std::string result;
     for (const TypeSystemTraceImpl& trace : traces_) {
       if (trace.kind == TraceKind::kRoot) {
@@ -249,9 +254,59 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
     return result;
   }
 
+  std::string ConvertStatsToString() const override {
+    std::string result;
+
+    // Sort a local copy of `stats_` in descending order by total processing
+    // time.
+    std::vector<std::pair<const AstNode*, NodeStats>> stats;
+    for (const auto& [node, node_stats] : stats_) {
+      stats.push_back(std::make_pair(node, node_stats));
+    }
+    absl::c_sort(stats, [](const auto& x, const auto& y) {
+      return x.second.total_processing_time > y.second.total_processing_time;
+    });
+
+    constexpr int kMaxNodes = 50;
+    for (int i = 0; i < kMaxNodes; i++) {
+      auto& [node, node_stats] = stats[i];
+      std::string node_string = node->ToString();
+      if (const auto* fn = dynamic_cast<const Function*>(node)) {
+        node_string = fn->identifier();
+      } else if (const auto* proc = dynamic_cast<const Proc*>(node)) {
+        node_string = proc->identifier();
+      } else if (const auto* constant_def =
+                     dynamic_cast<const ConstantDef*>(node)) {
+        node_string = constant_def->identifier();
+      }
+      absl::StrAppendFormat(&result, "Node: `%s`\n", node_string);
+      absl::StrAppendFormat(
+          &result, "Span: %s\n",
+          node->GetSpan().has_value()
+              ? node->GetSpan()->ToString(*node->owner()->file_table())
+              : "<unknown>");
+      absl::StrAppendFormat(&result, "Times converted: %d\n",
+                            node_stats.conversion_count);
+      absl::StrAppendFormat(
+          &result, "Total processing duration: %s\n\n",
+          absl::FormatDuration(node_stats.total_processing_time));
+    }
+
+    if (stats.size() > kMaxNodes) {
+      absl::StrAppendFormat(&result, "+ %d more\n\n", stats.size() - kMaxNodes);
+    }
+
+    return result;
+  }
+
  private:
   void Cleanup(TypeSystemTraceImpl* impl) {
     CHECK(stack_.top() == impl);
+    if (impl->start_time.has_value() && impl->kind == TraceKind::kConvertNode) {
+      NodeStats& node_stats = stats_[*impl->node];
+      node_stats.total_processing_time += absl::Now() - *impl->start_time;
+      ++node_stats.conversion_count;
+    }
     stack_.pop();
   }
 
@@ -260,15 +315,26 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
     CHECK_NE(impl.parent, nullptr);
     CHECK_NE(impl.kind, TraceKind::kRoot);
 
+    if (impl.kind == TraceKind::kConvertNode) {
+      impl.start_time = absl::Now();
+    }
+
     TypeSystemTraceImpl* impl_ptr = &traces_.emplace_back(std::move(impl));
     impl_ptr->level = impl_ptr->parent->level + 1;
     stack_.push(impl_ptr);
     return TypeSystemTrace(impl_ptr, [this, impl_ptr] { Cleanup(impl_ptr); });
   }
 
+  // Performance stats at the node level.
+  struct NodeStats {
+    int conversion_count = 0;
+    absl::Duration total_processing_time;
+  };
+
   std::list<TypeSystemTraceImpl> traces_;
   std::stack<TypeSystemTraceImpl*> stack_;
   TypeSystemTrace root_trace_;
+  absl::flat_hash_map<const AstNode*, NodeStats> stats_;
 };
 
 std::unique_ptr<TypeSystemTracer> TypeSystemTracer::Create() {

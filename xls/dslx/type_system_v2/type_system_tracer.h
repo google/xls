@@ -104,7 +104,8 @@ class TypeSystemTracer {
   virtual TypeSystemTrace TraceConcretize(const TypeAnnotation* annotation) = 0;
   virtual TypeSystemTrace TraceUnroll(const AstNode* node) = 0;
 
-  virtual std::string ConvertTracesToString() = 0;
+  virtual std::string ConvertTracesToString() const = 0;
+  virtual std::string ConvertStatsToString() const = 0;
 };
 
 }  // namespace xls::dslx
