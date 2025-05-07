@@ -109,6 +109,15 @@ void CheckStmtsEq(const clang::Stmt* first, const clang::Stmt* second) {
       ASSERT_FIELDS_EQ(CXXTemporaryObjectExpr, getConstructor);
       ASSERT_FIELDS_EQ(CXXTemporaryObjectExpr, getConstructionKind);
       break;
+    case clang::Stmt::MaterializeTemporaryExprClass:
+      ASSERT_FIELDS_EQ(MaterializeTemporaryExpr, isBoundToLvalueReference);
+      ASSERT_FIELDS_EQ(MaterializeTemporaryExpr,
+                       getLifetimeExtendedTemporaryDecl);
+      break;
+    case clang::Stmt::ExprWithCleanupsClass:
+      ASSERT_FIELDS_EQ(ExprWithCleanups, cleanupsHaveSideEffects);
+      ASSERT_FIELDS_EQ(ExprWithCleanups, getObjects);
+      break;
     case clang::Stmt::CompoundLiteralExprClass:
     case clang::Stmt::CallExprClass:
     case clang::Stmt::ConditionalOperatorClass:
@@ -119,7 +128,7 @@ void CheckStmtsEq(const clang::Stmt* first, const clang::Stmt* second) {
     case clang::Stmt::CXXMemberCallExprClass:
       break;
     default:
-      FAIL() << "Unsupported Stmt";
+      FAIL() << "Unhandled Stmt";
       break;
   }
 
@@ -136,7 +145,8 @@ class ExprCloneTest : public XlsccTestBase {
  public:
   void CloneCheckReturnExpr(const char* top_name, const char* cpp_src) {
     xlscc::CCParser parser;
-    XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser, top_name));
+    XLS_ASSERT_OK(
+        ScanTempFileWithContent(cpp_src, {"-Wno-error"}, &parser, top_name));
     XLS_ASSERT_OK_AND_ASSIGN(const auto* top_fn, parser.GetTopFunction());
     ASSERT_NE(top_fn, nullptr);
     auto* ret_stmt = GetStmtInFunction<clang::ReturnStmt>(top_fn);
@@ -334,6 +344,17 @@ TEST_F(ExprCloneTest, CloneCXXTemporaryObjectExpr) {
   )");
 }
 
+TEST_F(ExprCloneTest, CloneTemporaryExprWithCleanups) {
+  CloneCheckReturnExpr("foo", R"(
+    struct bar {
+      int operator()();
+    };
+    int foo() {
+      return bar{}();
+    }
+  )");
+}
+
 TEST_F(ExprCloneTest, CloneComplexExpr) {
   CloneCheckReturnExpr("foo", R"(
     int bar(int);
@@ -348,8 +369,8 @@ TEST_F(ExprCloneTest, CloneUnsupportedExpr) {
   xlscc::CCParser parser;
   XLS_ASSERT_OK(ScanTempFileWithContent(
       R"(
-        auto foo(int a) {
-          return [a](int b) { return a + b; };
+        auto foo(int a, int b) {
+          return ([a](int b) { return a + b; })(b);
         }
       )",
       {}, &parser, /*=top_name*/ "foo"));
@@ -358,10 +379,12 @@ TEST_F(ExprCloneTest, CloneUnsupportedExpr) {
   auto* ret_stmt = GetStmtInFunction<clang::ReturnStmt>(top_fn);
   ASSERT_NE(ret_stmt, nullptr);
   auto* ret_val = ret_stmt->getRetValue();
+  ret_val->dump(llvm::errs(), top_fn->getASTContext());
   ASSERT_NE(ret_val, nullptr);
   auto result = xlscc::Clone(top_fn->getASTContext(), ret_val);
   ASSERT_FALSE(result.ok());
   ASSERT_EQ(result.status().code(), absl::StatusCode::kUnimplemented);
+  ASSERT_EQ(result.status().message(), "Unsupported: clone LambdaExpr");
 }
 
 }  // namespace
