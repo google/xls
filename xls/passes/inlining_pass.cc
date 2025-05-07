@@ -24,10 +24,14 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
+#include "xls/common/module_initializer.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/call_graph.h"
@@ -39,6 +43,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
 namespace {
@@ -226,21 +231,43 @@ absl::StatusOr<bool> InliningPass::RunInternal(
   // function Foo is inlined into its callsites, no invokes remain in Foo. This
   // avoid duplicate work.
   int inline_count = 0;
-  for (FunctionBase* f : FunctionsInPostOrder(p)) {
+  std::vector<FunctionBase*> functions = FunctionsInPostOrder(p);
+  // Support only inlining leaf functions.
+  absl::flat_hash_set<FunctionBase*> non_leaf_funcs;
+  for (FunctionBase* f : functions) {
     // Create copy of nodes() because we will be adding and removing nodes
     // during inlining.
     std::vector<Node*> nodes(f->nodes().begin(), f->nodes().end());
+    bool saw_invoke = false;
     for (Node* node : nodes) {
       if (node->Is<Invoke>() && IsInlineable(node->As<Invoke>())) {
-        XLS_RETURN_IF_ERROR(
-            InlineInvoke(node->As<Invoke>(), context, inline_count++));
-        changed = true;
+        saw_invoke = true;
+        if (depth_ != InlineDepth::kLeafOnly ||
+            !non_leaf_funcs.contains(node->As<Invoke>()->to_apply())) {
+          XLS_RETURN_IF_ERROR(
+              InlineInvoke(node->As<Invoke>(), context, inline_count++));
+          changed = true;
+        }
       }
+    }
+    if (saw_invoke && depth_ == InlineDepth::kLeafOnly) {
+      non_leaf_funcs.insert(f);
     }
   }
   return changed;
 }
 
-REGISTER_OPT_PASS(InliningPass);
+absl::StatusOr<PassPipelineProto::Element> InliningPass::ToProto() const {
+  PassPipelineProto::Element res;
+  *res.mutable_pass_name() =
+      (depth_ == InlineDepth::kFull) ? "inlining" : "leaf-inlining";
+  return res;
+}
+
+REGISTER_OPT_PASS(InliningPass, InliningPass::InlineDepth::kFull);
+XLS_REGISTER_MODULE_INITIALIZER(inlining_pass, {
+  CHECK_OK(RegisterOptimizationPass<InliningPass>(
+      "leaf-inlining", InliningPass::InlineDepth::kLeafOnly));
+});
 
 }  // namespace xls
