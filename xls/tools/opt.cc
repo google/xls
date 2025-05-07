@@ -78,9 +78,11 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
                 XLS_ASSIGN_OR_RETURN(
                     std::unique_ptr<OptimizationCompoundPass> res,
                     GetOptimizationPipelineGenerator().GeneratePipeline(list));
-                res->AddInvariantChecker<VerifierChecker>();
                 if (options.debug_optimizations) {
+                  res->AddInvariantChecker<VerifierChecker>();
                   res->AddInvariantChecker<QueryEngineChecker>();
+                } else {
+                  res->AddWeakInvariantChecker<VerifierChecker>();
                 }
                 return res;
               },
@@ -91,9 +93,11 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
                 XLS_ASSIGN_OR_RETURN(
                     std::unique_ptr<OptimizationCompoundPass> res,
                     GetOptimizationPipelineGenerator().GeneratePipeline(list));
-                res->AddInvariantChecker<VerifierChecker>();
                 if (options.debug_optimizations) {
+                  res->AddInvariantChecker<VerifierChecker>();
                   res->AddInvariantChecker<QueryEngineChecker>();
+                } else {
+                  res->AddWeakInvariantChecker<VerifierChecker>();
                 }
                 return res;
               },

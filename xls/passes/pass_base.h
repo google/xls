@@ -341,6 +341,22 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
     return checker;
   }
 
+  // Adds a weak invariant checker to the compound pass. The invariant checker
+  // is run at the start and end of the compound pass, and not for nested
+  // compound passes. Arguments to method are the arguments to the invariant
+  // checker constructor. Example usage:
+  //
+  //  pass->AddWeakInvariantChecker<CheckStuff>(foo);
+  //
+  // Returns a pointer to the newly constructed pass.
+  template <typename T, typename... Args>
+  T* AddWeakInvariantChecker(Args&&... args) {
+    auto* checker = new T(std::forward<Args>(args)...);
+    weak_invariant_checkers_.emplace_back(checker);
+    weak_invariant_checker_ptrs_.push_back(checker);
+    return checker;
+  }
+
   absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
                                    ResultsT* results,
                                    ContextT&... context) const override {
@@ -385,7 +401,10 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
   std::vector<Pass*> pass_ptrs_;
 
   std::vector<std::unique_ptr<InvariantChecker>> invariant_checkers_;
-  std::vector<InvariantChecker*> invariant_checker_ptrs_;
+  std::vector<const InvariantChecker*> invariant_checker_ptrs_;
+
+  std::vector<std::unique_ptr<InvariantChecker>> weak_invariant_checkers_;
+  std::vector<const InvariantChecker*> weak_invariant_checker_ptrs_;
 };
 
 // A compound pass which runs its set of passes to fixed point.
@@ -452,25 +471,36 @@ CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
   VLOG(2) << "Start of compound pass " << this->short_name() << ":";
   XLS_VLOG_LINES(5, ir->DumpIr());
 
+  auto make_invariant_checker_runner =
+      [&](const std::vector<const InvariantChecker*>& checkers) {
+        return [&](std::string_view str_context) -> absl::Status {
+          for (const auto& checker : checkers) {
+            absl::Status status =
+                checker->Run(ir, options, results, context...);
+            if (!status.ok()) {
+              return absl::Status(
+                  status.code(),
+                  absl::StrFormat("%s; [%s]", status.message(), str_context));
+            }
+          }
+          return absl::OkStatus();
+        };
+      };
+
   // Invariant checkers may be passed in from parent compound passes or
   // contained by this pass itself. Merge them together.
   std::vector<const InvariantChecker*> checkers(invariant_checkers.begin(),
                                                 invariant_checkers.end());
   checkers.insert(checkers.end(), invariant_checker_ptrs_.begin(),
                   invariant_checker_ptrs_.end());
-  auto run_invariant_checkers =
-      [&](std::string_view str_context) -> absl::Status {
-    for (const auto& checker : checkers) {
-      absl::Status status = checker->Run(ir, options, results, context...);
-      if (!status.ok()) {
-        return absl::Status(status.code(), absl::StrCat(status.message(), "; [",
-                                                        str_context, "]"));
-      }
-    }
-    return absl::OkStatus();
-  };
+
+  auto run_invariant_checkers = make_invariant_checker_runner(checkers);
+  auto run_weak_invariant_checkers =
+      make_invariant_checker_runner(weak_invariant_checker_ptrs_);
 
   Stopwatch invariant_checker_stopwatch;
+  XLS_RETURN_IF_ERROR(run_weak_invariant_checkers(
+      absl::StrCat("start of compound pass '", this->long_name(), "'")));
   XLS_RETURN_IF_ERROR(run_invariant_checkers(
       absl::StrCat("start of compound pass '", this->long_name(), "'")));
 
@@ -575,6 +605,11 @@ CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
     }
     VLOG(5) << "After " << pass->long_name() << ":";
     XLS_VLOG_LINES(5, ir->DumpIr());
+  }
+
+  if (changed) {
+    XLS_RETURN_IF_ERROR(run_weak_invariant_checkers(
+        absl::StrCat("end of compound pass '", this->long_name(), "'")));
   }
 
   aggregate_result.set_changed(changed);

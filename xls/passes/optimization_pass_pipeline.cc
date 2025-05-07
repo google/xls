@@ -307,9 +307,11 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
     bool debug_optimizations) {
   auto top = std::make_unique<OptimizationCompoundPass>(
       "ir", "Top level pass pipeline");
-  top->AddInvariantChecker<VerifierChecker>();
   if (debug_optimizations) {
+    top->AddInvariantChecker<VerifierChecker>();
     top->AddInvariantChecker<QueryEngineChecker>();
+  } else {
+    top->AddWeakInvariantChecker<VerifierChecker>();
   }
 
   top->Add<PreInliningPassGroup>();
