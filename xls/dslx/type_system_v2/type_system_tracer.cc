@@ -14,6 +14,8 @@
 
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <list>
@@ -267,8 +269,8 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
       return x.second.total_processing_time > y.second.total_processing_time;
     });
 
-    constexpr int kMaxNodes = 50;
-    for (int i = 0; i < kMaxNodes; i++) {
+    constexpr size_t kMaxNodes = 50;
+    for (int i = 0; i < std::min(kMaxNodes, stats.size()); i++) {
       auto& [node, node_stats] = stats[i];
       std::string node_string = node->ToString();
       if (const auto* fn = dynamic_cast<const Function*>(node)) {
