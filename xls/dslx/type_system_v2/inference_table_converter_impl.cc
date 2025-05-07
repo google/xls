@@ -287,8 +287,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   }
 
   static absl::StatusOr<InferenceTableConverter*> FromImportData(
-      ImportData& import_data, std::string module_name,
-      WarningCollector& warning_collector) {
+      ImportData& import_data, std::string module_name) {
     XLS_ASSIGN_OR_RETURN(ImportTokens import_tokens,
                          ImportTokens::FromString(module_name));
     XLS_ASSIGN_OR_RETURN(ModuleInfo * info, import_data.Get(import_tokens));
@@ -329,10 +328,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         node->owner()->name() != module_.name()) {
       VLOG(5) << "Wrong module in ConvertSubtree; delegating to converter for  "
               << node->owner()->name();
-      XLS_ASSIGN_OR_RETURN(
-          InferenceTableConverter * converter,
-          InferenceTableConverterImpl::FromImportData(
-              import_data_, node->owner()->name(), warning_collector_));
+      XLS_ASSIGN_OR_RETURN(InferenceTableConverter * converter,
+                           InferenceTableConverterImpl::FromImportData(
+                               import_data_, node->owner()->name()));
       return converter->ConvertSubtree(node, function, parametric_context,
                                        filter_param_type_annotations);
     }
@@ -1785,8 +1783,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           XLS_ASSIGN_OR_RETURN(
               InferenceTableConverter * builtins_converter,
               InferenceTableConverterImpl::FromImportData(
-                  import_data_, std::string(kBuiltinStubsModuleName),
-                  warning_collector_));
+                  import_data_, std::string(kBuiltinStubsModuleName)));
           // Delegate to builtins converter.
           return builtins_converter->ResolveFunction(callee, caller_function,
                                                      caller_context);
