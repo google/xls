@@ -382,11 +382,25 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "file_stderr_log_sink",
+    srcs = ["file_stderr_log_sink.cc"],
+    hdrs = ["file_stderr_log_sink.h"],
+    deps = [
+        "//xls/common/file:filesystem",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/log:log_entry",
+        "@com_google_absl//absl/log:log_sink",
+    ],
+)
+
 cc_binary(
     name = "opt_main",
     srcs = ["opt_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":file_stderr_log_sink",
         ":opt",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
@@ -686,6 +700,7 @@ cc_binary(
         ":codegen",
         ":codegen_flags",
         ":codegen_flags_cc_proto",
+        ":file_stderr_log_sink",
         ":scheduling_options_flags",
         ":scheduling_options_flags_cc_proto",
         "//xls/codegen:module_signature",
@@ -700,9 +715,12 @@ cc_binary(
         "//xls/ir:verifier",
         "//xls/scheduling:pipeline_schedule_cc_proto",
         "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/log:log_sink",
+        "@com_google_absl//absl/log:log_sink_registry",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
     ],
