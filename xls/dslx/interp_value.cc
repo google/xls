@@ -94,14 +94,6 @@ std::string TagToString(InterpValueTag tag) {
       Bits(bit_count)};
 }
 
-/* static */ InterpValue InterpValue::MakeOneValue(bool is_signed,
-                                                   int64_t bit_count) {
-  CHECK_GT(bit_count, 0);
-  return InterpValue(
-      is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits,
-      Bits(bit_count).UpdateWithSet(0, true));
-}
-
 /* static */ InterpValue InterpValue::MakeMaxValue(bool is_signed,
                                                    int64_t bit_count) {
   auto bits = Bits::AllOnes(bit_count);
