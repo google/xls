@@ -26,6 +26,7 @@
 
 #include "google/protobuf/duration.pb.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/function_ref.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -38,6 +39,11 @@ namespace {
 
 int64_t DurationToMs(absl::Duration duration) {
   return duration / absl::Milliseconds(1);
+}
+
+absl::Duration ProtoDurationToAbslDuration(
+    const google::protobuf::Duration& proto) {
+  return absl::Seconds(proto.seconds()) + absl::Nanoseconds(proto.nanos());
 }
 
 // Struct holding the aggregation of multiple PassResultProtos.
@@ -65,8 +71,7 @@ struct AggregateMetrics {
     metrics.pass_name = proto.pass_name();
     metrics.run_count = 1;
     metrics.changed_count = proto.changed() ? 1 : 0;
-    metrics.run_duration = absl::Seconds(proto.pass_duration().seconds()) +
-                           absl::Nanoseconds(proto.pass_duration().nanos());
+    metrics.run_duration = ProtoDurationToAbslDuration(proto.pass_duration());
     metrics.metrics = TransformMetrics::FromProto(proto.metrics());
     return metrics;
   }
@@ -198,6 +203,24 @@ std::string BuildHierarchicalTable(const PassResultProto& proto) {
   return absl::StrCat(absl::StrJoin(lines, "\n"), "\n");
 }
 
+// Returns the sum of leaf pass duration for those pass results which for which
+// filter function is true.
+absl::Duration TotalTime(
+    const PassResultProto& result,
+    absl::FunctionRef<bool(const PassResultProto& result)> filter) {
+  if (!filter(result)) {
+    return absl::Duration();
+  }
+  if (result.nested_results().empty()) {
+    return ProtoDurationToAbslDuration(result.pass_duration());
+  }
+  absl::Duration total;
+  for (const PassResultProto& nested_result : result.nested_results()) {
+    total += TotalTime(nested_result, filter);
+  }
+  return total;
+}
+
 }  // namespace
 
 std::string SummarizePipelineMetrics(const PipelineMetricsProto& metrics) {
@@ -230,7 +253,24 @@ std::string SummarizePipelineMetrics(const PipelineMetricsProto& metrics) {
   total.pass_name = "Total";
   absl::StrAppend(&str, make_line(total));
 
-  absl::StrAppend(&str, "\n\nHierarchical pass statistics:\n\n");
+  // Add line showing the amount of time spent running passes which did not
+  // change the IR.
+  int64_t changed_ms = DurationToMs(TotalTime(
+      metrics.pass_results(),
+      [](const PassResultProto& result) { return result.changed(); }));
+  int64_t total_ms = DurationToMs(
+      TotalTime(metrics.pass_results(),
+                [](const PassResultProto& result) { return true; }));
+  absl::StrAppendFormat(
+      &str,
+      "\nTotal time on passes which changed IR (changed/total): %6dms/%6dms "
+      "(%s)\n",
+      changed_ms, total_ms,
+      total_ms == 0 ? "0.0%"
+                    : absl::StrFormat("%0.1f%%", 100.0 * (float)changed_ms /
+                                                     (float)total_ms));
+
+  absl::StrAppend(&str, "\nHierarchical pass statistics:\n\n");
   absl::StrAppendFormat(
       &str,
       "%-55s Duration     Runs: changed/total   Nodes "
