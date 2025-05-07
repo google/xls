@@ -129,6 +129,28 @@ cc_test(
 )
 
 cc_test(
+    name = "continuations_test",
+    srcs = ["continuations_test.cc"],
+    shard_count = 32,
+    deps = [
+        ":unit_test",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:temp_file",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/contrib/xlscc:translator",
+        "//xls/ir",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+        "@llvm-project//clang:ast",
+    ],
+)
+
+cc_test(
     name = "translator_memory_test",
     srcs = ["translator_memory_test.cc"],
     shard_count = 32,

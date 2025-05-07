@@ -495,11 +495,14 @@ class LValue {
   LValue(TrackedBValue cond, std::shared_ptr<LValue> lvalue_true,
          std::shared_ptr<LValue> lvalue_false)
       : cond_(cond), lvalue_true_(lvalue_true), lvalue_false_(lvalue_false) {
-    CHECK(cond_.valid());
-    CHECK(cond_.GetType()->IsBits());
-    CHECK_EQ(cond_.BitCountOrDie(), 1);
+    // Allow for null condition
+    if (cond_.valid()) {
+      CHECK(cond_.GetType()->IsBits());
+      CHECK_EQ(cond_.BitCountOrDie(), 1);
+    }
     CHECK_NE(lvalue_true_.get(), nullptr);
     CHECK_NE(lvalue_false_.get(), nullptr);
+    is_select_ = true;
   }
   explicit LValue(const absl::flat_hash_map<int64_t, std::shared_ptr<LValue>>&
                       compound_by_index)
@@ -515,7 +518,7 @@ class LValue {
     }
   }
 
-  bool is_select() const { return cond_.valid(); }
+  bool is_select() const { return is_select_; }
   TrackedBValue cond() const { return cond_; }
   std::shared_ptr<LValue> lvalue_true() const { return lvalue_true_; }
   std::shared_ptr<LValue> lvalue_false() const { return lvalue_false_; }
@@ -562,6 +565,7 @@ class LValue {
   const clang::Expr* leaf_ = nullptr;
   IOChannel* channel_leaf_ = nullptr;
 
+  bool is_select_ = false;
   TrackedBValue cond_;
   std::shared_ptr<LValue> lvalue_true_ = nullptr;
   std::shared_ptr<LValue> lvalue_false_ = nullptr;
@@ -621,7 +625,7 @@ class CValue {
          bool disable_type_check = false)
       : CValue(TrackedBValue(), type, disable_type_check, lvalue) {}
 
-  TrackedBValue rvalue() const { return rvalue_; }
+  const TrackedBValue& rvalue() const { return rvalue_; }
   std::shared_ptr<CType> type() const { return type_; }
   std::shared_ptr<LValue> lvalue() const { return lvalue_; }
   std::string debug_string() const {
@@ -772,7 +776,8 @@ struct PipelinedLoopSubProc {
   xls::SourceInfo loc;
 
   GeneratedFunction* enclosing_func = nullptr;
-  absl::flat_hash_map<const clang::NamedDecl*, CValue> outer_variables;
+  absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<CType>>
+      outer_variable_types;
 
   // These reference the enclosing GeneratedFunction
   IOChannel* context_out_channel;
@@ -836,10 +841,32 @@ struct ChannelBundle {
   }
 };
 
+struct GeneratedFunctionSlice;
+
+struct ContinuationValue {
+  // TODO(seanhaskell): Parameter
+  xls::Node* input_node = nullptr;
+  // TODO(seanhaskell): Output node
+  xls::Node* output_node = nullptr;
+
+  const clang::NamedDecl* decl = nullptr;
+
+  // name is for human readability/debug only
+  std::string name;
+};
+
+struct GeneratedFunctionSlice {
+  xls::Function* function = nullptr;
+  std::list<ContinuationValue> continuations_out;
+  std::list<ContinuationValue*> continuations_in;
+};
+
 // Encapsulates values produced when generating IR for a function
 struct GeneratedFunction {
   const clang::FunctionDecl* clang_decl = nullptr;
   xls::Function* xls_func = nullptr;
+
+  std::list<GeneratedFunctionSlice> slices;
 
   int64_t declaration_count = 0;
 
@@ -931,8 +958,9 @@ struct TranslationContext;
 
 struct FunctionInProgress {
   bool add_this_return;
+  // Destroy the builder last to avoid TrackedBValue errors
+  std::unique_ptr<TrackedFunctionBuilder> builder;
   std::vector<const clang::NamedDecl*> ref_returns;
-  std::unique_ptr<xls::FunctionBuilder> builder;
   std::unique_ptr<TranslationContext> translation_context;
   std::unique_ptr<GeneratedFunction> generated_function;
 };
@@ -1678,6 +1706,11 @@ class Translator {
           inner_channels_by_outer_channel,
       const xls::SourceInfo& loc);
 
+  static std::shared_ptr<LValue> RemoveBValuesFromLValue(
+      std::shared_ptr<LValue> outer_lval, const xls::SourceInfo& body_loc);
+
+  static void CleanUpBValuesInTopFunction(GeneratedFunction& func);
+
   // This is a work-around for non-const operator [] needing to return
   //  a reference to the object being modified.
   absl::StatusOr<bool> ApplyArrayAssignHack(
@@ -1895,6 +1928,9 @@ class Translator {
 
   absl::StatusOr<TrackedBValue> AddConditionToIOReturn(
       const IOOp& op, TrackedBValue retval, const xls::SourceInfo& loc);
+
+  absl::Status NewContinuation(IOOp& op);
+  absl::Status OptimizeContinuations(GeneratedFunction& func);
 
   absl::StatusOr<std::shared_ptr<LValue>> CreateChannelParam(
       const clang::NamedDecl* channel_name,

@@ -22,7 +22,13 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 #include "xls/ir/function_builder.h"
+
+#if DEBUG_SAVE_BACKTRACES
+#include "stacktrace.h"
+#endif
 
 namespace xlscc {
 
@@ -41,7 +47,7 @@ TrackedBValue::Lock::Lock(Lock&& o) {
   o.locked_ = false;
 }
 
-TrackedBValue::Lock::~Lock() {
+void TrackedBValue::Lock::UnlockEarly() {
   if (locked_) {
     CHECK(TrackedBValue::sLocked);
     TrackedBValue::sLocked = false;
@@ -49,7 +55,12 @@ TrackedBValue::Lock::~Lock() {
   locked_ = false;
 }
 
-TrackedBValue::Lock::Lock() : locked_(true) { CHECK(!TrackedBValue::sLocked); }
+TrackedBValue::Lock::~Lock() { UnlockEarly(); }
+
+TrackedBValue::Lock::Lock() : locked_(true) {
+  CHECK(!TrackedBValue::sLocked);
+  TrackedBValue::sLocked = true;
+}
 
 std::tuple<TrackedBValue::Lock, std::vector<TrackedBValue*>>
 TrackedBValue::OrderedBValuesForBuilder(xls::BuilderBase* builder) {
@@ -69,15 +80,47 @@ TrackedBValue::OrderedBValuesForBuilder(xls::BuilderBase* builder) {
   return std::tuple<TrackedBValue::Lock, std::vector<TrackedBValue*>>{
       TrackedBValue::Lock(), ret};
 }
+void TrackedBValue::RegisterBuilder(xls::BuilderBase* builder) {
+  CHECK(!sLocked);
+  CHECK(!sTrackedBValuesByBuilder.contains(builder));
+  sTrackedBValuesByBuilder[builder] = {};
+}
+
+void TrackedBValue::UnregisterBuilder(xls::BuilderBase* builder) {
+  CHECK(!sLocked);
+  CHECK(sTrackedBValuesByBuilder.contains(builder));
+
+  const absl::flat_hash_set<TrackedBValue*>& bvals =
+      sTrackedBValuesByBuilder.at(builder);
+  if (!bvals.empty()) {
+    LOG(WARNING) << absl::StrFormat("bvals left over for builder %s:\n",
+                                    builder->name().c_str());
+    for (TrackedBValue* bval : bvals) {
+      LOG(WARNING) << absl::StrFormat("--- (builder %p) %p: %s\n", builder,
+                                      bval->node(), bval->node()->ToString());
+
+#if DEBUG_SAVE_BACKTRACES
+      LOG(WARNING) << absl::StrFormat("TRACE:\n%s\n-----\n",
+                                      bval->debug_backtrace_);
+#endif  // DEBUG_SAVE_BACKTRACES
+    }
+  }
+  CHECK(sTrackedBValuesByBuilder.at(builder).empty());
+  sTrackedBValuesByBuilder.erase(builder);
+}
 
 void TrackedBValue::record() {
   CHECK(!sLocked);
   if (!bval_.valid()) {
     return;
   }
-  CHECK(!sTrackedBValuesByBuilder.contains(bval_.builder()) ||
-        !sTrackedBValuesByBuilder.at(bval_.builder()).contains(this));
+  CHECK(sTrackedBValuesByBuilder.contains(bval_.builder()));
+  CHECK(!sTrackedBValuesByBuilder.at(bval_.builder()).contains(this));
   sTrackedBValuesByBuilder[bval_.builder()].insert(this);
+#if DEBUG_SAVE_BACKTRACES
+  debug_backtrace_ =
+      getstacktrace(/*max_depth=*/50);
+#endif  // DEBUG_SAVE_BACKTRACES
 }
 
 void TrackedBValue::unrecord() {
@@ -85,12 +128,9 @@ void TrackedBValue::unrecord() {
   if (!bval_.valid()) {
     return;
   }
-  CHECK(sTrackedBValuesByBuilder.contains(bval_.builder()) &&
-        sTrackedBValuesByBuilder.at(bval_.builder()).contains(this));
+  CHECK(sTrackedBValuesByBuilder.contains(bval_.builder()));
+  CHECK(sTrackedBValuesByBuilder.at(bval_.builder()).contains(this));
   sTrackedBValuesByBuilder.at(bval_.builder()).erase(this);
-  if (sTrackedBValuesByBuilder.at(bval_.builder()).empty()) {
-    sTrackedBValuesByBuilder.erase(bval_.builder());
-  }
 }
 
 absl::flat_hash_map<xls::BuilderBase*, absl::flat_hash_set<TrackedBValue*>>

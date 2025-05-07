@@ -485,6 +485,11 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     const xls::SourceInfo& body_loc, int top_level_init_interval,
     bool force_static, bool member_references_become_channels,
     const GeneratedFunction* caller_sub_function) {
+  xls::Proc* proc = nullptr;
+
+  TrackedProcBuilder tracked_pb(absl::StrCat(block_name, "_proc"), package);
+  xls::ProcBuilder& pb = *tracked_pb.builder();
+
   // Generate function without FIFO channel parameters
   // Force top function in block to be static.
   PreparedBlock prepared;
@@ -503,8 +508,6 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     XLS_RETURN_IF_ERROR(
         GenerateIR_SubBlock(gen_func, package, top_level_init_interval));
   }
-
-  xls::ProcBuilder pb(absl::StrCat(block_name, "_proc"), package);
 
   prepared.orig_token = pb.Literal(xls::Value::Token());
   prepared.token = prepared.orig_token;
@@ -583,8 +586,11 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     next_state_values.insert({state_elem, bval});
   }
 
-  return BuildWithNextStateValueMap(pb, prepared.token, next_state_values,
-                                    body_loc);
+  XLS_ASSIGN_OR_RETURN(
+      proc, BuildWithNextStateValueMap(pb, prepared.token, next_state_values,
+                                       body_loc));
+
+  return proc;
 }
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(

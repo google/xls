@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/base/casts.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -796,28 +797,37 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
   uint64_t extra_return_count = 0;
   {
     // Set up IR generation
-    xls::FunctionBuilder body_builder(loop_name, package_);
+    TrackedFunctionBuilder body_builder(loop_name, package_);
 
-    TrackedBValue context_struct_val =
-        body_builder.Param(absl::StrFormat("%s_context_vars", name_prefix),
-                           context_struct_xls_type, loc);
-    TrackedBValue context_lvalues_val =
-        body_builder.Param(absl::StrFormat("%s_context_lvals", name_prefix),
-                           context_lvals_xls_type, loc);
-    TrackedBValue context_on_reset_val =
-        body_builder.Param(absl::StrFormat("%s_on_reset", name_prefix),
-                           package_->GetBitsType(1), loc);
+    auto clean_up_bvalues = [&generated_func]() {
+      CleanUpBValuesInTopFunction(*generated_func);
+    };
+
+    auto clean_up_bvalues_guard = absl::MakeCleanup(clean_up_bvalues);
 
     TranslationContext& prev_context = context();
     PushContextGuard context_guard(*this, loc);
 
     context() = TranslationContext();
     context().propagate_up = false;
-    context().fb = absl::implicit_cast<xls::BuilderBase*>(&body_builder);
+    context().fb =
+        absl::implicit_cast<xls::BuilderBase*>(body_builder.builder());
     context().sf = generated_func.get();
     context().ast_context = prev_context.ast_context;
     context().in_pipelined_for_body = true;
     context().outer_pipelined_loop_init_interval = init_interval;
+
+    context().sf->slices.push_back(GeneratedFunctionSlice{});
+
+    TrackedBValue context_struct_val =
+        context().fb->Param(absl::StrFormat("%s_context_vars", name_prefix),
+                            context_struct_xls_type, loc);
+    TrackedBValue context_lvalues_val =
+        context().fb->Param(absl::StrFormat("%s_context_lvals", name_prefix),
+                            context_lvals_xls_type, loc);
+    TrackedBValue context_on_reset_val =
+        context().fb->Param(absl::StrFormat("%s_on_reset", name_prefix),
+                            package_->GetBitsType(1), loc);
 
     absl::flat_hash_map<IOChannel*, IOChannel*> inner_channels_by_outer_channel;
     absl::flat_hash_map<IOChannel*, IOChannel*> outer_channels_by_inner_channel;
@@ -999,8 +1009,14 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
     TrackedBValue ret_val = MakeFlexTuple(return_bvals, loc);
     generated_func->return_value_count = return_bvals.size();
-    XLS_ASSIGN_OR_RETURN(generated_func->xls_func,
-                         body_builder.BuildWithReturnValue(ret_val));
+
+    XLS_ASSIGN_OR_RETURN(xls::Function * last_slice_function,
+                         body_builder.builder()->BuildWithReturnValue(ret_val));
+
+    XLSCC_CHECK(!context().sf->slices.empty(), loc);
+    context().sf->slices.back().function = last_slice_function;
+    generated_func->xls_func = last_slice_function;
+    XLS_RETURN_IF_ERROR(OptimizeContinuations(*context().sf));
 
     // Analyze context variables changed
     for (const clang::NamedDecl* decl : variable_fields_order) {
@@ -1069,13 +1085,20 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     }
   }
 
+  absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<CType>>
+      outer_variable_types;
+
+  for (const auto& [decl, cval] : context().variables) {
+    outer_variable_types[decl] = cval.type();
+  }
+
   PipelinedLoopSubProc pipelined_loop_proc = {
       .name_prefix = name_prefix.data(),
       // context_ members are filled in by caller
       .loc = loc,
 
       .enclosing_func = context().sf,
-      .outer_variables = context().variables,
+      .outer_variable_types = outer_variable_types,
       .context_field_indices = context_field_indices,
       .extra_return_count = extra_return_count,
       .generated_func = std::move(generated_func),
@@ -1094,7 +1117,9 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   IOChannel* context_in_channel = pipelined_loop_proc.context_in_channel;
   const xls::SourceInfo& loc = pipelined_loop_proc.loc;
 
-  xls::ProcBuilder pb(absl::StrFormat("%s_proc", name_prefix), package_);
+  TrackedProcBuilder pb_tracked(absl::StrFormat("%s_proc", name_prefix),
+                                package_);
+  xls::ProcBuilder& pb = *pb_tracked.builder();
 
   auto temp_sf = std::make_unique<GeneratedFunction>();
 
@@ -1181,7 +1206,7 @@ Translator::GenerateIR_PipelinedLoopContents(
       context_out_field_indices = pipelined_loop_proc.context_out_field_indices;
 
   const uint64_t extra_return_count = pipelined_loop_proc.extra_return_count;
-  const GeneratedFunction& generated_func = *pipelined_loop_proc.generated_func;
+  GeneratedFunction& generated_func = *pipelined_loop_proc.generated_func;
 
   const std::vector<const clang::NamedDecl*>& vars_to_save_between_iters =
       pipelined_loop_proc.vars_to_save_between_iters;
@@ -1239,10 +1264,10 @@ Translator::GenerateIR_PipelinedLoopContents(
 
     // Only create a state element if one doesn't already exist
     if (do_create_state_element) {
-      const CValue& prev_value = pipelined_loop_proc.outer_variables.at(decl);
-      XLS_ASSIGN_OR_RETURN(
-          xls::Value def,
-          CreateDefaultRawValue(prev_value.type(), GetLoc(*decl)));
+      std::shared_ptr<CType> prev_value_type =
+          pipelined_loop_proc.outer_variable_types.at(decl);
+      XLS_ASSIGN_OR_RETURN(xls::Value def, CreateDefaultRawValue(
+                                               prev_value_type, GetLoc(*decl)));
 
       TrackedBValue state_read_bval = pb.StateElement(
           absl::StrFormat("%s_%s", name_prefix, decl->getNameAsString()), def);

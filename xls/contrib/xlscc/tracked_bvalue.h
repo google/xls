@@ -22,6 +22,8 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 
+#define DEBUG_SAVE_BACKTRACES 0
+
 namespace xlscc {
 
 // The TrackedBValue class is a wrapper for xls::BValue that enables getting an
@@ -98,6 +100,8 @@ class TrackedBValue {
     Lock(Lock&& o);
     ~Lock();
 
+    void UnlockEarly();
+
    private:
     Lock();
     bool locked_ = false;
@@ -106,12 +110,19 @@ class TrackedBValue {
   static std::tuple<Lock, std::vector<TrackedBValue*>> OrderedBValuesForBuilder(
       xls::BuilderBase* builder);
 
+  static void RegisterBuilder(xls::BuilderBase* builder);
+  static void UnregisterBuilder(xls::BuilderBase* builder);
+
  private:
   void record();
   void unrecord();
 
   xls::BValue bval_;
   int64_t sequence_number_ = -1;
+
+#if DEBUG_SAVE_BACKTRACES
+  std::string debug_backtrace_;
+#endif  // DEBUG_SAVE_BACKTRACES
 
   static int64_t sNextSequenceNumber;
 
@@ -120,6 +131,34 @@ class TrackedBValue {
   static absl::flat_hash_map<xls::BuilderBase*,
                              absl::flat_hash_set<TrackedBValue*>>
       sTrackedBValuesByBuilder;
+};
+
+class TrackedFunctionBuilder {
+ public:
+  TrackedFunctionBuilder(std::string_view name, xls::Package* package,
+                         bool should_verify = true)
+      : builder_(name, package, should_verify) {
+    TrackedBValue::RegisterBuilder(&builder_);
+  }
+  ~TrackedFunctionBuilder() { TrackedBValue::UnregisterBuilder(&builder_); }
+  xls::FunctionBuilder* builder() { return &builder_; }
+
+ private:
+  xls::FunctionBuilder builder_;
+};
+
+class TrackedProcBuilder {
+ public:
+  TrackedProcBuilder(std::string_view name, xls::Package* package,
+                     bool should_verify = true)
+      : builder_(name, package, should_verify) {
+    TrackedBValue::RegisterBuilder(&builder_);
+  }
+  ~TrackedProcBuilder() { TrackedBValue::UnregisterBuilder(&builder_); }
+  xls::ProcBuilder* builder() { return &builder_; }
+
+ private:
+  xls::ProcBuilder builder_;
 };
 
 typedef xls::BValue NATIVE_BVAL;

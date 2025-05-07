@@ -80,6 +80,9 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     op.channel_op_index = context().sf->trace_count++;
   }
 
+  // Add the continuation before, not including the received parameter
+  XLS_RETURN_IF_ERROR(NewContinuation(op));
+
   std::shared_ptr<CType> channel_item_type;
 
   // Channel must be inserted first by AddOpToChannel

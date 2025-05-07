@@ -111,13 +111,21 @@ cc_library(
         "//xls/ir:function_builder",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings:str_format",
     ],
+)
+
+cc_library(
+    name = "utils",
+    hdrs = ["utils.h"],
 )
 
 cc_library(
     name = "translator",
     srcs = [
+        "continuations.cc",
         "translate_block.cc",
         "translate_io.cc",
         "translate_loops.cc",
@@ -133,6 +141,7 @@ cc_library(
         ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
         ":tracked_bvalue",
+        ":utils",
         ":xlscc_logging",
         "//xls/common:math_util",
         "//xls/common:stopwatch",
@@ -158,6 +167,7 @@ cc_library(
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

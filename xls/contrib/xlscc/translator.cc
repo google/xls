@@ -36,6 +36,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -106,21 +107,6 @@ using ::std::string;
 using ::std::vector;
 
 namespace {
-template <typename Lambda>
-class LambdaGuard {
- public:
-  explicit LambdaGuard(const Lambda& lambda) : lambda_(lambda) {}
-  ~LambdaGuard() { lambda_(); }
-
- private:
-  Lambda lambda_;
-};
-
-// For automatic template deduction
-template <class Lambda>
-inline LambdaGuard<Lambda> MakeLambdaGuard(const Lambda& free) {
-  return LambdaGuard<Lambda>(free);
-}
 
 const clang::Expr* GetCastsSubexpr(const clang::Expr* expr) {
   while (clang::isa<clang::CastExpr>(expr)) {
@@ -788,7 +774,11 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
 
   xls_names_for_functions_generated_[funcdecl] = xls_name;
 
-  auto builder = std::make_unique<xls::FunctionBuilder>(xls_name, package_);
+  // TODO(seanhaskell): Name _first_slice
+  auto builder = std::make_unique<TrackedFunctionBuilder>(
+      absl::StrFormat("%s", xls_name), package_);
+
+  sf.slices.push_back(GeneratedFunctionSlice{});
 
   PushContextGuard context_guard(*this, GetLoc(*funcdecl));
 
@@ -804,7 +794,7 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
   context() = TranslationContext();
   context().propagate_up = false;
 
-  context().fb = absl::implicit_cast<xls::BuilderBase*>(builder.get());
+  context().fb = absl::implicit_cast<xls::BuilderBase*>(builder->builder());
   context().sf = &sf;
   context().ast_context = &funcdecl->getASTContext();
 
@@ -942,8 +932,8 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
   auto context_copy = std::make_unique<TranslationContext>(context());
 
   FunctionInProgress header = {.add_this_return = add_this_return,
-                               .ref_returns = ref_returns,
                                .builder = std::move(builder),
+                               .ref_returns = ref_returns,
                                .translation_context = std::move(context_copy)};
   return header;
 }
@@ -1273,6 +1263,29 @@ absl::Status Translator::GenerateIR_Function_Body(
   XLS_ASSIGN_OR_RETURN(const clang::Stmt* body, GetFunctionBody(funcdecl));
   xls::SourceInfo body_loc = GetLoc(*funcdecl);
 
+  auto clean_up_bvalues = [&sf, body_loc]() {
+    // Clean up TrackedBValues
+    for (IOOp& op : sf.io_ops) {
+      op.ret_value = TrackedBValue();
+      op.input_value = CValue();
+    }
+
+    if (sf.return_lvalue) {
+      sf.return_lvalue = RemoveBValuesFromLValue(sf.return_lvalue, body_loc);
+    }
+    if (sf.this_lvalue) {
+      sf.this_lvalue = RemoveBValuesFromLValue(sf.this_lvalue, body_loc);
+    }
+
+    sf.global_values.clear();
+
+    for (auto& [_, lval] : sf.lvalues_by_param) {
+      lval = RemoveBValuesFromLValue(lval, body_loc);
+    }
+  };
+
+  auto clean_up_bvalues_guard = absl::MakeCleanup(clean_up_bvalues);
+
   PushContextGuard context_guard(*this, *header.translation_context, body_loc);
 
   // Extra context layer to generate selects
@@ -1363,8 +1376,15 @@ absl::Status Translator::GenerateIR_Function_Body(
         ErrorMessage(body_loc, "IO ops in operator calls are not supported"));
   }
 
-  XLS_ASSIGN_OR_RETURN(sf.xls_func,
-                       header.builder->BuildWithReturnValue(return_bval));
+  XLS_ASSIGN_OR_RETURN(
+      xls::Function * last_slice_function,
+      header.builder->builder()->BuildWithReturnValue(return_bval));
+
+  XLSCC_CHECK(!context().sf->slices.empty(), body_loc);
+  context().sf->slices.back().function = last_slice_function;
+  sf.xls_func = last_slice_function;
+  XLS_RETURN_IF_ERROR(OptimizeContinuations(sf));
+
   return absl::OkStatus();
 }
 
@@ -2975,6 +2995,45 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::TranslateLValueChannels(
   return outer_lval;
 }
 
+std::shared_ptr<LValue> Translator::RemoveBValuesFromLValue(
+    std::shared_ptr<LValue> outer_lval, const xls::SourceInfo& body_loc) {
+  if (outer_lval == nullptr) {
+    return nullptr;
+  }
+
+  if (outer_lval->is_select()) {
+    std::shared_ptr<LValue> inner_true_lval =
+        RemoveBValuesFromLValue(outer_lval->lvalue_true(), body_loc);
+    std::shared_ptr<LValue> inner_false_lval =
+        RemoveBValuesFromLValue(outer_lval->lvalue_false(), body_loc);
+    return std::make_shared<LValue>(TrackedBValue(), inner_true_lval,
+                                    inner_false_lval);
+  }
+
+  if (!outer_lval->get_compounds().empty()) {
+    absl::flat_hash_map<int64_t, std::shared_ptr<LValue>> compounds;
+    for (const auto& [idx, outer_field_lval] : outer_lval->get_compounds()) {
+      compounds[idx] = RemoveBValuesFromLValue(outer_field_lval, body_loc);
+    }
+    return std::make_shared<LValue>(compounds);
+  }
+
+  return outer_lval;
+}
+
+void Translator::CleanUpBValuesInTopFunction(GeneratedFunction& func) {
+  func.this_lvalue = nullptr;
+  func.return_lvalue = nullptr;
+
+  for (IOOp& op : func.io_ops) {
+    op.ret_value = TrackedBValue();
+    op.input_value = CValue();
+  }
+
+  func.global_values.clear();
+  func.lvalues_by_param.clear();
+}
+
 absl::StatusOr<std::string> Translator::GetStringLiteral(
     const clang::Expr* expr, const xls::SourceInfo& loc) {
   expr = GetCastsSubexpr(expr);
@@ -3356,6 +3415,16 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
   auto signature = absl::implicit_cast<const clang::NamedDecl*>(funcdecl);
 
+  auto clean_up_function_in_progress = [this, signature, loc]() {
+    // The inner scope may generate the function body
+    // See TranslatorLogicTest.MultipleCallsInTree
+    if (functions_in_progress_.contains(signature)) {
+      functions_in_progress_.erase(signature);
+    }
+  };
+
+  bool do_clean_up_function_in_progress = false;
+
   auto found = inst_functions_.find(signature);
   if (found != inst_functions_.end()) {
     XLSCC_CHECK(!functions_in_progress_.contains(signature), loc);
@@ -3378,6 +3447,16 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     generate_function_header->generated_function =
         std::move(generated_function);
     functions_in_progress_[signature] = std::move(generate_function_header);
+
+    // The scope that created the header should clean it up on early return
+    do_clean_up_function_in_progress = true;
+  }
+
+  auto clean_up_function_in_progress_guard =
+      absl::MakeCleanup(clean_up_function_in_progress);
+
+  if (!do_clean_up_function_in_progress) {
+    std::move(clean_up_function_in_progress_guard).Cancel();
   }
 
   XLSCC_CHECK_NE(func, nullptr, loc);
@@ -3673,7 +3752,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
     functions_in_call_stack_.insert(signature);
 
-    auto functions_called_enclosing_guard = MakeLambdaGuard(
+    auto functions_called_enclosing_guard = absl::MakeCleanup(
         [this, signature]() { functions_in_call_stack_.erase(signature); });
 
     // Generate the function body if needed
@@ -6315,8 +6394,6 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
   package_ = package;
   default_init_interval_ = default_init_interval;
 
-  auto func_init = std::make_unique<GeneratedFunction>();
-
   auto signature = absl::implicit_cast<const clang::NamedDecl*>(top_function);
 
   // Detect recursion of top function
@@ -6332,6 +6409,10 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
           /*name_override=*/
           absl::StrCat(top_function->getNameAsString(), name_postfix),
           force_static, member_references_become_channels));
+
+  auto clean_up_bvalues = [&sf]() { CleanUpBValuesInTopFunction(sf); };
+
+  auto clean_up_bvalues_guard = absl::MakeCleanup(clean_up_bvalues);
 
   for (const auto& [decl, bundle] : top_channel_injections) {
     XLSCC_CHECK(sf.lvalues_by_param.contains(decl), GetLoc(*top_function));
