@@ -53,7 +53,7 @@ ImportData CreateImportDataForTest(std::unique_ptr<VirtualizableFilesystem> vfs,
 std::unique_ptr<ImportData> CreateImportDataPtrForTest() {
   auto import_data = absl::WrapUnique(
       new ImportData(xls::kDefaultDslxStdlibPath,
-                     /*additional_search_paths=*/{}, kDefaultWarningsSet,
+                     /*additional_search_paths=*/{}, kAllWarningsSet,
                      std::make_unique<RealFilesystem>()));
   import_data->SetBytecodeCache(std::make_unique<BytecodeCache>());
   return import_data;
