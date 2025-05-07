@@ -15,6 +15,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -24,11 +25,14 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 
@@ -165,4 +169,29 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
   return v.retval();
 }
 
+absl::StatusOr<std::optional<StructDef*>> StructDefFromExpr(
+    Expr* expr, TypeInfo* type_info) {
+  TypeRefTypeAnnotation* type_annotation = nullptr;
+  if (NameRef* nr = dynamic_cast<NameRef*>(expr)) {
+    if (StructDef* sd = dynamic_cast<StructDef*>(nr->GetDefiner())) {
+      return sd;
+    }
+    if (StructInstance* si = dynamic_cast<StructInstance*>(nr->GetDefiner())) {
+      type_annotation = dynamic_cast<TypeRefTypeAnnotation*>(si->struct_ref());
+    }
+    if (Param* param = dynamic_cast<Param*>(nr->GetDefiner())) {
+      if (SelfTypeAnnotation* self_annotation =
+              dynamic_cast<SelfTypeAnnotation*>(param->type_annotation())) {
+        type_annotation =
+            dynamic_cast<TypeRefTypeAnnotation*>(self_annotation->struct_ref());
+      }
+    }
+    if (type_annotation != nullptr) {
+      return DerefToStruct(expr->span(), type_annotation->ToString(),
+                           type_annotation->type_ref()->type_definition(),
+                           type_info);
+    }
+  }
+  return std::nullopt;
+}
 }  // namespace xls::dslx

@@ -403,6 +403,10 @@ class AstCloner : public AstNodeVisitor {
     new_function->set_disable_format(n->disable_format());
     old_to_new_[n] = new_function;
     new_name_def->set_definer(old_to_new_.at(n));
+    if (n->impl().has_value()) {
+      Impl* new_impl = down_cast<Impl*>(old_to_new_.at(*(n->impl())));
+      new_function->set_impl(new_impl);
+    }
     return absl::OkStatus();
   }
 

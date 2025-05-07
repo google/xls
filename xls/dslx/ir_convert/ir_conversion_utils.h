@@ -18,10 +18,13 @@
 // tree traversal (which is the main concern of ir_converter.h/cc.
 
 #include <cstdint>
+#include <optional>
 
 #include "absl/status/statusor.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 
@@ -43,6 +46,9 @@ absl::StatusOr<int64_t> ResolveDimToInt(const TypeDim& dim,
 absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
                                     const ParametricEnv& bindings);
 
+// Attempts to determine the StructDef corresponding to the provided Expr.
+absl::StatusOr<std::optional<StructDef*>> StructDefFromExpr(
+    Expr* expr, TypeInfo* type_info);
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_IR_CONVERT_IR_CONVERSION_UTILS_H_

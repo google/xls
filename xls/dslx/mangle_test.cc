@@ -41,6 +41,15 @@ TEST(MangleTest, SimpleModuleFunction) {
               IsOkAndHolds("__my_mod__f__func_0_next"));
 }
 
+TEST(MangleTest, ModuleFunctionWithScope) {
+  EXPECT_THAT(MangleDslxName("my_mod", "f", CallingConvention::kTypical, {},
+                             nullptr, "scope"),
+              IsOkAndHolds("__my_mod__scope__f"));
+  EXPECT_THAT(MangleDslxName("my_mod", "f", CallingConvention::kImplicitToken,
+                             {}, nullptr, "scope"),
+              IsOkAndHolds("__itok__my_mod__scope__f"));
+}
+
 TEST(MangleTest, SingleFreeKey) {
   std::vector<std::pair<std::string, InterpValue>> bindings = {
       {"x", InterpValue::MakeU32(42)}};
