@@ -1,11 +1,11 @@
 # DSLX Built-In Functions and Standard Library
 
-This page documents the DSLX **built-in functions** (i.e. functions that don't
-require an import and are available in the top level namespace) and **standard
-library modules** (i.e. which are imported with an unqualified name like `import
-std`).
+This page documents the DSLX **built-in functions** (i.e., functions that don't
+require an import and are available in the top-level namespace) and **standard
+library modules** (i.e., which are imported with an unqualified name like
+`import std`).
 
-Generally built-in functions have some capabilities that cannot be easily done
+Generally, built-in functions have some capabilities that cannot be easily done
 in a user-defined function, and thus do not live in the standard library.
 
 [TOC]
@@ -15,19 +15,19 @@ in a user-defined function, and thus do not live in the standard library.
 This section describes the built-in functions provided for use in the DSL that
 do not need to be explicitly imported.
 
-Some of the built-ins have exclamation marks at the end; e.g. `assert!` --
+Some of the built-ins have exclamation marks at the end; e.g., `assert!` --
 exclamation marks in DSLX indicate built-in functions that have special
 facilities that normal functions are not capable of. This is intended to help
 the user discern when they're calling "something that will behave like a normal
 function" versus "something that has special abilities beyond normal functions,
-e.g. special side-effects".
+e.g., special side-effects".
 
 !!! NOTE
     A brief note on "Parallel Primitives": the DSL is expected to grow
     additional support for use of high-level parallel primitives over time, adding
     operators for order-insensitive reductions, scans, groupings, and similar. By
-    making these operations known to the compiler in their high level form, we
-    potentially enable optimizations and analyses on their higher level ("lifted")
+    making these operations known to the compiler in their high-level form, we
+    potentially enable optimizations and analyses on their higher-level ("lifted")
     form. As of now, `map` is the sole parallel-primitive-oriented built-in.
 
 ### `array_size`
@@ -96,15 +96,15 @@ fn test_bit_count_size() {
 with additional checks compared to casting with `as`.
 
 `widening_cast` will report a static error if the type casted to is unable to
-respresent all values of the type casted from (ex. `widening_cast<u5>(s3:0)`
-will fail because s3:-1 cannot be respresented as an unsigned number).
+represent all values of the type casted from (e.g., `widening_cast<u5>(s3:0)`
+will fail because s3:-1 cannot be represented as an unsigned number).
 
-`checked_cast` will cause a runtime error during dslx interpretation if the
-value being casted is unable to fit within the type casted to (ex.
+`checked_cast` will cause a runtime error during DSLX interpretation if the
+value being casted is unable to fit within the type casted to (e.g.,
 `checked_cast<u5>(s3:0)` will succeed while `checked_cast<u5>(s3:-1)` will cause
-the dslx interpreter to fail.
+the DSLX interpreter to fail.
 
-Currently both `widening_cast` and `checked_cast` will lower into a normal IR
+Currently, both `widening_cast` and `checked_cast` will lower into a normal IR
 cast and will not generate additional assertions at the IR or Verilog level.
 
 ```
@@ -132,7 +132,7 @@ fn umulp<N: u32>(lhs: uN[N], rhs: uN[N]) -> (uN[N], uN[N])
 ### `map`
 
 `map`, similarly to other languages, executes a transformation function on all
-the elements of an original array to produce the resulting "mapped' array.
+the elements of an original array to produce the resulting "mapped" array.
 [For example](https://github.com/google/xls/tree/main/xls/dslx/tests/map_of_stdlib_parametric.x):
 taking the absolute value of each element in an input array:
 
@@ -151,15 +151,15 @@ fn main_test() {
 }
 ```
 
-Note that map is special, in that we can pass it a callee *as if* it were a
+Note that `map` is special, in that we can pass it a callee *as if* it were a
 value. As a function that "takes" a function as an argument, `map` is a special
-built-in -- in language implementor parlance it is a *higher order function*.
+built-in -- in language implementor parlance it is a *higher-order function*.
 
-Implementation note: Functions are not first class values in the DSL, so the
-name of the function must be referred to directly.
+Implementation note: Functions are not referenceable as values in the DSL, so
+the name of the function must be referred to directly.
 
 !!! NOTE
-    Novel higher order functions (e.g. if a user wanted to write their own
+    Novel higher-order functions (e.g., if a user wanted to write their own
     `map`) cannot currently be written in user-level DSL code.
 
 ### `zip`
@@ -255,9 +255,9 @@ fn test_clz_ctz() {
 
 ### `decode`
 
-Converts a binary-encoded value into a one-hot value. Given
-`n`, interpreted as an unsigned number, the`n`-th result bit and only the`n`-th
-result bit is set. Has the following signature:
+Converts a binary-encoded value into a one-hot value. Given `n`, interpreted as
+an unsigned number, the `n`-th result bit and only the `n`-th result bit is set.
+Has the following signature:
 
 ```
 fn decode<uN[W]>(x: uN[N]) -> uN[W]
@@ -386,7 +386,7 @@ fn signex<N: u32, M: u32>(x: xN[M], d: xN[N]) -> xN[N]
 
 To invoke the `signex` built-in, provide it with the operand to sign extend
 (lhs), as well as the target type to extend to: these operands may be either
-signed or unsigned. Note that the *value* of the right hand side is ignored,
+signed or unsigned. Note that the *value* of the right-hand side is ignored,
 only its type is used to determine the result type of the sign extension.
 
 ```dslx
@@ -681,7 +681,7 @@ failure status or a Verilog assertion when running in RTL simulation).
 
 Assuming `fail!` will not be triggered minimizes its cost in synthesized form.
 In this situation, **when it is "erased", it acts as the identity function**,
-providing the `fallback_value`. This allows XLS to keep well defined semantics
+providing the `fallback_value`. This allows XLS to keep well-defined semantics
 even when fatal assertion hardware is not present.
 
 **Example `assert!`:** if there is a function that should never be invoked with
@@ -732,7 +732,7 @@ SystemVerilog. At higher levels in the stack, it's unused.
 
 !!! NOTE
     Currently, `cover!` has no effect in RTL simulators supported in XLS open
-    source (i.e. iverilog). See
+    source (i.e., iverilog). See
     [google/xls#436](https://github.com/google/xls/issues/436).
 
 The `cover!` built-in tracks how often some condition is satisfied. It desugars
@@ -745,7 +745,7 @@ fn cover!<N: u32>(name: u8[N], condition: bool) -> ()
 Where `name` is a function-unique literal string identifying the coverpoint and
 `condition` is a boolean element. When `condition` is true, a counter with the
 given name is incremented that can be inspected upon program termination.
-Coverpoints can be used to give an indication of code "coverage", i.e. to see
+Coverpoints can be used to give an indication of code "coverage", i.e., to see
 what paths of a design are exercised in practice. The name of the coverpoint
 must begin with either a letter or underscore, and its remainder must consist of
 letters, digits, underscores, or dollar signs.
@@ -845,7 +845,7 @@ fn recv_if<T: type>(tok: token, c: chan<T> in, predicate: bool, default_value: T
 
 Performs a non-blocking receive from channel `c` -- if the channel is empty the
 `default_value` is returned as the result, and the `bool` in the result
-indicates whether the value originated from the channel (i.e. `true` means the
+indicates whether the value originated from the channel (i.e., `true` means the
 value came from the channel).
 
 ```
@@ -1009,7 +1009,7 @@ There's always a source of confusion in these orderings:
 
 So, it's somewhat ambiguous whether "index 0" in the array would become the
 least significant bit or the most significant bit. This routine uses the "as it
-looks on paper" conversion; e.g. `[true, false, false]` becomes `0b100`.
+looks on paper" conversion; e.g., `[true, false, false]` becomes `0b100`.
 
 #### `std::convert_to_bools_lsb0`
 
@@ -1226,7 +1226,7 @@ pub fn round_up_to_nearest(x: u32, y: u32) -> u32
 
 Returns `x` rounded up to the nearest multiple of `y`.
 
-#### std::round_up_to_nearest_pow2_?
+#### `std::round_up_to_nearest_pow2_?`
 
 Returns `x` rounded up to the nearest multiple of `y`, where `y` is a known
 positive power of 2. This functionality is the same as
@@ -1388,8 +1388,8 @@ ultimately discarded from the unselected match arm.
 pub fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool[COUNT]) -> bool
 ```
 
-Returns whether all the `items` are distinct (i.e. there are no duplicate items)
-after the `valid` mask is applied.
+Returns whether all the `items` are distinct (i.e., there are no duplicate
+items) after the `valid` mask is applied.
 
 ```dslx
 import std;
