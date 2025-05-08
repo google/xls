@@ -205,11 +205,11 @@ namespace xls {
 
 namespace {
 
-static absl::Status LogInterpreterEvents(std::string_view entity_name,
-                                         const InterpreterEvents& events,
-                                         int cycle = -1) {
+static absl::Status LogInterpreterEvents(
+    std::string_view entity_name, const InterpreterEvents& events,
+    std::optional<int> cycle = std::nullopt) {
   const std::string cycle_str =
-      cycle == -1 ? "" : absl::StrFormat("Cycle[%d]: ", cycle);
+      cycle.has_value() ? absl::StrFormat("Cycle[%d]: ", cycle.value()) : "";
 
   if (absl::GetFlag(FLAGS_show_trace)) {
     for (const auto& msg : events.trace_msgs) {
