@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -59,7 +60,6 @@
 #include "xls/ir/proc_instantiation.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/verify_node.h"
 #include "re2/re2.h"
@@ -167,7 +167,9 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
 }
 
 // Verify various invariants about the channels owned by the given package.
-absl::Status VerifyChannels(Package* package, bool codegen) {
+absl::Status VerifyChannels(
+    Package* package, bool codegen,
+    std::function<std::vector<Node*>(FunctionBase*)> topo_sort) {
   // All channels must be proc-scoped or no channels should be proc scoped.
   bool has_global_channels = !package->channels().empty();
   bool has_new_style_procs = false;
@@ -218,7 +220,7 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
     if (proc->is_new_style_proc()) {
       continue;
     }
-    for (Node* node : TopoSort(proc.get())) {
+    for (Node* node : topo_sort(proc.get())) {
       if (node->Is<Send>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
         send_nodes[channel].push_back(node);
@@ -528,7 +530,9 @@ absl::Status VerifyBlockChannelMetadata(Block* block) {
 
 }  // namespace
 
-absl::Status VerifyPackage(Package* package, bool codegen) {
+absl::Status VerifyPackage(
+    Package* package, bool codegen,
+    std::function<std::vector<Node*>(FunctionBase*)> topo_sort) {
   VLOG(4) << absl::StreamFormat("Verifying package %s:\n", package->name());
   XLS_VLOG_LINES(4, package->DumpIr());
 
@@ -586,7 +590,7 @@ absl::Status VerifyPackage(Package* package, bool codegen) {
     function_bases.insert(function_base);
   }
 
-  XLS_RETURN_IF_ERROR(VerifyChannels(package, codegen));
+  XLS_RETURN_IF_ERROR(VerifyChannels(package, codegen, topo_sort));
   XLS_RETURN_IF_ERROR(VerifyElaboration(package));
 
   // TODO(meheff): Verify main entry point is one of the functions.

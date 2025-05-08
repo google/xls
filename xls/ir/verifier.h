@@ -15,7 +15,11 @@
 #ifndef XLS_IR_VERIFIER_H_
 #define XLS_IR_VERIFIER_H_
 
+#include <functional>
+#include <vector>
+
 #include "absl/status/status.h"
+#include "xls/ir/topo_sort.h"
 
 namespace xls {
 
@@ -24,10 +28,14 @@ class Function;
 class Proc;
 class Block;
 class Package;
+class FunctionBase;
 
 // Verifies numerous invariants of the IR for the given IR construct. Returns a
 // error status if a violation is found.
-absl::Status VerifyPackage(Package* package, bool codegen = false);
+absl::Status VerifyPackage(
+    Package* package, bool codegen = false,
+    std::function<std::vector<Node*>(FunctionBase*)> topo_sort =
+        [](FunctionBase* fb) { return TopoSort(fb); });
 absl::Status VerifyFunction(Function* function, bool codegen = false);
 absl::Status VerifyProc(Proc* Proc, bool codegen = false);
 absl::Status VerifyBlock(Block* Block, bool codegen = false);

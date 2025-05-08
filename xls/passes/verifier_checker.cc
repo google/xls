@@ -25,7 +25,9 @@ absl::Status VerifierChecker::Run(Package* p,
                                   const OptimizationPassOptions& options,
                                   PassResults* results,
                                   OptimizationContext& context) const {
-  return VerifyPackage(p);
+  return VerifyPackage(
+      p, /*codegen=*/false,
+      /*topo_sort=*/[&](FunctionBase* fb) { return context.TopoSort(fb); });
 }
 
 }  // namespace xls
