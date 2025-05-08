@@ -1116,12 +1116,12 @@ Example:
 ```dslx
 #[test]
 fn test_split_msbs() {
-    assert_eq(split_msbs<u32:0>(u5:0b10101), (uN[0]:0, u5:0b10101));
-    assert_eq(split_msbs<u32:1>(u5:0b10101), (u1:0b1, u4:0b0101));
-    assert_eq(split_msbs<u32:2>(u5:0b10101), (u2:0b10, u3:0b101));
-    assert_eq(split_msbs<u32:3>(u5:0b10101), (u3:0b101, u2:0b01));
-    assert_eq(split_msbs<u32:4>(u5:0b10101), (u4:0b1010, u1:0b1));
-    assert_eq(split_msbs<u32:5>(u5:0b10101), (u5:0b10101, uN[0]:0));
+    assert_eq(std::split_msbs<u32:0>(u5:0b10101), (uN[0]:0, u5:0b10101));
+    assert_eq(std::split_msbs<u32:1>(u5:0b10101), (u1:0b1, u4:0b0101));
+    assert_eq(std::split_msbs<u32:2>(u5:0b10101), (u2:0b10, u3:0b101));
+    assert_eq(std::split_msbs<u32:3>(u5:0b10101), (u3:0b101, u2:0b01));
+    assert_eq(std::split_msbs<u32:4>(u5:0b10101), (u4:0b1010, u1:0b1));
+    assert_eq(std::split_msbs<u32:5>(u5:0b10101), (u5:0b10101, uN[0]:0));
 }
 ```
 
@@ -1142,12 +1142,12 @@ Example:
 ```dslx
 #[test]
 fn test_split_lsbs() {
-    assert_eq(split_lsbs<u32:5>(u5:0b10101), (uN[0]:0, u5:0b10101));
-    assert_eq(split_lsbs<u32:4>(u5:0b10101), (u1:0b1, u4:0b0101));
-    assert_eq(split_lsbs<u32:3>(u5:0b10101), (u2:0b10, u3:0b101));
-    assert_eq(split_lsbs<u32:2>(u5:0b10101), (u3:0b101, u2:0b01));
-    assert_eq(split_lsbs<u32:1>(u5:0b10101), (u4:0b1010, u1:0b1));
-    assert_eq(split_lsbs<u32:0>(u5:0b10101), (u5:0b10101, uN[0]:0));
+    assert_eq(std::split_lsbs<u32:5>(u5:0b10101), (uN[0]:0, u5:0b10101));
+    assert_eq(std::split_lsbs<u32:4>(u5:0b10101), (u1:0b1, u4:0b0101));
+    assert_eq(std::split_lsbs<u32:3>(u5:0b10101), (u2:0b10, u3:0b101));
+    assert_eq(std::split_lsbs<u32:2>(u5:0b10101), (u3:0b101, u2:0b01));
+    assert_eq(std::split_lsbs<u32:1>(u5:0b10101), (u4:0b1010, u1:0b1));
+    assert_eq(std::split_lsbs<u32:0>(u5:0b10101), (u5:0b10101, uN[0]:0));
 }
 ```
 
