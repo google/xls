@@ -206,21 +206,26 @@ namespace xls {
 namespace {
 
 static absl::Status LogInterpreterEvents(std::string_view entity_name,
-                                         const InterpreterEvents& events) {
+                                         const InterpreterEvents& events,
+                                         int cycle = -1) {
+  const std::string cycle_str =
+      cycle == -1 ? "" : absl::StrFormat("Cycle[%d]: ", cycle);
+
   if (absl::GetFlag(FLAGS_show_trace)) {
     for (const auto& msg : events.trace_msgs) {
       if (msg.verbosity <= absl::GetFlag(FLAGS_max_trace_verbosity)) {
         std::string unescaped_msg;
         XLS_RET_CHECK(absl::CUnescape(msg.message, &unescaped_msg));
-        std::cerr << "Proc " << entity_name << " trace: " << unescaped_msg
-                  << "\n";
+        LOG(INFO) << cycle_str << "Proc " << entity_name
+                  << " trace: " << unescaped_msg << "\n";
       }
     }
   }
   for (const auto& msg : events.assert_msgs) {
     std::string unescaped_msg;
     XLS_RET_CHECK(absl::CUnescape(msg, &unescaped_msg));
-    std::cerr << "Proc " << entity_name << " assert: " << unescaped_msg << "\n";
+    LOG(INFO) << cycle_str << "Proc " << entity_name
+              << " assert: " << unescaped_msg << "\n";
   }
   return absl::OkStatus();
 }
@@ -881,7 +886,7 @@ static absl::Status RunBlock(
 
     // Output trace messages
     const xls::InterpreterEvents& events = continuation->events();
-    XLS_RETURN_IF_ERROR(LogInterpreterEvents(block->name(), events));
+    XLS_RETURN_IF_ERROR(LogInterpreterEvents(block->name(), events, cycle));
 
     if (!events.assert_msgs.empty() && options.fail_on_assert) {
       return absl::UnknownError(absl::StrFormat(
@@ -907,7 +912,8 @@ static absl::Status RunBlock(
       std::deque<Value>& queue = channel_value_queues.at(name);
       if (vld_value && rdy_value) {
         if (options.show_trace) {
-          LOG(INFO) << "Channel Model: Consuming input for " << name << ": "
+          LOG(INFO) << "Cycle[" << cycle
+                    << "]: Channel Model: Consuming input for " << name << ": "
                     << queue.front().ToString();
         }
         queue.pop_front();
@@ -937,23 +943,26 @@ static absl::Status RunBlock(
           const Value& data_value = outputs.at(info.channel_data);
           const Value& match_value = queue.front();
           if (options.show_trace) {
-            LOG(INFO) << "Channel Model: Consuming output for " << name << ": "
-                      << data_value << ", remaining " << queue.size();
+            LOG(INFO) << "Cycle[" << cycle
+                      << "]: Channel Model: Consuming output for " << name
+                      << ": " << data_value << ", remaining " << queue.size();
           }
           if (match_value != data_value) {
             errors.push_back(absl::StrFormat(
-                "Output mismatched for channel %s: expected %s, block "
+                "Cycle[%d]: Output mismatched for channel %s: expected %s, "
+                "block "
                 "outputted "
                 "%s",
-                name, match_value.ToString(), data_value.ToString()));
+                cycle, name, match_value.ToString(), data_value.ToString()));
             continue;
           }
         } else if (queue.front().GetFlatBitCount() != 0) {
           // TODO(allight): Actually check the types match up too.
-          errors.push_back(absl::StrFormat(
-              "Output mismatched for channel %s: expected %s, block outputted "
-              "zero-len data",
-              name, queue.front().ToString()));
+          errors.push_back(
+              absl::StrFormat("Cycle[%d]: Output mismatched for channel %s: "
+                              "expected %s, block outputted "
+                              "zero-len data",
+                              cycle, name, queue.front().ToString()));
           continue;
         }
         ++matched_outputs;
@@ -963,7 +972,7 @@ static absl::Status RunBlock(
     }
     if (!errors.empty()) {
       return absl::UnknownError(absl::StrFormat(
-          "Outputs did not match expectations after cycle %d:\n\n%s", cycle,
+          "Cycle[%d]: Outputs did not match expectations:\n\n%s", cycle,
           absl::StrJoin(errors, "\n")));
     }
 
