@@ -945,7 +945,8 @@ static absl::Status RunBlock(
           if (options.show_trace) {
             LOG(INFO) << "Cycle[" << cycle
                       << "]: Channel Model: Consuming output for " << name
-                      << ": " << data_value << ", remaining " << queue.size();
+                      << ": " << data_value << ", remaining "
+                      << queue.size() - 1;
           }
           if (match_value != data_value) {
             errors.push_back(absl::StrFormat(
