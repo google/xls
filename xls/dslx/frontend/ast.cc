@@ -1728,14 +1728,23 @@ std::vector<AstNode*> Impl::GetChildren(bool want_types) const {
   return results;
 }
 
-std::vector<ConstantDef*> Impl::GetConstants() const {
-  std::vector<ConstantDef*> results;
+template <typename T>
+std::vector<T> Impl::GetMembersOfType() const {
+  std::vector<T> results;
   for (const auto& member : members_) {
-    if (std::holds_alternative<ConstantDef*>(member)) {
-      results.push_back(std::get<ConstantDef*>(member));
+    if (std::holds_alternative<T>(member)) {
+      results.push_back(std::get<T>(member));
     }
   }
   return results;
+}
+
+std::vector<ConstantDef*> Impl::GetConstants() const {
+  return GetMembersOfType<ConstantDef*>();
+}
+
+std::vector<Function*> Impl::GetFunctions() const {
+  return GetMembersOfType<Function*>();
 }
 
 static std::string ImplMemberIdentifier(const ImplMember member) {

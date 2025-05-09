@@ -591,7 +591,8 @@ impl MyStruct {
 }
 
 fn main() -> u32 {
-    MyStruct::MY_CONST
+    let a = MyStruct::another();
+    a.some_func()
 }
 )";
 
@@ -610,7 +611,8 @@ fn main() -> u32 {
 })";
 
   constexpr std::string_view kExpectedFunction = R"(fn main() -> u32 {
-    MyStruct::MY_CONST
+    let a = MyStruct::another();
+    a.some_func()
 })";
 
   FileTable file_table;
@@ -632,6 +634,9 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kExpectedFunction, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
+
+  Function* cloned_impl_fn = *cloned_impl->GetFunction("some_func");
+  EXPECT_EQ(cloned_impl_fn->impl(), cloned_impl);
 }
 
 TEST(AstClonerTest, ColonRefToImportedStruct) {

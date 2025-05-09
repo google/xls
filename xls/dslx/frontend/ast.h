@@ -2286,6 +2286,9 @@ class Function : public AstNode {
   void set_proc(Proc* proc) { proc_ = proc; }
   bool IsInProc() const { return proc_.has_value(); }
 
+  std::optional<Impl*> impl() const { return impl_; }
+  void set_impl(Impl* impl) { impl_ = impl; }
+
   std::optional<Span> GetParametricBindingsSpan() const {
     if (parametric_bindings_.empty()) {
       return std::nullopt;
@@ -2304,6 +2307,7 @@ class Function : public AstNode {
   StatementBlock* body_;
   const FunctionTag tag_;
   std::optional<Proc*> proc_;
+  std::optional<Impl*> impl_;
 
   const bool is_public_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
@@ -3146,6 +3150,7 @@ class Impl : public AstNode {
   void set_members(std::vector<ImplMember>& members) { members_ = members; }
 
   std::vector<ConstantDef*> GetConstants() const;
+  std::vector<Function*> GetFunctions() const;
 
   // Returns the member with the given name, if present.
   std::optional<ImplMember> GetMember(std::string_view name) const;
@@ -3164,6 +3169,9 @@ class Impl : public AstNode {
 
   template <typename T>
   std::optional<T> GetMemberOfType(std::string_view name) const;
+
+  template <typename T>
+  std::vector<T> GetMembersOfType() const;
 };
 
 // A virtual base class for nodes that directly instantiate a struct.
