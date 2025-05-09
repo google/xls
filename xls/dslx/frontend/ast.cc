@@ -1101,6 +1101,22 @@ std::string ElementTypeAnnotation::ToString() const {
           : container_type_->ToString());
 }
 
+// -- class SliceTypeAnnotation
+
+SliceTypeAnnotation::SliceTypeAnnotation(
+    Module* owner, Span span, TypeAnnotation* source_type,
+    std::variant<Slice*, WidthSlice*> slice)
+    : TypeAnnotation(owner, span), source_type_(source_type), slice_(slice) {}
+
+std::vector<AstNode*> SliceTypeAnnotation::GetChildren(bool want_types) const {
+  return std::vector<AstNode*>{source_type_, ToAstNode(slice_)};
+}
+
+std::string SliceTypeAnnotation::ToString() const {
+  return absl::Substitute("Slice ($0, $1)", source_type_->ToString(),
+                          ToAstNode(slice_)->ToString());
+}
+
 // -- class FunctionTypeAnnotation
 
 FunctionTypeAnnotation::FunctionTypeAnnotation(

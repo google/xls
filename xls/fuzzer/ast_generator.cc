@@ -699,6 +699,11 @@ class FindTypeVisitor : public AstNodeVisitorWithDefault {
         "ElementTypeAnnotation nodes are not supported by the fuzzer.");
   }
 
+  absl::Status HandleSliceTypeAnnotation(const SliceTypeAnnotation*) override {
+    return absl::InternalError(
+        "SliceTypeAnnotation nodes are not supported by the fuzzer.");
+  }
+
   absl::Status HandleFunctionTypeAnnotation(
       const FunctionTypeAnnotation*) override {
     return absl::InternalError(

@@ -147,8 +147,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     XLS_RETURN_IF_ERROR(absl::visit(
         Visitor{[&](Slice* slice) { return ValidateSliceLhs(index); },
                 [&](WidthSlice* width_slice) -> absl::Status {
-                  XLS_RETURN_IF_ERROR(ValidateSliceLhs(index));
-                  return ValidateWidthSlice(index, width_slice);
+                  return ValidateSliceLhs(index);
                 },
                 [&](Expr* expr) { return ValidateNonSliceIndex(index); }},
         index->rhs()));
@@ -452,17 +451,6 @@ class TypeValidator : public AstNodeVisitorWithDefault {
       return TypeInferenceErrorStatus(index->span(), &lhs_type,
                                       "Bit slice LHS must be unsigned.",
                                       file_table_);
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status ValidateWidthSlice(const Index* index,
-                                  const WidthSlice* width_slice) {
-    const Type& width_type = **ti_.GetItem(width_slice->width());
-    if (!IsBitsLike(width_type)) {
-      return TypeInferenceErrorStatus(
-          index->span(), &width_type,
-          "A bits type is required for a width-based slice.", file_table_);
     }
     return absl::OkStatus();
   }

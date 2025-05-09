@@ -119,12 +119,6 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
-  absl::Status HandleSlice(const Slice* slice) override {
-    // Slices get replaced with `StartAndWith` objects in `TypeInfo`, so there
-    // is no point in trying to compute the type info of the slice itself.
-    return absl::OkStatus();
-  }
-
   absl::Status HandleInvocation(const Invocation* node) override {
     // Exclude the arguments of invocations, but otherwise do the equivalent of
     // DefaultHandler. We exclude the arguments, because when an argument should
@@ -1264,9 +1258,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // A `Slice` actually has its bounds stored in `TypeInfo` out-of-band from
       // the real type info, mirroring the `StartAndWidthExprs` that we store in
       // the `InferenceTable`.
-      if (std::holds_alternative<Slice*>(index->rhs()) ||
-          std::holds_alternative<WidthSlice*>(index->rhs())) {
-        XLS_RETURN_IF_ERROR(ConcretizeSlice(parametric_context, index, ti));
+      if (std::holds_alternative<Slice*>(index->rhs())) {
+        std::optional<StartAndWidthExprs> start_and_width_exprs =
+            table_.GetSliceStartAndWidthExprs(ToAstNode(index->rhs()));
+        CHECK(start_and_width_exprs.has_value());
+        StartAndWidth start_and_width;
+        XLS_ASSIGN_OR_RETURN(start_and_width.start,
+                             EvaluateU32OrExpr(parametric_context,
+                                               start_and_width_exprs->start));
+        XLS_ASSIGN_OR_RETURN(start_and_width.width,
+                             EvaluateU32OrExpr(parametric_context,
+                                               start_and_width_exprs->width));
+        ti->AddSliceStartAndWidth(std::get<Slice*>(index->rhs()),
+                                  GetParametricEnv(parametric_context),
+                                  start_and_width);
       }
     }
     if (const auto* const_assert = dynamic_cast<const ConstAssert*>(node)) {
@@ -1291,53 +1296,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         return NoteBuiltinInvocationConstExpr(callee_nameref->identifier(),
                                               invocation, *function_type, ti);
       }
-    }
-    return absl::OkStatus();
-  }
-
-  // Adds the concrete start and width value of the slice requested by the given
-  // `index` node to the given `TypeInfo`.
-  absl::Status ConcretizeSlice(
-      std::optional<const ParametricContext*> parametric_context,
-      const Index* index, TypeInfo* ti) {
-    std::optional<StartAndWidthExprs> start_and_width_exprs =
-        table_.GetSliceStartAndWidthExprs(index);
-    CHECK(start_and_width_exprs.has_value());
-    absl::StatusOr<int32_t> start =
-        EvaluateU32OrExpr(parametric_context, start_and_width_exprs->start);
-    XLS_ASSIGN_OR_RETURN(
-        uint32_t width,
-        EvaluateU32OrExpr(parametric_context, start_and_width_exprs->width));
-    const Type& array_type = **ti->GetItem(index->lhs());
-    int64_t array_size;
-    if (array_type.IsArray()) {
-      XLS_ASSIGN_OR_RETURN(array_size,
-                           array_type.AsArray().size().GetAsInt64());
-    } else {
-      std::optional<BitsLikeProperties> bits_like = GetBitsLike(array_type);
-      CHECK(bits_like.has_value());
-      XLS_ASSIGN_OR_RETURN(array_size, bits_like->size.GetAsInt64());
-    }
-
-    // A generic `Slice` must have a constexpr start value. A `WidthSlice` can
-    // have a constexpr or dynamic start value. If it's constexpr, we validate
-    // it.
-    const bool is_generic_slice = std::holds_alternative<Slice*>(index->rhs());
-    if (is_generic_slice && !start.ok()) {
-      return start.status();
-    }
-    if (start.ok() && (*start < 0 || *start + width > array_size)) {
-      return TypeInferenceErrorStatus(
-          index->span(), nullptr,
-          absl::StrCat("Slice range out of bounds for array of size ",
-                       array_size),
-          file_table_);
-    }
-
-    if (is_generic_slice) {
-      ti->AddSliceStartAndWidth(std::get<Slice*>(index->rhs()),
-                                GetParametricEnv(parametric_context),
-                                StartAndWidth{*start, width});
     }
     return absl::OkStatus();
   }
@@ -2259,6 +2217,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::StatusOr<int64_t> EvaluateU32OrExpr(
       std::optional<const ParametricContext*> parametric_context,
       std::variant<int64_t, const Expr*> value_or_expr) override {
+    return Evaluate32BitIntOrExpr(parametric_context, value_or_expr,
+                                  /*is_signed=*/false);
+  }
+
+  absl::StatusOr<int64_t> EvaluateS32OrExpr(
+      std::optional<const ParametricContext*> parametric_context,
+      std::variant<int64_t, const Expr*> value_or_expr) override {
+    return Evaluate32BitIntOrExpr(parametric_context, value_or_expr,
+                                  /*is_signed=*/true);
+  }
+
+  absl::StatusOr<int64_t> Evaluate32BitIntOrExpr(
+      std::optional<const ParametricContext*> parametric_context,
+      std::variant<int64_t, const Expr*> value_or_expr, bool is_signed) {
     if (std::holds_alternative<int64_t>(value_or_expr)) {
       return std::get<int64_t>(value_or_expr);
     }
@@ -2270,7 +2242,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     std::optional<const TypeAnnotation*> type_annotation =
         table_.GetTypeAnnotation(expr);
     if (!type_annotation.has_value()) {
-      type_annotation = CreateU32Annotation(*expr->owner(), expr->span());
+      type_annotation = is_signed
+                            ? CreateS32Annotation(*expr->owner(), expr->span())
+                            : CreateU32Annotation(*expr->owner(), expr->span());
     }
     XLS_ASSIGN_OR_RETURN(InterpValue value,
                          Evaluate(ParametricContextScopedExpr(

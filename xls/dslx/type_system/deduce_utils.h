@@ -134,6 +134,14 @@ absl::StatusOr<Function*> ResolveFunction(Expr* callee,
 // The target proc must have been typechecked prior to this call.
 absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info);
 
+// Normalizes the given optional start and width values for a slice of a bit
+// vector of size `bit_count`. One or both values may be omitted (to indicate
+// the absolute start or end), negative (i.e. an end-based index), or out of
+// range. This function will produce positive, in-range values.
+absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
+    int64_t bit_count, std::optional<int64_t> start_opt,
+    std::optional<int64_t> limit_opt);
+
 // Returns an AST node typed T from module "m", resolved via name "name".
 //
 // Errors are attributed to span "span".

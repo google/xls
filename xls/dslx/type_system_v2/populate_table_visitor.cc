@@ -38,7 +38,9 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -1139,85 +1141,86 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), lhs_variable));
     auto* lhs_tvta = module_.Make<TypeVariableTypeAnnotation>(lhs_variable);
 
-    if (std::holds_alternative<Slice*>(node->rhs()) ||
-        std::holds_alternative<WidthSlice*>(node->rhs())) {
-      XLS_ASSIGN_OR_RETURN(StartAndWidthExprs start_and_width,
-                           CreateSliceStartAndWidthExprs(
-                               module_, lhs_tvta, ToAstNode(node->rhs())));
+    XLS_RETURN_IF_ERROR(absl::visit(
+        Visitor{[&](Slice* slice) -> absl::Status {
+                  return table_.SetTypeAnnotation(
+                      node, module_.Make<SliceTypeAnnotation>(node->span(),
+                                                              lhs_tvta, slice));
+                },
+                [&](WidthSlice* width_slice) -> absl::Status {
+                  return table_.SetTypeAnnotation(
+                      node, module_.Make<SliceTypeAnnotation>(
+                                node->span(), lhs_tvta, width_slice));
+                },
+                [&](Expr* expr) -> absl::Status {
+                  // A node like `array[i]` is basically a binary operator with
+                  // independent
+                  // contexts on the LHS and RHS. The RHS is constrained to u32,
+                  // while the LHS must be some kind of array. The "some kind of
+                  // array" part is not capturable in the table, but readily
+                  // verifiable at the end of type inference, so we defer that.
+                  XLS_ASSIGN_OR_RETURN(
+                      const NameRef* rhs_variable,
+                      table_.DefineInternalVariable(
+                          InferenceVariableKind::kType, const_cast<Expr*>(expr),
+                          GenerateInternalTypeVariableName(expr) + "_index"));
+                  XLS_RETURN_IF_ERROR(
+                      table_.SetTypeVariable(expr, rhs_variable));
 
-      // A slice is kind of the opposite of a concat binop, producing an array
-      // with the element type of the original, and an element count that should
-      // be at most that of the original. We can tell the requested width of the
-      // new array here, at least as an `Expr`, but we rely on
-      // `ValidateConcreteType` to eventually decide if that width, given the
-      // requested start index, stays within the bounds of the original array.
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          node, module_.Make<ArrayTypeAnnotation>(
-                    node->span(),
-                    module_.Make<ElementTypeAnnotation>(
-                        lhs_tvta, /*tuple_index=*/std::nullopt,
-                        /*allow_bit_vector_destructuring=*/true),
-                    start_and_width.width)));
+                  // The type of the entire expr is then
+                  // ElementType(lhs_variable).
+                  XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+                      node, module_.Make<ElementTypeAnnotation>(lhs_tvta)));
+                  return absl::OkStatus();
+                }},
+        node->rhs()));
 
-      XLS_RETURN_IF_ERROR(
-          table_.SetSliceStartAndWidthExprs(node, start_and_width));
+    return DefaultHandler(node);
+  }
 
-      // Type-check the nontrivial, fabricated expressions, constraining them to
-      // s32 (for generic slices) or u32 (for width slices).
-      VLOG(6) << "Type-checking expanded slice start: "
-              << start_and_width.start->ToString()
-              << " and width: " << start_and_width.width->ToString();
-      const bool is_signed = std::holds_alternative<Slice*>(node->rhs());
-      XLS_RETURN_IF_ERROR(
-          HandleSliceBoundInternal(start_and_width.start, is_signed));
-      XLS_RETURN_IF_ERROR(
-          HandleSliceBoundInternal(start_and_width.width, is_signed));
-      if (std::holds_alternative<Slice*>(node->rhs())) {
-        // For a regular slice, we don't want to traverse the RHS, because the
-        // exprs in `start_and_width` will be used henceforth, and the
-        // `HandleSliceBoundInternal` calls above will have typechecked those
-        // already. The original RHS will also not have a type variable, which
-        // would be a precondition for its processing.
-        return node->lhs()->Accept(this);
-      }
+  absl::Status HandleWidthSlice(const WidthSlice* node) override {
+    // A width slice uses an unsigned start index.
+    Expr* start = node->start();
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* start_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Expr*>(start),
+            GenerateInternalTypeVariableName(start) + "_width_slice_start"));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(start, start_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        start, CreateU32Annotation(module_, start->span())));
+    return DefaultHandler(node);
+  }
 
-      // For a `WidthSlice` we need to also make sure the `start` in the
-      // original AST gets the correct type of u32, because it's used in IR
-      // conversion. For a generic `Slice`, this is not necessary or
-      // desirable; the actual `start` and `limit` nodes from the AST are
-      // throw-away exprs without specific type rules, and the `StartAndWidth`
-      // created above is what gets used later.
-      Expr* width_slice_start = std::get<WidthSlice*>(node->rhs())->start();
+  absl::Status HandleSlice(const Slice* node) override {
+    // A general slice uses a signed start and/or limit.
+
+    if (node->start() != nullptr) {
       XLS_ASSIGN_OR_RETURN(
           const NameRef* start_variable,
           table_.DefineInternalVariable(
-              InferenceVariableKind::kType,
-              const_cast<Expr*>(width_slice_start),
-              GenerateInternalTypeVariableName(width_slice_start)));
+              InferenceVariableKind::kType, const_cast<Expr*>(node->start()),
+              GenerateInternalTypeVariableName(node->start()) +
+                  "_slice_start"));
       XLS_RETURN_IF_ERROR(
-          table_.SetTypeVariable(width_slice_start, start_variable));
+          table_.SetTypeVariable(node->start(), start_variable));
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          width_slice_start,
-          CreateU32Annotation(module_, width_slice_start->span())));
-      return DefaultHandler(node);
+          node->start(), CreateS32Annotation(module_, node->start()->span())));
     }
 
-    // A node like `array[i]` is basically a binary operator with independent
-    // contexts on the LHS and RHS. The RHS is constrained to u32, while the LHS
-    // must be some kind of array. The "some kind of array" part is not
-    // capturable in the table, but readily verifiable at the end of type
-    // inference, so we defer that.
-    Expr* index = std::get<Expr*>(node->rhs());
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* rhs_variable,
-        table_.DefineInternalVariable(InferenceVariableKind::kType,
-                                      const_cast<Expr*>(index),
-                                      GenerateInternalTypeVariableName(index)));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(index, rhs_variable));
+    if (node->limit() != nullptr) {
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* limit_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, const_cast<Expr*>(node->limit()),
+              GenerateInternalTypeVariableName(node->limit()) +
+                  "_slice_limit"));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(node->limit(), limit_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node->limit(), CreateS32Annotation(module_, node->limit()->span())));
+    }
 
-    // The type of the entire expr is then ElementType(lhs_variable).
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node, module_.Make<ElementTypeAnnotation>(lhs_tvta)));
     return DefaultHandler(node);
   }
 
@@ -2010,21 +2013,6 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
               << (*annotation)->ToString() << " for " << node->ToString();
     }
     return std::nullopt;
-  }
-
-  // Type-checks a fabricated longhand slice bound expression. Expressions in
-  // this context are always 32-bit.
-  absl::Status HandleSliceBoundInternal(const Expr* bound, bool is_signed) {
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* variable,
-        table_.DefineInternalVariable(InferenceVariableKind::kType,
-                                      const_cast<Expr*>(bound),
-                                      GenerateInternalTypeVariableName(bound)));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(bound, variable));
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        bound, is_signed ? CreateS32Annotation(module_, bound->span())
-                         : CreateU32Annotation(module_, bound->span())));
-    return bound->Accept(this);
   }
 
   // Helper function that does all common logic for either a `StructInstance` or

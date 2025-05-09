@@ -48,9 +48,11 @@ struct SignednessAndBitCountResult {
 };
 
 // An `Expr`-ified rendition of the `StartAndWidth` struct used by `TypeInfo`.
+// In situations where the values are constexpr, this struct uses the constant
+// value instead of an expr.
 struct StartAndWidthExprs {
-  Expr* start;
-  Expr* width;
+  std::variant<int64_t, const Expr*> start;
+  std::variant<int64_t, const Expr*> width;
 };
 
 struct InterpValueWithTypeAnnotation {
@@ -179,13 +181,6 @@ Expr* CreateElementCountSum(Module& module, TypeAnnotation* lhs,
 // element_count<rhs>()`.
 Expr* CreateElementCountOffset(Module& module, TypeAnnotation* lhs,
                                int64_t offset);
-
-// Converts a `Slice` or `WidthSlice` node into a `StartAndWidthExprs` struct.
-// The values given in the slice node are used verbatim when absolute, but when
-// an index in the slice is negative, which has the meaning `size - abs(index)`,
-// it is converted into `element_count<source_array_type>() + index`.
-absl::StatusOr<StartAndWidthExprs> CreateSliceStartAndWidthExprs(
-    Module& module, TypeAnnotation* source_array_type, const AstNode* slice);
 
 // Creates a literal representing 0 without a type annotation.
 Number* CreateUntypedZero(Module& module, const Span& span);

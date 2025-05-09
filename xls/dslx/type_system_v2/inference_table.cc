@@ -97,6 +97,13 @@ absl::StatusOr<InferenceVariableKind> TypeAnnotationToInferenceVariableKind(
                        annotation->ToString()));
 }
 
+std::string ValueOrExprToString(
+    std::variant<int64_t, const Expr*> expr_or_value) {
+  return std::holds_alternative<int64_t>(expr_or_value)
+             ? absl::StrCat(std::get<int64_t>(expr_or_value))
+             : std::get<const Expr*>(expr_or_value)->ToString();
+}
+
 // Represents the immutable metadata for a variable in an `InferenceTable`.
 class InferenceVariable {
  public:
@@ -562,10 +569,10 @@ class InferenceTableImpl : public InferenceTable {
       if (data.slice_start_and_width_exprs.has_value()) {
         absl::StrAppendFormat(
             &result, "  Start: %s\n",
-            data.slice_start_and_width_exprs->start->ToString());
+            ValueOrExprToString(data.slice_start_and_width_exprs->start));
         absl::StrAppendFormat(
             &result, "  Width: %s\n",
-            data.slice_start_and_width_exprs->width->ToString());
+            ValueOrExprToString(data.slice_start_and_width_exprs->width));
       }
       const std::vector<const ParametricContext*>& contexts =
           contexts_per_node[node];

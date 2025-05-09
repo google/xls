@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system/deduce_utils.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -716,6 +717,32 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
   XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported_info,
                        type_info->GetImportedOrError(import.value()));
   return imported_info->module->GetMemberOrError<Proc>(colon_ref->attr());
+}
+
+absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
+    int64_t bit_count, std::optional<int64_t> start_opt,
+    std::optional<int64_t> limit_opt) {
+  XLS_RET_CHECK_GE(bit_count, 0);
+  int64_t start = 0;
+  int64_t limit = bit_count;
+
+  if (start_opt.has_value()) {
+    start = *start_opt;
+  }
+  if (limit_opt.has_value()) {
+    limit = *limit_opt;
+  }
+
+  if (start < 0) {
+    start += bit_count;
+  }
+  if (limit < 0) {
+    limit += bit_count;
+  }
+
+  limit = std::clamp(limit, 0L, bit_count);
+  start = std::clamp(start, 0L, limit);
+  return StartAndWidth{.start = start, .width = limit - start};
 }
 
 absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(

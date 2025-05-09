@@ -125,6 +125,7 @@
   X(BuiltinTypeAnnotation)        \
   X(ChannelTypeAnnotation)        \
   X(ElementTypeAnnotation)        \
+  X(SliceTypeAnnotation)          \
   X(FunctionTypeAnnotation)       \
   X(MemberTypeAnnotation)         \
   X(ParamTypeAnnotation)          \
@@ -545,6 +546,34 @@ class ElementTypeAnnotation : public TypeAnnotation {
   const TypeAnnotation* container_type_;
   const std::optional<const Expr*> tuple_index_;
   const bool allow_bit_vector_destructuring_;
+};
+
+// An indirect type annotation for a slice, expressed in terms of the type of
+// the source entity and the slice node. This is used only within type
+// inference.
+class SliceTypeAnnotation : public TypeAnnotation {
+ public:
+  SliceTypeAnnotation(Module* owner, Span span, TypeAnnotation* source_type,
+                      std::variant<Slice*, WidthSlice*> slice);
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleSliceTypeAnnotation(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "SliceTypeAnnotation";
+  }
+
+  TypeAnnotation* source_type() const { return source_type_; }
+  std::variant<Slice*, WidthSlice*> slice() const { return slice_; }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  std::string ToString() const override;
+
+ private:
+  TypeAnnotation* source_type_;
+  std::variant<Slice*, WidthSlice*> slice_;
 };
 
 // Represents a function signature with a return type and parameter types. The

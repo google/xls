@@ -39,6 +39,10 @@ class Evaluator {
       std::optional<const ParametricContext*> parametric_context,
       std::variant<int64_t, const Expr*> value_or_expr) = 0;
 
+  virtual absl::StatusOr<int64_t> EvaluateS32OrExpr(
+      std::optional<const ParametricContext*> parametric_context,
+      std::variant<int64_t, const Expr*> value_or_expr) = 0;
+
   virtual absl::StatusOr<InterpValue> Evaluate(
       const ParametricContextScopedExpr& scoped_expr) = 0;
 };

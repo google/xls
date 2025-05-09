@@ -902,35 +902,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStatementBlock(
   return last;
 }
 
-// Returns (start, width), resolving indices via DSLX bit slice semantics.
-static absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
-    int64_t bit_count, std::optional<int64_t> start_opt,
-    std::optional<int64_t> limit_opt) {
-  XLS_RET_CHECK_GE(bit_count, 0);
-  int64_t start = 0;
-  int64_t limit = bit_count;
-
-  if (start_opt.has_value()) {
-    start = *start_opt;
-  }
-  if (limit_opt.has_value()) {
-    limit = *limit_opt;
-  }
-
-  if (start < 0) {
-    start += bit_count;
-  }
-  if (limit < 0) {
-    limit += bit_count;
-  }
-
-  limit = std::min(std::max(limit, int64_t{0}), bit_count);
-  start = std::min(std::max(start, int64_t{0}), limit);
-  XLS_RET_CHECK_GE(start, 0);
-  XLS_RET_CHECK_GE(limit, start);
-  return StartAndWidth{.start = start, .width = limit - start};
-}
-
 static absl::StatusOr<std::unique_ptr<Type>> DeduceWidthSliceType(
     const Index* node, const Type& subject_type,
     const BitsLikeProperties& subject_bits_like, const WidthSlice& width_slice,
@@ -2174,6 +2145,10 @@ class DeduceVisitor : public AstNodeVisitor {
   }
   absl::Status HandleElementTypeAnnotation(
       const ElementTypeAnnotation* n) override {
+    return Fatal(n);
+  }
+  absl::Status HandleSliceTypeAnnotation(
+      const SliceTypeAnnotation* n) override {
     return Fatal(n);
   }
   absl::Status HandleFunctionTypeAnnotation(

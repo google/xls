@@ -37,6 +37,8 @@
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/deduce_utils.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
@@ -505,6 +507,107 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
     return self_type->struct_ref();
   }
 
+  absl::StatusOr<const TypeAnnotation*> ResolveSliceType(
+      std::optional<const ParametricContext*> parametric_context,
+      const SliceTypeAnnotation* slice_type, TypeAnnotationFilter filter) {
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* source_type,
+        ResolveIndirectTypeAnnotations(parametric_context,
+                                       slice_type->source_type(), filter));
+    int64_t source_size = 0;
+    TypeAnnotation* element_type = nullptr;
+    if (const auto* array_type =
+            dynamic_cast<const ArrayTypeAnnotation*>(source_type)) {
+      element_type = array_type->element_type();
+      XLS_ASSIGN_OR_RETURN(
+          source_size,
+          evaluator_.EvaluateU32OrExpr(parametric_context, array_type->dim()));
+    } else {
+      XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
+                           GetSignednessAndBitCount(source_type));
+      XLS_ASSIGN_OR_RETURN(
+          bool is_signed,
+          evaluator_.EvaluateBoolOrExpr(parametric_context,
+                                        signedness_and_bit_count.signedness));
+      if (is_signed) {
+        return TypeInferenceErrorStatusForAnnotation(
+            slice_type->span(), source_type, "Bit slice LHS must be unsigned.",
+            file_table_);
+      }
+      element_type =
+          CreateUnOrSnElementAnnotation(module_, slice_type->span(), false);
+      XLS_ASSIGN_OR_RETURN(
+          source_size,
+          evaluator_.EvaluateU32OrExpr(parametric_context,
+                                       signedness_and_bit_count.bit_count));
+    }
+
+    if (std::holds_alternative<Slice*>(slice_type->slice())) {
+      const auto* slice = std::get<Slice*>(slice_type->slice());
+      std::optional<int64_t> start;
+      std::optional<int64_t> limit;
+      if (slice->start() != nullptr) {
+        XLS_ASSIGN_OR_RETURN(start, evaluator_.EvaluateS32OrExpr(
+                                        parametric_context, slice->start()));
+      }
+      if (slice->limit() != nullptr) {
+        XLS_ASSIGN_OR_RETURN(limit, evaluator_.EvaluateS32OrExpr(
+                                        parametric_context, slice->limit()));
+      }
+
+      XLS_ASSIGN_OR_RETURN(StartAndWidth start_and_width,
+                           ResolveBitSliceIndices(source_size, start, limit));
+      XLS_RETURN_IF_ERROR(table_.SetSliceStartAndWidthExprs(
+          slice, StartAndWidthExprs{.start = start_and_width.start,
+                                    .width = start_and_width.width}));
+      return module_.Make<ArrayTypeAnnotation>(
+          slice_type->span(), element_type,
+          module_.Make<Number>(slice_type->span(),
+                               absl::StrCat(start_and_width.width),
+                               NumberKind::kOther,
+                               /*type_annotation=*/nullptr));
+    }
+
+    const auto* width_slice = std::get<WidthSlice*>(slice_type->slice());
+    StartAndWidthExprs start_and_width;
+    absl::StatusOr<int64_t> constexpr_start =
+        evaluator_.EvaluateU32OrExpr(parametric_context, width_slice->start());
+    if (constexpr_start.ok()) {
+      start_and_width.start = *constexpr_start;
+    } else {
+      start_and_width.start = width_slice->start();
+    }
+
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* width_type,
+                         ResolveIndirectTypeAnnotations(
+                             parametric_context, width_slice->width(), filter));
+    absl::StatusOr<SignednessAndBitCountResult> width_signedness_and_bit_count =
+        GetSignednessAndBitCount(width_type);
+    if (!width_signedness_and_bit_count.ok()) {
+      return TypeInferenceErrorStatusForAnnotation(
+          slice_type->span(), width_type,
+          "A bits type is required for a width-based slice.", file_table_);
+    }
+    XLS_ASSIGN_OR_RETURN(
+        int64_t width,
+        evaluator_.EvaluateU32OrExpr(
+            parametric_context, width_signedness_and_bit_count->bit_count));
+    start_and_width.width = width;
+
+    if (constexpr_start.ok() &&
+        (*constexpr_start < 0 || *constexpr_start + width > source_size)) {
+      return TypeInferenceErrorStatus(
+          slice_type->span(), nullptr,
+          absl::StrCat("Slice range out of bounds for array of size ",
+                       source_size),
+          file_table_);
+    }
+
+    XLS_RETURN_IF_ERROR(
+        table_.SetSliceStartAndWidthExprs(width_slice, start_and_width));
+    return width_type;
+  }
+
   // Determines if the given `type_variable` has any annotations in the table
   // that were explicitly written in the DSLX source.
   bool VariableHasAnyExplicitTypeAnnotations(
@@ -572,6 +675,13 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
       XLS_ASSIGN_OR_RETURN(const TypeAnnotation* expanded,
                            ResolveSelfType(parametric_context, self_type));
       CHECK(expanded != nullptr);
+      return const_cast<TypeAnnotation*>(expanded);
+    }
+    if (const auto* slice_type =
+            dynamic_cast<const SliceTypeAnnotation*>(node)) {
+      XLS_ASSIGN_OR_RETURN(
+          const TypeAnnotation* expanded,
+          ResolveSliceType(parametric_context, slice_type, filter));
       return const_cast<TypeAnnotation*>(expanded);
     }
     return std::nullopt;

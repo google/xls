@@ -1033,6 +1033,23 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleSliceTypeAnnotation(
+      const SliceTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->source_type()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(ToAstNode(n->slice())));
+    AstNode* new_slice_node = old_to_new_[ToAstNode(n->slice())];
+    std::variant<Slice*, WidthSlice*> new_slice;
+    if (Slice* slice = dynamic_cast<Slice*>(new_slice_node)) {
+      new_slice = slice;
+    } else {
+      new_slice = down_cast<WidthSlice*>(new_slice_node);
+    }
+    old_to_new_[n] = module_->Make<SliceTypeAnnotation>(
+        n->span(), down_cast<TypeAnnotation*>(old_to_new_[n->source_type()]),
+        new_slice);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleFunctionTypeAnnotation(
       const FunctionTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->return_type()));
