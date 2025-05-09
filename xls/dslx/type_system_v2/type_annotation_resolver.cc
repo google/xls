@@ -200,6 +200,7 @@ class StatefulResolver : public TypeAnnotationResolver {
     if (cached.has_value() &&
         dynamic_cast<const AnyTypeAnnotation*>(*cached) == nullptr) {
       VLOG(6) << "Using cached type for " << type_variable->ToString();
+      trace.SetUsedCache(true);
       trace.SetResult(*cached);
       return *cached;
     }
@@ -238,6 +239,7 @@ class StatefulResolver : public TypeAnnotationResolver {
               << " for variable: " << type_variable->ToString();
       table_.SetCachedUnifiedTypeForVariable(parametric_context, type_variable,
                                              variables_traversed, result);
+      trace.SetPopulatedCache(true);
     } else {
       temp_cache_[type_variable_def] = result;
     }

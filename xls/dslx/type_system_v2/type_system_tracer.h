@@ -58,6 +58,8 @@ class TypeSystemTrace {
   TypeSystemTrace& operator=(TypeSystemTrace&) = delete;
 
   void SetResult(const TypeAnnotation* annotation);
+  void SetUsedCache(bool value);
+  void SetPopulatedCache(bool value);
 
   ~TypeSystemTrace() {
     if (cleanup_) {
