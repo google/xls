@@ -70,16 +70,34 @@ TrackedBValue::OrderedBValuesForBuilder(xls::BuilderBase* builder) {
   }
   absl::flat_hash_set<TrackedBValue*> bvals_unordered =
       sTrackedBValuesByBuilder.at(builder);
+
+  return std::tuple<TrackedBValue::Lock, std::vector<TrackedBValue*>>{
+      TrackedBValue::Lock(), OrderBValues(bvals_unordered)};
+}
+
+std::vector<TrackedBValue*> TrackedBValue::OrderBValues(
+    const absl::flat_hash_set<TrackedBValue*>& bvals_unordered) {
   std::vector<TrackedBValue*> ret;
   ret.reserve(bvals_unordered.size());
   ret.insert(ret.end(), bvals_unordered.begin(), bvals_unordered.end());
   std::sort(ret.begin(), ret.end(), [](TrackedBValue* a, TrackedBValue* b) {
     return a->sequence_number() < b->sequence_number();
   });
-
-  return std::tuple<TrackedBValue::Lock, std::vector<TrackedBValue*>>{
-      TrackedBValue::Lock(), ret};
+  return ret;
 }
+
+std::vector<const TrackedBValue*> TrackedBValue::OrderBValues(
+    const absl::flat_hash_set<const TrackedBValue*>& bvals_unordered) {
+  std::vector<const TrackedBValue*> ret;
+  ret.reserve(bvals_unordered.size());
+  ret.insert(ret.end(), bvals_unordered.begin(), bvals_unordered.end());
+  std::sort(ret.begin(), ret.end(),
+            [](const TrackedBValue* a, const TrackedBValue* b) {
+              return a->sequence_number() < b->sequence_number();
+            });
+  return ret;
+}
+
 void TrackedBValue::RegisterBuilder(xls::BuilderBase* builder) {
   CHECK(!sLocked);
   CHECK(!sTrackedBValuesByBuilder.contains(builder));
@@ -139,5 +157,10 @@ absl::flat_hash_map<xls::BuilderBase*, absl::flat_hash_set<TrackedBValue*>>
 int64_t TrackedBValue::sNextSequenceNumber = 1;
 
 bool TrackedBValue::sLocked = false;
+
+std::vector<const TrackedBValue*> OrderTrackedBValuesFunc::operator()(
+    const absl::flat_hash_set<const TrackedBValue*>& bvals_unordered) {
+  return TrackedBValue::OrderBValues(bvals_unordered);
+}
 
 }  // namespace xlscc

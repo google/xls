@@ -1071,7 +1071,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
   absl::flat_hash_set<const xls::Node*> prev_state_io_nodes;
 
-  absl::flat_hash_map<const IOOp*, TrackedBValue> op_tokens;
+  TrackedBValueMap<const IOOp*> op_tokens;
 
   // Generate IR for the individual states
   for (std::unique_ptr<State>& state : states) {
@@ -1923,9 +1923,9 @@ absl::StatusOr<TrackedBValue> Translator::GenerateIOInvoke(
 absl::StatusOr<TrackedBValue> Translator::GenerateIOInvokesWithAfterOps(
     IOSchedulingOption option, TrackedBValue origin_token,
     const std::list<Translator::InvokeToGenerate>& invokes_to_generate,
-    absl::flat_hash_map<const IOOp*, TrackedBValue>& op_tokens,
-    TrackedBValue& last_ret_val, Translator::PreparedBlock& prepared,
-    xls::ProcBuilder& pb, const xls::SourceInfo& body_loc) {
+    TrackedBValueMap<const IOOp*>& op_tokens, TrackedBValue& last_ret_val,
+    Translator::PreparedBlock& prepared, xls::ProcBuilder& pb,
+    const xls::SourceInfo& body_loc) {
   std::vector<TrackedBValue> fan_ins_tokens;
   for (const InvokeToGenerate& invoke : invokes_to_generate) {
     const IOOp& op = invoke.op;

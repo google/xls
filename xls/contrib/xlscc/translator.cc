@@ -1383,7 +1383,7 @@ absl::Status Translator::GenerateIR_Function_Body(
   XLSCC_CHECK(!context().sf->slices.empty(), body_loc);
   context().sf->slices.back().function = last_slice_function;
   sf.xls_func = last_slice_function;
-  XLS_RETURN_IF_ERROR(OptimizeContinuations(sf));
+  XLS_RETURN_IF_ERROR(OptimizeContinuations(sf, body_loc));
 
   return absl::OkStatus();
 }
@@ -5808,7 +5808,8 @@ std::string Debug_OpName(const IOOp& op) {
         op_type_name = "write";
         break;
       default:
-        CHECK_EQ("Op type doesn't make sense here", nullptr);
+        LOG(FATAL) << absl::StrFormat("Op type doesn't make sense here: %i",
+                                      op.op);
     }
     return absl::StrFormat("%s_%s", op.channel->unique_name, op_type_name);
   }

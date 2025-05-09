@@ -15,7 +15,6 @@
 #ifndef XLS_CONTRIB_XLSCC_TRACKED_BVALUE_H_
 #define XLS_CONTRIB_XLSCC_TRACKED_BVALUE_H_
 
-#include <map>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -63,9 +62,12 @@ class TrackedBValue {
       : bval_(node, builder), sequence_number_(sNextSequenceNumber++) {
     record();
   }
-  TrackedBValue(TrackedBValue&& o) : sequence_number_(sNextSequenceNumber++) {
+  // Keeping the same sequence number is safe here, and it allows TrackedBValues
+  // to be stored in containers such as maps without changing sequence numbers.
+  TrackedBValue(TrackedBValue&& o) {
     o.unrecord();
     bval_ = std::move(o.bval_);
+    sequence_number_ = o.sequence_number_;
     // Destructor is still called on the source object
     o.bval_ = xls::BValue();
     record();
@@ -92,6 +94,10 @@ class TrackedBValue {
     return sequence_number_;
   }
 
+#if DEBUG_SAVE_BACKTRACES
+  const std::string& debug_backtrace() const { return debug_backtrace_; }
+#endif  // DEBUG_SAVE_BACKTRACES
+
   class Lock {
     friend class TrackedBValue;
 
@@ -109,6 +115,10 @@ class TrackedBValue {
 
   static std::tuple<Lock, std::vector<TrackedBValue*>> OrderedBValuesForBuilder(
       xls::BuilderBase* builder);
+  static std::vector<TrackedBValue*> OrderBValues(
+      const absl::flat_hash_set<TrackedBValue*>& bvals_unordered);
+  static std::vector<const TrackedBValue*> OrderBValues(
+      const absl::flat_hash_set<const TrackedBValue*>& bvals_unordered);
 
   static void RegisterBuilder(xls::BuilderBase* builder);
   static void UnregisterBuilder(xls::BuilderBase* builder);
@@ -165,6 +175,55 @@ typedef xls::BValue NATIVE_BVAL;
 
 std::vector<NATIVE_BVAL> ToNativeBValues(
     const std::vector<TrackedBValue>& bvals);
+
+// This class exists to wrap maps containing TrackedBValues such that when they
+// are copied the values are inserted in a deterministic order. This maintains
+// the deterministic sequence numbers for the TrackedBValues contained within.
+template <typename K, typename V, typename MapType, typename OrderValuesFunc>
+class DeterministicMapBase : public MapType {
+ public:
+  DeterministicMapBase() = default;
+  DeterministicMapBase(DeterministicMapBase&&) = default;
+
+  DeterministicMapBase(const DeterministicMapBase& o) {
+    CopyDeterministicallyFrom(o);
+  }
+
+  DeterministicMapBase& operator=(const DeterministicMapBase& o) {
+    CopyDeterministicallyFrom(o);
+    return *this;
+  }
+
+ private:
+  void CopyDeterministicallyFrom(const DeterministicMapBase& o) {
+    absl::flat_hash_map<const V*, K> key_by_bval;
+    absl::flat_hash_set<const V*> bvals;
+
+    for (auto& [key, bval] : o) {
+      key_by_bval[&bval] = key;
+      bvals.insert(&bval);
+    }
+
+    std::vector<const V*> ref_ordered = OrderValuesFunc()(bvals);
+
+    absl::flat_hash_map<K, V>::clear();
+    for (const V* bval : ref_ordered) {
+      (*this)[key_by_bval.at(bval)] = *bval;
+    }
+  }
+};
+
+class OrderTrackedBValuesFunc {
+ public:
+  std::vector<const TrackedBValue*> operator()(
+      const absl::flat_hash_set<const TrackedBValue*>& bvals_unordered);
+};
+
+template <typename K>
+using TrackedBValueMap =
+    DeterministicMapBase<K, TrackedBValue,
+                         absl::flat_hash_map<K, TrackedBValue>,
+                         OrderTrackedBValuesFunc>;
 
 }  // namespace xlscc
 
