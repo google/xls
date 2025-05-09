@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -51,13 +52,17 @@
 namespace xls::dslx {
 namespace {
 
-class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
+// A resolver implementation meant for ad hoc internal use within the scope of
+// one single external request. The resolver may temporarily cache information
+// collected while doing the internal resolutions for that request.
+class StatefulResolver : public TypeAnnotationResolver {
  public:
-  TypeAnnotationResolverImpl(
-      Module& module, InferenceTable& table, const FileTable& file_table,
-      UnificationErrorGenerator& error_generator, Evaluator& evaluator,
-      ParametricStructInstantiator& parametric_struct_instantiator,
-      TypeSystemTracer& tracer, ImportData& import_data)
+  StatefulResolver(Module& module, InferenceTable& table,
+                   const FileTable& file_table,
+                   UnificationErrorGenerator& error_generator,
+                   Evaluator& evaluator,
+                   ParametricStructInstantiator& parametric_struct_instantiator,
+                   TypeSystemTracer& tracer, ImportData& import_data)
       : module_(module),
         table_(table),
         file_table_(file_table),
@@ -180,6 +185,15 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
           parametric_context, type_variable, span, filter);
     }
 
+    const NameDef* type_variable_def =
+        std::get<const NameDef*>(type_variable->name_def());
+    const auto it = temp_cache_.find(type_variable_def);
+    if (it != temp_cache_.end()) {
+      VLOG(6) << "Using request-scoped cached type for "
+              << type_variable->ToString();
+      return it->second;
+    }
+
     std::optional<const TypeAnnotation*> cached =
         table_.GetCachedUnifiedTypeForVariable(parametric_context,
                                                type_variable);
@@ -214,14 +228,18 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
             << result->ToString();
     trace.SetResult(result);
 
-    // Cache the result only if we actually considered all the deps of the
-    // variable, and came up with a non-Any result.
+    // Cache the result externally only if we actually considered all the deps
+    // of the variable, and came up with a non-Any result. Otherwise the result
+    // is only durable/relevant enough to reuse locally within the scope of the
+    // one external resolution request.
     if (!filtered_top_level && reject_count == 0 &&
         dynamic_cast<const AnyTypeAnnotation*>(result) == nullptr) {
       VLOG(6) << "Caching unified type: " << result->ToString()
               << " for variable: " << type_variable->ToString();
       table_.SetCachedUnifiedTypeForVariable(parametric_context, type_variable,
                                              variables_traversed, result);
+    } else {
+      temp_cache_[type_variable_def] = result;
     }
 
     return result;
@@ -721,6 +739,83 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
   ParametricStructInstantiator& parametric_struct_instantiator_;
   TypeSystemTracer& tracer_;
   ImportData& import_data_;
+  absl::flat_hash_map<const NameDef*, const TypeAnnotation*> temp_cache_;
+};
+
+// A resolver implementation that creates and uses an ad hoc stateful resolver
+// for each external request that is made, so that all internal resolution
+// within the processing of that external request can benefit from shared
+// temporary state.
+class StatelessResolver : public TypeAnnotationResolver {
+ public:
+  StatelessResolver(
+      Module& module, InferenceTable& table, const FileTable& file_table,
+      UnificationErrorGenerator& error_generator, Evaluator& evaluator,
+      ParametricStructInstantiator& parametric_struct_instantiator,
+      TypeSystemTracer& tracer, ImportData& import_data)
+      : module_(module),
+        table_(table),
+        file_table_(file_table),
+        error_generator_(error_generator),
+        evaluator_(evaluator),
+        parametric_struct_instantiator_(parametric_struct_instantiator),
+        tracer_(tracer),
+        import_data_(import_data) {}
+
+  absl::StatusOr<std::optional<const TypeAnnotation*>>
+  ResolveAndUnifyTypeAnnotationsForNode(
+      std::optional<const ParametricContext*> parametric_context,
+      const AstNode* node, TypeAnnotationFilter filter) override {
+    return CreateStatefulResolver()->ResolveAndUnifyTypeAnnotationsForNode(
+        parametric_context, node, filter);
+  }
+
+  absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
+      std::optional<const ParametricContext*> parametric_context,
+      const NameRef* type_variable, const Span& span,
+      TypeAnnotationFilter filter) {
+    return CreateStatefulResolver()->ResolveAndUnifyTypeAnnotations(
+        parametric_context, type_variable, span, filter);
+  }
+
+  absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
+      std::optional<const ParametricContext*> parametric_context,
+      std::vector<const TypeAnnotation*> annotations, const Span& span,
+      TypeAnnotationFilter filter) {
+    return CreateStatefulResolver()->ResolveAndUnifyTypeAnnotations(
+        parametric_context, annotations, span, filter);
+  }
+
+  absl::StatusOr<const TypeAnnotation*> ResolveIndirectTypeAnnotations(
+      std::optional<const ParametricContext*> parametric_context,
+      const TypeAnnotation* annotation, TypeAnnotationFilter filter) override {
+    return CreateStatefulResolver()->ResolveIndirectTypeAnnotations(
+        parametric_context, annotation, filter);
+  }
+
+  absl::Status ResolveIndirectTypeAnnotations(
+      std::optional<const ParametricContext*> parametric_context,
+      std::vector<const TypeAnnotation*>& annotations,
+      TypeAnnotationFilter filter) override {
+    return CreateStatefulResolver()->ResolveIndirectTypeAnnotations(
+        parametric_context, annotations, filter);
+  }
+
+ private:
+  std::unique_ptr<TypeAnnotationResolver> CreateStatefulResolver() {
+    return std::make_unique<StatefulResolver>(
+        module_, table_, file_table_, error_generator_, evaluator_,
+        parametric_struct_instantiator_, tracer_, import_data_);
+  }
+
+  Module& module_;
+  InferenceTable& table_;
+  const FileTable& file_table_;
+  UnificationErrorGenerator& error_generator_;
+  Evaluator& evaluator_;
+  ParametricStructInstantiator& parametric_struct_instantiator_;
+  TypeSystemTracer& tracer_;
+  ImportData& import_data_;
 };
 
 }  // namespace
@@ -730,7 +825,7 @@ std::unique_ptr<TypeAnnotationResolver> TypeAnnotationResolver::Create(
     UnificationErrorGenerator& error_generator, Evaluator& evaluator,
     ParametricStructInstantiator& parametric_struct_instantiator,
     TypeSystemTracer& tracer, ImportData& import_data) {
-  return std::make_unique<TypeAnnotationResolverImpl>(
+  return std::make_unique<StatelessResolver>(
       module, table, file_table, error_generator, evaluator,
       parametric_struct_instantiator, tracer, import_data);
 }
