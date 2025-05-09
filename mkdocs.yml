@@ -66,7 +66,8 @@ nav:
     - Ideas and Projects: 'ideas_and_projects.md'
     - FPGA characterization (experimental): 'fpga_characterization.md'
     - Design Docs:
-      - Legalize Multiple Channel Ops Per Channel: 'design_docs/legalize_multiple_channel_ops_per_channel.md'
+      - Legalize Multiple Channel Ops Per Channel (v1): 'design_docs/legalize_multiple_channel_ops_per_channel_v1.md'
+      - Legalize Multiple Channel Ops Per Channel (v2): 'design_docs/legalize_multiple_channel_ops_per_channel_v2.md'
       - Proc-scoped channels: 'design_docs/proc_scoped_channels.md'
       - DSLX Pattern Exhaustiveness: 'design_docs/dslx_pattern_exhaustiveness.md'
     - Releasing: 'releasing.md'

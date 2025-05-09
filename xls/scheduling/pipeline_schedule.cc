@@ -37,6 +37,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/fdo/delay_manager.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -357,6 +358,7 @@ absl::Status PipelineSchedule::VerifyConstraints(
     std::optional<int64_t> worst_case_throughput) const {
   absl::flat_hash_map<std::string, std::vector<Node*>> channel_to_nodes;
   absl::flat_hash_map<Node*, absl::btree_set<Node*>> send_predecessors;
+  absl::flat_hash_map<Node*, absl::btree_set<Node*>> io_predecessors;
   int64_t last_cycle = 0;
   for (Node* node : TopoSort(function_base_)) {
     if (node->Is<Receive>() || node->Is<Send>()) {
@@ -365,6 +367,12 @@ absl::Status PipelineSchedule::VerifyConstraints(
     last_cycle = std::max(last_cycle, cycle_map_.at(node));
 
     for (Node* operand : node->operands()) {
+      if (operand->Is<ChannelNode>()) {
+        io_predecessors[node].insert(operand);
+      }
+      io_predecessors[node].insert(io_predecessors[operand].begin(),
+                                   io_predecessors[operand].end());
+
       if (operand->Is<Send>()) {
         send_predecessors[node].insert(operand);
       }
@@ -516,6 +524,46 @@ absl::Status PipelineSchedule::VerifyConstraints(
                 plural_s(send_then_recv_latency), recv->ToString(),
                 str_const.MinimumLatency(),
                 plural_s(str_const.MinimumLatency())));
+          }
+        }
+      }
+    } else if (std::holds_alternative<SameChannelConstraint>(constraint)) {
+      const SameChannelConstraint same_channel_const =
+          std::get<SameChannelConstraint>(constraint);
+      for (Node* node : function_base_->nodes()) {
+        if (!node->Is<ChannelNode>()) {
+          continue;
+        }
+        XLS_ASSIGN_OR_RETURN(ChannelRef channel,
+                             node->As<ChannelNode>()->GetChannelRef());
+        for (Node* predecessor : io_predecessors.at(node)) {
+          CHECK(predecessor->Is<ChannelNode>());
+          XLS_ASSIGN_OR_RETURN(ChannelRef predecessor_channel,
+                               predecessor->As<ChannelNode>()->GetChannelRef());
+          if (predecessor_channel != channel) {
+            continue;
+          }
+          // Check that the node and predecessor are the correct kind of
+          // channel operations. If this is a "loopback" channel, a mixture of
+          // sends and receives might be in channel_to_nodes and you only want
+          // to perform the check in the correct direction.
+          if (node->op() != predecessor->op()) {
+            continue;
+          }
+
+          int64_t same_channel_latency =
+              cycle_map_.at(node) - cycle_map_.at(predecessor);
+          if (same_channel_latency < same_channel_const.MinimumLatency()) {
+            return absl::ResourceExhaustedError(absl::StrFormat(
+                "Scheduling constraint violated: node %s was scheduled for %d "
+                "cycle%s before node %s, which violates the constraint that "
+                "all I/O operations must be scheduled at least %d cycle%s "
+                "after all other operations on the same channel on which they "
+                "depend.",
+                predecessor->ToString(), same_channel_latency,
+                plural_s(same_channel_latency), node->ToString(),
+                same_channel_const.MinimumLatency(),
+                plural_s(same_channel_const.MinimumLatency())));
           }
         }
       }

@@ -143,6 +143,14 @@ inline bool IsNotOf(const Node* node, const Node* inverted) {
 // constructs new IR expressions, and so changes the IR.
 absl::StatusOr<LeafTypeTree<Node*>> ToTreeOfNodes(Node* node);
 
+// Returns an IR expression representing the given tree-of-nodes as a single
+// Node of complex type. Note that this constructs new IR expressions, and so
+// changes the IR.
+absl::StatusOr<Node*> FromTreeOfNodes(FunctionBase* f,
+                                      LeafTypeTreeView<Node*> tree,
+                                      std::string_view name = "",
+                                      SourceInfo loc = SourceInfo());
+
 // Returns an IR expression whose value is equal to the bits of 'node' at the
 // given bit positions concated together. All 'indices' must be unique.
 absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64_t const> indices);
@@ -236,6 +244,15 @@ absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
                                       absl::Span<Node* const> operands,
                                       std::string_view name = "",
                                       const SourceInfo& source_info = {});
+
+// Or-reduce the leaves of the given operands if needed. If there are 2+
+// operands, returns a node of the same type where each leaf is an N-ary OR of
+// the corresponding leaves of the operands; if there is 1 operand, returns that
+// operand; and if there are no operands, fails.
+absl::StatusOr<Node*> FanInAsNeeded(FunctionBase* f,
+                                    absl::Span<Node* const> operands,
+                                    std::string_view name = "",
+                                    const SourceInfo& source_info = {});
 
 // Returns whether the given node is a signed/unsigned comparison operation (for
 // example, ULe or SGt).

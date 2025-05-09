@@ -28,6 +28,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/codegen/bdd_io_analysis.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_pass.h"
@@ -41,6 +42,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/xls_ir_interface.pb.h"
@@ -193,7 +195,7 @@ absl::StatusOr<bool> ConvertProcsToCombinationalBlocksPass::RunInternal(
 
     XLS_RETURN_IF_ERROR(AddCombinationalFlowControl(
         streaming_io.inputs, streaming_io.outputs, streaming_io.stage_valid,
-        options.codegen_options, block));
+        options.codegen_options, proc, block));
 
     // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
     //                codegen pipeline.
@@ -262,9 +264,17 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
       }
     }
   }
+
+  std::optional<ProcElaboration> proc_elab;
+  if ((*unit->package()->GetTop())->IsProc() &&
+      unit->package()->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(proc_elab,
+                         ProcElaboration::Elaborate(
+                             (*unit->package()->GetTop())->AsProcOrDie()));
+  }
   XLS_ASSIGN_OR_RETURN(
       std::vector<FunctionBase*> conversion_order,
-      GetBlockConversionOrder(unit->package(), procs_to_convert));
+      GetBlockConversionOrder(unit->package(), procs_to_convert, proc_elab));
 
   absl::flat_hash_map<FunctionBase*, Block*> converted_blocks;
   for (FunctionBase* fb : conversion_order) {
@@ -286,9 +296,13 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
     XLS_VLOG_LINES(3, proc->DumpIr());
 
     PipelineSchedule& schedule = unit->function_base_to_schedule().at(fb);
+    absl::Span<ProcInstance* const> instances;
+    if (proc_elab.has_value()) {
+      instances = proc_elab->GetInstances(proc);
+    }
     XLS_RETURN_IF_ERROR(
         SingleProcToPipelinedBlock(schedule, options.codegen_options, *unit,
-                                   proc, block, converted_blocks));
+                                   proc, instances, block, converted_blocks));
 
     converted_blocks[fb] = block;
     changed = true;

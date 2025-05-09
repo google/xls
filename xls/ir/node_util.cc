@@ -255,6 +255,43 @@ absl::StatusOr<LeafTypeTree<Node*>> ToTreeOfNodes(Node* node) {
   return result;
 }
 
+absl::StatusOr<Node*> FromTreeOfNodes(FunctionBase* f,
+                                      LeafTypeTreeView<Node*> tree,
+                                      std::string_view name, SourceInfo loc) {
+  if (tree.type()->IsArray()) {
+    ArrayType* type = tree.type()->AsArrayOrDie();
+    std::vector<Node*> elements;
+    elements.reserve(type->size());
+    for (int64_t i = 0; i < type->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(Node * element,
+                           FromTreeOfNodes(f, tree.AsView({i})));
+      elements.push_back(element);
+    }
+    return f->MakeNodeWithName<Array>(loc, elements, type->element_type(),
+                                      name);
+  }
+  if (tree.type()->IsTuple()) {
+    TupleType* type = tree.type()->AsTupleOrDie();
+    std::vector<Node*> elements;
+    elements.reserve(type->size());
+    for (int64_t i = 0; i < type->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(Node * element,
+                           FromTreeOfNodes(f, tree.AsView({i})));
+      elements.push_back(element);
+    }
+    return f->MakeNodeWithName<Tuple>(loc, elements, name);
+  }
+
+  // Flat type; this is a leaf node.
+  CHECK(tree.type()->IsBits() || tree.type()->IsToken());
+  CHECK_EQ(tree.size(), 1);
+  XLS_RET_CHECK(name.empty());
+
+  Node* leaf = tree.elements().front();
+  XLS_RET_CHECK_EQ(leaf->function_base(), f);
+  return leaf;
+}
+
 absl::StatusOr<Node*> GatherBits(Node* node, LeafTypeTreeView<Bits> mask) {
   std::vector<Node*> gathered_bits;
   absl::flat_hash_map<absl::Span<int64_t const>, Node*> index_access;
@@ -458,6 +495,66 @@ absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
   }
   return f->MakeNodeWithName<NaryOp>(source_info, unique_operands, Op::kNor,
                                      name);
+}
+
+absl::StatusOr<Node*> FanInAsNeeded(FunctionBase* f,
+                                    absl::Span<Node* const> operands,
+                                    std::string_view name,
+                                    const SourceInfo& source_info) {
+  XLS_RET_CHECK(!operands.empty());
+
+  Type* operand_type = operands.front()->GetType();
+  if (operand_type->IsBits()) {
+    return NaryOrIfNeeded(f, operands, name, source_info);
+  }
+
+  std::vector<Node*> unique_operands = RemoveDuplicateNodes(operands);
+  if (unique_operands.size() == 1) {
+    return unique_operands[0];
+  }
+
+  if (operand_type->IsToken()) {
+    return f->MakeNodeWithName<AfterAll>(source_info, unique_operands, name);
+  }
+  CHECK(operand_type->IsArray() || operand_type->IsTuple());
+
+  std::vector<LeafTypeTree<Node*>> trees;
+  std::vector<LeafTypeTreeView<Node*>> tree_views;
+  trees.reserve(unique_operands.size());
+  tree_views.reserve(unique_operands.size());
+  for (Node* operand : unique_operands) {
+    CHECK_EQ(operand->GetType(), operand_type);
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<Node*> tree, ToTreeOfNodes(operand));
+    trees.push_back(std::move(tree));
+    tree_views.push_back(trees.back().AsView());
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      LeafTypeTree<Node*> fan_in_tree,
+      (leaf_type_tree::ZipIndex<Node*, Node*>(
+          tree_views,
+          [f, &source_info](
+              Type* element_type, absl::Span<Node* const* const> element_ptrs,
+              absl::Span<const int64_t> index) -> absl::StatusOr<Node*> {
+            std::vector<Node*> elements;
+            elements.reserve(element_ptrs.size());
+            for (int64_t i = 0; i < element_ptrs.size(); ++i) {
+              elements.push_back(*element_ptrs[i]);
+            }
+
+            if (element_type->IsBits()) {
+              return NaryOrIfNeeded(f, elements, "", source_info);
+            }
+
+            CHECK(element_type->IsToken());
+            elements = RemoveDuplicateNodes(elements);
+            if (elements.size() == 1) {
+              return elements[0];
+            }
+            return f->MakeNode<AfterAll>(source_info, elements);
+          })));
+
+  return FromTreeOfNodes(f, fan_in_tree.AsView(), name, source_info);
 }
 
 bool IsUnsignedCompare(Node* node) {
