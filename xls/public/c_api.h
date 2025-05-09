@@ -367,6 +367,21 @@ bool xls_package_get_function(struct xls_package* package,
                               const char* function_name, char** error_out,
                               struct xls_function** result_out);
 
+// Returns all the functions contained within the given `package`.
+//
+// If successful, true us returned and the contained function pointers are
+// saved in the array `result_out` which is owned by the caller and must be
+// freed with `xls_function_ptr_array_free`. The length of the array is saved in
+// `count_out`.
+// If an error occurs, false is returned and `error_out` is populated with an
+// error message, which must be freed with `xls_c_str_free`.
+// Note: the returned functions do not need to be freed, they are tied to the
+// package's lifetime.
+bool xls_package_get_functions(struct xls_package* package,
+                               char** error_out,
+                               struct xls_function*** result_out,
+                               size_t* count_out);
+
 // Returns the type of the given value, as owned by the given package.
 //
 // Note: the returned type does not need to be freed, it is tied to the
@@ -449,6 +464,10 @@ bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
                           char*** assert_messages_out,
                           size_t* assert_messages_count_out,
                           struct xls_value** result_out);
+
+// frees the array of  `xls_function` pointers -- the function should have been
+// allocated by the XLS library where ownership was passed back to the caller.
+void xls_function_ptr_array_free(struct xls_function** functions);
 
 void xls_trace_messages_free(struct xls_trace_message* trace_messages,
                              size_t count);

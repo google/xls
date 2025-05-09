@@ -171,6 +171,7 @@ xls_function_get_param_name
 xls_function_get_type
 xls_function_jit_free
 xls_function_jit_run
+xls_function_ptr_array_free
 xls_function_to_z3_smtlib
 xls_function_type_get_param_count
 xls_function_type_get_param_type
@@ -186,6 +187,7 @@ xls_package_free
 xls_package_get_array_type
 xls_package_get_bits_type
 xls_package_get_function
+xls_package_get_functions
 xls_package_get_token_type
 xls_package_get_top
 xls_package_get_tuple_type

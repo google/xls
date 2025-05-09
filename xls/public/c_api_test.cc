@@ -592,6 +592,80 @@ TEST(XlsCApiTest, MakeUnsignedBits) {
   EXPECT_NE(bits, value_bits);
 }
 
+TEST(XlsCApiTest, ParsePackageAndGetFunctions) {
+  const std::string kPackage0 = R"(package p)";
+  const std::string kPackage1 = R"(package p
+fn f(x: bits[32] id=3) -> bits[32] {
+  ret y: bits[32] = identity(x, id=2)
+}
+)";
+  const std::string kPackage2 = R"(package p
+fn f(x: bits[32] id=3) -> bits[32] {
+  ret y: bits[32] = identity(x, id=2)
+}
+fn g(x: bits[32] id=4) -> bits[32] {
+  ret y: bits[32] = identity(x, id=5)
+}
+)";
+
+  char* error = nullptr;
+  struct xls_package* package0 = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(kPackage0.c_str(), "p.ir", &error, &package0))
+      << "xls_parse_ir_package error: " << error;
+  ASSERT_TRUE(error == nullptr);
+  absl::Cleanup free_package0([&package0] { xls_package_free(package0); });
+
+  struct xls_function** functions0 = nullptr;
+  size_t function_count = 0;
+  ASSERT_TRUE(xls_package_get_functions(package0, &error, &functions0,
+                                        &function_count));
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(package0,nullptr);
+
+  ASSERT_EQ(function_count, 0);
+  ASSERT_EQ(functions0, nullptr);
+
+  ASSERT_EQ(error, nullptr);
+
+  struct xls_package* package1 = nullptr;
+  struct xls_function** functions1 = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(kPackage1.c_str(), "p.ir", &error,
+                                   &package1))
+      << "xls_parse_ir_package error: " << error;
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(package1, nullptr);
+  ASSERT_TRUE(xls_package_get_functions(package1, &error, &functions1,
+                                        &function_count));
+  ASSERT_EQ(error, nullptr);
+  absl::Cleanup free_package_and_function_array1([&package1, &functions1] {
+    xls_function_ptr_array_free(functions1);
+    xls_package_free(package1);
+  });
+  ASSERT_EQ(function_count, 1);
+  ASSERT_NE(functions1, nullptr);
+  ASSERT_NE(functions1[0], nullptr);
+
+  struct xls_package* package2 = nullptr;
+  struct xls_function** functions2 = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(kPackage2.c_str(), "p.ir", &error,
+                                   &package2))
+      << "xls_parse_ir_package error: " << error;
+  ASSERT_NE(package2, nullptr);
+  ASSERT_EQ(error, nullptr);
+  ASSERT_TRUE(xls_package_get_functions(package2, &error, &functions2,
+                                        &function_count));
+  ASSERT_EQ(error, nullptr);
+  absl::Cleanup free__package_and_function_array2([&package2, &functions2] {
+    xls_function_ptr_array_free(functions2);
+    xls_package_free(package2);
+  });
+  ASSERT_EQ(error, nullptr);
+  ASSERT_EQ(function_count, 2);
+  ASSERT_NE(functions2, nullptr);
+  ASSERT_NE(functions2[0], nullptr);
+  ASSERT_NE(functions2[1], nullptr);
+}
+
 TEST(XlsCApiTest, ParsePackageAndInterpretFunctionInIt) {
   const std::string kPackage = R"(package p
 
@@ -605,6 +679,20 @@ fn f(x: bits[32] id=3) -> bits[32] {
   ASSERT_TRUE(xls_parse_ir_package(kPackage.c_str(), "p.ir", &error, &package))
       << "xls_parse_ir_package error: " << error;
   absl::Cleanup free_package([package] { xls_package_free(package); });
+
+
+  struct xls_function** functions = nullptr;
+  size_t function_count = 0;
+  char *function_name = nullptr;
+  ASSERT_TRUE(xls_package_get_functions(package, &error, &functions,
+                                         &function_count));
+  absl::Cleanup free_function_array_and_function_name([&functions, &function_name] {
+    xls_function_ptr_array_free(functions);
+    xls_c_str_free(function_name);
+  });
+  ASSERT_EQ(function_count, 1);
+  ASSERT_TRUE(xls_function_get_name(functions[0], &error, &function_name));
+  EXPECT_EQ(std::string_view(function_name), "f");
 
   char* dumped = nullptr;
   ASSERT_TRUE(xls_package_to_string(package, &dumped));

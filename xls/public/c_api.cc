@@ -892,6 +892,36 @@ bool xls_package_get_function(struct xls_package* package,
   return false;
 }
 
+
+bool xls_package_get_functions(struct xls_package* package,
+                               char** error_out,
+                               struct xls_function*** result_out,
+                               size_t* count_out) {
+  CHECK(package != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  CHECK(count_out != nullptr);
+  xls::Package* xls_package = reinterpret_cast<xls::Package*>(package);
+  absl::Span<const std::unique_ptr<xls::Function>> functions = xls_package->functions();
+  *count_out = functions.size();
+
+  *error_out = nullptr;
+
+  if (*count_out == 0) {
+    *result_out = nullptr;
+    return true;
+  }
+
+  *result_out = new struct xls_function*[*count_out];
+
+  for (size_t i = 0; i < *count_out; ++i) {
+    (*result_out)[i] = reinterpret_cast<struct xls_function*>(
+        const_cast<xls::Function*>(functions[i].get()));
+  }
+
+  return true;
+}
+
 bool xls_package_get_type_for_value(struct xls_package* package,
                                     struct xls_value* value, char** error_out,
                                     struct xls_type** result_out) {
@@ -1039,6 +1069,12 @@ bool xls_make_function_jit(struct xls_function* function, char** error_out,
 
 void xls_function_jit_free(struct xls_function_jit* jit) {
   delete reinterpret_cast<xls::FunctionJit*>(jit);
+}
+
+
+void xls_function_ptr_array_free(
+    struct xls_function** function_pointer_array) {
+  delete []function_pointer_array;
 }
 
 bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
