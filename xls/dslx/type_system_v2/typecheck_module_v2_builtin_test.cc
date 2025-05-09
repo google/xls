@@ -190,6 +190,18 @@ fn f(x: u32, y: (u31)) {
 )",
               TypecheckFails(HasTypeMismatch("(u31,)", "u32")));
 }
+
+TEST(TypecheckV2BuiltinTest, AssertEqEnum) {
+  EXPECT_THAT(
+      R"(
+enum E { A = 0, B = 1 }
+fn f() {
+  assert_eq(E::A, E::A);
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("assert_eq", "(E, E) -> ()")));
+}
+
 TEST(TypecheckV2BuiltinTest, AssertLt) {
   EXPECT_THAT(
       R"(
@@ -940,11 +952,8 @@ TEST(TypecheckV2BuiltinTest, UpdateIndexMustBeBits) {
 struct S {}
 const Y = update([u8:1, u8:2, u8:3], S{}, u8:42);
 )",
-      // TODO: davidplass - ideally, the error message would be "`update` index
-      // type must be a bits type" but it's failing with "TypeInferenceError:
-      // type mismatch: S ... vs. Any" instead.
-      // Same for the next test
-      TypecheckFails(HasTypeMismatch("S", "Any")));
+      TypecheckFails(
+          HasSubstr("`update` index type must be a bits type; got `S {}`")));
 }
 
 TEST(TypecheckV2BuiltinTest, UpdateValueMustBeBits) {
@@ -953,7 +962,7 @@ TEST(TypecheckV2BuiltinTest, UpdateValueMustBeBits) {
 struct S {}
 const Y = update([u8:1, u8:2, u8:3], u32:0, S{});
 )",
-      TypecheckFails(HasTypeMismatch("S", "Any")));
+      TypecheckFails(HasTypeMismatch("uN[8]", "S {}")));
 }
 
 TEST(TypecheckV2BuiltinTest, Update2DScalar) {

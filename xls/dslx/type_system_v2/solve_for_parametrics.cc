@@ -91,6 +91,13 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleTypeRefTypeAnnotation(
+      const TypeRefTypeAnnotation* node) override {
+    XLS_RETURN_IF_ERROR(DefaultHandler(node));
+    last_direct_annotation_ = node;
+    return absl::OkStatus();
+  }
+
   absl::Status HandleFunctionTypeAnnotation(
       const FunctionTypeAnnotation* node) override {
     XLS_RETURN_IF_ERROR(DefaultHandler(node));
