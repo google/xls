@@ -214,9 +214,9 @@ test proc is very similar to a normal proc with the following changes:
     one might expect, notifies the interpreter that the following proc is a test
     proc.
 *   A test proc's `config` function must accept a single argument: a boolean
-    input channel for terminating interpretation. When the test is complete, the
-    proc should send the test's status (`true` on success, `false` on failure)
-    on that channel (commonly called the "terminator" channel).
+    output channel for terminating interpretation. When the test is complete,
+    the proc should send the test's status (`true` on success, `false` on
+    failure) on that channel (commonly called the "terminator" channel).
 
 A skeletal example:
 
