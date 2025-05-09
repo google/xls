@@ -341,7 +341,7 @@ XLS marker: statistics section starts here
 TEST(YosysUtilTest, ParseSTAOutput) {
   std::string input = R"(
 op_clk period_min = 47.22 fmax = 21179.00
-worst slack 22.95
+worst slack max 22.95
 tns 0.00
 Startpoint: op0 (input port clocked by op_clk)
 Endpoint: _13_ (falling edge-triggered flip-flop clocked by op_clk')
