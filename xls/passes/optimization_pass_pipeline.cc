@@ -301,8 +301,15 @@ PostInliningPassGroup::PostInliningPassGroup()
   Add<IfOptLevelAtLeast<1, PostInliningOptPassGroup>>();
   Add<DeadCodeEliminationPass>();
   Add<LabelRecoveryPass>();
+
+  // Next are passes needed by the resource sharing optimization
   Add<ResourceSharingPass>();
+  Add<IfResourceSharingEnabled<ConditionalSpecializationPass>>(
+      /*use_bdd=*/true);
+  Add<IfResourceSharingEnabled<DeadCodeEliminationPass>>();
+  Add<IfResourceSharingEnabled<CapOptLevel<2, FixedPointSimplificationPass>>>();
 }
+
 std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
     bool debug_optimizations) {
   auto top = std::make_unique<OptimizationCompoundPass>(
