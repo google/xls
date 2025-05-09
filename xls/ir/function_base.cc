@@ -135,7 +135,8 @@ absl::StatusOr<Node*> FunctionBase::GetNode(
 }
 
 absl::Status FunctionBase::RemoveNode(Node* node) {
-  XLS_RET_CHECK(node->users().empty()) << node->GetName();
+  XLS_RET_CHECK(node->users().empty())
+      << node->GetName() << ", users " << node->GetUsersString();
   XLS_RET_CHECK(!HasImplicitUse(node)) << node->GetName();
   VLOG(4) << absl::StrFormat("Removing node from FunctionBase %s: %s", name(),
                              node->ToString());

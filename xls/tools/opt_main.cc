@@ -96,6 +96,9 @@ ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel, []() -> const std::string& {
       "Optimization level. Ranges from 1 to %d.", xls::kMaxOptLevel);
   return kDescription;
 }());
+ABSL_FLAG(std::string, delay_model, "",
+          "Delay model name to use from registry.");
+ABSL_FLAG(std::string, area_model, "", "Area model name to use from registry.");
 ABSL_FLAG(std::string, ram_rewrites_pb, "",
           "Path to protobuf describing ram rewrites.");
 ABSL_FLAG(bool, use_context_narrowing_analysis, false,
@@ -206,6 +209,8 @@ absl::Status RealMain(std::string_view input_path) {
   };
 
   int64_t opt_level = absl::GetFlag(FLAGS_opt_level);
+  std::string delay_model = absl::GetFlag(FLAGS_delay_model);
+  std::string area_model = absl::GetFlag(FLAGS_area_model);
   std::string top = absl::GetFlag(FLAGS_top);
   std::string ir_dump_path = absl::GetFlag(FLAGS_ir_dump_path);
   std::vector<std::string> skip_passes = absl::GetFlag(FLAGS_skip_passes);
@@ -275,6 +280,8 @@ absl::Status RealMain(std::string_view input_path) {
           ir,
           OptOptions{
               .opt_level = opt_level,
+              .delay_model = delay_model,
+              .area_model = area_model,
               .top = top,
               .ir_dump_path = ir_dump_path,
               .skip_passes = std::move(skip_passes),

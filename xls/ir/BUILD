@@ -1008,6 +1008,7 @@ cc_library(
         ":verifier",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/estimators/area_model:area_estimator",
         "//xls/estimators/delay_model:delay_estimator",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",

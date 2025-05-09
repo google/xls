@@ -621,6 +621,8 @@ cc_binary(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:binary_decision_diagram",
+        "//xls/estimators/area_model:area_estimator",
+        "//xls/estimators/area_model:area_estimators",
         "//xls/estimators/delay_model:analyze_critical_path",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/estimators/delay_model:delay_estimators",

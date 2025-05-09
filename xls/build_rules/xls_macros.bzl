@@ -33,6 +33,7 @@ load(
 )
 load(
     "//xls/build_rules:xls_config_rules.bzl",
+    "DEFAULT_BENCHMARK_SYNTH_AREA_MODEL",
     "DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL",
     "delay_model_to_standard_cells",
     "enable_generated_file_wrapper",
@@ -557,12 +558,14 @@ Examples:
     # Setup shared arguments
     SHARED_FLAGS = (
         "top",
+        "delay_model",
     )
     IR_OPT_FLAGS = (
         "ir_dump_path",
         "passes",
         "skip_passes",
         "opt_level",
+        "area_model",
         "convert_array_index_to_select",
         "use_context_narrowing_analysis",
         "optimize_for_best_case_throughput",
@@ -579,8 +582,14 @@ Examples:
         if k not in IR_OPT_FLAGS or k in SHARED_FLAGS
     }
 
-    # Add default opt args (currently empty)
-    full_opt_args = dict()
+    # Add default opt args
+    full_opt_args = {
+        "delay_model": DEFAULT_BENCHMARK_SYNTH_DELAY_MODEL,
+        "area_model": DEFAULT_BENCHMARK_SYNTH_AREA_MODEL,
+    }
+    if "delay_model" in opt_ir_args and "area_model" not in opt_ir_args:
+        # Default to the area model matching the delay model.
+        opt_ir_args["area_model"] = opt_ir_args["delay_model"]
     full_opt_args.update(opt_ir_args)
 
     # Add default codegen args

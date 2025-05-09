@@ -48,6 +48,8 @@ class DataflowGraphAnalysis {
 
   absl::StatusOr<int64_t> GetUnknownBitsFor(Node* node);
 
+  absl::StatusOr<int64_t> GetUnknownBitsThrough(Node* node, Node* point);
+
  private:
   using ArcIndex = int32_t;
   using NodeIndex = int32_t;

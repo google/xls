@@ -18,6 +18,8 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/estimators/area_model/area_estimator.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -37,11 +39,20 @@ class LutConversionPassTest : public IrTestBase {
  protected:
   LutConversionPassTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) {
+  absl::StatusOr<bool> Run(Package* p,
+                           DelayEstimator* delay_estimator = nullptr,
+                           AreaEstimator* area_estimator = nullptr) {
     PassResults results;
+    OptimizationPassOptions options;
+    options.WithOptLevel(kMaxOptLevel);
+    if (delay_estimator != nullptr) {
+      options.delay_estimator = delay_estimator;
+    }
+    if (area_estimator != nullptr) {
+      options.area_estimator = area_estimator;
+    }
     OptimizationContext context;
-    return LutConversionPass().Run(p, OptimizationPassOptions(), &results,
-                                   context);
+    return LutConversionPass().Run(p, options, &results, context);
   }
 };
 
@@ -59,7 +70,7 @@ TEST_F(LutConversionPassTest, SimpleSelectNoChange) {
   )",
                               p.get())
                     .status());
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false)) << p->DumpIr();
 }
 
 TEST_F(LutConversionPassTest, DoubledSelector) {
@@ -134,7 +145,7 @@ TEST_F(LutConversionPassTest, AffineSelector) {
                 {m::Param("x"), m::Literal(0), m::Literal(1), m::Literal(2)}));
 }
 
-TEST_F(LutConversionPassTest, IneligibleDominator) {
+TEST_F(LutConversionPassTest, MinCutAnalysis) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn simple_select(x: bits[3]) -> bits[3] {
@@ -207,6 +218,35 @@ TEST_F(LutConversionPassTest, ComplexExample) {
   EXPECT_THAT(f->return_value(),
               m::Select(m::Param("x"), {m::Literal(0), m::Literal(0),
                                         m::Literal(0), m::Literal(0)}));
+}
+
+TEST_F(LutConversionPassTest, RequiresEstimators) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn simple_select(x: bits[3]) -> bits[3] {
+        literal0: bits[3] = literal(value=0)
+        literal1: bits[3] = literal(value=1)
+        literal2: bits[3] = literal(value=2)
+        literal3: bits[3] = literal(value=3)
+        product: bits[3] = umul(x, literal3)
+        original: bits[3] = udiv(product, literal3)
+        ret result: bits[3] = sel(original, cases=[literal0, literal1], default=literal2)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+
+  TestDelayEstimator delay_estimator;
+  TestAreaEstimator area_estimator;
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  EXPECT_THAT(Run(p.get(), &delay_estimator, &area_estimator),
+              IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::Param("x"),
+                {m::Literal(0), m::Literal(1), m::Literal(2), m::Literal(0),
+                 m::Literal(1), m::Literal(2), m::Literal(0), m::Literal(1)}));
 }
 
 }  // namespace

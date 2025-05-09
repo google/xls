@@ -216,10 +216,13 @@ bzl_library(
     visibility = ["//visibility:private"],
     deps = [
         ":xls_codegen_rules_bzl",
+        ":xls_common_rules_bzl",
         ":xls_config_rules_bzl",
+        ":xls_dslx_rules_bzl",
         ":xls_ir_macros_bzl",
         ":xls_ir_rules_bzl",
         ":xls_rules_bzl",
+        ":xls_toolchains_bzl",
         ":xls_type_check_utils_bzl",
         "@bazel_skylib//rules:build_test",
         "@bazel_skylib//rules:diff_test",

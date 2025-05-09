@@ -27,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
+#include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -146,6 +147,41 @@ class TestDelayEstimator : public DelayEstimator {
 
  private:
   int64_t base_delay_;
+};
+
+class TestAreaEstimator : public AreaEstimator {
+ public:
+  explicit TestAreaEstimator(double base_area = 1)
+      : AreaEstimator("test"), base_area_(base_area) {}
+
+  absl::StatusOr<double> GetOperationAreaInSquareMicrons(
+      Node* node) const override {
+    switch (node->op()) {
+      case Op::kAfterAll:
+      case Op::kMinDelay:
+      case Op::kBitSlice:
+      case Op::kConcat:
+      case Op::kLiteral:
+      case Op::kParam:
+      case Op::kNext:
+      case Op::kReceive:
+      case Op::kSend:
+      case Op::kTupleIndex:
+        return 0.0;
+      case Op::kUDiv:
+      case Op::kSDiv:
+        return 2 * base_area_;
+      default:
+        return base_area_;
+    }
+  }
+
+ private:
+  absl::StatusOr<double> GetOneBitRegisterAreaInSquareMicrons() const override {
+    return base_area_;
+  }
+
+  double base_area_;
 };
 
 // Helper to record IR before and after some test event which changes it.

@@ -225,6 +225,8 @@ def _optimize_ir(ctx, src, original_input_files):
         "optimize_for_best_case_throughput",
         "enable_resource_sharing",
         "top",
+        "delay_model",
+        "area_model",
     )
 
     is_args_valid(opt_ir_args, IR_OPT_FLAGS)
@@ -462,6 +464,8 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         "use_context_narrowing_analysis",
         "optimize_for_best_case_throughput",
         "enable_resource_sharing",
+        "delay_model",
+        "area_model",
         "run_evaluators",
     ] + _CODEGEN_FLAGS + _SCHEDULING_FLAGS
 

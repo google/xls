@@ -160,8 +160,10 @@ absl::StatusOr<Node*> GatherBits(Node* node, const Bits& mask);
 
 // Returns an IR expression whose value is a flattened concatenation of the bits
 // of 'node' at the indices where 'mask' is true, discarding all bits where
-// 'mask' is false. 'mask' must have the same type as 'node'.
-absl::StatusOr<Node*> GatherBits(Node* node, LeafTypeTreeView<Bits> mask);
+// 'mask' is false. 'mask' must have the same type as 'node'. (If 'mask' is
+// nullopt, all bits are gathered.)
+absl::StatusOr<Node*> GatherBits(Node* node,
+                                 std::optional<LeafTypeTreeView<Bits>> mask);
 
 // Returns an IR expression whose bits is equal to the values in 'pattern' where
 // known, and otherwise fills in with the bits from 'node' (both going in

@@ -38,6 +38,8 @@ namespace xls::tools {
 // this consolidated library).
 struct OptOptions {
   int64_t opt_level = xls::kMaxOptLevel;
+  std::string delay_model = "";
+  std::string area_model = "";
   std::string_view top;
   std::string ir_dump_path = "";
   std::optional<std::string> ir_path = std::nullopt;
