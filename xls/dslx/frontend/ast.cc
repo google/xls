@@ -640,11 +640,12 @@ NameDef::~NameDef() = default;
 Conditional::Conditional(Module* owner, Span span, Expr* test,
                          StatementBlock* consequent,
                          std::variant<StatementBlock*, Conditional*> alternate,
-                         bool in_parens)
+                         bool in_parens, bool has_else)
     : Expr(owner, std::move(span), in_parens),
       test_(test),
       consequent_(consequent),
-      alternate_(alternate) {}
+      alternate_(alternate),
+      has_else_(has_else) {}
 
 Conditional::~Conditional() = default;
 
@@ -665,14 +666,21 @@ std::vector<StatementBlock*> Conditional::GatherBlocks() {
 
 std::string Conditional::ToStringInternal() const {
   std::string inline_str = absl::StrFormat(
-      R"(if %s %s else %s)", test_->ToInlineString(),
-      consequent_->ToInlineString(), ToAstNode(alternate_)->ToInlineString());
+      R"(if %s %s%s)", test_->ToInlineString(), consequent_->ToInlineString(),
+      has_else_
+          ? absl::StrFormat(" else %s", ToAstNode(alternate_)->ToInlineString())
+          : std::string());
+
   if (inline_str.size() <= kTargetLineChars) {
     return inline_str;
   }
-  return absl::StrFormat(R"(if %s %s else %s)", test_->ToString(),
-                         consequent_->ToString(),
-                         ToAstNode(alternate_)->ToString());
+
+  return absl::StrFormat(
+      R"(if %s %s%s)", test_->ToString(), consequent_->ToString(),
+      has_else_ ? absl::StrFormat(" else %s", ToAstNode(alternate_)->ToString())
+                : std::string()
+
+  );
 }
 
 bool Conditional::HasMultiStatementBlocks() const {

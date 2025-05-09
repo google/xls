@@ -2564,6 +2564,8 @@ TEST_F(ParserTest, ForFreevars) {
                              absl::flat_hash_set<std::string>{"j", "range"}));
 }
 
+TEST_F(ParserTest, IfWithoutElse) { RoundTripExpr("if true {}"); }
+
 TEST_F(ParserTest, EmptyTernary) { RoundTripExpr("if true {} else {}"); }
 
 TEST_F(ParserTest, TernaryConditional) {

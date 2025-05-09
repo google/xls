@@ -110,5 +110,19 @@ TEST(MaybeExplainErrorTest,
       "note that conditional block @ test.x:2:26-4:6 had a trailing semicolon");
 }
 
+TEST(MaybeExplainErrorTest,
+     ExplainIfConditionalWithoutElseReturnsMismatchingType) {
+  constexpr std::string_view kProgram = R"(fn f() {
+    if true {
+        u32:42
+    }
+}
+)";
+  TypecheckAndExplain(kProgram,
+                      "note that if expression without else from @ "
+                      "test.x:2:13-4:6 evaluates to (). Consider adding an "
+                      "else block that evaluates to the expected type");
+}
+
 }  // namespace
 }  // namespace xls::dslx
