@@ -289,14 +289,20 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
     # parse arguments
 
     is_args_valid(codegen_args, _CODEGEN_FLAGS + _SCHEDULING_FLAGS)
-    codegen_str_args = args_to_string(codegen_args, _CODEGEN_FLAGS + _SCHEDULING_FLAGS)
     uses_combinational_generator = _is_combinational_generator(codegen_args)
-    final_args = codegen_str_args
+
+    args = ctx.actions.args()
+    args.add(src.ir_file)
+    for flag, value in codegen_args.items():
+        # Need to handle that some flag values are things like 'true' and
+        # 'false' that need to be handled carefully.
+        args.add("--{}={}".format(flag, value))
+
     if (ctx.file.codegen_options_proto == None and conv_info.ir_interface != None):
         # Mixing proto options and normal ones is not supported. If proto
         # options are being used the user will need to have put the interface
         # proto in manually.
-        final_args += " --ir_interface_proto={}".format(conv_info.ir_interface.path)
+        args.add("--ir_interface_proto={}".format(conv_info.ir_interface.path))
         runfiles_list.append(conv_info.ir_interface)
 
     uses_fdo = _uses_fdo(codegen_args)
@@ -319,7 +325,7 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
     )
     verilog_line_map_file = ctx.actions.declare_file(verilog_line_map_filename)
     my_generated_files.append(verilog_line_map_file)
-    final_args += " --output_verilog_line_map_path={}".format(verilog_line_map_file.path)
+    args.add("--output_verilog_line_map_path={}".format(verilog_line_map_file.path))
 
     schedule_file = None
     if not uses_combinational_generator:
@@ -332,7 +338,7 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
 
         schedule_file = ctx.actions.declare_file(schedule_filename)
         my_generated_files.append(schedule_file)
-        final_args += " --output_schedule_path={}".format(schedule_file.path)
+        args.add("--output_schedule_path={}".format(schedule_file.path))
 
     verilog_file = ctx.actions.declare_file(verilog_filename)
     module_sig_filename = get_output_filename_value(
@@ -342,15 +348,15 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
     )
     module_sig_file = ctx.actions.declare_file(module_sig_filename)
     my_generated_files += [verilog_file, module_sig_file]
-    final_args += " --output_verilog_path={}".format(verilog_file.path)
-    final_args += " --output_signature_path={}".format(module_sig_file.path)
+    args.add("--output_verilog_path={}".format(verilog_file.path))
+    args.add("--output_signature_path={}".format(module_sig_file.path))
     schedule_ir_filename = get_output_filename_value(
         ctx,
         "schedule_ir_file",
         verilog_basename + _SCHEDULE_IR_FILE_EXTENSION,
     )
     schedule_ir_file = ctx.actions.declare_file(schedule_ir_filename)
-    final_args += " --output_schedule_ir_path={}".format(schedule_ir_file.path)
+    args.add("--output_schedule_ir_path={}".format(schedule_ir_file.path))
     my_generated_files.append(schedule_ir_file)
     block_ir_filename = get_output_filename_value(
         ctx,
@@ -358,23 +364,21 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
         verilog_basename + _BLOCK_IR_FILE_EXTENSION,
     )
     block_ir_file = ctx.actions.declare_file(block_ir_filename)
-    final_args += " --output_block_ir_path={}".format(block_ir_file.path)
+    args.add("--output_block_ir_path={}".format(block_ir_file.path))
     my_generated_files.append(block_ir_file)
 
     # Get runfiles
     codegen_tool_runfiles = ctx.attr._xls_codegen_tool[DefaultInfo].default_runfiles
 
     if ctx.file.codegen_options_proto:
-        final_args += " --codegen_options_proto={}".format(ctx.file.codegen_options_proto.path)
+        args.add("--codegen_options_proto={}".format(ctx.file.codegen_options_proto.path))
         runfiles_list.append(ctx.file.codegen_options_proto)
 
     if ctx.file.scheduling_options_proto:
-        final_args += " --scheduling_options_proto={}".format(ctx.file.scheduling_options_proto.path)
+        args.add("--scheduling_options_proto={}".format(ctx.file.scheduling_options_proto.path))
         runfiles_list.append(ctx.file.scheduling_options_proto)
 
     runfiles = get_runfiles_for_xls(ctx, [codegen_tool_runfiles], runfiles_list)
-
-    tools = [codegen_tool]
 
     codegen_log_filename = get_output_filename_value(
         ctx,
@@ -391,9 +395,7 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
     )
     config_textproto_file = ctx.actions.declare_file(codegen_config_textproto_file)
     my_generated_files.append(config_textproto_file)
-    final_args += " --codegen_options_used_textproto_file={}".format(
-        config_textproto_file.path,
-    )
+    args.add("--codegen_options_used_textproto_file={}".format(config_textproto_file.path))
     schedule_config_textproto_file = get_output_filename_value(
         ctx,
         "scheduling_options_used_textproto_file",
@@ -401,20 +403,15 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
     )
     sched_config_textproto_file = ctx.actions.declare_file(schedule_config_textproto_file)
     my_generated_files.append(sched_config_textproto_file)
-    final_args += " --scheduling_options_used_textproto_file={}".format(
-        sched_config_textproto_file.path,
-    )
+    args.add("--scheduling_options_used_textproto_file={}".format(sched_config_textproto_file.path))
 
-    ctx.actions.run_shell(
+    args.add("--alsologto", log_file)
+
+    ctx.actions.run(
         outputs = my_generated_files,
-        tools = tools,
+        executable = codegen_tool,
         inputs = runfiles.files,
-        command = "set -o pipefail; {} {} {} 2>&1 | tee {}".format(
-            codegen_tool.path,
-            src.ir_file.path,
-            final_args,
-            log_file.path,
-        ),
+        arguments = [args],
         mnemonic = "GenerateVerilog",
         progress_message = "Compiling %s" % verilog_file.short_path,
         toolchain = None,

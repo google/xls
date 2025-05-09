@@ -52,6 +52,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
+#include "xls/tools/file_stderr_log_sink.h"
 #include "xls/tools/opt.h"
 
 static constexpr std::string_view kUsage = R"(
@@ -149,32 +150,6 @@ ABSL_FLAG(bool, debug_optimizations, false,
 
 namespace xls::tools {
 namespace {
-
-class FileStderrLogSink final : public absl::LogSink {
- public:
-  explicit FileStderrLogSink(std::filesystem::path path)
-      : path_(std::move(path)) {
-    CHECK_OK(SetFileContents(path_, ""));
-  }
-
-  ~FileStderrLogSink() override = default;
-
-  void Send(const absl::LogEntry& entry) override {
-    if (entry.log_severity() < absl::StderrThreshold()) {
-      return;
-    }
-
-    if (!entry.stacktrace().empty()) {
-      CHECK_OK(AppendStringToFile(path_, entry.stacktrace()));
-    } else {
-      CHECK_OK(AppendStringToFile(
-          path_, entry.text_message_with_prefix_and_newline()));
-    }
-  }
-
- private:
-  const std::filesystem::path path_;
-};
 
 template <typename T>
   requires(std::is_integral_v<T>)

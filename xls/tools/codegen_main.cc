@@ -20,9 +20,12 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/log_sink.h"
+#include "absl/log/log_sink_registry.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/module_signature.h"
@@ -40,6 +43,7 @@
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/file_stderr_log_sink.h"
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -58,6 +62,9 @@ Emit a feed-forward pipelined module:
        IR_FILE
 )";
 
+ABSL_FLAG(std::optional<std::string>, alsologto, std::nullopt,
+          "Path to write logs to, in addition to stderr.");
+
 namespace xls {
 namespace {
 
@@ -66,6 +73,19 @@ absl::Status RealMain(std::string_view ir_path) {
   if (ir_path == "-") {
     ir_path = "/dev/stdin";
   }
+
+  std::optional<std::string> alsologto = absl::GetFlag(FLAGS_alsologto);
+  std::unique_ptr<absl::LogSink> log_file_sink;
+  if (alsologto.has_value()) {
+    log_file_sink = std::make_unique<FileStderrLogSink>(*alsologto);
+    absl::AddLogSink(log_file_sink.get());
+  }
+  absl::Cleanup log_file_sink_cleanup = [&log_file_sink] {
+    if (log_file_sink) {
+      absl::RemoveLogSink(log_file_sink.get());
+    }
+  };
+
   XLS_ASSIGN_OR_RETURN(std::string ir_contents, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                        Parser::ParsePackage(ir_contents, ir_path));
