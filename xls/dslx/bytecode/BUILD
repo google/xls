@@ -114,6 +114,7 @@ cc_library(
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
         "//xls/ir:format_strings",
         "@com_google_absl//absl/cleanup",

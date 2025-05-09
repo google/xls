@@ -1251,6 +1251,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(*number, type));
       ti->NoteConstExpr(number, value);
     }
+    if (const auto* range = dynamic_cast<const Range*>(node)) {
+      return CheckRange(range, type, ti);
+    }
     if (const auto* let = dynamic_cast<const Let*>(node)) {
       return NoteLetIfConstExpr(let, parametric_context, type, ti);
     }
@@ -1400,6 +1403,34 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 << ", value: " << value->ToString();
         ti->NoteConstExpr(colon_ref, *value);
       }
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status CheckRange(const Range* range, const Type& type, TypeInfo* ti) {
+    if (IsRangeInMatchArm(range)) {
+      return absl::OkStatus();
+    }
+    XLS_ASSIGN_OR_RETURN(InterpValue start,
+                         ConstexprEvaluator::EvaluateToValue(
+                             &import_data_, ti, &warning_collector_,
+                             ParametricEnv(), range->start(), &type));
+    XLS_ASSIGN_OR_RETURN(InterpValue end,
+                         ConstexprEvaluator::EvaluateToValue(
+                             &import_data_, ti, &warning_collector_,
+                             ParametricEnv(), range->end(), &type));
+
+    if (start.Gt(end)->IsTrue()) {
+      return RangeStartGreaterThanEndErrorStatus(range->span(), range, start,
+                                                 end, file_table_);
+    }
+    XLS_ASSIGN_OR_RETURN(InterpValue diff, end.Sub(start));
+    if (range->inclusive_end()) {
+      diff = InterpValue::MakeUnsigned(diff.GetBitsOrDie());
+      XLS_ASSIGN_OR_RETURN(diff, diff.IncrementZeroExtendIfOverflow());
+    }
+    if (!diff.FitsInNBitsUnsigned(32)) {
+      return RangeTooLargeErrorStatus(range->span(), range, diff, file_table_);
     }
     return absl::OkStatus();
   }

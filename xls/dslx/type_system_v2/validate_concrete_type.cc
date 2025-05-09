@@ -259,60 +259,6 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  // Check if the size of the range is a non-negative number that fits a u32.
-  absl::Status HandleRange(const Range* range) override {
-    // If range's type annotation is inferenced, its dimension is a subtract
-    // expr of S32 operands and we only need to validate for this case.
-    const ArrayTypeAnnotation* array_type =
-        dynamic_cast<const ArrayTypeAnnotation*>(annotation_);
-    if (!array_type) {
-      return absl::OkStatus();
-    }
-    const Binop* binop = dynamic_cast<const Binop*>(array_type->dim());
-    if (!binop || binop->binop_kind() != BinopKind::kSub) {
-      return absl::OkStatus();
-    }
-    for (const Expr* operand : {binop->lhs(), binop->rhs()}) {
-      const Cast* cast = dynamic_cast<const Cast*>(operand);
-      if (!cast) {
-        return absl::OkStatus();
-      }
-      const BuiltinTypeAnnotation* s32_type =
-          dynamic_cast<const BuiltinTypeAnnotation*>(cast->type_annotation());
-      if (!s32_type || s32_type->builtin_type() != BuiltinType::kS32) {
-        return absl::OkStatus();
-      }
-    }
-
-    XLS_ASSIGN_OR_RETURN(InterpValue start,
-                         ti_.GetConstExpr(binop->rhs()->GetChildren(false)[0]));
-    XLS_ASSIGN_OR_RETURN(InterpValue end,
-                         ti_.GetConstExpr(binop->lhs()->GetChildren(false)[0]));
-    if (start.Gt(end)->IsTrue()) {
-      return TypeInferenceErrorStatus(
-          range->span(), type_,
-          absl::Substitute(
-              "Range expr `$0` start value `$1` is larger than end value `$2`",
-              range->ToString(), start.ToString(true), end.ToString(true)),
-          file_table_);
-    }
-    XLS_ASSIGN_OR_RETURN(int64_t start_bits, start.GetBitCount());
-    XLS_ASSIGN_OR_RETURN(int64_t end_bits, end.GetBitCount());
-    int64_t bits = std::max(start_bits, end_bits);
-    XLS_ASSIGN_OR_RETURN(
-        start, start.IsSigned() ? start.SignExt(bits) : start.ZeroExt(bits));
-    XLS_ASSIGN_OR_RETURN(
-        end, end.IsSigned() ? end.SignExt(bits) : end.ZeroExt(bits));
-    if (!end.Sub(start)->FitsInNBitsUnsigned(32)) {
-      return TypeInferenceErrorStatus(
-          range->span(), type_,
-          absl::Substitute("Range expr `$0` has size `$1` larger than u32",
-                           range->ToString(), end.Sub(start)->ToString(true)),
-          file_table_);
-    }
-    return DefaultHandler(range);
-  }
-
  private:
   absl::Status ValidateBinopShift(const Binop& binop) {
     XLS_ASSIGN_OR_RETURN(Type * rhs_type, ti_.GetItemOrError(binop.rhs()));

@@ -1915,7 +1915,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceRange(const Range* node,
       EvaluateConstexprValue(ctx, node->end(), end_type.get()));
 
   XLS_ASSIGN_OR_RETURN(InterpValue le, end_value.Le(start_value));
-  if (le.IsTrue()) {
+  XLS_ASSIGN_OR_RETURN(InterpValue lt, end_value.Lt(start_value));
+  if (lt.IsTrue() || (!node->inclusive_end() && le.IsTrue())) {
     ctx->warnings()->Add(
         node->span(), WarningKind::kEmptyRangeLiteral,
         absl::StrFormat("`%s` from `%s` to `%s` is an empty range",
@@ -1924,11 +1925,18 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceRange(const Range* node,
   }
 
   InterpValue array_size = InterpValue::MakeUnit();
-  XLS_ASSIGN_OR_RETURN(InterpValue start_ge_end, start_value.Ge(end_value));
-  if (start_ge_end.IsTrue()) {
+  XLS_ASSIGN_OR_RETURN(InterpValue start_gt_end, start_value.Gt(end_value));
+  if (start_gt_end.IsTrue()) {
     array_size = InterpValue::MakeU32(0);
   } else {
     XLS_ASSIGN_OR_RETURN(array_size, end_value.Sub(start_value));
+    if (node->inclusive_end()) {
+      array_size = InterpValue::MakeUnsigned(array_size.GetBitsOrDie());
+      XLS_ASSIGN_OR_RETURN(array_size,
+                           array_size.IncrementZeroExtendIfOverflow());
+    }
+    // Zero extend to u32.
+    XLS_ASSIGN_OR_RETURN(array_size, array_size.ZeroExt(32));
   }
   VLOG(5) << "DeduceRange result: " << start_type->ToString();
   return std::make_unique<ArrayType>(std::move(start_type),

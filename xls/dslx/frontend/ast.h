@@ -3412,7 +3412,7 @@ class Index : public Expr {
 // RangeFrom and other variants are not implemented.
 class Range : public Expr {
  public:
-  Range(Module* owner, Span span, Expr* start, Expr* end,
+  Range(Module* owner, Span span, Expr* start, bool inclusive_end, Expr* end,
         bool in_parens = false);
   ~Range() override;
   AstNodeKind kind() const override { return AstNodeKind::kRange; }
@@ -3429,6 +3429,7 @@ class Range : public Expr {
 
   Expr* start() const { return start_; }
   Expr* end() const { return end_; }
+  bool inclusive_end() const { return inclusive_end_; }
 
   Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kRange;
@@ -3439,6 +3440,7 @@ class Range : public Expr {
 
   Expr* start_;
   Expr* end_;
+  bool inclusive_end_;
 };
 
 // Represents a unit test construct.

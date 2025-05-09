@@ -3268,6 +3268,42 @@ fn main() {
                                       HasNodeWithType("1..3", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, PatternMatchWithRangeInclusiveEnd) {
+  EXPECT_THAT(
+      R"(
+fn f(x: u32) -> u32 {
+    match x {
+        1..=3 => u32:1,
+        5..=5 => u32:2,
+        6..=7 | 7 => u32:3,
+        9..=15 | 10..=18 => u32:4,
+        _ => u32:5,
+    }
+}
+
+const A1 = uN[f(1)]:0;
+const A2 = uN[f(2)]:0;
+const A3 = uN[f(3)]:0;
+const A4 = uN[f(4)]:0;
+const A5 = uN[f(5)]:0;
+const A6 = uN[f(6)]:0;
+const A7 = uN[f(7)]:0;
+const A8 = uN[f(8)]:0;
+const A9 = uN[f(9)]:0;
+const A15 = uN[f(15)]:0;
+const A18 = uN[f(18)]:0;
+const A19 = uN[f(19)]:0;
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("1..=3", "uN[32]"), HasNodeWithType("A1", "uN[1]"),
+          HasNodeWithType("A2", "uN[1]"), HasNodeWithType("A3", "uN[1]"),
+          HasNodeWithType("A4", "uN[5]"), HasNodeWithType("A5", "uN[2]"),
+          HasNodeWithType("A6", "uN[3]"), HasNodeWithType("A7", "uN[3]"),
+          HasNodeWithType("A8", "uN[5]"), HasNodeWithType("A9", "uN[4]"),
+          HasNodeWithType("A15", "uN[4]"), HasNodeWithType("A18", "uN[4]"),
+          HasNodeWithType("A19", "uN[5]"))));
+}
+
 TEST(TypecheckV2Test, PatternMatchWithConditional) {
   EXPECT_THAT(R"(
 fn f(x: u2) -> u32 {
@@ -5242,6 +5278,51 @@ const Z:s17[1] = -1..0;
           HasNodeWithType("Z", "sN[17][1]"))));
 }
 
+TEST(TypecheckV2Test, RangeExprInclusiveEnd) {
+  EXPECT_THAT(
+      R"(
+const X = u4:0..=u4:15;
+const X_1 = u4:0..=15;
+const Y = s8:-128..=s8:127;
+const Z = u32:0xFFFFFFF0..=u32:0xFFFFFFFF;
+const A = s32:2147483647..=s32:2147483647;
+const B = u32:1..=u32:1;
+const C = u32:1;
+const D = u32:1..=C;
+const_assert!(X == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+const_assert!(X == X_1);
+const_assert!(Y[0] == -128);
+const_assert!(Y[255] == 127);
+const_assert!(Z[15] == 0xFFFFFFFF);
+const_assert!(A[0] == 2147483647);
+const_assert!(B[0] == 1);
+const_assert!(D[0] == 1);
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("X", "uN[4][16]"), HasNodeWithType("Y", "sN[8][256]"),
+          HasNodeWithType("Z", "uN[32][16]"), HasNodeWithType("A", "sN[32][1]"),
+          HasNodeWithType("B", "uN[32][1]"),
+          HasNodeWithType("D", "uN[32][1]"))));
+}
+
+TEST(TypecheckV2Test, RangeExprIntMaxInvalid) {
+  EXPECT_THAT(
+      R"(
+const X = u4:0..u4:32;
+)",
+      TypecheckFails(
+          HasSubstr("Value '32' does not fit in the bitwidth of a uN[4]")));
+}
+
+TEST(TypecheckV2Test, RangeExprIntMaxInvalidSigned) {
+  EXPECT_THAT(
+      R"(
+const X = s4:0..s4:16;
+)",
+      TypecheckFails(
+          HasSubstr("Value '16' does not fit in the bitwidth of a sN[4]")));
+}
+
 TEST(TypecheckV2Test, RangeExprConstExpr) {
   EXPECT_THAT(R"(
 fn foo() -> s16 {
@@ -5281,7 +5362,7 @@ TEST(TypecheckV2Test, RangeExprSignednessMismatch) {
 TEST(TypecheckV2Test, RangeExprSizeMismatch) {
   EXPECT_THAT(
       R"(const X:u32[4] = u32:1..u32:3;)",
-      TypecheckFails(HasTypeMismatch("u32:3 as s32 - u32:1 as s32", "u32[4]")));
+      TypecheckFails(HasTypeMismatch("3 as s32 - u32:1 as s32", "u32[4]")));
 }
 
 TEST(TypecheckV2Test, RangeExprTypeAnnotationMismatch) {
@@ -5320,26 +5401,31 @@ TEST(TypecheckV2Test, RangeExprArraySizeTypeSigned) {
 }
 
 TEST(TypecheckV2Test, RangeExprArraySizeTypeTooLarge) {
-  EXPECT_THAT(
-      R"(const X = u64:0..u64:0x100000000;)",
-      TypecheckFails(HasSubstr("has size `4294967296` larger than u32")));
+  EXPECT_THAT(R"(const X = u64:0..u64:0x100000000;)",
+              TypecheckFails(HasSubstr(
+                  "Range expr `u64:0..u64:0x100000000` has size 4294967296")));
+}
+
+TEST(TypecheckV2Test, RangeExprArraySizeTypeTooLargeInclusive) {
+  EXPECT_THAT(R"(const X = u32:0..=u32:0xFFFFFFFF;)",
+              TypecheckFails(HasSubstr(
+                  "Range expr `u32:0..=u32:0xFFFFFFFF` has size 4294967296")));
 }
 
 TEST(TypecheckV2Test, RangeExprArraySizeTypeTooLargeSigned) {
   EXPECT_THAT(R"(const X = s64:0x8000000000000000..s64:0xFFFFFFFFFFFFFFFF;)",
-              TypecheckFails(
-                  HasSubstr("has size `9223372036854775807` larger than u32")));
+              TypecheckFails(HasSubstr(
+                  "Range expr `s64:0x8000000000000000..s64:0xFFFFFFFFFFFFFFFF` "
+                  "has size 9223372036854775807")));
 }
 
 TEST(TypecheckV2Test, RangeExprNegativeRange) {
-  // Currently if end is less than start, the range expr results in a zero-sized
-  // array. This case may be regarded as a compile error in the future.
   EXPECT_THAT(R"(
 const A = s8:4;
 const X = A..s8:3;
 )",
-              TypecheckFails(HasSubstr("Range expr `A..s8:3` start value `4` "
-                                       "is larger than end value `3`")));
+              TypecheckFails(HasSubstr("Range expr `A..s8:3` start value 4 "
+                                       "is greater than end value 3")));
 }
 
 TEST(TypecheckV2Test, MinAttribute) {

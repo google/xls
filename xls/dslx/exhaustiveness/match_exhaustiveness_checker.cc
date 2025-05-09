@@ -148,21 +148,22 @@ std::optional<InterpValueInterval> PatternToIntervalInternal(
                 type_info.GetConstExprOption(range->end());
             CHECK(start.has_value());
             CHECK(limit.has_value());
-            if (start->Eq(limit.value())) {
+            if (start->Gt(*limit).value().IsTrue()) {
               return std::nullopt;
             }
-            std::optional<InterpValue> max = limit.value().Decrement();
-            if (!max.has_value()) {
-              // Underflow -- that means the range must be empty because the
-              // limit is exclusive and is known to be representable in the
-              // type.
-              return std::nullopt;
+            if (!range->inclusive_end()) {
+              if (start->Eq(limit.value())) {
+                return std::nullopt;
+              }
+              limit = limit->Decrement();
+              if (!limit.has_value()) {
+                // Underflow -- that means the range must be empty because the
+                // limit is exclusive and is known to be representable in the
+                // type.
+                return std::nullopt;
+              }
             }
-            if (max->Lt(start.value()).value().IsTrue()) {
-              // max < start, so the range is empty.
-              return std::nullopt;
-            }
-            return MakeIntervalForType(leaf_type, *start, max.value());
+            return MakeIntervalForType(leaf_type, *start, *limit);
           },
           [&](ColonRef* colon_ref) -> std::optional<InterpValueInterval> {
             std::optional<InterpValue> value =
