@@ -1170,9 +1170,63 @@ TEST_F(ArithSimplificationPassTest, SDivWrongIssue736) {
   interp_and_check(x, div_rt0(x));
 }
 
-// Optimizes the IR for an unsigned divide by the given non-power of two. Checks
-// that optimized IR matches expected IR. Numerically validates (via
-// interpretation) the optimized IR, exhaustively up to 2^n.
+TEST_F(ArithSimplificationPassTest, UDivOf64) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn udiv_of_64(x: bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=64)
+        ret result: bits[16] = udiv(literal.1, x)
+     }
+  )",
+                                                       p.get()));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::ULe(m::Param("x"), m::Literal(64)),
+                                {m::ArrayIndex(m::Literal(), {m::Param("x")})},
+                                m::Literal(UBits(0, 16))));
+}
+
+TEST_F(ArithSimplificationPassTest, UDivOf65) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn udiv_of_65(x: bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=65)
+        ret result: bits[16] = udiv(literal.1, x)
+     }
+  )",
+                                                       p.get()));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::ULe(m::Param("x"), m::Literal(65)),
+                                {m::ArrayIndex(m::Literal(), {m::Param("x")})},
+                                m::Literal(UBits(0, 16))));
+}
+
+TEST_F(ArithSimplificationPassTest, UDivOf128) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn udiv_of_128(x: bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=128)
+        ret result: bits[16] = udiv(literal.1, x)
+     }
+  )",
+                                                       p.get()));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(m::Concat(m::ULe(m::Param("x"), m::Literal(128)),
+                                  m::ULe(m::Param("x"), m::Literal(64))),
+                        {m::ArrayIndex(m::Literal(), {m::Param("x")}),
+                         m::Literal(UBits(1, 16))},
+                        m::Literal(UBits(0, 16))));
+}
+
+// Optimizes the IR for an unsigned divide of the given constant dividend.
+// Checks that optimized IR matches expected IR. Numerically validates (via
+// interpretation) the optimized IR for all possible divisors.
 void ArithSimplificationPassTest::CheckUnsignedDivideOf(int dividend,
                                                         int bit_count) {
   auto p = CreatePackage();
@@ -1193,7 +1247,6 @@ void ArithSimplificationPassTest::CheckUnsignedDivideOf(int dividend,
 
   // A small dividend will be rewritten to a lookup table with comparisons. No
   // mul, div, add, or sub.
-  EXPECT_TRUE(Contains(optimized_ir, "priority_sel("));
   EXPECT_FALSE(Contains(optimized_ir, "mul"));
   EXPECT_FALSE(Contains(optimized_ir, "div"));
   EXPECT_FALSE(Contains(optimized_ir, "add"));
@@ -1222,15 +1275,19 @@ void ArithSimplificationPassTest::CheckUnsignedDivideOf(int dividend,
   }
 }
 
-// Exhaustively test unsigned division. Vary n and divisor (excluding powers of
-// two).
+// Exhaustively test unsigned division of a constant dividend, for varying
+// dividends and divisor widths.
 TEST_F(ArithSimplificationPassTest, ExhaustiveUnsignedDivideOfConstant) {
-  constexpr int kTestUpToN = 10;
-  for (int dividend = 0; dividend < std::min(17, Exp2<int>(kTestUpToN));
+  constexpr int kTestUpToDividend = 100;
+  constexpr int kTestUpToDivisorWidth = 10;
+  for (int dividend = 0;
+       dividend <=
+       std::min(kTestUpToDividend, Exp2<int>(kTestUpToDivisorWidth) - 1);
        ++dividend) {
-    for (int n = std::max(Bits::MinBitCountUnsigned(dividend), int64_t{1});
-         n <= kTestUpToN; ++n) {
-      CheckUnsignedDivideOf(dividend, n);
+    for (int divisor_width =
+             std::max(Bits::MinBitCountUnsigned(dividend), int64_t{1});
+         divisor_width <= kTestUpToDivisorWidth; ++divisor_width) {
+      CheckUnsignedDivideOf(dividend, divisor_width);
     }
   }
 }
@@ -1403,7 +1460,8 @@ void ArithSimplificationPassTest::CheckSignedDivideOf(int bit_count,
         InterpretFunction(f, {Value(SBits(x, bit_count))}));
     EXPECT_EQ(r.value, Value(SBits(expected, bit_count)))
         << "dividend / x: " << dividend << " / " << x
-        << ", expected: " << expected;
+        << ", expected: " << expected << "\n\nIR:\n"
+        << f->DumpIr();
   };
 
   // compute RoundToZero(dividend/i)
@@ -1442,15 +1500,20 @@ TEST_F(ArithSimplificationPassTest, SignedDivideByAllNonPowersOfTwoExhaustive) {
     }
   }
 }
-// For dividend, test all values, up to...
+// For constant dividend, test all values up to a given dividend bound & divisor
+// width.
 TEST_F(ArithSimplificationPassTest, ExhaustiveSignedDivideOfConstant) {
-  constexpr int kTestUpToN = 10;
-  for (int dividend = 0; dividend < std::min(17, Exp2<int>(kTestUpToN - 1));
+  constexpr int kTestUpToDividend = 100;
+  constexpr int kTestUpToDivisorWidth = 10;
+  for (int dividend = 0;
+       dividend <=
+       std::min(kTestUpToDividend, Exp2<int>(kTestUpToDivisorWidth) - 1);
        ++dividend) {
-    for (int n = std::max(Bits::MinBitCountSigned(dividend), int64_t{1});
-         n <= kTestUpToN; ++n) {
-      CheckSignedDivideOf(n, dividend);
-      CheckSignedDivideOf(n, -dividend);
+    for (int divisor_width =
+             std::max(Bits::MinBitCountSigned(dividend), int64_t{1});
+         divisor_width <= kTestUpToDivisorWidth; ++divisor_width) {
+      CheckSignedDivideOf(divisor_width, dividend);
+      CheckSignedDivideOf(divisor_width, -dividend);
     }
   }
 }

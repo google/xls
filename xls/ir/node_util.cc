@@ -401,6 +401,18 @@ absl::StatusOr<Node*> NorReduceLeading(
   return f->MakeNode<UnOp>(loc, reduced, Op::kNot);
 }
 
+absl::StatusOr<Node*> ConcatIfNeeded(FunctionBase* f,
+                                     absl::Span<Node* const> operands,
+                                     std::string_view name,
+                                     const SourceInfo& source_info) {
+  XLS_RET_CHECK(!operands.empty());
+
+  if (operands.size() == 1) {
+    return operands[0];
+  }
+  return f->MakeNodeWithName<Concat>(source_info, operands, name);
+}
+
 absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
                                       absl::Span<Node* const> operands,
                                       std::string_view name,

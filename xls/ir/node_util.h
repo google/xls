@@ -205,6 +205,14 @@ absl::StatusOr<Node*> NorReduceLeading(
     Node* node, int64_t bit_count,
     const std::optional<SourceInfo>& source_info = std::nullopt);
 
+// Concatenate the given operands if needed (in MSB-first order). If there are
+// 2+ operands, returns a concat of them; if there is 1 operand, returns that
+// operand; and if there are no operands, fails.
+absl::StatusOr<Node*> ConcatIfNeeded(FunctionBase* f,
+                                     absl::Span<Node* const> operands,
+                                     std::string_view name = "",
+                                     const SourceInfo& source_info = {});
+
 // And-reduce the given operands if needed. If there are 2+ operands, returns an
 // N-ary AND of them; if there is 1 operand, returns that operand; and if there
 // are no operands, returns a literal 1.

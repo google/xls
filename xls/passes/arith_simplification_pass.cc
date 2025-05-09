@@ -31,7 +31,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -56,9 +55,19 @@
 namespace xls {
 namespace {
 
+// The largest size of lookup table we will use when transforming a division
+// into a pure (uncompressed) lookup table. This is not backed by any particular
+// data, but seems a reasonable size limit for a LUT.
+constexpr int64_t kMaxConstantDividendLUTSize = 64;
+
 // The largest constant dividend K for which we will transform a division K/x
-// into a lookup table.
-constexpr int64_t kMaxDividendForLookupTable = 16;
+// into a lookup table. The priority-select portion of the lookup table has size
+// up to approximately sqrt(K). This is not backed by any particular data, but
+// lets us handle division by reasonably large dividends without excessively
+// large LUT logic.
+//
+// TODO(epastor): Maybe replace with area & delay estimates for a LUT.
+constexpr int64_t kMaxDividendForCompressedLUT = 64 * 64 - 1;
 
 // For the given comparison Op, returns the op op_inverse for which the
 // following identity holds:
@@ -417,6 +426,138 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
   return true;
 }
 
+struct CompressedLUTEntry {
+  Value value;
+  int64_t cutoff;
+};
+struct CompressedLUT {
+  std::vector<Value> uncompressed_values;
+  int64_t uncompressed_cutoff;
+  std::vector<CompressedLUTEntry> compressed_entries;
+  Value past_the_end;
+};
+
+CompressedLUT CompressLUT(std::vector<Value> entries, Value past_the_end) {
+  // Split the lookup table into two parts:
+  // - the uncompressed section; lookup here is done with a simple array_index,
+  //   and we only compress the very last value (using array_index clamping).
+  // - the compressed section; lookup here is done with a priority select.
+  // The LUT logic should decide whether to use the uncompressed or compressed
+  // section by comparing the index to the `uncompressed_cutoff`.
+  CompressedLUT result;
+  result.uncompressed_cutoff = 0;
+  result.uncompressed_values.reserve(entries.size());
+  result.compressed_entries.reserve(entries.size());
+  result.past_the_end = past_the_end;
+
+  for (int64_t i = 0; i < entries.size() && i < kMaxConstantDividendLUTSize;
+       ++i) {
+    result.uncompressed_values.push_back(std::move(entries[i]));
+    result.uncompressed_cutoff = i;
+  }
+  while (
+      result.uncompressed_values.size() >= 2 &&
+      result.uncompressed_values.back() ==
+          result.uncompressed_values[result.uncompressed_values.size() - 2]) {
+    // The last uncompressed value is repeated; remove it, relying on
+    // `array_index`'s clamping behavior to compress this case into the previous
+    // value.
+    result.uncompressed_values.pop_back();
+  }
+  while (result.uncompressed_cutoff + 1 < entries.size() &&
+         entries[result.uncompressed_cutoff + 1] ==
+             result.uncompressed_values.back()) {
+    // Absorb the next entry into the uncompressed section, relying on
+    // `array_index`'s clamping behavior to compress this case.
+    result.uncompressed_cutoff += 1;
+  }
+
+  for (int64_t i = result.uncompressed_cutoff + 1; i < entries.size(); ++i) {
+    if (!result.compressed_entries.empty() &&
+        result.compressed_entries.back().value == entries[i]) {
+      result.compressed_entries.back().cutoff++;
+      continue;
+    }
+    result.compressed_entries.push_back(CompressedLUTEntry{
+        .value = std::move(entries[i]),
+        .cutoff = i,
+    });
+  }
+  while (!result.compressed_entries.empty() &&
+         result.compressed_entries.back().value == past_the_end) {
+    // The last compressed entry is equal to the `past_the_end_value`, so it's
+    // redundant.
+    result.compressed_entries.pop_back();
+  }
+  return result;
+}
+
+absl::StatusOr<Node*> GenerateLUT(CompressedLUT lut, Node* index,
+                                  SourceInfo loc = SourceInfo()) {
+  FunctionBase* fb = index->function_base();
+
+  XLS_ASSIGN_OR_RETURN(Node * past_the_end,
+                       fb->MakeNode<Literal>(loc, lut.past_the_end));
+  if (lut.uncompressed_values.empty() && lut.compressed_entries.empty()) {
+    // The lookup table is empty.
+    return past_the_end;
+  }
+
+  std::vector<Node*> predicates;
+  std::vector<Node*> cases;
+  predicates.reserve(lut.compressed_entries.size() + 1);
+  cases.reserve(lut.compressed_entries.size() + 1);
+
+  if (!lut.uncompressed_values.empty()) {
+    if (lut.compressed_entries.empty() &&
+        lut.uncompressed_cutoff == lut.uncompressed_values.size() - 1 &&
+        lut.past_the_end != lut.uncompressed_values.back()) {
+      // We can fit the past-the-end value into the uncompressed section,
+      // relying on `array_index`'s clamping behavior to handle the past-the-end
+      // case without a comparison & priority select.
+      lut.uncompressed_values.push_back(lut.past_the_end);
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        Node * uncompressed_table,
+        fb->MakeNode<Literal>(loc, Value::ArrayOrDie(lut.uncompressed_values)));
+    XLS_ASSIGN_OR_RETURN(
+        Node * uncompressed_lookup,
+        fb->MakeNode<ArrayIndex>(loc, uncompressed_table,
+                                 absl::MakeConstSpan({index})));
+
+    if (lut.compressed_entries.empty() &&
+        lut.past_the_end == lut.uncompressed_values.back()) {
+      // No need for a priority select; the uncompressed lookup already covers
+      // all cases.
+      return uncompressed_lookup;
+    }
+
+    cases.push_back(uncompressed_lookup);
+
+    XLS_ASSIGN_OR_RETURN(
+        Node * in_uncompressed,
+        CompareLiteral(index, lut.uncompressed_cutoff, Op::kULe));
+    predicates.push_back(in_uncompressed);
+  }
+
+  for (const auto& [value, cutoff] : lut.compressed_entries) {
+    XLS_ASSIGN_OR_RETURN(Node * predicate,
+                         CompareLiteral(index, cutoff, Op::kULe));
+    XLS_ASSIGN_OR_RETURN(Node * case_node, fb->MakeNode<Literal>(loc, value));
+    predicates.push_back(predicate);
+    cases.push_back(case_node);
+  }
+
+  CHECK(!predicates.empty());
+  // Reverse the order of the predicates to match MSB-first concat semantics.
+  std::reverse(predicates.begin(), predicates.end());
+  XLS_ASSIGN_OR_RETURN(Node * selector,
+                       ConcatIfNeeded(fb, predicates, /*name=*/"", loc));
+  return fb->MakeNode<PrioritySelect>(loc, selector, cases,
+                                      /*default_value=*/past_the_end);
+}
+
 // Matches unsigned integer division with one operand constant.
 //
 // If the divisor is constant, replaces with a multiply and shift(s).
@@ -556,7 +697,7 @@ absl::StatusOr<bool> MatchUnsignedDivide(Node* original_div_op,
   Bits dividend_bits = *query_engine.KnownValueAsBits(dividend);
   int64_t constant_dividend =
       bits_ops::UnsignedBitsToSaturatedInt64(dividend_bits);
-  if (constant_dividend > kMaxDividendForLookupTable) {
+  if (constant_dividend > kMaxDividendForCompressedLUT) {
     return false;
   }
 
@@ -567,54 +708,21 @@ absl::StatusOr<bool> MatchUnsignedDivide(Node* original_div_op,
 
   // Implement the division with a simple lookup table, rounding quotient
   // towards 0.
-  std::vector<int64_t> cutoffs;
-  std::vector<Bits> values;
-  cutoffs.reserve(constant_dividend + 1);
-  values.reserve(constant_dividend + 1);
-  cutoffs.push_back(0);
-  values.push_back(Bits::AllOnes(bit_count));
+  std::vector<Value> lut_entries;
+  lut_entries.reserve(constant_dividend + 1);
+  lut_entries.push_back(Value(Bits::AllOnes(bit_count)));
   for (int64_t i = 1; i <= constant_dividend; ++i) {
-    Bits value = UBits(constant_dividend / i, bit_count);
-    if (value == values.back()) {
-      cutoffs.back()++;
-      continue;
-    }
-    cutoffs.push_back(i);
-    values.push_back(value);
+    lut_entries.push_back(Value(UBits(constant_dividend / i, bit_count)));
   }
 
-  std::vector<Node*> predicates;
-  std::vector<Node*> cases;
-  predicates.reserve(cutoffs.size());
-  cases.reserve(values.size());
-  int64_t last_cutoff = -1;
-  for (auto [cutoff, value] : iter::zip(cutoffs, values)) {
-    const Op compare_op = (cutoff == last_cutoff + 1) ? Op::kEq : Op::kULe;
-    XLS_ASSIGN_OR_RETURN(Node * predicate,
-                         CompareLiteral(divisor, cutoff, compare_op));
-    XLS_ASSIGN_OR_RETURN(
-        Node * literal,
-        fb->MakeNode<Literal>(original_div_op->loc(), Value(value)));
-    predicates.push_back(predicate);
-    cases.push_back(literal);
-
-    last_cutoff = cutoff;
-  }
-
-  // Reverse the order of the predicates to match MSB-first concat semantics.
-  std::reverse(predicates.begin(), predicates.end());
+  // Compress the lookup table to avoid excessively-large arrays.
+  CompressedLUT lut =
+      CompressLUT(std::move(lut_entries),
+                  /*past_the_end=*/ZeroOfType(original_div_op->GetType()));
   XLS_ASSIGN_OR_RETURN(
-      Node * selector,
-      fb->MakeNode<Concat>(original_div_op->loc(), predicates));
-
-  XLS_ASSIGN_OR_RETURN(
-      Node * zero,
-      fb->MakeNode<Literal>(original_div_op->loc(), Value(Bits(bit_count))));
-  XLS_RETURN_IF_ERROR(
-      original_div_op
-          ->ReplaceUsesWithNew<PrioritySelect>(selector, cases,
-                                               /*default_value=*/zero)
-          .status());
+      Node * lookup_result,
+      GenerateLUT(std::move(lut), divisor, original_div_op->loc()));
+  XLS_RETURN_IF_ERROR(original_div_op->ReplaceUsesWith(lookup_result));
   return true;
 }
 
@@ -792,7 +900,7 @@ absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op,
   int64_t constant_dividend = dividend_bits.FitsInInt64()
                                   ? *dividend_bits.ToInt64()
                                   : std::numeric_limits<int64_t>::max();
-  if (std::abs(constant_dividend) > kMaxDividendForLookupTable) {
+  if (std::abs(constant_dividend) > kMaxDividendForCompressedLUT) {
     return false;
   }
 
@@ -814,59 +922,29 @@ absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op,
                                    /*cases=*/absl::MakeConstSpan({neg_divisor}),
                                    /*default_value=*/divisor));
 
-  // Implement the division with a simple lookup table, rounding quotient
-  // towards 0.
-  std::vector<int64_t> cutoffs;
-  std::vector<Bits> values;
-  cutoffs.reserve(std::abs(constant_dividend));
-  values.reserve(std::abs(constant_dividend));
-  cutoffs.push_back(1);
-  values.push_back(SBits(constant_dividend, bit_count));
-  for (int64_t i = 2; i <= std::abs(constant_dividend); ++i) {
-    Bits value = SBits(constant_dividend / i, bit_count);
-    if (value == values.back()) {
-      cutoffs.back()++;
-      continue;
-    }
-    cutoffs.push_back(i);
-    values.push_back(value);
+  // Implement division by the absolute value of the divisor with a simple
+  // lookup table, rounding quotient towards 0. Give it a zero entry at the
+  // start to keep the indices aligned, even though we can't use the lookup
+  // table for the zero-divisor case (since MinSigned != -MaxSigned).
+  std::vector<Value> entries;
+  entries.reserve(std::abs(constant_dividend) + 1);
+  // Add an extra padding entry at the start of the table, to keep the indices
+  // aligned.
+  entries.push_back(ZeroOfType(original_div_op->GetType()));
+  for (int64_t i = 1; i <= std::abs(constant_dividend); ++i) {
+    entries.push_back(Value(SBits(constant_dividend / i, bit_count)));
   }
 
-  std::vector<Node*> predicates;
-  std::vector<Node*> cases;
-  predicates.reserve(cutoffs.size());
-  cases.reserve(values.size());
-  int64_t last_cutoff = -1;
-  for (auto [cutoff, value] : iter::zip(cutoffs, values)) {
-    const Op compare_op = (cutoff == last_cutoff + 1) ? Op::kEq : Op::kULe;
-    XLS_ASSIGN_OR_RETURN(Node * predicate,
-                         CompareLiteral(abs_divisor, cutoff, compare_op));
-    XLS_ASSIGN_OR_RETURN(
-        Node * literal,
-        fb->MakeNode<Literal>(original_div_op->loc(), Value(value)));
-    predicates.push_back(predicate);
-    cases.push_back(literal);
-
-    last_cutoff = cutoff;
-  }
-
-  // Reverse the order of the predicates to match MSB-first concat semantics.
-  std::reverse(predicates.begin(), predicates.end());
+  // Compress the lookup table to avoid excessively-large arrays.
+  CompressedLUT lut =
+      CompressLUT(std::move(entries), ZeroOfType(original_div_op->GetType()));
   XLS_ASSIGN_OR_RETURN(
-      Node * selector,
-      fb->MakeNode<Concat>(original_div_op->loc(), predicates));
+      Node * result_if_divide_by_pos,
+      GenerateLUT(std::move(lut), abs_divisor, original_div_op->loc()));
 
-  XLS_ASSIGN_OR_RETURN(
-      Node * zero,
-      fb->MakeNode<Literal>(original_div_op->loc(), Value(Bits(bit_count))));
-  XLS_ASSIGN_OR_RETURN(
-      Node * result_with_abs_divisor,
-      fb->MakeNode<PrioritySelect>(original_div_op->loc(), selector, cases,
-                                   /*default_value=*/zero));
-
-  XLS_ASSIGN_OR_RETURN(Node * negated_result,
+  XLS_ASSIGN_OR_RETURN(Node * result_if_divide_by_neg,
                        fb->MakeNode<UnOp>(original_div_op->loc(),
-                                          result_with_abs_divisor, Op::kNeg));
+                                          result_if_divide_by_pos, Op::kNeg));
   XLS_ASSIGN_OR_RETURN(
       Node * result_if_divide_by_zero,
       fb->MakeNode<Literal>(
@@ -879,14 +957,14 @@ absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op,
       fb->MakeNode<Concat>(
           original_div_op->loc(),
           absl::MakeConstSpan({divisor_is_negative, divisor_is_zero})));
-  XLS_RETURN_IF_ERROR(
-      original_div_op
-          ->ReplaceUsesWithNew<PrioritySelect>(
-              final_selector,
-              /*cases=*/
-              absl::MakeConstSpan({result_if_divide_by_zero, negated_result}),
-              /*default_value=*/result_with_abs_divisor)
-          .status());
+  XLS_RETURN_IF_ERROR(original_div_op
+                          ->ReplaceUsesWithNew<PrioritySelect>(
+                              final_selector,
+                              /*cases=*/
+                              absl::MakeConstSpan({result_if_divide_by_zero,
+                                                   result_if_divide_by_neg}),
+                              /*default_value=*/result_if_divide_by_pos)
+                          .status());
 
   return true;
 }
@@ -1027,7 +1105,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
           n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
       return true;
     } else if (bits_ops::ULessThanOrEqual(bits_ops::Abs(dividend),
-                                          kMaxDividendForLookupTable)) {
+                                          kMaxDividendForCompressedLUT)) {
       VLOG(2) << "FOUND: UMod/SMod of small constant " << dividend
               << "; replacing with remainder computation";
       const bool is_signed = n->op() == Op::kSMod;
