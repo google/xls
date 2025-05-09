@@ -19,6 +19,8 @@ package xls;
 // A set of passes which can be used to transform an IR.
 message PassPipelineProto {
   message PassOptions {
+    // Make sure these options are respected.
+    // LINT.IfChange
     // opt-level where the pass will be skipped if the opt level is not at least
     // this value
     optional int64 min_opt_level = 1;
@@ -26,6 +28,10 @@ message PassPipelineProto {
     optional int64 max_opt_level = 2;
     // Whether this pass will be skipped if resource sharing is not enabled
     optional bool requires_resource_sharing = 3;
+    // LINT.ThenChange(
+    //     optimization_pass_registry.h:opt_pass_option,
+    //     optimization_pass_pipeline.cc:opt_pass_option
+    // )
   }
 
   message Pipeline {

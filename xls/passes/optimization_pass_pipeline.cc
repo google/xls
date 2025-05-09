@@ -345,6 +345,8 @@ absl::StatusOr<std::unique_ptr<OptimizationPass>>
 OptimizationPassPipelineGenerator::FinalizeWithOptions(
     std::unique_ptr<OptimizationCompoundPass>&& cur,
     const PassPipelineProto::PassOptions& options) const {
+  // Make sure both places passes can be configured are updated.
+  // LINT.IfChange(opt_pass_option)
   std::unique_ptr<OptimizationPass> base = std::move(cur);
   if (options.has_max_opt_level()) {
     base = std::make_unique<
@@ -356,6 +358,13 @@ OptimizationPassPipelineGenerator::FinalizeWithOptions(
         xls::internal::DynamicIfOptLevelAtLeast<OptimizationWrapperPass>>(
         options.min_opt_level(), std::move(base));
   }
+  if (options.has_requires_resource_sharing() &&
+      options.requires_resource_sharing()) {
+    base = std::make_unique<
+        xls::IfResourceSharingEnabled<OptimizationWrapperPass>>(
+        std::move(base));
+  }
+  // LINT.ThenChange(optimization_pass_registry.h:opt_pass_option)
   return std::move(base);
 }
 

@@ -55,6 +55,7 @@ class Adder final : public OptimizationPassGenerator {
       const PassPipelineProto::PassOptions& options) const final {
     // Actually construct and insert the PassClass instance
     auto function = [&](auto... args) {
+      // LINT.IfChange(opt_pass_option)
       std::unique_ptr<OptimizationPass> base =
           std::make_unique<PassClass>(std::forward<decltype(args)>(args)...);
       if (options.has_max_opt_level()) {
@@ -73,6 +74,7 @@ class Adder final : public OptimizationPassGenerator {
             std::move(base));
       }
       pass->AddOwned(std::move(base));
+      // LINT.ThenChange(optimization_pass_pipeline.cc:opt_pass_option)
     };
     // Unpack the argument tuple.
     std::apply(function, args_);
