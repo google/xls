@@ -872,7 +872,6 @@ zstd_dec_deps = [
     ":dec_mux_dslx",
     ":frame_header_dec_dslx",
     ":raw_block_dec_dslx",
-    ":repacketizer_dslx",
     ":rle_block_dec_dslx",
     ":sequence_executor_dslx",
     "//xls/examples:ram_dslx",
