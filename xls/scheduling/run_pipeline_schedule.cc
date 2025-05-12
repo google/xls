@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <random>
@@ -59,6 +60,7 @@
 #include "xls/scheduling/min_cut_scheduler.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/schedule_bounds.h"
+#include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/sdc_scheduler.h"
@@ -166,7 +168,7 @@ absl::Status TightenBounds(sched::ScheduleBounds& bounds, FunctionBase* f,
 // ignoring nodes that will be dead after synthesis.
 absl::StatusOr<int64_t> ComputeCriticalPath(
     absl::Span<Node* const> topo_sort,
-    const absl::flat_hash_set<Node*> dead_after_synthesis,
+    const absl::flat_hash_set<Node*>& dead_after_synthesis,
     const DelayEstimator& delay_estimator) {
   int64_t function_cp = 0;
   absl::flat_hash_map<Node*, int64_t> node_cp;
@@ -745,6 +747,103 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleWithFdo(
     std::optional<const ProcElaboration*> elab) {
   return RunPipelineScheduleInternal(f, delay_estimator, options, elab,
                                      &synthesizer);
+}
+
+absl::StatusOr<PackagePipelineSchedules> RunSynchronousPipelineSchedule(
+    Package* package, const DelayEstimator& delay_estimator,
+    const SchedulingOptions& options, const ProcElaboration& elab) {
+  // TODO(https://github.com/google/xls/issues/2175): Synchronous scheduling
+  // currently only supports a clock period option.
+  XLS_RET_CHECK(options.clock_period_ps().has_value());
+  XLS_RET_CHECK(!options.pipeline_stages().has_value());
+  XLS_RET_CHECK(!options.worst_case_throughput().has_value());
+  XLS_RET_CHECK(!options.clock_margin_percent().has_value());
+  XLS_RET_CHECK(!options.period_relaxation_percent().has_value());
+  XLS_RET_CHECK(!options.use_fdo());
+  XLS_RET_CHECK(!options.additional_input_delay_ps().has_value());
+  XLS_RET_CHECK(!options.additional_output_delay_ps().has_value());
+  XLS_RET_CHECK(options.strategy() == SchedulingStrategy::SDC);
+
+  // TODO(https://github.com/google/xls/issues/2175): Current limitations are
+  // that all sends and receives mush be unconditional and procs can only be
+  // instantiated once.
+  for (Proc* proc : elab.procs()) {
+    if (elab.GetInstances(proc).size() != 1) {
+      return absl::UnimplementedError(
+          absl::StrFormat("Proc `%s` is instantiated more than once which is "
+                          "not supported with synchronous procs.",
+                          proc->name()));
+    }
+    for (Node* node : proc->nodes()) {
+      if (node->Is<ChannelNode>() &&
+          node->As<ChannelNode>()->predicate().has_value()) {
+        return absl::UnimplementedError(
+            absl::StrFormat("Send/receive node `%s` is predicated which is not "
+                            "supported with synchronous procs.",
+                            node->GetName()));
+      }
+    }
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      ScheduleGraph graph,
+      ScheduleGraph::CreateSynchronousGraph(package, /*loopback_channels=*/{},
+                                            elab, /*dead_after_synthesis=*/{}));
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<SDCScheduler> sdc_scheduler,
+                       SDCScheduler::Create(graph, delay_estimator));
+  XLS_RETURN_IF_ERROR(sdc_scheduler->AddConstraints(options.constraints()));
+
+  XLS_ASSIGN_OR_RETURN(
+      ScheduleCycleMap cycle_map,
+      sdc_scheduler->Schedule(std::nullopt, *options.clock_period_ps(),
+                              options.failure_behavior()));
+
+  // Convert the global cycle map of all nodes in the package to individual
+  // schedules for each proc.
+  //
+  // * For the top-level proc, the schedule cycle for each node X is the cycle
+  //   in the global schedule (cycle_map[X]).
+  //
+  // * For all other procs, the schedule cycle for a node X is cycle_map[X]
+  //   minus the minimum cycle for any node in the proc including nodes of procs
+  //   instantiated (transitively) by the proc.
+  PackagePipelineSchedules schedules;
+  absl::flat_hash_map<Proc*, int64_t> first_proc_cycle;
+  // Iterate through the proc hierarchy from the bottom up.
+  for (auto it = elab.procs().crbegin(); it != elab.procs().crend(); ++it) {
+    Proc* proc = *it;
+    XLS_ASSIGN_OR_RETURN(ProcInstance * proc_instance,
+                         elab.GetUniqueInstance(proc));
+
+    int64_t earliest_stage = std::numeric_limits<int64_t>::max();
+    for (const std::unique_ptr<ProcInstance>& instantiated_proc_instance :
+         proc_instance->instantiated_procs()) {
+      earliest_stage =
+          std::min(earliest_stage,
+                   first_proc_cycle.at(instantiated_proc_instance->proc()));
+    }
+    for (Node* node : proc->nodes()) {
+      earliest_stage = std::min(earliest_stage, cycle_map.at(node));
+    }
+    first_proc_cycle[proc] = earliest_stage;
+  }
+
+  for (Proc* proc : elab.procs()) {
+    absl::flat_hash_map<Node*, int64_t> proc_cycle_map;
+    if (proc == elab.top()->proc()) {
+      for (Node* node : proc->nodes()) {
+        proc_cycle_map[node] = cycle_map.at(node);
+      }
+    } else {
+      for (Node* node : proc->nodes()) {
+        proc_cycle_map[node] = cycle_map.at(node) - first_proc_cycle.at(proc);
+      }
+    }
+    schedules.insert({proc, PipelineSchedule(proc, proc_cycle_map)});
+  }
+
+  return schedules;
 }
 
 }  // namespace xls
