@@ -35,6 +35,7 @@ import xls.modules.zstd.memory.axi;
 import xls.modules.zstd.memory.axi_st;
 import xls.modules.zstd.memory.common;
 import xls.modules.zstd.memory.axi_writer;
+import xls.modules.zstd.memory.axi_stream_remove_empty;
 import xls.modules.zstd.memory.axi_stream_add_empty;
 
 pub struct MemWriterReq<ADDR_W: u32> {
@@ -108,11 +109,15 @@ proc MemWriter<
         let (axi_writer_req_s, axi_writer_req_r) = chan<AxiWriterReq, u32:0>("axi_writer_req");
         let (padding_req_s, padding_req_r) = chan<PaddingReq, u32:0>("padding_req");
         let (axi_st_raw_s, axi_st_raw_r) = chan<AxiStream, u32:0>("axi_st_raw");
+        let (axi_st_clean_s, axi_st_clean_r) = chan<AxiStream, u32:0>("axi_st_clean");
         let (axi_st_padded_s, axi_st_padded_r) = chan<AxiStream, u32:0>("axi_st_padded");
 
+        spawn axi_stream_remove_empty::AxiStreamRemoveEmpty<
+            DATA_W, DEST_W, ID_W
+        >(axi_st_raw_r, axi_st_clean_s);
         spawn axi_stream_add_empty::AxiStreamAddEmpty<
             DATA_W, DEST_W, ID_W, ADDR_W
-        >(padding_req_r, axi_st_raw_r, axi_st_padded_s);
+        >(padding_req_r, axi_st_clean_r, axi_st_padded_s);
         spawn axi_writer::AxiWriter<
             ADDR_W, DATA_W, DEST_W, ID_W
         >(axi_writer_req_r, resp_s, axi_aw_s, axi_w_s, axi_b_r, axi_st_padded_r);
@@ -147,7 +152,7 @@ proc MemWriter<
                 }
             },
             Fsm::SEND_DATA => {
-                let next_req_len = state.req_len - sLength:4;
+                let next_req_len = state.req_len - data_in.length as sLength;
                 State {
                     fsm: if (next_req_len <= sLength:0) {Fsm::RECV_REQ} else {Fsm::SEND_DATA},
                     req_len: next_req_len,
@@ -162,7 +167,7 @@ proc MemWriter<
 
         let raw_axi_st_frame = match(state.fsm) {
             Fsm::SEND_DATA => {
-                let next_req_len = state.req_len - sLength:4;
+                let next_req_len = next_state.req_len;
                 let str_keep = ((Length:1 << data_in.length) - Length:1) as Strobe;
                 AxiStream {
                     data: data_in.data,
@@ -627,6 +632,81 @@ proc MemWriterTest {
         let tok = send(tok, axi_b_s, TestAxiB {
             resp: TestAxiWriteResp::OKAY,
             id: TestId:11,
+        });
+        let (tok, resp) = recv(tok, resp_r);
+        assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
+
+        // Unligned 3 transfers
+        let tok = send(tok, req_in_s, TestReq {
+            addr: TestAddr:0x1f3,
+            length: TestLength:15
+        });
+        let tok = send(tok, data_in_s, TestData {
+            data: TestDataBits:0x11223344,
+            length: TestLength:4,
+            last: false,
+        });
+        let tok = send(tok, data_in_s, TestData {
+            data: TestDataBits:0x00005566,
+            length: TestLength:2,
+            last: false,
+        });
+        let tok = send(tok, data_in_s, TestData {
+            data: TestDataBits:0x778899aa,
+            length: TestLength:4,
+            last: false,
+        });
+        let tok = send(tok, data_in_s, TestData {
+            data: TestDataBits:0x00bbccdd,
+            length: TestLength:3,
+            last: false,
+        });
+        let tok = send(tok, data_in_s, TestData {
+            data: TestDataBits:0x0000eeff,
+            length: TestLength:2,
+            last: true,
+        });
+        let (tok, aw) = recv(tok, axi_aw_r);
+        assert_eq(aw, TestAxiAW {
+            id: TestId:12,
+            addr: TestAddr:0x1f0,
+            size: TestAxiAxSize::MAX_4B_TRANSFER,
+            len: u8:4,
+            burst: TestAxiAxBurst::INCR,
+        });
+        let (tok, w) = recv(tok, axi_w_r);
+        assert_eq(w, TestAxiW {
+            data: TestDataBits:0x44000000,
+            strb: TestStrobe:0x8,
+            last: false,
+        });
+        let (tok, w) = recv(tok, axi_w_r);
+        assert_eq(w, TestAxiW {
+            data: TestDataBits:0x66112233,
+            strb: TestStrobe:0xF,
+            last: false,
+        });
+        let (tok, w) = recv(tok, axi_w_r);
+        assert_eq(w, TestAxiW {
+            data: TestDataBits:0x8899aa55,
+            strb: TestStrobe:0xf,
+            last: false,
+        });
+        let (tok, w) = recv(tok, axi_w_r);
+        assert_eq(w, TestAxiW {
+            data: TestDataBits:0xbbccdd77,
+            strb: TestStrobe:0xf,
+            last: false,
+        });
+        let (tok, w) = recv(tok, axi_w_r);
+        assert_eq(w, TestAxiW {
+            data: TestDataBits:0x0000eeff,
+            strb: TestStrobe:0x3,
+            last: true,
+        });
+        let tok = send(tok, axi_b_s, TestAxiB {
+            resp: TestAxiWriteResp::OKAY,
+            id: TestId:12,
         });
         let (tok, resp) = recv(tok, resp_r);
         assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
