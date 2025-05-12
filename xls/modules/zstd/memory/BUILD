@@ -847,6 +847,7 @@ xls_dslx_library(
         ":axi_dslx",
         ":axi_st_dslx",
         ":axi_stream_add_empty_dslx",
+        ":axi_stream_remove_empty_dslx",
         ":axi_writer_dslx",
         ":common_dslx",
     ],
@@ -859,13 +860,11 @@ xls_dslx_test(
 
 mem_writer_codegen_args = common_codegen_args | {
     "module_name": "mem_writer",
-    "pipeline_stages": "2",
+    "pipeline_stages": "3",
     "streaming_channel_data_suffix": "_data",
     "multi_proc": "true",
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
-    "worst_case_throughput": "1",
-    "fifo_module": "",
     "materialize_internal_fifos": "true",
 }
 
