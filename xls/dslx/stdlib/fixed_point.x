@@ -414,7 +414,7 @@ pub fn narrow_by
 // When COMMON_BINARY_UEXPONENT > BINARY_UEXPONENT, the significand is shifted right, and there is
 // potential information loss, so this branch is currently a `fail!`.
 //
-// Does not check that the result's bitwidth is wide enough to hold `x.significand` shifted
+// WARNING:Does not check that the result's bitwidth is wide enough to hold `x.significand` shifted
 // appropriately.
 pub fn to_common_type
     <COMMON_NUM_BITS: u32, COMMON_BINARY_UEXPONENT: u32, NUM_BITS: u32, EXPONENT_IS_NEGATIVE: u32,
@@ -432,26 +432,6 @@ pub fn to_common_type
         (x.significand as sN[COMMON_NUM_BITS]) << (x_exp - result_exp) as u32
     };
     make_fixed_point<result_exp>(significand)
-}
-
-// TODO move into std.x
-// The result of comparing two values.
-pub enum Ordering : s2 {
-    Less = -1,
-    Equal = 0,
-    Greater = 1,
-}
-
-// TODO move into std.x
-// Compares two `bits` (of the same sign and width).
-fn compare<S: bool, N: u32>(lhs: xN[S][N], rhs: xN[S][N]) -> Ordering {
-    if lhs < rhs {
-        Ordering::Less
-    } else if lhs > rhs {
-        Ordering::Greater
-    } else {
-        Ordering::Equal
-    }
 }
 
 // Round to nearest, ties to even (aka roundTiesToEven).
@@ -506,20 +486,20 @@ pub fn convert_to_float_using_round_ties_to_even
     // When NUM_BITS > SIGNIFICAND_WIDTH we may need to left shift, do nothing, or round. It
     // depends on compare(num_trailing_nonzeros, SIGNIFICAND_WIDTH)
 
-    const NUM_BITS_COMPARED_SIGNIFICAND_WIDTH = compare(NUM_BITS, SIGNIFICAND_WIDTH);
+    const NUM_BITS_COMPARED_SIGNIFICAND_WIDTH = std::compare(NUM_BITS, SIGNIFICAND_WIDTH);
     let (normalized_significand, increment_exponent) = match NUM_BITS_COMPARED_SIGNIFICAND_WIDTH {
-        Ordering::Less =>  // we need to shift left to normalize the significand
+        std::Ordering::Less =>  // we need to shift left to normalize the significand
             (unnormalized_significand << (SIGNIFICAND_WIDTH - num_trailing_nonzeros), u1:0),
-        Ordering::Equal => (
+        std::Ordering::Equal => (
             unnormalized_significand << (SIGNIFICAND_WIDTH - num_trailing_nonzeros), u1:0
         ),
-        Ordering::Greater => {
-            match compare(num_trailing_nonzeros, SIGNIFICAND_WIDTH) {
-                Ordering::Less => (
+        std::Ordering::Greater => {
+            match std::compare(num_trailing_nonzeros, SIGNIFICAND_WIDTH) {
+                std::Ordering::Less => (
                     unnormalized_significand << (SIGNIFICAND_WIDTH - num_trailing_nonzeros), u1:0
                 ),
-                Ordering::Equal => (unnormalized_significand, u1:0),
-                Ordering::Greater => {
+                std::Ordering::Equal => (unnormalized_significand, u1:0),
+                std::Ordering::Greater => {
                     let num_bits_to_round_off = (num_trailing_nonzeros - SIGNIFICAND_WIDTH) as
                                                 uN[std::clog2(PRE_NORMALIZE_WIDTH)];
                     let right_aligned = unnormalized_significand >> num_bits_to_round_off;
