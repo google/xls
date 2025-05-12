@@ -45,9 +45,8 @@ The registers are defined below:
 | ---- | ------- | ----------- |
 | Status | 0x0 | Keeps the code describing the current state of the ZSTD Decoder |
 | Start | 0x8 | Writing `1` when the decoder is in the `IDLE` state starts the decoding process |
-| Reset | 0x10 | Writing `1` will reset the decoder to the `IDLE` state |
-| Input Buffer | 0x18 | Keeps the base address for the input buffer that is used for storing the frame to decode |
-| Output Buffer | 0x20 | Keeps the base address for the output buffer, ZSTD Decoder will write the decoded frame into memory starting from this address. |
+| Input Buffer | 0x10 | Keeps the base address for the input buffer that is used for storing the frame to decode |
+| Output Buffer | 0x18 | Keeps the base address for the output buffer, ZSTD Decoder will write the decoded frame into memory starting from this address. |
 
 ### Status codes
 
@@ -67,15 +66,6 @@ The following is a list of all available status codes that can be written in the
 | RAW_BLOCK_OK | 9 | Successfully decoded raw data block |
 | RAW_BLOCK_ERROR | 10 | Failure in communication with the memory |
 | RLE_BLOCK_OK | 11 | Successfully decoded RLE data block |
-
-### Reset handling
-
-The expected behavior of the `Reset` CSR cannot be achieved solely in the DSLX code.
-As of [cb2829ab](https://github.com/google/xls/commit/cb2829ab809c58f21d957a47e400456a8c8f8db1), the XLS toolchain does not support resetting the proc network on the DSLX level.
-As a workaround for this issue, the `ZstdDec` proc defines a `reset` output channel that sends a pulse when there is a write to the `Reset` CSR.
-The Verilog code that integrates the decoder in a target system must connect this output back to the standard `rst` input of the decoder.
-If any external reset signal exists and is intended to be used with the decoder, it should be OR-ed with the `reset` channel output before connecting to the decoder's `rst` input.
-Please refer to the diagram of the Verilog wrapper in the [Testing Methodology](#testing-methodology) chapter for example reset connection.
 
 ## Controlling the decoder from the software
 
