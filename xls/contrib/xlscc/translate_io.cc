@@ -157,7 +157,10 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     context().sf->side_effecting_parameters.push_back(side_effecting_param);
   }
 
-  return &context().sf->io_ops.back();
+  IOOp* ret = &context().sf->io_ops.back();
+  XLSCC_CHECK(!context().sf->slices.empty(), loc);
+  context().sf->slices.back().after_op = ret;
+  return ret;
 }
 
 absl::StatusOr<std::optional<const IOOp*>> Translator::GetPreviousOp(

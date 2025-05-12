@@ -25,16 +25,21 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/contrib/xlscc/translator_types.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/node.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 
-namespace xls {
+namespace xlscc {
 namespace {
 
 class ContinuationsTest : public XlsccTestBase {
@@ -81,59 +86,86 @@ class ContinuationsTest : public XlsccTestBase {
     return false;
   };
 
-  void LogContinuations(xlscc::GeneratedFunction* func) {
-    for (const xlscc::GeneratedFunctionSlice& slice : func->slices) {
-      LOG(INFO) << "Slice continuations:";
-      for (const xlscc::ContinuationValue* continuation_in :
-           slice.continuations_in) {
-        CHECK_NE(continuation_in, nullptr);
-        LOG(INFO) << "-- in: " << continuation_in->name << ": "
-                  << continuation_in->output_node->ToString();
+  bool SliceInputsDecl(const xlscc::GeneratedFunctionSlice& slice,
+                       std::string_view name) {
+    for (const xlscc::ContinuationInput& continuation_in :
+         slice.continuations_in) {
+      if (continuation_in.continuation_out->decl == nullptr) {
+        continue;
       }
-      for (const xlscc::ContinuationValue& continuation_out :
-           slice.continuations_out) {
-        LOG(INFO) << "-- out " << continuation_out.name << ": "
-                  << continuation_out.output_node->ToString();
+      if (continuation_in.continuation_out->decl->getNameAsString() == name) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  void LogContinuations(xlscc::GeneratedFunction* func) {
+    absl::flat_hash_map<const ContinuationValue*, GeneratedFunctionSlice*>
+        slices_by_continuation_out;
+    for (GeneratedFunctionSlice& slice : func->slices) {
+      for (ContinuationValue& continuation_out : slice.continuations_out) {
+        slices_by_continuation_out[&continuation_out] = &slice;
+      }
+    }
+    for (GeneratedFunctionSlice& slice : func->slices) {
+      LOG(INFO) << "";
+      LOG(INFO) << absl::StrFormat("Slice %p after %s:", &slice,
+                                   slice.after_op == nullptr
+                                       ? "(first)"
+                                       : Debug_OpName(*slice.after_op).c_str());
+      for (const ContinuationInput& continuation_in : slice.continuations_in) {
+        LOG(INFO) << absl::StrFormat(
+            "  in: %p.%s has %li users",
+            slices_by_continuation_out.at(continuation_in.continuation_out),
+            continuation_in.continuation_out->name.c_str(),
+            continuation_in.input_node->users().size());
+      }
+      LOG(INFO) << "";
+      for (ContinuationValue& continuation_out : slice.continuations_out) {
+        EXPECT_EQ(continuation_out.output_node->op(), xls::Op::kIdentity);
+        LOG(INFO) << absl::StrFormat(
+            "  out: %s has %li users", continuation_out.name.c_str(),
+            continuation_out.output_node->users().size());
       }
     }
   }
 };
 
-// TODO(seanhaskell): Check remove unused continuation
+template <typename MapT>
+std::vector<typename MapT::mapped_type*> OrderedBValuesForMap(MapT& map) {
+  absl::flat_hash_set<typename MapT::mapped_type*> bvals;
+  for (auto& [_, bval] : map) {
+    bvals.insert(&bval);
+  }
+  return TrackedBValue::OrderBValues(bvals);
+}
+
+template <typename MapT>
+std::vector<const typename MapT::mapped_type*> OrderedCValuesForMap(MapT& map) {
+  absl::flat_hash_set<const typename MapT::mapped_type*> bvals;
+  for (auto& [_, bval] : map) {
+    bvals.insert(&bval);
+  }
+  return xlscc::OrderCValuesFunc()(bvals);
+}
+
+// TODO(seanhaskell): Don't continue IO output
+
+// TODO(seanhaskell): Remove continuation inputs that feed through other nodes
+// to only unused outputs
+
+// TODO(seanhaskell): Check remove continuation output but not used input
 // TODO(seanhaskell): Check literals available
 // TODO(seanhaskell): Pipelined loop phi
 // TODO(seanhaskell): DISABLED_IOOutputNodesDoNotMakeContinuations
-// TODO(seanhaskell): DISABLED_OneContinuationOutputPerNode
+// TODO(seanhaskell): DISABLED_InputsFeedingUnnusedOutputsRemoved
 // TODO(seanhaskell): Check names, incl LValues
 // TODO(seanhaskell): Check that single bit variable used as a condition gets
 // its own continuation without a decl, so that its state element doesn't get
 // overwritten
 // TODO(seanhaskell): Check that loops preserve values declared before them and
 // used after them (state element isn't shared with assignment in the loop)
-
-// TODO(seanhaskell): Implement continuation optimization
-TEST_F(ContinuationsTest, DISABLED_OneContinuationOutputPerNode) {
-  const std::string content = R"(
-    #pragma hls_top
-    void my_package(__xls_channel<int>& in,
-                    __xls_channel<int>& out) {
-      const int x = in.read();
-      const int y = x;
-      out.write(x + y);
-    })";
-
-  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
-                           GenerateTopFunction(content));
-
-  for (const xlscc::GeneratedFunctionSlice& slice : func->slices) {
-    absl::flat_hash_set<const xls::Node*> nodes_seen;
-    for (const xlscc::ContinuationValue& continuation_out :
-         slice.continuations_out) {
-      EXPECT_FALSE(nodes_seen.contains(continuation_out.output_node));
-      nodes_seen.insert(continuation_out.output_node);
-    }
-  }
-}
 
 // TODO(seanhaskell): Implement continuation optimization
 TEST_F(ContinuationsTest, DISABLED_IOOutputNodesDoNotMakeContinuations) {
@@ -148,6 +180,7 @@ TEST_F(ContinuationsTest, DISABLED_IOOutputNodesDoNotMakeContinuations) {
   XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
                            GenerateTopFunction(content));
 
+  // TODO(seanhaskell): Can't use ret_value, need to look at return tuple
   absl::flat_hash_set<const xls::Node*> io_output_nodes;
   for (const xlscc::IOOp& op : func->io_ops) {
     ASSERT_TRUE(op.ret_value.valid());
@@ -159,6 +192,139 @@ TEST_F(ContinuationsTest, DISABLED_IOOutputNodesDoNotMakeContinuations) {
          slice.continuations_out) {
       EXPECT_FALSE(io_output_nodes.contains(continuation_out.output_node));
     }
+  }
+}
+
+TEST_F(ContinuationsTest, PassthroughsRemoved) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      out.write(x);
+      out.write(x);
+      out.write(x * 3);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 5);
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fifth_slice = *slice_it;
+
+  EXPECT_FALSE(SliceOutputsDecl(first_slice, "x"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "x"));
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "x"));
+  EXPECT_FALSE(SliceOutputsDecl(fourth_slice, "x"));
+  EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "x"));
+}
+
+TEST_F(ContinuationsTest, UnusedContinuationOutputsRemoved) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      const int y = x * 3;
+      out.write(y);
+      out.write(x);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 4);
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+
+  EXPECT_FALSE(SliceOutputsDecl(first_slice, "x"));
+  EXPECT_FALSE(SliceOutputsDecl(first_slice, "y"));
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "x"));
+  EXPECT_FALSE(SliceOutputsDecl(second_slice, "y"));
+
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "x"));
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "y"));
+}
+
+TEST_F(ContinuationsTest, UnusedContinuationInputsRemoved) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      const int y = in.read();
+      out.write(y);
+      out.write(x);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 5);
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fifth_slice = *slice_it;
+
+  EXPECT_FALSE(SliceInputsDecl(first_slice, "y"));
+
+  EXPECT_FALSE(SliceInputsDecl(second_slice, "y"));
+
+  EXPECT_FALSE(SliceInputsDecl(third_slice, "y"));
+
+  EXPECT_FALSE(SliceInputsDecl(fourth_slice, "y"));
+
+  EXPECT_FALSE(SliceInputsDecl(fifth_slice, "y"));
+}
+
+TEST_F(ContinuationsTest, DISABLED_InputsFeedingUnnusedOutputsRemoved) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      const int y = in.read();
+      out.write(3);
+      int z = x * 3;
+      int w = y * 5;
+      out.write(3);
+      (void)z;
+      (void)w;
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 5);
+
+  for (const xlscc::GeneratedFunctionSlice& slice : func->slices) {
+    EXPECT_FALSE(SliceInputsDecl(slice, "x"));
+    EXPECT_FALSE(SliceInputsDecl(slice, "y"));
+    EXPECT_FALSE(SliceOutputsDecl(slice, "x"));
+    EXPECT_FALSE(SliceOutputsDecl(slice, "y"));
   }
 }
 
@@ -179,7 +345,7 @@ TEST_F(ContinuationsTest, ContinuationsFollowScope) {
   XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
                            GenerateTopFunction(content));
 
-  ASSERT_GE(func->slices.size(), 3);
+  ASSERT_EQ(func->slices.size(), 4);
 
   auto slice_it = func->slices.begin();
   const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
@@ -220,10 +386,11 @@ TEST_F(ContinuationsTest, Determinism) {
         ASSERT_NE(continuation_out.output_node, nullptr);
         nodes_this_trial.push_back(continuation_out.output_node);
       }
-      for (const xlscc::ContinuationValue* continuation_in :
+      for (const xlscc::ContinuationInput& continuation_in :
            slice.continuations_in) {
-        ASSERT_NE(continuation_in->output_node, nullptr);
-        nodes_this_trial.push_back(continuation_in->output_node);
+        ASSERT_NE(continuation_in.continuation_out->output_node, nullptr);
+        nodes_this_trial.push_back(
+            continuation_in.continuation_out->output_node);
       }
     }
     ASSERT_GT(nodes_this_trial.size(), 0);
@@ -243,5 +410,211 @@ TEST_F(ContinuationsTest, Determinism) {
   }
 }
 
+// This test checks that TrackedBValue sequence numbers don't change when
+// stored in a map [with a nondeterministic key].
+TEST_F(ContinuationsTest, BValuesDontChangeSequenceNumberInMap) {
+  package_ = std::make_unique<xls::Package>("my_package");
+  TrackedFunctionBuilder fb("test_func", package_.get());
+
+  const int64_t kNBVals = 100;
+  TrackedBValue bval[kNBVals];
+
+  absl::flat_hash_set<int64_t> sequence_numbers;
+
+  for (int64_t i = 0; i < kNBVals; ++i) {
+    bval[i] = TrackedBValue(fb.builder()->Literal(xls::SBits(i, 32)));
+    ASSERT_FALSE(sequence_numbers.contains(bval[i].sequence_number()));
+    sequence_numbers.insert(bval[i].sequence_number());
+  }
+
+  absl::flat_hash_map<int64_t, TrackedBValue> test_map;
+  for (int64_t i = 0; i < 10; ++i) {
+    ASSERT_FALSE(test_map.contains(i));
+    test_map[i] = bval[i];
+
+    TrackedBValue& bval_in_map = test_map.at(i);
+    int64_t seq = bval_in_map.sequence_number();
+    EXPECT_GT(seq, 0);
+    ASSERT_FALSE(sequence_numbers.contains(seq));
+    sequence_numbers.insert(seq);
+  }
+  for (int64_t i = 10; i < kNBVals; ++i) {
+    const int64_t key = (kNBVals - (i - 10) - 1);
+    ASSERT_FALSE(test_map.contains(key));
+    test_map[key] = bval[i];
+
+    TrackedBValue& bval_in_map = test_map.at(key);
+    int64_t seq = bval_in_map.sequence_number();
+    EXPECT_GT(seq, 0);
+    ASSERT_FALSE(sequence_numbers.contains(seq));
+    sequence_numbers.insert(seq);
+  }
+
+  for (const auto& [key, bval] : test_map) {
+    EXPECT_TRUE(sequence_numbers.contains(bval.sequence_number()));
+    sequence_numbers.erase(bval.sequence_number());
+  }
+}
+
+TEST_F(ContinuationsTest, BValuesDontChangeSequenceNumberInMap2) {
+  package_ = std::make_unique<xls::Package>("my_package");
+  TrackedFunctionBuilder fb("test_func", package_.get());
+
+  const int64_t kNBVals = 100;
+  TrackedBValue bval[kNBVals];
+
+  absl::flat_hash_set<int64_t> sequence_numbers;
+
+  for (int64_t i = 0; i < kNBVals; ++i) {
+    bval[i] = TrackedBValue(fb.builder()->Literal(xls::SBits(i, 32)));
+    ASSERT_FALSE(sequence_numbers.contains(bval[i].sequence_number()));
+    sequence_numbers.insert(bval[i].sequence_number());
+  }
+
+  TrackedBValueMap<int64_t> test_map;
+  for (int64_t i = 0; i < 10; ++i) {
+    ASSERT_FALSE(test_map.contains(i));
+    test_map[i] = bval[i];
+
+    TrackedBValue& bval_in_map = test_map.at(i);
+    int64_t seq = bval_in_map.sequence_number();
+    EXPECT_GT(seq, 0);
+    ASSERT_FALSE(sequence_numbers.contains(seq));
+    sequence_numbers.insert(seq);
+  }
+  for (int64_t i = 10; i < kNBVals; ++i) {
+    const int64_t key = (kNBVals - (i - 10) - 1);
+    ASSERT_FALSE(test_map.contains(key));
+    test_map[key] = bval[i];
+
+    TrackedBValue& bval_in_map = test_map.at(key);
+    int64_t seq = bval_in_map.sequence_number();
+    EXPECT_GT(seq, 0);
+    ASSERT_FALSE(sequence_numbers.contains(seq));
+    sequence_numbers.insert(seq);
+  }
+
+  for (const auto& [key, bval] : test_map) {
+    EXPECT_TRUE(sequence_numbers.contains(bval.sequence_number()));
+    sequence_numbers.erase(bval.sequence_number());
+  }
+}
+
+TEST_F(ContinuationsTest, CopyBValueMapWithSeqNumberDeterminism) {
+  package_ = std::make_unique<xls::Package>("my_package");
+  TrackedFunctionBuilder fb("test_func", package_.get());
+
+  const int64_t kNBVals = 100;
+  const int64_t kNTrails = 10;
+  TrackedBValue bval[kNBVals];
+  TrackedBValue bvals_by_trial[kNBVals][kNTrails];
+
+  absl::flat_hash_set<int64_t> sequence_numbers;
+  TrackedBValueMap<int64_t> ref_map;
+
+  for (int64_t i = 0; i < kNBVals; ++i) {
+    bval[i] = TrackedBValue(fb.builder()->Literal(xls::SBits(i, 32)));
+    ref_map[i] = bval[i];
+  }
+
+  std::vector<TrackedBValue*> ref_ordered = OrderedBValuesForMap(ref_map);
+
+  for (int64_t trial = 0; trial < kNTrails; ++trial) {
+    TrackedBValueMap<int64_t> copy_map = ref_map;
+    std::vector<TrackedBValue*> copy_ordered = OrderedBValuesForMap(copy_map);
+    ASSERT_EQ(copy_ordered.size(), ref_ordered.size());
+    for (int64_t i = 0; i < copy_ordered.size(); ++i) {
+      EXPECT_EQ(copy_ordered[i]->node()->id(), ref_ordered[i]->node()->id());
+    }
+  }
+}
+
+TEST_F(ContinuationsTest, CopyCValueMapWithSeqNumberDeterminism) {
+  package_ = std::make_unique<xls::Package>("my_package");
+  TrackedFunctionBuilder fb("test_func", package_.get());
+
+  const int64_t kNBVals = 100;
+  const int64_t kNTrails = 10;
+  CValue bval[kNBVals];
+  CValue bvals_by_trial[kNBVals][kNTrails];
+
+  absl::flat_hash_set<int64_t> sequence_numbers;
+  CValueMap<int64_t> ref_map;
+
+  for (int64_t i = 0; i < kNBVals; ++i) {
+    bval[i] = CValue(TrackedBValue(fb.builder()->Literal(xls::SBits(i, 32))),
+                     std::make_shared<CIntType>(32, /*signed=*/true));
+    ref_map[i] = bval[i];
+  }
+
+  std::vector<const CValue*> ref_ordered = OrderedCValuesForMap(ref_map);
+
+  for (int64_t trial = 0; trial < kNTrails; ++trial) {
+    CValueMap<int64_t> copy_map = ref_map;
+    std::vector<const CValue*> copy_ordered = OrderedCValuesForMap(copy_map);
+    ASSERT_EQ(copy_ordered.size(), ref_ordered.size());
+    for (int64_t i = 0; i < copy_ordered.size(); ++i) {
+      EXPECT_EQ(copy_ordered[i]->rvalue().node()->id(),
+                ref_ordered[i]->rvalue().node()->id());
+    }
+  }
+}
+
+TEST_F(ContinuationsTest, CopyCValueMapWithSeqNumberDeterminism_WithLValues) {
+  package_ = std::make_unique<xls::Package>("my_package");
+  TrackedFunctionBuilder fb("test_func", package_.get());
+
+  const int64_t kNBVals = 100;
+  const int64_t kNTrails = 10;
+  CValue bval[kNBVals];
+  CValue bvals_by_trial[kNBVals][kNTrails];
+
+  absl::flat_hash_set<int64_t> sequence_numbers;
+  CValueMap<int64_t> ref_map;
+
+  for (int64_t i = 0; i < kNBVals; ++i) {
+    if (i % 10 == 0) {
+      bval[i] = CValue(TrackedBValue(fb.builder()->Literal(xls::SBits(i, 32))),
+                       std::make_shared<CIntType>(32, /*signed=*/true));
+    } else {
+      std::shared_ptr<LValue> lval;
+      if (i % 2 == 0) {
+        lval = std::make_shared<LValue>(
+            TrackedBValue(fb.builder()->Literal(xls::UBits(i % 2, 1))),
+            /*lvalue_true=*/std::make_shared<LValue>(),
+            /*lvalue_false=*/std::make_shared<LValue>());
+      } else {
+        absl::flat_hash_map<int64_t, std::shared_ptr<LValue>> compound_by_index;
+        compound_by_index[0] = std::make_shared<LValue>(
+            TrackedBValue(fb.builder()->Literal(xls::UBits(i % 5 == 0, 1))),
+            /*lvalue_true=*/std::make_shared<LValue>(),
+            /*lvalue_false=*/std::make_shared<LValue>());
+        compound_by_index[1] = std::make_shared<LValue>(
+            TrackedBValue(fb.builder()->Literal(xls::UBits(i % 3 == 0, 1))),
+            /*lvalue_true=*/std::make_shared<LValue>(),
+            /*lvalue_false=*/std::make_shared<LValue>());
+        lval = std::make_shared<LValue>(compound_by_index);
+      }
+      bval[i] = CValue(TrackedBValue(),
+                       std::make_shared<CPointerType>(
+                           std::make_shared<CIntType>(32, /*signed=*/true)),
+                       /*disable_type_check=*/false, lval);
+      ref_map[i] = bval[i];
+    }
+  }
+
+  std::vector<const CValue*> ref_ordered = OrderedCValuesForMap(ref_map);
+
+  for (int64_t trial = 0; trial < kNTrails; ++trial) {
+    CValueMap<int64_t> copy_map = ref_map;
+    std::vector<const CValue*> copy_ordered = OrderedCValuesForMap(copy_map);
+    ASSERT_EQ(copy_ordered.size(), ref_ordered.size());
+    for (int64_t i = 0; i < copy_ordered.size(); ++i) {
+      EXPECT_EQ(copy_ordered[i]->lvalue().get(),
+                ref_ordered[i]->lvalue().get());
+    }
+  }
+}
+
 }  // namespace
-}  // namespace xls
+}  // namespace xlscc

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "xls/contrib/xlscc/translator_types.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -37,6 +39,7 @@
 #include "clang/include/clang/Basic/LLVM.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
+#include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/package.h"
@@ -987,6 +990,83 @@ absl::StatusOr<xls::Type*> CChannelType::GetWriteRequestType(
 absl::StatusOr<xls::Type*> CChannelType::GetWriteResponseType(
     xls::Package* package, xls::Type* item_type) const {
   return package->GetTupleType({});
+}
+
+void GetAllBValuesForLValue(std::shared_ptr<LValue> lval,
+                            std::vector<const TrackedBValue*>& out) {
+  if (lval == nullptr) {
+    return;
+  }
+  if (lval->is_select()) {
+    out.push_back(&lval->cond());
+    GetAllBValuesForLValue(lval->lvalue_true(), out);
+    GetAllBValuesForLValue(lval->lvalue_false(), out);
+  }
+  for (const auto& [_, lval] : lval->get_compounds()) {
+    GetAllBValuesForLValue(lval, out);
+  }
+}
+
+void GetAllBValuesForCValue(const CValue& cval,
+                            std::vector<const TrackedBValue*>& out) {
+  if (cval.rvalue().valid()) {
+    out.push_back(&cval.rvalue());
+  }
+  GetAllBValuesForLValue(cval.lvalue(), out);
+}
+
+std::vector<const CValue*> OrderCValuesFunc::operator()(
+    const absl::flat_hash_set<const CValue*>& cvals_unordered) {
+  std::vector<const CValue*> ret;
+  ret.insert(ret.end(), cvals_unordered.begin(), cvals_unordered.end());
+
+  std::sort(ret.begin(), ret.end(), [](const CValue* a, const CValue* b) {
+    std::vector<const TrackedBValue*> all_bvals_for_a;
+    GetAllBValuesForCValue(*a, all_bvals_for_a);
+    std::vector<const TrackedBValue*> all_bvals_for_b;
+    GetAllBValuesForCValue(*b, all_bvals_for_b);
+    std::vector<int64_t> seq_numbers_for_a;
+    seq_numbers_for_a.reserve(all_bvals_for_a.size());
+    for (const TrackedBValue* bval : all_bvals_for_a) {
+      seq_numbers_for_a.push_back(bval->sequence_number());
+    }
+    std::vector<int64_t> seq_numbers_for_b;
+    seq_numbers_for_b.reserve(all_bvals_for_b.size());
+    for (const TrackedBValue* bval : all_bvals_for_b) {
+      seq_numbers_for_b.push_back(bval->sequence_number());
+    }
+    return seq_numbers_for_a < seq_numbers_for_b;
+  });
+  return ret;
+}
+
+std::vector<const std::shared_ptr<LValue>*> OrderLValuesFunc::operator()(
+    const absl::flat_hash_set<const std::shared_ptr<LValue>*>&
+        lvals_unordered) {
+  std::vector<const std::shared_ptr<LValue>*> ret;
+  ret.insert(ret.end(), lvals_unordered.begin(), lvals_unordered.end());
+
+  std::sort(
+      ret.begin(), ret.end(),
+      [](const std::shared_ptr<LValue>* a, const std::shared_ptr<LValue>* b) {
+        std::vector<const TrackedBValue*> all_bvals_for_a;
+        GetAllBValuesForLValue(*a, all_bvals_for_a);
+        std::vector<const TrackedBValue*> all_bvals_for_b;
+        GetAllBValuesForLValue(*b, all_bvals_for_b);
+        std::vector<int64_t> seq_numbers_for_a;
+        std::vector<int64_t> seq_numbers_for_b;
+        seq_numbers_for_a.reserve(all_bvals_for_a.size());
+        for (const TrackedBValue* bval : all_bvals_for_a) {
+          seq_numbers_for_a.push_back(bval->sequence_number());
+        }
+        seq_numbers_for_b.reserve(all_bvals_for_b.size());
+        for (const TrackedBValue* bval : all_bvals_for_b) {
+          seq_numbers_for_b.push_back(bval->sequence_number());
+        }
+        return seq_numbers_for_a < seq_numbers_for_b;
+      });
+
+  return ret;
 }
 
 }  //  namespace xlscc

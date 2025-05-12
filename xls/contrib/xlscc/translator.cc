@@ -77,6 +77,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
+#include "xls/contrib/xlscc/node_manipulation.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/interpreter/ir_interpreter.h"
@@ -1383,7 +1384,7 @@ absl::Status Translator::GenerateIR_Function_Body(
   XLSCC_CHECK(!context().sf->slices.empty(), body_loc);
   context().sf->slices.back().function = last_slice_function;
   sf.xls_func = last_slice_function;
-  XLS_RETURN_IF_ERROR(OptimizeContinuations(sf));
+  XLS_RETURN_IF_ERROR(OptimizeContinuations(sf, body_loc));
 
   return absl::OkStatus();
 }
@@ -5654,8 +5655,9 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       // We use the original condition because we only care about
       //  enclosing conditions, such as if(...) { break; }
       //  Not if(...) {return;} break;
-      if (context().full_condition_on_enter_block.node() ==
-          context().full_switch_cond.node()) {
+      if (NodesEquivalentWithContinuations(
+              context().full_condition_on_enter_block.node(),
+              context().full_switch_cond.node())) {
         context().hit_break = true;
       } else {
         context().relative_break_condition =
@@ -5808,7 +5810,8 @@ std::string Debug_OpName(const IOOp& op) {
         op_type_name = "write";
         break;
       default:
-        CHECK_EQ("Op type doesn't make sense here", nullptr);
+        LOG(FATAL) << absl::StrFormat("Op type doesn't make sense here: %i",
+                                      op.op);
     }
     return absl::StrFormat("%s_%s", op.channel->unique_name, op_type_name);
   }

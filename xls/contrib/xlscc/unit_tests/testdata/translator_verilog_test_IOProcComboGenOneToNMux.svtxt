@@ -10,17 +10,17 @@ module foo_proc(
   output wire [31:0] out2,
   output wire out2_vld
 );
-  wire out1_send_pred;
+  wire continuation_5_output__1;
   wire out2_send_pred;
-  wire literal_112;
+  wire literal_182;
   wire p0_all_active_outputs_ready;
-  assign out1_send_pred = dir == 32'h0000_0000;
-  assign out2_send_pred = ~out1_send_pred;
-  assign literal_112 = 1'h1;
-  assign p0_all_active_outputs_ready = (~out1_send_pred | out1_rdy) & (~out2_send_pred | out2_rdy);
+  assign continuation_5_output__1 = dir == 32'h0000_0000;
+  assign out2_send_pred = ~continuation_5_output__1;
+  assign literal_182 = 1'h1;
+  assign p0_all_active_outputs_ready = (~continuation_5_output__1 | out1_rdy) & (~out2_send_pred | out2_rdy);
   assign in_rdy = p0_all_active_outputs_ready;
   assign out1 = in;
-  assign out1_vld = in_vld & literal_112 & literal_112 & out1_send_pred;
+  assign out1_vld = in_vld & literal_182 & literal_182 & continuation_5_output__1;
   assign out2 = in;
-  assign out2_vld = in_vld & literal_112 & literal_112 & out2_send_pred;
+  assign out2_vld = in_vld & literal_182 & literal_182 & out2_send_pred;
 endmodule

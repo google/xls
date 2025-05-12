@@ -40,8 +40,10 @@
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/stopwatch.h"
+#include "xls/contrib/xlscc/node_manipulation.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/contrib/xlscc/translator_types.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -323,7 +325,7 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::TranslateLValueConditions(
     return nullptr;
   }
   if (!outer_lvalue->get_compounds().empty()) {
-    absl::flat_hash_map<int64_t, std::shared_ptr<LValue>> compounds;
+    LValueMap<int64_t> compounds;
     for (const auto& [idx, compound_lval] : outer_lvalue->get_compounds()) {
       XLS_ASSIGN_OR_RETURN(
           compounds[idx],
@@ -417,7 +419,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     for (const clang::NamedDecl* decl : variable_fields_order) {
       // Don't mark access
       // These are handled below based on what's really used in the loop body
-      // const CValue& cvalue = context().variables.at(decl);
       XLS_ASSIGN_OR_RETURN(const CValue& cvalue,
                            GetIdentifier(decl, loc, /*record_access=*/false));
 
@@ -456,8 +457,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
       absl::StrFormat("__for_%i", next_for_number_++);
 
   // Create loop body proc
-  absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>
-      lvalues_out;
+  LValueMap<const clang::NamedDecl*> lvalues_out;
   bool uses_on_reset = false;
   XLS_ASSIGN_OR_RETURN(
       PipelinedLoopSubProc sub_proc,
@@ -774,8 +774,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     std::string_view name_prefix, xls::Type* context_struct_xls_type,
     xls::Type* context_lvals_xls_type,
     const std::shared_ptr<CStructType>& context_cvars_struct_ctype,
-    absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>*
-        lvalues_out,
+    LValueMap<const clang::NamedDecl*>* lvalues_out,
     const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
         context_field_indices,
     const std::vector<const clang::NamedDecl*>& variable_fields_order,
@@ -877,7 +876,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
         /*check_unique_ids=*/false));
 
     // Context in
-    absl::flat_hash_map<const clang::NamedDecl*, CValue> prev_vars;
+    CValueMap<const clang::NamedDecl*> prev_vars;
 
     for (const clang::NamedDecl* decl : variable_fields_order) {
       const CValue& outer_value = prev_context.variables.at(decl);
@@ -1016,13 +1015,17 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     XLSCC_CHECK(!context().sf->slices.empty(), loc);
     context().sf->slices.back().function = last_slice_function;
     generated_func->xls_func = last_slice_function;
-    XLS_RETURN_IF_ERROR(OptimizeContinuations(*context().sf));
+
+    // NOTE: No call to OptimizeContinuations here, as it confuses the
+    // logic here, and continuations aren't meant to be used with this legacy
+    // FSM generation.
 
     // Analyze context variables changed
     for (const clang::NamedDecl* decl : variable_fields_order) {
       const CValue prev_bval = prev_vars.at(decl);
       const CValue curr_val = context().variables.at(decl);
-      if (prev_bval.rvalue().node() != curr_val.rvalue().node() ||
+      if (!NodesEquivalentWithContinuations(prev_bval.rvalue().node(),
+                                            curr_val.rvalue().node()) ||
           prev_bval.lvalue() != curr_val.lvalue()) {
         vars_changed_in_body.push_back(decl);
         XLS_ASSIGN_OR_RETURN(
@@ -1245,8 +1248,7 @@ Translator::GenerateIR_PipelinedLoopContents(
   xls::StateElement* lvalue_cond_state =
       lvalue_cond_value.node()->As<xls::StateRead>()->state_element();
 
-  absl::flat_hash_map<const clang::NamedDecl*, TrackedBValue>
-      state_reads_by_decl;
+  TrackedBValueMap<const clang::NamedDecl*> state_reads_by_decl;
 
   for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
     if (!context_field_indices.contains(decl)) {

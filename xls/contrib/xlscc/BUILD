@@ -118,8 +118,13 @@ cc_library(
 )
 
 cc_library(
-    name = "utils",
-    hdrs = ["utils.h"],
+    name = "node_manipulation",
+    srcs = ["node_manipulation.cc"],
+    hdrs = ["node_manipulation.h"],
+    deps = [
+        "//xls/ir",
+        "//xls/ir:op",
+    ],
 )
 
 cc_library(
@@ -135,13 +140,14 @@ cc_library(
     ],
     hdrs = [
         "translator.h",
+        "translator_types.h",
     ],
     deps = [
         ":cc_parser",
         ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
+        ":node_manipulation",
         ":tracked_bvalue",
-        ":utils",
         ":xlscc_logging",
         "//xls/common:math_util",
         "//xls/common:stopwatch",
