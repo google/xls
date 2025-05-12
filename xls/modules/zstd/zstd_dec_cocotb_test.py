@@ -44,7 +44,6 @@ AXI_DATA_W = 64
 AXI_DATA_W_BYTES = AXI_DATA_W // 8
 MAX_ENCODED_FRAME_SIZE_B = 16384
 NOTIFY_CHANNEL = "notify"
-OUTPUT_CHANNEL = "output"
 RESET_CHANNEL = "reset"
 
 # Override default widths of AXI response signals
@@ -68,12 +67,6 @@ class NotifyStruct(XLSStruct):
 @xls_dataclass
 class ResetStruct(XLSStruct):
   pass
-
-@xls_dataclass
-class OutputStruct(XLSStruct):
-  data: 64
-  length: 32
-  last: 1
 
 class CSR(Enum):
   """
@@ -215,23 +208,6 @@ async def wait_for_idle(cpu, timeout=100):
     timeout -= 1
   assert (timeout != 0)
 
-def generate_expected_output(decoded_frame):
-  packets = []
-  frame_len = len(decoded_frame)
-  last_len = frame_len % 8
-  for i in range(frame_len // 8):
-    start_id = i * 8
-    end_id = start_id + 8
-    packet_data = int.from_bytes(decoded_frame[start_id:end_id], byteorder='little')
-    last_packet = (end_id==frame_len)
-    packet = OutputStruct(data=packet_data, length=64, last=last_packet)
-    packets.append(packet)
-  if (last_len):
-    packet_data = int.from_bytes(decoded_frame[-last_len:], byteorder='little')
-    packet = OutputStruct(data=packet_data, length=last_len*8, last=True)
-    packets.append(packet)
-  return packets
-
 async def reset_dut(dut, rst_len=10):
   dut.rst.setimmediatevalue(0)
   await ClockCycles(dut.clk, rst_len)
@@ -249,8 +225,6 @@ def prepare_test_environment(dut):
   clock = Clock(dut.clk, 10, units="us")
   cocotb.start_soon(clock.start())
 
-  scoreboard = Scoreboard(dut)
-
   memory_bus = connect_axi_bus(dut, "memory")
   csr_bus = connect_axi_bus(dut, "csr")
   axi_buses = {
@@ -259,21 +233,18 @@ def prepare_test_environment(dut):
   }
 
   notify = connect_xls_channel(dut, NOTIFY_CHANNEL, NotifyStruct)
-  output = connect_xls_channel(dut, OUTPUT_CHANNEL, OutputStruct)
   xls_channels = {
       "notify": notify,
-      "output": output
   }
 
   cpu = AxiMaster(csr_bus, dut.clk, dut.rst)
 
-  return (scoreboard, axi_buses, xls_channels, cpu)
+  return (axi_buses, xls_channels, cpu)
 
-async def test_decoder(dut, seed, block_type, scoreboard, axi_buses, xls_channels, cpu):
+async def test_decoder(dut, seed, block_type, axi_buses, xls_channels, cpu):
   memory_bus = axi_buses["memory"]
   csr_bus = axi_buses["csr"]
   (notify_channel, notify_monitor) = xls_channels[NOTIFY_CHANNEL]
-  (output_channel, output_monitor) = xls_channels[OUTPUT_CHANNEL]
 
   assert_notify = Event()
   set_termination_event(notify_monitor, assert_notify, 1)
@@ -293,12 +264,6 @@ async def test_decoder(dut, seed, block_type, scoreboard, axi_buses, xls_channel
     encoded.close()
     reference_memory = SparseMemory(mem_size)
     reference_memory.write(obuf_addr, expected_decoded_frame)
-    expected_output_packets = generate_expected_output(expected_decoded_frame)
-
-    assert_expected_output = Event()
-    set_termination_event(output_monitor, assert_expected_output, len(expected_output_packets))
-    # Monitor stream output for packets with the decoded ZSTD frame
-    scoreboard.add_interface(output_monitor, expected_output_packets)
 
     # Initialise testbench memory with generated ZSTD frame
     memory = AxiRamFromFile(bus=memory_bus, clock=dut.clk, reset=dut.rst, path=encoded.name, size=mem_size)
@@ -329,62 +294,62 @@ async def zstd_reset_test(dut):
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_raw_frames_test_1(dut):
   block_type = BlockType.RAW
-  (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 1, block_type, scoreboard, axi_buses, xls_channels, cpu)
+  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
+  await test_decoder(dut, 1, block_type, axi_buses, xls_channels, cpu)
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_raw_frames_test_2(dut):
   block_type = BlockType.RAW
-  (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 2, block_type, scoreboard, axi_buses, xls_channels, cpu)
+  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
+  await test_decoder(dut, 2, block_type, axi_buses, xls_channels, cpu)
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_raw_frames_test_3(dut):
   block_type = BlockType.RAW
-  (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 3, block_type, scoreboard, axi_buses, xls_channels, cpu)
+  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
+  await test_decoder(dut, 3, block_type, axi_buses, xls_channels, cpu)
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_raw_frames_test_4(dut):
   block_type = BlockType.RAW
-  (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 4, block_type, scoreboard, axi_buses, xls_channels, cpu)
+  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
+  await test_decoder(dut, 4, block_type, axi_buses, xls_channels, cpu)
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_raw_frames_test_5(dut):
   block_type = BlockType.RAW
-  (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 5, block_type, scoreboard, axi_buses, xls_channels, cpu)
+  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
+  await test_decoder(dut, 5, block_type, axi_buses, xls_channels, cpu)
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_rle_frames_test_1(dut):
   block_type = BlockType.RLE
-  (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 1, block_type, scoreboard, axi_buses, xls_channels, cpu)
+  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
+  await test_decoder(dut, 1, block_type, axi_buses, xls_channels, cpu)
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_rle_frames_test_2(dut):
   block_type = BlockType.RLE
-  (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 2, block_type, scoreboard, axi_buses, xls_channels, cpu)
+  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
+  await test_decoder(dut, 2, block_type, axi_buses, xls_channels, cpu)
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_rle_frames_test_3(dut):
   block_type = BlockType.RLE
-  (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 3, block_type, scoreboard, axi_buses, xls_channels, cpu)
+  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
+  await test_decoder(dut, 3, block_type, axi_buses, xls_channels, cpu)
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_rle_frames_test_4(dut):
   block_type = BlockType.RLE
-  (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 4, block_type, scoreboard, axi_buses, xls_channels, cpu)
+  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
+  await test_decoder(dut, 4, block_type, axi_buses, xls_channels, cpu)
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_rle_frames_test_5(dut):
   block_type = BlockType.RLE
-  (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 5, block_type, scoreboard, axi_buses, xls_channels, cpu)
+  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
+  await test_decoder(dut, 5, block_type, axi_buses, xls_channels, cpu)
 
 #@cocotb.test(timeout_time=1000, timeout_unit="ms")
 #async def zstd_compressed_frames_test(dut):
