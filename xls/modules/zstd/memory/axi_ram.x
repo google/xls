@@ -31,11 +31,11 @@ enum AxiRamReaderStatus: u1 {
     READ_BURST = 1,
 }
 
-// FIXME: add default value for RAM_DATA_W_LOG2 = {std::clog2(AXI_DATA_W + u32:1)} (https://github.com/google/xls/issues/992)
-struct AxiRamReaderSync<AXI_ID_W: u32, RAM_DATA_W: u32, RAM_DATA_W_LOG2: u32> {
+// FIXME: add default value for RAM_DATA_W_PLUS1_LOG2 = {std::clog2(AXI_DATA_W + u32:1)} (https://github.com/google/xls/issues/992)
+struct AxiRamReaderSync<AXI_ID_W: u32, RAM_DATA_W: u32, RAM_DATA_W_PLUS1_LOG2: u32> {
     do_recv_ram_resp: bool,
-    read_data_size: uN[RAM_DATA_W_LOG2],
-    read_data_offset: uN[RAM_DATA_W_LOG2],
+    read_data_size: uN[RAM_DATA_W_PLUS1_LOG2],
+    read_data_offset: uN[RAM_DATA_W_PLUS1_LOG2],
     send_data: bool,
     resp: AxiReadResp,
     id: uN[AXI_ID_W],
@@ -50,10 +50,10 @@ struct AxiRamReaderRequesterState<AXI_ADDR_W: u32, AXI_ID_W: u32> {
     ram_rd_req_idx: u8,
 }
 
-// FIXME: add default value for AXI_DATA_W_LOG2 = {std::clog2(AXI_DATA_W + u32:1)} (https://github.com/google/xls/issues/992)
-struct AxiRamReaderResponderState<AXI_DATA_W: u32, AXI_DATA_W_LOG2:u32> {
+// FIXME: add default value for AXI_DATA_W_PLUS1_LOG2 = {std::clog2(AXI_DATA_W + u32:1)} (https://github.com/google/xls/issues/992)
+struct AxiRamReaderResponderState<AXI_DATA_W: u32, AXI_DATA_W_PLUS1_LOG2:u32> {
     data: uN[AXI_DATA_W],
-    data_size: uN[AXI_DATA_W_LOG2],
+    data_size: uN[AXI_DATA_W_PLUS1_LOG2],
 }
 
 // Translates RAM requests to AXI read requests
@@ -61,26 +61,25 @@ proc AxiRamReaderRequester<
     // AXI parameters
     AXI_ADDR_W: u32, AXI_DATA_W: u32, AXI_DEST_W: u32, AXI_ID_W: u32,
 
-    // FIXME: The parameter below should be calculated correctly,
-    // but causes deduction errors. The issue is possibly related to:
-    // https://github.com/google/xls/issues/1523
-
     // RAM parameters
     RAM_SIZE: u32,
-    RAM_DATA_W: u32, // = {AXI_DATA_W},
-    RAM_ADDR_W: u32, // = {AXI_ADDR_W},
-    RAM_NUM_PARTITIONS: u32, // = {AXI_DATA_W / u32:8 },
+    BASE_ADDR: u32 = {u32:0},
+    RAM_DATA_W: u32 = {AXI_DATA_W},
+    RAM_ADDR_W: u32 = {AXI_ADDR_W},
+    RAM_NUM_PARTITIONS: u32 = {AXI_DATA_W / u32:8 },
 
-    BASE_ADDR: u32, // = {u32:0},
-    AXI_DATA_W_DIV8: u32, // = { AXI_DATA_W / u32:8 }
+    AXI_DATA_W_DIV8: u32 = { AXI_DATA_W / u32:8 },
+    RAM_DATA_W_LOG2: u32 = { std::clog2(RAM_DATA_W) },
+    AXI_DATA_W_LOG2: u32 = { std::clog2(AXI_DATA_W) },
+    AXI_DATA_W_PLUS1_LOG2: u32 = { std::clog2(AXI_DATA_W + u32:1) },
+    RAM_DATA_W_PLUS1_LOG2: u32 = { std::clog2(RAM_DATA_W + u32:1) },
 > {
     type AxiAr = axi::AxiAr<AXI_ADDR_W, AXI_ID_W>;
-    // FIXME: Replace with params <RAM_ADDR_W, RAM_NUM_PARTITIONS>
-    type ReadReq = ram::ReadReq<u32:7, u32:4>;
+    type ReadReq = ram::ReadReq<RAM_ADDR_W, RAM_NUM_PARTITIONS>;
 
     type State = AxiRamReaderRequesterState<AXI_ADDR_W, AXI_ID_W>;
     type Status = AxiRamReaderStatus;
-    type Sync = AxiRamReaderSync<AXI_ID_W, RAM_DATA_W, u32:6>;
+    type Sync = AxiRamReaderSync<AXI_ID_W, RAM_DATA_W, RAM_DATA_W_PLUS1_LOG2>;
 
     axi_ar_r: chan<AxiAr> in;
     rd_req_s: chan<ReadReq> out;
@@ -99,16 +98,16 @@ proc AxiRamReaderRequester<
     }
 
     next(state: State) {
-        const AXI_DATA_W_LOG2 = std::flog2(AXI_DATA_W) + u32:1;
-        const RAM_DATA_W_LOG2 = std::flog2(RAM_DATA_W) + u32:1;
         const RAM_DATA_W_DIV8 = RAM_DATA_W >> u32:3;
 
         // receive AXI read request
         let (tok, ar_bundle, ar_bundle_valid) = recv_if_non_blocking(join(), axi_ar_r, state.status == Status::IDLE, zero!<AxiAr>());
 
         // validate bundle
-        let ar_bundle_ok = ar_bundle_valid && ((ar_bundle.size as u32 + u32:3) < AXI_DATA_W_LOG2);
-
+        let ar_bundle_ok = ar_bundle_valid && ((ar_bundle.size as u32 + u32:3) <= AXI_DATA_W_LOG2);
+        if ar_bundle_valid {
+            trace_fmt!("{:#x}", ar_bundle);
+        } else {};
         let tok = send_if(tok, sync_s, ar_bundle_valid && !ar_bundle_ok, Sync {
             id: ar_bundle.id,
             resp: AxiReadResp::SLVERR,
@@ -143,17 +142,17 @@ proc AxiRamReaderRequester<
         };
 
         // calculate read size and offset
-        let arsize_bits = AXI_AXSIZE_ENCODING_TO_SIZE[state.ar_bundle.size as u3] as uN[AXI_DATA_W_LOG2];
+        let arsize_bits = AXI_AXSIZE_ENCODING_TO_SIZE[state.ar_bundle.size as u3] as uN[AXI_DATA_W_PLUS1_LOG2];
 
-        let (read_data_size, read_data_offset) = if (arsize_bits > RAM_DATA_W as uN[AXI_DATA_W_LOG2]) {
+        let (read_data_size, read_data_offset) = if (arsize_bits > RAM_DATA_W as uN[AXI_DATA_W_PLUS1_LOG2]) {
             (
-                RAM_DATA_W as uN[RAM_DATA_W_LOG2],
-                uN[RAM_DATA_W_LOG2]:0,
+                RAM_DATA_W as uN[RAM_DATA_W_PLUS1_LOG2],
+                uN[RAM_DATA_W_PLUS1_LOG2]:0,
             )
         } else {
             (
                 arsize_bits,
-                ((state.addr % RAM_DATA_W_DIV8) << u32:3) as uN[RAM_DATA_W_LOG2],
+                ((state.addr % RAM_DATA_W_DIV8) << u32:3) as uN[RAM_DATA_W_PLUS1_LOG2],
             )
         };
 
@@ -215,27 +214,24 @@ proc AxiRamReaderResponder<
     // AXI parameters
     AXI_ADDR_W: u32, AXI_DATA_W: u32, AXI_DEST_W: u32, AXI_ID_W: u32,
 
-    // FIXME: The parameter below should be calculated correctly,
-    // but causes deduction errors. The issue is possibly related to:
-    // https://github.com/google/xls/issues/1523
-
     // RAM parameters
     RAM_SIZE: u32,
-    RAM_DATA_W: u32, // = {AXI_DATA_W},
-    RAM_ADDR_W: u32, // = {AXI_ADDR_W},
-    RAM_NUM_PARTITIONS: u32, // = {AXI_DATA_W / u32:8 },
+    BASE_ADDR: u32 = {u32:0},
+    RAM_DATA_W: u32 = {AXI_DATA_W},
+    RAM_ADDR_W: u32 = {AXI_ADDR_W},
+    RAM_NUM_PARTITIONS: u32 = {AXI_DATA_W / u32:8 },
 
-    BASE_ADDR: u32, // = {u32:0},
-    AXI_DATA_W_DIV8: u32, // = { AXI_DATA_W / u32:8 }
+    AXI_DATA_W_DIV8: u32 = { AXI_DATA_W / u32:8 },
+    AXI_DATA_W_LOG2: u32 = { std::clog2(AXI_DATA_W) },
+    RAM_DATA_W_LOG2: u32 = { std::clog2(RAM_DATA_W) },
+    AXI_DATA_W_PLUS1_LOG2: u32 = { std::clog2(AXI_DATA_W + u32:1) },
+    RAM_DATA_W_PLUS1_LOG2: u32 = { std::clog2(RAM_DATA_W + u32:1) },
 > {
-    // FIXME: Replace with params <AXI_DATA_W, AXI_ID_W>
-    type AxiR = axi::AxiR<u32:32, u32:8>;
+    type AxiR = axi::AxiR<AXI_DATA_W, AXI_ID_W>;
     type ReadResp = ram::ReadResp<RAM_DATA_W>;
 
-    // FIXME: Replace with params <AXI_ADDR_W>
-    type State = AxiRamReaderResponderState<u32:32, u32:6>;
-    // FIXME: Replace with params <AXI_ID_W, RAM_DATA_W>
-    type Sync = AxiRamReaderSync<u32:8, u32:32, u32:6>;
+    type State = AxiRamReaderResponderState<AXI_DATA_W, AXI_DATA_W_PLUS1_LOG2>;
+    type Sync = AxiRamReaderSync<AXI_ID_W, RAM_DATA_W, RAM_DATA_W_PLUS1_LOG2>;
 
     rd_resp_r: chan<ReadResp> in;
     axi_r_s: chan<AxiR> out;
@@ -297,7 +293,7 @@ proc AxiRamReaderResponder<
     }
 }
 
-proc AxiRamReader<
+pub proc AxiRamReader<
     // AXI parameters
     AXI_ADDR_W: u32,
     AXI_DATA_W: u32,
@@ -306,17 +302,14 @@ proc AxiRamReader<
 
     // RAM parameters
     RAM_SIZE: u32,
+    BASE_ADDR: u32 = {u32:0},
+    RAM_DATA_W: u32 = {AXI_DATA_W},
+    RAM_ADDR_W: u32 = {AXI_ADDR_W},
+    RAM_NUM_PARTITIONS: u32 = { AXI_DATA_W / u32:8 },
 
-    // FIXME: The parameter below should be calculated correctly,
-    // but causes deduction errors. The issue is possibly related to:
-    // https://github.com/google/xls/issues/1523
-
-    RAM_DATA_W: u32, // = {AXI_DATA_W},
-    RAM_ADDR_W: u32, // = {AXI_ADDR_W},
-    RAM_NUM_PARTITIONS: u32, // = { AXI_DATA_W / u32:8 },
-
-    BASE_ADDR: u32, // = {u32:0},
-    AXI_DATA_W_DIV8: u32, // = { AXI_DATA_W / u32:8 }
+    AXI_DATA_W_DIV8: u32 = { AXI_DATA_W / u32:8 },
+    RAM_DATA_W_LOG2: u32 = { std::clog2(RAM_DATA_W) },
+    RAM_DATA_W_PLUS1_LOG2: u32 = { std::clog2(RAM_DATA_W + u32:1) },
 > {
     type AxiAr = axi::AxiAr<AXI_ADDR_W, AXI_ID_W>;
     type AxiR = axi::AxiR<AXI_DATA_W, AXI_ID_W>;
@@ -324,8 +317,7 @@ proc AxiRamReader<
     type ReadReq = ram::ReadReq<RAM_ADDR_W, RAM_NUM_PARTITIONS>;
     type ReadResp = ram::ReadResp<RAM_DATA_W>;
 
-    // FIXME: Replace with params <AXI_ID_W, RAM_DATA_W>
-    type Sync = AxiRamReaderSync<u32:8, u32:32, u32:6>;
+    type Sync = AxiRamReaderSync<AXI_ID_W, RAM_DATA_W, RAM_DATA_W_PLUS1_LOG2>;
 
     init { }
 
@@ -342,13 +334,13 @@ proc AxiRamReader<
 
         spawn AxiRamReaderRequester<
             AXI_ADDR_W, AXI_DATA_W, AXI_DEST_W, AXI_ID_W,
-            RAM_SIZE, RAM_DATA_W, RAM_ADDR_W, RAM_NUM_PARTITIONS,
-            BASE_ADDR, AXI_DATA_W_DIV8,
+            RAM_SIZE, BASE_ADDR, RAM_DATA_W, RAM_ADDR_W, RAM_NUM_PARTITIONS,
+            AXI_DATA_W_DIV8,
         >(axi_ar_r, rd_req_s, sync_s);
         spawn AxiRamReaderResponder<
             AXI_ADDR_W, AXI_DATA_W, AXI_DEST_W, AXI_ID_W,
-            RAM_SIZE, RAM_DATA_W, RAM_ADDR_W, RAM_NUM_PARTITIONS,
-            BASE_ADDR, AXI_DATA_W_DIV8,
+            RAM_SIZE, BASE_ADDR, RAM_DATA_W, RAM_ADDR_W, RAM_NUM_PARTITIONS,
+            AXI_DATA_W_DIV8,
         >(rd_resp_r, axi_r_s, sync_r);
     }
 
@@ -389,8 +381,8 @@ proc AxiRamReaderInst<
     ) {
         spawn AxiRamReader<
             INST_AXI_ADDR_W, INST_AXI_DATA_W, INST_AXI_DEST_W, INST_AXI_ID_W,
-            INST_RAM_SIZE, INST_RAM_DATA_W, INST_RAM_ADDR_W, INST_RAM_NUM_PARTITIONS,
-            INST_BASE_ADDR, INST_AXI_DATA_W_DIV8
+            INST_RAM_SIZE, INST_BASE_ADDR, INST_RAM_DATA_W, INST_RAM_ADDR_W, INST_RAM_NUM_PARTITIONS,
+            INST_AXI_DATA_W_DIV8
         > (axi_ar_r, axi_r_s, rd_req_s, rd_resp_r);
     }
 
@@ -423,8 +415,8 @@ proc AxiRamReaderInstWithEmptyWrites {
     ) {
         spawn AxiRamReader<
             INST_AXI_ADDR_W, INST_AXI_DATA_W, INST_AXI_DEST_W, INST_AXI_ID_W,
-            INST_RAM_SIZE, INST_RAM_DATA_W, INST_RAM_ADDR_W, INST_RAM_NUM_PARTITIONS,
-            INST_BASE_ADDR, INST_AXI_DATA_W_DIV8
+            INST_RAM_SIZE, INST_BASE_ADDR, INST_RAM_DATA_W, INST_RAM_ADDR_W, INST_RAM_NUM_PARTITIONS,
+            INST_AXI_DATA_W_DIV8
         > (axi_ar_r, axi_r_s, rd_req_s, rd_resp_r);
 
         (
@@ -659,8 +651,8 @@ proc AxiRamReaderTest {
 
         spawn AxiRamReader<
             TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W,
-            TEST_RAM_SIZE, TEST_RAM_DATA_W, TEST_RAM_ADDR_W, TEST_RAM_NUM_PARTITIONS,
-            TEST_BASE_ADDR, TEST_AXI_DATA_W_DIV8,
+            TEST_RAM_SIZE, TEST_BASE_ADDR, TEST_RAM_DATA_W, TEST_RAM_ADDR_W, TEST_RAM_NUM_PARTITIONS,
+            TEST_AXI_DATA_W_DIV8,
         >(axi_ar_r, axi_r_s, rd_req_s, rd_resp_r);
 
         (
