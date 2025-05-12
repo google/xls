@@ -1277,7 +1277,8 @@ pub fn sizeof_unsigned<N: u32>(x: uN[N]) -> u32 { N }
 
 // Returns `x` with all but the least-significant `n` bits set to zero.
 pub fn keep_lsbs<WIDTH: u32, N_WIDTH: u32>(x: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH] {
-    x & !(all_ones!<uN[WIDTH]>() << n)
+    let mask = decode<uN[WIDTH]>(n) - uN[WIDTH]:1;
+    x & mask
 }
 
 #[test]
@@ -1319,7 +1320,8 @@ fn keep_msbs_test() {
 
 // Returns `value` with the least-significant `n` bits set to zero.
 pub fn clear_lsbs<WIDTH: u32, N_WIDTH: u32>(value: uN[WIDTH], n: uN[N_WIDTH]) -> uN[WIDTH] {
-    value & (all_ones!<uN[WIDTH]>() << n)
+    let mask = decode<uN[WIDTH]>(n) - uN[WIDTH]:1;
+    value & (!mask)
 }
 
 #[test]
