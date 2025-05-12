@@ -563,7 +563,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // The parametric invocation now gets its own data structure set up in both
     // the `InferenceTable` and the `TypeInfo` hierarchy.
 
-    TypeInfo* invocation_type_info = nullptr;
     std::optional<const ParametricContext*> caller_or_target_struct_context =
         function_and_target_object.target_struct_context.has_value()
             ? function_and_target_object.target_struct_context
@@ -572,11 +571,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         TypeInfo * base_type_info,
         GetTypeInfo(function->owner(), caller_or_target_struct_context));
     XLS_ASSIGN_OR_RETURN(
-        invocation_type_info,
+        TypeInfo * invocation_type_info,
         import_data_.type_info_owner().New(function->owner(), base_type_info));
 
     XLS_ASSIGN_OR_RETURN(
-        const ParametricContext* invocation_context,
+        ParametricContext * invocation_context,
         table_.AddParametricInvocation(
             *invocation, *function, caller, caller_context,
             function_and_target_object.target_struct_context.has_value()
@@ -615,9 +614,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     // Figure out any implicit parametrics and generate the `ParametricEnv`.
-    XLS_RETURN_IF_ERROR(GenerateParametricFunctionEnv(
-        function_and_target_object.target_struct_context, invocation_context,
-        invocation));
+    XLS_ASSIGN_OR_RETURN(ParametricEnv env,
+                         GenerateParametricFunctionEnv(
+                             function_and_target_object.target_struct_context,
+                             invocation_context, invocation));
+    const bool canonicalized = table_.MapToCanonicalInvocationTypeInfo(
+        invocation_context, std::move(env));
     XLS_RETURN_IF_ERROR(AddInvocationTypeInfo(invocation_context));
 
     // For an instance method call like `some_object.parametric_fn(args)`, type
@@ -689,7 +691,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_ASSIGN_OR_RETURN(proc_type_info_frame,
                            PushProcTypeInfo(*function->proc()));
     }
-    XLS_RETURN_IF_ERROR(ConvertSubtree(function, function, invocation_context));
+    if (!canonicalized) {
+      XLS_RETURN_IF_ERROR(
+          ConvertSubtree(function, function, invocation_context));
+    }
     return GenerateTypeInfo(caller_context, invocation);
   }
 
@@ -758,10 +763,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       std::optional<const TypeAnnotation*> pre_unified_type = std::nullopt,
       TypeAnnotationFilter type_annotation_filter =
           TypeAnnotationFilter::None()) {
-    // Don't generate type info for the rest of tuple wildcard.
-    if (node->kind() == AstNodeKind::kRestOfTuple) {
-      return absl::OkStatus();
-    }
     TypeSystemTrace trace = tracer_->TraceConvertNode(node);
     VLOG(5) << "GenerateTypeInfo for node: " << node->ToString()
             << " of kind: `" << AstNodeKindToString(node->kind()) << "`"
@@ -1130,6 +1131,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                             file_table_);
             }
             ti->NoteConstExpr(value.value, *evaluated_value);
+            ti->NoteConstExpr(value.name_def, *evaluated_value);
           }
           // Evaluated enum value has numeric type, which needs to be converted
           // to enum type.
@@ -1137,6 +1139,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           InterpValue enum_value = InterpValue::MakeEnum(
               bits, evaluated_value->IsSigned(), *enum_def);
           ti->NoteConstExpr(value.value, enum_value);
+          ti->NoteConstExpr(value.name_def, enum_value);
           members.push_back(enum_value);
         }
       }
@@ -1893,7 +1896,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // Determines any implicit parametric values in the given `invocation`, and
   // generates its `ParametricEnv` in `converted_parametric_envs_`. Also
   // populates `parametric_value_exprs_` for the invocation.
-  absl::Status GenerateParametricFunctionEnv(
+  absl::StatusOr<ParametricEnv> GenerateParametricFunctionEnv(
       std::optional<const ParametricContext*> callee_struct_context,
       const ParametricContext* invocation_context,
       const Invocation* invocation) {
@@ -2010,7 +2013,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                     std::move(actual_parametrics));
     ParametricEnv env(std::move(values));
     converted_parametric_envs_.emplace(invocation_context, env);
-    return absl::OkStatus();
+    return env;
   }
 
   // Attempts to infer the values of the specified implicit parametrics in an

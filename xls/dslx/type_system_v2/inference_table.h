@@ -60,7 +60,7 @@ struct ParametricInvocationDetails {
 // The details for a `ParametricContext` that is for a struct.
 struct ParametricStructDetails {
   const StructDefBase* struct_or_proc_def;
-  ParametricEnv env;
+  const ParametricEnv env;
 };
 
 // Identifies either an invocation of a parametric function, or a
@@ -160,6 +160,10 @@ class ParametricContext {
         type_info_ != nullptr ? type_info_->module()->name() : "none");
   }
 
+  // Intended to be used only from the owning table, upon canonicalization.
+  void SetInvocationEnv(ParametricEnv env) { invocation_env_ = std::move(env); }
+  void SetTypeInfo(TypeInfo* type_info) { type_info_ = type_info; }
+
  private:
   static std::string DetailsToString(const Details& details) {
     return absl::visit(
@@ -180,9 +184,10 @@ class ParametricContext {
   const uint64_t id_;  // Just for logging.
   const AstNode* node_;
   const Details details_;
-  TypeInfo* type_info_;
   const std::optional<const ParametricContext*> parent_context_;
   const std::optional<const TypeAnnotation*> self_type_;
+  TypeInfo* type_info_;
+  std::optional<ParametricEnv> invocation_env_;
 };
 
 inline std::string ToString(std::optional<const ParametricContext*> context) {
@@ -279,12 +284,29 @@ class InferenceTable {
   // context. Note that the `caller` must only be `nullopt` if the invocation is
   // not in a function (e.g. it may be in the RHS of a free constant
   // declaration).
-  virtual absl::StatusOr<const ParametricContext*> AddParametricInvocation(
+  virtual absl::StatusOr<ParametricContext*> AddParametricInvocation(
       const Invocation& invocation, const Function& callee,
       std::optional<const Function*> caller,
       std::optional<const ParametricContext*> parent_context,
       std::optional<const TypeAnnotation*> self_type,
-      TypeInfo* invocation_type_info = nullptr) = 0;
+      TypeInfo* invocation_type_info) = 0;
+
+  // Finds an existing `ParametricContext` in the table that represents an
+  // invocation of the same function with the same parametrics as `context` and
+  // `env`.
+  //
+  // If an existing context is found, updates the `TypeInfo` pointer associated
+  // with `context` to be one from the existing context, and returns true. The
+  // implication is that there is then no point in spending effort to populate
+  // the original `TypeInfo` that was associated with `context`. Whether or not
+  // the caller subsequently uses this information, the table will make use of
+  // it for internal cache optimization.
+  //
+  // If an existing matching context is not found, then this function captures
+  // the `env`, makes `context` eligible to serve as a canonical context for
+  // that `env` in the future, and returns false.
+  virtual bool MapToCanonicalInvocationTypeInfo(ParametricContext* context,
+                                                ParametricEnv env) = 0;
 
   // Retrieves all the parametric invocations that have been defined.
   virtual std::vector<const ParametricContext*> GetParametricInvocations()

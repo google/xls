@@ -71,6 +71,8 @@ struct TypeSystemTraceImpl {
   std::optional<std::vector<const TypeAnnotation*>> annotations;
   std::optional<absl::flat_hash_set<const ParametricBinding*>> bindings;
   std::optional<const TypeAnnotation*> result_annotation;
+  std::optional<bool> used_cache;
+  std::optional<bool> populated_cache;
 };
 
 std::string TraceKindToString(TraceKind kind) {
@@ -144,6 +146,13 @@ std::string TraceImplToString(const TypeSystemTraceImpl& impl) {
   if (impl.result_annotation.has_value()) {
     pieces.push_back(
         absl::StrCat("result: ", (*impl.result_annotation)->ToString()));
+  }
+  if (impl.used_cache.has_value()) {
+    pieces.push_back(absl::StrCat("used_global_cache: ", *impl.used_cache));
+  }
+  if (impl.populated_cache.has_value()) {
+    pieces.push_back(
+        absl::StrCat("populated_global_cache: ", *impl.populated_cache));
   }
   return absl::StrJoin(pieces, ", ");
 }
@@ -298,6 +307,9 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
       absl::StrAppendFormat(&result, "+ %d more\n\n", stats.size() - kMaxNodes);
     }
 
+    absl::StrAppendFormat(
+        &result, "Type variable unifications: %d (%d used global cache).\n\n",
+        variable_unification_count_, cached_variable_unification_count_);
     return result;
   }
 
@@ -308,6 +320,13 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
       NodeStats& node_stats = stats_[*impl->node];
       node_stats.total_processing_time += absl::Now() - *impl->start_time;
       ++node_stats.conversion_count;
+    }
+    if (impl->kind == TraceKind::kUnify &&
+        impl->inference_variable.has_value()) {
+      ++variable_unification_count_;
+      if (impl->used_cache.has_value() && *impl->used_cache) {
+        ++cached_variable_unification_count_;
+      }
     }
     stack_.pop();
   }
@@ -337,6 +356,8 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
   std::stack<TypeSystemTraceImpl*> stack_;
   TypeSystemTrace root_trace_;
   absl::flat_hash_map<const AstNode*, NodeStats> stats_;
+  int variable_unification_count_ = 0;
+  int cached_variable_unification_count_ = 0;
 };
 
 std::unique_ptr<TypeSystemTracer> TypeSystemTracer::Create() {
@@ -345,6 +366,12 @@ std::unique_ptr<TypeSystemTracer> TypeSystemTracer::Create() {
 
 void TypeSystemTrace::SetResult(const TypeAnnotation* annotation) {
   impl_->result_annotation = annotation;
+}
+
+void TypeSystemTrace::SetUsedCache(bool value) { impl_->used_cache = value; }
+
+void TypeSystemTrace::SetPopulatedCache(bool value) {
+  impl_->populated_cache = value;
 }
 
 }  // namespace xls::dslx

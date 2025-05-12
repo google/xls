@@ -150,6 +150,11 @@ struct NodeData {
 
 // The mutable data for a `ParametricContext` in an `InferenceTable`.
 struct MutableParametricContextData {
+  // An arbitrarily-selected context that has the same `ParametricEnv` as this
+  // one. This is only set in cases where "duplicate" contexts are identified by
+  // the table.
+  std::optional<const ParametricContext*> canonical_context;
+
   absl::flat_hash_map<const InferenceVariable*, ParametricContextScopedExpr>
       parametric_values;
   absl::flat_hash_map<const InferenceVariable*,
@@ -177,8 +182,8 @@ class UnificationCache {
           unified_type;
     }
     for (const NameRef* dep : transitive_variable_dependencies) {
-      transitive_consumers_[std::get<const NameDef*>(dep->name_def())].insert(
-          variable_name_def);
+      const NameDef* dep_def = std::get<const NameDef*>(dep->name_def());
+      transitive_consumers_[dep_def].insert(variable_name_def);
     }
   }
 
@@ -201,12 +206,13 @@ class UnificationCache {
     return it->second.cached_type;
   }
 
-  void InvalidateVariable(const NameRef* variable) {
+  void InvalidateVariable(
+      std::optional<const ParametricContext*> parametric_context,
+      const NameRef* variable) {
     VLOG(6) << "Invalidating unification cache for variable due to a direct "
                "change: "
             << variable->ToString();
     const auto* def = std::get<const NameDef*>(variable->name_def());
-    cache_.erase(def);
     const auto consumers = transitive_consumers_.find(def);
     if (consumers != transitive_consumers_.end()) {
       for (const NameDef* consumer : consumers->second) {
@@ -214,9 +220,29 @@ class UnificationCache {
                 << consumer->ToString()
                 << " due to dependency on changed variable: "
                 << variable->ToString();
-        cache_.erase(consumer);
+        if (parametric_context.has_value()) {
+          const auto consumer_it = cache_.find(consumer);
+          if (consumer_it != cache_.end()) {
+            consumer_it->second.cached_type_per_parametric_context.erase(
+                *parametric_context);
+          }
+        } else {
+          // Note that if the invalidation is not scoped to a context, it could
+          // affect any context.
+          cache_.erase(consumer);
+        }
       }
-      transitive_consumers_.erase(consumers);
+    }
+
+    if (parametric_context.has_value()) {
+      const auto it = cache_.find(def);
+      if (it != cache_.end()) {
+        it->second.cached_type_per_parametric_context.erase(
+            *parametric_context);
+      }
+    } else {
+      cache_.erase(def);
+      transitive_consumers_.erase(def);
     }
   }
 
@@ -275,7 +301,7 @@ class InferenceTableImpl : public InferenceTable {
     return name_ref;
   }
 
-  absl::StatusOr<const ParametricContext*> AddParametricInvocation(
+  absl::StatusOr<ParametricContext*> AddParametricInvocation(
       const Invocation& node, const Function& callee,
       std::optional<const Function*> caller,
       std::optional<const ParametricContext*> parent_context,
@@ -325,10 +351,40 @@ class InferenceTableImpl : public InferenceTable {
                 context.get(), binding->type_annotation(), binding->expr()));
       }
     }
-    const ParametricContext* result = context.get();
+    ParametricContext* result = context.get();
     parametric_contexts_.push_back(std::move(context));
     mutable_parametric_context_data_.emplace(result, std::move(mutable_data));
     return result;
+  }
+
+  bool MapToCanonicalInvocationTypeInfo(ParametricContext* parametric_context,
+                                        ParametricEnv env) override {
+    CHECK(parametric_context->is_invocation());
+
+    // `ParametricEnv` doesn't currently capture generic types, so for the time
+    // being, we can't canonicalize invocations that use them.
+    for (const ParametricBinding* binding :
+         parametric_context->parametric_bindings()) {
+      if (dynamic_cast<const GenericTypeAnnotation*>(
+              binding->type_annotation())) {
+        return false;
+      }
+    }
+
+    parametric_context->SetInvocationEnv(env);
+    const ParametricInvocationDetails& details =
+        std::get<ParametricInvocationDetails>(parametric_context->details());
+    const auto it = canonical_parametric_context_.find({details.callee, env});
+    if (it == canonical_parametric_context_.end()) {
+      canonical_parametric_context_.emplace_hint(
+          it, std::make_pair(details.callee, env), parametric_context);
+      return false;
+    }
+
+    mutable_parametric_context_data_.at(parametric_context).canonical_context =
+        it->second;
+    parametric_context->SetTypeInfo(it->second->type_info());
+    return true;
   }
 
   std::vector<const ParametricContext*> GetParametricInvocations()
@@ -410,12 +466,16 @@ class InferenceTableImpl : public InferenceTable {
     const auto it = type_annotations_per_type_variable_.find(variable);
     if (it != type_annotations_per_type_variable_.end()) {
       auto& annotations = it->second;
+      size_t count_before = annotations.size();
       annotations.erase(std::remove_if(annotations.begin(), annotations.end(),
                                        [&](const TypeAnnotation* annotation) {
                                          return remove_predicate(annotation);
                                        }),
                         annotations.end());
-      cache_.InvalidateVariable(variable->name_ref());
+      if (annotations.size() != count_before) {
+        cache_.InvalidateVariable(/*parametric_context=*/std::nullopt,
+                                  variable->name_ref());
+      }
     }
     return absl::OkStatus();
   }
@@ -647,18 +707,33 @@ class InferenceTableImpl : public InferenceTable {
       const absl::flat_hash_set<const NameRef*>&
           transitive_variable_dependencies,
       const TypeAnnotation* unified_type) override {
-    cache_.SetUnifiedTypeForVariable(parametric_context, variable,
-                                     transitive_variable_dependencies,
+    cache_.SetUnifiedTypeForVariable(GetCanonicalContext(parametric_context),
+                                     variable, transitive_variable_dependencies,
                                      unified_type);
   }
 
   std::optional<const TypeAnnotation*> GetCachedUnifiedTypeForVariable(
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* variable) override {
-    return cache_.GetUnifiedTypeForVariable(parametric_context, variable);
+    return cache_.GetUnifiedTypeForVariable(
+        GetCanonicalContext(parametric_context), variable);
   }
 
  private:
+  std::optional<const ParametricContext*> GetCanonicalContext(
+      std::optional<const ParametricContext*> context) {
+    if (!context.has_value()) {
+      return std::nullopt;
+    }
+    const auto it = mutable_parametric_context_data_.find(*context);
+    if (it == mutable_parametric_context_data_.end()) {
+      return std::nullopt;
+    }
+    return it->second.canonical_context.has_value()
+               ? it->second.canonical_context
+               : context;
+  }
+
   void AddVariable(const NameDef* name_def,
                    std::unique_ptr<InferenceVariable> variable) {
     variables_.emplace(name_def, std::move(variable));
@@ -713,10 +788,12 @@ class InferenceTableImpl : public InferenceTable {
       }
     }
     if (old_variable.has_value()) {
-      cache_.InvalidateVariable((*old_variable)->name_ref());
+      cache_.InvalidateVariable(/*parametric_context=*/std::nullopt,
+                                (*old_variable)->name_ref());
     }
     if (node_data.type_variable.has_value()) {
-      cache_.InvalidateVariable((*node_data.type_variable)->name_ref());
+      cache_.InvalidateVariable(/*parametric_context=*/std::nullopt,
+                                (*node_data.type_variable)->name_ref());
     }
     return absl::OkStatus();
   }
@@ -732,7 +809,8 @@ class InferenceTableImpl : public InferenceTable {
     } else {
       type_annotations_per_type_variable_[variable].push_back(annotation);
     }
-    cache_.InvalidateVariable(variable->name_ref());
+    cache_.InvalidateVariable(GetCanonicalContext(context),
+                              variable->name_ref());
   }
 
   Module& module_;
@@ -755,6 +833,9 @@ class InferenceTableImpl : public InferenceTable {
   std::vector<std::unique_ptr<ParametricContext>> parametric_contexts_;
   absl::flat_hash_map<const ParametricContext*, MutableParametricContextData>
       mutable_parametric_context_data_;
+  absl::flat_hash_map<std::pair<const Function*, ParametricEnv>,
+                      const ParametricContext*>
+      canonical_parametric_context_;
   absl::flat_hash_set<const TypeAnnotation*> auto_literal_annotations_;
   absl::flat_hash_map<const ColonRef*, const AstNode*> colon_ref_targets_;
   absl::flat_hash_map<
