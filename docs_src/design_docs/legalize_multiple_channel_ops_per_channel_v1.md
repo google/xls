@@ -1,4 +1,4 @@
-# Legalize Multiple Channel Ops Per Channel
+# Legalize Multiple Channel Ops Per Channel (v1)
 
 [TOC]
 
