@@ -311,7 +311,6 @@ proc ZstdDecoderTest {
     of_def_test_wr_resp_r: chan<FseRamWrResp> in;
 
     notify_r: chan<()> in;
-    reset_r: chan<()> in;
 
     init {}
 
@@ -354,7 +353,6 @@ proc ZstdDecoderTest {
         let (hb_ram_wr_resp_s, hb_ram_wr_resp_r) = chan<RamWrRespHB>[8]("hb_ram_wr_resp");
 
         let (notify_s, notify_r) = chan<()>("notify");
-        let (reset_s, reset_r) = chan<()>("reset");
 
         // Huffman weights memory
         let (huffman_lit_weights_rd_req_s, huffman_lit_weights_rd_req_r) = chan<HuffmanWeightsReadReq>("huffman_lit_weights_rd_req");
@@ -652,7 +650,7 @@ proc ZstdDecoderTest {
             hb_ram_wr_resp_r[0], hb_ram_wr_resp_r[1], hb_ram_wr_resp_r[2], hb_ram_wr_resp_r[3],
             hb_ram_wr_resp_r[4], hb_ram_wr_resp_r[5], hb_ram_wr_resp_r[6], hb_ram_wr_resp_r[7],
 
-            notify_s, reset_s,
+            notify_s,
         );
 
         unroll_for! (i, ()): (u32, ()) in range(u32:0, u32:8) {
@@ -706,7 +704,7 @@ proc ZstdDecoderTest {
             ll_sel_test_s, ll_def_test_rd_req_s, ll_def_test_rd_resp_r, ll_def_test_wr_req_s, ll_def_test_wr_resp_r,
             ml_sel_test_s, ml_def_test_rd_req_s, ml_def_test_rd_resp_r, ml_def_test_wr_req_s, ml_def_test_wr_resp_r,
             of_sel_test_s, of_def_test_rd_req_s, of_def_test_rd_resp_r, of_def_test_wr_req_s, of_def_test_wr_resp_r,
-            notify_r, reset_r,
+            notify_r,
         )
     }
 
@@ -792,20 +790,6 @@ proc ZstdDecoderTest {
                 last: u1:1,
             };
 
-            // reset the decoder
-            trace_fmt!("Sending reset");
-            let tok = send(tok, csr_axi_aw_s, axi::AxiAw {
-                addr: csr_addr<TEST_AXI_ADDR_W>(zstd_dec::Csr::RESET),
-                ..addr_req
-            });
-            let tok = send(tok, csr_axi_w_s, axi::AxiW {
-                data: uN[TEST_AXI_DATA_W]:0x1,
-                ..data_req
-            });
-            trace_fmt!("Sent reset");
-            let (tok, _) = recv(tok, csr_axi_b_r);
-            // Wait for reset notification before issuing further CSR writes
-            let (tok, _) = recv(tok, reset_r);
             // configure input buffer address
             let tok = send(tok, csr_axi_aw_s, axi::AxiAw {
                 addr: csr_addr<TEST_AXI_ADDR_W>(zstd_dec::Csr::INPUT_BUFFER),
