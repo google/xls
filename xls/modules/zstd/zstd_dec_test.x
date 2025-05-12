@@ -118,7 +118,6 @@ proc ZstdDecoderTest {
     raw_wr_resp_bh_r: chan<RamWrResp> in;
     raw_wr_resp_raw_r: chan<RamWrResp> in;
 
-    output_r: chan<ZstdDecodedPacket> in;
     notify_r: chan<()> in;
     reset_r: chan<()> in;
 
@@ -164,7 +163,6 @@ proc ZstdDecoderTest {
         let (ram_wr_resp_bh_s, ram_wr_resp_bh_r) = chan<RamWrResp>("ram_wr_resp_bh");
         let (ram_wr_resp_raw_s, ram_wr_resp_raw_r) = chan<RamWrResp>("ram_wr_resp_raw");
 
-        let (output_s, output_r) = chan<ZstdDecodedPacket>("output");
         let (notify_s, notify_r) = chan<()>("notify");
         let (reset_s, reset_r) = chan<()>("reset");
 
@@ -186,7 +184,7 @@ proc ZstdDecoderTest {
             ram_wr_req_s[4], ram_wr_req_s[5], ram_wr_req_s[6], ram_wr_req_s[7],
             ram_wr_resp_r[0], ram_wr_resp_r[1], ram_wr_resp_r[2], ram_wr_resp_r[3],
             ram_wr_resp_r[4], ram_wr_resp_r[5], ram_wr_resp_r[6], ram_wr_resp_r[7],
-            output_s, notify_s, reset_s,
+            notify_s, reset_s,
         );
 
         spawn ram::RamModel<
@@ -277,7 +275,7 @@ proc ZstdDecoderTest {
             ram_rd_req_r, ram_rd_resp_s, ram_wr_req_r, ram_wr_resp_s,
             ram_wr_req_fh_s, ram_wr_req_bh_s, ram_wr_req_raw_s,
             ram_wr_resp_fh_r, ram_wr_resp_bh_r, ram_wr_resp_raw_r,
-            output_r, notify_r, reset_r,
+            notify_r, reset_r,
         )
     }
 
@@ -361,13 +359,6 @@ proc ZstdDecoderTest {
             let (tok, _) = recv(tok, csr_axi_b_r);
 
             let decomp_frame = zstd_frame_testcases::DECOMPRESSED_FRAMES[test_i];
-            let tok = for (decomp_i, tok): (u32, token) in range(u32:0, decomp_frame.array_length) {
-                let (tok, decomp_packet) = recv(tok, output_r);
-                assert_eq(decomp_packet.data, decomp_frame.data[decomp_i]);
-                assert_eq(decomp_packet.last, decomp_i == (decomp_frame.length - u32:1) / u32:8);
-                tok
-            }(tok);
-
             // Test ZstdDecoder memory output interface
             // Mock the output memory buffer as a DSLX array
             // It is required to handle AXI write transactions and to write the incoming data to
