@@ -75,10 +75,9 @@ enum ZstdDecoderStatus: u5 {
 pub enum Csr: u3 {
     STATUS = 0,         // Keeps the code describing the current state of the ZSTD Decoder
     START = 1,          // Writing 1 when decoder is in IDLE state starts the decoding process
-    RESET = 2,          // Writing 1 will reset the decoder to the IDLE state
-    INPUT_BUFFER = 3,   // Keeps the base address for the input buffer that is used for storing the frame to decode
-    OUTPUT_BUFFER = 4,  // Keeps the base address for the output buffer, ZSTD Decoder will write the decoded frame into memory starting from this address.
-    WHO_AM_I = 5,       // Contains the identification number of the ZSTD Decoder
+    INPUT_BUFFER = 2,   // Keeps the base address for the input buffer that is used for storing the frame to decode
+    OUTPUT_BUFFER = 3,  // Keeps the base address for the output buffer, ZSTD Decoder will write the decoded frame into memory starting from this address.
+    WHO_AM_I = 4,       // Contains the identification number of the ZSTD Decoder
 }
 
 fn csr<LOG2_REGS_N: u32>(c: Csr) -> uN[LOG2_REGS_N] {
@@ -189,7 +188,6 @@ proc ZstdDecoderInternal<
     output_mem_wr_resp_r: chan<MemWriterResp> in;
 
     notify_s: chan<()> out;
-    reset_s: chan<()> out;
 
     init {
         zero!<State>()
@@ -227,7 +225,6 @@ proc ZstdDecoderInternal<
         output_mem_wr_resp_r: chan<MemWriterResp> in,
 
         notify_s: chan<()> out,
-        reset_s: chan<()> out,
     ) {
         (
             csr_rd_req_s, csr_rd_resp_r, csr_wr_req_s, csr_wr_resp_r, csr_change_r,
@@ -237,7 +234,7 @@ proc ZstdDecoderInternal<
             rle_req_s, rle_resp_r,
             comp_block_req_s, comp_block_resp_r,
             output_mem_wr_req_s, output_mem_wr_resp_r,
-            notify_s, reset_s,
+            notify_s,
         )
     }
 
@@ -253,12 +250,6 @@ proc ZstdDecoderInternal<
 
         let (tok1_0, csr_change, csr_change_valid) = recv_non_blocking(tok0, csr_change_r, zero!<CsrChange>());
         let is_start = (csr_change_valid && (csr_change.csr == csr<LOG2_REGS_N>(Csr::START)));
-
-        let is_reset = (csr_change_valid && (csr_change.csr == csr<LOG2_REGS_N>(Csr::RESET)));
-        let tok = send_if(tok0, reset_s, is_reset, ());
-        if is_reset {
-            trace_fmt!("[[RESET]]");
-        } else {};
 
         if csr_change_valid {
             trace_fmt!("[CSR CHANGE] {:#x}", csr_change);
@@ -721,7 +712,6 @@ proc ZstdDecoderInternalTest {
     output_mem_wr_resp_s: chan<MemWriterResp> out;
 
     notify_r: chan<()> in;
-    reset_r: chan<()> in;
 
     init {}
 
@@ -751,7 +741,6 @@ proc ZstdDecoderInternalTest {
         let (output_mem_wr_resp_s, output_mem_wr_resp_r) = chan<MemWriterResp>("output_mem_wr_resp");
 
         let (notify_s, notify_r) = chan<()>("notify");
-        let (reset_s, reset_r) = chan<()>("reset");
 
         spawn ZstdDecoderInternal<TEST_AXI_DATA_W, TEST_AXI_ADDR_W, TEST_REGS_N>(
             csr_rd_req_s, csr_rd_resp_r, csr_wr_req_s, csr_wr_resp_r, csr_change_r,
@@ -761,7 +750,7 @@ proc ZstdDecoderInternalTest {
             rle_req_s, rle_resp_r,
             comp_block_req_s, comp_block_resp_r,
             output_mem_wr_req_s, output_mem_wr_resp_r,
-            notify_s, reset_s,
+            notify_s,
         );
 
         (
@@ -773,7 +762,7 @@ proc ZstdDecoderInternalTest {
             rle_req_r, rle_resp_s,
             comp_block_req_r, comp_block_resp_s,
             output_mem_wr_req_r, output_mem_wr_resp_s,
-            notify_r, reset_r,
+            notify_r,
         )
     }
 
@@ -1228,7 +1217,6 @@ pub proc ZstdDecoder<
         ram_wr_resp_7_r: chan<RamWrResp> in,
 
         notify_s: chan<()> out,
-        reset_s: chan<()> out,
     ) {
         const CHANNEL_DEPTH = u32:1;
 
@@ -1458,7 +1446,7 @@ pub proc ZstdDecoder<
             rle_req_s, rle_resp_r,
             comp_block_req_s, comp_block_resp_r,
             output_mem_wr_req_s, output_mem_wr_resp_r,
-            notify_s, reset_s,
+            notify_s,
         );
 
         ()
@@ -1623,7 +1611,6 @@ proc ZstdDecoderInternalInst {
 
         // IRQ
         notify_s: chan<()> out,
-        reset_s: chan<()> out,
     ) {
         spawn ZstdDecoderInternal<
             INST_AXI_DATA_W, INST_AXI_ADDR_W, INST_REGS_N,
@@ -1635,7 +1622,7 @@ proc ZstdDecoderInternalInst {
             rle_req_s, rle_resp_r,
             comp_req_s, comp_resp_r,
             output_mem_wr_req_s, output_mem_wr_resp_r,
-            notify_s, reset_s,
+            notify_s,
         );
 
     }
@@ -1834,7 +1821,6 @@ proc ZstdDecoderInst {
         ram_wr_resp_7_r: chan<RamWrResp> in,
 
         notify_s: chan<()> out,
-        reset_s: chan<()> out,
     ) {
         // FIXME: Remove inline Huffman Weights memory once HuffmanLiteralsDecoder's memory ports are able to be rewritten
         let (huffman_lit_weights_mem_rd_req_s, huffman_lit_weights_mem_rd_req_r) = chan<HuffmanWeightsReadReq, u32:1>("huffman_lit_weights_mem_rd_req");
@@ -1906,7 +1892,7 @@ proc ZstdDecoderInst {
             ram_wr_req_4_s, ram_wr_req_5_s, ram_wr_req_6_s, ram_wr_req_7_s,
             ram_wr_resp_0_r, ram_wr_resp_1_r, ram_wr_resp_2_r, ram_wr_resp_3_r,
             ram_wr_resp_4_r, ram_wr_resp_5_r, ram_wr_resp_6_r, ram_wr_resp_7_r,
-            notify_s, reset_s,
+            notify_s,
         );
     }
 
