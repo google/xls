@@ -30,17 +30,20 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/exhaustiveness/match_exhaustiveness_checker.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/warning_collector.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 namespace {
@@ -63,11 +66,13 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   explicit TypeValidator(const Type* type, const TypeInfo& ti,
                          const TypeAnnotation* annotation,
                          WarningCollector& warning_collector,
+                         const ImportData& import_data,
                          const FileTable& file_table)
       : type_(type),
         ti_(ti),
         annotation_(annotation),
         warning_collector_(warning_collector),
+        import_data_(import_data),
         file_table_(file_table) {}
 
   absl::Status HandleNumber(const Number* literal) override {
@@ -243,6 +248,42 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     if (*node_bits_like != *fn_return_type_bits_like) {
       return TypeMismatchErrorStatus(*type_, **fn_return_type, node->span(),
                                      node->fn()->body()->span(), file_table_);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleMatch(const Match* node) override {
+    std::optional<const Type*> matched_type = ti_.GetItem(node->matched());
+    CHECK(matched_type.has_value());
+
+    Type* matched = const_cast<Type*>(*matched_type);
+    MatchExhaustivenessChecker exhaustiveness_checker(
+        node->matched()->span(), import_data_, ti_, *matched);
+
+    for (MatchArm* arm : node->arms()) {
+      for (NameDefTree* pattern : arm->patterns()) {
+        bool exhaustive_before = exhaustiveness_checker.IsExhaustive();
+        exhaustiveness_checker.AddPattern(*pattern);
+        if (exhaustive_before) {
+          warning_collector_.Add(
+              pattern->span(), WarningKind::kAlreadyExhaustiveMatch,
+              "`match` is already exhaustive before this pattern");
+        }
+      }
+    }
+
+    if (!exhaustiveness_checker.IsExhaustive()) {
+      std::optional<InterpValue> sample =
+          exhaustiveness_checker.SampleSimplestUncoveredValue();
+      XLS_RET_CHECK(sample.has_value());
+      return TypeInferenceErrorStatus(
+          node->span(), matched,
+          absl::StrFormat(
+              "`match` patterns are not exhaustive; e.g. `%s` is not covered; "
+              "please add additional patterns to complete the match or a "
+              "default case via `_ => ...`",
+              sample->ToString()),
+          file_table_);
     }
     return absl::OkStatus();
   }
@@ -604,6 +645,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   const TypeInfo& ti_;
   const TypeAnnotation* annotation_;
   WarningCollector& warning_collector_;
+  const ImportData& import_data_;
   const FileTable& file_table_;
 };
 
@@ -613,11 +655,13 @@ absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
                                   const TypeInfo& ti,
                                   const TypeAnnotation* annotation,
                                   WarningCollector& warning_collector,
+                                  const ImportData& import_data,
                                   const FileTable& file_table) {
   if (type->IsMeta()) {
     XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
   }
-  TypeValidator validator(type, ti, annotation, warning_collector, file_table);
+  TypeValidator validator(type, ti, annotation, warning_collector, import_data,
+                          file_table);
   return node->Accept(&validator);
 }
 

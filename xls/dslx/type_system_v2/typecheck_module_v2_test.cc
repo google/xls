@@ -3112,6 +3112,32 @@ const Z = match X {
                   HasSubstr("Exact-duplicate pattern match detected `u32:1`")));
 }
 
+TEST(TypecheckV2Test, MatchNonExhaustive) {
+  EXPECT_THAT(R"(
+fn f(x: u1) -> u32 {
+    match x {
+        true => u32:64,
+    }
+}
+)",
+              TypecheckFails(HasSubstr("`match` patterns are not exhaustive")));
+}
+
+TEST(TypecheckV2Test, MatchAlreadyExhaustive) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn f(x: u4) -> u32 {
+    match x {
+        u4:0..u4:15 => u32:64,
+        u4:15 => u32:32,
+        u4:2 => u32:42,
+    }
+}
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "`match` is already exhaustive before this pattern");
+}
+
 TEST(TypecheckV2Test, PatternMatch) {
   EXPECT_THAT(R"(
 fn f(t: (u8, u32)) -> u32 {
