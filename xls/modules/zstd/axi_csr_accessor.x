@@ -89,15 +89,16 @@ pub proc AxiCsrAccessor<
         let tok_0 = join();
         // write to CSR via AXI
         let (tok_1_1, axi_aw, axi_aw_valid) = recv_non_blocking(tok_0, axi_aw_r, AxiAw {id: state.w_id, addr: state.w_addr, ..zero!<AxiAw>()});
-
         // validate axi aw
-        assert!(!(axi_aw_valid && axi_aw.addr as u32 >= REGS_N), "invalid_aw_addr");
+        assert!(!(axi_aw_valid && axi_aw.addr as u32 >= (REGS_N << LOG2_DATA_W_DIV8)), "invalid_aw_addr");
         assert!(!(axi_aw_valid && axi_aw.len != u8:0), "invalid_aw_len");
 
         let (tok_1_2, axi_w, axi_w_valid) = recv_non_blocking(tok_1_1, axi_w_r, zero!<AxiW>());
 
         // Send WriteRequest to CSRs
         let data_w = if axi_w_valid {
+            trace_fmt!("[CSR ACCESSOR] received csr write at {:#x}", axi_w);
+
             let (w_data, _, _) = for (i, (w_data, strb, mask)): (u32, (uN[DATA_W], uN[DATA_W_DIV8], uN[DATA_W])) in range(u32:0, DATA_W_DIV8) {
                 let w_data = if axi_w.strb as u1 {
                     w_data | (axi_w.data & mask)
@@ -133,7 +134,7 @@ pub proc AxiCsrAccessor<
         // Send ReadRequest to CSRs
         let (tok_3_1, axi_ar, axi_ar_valid) = recv_non_blocking(tok_0, axi_ar_r, AxiAr {id: state.r_id, addr: state.r_addr, ..zero!<AxiAr>()});
         // validate ar bundle
-        assert!(!(axi_ar_valid && axi_ar.addr as u32 >= REGS_N), "invalid_ar_addr");
+        assert!(!(axi_ar_valid && axi_ar.addr as u32 >= (REGS_N << LOG2_DATA_W_DIV8)), "invalid_ar_addr");
         assert!(!(axi_ar_valid && axi_ar.len != u8:0), "invalid_ar_len");
         let rd_req = RdReq {
             csr: (axi_ar.addr >> LOG2_DATA_W_DIV8) as uN[LOG2_REGS_N],
@@ -208,7 +209,7 @@ proc AxiCsrAccessorInst {
 const TEST_ID_W = u32:4;
 const TEST_DATA_W = u32:32;
 const TEST_ADDR_W = u32:16;
-const TEST_REGS_N = u32:16;
+const TEST_REGS_N = u32:4;
 const TEST_DATA_W_DIV8 = TEST_DATA_W / u32:8;
 const TEST_LOG2_REGS_N = std::clog2(TEST_REGS_N);
 const TEST_LOG2_DATA_W_DIV8 = std::clog2(TEST_DATA_W_DIV8);
@@ -309,7 +310,7 @@ proc AxiCsrAccessorTest {
             // write CSR via AXI
             let axi_aw = TestAxiAw {
                 id: i as uN[TEST_ID_W],
-                addr: (test_data.csr << TEST_LOG2_DATA_W_DIV8) as uN[TEST_ADDR_W],
+                addr: (test_data.csr as uN[TEST_ADDR_W]) << TEST_LOG2_DATA_W_DIV8,
                 size: axi::AxiAxSize::MAX_4B_TRANSFER,
                 len: u8:0,
                 burst: axi::AxiAxBurst::FIXED,
@@ -346,7 +347,7 @@ proc AxiCsrAccessorTest {
             // read CSRs via AXI
             let axi_ar = TestAxiAr {
                 id: i as uN[TEST_ID_W],
-                addr: (test_data.csr << TEST_LOG2_DATA_W_DIV8) as uN[TEST_ADDR_W],
+                addr: (test_data.csr as uN[TEST_ADDR_W]) << TEST_LOG2_DATA_W_DIV8,
                 len: u8:0,
                 ..zero!<TestAxiAr>()
             };

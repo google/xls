@@ -337,7 +337,7 @@ xls_dslx_verilog(
     library = ":axi_ram_dslx",
     opt_ir_args = {
         "inline_procs": "true",
-        "top": "__axi_ram__AxiRamReaderInstWithEmptyWrites__AxiRamReader_0__AxiRamReaderResponder_0__32_32_4_8_8_32768_7_32_4_100_next",
+        "top": "__axi_ram__AxiRamReaderInstWithEmptyWrites__AxiRamReader_0__AxiRamReaderResponder_0__32_32_4_5_6_8_8_32768_7_32_5_6_4_100_next",
     },
     tags = ["manual"],
     verilog_file = "axi_ram.v",
