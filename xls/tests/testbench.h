@@ -258,7 +258,7 @@ class TestbenchBase {
     }
 
     for (int i = 0; i < threads_.size(); i++) {
-      if (threads_[i]->num_failures() != 0) {
+      if (max_failures_ != 0 && threads_[i]->num_failures() >= max_failures_) {
         return absl::InternalError(
             "There was at least one mismatch during execution.");
       }

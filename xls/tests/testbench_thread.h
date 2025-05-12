@@ -190,7 +190,7 @@ class TestbenchThreadBase {
       if (!compare_results_(expected, actual)) {
         num_failures_.store(num_failures_.load() + 1);
         log_errors_(i, input, expected, actual);
-        if (max_failures_ <= num_failures_.load()) {
+        if (max_failures_ != 0 && num_failures_.load() >= max_failures_) {
           return_status = absl::UnknownError("Maximum error count reached.");
           break;
         }
