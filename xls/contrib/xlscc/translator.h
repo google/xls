@@ -249,6 +249,9 @@ struct ContinuationValue {
 struct ContinuationInput {
   ContinuationValue* continuation_out = nullptr;
   xls::Node* input_node = nullptr;
+
+  // name is for human readability/debug only
+  std::string name;
 };
 
 struct GeneratedFunctionSlice {
@@ -349,6 +352,8 @@ struct GeneratedFunction {
   std::vector<const clang::NamedDecl*> GetDeterministicallyOrderedStaticValues()
       const;
 };
+
+std::string GenerateSliceGraph(const GeneratedFunction& func);
 
 struct TranslationContext;
 

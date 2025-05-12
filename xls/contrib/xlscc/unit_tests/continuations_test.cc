@@ -129,6 +129,8 @@ class ContinuationsTest : public XlsccTestBase {
             continuation_out.output_node->users().size());
       }
     }
+    LOG(INFO) << "GraphViz file:";
+    LOG(INFO) << GenerateSliceGraph(*func);
   }
 };
 

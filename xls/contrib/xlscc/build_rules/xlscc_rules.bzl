@@ -213,6 +213,7 @@ def _xls_cc_ir_impl(ctx):
         "default_channel_strictness",
         "max_unroll_iters",
         "print_optimization_warnings",
+        "debug_write_function_slice_graph_path",
     )
 
     xlscc_args = append_default_to_args(
@@ -274,6 +275,13 @@ def _xls_cc_ir_impl(ctx):
     if metadata_out_text:
         meta_out_text_flag = "--meta_out_text"
 
+    function_slice_graph_out_flag = ""
+    debug_write_function_slice_graph_filename = getattr(ctx.attr, "debug_write_function_slice_graph_path")
+    if debug_write_function_slice_graph_filename:
+        function_slice_graph_file = ctx.actions.declare_file(debug_write_function_slice_graph_filename.name)
+        outputs.append(function_slice_graph_file)
+        function_slice_graph_out_flag = "--debug_write_function_slice_graph_path " + function_slice_graph_file.path
+
     # Get runfiles
     runfiles = _get_runfiles_for_xls_cc_ir(ctx)
 
@@ -293,13 +301,14 @@ def _xls_cc_ir_impl(ctx):
         tools = [ctx.executable._xlscc_tool],
         # The files required for converting the C/C++ source file.
         inputs = runfiles.files,
-        command = "set -o pipefail; {} {} --block_pb {} {} {} {} {} 2>&1 >{} | tee {}".format(
+        command = "set -o pipefail; {} {} --block_pb {} {} {} {} {} {} 2>&1 >{} | tee {}".format(
             ctx.executable._xlscc_tool.path,
             ctx.file.src.path,
             block_pb,
             block_from_class_flag,
             meta_out_flag,
             meta_out_text_flag,
+            function_slice_graph_out_flag,
             my_args,
             ir_file.path,
             log_file.path,
@@ -377,6 +386,10 @@ _xls_cc_ir_attrs = {
     "meta_out_text": attr.bool(
         doc = "Whether the generated metadata protobuf should output as a text protobuf",
         default = False,
+        mandatory = False,
+    ),
+    "debug_write_function_slice_graph_path": attr.output(
+        doc = "Filename of the generated function slice graph",
         mandatory = False,
     ),
     "_xlscc_tool": attr.label(

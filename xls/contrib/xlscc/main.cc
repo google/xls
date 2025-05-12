@@ -147,6 +147,10 @@ ABSL_FLAG(bool, debug_ir_trace_loop_control, false,
 ABSL_FLAG(bool, debug_print_fsm_states, false,
           "Print FSM states to XLS_LOG (try --alsologtostderr).");
 
+ABSL_FLAG(std::string, debug_write_function_slice_graph_path, "",
+          "Path to which to write out a graphviz (dot) file for the function "
+          "slices of the top function");
+
 ABSL_FLAG(
     bool, print_optimization_warnings, false,
     "Print optimization warnings / hints to XLS_LOG (try --alsologtostderr).");
@@ -274,17 +278,21 @@ static absl::Status Run(std::string_view cpp_path) {
 
   std::filesystem::path output_file(absl::GetFlag(FLAGS_out));
 
-  std::filesystem::path output_absolute = output_file;
-  if (output_file.is_relative()) {
-    XLS_ASSIGN_OR_RETURN(std::filesystem::path cwd, xls::GetCurrentDirectory());
-    output_absolute = cwd / output_file;
-  }
+  std::filesystem::path debug_write_function_slice_graph_path(
+      absl::GetFlag(FLAGS_debug_write_function_slice_graph_path));
 
-  auto write_to_output = [&](std::string_view output) -> absl::Status {
+  auto write_to_output =
+      [&](std::string_view output,
+          const GeneratedFunction* top_function) -> absl::Status {
     if (output_file.empty()) {
       std::cout << output;
     } else {
       XLS_RETURN_IF_ERROR(xls::SetFileContents(output_file, output));
+    }
+    if (!debug_write_function_slice_graph_path.empty()) {
+      const std::string graph = GenerateSliceGraph(*top_function);
+      XLS_RETURN_IF_ERROR(
+          xls::SetFileContents(debug_write_function_slice_graph_path, graph));
     }
     return absl::OkStatus();
   };
@@ -294,13 +302,14 @@ static absl::Status Run(std::string_view cpp_path) {
   if (block_pb_name.empty()) {
     absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>
         top_channel_injections = {};
-    XLS_RETURN_IF_ERROR(
-        translator.GenerateIR_Top_Function(&package, top_channel_injections)
-            .status());
-    // TODO(seanhaskell): Simplify IR
+    XLS_ASSIGN_OR_RETURN(
+        GeneratedFunction * top_function,
+        translator.GenerateIR_Top_Function(&package, top_channel_injections));
+
     XLS_RETURN_IF_ERROR(package.SetTopByName(top_name));
     translator.AddSourceInfoToPackage(package);
-    XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(package.DumpIr(), "\n")));
+    XLS_RETURN_IF_ERROR(
+        write_to_output(absl::StrCat(package.DumpIr(), "\n"), top_function));
   } else {
     xls::Proc* proc = nullptr;
 
@@ -325,7 +334,12 @@ static absl::Status Run(std::string_view cpp_path) {
     XLS_RETURN_IF_ERROR(package.SetTop(proc));
     std::cerr << "Saving Package IR..." << '\n';
     translator.AddSourceInfoToPackage(package);
-    XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(package.DumpIr(), "\n")));
+    XLS_ASSIGN_OR_RETURN(const clang::FunctionDecl* top_function_decl,
+                         translator.GetTopFunction());
+    const GeneratedFunction* top_function =
+        translator.GetGeneratedFunction(top_function_decl);
+    XLS_RETURN_IF_ERROR(
+        write_to_output(absl::StrCat(package.DumpIr(), "\n"), top_function));
   }
 
   const std::string metadata_out_path = absl::GetFlag(FLAGS_meta_out);

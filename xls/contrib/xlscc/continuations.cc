@@ -22,6 +22,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
@@ -100,6 +101,10 @@ absl::Status FindContinuationNamesInThisContext(
 
   return absl::OkStatus();
 }
+
+std::string GraphvizEscape(std::string_view s) {
+  return absl::StrFormat("\"%s\"", absl::StrReplaceAll(s, {{"\"", "\\\""}}));
+};
 
 }  // namespace
 
@@ -194,7 +199,8 @@ absl::Status Translator::NewContinuation(IOOp& op) {
 
     new_slice.continuations_in.push_back(
         ContinuationInput{.continuation_out = &continuation_out,
-                          .input_node = input_bval.node()});
+                          .input_node = input_bval.node(),
+                          .name = continuation_out.name});
   }
 
   lock.UnlockEarly();
@@ -367,6 +373,102 @@ absl::Status Translator::OptimizeContinuations(GeneratedFunction& func,
   // unused outputs
 
   return absl::OkStatus();
+}
+
+std::string GenerateSliceGraph(const GeneratedFunction& func) {
+  // Pointers are used as names, as labels are not always unique
+  std::vector<std::string> node_names;
+  std::vector<std::string> rank_orders;
+  std::vector<std::string> nodes_in_ranks;
+  std::vector<std::string> nodes_with_edges;
+
+  std::string last_rank_name = "";
+
+  for (const GeneratedFunctionSlice& slice : func.slices) {
+    std::string new_rank = "(first)";
+    if (slice.after_op != nullptr) {
+      new_rank = Debug_OpName(*slice.after_op);
+    }
+
+    const std::string rank_input_name =
+        GraphvizEscape(absl::StrFormat("%p_inputs", &slice));
+    const std::string rank_output_name =
+        GraphvizEscape(absl::StrFormat("%p_outputs", &slice));
+
+    rank_orders.push_back(
+        absl::StrFormat("  %s -> %s", rank_input_name, rank_output_name));
+    if (!last_rank_name.empty()) {
+      rank_orders.push_back(
+          absl::StrFormat("  %s -> %s", last_rank_name, rank_input_name));
+    }
+
+    node_names.push_back(absl::StrFormat(
+        "  %s [label=%s style=rounded];", rank_input_name,
+        GraphvizEscape(absl::StrFormat("%s_inputs", new_rank))));
+    node_names.push_back(
+        absl::StrFormat("  %s [label=%s];", rank_output_name,
+                        GraphvizEscape(new_rank + " outputs")));
+
+    last_rank_name = rank_output_name;
+
+    std::vector<std::string> nodes_in_input_rank = {rank_input_name};
+    std::vector<std::string> nodes_in_output_rank = {rank_output_name};
+
+    for (const ContinuationValue& continuation_out : slice.continuations_out) {
+      const std::string output_name =
+          GraphvizEscape(absl::StrFormat("%p", &continuation_out));
+
+      node_names.push_back(
+          absl::StrFormat("  %s [label=%s];", output_name,
+                          GraphvizEscape(continuation_out.name)));
+
+      nodes_in_output_rank.push_back(output_name);
+    }
+    for (const ContinuationInput& continuation_in : slice.continuations_in) {
+      const std::string input_name =
+          GraphvizEscape(absl::StrFormat("%p", &continuation_in));
+
+      node_names.push_back(
+          absl::StrFormat("  %s [label=%s  style=rounded];", input_name,
+                          GraphvizEscape(continuation_in.name)));
+      nodes_in_input_rank.push_back(input_name);
+      nodes_with_edges.push_back(absl::StrFormat(
+          "  %s -> %s",
+          GraphvizEscape(
+              absl::StrFormat("%p", continuation_in.continuation_out)),
+          GraphvizEscape(absl::StrFormat("%p", &continuation_in))));
+    }
+
+    nodes_in_ranks.push_back(absl::StrFormat(
+        "  { rank = same; %s; }", absl::StrJoin(nodes_in_input_rank, ";")));
+    nodes_in_ranks.push_back(absl::StrFormat(
+        "  { rank = same; %s; }", absl::StrJoin(nodes_in_output_rank, ";")));
+  }
+
+  return absl::StrFormat(
+      R"(
+digraph {
+  nodesep = 0.4
+  ranksep = 0.25
+
+  node [shape=box];
+
+  // node names
+%s
+
+  // rank_orders
+%s
+
+  // nodes_in_ranks
+%s
+
+  // nodes_with_edges
+%s
+}
+    )",
+      absl::StrJoin(node_names, "\n"), absl::StrJoin(rank_orders, "\n"),
+      absl::StrJoin(nodes_in_ranks, "\n"),
+      absl::StrJoin(nodes_with_edges, "\n"));
 }
 
 }  // namespace xlscc

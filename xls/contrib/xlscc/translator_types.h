@@ -162,7 +162,7 @@ class CIntType : public CType {
  protected:
   const int width_;
   const bool is_signed_;
-  // We use this field to tell "char" declarations from explcitly-qualified
+  // We use this field to tell "char" declarations from explicitly-qualified
   // "signed char" or "unsigned char" declarations, as in C++ "char" is neither
   // signed nor unsigned, while the explicitly-qualified declarations have
   // signedness.  The field is set to true for "char" declarations and false for
@@ -643,7 +643,7 @@ class CValue {
   std::shared_ptr<CType> type_;
 };
 
-// Similiar to CValue, but contains an xls::Value for a constant expression
+// Similar to CValue, but contains an xls::Value for a constant expression
 class ConstValue {
  public:
   ConstValue() = default;
