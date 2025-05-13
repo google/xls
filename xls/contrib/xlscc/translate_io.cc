@@ -23,6 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
 #include "clang/include/clang/AST/DeclTemplate.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/ExprCXX.h"
@@ -158,8 +159,11 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   }
 
   IOOp* ret = &context().sf->io_ops.back();
-  XLSCC_CHECK(!context().sf->slices.empty(), loc);
-  context().sf->slices.back().after_op = ret;
+  // TODO(seanhaskell): Turn this back into a CHECK once old pipelined loop
+  // body generation is removed.
+  if (!context().sf->slices.empty()) {
+    context().sf->slices.back().after_op = ret;
+  }
   return ret;
 }
 
@@ -653,7 +657,8 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateChannelParam(
   IOChannel new_channel;
 
   new_channel.item_type = channel_type->GetItemType();
-  new_channel.unique_name = channel_name->getQualifiedNameAsString();
+  new_channel.unique_name = absl::StrReplaceAll(
+      channel_name->getQualifiedNameAsString(), {{":", "_"}});
   new_channel.memory_size = channel_type->GetMemorySize();
 
   auto lvalue = std::make_shared<LValue>(AddChannel(new_channel, loc));

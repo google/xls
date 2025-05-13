@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdint>
+#include <memory>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -28,9 +29,11 @@
 #include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 
 namespace xlscc {
 
@@ -111,6 +114,11 @@ std::string GraphvizEscape(std::string_view s) {
 // The continuation comes before the IO op, and so does not include its input
 // parameter
 absl::Status Translator::NewContinuation(IOOp& op) {
+  // If there is no first slice, then don't generate any
+  if (context().sf->slices.empty()) {
+    return absl::OkStatus();
+  }
+
   const xls::SourceInfo& loc = op.op_location;
 
   std::tuple<TrackedBValue::Lock, std::vector<TrackedBValue*>> locked_bvalues =
@@ -122,28 +130,25 @@ absl::Status Translator::NewContinuation(IOOp& op) {
   XLSCC_CHECK(!context().sf->slices.empty(), loc);
   GeneratedFunctionSlice& current_slice = context().sf->slices.back();
 
-  absl::flat_hash_set<const TrackedBValue*> io_out_bvals;
-  for (const IOOp& io_op : context().sf->io_ops) {
-    io_out_bvals.insert(&io_op.ret_value);
-  }
-  io_out_bvals.insert(&op.ret_value);
-
   // This may create multiple continuation values for a given xls::Node*
   absl::flat_hash_map<const ContinuationValue*, TrackedBValue*>
       bvalues_by_continuation_output;
-  for (TrackedBValue* bval : bvalues) {
-    if (io_out_bvals.contains(bval)) {
-      continue;
-    }
 
+  for (TrackedBValue* bval : bvalues) {
     // Invalid BValues are not recorded
     XLSCC_CHECK(bval->valid(), loc);
     XLSCC_CHECK_EQ(bval->builder(), context().fb, loc);
 
     ContinuationValue continuation_out;
 
-    // Filled in for name search
+    // Filled in for name search, identity is inserted later
     continuation_out.output_node = bval->node();
+
+    absl::StatusOr<xls::Value> result =
+        EvaluateNode(bval->node(), loc, /*do_check=*/false);
+    if (result.ok()) {
+      continuation_out.literal = result.value();
+    }
 
     current_slice.continuations_out.push_back(continuation_out);
 
@@ -165,6 +170,9 @@ absl::Status Translator::NewContinuation(IOOp& op) {
   }
 
   // Create continuation outputs
+  std::vector<NATIVE_BVAL> ret_vals;
+  ret_vals.reserve(current_slice.continuations_out.size());
+
   int64_t continuation_idx = 0;
   for (ContinuationValue& continuation_out : current_slice.continuations_out) {
     if (continuation_out.name.empty()) {
@@ -173,37 +181,76 @@ absl::Status Translator::NewContinuation(IOOp& op) {
     }
     continuation_idx++;
 
-    TrackedBValue* bval = bvalues_by_continuation_output.at(&continuation_out);
+    const TrackedBValue* bval =
+        bvalues_by_continuation_output.at(&continuation_out);
 
-    // TODO(seanhaskell): Create output from function
     NATIVE_BVAL identity_bval = context().fb->Identity(
         *bval, loc,
         /*name*/ absl::StrFormat("%s_output", continuation_out.name));
 
     continuation_out.output_node = identity_bval.node();
+    ret_vals.push_back(identity_bval);
   }
 
-  // TODO(seanhaskell): Create a new function builder
-  current_slice.function = nullptr;
+  xls::FunctionBuilder* function_builder =
+      dynamic_cast<xls::FunctionBuilder*>(context().fb);
+
+  NATIVE_BVAL ret_bval =
+      function_builder->Tuple(ret_vals, loc, /*name=*/"continuation_out");
+
+  // Unlock as late as possible for safety
+  lock.UnlockEarly();
+
+  // Unregister all the TrackedBValues that are being continued
+  XLSCC_CHECK_EQ(current_slice.continuations_out.size(),
+                 bvalues_by_continuation_output.size(), loc);
+
+  for (const auto& [_, bval] : bvalues_by_continuation_output) {
+    *bval = TrackedBValue();
+  }
+
+  // Finish building the current slice
+  XLS_ASSIGN_OR_RETURN(xls::Function * last_slice_function,
+                       function_builder->BuildWithReturnValue(ret_bval));
+  current_slice.function = last_slice_function;
+
+  // Start building the next slice
   context().sf->slices.push_back(GeneratedFunctionSlice{});
 
   GeneratedFunctionSlice& new_slice = context().sf->slices.back();
 
+  xls::BuilderBase* last_builder = context().fb;
+
+  XLSCC_CHECK(functions_in_progress_.contains(context().sf->clang_decl), loc);
+  FunctionInProgress& function_in_progress =
+      *functions_in_progress_.at(context().sf->clang_decl);
+
+  std::string_view xls_name =
+      xls_names_for_functions_generated_.at(context().sf->clang_decl);
+
+  function_in_progress.builder = std::make_unique<TrackedFunctionBuilder>(
+      absl::StrFormat("%s_slice_after_%s_%i", xls_name, Debug_OpName(op),
+                      op.channel_op_index),
+      package_);
+
+  for (TranslationContext& context : context_stack_) {
+    if (context.fb != last_builder) {
+      continue;
+    }
+    context.fb = function_in_progress.builder->builder();
+  }
+
   // Create continuation inputs
   for (ContinuationValue& continuation_out : current_slice.continuations_out) {
-    NATIVE_BVAL output_bval(continuation_out.output_node, context().fb);
-    // TODO(seanhaskell): Create parameter for input
-    NATIVE_BVAL input_bval = context().fb->Identity(
-        output_bval, loc,
-        /*name*/ absl::StrFormat("%s_input", continuation_out.name));
+    NATIVE_BVAL input_bval = context().fb->Param(
+        /*name*/ absl::StrFormat("%s_input", continuation_out.name),
+        continuation_out.output_node->GetType(), loc);
 
     new_slice.continuations_in.push_back(
         ContinuationInput{.continuation_out = &continuation_out,
-                          .input_node = input_bval.node(),
+                          .input_node = input_bval.node()->As<xls::Param>(),
                           .name = continuation_out.name});
   }
-
-  lock.UnlockEarly();
 
   // Update TrackedBValues
   XLSCC_CHECK_EQ(new_slice.continuations_in.size(),
@@ -213,9 +260,26 @@ absl::Status Translator::NewContinuation(IOOp& op) {
 
   for (const ContinuationInput& continuation_in : new_slice.continuations_in) {
     XLSCC_CHECK_NE(continuation_in.continuation_out, nullptr, loc);
+
     TrackedBValue* bval =
         bvalues_by_continuation_output.at(continuation_in.continuation_out);
-    *bval = TrackedBValue(continuation_in.input_node, context().fb);
+
+    if (continuation_in.continuation_out->literal.has_value()) {
+      // Literals should only be propagated downstream, as upstream feedbacks
+      // imply statefulness and a need for inductive reasoning about values.
+      //
+      // In this method, literals will naturally only come from upstream,
+      // as the downstream slices have not been created yet.
+      //
+      // The unused continuation input will get optimized away later.
+      *bval = context().fb->Literal(
+          continuation_in.continuation_out->literal.value(), loc,
+          /*name=*/absl::StrFormat("%s_literal", continuation_in.name));
+    } else {
+      XLSCC_CHECK_EQ(continuation_in.input_node->function_base(),
+                     context().fb->function(), loc);
+      *bval = TrackedBValue(continuation_in.input_node, context().fb);
+    }
     XLSCC_CHECK(bval->valid(), loc);
   }
 
@@ -237,19 +301,42 @@ absl::Status RemoveUnusedContinuationOutputs(GeneratedFunction& func,
   }
 
   for (GeneratedFunctionSlice& slice : func.slices) {
+    std::vector<xls::Node*> new_output_elems;
+    std::vector<xls::Node*> removed_outputs;
     for (auto cont_out_it = slice.continuations_out.begin();
          cont_out_it != slice.continuations_out.end();) {
       ContinuationValue& continuation_out = *cont_out_it;
       if (outputs_used_by_inputs.contains(&continuation_out)) {
         ++cont_out_it;
+        new_output_elems.push_back(continuation_out.output_node);
         continue;
       }
 
-      XLS_RETURN_IF_ERROR(
-          continuation_out.output_node->function_base()->RemoveNode(
-              continuation_out.output_node));
+      removed_outputs.push_back(continuation_out.output_node);
 
       cont_out_it = slice.continuations_out.erase(cont_out_it);
+
+      changed = true;
+    }
+
+    // If any outputs were removed, create one new output tuple for the slice
+    if (!removed_outputs.empty()) {
+      CHECK_EQ(new_output_elems.size(), slice.continuations_out.size());
+
+      xls::Node* prev_return = slice.function->return_value();
+      CHECK(prev_return->GetType()->IsTuple());
+
+      XLS_ASSIGN_OR_RETURN(
+          xls::Node * new_return,
+          slice.function->MakeNode<xls::Tuple>(loc, new_output_elems));
+      XLS_RETURN_IF_ERROR(slice.function->set_return_value(new_return));
+      XLS_RETURN_IF_ERROR(slice.function->RemoveNode(prev_return));
+
+      for (xls::Node* node : removed_outputs) {
+        CHECK_EQ(node->function_base(), slice.function);
+        XLS_RETURN_IF_ERROR(slice.function->RemoveNode(node));
+      }
+
       changed = true;
     }
   }
@@ -263,14 +350,17 @@ absl::Status RemoveUnusedContinuationInputs(GeneratedFunction& func,
     for (auto cont_in_it = slice.continuations_in.begin();
          cont_in_it != slice.continuations_in.end();) {
       ContinuationInput& continuation_in = *cont_in_it;
-      if (!continuation_in.input_node->users().empty()) {
+
+      CHECK_EQ(continuation_in.input_node->function_base(), slice.function);
+
+      if (!continuation_in.input_node->users().empty() ||
+          slice.function->HasImplicitUse(continuation_in.input_node)) {
         ++cont_in_it;
         continue;
       }
 
       XLS_RETURN_IF_ERROR(
-          continuation_in.input_node->function_base()->RemoveNode(
-              continuation_in.input_node));
+          slice.function->RemoveNode(continuation_in.input_node));
 
       cont_in_it = slice.continuations_in.erase(cont_in_it);
       changed = true;
@@ -335,10 +425,6 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
       // Make the inputs point to the output that feeds the pass-through
       for (ContinuationInput* pass_through_to_input : pass_through_to_inputs) {
         pass_through_to_input->continuation_out = pass_through_from_value;
-        CHECK(pass_through_to_input->input_node->op() == xls::Op::kIdentity);
-        XLS_RETURN_IF_ERROR(
-            pass_through_to_input->input_node->ReplaceOperandNumber(
-                xls::UnOp::kArgOperand, pass_through_from_value->output_node));
         changed = true;
       }
 
@@ -357,14 +443,14 @@ absl::Status Translator::OptimizeContinuations(GeneratedFunction& func,
                                                const xls::SourceInfo& loc) {
   bool changed = true;
 
-  while (changed) {
+  do {
     changed = false;
     XLS_RETURN_IF_ERROR(RemoveUnusedContinuationInputs(func, changed, loc));
     XLS_RETURN_IF_ERROR(RemoveUnusedContinuationOutputs(func, changed, loc));
     XLS_RETURN_IF_ERROR(RemovePassThroughs(func, changed, loc));
 
     // TODO(seanhaskell): Dead code removal
-  }
+  } while (changed);
 
   // TODO: Mark loop phis
 
@@ -469,6 +555,83 @@ digraph {
       absl::StrJoin(node_names, "\n"), absl::StrJoin(rank_orders, "\n"),
       absl::StrJoin(nodes_in_ranks, "\n"),
       absl::StrJoin(nodes_with_edges, "\n"));
+}
+
+absl::Status Translator::GenerateFunctionSliceWrapper(
+    GeneratedFunction& func, const xls::SourceInfo& loc) {
+  XLSCC_CHECK(func.slices.size() == (func.io_ops.size() + 1), loc);
+
+  // If there is only one slice, then no wrapper is needed
+  if (func.slices.size() == 1) {
+    context().sf->xls_func = func.slices.front().function;
+    std::string_view xls_name =
+        xls_names_for_functions_generated_.at(func.clang_decl);
+    context().sf->xls_func->SetName(xls_name);
+    return absl::OkStatus();
+  }
+
+  std::string_view xls_name =
+      xls_names_for_functions_generated_.at(func.clang_decl);
+
+  TrackedFunctionBuilder tracked_builder(xls_name, package_);
+  xls::FunctionBuilder* builder = tracked_builder.builder();
+
+  absl::flat_hash_map<const ContinuationValue*, TrackedBValue> prev_slice_ret;
+  TrackedBValue last_slice_ret;
+
+  for (GeneratedFunctionSlice& slice : func.slices) {
+    std::vector<TrackedBValue> args;
+
+    XLSCC_CHECK_GE(slice.function->params().size(),
+                   slice.continuations_in.size(), loc);
+
+    // Continuation params come first
+    auto continuation_in_it = slice.continuations_in.begin();
+    for (int64_t i = 0; continuation_in_it != slice.continuations_in.end();
+         ++i, ++continuation_in_it) {
+      XLSCC_CHECK_EQ(slice.function->params().at(i),
+                     continuation_in_it->input_node, loc);
+
+      TrackedBValue prev_slice_val =
+          prev_slice_ret.at(continuation_in_it->continuation_out);
+      XLSCC_CHECK(prev_slice_val.valid(), loc);
+
+      args.push_back(prev_slice_val);
+    }
+
+    // Then parameters that should be forwarded from the top
+    for (int64_t p = slice.continuations_in.size();
+         p < slice.function->params().size(); ++p) {
+      const xls::Param* slice_param = slice.function->params().at(p);
+      TrackedBValue outer_param =
+          builder->Param(slice_param->name(), slice_param->GetType(), loc);
+      args.push_back(outer_param);
+    }
+
+    TrackedBValue slice_ret =
+        builder->Invoke(ToNativeBValues(args), slice.function, loc);
+    XLSCC_CHECK(slice_ret.valid(), loc);
+
+    int64_t output_idx = 0;
+    for (const ContinuationValue& continuation_out : slice.continuations_out) {
+      XLSCC_CHECK(slice_ret.GetType()->IsTuple(), loc);
+      XLSCC_CHECK_LT(output_idx, slice_ret.GetType()->AsTupleOrDie()->size(),
+                     loc);
+
+      prev_slice_ret[&continuation_out] =
+          builder->TupleIndex(slice_ret, output_idx++, loc,
+                              /*name=*/continuation_out.name);
+    }
+
+    last_slice_ret = slice_ret;
+  }
+
+  XLSCC_CHECK(last_slice_ret.valid(), loc);
+  XLS_ASSIGN_OR_RETURN(func.xls_func,
+                       builder->BuildWithReturnValue(last_slice_ret));
+  XLSCC_CHECK_NE(func.xls_func, nullptr, loc);
+
+  return absl::OkStatus();
 }
 
 }  // namespace xlscc

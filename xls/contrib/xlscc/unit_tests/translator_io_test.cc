@@ -778,6 +778,8 @@ TEST_F(TranslatorIOTest, MixedOps) {
          /*outputs=*/{IOOpTest("in", 111, true), IOOpTest("out", 112, true)});
 }
 
+// TODO: One that needs Z3
+
 TEST_F(TranslatorIOTest, Unrolled) {
   const std::string content = R"(
        #include "/xls_builtin.h"
@@ -792,7 +794,9 @@ TEST_F(TranslatorIOTest, Unrolled) {
   IOTest(content, /*inputs=*/{},
          /*outputs=*/
          {IOOpTest("out", 0, true), IOOpTest("out", 1, true),
-          IOOpTest("out", 2, true), IOOpTest("out", 3, true)});
+          IOOpTest("out", 2, true), IOOpTest("out", 3, true)},
+         /*args=*/{},
+         /*total_io_ops=*/4);
 }
 
 TEST_F(TranslatorIOTest, UnrolledSubroutine) {

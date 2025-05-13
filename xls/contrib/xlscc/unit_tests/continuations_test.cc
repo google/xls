@@ -125,8 +125,12 @@ class ContinuationsTest : public XlsccTestBase {
       for (ContinuationValue& continuation_out : slice.continuations_out) {
         EXPECT_EQ(continuation_out.output_node->op(), xls::Op::kIdentity);
         LOG(INFO) << absl::StrFormat(
-            "  out: %s has %li users", continuation_out.name.c_str(),
-            continuation_out.output_node->users().size());
+            "  out: %s has %li users, literal = %s",
+            continuation_out.name.c_str(),
+            continuation_out.output_node->users().size(),
+            continuation_out.literal.has_value()
+                ? continuation_out.literal.value().ToString().c_str()
+                : "(none)");
       }
     }
     LOG(INFO) << "GraphViz file:";
@@ -158,7 +162,6 @@ std::vector<const typename MapT::mapped_type*> OrderedCValuesForMap(MapT& map) {
 // to only unused outputs
 
 // TODO(seanhaskell): Check remove continuation output but not used input
-// TODO(seanhaskell): Check literals available
 // TODO(seanhaskell): Pipelined loop phi
 // TODO(seanhaskell): DISABLED_IOOutputNodesDoNotMakeContinuations
 // TODO(seanhaskell): DISABLED_InputsFeedingUnnusedOutputsRemoved
@@ -168,6 +171,8 @@ std::vector<const typename MapT::mapped_type*> OrderedCValuesForMap(MapT& map) {
 // overwritten
 // TODO(seanhaskell): Check that loops preserve values declared before them and
 // used after them (state element isn't shared with assignment in the loop)
+// TODO(seanhaskell): Check that literals don't propagate backwards: short
+// circuit, Z3
 
 // TODO(seanhaskell): Implement continuation optimization
 TEST_F(ContinuationsTest, DISABLED_IOOutputNodesDoNotMakeContinuations) {
@@ -616,6 +621,51 @@ TEST_F(ContinuationsTest, CopyCValueMapWithSeqNumberDeterminism_WithLValues) {
                 ref_ordered[i]->lvalue().get());
     }
   }
+}
+
+TEST_F(ContinuationsTest, LiteralPropagation) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int y = 1;
+      int r = in.read();
+      out.write(y);
+      int z = y + 3;
+      out.write(z);
+      int w = z * 5;
+      out.write(w);
+      out.write(r + y + z + w);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 6);
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fifth_slice = *slice_it;
+
+  EXPECT_FALSE(SliceOutputsDecl(first_slice, "y"));
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "r"));
+
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "z"));
+
+  EXPECT_FALSE(SliceOutputsDecl(fourth_slice, "w"));
+
+  EXPECT_TRUE(SliceInputsDecl(fifth_slice, "r"));
+  EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "y"));
+  EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "z"));
+  EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "w"));
 }
 
 }  // namespace

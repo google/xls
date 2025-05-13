@@ -155,21 +155,20 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
     const xls::SourceInfo& loc) {
   XLSCC_CHECK(max_iters > 0, loc);
 
-  XLS_ASSIGN_OR_RETURN(xls::solvers::z3::IrTranslator * z3_translator_parent,
-                       GetZ3Translator(context().fb->function()));
-  Z3_solver solver =
-      xls::solvers::z3::CreateSolver(z3_translator_parent->ctx(), 1);
+  Z3_solver current_solver = nullptr;
+  xls::solvers::z3::IrTranslator* current_z3_translator = nullptr;
 
-  class SolverDeref {
-   public:
-    SolverDeref(Z3_context ctx, Z3_solver solver)
-        : ctx_(ctx), solver_(solver) {}
-    ~SolverDeref() { Z3_solver_dec_ref(ctx_, solver_); }
-
-   private:
-    Z3_context ctx_;
-    Z3_solver solver_;
+  auto deref_solver = [&current_solver, &current_z3_translator]() {
+    if (current_solver == nullptr) {
+      return;
+    }
+    CHECK_NE(current_z3_translator, nullptr);
+    Z3_solver_dec_ref(current_z3_translator->ctx(), current_solver);
+    current_solver = nullptr;
+    current_z3_translator = nullptr;
   };
+  // auto deref_solver_guard = MakeLambdaGuard(deref_solver);
+  auto deref_solver_guard = absl::MakeCleanup(deref_solver);
 
   // Generate the declaration within a private context
   PushContextGuard for_init_guard(*this, loc);
@@ -226,11 +225,23 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
       XLS_RETURN_IF_ERROR(and_condition(cond_expr_cval.rvalue(), loc));
     }
 
-    {
+    if (max_iters > 1) {
       // We use the relative condition so that returns also stop unrolling
-      XLS_ASSIGN_OR_RETURN(bool condition_must_be_false,
-                           BitMustBe(false, context().relative_condition,
-                                     solver, z3_translator_parent->ctx(), loc));
+      XLS_ASSIGN_OR_RETURN(xls::solvers::z3::IrTranslator * z3_translator,
+                           GetZ3Translator(context().fb->function()));
+
+      if (z3_translator != current_z3_translator) {
+        deref_solver();
+        current_z3_translator = z3_translator;
+        current_solver =
+            xls::solvers::z3::CreateSolver(current_z3_translator->ctx(), 1);
+      };
+
+      XLS_ASSIGN_OR_RETURN(
+          bool condition_must_be_false,
+          BitMustBe(false, context().relative_condition, current_solver,
+                    current_z3_translator, loc));
+
       if (condition_must_be_false) {
         break;
       }
@@ -816,8 +827,6 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     context().in_pipelined_for_body = true;
     context().outer_pipelined_loop_init_interval = init_interval;
 
-    context().sf->slices.push_back(GeneratedFunctionSlice{});
-
     TrackedBValue context_struct_val =
         context().fb->Param(absl::StrFormat("%s_context_vars", name_prefix),
                             context_struct_xls_type, loc);
@@ -1009,16 +1018,8 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     TrackedBValue ret_val = MakeFlexTuple(return_bvals, loc);
     generated_func->return_value_count = return_bvals.size();
 
-    XLS_ASSIGN_OR_RETURN(xls::Function * last_slice_function,
+    XLS_ASSIGN_OR_RETURN(context().sf->xls_func,
                          body_builder.builder()->BuildWithReturnValue(ret_val));
-
-    XLSCC_CHECK(!context().sf->slices.empty(), loc);
-    context().sf->slices.back().function = last_slice_function;
-    generated_func->xls_func = last_slice_function;
-
-    // NOTE: No call to OptimizeContinuations here, as it confuses the
-    // logic here, and continuations aren't meant to be used with this legacy
-    // FSM generation.
 
     // Analyze context variables changed
     for (const clang::NamedDecl* decl : variable_fields_order) {
