@@ -315,6 +315,17 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "typecheck_module_v2_stdlib_test",
+    srcs = ["typecheck_module_v2_stdlib_test.cc"],
+    deps = [
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx/type_system:typecheck_test_utils",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "type_system_test_utils",
     testonly = True,
