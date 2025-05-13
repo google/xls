@@ -387,12 +387,10 @@ TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
 
 TEST_F(InferenceTableTest, ParametricVariableWithUnsupportedAnnotation) {
   ParseAndInitModuleAndTable(R"(
-    struct T {}
-    fn foo<X: T>() -> T { X }
+    fn foo<X: token>() -> u32 { 0 }
 
     fn bar() {
-      let t = T{};
-      foo<t>();
+      foo<{token()}>();
     }
 )");
 
@@ -401,8 +399,9 @@ TEST_F(InferenceTableTest, ParametricVariableWithUnsupportedAnnotation) {
   ASSERT_EQ(foo->parametric_bindings().size(), 1);
   EXPECT_THAT(
       table_->DefineParametricVariable(*foo->parametric_bindings()[0]),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Inference variables of type T are not supported")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Inference variables of type token are not supported")));
 }
 
 TEST_F(InferenceTableTest, Clone) {

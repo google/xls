@@ -6083,6 +6083,20 @@ const C = MyEnum::A + MyEnum::B;
           "Binary operations can only be applied to bits-typed operands")));
 }
 
+TEST(TypecheckV2Test, EnumParametric) {
+  XLS_EXPECT_OK(TypecheckV2(
+      R"(
+enum MyEnum : u8 {
+  A = 1,
+  B = 2,
+}
+
+fn f<E: MyEnum>() -> bool { E == MyEnum::A }
+const_assert!(f<MyEnum::A>());
+const_assert!(!f<MyEnum::B>());
+)"));
+}
+
 TEST(TypecheckV2Test, SpawnBasicProc) {
   EXPECT_THAT(R"(
 proc Counter {

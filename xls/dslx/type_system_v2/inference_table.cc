@@ -92,6 +92,12 @@ absl::StatusOr<InferenceVariableKind> TypeAnnotationToInferenceVariableKind(
   if (dynamic_cast<const GenericTypeAnnotation*>(annotation)) {
     return InferenceVariableKind::kType;
   }
+  if (dynamic_cast<const TypeRefTypeAnnotation*>(annotation)) {
+    // This currently must be an enum or other integral-type alias, which is not
+    // practical to verify here, but if a struct is used then it will fail in
+    // the parser.
+    return InferenceVariableKind::kInteger;
+  }
   return absl::InvalidArgumentError(
       absl::Substitute("Inference variables of type $0 are not supported.",
                        annotation->ToString()));
