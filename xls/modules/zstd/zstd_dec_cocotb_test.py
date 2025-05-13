@@ -64,19 +64,14 @@ AxiRMonitor._signal_widths = signal_widths
 class NotifyStruct(XLSStruct):
   pass
 
-@xls_dataclass
-class ResetStruct(XLSStruct):
-  pass
-
 class CSR(Enum):
   """
   Maps the offsets to the ZSTD Decoder registers
   """
   Status = 0
   Start = 1
-  Reset = 2
-  InputBuffer = 3
-  OutputBuffer = 4
+  InputBuffer = 2
+  OutputBuffer = 3
 
 class Status(Enum):
   """
@@ -146,9 +141,6 @@ async def test_csr(dut):
   await ClockCycles(dut.clk, 10)
   i = 0
   for reg in CSR:
-    # Reset CSR tested in a separate test case
-    if (reg == CSR.Reset):
-      continue
     expected_src = bytearray.fromhex("0DF0AD8BEFBEADDE")
     assert len(expected_src) >= AXI_DATA_W_BYTES
     expected = expected_src[-AXI_DATA_W_BYTES:]
@@ -165,17 +157,8 @@ async def test_reset(dut):
 
   await reset_dut(dut, 50)
 
-  (reset_channel, reset_monitor) = connect_xls_channel(dut, RESET_CHANNEL, ResetStruct)
-
   csr_bus = connect_axi_bus(dut, "csr")
   cpu = AxiMaster(csr_bus, dut.clk, dut.rst)
-
-  scoreboard = Scoreboard(dut)
-
-  rst_struct = ResetStruct()
-  # Expect single reset signal on reset output channel
-  expected_reset = [rst_struct]
-  scoreboard.add_interface(reset_monitor, expected_reset)
 
   await ClockCycles(dut.clk, 10)
   await start_decoder(cpu)
@@ -186,7 +169,7 @@ async def test_reset(dut):
     timeout -= 1
   assert (timeout != 0)
 
-  await csr_write(cpu, CSR.Reset, 0x1)
+  await reset_dut(dut, 50)
   await wait_for_idle(cpu, 10)
 
   await ClockCycles(dut.clk, 10)
@@ -194,7 +177,7 @@ async def test_reset(dut):
 async def configure_decoder(cpu, ibuf_addr, obuf_addr):
   status = await csr_read(cpu, CSR.Status)
   if int.from_bytes(status.data, byteorder='little') != Status.IDLE.value:
-    await csr_write(cpu, CSR.Reset, 0x1)
+    await reset_dut(dut, 50)
   await csr_write(cpu, CSR.InputBuffer, ibuf_addr)
   await csr_write(cpu, CSR.OutputBuffer, obuf_addr)
 
