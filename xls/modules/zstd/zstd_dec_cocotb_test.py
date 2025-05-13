@@ -29,15 +29,13 @@ from cocotbext.axi.axi_channels import AxiAWBus, AxiWBus, AxiBBus, AxiWriteBus, 
 from cocotbext.axi.axi_ram import AxiRam
 from cocotbext.axi.sparse_memory import SparseMemory
 
-import zstandard
-
 from xls.common import runfiles
 from xls.modules.zstd.cocotb.channel import (
   XLSChannel,
   XLSChannelDriver,
   XLSChannelMonitor,
 )
-from xls.modules.zstd.cocotb.data_generator import GenerateFrame, BlockType
+from xls.modules.zstd.cocotb.data_generator import GenerateFrame, DecompressFrame, BlockType
 from xls.modules.zstd.cocotb.memory import init_axi_mem, AxiRamFromFile
 from xls.modules.zstd.cocotb.utils import reset, run_test
 from xls.modules.zstd.cocotb.xlsstruct import XLSStruct, xls_dataclass
@@ -131,15 +129,6 @@ def connect_axi_bus(dut, name=""):
   bus_axi_write = connect_axi_write_bus(dut, name)
 
   return AxiBus(bus_axi_write, bus_axi_read)
-
-def get_decoded_frame_bytes(ifh):
-  dctx = zstandard.ZstdDecompressor()
-  return dctx.decompress(ifh.read())
-
-def get_decoded_frame_buffer(ifh, address, memory=SparseMemory(size=MAX_ENCODED_FRAME_SIZE_B)):
-  dctx = zstandard.ZstdDecompressor()
-  memory.write(address, dctx.decompress(ifh.read()))
-  return memory
 
 async def csr_write(cpu, csr, data):
   if type(data) is int:
@@ -300,7 +289,7 @@ async def test_decoder(dut, seed, block_type, scoreboard, axi_buses, xls_channel
     # Generate ZSTD frame to temporary file
     GenerateFrame(seed, block_type, encoded.name)
 
-    expected_decoded_frame = get_decoded_frame_bytes(encoded)
+    expected_decoded_frame = DecompressFrame(encoded.read())
     encoded.close()
     expected_output_packets = generate_expected_output(expected_decoded_frame)
 
