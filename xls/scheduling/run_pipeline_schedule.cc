@@ -515,6 +515,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
         /*failure_behavior=*/{.explain_infeasibility = false});
     if (wct.ok()) {
       worst_case_throughput = *wct;
+      f->AsProcOrDie()->SetInitiationInterval(*wct);
       LOG(INFO) << "Minimized worst-case throughput for proc '" << f->name()
                 << "': " << *worst_case_throughput;
     } else {

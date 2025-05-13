@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -32,6 +31,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -48,11 +48,10 @@ class SDCSchedulingModel {
   static constexpr double kMaxStages = (1 << 20);
 
  public:
-  SDCSchedulingModel(FunctionBase* func,
-                     absl::flat_hash_set<Node*> dead_after_synthesis,
-                     const DelayMap& delay_map,
-                     std::string_view model_name = "");
+  SDCSchedulingModel(ScheduleGraph graph, const DelayMap& delay_map,
+                     std::optional<int64_t> initiation_interval);
 
+  absl::Status AddAllDefUseConstraints();
   absl::Status AddDefUseConstraints(Node* node, std::optional<Node*> user);
   absl::Status AddCausalConstraint(Node* node, std::optional<Node*> user);
   absl::Status AddLifetimeConstraint(Node* node, std::optional<Node*> user);
@@ -71,6 +70,9 @@ class SDCSchedulingModel {
   void SetClockPeriod(int64_t clock_period_ps);
 
   absl::Status SetWorstCaseThroughput(int64_t worst_case_throughput);
+  std::optional<int64_t> initiation_interval() const {
+    return initiation_interval_;
+  }
 
   void SetPipelineLength(std::optional<int64_t> pipeline_length);
   void MinimizePipelineLength();
@@ -156,13 +158,11 @@ class SDCSchedulingModel {
                      std::optional<operations_research::math_opt::Variable>
                          slack = std::nullopt);
 
-  FunctionBase* func_;
-  const std::vector<Node*> topo_sort_;
-
-  absl::flat_hash_set<Node*> dead_after_synthesis_;
+  ScheduleGraph graph_;
 
   operations_research::math_opt::Model model_;
   const DelayMap& delay_map_;
+  std::optional<int64_t> initiation_interval_;
 
   // Stores the critical-path distances between all pairs of Nodes; if there is
   // a path from `x` to `y`, `distances_to_node_[y][x]` is the length of the
@@ -231,6 +231,9 @@ class SDCScheduler {
   static absl::StatusOr<std::unique_ptr<SDCScheduler>> Create(
       FunctionBase* f, const DelayEstimator& delay_estimator);
 
+  static absl::StatusOr<std::unique_ptr<SDCScheduler>> Create(
+      ScheduleGraph graph, const DelayEstimator& delay_estimator);
+
   absl::Status AddConstraints(
       absl::Span<const SchedulingConstraint> constraints);
 
@@ -265,7 +268,7 @@ class SDCScheduler {
       std::optional<double> dynamic_throughput_objective_weight = std::nullopt);
 
  private:
-  SDCScheduler(FunctionBase* f, absl::flat_hash_set<Node*> dead_after_synthesis,
+  SDCScheduler(ScheduleGraph graph, std::optional<int64_t> initiation_interval,
                DelayMap delay_map);
   absl::Status Initialize();
 
@@ -273,9 +276,7 @@ class SDCScheduler {
       const operations_research::math_opt::SolveResult& result,
       SchedulingFailureBehavior failure_behavior);
 
-  FunctionBase* f_;
   DelayMap delay_map_;
-
   SDCSchedulingModel model_;
   std::unique_ptr<operations_research::math_opt::IncrementalSolver> solver_;
 };

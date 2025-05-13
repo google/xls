@@ -142,6 +142,7 @@ cc_library(
     srcs = ["sdc_scheduler.cc"],
     hdrs = ["sdc_scheduler.h"],
     deps = [
+        ":schedule_graph",
         ":schedule_util",
         ":scheduling_options",
         "//xls/common/status:ret_check",
@@ -600,6 +601,21 @@ cc_library(
         "//xls/ir:proc_elaboration",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "schedule_graph",
+    srcs = ["schedule_graph.cc"],
+    hdrs = ["schedule_graph.h"],
+    deps = [
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:proc_elaboration",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

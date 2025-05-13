@@ -20,13 +20,13 @@
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/fdo/delay_manager.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/node.h"
+#include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/sdc_scheduler.h"
 
@@ -38,10 +38,10 @@ class IterativeSDCSchedulingModel : public SDCSchedulingModel {
  public:
   // Delay map is no longer needed as the delay calculation is completely
   // handled by the delay manager.
-  IterativeSDCSchedulingModel(FunctionBase* func,
-                              absl::flat_hash_set<Node*> dead_after_synthesis,
+  IterativeSDCSchedulingModel(ScheduleGraph graph,
                               const DelayManager& delay_manager)
-      : SDCSchedulingModel(func, std::move(dead_after_synthesis), DelayMap()),
+      : SDCSchedulingModel(std::move(graph), DelayMap(),
+                           /*initiation_interval=*/std::nullopt),
         delay_manager_(delay_manager) {}
 
   // Overrides the original timing constraints builder. This method directly
