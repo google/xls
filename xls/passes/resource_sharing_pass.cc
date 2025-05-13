@@ -228,47 +228,43 @@ class FoldingGraph {
   void IdentifyCliques();
 };
 
-// This function returns true if @node erases @source, false otherwise.
-bool DoesErase(Node *source, Node *node, uint32_t case_number,
+// This function returns true if @node stops the propagation of the value passed
+// as the select case @case_number, false otherwise.
+bool DoesErase(Node *node, uint32_t case_number,
                absl::Span<const TreeBitLocation> selector_bits,
                const BddQueryEngine &bdd_engine) {
-  // We currently only handle erasing when performed by a bitwise AND operation.
-  if (node->op() != Op::kAnd) {
+  // We currently only handle erasing when performed by an n-ary operation
+  // (e.g., and, nand).
+  if (!node->Is<NaryOp>()) {
     return false;
   }
-  VLOG(5) << "Catcher:   Found a potential eraser: " << node->ToString();
+  VLOG(5) << "Catcher:   Found a potential eraser";
 
   // Check if @node erases @source
-  for (Node *input : node->operands()) {
-    // Find the input that is not @source
-    if (input == source) {
+  // To do it, we check if @node is guaranteed to be "0" (and therefore erase
+  // @source through this def-use chain) when the case selected is not
+  // @case_number.
+  for (const auto &[t_number, t] : iter::enumerate(selector_bits)) {
+    if (t_number == case_number) {
       continue;
     }
 
-    // Check if @input is guaranteed to be "0" (and therefore erase
-    // @source through this def-use chain) when @condition is not true
-    VLOG(5) << "Catcher:     Condition to erase: " << input->ToString();
-    for (const auto &[t_number, t] : iter::enumerate(selector_bits)) {
-      if (t_number == case_number) {
-        continue;
-      }
+    // Prepare the values that can be assumed when checked if the current
+    // def-use chain gets erased.
+    std::vector<std::pair<TreeBitLocation, bool>> assumed_values;
+    assumed_values.push_back(std::make_pair(t, true));
+    assumed_values.push_back(std::make_pair(selector_bits[case_number], false));
 
-      // Prepare the values that can be assumed when checked if the current
-      // def-use chain gets erased.
-      std::vector<std::pair<TreeBitLocation, bool>> assumed_values;
-      assumed_values.push_back(std::make_pair(t, true));
-      assumed_values.push_back(
-          std::make_pair(selector_bits[case_number], false));
-
-      // Check if the current def-use chain gets erased.
-      std::optional<Bits> and_input_when_not_selected =
-          bdd_engine.ImpliedNodeValue(assumed_values, input);
-      if (and_input_when_not_selected &&
-          and_input_when_not_selected->IsZero()) {
-        return true;
-      }
+    // Check if the current def-use chain gets erased.
+    std::optional<Bits> node_value_when_case_not_selected =
+        bdd_engine.ImpliedNodeValue(assumed_values, node);
+    if (node_value_when_case_not_selected &&
+        node_value_when_case_not_selected->IsZero()) {
+      VLOG(5) << "Catcher:     It is an eraser";
+      return true;
     }
   }
+  VLOG(5) << "Catcher:     It is not an eraser";
 
   // We cannot guarantee @node erases @source.
   return false;
@@ -308,7 +304,7 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   // Check if the current node of the current def-use chain erases the
   // computation specified by @source
   if ((source != nullptr) &&
-      DoesErase(source, node, case_number, selector_bits, bdd_engine)) {
+      DoesErase(node, case_number, selector_bits, bdd_engine)) {
     return false;
   }
 
