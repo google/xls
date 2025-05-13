@@ -68,6 +68,7 @@ cc_library(
     hdrs = ["inference_table_converter_impl.h"],
     deps = [
         ":evaluator",
+        ":fast_concretizer",
         ":import_utils",
         ":inference_table",
         ":inference_table_converter",
@@ -112,6 +113,26 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "fast_concretizer_test",
+    srcs = ["fast_concretizer_test.cc"],
+    deps = [
+        ":fast_concretizer",
+        ":matchers",
+        ":type_annotation_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:type",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@googletest//:gtest",
     ],
 )
 
@@ -492,6 +513,25 @@ cc_library(
         ":inference_table",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "fast_concretizer",
+    srcs = ["fast_concretizer.cc"],
+    hdrs = ["fast_concretizer.h"],
+    deps = [
+        ":type_annotation_utils",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:type",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
 )

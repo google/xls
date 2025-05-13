@@ -59,6 +59,7 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_zero_value.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
+#include "xls/dslx/type_system_v2/fast_concretizer.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
@@ -277,8 +278,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         resolver_(TypeAnnotationResolver::Create(
             module, table, file_table,
             /*error_generator=*/*this, /*evaluator=*/*this,
-            /*parametric_struct_instantiator=*/*this, *tracer_, import_data_)) {
-  }
+            /*parametric_struct_instantiator=*/*this, *tracer_, import_data_)),
+        fast_concretizer_(FastConcretizer::Create(file_table)) {}
 
   static absl::StatusOr<InferenceTableConverter*> FromImportData(
       ImportData& import_data, std::string module_name) {
@@ -808,23 +809,45 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
                          GetTypeInfo(node->owner(), parametric_context));
     std::optional<const TypeAnnotation*> annotation = pre_unified_type;
+
+    // Resolve and unify the type information for the node, if it was not
+    // pre-unified.
+    bool node_is_annotation = false;
     if (!annotation.has_value()) {
-      Module* effective_module = &module_;
-      if (parametric_context.has_value() &&
-          (*parametric_context)->is_invocation()) {
-        auto details = std::get<ParametricInvocationDetails>(
-            (*parametric_context)->details());
-        if (details.callee->owner() != &module_) {
-          effective_module = details.callee->owner();
+      if (const auto* node_as_annotation =
+              dynamic_cast<const TypeAnnotation*>(node)) {
+        // If the node itself is a `TypeAnnotation`, it doesn't need type
+        // unification.
+        node_is_annotation = true;
+        annotation = node_as_annotation;
+
+        // Builtin fragments of bits-like types, like `uN` and `xN[true]` have
+        // no `Type` conversion. We only convert the complete thing.
+        if (IsBitsLikeFragment(node_as_annotation)) {
+          return absl::OkStatus();
         }
+      } else {
+        // In most cases, come up with a unified type annotation using the
+        // table (or the table of the owning module).
+        std::unique_ptr<TypeAnnotationResolver> foreign_resolver;
+        TypeAnnotationResolver* resolver = resolver_.get();
+        if (parametric_context.has_value() &&
+            (*parametric_context)->is_invocation()) {
+          auto details = std::get<ParametricInvocationDetails>(
+              (*parametric_context)->details());
+          if (details.callee->owner() != &module_) {
+            foreign_resolver = TypeAnnotationResolver::Create(
+                *details.callee->owner(), table_, file_table_,
+                /*error_generator=*/*this, /*evaluator=*/*this,
+                /*parametric_struct_instantiator=*/*this, *tracer_,
+                import_data_);
+            resolver = foreign_resolver.get();
+          }
+        }
+        XLS_ASSIGN_OR_RETURN(
+            annotation, resolver->ResolveAndUnifyTypeAnnotationsForNode(
+                            parametric_context, node, type_annotation_filter));
       }
-      auto resolver = TypeAnnotationResolver::Create(
-          *effective_module, table_, file_table_,
-          /*error_generator=*/*this, /*evaluator=*/*this,
-          /*parametric_struct_instantiator=*/*this, *tracer_, import_data_);
-      XLS_ASSIGN_OR_RETURN(
-          annotation, resolver->ResolveAndUnifyTypeAnnotationsForNode(
-                          parametric_context, node, type_annotation_filter));
     }
 
     if (node->kind() == AstNodeKind::kFunction) {
@@ -846,34 +869,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
 
-    // If the node itself is a `TypeAnnotation`, then, in the absence of any
-    // other information, its `Type` is whatever that concretizes to.
-    bool node_is_annotation = false;
     if (!annotation.has_value()) {
-      if (const auto* node_as_annotation =
-              dynamic_cast<const TypeAnnotation*>(node)) {
-        annotation = node_as_annotation;
-        node_is_annotation = true;
-      } else {
-        // The caller may have passed a node that is in the AST but not in the
-        // table, and it may not be needed in the table.
-        VLOG(5) << "No type information for: " << node->ToString();
-        return absl::OkStatus();
-      }
-    }
-
-    // Any annotation which actually gets used as the type of a node should be
-    // converted itself, in order to generate type info for expressions that are
-    // embedded in it, so those do not disrupt evaluations that occur in
-    // concretization. These annotations may not be scheduled for conversion
-    // otherwise, because they may be fabricated.
-    if (node->kind() != AstNodeKind::kTypeAnnotation) {
-      XLS_RETURN_IF_ERROR(ConvertSubtree(*annotation, /*function=*/std::nullopt,
-                                         parametric_context));
+      // The caller may have passed a node that is in the AST but not in the
+      // table, and it may not be needed in the table.
+      VLOG(5) << "No type information for: " << node->ToString();
+      return absl::OkStatus();
     }
 
     absl::StatusOr<std::unique_ptr<Type>> type =
-        Concretize(*annotation, parametric_context);
+        Concretize(*annotation, parametric_context,
+                   /*needs_conversion_before_eval=*/node->kind() !=
+                       AstNodeKind::kTypeAnnotation);
+
     if (!type.ok()) {
       // When the node itself is an annotation, and we decide to concretize
       // the node itself, we can't succeed in all contexts. For example, a
@@ -1022,14 +1029,34 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
  private:
   // Converts the given type annotation to a concrete `Type`, either statically
-  // or in the context of a parametric invocation.
+  // or in the context of a parametric invocation. The
+  // `needs_conversion_before_eval` flag indicates if the annotation needs its
+  // subtree converted before evaluating parts of it (this is not applicable if
+  // the fast concretizer handles it).
   absl::StatusOr<std::unique_ptr<Type>> Concretize(
       const TypeAnnotation* annotation,
-      std::optional<const ParametricContext*> parametric_context) {
+      std::optional<const ParametricContext*> parametric_context,
+      bool needs_conversion_before_eval = false) {
     TypeSystemTrace trace = tracer_->TraceConcretize(annotation);
     VLOG(5) << "Concretize: " << annotation->ToString()
             << " in context invocation: " << ToString(parametric_context);
     VLOG(5) << "Effective context: " << ToString(parametric_context);
+
+    absl::StatusOr<std::unique_ptr<Type>> type =
+        fast_concretizer_->Concretize(annotation);
+    if (type.ok()) {
+      return std::move(*type);
+    }
+
+    // Any annotation which actually gets used as the type of a node should be
+    // converted itself, in order to generate type info for expressions that
+    // are embedded in it, so those do not disrupt evaluations that occur in
+    // concretization. These annotations may not be scheduled for conversion
+    // otherwise, because they may be fabricated.
+    if (needs_conversion_before_eval) {
+      XLS_RETURN_IF_ERROR(ConvertSubtree(annotation, /*function=*/std::nullopt,
+                                         parametric_context));
+    }
 
     XLS_ASSIGN_OR_RETURN(annotation, resolver_->ResolveIndirectTypeAnnotations(
                                          parametric_context, annotation,
@@ -2508,6 +2535,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   const FileTable& file_table_;
   std::unique_ptr<TypeSystemTracer> tracer_;
   std::unique_ptr<TypeAnnotationResolver> resolver_;
+  std::unique_ptr<FastConcretizer> fast_concretizer_;
   absl::flat_hash_map<const ParametricContext*, ParametricEnv>
       converted_parametric_envs_;
   absl::flat_hash_map<const ParametricContext*,

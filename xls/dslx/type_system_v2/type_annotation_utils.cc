@@ -430,4 +430,25 @@ const FunctionTypeAnnotation* ExpandVarargs(
   return module.Make<FunctionTypeAnnotation>(param_types,
                                              signature->return_type());
 }
+
+bool IsBitsLikeFragment(const TypeAnnotation* annotation) {
+  if (const auto* builtin =
+          dynamic_cast<const BuiltinTypeAnnotation*>(annotation)) {
+    return builtin->builtin_type() == BuiltinType::kXN ||
+           builtin->builtin_type() == BuiltinType::kUN ||
+           builtin->builtin_type() == BuiltinType::kSN ||
+           builtin->builtin_type() == BuiltinType::kBits;
+  }
+  if (const auto* array =
+          dynamic_cast<const ArrayTypeAnnotation*>(annotation)) {
+    // The immediate element type of a complete xN annotation would be a nested
+    // array type and not xN.
+    const auto* builtin_element =
+        dynamic_cast<const BuiltinTypeAnnotation*>(array->element_type());
+    return builtin_element != nullptr &&
+           builtin_element->builtin_type() == BuiltinType::kXN;
+  }
+  return false;
+}
+
 }  // namespace xls::dslx

@@ -209,6 +209,11 @@ const BuiltinTypeAnnotation* CastToTokenType(const TypeAnnotation* annotation);
 const FunctionTypeAnnotation* ExpandVarargs(
     Module& module, const FunctionTypeAnnotation* signature, int count);
 
+// Returns whether `annotation` is a part of a bits-like type annotation that is
+// unusable without being combined into a larger annotation. For example,
+// returns true for `uN` but false for `uN[4]` or `uN[N]`.
+bool IsBitsLikeFragment(const TypeAnnotation* annotation);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_
