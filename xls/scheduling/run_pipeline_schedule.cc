@@ -352,6 +352,25 @@ bool IsExternalIoNode(ChannelNode* node,
   return (*chan)->supported_ops() != ChannelOps::kSendReceive;
 }
 
+absl::StatusOr<int64_t> ApplyClockMargin(const SchedulingOptions& options,
+                                         int64_t clock_period_ps) {
+  if (!options.clock_margin_percent().has_value()) {
+    return clock_period_ps;
+  }
+
+  int64_t original_clock_period_ps = clock_period_ps;
+  clock_period_ps -=
+      (clock_period_ps * *options.clock_margin_percent() + 50) / 100;
+  if (clock_period_ps <= 0) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Clock period non-positive (%dps) after adjusting for margin. "
+        "Original clock period: %dps, clock margin: %d%%",
+        clock_period_ps, original_clock_period_ps,
+        *options.clock_margin_percent()));
+  }
+  return clock_period_ps;
+}
+
 absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options,
@@ -435,24 +454,9 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
 
   std::optional<int64_t> min_clock_period_ps_for_tracing;
   int64_t clock_period_ps;
-  if (options.clock_period_ps().has_value() &&
-      !(options.minimize_clock_on_failure().value_or(false) &&
-        options.recover_after_minimizing_clock().value_or(false))) {
-    clock_period_ps = *options.clock_period_ps();
-
-    if (options.clock_margin_percent().has_value()) {
-      int64_t original_clock_period_ps = clock_period_ps;
-      clock_period_ps -=
-          (clock_period_ps * options.clock_margin_percent().value() + 50) / 100;
-      if (clock_period_ps <= 0) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Clock period non-positive (%dps) after adjusting for margin. "
-            "Original clock period: %dps, clock margin: %d%%",
-            clock_period_ps, original_clock_period_ps,
-            *options.clock_margin_percent()));
-      }
-    }
-  } else {
+  if (!options.clock_period_ps().has_value() ||
+      (options.minimize_clock_on_failure().value_or(false) &&
+       options.recover_after_minimizing_clock().value_or(false))) {
     // We don't know the exact target clock period - either none was provided,
     // or we want to fall back to the minimum feasible clock period if the
     // target is infeasible. Determine the minimum clock period for which the
@@ -465,13 +469,26 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     //       schedule.
     XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
     XLS_ASSIGN_OR_RETURN(
-        clock_period_ps,
+        min_clock_period_ps_for_tracing,
         FindMinimumClockPeriod(
             f, options.pipeline_stages(),
             /*worst_case_throughput=*/f->IsProc() ? f->GetInitiationInterval()
                                                   : std::nullopt,
             io_delay_added, *sdc_scheduler, options.failure_behavior()));
-    min_clock_period_ps_for_tracing = clock_period_ps;
+
+    // Pad the minimum clock period to account for the clock margin.
+    if (options.clock_margin_percent().has_value()) {
+      if (*options.clock_margin_percent() >= 100) {
+        return absl::InvalidArgumentError(
+            "Clock margin percent must be less than 100.");
+      }
+      *min_clock_period_ps_for_tracing =
+          (*min_clock_period_ps_for_tracing * 100 + 50) /
+          (100 - *options.clock_margin_percent());
+    }
+
+    // Set the clock period to the minimum feasible value.
+    clock_period_ps = *min_clock_period_ps_for_tracing;
 
     if (options.period_relaxation_percent().has_value()) {
       // Apply the user-specified relaxation to allow less evenly distributed
@@ -482,8 +499,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
 
     if (options.clock_period_ps().has_value()) {
       // If the user specified a clock period, and it's at least as long as our
-      // feasible clock period, use that instead; no need to squeeze the stages
-      // for a tighter clock than the user's target.
+      // relaxed minimum clock period, use that instead; no need to squeeze the
+      // stages for a tighter clock than the user's target.
       clock_period_ps = std::max(clock_period_ps, *options.clock_period_ps());
     }
 
@@ -492,12 +509,18 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
       CHECK(options.minimize_clock_on_failure().value_or(false));
       CHECK(options.recover_after_minimizing_clock().value_or(false));
       LOG(WARNING) << "Target clock period was " << *options.clock_period_ps()
-                   << ", but shortest feasible clock period is "
-                   << *min_clock_period_ps_for_tracing
+                   << ", but shortest feasible clock period (after any "
+                      "specified relaxation) is "
+                   << clock_period_ps
                    << " ps; continuing with clock period = " << clock_period_ps
                    << " ps.";
     }
+  } else {
+    clock_period_ps = options.clock_period_ps().value();
   }
+
+  XLS_ASSIGN_OR_RETURN(clock_period_ps,
+                       ApplyClockMargin(options, clock_period_ps));
 
   std::optional<int64_t> worst_case_throughput = std::nullopt;
   if (options.minimize_worst_case_throughput().value_or(false) && f->IsProc() &&
