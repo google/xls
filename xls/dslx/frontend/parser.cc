@@ -714,8 +714,8 @@ absl::StatusOr<ChannelConfig> Parser::ParseExprAttribute(Bindings& bindings,
       absl::StrFormat("Unknown attribute: '%s'", attribute_name));
 }
 
-absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
-                            TypeDefinition, std::nullptr_t>>
+absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, Proc*,
+                            QuickCheck*, TypeDefinition, std::nullptr_t>>
 Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                        Bindings& bindings, const Pos& hash_pos) {
   // Ignore the Rust "bang" in Attribute declarations, i.e. we don't yet have
@@ -734,6 +734,40 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                                                       bindings, name_to_fn));
     fn->set_disable_format(true);
     return fn;
+  }
+  if (attribute_name == "cfg") {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+    XLS_ASSIGN_OR_RETURN(Token parameter_name,
+                         PopTokenOrError(TokenKind::kIdentifier));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
+    if (parameter_name.GetStringValue() != "test") {
+      return ParseErrorStatus(
+          attribute_tok.span(),
+          absl::StrFormat(
+              "Unknown parameter name in the #[cfg()] attribute: '%s'",
+              parameter_name.ToString()));
+    }
+
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+    XLS_ASSIGN_OR_RETURN(bool is_public, TryDropKeyword(Keyword::kPub));
+
+    XLS_ASSIGN_OR_RETURN(const Token* t, PeekToken());
+    if (t->IsKeyword(Keyword::kFn)) {
+      XLS_ASSIGN_OR_RETURN(Function * fn, ParseFunction(hash_pos, is_public,
+                                                        bindings, name_to_fn));
+      fn->set_test_only(true);
+      return fn;
+    } else if (t->IsKeyword(Keyword::kProc)) {
+      XLS_ASSIGN_OR_RETURN(ModuleMember m,
+                           ParseProc(GetPos(), /*is_public=*/false, bindings));
+      Proc* p = std::get<Proc*>(m);
+      p->set_test_only(true);
+      return p;
+    } else {
+      return ParseErrorStatus(
+          attribute_tok.span(),
+          "#[cfg()] attribute should only be used for functions and procs");
+    }
   }
   if (attribute_name == "extern_verilog") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));

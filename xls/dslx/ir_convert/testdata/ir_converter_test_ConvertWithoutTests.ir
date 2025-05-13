@@ -1,0 +1,36 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+chan test_module__req_r((), id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test_module__resp_s((), id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+
+fn __itok__test_module__normal_function(__token: token id=1, __activated: bits[1] id=2) -> (token, ()) {
+  trace.3: token = trace(__token, __activated, format="Message from a normal function", data_operands=[], id=3)
+  after_all.5: token = after_all(trace.3, id=5)
+  tuple.4: () = tuple(id=4)
+  ret tuple.6: (token, ()) = tuple(after_all.5, tuple.4, id=6)
+}
+
+fn __test_module__normal_function() -> () {
+  after_all.20: token = after_all(id=20)
+  literal.21: bits[1] = literal(value=1, id=21)
+  invoke.22: (token, ()) = invoke(after_all.20, literal.21, to_apply=__itok__test_module__normal_function, id=22)
+  ret tuple_index.23: () = tuple_index(invoke.22, index=1, id=23)
+}
+
+proc __test_module__NormalProc_0_next(__state: (), init={()}) {
+  after_all.10: token = after_all(id=10)
+  literal.9: bits[1] = literal(value=1, id=9)
+  receive.11: (token, ()) = receive(after_all.10, predicate=literal.9, channel=test_module__req_r, id=11)
+  __token: token = literal(value=token, id=7)
+  tok: token = tuple_index(receive.11, index=0, id=13)
+  tuple.16: () = tuple(id=16)
+  __state: () = state_read(state_element=__state, id=8)
+  tuple.18: () = tuple(id=18)
+  tuple_index.12: token = tuple_index(receive.11, index=0, id=12)
+  tuple_index.14: () = tuple_index(receive.11, index=1, id=14)
+  trace.15: token = trace(__token, literal.9, format="Message from a NormalProc", data_operands=[], id=15)
+  send.17: token = send(tok, tuple.16, predicate=literal.9, channel=test_module__resp_s, id=17)
+  next_value.19: () = next_value(param=__state, value=tuple.18, id=19)
+}

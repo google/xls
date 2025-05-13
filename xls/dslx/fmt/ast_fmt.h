@@ -41,7 +41,7 @@ class Formatter {
   // keep-sorted start
   // Each `Format` method creates a pretty-printable document from the given AST
   // node `n`.
-  DocRef Format(const Function& n);
+  DocRef Format(const Function& n, bool is_test = false);
   DocRef Format(const Expr& n);
   DocRef Format(const Let& n, bool trailing_semi);
   absl::StatusOr<DocRef> Format(const Module& n);
@@ -63,7 +63,7 @@ class Formatter {
   DocRef Format(const ModuleMember& n);
   DocRef Format(const ParametricBinding& n);
   DocRef Format(const ParametricBinding* n);
-  DocRef Format(const Proc& n);
+  DocRef Format(const Proc& n, bool is_test = false);
   DocRef Format(const ProcDef& n);
   DocRef Format(const ProcMember& n);
   DocRef Format(const QuickCheck& n);

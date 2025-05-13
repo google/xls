@@ -2373,6 +2373,8 @@ class Function : public AstNode {
     disable_format_ = disable_format;
   }
   bool disable_format() const { return disable_format_; }
+  void set_test_only(bool test_only) { test_only_ = test_only; }
+  bool test_only() const { return test_only_; }
 
   FunctionTag tag() const { return tag_; }
   std::optional<Proc*> proc() const { return proc_; }
@@ -2405,6 +2407,7 @@ class Function : public AstNode {
   const bool is_public_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
   bool disable_format_ = false;
+  bool test_only_ = false;
 };
 
 // A lambda expression.

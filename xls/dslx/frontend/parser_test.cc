@@ -1490,6 +1490,46 @@ proc tester {
   RoundTrip(std::string(kModule));
 }
 
+TEST_F(ParserTest, ParseProcWithCfgAttributeWithTestParameter) {
+  constexpr std::string_view kModule = R"(#[cfg(test)]
+proc Tester {
+    req_r: chan<()> in;
+    config(req_r: chan<()> in) {
+        (req_r,)
+    }
+    init {}
+    next(state: ()) {
+        let (tok, _) = recv(join(), req_r);
+        trace_fmt!("Tester proc");
+    }
+})";
+  RoundTrip(std::string(kModule));
+}
+
+TEST(ParserErrorTest, ParseTestProcWithCfgAttributeWithUnknownParameter) {
+  constexpr std::string_view kProgram = R"(#[cfg(unknown_attribute)]
+proc Tester {
+    req_r: chan<()> in;
+    config(req_r: chan<()> in) {
+        (req_r,)
+    }
+    init {}
+    next(state: ()) {
+        let (tok, _) = recv(join(), req_r);
+        trace_fmt!("Tester proc");
+    }
+})";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+
+  EXPECT_THAT(module.status(),
+              IsPosError("ParseError",
+                         HasSubstr("Unknown parameter name in the #[cfg()] "
+                                   "attribute: 'unknown_attribute'")));
+}
+
 TEST_F(ParserTest, ParseStructSplat) {
   const char* text = R"(struct Point {
     x: u32,
@@ -2569,6 +2609,29 @@ TEST_F(ParserTest, ModuleWithTestFunction) {
 fn id_4() {
     assert_eq(u32:4, id(u32:4))
 })");
+}
+
+TEST_F(ParserTest, ModuleWithFunctionWithTestCfgAttribute) {
+  RoundTrip(R"(#[cfg(test)]
+fn assert_value_is_0<N: u32>(a: uN[N]) {
+    assert_eq(0, a);
+})");
+}
+
+TEST(ParserErrorTest, ModuleWithFunctionWithUnknownUnknownAttribute) {
+  constexpr std::string_view kProgram = R"(#[cfg(unknown_attribute)]
+fn assert_value_is_0<N: u32>(a: uN[N]) {
+    assert_eq(0, a);
+})";
+
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module.status(),
+              IsPosError("ParseError",
+                         HasSubstr("Unknown parameter name in the #[cfg()] "
+                                   "attribute: 'unknown_attribute'")));
 }
 
 TEST_F(ParserTest, TypeAliasForTupleWithConstSizedArray) {

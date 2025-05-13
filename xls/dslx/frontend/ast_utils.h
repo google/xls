@@ -34,6 +34,8 @@
 
 namespace xls::dslx {
 
+inline constexpr std::string_view kCfgTestAttr = "cfg(test)";
+
 // Returns true if `callee` refers to a builtin function. If `callee` isn't a
 // NameRef, then this always returns false.
 //

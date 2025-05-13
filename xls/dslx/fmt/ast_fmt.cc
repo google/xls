@@ -48,6 +48,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -2133,7 +2134,7 @@ DocRef Formatter::Format(const ParametricBinding* n) {
   return Format(*n);
 }
 
-DocRef Formatter::Format(const Function& n) {
+DocRef Formatter::Format(const Function& n, bool is_test) {
   std::vector<DocRef> signature_pieces;
   if (n.is_public()) {
     signature_pieces.push_back(arena_.Make(Keyword::kPub));
@@ -2208,6 +2209,15 @@ DocRef Formatter::Format(const Function& n) {
                             arena_.MakeText("\")]"),
                             arena_.hard_line(),
                         }));
+  } else if (n.test_only() && !is_test) {
+    fn_pieces.push_back(
+        ConcatN(arena_, {
+                            arena_.MakeText("#"),
+                            arena_.obracket(),
+                            arena_.MakeText(std::string(kCfgTestAttr)),
+                            arena_.cbracket(),
+                            arena_.hard_line(),
+                        }));
   }
 
   if (n.body()->empty()) {
@@ -2236,7 +2246,13 @@ DocRef Formatter::Format(const ProcMember& n) {
                arena_.break1(), Fmt(*n.type_annotation(), comments_, arena_)});
 }
 
-DocRef Formatter::Format(const Proc& n) {
+DocRef Formatter::Format(const Proc& n, bool is_test) {
+  std::vector<DocRef> attribute_pieces;
+  if (n.test_only() && !is_test) {
+    attribute_pieces.push_back(arena_.MakeText("#[cfg(test)]"));
+    attribute_pieces.push_back(arena_.hard_line());
+  }
+
   std::vector<DocRef> signature_pieces;
   if (n.is_public()) {
     signature_pieces.push_back(arena_.Make(Keyword::kPub));
@@ -2408,6 +2424,7 @@ DocRef Formatter::Format(const Proc& n) {
           : arena_.empty();
 
   std::vector<DocRef> proc_pieces = {
+      ConcatNGroup(arena_, attribute_pieces),
       ConcatNGroup(arena_, signature_pieces),
       arena_.hard_line(),
       stmt_pieces.empty()
@@ -2439,7 +2456,7 @@ DocRef Formatter::Format(const TestFunction& n) {
   std::vector<DocRef> pieces;
   pieces.push_back(arena_.MakeText("#[test]"));
   pieces.push_back(arena_.hard_line());
-  pieces.push_back(Format(n.fn()));
+  pieces.push_back(Format(n.fn(), /*is_test=*/true));
   return ConcatN(arena_, pieces);
 }
 
@@ -2453,7 +2470,7 @@ DocRef Formatter::Format(const TestProc& n) {
     pieces.push_back(arena_.MakeText("#[test_proc]"));
   }
   pieces.push_back(arena_.hard_line());
-  pieces.push_back(Format(*n.proc()));
+  pieces.push_back(Format(*n.proc(), /*is_test=*/true));
   return ConcatN(arena_, pieces);
 }
 

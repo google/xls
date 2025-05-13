@@ -648,8 +648,9 @@ class Parser : public TokenParser {
   // #[test_proc] Expects a proc, returns TestProc*
   // #[quickcheck(...)] Expects a fn, returns QuickCheck*
   // #[sv_type(...)] Expects a TypeDefinition, returns TypeDefinition
-  absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
-                              TypeDefinition, std::nullptr_t>>
+  // #[cfg(...)] Expects a fn, returns Function*
+  absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, Proc*,
+                              QuickCheck*, TypeDefinition, std::nullptr_t>>
   ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                  Bindings& bindings, const Pos& hash_pos);
 

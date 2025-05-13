@@ -1820,6 +1820,15 @@ fn my_test() {
 )");
 }
 
+TEST_F(ModuleFmtTest, SimpleTestUtilityFunction) {
+  DoFmt(
+      R"(#[cfg(test)]
+fn assert_value_is_0<N: u32>(a: uN[N]) {
+    assert_eq(0, a);
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, SimpleParametricInvocation) {
   DoFmt(
       R"(fn p<N: u32>(x: bits[N]) -> bits[N] { x }
@@ -2461,6 +2470,26 @@ proc tester {
     next(_: ()) {
         assert!(false, "my_fail");
         send(join(), terminator, true);
+    }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, SimpleTestUtilityProc) {
+  DoFmt(
+      R"(#[cfg(test)]
+proc TestUtilityProc {
+    req_r: chan<()> in;
+    resp_s: chan<()> out;
+
+    config(req_r: chan<()> in, resp_s: chan<()> out) { (req_r, resp_s) }
+
+    init {  }
+
+    next(state: ()) {
+        let (tok, _) = recv(join(), req_r);
+        trace_fmt!("Message from a TestUtilityProc");
+        send(tok, resp_s, ());
     }
 }
 )");
