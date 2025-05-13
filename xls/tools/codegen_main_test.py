@@ -41,6 +41,9 @@ _XLS_SOURCE_DIR = flags.DEFINE_string(
 )
 CODEGEN_MAIN_PATH = runfiles.get_path('xls/tools/codegen_main')
 SHA256_IR_PATH = runfiles.get_path('xls/examples/sha256.opt.ir')
+PIPELINE_METRICS_MAIN_PATH = runfiles.get_path(
+    'xls/dev_tools/pass_metrics_main'
+)
 
 NOT_ADD_IR = """package not_add
 
@@ -576,6 +579,63 @@ class CodeGenMainTest(parameterized.TestCase):
     with open(output_blk, 'r') as blk:
       merge = blk.read()
     self.assertNotEqual(no_merge, merge)
+
+  def test_dump_metrics_pipelined(self):
+    ir_file = self.create_tempfile(content=NOT_ADD_IR)
+    verilog_path = self.create_tempfile()
+
+    # Dump metrics to files.
+    sched_metrics_file = self.create_tempfile()
+    codegen_metrics_file = self.create_tempfile()
+    subprocess.check_call([
+        CODEGEN_MAIN_PATH,
+        '--generator=pipeline',
+        '--delay_model=unit',
+        '--pipeline_stages=3',
+        '--reset_data_path=false',
+        '--alsologtostderr',
+        '--top=not_add',
+        '--output_verilog_path=' + verilog_path.full_path,
+        '--output_scheduling_pass_metrics_path=' + sched_metrics_file.full_path,
+        '--output_codegen_pass_metrics_path=' + codegen_metrics_file.full_path,
+        ir_file.full_path,
+    ])
+
+    # Generate tables of the metrics.
+    sched_metrics_output = subprocess.check_output(
+        [PIPELINE_METRICS_MAIN_PATH, sched_metrics_file.full_path]
+    ).decode('utf-8')
+    codegen_metrics_output = subprocess.check_output(
+        [PIPELINE_METRICS_MAIN_PATH, codegen_metrics_file.full_path]
+    ).decode('utf-8')
+
+    # The tables should include a line for dce pass (dead code elimination).
+    self.assertIn('dce', sched_metrics_output)
+    self.assertIn('dce', codegen_metrics_output)
+
+  def test_dump_metrics_combinational(self):
+    ir_file = self.create_tempfile(content=NOT_ADD_IR)
+    verilog_path = self.create_tempfile()
+
+    # Dump metrics to files.
+    codegen_metrics_file = self.create_tempfile()
+    subprocess.check_call([
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--alsologtostderr',
+        '--top=not_add',
+        '--output_verilog_path=' + verilog_path.full_path,
+        '--output_codegen_pass_metrics_path=' + codegen_metrics_file.full_path,
+        ir_file.full_path,
+    ])
+
+    # Generate tables of the metrics.
+    codegen_metrics_output = subprocess.check_output(
+        [PIPELINE_METRICS_MAIN_PATH, codegen_metrics_file.full_path]
+    ).decode('utf-8')
+
+    # The tables should include a line for dce pass (dead code elimination).
+    self.assertIn('dce', codegen_metrics_output)
 
 
 if __name__ == '__main__':

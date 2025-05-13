@@ -36,7 +36,7 @@ namespace verilog {
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     FunctionBase* module, const CodegenOptions& options,
-    const DelayEstimator* delay_estimator) {
+    const DelayEstimator* delay_estimator, PassPipelineMetricsProto* metrics) {
   XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
                        FunctionBaseToCombinationalBlock(module, options));
 
@@ -56,6 +56,10 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
       GenerateVerilog(unit.top_block(), options, &verilog_line_map));
+
+  if (metrics != nullptr) {
+    *metrics = results.ToProto();
+  }
 
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.

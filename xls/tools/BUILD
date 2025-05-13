@@ -397,7 +397,6 @@ cc_binary(
         "//xls/ir:ram_rewrite_cc_proto",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
-        "//xls/passes:pass_base",
         "//xls/passes:pass_metrics_cc_proto",
         "//xls/passes:pass_pipeline_cc_proto",
         "@com_google_absl//absl/algorithm:container",
@@ -421,7 +420,7 @@ py_test(
     srcs = ["opt_main_test.py"],
     data = [
         ":opt_main",
-        "//xls/dev_tools:pipeline_metrics_main",
+        "//xls/dev_tools:pass_metrics_main",
         "//xls/modules/aes:aes_ctr.ir",
         "//xls/passes:default_optimization_pipeline_proto",
     ],
@@ -654,7 +653,6 @@ cc_library(
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:ram_configuration",
         "//xls/codegen:unified_generator",
-        "//xls/common:stopwatch",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:delay_estimator",
@@ -664,6 +662,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:verifier",
         "//xls/passes:optimization_pass",
+        "//xls/passes:pass_metrics_cc_proto",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:pipeline_schedule_cc_proto",
         "//xls/scheduling:scheduling_options",
@@ -674,7 +673,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
     ],
 )
 
@@ -763,6 +761,7 @@ py_test(
     srcs = ["codegen_main_test.py"],
     data = [
         ":codegen_main",
+        "//xls/dev_tools:pass_metrics_main",
         "//xls/examples:sha256.opt.ir",
         "//xls/tools/testdata:static_vtxt_files",
     ],

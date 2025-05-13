@@ -30,7 +30,8 @@ namespace verilog {
 // represents the combinational module. This proc is used for code generation.
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     FunctionBase* module, const CodegenOptions& options,
-    const DelayEstimator* delay_estimator = nullptr);
+    const DelayEstimator* delay_estimator = nullptr,
+    PassPipelineMetricsProto* metrics = nullptr);
 
 }  // namespace verilog
 }  // namespace xls

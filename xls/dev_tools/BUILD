@@ -613,7 +613,7 @@ cc_binary(
     srcs = ["benchmark_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
-        ":pipeline_metrics",
+        ":pass_metrics",
         "//xls/codegen:module_signature",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
@@ -840,9 +840,9 @@ cc_library(
 )
 
 cc_library(
-    name = "pipeline_metrics",
-    srcs = ["pipeline_metrics.cc"],
-    hdrs = ["pipeline_metrics.h"],
+    name = "pass_metrics",
+    srcs = ["pass_metrics.cc"],
+    hdrs = ["pass_metrics.h"],
     deps = [
         "//xls/ir",
         "//xls/passes:pass_metrics_cc_proto",
@@ -896,15 +896,16 @@ cc_binary(
 )
 
 cc_binary(
-    name = "pipeline_metrics_main",
-    srcs = ["pipeline_metrics_main.cc"],
+    name = "pass_metrics_main",
+    srcs = ["pass_metrics_main.cc"],
     deps = [
-        ":pipeline_metrics",
+        ":pass_metrics",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/passes:pass_metrics_cc_proto",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
     ],

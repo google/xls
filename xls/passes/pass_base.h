@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "absl/log/log.h"
-#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -69,10 +68,6 @@ struct PassOptionsBase {
   // number of passes executed might change due to setting this field as
   // fixed-points may complete earlier.
   std::optional<int64_t> bisect_limit;
-
-  // If true, record metrics about runtime, number of nodes affected and other
-  // information as appropriate for each pass run.
-  bool record_metrics = false;
 };
 
 // An object containing information about the invocation of a pass (single call
@@ -123,7 +118,7 @@ struct PassResults {
     return *inv;
   }
 
-  PipelineMetricsProto ToProto() const;
+  PassPipelineMetricsProto ToProto() const;
 };
 
 // A base class for abstractions which check invariants of the IR. These
@@ -508,10 +503,7 @@ CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
                                   pass->long_name(), pass->short_name(),
                                   results->total_invocations, ir->name());
 
-    TransformMetrics before_metrics;
-    if (VLOG_IS_ON(1) || options.record_metrics) {
-      before_metrics = ir->transform_metrics();
-    }
+    TransformMetrics before_metrics = ir->transform_metrics();
 
     if (!pass->IsCompound() && options.bisect_limit &&
         results->total_invocations >= options.bisect_limit) {

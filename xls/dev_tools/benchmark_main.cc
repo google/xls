@@ -49,7 +49,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_decision_diagram.h"
-#include "xls/dev_tools/pipeline_metrics.h"
+#include "xls/dev_tools/pass_metrics.h"
 #include "xls/estimators/delay_model/analyze_critical_path.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
@@ -184,7 +184,6 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
   OptimizationPassOptions pass_options;
   int64_t convert_array_index_to_select =
       absl::GetFlag(FLAGS_convert_array_index_to_select);
-  pass_options.record_metrics = true;
   pass_options.convert_array_index_to_select =
       (convert_array_index_to_select < 0)
           ? std::nullopt
@@ -208,7 +207,8 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
                                   pass_results.total_invocations);
 
   // Print table(s) of pass metrics.
-  std::cout << SummarizePipelineMetrics(pass_results.ToProto());
+  std::cout << SummarizePassPipelineMetrics(pass_results.ToProto(),
+                                            /*show_all_changed_passes=*/false);
   return absl::OkStatus();
 }
 
@@ -802,12 +802,13 @@ absl::Status RealMain(std::string_view path) {
       XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
                            SetUpSchedulingOptions(
                                scheduling_options_flags_proto, package.get()));
-      absl::Duration scheduling_time;
+      PassPipelineMetricsProto sched_metrics;
       XLS_ASSIGN_OR_RETURN(schedules,
                            Schedule(package.get(), scheduling_options,
-                                    &delay_estimator, &scheduling_time));
-      std::cout << absl::StreamFormat("Scheduling time: %dms\n",
-                                      scheduling_time / absl::Milliseconds(1));
+                                    &delay_estimator, &sched_metrics));
+      std::cout << absl::StreamFormat(
+          "Scheduling time: %dms\n",
+          PassPipelineDuration(sched_metrics) / absl::Milliseconds(1));
       XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
           f, effective_clock_period_ps, delay_estimator, query_engine,
           &schedules, synthesizer.get()));
@@ -819,13 +820,14 @@ absl::Status RealMain(std::string_view path) {
                     scheduling_options_flags_proto.clock_period_ps())
               : std::nullopt));
     }
-    absl::Duration codegen_time;
+    PassPipelineMetricsProto codegen_metrics;
     XLS_ASSIGN_OR_RETURN(CodegenResult codegen_result,
                          Codegen(package.get(), scheduling_options_flags_proto,
                                  codegen_flags_proto, delay_model_flag_passed,
-                                 &schedules, &codegen_time));
-    std::cout << absl::StreamFormat("Codegen time: %dms\n",
-                                    codegen_time / absl::Milliseconds(1));
+                                 &schedules, &codegen_metrics));
+    std::cout << absl::StreamFormat(
+        "Codegen time: %dms\n",
+        PassPipelineDuration(codegen_metrics) / absl::Milliseconds(1));
 
     std::cout << absl::StreamFormat(
         "Lines of Verilog: %d\n",

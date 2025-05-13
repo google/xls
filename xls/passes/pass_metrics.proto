@@ -19,24 +19,28 @@ package xls;
 import "google/protobuf/duration.proto";
 import "xls/ir/transform_metrics.proto";
 
-message PassResultProto {
+// Metrics for a single pass.
+message PassMetricsProto {
   // The short name of the pass.
   optional string pass_name = 1;
   // Whether the pass changed the IR.
   optional int64 changed = 2;
   // Transformation metrics such as number of nodes added, etc.
-  optional TransformMetricsProto metrics = 3;
+  optional TransformMetricsProto transformation_metrics = 3;
   // Total duration of the running of the pass.
-  optional google.protobuf.Duration pass_duration = 4;
+  optional google.protobuf.Duration duration = 4;
   // For fixed point compound passes this is the number of iterations of the
   // pass.
   optional int64 fixed_point_iterations = 5;
-
   // For compound passes, this is the results of the passes invoked by the pass.
-  repeated PassResultProto nested_results = 7;
+  repeated PassMetricsProto nested_results = 6;
 }
 
 // Overall metrics for a pass pipeline.
-message PipelineMetricsProto {
-  optional PassResultProto pass_results = 1;
+message PassPipelineMetricsProto {
+  // The total number of passes which were run.
+  optional int64 total_passes = 1;
+
+  // The metrics of the top-level (compound) pass.
+  optional PassMetricsProto pass_metrics = 2;
 }

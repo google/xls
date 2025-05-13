@@ -44,7 +44,8 @@
 
 namespace xls::tools {
 
-absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
+absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
+                              OptMetadata* metadata) {
   if (!options.top.empty()) {
     VLOG(3) << "OptimizeIrForEntry; top: '" << options.top
             << "'; opt_level: " << options.opt_level;
@@ -117,23 +118,22 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
       options.optimize_for_best_case_throughput;
   pass_options.enable_resource_sharing = options.enable_resource_sharing;
   pass_options.bisect_limit = options.bisect_limit;
-  pass_options.record_metrics = options.metrics != nullptr;
   PassResults results;
   OptimizationContext context;
-  PassResults* results_ptr = options.results ? options.results : &results;
   XLS_RETURN_IF_ERROR(
-      pipeline->Run(package, pass_options, results_ptr, context).status());
-  if (options.metrics) {
-    *options.metrics = results_ptr->ToProto();
+      pipeline->Run(package, pass_options, &results, context).status());
+  if (metadata != nullptr) {
+    metadata->metrics = results.ToProto();
   }
   return absl::OkStatus();
 }
 
 absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
-                                             const OptOptions& options) {
+                                             const OptOptions& options,
+                                             OptMetadata* metadata) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir, options.ir_path));
-  XLS_RETURN_IF_ERROR(OptimizeIrForTop(package.get(), options));
+  XLS_RETURN_IF_ERROR(OptimizeIrForTop(package.get(), options, metadata));
   return package->DumpIr();
 }
 

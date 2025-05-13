@@ -27,7 +27,7 @@ from xls.passes import pass_pipeline_pb2
 
 OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
 PIPELINE_METRICS_MAIN_PATH = runfiles.get_path(
-    'xls/dev_tools/pipeline_metrics_main'
+    'xls/dev_tools/pass_metrics_main'
 )
 
 ADD_ZERO_IR = """package add_zero
@@ -306,7 +306,7 @@ class OptMainTest(parameterized.TestCase):
     metrics_file = self.create_tempfile()
     subprocess.check_call([
         OPT_MAIN_PATH,
-        f'--pipeline_metrics_textproto={metrics_file.full_path}',
+        f'--pass_metrics_path={metrics_file.full_path}',
         ir_file,
     ])
 

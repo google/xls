@@ -45,7 +45,8 @@ inline CodegenOptions BuildPipelineOptions() {
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, Function* func,
     const CodegenOptions& options = BuildPipelineOptions(),
-    const DelayEstimator* delay_estimator = nullptr);
+    const DelayEstimator* delay_estimator = nullptr,
+    PassPipelineMetricsProto* metrics = nullptr);
 
 // Emits the given function or proc as a verilog module which follows the given
 // schedule. The module is pipelined with a latency and initiation interval
@@ -55,7 +56,8 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, FunctionBase* module,
     const CodegenOptions& options = BuildPipelineOptions(),
-    const DelayEstimator* delay_estimator = nullptr);
+    const DelayEstimator* delay_estimator = nullptr,
+    PassPipelineMetricsProto* metrics = nullptr);
 
 // Emits the given package as a verilog module which follows the given
 // schedules. Modules are pipelined with a latency and initiation interval
@@ -64,7 +66,8 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PackagePipelineSchedules& schedules, Package* package,
     const CodegenOptions& options = BuildPipelineOptions(),
-    const DelayEstimator* delay_estimator = nullptr);
+    const DelayEstimator* delay_estimator = nullptr,
+    PassPipelineMetricsProto* metrics = nullptr);
 
 }  // namespace verilog
 }  // namespace xls

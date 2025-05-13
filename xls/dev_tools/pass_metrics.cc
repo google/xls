@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dev_tools/pipeline_metrics.h"
+#include "xls/dev_tools/pass_metrics.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -46,7 +46,7 @@ absl::Duration ProtoDurationToAbslDuration(
   return absl::Seconds(proto.seconds()) + absl::Nanoseconds(proto.nanos());
 }
 
-// Struct holding the aggregation of multiple PassResultProtos.
+// Struct holding the aggregation of multiple PassMetricsProtos.
 struct AggregateMetrics {
   std::string pass_name;
   int64_t run_count = 0;
@@ -66,26 +66,27 @@ struct AggregateMetrics {
     return result;
   }
 
-  static AggregateMetrics FromProto(const PassResultProto& proto) {
+  static AggregateMetrics FromProto(const PassMetricsProto& proto) {
     AggregateMetrics metrics;
     metrics.pass_name = proto.pass_name();
     metrics.run_count = 1;
     metrics.changed_count = proto.changed() ? 1 : 0;
-    metrics.run_duration = ProtoDurationToAbslDuration(proto.pass_duration());
-    metrics.metrics = TransformMetrics::FromProto(proto.metrics());
+    metrics.run_duration = ProtoDurationToAbslDuration(proto.duration());
+    metrics.metrics =
+        TransformMetrics::FromProto(proto.transformation_metrics());
     return metrics;
   }
 };
 
 void AggregatePassResultsInternal(
-    const PassResultProto& proto,
+    const PassMetricsProto& proto,
     absl::flat_hash_map<std::string, AggregateMetrics>& metrics_map) {
   if (proto.nested_results().empty()) {
     // Non-compound pass.
     AggregateMetrics& metrics = metrics_map[proto.pass_name()];
     metrics = metrics + AggregateMetrics::FromProto(proto);
   } else {
-    for (const PassResultProto& nested_proto : proto.nested_results()) {
+    for (const PassMetricsProto& nested_proto : proto.nested_results()) {
       AggregatePassResultsInternal(nested_proto, metrics_map);
     }
   }
@@ -94,7 +95,7 @@ void AggregatePassResultsInternal(
 // Recursively walk the pass results within `proto` and aggregate the metrics by
 // pass name. Returns a vector sorted (decreasing) by run time.
 std::vector<AggregateMetrics> AggregatePassResults(
-    const PassResultProto& proto) {
+    const PassMetricsProto& proto) {
   absl::flat_hash_map<std::string, AggregateMetrics> metrics_map;
   AggregatePassResultsInternal(proto, metrics_map);
   std::vector<AggregateMetrics> metrics;
@@ -116,21 +117,10 @@ std::vector<AggregateMetrics> AggregatePassResults(
 }
 
 void BuildHierarchicalTableInternal(
-    const PassResultProto& proto, int64_t indent,
+    const PassMetricsProto& proto, int64_t indent,
     std::vector<std::string>& lines,
     std::optional<AggregateMetrics>& collapsed_summary_metrics) {
   std::string indent_str(indent * 2, ' ');
-  if (proto.nested_results().empty()) {
-    // Collapse sequences of non-compound passes into a single line.
-    if (!collapsed_summary_metrics.has_value()) {
-      collapsed_summary_metrics = AggregateMetrics::FromProto(proto);
-    } else {
-      *collapsed_summary_metrics =
-          *collapsed_summary_metrics + AggregateMetrics::FromProto(proto);
-    }
-    return;
-  }
-
   auto add_line = [&](std::string_view pass_name,
                       const AggregateMetrics& metrics) {
     lines.push_back(absl::StrFormat(
@@ -141,13 +131,23 @@ void BuildHierarchicalTableInternal(
         metrics.metrics.nodes_removed, metrics.metrics.nodes_replaced,
         metrics.metrics.operands_removed, metrics.metrics.operands_replaced));
   };
+  if (proto.nested_results().empty()) {
+    // Collapse sequences of non-compound passes into a single line.
+    if (collapsed_summary_metrics.has_value()) {
+      *collapsed_summary_metrics =
+          *collapsed_summary_metrics + AggregateMetrics::FromProto(proto);
+    } else if (proto.changed()) {
+      add_line(proto.pass_name(), AggregateMetrics::FromProto(proto));
+    }
+    return;
+  }
 
   auto maybe_add_summary_line = [&](bool extra_indent) {
     if (collapsed_summary_metrics.has_value()) {
       add_line(absl::StrFormat("%s[%d passes run]", extra_indent ? "  " : "",
                                collapsed_summary_metrics->run_count),
                *collapsed_summary_metrics);
-      collapsed_summary_metrics.reset();
+      collapsed_summary_metrics = AggregateMetrics();
     }
   };
 
@@ -183,7 +183,7 @@ void BuildHierarchicalTableInternal(
             : proto.pass_name();
     add_line(pass_name, interval_metrics);
     for (int64_t i = start; i < end; ++i) {
-      const PassResultProto& nested_proto = proto.nested_results()[i];
+      const PassMetricsProto& nested_proto = proto.nested_results()[i];
       BuildHierarchicalTableInternal(nested_proto, indent + 1, lines,
                                      collapsed_summary_metrics);
     }
@@ -196,9 +196,13 @@ void BuildHierarchicalTableInternal(
 
 // Returns the lines of a table which mirrors the hierarchical structure of the
 // (compound) passes which generated the metrics in `proto`.
-std::string BuildHierarchicalTable(const PassResultProto& proto) {
+std::string BuildHierarchicalTable(const PassMetricsProto& proto,
+                                   bool show_all_changed_passes) {
   std::vector<std::string> lines;
   std::optional<AggregateMetrics> collapsed_summary_metrics;
+  if (!show_all_changed_passes) {
+    collapsed_summary_metrics = AggregateMetrics();
+  }
   BuildHierarchicalTableInternal(proto, 0, lines, collapsed_summary_metrics);
   return absl::StrCat(absl::StrJoin(lines, "\n"), "\n");
 }
@@ -206,16 +210,16 @@ std::string BuildHierarchicalTable(const PassResultProto& proto) {
 // Returns the sum of leaf pass duration for those pass results which for which
 // filter function is true.
 absl::Duration TotalTime(
-    const PassResultProto& result,
-    absl::FunctionRef<bool(const PassResultProto& result)> filter) {
+    const PassMetricsProto& result,
+    absl::FunctionRef<bool(const PassMetricsProto& result)> filter) {
   if (!filter(result)) {
     return absl::Duration();
   }
   if (result.nested_results().empty()) {
-    return ProtoDurationToAbslDuration(result.pass_duration());
+    return ProtoDurationToAbslDuration(result.duration());
   }
   absl::Duration total;
-  for (const PassResultProto& nested_result : result.nested_results()) {
+  for (const PassMetricsProto& nested_result : result.nested_results()) {
     total += TotalTime(nested_result, filter);
   }
   return total;
@@ -223,10 +227,11 @@ absl::Duration TotalTime(
 
 }  // namespace
 
-std::string SummarizePipelineMetrics(const PipelineMetricsProto& metrics) {
+std::string SummarizePassPipelineMetrics(
+    const PassPipelineMetricsProto& metrics, bool show_all_changed_passes) {
   // The metrics object is recursive. Aggregate the results by pass name.
   std::vector<AggregateMetrics> aggregate_metrics =
-      AggregatePassResults(metrics.pass_results());
+      AggregatePassResults(metrics.pass_metrics());
   std::string str = "Aggregate pass statistics:\n\n";
   absl::StrAppendFormat(
       &str,
@@ -256,11 +261,11 @@ std::string SummarizePipelineMetrics(const PipelineMetricsProto& metrics) {
   // Add line showing the amount of time spent running passes which did not
   // change the IR.
   int64_t changed_ms = DurationToMs(TotalTime(
-      metrics.pass_results(),
-      [](const PassResultProto& result) { return result.changed(); }));
+      metrics.pass_metrics(),
+      [](const PassMetricsProto& result) { return result.changed(); }));
   int64_t total_ms = DurationToMs(
-      TotalTime(metrics.pass_results(),
-                [](const PassResultProto& result) { return true; }));
+      TotalTime(metrics.pass_metrics(),
+                [](const PassMetricsProto& result) { return true; }));
   absl::StrAppendFormat(
       &str,
       "\nTotal time on passes which changed IR (changed/total): %6dms/%6dms "
@@ -277,8 +282,14 @@ std::string SummarizePipelineMetrics(const PipelineMetricsProto& metrics) {
       "added(+)/removed(-)/replaced(R)   Operands removed(-)/replaced(R)\n",
       "Pass name");
   absl::StrAppend(&str, std::string(161, '-') + "\n");
-  absl::StrAppend(&str, BuildHierarchicalTable(metrics.pass_results()));
+  absl::StrAppend(&str, BuildHierarchicalTable(metrics.pass_metrics(),
+                                               show_all_changed_passes));
   return str;
+}
+
+absl::Duration PassPipelineDuration(const PassPipelineMetricsProto& metrics) {
+  return absl::Seconds(metrics.pass_metrics().duration().seconds()) +
+         absl::Nanoseconds(metrics.pass_metrics().duration().nanos());
 }
 
 }  // namespace xls

@@ -49,7 +49,6 @@
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/tools/opt.h"
@@ -136,12 +135,9 @@ ABSL_FLAG(bool, passes_bisect_limit_is_error, false,
           "If set then reaching passes bisect limit is considered an error.");
 ABSL_FLAG(bool, list_passes, false,
           "If passed list the names of all passes and exit.");
-ABSL_FLAG(std::optional<std::string>, pipeline_metrics_proto, std::nullopt,
-          "Output path for the pipeline metrics binary proto recording what "
-          "this opt performed.");
-ABSL_FLAG(std::optional<std::string>, pipeline_metrics_textproto, std::nullopt,
-          "Output path for the pipeline metrics text proto recording what "
-          "this opt performed.");
+ABSL_FLAG(
+    std::optional<std::string>, pass_metrics_path, std::nullopt,
+    "Output path for the pass pipeline metrics as a PassPipelineMetricsProto.");
 ABSL_FLAG(bool, debug_optimizations, false,
           "If passed, run additional strict correctness-checking passes; this "
           "slows down the optimization significantly, and is mostly intended "
@@ -262,13 +258,9 @@ absl::Status RealMain(std::string_view input_path) {
     pass_pipeline = *pass_list;
   }
 
-  PipelineMetricsProto metrics;
-  bool wants_metrics = absl::GetFlag(FLAGS_pipeline_metrics_proto) ||
-                       absl::GetFlag(FLAGS_pipeline_metrics_textproto);
-
   bool debug_optimizations = absl::GetFlag(FLAGS_debug_optimizations);
 
-  PassResults results;
+  OptMetadata metadata;
   XLS_ASSIGN_OR_RETURN(
       std::string opt_ir,
       tools::OptimizeIrForTop(
@@ -287,21 +279,15 @@ absl::Status RealMain(std::string_view input_path) {
               .enable_resource_sharing = enable_resource_sharing,
               .pass_pipeline = pass_pipeline,
               .bisect_limit = bisect_limit,
-              .metrics = wants_metrics ? &metrics : nullptr,
               .debug_optimizations = debug_optimizations,
-              .results = &results,
-          }));
-  VLOG(2) << "Ran " << results.total_invocations << " passes";
-  if (absl::GetFlag(FLAGS_pipeline_metrics_proto)) {
-    XLS_RETURN_IF_ERROR(
-        SetFileContents(*absl::GetFlag(FLAGS_pipeline_metrics_proto),
-                        metrics.SerializeAsString()));
-  }
-  if (absl::GetFlag(FLAGS_pipeline_metrics_textproto)) {
+          },
+          &metadata));
+  VLOG(2) << "Ran " << metadata.metrics.total_passes() << " passes";
+  if (absl::GetFlag(FLAGS_pass_metrics_path)) {
     std::string tf;
-    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(metrics, &tf));
+    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(metadata.metrics, &tf));
     XLS_RETURN_IF_ERROR(
-        SetFileContents(*absl::GetFlag(FLAGS_pipeline_metrics_textproto), tf));
+        SetFileContents(*absl::GetFlag(FLAGS_pass_metrics_path), tf));
   }
 
   if (output_path == "-") {
@@ -310,7 +296,7 @@ absl::Status RealMain(std::string_view input_path) {
     XLS_RETURN_IF_ERROR(SetFileContents(output_path, opt_ir));
   }
   if (absl::GetFlag(FLAGS_passes_bisect_limit_is_error) && bisect_limit &&
-      results.total_invocations >= *bisect_limit) {
+      metadata.metrics.total_passes() >= *bisect_limit) {
     return absl::InternalError("passes bisect limit was reached.");
   }
   return absl::OkStatus();

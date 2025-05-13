@@ -474,7 +474,6 @@ TEST_F(PassBaseTest, SimpleCompoundPass) {
   PassResults results;
   OptimizationContext context;
   OptimizationPassOptions options;
-  options.record_metrics = true;
   EXPECT_THAT(opt.Run(p.get(), options, &results, context), IsOkAndHolds(true));
   EXPECT_EQ(results.total_invocations, 3);
 
@@ -533,7 +532,6 @@ TEST_F(PassBaseTest, NestedCompoundPass) {
   PassResults results;
   OptimizationContext context;
   OptimizationPassOptions options;
-  options.record_metrics = true;
   EXPECT_THAT(top.Run(p.get(), options, &results, context), IsOkAndHolds(true));
 
   EXPECT_EQ(results.invocation.pass_name, "top_compound");
@@ -634,7 +632,6 @@ TEST_F(PassBaseTest, MetricsTest) {
   PassResults results;
   OptimizationContext context;
   OptimizationPassOptions options;
-  options.record_metrics = true;
   EXPECT_THAT(opt.Run(p.get(), options, &results, context), IsOkAndHolds(true));
   EXPECT_EQ(results.total_invocations, 2);
 

@@ -80,6 +80,9 @@ absl::Status RealMain(std::string_view ir_path) {
       << "Package " << p->name() << " needs a top function/proc.";
   auto main = [&p]() -> FunctionBase* { return p->GetTop().value(); };
 
+  PassPipelineMetricsProto scheduling_metrics;
+  PassPipelineMetricsProto codegen_metrics;
+
   XLS_ASSIGN_OR_RETURN(
       SchedulingOptionsFlagsProto scheduling_options_flags_proto,
       GetSchedulingOptionsFlagsProto());
@@ -89,7 +92,8 @@ absl::Status RealMain(std::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(
       CodegenResult r,
       ScheduleAndCodegen(p.get(), scheduling_options_flags_proto,
-                         codegen_flags_proto, delay_model_flag_passed));
+                         codegen_flags_proto, delay_model_flag_passed,
+                         &scheduling_metrics, &codegen_metrics));
   verilog::ModuleGeneratorResult result = r.module_generator_result;
   std::optional<PackagePipelineSchedulesProto> schedule =
       r.package_pipeline_schedules_proto;
@@ -121,6 +125,18 @@ absl::Status RealMain(std::string_view ir_path) {
   if (!absl::GetFlag(FLAGS_output_signature_path).empty()) {
     XLS_RETURN_IF_ERROR(SetTextProtoFile(
         absl::GetFlag(FLAGS_output_signature_path), result.signature.proto()));
+  }
+
+  if (!absl::GetFlag(FLAGS_output_scheduling_pass_metrics_path).empty()) {
+    XLS_RETURN_IF_ERROR(SetTextProtoFile(
+        absl::GetFlag(FLAGS_output_scheduling_pass_metrics_path),
+        scheduling_metrics));
+  }
+
+  if (!absl::GetFlag(FLAGS_output_codegen_pass_metrics_path).empty()) {
+    XLS_RETURN_IF_ERROR(
+        SetTextProtoFile(absl::GetFlag(FLAGS_output_codegen_pass_metrics_path),
+                         codegen_metrics));
   }
 
   const std::string& verilog_path = absl::GetFlag(FLAGS_output_verilog_path);

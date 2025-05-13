@@ -45,14 +45,16 @@ namespace verilog {
 
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, Function* func,
-    const CodegenOptions& options, const DelayEstimator* delay_estimator) {
+    const CodegenOptions& options, const DelayEstimator* delay_estimator,
+    PassPipelineMetricsProto* metrics) {
   return ToPipelineModuleText(schedule, static_cast<FunctionBase*>(func),
-                              options, delay_estimator);
+                              options, delay_estimator, metrics);
 }
 
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, FunctionBase* module,
-    const CodegenOptions& options, const DelayEstimator* delay_estimator) {
+    const CodegenOptions& options, const DelayEstimator* delay_estimator,
+    PassPipelineMetricsProto* metrics) {
   VLOG(2) << "Generating pipelined module for module:";
   XLS_VLOG_LINES(2, module->DumpIr());
   XLS_VLOG_LINES(2, schedule.ToString());
@@ -77,6 +79,9 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(context)
                           ->Run(&unit, pass_options, &results)
                           .status());
+  if (metrics != nullptr) {
+    *metrics = results.ToProto();
+  }
   XLS_RET_CHECK(
       unit.top_block() != nullptr &&
       unit.HasMetadataForBlock(unit.top_block()) &&
@@ -99,7 +104,8 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
 
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PackagePipelineSchedules& schedules, Package* package,
-    const CodegenOptions& options, const DelayEstimator* delay_estimator) {
+    const CodegenOptions& options, const DelayEstimator* delay_estimator,
+    PassPipelineMetricsProto* metrics) {
   VLOG(2) << "Generating pipelined module for module:";
   XLS_VLOG_LINES(2, package->DumpIr());
   if (VLOG_IS_ON(2)) {
@@ -132,6 +138,10 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(context)
                           ->Run(&unit, pass_options, &results)
                           .status());
+  if (metrics != nullptr) {
+    *metrics = results.ToProto();
+  }
+
   XLS_RET_CHECK(
       unit.top_block() != nullptr &&
       unit.HasMetadataForBlock(unit.top_block()) &&
