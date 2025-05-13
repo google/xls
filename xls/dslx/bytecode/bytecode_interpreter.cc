@@ -607,6 +607,22 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
                        GetBytecodeFn(*user_fn_data.function, data.invocation(),
                                      caller_bindings));
 
+  if (user_fn_data.function->used_in_tests()) {
+    const Function* callee = user_fn_data.function;
+    const Function* caller = frames_.back().bf()->source_fn();
+
+    bool is_init =
+        callee->IsInProc() &&
+        callee->identifier() == callee->proc().value()->init().identifier();
+
+    // init() has no caller, because of that we need to skip this check
+    if (!is_init && !caller->used_in_tests()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Test utility function '%s' can only be called from tests",
+          callee->identifier()));
+    }
+  }
+
   // Store the _return_ PC.
   frames_.back().IncrementPc();
 

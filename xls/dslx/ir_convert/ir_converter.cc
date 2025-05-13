@@ -186,6 +186,15 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   }
 
   Function* f = record.f();
+  if (f->used_in_tests() && !options.convert_tests) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Tried to convert a %s used in tests, but test conversion is disabled",
+        f->IsInProc()
+            ? absl::StrFormat("proc '%s'",
+                              f->proc().value()->name_def()->identifier())
+            : absl::StrFormat("function '%s'", f->identifier())));
+  }
+
   if (f->tag() == FunctionTag::kProcConfig) {
     // TODO(rspringer): 2021-09-29: Probably need to pass constants in here.
     ProcConfigIrConverter config_converter(
@@ -438,6 +447,13 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
                                            PackageConversionData* conv) {
   std::optional<Function*> fn_or = module->GetFunction(entry_function_name);
   if (fn_or.has_value()) {
+    if (fn_or.value()->used_in_tests() && !options.convert_tests) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "IR conversion of tests is disabled, but conversion of a test "
+          "utility function \"%s\" from module %s was requested.",
+          entry_function_name, module->name()));
+    }
+
     return ConvertOneFunctionIntoPackageInternal(
         module, fn_or.value(), import_data, parametric_env, options, conv);
   }
@@ -450,22 +466,31 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
                                                  parametric_env, options, conv);
   }
 
-  if (options.convert_tests) {
-    absl::StatusOr<TestFunction*> test_fn =
-        module->GetTest(entry_function_name);
-    if (test_fn.ok()) {
-      return ConvertOneFunctionIntoPackageInternal(module, &(*test_fn)->fn(),
-                                                   import_data, parametric_env,
-                                                   options, conv);
+  absl::StatusOr<TestFunction*> test_fn = module->GetTest(entry_function_name);
+  if (test_fn.ok()) {
+    if (!options.convert_tests) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "IR conversion of tests is disabled, but conversion of a test "
+          "function \"%s\" from module %s was requested.",
+          entry_function_name, module->name()));
     }
-    absl::StatusOr<TestProc*> test_proc =
-        module->GetTestProc(entry_function_name);
-    if (test_proc.ok()) {
-      XLS_RETURN_IF_ERROR(CheckAcceptableTopProc((*test_proc)->proc()));
-      return ConvertOneFunctionIntoPackageInternal(module, (*test_proc)->proc(),
-                                                   import_data, parametric_env,
-                                                   options, conv);
+    return ConvertOneFunctionIntoPackageInternal(
+        module, &(*test_fn)->fn(), import_data, parametric_env, options, conv);
+  }
+
+  absl::StatusOr<TestProc*> test_proc =
+      module->GetTestProc(entry_function_name);
+  if (test_proc.ok()) {
+    XLS_RETURN_IF_ERROR(CheckAcceptableTopProc((*test_proc)->proc()));
+    if (!options.convert_tests) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("IR conversion of tests is disabled, but conversion "
+                          "of a test proc \"%s\" from module %s was requested.",
+                          entry_function_name, module->name()));
     }
+    return ConvertOneFunctionIntoPackageInternal(module, (*test_proc)->proc(),
+                                                 import_data, parametric_env,
+                                                 options, conv);
   }
 
   return absl::InvalidArgumentError(
