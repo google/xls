@@ -109,6 +109,7 @@ std::vector<AstNode*> ProcLike::GetChildren(bool want_types) const {
 }
 
 std::string ProcLike::ToString() const {
+  std::string attr_str = test_only() ? "#[cfg(test)]\n" : "";
   std::string pub_str = is_public() ? "pub " : "";
   std::string parametric_str;
   if (!parametric_bindings().empty()) {
@@ -136,13 +137,13 @@ std::string ProcLike::ToString() const {
   std::string init_str = Indent(
       absl::StrCat("init ", init().body()->ToString()), kRustSpacesPerIndent);
 
-  constexpr std::string_view kTemplate = R"(%sproc %s%s {
+  constexpr std::string_view kTemplate = R"(%s%sproc %s%s {
 %s%s
 %s
 %s
 })";
   return absl::StrFormat(
-      kTemplate, pub_str, name_def()->identifier(), parametric_str,
+      kTemplate, attr_str, pub_str, name_def()->identifier(), parametric_str,
       Indent(stmts_str, kRustSpacesPerIndent),
       Indent(config().ToUndecoratedString("config"), kRustSpacesPerIndent),
       init_str,
