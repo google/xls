@@ -110,6 +110,19 @@ absl::Status ExplainIfBlockWithTrailingSemi(const TypeMismatchErrorData& data,
                             file_table);
 }
 
+absl::Status ExplainIfConditionalBlockWithoutElse(
+    const TypeMismatchErrorData& data, const Conditional* conditional,
+    const FileTable& file_table) {
+  const StatementBlock* culprit =
+      dynamic_cast<const StatementBlock*>(data.lhs_node);
+  std::string message = absl::StrFormat(
+      "%s; note that if expression without else from @ %s evaluates to (). "
+      "Consider adding an else block that evaluates to the expected type.",
+      data.message, culprit->span().ToString(file_table));
+  return XlsTypeErrorStatus(data.error_span, *data.lhs, *data.rhs, message,
+                            file_table);
+}
+
 absl::Status ExplainIfConditionalBlockWithTrailingSemi(
     const TypeMismatchErrorData& data, const Conditional* conditional,
     bool lhs_is_unit, bool rhs_is_unit, const FileTable& file_table) {
@@ -173,8 +186,13 @@ absl::Status MaybeExplainError(const TypeMismatchErrorData& data,
       is_block_in_conditional(data.rhs_node)) {
     if (auto* conditional = get_conditional(data.lhs_node);
         conditional == get_conditional(data.rhs_node)) {
-      return ExplainIfConditionalBlockWithTrailingSemi(
-          data, conditional, lhs_is_unit, rhs_is_unit, file_table);
+      if (!conditional->HasElse() && !lhs_is_unit) {
+        return ExplainIfConditionalBlockWithoutElse(data, conditional,
+                                                    file_table);
+      } else {
+        return ExplainIfConditionalBlockWithTrailingSemi(
+            data, conditional, lhs_is_unit, rhs_is_unit, file_table);
+      }
     }
   }
 

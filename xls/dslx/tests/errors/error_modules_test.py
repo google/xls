@@ -1311,6 +1311,17 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_if_without_else_returning_mismatching_type(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/if_without_else_returning_mismatching_type.x'
+    )
+    self.assertIn('XlsTypeError:', stderr)
+    self.assertIn(
+        "uN[32] vs (): Conditional consequent type (in the 'then' clause) did "
+        "not match alternative type (in the 'else' clause)",
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()
