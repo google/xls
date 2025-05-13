@@ -607,6 +607,7 @@ xls_dslx_library(
         ":common_dslx",
         ":ram_printer_dslx",
         "//xls/examples:ram_dslx",
+        "//xls/modules/zstd/memory:mem_writer_dslx",
     ],
 )
 
@@ -651,7 +652,8 @@ xls_dslx_verilog(
     dslx_top = "SequenceExecutorZstd",
     library = ":sequence_executor_dslx",
     opt_ir_args = {
-        "top": "__sequence_executor__SequenceExecutorZstd__SequenceExecutor_0__64_0_0_0_13_8192_65536_next",
+        "inline_procs": "true",
+        "top": "__sequence_executor__SequenceExecutorZstd__SequenceExecutor_0__16_64_64_0_0_0_13_8192_65536_next",
     },
     tags = ["manual"],
     verilog_file = "sequence_executor.v",
@@ -875,6 +877,7 @@ zstd_dec_deps = [
     ":sequence_executor_dslx",
     "//xls/examples:ram_dslx",
     "//xls/modules/zstd/memory:mem_reader_dslx",
+    "//xls/modules/zstd/memory:mem_writer_dslx",
     "//xls/modules/zstd/memory:axi_ram_dslx",
 ]
 
