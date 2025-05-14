@@ -128,7 +128,7 @@ void CheckStmtsEq(const clang::Stmt* first, const clang::Stmt* second) {
     case clang::Stmt::CXXMemberCallExprClass:
       break;
     default:
-      FAIL() << "Unhandled Stmt";
+      FAIL() << "Unhandled Stmt: " << first->getStmtClassName();
       break;
   }
 
