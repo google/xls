@@ -582,7 +582,7 @@ proc Bar {
 
 // Note: this previously caused a fatal error as the slice in this position is
 // handled in the AstCloner.
-TEST(TypecheckErrorTest, ProcWithSliceOfNumber) {
+TEST_P(TypecheckBothVersionsTest, ProcWithSliceOfNumber) {
   constexpr std::string_view kProgram = R"(
 proc o {
   h: chan<u2[0[:]]> in;
@@ -1517,8 +1517,8 @@ fn test() -> u32 {
 })"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          AllOf(HasSubstrInV1(GetParam(),
-                              "(uN[32], uN[32], uN[32])\nvs (uN[32], uN[32])"),
+          AllOf(HasTypeMismatchInV1(GetParam(), "(uN[32], uN[32], uN[32])",
+                                    "(uN[32], uN[32])"),
                 HasSubstrInV1(
                     GetParam(),
                     "For-loop annotated type should specify a type for the "
@@ -1538,7 +1538,7 @@ fn test() -> u4 {
   }(u4:0)
 })"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               AllOf(HasSubstrInV1(GetParam(), "uN[4]\nvs uN[32]"),
+               AllOf(HasSizeMismatchInV1(GetParam(), "uN[4]", "uN[32]"),
                      HasSubstrInV1(GetParam(),
                                    "For-loop annotated index type did not "
                                    "match inferred type."),
@@ -2430,12 +2430,15 @@ TEST_P(TypecheckBothVersionsTest, OutOfRangeNumberInConstantArray) {
                      HasSizeMismatchInV2(GetParam(), "uN[9]", "u8"))));
 }
 
-TEST(TypecheckErrorTest, BadTypeForConstantArrayOfNumbers) {
+TEST_P(TypecheckBothVersionsTest, BadTypeForConstantArrayOfNumbers) {
   EXPECT_THAT(
       Typecheck("const A = u8[3][4]:[1, 2, 3, 4];"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("Non-bits type (array) used to define a numeric literal")));
+          AllOf(HasSubstrInV1(
+                    GetParam(),
+                    "Non-bits type (array) used to define a numeric literal"),
+                HasTypeMismatchInV2(GetParam(), "u8[3]", "uN[1]"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, ConstantArrayEmptyMembersWrongCountVsDecl) {
@@ -2446,8 +2449,7 @@ TEST_P(TypecheckBothVersionsTest, ConstantArrayEmptyMembersWrongCountVsDecl) {
                AllOf(HasSubstrInV1(GetParam(),
                                    "uN[32][1] Array has zero elements "
                                    "but type annotation size is 1"),
-                     HasTypeMismatchInV2(GetParam(), "u32[0]", "u32[1]"))))
-      << result.status();
+                     HasTypeMismatchInV2(GetParam(), "u32[0]", "u32[1]"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, MatchNoArms) {
@@ -2508,8 +2510,7 @@ const X: u32 = p<u32:42>(false);
                                  "a parametric function not being invoked"))));
 }
 
-// TODO: v2 doesn't check for exhaustive match patterns
-TEST(TypecheckErrorTest, MatchNonExhaustive) {
+TEST_P(TypecheckBothVersionsTest, MatchNonExhaustive) {
   absl::StatusOr<TypecheckResult> result = Typecheck(R"(
 fn f(x: u32) -> u32 {
     match x {
@@ -2518,11 +2519,16 @@ fn f(x: u32) -> u32 {
     }
 }
 )");
-  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
-                               HasSubstr("Match patterns are not exhaustive")));
+  EXPECT_THAT(
+      result,
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(), "Match patterns are not exhaustive"),
+                HasSubstrInV2(GetParam(),
+                              "`match` patterns are not exhaustive"))));
 }
 
-TEST(TypecheckErrorTest, MatchWithOneNonExhaustivePattern) {
+TEST_P(TypecheckBothVersionsTest, MatchWithOneNonExhaustivePattern) {
   absl::StatusOr<TypecheckResult> result = Typecheck(R"(
 fn f(x: u32) -> u32 {
     match x {
@@ -2530,8 +2536,13 @@ fn f(x: u32) -> u32 {
     }
 }
 )");
-  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
-                               HasSubstr("Match pattern is not exhaustive")));
+  EXPECT_THAT(
+      result,
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(), "Match pattern is not exhaustive"),
+                HasSubstrInV2(GetParam(),
+                              "`match` patterns are not exhaustive"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, ArrayInconsistency) {
@@ -2667,16 +2678,19 @@ enum MyEnum {
                      HasTypeMismatchInV2(GetParam(), "u1", "u2"))));
 }
 
-TEST(TypecheckTest, ExplicitWidthEnumMismatch) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, ExplicitWidthEnumMismatch) {
+  EXPECT_THAT(
+      Typecheck(R"(
 enum MyEnum : u2 {
   A = u1:0,
   B = u1:1,
 }
 )"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("uN[1] vs uN[2]: Enum-member type did not "
-                                 "match the enum's underlying type")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "uN[1] vs uN[2]: Enum-member type did not "
+                                   "match the enum's underlying type"),
+                     HasSizeMismatchInV2(GetParam(), "u1", "u2"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, ArrayEllipsis) {
@@ -2773,7 +2787,7 @@ fn f() -> s4 {
 )"));
 }
 
-TEST(TypecheckTest, OverlargeEnumValue) {
+TEST_P(TypecheckBothVersionsTest, OverlargeEnumValue) {
   EXPECT_THAT(
       Typecheck(R"(
 enum Foo : u1 {
@@ -2783,12 +2797,14 @@ enum Foo : u1 {
 }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Value '2' does not fit in the bitwidth of a uN[1]")));
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Value '2' does not fit in the bitwidth of a uN[1]"),
+                     HasSizeMismatchInV2(GetParam(), "u1", "uN[2]"))));
 }
 
-TEST(TypecheckTest, CannotAddEnums) {
-  EXPECT_THAT(
-      Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, CannotAddEnums) {
+  EXPECT_THAT(Typecheck(R"(
 enum Foo : u2 {
   A = 0,
   B = 1,
@@ -2797,8 +2813,13 @@ fn f() -> Foo {
   Foo::A + Foo::B
 }
 )"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Cannot use '+' on values with enum type Foo")));
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstrInV1(
+                                 GetParam(),
+                                 "Cannot use '+' on values with enum type Foo"),
+                             HasSubstrInV2(GetParam(),
+                                           "Binary operations can only be "
+                                           "applied to bits-typed operands"))));
 }
 
 TEST(TypecheckTest, SlicesWithMismatchedTypes) {
@@ -2888,18 +2909,20 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceEmptyStartNumber) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u29 { x[:-3] }"));
 }
 
-TEST(TypecheckTest, WidthSliceUnsignedStart) {
+TEST_P(TypecheckBothVersionsTest, WidthSliceUnsignedStart) {
   // Unsigned start literals are ok.
   XLS_EXPECT_OK(Typecheck("fn f(start: u32, x: u32) -> u3 { x[start+:u3] }"));
 }
 
-TEST(TypecheckTest, WidthSliceSignedStart) {
+TEST_P(TypecheckBothVersionsTest, WidthSliceSignedStart) {
   // We reject signed start literals.
   EXPECT_THAT(
       Typecheck("fn f(start: s32, x: u32) -> u3 { x[start+:u3] }"),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Start index for width-based slice must be unsigned")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Start index for width-based slice must be unsigned"),
+                     HasSignednessMismatchInV2(GetParam(), "s32", "u32"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, WidthSliceTupleStart) {
@@ -3025,8 +3048,7 @@ fn main() -> u8[2] { p(false) }
 // * make a call to `q`, where we give it an explicit parametric value,
 // * by invoking `r` (which is also parametric),
 // * doing that from within a parametric function `p`.
-// TODO: this fails in v2 currently
-TEST(TypecheckTest, ExplicitParametricCallInParametricFn) {
+TEST_P(TypecheckBothVersionsTest, ExplicitParametricCallInParametricFn) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn r<R: u32>(x: bits[R]) -> bits[R] { x }
 fn q<Q: u32>(x: bits[Q]) -> bits[Q] { x }
@@ -3035,15 +3057,18 @@ fn main() -> u32 { p(u32:42) }
 )"));
 }
 
-TEST(TypecheckErrorTest, BadQuickcheckFunctionRet) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, BadQuickcheckFunctionRet) {
+  EXPECT_THAT(
+      Typecheck(R"(
 #[quickcheck]
 fn f() -> u5 { u5:1 }
 )"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("must return a bool")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(), "must return a bool"),
+                     HasTypeMismatchInV2(GetParam(), "uN[1]", "uN[5]"))));
 }
 
+// TODO: in v2 this fails with a CHECK error.
 TEST(TypecheckErrorTest, BadQuickcheckFunctionParametrics) {
   EXPECT_THAT(
       Typecheck(R"(
@@ -3314,7 +3339,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, BasicRange) {
+TEST_P(TypecheckBothVersionsTest, BasicRange) {
   constexpr std::string_view kProgram = R"(#[test]
 fn main() {
   let a = u32:0..u32:4;
@@ -4162,30 +4187,39 @@ fn main(x: s8) -> s32 {
                                    "`uN[9]` (9 bits) with widening_cast"))));
 }
 
-TEST(TypecheckTest, OverlargeValue80Bits) {
+TEST_P(TypecheckBothVersionsTest, OverlargeValue80Bits) {
   constexpr std::string_view kProgram =
       R"(
 fn f() {
   let x:sN[0] = sN[80]:0x800000000000000000000;
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Value '0x800000000000000000000' does not fit "
-                                 "in the bitwidth of a sN[80] (80)")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Value '0x800000000000000000000' does not fit "
+                              "in the bitwidth of a sN[80] (80)"),
+                HasSizeMismatchInV2(GetParam(), "sN[0]", "sN[80]"))));
 }
 
-TEST(TypecheckTest, NegateTuple) {
+TEST_P(TypecheckBothVersionsTest, NegateTuple) {
   constexpr std::string_view kProgram =
       R"(
 fn f() -> (u32, u32) {
   -(u32:42, u32:64)
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Unary operation `-` can only be applied to "
-                                 "bits-typed operands")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Unary operation `-` can only be applied to "
+                                   "bits-typed operands"),
+                     HasSubstrInV2(GetParam(),
+                                   "Unary operations can only be applied to "
+                                   "bits-typed operands"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, MatchOnBitsWithEmptyTuplePattern) {
@@ -4480,7 +4514,7 @@ TEST_P(TypecheckBothVersionsTest, ConcatArrayOfThreeU8ArrayOfOneU8) {
   XLS_ASSERT_OK(Typecheck("fn f(x: u8[3], y: u8[1]) -> u8[4] { x ++ y }"));
 }
 
-TEST(TypecheckTest, ParametricWrapperAroundBuiltin) {
+TEST_P(TypecheckBothVersionsTest, ParametricWrapperAroundBuiltin) {
   XLS_ASSERT_OK(Typecheck(R"(fn f<N: u32>(x: uN[N]) -> uN[N] { rev(x) }
 
 fn main(arg: u32) -> u32 {
@@ -4488,11 +4522,7 @@ fn main(arg: u32) -> u32 {
 })"));
 }
 
-TEST(TypecheckTest, AssertBuiltinIsUnitType) {
-  XLS_ASSERT_OK(Typecheck(R"(fn main() {
-  assert!(true, "oh_no");
-})"));
-
+TEST_P(TypecheckBothVersionsTest, AssertBuiltinIsUnitType) {
   XLS_ASSERT_OK(Typecheck(R"(fn main() {
   assert!(true, "oh_no");
 })"));
