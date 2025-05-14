@@ -191,7 +191,8 @@ class XlsccTestBase : public xls::SimTestBase, public ::absl::LogSink {
 
   void IOTest(std::string_view content, std::list<IOOpTest> inputs,
               std::list<IOOpTest> outputs,
-              absl::flat_hash_map<std::string, xls::Value> args = {});
+              absl::flat_hash_map<std::string, xls::Value> args = {},
+              std::optional<int> total_io_ops = std::nullopt);
 
   absl::StatusOr<uint64_t> GetStateBitsForProcNameContains(
       std::string_view name_cont);
