@@ -155,6 +155,14 @@ class IrConverterWithBothTypecheckVersionsTest
         program, options, import_data,
         GetParam() == TypeInferenceVersion::kVersion2);
   }
+
+  absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
+      std::string_view program, std::string_view path,
+      std::string_view module_name, ImportData* import_data = nullptr) {
+    return ::xls::dslx::ParseAndTypecheck(
+        program, path, module_name, import_data,
+        /*comments=*/nullptr, GetParam() == TypeInferenceVersion::kVersion2);
+  }
 };
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest, NamedConstant) {
@@ -775,7 +783,7 @@ fn main(x: bits[8]) -> u8[4] {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ArrayUpdate) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ArrayUpdate) {
   const char* program =
       R"(
 fn main(input: u8[2]) -> u8[2] {
@@ -1968,7 +1976,7 @@ fn f() -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ConstexprImport) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ConstexprImport) {
   // Place the *imported* module into the import cache.
   auto import_data = CreateImportDataForTest();
   const char* imported_program = R"(
@@ -2005,7 +2013,7 @@ fn f() -> u32 {
 }
 
 // Tests that a parametric constexpr function can be imported.
-TEST(IrConverterTest, ParametricConstexprImport) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ParametricConstexprImport) {
   // Place the *imported* module into the import cache.
   auto import_data = CreateImportDataForTest();
   const char* imported_program = R"(
@@ -2060,7 +2068,7 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, TokenIdentityFunction) {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ImportEnumValue) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ImportEnumValue) {
   auto import_data = CreateImportDataForTest();
 
   const std::string kImportModule = R"(
@@ -2099,7 +2107,7 @@ fn main(x: u32) -> u32 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, ConvertOneFunctionWithImport) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertOneFunctionWithImport) {
   auto import_data = CreateImportDataForTest();
   const std::string kImportModule = R"(
 pub fn a() -> u32 {

@@ -566,7 +566,10 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
         invocation_data.env_to_callee_data().contains(caller_bindings))
         << "invocation: `" << invocation_data.node()->ToString() << "` @ "
         << invocation_data.node()->span().ToString(file_table()) << " caller: `"
-        << invocation_data.caller()->identifier() << "`"
+        << (invocation_data.caller() == nullptr
+                ? "nullptr"
+                : invocation_data.caller()->identifier())
+        << "`"
         << " caller_bindings: " << caller_bindings;
 
     const InvocationCalleeData& callee_data =

@@ -598,6 +598,14 @@ class InferenceTableImpl : public InferenceTable {
                 dynamic_cast<const TypeAnnotation*>(old_node))) {
           auto_literal_annotations_.insert(new_node_as_annotation);
         }
+        if (const auto* old_node_as_colon_ref =
+                dynamic_cast<const ColonRef*>(old_node)) {
+          std::optional<const AstNode*> target =
+              GetColonRefTarget(old_node_as_colon_ref);
+          if (target.has_value()) {
+            SetColonRefTarget(dynamic_cast<const ColonRef*>(new_node), *target);
+          }
+        }
       }
     }
     return all_pairs.at(input);

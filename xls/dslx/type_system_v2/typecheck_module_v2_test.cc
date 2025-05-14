@@ -7316,5 +7316,37 @@ const Y = zero!<imported::E>();
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "E"))));
 }
 
+TEST(TypecheckV2Test, ImportEnumValue) {
+  constexpr std::string_view kImported = R"(
+import std;
+
+pub const MY_CONST = u32:5;
+pub enum ImportEnum : u16 {
+  SINGLE_MY_CONST = MY_CONST as u16,
+  DOUBLE_MY_CONST = std::clog2(MY_CONST) as u16 * u16:2,
+  TRIPLE_MY_CONST = (MY_CONST * u32:3) as u16,
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+type ImportedEnum = imported::ImportEnum;
+
+fn main(x: u32) -> u32 {
+  imported::ImportEnum::TRIPLE_MY_CONST as u32 +
+      (ImportedEnum::DOUBLE_MY_CONST as u32) +
+      (imported::ImportEnum::SINGLE_MY_CONST as u32)
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(
+          AllOf(HasNodeWithType("ImportedEnum::DOUBLE_MY_CONST", "ImportEnum"),
+                HasNodeWithType("imported::ImportEnum::SINGLE_MY_CONST",
+                                "ImportEnum")))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

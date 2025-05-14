@@ -387,11 +387,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         dynamic_cast<const Invocation*>(parametric_context->node());
     CHECK_NE(invocation, nullptr);
 
-    if (parametric_context->type_info()->module() == invocation->owner()) {
-      XLS_RETURN_IF_ERROR(base_type_info_->AddInvocationTypeInfo(
-          *invocation, data.caller.has_value() ? *data.caller : nullptr,
-          parent_env, callee_env, parametric_context->type_info()));
-    }
+    XLS_ASSIGN_OR_RETURN(TypeInfo * parent_ti,
+                         GetTypeInfo(invocation->owner(), parametric_context));
+    XLS_RETURN_IF_ERROR(parent_ti->AddInvocationTypeInfo(
+        *invocation, data.caller.has_value() ? *data.caller : nullptr,
+        parent_env, callee_env,
+        IsBuiltin(data.callee) ? nullptr : parametric_context->type_info()));
     return absl::OkStatus();
   }
 
@@ -1371,7 +1372,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         return UndefinedNameErrorStatus(colon_ref->span(), colon_ref,
                                         colon_ref->attr(), file_table_);
       }
-      XLS_ASSIGN_OR_RETURN(InterpValue value, ti->GetConstExpr(*enum_value));
+      XLS_ASSIGN_OR_RETURN(
+          TypeInfo * eval_ti,
+          GetTypeInfo((*enum_value)->owner(), parametric_context));
+      XLS_ASSIGN_OR_RETURN(InterpValue value,
+                           eval_ti->GetConstExpr(*enum_value));
       ti->NoteConstExpr(colon_ref, value);
       return absl::OkStatus();
     }
