@@ -190,3 +190,25 @@ cc_test(
         "@googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "status_helpers",
+    hdrs = ["status_helpers.h"],
+    deps = [
+        "//xls/common:source_location",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "status_helpers_test",
+    srcs = ["status_helpers_test.cc"],
+    deps = [
+        ":status_helpers",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
