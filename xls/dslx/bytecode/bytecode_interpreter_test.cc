@@ -1082,7 +1082,7 @@ fn do_and() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_and"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
-  EXPECT_EQ(int_val, 0xa5a5a5a5ll);
+  EXPECT_EQ(int_val, uint64_t{0xa5a5a5a5});
 }
 
 TEST_F(BytecodeInterpreterTest, BinopConcat) {
@@ -1096,7 +1096,7 @@ fn do_concat() -> u64 {
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_concat"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
-  EXPECT_EQ(int_val, 0xa5a5a5a5ffffffffll);
+  EXPECT_EQ(int_val, uint64_t{0xa5a5a5a5ffffffff});
 }
 
 TEST_F(BytecodeInterpreterTest, BinopDiv) {

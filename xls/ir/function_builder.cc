@@ -727,7 +727,7 @@ BValue BuilderBase::Decode(BValue arg, std::optional<int64_t> width,
   }
   return AddNode<xls::Decode>(
       loc, arg.node(),
-      /*width=*/width.has_value() ? *width : (1LL << arg_width), name);
+      /*width=*/width.has_value() ? *width : (int64_t{1} << arg_width), name);
 }
 
 BValue BuilderBase::Shra(BValue operand, BValue amount, const SourceInfo& loc,

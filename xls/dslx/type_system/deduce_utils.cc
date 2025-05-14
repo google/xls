@@ -740,8 +740,8 @@ absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
     limit += bit_count;
   }
 
-  limit = std::clamp(limit, 0L, bit_count);
-  start = std::clamp(start, 0L, limit);
+  limit = std::clamp(limit, int64_t{0}, bit_count);
+  start = std::clamp(start, int64_t{0}, limit);
   return StartAndWidth{.start = start, .width = limit - start};
 }
 

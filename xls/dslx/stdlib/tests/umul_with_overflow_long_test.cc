@@ -86,9 +86,9 @@ TEST_P(UmulSweepOverflowTest, Umul212118Sweep) {
 
 INSTANTIATE_TEST_SUITE_P(
     Umul212118ExhaustiveTest, UmulSweepOverflowTest,
-    testing::Combine(testing::Range(0l, 0x40000l,
-                                    0x100l),  // From [0x0, 0x3ffff]
-                     testing::Values(0x100l)),
+    testing::Combine(testing::Range(int64_t{0}, int64_t{0x40000},
+                                    int64_t{0x100}),  // From [0x0, 0x3ffff]
+                     testing::Values(int64_t{0x100})),
     UmulSweepOverflowTest::PrintToStringParamName);
 
 // Expand a 16 bit integer to 32 bits, inserting a zero between each bit.
@@ -162,9 +162,9 @@ TEST_P(UmulSweepOverflowTest, Umul353218SweepPartial) {
 
 INSTANTIATE_TEST_SUITE_P(
     Umul353218SweepPartial, UmulSweepOverflowTest,
-    testing::Combine(testing::Range(0l, 0x40000l,
-                                    0x100l),  // From [0x0, 0x3ffff]
-                     testing::Values(0x100l)),
+    testing::Combine(testing::Range(int64_t{0}, int64_t{0x40000},
+                                    int64_t{0x100}),  // From [0x0, 0x3ffff]
+                     testing::Values(int64_t{0x100})),
     UmulSweepOverflowTest::PrintToStringParamName);
 
 }  // namespace

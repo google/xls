@@ -395,8 +395,8 @@ top fn main(x: bits[8]) -> bits[27] {
 
   RunAndExpectEq({{"x", 0}}, 1, text);
   RunAndExpectEq({{"x", 1}}, 2, text);
-  RunAndExpectEq({{"x", 17}}, (1LL << 17), text);
-  RunAndExpectEq({{"x", 26}}, (1LL << 26), text);
+  RunAndExpectEq({{"x", 17}}, (int64_t{1} << 17), text);
+  RunAndExpectEq({{"x", 26}}, (int64_t{1} << 26), text);
   RunAndExpectEq({{"x", 27}}, 0, text);
   RunAndExpectEq({{"x", 123}}, 0, text);
   RunAndExpectEq({{"x", 255}}, 0, text);

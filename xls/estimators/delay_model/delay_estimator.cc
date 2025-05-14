@@ -108,14 +108,14 @@ namespace {
     XLS_ASSIGN_OR_RETURN(
         double base_effort,
         netlist::logical_effort::GetLogicalEffort(kind, operand_count));
-    return std::ceil(invert ? base_effort + 1LL : base_effort);
+    return std::ceil(invert ? base_effort + int64_t{1} : base_effort);
   };
   auto get_logical_effort = [node](netlist::CellKind kind,
                                    bool invert) -> absl::StatusOr<int64_t> {
     XLS_ASSIGN_OR_RETURN(double base_effort,
                          netlist::logical_effort::GetLogicalEffort(
                              kind, node->operands().size()));
-    return std::ceil(invert ? base_effort + 1LL : base_effort);
+    return std::ceil(invert ? base_effort + int64_t{1} : base_effort);
   };
   auto get_reduction_logical_effort =
       [node](netlist::CellKind kind, bool invert) -> absl::StatusOr<int64_t> {
@@ -126,7 +126,7 @@ namespace {
     XLS_ASSIGN_OR_RETURN(
         double base_effort,
         netlist::logical_effort::GetLogicalEffort(kind, bit_count));
-    return std::ceil(invert ? base_effort + 1LL : base_effort);
+    return std::ceil(invert ? base_effort + int64_t{1} : base_effort);
   };
   switch (node->op()) {
     // TODO(leary): 2019-09-24 Collect real numbers for these.

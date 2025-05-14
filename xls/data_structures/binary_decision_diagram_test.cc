@@ -233,7 +233,7 @@ TEST(BinaryDecisionDiagramTest, Parity) {
                     bdd.And(bdd.Not(parity), variables[i]));
 
     if (i < 30) {
-      EXPECT_EQ(bdd.path_count(parity), 1LL << (i + 1));
+      EXPECT_EQ(bdd.path_count(parity), int64_t{1} << (i + 1));
     } else {
       EXPECT_EQ(bdd.path_count(parity), std::numeric_limits<int32_t>::max());
     }

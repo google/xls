@@ -184,7 +184,8 @@ TEST(MathUtil, CeilOfRatioInt64) { TestCeilOfRatioSigned<int64_t>(); }
 TEST(MathUtil, CeilOfRatioDenomMinusOneIsIncorrect) {
   // Here we demonstrate why not to use CeilOfRatioDenomMinusOne: It does not
   // work with negative values.
-  TestThatCeilOfRatioDenomMinusOneIsIncorrect(-1LL, -2LL, -1LL);
+  TestThatCeilOfRatioDenomMinusOneIsIncorrect(int64_t{-1}, int64_t{-2},
+                                              int64_t{-1});
 
   // This would also fail if given kint64max because of signed integer overflow.
 }

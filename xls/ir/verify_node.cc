@@ -408,7 +408,8 @@ class NodeChecker : public DfsVisitor {
     // The width of the decode output must be less than or equal to
     // 2**input_width.
     const int64_t operand_width = decode->operand(0)->BitCountOrDie();
-    if (operand_width < 63 && (decode->width() > (1LL << operand_width))) {
+    if (operand_width < 63 &&
+        (decode->width() > (int64_t{1} << operand_width))) {
       return absl::InternalError(absl::StrFormat(
           "Decode output width (%d) greater than 2**${operand width} "
           "where operand width is %d",
