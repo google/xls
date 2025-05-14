@@ -384,7 +384,10 @@ TEST_F(ExprCloneTest, CloneUnsupportedExpr) {
   auto result = xlscc::Clone(top_fn->getASTContext(), ret_val);
   ASSERT_FALSE(result.ok());
   ASSERT_EQ(result.status().code(), absl::StatusCode::kUnimplemented);
-  ASSERT_EQ(result.status().message(), "Unsupported: clone LambdaExpr");
+  llvm::outs() << result.status().message() << "\n";
+  ASSERT_THAT(
+      result.status().message(),
+      testing::MatchesRegex("Unsupported: clone LambdaExpr at .*:3:19"));
 }
 
 }  // namespace

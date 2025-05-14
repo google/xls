@@ -305,7 +305,8 @@ class ExprClone
 
   absl::StatusOr<clang::Expr*> VisitExpr(const clang::Expr* expr) {
     return absl::UnimplementedError(
-        absl::StrCat("Unsupported: clone ", expr->getStmtClassName()));
+        absl::StrCat("Unsupported: clone ", expr->getStmtClassName(), " at ",
+                     expr->getExprLoc().printToString(ctx.getSourceManager())));
   }
 
  private:
