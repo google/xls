@@ -69,6 +69,7 @@ nav:
       - Legalize Multiple Channel Ops Per Channel (v1): 'design_docs/legalize_multiple_channel_ops_per_channel_v1.md'
       - Legalize Multiple Channel Ops Per Channel (v2): 'design_docs/legalize_multiple_channel_ops_per_channel_v2.md'
       - Proc-scoped channels: 'design_docs/proc_scoped_channels.md'
+      - Synchronous Procs: 'design_docs/synchronous_procs.md'
       - DSLX Pattern Exhaustiveness: 'design_docs/dslx_pattern_exhaustiveness.md'
     - Releasing: 'releasing.md'
   - NoC:
