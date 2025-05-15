@@ -33,6 +33,8 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/estimators/area_model/area_estimator.h"
+#include "xls/estimators/area_model/area_estimators.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/function_base.h"
@@ -91,6 +93,8 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
   }
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
                        GetDelayEstimator(delay_model_name));
+  XLS_ASSIGN_OR_RETURN(AreaEstimator * area_estimator,
+                       GetAreaEstimator(delay_model_name));
 
   xls::viz::Package proto;
   if (pipeline_stages.has_value()) {
@@ -101,12 +105,12 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
         RunPipelineSchedule(
             func_base->AsFunctionOrDie(), *delay_estimator,
             SchedulingOptions().pipeline_stages(pipeline_stages.value())));
-    XLS_ASSIGN_OR_RETURN(proto,
-                         IrToProto(package.get(), *delay_estimator, &schedule,
-                                   func_base->name(), token_dag));
+    XLS_ASSIGN_OR_RETURN(
+        proto, IrToProto(package.get(), *delay_estimator, *area_estimator,
+                         &schedule, func_base->name(), token_dag));
   } else {
     XLS_ASSIGN_OR_RETURN(
-        proto, IrToProto(package.get(), *delay_estimator,
+        proto, IrToProto(package.get(), *delay_estimator, *area_estimator,
                          /*schedule=*/nullptr, func_base->name(), token_dag));
   }
   google::protobuf::io::OstreamOutputStream cout(&std::cout);

@@ -16,6 +16,7 @@ load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 # pytype binary and test
 load("@io_bazel_rules_closure//closure:defs.bzl", "closure_js_binary", "closure_js_library")
+load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # Load proto_library
@@ -79,6 +80,12 @@ build_test(
     targets = [":app"],
 )
 
+py_proto_library(
+    name = "visualization_proto_py_pb2",
+    visibility = ["//xls:xls_internal"],
+    deps = [":visualization_proto"],
+)
+
 cc_proto_library(
     name = "visualization_cc_proto",
     visibility = ["//xls:xls_internal"],
@@ -139,6 +146,19 @@ cc_library(
     ],
 )
 
+py_binary(
+    name = "ir_to_cytoscape",
+    srcs = ["ir_to_cytoscape.py"],
+    data = [":ir_to_proto_main"],
+    deps = [
+        ":visualization_proto_py_pb2",
+        requirement("networkx"),
+        "//xls/common:runfiles",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+    ],
+)
+
 cc_test(
     name = "ir_to_proto_test",
     srcs = ["ir_to_proto_test.cc"],
@@ -175,6 +195,8 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/estimators/area_model:area_estimator",
+        "//xls/estimators/area_model:area_estimators",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/estimators/delay_model:delay_estimators",
         "//xls/ir",
