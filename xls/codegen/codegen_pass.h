@@ -17,6 +17,7 @@
 
 #include <compare>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -27,6 +28,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/codegen/module_signature.h"
@@ -62,6 +64,10 @@ struct CodegenPassOptions : public PassOptionsBase {
   // Optional delay estimator. If given, block delay metrics will be added to
   // the signature.
   const DelayEstimator* delay_estimator = nullptr;
+
+  // The config to use for loopback channels that are fabricated during codegen
+  // to implement proc state members.
+  ChannelConfig state_channel_config = ChannelConfig{};
 };
 
 using Stage = int64_t;
@@ -453,8 +459,11 @@ class CodegenPassUnit {
     return function_base_to_schedule_;
   }
 
-  // Required wrapper in order for this class to serve as the first template
+  // Required wrappers in order for this class to serve as the first template
   // argument for `Pass`.
+  absl::Span<const std::unique_ptr<Proc>> procs() const {
+    return package_->procs();
+  }
   std::vector<FunctionBase*> GetFunctionBases() {
     return package_->GetFunctionBases();
   }
@@ -542,6 +551,17 @@ class CodegenFunctionPass : public CodegenFunctionBasePass {
   virtual absl::StatusOr<bool> RunOnFunctionInternal(
       CodegenPassUnit* unit, Function* f, const PipelineSchedule& schedule,
       const CodegenPassOptions& options, CodegenPassResults* results) const = 0;
+};
+
+// Abstract base class for a pass that runs on all procs.
+class CodegenProcPass
+    : public ProcPass<CodegenPassUnit, CodegenPassOptions, CodegenPassResults> {
+ public:
+  using ProcPass::ProcPass;
+
+  virtual void GcAfterProcChange(CodegenPassUnit* unit) const override {
+    unit->GcMetadata();
+  }
 };
 
 // Map from channel to block inputs/outputs.

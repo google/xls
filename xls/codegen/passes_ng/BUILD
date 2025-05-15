@@ -146,6 +146,55 @@ cc_test(
 )
 
 cc_library(
+    name = "state_to_channel_conversion_pass",
+    srcs = ["state_to_channel_conversion_pass.cc"],
+    hdrs = ["state_to_channel_conversion_pass.h"],
+    deps = [
+        "//xls/codegen:codegen_pass",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:state_element",
+        "//xls/ir:type",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "state_to_channel_conversion_pass_test",
+    srcs = ["state_to_channel_conversion_pass_test.cc"],
+    deps = [
+        ":state_to_channel_conversion_pass",
+        "//xls/codegen:codegen_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:channel_queue",
+        "//xls/interpreter:proc_evaluator",
+        "//xls/interpreter:proc_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:proc_elaboration",
+        "//xls/ir:value",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "block_utils",
     hdrs = ["block_utils.h"],
     deps = [

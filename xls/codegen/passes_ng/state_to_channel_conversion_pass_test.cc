@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/state_channel_conversion.h"
+#include "xls/codegen/passes_ng/state_to_channel_conversion_pass.h"
 
 #include <cstdint>
 #include <functional>
@@ -28,6 +28,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
@@ -43,12 +44,12 @@
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 
-namespace xls {
+namespace xls::verilog {
 namespace {
+
 using ::absl_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
 using ::testing::Optional;
-using verilog::State2ChannelConversionPass;
 
 // Test suite ready to run against different ProcEvaluator implementations.
 class TestParam {
@@ -113,12 +114,11 @@ class CounterProcHelper {
     XLS_EXPECT_OK(package_->SetTop(proc));
 
     // Convert state to a state channel with loop-back.
-    XLS_ASSIGN_OR_RETURN(bool converted,
-                         State2ChannelConversionPass(proc, ChannelConfig()));
+    XLS_ASSIGN_OR_RETURN(bool converted, Run());
     EXPECT_TRUE(converted) << "Expected some change to have occured";
 
     {  // Test idempotency: running it the second time: no change.
-      auto twice = State2ChannelConversionPass(proc, ChannelConfig());
+      absl::StatusOr<bool> twice = Run();
       XLS_EXPECT_OK(twice) << "Expected successful outcome second time around";
       EXPECT_FALSE(*twice) << "No change expected second time around";
     }
@@ -220,6 +220,13 @@ class CounterProcHelper {
   }
 
  private:
+  absl::StatusOr<bool> Run() {
+    CodegenPassResults results;
+    CodegenPassUnit unit(package_);
+    return StateToChannelConversionPass().Run(&unit, CodegenPassOptions(),
+                                              &results);
+  }
+
   Package* const package_;
   const TestParam& param_;
   const std::string_view proc_name_;
@@ -431,4 +438,4 @@ INSTANTIATE_TEST_SUITE_P(
         })));
 
 }  // namespace
-}  // namespace xls
+}  // namespace xls::verilog

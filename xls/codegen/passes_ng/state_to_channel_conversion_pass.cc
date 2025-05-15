@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/state_channel_conversion.h"
+#include "xls/codegen/passes_ng/state_to_channel_conversion_pass.h"
 
 #include <cstdint>
 #include <optional>
@@ -24,6 +24,7 @@
 #include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
@@ -36,8 +37,10 @@
 #include "xls/ir/type.h"
 
 namespace xls::verilog {
-absl::StatusOr<bool> State2ChannelConversionPass(Proc* proc,
-                                                 const ChannelConfig& config) {
+
+absl::StatusOr<bool> StateToChannelConversionPass::RunOnProcInternal(
+    CodegenPassUnit*, Proc* proc, const CodegenPassOptions& options,
+    CodegenPassResults*) const {
   // Preprocess: find all state-elements and create a channel.
   struct StateChannelInfo {
     AfterAll* token;
@@ -65,7 +68,8 @@ absl::StatusOr<bool> State2ChannelConversionPass(Proc* proc,
         StreamingChannel * channel,
         proc->package()->CreateStreamingChannelInProc(
             channel_name, ChannelOps::kSendReceive, state_type, channel_proc,
-            {state->initial_value()}, config, FlowControl::kReadyValid,
+            {state->initial_value()}, options.state_channel_config,
+            FlowControl::kReadyValid,
             ChannelStrictness::kProvenMutuallyExclusive, /*id=*/std::nullopt));
 
     // Token: here per channel, but possibly only one needed for all of state.

@@ -580,6 +580,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -1991,53 +1992,6 @@ cc_test(
         "//xls/ir:value",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
-        "@googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "state_channel_conversion",
-    srcs = ["state_channel_conversion.cc"],
-    hdrs = ["state_channel_conversion.h"],
-    deps = [
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:channel",
-        "//xls/ir:channel_ops",
-        "//xls/ir:state_element",
-        "//xls/ir:type",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_test(
-    name = "state_channel_conversion_test",
-    srcs = ["state_channel_conversion_test.cc"],
-    deps = [
-        ":state_channel_conversion",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:channel_queue",
-        "//xls/interpreter:proc_evaluator",
-        "//xls/interpreter:proc_interpreter",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:channel",
-        "//xls/ir:channel_ops",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_test_base",
-        "//xls/ir:proc_elaboration",
-        "//xls/ir:value",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
 )
