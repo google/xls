@@ -17,7 +17,9 @@
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/codegen_util.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"
 
@@ -28,11 +30,9 @@ absl::StatusOr<bool> UpdateChannelMetadataPass::RunInternal(
     CodegenContext& context) const {
   bool changed = false;
 
-  for (auto& [fb, block] : context.function_base_to_block()) {
-    if (fb->IsProc()) {
-      XLS_RETURN_IF_ERROR(UpdateChannelMetadata(
-          context.GetMetadataForBlock(block).streaming_io_and_pipeline, block));
-    }
+  for (Block* block : GetBlocksWithProcProvenance(package)) {
+    XLS_RETURN_IF_ERROR(UpdateChannelMetadata(
+        context.GetMetadataForBlock(block).streaming_io_and_pipeline, block));
   }
 
   return changed;

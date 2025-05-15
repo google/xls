@@ -15,6 +15,7 @@
 #ifndef XLS_IR_BLOCK_H_
 #define XLS_IR_BLOCK_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -24,9 +25,11 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
@@ -40,6 +43,32 @@
 #include "xls/ir/value.h"
 
 namespace xls {
+
+enum class BlockProvenanceKind : int8_t { kProc, kFunction };
+
+// Metadata used during codegen which describes where a block comes from.
+struct BlockProvenance {
+  // The name of the proc or function the block was lowered from.
+  std::string name;
+  // The kind of IR construct (proc or function) this block was lowered from.
+  BlockProvenanceKind kind;
+
+  bool operator==(const BlockProvenance& other) const {
+    return name == other.name && kind == other.kind;
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const BlockProvenance& v) {
+    return absl::Format(
+        &sink, "provenance(name=\"%s\", kind=\"%s\")", v.name,
+        v.kind == BlockProvenanceKind::kProc ? "proc" : "function");
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const BlockProvenance& v) {
+    return H::combine(std::move(h), v.name, v.kind);
+  }
+};
 
 // Metadata which maps ports back to the channels the were derived from.
 struct ChannelPortMetadata {
@@ -293,6 +322,32 @@ class Block : public FunctionBase {
   std::vector<std::pair<std::string, ChannelDirection>>
   GetChannelsWithMappedPorts() const;
 
+  void SetFunctionBaseProvenance(FunctionBase* fb) {
+    BlockProvenanceKind kind;
+    if (fb->IsFunction()) {
+      kind = BlockProvenanceKind::kFunction;
+    } else {
+      CHECK(fb->IsProc());
+      kind = BlockProvenanceKind::kProc;
+    }
+    SetProvenance(BlockProvenance{.name = fb->name(), .kind = kind});
+  }
+
+  void SetProvenance(std::optional<BlockProvenance> value) {
+    provenance_ = value;
+  }
+
+  const std::optional<BlockProvenance>& GetProvenance() const {
+    return provenance_;
+  }
+
+  const std::optional<verilog::ModuleSignatureProto>& GetSignature() const {
+    return signature_;
+  }
+  void SetSignature(verilog::ModuleSignatureProto signature) {
+    signature_ = std::move(signature);
+  }
+
  private:
   // Sets the name of the given port node (InputPort or OutputPort) to the
   // given name. Unlike xls::Node::SetName which may name the node `name` with
@@ -368,6 +423,9 @@ class Block : public FunctionBase {
   absl::flat_hash_map<std::pair<std::string, ChannelDirection>,
                       ChannelPortMetadata>
       channel_port_metadata_;
+
+  std::optional<BlockProvenance> provenance_;
+  std::optional<verilog::ModuleSignatureProto> signature_;
 };
 
 }  // namespace xls

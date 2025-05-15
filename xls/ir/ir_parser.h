@@ -37,6 +37,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
@@ -69,8 +70,10 @@ struct ResetAttribute {
   ResetBehavior behavior;
 };
 
-using IrAttributePayload = std::variant<InitiationInterval, ChannelPortMetadata,
-                                        ForeignFunctionData, ResetAttribute>;
+using IrAttributePayload =
+    std::variant<InitiationInterval, ChannelPortMetadata, ForeignFunctionData,
+                 ResetAttribute, BlockProvenance,
+                 verilog::ModuleSignatureProto>;
 struct IrAttribute {
   std::string name;
   IrAttributePayload payload;

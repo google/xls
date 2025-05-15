@@ -19,6 +19,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
@@ -33,14 +34,15 @@ absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
   VLOG(3) << absl::StreamFormat("Metadata has %d blocks",
                                 context.metadata().size());
   for (auto& [block, metadata] : context.metadata()) {
-    if (metadata.signature.has_value()) {
+    if (block->GetSignature().has_value()) {
       return absl::InvalidArgumentError("Signature already generated.");
     }
     XLS_ASSIGN_OR_RETURN(
-        metadata.signature,
+        ModuleSignature signature,
         GenerateSignature(
             options.codegen_options, block,
             metadata.streaming_io_and_pipeline.node_to_stage_map));
+    block->SetSignature(signature.proto());
     changed = true;
   }
   return changed;

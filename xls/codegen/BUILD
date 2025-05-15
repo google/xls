@@ -210,6 +210,7 @@ cc_library(
         ":bdd_io_analysis",
         ":block_conversion",
         ":codegen_pass",
+        ":codegen_util",
         ":conversion_utils",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
@@ -237,6 +238,7 @@ cc_library(
     deps = [
         ":block_conversion",
         ":codegen_pass",
+        ":codegen_util",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/passes:pass_base",
@@ -614,6 +616,7 @@ cc_library(
     hdrs = ["signature_generation_pass.h"],
     deps = [
         ":codegen_pass",
+        ":module_signature",
         ":signature_generator",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -1432,6 +1435,7 @@ cc_library(
     deps = [
         ":block_metrics",
         ":codegen_pass",
+        ":module_signature",
         ":xls_metrics_cc_proto",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -1701,6 +1705,7 @@ cc_test(
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
+        ":module_signature",
         ":module_signature_cc_proto",
         ":ram_configuration",
         ":ram_rewrite_pass",
@@ -2038,6 +2043,18 @@ cc_library(
     testonly = True,
     hdrs = ["test_fifos.h"],
     deps = ["//xls/ir:channel"],
+)
+
+cc_library(
+    name = "codegen_util",
+    srcs = ["codegen_util.cc"],
+    hdrs = ["codegen_util.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+    ],
 )
 
 # Test that codegen args work correctly in our rules.

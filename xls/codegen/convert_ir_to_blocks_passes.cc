@@ -15,6 +15,7 @@
 #include "xls/codegen/convert_ir_to_blocks_passes.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -31,6 +32,7 @@
 #include "xls/codegen/bdd_io_analysis.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/codegen_util.h"
 #include "xls/codegen/conversion_utils.h"
 #include "xls/codegen/proc_block_conversion.h"
 #include "xls/common/logging/log_lines.h"
@@ -61,11 +63,9 @@ absl::StatusOr<bool> ConvertFuncsToCombinationalBlocksPass::RunInternal(
     CodegenContext& context) const {
   bool changed = false;
 
-  for (auto& [fb, block] : context.function_base_to_block()) {
-    if (!fb->IsFunction()) {
-      continue;
-    }
-    Function* const f = fb->AsFunctionOrDie();
+  for (Block* block : GetBlocksWithFunctionProvenance(package)) {
+    XLS_ASSIGN_OR_RETURN(Function * f,
+                         package->GetFunction(block->GetProvenance()->name));
 
     VLOG(3) << "Converting function to a combinationalblock:";
     XLS_VLOG_LINES(3, f->DumpIr());
@@ -139,11 +139,9 @@ absl::StatusOr<bool> ConvertProcsToCombinationalBlocksPass::RunInternal(
     CodegenContext& context) const {
   bool changed = false;
 
-  for (auto& [fb, block] : context.function_base_to_block()) {
-    if (!fb->IsProc()) {
-      continue;
-    }
-    Proc* const proc = fb->AsProcOrDie();
+  for (Block* block : GetBlocksWithProcProvenance(package)) {
+    XLS_ASSIGN_OR_RETURN(Proc * proc,
+                         package->GetProc(block->GetProvenance()->name));
 
     VLOG(3) << "Converting proc to a pipelined block:";
     XLS_VLOG_LINES(3, proc->DumpIr());
@@ -219,10 +217,9 @@ absl::StatusOr<bool> ConvertFuncsToPipelinedBlocksPass::RunInternal(
     CodegenContext& context) const {
   bool changed = false;
 
-  for (auto& [fb, block] : context.function_base_to_block()) {
-    if (!fb->IsFunction()) {
-      continue;
-    }
+  for (Block* block : GetBlocksWithFunctionProvenance(package)) {
+    XLS_ASSIGN_OR_RETURN(Function * f,
+                         package->GetFunction(block->GetProvenance()->name));
     if (options.codegen_options.manual_control().has_value()) {
       return absl::UnimplementedError(
           "Manual pipeline control not implemented");
@@ -231,12 +228,10 @@ absl::StatusOr<bool> ConvertFuncsToPipelinedBlocksPass::RunInternal(
       return absl::UnimplementedError("Splitting outputs not supported.");
     }
 
-    Function* const f = fb->AsFunctionOrDie();
-
     VLOG(3) << "Converting function to a pipelined block:";
     XLS_VLOG_LINES(3, f->DumpIr());
 
-    PipelineSchedule& schedule = context.function_base_to_schedule().at(fb);
+    PipelineSchedule& schedule = context.function_base_to_schedule().at(f);
     XLS_RETURN_IF_ERROR(SingleFunctionToPipelinedBlock(
         schedule, options.codegen_options, context, f, block));
 
@@ -257,21 +252,28 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
   std::vector<Proc*> procs_to_convert;
   if (!package->ChannelsAreProcScoped() && package->GetTop().has_value() &&
       package->GetTop().value()->IsProc()) {
-    for (auto& [fb, _] : context.function_base_to_block()) {
-      if (fb->IsProc()) {
-        procs_to_convert.push_back(fb->AsProcOrDie());
+    for (const std::unique_ptr<Block>& block : package->blocks()) {
+      if (!block->GetProvenance().has_value() ||
+          block->GetProvenance()->kind != BlockProvenanceKind::kProc) {
+        continue;
       }
+      XLS_ASSIGN_OR_RETURN(Proc * proc,
+                           package->GetProc(block->GetProvenance()->name));
+      procs_to_convert.push_back(proc);
     }
   }
   XLS_ASSIGN_OR_RETURN(std::vector<FunctionBase*> conversion_order,
                        GetBlockConversionOrder(package, procs_to_convert));
+
+  absl::flat_hash_map<FunctionBase*, Block*> block_map;
+  XLS_ASSIGN_OR_RETURN(block_map, GetBlockProvenanceMap(package));
 
   absl::flat_hash_map<FunctionBase*, Block*> converted_blocks;
   for (FunctionBase* fb : conversion_order) {
     if (!fb->IsProc()) {
       continue;
     }
-    Block* block = context.function_base_to_block().at(fb);
+    Block* block = block_map.at(fb);
     if (options.codegen_options.manual_control().has_value()) {
       return absl::UnimplementedError(
           "Manual pipeline control not implemented");
