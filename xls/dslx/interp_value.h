@@ -255,6 +255,8 @@ class InterpValue {
   std::optional<InterpValue> Decrement() const;
   std::optional<InterpValue> Increment() const;
 
+  absl::StatusOr<InterpValue> IncrementZeroExtendIfOverflow() const;
+
   absl::StatusOr<InterpValue> Mul(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Shl(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Shrl(const InterpValue& other) const;

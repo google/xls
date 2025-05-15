@@ -412,7 +412,6 @@ cc_library(
     srcs = ["type_annotation_utils.cc"],
     hdrs = ["type_annotation_utils.h"],
     deps = [
-        "//xls/common:casts",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
@@ -436,9 +435,11 @@ cc_library(
     srcs = ["validate_concrete_type.cc"],
     hdrs = ["validate_concrete_type.h"],
     deps = [
+        ":type_annotation_utils",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",

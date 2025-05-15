@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -365,12 +366,17 @@ Expr* CreateRangeElementCount(Module& module, const Range* range) {
   // greater than 32 bits as long as the difference fits in a U32.
   // If the difference does not fit in a U32, for example,
   // 0xFFFF,FFFF,FFFF,FFFF..0x0000111100001111, it is silently truncated to U32,
-  // and this needed to be checked at validate_concrete_type.
+  // and this needed to be checked at const evaluation of the range.
   Expr* start = module.Make<Cast>(span, range->start(),
                                   CreateS32Annotation(module, span));
   Expr* end =
       module.Make<Cast>(span, range->end(), CreateS32Annotation(module, span));
-  return module.Make<Binop>(span, BinopKind::kSub, end, start, span);
+  Expr* result = module.Make<Binop>(span, BinopKind::kSub, end, start, span);
+  if (range->inclusive_end()) {
+    Expr* one = module.Make<Number>(span, "1", NumberKind::kOther, nullptr);
+    result = module.Make<Binop>(span, BinopKind::kAdd, result, one, span);
+  }
+  return result;
 }
 
 absl::StatusOr<InterpValueWithTypeAnnotation> GetBuiltinMember(
@@ -447,6 +453,21 @@ bool IsBitsLikeFragment(const TypeAnnotation* annotation) {
         dynamic_cast<const BuiltinTypeAnnotation*>(array->element_type());
     return builtin_element != nullptr &&
            builtin_element->builtin_type() == BuiltinType::kXN;
+  }
+  return false;
+}
+
+bool IsRangeInMatchArm(const Range* range) {
+  if (const NameDefTree* namedef =
+          dynamic_cast<const NameDefTree*>(range->parent())) {
+    if (const MatchArm* matcharm =
+            dynamic_cast<const MatchArm*>(namedef->parent())) {
+      auto& patterns = matcharm->patterns();
+      if (std::find(patterns.begin(), patterns.end(), namedef) !=
+          patterns.end()) {
+        return true;
+      }
+    }
   }
   return false;
 }

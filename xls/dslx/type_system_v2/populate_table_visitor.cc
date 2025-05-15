@@ -1052,22 +1052,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleRange(const Range* node) override {
     VLOG(5) << "HandleRange: " << node->ToString();
 
-    // Match expression uses a syntax sugar for matching any values in a range
-    // like this,
-    // match x {
-    //    1..3 => u32:1,
-    // }
-    // and this construct should not be treated as an iterable range.
-    if (const NameDefTree* namedef =
-            dynamic_cast<const NameDefTree*>(node->parent())) {
-      if (const MatchArm* matcharm =
-              dynamic_cast<const MatchArm*>(namedef->parent())) {
-        auto& patterns = matcharm->patterns();
-        if (std::find(patterns.begin(), patterns.end(), namedef) !=
-            patterns.end()) {
-          return DefaultHandler(node);
-        }
-      }
+    if (IsRangeInMatchArm(node)) {
+      return DefaultHandler(node);
     }
 
     // The type of a range expression is inferenced as if it is an array of

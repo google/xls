@@ -1195,6 +1195,10 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
               XLS_ASSIGN_OR_RETURN(
                   FormattedInterpValue end,
                   HandleNumberInternal(down_cast<Number*>(n->end())));
+              if (n->inclusive_end()) {
+                XLS_ASSIGN_OR_RETURN(end.value,
+                                     end.value.IncrementZeroExtendIfOverflow());
+              }
               return Bytecode::MatchArmItem::MakeRange(start.value, end.value);
             },
             [&](ColonRef* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
@@ -1504,6 +1508,14 @@ absl::Status BytecodeEmitter::HandleRange(const Range* node) {
   XLS_RETURN_IF_ERROR(node->start()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->end()->AcceptExpr(this));
   Add(Bytecode::MakeRange(node->span()));
+  if (node->inclusive_end()) {
+    // If the end is inclusive, we evaluate `end` again and concatenate it with
+    // the regular range `[start, end)` to make `[start, end]`.
+    XLS_RETURN_IF_ERROR(node->end()->AcceptExpr(this));
+    Add(Bytecode(node->end()->span(), Bytecode::Op::kCreateArray,
+                 Bytecode::NumElements(1)));
+    Add(Bytecode(node->span(), Bytecode::Op::kConcat));
+  }
   return absl::OkStatus();
 }
 

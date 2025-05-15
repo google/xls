@@ -186,7 +186,8 @@ Expr* CreateElementCountOffset(Module& module, TypeAnnotation* lhs,
 Number* CreateUntypedZero(Module& module, const Span& span);
 
 // Creates an Expr calculating the number of elements in a Range. If the number
-// is negative (i.e. `range->end() < range.start()`) the result is clamped to 0.
+// is negative (i.e. `range->end() < range.start()`) the result is undefined,
+// which can be caught by const evaluation of the range.
 Expr* CreateRangeElementCount(Module& module, const Range* range);
 
 // Returns the type annotation and and value of the builtin member named
@@ -213,6 +214,10 @@ const FunctionTypeAnnotation* ExpandVarargs(
 // unusable without being combined into a larger annotation. For example,
 // returns true for `uN` but false for `uN[4]` or `uN[N]`.
 bool IsBitsLikeFragment(const TypeAnnotation* annotation);
+
+// Checks if range is used as a match arm, instead of actually representing an
+// array of values, since the former case should not be annotated as an array.
+bool IsRangeInMatchArm(const Range* range);
 
 }  // namespace xls::dslx
 
