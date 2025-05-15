@@ -990,14 +990,43 @@ SelectFoldingActionsBasedOnInDegree(
 
   // Prioritize folding actions where the target is the node with higher
   // in-degree
+  absl::flat_hash_set<Node *> nodes_already_selected_as_folding_sources;
   for (Node *n : nodes) {
-    VLOG(3) << "  [" << folding_graph->GetInDegree(n) << "] " << n->ToString();
+    // Fetch the in degree of @n
+    uint64_t n_in_degree = folding_graph->GetInDegree(n);
+    if (n_in_degree == 0) {
+      continue;
+    }
+    VLOG(3) << "  [In-degree=" << n_in_degree << "] " << n->ToString();
+
+    // Exclude folding destinations that have already been selected as source on
+    // a previous folding action.
+    if (nodes_already_selected_as_folding_sources.contains(n)) {
+      VLOG(4) << "    Excluding this folding destination as already been "
+                 "selected as source for a previous folding: "
+              << n->ToString();
+      continue;
+    }
 
     // Get all edges that end to @n
     std::vector<BinaryFoldingAction *> edges_to_n =
         folding_graph->GetEdgesTo(n);
-    if (edges_to_n.empty()) {
-      continue;
+    CHECK_GT(edges_to_n.size(), 0);
+    CHECK_EQ(edges_to_n.size(), n_in_degree);
+
+    // Remove the edges with a source that was already selected in a prior
+    // folding
+    std::vector<BinaryFoldingAction *> still_valid_edges_to_n;
+    still_valid_edges_to_n.reserve(edges_to_n.size());
+    for (BinaryFoldingAction *f : edges_to_n) {
+      Node *source = f->GetFrom();
+      if (nodes_already_selected_as_folding_sources.contains(source)) {
+        VLOG(4) << "    Excluding the following source because it was already "
+                   "considered in a previous n-ary folding action: "
+                << source->ToString();
+        continue;
+      }
+      still_valid_edges_to_n.push_back(f);
     }
 
     // Remove folding actions that are from a node that is not mutually
@@ -1010,38 +1039,69 @@ SelectFoldingActionsBasedOnInDegree(
                                          BinaryFoldingAction *a1) -> bool {
       Node *a0_source = a0->GetFrom();
       Node *a1_source = a1->GetFrom();
-      return a0_source->BitCountOrDie() > a1_source->BitCountOrDie();
+      int64_t a0_bitwidth = a0_source->BitCountOrDie();
+      int64_t a1_bitwidth = a1_source->BitCountOrDie();
+      if (a0_bitwidth > a1_bitwidth) {
+        return true;
+      }
+      if (a0_bitwidth < a1_bitwidth) {
+        return false;
+      }
+
+      // If @a0 and @a1 have the same bitwidth, then use their ID to make the
+      // result deterministic
+      return a0_source->id() < a1_source->id();
     };
-    absl::c_sort(edges_to_n, source_bitwidth_comparator);
+    absl::c_sort(still_valid_edges_to_n, source_bitwidth_comparator);
 
     // Step 1: Remove folding actions that are from a node that is not mutually
     // exclusive with all the others.
     std::vector<BinaryFoldingAction *> subset_of_edges_to_n;
-    for (BinaryFoldingAction *a : edges_to_n) {
+    subset_of_edges_to_n.reserve(still_valid_edges_to_n.size());
+    for (BinaryFoldingAction *a : still_valid_edges_to_n) {
       // Fetch the source of the current folding action
       Node *a_source = a->GetFrom();
 
       // Check if @a_source is mutually-exclusive with all other nodes already
       // confirmed (i.e., the sources of @subset_of_edges_to_n)
-      bool is_a_mutually_exclusive = true;
-      for (BinaryFoldingAction *previous_action : subset_of_edges_to_n) {
-        Node *previous_node = previous_action->GetFrom();
-        Node *select = previous_action->GetSelect();
-        if (select != a->GetSelect()) {
-          continue;
-        }
-        if (!AreMutuallyExclusive(mutual_exclusivity_relation, a_source,
-                                  previous_node, select)) {
-          is_a_mutually_exclusive = false;
-          break;
-        }
-      }
+      bool is_a_mutually_exclusive = absl::c_all_of(
+          subset_of_edges_to_n, [&](BinaryFoldingAction *previous_action) {
+            Node *previous_node = previous_action->GetFrom();
+            Node *select = previous_action->GetSelect();
+            if (select != a->GetSelect()) {
+              VLOG(4)
+                  << "    Excluding the following source because it does not "
+                     "have the same select of the destination of the folding: "
+                  << a_source->ToString();
+              return false;
+            }
+            if (!AreMutuallyExclusive(mutual_exclusivity_relation, a_source,
+                                      previous_node, select)) {
+              VLOG(4) << "    Excluding the following source because it is not "
+                         "mutually exclusive with the previous source:";
+              VLOG(4) << "      Source excluded = " << a_source->ToString();
+              VLOG(4) << "      Previous source = "
+                      << previous_node->ToString();
+              return false;
+            }
+            return true;
+          });
 
       // Consider the current folding action only if its source is mutually
       // exclusive with the other sources
       if (is_a_mutually_exclusive) {
         subset_of_edges_to_n.push_back(a);
       }
+    }
+    if (subset_of_edges_to_n.empty()) {
+      VLOG(4) << "    There is no binary edge that can be targeted";
+      continue;
+    }
+
+    // Keep track of all the nodes chosen as source of the folding
+    for (BinaryFoldingAction *f : subset_of_edges_to_n) {
+      Node *from = f->GetFrom();
+      nodes_already_selected_as_folding_sources.insert(from);
     }
 
     // Create the hyper-edge by merging all these edges
