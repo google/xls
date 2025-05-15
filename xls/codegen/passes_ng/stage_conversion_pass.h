@@ -17,19 +17,22 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/ir/function_base.h"
+#include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
 
 // Converts functions to a series of stage procs.
-class StageConversionPass : public CodegenPass {
+class StageConversionPass : public CodegenFunctionPass {
  public:
   StageConversionPass()
-      : CodegenPass("ir_to_stage_procs", "Stage conversion pass") {}
+      : CodegenFunctionPass("ir_to_stage_procs", "Stage conversion pass") {}
   ~StageConversionPass() override = default;
 
-  absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
-                                   const CodegenPassOptions& options,
-                                   CodegenPassResults* results) const override;
+  absl::StatusOr<bool> RunOnFunctionInternal(
+      CodegenPassUnit* unit, Function* f, const PipelineSchedule& schedule,
+      const CodegenPassOptions& options,
+      CodegenPassResults* results) const override;
 };
 
 }  // namespace xls::verilog

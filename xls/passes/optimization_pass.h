@@ -34,7 +34,9 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/function.h"
@@ -558,7 +560,39 @@ class OptimizationFunctionBasePass
  public:
   using FunctionBasePass::FunctionBasePass;
 
+  // Runs the pass on a single function/proc.
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const OptimizationPassOptions& options,
+                                         PassResults* results,
+                                         OptimizationContext& context) const {
+    VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
+                                  this->long_name(), f->name(),
+                                  results->total_invocations);
+    VLOG(3) << "Before:";
+    XLS_VLOG_LINES(3, f->DumpIr());
+
+    XLS_ASSIGN_OR_RETURN(
+        bool changed, RunOnFunctionBaseInternal(f, options, results, context));
+
+    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+    XLS_VLOG_LINES(3, f->DumpIr());
+    return changed;
+  }
+
  protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      Package* p, FunctionBase* f, const OptimizationPassOptions& options,
+      PassResults* results, OptimizationContext& context) const override {
+    return RunOnFunctionBaseInternal(f, options, results, context);
+  }
+
+  // Optimization passes don't use the first `Pass` template argument, so they
+  // implement this variant of the standard `RunOnFunctionBaseInternal`
+  // function.
+  virtual absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const OptimizationPassOptions& options,
+      PassResults* results, OptimizationContext& context) const = 0;
+
   // Calls the given function for every node in the graph in a loop until no
   // further simplifications are possible.  simplify_f should return true if the
   // IR was modified. simplify_f can add or remove nodes including the node
@@ -573,8 +607,43 @@ class OptimizationFunctionBasePass
 
 // Abstract base class for passes operate on procs. The derived class must
 // define RunOnProcInternal.
-using OptimizationProcPass = ProcPass<Package, OptimizationPassOptions,
-                                      PassResults, OptimizationContext>;
+class OptimizationProcPass : public ProcPass<Package, OptimizationPassOptions,
+                                             PassResults, OptimizationContext> {
+ public:
+  using ProcPass::ProcPass;
+
+  // Run the pass on a single proc.
+  absl::StatusOr<bool> RunOnProc(Proc* proc,
+                                 const OptimizationPassOptions& options,
+                                 PassResults* results,
+                                 OptimizationContext& context) const {
+    VLOG(2) << absl::StreamFormat("Running %s on proc %s [pass #%d]",
+                                  this->long_name(), proc->name(),
+                                  results->total_invocations);
+    VLOG(3) << "Before:";
+    XLS_VLOG_LINES(3, proc->DumpIr());
+
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         RunOnProcInternal(proc, options, results, context));
+
+    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+    XLS_VLOG_LINES(3, proc->DumpIr());
+    return changed;
+  }
+
+ protected:
+  absl::StatusOr<bool> RunOnProcInternal(
+      Package*, Proc* proc, const OptimizationPassOptions& options,
+      PassResults* results, OptimizationContext& context) const override {
+    return RunOnProcInternal(proc, options, results, context);
+  }
+
+  // Optimization passes don't use the first `Pass` template argument, so they
+  // implement this variant of the standard `RunOnProcInternal` function.
+  virtual absl::StatusOr<bool> RunOnProcInternal(
+      Proc* proc, const OptimizationPassOptions& options, PassResults* results,
+      OptimizationContext& context) const = 0;
+};
 
 }  // namespace xls
 

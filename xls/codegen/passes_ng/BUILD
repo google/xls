@@ -92,6 +92,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:xls_ir_interface_cc_proto",
+        "//xls/scheduling:pipeline_schedule",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
     ],

@@ -20,37 +20,24 @@
 #include "xls/codegen/passes_ng/stage_conversion.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/xls_ir_interface.pb.h"
+#include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
 
-absl::StatusOr<bool> StageConversionPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
-  bool changed = false;
+absl::StatusOr<bool> StageConversionPass::RunOnFunctionInternal(
+    CodegenPassUnit* unit, Function* f, const PipelineSchedule& schedule,
+    const CodegenPassOptions& options, CodegenPassResults* results) const {
+  VLOG(3) << "Converting function ir to stage ir:";
+  XLS_VLOG_LINES(3, f->DumpIr());
 
-  for (auto& [fb, schedule] : unit->function_base_to_schedule()) {
-    if (!fb->IsFunction()) {
-      continue;
-    }
-    Function* const f = fb->AsFunctionOrDie();
+  XLS_RETURN_IF_ERROR(SingleFunctionBaseToPipelinedStages(
+      f->name(), schedule, options.codegen_options,
+      unit->stage_conversion_metadata()));
 
-    VLOG(3) << "Converting function ir to stage ir:";
-    XLS_VLOG_LINES(3, f->DumpIr());
-
-    XLS_RETURN_IF_ERROR(SingleFunctionBaseToPipelinedStages(
-        fb->name(), schedule, options.codegen_options,
-        unit->stage_conversion_metadata()));
-
-    changed = true;
-  }
-
-  if (changed) {
-    unit->GcMetadata();
-  }
-
-  return changed;
+  return true;
 }
 
 }  // namespace xls::verilog

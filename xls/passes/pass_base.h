@@ -623,44 +623,32 @@ class FunctionBasePass : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
  public:
   using PassBase<IrT, OptionsT, ResultsT, ContextT...>::PassBase;
 
-  // Runs the pass on a single function/proc.
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const OptionsT& options,
-                                         PassResults* results,
-                                         ContextT&... context) const {
-    VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
-                                  this->long_name(), f->name(),
-                                  results->total_invocations);
-    VLOG(3) << "Before:";
-    XLS_VLOG_LINES(3, f->DumpIr());
-
-    XLS_ASSIGN_OR_RETURN(bool changed, RunOnFunctionBaseInternal(
-                                           f, options, results, context...));
-
-    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
-    XLS_VLOG_LINES(3, f->DumpIr());
-    return changed;
-  }
-
  protected:
   // Iterates over each function and proc in the package calling
   // RunOnFunctionBase.
-  absl::StatusOr<bool> RunInternal(Package* p, const OptionsT& options,
-                                   PassResults* results,
+  absl::StatusOr<bool> RunInternal(IrT* p, const OptionsT& options,
+                                   ResultsT* results,
                                    ContextT&... context) const override {
     bool changed = false;
     for (FunctionBase* f : p->GetFunctionBases()) {
       XLS_ASSIGN_OR_RETURN(
           bool function_changed,
-          RunOnFunctionBaseInternal(f, options, results, context...));
+          RunOnFunctionBaseInternal(p, f, options, results, context...));
+      if (function_changed) {
+        GcAfterFunctionBaseChange(p, context...);
+      }
       changed = changed || function_changed;
     }
     return changed;
   }
 
   virtual absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const OptionsT& options, PassResults* results,
+      IrT* p, FunctionBase* f, const OptionsT& options, ResultsT* results,
       ContextT&... context) const = 0;
+
+  // A subclass may optionally override this to garbage collect context data
+  // after a `RunOnFunctionBaseInternal` call that makes a change.
+  virtual void GcAfterFunctionBaseChange(IrT* p, ContextT&... context) const {}
 };
 
 // Abstract base class for passes that operate at proc scope. The derived class
@@ -671,42 +659,31 @@ class ProcPass : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
  public:
   using PassBase<IrT, OptionsT, ResultsT, ContextT...>::PassBase;
 
-  // Proc the pass on a single proc.
-  absl::StatusOr<bool> RunOnProc(Proc* proc, const OptionsT& options,
-                                 PassResults* results,
-                                 ContextT&... context) const {
-    VLOG(2) << absl::StreamFormat("Running %s on proc %s [pass #%d]",
-                                  this->long_name(), proc->name(),
-                                  results->total_invocations);
-    VLOG(3) << "Before:";
-    XLS_VLOG_LINES(3, proc->DumpIr());
-
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         RunOnProcInternal(proc, options, results, context...));
-
-    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
-    XLS_VLOG_LINES(3, proc->DumpIr());
-    return changed;
-  }
-
  protected:
   // Iterates over each proc in the package calling RunOnProc.
-  absl::StatusOr<bool> RunInternal(Package* p, const OptionsT& options,
-                                   PassResults* results,
+  absl::StatusOr<bool> RunInternal(IrT* p, const OptionsT& options,
+                                   ResultsT* results,
                                    ContextT&... context) const override {
     bool changed = false;
     for (const auto& proc : p->procs()) {
       XLS_ASSIGN_OR_RETURN(
           bool proc_changed,
-          RunOnProcInternal(proc.get(), options, results, context...));
+          RunOnProcInternal(p, proc.get(), options, results, context...));
+      if (proc_changed) {
+        GcAfterProcChange(p, context...);
+      }
       changed = changed || proc_changed;
     }
     return changed;
   }
 
   virtual absl::StatusOr<bool> RunOnProcInternal(
-      Proc* proc, const OptionsT& options, PassResults* results,
+      IrT* p, Proc* proc, const OptionsT& options, ResultsT* results,
       ContextT&... context) const = 0;
+
+  // A subclass may optionally override this to garbage collect context data
+  // after a `RunOnProcInternal` call that makes a change.
+  virtual void GcAfterProcChange(IrT* p, ContextT&... context) const {}
 };
 
 }  // namespace xls

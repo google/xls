@@ -453,6 +453,12 @@ class CodegenPassUnit {
     return function_base_to_schedule_;
   }
 
+  // Required wrapper in order for this class to serve as the first template
+  // argument for `Pass`.
+  std::vector<FunctionBase*> GetFunctionBases() {
+    return package_->GetFunctionBases();
+  }
+
   // Returns the manager of stage conversion metadata.
   StageConversionMetadata& stage_conversion_metadata() {
     return stage_conversion_metadata_;
@@ -501,9 +507,42 @@ struct CodegenPassResults : public PassResults {
 
 using CodegenPass =
     PassBase<CodegenPassUnit, CodegenPassOptions, CodegenPassResults>;
+using CodegenFunctionBasePass =
+    FunctionBasePass<CodegenPassUnit, CodegenPassOptions, CodegenPassResults>;
 using CodegenCompoundPass =
     CompoundPassBase<CodegenPassUnit, CodegenPassOptions, CodegenPassResults>;
 using CodegenInvariantChecker = CodegenCompoundPass::InvariantChecker;
+
+// Abstract base class for a pass that runs on all scheduled functions.
+class CodegenFunctionPass : public CodegenFunctionBasePass {
+ public:
+  using CodegenFunctionBasePass::CodegenFunctionBasePass;
+
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      CodegenPassUnit* unit, FunctionBase* fb,
+      const CodegenPassOptions& options,
+      CodegenPassResults* results) const override {
+    if (!fb->IsFunction()) {
+      return false;
+    }
+    const auto schedule_it = unit->function_base_to_schedule().find(fb);
+    if (schedule_it == unit->function_base_to_schedule().end()) {
+      return false;
+    }
+    return RunOnFunctionInternal(unit, fb->AsFunctionOrDie(),
+                                 schedule_it->second, options, results);
+  }
+
+  virtual void GcAfterFunctionBaseChange(CodegenPassUnit* unit) const override {
+    unit->GcMetadata();
+  }
+
+  // Must be implemented by a subclass to do the logic for the pass and return
+  // whether anything was changed.
+  virtual absl::StatusOr<bool> RunOnFunctionInternal(
+      CodegenPassUnit* unit, Function* f, const PipelineSchedule& schedule,
+      const CodegenPassOptions& options, CodegenPassResults* results) const = 0;
+};
 
 // Map from channel to block inputs/outputs.
 class ChannelMap {
