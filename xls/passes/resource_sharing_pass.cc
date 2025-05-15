@@ -1289,7 +1289,8 @@ absl::StatusOr<bool> PerformFoldingActions(
     // - Step 2: Replace the operands of the @to_node to use the results of the
     //           new selectors computed at Step 1.
     VLOG(3) << "    Step 2: update the target of the folding transformation";
-    for (int64_t op_id = 0LL; op_id < to_node->operand_count(); op_id++) {
+    for (int64_t op_id = int64_t{0}; op_id < to_node->operand_count();
+         op_id++) {
       XLS_RETURN_IF_ERROR(
           to_node->ReplaceOperandNumber(op_id, new_operands[op_id], true));
     }
