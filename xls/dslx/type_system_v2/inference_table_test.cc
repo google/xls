@@ -647,6 +647,12 @@ TEST_F(InferenceTableTest, CachingForCanonicalizedParametricContext) {
                                /*self_type=*/std::nullopt, CreateTypeInfo()));
   EXPECT_FALSE(table_->MapToCanonicalInvocationTypeInfo(canonicalized_context1,
                                                         canonical_env));
+  const FunctionTypeAnnotation* function_type =
+      module_->Make<FunctionTypeAnnotation>(
+          std::vector<const TypeAnnotation*>{
+              CreateU32Annotation(*module_, Span::Fake())},
+          CreateU32Annotation(*module_, Span::Fake()));
+  canonicalized_context1->SetParametricFreeFunctionType(function_type);
   XLS_ASSERT_OK_AND_ASSIGN(ParametricContext * canonicalized_context2,
                            table_->AddParametricInvocation(
                                *invocation2, *foo, bar,
@@ -656,6 +662,10 @@ TEST_F(InferenceTableTest, CachingForCanonicalizedParametricContext) {
                                                        canonical_env));
   EXPECT_EQ(canonicalized_context1->type_info(),
             canonicalized_context2->type_info());
+  EXPECT_EQ(
+      std::get<ParametricInvocationDetails>(canonicalized_context2->details())
+          .parametric_free_function_type,
+      function_type);
   XLS_ASSERT_OK_AND_ASSIGN(const ParametricContext* context3,
                            table_->AddParametricInvocation(
                                *invocation3, *foo, bar,

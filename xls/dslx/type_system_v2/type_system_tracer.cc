@@ -291,6 +291,8 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
         node_string = constant_def->identifier();
       }
       absl::StrAppendFormat(&result, "Node: `%s`\n", node_string);
+      absl::StrAppendFormat(&result, "Kind: `%s`\n",
+                            AstNodeKindToString(node->kind()));
       absl::StrAppendFormat(
           &result, "Span: %s\n",
           node->GetSpan().has_value()

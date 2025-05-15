@@ -390,6 +390,13 @@ class InferenceTableImpl : public InferenceTable {
     mutable_parametric_context_data_.at(parametric_context).canonical_context =
         it->second;
     parametric_context->SetTypeInfo(it->second->type_info());
+    // The owner of the canonical context should have called
+    // `SetParametricFreeFunctionType` on it before now.
+    CHECK(std::get<ParametricInvocationDetails>(it->second->details())
+              .parametric_free_function_type != nullptr);
+    parametric_context->SetParametricFreeFunctionType(
+        std::get<ParametricInvocationDetails>(it->second->details())
+            .parametric_free_function_type);
     return true;
   }
 

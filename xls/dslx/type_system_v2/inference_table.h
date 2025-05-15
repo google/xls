@@ -28,6 +28,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -55,6 +56,7 @@ class InferenceTable;
 struct ParametricInvocationDetails {
   const Function* callee;
   std::optional<const Function*> caller;
+  const FunctionTypeAnnotation* parametric_free_function_type = nullptr;
 };
 
 // The details for a `ParametricContext` that is for a struct.
@@ -79,9 +81,9 @@ class ParametricContext {
       : id_(id),
         node_(node),
         details_(std::move(details)),
-        type_info_(type_info),
         parent_context_(parent_context),
-        self_type_(self_type) {}
+        self_type_(self_type),
+        type_info_(type_info) {}
 
   template <typename H>
   friend H AbslHashValue(H h, const ParametricContext& context) {
@@ -164,6 +166,17 @@ class ParametricContext {
   void SetInvocationEnv(ParametricEnv env) { invocation_env_ = std::move(env); }
   void SetTypeInfo(TypeInfo* type_info) { type_info_ = type_info; }
 
+  // This is to enable reuse of a computed function type across compatible
+  // parametric contexts. It is intended to be done as soon as feasible by the
+  // owner of any non-canonicalized context, after the context is created. A
+  // context for which `InferenceTable::MapToCanonicalInvocationTypeInfo`
+  // returns true is guaranteed to already have this set in its details.
+  void SetParametricFreeFunctionType(const FunctionTypeAnnotation* type) {
+    auto& details = std::get<ParametricInvocationDetails>(details_);
+    CHECK_EQ(details.parametric_free_function_type, nullptr);
+    details.parametric_free_function_type = type;
+  }
+
  private:
   static std::string DetailsToString(const Details& details) {
     return absl::visit(
@@ -183,7 +196,7 @@ class ParametricContext {
 
   const uint64_t id_;  // Just for logging.
   const AstNode* node_;
-  const Details details_;
+  Details details_;
   const std::optional<const ParametricContext*> parent_context_;
   const std::optional<const TypeAnnotation*> self_type_;
   TypeInfo* type_info_;

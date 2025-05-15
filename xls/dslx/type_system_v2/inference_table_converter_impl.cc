@@ -642,21 +642,32 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                  nullptr;
         }));
 
-    // Apply the parametric-free formal types to the arguments and convert them.
-    XLS_ASSIGN_OR_RETURN(
-        const TypeAnnotation* parametric_free_type,
-        GetParametricFreeType(CreateFunctionTypeAnnotation(module_, *function),
-                              parametric_value_exprs_.at(invocation_context),
-                              invocation_context->self_type()));
-    XLS_RETURN_IF_ERROR(
-        ConvertSubtree(parametric_free_type, caller, caller_context));
+    const FunctionTypeAnnotation* parametric_free_function_type = nullptr;
+    if (canonicalized) {
+      parametric_free_function_type =
+          std::get<ParametricInvocationDetails>(invocation_context->details())
+              .parametric_free_function_type;
+    } else {
+      // Apply the parametric-free formal types to the arguments and convert
+      // them.
+      XLS_ASSIGN_OR_RETURN(const TypeAnnotation* parametric_free_type,
+                           GetParametricFreeType(
+                               CreateFunctionTypeAnnotation(module_, *function),
+                               parametric_value_exprs_.at(invocation_context),
+                               invocation_context->self_type()));
+      XLS_RETURN_IF_ERROR(
+          ConvertSubtree(parametric_free_type, caller, caller_context));
 
-    XLS_ASSIGN_OR_RETURN(parametric_free_type,
-                         resolver_->ResolveIndirectTypeAnnotations(
-                             invocation_context, parametric_free_type,
-                             TypeAnnotationFilter::None()));
-    const FunctionTypeAnnotation* parametric_free_function_type =
-        down_cast<const FunctionTypeAnnotation*>(parametric_free_type);
+      XLS_ASSIGN_OR_RETURN(parametric_free_type,
+                           resolver_->ResolveIndirectTypeAnnotations(
+                               invocation_context, parametric_free_type,
+                               TypeAnnotationFilter::None()));
+      parametric_free_function_type =
+          down_cast<const FunctionTypeAnnotation*>(parametric_free_type);
+
+      invocation_context->SetParametricFreeFunctionType(
+          parametric_free_function_type);
+    }
 
     XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
         caller_context, callee_variable, parametric_free_function_type));
