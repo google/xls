@@ -313,27 +313,21 @@ MaybeOwnedForwardingQueryEngine<QueryEngineT> GetSharedQueryEngine(
 // to PassBase::Run).
 // Defines the pass types for optimizations which operate strictly on XLS IR
 // (i.e., xls::Package).
-using OptimizationPass = PassBase<Package, OptimizationPassOptions, PassResults,
-                                  OptimizationContext>;
+using OptimizationPass = PassBase<OptimizationPassOptions, OptimizationContext>;
 using OptimizationCompoundPass =
-    CompoundPassBase<Package, OptimizationPassOptions, PassResults,
-                     OptimizationContext>;
+    CompoundPassBase<OptimizationPassOptions, OptimizationContext>;
 using OptimizationFixedPointCompoundPass =
-    FixedPointCompoundPassBase<Package, OptimizationPassOptions, PassResults,
-                               OptimizationContext>;
+    FixedPointCompoundPassBase<OptimizationPassOptions, OptimizationContext>;
 using OptimizationInvariantChecker = OptimizationCompoundPass::InvariantChecker;
 using OptimizationPipelineGenerator =
-    PipelineGeneratorBase<Package, OptimizationPassOptions, PassResults,
-                          OptimizationContext>;
+    PipelineGeneratorBase<OptimizationPassOptions, OptimizationContext>;
 using OptimizationWrapperPass =
-    WrapperPassBase<Package, OptimizationPassOptions, PassResults,
-                    OptimizationContext>;
+    WrapperPassBase<OptimizationPassOptions, OptimizationContext>;
 
-using OptimizationPassRegistry = PassRegistry<Package, OptimizationPassOptions,
-                                              PassResults, OptimizationContext>;
+using OptimizationPassRegistry =
+    PassRegistry<OptimizationPassOptions, OptimizationContext>;
 using OptimizationPassGenerator =
-    PassGenerator<Package, OptimizationPassOptions, PassResults,
-                  OptimizationContext>;
+    PassGenerator<OptimizationPassOptions, OptimizationContext>;
 
 namespace internal {
 // Wrapper that uses templates to force opt-level to a specific max value for
@@ -552,52 +546,14 @@ inline bool OptimizationPassOptions::splits_enabled() const {
   return SplitsEnabled(opt_level);
 }
 
-// Abstract base class for passes operate at function/proc scope. The derived
-// class must define RunOnFunctionBaseInternal.
+// Abstract base class for passes operate at function/proc scope. The
+// derived class must define RunOnFunctionBaseInternal.
 class OptimizationFunctionBasePass
-    : public FunctionBasePass<Package, OptimizationPassOptions, PassResults,
-                              OptimizationContext> {
+    : public FunctionBasePass<OptimizationPassOptions, OptimizationContext> {
  public:
   using FunctionBasePass::FunctionBasePass;
 
-  // Runs the pass on a single function/proc.
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const OptimizationPassOptions& options,
-                                         PassResults* results,
-                                         OptimizationContext& context) const {
-    VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
-                                  this->long_name(), f->name(),
-                                  results->total_invocations);
-    VLOG(3) << "Before:";
-    XLS_VLOG_LINES(3, f->DumpIr());
-
-    XLS_ASSIGN_OR_RETURN(
-        bool changed, RunOnFunctionBaseInternal(f, options, results, context));
-
-    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
-    XLS_VLOG_LINES(3, f->DumpIr());
-    return changed;
-  }
-
  protected:
-  absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      Package* p, FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext& context) const override {
-    return RunOnFunctionBaseInternal(f, options, results, context);
-  }
-
-  // Optimization passes don't use the first `Pass` template argument, so they
-  // implement this variant of the standard `RunOnFunctionBaseInternal`
-  // function.
-  virtual absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext& context) const = 0;
-
-  // Calls the given function for every node in the graph in a loop until no
-  // further simplifications are possible.  simplify_f should return true if the
-  // IR was modified. simplify_f can add or remove nodes including the node
-  // passed to it.
-  //
   // TransformNodesToFixedPoint returns true iff any invocations of simplify_f
   // returned true.
   absl::StatusOr<bool> TransformNodesToFixedPoint(
@@ -607,43 +563,8 @@ class OptimizationFunctionBasePass
 
 // Abstract base class for passes operate on procs. The derived class must
 // define RunOnProcInternal.
-class OptimizationProcPass : public ProcPass<Package, OptimizationPassOptions,
-                                             PassResults, OptimizationContext> {
- public:
-  using ProcPass::ProcPass;
-
-  // Run the pass on a single proc.
-  absl::StatusOr<bool> RunOnProc(Proc* proc,
-                                 const OptimizationPassOptions& options,
-                                 PassResults* results,
-                                 OptimizationContext& context) const {
-    VLOG(2) << absl::StreamFormat("Running %s on proc %s [pass #%d]",
-                                  this->long_name(), proc->name(),
-                                  results->total_invocations);
-    VLOG(3) << "Before:";
-    XLS_VLOG_LINES(3, proc->DumpIr());
-
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         RunOnProcInternal(proc, options, results, context));
-
-    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
-    XLS_VLOG_LINES(3, proc->DumpIr());
-    return changed;
-  }
-
- protected:
-  absl::StatusOr<bool> RunOnProcInternal(
-      Package*, Proc* proc, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext& context) const override {
-    return RunOnProcInternal(proc, options, results, context);
-  }
-
-  // Optimization passes don't use the first `Pass` template argument, so they
-  // implement this variant of the standard `RunOnProcInternal` function.
-  virtual absl::StatusOr<bool> RunOnProcInternal(
-      Proc* proc, const OptimizationPassOptions& options, PassResults* results,
-      OptimizationContext& context) const = 0;
-};
+using OptimizationProcPass =
+    ProcPass<OptimizationPassOptions, OptimizationContext>;
 
 }  // namespace xls
 

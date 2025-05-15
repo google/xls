@@ -57,6 +57,7 @@
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/token_provenance_analysis.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
@@ -1085,14 +1086,14 @@ absl::StatusOr<Node*> AddPredicate(Predicates* p, Node* node, Node* pred) {
 }  // namespace
 
 absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, SchedulingUnit* unit, const SchedulingPassOptions& options,
-    SchedulingPassResults* results) const {
+    FunctionBase* f, const SchedulingPassOptions& options, PassResults* results,
+    SchedulingContext& context) const {
   ScheduleCycleMap scm;
-  if (unit->schedules().contains(f)) {
-    if (f != unit->schedules().at(f).function_base()) {
+  if (context.schedules().contains(f)) {
+    if (f != context.schedules().at(f).function_base()) {
       return false;
     }
-    scm = unit->schedules().at(f).GetCycleMap();
+    scm = context.schedules().at(f).GetCycleMap();
   } else {
     for (Node* node : f->nodes()) {
       scm[node] = 0;
@@ -1136,7 +1137,7 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
   }
 
   if (changed) {
-    unit->schedules().clear();
+    context.schedules().clear();
   }
 
   return changed;

@@ -16,6 +16,8 @@
 #define XLS_SCHEDULING_SCHEDULING_CHECKER_H_
 
 #include "absl/status/status.h"
+#include "xls/ir/package.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
@@ -24,8 +26,9 @@ namespace xls {
 // invariants of the schedule.
 class SchedulingChecker : public SchedulingInvariantChecker {
  public:
-  absl::Status Run(SchedulingUnit* unit, const SchedulingPassOptions& options,
-                   SchedulingPassResults* results) const override;
+  absl::Status Run(Package* package, const SchedulingPassOptions& options,
+                   PassResults* results,
+                   SchedulingContext& context) const override;
 };
 
 }  // namespace xls

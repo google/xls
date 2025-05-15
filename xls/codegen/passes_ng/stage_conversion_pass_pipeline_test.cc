@@ -45,6 +45,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -99,21 +100,21 @@ TEST_P(SweepPipelineStagesFixture, TrivialPipelinedFunction) {
   VLOG(2) << "Starting Package";
   XLS_VLOG_LINES(2, p->DumpIr());
 
-  CodegenPassUnit unit(p.get());
-  unit.AssociateSchedule(f, schedule);
+  CodegenContext context;
+  context.AssociateSchedule(f, schedule);
 
   CodegenPassOptions pass_options;
   pass_options.codegen_options =
       CodegenOptions().flop_inputs(false).flop_outputs(true).clock_name("clk");
   pass_options.schedule = schedule;
   pass_options.delay_estimator = &delay_estimator;
-  CodegenPassResults results;
-  OptimizationContext context;
+  PassResults results;
+  OptimizationContext opt_context;
 
-  XLS_ASSERT_OK(
-      CreateStageConversionPassPipeline(pass_options.codegen_options, context)
-          ->Run(&unit, pass_options, &results)
-          .status());
+  XLS_ASSERT_OK(CreateStageConversionPassPipeline(pass_options.codegen_options,
+                                                  opt_context)
+                    ->Run(p.get(), pass_options, &results, context)
+                    .status());
 
   VLOG(2) << "Final Package";
   XLS_VLOG_LINES(2, p->DumpIr());
@@ -121,7 +122,7 @@ TEST_P(SweepPipelineStagesFixture, TrivialPipelinedFunction) {
   // Get top-level proc and input/output channels.
   XLS_ASSERT_OK_AND_ASSIGN(
       ProcMetadata * top_metadata,
-      unit.stage_conversion_metadata().GetTopProcMetadata(f));
+      context.stage_conversion_metadata().GetTopProcMetadata(f));
   Proc* top_proc = top_metadata->proc();
 
   XLS_ASSERT_OK_AND_ASSIGN(ChannelInterface * ch_x,

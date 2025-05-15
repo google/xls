@@ -352,9 +352,8 @@ struct CodegenMetadata {
   std::optional<ConcurrentStageGroups> concurrent_stages;
 };
 
-// Data structure operated on by codegen passes. Contains the IR and associated
-// metadata which may be used and mutated by passes.
-class CodegenPassUnit {
+// Mutable context data structure operated on by codegen passes.
+class CodegenContext {
  public:
   // Ordering for blocks lexicographically by name.
   struct BlockByName {
@@ -365,10 +364,7 @@ class CodegenPassUnit {
 
   using MetadataMap = absl::btree_map<Block*, CodegenMetadata, BlockByName>;
 
-  explicit CodegenPassUnit(Package* ABSL_NONNULL p, Block* b = nullptr)
-      : package_(p), top_block_(b) {}
-
-  Package* package() { return package_; }
+  explicit CodegenContext(Block* b = nullptr) : top_block_(b) {}
 
   // Has a top block been set?
   bool HasTopBlock() const { return top_block_ != nullptr; }
@@ -398,19 +394,6 @@ class CodegenPassUnit {
                                  Block* block) {
     function_base_to_schedule_.emplace(fb, std::move(schedule));
     function_base_to_block_.emplace(fb, block);
-  }
-
-  // These methods are required by CompoundPassBase.
-  std::string DumpIr() const;
-
-  const std::string& name() const {
-    CHECK_NE(top_block_, nullptr);
-
-    return top_block_->name();
-  }
-  int64_t GetNodeCount() const;
-  const TransformMetrics& transform_metrics() const {
-    return package_->transform_metrics();
   }
 
   // Returns the metadata map.
@@ -459,24 +442,20 @@ class CodegenPassUnit {
     return function_base_to_schedule_;
   }
 
-  // Required wrappers in order for this class to serve as the first template
-  // argument for `Pass`.
-  absl::Span<const std::unique_ptr<Proc>> procs() const {
-    return package_->procs();
-  }
-  std::vector<FunctionBase*> GetFunctionBases() {
-    return package_->GetFunctionBases();
-  }
-
   // Returns the manager of stage conversion metadata.
   StageConversionMetadata& stage_conversion_metadata() {
     return stage_conversion_metadata_;
   }
 
- private:
-  // The package containing IR to lower.
-  Package* package_;
+  absl::flat_hash_map<std::string, std::string>& register_renames() {
+    return register_renames_;
+  }
 
+  absl::flat_hash_map<std::string, xls::Type*>& inserted_registers() {
+    return inserted_registers_;
+  }
+
+ private:
   // Metadata for pipelined blocks.
   // TODO(google/xls#1060): refactor so conversion_metadata is in
   // StreamingIOPipeline and more elements are split as function- or proc-only.
@@ -497,9 +476,7 @@ class CodegenPassUnit {
   // Object that associates function bases to metadata created during
   // stage conversion.
   StageConversionMetadata stage_conversion_metadata_;
-};
 
-struct CodegenPassResults : public PassResults {
   // A map from original register names to renamed register. Note that the
   // register names are generally going to include the elaboration-prefix if not
   // in the top block. Generally pass should only add to this and only users who
@@ -507,19 +484,19 @@ struct CodegenPassResults : public PassResults {
   // interpret the values in this map. For example if you have 2 passes the
   // first renames 'a' -> 'b' and the second 'b' -> 'c' you would see both
   // renames in this map (i.e. 2 elements).
-  absl::flat_hash_map<std::string, std::string> register_renames;
+  absl::flat_hash_map<std::string, std::string> register_renames_;
+
   // Map from register name (including instantiation path) to type of the
   // register of registers some pass inserted which was not initially a part of
   // the design (eg FIFO implementation registers).
-  absl::flat_hash_map<std::string, xls::Type*> inserted_registers;
+  absl::flat_hash_map<std::string, xls::Type*> inserted_registers_;
 };
 
-using CodegenPass =
-    PassBase<CodegenPassUnit, CodegenPassOptions, CodegenPassResults>;
+using CodegenPass = PassBase<CodegenPassOptions, CodegenContext>;
 using CodegenFunctionBasePass =
-    FunctionBasePass<CodegenPassUnit, CodegenPassOptions, CodegenPassResults>;
+    FunctionBasePass<CodegenPassOptions, CodegenContext>;
 using CodegenCompoundPass =
-    CompoundPassBase<CodegenPassUnit, CodegenPassOptions, CodegenPassResults>;
+    CompoundPassBase<CodegenPassOptions, CodegenContext>;
 using CodegenInvariantChecker = CodegenCompoundPass::InvariantChecker;
 
 // Abstract base class for a pass that runs on all scheduled functions.
@@ -527,40 +504,43 @@ class CodegenFunctionPass : public CodegenFunctionBasePass {
  public:
   using CodegenFunctionBasePass::CodegenFunctionBasePass;
 
+  virtual ~CodegenFunctionPass() {}
+
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      CodegenPassUnit* unit, FunctionBase* fb,
-      const CodegenPassOptions& options,
-      CodegenPassResults* results) const override {
+      FunctionBase* fb, const CodegenPassOptions& options, PassResults* results,
+      CodegenContext& context) const override {
     if (!fb->IsFunction()) {
       return false;
     }
-    const auto schedule_it = unit->function_base_to_schedule().find(fb);
-    if (schedule_it == unit->function_base_to_schedule().end()) {
+    const auto schedule_it = context.function_base_to_schedule().find(fb);
+    if (schedule_it == context.function_base_to_schedule().end()) {
       return false;
     }
-    return RunOnFunctionInternal(unit, fb->AsFunctionOrDie(),
-                                 schedule_it->second, options, results);
+    return RunOnFunctionInternal(fb->AsFunctionOrDie(), schedule_it->second,
+                                 options, results, context);
   }
 
-  virtual void GcAfterFunctionBaseChange(CodegenPassUnit* unit) const override {
-    unit->GcMetadata();
+  void GcAfterFunctionBaseChange(Package* p,
+                                 CodegenContext& context) const override {
+    context.GcMetadata();
   }
 
   // Must be implemented by a subclass to do the logic for the pass and return
   // whether anything was changed.
   virtual absl::StatusOr<bool> RunOnFunctionInternal(
-      CodegenPassUnit* unit, Function* f, const PipelineSchedule& schedule,
-      const CodegenPassOptions& options, CodegenPassResults* results) const = 0;
+      Function* f, const PipelineSchedule& schedule,
+      const CodegenPassOptions& options, PassResults* results,
+      CodegenContext& context) const = 0;
 };
 
 // Abstract base class for a pass that runs on all procs.
-class CodegenProcPass
-    : public ProcPass<CodegenPassUnit, CodegenPassOptions, CodegenPassResults> {
+class CodegenProcPass : public ProcPass<CodegenPassOptions, CodegenContext> {
  public:
   using ProcPass::ProcPass;
 
-  virtual void GcAfterProcChange(CodegenPassUnit* unit) const override {
-    unit->GcMetadata();
+  virtual void GcAfterProcChange(Package* p,
+                                 CodegenContext& context) const override {
+    context.GcMetadata();
   }
 };
 
@@ -577,7 +557,7 @@ class ChannelMap {
       absl::flat_hash_map<Channel*, const SingleValueOutput*>;
 
   // Populate mapping from channel to block inputs/outputs for all blocks.
-  static ChannelMap Create(const CodegenPassUnit& unit);
+  static ChannelMap Create(const CodegenContext& context);
 
   const StreamingInputMap& channel_to_streaming_input() const {
     return channel_to_streaming_input_;

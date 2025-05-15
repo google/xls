@@ -26,6 +26,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -47,20 +48,19 @@ void AddCycleConstraints(const PipelineSchedule& schedule,
 }  // namespace
 
 absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
-    SchedulingUnit* unit, const SchedulingPassOptions& options,
-    SchedulingPassResults* results) const {
+    Package* package, const SchedulingPassOptions& options,
+    PassResults* results, SchedulingContext& context) const {
   XLS_RET_CHECK_NE(options.delay_estimator, nullptr);
   bool changed = false;
 
   XLS_ASSIGN_OR_RETURN(std::vector<FunctionBase*> schedulable_functions,
-                       unit->GetSchedulableFunctions());
+                       context.GetSchedulableFunctions());
 
   // Scheduling of procs with proc-scoped channels requires an elaboration.
   std::optional<ProcElaboration> elab;
-  if (unit->GetPackage()->ChannelsAreProcScoped() &&
-      !schedulable_functions.empty() &&
+  if (package->ChannelsAreProcScoped() && !schedulable_functions.empty() &&
       schedulable_functions.front()->IsProc()) {
-    XLS_ASSIGN_OR_RETURN(Proc * top, unit->GetPackage()->GetTopAsProc());
+    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
     XLS_ASSIGN_OR_RETURN(elab, ProcElaboration::Elaborate(top));
   }
   std::optional<const ProcElaboration*> elab_opt =
@@ -73,8 +73,8 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
     }
     absl::flat_hash_map<Node*, int64_t> schedule_cycle_map_before;
     SchedulingOptions scheduling_options = options.scheduling_options;
-    auto schedule_itr = unit->schedules().find(f);
-    if (schedule_itr != unit->schedules().end()) {
+    auto schedule_itr = context.schedules().find(f);
+    if (schedule_itr != context.schedules().end()) {
       const PipelineSchedule& schedule = schedule_itr->second;
       schedule_cycle_map_before = schedule.GetCycleMap();
       if (!scheduling_options.use_fdo()) {
@@ -90,10 +90,10 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
                                          scheduling_options,
                                          *options.synthesizer, elab_opt));
 
-    // Compute `changed` before moving schedule into unit->schedules.
+    // Compute `changed` before moving schedule into context.schedules.
     changed = changed || (schedule_cycle_map_before != schedule.GetCycleMap());
 
-    unit->schedules().insert_or_assign(schedule_itr, f, std::move(schedule));
+    context.schedules().insert_or_assign(schedule_itr, f, std::move(schedule));
   }
   return changed;
 }

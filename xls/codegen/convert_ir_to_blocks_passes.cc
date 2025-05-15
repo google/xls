@@ -40,10 +40,12 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/xls_ir_interface.pb.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 // -- Implementations of
@@ -55,11 +57,11 @@
 namespace xls::verilog {
 
 absl::StatusOr<bool> ConvertFuncsToCombinationalBlocksPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
 
-  for (auto& [fb, block] : unit->function_base_to_block()) {
+  for (auto& [fb, block] : context.function_base_to_block()) {
     if (!fb->IsFunction()) {
       continue;
     }
@@ -88,7 +90,7 @@ absl::StatusOr<bool> ConvertFuncsToCombinationalBlocksPass::RunInternal(
                               return p.name() == param->name();
                             });
         if (name != func_interface->parameters().end() && name->has_sv_type()) {
-          unit->GetMetadataForBlock(block)
+          context.GetMetadataForBlock(block)
               .streaming_io_and_pipeline
               .input_port_sv_type[nodes_function2block[param]
                                       ->As<InputPort>()] = name->sv_type();
@@ -115,29 +117,29 @@ absl::StatusOr<bool> ConvertFuncsToCombinationalBlocksPass::RunInternal(
         block->AddOutputPort(options.codegen_options.output_port_name(),
                              nodes_function2block.at(f->return_value())));
     if (func_interface && func_interface->has_sv_result_type()) {
-      unit->GetMetadataForBlock(block)
+      context.GetMetadataForBlock(block)
           .streaming_io_and_pipeline.output_port_sv_type[output] =
           func_interface->sv_result_type();
     }
 
-    unit->GetMetadataForBlock(block)
+    context.GetMetadataForBlock(block)
         .conversion_metadata.emplace<FunctionConversionMetadata>();
 
     changed = true;
   }
 
   if (changed) {
-    unit->GcMetadata();
+    context.GcMetadata();
   }
   return changed;
 }
 
 absl::StatusOr<bool> ConvertProcsToCombinationalBlocksPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
 
-  for (auto& [fb, block] : unit->function_base_to_block()) {
+  for (auto& [fb, block] : context.function_base_to_block()) {
     if (!fb->IsProc()) {
       continue;
     }
@@ -197,7 +199,7 @@ absl::StatusOr<bool> ConvertProcsToCombinationalBlocksPass::RunInternal(
 
     // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
     //                codegen pipeline.
-    unit->GetMetadataForBlock(block) = CodegenMetadata{
+    context.GetMetadataForBlock(block) = CodegenMetadata{
         .streaming_io_and_pipeline = std::move(streaming_io),
         .conversion_metadata = ProcConversionMetadata(),
         .concurrent_stages = std::nullopt,
@@ -207,17 +209,17 @@ absl::StatusOr<bool> ConvertProcsToCombinationalBlocksPass::RunInternal(
   }
 
   if (changed) {
-    unit->GcMetadata();
+    context.GcMetadata();
   }
   return changed;
 }
 
 absl::StatusOr<bool> ConvertFuncsToPipelinedBlocksPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
 
-  for (auto& [fb, block] : unit->function_base_to_block()) {
+  for (auto& [fb, block] : context.function_base_to_block()) {
     if (!fb->IsFunction()) {
       continue;
     }
@@ -234,44 +236,42 @@ absl::StatusOr<bool> ConvertFuncsToPipelinedBlocksPass::RunInternal(
     VLOG(3) << "Converting function to a pipelined block:";
     XLS_VLOG_LINES(3, f->DumpIr());
 
-    PipelineSchedule& schedule = unit->function_base_to_schedule().at(fb);
+    PipelineSchedule& schedule = context.function_base_to_schedule().at(fb);
     XLS_RETURN_IF_ERROR(SingleFunctionToPipelinedBlock(
-        schedule, options.codegen_options, *unit, f, block));
+        schedule, options.codegen_options, context, f, block));
 
     changed = true;
   }
 
   if (changed) {
-    unit->GcMetadata();
+    context.GcMetadata();
   }
   return changed;
 }
 
 absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
 
   std::vector<Proc*> procs_to_convert;
-  if (!unit->package()->ChannelsAreProcScoped() &&
-      unit->package()->GetTop().has_value() &&
-      unit->package()->GetTop().value()->IsProc()) {
-    for (auto& [fb, _] : unit->function_base_to_block()) {
+  if (!package->ChannelsAreProcScoped() && package->GetTop().has_value() &&
+      package->GetTop().value()->IsProc()) {
+    for (auto& [fb, _] : context.function_base_to_block()) {
       if (fb->IsProc()) {
         procs_to_convert.push_back(fb->AsProcOrDie());
       }
     }
   }
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<FunctionBase*> conversion_order,
-      GetBlockConversionOrder(unit->package(), procs_to_convert));
+  XLS_ASSIGN_OR_RETURN(std::vector<FunctionBase*> conversion_order,
+                       GetBlockConversionOrder(package, procs_to_convert));
 
   absl::flat_hash_map<FunctionBase*, Block*> converted_blocks;
   for (FunctionBase* fb : conversion_order) {
     if (!fb->IsProc()) {
       continue;
     }
-    Block* block = unit->function_base_to_block().at(fb);
+    Block* block = context.function_base_to_block().at(fb);
     if (options.codegen_options.manual_control().has_value()) {
       return absl::UnimplementedError(
           "Manual pipeline control not implemented");
@@ -285,9 +285,9 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
     VLOG(3) << "Converting proc to a pipelined block:";
     XLS_VLOG_LINES(3, proc->DumpIr());
 
-    PipelineSchedule& schedule = unit->function_base_to_schedule().at(fb);
+    PipelineSchedule& schedule = context.function_base_to_schedule().at(fb);
     XLS_RETURN_IF_ERROR(
-        SingleProcToPipelinedBlock(schedule, options.codegen_options, *unit,
+        SingleProcToPipelinedBlock(schedule, options.codegen_options, context,
                                    proc, block, converted_blocks));
 
     converted_blocks[fb] = block;
@@ -295,7 +295,7 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
   }
 
   if (changed) {
-    unit->GcMetadata();
+    context.GcMetadata();
   }
   return changed;
 }

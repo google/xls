@@ -33,7 +33,9 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -119,8 +121,8 @@ absl::StatusOr<Node*> MakeGuardedConditionForOp(Op op, Node* condition,
 }  // namespace
 
 absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   // Don't rewrite side-effecting ops for:
   //  1) functions without valid control: every input is presumed valid and the
   //     op should fire every cycle.
@@ -128,11 +130,11 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
   //     this by looking for a schedule. If there's no schedule, assume that
   //     we're looking at something produced by the combinational generator.
   bool changed = false;
-  for (std::unique_ptr<Block>& block : unit->package()->blocks()) {
-    if (!unit->HasMetadataForBlock(block.get())) {
+  for (std::unique_ptr<Block>& block : package->blocks()) {
+    if (!context.HasMetadataForBlock(block.get())) {
       continue;
     }
-    const CodegenMetadata& metadata = unit->GetMetadataForBlock(block.get());
+    const CodegenMetadata& metadata = context.GetMetadataForBlock(block.get());
     bool is_function = std::holds_alternative<FunctionConversionMetadata>(
         metadata.conversion_metadata);
     if (is_function && (!options.codegen_options.valid_control().has_value() ||

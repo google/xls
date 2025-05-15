@@ -17,6 +17,8 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/ir/package.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -28,9 +30,10 @@ class UpdateChannelMetadataPass : public CodegenPass {
                     "Update Codegen Channel Metadata") {}
   ~UpdateChannelMetadataPass() override = default;
 
-  absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
+  absl::StatusOr<bool> RunInternal(Package* package,
                                    const CodegenPassOptions& options,
-                                   CodegenPassResults* results) const override;
+                                   PassResults* results,
+                                   CodegenContext& context) const override;
 };
 
 }  // namespace xls::verilog

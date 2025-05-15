@@ -1455,7 +1455,7 @@ static absl::Status AddIdleOutput(
 // Public interface
 absl::Status SingleProcToPipelinedBlock(
     const PipelineSchedule& schedule, const CodegenOptions& options,
-    CodegenPassUnit& unit, Proc* proc, Block* ABSL_NONNULL block,
+    CodegenContext& context, Proc* proc, Block* ABSL_NONNULL block,
     const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks) {
   VLOG(1) << absl::StrFormat("SingleProcToPipelinedBlock(proc=`%s`, block=`%s)",
                              proc->name(), block->name());
@@ -1542,7 +1542,7 @@ absl::Status SingleProcToPipelinedBlock(
   XLS_VLOG_LINES(3, block->DumpIr());
 
   // RemoveDeadTokenNodes() mutates metadata.
-  unit.SetMetadataForBlock(
+  context.SetMetadataForBlock(
       block,
       CodegenMetadata{
           .streaming_io_and_pipeline = std::move(streaming_io_and_pipeline),
@@ -1552,7 +1552,7 @@ absl::Status SingleProcToPipelinedBlock(
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
-  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block, &unit));
+  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block, context));
 
   VLOG(3) << "After RemoveDeadTokenNodes";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -1560,7 +1560,7 @@ absl::Status SingleProcToPipelinedBlock(
   // TODO: add simplification pass here to remove unnecessary `1 & x`
 
   XLS_RETURN_IF_ERROR(UpdateChannelMetadata(
-      unit.GetMetadataForBlock(block).streaming_io_and_pipeline, block));
+      context.GetMetadataForBlock(block).streaming_io_and_pipeline, block));
   VLOG(3) << "After UpdateChannelMetadata";
   XLS_VLOG_LINES(3, block->DumpIr());
 

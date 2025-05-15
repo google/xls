@@ -17,6 +17,8 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/ir/package.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -27,9 +29,10 @@ class ConvertFuncsToCombinationalBlocksPass : public CodegenPass {
       : CodegenPass("ir_funcs_to_blocks", "Func block conversion") {}
   ~ConvertFuncsToCombinationalBlocksPass() override = default;
 
-  absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
+  absl::StatusOr<bool> RunInternal(Package* package,
                                    const CodegenPassOptions& options,
-                                   CodegenPassResults* results) const override;
+                                   PassResults* results,
+                                   CodegenContext& context) const override;
 };
 
 // Converts function bases that are procs to combinational blocks.
@@ -39,9 +42,10 @@ class ConvertProcsToCombinationalBlocksPass : public CodegenPass {
       : CodegenPass("ir_procs_to_blocks", "Func block conversion") {}
   ~ConvertProcsToCombinationalBlocksPass() override = default;
 
-  absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
+  absl::StatusOr<bool> RunInternal(Package* package,
                                    const CodegenPassOptions& options,
-                                   CodegenPassResults* results) const override;
+                                   PassResults* results,
+                                   CodegenContext& context) const override;
 };
 
 // Converts function bases that are funcs to pipelined blocks.
@@ -51,9 +55,10 @@ class ConvertFuncsToPipelinedBlocksPass : public CodegenPass {
       : CodegenPass("ir_funcs_to_blocks", "Func block conversion") {}
   ~ConvertFuncsToPipelinedBlocksPass() override = default;
 
-  absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
+  absl::StatusOr<bool> RunInternal(Package* package,
                                    const CodegenPassOptions& options,
-                                   CodegenPassResults* results) const override;
+                                   PassResults* results,
+                                   CodegenContext& context) const override;
 };
 
 // Converts function bases that are procs to pipelined blocks.
@@ -63,9 +68,10 @@ class ConvertProcsToPipelinedBlocksPass : public CodegenPass {
       : CodegenPass("ir_procs_to_blocks", "Func block conversion") {}
   ~ConvertProcsToPipelinedBlocksPass() override = default;
 
-  absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
+  absl::StatusOr<bool> RunInternal(Package* package,
                                    const CodegenPassOptions& options,
-                                   CodegenPassResults* results) const override;
+                                   PassResults* results,
+                                   CodegenContext& context) const override;
 };
 
 }  // namespace xls::verilog

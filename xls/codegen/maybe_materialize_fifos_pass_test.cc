@@ -45,6 +45,7 @@
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -82,19 +83,20 @@ class MaterializeFifosPassTestHelper {
     XLS_ASSIGN_OR_RETURN(Block * wrapper, MakeOracleBlock(p, params, "test"));
 
     MaybeMaterializeFifosPass mfp;
-    CodegenPassUnit pu(p, wrapper);
+    CodegenContext context(wrapper);
     CodegenPassOptions opt;
     opt.codegen_options.reset(reset_name, /*asynchronous=*/false,
                               /*active_low=*/false, /*reset_data_path=*/false);
     opt.codegen_options.set_fifo_module("");
     opt.codegen_options.set_nodata_fifo_module("");
-    CodegenPassResults res;
-    XLS_ASSIGN_OR_RETURN(auto changed, mfp.Run(&pu, opt, &res));
+    PassResults res;
+    XLS_ASSIGN_OR_RETURN(auto changed, mfp.Run(p, opt, &res, context));
     XLS_RET_CHECK(changed);
-    XLS_RET_CHECK_EQ(pu.top_block()->GetInstantiations().size(), 1);
-    XLS_ASSIGN_OR_RETURN(
-        auto bi,
-        pu.top_block()->GetInstantiations().front()->AsBlockInstantiation());
+    XLS_RET_CHECK_EQ(context.top_block()->GetInstantiations().size(), 1);
+    XLS_ASSIGN_OR_RETURN(auto bi, context.top_block()
+                                      ->GetInstantiations()
+                                      .front()
+                                      ->AsBlockInstantiation());
     return bi->instantiated_block();
   }
 

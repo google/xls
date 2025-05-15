@@ -40,7 +40,7 @@
 
 namespace xls::verilog {
 
-absl::StatusOr<CodegenPassUnit> CreateBlocksFor(
+absl::StatusOr<CodegenContext> CreateBlocksFor(
     const PackagePipelineSchedules& schedules, const CodegenOptions& options,
     Package* package) {
   // Create the top block first.
@@ -53,7 +53,7 @@ absl::StatusOr<CodegenPassUnit> CreateBlocksFor(
   Block* top_block =
       package->AddBlock(std::make_unique<Block>(module_name, package));
 
-  CodegenPassUnit unit(package, top_block);
+  CodegenContext context(top_block);
 
   // We use a uniquer here because the top block name comes from the codegen
   // option's `module_name` field (if set). A non-top proc could have the same
@@ -85,12 +85,12 @@ absl::StatusOr<CodegenPassUnit> CreateBlocksFor(
 
     const PipelineSchedule& schedule = schedules.at(fb);
 
-    unit.AssociateScheduleAndBlock(fb, schedule, block);
+    context.AssociateScheduleAndBlock(fb, schedule, block);
   }
 
-  unit.GcMetadata();
+  context.GcMetadata();
 
-  return unit;
+  return context;
 }
 
 std::unique_ptr<CodegenCompoundPass> CreateBlockConversionPassPipeline(

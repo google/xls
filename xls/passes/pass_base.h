@@ -124,48 +124,27 @@ struct PassResults {
 // A base class for abstractions which check invariants of the IR. These
 // checkers are added to compound passes (pass pipelines) and run before and
 // after each pass in the pipeline.
-template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
-          typename... ContextT>
+template <typename OptionsT, typename... ContextT>
 class InvariantCheckerBase {
  public:
   virtual ~InvariantCheckerBase() = default;
-  virtual absl::Status Run(IrT* ir, const OptionsT& options, ResultsT* results,
+  virtual absl::Status Run(Package* ir, const OptionsT& options,
+                           PassResults* results,
                            ContextT&... context) const = 0;
 };
 
 // Base class for all compiler passes. Template parameters:
-//
-//   IrT : The data type that the pass operates on (e.g., xls::Package). The
-//     type should define 'DumpIr' and 'name' methods used for dumping and
-//     logging in compound passes. A pass which strictly operate on the XLS IR
-//     may use the xls::Package type as the IrT template argument. Passes which
-//     operate on the IR and a schedule may be instantiated on a data structure
-//     containing both an xls::Package and a schedule. Roughly, IrT should
-//     contain the IR and (optionally) any metadata generated or transformed by
-//     the passes which is necessary for the passes to function (e.g., not just
-//     telemetry or logging info which should be held in ResultT).
 //
 //   OptionsT : Options type passed as an immutable object to each invocation of
 //     PassBase::Run. This type should be derived from PassOptions because
 //     PassOptions contains fields required by CompoundPassBase when executing
 //     pass pipelines.
 //
-//   ResultsT : Results type passed as a mutable object to each invocation of
-//     PassBase::Run. This type should be derived from PassResults because
-//     PassResults contains fields required by CompoundPassBase when executing
-//     pass pipelines.
-//
 //   ContextT : A variable number of types (usually zero or one) which are
 //     passed as mutable objects to each invocation of PassBase::Run. These
 //     types are used to share non-IR information between passes (e.g., sharing
 //     lazily-populated query engines across an optimization pipeline).
-//
-// TODO(meheff): 2024/01/18 IrT is a Package or a thin wrapper around a package
-// with additional metadata. To avoid the necessity of adding methods to the
-// wrapper to match the Package API, PassBase should explicitly take a Package
-// and have a MetadataT template argument for any metadata.
-template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
-          typename... ContextT>
+template <typename OptionsT, typename... ContextT>
 class PassBase {
  public:
   PassBase(std::string_view short_name, std::string_view long_name)
@@ -193,8 +172,8 @@ class PassBase {
   // Run the specific pass. Returns true if the graph was changed by the pass.
   // Typically the "changed" indicator is used to determine when to terminate
   // fixed point computation.
-  virtual absl::StatusOr<bool> Run(IrT* ir, const OptionsT& options,
-                                   ResultsT* results,
+  virtual absl::StatusOr<bool> Run(Package* ir, const OptionsT& options,
+                                   PassResults* results,
                                    ContextT&... context) const {
     VLOG(2) << absl::StreamFormat("Running %s [pass #%d]", long_name(),
                                   results->total_invocations);
@@ -226,11 +205,10 @@ class PassBase {
   // compound passes. This method is needed (as opposed to just calling Run)
   // because additional information such as the invariant checkers to run need
   // to be passed down.
-  using InvariantChecker =
-      InvariantCheckerBase<IrT, OptionsT, ResultsT, ContextT...>;
+  using InvariantChecker = InvariantCheckerBase<OptionsT, ContextT...>;
   virtual absl::StatusOr<bool> RunNested(
-      IrT* ir, const OptionsT& options, ResultsT* results, ContextT&... context,
-      PassInvocation& invocation,
+      Package* ir, const OptionsT& options, PassResults* results,
+      ContextT&... context, PassInvocation& invocation,
       absl::Span<const InvariantChecker* const> invariant_checkers) const {
     return absl::InternalError(
         absl::StrFormat("Pass `%s` is not a compound pass", short_name()));
@@ -238,23 +216,20 @@ class PassBase {
 
  protected:
   // Derived classes should override this function which is invoked from Run.
-  virtual absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
-                                           ResultsT* results,
+  virtual absl::StatusOr<bool> RunInternal(Package* ir, const OptionsT& options,
+                                           PassResults* results,
                                            ContextT&... context) const = 0;
 
   std::string short_name_;
   std::string long_name_;
 };
 
-template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
-          typename... ContextT>
-class WrapperPassBase final
-    : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
+template <typename OptionsT, typename... ContextT>
+class WrapperPassBase final : public PassBase<OptionsT, ContextT...> {
  public:
   explicit WrapperPassBase(
-      std::unique_ptr<PassBase<IrT, OptionsT, ResultsT, ContextT...>>&& base)
-      : PassBase<IrT, OptionsT, ResultsT, ContextT...>(base->short_name(),
-                                                       base->long_name()),
+      std::unique_ptr<PassBase<OptionsT, ContextT...>>&& base)
+      : PassBase<OptionsT, ContextT...>(base->short_name(), base->long_name()),
         base_(std::move(base)) {}
 
   absl::StatusOr<PassPipelineProto::Element> ToProto() const final {
@@ -262,26 +237,24 @@ class WrapperPassBase final
   }
 
  protected:
-  absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
-                                   ResultsT* results,
+  absl::StatusOr<bool> RunInternal(Package* ir, const OptionsT& options,
+                                   PassResults* results,
                                    ContextT&... context) const final {
     return base_->Run(ir, options, results, context...);
   }
 
  private:
-  std::unique_ptr<PassBase<IrT, OptionsT, ResultsT, ContextT...>> base_;
+  std::unique_ptr<PassBase<OptionsT, ContextT...>> base_;
 };
 
 // CompoundPass is a container for other passes. For example, the scalar
 // optimizer can be a compound pass holding many passes for scalar
 // optimizations.
-template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
-          typename... ContextT>
-class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
+template <typename OptionsT, typename... ContextT>
+class CompoundPassBase : public PassBase<OptionsT, ContextT...> {
  public:
-  using Pass = PassBase<IrT, OptionsT, ResultsT, ContextT...>;
-  using InvariantChecker =
-      PassBase<IrT, OptionsT, ResultsT, ContextT...>::InvariantChecker;
+  using Pass = PassBase<OptionsT, ContextT...>;
+  using InvariantChecker = PassBase<OptionsT, ContextT...>::InvariantChecker;
 
   CompoundPassBase(std::string_view short_name, std::string_view long_name)
       : Pass(short_name, long_name) {}
@@ -352,8 +325,8 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
     return checker;
   }
 
-  absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
-                                   ResultsT* results,
+  absl::StatusOr<bool> RunInternal(Package* ir, const OptionsT& options,
+                                   PassResults* results,
                                    ContextT&... context) const override {
     if (!options.ir_dump_path.empty() && results->total_invocations == 0) {
       // Start of the top-level pass. Dump IR.
@@ -371,8 +344,8 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
   // Internal implementation of Run for compound passes. Invoked when a compound
   // pass is nested within another compound pass. Enables passing of invariant
   // checkers and name of the top-level pass to nested compound passes.
-  absl::StatusOr<bool> RunNested(IrT* ir, const OptionsT& options,
-                                 ResultsT* results, ContextT&... context,
+  absl::StatusOr<bool> RunNested(Package* ir, const OptionsT& options,
+                                 PassResults* results, ContextT&... context,
                                  PassInvocation& invocation,
                                  absl::Span<const InvariantChecker* const>
                                      invariant_checkers) const override;
@@ -381,7 +354,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
   // Dump the IR to a file in the given directory. Name is determined by the
   // various arguments passed in. File names will be lexicographically ordered
   // by package name and ordinal.
-  absl::Status DumpIr(const std::filesystem::path& ir_dump_path, IrT* ir,
+  absl::Status DumpIr(const std::filesystem::path& ir_dump_path, Package* ir,
                       std::string_view top_level_name, std::string_view tag,
                       int64_t ordinal, bool changed) const {
     std::filesystem::path path =
@@ -402,15 +375,13 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
 };
 
 // A compound pass which runs its set of passes to fixed point.
-template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
-          typename... ContextT>
+template <typename OptionsT, typename... ContextT>
 class FixedPointCompoundPassBase
-    : public CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...> {
+    : public CompoundPassBase<OptionsT, ContextT...> {
  public:
   FixedPointCompoundPassBase(std::string_view short_name,
                              std::string_view long_name)
-      : CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>(short_name,
-                                                               long_name) {}
+      : CompoundPassBase<OptionsT, ContextT...>(short_name, long_name) {}
 
   absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
     PassPipelineProto::Element res;
@@ -424,22 +395,22 @@ class FixedPointCompoundPassBase
   }
 
   absl::StatusOr<bool> RunNested(
-      IrT* ir, const OptionsT& options, ResultsT* results, ContextT&... context,
-      PassInvocation& invocation,
-      absl::Span<const typename PassBase<IrT, OptionsT, ResultsT,
+      Package* ir, const OptionsT& options, PassResults* results,
+      ContextT&... context, PassInvocation& invocation,
+      absl::Span<const typename PassBase<OptionsT,
                                          ContextT...>::InvariantChecker* const>
           invariant_checkers) const override {
     bool local_changed = true;
     int64_t iteration_count = 0;
     while (local_changed) {
       ++iteration_count;
-      XLS_ASSIGN_OR_RETURN(
-          local_changed,
-          (CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
-              ir, options, results, context..., invocation,
-              invariant_checkers)),
-          _ << "Running pass #" << results->total_invocations << ": "
-            << this->long_name() << " [short: " << this->short_name() << "]");
+      XLS_ASSIGN_OR_RETURN(local_changed,
+                           (CompoundPassBase<OptionsT, ContextT...>::RunNested(
+                               ir, options, results, context..., invocation,
+                               invariant_checkers)),
+                           _ << "Running pass #" << results->total_invocations
+                             << ": " << this->long_name()
+                             << " [short: " << this->short_name() << "]");
     }
     invocation.fixed_point_iterations = iteration_count;
     VLOG(1) << absl::StreamFormat(
@@ -449,12 +420,10 @@ class FixedPointCompoundPassBase
   }
 };
 
-template <typename IrT, typename OptionsT, typename ResultsT,
-          typename... ContextT>
-absl::StatusOr<bool>
-CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
-    IrT* ir, const OptionsT& options, ResultsT* results, ContextT&... context,
-    PassInvocation& invocation,
+template <typename OptionsT, typename... ContextT>
+absl::StatusOr<bool> CompoundPassBase<OptionsT, ContextT...>::RunNested(
+    Package* ir, const OptionsT& options, PassResults* results,
+    ContextT&... context, PassInvocation& invocation,
     absl::Span<const InvariantChecker* const> invariant_checkers) const {
   VLOG(1) << "Running " << this->short_name() << " compound pass on package "
           << ir->name();
@@ -617,23 +586,41 @@ CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
 
 // Abstract base class for passes that operate at function/proc scope. The
 // derived class must define RunOnFunctionBaseInternal.
-template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
-          typename... ContextT>
-class FunctionBasePass : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
+template <typename OptionsT, typename... ContextT>
+class FunctionBasePass : public PassBase<OptionsT, ContextT...> {
  public:
-  using PassBase<IrT, OptionsT, ResultsT, ContextT...>::PassBase;
+  using PassBase<OptionsT, ContextT...>::PassBase;
+
+  // Runs the pass on a single function/proc.
+  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
+                                         const OptionsT& options,
+                                         PassResults* results,
+                                         ContextT&... context) const {
+    VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
+                                  this->long_name(), f->name(),
+                                  results->total_invocations);
+    VLOG(3) << "Before:";
+    XLS_VLOG_LINES(3, f->DumpIr());
+
+    XLS_ASSIGN_OR_RETURN(bool changed, RunOnFunctionBaseInternal(
+                                           f, options, results, context...));
+
+    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+    XLS_VLOG_LINES(3, f->DumpIr());
+    return changed;
+  }
 
  protected:
   // Iterates over each function and proc in the package calling
   // RunOnFunctionBase.
-  absl::StatusOr<bool> RunInternal(IrT* p, const OptionsT& options,
-                                   ResultsT* results,
+  absl::StatusOr<bool> RunInternal(Package* p, const OptionsT& options,
+                                   PassResults* results,
                                    ContextT&... context) const override {
     bool changed = false;
     for (FunctionBase* f : p->GetFunctionBases()) {
       XLS_ASSIGN_OR_RETURN(
           bool function_changed,
-          RunOnFunctionBaseInternal(p, f, options, results, context...));
+          RunOnFunctionBaseInternal(f, options, results, context...));
       if (function_changed) {
         GcAfterFunctionBaseChange(p, context...);
       }
@@ -643,32 +630,50 @@ class FunctionBasePass : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
   }
 
   virtual absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      IrT* p, FunctionBase* f, const OptionsT& options, ResultsT* results,
+      FunctionBase* f, const OptionsT& options, PassResults* results,
       ContextT&... context) const = 0;
 
   // A subclass may optionally override this to garbage collect context data
   // after a `RunOnFunctionBaseInternal` call that makes a change.
-  virtual void GcAfterFunctionBaseChange(IrT* p, ContextT&... context) const {}
+  virtual void GcAfterFunctionBaseChange(Package* p,
+                                         ContextT&... context) const {}
 };
 
 // Abstract base class for passes that operate at proc scope. The derived class
 // must define RunOnProcInternal.
-template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
-          typename... ContextT>
-class ProcPass : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
+template <typename OptionsT, typename... ContextT>
+class ProcPass : public PassBase<OptionsT, ContextT...> {
  public:
-  using PassBase<IrT, OptionsT, ResultsT, ContextT...>::PassBase;
+  using PassBase<OptionsT, ContextT...>::PassBase;
+
+  // Run the pass on a single proc.
+  absl::StatusOr<bool> RunOnProc(Proc* proc, const OptionsT& options,
+                                 PassResults* results,
+                                 ContextT&... context) const {
+    VLOG(2) << absl::StreamFormat("Running %s on proc %s [pass #%d]",
+                                  this->long_name(), proc->name(),
+                                  results->total_invocations);
+    VLOG(3) << "Before:";
+    XLS_VLOG_LINES(3, proc->DumpIr());
+
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         RunOnProcInternal(proc, options, results, context...));
+
+    VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
+    XLS_VLOG_LINES(3, proc->DumpIr());
+    return changed;
+  }
 
  protected:
   // Iterates over each proc in the package calling RunOnProc.
-  absl::StatusOr<bool> RunInternal(IrT* p, const OptionsT& options,
-                                   ResultsT* results,
+  absl::StatusOr<bool> RunInternal(Package* p, const OptionsT& options,
+                                   PassResults* results,
                                    ContextT&... context) const override {
     bool changed = false;
     for (const auto& proc : p->procs()) {
       XLS_ASSIGN_OR_RETURN(
           bool proc_changed,
-          RunOnProcInternal(p, proc.get(), options, results, context...));
+          RunOnProcInternal(proc.get(), options, results, context...));
       if (proc_changed) {
         GcAfterProcChange(p, context...);
       }
@@ -678,12 +683,12 @@ class ProcPass : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
   }
 
   virtual absl::StatusOr<bool> RunOnProcInternal(
-      IrT* p, Proc* proc, const OptionsT& options, ResultsT* results,
+      Proc* proc, const OptionsT& options, PassResults* results,
       ContextT&... context) const = 0;
 
   // A subclass may optionally override this to garbage collect context data
   // after a `RunOnProcInternal` call that makes a change.
-  virtual void GcAfterProcChange(IrT* p, ContextT&... context) const {}
+  virtual void GcAfterProcChange(Package* p, ContextT&... context) const {}
 };
 
 }  // namespace xls

@@ -36,6 +36,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
 
@@ -49,7 +50,7 @@ using ::testing::HasSubstr;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
-MATCHER_P(SchedulingUnitWithElements, matcher, "") {
+MATCHER_P(SchedulingContextWithElements, matcher, "") {
   return ExplainMatchResult(matcher, arg.schedules(), result_listener);
 }
 
@@ -84,31 +85,32 @@ MATCHER_P(HasDumpIr, matcher, "") {
 }
 
 using PipelineSchedulingPassTest = IrTestBase;
-using RunResultT = std::pair<bool, SchedulingUnit>;
+using RunResultT = std::pair<bool, SchedulingContext>;
 
 absl::StatusOr<RunResultT> RunPipelineSchedulingPass(
-    SchedulingUnit&& unit, const SchedulingOptions& scheduling_options,
-    ::xls::synthesis::Synthesizer* synthesizer) {
-  SchedulingPassResults scheduling_results;
+    Package* package, const SchedulingOptions& scheduling_options,
+    SchedulingContext& context, ::xls::synthesis::Synthesizer* synthesizer) {
+  PassResults results;
   TestDelayEstimator delay_estimator;
   SchedulingPassOptions options{.scheduling_options = scheduling_options,
                                 .delay_estimator = &delay_estimator,
                                 .synthesizer = synthesizer};
   XLS_ASSIGN_OR_RETURN(bool changed, PipelineSchedulingPass().Run(
-                                         &unit, options, &scheduling_results));
-  return std::make_pair(changed, unit);
+                                         package, options, &results, context));
+  return std::make_pair(changed, context);
 }
 absl::StatusOr<RunResultT> RunPipelineSchedulingPass(
     Package* p, const SchedulingOptions& scheduling_options,
     ::xls::synthesis::Synthesizer* synthesizer = nullptr) {
-  return RunPipelineSchedulingPass(SchedulingUnit::CreateForWholePackage(p),
-                                   scheduling_options, synthesizer);
+  auto context = SchedulingContext::CreateForWholePackage(p);
+  return RunPipelineSchedulingPass(p, scheduling_options, context, synthesizer);
 }
 absl::StatusOr<RunResultT> RunPipelineSchedulingPass(
     FunctionBase* f, const SchedulingOptions& scheduling_options,
     ::xls::synthesis::Synthesizer* synthesizer = nullptr) {
-  return RunPipelineSchedulingPass(SchedulingUnit::CreateForSingleFunction(f),
-                                   scheduling_options, synthesizer);
+  auto context = SchedulingContext::CreateForSingleFunction(f);
+  return RunPipelineSchedulingPass(f->package(), scheduling_options, context,
+                                   synthesizer);
 }
 
 TEST_F(PipelineSchedulingPassTest, SingleFunction) {
@@ -119,8 +121,9 @@ TEST_F(PipelineSchedulingPassTest, SingleFunction) {
 
   EXPECT_THAT(
       RunPipelineSchedulingPass(f, SchedulingOptions().pipeline_stages(2)),
-      IsOkAndHolds(Pair(true, SchedulingUnitWithElements(UnorderedElementsAre(
-                                  Pair(f, VerifiedPipelineSchedule()))))));
+      IsOkAndHolds(
+          Pair(true, SchedulingContextWithElements(UnorderedElementsAre(
+                         Pair(f, VerifiedPipelineSchedule()))))));
 }
 
 TEST_F(PipelineSchedulingPassTest, MultipleProcs) {
@@ -151,15 +154,17 @@ TEST_F(PipelineSchedulingPassTest, MultipleProcs) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto changed_unit, RunPipelineSchedulingPass(
                              p.get(), SchedulingOptions().pipeline_stages(2)));
-  EXPECT_THAT(changed_unit,
-              Pair(true, AllOf(SchedulingUnitWithElements(UnorderedElementsAre(
-                             Pair(proc0, VerifiedPipelineSchedule()),
-                             Pair(proc1, VerifiedPipelineSchedule()))))));
-  EXPECT_THAT(changed_unit.second.DumpIr(),
-              AllOf(HasSubstr("// Pipeline Schedule"), HasSubstr("// Cycle 0:"),
-                    HasSubstr("//   st: bits[1] = state_read(state_element=st"),
-                    HasSubstr("proc proc0(st: bits[1]"),
-                    HasSubstr("proc proc1(st: bits[1]")));
+  EXPECT_THAT(
+      changed_unit,
+      Pair(true, AllOf(SchedulingContextWithElements(UnorderedElementsAre(
+                     Pair(proc0, VerifiedPipelineSchedule()),
+                     Pair(proc1, VerifiedPipelineSchedule()))))));
+  EXPECT_THAT(changed_unit.second.schedules().at(proc0).ToString(),
+              AllOf(HasSubstr("Cycle 0:"),
+                    HasSubstr("  st: bits[1] = state_read(state_element=st")));
+  EXPECT_THAT(changed_unit.second.schedules().at(proc1).ToString(),
+              AllOf(HasSubstr("Cycle 0:"),
+                    HasSubstr("  st: bits[1] = state_read(state_element=st")));
 }
 
 TEST_F(PipelineSchedulingPassTest, MixedFunctionAndProcScheduling) {
@@ -179,12 +184,12 @@ TEST_F(PipelineSchedulingPassTest, MixedFunctionAndProcScheduling) {
   pb.Send(ch, tok, st);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({not_st}));
 
-  EXPECT_THAT(
-      RunPipelineSchedulingPass(p.get(),
-                                SchedulingOptions().pipeline_stages(2)),
-      IsOkAndHolds(Pair(true, SchedulingUnitWithElements(UnorderedElementsAre(
-                                  Pair(f, VerifiedPipelineSchedule()),
-                                  Pair(proc, VerifiedPipelineSchedule()))))));
+  EXPECT_THAT(RunPipelineSchedulingPass(p.get(),
+                                        SchedulingOptions().pipeline_stages(2)),
+              IsOkAndHolds(
+                  Pair(true, SchedulingContextWithElements(UnorderedElementsAre(
+                                 Pair(f, VerifiedPipelineSchedule()),
+                                 Pair(proc, VerifiedPipelineSchedule()))))));
 }
 
 TEST_F(PipelineSchedulingPassTest, MultipleProcsWithIOConstraint) {
@@ -234,7 +239,7 @@ TEST_F(PipelineSchedulingPassTest, MultipleProcsWithIOConstraint) {
                            /*minimum_latency=*/2, /*maximum_latency=*/2))),
       IsOkAndHolds(Pair(
           true,
-          SchedulingUnitWithElements(UnorderedElementsAre(
+          SchedulingContextWithElements(UnorderedElementsAre(
               Pair(proc0,
                    AllOf(VerifiedPipelineSchedule(),
                          LatencyIs(proc0->GetNode("recv").value_or(nullptr),
@@ -281,12 +286,12 @@ TEST_F(PipelineSchedulingPassTest, FdoWithMultipleProcs) {
   XLS_ASSERT_OK_AND_ASSIGN(::xls::synthesis::Synthesizer * synthesizer,
                            SetUpSynthesizer(scheduling_options));
 
-  EXPECT_THAT(
-      RunPipelineSchedulingPass(p.get(), scheduling_options,
-                                /*synthesizer=*/synthesizer),
-      IsOkAndHolds(Pair(true, SchedulingUnitWithElements(UnorderedElementsAre(
-                                  Pair(func0, VerifiedPipelineSchedule()),
-                                  Pair(func1, VerifiedPipelineSchedule()))))));
+  EXPECT_THAT(RunPipelineSchedulingPass(p.get(), scheduling_options,
+                                        /*synthesizer=*/synthesizer),
+              IsOkAndHolds(
+                  Pair(true, SchedulingContextWithElements(UnorderedElementsAre(
+                                 Pair(func0, VerifiedPipelineSchedule()),
+                                 Pair(func1, VerifiedPipelineSchedule()))))));
   delete synthesizer;
 }
 
@@ -317,11 +322,11 @@ TEST_F(PipelineSchedulingPassTest, FunctionWithFFI) {
     XLS_ASSERT_OK_AND_ASSIGN(caller, fb.Build());
   }
 
-  EXPECT_THAT(
-      RunPipelineSchedulingPass(p.get(),
-                                SchedulingOptions().pipeline_stages(2)),
-      IsOkAndHolds(Pair(true, SchedulingUnitWithElements(UnorderedElementsAre(
-                                  Pair(caller, VerifiedPipelineSchedule()))))));
+  EXPECT_THAT(RunPipelineSchedulingPass(p.get(),
+                                        SchedulingOptions().pipeline_stages(2)),
+              IsOkAndHolds(
+                  Pair(true, SchedulingContextWithElements(UnorderedElementsAre(
+                                 Pair(caller, VerifiedPipelineSchedule()))))));
 }
 
 TEST_F(PipelineSchedulingPassTest, MultiProcWithFFI) {
@@ -368,8 +373,9 @@ TEST_F(PipelineSchedulingPassTest, MultiProcWithFFI) {
       RunPipelineSchedulingPass(
           p.get(),
           SchedulingOptions().pipeline_stages(2).schedule_all_procs(true)),
-      IsOkAndHolds(Pair(true, SchedulingUnitWithElements(UnorderedElementsAre(
-                                  Pair(caller, VerifiedPipelineSchedule()))))));
+      IsOkAndHolds(
+          Pair(true, SchedulingContextWithElements(UnorderedElementsAre(
+                         Pair(caller, VerifiedPipelineSchedule()))))));
 }
 
 TEST_F(PipelineSchedulingPassTest, MultiProcScopedChannels) {

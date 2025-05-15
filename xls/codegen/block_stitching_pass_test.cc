@@ -130,7 +130,7 @@ CodegenOptions DefaultCodegenOptions() {
 // side-effect condition pass, and ultimately the  block stitching pass on the
 // given package. If `unit_out` is non-null, the codegen unit will be returned
 // in it.
-absl::StatusOr<std::pair<bool, CodegenPassUnit>> RunBlockStitchingPass(
+absl::StatusOr<std::pair<bool, CodegenContext>> RunBlockStitchingPass(
     Package* p, std::string_view top_name = "top_proc",
     CodegenOptions options = DefaultCodegenOptions(),
     bool generate_signature = true) {
@@ -141,10 +141,10 @@ absl::StatusOr<std::pair<bool, CodegenPassUnit>> RunBlockStitchingPass(
   // Run channel legalization pass to test that multiple send/recv on the same
   // channel works.
   PassResults opt_results;
-  OptimizationContext context;
+  OptimizationContext opt_context;
   XLS_ASSIGN_OR_RETURN(
       bool changed, ChannelLegalizationPass().Run(p, OptimizationPassOptions(),
-                                                  &opt_results, context));
+                                                  &opt_results, opt_context));
   TestDelayEstimator delay_estimator;
   XLS_ASSIGN_OR_RETURN(PipelineScheduleOrGroup schedule,
                        Schedule(p,
@@ -158,7 +158,7 @@ absl::StatusOr<std::pair<bool, CodegenPassUnit>> RunBlockStitchingPass(
   XLS_RET_CHECK(std::holds_alternative<PackagePipelineSchedules>(schedule));
 
   XLS_ASSIGN_OR_RETURN(
-      CodegenPassUnit unit,
+      CodegenContext context,
       PackageToPipelinedBlocks(std::get<PackagePipelineSchedules>(schedule),
                                options, p));
   CodegenCompoundPass ccp("block_stitching_and_friends",
@@ -170,12 +170,13 @@ absl::StatusOr<std::pair<bool, CodegenPassUnit>> RunBlockStitchingPass(
   if (generate_signature) {
     ccp.Add<SignatureGenerationPass>();
   }
-  CodegenPassResults results;
+  PassResults results;
   XLS_ASSIGN_OR_RETURN(
       bool ccp_changed,
-      ccp.Run(&unit, CodegenPassOptions{.codegen_options = options}, &results));
+      ccp.Run(p, CodegenPassOptions{.codegen_options = options}, &results,
+              context));
   changed = changed || ccp_changed;
-  return std::make_pair(changed, std::move(unit));
+  return std::make_pair(changed, std::move(context));
 }
 
 TEST_F(BlockStitchingPassTest, SingleBlockIsNoop) {
@@ -738,7 +739,7 @@ inline ::testing::Matcher<BlockEvaluationResults> BlockOutputsMatch(T matcher) {
 // Similar to EvalAndExpect, but only evaluates a block. To
 // replicate EvalAndExpect, EXPECT_THAT() with BlockOutputsEq().
 absl::StatusOr<BlockEvaluationResults> EvalBlock(
-    Block* block, const CodegenPassUnit::MetadataMap& metadata_map,
+    Block* block, const CodegenContext::MetadataMap& metadata_map,
     const absl::flat_hash_map<std::string, std::vector<int64_t>>& inputs,
     std::optional<int64_t> num_cycles = std::nullopt) {
   int64_t cycles = num_cycles.value_or(999) + 1;  // + 1 for the reset cycle
@@ -1273,13 +1274,13 @@ TEST_F(ProcInliningPassTest, NestedProcs) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);  // 2 leaf + 1 container
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}},
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3}}},
                         /*num_cycles=*/10),
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
 }
@@ -1315,13 +1316,13 @@ TEST_F(ProcInliningPassTest, NestedProcsFifoDepth1) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), p->procs().size() + 1);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}},
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
 }
@@ -1392,11 +1393,11 @@ TEST_F(ProcInliningPassTest, NestedProcsWithNonzeroFifoDepth) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
 }
 
@@ -1425,13 +1426,13 @@ TEST_F(ProcInliningPassTest, NestedProcsWithSingleValue) {
   EXPECT_EQ(p->procs().size(), 2);
   XLS_EXPECT_OK(EvalAndExpect(p.get(), {{"in", {1}}}, {{"out", {2}}}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"in", {1}}}),
+      EvalBlock(top_block, context.metadata(), {{"in", {1}}}),
       // Single value outputs show up for every cycle.
       IsOkAndHolds(BlockOutputsMatch(ElementsAre(Pair("out", Each(Eq(2)))))));
 }
@@ -1474,18 +1475,19 @@ TEST_F(ProcInliningPassTest, NestedProcsWithConditionalSingleValueSend) {
                               {{"out", {2, 2, 6, 6, 10}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 4, 5}}}),
-              IsOkAndHolds(BlockOutputsMatch(ElementsAre(
-                  // send_if is not specially codegen'd for single value
-                  // channels, nor is the value retained. It's just a direct
-                  // connection to the sometimes-invalid streaming channel's
-                  // data, so the value is garbage.
-                  Pair("out", _)))));
+  EXPECT_THAT(
+      EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3, 4, 5}}}),
+      IsOkAndHolds(BlockOutputsMatch(ElementsAre(
+          // send_if is not specially codegen'd for single value
+          // channels, nor is the value retained. It's just a direct
+          // connection to the sometimes-invalid streaming channel's
+          // data, so the value is garbage.
+          Pair("out", _)))));
 }
 
 TEST_F(ProcInliningPassTest, NestedProcPassThrough) {
@@ -1519,13 +1521,13 @@ TEST_F(ProcInliningPassTest, NestedProcPassThrough) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}},
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {123, 22, 42}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
@@ -1570,13 +1572,13 @@ TEST_F(ProcInliningPassTest, NestedProcDelayedPassThrough) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}},
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {123, 22, 42}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {246, 44, 84}}})));
 }
@@ -1616,13 +1618,13 @@ TEST_F(ProcInliningPassTest, InputPlusDelayedInput) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}},
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {123, 22, 42}}},
                         /*num_cycles=*/168),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
@@ -1675,13 +1677,13 @@ TEST_F(ProcInliningPassTest, NestedProcsTrivialInnerLoop) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 42, 42}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}},
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 42, 42}}})));
 }
@@ -1719,13 +1721,13 @@ TEST_F(ProcInliningPassTest, NestedProcsIota) {
   EXPECT_EQ(p->procs().size(), 2);
   XLS_EXPECT_OK(EvalAndExpect(p.get(), {}, {{"out", {42, 43, 44}}}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {},
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {},
                         /*num_cycles=*/3),
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 43, 44}}})));
 }
@@ -1766,13 +1768,13 @@ TEST_F(ProcInliningPassTest, NestedProcsOddIota) {
   XLS_EXPECT_OK(
       EvalAndExpect(p.get(), {}, {{"out", {43, 45, 47, 49}}}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {},
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {43, 45, 47, 49}}})));
 }
@@ -1847,13 +1849,13 @@ TEST_F(ProcInliningPassTest, SynchronizedNestedProcs) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}},
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3}}},
                         /*num_cycles=*/12),
               IsOkAndHolds(BlockOutputsEq({{"out", {43, 44, 45}}})));
 }
@@ -1917,13 +1919,13 @@ TEST_F(ProcInliningPassTest, NestedProcsNontrivialInnerLoop) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {7, 8, 9}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {7, 8, 9}}})));
 }
 
@@ -1972,13 +1974,13 @@ TEST_F(ProcInliningPassTest, DoubleNestedProcsPassThrough) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
 
@@ -2043,13 +2045,13 @@ TEST_F(ProcInliningPassTest, SequentialNestedProcsPassThrough) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {123, 22, 42}}})));
 }
 
@@ -2134,13 +2136,13 @@ TEST_F(ProcInliningPassTest, SequentialNestedLoopingProcsWithState) {
       EvalAndExpect(p.get(), {{"in", {0, 1, 2}}}, {{"out", {13, 14, 15}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 5);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {0, 1, 2}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {0, 1, 2}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {13, 14, 15}}})));
 }
 
@@ -2203,13 +2205,13 @@ TEST_F(ProcInliningPassTest, SequentialNestedProcsWithLoops) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {246, 44, 84}}})));
 }
 
@@ -2323,15 +2325,16 @@ TEST_F(ProcInliningPassTest, DoubleNestedLoops) {
                               {{"out", {16, 116, 100116}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 100, 100000}}},
-                        /*num_cycles=*/16),
-              IsOkAndHolds(BlockOutputsEq({{"out", {16, 116, 100116}}})));
+  EXPECT_THAT(
+      EvalBlock(top_block, context.metadata(), {{"in", {1, 100, 100000}}},
+                /*num_cycles=*/16),
+      IsOkAndHolds(BlockOutputsEq({{"out", {16, 116, 100116}}})));
 }
 
 TEST_F(ProcInliningPassTest, MultiIO) {
@@ -2401,13 +2404,13 @@ TEST_F(ProcInliningPassTest, MultiIO) {
           {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(),
                         {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}}),
               IsOkAndHolds(BlockOutputsEq({{"x_plus_y_out", {133, 42, 72}},
                                            {"x_minus_y_out", {113, 2, 12}}})));
@@ -2466,13 +2469,13 @@ TEST_F(ProcInliningPassTest, NonTopProcsWithExternalStreamingIO) {
           {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(),
                         {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}},
                         /*num_cycles=*/15),
               IsOkAndHolds(BlockOutputsEq({{"x_plus_y_out", {133, 42, 72}},
@@ -2531,11 +2534,11 @@ TEST_F(ProcInliningPassTest, NonTopProcsWithExternalSingleValueIO) {
                                {"x_minus_y_out", {113, 12, 32}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(),
                         {{"x", {123, 22, 42}}, {"y_sv", {10}}},
                         /*num_cycles=*/15),
               IsOkAndHolds(BlockOutputsEq({{"x_plus_y_out", {133, 32, 52}},
@@ -2594,15 +2597,15 @@ TEST_F(ProcInliningPassTest, SingleValueAndStreamingChannels) {
                               {{"sum", {148, 47, 67}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(),
                         {{"x", {123, 22, 42}}, {"sv", {10}}}),
               IsOkAndHolds(BlockOutputsEq({{"sum", {133, 32, 52}}})));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(),
                         {{"x", {123, 22, 42}}, {"sv", {25}}}),
               IsOkAndHolds(BlockOutputsEq({{"sum", {148, 47, 67}}})));
 }
@@ -2688,13 +2691,13 @@ TEST_F(ProcInliningPassTest, TriangleProcNetwork) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {369, 66, 126}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}},
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {123, 22, 42}}},
                         /*num_cycles=*/30),
               IsOkAndHolds(BlockOutputsEq({{"out", {369, 66, 126}}})));
 }
@@ -2746,15 +2749,15 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth0) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_THAT(p->blocks().size(), 3);
 
-  EXPECT_THAT(
-      EvalBlock(p->GetBlock("A").value(), unit.metadata(), {{"in", {1, 2, 3}}}),
-      IsOkAndHolds(BlockOutputsEq({{"out", {43, 44, 45}}})));
+  EXPECT_THAT(EvalBlock(p->GetBlock("A").value(), context.metadata(),
+                        {{"in", {1, 2, 3}}}),
+              IsOkAndHolds(BlockOutputsEq({{"out", {43, 44, 45}}})));
 }
 
 TEST_F(ProcInliningPassTest, DelayedReceiveWithNoDataLossFifoDepth1Variant0) {
@@ -2805,13 +2808,13 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithNoDataLossFifoDepth1Variant0) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
   EXPECT_EQ(p->blocks().size(), 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {43, 44, 45}}})));
 }
 
@@ -2867,14 +2870,14 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithNoDataLossFifoDepth1Variant1) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 43, 44}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 43, 44}}})));
 }
 
@@ -2929,7 +2932,7 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth1) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 42, 43}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
@@ -2938,7 +2941,7 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth1) {
   // For proc inlining, inlined channels could not backpressure and this would
   // be an assertion failure. With block stitching, the FIFO will backpressure
   // and you get the same behavior as the proc network.
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {42, 42, 43}}})));
 }
 
@@ -2993,14 +2996,15 @@ TEST_F(ProcInliningPassTest, DataLoss) {
       EvalAndExpect(p.get(), {{"in", {1, 2, 3, 4, 5}}}, {{"out", {1, 2, 3}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 4, 5}}}),
-              IsOkAndHolds(BlockOutputsEq({{"out", {1, 2, 3}}})));
+  EXPECT_THAT(
+      EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3, 4, 5}}}),
+      IsOkAndHolds(BlockOutputsEq({{"out", {1, 2, 3}}})));
 }
 
 TEST_F(ProcInliningPassTest, BlockingReceiveBlocksSendsForDepth0Fifos) {
@@ -3063,7 +3067,7 @@ TEST_F(ProcInliningPassTest, BlockingReceiveBlocksSendsForDepth0Fifos) {
                               {{"out", {}}})  // produces no outputs
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
@@ -3071,9 +3075,9 @@ TEST_F(ProcInliningPassTest, BlockingReceiveBlocksSendsForDepth0Fifos) {
   // be an assertion failure. With block stitching, the depth-0 FIFO will
   // backpressure and you get the same behavior as the proc network.
   EXPECT_EQ(p->blocks().size(), 3);
-  EXPECT_THAT(
-      EvalBlock(p->GetBlock("A").value(), unit.metadata(), {{"in", {1, 2, 3}}}),
-      IsOkAndHolds(BlockOutputsEq({{"out", {}}})));
+  EXPECT_THAT(EvalBlock(p->GetBlock("A").value(), context.metadata(),
+                        {{"in", {1, 2, 3}}}),
+              IsOkAndHolds(BlockOutputsEq({{"out", {}}})));
 }
 
 // In the original proc inlining test, these
@@ -3162,7 +3166,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
                                {"result1_out", {20, 40, 60}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
@@ -3170,7 +3174,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
   // A, B, adapter, and the top block.
   EXPECT_EQ(p->blocks().size(), 4);
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
+      EvalBlock(top_block, context.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
       IsOkAndHolds(BlockOutputsEq(
           {{"result0_out", {4, 14, 28}}, {"result1_out", {20, 40, 60}}})));
 }
@@ -3245,14 +3249,14 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
                                {"result1_out", {22, 44, 66}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_EQ(p->blocks().size(), 4);
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
+      EvalBlock(top_block, context.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
       IsOkAndHolds(BlockOutputsEq(
           {{"result0_out", {6, 18, 34}}, {"result1_out", {22, 44, 66}}})));
 }
@@ -3326,13 +3330,13 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
                                {"result1_out", {24, 54, 88}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
+      EvalBlock(top_block, context.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
       IsOkAndHolds(BlockOutputsEq(
           {{"result0_out", {20, 40, 60}}, {"result1_out", {24, 54, 88}}})));
 }
@@ -3406,13 +3410,13 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
                                {"result1_out", {24, 54, 88}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
+      EvalBlock(top_block, context.metadata(), {{"x", {2, 5, 7}}, {"y", {10}}}),
       IsOkAndHolds(BlockOutputsEq(
           {{"result0_out", {4, 14, 28}}, {"result1_out", {24, 54, 88}}})));
 }
@@ -3465,13 +3469,13 @@ TEST_F(ProcInliningPassTest, TokenFanIn) {
                               {{"out", {12, 25, 37}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
   EXPECT_EQ(p->blocks().size(), 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(),
                         {{"in0", {2, 5, 7}}, {"in1", {10, 20, 30}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {12, 25, 37}}})));
 }
@@ -3553,7 +3557,7 @@ TEST_F(ProcInliningPassTest, TokenFanOut) {
   LOG(INFO) << "================= BEFORE";
   LOG(INFO) << p->DumpIr();
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
@@ -3563,7 +3567,7 @@ TEST_F(ProcInliningPassTest, TokenFanOut) {
   LOG(INFO) << p->DumpIr();
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {2, 5, 7}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {2, 5, 7}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {10, 19, 25}}})));
 }
 
@@ -3753,14 +3757,14 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
     }
 
     XLS_ASSERT_OK_AND_ASSIGN(
-        (auto [changed, unit]),
+        (auto [changed, context]),
         RunBlockStitchingPass(p.get(), /*top_name=*/"top_proc"));
     EXPECT_TRUE(changed);
 
     VLOG(1) << "Sample " << sample << " (after inlining):\n" << p->DumpIr();
     XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("top_proc"));
     EXPECT_THAT(
-        EvalBlock(top_block, unit.metadata(), inputs, /*num_cycles=*/100),
+        EvalBlock(top_block, context.metadata(), inputs, /*num_cycles=*/100),
         IsOkAndHolds(BlockOutputsEq(expected_outputs)));
   }
 }
@@ -3808,13 +3812,13 @@ TEST_F(ProcInliningPassTest, DataDependencyWithoutTokenDependency) {
       EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {123, 22, 42}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {123, 22, 42}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {246, 44, 84}}})));
 }
 
@@ -3876,13 +3880,13 @@ TEST_F(ProcInliningPassTest, ReceivedValueSentAndNext) {
       EvalAndExpect(p.get(), {{"in", {5, 7, 13}}}, {{"out", {5, 12, 20}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {5, 7, 13}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {5, 7, 13}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {5, 12, 20}}})));
 }
 
@@ -3941,13 +3945,13 @@ TEST_F(ProcInliningPassTest, OffsetSendAndReceive) {
   XLS_EXPECT_OK(
       EvalAndExpect(p.get(), {}, {{"out", {0, 16, 32, 48, 64}}}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {}, /*num_cycles=*/80),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {}, /*num_cycles=*/80),
               IsOkAndHolds(BlockOutputsEq({{"out", {0, 16, 32, 48, 64}}})));
 }
 
@@ -4019,13 +4023,13 @@ TEST_F(ProcInliningPassTest, InliningProducesCycle) {
   EXPECT_EQ(p->procs().size(), 2);
   XLS_EXPECT_OK(EvalAndExpect(p.get(), {}, {{"out", {0, 1, 2, 3}}}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {}, /*num_cycles=*/6),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {}, /*num_cycles=*/6),
               IsOkAndHolds(BlockOutputsEq({{"out", {0, 1, 2, 3}}})));
 }
 
@@ -4072,7 +4076,7 @@ TEST_F(ProcInliningPassTest, MultipleSends) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
@@ -4081,7 +4085,8 @@ TEST_F(ProcInliningPassTest, MultipleSends) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
       // Seems to hang on last output unless you give another input.
-      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123, 200}}}),
+      EvalBlock(top_block, context.metadata(),
+                {{"in", {1, 2, 3, 42, 123, 200}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123, 210}}})));
 }
 
@@ -4128,7 +4133,7 @@ TEST_F(ProcInliningPassTest, MultipleSendsInDifferentOrder) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
@@ -4136,7 +4141,7 @@ TEST_F(ProcInliningPassTest, MultipleSendsInDifferentOrder) {
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
+      EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
 }
 
@@ -4184,7 +4189,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth0) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
@@ -4192,7 +4197,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth0) {
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
+      EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
 }
 
@@ -4240,7 +4245,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth1) {
                               {{"out", {1, 12, 3, 52, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
@@ -4248,7 +4253,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth1) {
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
+      EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 12, 3, 52, 123}}})));
 }
 
@@ -4306,7 +4311,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTick) {
                               {{"out", {1, 3, 5, 0, 42, 124}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
@@ -4314,7 +4319,8 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTick) {
   EXPECT_EQ(p->blocks().size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123, 333}}}),
+      EvalBlock(top_block, context.metadata(),
+                {{"in", {1, 2, 3, 42, 123, 333}}}),
       // EvalBlock() runs further and produces all outputs.
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 3, 5, 0, 42, 124, 335, 0}}})));
 }
@@ -4377,7 +4383,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTickFifoDepth0) {
                               {{"out", {1, 3, 5, 0, 42, 124}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
@@ -4385,7 +4391,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTickFifoDepth0) {
   EXPECT_EQ(p->blocks().size(), 4);
 
   EXPECT_THAT(
-      EvalBlock(p->GetBlock("A").value(), unit.metadata(),
+      EvalBlock(p->GetBlock("A").value(), context.metadata(),
                 {{"in", {1, 2, 3, 42, 123, 333}}}),
       // EvalBlock() runs further and produces all outputs.
       IsOkAndHolds(BlockOutputsEq({{"out", {1, 3, 5, 0, 42, 124, 335, 0}}})));
@@ -4451,7 +4457,7 @@ TEST_F(ProcInliningPassTest, MultipleSendsAndReceives) {
                               {{"out", {11, 102, 13, 142, 133}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
@@ -4459,7 +4465,7 @@ TEST_F(ProcInliningPassTest, MultipleSendsAndReceives) {
   EXPECT_EQ(p->blocks().size(), 5);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123}}},
+      EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3, 42, 123}}},
                 /*num_cycles=*/2000),
       IsOkAndHolds(BlockOutputsEq({{"out", {11, 102, 13, 142, 133}}})));
 }
@@ -4513,14 +4519,14 @@ TEST_F(ProcInliningPassTest, ReceiveIfsWithFalseCondition) {
                                {"out1", {1, 0, 3, 0, 123}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
+      EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3, 42, 123}}}),
       IsOkAndHolds(BlockOutputsEq(
           {{"out0", {100, 102, 100, 142, 100}}, {"out1", {1, 0, 3, 0, 123}}})));
 }
@@ -4557,12 +4563,12 @@ TEST_F(ProcInliningPassTest, ProcsWithDifferentII) {
   XLS_EXPECT_OK(
       EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}})
           .status());
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {1, 2, 3}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {1, 2, 3}}}),
               IsOkAndHolds(BlockOutputsEq({{"out", {2, 4, 6}}})));
 }
 
@@ -4607,7 +4613,7 @@ TEST_F(ProcInliningPassTest, ProcsWithNonblockingReceivesWithDroppingProc) {
                                {"in1", {0, 2, 4, 6, 8, 10}}},
                               {{"out", {100, 0, 2, 4, 6, 8, 10}}})
                     .status());
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"arb"));
   EXPECT_TRUE(changed);
 
@@ -4616,7 +4622,7 @@ TEST_F(ProcInliningPassTest, ProcsWithNonblockingReceivesWithDroppingProc) {
                                    m::Block("arb__2")));
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("arb"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(),
+      EvalBlock(top_block, context.metadata(),
                 {{"in0", {100, 3, 5, 7, 9, 11}}, {"in1", {0, 2, 4, 6, 8, 10}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {100, 0, 2, 4, 6, 8, 10}}})));
 }
@@ -4656,7 +4662,7 @@ TEST_F(ProcInliningPassTest,
           .status());
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      (auto [changed, unit]),
+      (auto [changed, context]),
       RunBlockStitchingPass(p.get(), /*top_name=*/"accum"));
   EXPECT_TRUE(changed);
   EXPECT_THAT(p->blocks(),
@@ -4664,7 +4670,7 @@ TEST_F(ProcInliningPassTest,
                                    m::Block("arb")));
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("accum"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(),
+      EvalBlock(top_block, context.metadata(),
                 {{"in0", {100, 200, 300}}, {"in1", {0, 2, 4, 6, 8, 10}}}),
       IsOkAndHolds(
           // Arbiter is latency sensitive, so we get the same outputs in a
@@ -4715,7 +4721,7 @@ TEST_F(ProcInliningPassTest, ProcWithAssert) {
                        HasSubstr("input must not be zero")));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      (auto [changed, unit]),
+      (auto [changed, context]),
       RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"));
   EXPECT_TRUE(changed);
 
@@ -4723,12 +4729,13 @@ TEST_F(ProcInliningPassTest, ProcWithAssert) {
 
   // Eval without tripping the assertion
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("loopback"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"in", {100, 200, 300}}}),
-              IsOkAndHolds(BlockOutputsEq({{"out", {100, 200, 300}}})));
+  EXPECT_THAT(
+      EvalBlock(top_block, context.metadata(), {{"in", {100, 200, 300}}}),
+      IsOkAndHolds(BlockOutputsEq({{"out", {100, 200, 300}}})));
 
   // Eval with a zero input, which should trip the assertion.
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"in", {100, 200, 300, 0}}}),
+      EvalBlock(top_block, context.metadata(), {{"in", {100, 200, 300, 0}}}),
       IsOkAndHolds(Field(
           "interpreter_events", &BlockEvaluationResults::interpreter_events,
           Field("assert_msgs", &InterpreterEvents::assert_msgs,
@@ -4773,14 +4780,14 @@ TEST_F(ProcInliningPassTest, ProcWithCover) {
                     .status());
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      (auto [changed, unit]),
+      (auto [changed, context]),
       RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("loopback"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"in", {100, 200, 300, 0}}}),
+      EvalBlock(top_block, context.metadata(), {{"in", {100, 200, 300, 0}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {100, 200, 300, 0}}})));
 }
 
@@ -4821,14 +4828,14 @@ TEST_F(ProcInliningPassTest, ProcWithGate) {
                     .status());
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      (auto [changed, unit]),
+      (auto [changed, context]),
       RunBlockStitchingPass(p.get(), /*top_name=*/"loopback"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 3);
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("loopback"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(),
+      EvalBlock(top_block, context.metadata(),
                 {{"in", {0, 1, 2, 99, 100, 200, 300, 1000}}}),
       IsOkAndHolds(BlockOutputsEq({{"out", {0, 1, 2, 99, 100, 0, 0, 0}}})));
 }
@@ -4881,7 +4888,7 @@ TEST_F(ProcInliningPassTest, ProcWithTrace) {
                   FieldsAre(HasSubstr("data: 500"), 0)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      (auto [changed, unit]),
+      (auto [changed, context]),
       RunBlockStitchingPass(p.get(), /*top_name=*/"trace_not_zero"));
   EXPECT_TRUE(changed);
 
@@ -4889,7 +4896,7 @@ TEST_F(ProcInliningPassTest, ProcWithTrace) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("trace_not_zero"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(),
+      EvalBlock(top_block, context.metadata(),
                 {{"in", {100, 200, 300, 0, 400, 0, 500}}},
                 /*num_cycles=*/45),
       IsOkAndHolds(AllOf(
@@ -4983,7 +4990,7 @@ proc output_passthrough(state:(), init={()}) {
                             .status());
 
           XLS_ASSERT_OK_AND_ASSIGN(
-              (auto [changed, unit]),
+              (auto [changed, context]),
               RunBlockStitchingPass(p.get(), /*top_name=*/"foo"));
           EXPECT_TRUE(changed);
           EXPECT_THAT(p->blocks(),
@@ -4991,7 +4998,7 @@ proc output_passthrough(state:(), init={()}) {
                                            m::Block("output_passthrough")));
           XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("foo"));
           EXPECT_THAT(
-              EvalBlock(top_block, unit.metadata(), {{"in", {5, 10}}}),
+              EvalBlock(top_block, context.metadata(), {{"in", {5, 10}}}),
               IsOkAndHolds(BlockOutputsMatch(UnorderedElementsAre(
                   // Latency sensitivity means we don't necessarily get the same
                   // output order, but we should see 5 and 10 once each and all
@@ -5074,7 +5081,7 @@ proc output_passthrough(state: bits[1], init={1}) {
                       .status());
 
     XLS_ASSERT_OK_AND_ASSIGN(
-        (auto [changed, unit]),
+        (auto [changed, context]),
         RunBlockStitchingPass(p.get(), /*top_name=*/"foo"));
     EXPECT_TRUE(changed);
     EXPECT_THAT(p->blocks(),
@@ -5096,7 +5103,7 @@ proc output_passthrough(state: bits[1], init={1}) {
     }
     // No backpressure.
     EXPECT_THAT(
-        EvalBlock(top_block, unit.metadata(), {{"in", {5, 10}}},
+        EvalBlock(top_block, context.metadata(), {{"in", {5, 10}}},
                   /*num_cycles=*/no_backpressure_cycles),
         IsOkAndHolds(BlockOutputsMatch(UnorderedElementsAre(
             // Latency sensitivity means we don't necessarily get the same
@@ -5108,7 +5115,7 @@ proc output_passthrough(state: bits[1], init={1}) {
 
     // Yes backpressure.
     EXPECT_THAT(
-        EvalBlock(top_block, unit.metadata(), {{"in", {4, 10}}},
+        EvalBlock(top_block, context.metadata(), {{"in", {4, 10}}},
                   /*num_cycles=*/yes_backpressure_cycles),
         IsOkAndHolds(BlockOutputsMatch(UnorderedElementsAre(
             // Latency sensitivity means we don't necessarily get the same
@@ -5163,7 +5170,7 @@ proc output_passthrough(state:bits[1], init={0}) {
                               {{"out0", {5, 10}}, {"out1", {5, 10}}})
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"foo"));
   EXPECT_TRUE(changed);
   EXPECT_THAT(p->blocks(),
@@ -5172,7 +5179,7 @@ proc output_passthrough(state:bits[1], init={0}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("foo"));
   EXPECT_THAT(
-      EvalBlock(top_block, unit.metadata(), {{"in", {5, 10}}}),
+      EvalBlock(top_block, context.metadata(), {{"in", {5, 10}}}),
       IsOkAndHolds(BlockOutputsEq({{"out0", {5, 10}}, {"out1", {5, 10}}})));
 }
 
@@ -5218,7 +5225,7 @@ proc input_passthrough(__state: (), init={()}) {
       EvalAndExpect(p.get(), {{"data_in", {5, 10}}}, {{"data_out", {5, 10}}})
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, unit]),
+  XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"foo"));
   EXPECT_TRUE(changed);
   EXPECT_THAT(p->blocks(),
@@ -5226,7 +5233,7 @@ proc input_passthrough(__state: (), init={()}) {
                                    m::Block("input_passthrough")));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("foo"));
-  EXPECT_THAT(EvalBlock(top_block, unit.metadata(), {{"data_in", {5, 10}}}),
+  EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"data_in", {5, 10}}}),
               IsOkAndHolds(BlockOutputsEq({{"data_out", {5, 10}}})));
 }
 

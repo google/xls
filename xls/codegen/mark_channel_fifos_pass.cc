@@ -19,6 +19,8 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/casts.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/package.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -31,14 +33,14 @@ FlopKind GetRealFlopKind(bool enabled, CodegenOptions::IOKind kind) {
 }  // namespace
 
 absl::StatusOr<bool> MarkChannelFifosPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
-  if (unit->package()->ChannelsAreProcScoped()) {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
+  if (package->ChannelsAreProcScoped()) {
     // Nothing to do for proc-scoped channels. ChannelInterfaces have a FlopKind
     // not a std::optional<FlopKind>.
   }
   bool changed = false;
-  for (Channel* chan : unit->package()->channels()) {
+  for (Channel* chan : package->channels()) {
     if (chan->kind() != ChannelKind::kStreaming) {
       continue;
     }

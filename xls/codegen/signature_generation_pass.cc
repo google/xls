@@ -21,16 +21,18 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/package.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> SignatureGenerationPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
   VLOG(3) << absl::StreamFormat("Metadata has %d blocks",
-                                unit->metadata().size());
-  for (auto& [block, metadata] : unit->metadata()) {
+                                context.metadata().size());
+  for (auto& [block, metadata] : context.metadata()) {
     if (metadata.signature.has_value()) {
       return absl::InvalidArgumentError("Signature already generated.");
     }

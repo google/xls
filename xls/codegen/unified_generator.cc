@@ -60,18 +60,19 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
   //
   // For now, these passes call the existing generators and go directly from IR
   // to Block IR.
-  XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
+  XLS_ASSIGN_OR_RETURN(CodegenContext codegen_context,
                        CreateBlocksFor(schedules, options, package));
 
   CodegenPassOptions pass_options;
   pass_options.codegen_options = options;
   pass_options.delay_estimator = delay_estimator;
 
-  CodegenPassResults results;
-  OptimizationContext context;
-  XLS_RETURN_IF_ERROR(CreateBlockConversionPassPipeline(options, context)
-                          ->Run(&unit, pass_options, &results)
-                          .status());
+  PassResults results;
+  OptimizationContext opt_context;
+  XLS_RETURN_IF_ERROR(
+      CreateBlockConversionPassPipeline(options, opt_context)
+          ->Run(package, pass_options, &results, codegen_context)
+          .status());
 
   // Block to Block codegen passes.
   if (std::any_of(
@@ -86,20 +87,24 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
     pass_options.codegen_options.emit_as_pipeline(false);
   }
 
-  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(context)
-                          ->Run(&unit, pass_options, &results)
-                          .status());
+  XLS_RETURN_IF_ERROR(
+      CreateCodegenPassPipeline(opt_context)
+          ->Run(package, pass_options, &results, codegen_context)
+          .status());
   XLS_RET_CHECK(
-      unit.HasTopBlock() && unit.HasMetadataForBlock(unit.top_block()) &&
-      unit.GetMetadataForBlock(unit.top_block()).signature.has_value());
+      codegen_context.HasTopBlock() &&
+      codegen_context.HasMetadataForBlock(codegen_context.top_block()) &&
+      codegen_context.GetMetadataForBlock(codegen_context.top_block())
+          .signature.has_value());
 
   // VAST Generation: Block to Verilog codegen pass.
   VerilogLineMap verilog_line_map;
   const auto& pipeline =
-      unit.GetMetadataForBlock(unit.top_block()).streaming_io_and_pipeline;
+      codegen_context.GetMetadataForBlock(codegen_context.top_block())
+          .streaming_io_and_pipeline;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
-      GenerateVerilog(unit.top_block(), options, &verilog_line_map,
+      GenerateVerilog(codegen_context.top_block(), options, &verilog_line_map,
                       pipeline.input_port_sv_type,
                       pipeline.output_port_sv_type));
 
@@ -107,7 +112,8 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
   // not just top.
   return ModuleGeneratorResult{
       verilog, verilog_line_map,
-      unit.GetMetadataForBlock(unit.top_block()).signature.value()};
+      codegen_context.GetMetadataForBlock(codegen_context.top_block())
+          .signature.value()};
 }
 
 }  // namespace verilog

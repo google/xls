@@ -34,27 +34,7 @@
 
 namespace xls::verilog {
 
-std::string CodegenPassUnit::DumpIr() const {
-  // Dump the Package and metadata. The metadata is commented out ('//') so the
-  // output is parsable.
-  std::string out =
-      absl::StrFormat("// Generating code for proc: %s\n\n", name());
-  absl::StrAppend(&out, package_->DumpIr());
-  for (const auto& [_, block_metadata] : metadata_) {
-    if (block_metadata.signature.has_value()) {
-      for (auto line :
-           absl::StrSplit(block_metadata.signature->ToString(), '\n')) {
-        absl::StrAppend(&out, "// ", line, "\n");
-      }
-    }
-  }
-  return out;
-}
-int64_t CodegenPassUnit::GetNodeCount() const {
-  return package_->GetNodeCount();
-}
-
-void CodegenPassUnit::GcMetadata() {
+void CodegenContext::GcMetadata() {
   absl::flat_hash_set<Node*> nodes;
   for (auto& [this_block, block_metadata] : metadata_) {
     nodes.clear();
@@ -126,13 +106,13 @@ void CodegenPassUnit::GcMetadata() {
   }
 }
 
-/* static */ ChannelMap ChannelMap::Create(const CodegenPassUnit& unit) {
+/* static */ ChannelMap ChannelMap::Create(const CodegenContext& context) {
   ChannelMap::StreamingInputMap channel_to_streaming_input;
   ChannelMap::StreamingOutputMap channel_to_streaming_output;
   ChannelMap::SingleValueInputMap channel_to_single_value_input;
   ChannelMap::SingleValueOutputMap channel_to_single_value_output;
 
-  for (auto& [block, metadata] : unit.metadata()) {
+  for (auto& [block, metadata] : context.metadata()) {
     for (const std::vector<StreamingInput>& inputs :
          metadata.streaming_io_and_pipeline.inputs) {
       for (const StreamingInput& input : inputs) {

@@ -18,18 +18,20 @@
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/package.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> UpdateChannelMetadataPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
 
-  for (auto& [fb, block] : unit->function_base_to_block()) {
+  for (auto& [fb, block] : context.function_base_to_block()) {
     if (fb->IsProc()) {
       XLS_RETURN_IF_ERROR(UpdateChannelMetadata(
-          unit->GetMetadataForBlock(block).streaming_io_and_pipeline, block));
+          context.GetMetadataForBlock(block).streaming_io_and_pipeline, block));
     }
   }
 

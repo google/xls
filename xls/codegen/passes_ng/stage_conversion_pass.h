@@ -17,7 +17,8 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/ir/function_base.h"
+#include "xls/ir/package.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
@@ -30,9 +31,9 @@ class StageConversionPass : public CodegenFunctionPass {
   ~StageConversionPass() override = default;
 
   absl::StatusOr<bool> RunOnFunctionInternal(
-      CodegenPassUnit* unit, Function* f, const PipelineSchedule& schedule,
-      const CodegenPassOptions& options,
-      CodegenPassResults* results) const override;
+      Function* f, const PipelineSchedule& schedule,
+      const CodegenPassOptions& options, PassResults* results,
+      CodegenContext& context) const override;
 };
 
 }  // namespace xls::verilog

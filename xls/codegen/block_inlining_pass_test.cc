@@ -36,6 +36,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
+#include "xls/passes/pass_base.h"
 
 namespace m = xls::op_matchers;
 namespace xls::verilog {
@@ -84,17 +85,18 @@ TEST_F(BlockInliningPassTest, InlineBlocks) {
   ScopedRecordIr sri(p.get());
 
   BlockInliningPass bip;
-  CodegenPassUnit pu(p.get(), top);
-  CodegenPassResults results;
+  CodegenContext context(top);
+  PassResults results;
   CodegenPassOptions opt;
-  ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
+  ASSERT_THAT(bip.Run(p.get(), opt, &results, context),
+              absl_testing::IsOkAndHolds(true));
 
-  Block* inlined = pu.top_block();
+  Block* inlined = context.top_block();
   EXPECT_THAT(inlined->nodes(),
               testing::Not(testing::Contains(m::InstantiationInput())));
   EXPECT_THAT(inlined->nodes(),
               testing::Not(testing::Contains(m::InstantiationOutput())));
-  EXPECT_THAT(results.register_renames, IsEmpty());
+  EXPECT_THAT(context.register_renames(), IsEmpty());
 
   InterpreterBlockEvaluator eval;
   XLS_ASSERT_OK_AND_ASSIGN(auto oracle, eval.NewContinuation(top));
@@ -161,17 +163,18 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithReg) {
   ScopedRecordIr sri(p.get());
 
   BlockInliningPass bip;
-  CodegenPassUnit pu(p.get(), top);
-  CodegenPassResults results;
+  CodegenContext context(top);
+  PassResults results;
   CodegenPassOptions opt;
-  ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
+  ASSERT_THAT(bip.Run(p.get(), opt, &results, context),
+              absl_testing::IsOkAndHolds(true));
 
-  Block* inlined = pu.top_block();
+  Block* inlined = context.top_block();
   EXPECT_THAT(inlined->nodes(),
               testing::Not(testing::Contains(m::InstantiationInput())));
   EXPECT_THAT(inlined->nodes(),
               testing::Not(testing::Contains(m::InstantiationOutput())));
-  EXPECT_THAT(results.register_renames,
+  EXPECT_THAT(context.register_renames(),
               UnorderedElementsAre(Pair("left::x_reg", "left__x_reg"),
                                    Pair("left::y_reg", "left__y_reg"),
                                    Pair("right::x_reg", "right__x_reg"),
@@ -245,12 +248,13 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithFifo) {
   ScopedRecordIr sri(p.get());
 
   BlockInliningPass bip;
-  CodegenPassUnit pu(p.get(), top);
-  CodegenPassResults results;
+  CodegenContext context(top);
+  PassResults results;
   CodegenPassOptions opt;
-  ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
+  ASSERT_THAT(bip.Run(p.get(), opt, &results, context),
+              absl_testing::IsOkAndHolds(true));
 
-  Block* inlined = pu.top_block();
+  Block* inlined = context.top_block();
   XLS_ASSERT_OK_AND_ASSIGN(auto* left_foobar_inst,
                            inlined->GetInstantiation("left::foobar"));
   XLS_ASSERT_OK_AND_ASSIGN(auto* right_foobar_inst,
@@ -318,12 +322,13 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithExtern) {
   ScopedRecordIr sri(p.get());
 
   BlockInliningPass bip;
-  CodegenPassUnit pu(p.get(), top);
-  CodegenPassResults results;
+  CodegenContext context(top);
+  PassResults results;
   CodegenPassOptions opt;
-  ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
+  ASSERT_THAT(bip.Run(p.get(), opt, &results, context),
+              absl_testing::IsOkAndHolds(true));
 
-  Block* inlined = pu.top_block();
+  Block* inlined = context.top_block();
   XLS_ASSERT_OK_AND_ASSIGN(auto* left_foobar_inst,
                            inlined->GetInstantiation("left::foobar"));
   XLS_ASSERT_OK_AND_ASSIGN(auto* right_foobar_inst,

@@ -29,9 +29,10 @@ class FfiInstantiationPass : public CodegenPass {
   }
   ~FfiInstantiationPass() override = default;
 
-  absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
+  absl::StatusOr<bool> RunInternal(Package* package,
                                    const CodegenPassOptions& options,
-                                   CodegenPassResults* results) const final;
+                                   PassResults* results,
+                                   CodegenContext& context) const final;
 };
 
 }  // namespace xls::verilog

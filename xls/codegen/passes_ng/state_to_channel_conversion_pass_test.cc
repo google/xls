@@ -43,6 +43,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -221,10 +222,10 @@ class CounterProcHelper {
 
  private:
   absl::StatusOr<bool> Run() {
-    CodegenPassResults results;
-    CodegenPassUnit unit(package_);
-    return StateToChannelConversionPass().Run(&unit, CodegenPassOptions(),
-                                              &results);
+    PassResults results;
+    CodegenContext context;
+    return StateToChannelConversionPass().Run(package_, CodegenPassOptions(),
+                                              &results, context);
   }
 
   Package* const package_;

@@ -43,9 +43,11 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -348,10 +350,11 @@ absl::Status Ram1RWUpdateSignature(
   return absl::OkStatus();
 }
 
-absl::StatusOr<bool> Ram1RWRewrite(CodegenPassUnit* unit,
+absl::StatusOr<bool> Ram1RWRewrite(Package* package,
                                    const CodegenPassOptions& pass_options,
-                                   const Ram1RWConfiguration& ram_config) {
-  Block* block = unit->top_block();
+                                   const Ram1RWConfiguration& ram_config,
+                                   CodegenContext& context) {
+  Block* block = context.top_block();
 
   XLS_ASSIGN_OR_RETURN(
       RamRWPortBlockPorts rw_block_ports,
@@ -525,8 +528,9 @@ absl::StatusOr<bool> Ram1RWRewrite(CodegenPassUnit* unit,
   XLS_RETURN_IF_ERROR(WriteCompletionRewrite(
       block, rw_block_ports.write_completion_ports, ram_name));
 
-  if (unit->HasMetadataForBlock(unit->top_block())) {
-    CodegenMetadata& metadata = unit->GetMetadataForBlock(unit->top_block());
+  if (context.HasMetadataForBlock(context.top_block())) {
+    CodegenMetadata& metadata =
+        context.GetMetadataForBlock(context.top_block());
 
     ClearRewrittenMetadata(
         metadata.streaming_io_and_pipeline,
@@ -536,25 +540,26 @@ absl::StatusOr<bool> Ram1RWRewrite(CodegenPassUnit* unit,
 
     if (metadata.signature.has_value()) {
       ModuleSignature& signature = *metadata.signature;
-      XLS_RETURN_IF_ERROR(Ram1RWUpdateSignature(
-          signature, ram_config, ram_name, unit->package(),
-          /*req_addr_port=*/req_addr_port,
-          /*req_re_port=*/req_re_port,
-          /*req_we_port=*/req_we_port,
-          /*req_wr_data_port=*/req_wr_data_port,
-          /*req_wr_mask_port=*/req_wr_mask_port,
-          /*req_rd_mask_port=*/req_rd_mask_port,
-          /*resp_rd_data_port=*/resp_rd_data_port));
+      XLS_RETURN_IF_ERROR(
+          Ram1RWUpdateSignature(signature, ram_config, ram_name, package,
+                                /*req_addr_port=*/req_addr_port,
+                                /*req_re_port=*/req_re_port,
+                                /*req_we_port=*/req_we_port,
+                                /*req_wr_data_port=*/req_wr_data_port,
+                                /*req_wr_mask_port=*/req_wr_mask_port,
+                                /*req_rd_mask_port=*/req_rd_mask_port,
+                                /*resp_rd_data_port=*/resp_rd_data_port));
     }
   }
 
   return true;
 }
 
-absl::StatusOr<bool> Ram1R1WRewrite(CodegenPassUnit* unit,
+absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
                                     const CodegenPassOptions& pass_options,
-                                    const Ram1R1WConfiguration& ram_config) {
-  Block* block = unit->top_block();
+                                    const Ram1R1WConfiguration& ram_config,
+                                    CodegenContext& context) {
+  Block* block = context.top_block();
 
   XLS_ASSIGN_OR_RETURN(
       RamRPortBlockPorts r_block_ports,
@@ -713,8 +718,9 @@ absl::StatusOr<bool> Ram1R1WRewrite(CodegenPassUnit* unit,
   XLS_RETURN_IF_ERROR(WriteCompletionRewrite(
       block, w_block_ports.write_completion_ports, ram_name));
 
-  if (unit->HasMetadataForBlock(unit->top_block())) {
-    CodegenMetadata& metadata = unit->GetMetadataForBlock(unit->top_block());
+  if (context.HasMetadataForBlock(context.top_block())) {
+    CodegenMetadata& metadata =
+        context.GetMetadataForBlock(context.top_block());
 
     if (metadata.signature.has_value()) {
       ClearRewrittenMetadata(
@@ -770,7 +776,7 @@ absl::StatusOr<bool> Ram1R1WRewrite(CodegenPassUnit* unit,
       }
 
       builder.AddRam1R1W({
-          .package = unit->package(),
+          .package = package,
           .data_type = rd_data_port->GetType(),
           .ram_name = ram_name,
           .rd_req_name = ram_config.r_port_configuration().request_channel_name,
@@ -797,17 +803,18 @@ absl::StatusOr<bool> Ram1R1WRewrite(CodegenPassUnit* unit,
   return true;
 }
 
-absl::StatusOr<bool> RamRewrite(CodegenPassUnit* unit,
+absl::StatusOr<bool> RamRewrite(Package* package,
                                 const CodegenPassOptions& pass_options,
-                                const RamConfiguration& ram_configuration) {
-  return absl::visit(Visitor{[&](const Ram1RWConfiguration& config) {
-                               return Ram1RWRewrite(unit, pass_options, config);
-                             },
-                             [&](const Ram1R1WConfiguration& config) {
-                               return Ram1R1WRewrite(unit, pass_options,
-                                                     config);
-                             }},
-                     ram_configuration);
+                                const RamConfiguration& ram_configuration,
+                                CodegenContext& context) {
+  return absl::visit(
+      Visitor{[&](const Ram1RWConfiguration& config) {
+                return Ram1RWRewrite(package, pass_options, config, context);
+              },
+              [&](const Ram1R1WConfiguration& config) {
+                return Ram1R1WRewrite(package, pass_options, config, context);
+              }},
+      ram_configuration);
 }
 
 }  // namespace
@@ -815,24 +822,25 @@ absl::StatusOr<bool> RamRewrite(CodegenPassUnit* unit,
 // This function finds all the ports related to each channel specified in
 // `codegen_options.ram_channels()` and invokes `RewriteRamChannel()` on them.
 absl::StatusOr<bool> RamRewritePass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
 
-  XLS_RET_CHECK(unit->HasTopBlock())
+  XLS_RET_CHECK(context.HasTopBlock())
       << "RamRewritePass requires top_block to be set.";
 
   for (const RamConfiguration& ram_configuration :
        options.codegen_options.ram_configurations()) {
     VLOG(2) << "Rewriting channels for ram "
             << RamConfigurationRamName(ram_configuration) << ".";
-    XLS_ASSIGN_OR_RETURN(bool this_one_changed,
-                         RamRewrite(unit, options, ram_configuration));
+    XLS_ASSIGN_OR_RETURN(
+        bool this_one_changed,
+        RamRewrite(package, options, ram_configuration, context));
     changed = changed || this_one_changed;
   }
 
   if (changed) {
-    unit->GcMetadata();
+    context.GcMetadata();
   }
 
   return changed;

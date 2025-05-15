@@ -37,26 +37,18 @@ namespace xls {
 
 // Data structure operated on by scheduling passes. Contains the IR and the
 // associated schedule.
-class SchedulingUnit {
+class SchedulingContext {
  public:
-  // Create a SchedulingUnit that operates only on `f`.
-  static SchedulingUnit CreateForSingleFunction(FunctionBase* f);
-  // Create a SchedulingUnit that operates on all functions and procs in `p`.
-  static SchedulingUnit CreateForWholePackage(Package* p);
+  // Create a SchedulingContext that operates only on `f`.
+  static SchedulingContext CreateForSingleFunction(FunctionBase* f);
+  // Create a SchedulingContext that operates on all functions and procs in `p`.
+  static SchedulingContext CreateForWholePackage(Package* p);
 
-  SchedulingUnit() = delete;
+  SchedulingContext() = delete;
 
   const PackagePipelineSchedules& schedules() const { return schedules_; }
   PackagePipelineSchedules& schedules() { return schedules_; }
 
-  // Methods required by CompoundPassBase.
-  // Dumps the IR for schedulable FunctionBases along with their schedules. The
-  // schedules are guarded by "//" comments.
-  std::string DumpIr() const;
-  std::string name() const { return ir_->name(); }
-  int64_t GetNodeCount() const { return ir_->GetNodeCount(); }
-
-  Package* GetPackage() const { return ir_; }
   // Gets list of FunctionBases to be operated on by scheduling passes.
   absl::StatusOr<std::vector<FunctionBase*>> GetSchedulableFunctions() const;
   // Returns true if every function in `GetSchedulableFunctions()` has a
@@ -68,9 +60,9 @@ class SchedulingUnit {
   }
 
  protected:
-  explicit SchedulingUnit(Package* p)
+  explicit SchedulingContext(Package* p)
       : schedulable_unit_(p), ir_(p), schedules_({}) {}
-  explicit SchedulingUnit(FunctionBase* fb_to_schedule)
+  explicit SchedulingContext(FunctionBase* fb_to_schedule)
       : schedulable_unit_(fb_to_schedule),
         ir_(fb_to_schedule->package()),
         schedules_({}) {}
@@ -93,38 +85,12 @@ struct SchedulingPassOptions : public PassOptionsBase {
   const synthesis::Synthesizer* synthesizer = nullptr;
 };
 
-using SchedulingPassResults = PassResults;
-using SchedulingPass =
-    PassBase<SchedulingUnit, SchedulingPassOptions, SchedulingPassResults>;
+using SchedulingPass = PassBase<SchedulingPassOptions, SchedulingContext>;
 using SchedulingCompoundPass =
-    CompoundPassBase<SchedulingUnit, SchedulingPassOptions,
-                     SchedulingPassResults>;
+    CompoundPassBase<SchedulingPassOptions, SchedulingContext>;
 using SchedulingInvariantChecker = SchedulingCompoundPass::InvariantChecker;
-
-// Abstract base class for scheduling passes operating at function/proc scope.
-// The derived classes must define RunOnFunctionBaseInternal.
-class SchedulingOptimizationFunctionBasePass : public SchedulingPass {
- public:
-  SchedulingOptimizationFunctionBasePass(std::string_view short_name,
-                                         std::string_view long_name)
-      : SchedulingPass(short_name, long_name) {}
-
-  // Runs the pass on a single function/proc.
-  absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f, SchedulingUnit* s,
-                                         const SchedulingPassOptions& options,
-                                         SchedulingPassResults* results) const;
-
- protected:
-  // Iterates over each function and proc in the package calling
-  // RunOnFunctionBase.
-  absl::StatusOr<bool> RunInternal(
-      SchedulingUnit* s, const SchedulingPassOptions& options,
-      SchedulingPassResults* results) const override;
-
-  virtual absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, SchedulingUnit* s, const SchedulingPassOptions& options,
-      SchedulingPassResults* results) const = 0;
-};
+using SchedulingFunctionBasePass =
+    FunctionBasePass<SchedulingPassOptions, SchedulingContext>;
 
 }  // namespace xls
 

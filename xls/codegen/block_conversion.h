@@ -42,12 +42,12 @@ namespace xls::verilog {
 // Converts a function or proc to a pipelined block. The pipeline is constructed
 // using the given schedule. Registers are inserted between each stage.
 // If `f` is already a Block, an error is returned.
-absl::StatusOr<CodegenPassUnit> FunctionBaseToPipelinedBlock(
+absl::StatusOr<CodegenContext> FunctionBaseToPipelinedBlock(
     const PipelineSchedule& schedule, const CodegenOptions& options,
     FunctionBase* f);
 
 // Converts every scheduled function/proc in `package` to pipelined blocks.
-absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
+absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
     const PackagePipelineSchedules& schedule, const CodegenOptions& options,
     Package* package);
 
@@ -61,13 +61,14 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
 //  inout - block:    Destination block, should be empty.
 absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
                                             const CodegenOptions& options,
-                                            CodegenPassUnit& unit, Function* f,
+                                            CodegenContext& context,
+                                            Function* f,
                                             Block* ABSL_NONNULL block);
 
 // Converts a function into a combinational block. Function arguments become
 // input ports, function return value becomes an output port. Returns a pointer
 // to the block.
-absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
+absl::StatusOr<CodegenContext> FunctionToCombinationalBlock(
     Function* f, const CodegenOptions& options);
 
 // Converts the given proc to a combinational block. Proc must be stateless
@@ -76,12 +77,12 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
 // channels become input/output ports with additional ready/valid ports for flow
 // control. Receives/sends of single-value channels become input/output ports in
 // the returned block.
-absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
+absl::StatusOr<CodegenContext> ProcToCombinationalBlock(
     Proc* proc, const CodegenOptions& options);
 
 // Converts the given function or proc to a combinational block. See
 // FunctionToCombinationalBlock() or ProcToCombinationalBlock() for more info.
-absl::StatusOr<CodegenPassUnit> FunctionBaseToCombinationalBlock(
+absl::StatusOr<CodegenContext> FunctionBaseToCombinationalBlock(
     FunctionBase* f, const CodegenOptions& options);
 
 // Adds a register between the node and all its downstream users.  Returns the

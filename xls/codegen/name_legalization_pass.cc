@@ -31,6 +31,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -381,10 +382,10 @@ absl::StatusOr<bool> LegalizeNames(Block* block, bool use_system_verilog) {
 }  // namespace
 
 absl::StatusOr<bool> NameLegalizationPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
-  for (const std::unique_ptr<Block>& block : unit->package()->blocks()) {
+  for (const std::unique_ptr<Block>& block : package->blocks()) {
     XLS_ASSIGN_OR_RETURN(
         bool block_changed,
         LegalizeNames(block.get(),

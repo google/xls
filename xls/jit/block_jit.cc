@@ -63,6 +63,7 @@
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -77,10 +78,9 @@ class CheckNoInstantiationsOnTop : public verilog::CodegenPass {
 
  protected:
   absl::StatusOr<bool> RunInternal(
-      verilog::CodegenPassUnit* unit,
-      const verilog::CodegenPassOptions& options,
-      verilog::CodegenPassResults* results) const final {
-    XLS_RET_CHECK(unit->top_block()->GetInstantiations().empty())
+      Package* package, const verilog::CodegenPassOptions& options,
+      PassResults* results, verilog::CodegenContext& context) const final {
+    XLS_RET_CHECK(context.top_block()->GetInstantiations().empty())
         << "Jit is unable to implement instantiations.";
     return false;
   }
@@ -221,8 +221,8 @@ absl::StatusOr<ElaborationJitData> CloneElaborationPackage(
       ClonePackage(elab.package(),
                    absl::StrFormat("jit_clone_of_%s", elab.package()->name())));
   XLS_ASSIGN_OR_RETURN(Block * cloned_top, jit_package->GetBlock(top_name));
-  verilog::CodegenPassUnit pass_unit(jit_package.get(), cloned_top);
-  verilog::CodegenPassResults results;
+  verilog::CodegenContext codegen_context(cloned_top);
+  PassResults results;
   verilog::CodegenPassOptions opts{
       .codegen_options =
           verilog::CodegenOptions()
@@ -232,12 +232,14 @@ absl::StatusOr<ElaborationJitData> CloneElaborationPackage(
               .set_fifo_module("")
               .set_nodata_fifo_module("")};
   XLS_RETURN_IF_ERROR(
-      PrepareForJitPassPipeline()->Run(&pass_unit, opts, &results).status());
+      PrepareForJitPassPipeline()
+          ->Run(jit_package.get(), opts, &results, codegen_context)
+          .status());
   return ElaborationJitData{
       .cloned_package = std::move(jit_package),
-      .inlined_block = pass_unit.top_block(),
-      .renamed_registers = std::move(results.register_renames),
-      .added_registers = std::move(results.inserted_registers),
+      .inlined_block = codegen_context.top_block(),
+      .renamed_registers = std::move(codegen_context.register_renames()),
+      .added_registers = std::move(codegen_context.inserted_registers()),
   };
 }
 

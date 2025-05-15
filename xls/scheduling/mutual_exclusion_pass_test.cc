@@ -64,23 +64,22 @@ class SimplificationPass : public OptimizationCompoundPass {
 using MutualExclusionPassTest = IrTestBase;
 
 absl::StatusOr<bool> RunMutualExclusionPass(
-    SchedulingUnit&& unit,
+    Package* package, SchedulingContext&& context,
     const SchedulingPassOptions& options = SchedulingPassOptions()) {
   PassResults results;
   bool changed = false;
   bool subpass_changed;
   {
-    SchedulingPassResults scheduling_results;
-    XLS_ASSIGN_OR_RETURN(
-        subpass_changed,
-        MutualExclusionPass().Run(&unit, options, &scheduling_results));
+    PassResults scheduling_results;
+    XLS_ASSIGN_OR_RETURN(subpass_changed,
+                         MutualExclusionPass().Run(
+                             package, options, &scheduling_results, context));
     changed = changed || subpass_changed;
   }
-  OptimizationContext context;
-  XLS_ASSIGN_OR_RETURN(
-      subpass_changed,
-      SimplificationPass().Run(unit.GetPackage(), OptimizationPassOptions(),
-                               &results, context));
+  OptimizationContext opt_context;
+  XLS_ASSIGN_OR_RETURN(subpass_changed, SimplificationPass().Run(
+                                            package, OptimizationPassOptions(),
+                                            &results, opt_context));
   changed = changed || subpass_changed;
   return changed;
 }
@@ -88,21 +87,22 @@ absl::StatusOr<bool> RunMutualExclusionPass(
 absl::StatusOr<bool> RunMutualExclusionPass(
     Package* p,
     const SchedulingPassOptions& options = SchedulingPassOptions()) {
-  return RunMutualExclusionPass(SchedulingUnit::CreateForWholePackage(p),
+  return RunMutualExclusionPass(p, SchedulingContext::CreateForWholePackage(p),
                                 options);
 }
 absl::StatusOr<bool> RunMutualExclusionPass(
     FunctionBase* f,
     const SchedulingPassOptions& options = SchedulingPassOptions()) {
-  return RunMutualExclusionPass(SchedulingUnit::CreateForSingleFunction(f),
-                                options);
+  return RunMutualExclusionPass(
+      f->package(), SchedulingContext::CreateForSingleFunction(f), options);
 }
 
 absl::StatusOr<bool> RunMutualExclusionPass(FunctionBase* f,
                                             const SchedulingOptions& options) {
   SchedulingPassOptions pass_options;
   pass_options.scheduling_options = options;
-  return RunMutualExclusionPass(SchedulingUnit::CreateForSingleFunction(f),
+  return RunMutualExclusionPass(f->package(),
+                                SchedulingContext::CreateForSingleFunction(f),
                                 pass_options);
 }
 

@@ -657,13 +657,13 @@ TEST_P(BlockGeneratorTest, AssertFmtOnlyConsumerOfReset) {
       PipelineSchedule schedule,
       RunPipelineSchedule(f, *estimator,
                           SchedulingOptions().pipeline_stages(1)));
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenContext context,
                            FunctionBaseToPipelinedBlock(schedule, options, f));
   // With format string, no label.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string verilog,
       GenerateVerilog(
-          unit.top_block(),
+          context.top_block(),
           options.SetOpOverride(
               Op::kAssert,
               OpOverrideAssertion(
@@ -1518,13 +1518,14 @@ proc running_sum(first_cycle: bits[1], init={1}) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("running_sum");
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
-                                                     schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenContext context,
+      FunctionBaseToPipelinedBlock(schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block()));
+                           GenerateSignature(options, context.top_block()));
 
   verilog = absl::StrCat("`include \"fifo.v\"\n\n", verilog);
 
@@ -1621,17 +1622,18 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
   options.module_name("pipelined_proc");
   options.use_system_verilog(UseSystemVerilog());
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
-                                                     schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenContext context,
+      FunctionBaseToPipelinedBlock(schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
 
   VLOG(3) << "Verilog:";
   XLS_VLOG_LINES(3, verilog);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block()));
+                           GenerateSignature(options, context.top_block()));
 
   ModuleSimulator simulator = NewModuleSimulator(verilog, sig);
 
@@ -1707,14 +1709,15 @@ proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
   options.module_name("pipelined_proc");
   options.use_system_verilog(UseSystemVerilog());
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
-                                                     schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenContext context,
+      FunctionBaseToPipelinedBlock(schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block()));
+                           GenerateSignature(options, context.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -1765,14 +1768,15 @@ proc bad_alternator(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
   options.module_name("pipelined_proc");
   options.use_system_verilog(UseSystemVerilog());
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
-                                                     schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenContext context,
+      FunctionBaseToPipelinedBlock(schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block()));
+                           GenerateSignature(options, context.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -1821,14 +1825,15 @@ proc lookup_proc(x: bits[1], z: bits[1], init={0, 0}) {
   options.module_name("pipelined_proc");
   options.use_system_verilog(UseSystemVerilog());
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
-                                                     schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenContext context,
+      FunctionBaseToPipelinedBlock(schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block()));
+                           GenerateSignature(options, context.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2022,14 +2027,15 @@ proc mux_proc(tkn: token, init={token}) {
   options.module_name("pipelined_proc");
   options.use_system_verilog(UseSystemVerilog());
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
-                                                     schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenContext context,
+      FunctionBaseToPipelinedBlock(schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block()));
+                           GenerateSignature(options, context.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2078,14 +2084,14 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
 
   options.max_inline_depth(10);
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenContext context,
                            FunctionToCombinationalBlock(f, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block()));
+                           GenerateSignature(options, context.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2113,14 +2119,14 @@ TEST_P(BlockGeneratorTest, ArrayIndexBounds) {
 
   options.max_inline_depth(10);
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenContext context,
                            FunctionToCombinationalBlock(f, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block()));
+                           GenerateSignature(options, context.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2167,14 +2173,14 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
   options.module_name("pipelined_proc");
   options.use_system_verilog(UseSystemVerilog());
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenContext context,
                            FunctionToCombinationalBlock(f, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block()));
+                           GenerateSignature(options, context.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2223,14 +2229,14 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
 
   options.max_inline_depth(2);
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenContext context,
                            FunctionToCombinationalBlock(f, options));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, unit.top_block()));
+                           GenerateSignature(options, context.top_block()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2347,18 +2353,19 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
       codegen_options().reset("rst", /*asynchronous=*/false,
                               /*active_low=*/false, /*reset_data_path=*/true);
 
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
-                                                     schedule, options, proc));
-  OptimizationContext context;
-  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(context);
-  CodegenPassResults results;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenContext context,
+      FunctionBaseToPipelinedBlock(schedule, options, proc));
+  OptimizationContext opt_context;
+  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(opt_context);
+  PassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = options,
                                           .schedule = schedule,
                                           .delay_estimator = estimator};
-  XLS_ASSERT_OK(passes->Run(&unit, codegen_pass_options, &results));
+  XLS_ASSERT_OK(passes->Run(&package, codegen_pass_options, &results, context));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
@@ -2390,19 +2397,20 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
       RunPipelineSchedule(proc, *estimator,
                           SchedulingOptions().pipeline_stages(1)));
   CodegenOptions options = codegen_options();
-  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
-                                                     schedule, options, proc));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenContext context,
+      FunctionBaseToPipelinedBlock(schedule, options, proc));
 
-  OptimizationContext context;
-  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(context);
-  CodegenPassResults results;
+  OptimizationContext opt_context;
+  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(opt_context);
+  PassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = options,
                                           .schedule = schedule,
                                           .delay_estimator = estimator};
-  XLS_ASSERT_OK(passes->Run(&unit, codegen_pass_options, &results));
+  XLS_ASSERT_OK(passes->Run(&package, codegen_pass_options, &results, context));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(unit.top_block(), options));
+                           GenerateVerilog(context.top_block(), options));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);

@@ -116,11 +116,11 @@ absl::StatusOr<std::string> Synthesizer::FunctionBaseToVerilog(
     }
     verilog::CodegenOptions options;
     options.entry(f->name());
-    XLS_ASSIGN_OR_RETURN(verilog::CodegenPassUnit unit,
+    XLS_ASSIGN_OR_RETURN(verilog::CodegenContext context,
                          verilog::FunctionToCombinationalBlock(
                              down_cast<Function *>(f), options));
-    XLS_RET_CHECK(unit.HasTopBlock());
-    tmp_block = unit.top_block();
+    XLS_RET_CHECK(context.HasTopBlock());
+    tmp_block = context.top_block();
   } else {
     ScheduleCycleMap cycle_map;
     for (Node *node : f->nodes()) {
@@ -140,10 +140,10 @@ absl::StatusOr<std::string> Synthesizer::FunctionBaseToVerilog(
     }
     PipelineSchedule schedule(f, cycle_map, 1);
     XLS_ASSIGN_OR_RETURN(
-        verilog::CodegenPassUnit unit,
+        verilog::CodegenContext context,
         verilog::FunctionBaseToPipelinedBlock(schedule, options, f));
-    XLS_RET_CHECK_NE(unit.top_block(), nullptr);
-    tmp_block = unit.top_block();
+    XLS_RET_CHECK(context.HasTopBlock());
+    tmp_block = context.top_block();
   }
 
   verilog::CodegenOptions options;

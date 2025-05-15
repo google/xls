@@ -27,21 +27,23 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value_utils.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
 
   // Build vector of (Block, Register) because removing registers invalidates
   // block->GetRegisters(). Removing the registers later requires a pointer to
   // the block that contains the register.
   std::vector<std::pair<Block*, Register*>> to_remove;
-  for (const std::unique_ptr<Block>& block : unit->package()->blocks()) {
+  for (const std::unique_ptr<Block>& block : package->blocks()) {
     for (Register* reg : block->GetRegisters()) {
       if (reg->type()->GetFlatBitCount() == 0) {
         to_remove.push_back(std::make_pair(block.get(), reg));
@@ -72,10 +74,10 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
   }
 
   if (changed) {
-    unit->GcMetadata();
+    context.GcMetadata();
     // Pull the registers out of pipeline-register & state list if they are
     // there.
-    for (auto& [block, metadata] : unit->metadata()) {
+    for (auto& [block, metadata] : context.metadata()) {
       for (std::optional<StateRegister>& reg :
            metadata.streaming_io_and_pipeline.state_registers) {
         if (reg.has_value() && removed_regs.contains(reg->reg)) {

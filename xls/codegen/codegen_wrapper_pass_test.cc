@@ -27,6 +27,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -38,12 +39,12 @@ using ::absl_testing::IsOkAndHolds;
 class CodegenWrapperPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Block* block) {
-    CodegenPassResults results;
-    CodegenPassUnit unit(block->package(), block);
+    PassResults results;
+    CodegenContext context(block);
     OptimizationContext optimization_context;
     return CodegenWrapperPass(std::make_unique<DeadCodeEliminationPass>(),
                               optimization_context)
-        .Run(&unit, CodegenPassOptions(), &results);
+        .Run(block->package(), CodegenPassOptions(), &results, context);
   }
 };
 

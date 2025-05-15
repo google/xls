@@ -124,25 +124,25 @@ class SideEffectConditionPassTest
         CreateSchedulingPassPipeline(optimization_context);
     XLS_RET_CHECK(p->GetTop().has_value());
     FunctionBase* top = p->GetTop().value();
-    auto scheduling_unit =
-        SchedulingUnit::CreateForSingleFunction(p->GetTop().value());
+    auto scheduling_context =
+        SchedulingContext::CreateForSingleFunction(p->GetTop().value());
     SchedulingPassOptions scheduling_pass_options{
         .scheduling_options = std::move(scheduling_options),
         .delay_estimator = GetDelayEstimator("unit").value()};
-    SchedulingPassResults scheduling_results;
+    PassResults scheduling_results;
     XLS_RETURN_IF_ERROR(scheduling_pipeline
-                            ->Run(&scheduling_unit, scheduling_pass_options,
-                                  &scheduling_results)
+                            ->Run(p, scheduling_pass_options,
+                                  &scheduling_results, scheduling_context)
                             .status());
-    const PipelineSchedule& schedule = scheduling_unit.schedules().at(top);
+    const PipelineSchedule& schedule = scheduling_context.schedules().at(top);
     XLS_ASSIGN_OR_RETURN(
-        CodegenPassUnit unit,
+        CodegenContext context,
         FunctionBaseToPipelinedBlock(schedule, codegen_options, top));
-    CodegenPassResults results;
-    CodegenPassOptions codegen_pass_option{.codegen_options = codegen_options,
-                                           .schedule = schedule};
+    PassResults results;
+    CodegenPassOptions codegen_pass_options{.codegen_options = codegen_options,
+                                            .schedule = schedule};
     return GetCodegenPass(GetParam(), optimization_context)
-        ->Run(&unit, codegen_pass_option, &results);
+        ->Run(p, codegen_pass_options, &results, context);
   }
   static absl::StatusOr<std::vector<std::string>> RunInterpreterWithEvents(
       Block* block,
@@ -200,14 +200,14 @@ TEST_F(SideEffectConditionPassTest, UnchangedIfCombinationalFunction) {
   ASSERT_NE(top, nullptr);
   CodegenOptions codegen_options;
   XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenPassUnit unit,
+      CodegenContext context,
       FunctionBaseToCombinationalBlock(top, codegen_options));
-  CodegenPassResults results;
+  PassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = codegen_options};
-  OptimizationContext context;
+  OptimizationContext opt_context;
   EXPECT_THAT(
-      GetCodegenPass(CodegenPassType::kSideEffectConditionPassOnly, context)
-          ->Run(&unit, codegen_pass_options, &results),
+      GetCodegenPass(CodegenPassType::kSideEffectConditionPassOnly, opt_context)
+          ->Run(&package, codegen_pass_options, &results, context),
       IsOkAndHolds(false));
 }
 
@@ -238,13 +238,13 @@ TEST_P(SideEffectConditionPassTest, CombinationalProc) {
 
   CodegenOptions codegen_options;
   XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenPassUnit unit,
+      CodegenContext context,
       FunctionBaseToCombinationalBlock(top, codegen_options));
-  CodegenPassResults results;
+  PassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = codegen_options};
-  OptimizationContext context;
-  EXPECT_THAT(GetCodegenPass(GetParam(), context)
-                  ->Run(&unit, codegen_pass_options, &results),
+  OptimizationContext opt_context;
+  EXPECT_THAT(GetCodegenPass(GetParam(), opt_context)
+                  ->Run(&package, codegen_pass_options, &results, context),
               IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package.GetBlock("g"));

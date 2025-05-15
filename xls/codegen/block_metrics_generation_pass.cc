@@ -20,14 +20,16 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/package.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> BlockMetricsGenerationPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
-  for (auto& [block, metadata] : unit->metadata()) {
+  for (auto& [block, metadata] : context.metadata()) {
     if (!metadata.signature.has_value()) {
       return absl::InvalidArgumentError(
           "Block metrics should be run after signature generation.");

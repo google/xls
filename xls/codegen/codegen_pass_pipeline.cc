@@ -130,12 +130,12 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline(
 
 absl::StatusOr<bool> RunCodegenPassPipeline(const CodegenPassOptions& options,
                                             Block* block,
-                                            OptimizationContext& context) {
+                                            OptimizationContext& opt_context) {
   std::unique_ptr<CodegenCompoundPass> pipeline =
-      CreateCodegenPassPipeline(context);
-  CodegenPassUnit unit(block->package(), block);
-  CodegenPassResults results;
-  return pipeline->Run(&unit, options, &results);
+      CreateCodegenPassPipeline(opt_context);
+  CodegenContext codegen_context(block);
+  PassResults results;
+  return pipeline->Run(block->package(), options, &results, codegen_context);
 }
 
 }  // namespace xls::verilog

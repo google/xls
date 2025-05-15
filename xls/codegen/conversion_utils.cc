@@ -318,7 +318,7 @@ absl::Status MaybeAddClockPort(Block* block, const CodegenOptions& options) {
 // Send/receive nodes are not cloned from the proc into the block, but the
 // network of tokens connecting these send/receive nodes *is* cloned. This
 // function removes the token operations.
-absl::Status RemoveDeadTokenNodes(Block* block, CodegenPassUnit* unit) {
+absl::Status RemoveDeadTokenNodes(Block* block, CodegenContext& context) {
   // Receive nodes produce a tuple of a token and a data value. In the block
   // this becomes a tuple of a token and an InputPort. Run tuple simplification
   // to disentangle the tuples so DCE can do its work and eliminate the token
@@ -332,28 +332,31 @@ absl::Status RemoveDeadTokenNodes(Block* block, CodegenPassUnit* unit) {
   // individually on the block.
   OptimizationPassOptions options;
   PassResults results;
-  OptimizationContext context;
+  OptimizationContext opt_context;
   DataflowSimplificationPass dataflow_pass;
   XLS_RETURN_IF_ERROR(
-      dataflow_pass.RunOnFunctionBase(block, options, &results, context)
+      dataflow_pass.RunOnFunctionBase(block, options, &results, opt_context)
           .status());
   DataflowSimplificationPass dataflow_simp_pass;
   XLS_RETURN_IF_ERROR(
-      dataflow_simp_pass.RunOnFunctionBase(block, options, &results, context)
+      dataflow_simp_pass
+          .RunOnFunctionBase(block, options, &results, opt_context)
           .status());
   DeadCodeEliminationPass dce_pass;
   XLS_RETURN_IF_ERROR(
-      dce_pass.RunOnFunctionBase(block, options, &results, context).status());
+      dce_pass.RunOnFunctionBase(block, options, &results, opt_context)
+          .status());
 
-  CodegenPassResults codegen_results;
   CodegenPassOptions codegen_options;
   RegisterLegalizationPass reg_legalization_pass;
   XLS_RETURN_IF_ERROR(
-      reg_legalization_pass.Run(unit, codegen_options, &codegen_results)
+      reg_legalization_pass
+          .Run(block->package(), codegen_options, &results, context)
           .status());
 
   XLS_RETURN_IF_ERROR(
-      dce_pass.RunOnFunctionBase(block, options, &results, context).status());
+      dce_pass.RunOnFunctionBase(block, options, &results, opt_context)
+          .status());
 
   // Nodes like cover and assert have token types and will cause
   // a dangling token network remaining.

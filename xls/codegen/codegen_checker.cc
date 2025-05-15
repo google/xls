@@ -31,13 +31,14 @@
 #include "xls/ir/node.h"
 #include "xls/ir/register.h"
 #include "xls/ir/verifier.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 namespace {
 
-absl::Status CheckNodeToStageMap(const CodegenPassUnit& unit) {
-  for (const auto& [block, metadata] : unit.metadata()) {
+absl::Status CheckNodeToStageMap(const CodegenContext& context) {
+  for (const auto& [block, metadata] : context.metadata()) {
     XLS_RET_CHECK_EQ(
         metadata.streaming_io_and_pipeline.node_to_stage_map.size(),
         absl::c_count_if(
@@ -165,15 +166,16 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
 }
 
 }  // namespace
-absl::Status CodegenChecker::Run(CodegenPassUnit* unit,
+absl::Status CodegenChecker::Run(Package* package,
                                  const CodegenPassOptions& options,
-                                 CodegenPassResults* results) const {
-  XLS_RETURN_IF_ERROR(CheckNodeToStageMap(*unit)) << unit->DumpIr();
-  for (const auto& [block, metadata] : unit->metadata()) {
+                                 PassResults* results,
+                                 CodegenContext& context) const {
+  XLS_RETURN_IF_ERROR(CheckNodeToStageMap(context)) << package->DumpIr();
+  for (const auto& [block, metadata] : context.metadata()) {
     XLS_RETURN_IF_ERROR(
         CheckStreamingIO(metadata.streaming_io_and_pipeline, block));
   }
-  return VerifyPackage(unit->package());
+  return VerifyPackage(package);
 }
 
 }  // namespace xls::verilog

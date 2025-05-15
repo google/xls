@@ -103,7 +103,7 @@ TEST(BlockMetricsGeneratorTest, PipelineRegistersCount) {
                           SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenPassUnit unit,
+      CodegenContext context,
       FunctionBaseToPipelinedBlock(
           schedule,
           CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
@@ -111,7 +111,7 @@ TEST(BlockMetricsGeneratorTest, PipelineRegistersCount) {
           f));
 
   XLS_ASSERT_OK_AND_ASSIGN(BlockMetricsProto proto,
-                           GenerateBlockMetrics(unit.top_block()));
+                           GenerateBlockMetrics(context.top_block()));
 
   EXPECT_EQ(proto.flop_count(), schedule.CountFinalInteriorPipelineRegisters());
 }
@@ -236,7 +236,7 @@ TEST(BlockMetricsGeneratorTest, BillOfMaterials) {
                           SchedulingOptions().pipeline_stages(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenPassUnit unit,
+      CodegenContext context,
       FunctionBaseToPipelinedBlock(
           schedule,
           CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
@@ -244,7 +244,7 @@ TEST(BlockMetricsGeneratorTest, BillOfMaterials) {
           f));
 
   XLS_ASSERT_OK_AND_ASSIGN(BlockMetricsProto proto,
-                           GenerateBlockMetrics(unit.top_block()));
+                           GenerateBlockMetrics(context.top_block()));
 
   EXPECT_EQ(proto.bill_of_materials_size(), 6);
   EXPECT_EQ(proto.bill_of_materials(0).op(), ToOpProto(Op::kInputPort));

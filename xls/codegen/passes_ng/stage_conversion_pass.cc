@@ -22,20 +22,23 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
 #include "xls/ir/xls_ir_interface.pb.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> StageConversionPass::RunOnFunctionInternal(
-    CodegenPassUnit* unit, Function* f, const PipelineSchedule& schedule,
-    const CodegenPassOptions& options, CodegenPassResults* results) const {
+    Function* f, const PipelineSchedule& schedule,
+    const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   VLOG(3) << "Converting function ir to stage ir:";
   XLS_VLOG_LINES(3, f->DumpIr());
 
   XLS_RETURN_IF_ERROR(SingleFunctionBaseToPipelinedStages(
       f->name(), schedule, options.codegen_options,
-      unit->stage_conversion_metadata()));
+      context.stage_conversion_metadata()));
 
   return true;
 }

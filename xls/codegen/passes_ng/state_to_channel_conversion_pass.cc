@@ -35,12 +35,13 @@
 #include "xls/ir/package.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> StateToChannelConversionPass::RunOnProcInternal(
-    CodegenPassUnit*, Proc* proc, const CodegenPassOptions& options,
-    CodegenPassResults*) const {
+    Proc* proc, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   // Preprocess: find all state-elements and create a channel.
   struct StateChannelInfo {
     AfterAll* token;

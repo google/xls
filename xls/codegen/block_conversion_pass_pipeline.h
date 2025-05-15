@@ -31,12 +31,12 @@ namespace xls::verilog {
 // Also, initializes the package with blocks for eventual block conversion.
 // TODO(tedhong): 2024-11-22 - Make this a separate pass.
 //
-absl::StatusOr<CodegenPassUnit> CreateBlocksFor(
+absl::StatusOr<CodegenContext> CreateBlocksFor(
     const PackagePipelineSchedules& schedules, const CodegenOptions& options,
     Package* package);
 
 // Returns the block conversion pass pipeline which runs on a package and
-// lowers the IR to Block IR in prepration for eventual lowering to Verilog.
+// lowers the IR to Block IR in preparation for eventual lowering to Verilog.
 //
 // After BlockConversion further Block passes in Codegen Pass are needed
 // before BlockGeneration can lower the Block IR to Verilog.

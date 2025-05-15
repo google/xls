@@ -37,6 +37,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/verifier.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -47,9 +48,10 @@ using ::testing::ElementsAre;
 class FfiInstantiationPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Block* block) {
-    CodegenPassResults results;
-    CodegenPassUnit unit(block->package(), block);
-    return FfiInstantiationPass().Run(&unit, CodegenPassOptions(), &results);
+    PassResults results;
+    CodegenContext context(block);
+    return FfiInstantiationPass().Run(block->package(), CodegenPassOptions(),
+                                      &results, context);
   }
 };
 

@@ -34,6 +34,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -58,15 +59,15 @@ class MarkChannelFifosPassTest : public IrTestBase {
     BlockBuilder bb("bb", &pkg, /*should_verify=*/false);
     XLS_ASSIGN_OR_RETURN(Block * b, bb.Build());
     MarkChannelFifosPass mcfp;
-    CodegenPassUnit pu(&pkg, b);
+    CodegenContext context(b);
     CodegenPassOptions opt;
     opt.codegen_options.flop_inputs(input_flops)
         .flop_outputs(output_flops)
         .flop_inputs_kind(input_kind)
         .flop_outputs_kind(output_kind);
-    CodegenPassResults res;
+    PassResults res;
 
-    XLS_RETURN_IF_ERROR(mcfp.Run(&pu, opt, &res).status());
+    XLS_RETURN_IF_ERROR(mcfp.Run(&pkg, opt, &res, context).status());
     XLS_RET_CHECK(chan->channel_config().input_flop_kind()) << "No input kind";
     XLS_RET_CHECK(chan->channel_config().output_flop_kind())
         << "no output kind";
@@ -320,15 +321,16 @@ void IgnoresManuallySet(bool input_flops, CodegenOptions::IOKind input_kind,
   BlockBuilder bb("bb", &pkg, /*should_verify=*/false);
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
   MarkChannelFifosPass mcfp;
-  CodegenPassUnit pu(&pkg, b);
+  CodegenContext context(b);
   CodegenPassOptions opt;
   opt.codegen_options.flop_inputs(input_flops)
       .flop_outputs(output_flops)
       .flop_inputs_kind(input_kind)
       .flop_outputs_kind(output_kind);
-  CodegenPassResults res;
+  PassResults res;
 
-  EXPECT_THAT(mcfp.Run(&pu, opt, &res), absl_testing::IsOkAndHolds(false));
+  EXPECT_THAT(mcfp.Run(&pkg, opt, &res, context),
+              absl_testing::IsOkAndHolds(false));
 }
 
 void IgnoresNonStreaming(bool input_flops, CodegenOptions::IOKind input_kind,
@@ -347,15 +349,16 @@ void IgnoresNonStreaming(bool input_flops, CodegenOptions::IOKind input_kind,
   BlockBuilder bb("bb", &pkg, /*should_verify=*/false);
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
   MarkChannelFifosPass mcfp;
-  CodegenPassUnit pu(&pkg, b);
+  CodegenContext context(b);
   CodegenPassOptions opt;
   opt.codegen_options.flop_inputs(input_flops)
       .flop_outputs(output_flops)
       .flop_inputs_kind(input_kind)
       .flop_outputs_kind(output_kind);
-  CodegenPassResults res;
+  PassResults res;
 
-  EXPECT_THAT(mcfp.Run(&pu, opt, &res), absl_testing::IsOkAndHolds(false));
+  EXPECT_THAT(mcfp.Run(&pkg, opt, &res, context),
+              absl_testing::IsOkAndHolds(false));
 }
 
 constexpr std::initializer_list<CodegenOptions::IOKind> kIoKinds = {

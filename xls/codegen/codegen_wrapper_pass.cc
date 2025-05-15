@@ -17,19 +17,20 @@
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> CodegenWrapperPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   XLS_ASSIGN_OR_RETURN(
-      bool res,
-      wrapped_pass_->Run(unit->package(), OptimizationPassOptions(options),
-                         results, context_));
+      bool res, wrapped_pass_->Run(package, OptimizationPassOptions(options),
+                                   results, opt_context_));
   if (res) {
-    unit->GcMetadata();
+    context.GcMetadata();
   }
   return res;
 }

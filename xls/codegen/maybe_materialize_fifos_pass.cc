@@ -38,6 +38,7 @@
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -272,10 +273,10 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
 }  // namespace
 
 absl::StatusOr<bool> MaybeMaterializeFifosPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
-                       BlockElaboration::Elaborate(unit->top_block()));
+                       BlockElaboration::Elaborate(context.top_block()));
   std::vector<FifoInstantiation*> insts;
   for (Block* b : elab.blocks()) {
     for (xls::Instantiation* i : b->GetInstantiations()) {
@@ -310,7 +311,7 @@ absl::StatusOr<bool> MaybeMaterializeFifosPass::RunInternal(
 
   for (FifoInstantiation* f : insts) {
     XLS_ASSIGN_OR_RETURN(
-        impls[f], MaterializeFifo(uniquer, unit->package(), f,
+        impls[f], MaterializeFifo(uniquer, package, f,
                                   *options.codegen_options.GetResetBehavior(),
                                   reset_name));
   }
@@ -348,11 +349,11 @@ absl::StatusOr<bool> MaybeMaterializeFifosPass::RunInternal(
 
   // Record all the elaboration registers added by this new block.
   XLS_ASSIGN_OR_RETURN(BlockElaboration new_elab,
-                       BlockElaboration::Elaborate(unit->top_block()));
+                       BlockElaboration::Elaborate(context.top_block()));
   for (const auto& [i, blk] : impls) {
     for (BlockInstance* inst : new_elab.GetInstances(blk)) {
       for (Register* reg : blk->GetRegisters()) {
-        results->inserted_registers[absl::StrFormat(
+        context.inserted_registers()[absl::StrFormat(
             "%s%s", inst->RegisterPrefix(), reg->name())] = reg->type();
       }
     }

@@ -25,6 +25,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -51,10 +52,10 @@ absl::StatusOr<bool> FilterVerboseTraces(Block* block, int64_t verbosity) {
 }  // namespace
 
 absl::StatusOr<bool> TraceVerbosityPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
-  for (const std::unique_ptr<Block>& block : unit->package()->blocks()) {
+  for (const std::unique_ptr<Block>& block : package->blocks()) {
     XLS_ASSIGN_OR_RETURN(
         bool block_changed,
         FilterVerboseTraces(block.get(),
@@ -63,7 +64,7 @@ absl::StatusOr<bool> TraceVerbosityPass::RunInternal(
   }
 
   if (changed) {
-    unit->GcMetadata();
+    context.GcMetadata();
   }
 
   return changed;

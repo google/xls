@@ -40,6 +40,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/solvers/z3_ir_translator.h"
 
@@ -423,8 +424,8 @@ absl::StatusOr<bool> AddDefaultNextValues(
 }  // namespace
 
 absl::StatusOr<bool> ProcStateLegalizationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, SchedulingUnit* s, const SchedulingPassOptions& options,
-    SchedulingPassResults* results) const {
+    FunctionBase* f, const SchedulingPassOptions& options, PassResults* results,
+    SchedulingContext& context) const {
   if (!f->IsProc()) {
     // Not a proc; no change needed.
     return false;

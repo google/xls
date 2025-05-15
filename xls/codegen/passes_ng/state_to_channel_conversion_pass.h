@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/ir/proc.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -31,8 +32,8 @@ class StateToChannelConversionPass : public CodegenProcPass {
                         "Proc state to channel conversion pass") {}
 
   absl::StatusOr<bool> RunOnProcInternal(
-      CodegenPassUnit* unit, Proc* proc, const CodegenPassOptions& options,
-      CodegenPassResults* results) const override;
+      Proc* proc, const CodegenPassOptions& options, PassResults* results,
+      CodegenContext& context) const override;
 };
 
 }  // namespace xls::verilog

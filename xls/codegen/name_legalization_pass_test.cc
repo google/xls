@@ -32,6 +32,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/passes/pass_base.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls::verilog {
@@ -55,13 +56,14 @@ constexpr std::string_view kTestdataPath = "xls/codegen/testdata";
 
 absl::StatusOr<bool> RunLegalizationPass(Block* block,
                                          bool use_system_verilog) {
-  CodegenPassResults results;
-  CodegenPassUnit unit(block->package(), block);
+  PassResults results;
+  CodegenContext context(block);
   CodegenOptions codegen_options;
   codegen_options.use_system_verilog(use_system_verilog);
-  verilog::CodegenPassOptions options;
+  CodegenPassOptions options;
   options.codegen_options = codegen_options;
-  return NameLegalizationPass().Run(&unit, options, &results);
+  return NameLegalizationPass().Run(block->package(), options, &results,
+                                    context);
 }
 
 TEST_F(NameLegalizationPassIrTest, NoKeywordNamesCausesNoChange) {

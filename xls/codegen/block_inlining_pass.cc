@@ -36,6 +36,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -306,17 +307,17 @@ absl::StatusOr<Block*> InlineElaboration(
 }  // namespace
 
 absl::StatusOr<bool> BlockInliningPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   // No need to inline blocks when we don't have 2+ blocks.
-  if (unit->package()->blocks().size() < 2) {
+  if (package->blocks().size() < 2) {
     return false;
   }
   XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
-                       BlockElaboration::Elaborate(unit->top_block()));
+                       BlockElaboration::Elaborate(context.top_block()));
   XLS_ASSIGN_OR_RETURN(Block * new_top_block,
-                       InlineElaboration(elab, results->register_renames));
-  unit->SetTopBlock(new_top_block);
+                       InlineElaboration(elab, context.register_renames()));
+  context.SetTopBlock(new_top_block);
 
   return true;
 }

@@ -31,6 +31,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/register.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -161,16 +162,16 @@ absl::StatusOr<bool> RunOnBlock(Block* block, CodegenMetadata& metadata,
 }  // namespace
 
 absl::StatusOr<bool> RegisterCombiningPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
-  for (auto& [block, metadata] : unit->metadata()) {
+  for (auto& [block, metadata] : context.metadata()) {
     XLS_ASSIGN_OR_RETURN(bool block_changed,
                          RunOnBlock(block, metadata, options));
     changed = changed || block_changed;
   }
   if (changed) {
-    unit->GcMetadata();
+    context.GcMetadata();
   }
 
   return changed;

@@ -34,18 +34,19 @@
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 absl::StatusOr<bool> PrioritySelectReductionPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   bool changed = false;
-  for (std::unique_ptr<Block>& block : unit->package()->blocks()) {
-    if (!unit->HasMetadataForBlock(block.get())) {
+  for (std::unique_ptr<Block>& block : package->blocks()) {
+    if (!context.HasMetadataForBlock(block.get())) {
       continue;
     }
-    CodegenMetadata& metadata = unit->GetMetadataForBlock(block.get());
+    CodegenMetadata& metadata = context.GetMetadataForBlock(block.get());
 
     BddQueryEngine query_engine(BddQueryEngine::kDefaultPathLimit);
     XLS_RETURN_IF_ERROR(query_engine.Populate(block.get()).status());

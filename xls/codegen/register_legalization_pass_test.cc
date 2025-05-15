@@ -26,6 +26,8 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -35,14 +37,14 @@ using ::testing::UnorderedElementsAre;
 
 class RegisterLegalizationPassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Run(CodegenPassUnit& unit) {
-    CodegenPassResults results;
-    return RegisterLegalizationPass().Run(&unit, CodegenPassOptions(),
-                                          &results);
+  absl::StatusOr<bool> Run(Package* p, CodegenContext& context) {
+    PassResults results;
+    return RegisterLegalizationPass().Run(p, CodegenPassOptions(), &results,
+                                          context);
   }
   absl::StatusOr<bool> Run(Block* block) {
-    CodegenPassUnit unit(block->package(), block);
-    return Run(unit);
+    CodegenContext context(block);
+    return Run(block->package(), context);
   }
 };
 
@@ -98,8 +100,8 @@ TEST_F(RegisterLegalizationPassTest, KeepsUnitListsValid) {
   XLS_ASSERT_OK_AND_ASSIGN(auto* write32, blk->GetRegisterWrite(reg32));
   XLS_ASSERT_OK_AND_ASSIGN(auto* reg0, blk->GetRegister("reg0"));
   XLS_ASSERT_OK_AND_ASSIGN(auto* write0, blk->GetRegisterWrite(reg0));
-  CodegenPassUnit unit(p.get(), blk);
-  unit.GetMetadataForBlock(blk)
+  CodegenContext context(blk);
+  context.GetMetadataForBlock(blk)
       .streaming_io_and_pipeline.pipeline_registers.push_back(
           {PipelineRegister{.reg = reg32,
                             .reg_write = write32->As<RegisterWrite>(),
@@ -109,8 +111,8 @@ TEST_F(RegisterLegalizationPassTest, KeepsUnitListsValid) {
                             .reg_write = write0->As<RegisterWrite>(),
                             .reg_read = read0.node()->As<RegisterRead>()}});
 
-  XLS_ASSERT_OK(Run(unit));
-  EXPECT_THAT(unit.GetMetadataForBlock(blk)
+  XLS_ASSERT_OK(Run(p.get(), context));
+  EXPECT_THAT(context.GetMetadataForBlock(blk)
                   .streaming_io_and_pipeline.pipeline_registers,
               testing::ElementsAre(testing::ElementsAre(
                   m::PipelineRegister(reg32, write32, read32.node()))));

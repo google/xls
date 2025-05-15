@@ -16,6 +16,8 @@
 #define XLS_SCHEDULING_PIPELINE_SCHEDULING_PASS_H_
 
 #include "absl/status/statusor.h"
+#include "xls/ir/package.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
@@ -31,9 +33,10 @@ class PipelineSchedulingPass : public SchedulingPass {
   ~PipelineSchedulingPass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunInternal(
-      SchedulingUnit* unit, const SchedulingPassOptions& options,
-      SchedulingPassResults* results) const override;
+  absl::StatusOr<bool> RunInternal(Package* package,
+                                   const SchedulingPassOptions& options,
+                                   PassResults* results,
+                                   SchedulingContext& context) const override;
 };
 
 }  // namespace xls

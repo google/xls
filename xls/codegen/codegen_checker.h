@@ -17,14 +17,17 @@
 
 #include "absl/status/status.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/ir/package.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
 // Invariant checker for codegen passes which runs xls::Verifier.
 class CodegenChecker : public CodegenInvariantChecker {
  public:
-  absl::Status Run(CodegenPassUnit* unit, const CodegenPassOptions& options,
-                   CodegenPassResults* results) const override;
+  absl::Status Run(Package* package, const CodegenPassOptions& options,
+                   PassResults* results,
+                   CodegenContext& context) const override;
 };
 
 }  // namespace xls::verilog

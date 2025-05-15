@@ -19,6 +19,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
@@ -30,20 +31,18 @@ namespace xls {
 // attempt to prove that one of the explicit `next_value` nodes is guaranteed to
 // fire), but may produce dead `next_value` nodes in some scenarios. However,
 // this should have a minimal impact on QoR.
-class ProcStateLegalizationPass
-    : public SchedulingOptimizationFunctionBasePass {
+class ProcStateLegalizationPass : public SchedulingFunctionBasePass {
  public:
   static constexpr std::string_view kName = "proc_state_legal";
 
   ProcStateLegalizationPass()
-      : SchedulingOptimizationFunctionBasePass(kName,
-                                               "Proc State Legalization") {}
+      : SchedulingFunctionBasePass(kName, "Proc State Legalization") {}
   ~ProcStateLegalizationPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, SchedulingUnit* s, const SchedulingPassOptions& options,
-      SchedulingPassResults* results) const override;
+      FunctionBase* f, const SchedulingPassOptions& options,
+      PassResults* results, SchedulingContext& context) const override;
 };
 
 }  // namespace xls

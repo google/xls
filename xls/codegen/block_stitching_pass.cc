@@ -42,7 +42,9 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -427,7 +429,7 @@ absl::Status StitchChannel(
 
 // Stitch all blocks in the container block together, punching external
 // sends/receives through the container.
-absl::Status StitchBlocks(CodegenPassUnit& unit,
+absl::Status StitchBlocks(Package* package, CodegenContext& unit,
                           const CodegenOptions& options) {
   VLOG(2) << "Stitching blocks for " << unit.top_block()->name();
   auto channel_map = ChannelMap::Create(unit);
@@ -435,8 +437,8 @@ absl::Status StitchBlocks(CodegenPassUnit& unit,
       (absl::flat_hash_map<Block*, ::xls::Instantiation*> instantiations),
       InstantiateBlocksInContainer(unit.top_block(), options));
   std::vector<Channel*> channels_sorted_by_name;
-  channels_sorted_by_name.reserve(unit.package()->channels().size());
-  for (Channel* channel : unit.package()->channels()) {
+  channels_sorted_by_name.reserve(package->channels().size());
+  for (Channel* channel : package->channels()) {
     channels_sorted_by_name.push_back(channel);
   }
   absl::c_sort(channels_sorted_by_name, Channel::NameLessThan);
@@ -454,7 +456,7 @@ absl::Status StitchBlocks(CodegenPassUnit& unit,
 // existing block if it is renamed.
 absl::StatusOr<Block*> AddBlockWithName(
     Package* package, std::string_view name,
-    CodegenPassUnit::MetadataMap& metadata_map) {
+    CodegenContext::MetadataMap& metadata_map) {
   NameUniquer uniquer(/*separator=*/"__", /*reserved_names=*/{});
   Block* block_with_name = nullptr;
   std::vector<Block*> blocks_sorted_by_name;
@@ -486,12 +488,11 @@ absl::StatusOr<Block*> AddBlockWithName(
 }  // namespace
 
 absl::StatusOr<bool> BlockStitchingPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   // No need to stitch blocks when we don't have 2+ blocks or if channels are
   // proc-scoped.
-  if (unit->package()->blocks().size() < 2 ||
-      unit->package()->ChannelsAreProcScoped()) {
+  if (package->blocks().size() < 2 || package->ChannelsAreProcScoped()) {
     return false;
   }
 
@@ -501,21 +502,21 @@ absl::StatusOr<bool> BlockStitchingPass::RunInternal(
         "Splitting outputs is not supported by block stitching.");
   }
   std::string top_block_name(options.codegen_options.module_name().value_or(
-      SanitizeIdentifier(unit->name())));
+      SanitizeIdentifier(context.top_block()->name())));
 
   XLS_ASSIGN_OR_RETURN(
       Block * top_block,
-      AddBlockWithName(unit->package(), top_block_name, unit->metadata()));
-  unit->SetTopBlock(top_block);
+      AddBlockWithName(package, top_block_name, context.metadata()));
+  context.SetTopBlock(top_block);
 
   // Insert metadata for the new container block.
-  unit->metadata().insert({unit->top_block(), CodegenMetadata{}});
+  context.metadata().insert({context.top_block(), CodegenMetadata{}});
 
-  XLS_RETURN_IF_ERROR(unit->top_block()->AddClockPort("clk"));
+  XLS_RETURN_IF_ERROR(context.top_block()->AddClockPort("clk"));
   XLS_RETURN_IF_ERROR(
-      MaybeAddResetPort(unit->top_block(), options.codegen_options));
+      MaybeAddResetPort(context.top_block(), options.codegen_options));
 
-  XLS_RETURN_IF_ERROR(StitchBlocks(*unit, options.codegen_options));
+  XLS_RETURN_IF_ERROR(StitchBlocks(package, context, options.codegen_options));
   return true;
 }
 

@@ -32,6 +32,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
@@ -62,15 +63,15 @@ MATCHER_P(Reg, name,
 // of test setup that is equally fragile to any changes to block-converter.
 class RegisterCombiningPassTest : public IrTestBase {
  public:
-  absl::StatusOr<bool> Run(CodegenPassUnit& unit) {
+  absl::StatusOr<bool> Run(Package* package, CodegenContext& context) {
     RegisterCombiningPass rcp;
     PassResults res;
     return rcp.Run(
-        &unit,
+        package,
         CodegenPassOptions{
             .codegen_options = CodegenOptions().register_merge_strategy(
                 CodegenOptions::RegisterMergeStrategy::kIdentityOnly)},
-        {});
+        &res, context);
   }
 
   std::string NodeName(BValue n) {
@@ -134,7 +135,7 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
                          },
                          13);
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto unit,
+      auto context,
       FunctionBaseToPipelinedBlock(sched,
                                    CodegenOptions()
                                        .emit_as_pipeline(true)
@@ -145,10 +146,10 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
                                        .streaming_channel_ready_suffix("_r")
                                        .streaming_channel_valid_suffix("_v"),
                                    proc));
-  RecordProperty("ir", unit.DumpIr());
+  RecordProperty("ir", p->DumpIr());
   // Just make sure that changes to block-conversion haven't broken us.
   ASSERT_THAT(
-      unit.top_block()->GetRegisters(),
+      context.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
           NodeToRegMatcher(st, 0), NodeToRegMatcher(st, 1),
@@ -164,11 +165,11 @@ TEST_F(RegisterCombiningPassTest, CombineBasic) {
       << "Register names changed. Test needs to be updated for "
          "block-conversion changes";
 
-  EXPECT_THAT(Run(unit), IsOkAndHolds(true));
-  RecordProperty("result", unit.DumpIr());
+  EXPECT_THAT(Run(p.get(), context), IsOkAndHolds(true));
+  RecordProperty("result", p->DumpIr());
 
   EXPECT_THAT(
-      unit.top_block()->GetRegisters(),
+      context.top_block()->GetRegisters(),
 
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
@@ -215,7 +216,7 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
                          },
                          15);
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto unit,
+      auto context,
       FunctionBaseToPipelinedBlock(sched,
                                    CodegenOptions()
                                        .emit_as_pipeline(true)
@@ -226,10 +227,10 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
                                        .streaming_channel_ready_suffix("_r")
                                        .streaming_channel_valid_suffix("_v"),
                                    proc));
-  RecordProperty("ir", unit.DumpIr());
+  RecordProperty("ir", p->DumpIr());
   // Just make sure that changes to block-conversion haven't broken us.
   ASSERT_THAT(
-      unit.top_block()->GetRegisters(),
+      context.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st1), StateToRegFullMatcher(st1),
           NodeToRegMatcher(st1, 0), NodeToRegMatcher(st1, 1),
@@ -250,11 +251,11 @@ TEST_F(RegisterCombiningPassTest, CombineOverlap) {
       << "Register names changed. Test needs to be updated for "
          "block-conversion changes";
 
-  EXPECT_THAT(Run(unit), IsOkAndHolds(true));
-  RecordProperty("result", unit.DumpIr());
+  EXPECT_THAT(Run(p.get(), context), IsOkAndHolds(true));
+  RecordProperty("result", p->DumpIr());
 
   EXPECT_THAT(
-      unit.top_block()->GetRegisters(),
+      context.top_block()->GetRegisters(),
 
       UnorderedElementsAre(
           StateToRegMatcher(st1), StateToRegFullMatcher(st1),
@@ -306,7 +307,7 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
                          },
                          16);
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto unit,
+      auto context,
       FunctionBaseToPipelinedBlock(sched,
                                    CodegenOptions()
                                        .emit_as_pipeline(true)
@@ -317,10 +318,10 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
                                        .streaming_channel_ready_suffix("_r")
                                        .streaming_channel_valid_suffix("_v"),
                                    proc));
-  RecordProperty("ir", unit.DumpIr());
+  RecordProperty("ir", p->DumpIr());
   // Just make sure that changes to block-conversion haven't broken us.
   ASSERT_THAT(
-      unit.top_block()->GetRegisters(),
+      context.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st1), StateToRegFullMatcher(st1),
           NodeToRegMatcher(st1, 0), NodeToRegMatcher(st1, 1),
@@ -345,11 +346,11 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
       << "Register names changed. Test needs to be updated for "
          "block-conversion changes";
 
-  EXPECT_THAT(Run(unit), IsOkAndHolds(true));
-  RecordProperty("result", unit.DumpIr());
+  EXPECT_THAT(Run(p.get(), context), IsOkAndHolds(true));
+  RecordProperty("result", p->DumpIr());
 
   EXPECT_THAT(
-      unit.top_block()->GetRegisters(),
+      context.top_block()->GetRegisters(),
 
       UnorderedElementsAre(
           StateToRegMatcher(st1), StateToRegFullMatcher(st1),
@@ -393,7 +394,7 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
                          },
                          13);
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto unit,
+      auto context,
       FunctionBaseToPipelinedBlock(sched,
                                    CodegenOptions()
                                        .emit_as_pipeline(true)
@@ -404,10 +405,10 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
                                        .streaming_channel_ready_suffix("_r")
                                        .streaming_channel_valid_suffix("_v"),
                                    proc));
-  RecordProperty("ir", unit.DumpIr());
+  RecordProperty("ir", p->DumpIr());
   // Just make sure that changes to block-conversion haven't broken us.
   ASSERT_THAT(
-      unit.top_block()->GetRegisters(),
+      context.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
           NodeToRegMatcher(st, 0), NodeToRegMatcher(st, 1),
@@ -423,11 +424,11 @@ TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
       << "Register names changed. Test needs to be updated for "
          "block-conversion changes";
 
-  EXPECT_THAT(Run(unit), IsOkAndHolds(true));
-  RecordProperty("result", unit.DumpIr());
+  EXPECT_THAT(Run(p.get(), context), IsOkAndHolds(true));
+  RecordProperty("result", p->DumpIr());
 
   EXPECT_THAT(
-      unit.top_block()->GetRegisters(),
+      context.top_block()->GetRegisters(),
 
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
@@ -471,7 +472,7 @@ TEST_F(RegisterCombiningPassTest, DoesntApplyToPredicatedReads) {
                          },
                          13);
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto unit,
+      auto context,
       FunctionBaseToPipelinedBlock(sched,
                                    CodegenOptions()
                                        .emit_as_pipeline(true)
@@ -482,10 +483,10 @@ TEST_F(RegisterCombiningPassTest, DoesntApplyToPredicatedReads) {
                                        .streaming_channel_ready_suffix("_r")
                                        .streaming_channel_valid_suffix("_v"),
                                    proc));
-  RecordProperty("ir", unit.DumpIr());
+  RecordProperty("ir", p->DumpIr());
   // Just make sure that changes to block-conversion haven't broken us.
   ASSERT_THAT(
-      unit.top_block()->GetRegisters(),
+      context.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
           NodeToRegMatcher(st, 0), NodeToRegMatcher(st, 1),
@@ -501,11 +502,11 @@ TEST_F(RegisterCombiningPassTest, DoesntApplyToPredicatedReads) {
       << "Register names changed. Test needs to be updated for "
          "block-conversion changes";
 
-  EXPECT_THAT(Run(unit), IsOkAndHolds(false));
-  RecordProperty("result", unit.DumpIr());
+  EXPECT_THAT(Run(p.get(), context), IsOkAndHolds(false));
+  RecordProperty("result", p->DumpIr());
 
   EXPECT_THAT(
-      unit.top_block()->GetRegisters(),
+      context.top_block()->GetRegisters(),
       UnorderedElementsAre(
           StateToRegMatcher(st), StateToRegFullMatcher(st),
           NodeToRegMatcher(st, 0), NodeToRegMatcher(st, 1),

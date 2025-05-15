@@ -67,6 +67,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_ir_interface.pb.h"
+#include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 
@@ -397,7 +398,8 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
 
 absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
                                             const CodegenOptions& options,
-                                            CodegenPassUnit& unit, Function* f,
+                                            CodegenContext& context,
+                                            Function* f,
                                             Block* ABSL_NONNULL block) {
   if (options.manual_control().has_value()) {
     return absl::UnimplementedError("Manual pipeline control not implemented");
@@ -465,7 +467,7 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
   port_order.push_back(std::string{options.output_port_name()});
   XLS_RETURN_IF_ERROR(block->ReorderPorts(port_order));
 
-  unit.SetMetadataForBlock(
+  context.SetMetadataForBlock(
       block,
       CodegenMetadata{
           .streaming_io_and_pipeline = std::move(streaming_io_and_pipeline),
@@ -658,7 +660,7 @@ absl::StatusOr<std::vector<FunctionBase*>> GetBlockConversionOrder(
   return order;
 }
 
-absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
+absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
     const PackagePipelineSchedules& schedules, const CodegenOptions& options,
     Package* package) {
   XLS_RET_CHECK_GT(schedules.size(), 0);
@@ -702,15 +704,16 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
   NameUniquer block_name_uniquer("__");
   XLS_RET_CHECK_EQ(block_name_uniquer.GetSanitizedUniqueName(module_name),
                    module_name);
-  CodegenPassUnit unit(package, top_block);
+  CodegenContext context(top_block);
 
   // Run codegen passes as appropriate
   {
     MarkChannelFifosPass mark_chans;
     CodegenPassOptions cg_options;
     cg_options.codegen_options = options;
-    CodegenPassResults results;
-    XLS_RETURN_IF_ERROR(mark_chans.Run(&unit, cg_options, &results).status());
+    PassResults results;
+    XLS_RETURN_IF_ERROR(
+        mark_chans.Run(package, cg_options, &results, context).status());
   }
 
   absl::flat_hash_map<FunctionBase*, Block*> converted_blocks;
@@ -729,14 +732,14 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
           package->AddBlock(std::make_unique<Block>(sub_block_name, package));
     }
     if (fb->IsProc()) {
-      XLS_RETURN_IF_ERROR(
-          SingleProcToPipelinedBlock(schedule, options, unit, fb->AsProcOrDie(),
-                                     sub_block, converted_blocks));
+      XLS_RETURN_IF_ERROR(SingleProcToPipelinedBlock(
+          schedule, options, context, fb->AsProcOrDie(), sub_block,
+          converted_blocks));
     } else if (fb->IsFunction()) {
       XLS_RET_CHECK_EQ(conversion_order.size(), 1);
       XLS_RET_CHECK_EQ(fb, top);
       XLS_RETURN_IF_ERROR(SingleFunctionToPipelinedBlock(
-          schedule, options, unit, fb->AsFunctionOrDie(), sub_block));
+          schedule, options, context, fb->AsFunctionOrDie(), sub_block));
     } else {
       return absl::InvalidArgumentError(absl::StrFormat(
           "FunctionBase %s was not a function or proc.", fb->name()));
@@ -745,12 +748,12 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
   }
 
   // Avoid leaving any dangling pointers.
-  unit.GcMetadata();
+  context.GcMetadata();
 
-  return unit;
+  return context;
 }
 
-absl::StatusOr<CodegenPassUnit> FunctionBaseToPipelinedBlock(
+absl::StatusOr<CodegenContext> FunctionBaseToPipelinedBlock(
     const PipelineSchedule& schedule, const CodegenOptions& options,
     FunctionBase* f) {
   PackagePipelineSchedules schedules{{f, schedule}};
@@ -758,13 +761,13 @@ absl::StatusOr<CodegenPassUnit> FunctionBaseToPipelinedBlock(
   XLS_RETURN_IF_ERROR(f->package()->SetTop(f));
 
   // Don't return yet if there's an error- we need to restore old_top first.
-  absl::StatusOr<CodegenPassUnit> unit_or_status =
+  absl::StatusOr<CodegenContext> result_or_status =
       PackageToPipelinedBlocks(schedules, options, f->package());
   XLS_RETURN_IF_ERROR(f->package()->SetTop(old_top));
-  return unit_or_status;
+  return result_or_status;
 }
 
-absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
+absl::StatusOr<CodegenContext> FunctionToCombinationalBlock(
     Function* f, const CodegenOptions& options) {
   XLS_RET_CHECK(!options.valid_control().has_value())
       << "Combinational block generator does not support valid control.";
@@ -775,7 +778,7 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
 
   // A map from the nodes in 'f' to their corresponding node in the block.
   absl::flat_hash_map<Node*, Node*> node_map;
-  CodegenPassUnit unit(block->package(), block);
+  CodegenContext context(block);
 
   // Emit the parameters first to ensure their order is preserved in the
   // block.
@@ -793,7 +796,7 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
                             return p.name() == param->name();
                           });
       if (name != func_interface->parameters().end() && name->has_sv_type()) {
-        unit.GetMetadataForBlock(block)
+        context.GetMetadataForBlock(block)
             .streaming_io_and_pipeline
             .input_port_sv_type[node_map[param]->As<InputPort>()] =
             name->sv_type();
@@ -819,18 +822,18 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
                        block->AddOutputPort(options.output_port_name(),
                                             node_map.at(f->return_value())));
   if (func_interface && func_interface->has_sv_result_type()) {
-    unit.GetMetadataForBlock(block)
+    context.GetMetadataForBlock(block)
         .streaming_io_and_pipeline.output_port_sv_type[output] =
         func_interface->sv_result_type();
   }
 
-  unit.GetMetadataForBlock(block)
+  context.GetMetadataForBlock(block)
       .conversion_metadata.emplace<FunctionConversionMetadata>();
-  unit.GcMetadata();
-  return unit;
+  context.GcMetadata();
+  return context;
 }
 
-absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
+absl::StatusOr<CodegenContext> ProcToCombinationalBlock(
     Proc* proc, const CodegenOptions& options) {
   VLOG(3) << "Converting proc to combinational block:";
   XLS_VLOG_LINES(3, proc->DumpIr());
@@ -891,29 +894,30 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
-  CodegenPassUnit unit(block->package(), block);
-  unit.SetMetadataForBlock(
-      unit.top_block(),
+  CodegenContext context(block);
+  context.SetMetadataForBlock(
+      context.top_block(),
       CodegenMetadata{
           .streaming_io_and_pipeline = std::move(streaming_io),
           .conversion_metadata = ProcConversionMetadata(),
           .concurrent_stages = std::nullopt,
       });
-  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block, &unit));
+  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block, context));
   VLOG(3) << "After RemoveDeadTokenNodes";
-  XLS_VLOG_LINES(3, unit.DumpIr());
+  XLS_VLOG_LINES(3, block->package()->DumpIr());
 
-  XLS_RETURN_IF_ERROR(UpdateChannelMetadata(
-      unit.GetMetadataForBlock(unit.top_block()).streaming_io_and_pipeline,
-      unit.top_block()));
+  XLS_RETURN_IF_ERROR(
+      UpdateChannelMetadata(context.GetMetadataForBlock(context.top_block())
+                                .streaming_io_and_pipeline,
+                            context.top_block()));
   VLOG(3) << "After UpdateChannelMetadata";
-  XLS_VLOG_LINES(3, unit.DumpIr());
+  XLS_VLOG_LINES(3, block->package()->DumpIr());
 
-  unit.GcMetadata();
-  return unit;
+  context.GcMetadata();
+  return context;
 }
 
-absl::StatusOr<CodegenPassUnit> FunctionBaseToCombinationalBlock(
+absl::StatusOr<CodegenContext> FunctionBaseToCombinationalBlock(
     FunctionBase* f, const CodegenOptions& options) {
   if (f->IsFunction()) {
     return FunctionToCombinationalBlock(f->AsFunctionOrDie(), options);

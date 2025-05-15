@@ -37,8 +37,7 @@ namespace xls {
 //
 // Each generator of a pipeline should define a subclass which overrides the
 // AddPassToPipeline function as appropriate to construct the requested passes.
-template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
-          typename... ContextT>
+template <typename OptionsT, typename... ContextT>
 class PipelineGeneratorBase {
  public:
   virtual ~PipelineGeneratorBase() = default;
@@ -46,13 +45,11 @@ class PipelineGeneratorBase {
                                   std::string_view long_name)
       : short_name_(short_name), long_name_(long_name) {}
 
-  absl::StatusOr<
-      std::unique_ptr<CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>>>
+  absl::StatusOr<std::unique_ptr<CompoundPassBase<OptionsT, ContextT...>>>
   GeneratePipeline(const PassPipelineProto& pipeline) const {
     XLS_RET_CHECK(pipeline.has_top()) << "Empty pipeline";
-    auto top = std::make_unique<
-        CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>>(short_name_,
-                                                                long_name_);
+    auto top = std::make_unique<CompoundPassBase<OptionsT, ContextT...>>(
+        short_name_, long_name_);
     XLS_RETURN_IF_ERROR(GeneratePipelineElement(top.get(), pipeline.top()));
     return std::move(top);
   }
@@ -62,18 +59,15 @@ class PipelineGeneratorBase {
   // <FIXEDPOINT> := '[' <PIPELINE> ']'
   // <NAME> := [a-zA-Z0-9{}!@#$%^&*-_=+;:'",.<>/?\\*+`~()]+
   // <NAME> tokens are delimited by whitespace **ONLY**.
-  absl::StatusOr<
-      std::unique_ptr<CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>>>
+  absl::StatusOr<std::unique_ptr<CompoundPassBase<OptionsT, ContextT...>>>
   GeneratePipeline(std::string_view pipeline) const {
     std::string passes = absl::StrReplaceAll(
         pipeline, {{"\n", " "}, {"\t", " "}, {"[", " [ "}, {"]", " ] "}});
     auto toks = absl::StrSplit(passes, ' ');
-    std::vector<
-        std::unique_ptr<CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>>>
-        stack;
-    stack.emplace_back(std::make_unique<
-                       CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>>(
-        short_name_, long_name_));
+    std::vector<std::unique_ptr<CompoundPassBase<OptionsT, ContextT...>>> stack;
+    stack.emplace_back(
+        std::make_unique<CompoundPassBase<OptionsT, ContextT...>>(short_name_,
+                                                                  long_name_));
     int fp_cnt = 0;
     for (auto v : toks) {
       XLS_RET_CHECK_GE(stack.size(), 1);
@@ -83,8 +77,8 @@ class PipelineGeneratorBase {
       if (v == "]") {
         XLS_RET_CHECK_GE(stack.size(), 2)
             << "Invalid pipeline definition. Unmatched ']' in pipeline.";
-        std::unique_ptr<CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>>
-            last = std::move(stack.back());
+        std::unique_ptr<CompoundPassBase<OptionsT, ContextT...>> last =
+            std::move(stack.back());
         stack.pop_back();
         XLS_ASSIGN_OR_RETURN(auto finalized,
                              FinalizeWithOptions(std::move(last), {}));
@@ -93,8 +87,7 @@ class PipelineGeneratorBase {
       }
       if (v == "[") {
         stack.emplace_back(
-            std::make_unique<FixedPointCompoundPassBase<IrT, OptionsT, ResultsT,
-                                                        ContextT...>>(
+            std::make_unique<FixedPointCompoundPassBase<OptionsT, ContextT...>>(
                 absl::StrFormat("fp-%s-%d", short_name_, fp_cnt),
                 absl::StrFormat("fixed-point-%s-%d", long_name_, fp_cnt)));
         fp_cnt++;
@@ -111,20 +104,18 @@ class PipelineGeneratorBase {
 
  protected:
   virtual absl::Status AddPassToPipeline(
-      CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>* holder_pass,
+      CompoundPassBase<OptionsT, ContextT...>* holder_pass,
       std::string_view pass_name,
       const PassPipelineProto::PassOptions& options) const = 0;
 
   // Apply any options given to the 'cur' pipeline and return it.
-  virtual absl::StatusOr<
-      std::unique_ptr<PassBase<IrT, OptionsT, ResultsT, ContextT...>>>
+  virtual absl::StatusOr<std::unique_ptr<PassBase<OptionsT, ContextT...>>>
   FinalizeWithOptions(
-      std::unique_ptr<CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>>&&
-          cur,
+      std::unique_ptr<CompoundPassBase<OptionsT, ContextT...>>&& cur,
       const PassPipelineProto::PassOptions& options) const = 0;
 
   absl::Status GeneratePipelineElement(
-      CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>* current_pipeline,
+      CompoundPassBase<OptionsT, ContextT...>* current_pipeline,
       const PassPipelineProto::Element& element) const {
     if (element.has_pass_name()) {
       return AddPassToPipeline(current_pipeline, element.pass_name(),
@@ -132,10 +123,10 @@ class PipelineGeneratorBase {
     }
     if (element.has_fixedpoint()) {
       const auto& fp_proto = element.fixedpoint();
-      auto fixedpoint = std::make_unique<
-          FixedPointCompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>>(
-          fp_proto.has_short_name() ? fp_proto.short_name() : "fixedpoint",
-          fp_proto.has_long_name() ? fp_proto.long_name() : "fixedpoint");
+      auto fixedpoint =
+          std::make_unique<FixedPointCompoundPassBase<OptionsT, ContextT...>>(
+              fp_proto.has_short_name() ? fp_proto.short_name() : "fixedpoint",
+              fp_proto.has_long_name() ? fp_proto.long_name() : "fixedpoint");
       for (const PassPipelineProto::Element& e : fp_proto.elements()) {
         XLS_RETURN_IF_ERROR(GeneratePipelineElement(fixedpoint.get(), e));
       }
@@ -147,8 +138,7 @@ class PipelineGeneratorBase {
     }
     if (element.has_pipeline()) {
       const auto& p_proto = element.pipeline();
-      auto pipeline = std::make_unique<
-          CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>>(
+      auto pipeline = std::make_unique<CompoundPassBase<OptionsT, ContextT...>>(
           p_proto.has_short_name() ? p_proto.short_name() : "pipeline",
           p_proto.has_long_name() ? p_proto.long_name() : "pipeline");
       for (const PassPipelineProto::Element& e : p_proto.elements()) {

@@ -33,42 +33,17 @@
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
-/* static */ SchedulingUnit SchedulingUnit::CreateForSingleFunction(
+/* static */ SchedulingContext SchedulingContext::CreateForSingleFunction(
     FunctionBase* f) {
-  return SchedulingUnit(f);
+  return SchedulingContext(f);
 }
-/* static */ SchedulingUnit SchedulingUnit::CreateForWholePackage(Package* p) {
-  return SchedulingUnit(p);
-}
-
-std::string SchedulingUnit::DumpIr() const {
-  // Dump the IR followed by the schedule. The schedule is commented out
-  // ('//') so the output is parsable.
-  std::string out = ir_->DumpIr();
-
-  absl::StatusOr<std::vector<FunctionBase*>> schedulable_functions =
-      GetSchedulableFunctions();
-  if (!schedulable_functions.ok()) {
-    absl::StrAppend(&out, "\n\n// ", schedulable_functions.status().message(),
-                    "\n");
-    return out;
-  }
-  for (FunctionBase* scheduled_function : *schedulable_functions) {
-    auto itr = schedules_.find(scheduled_function);
-    if (itr == schedules_.end()) {
-      continue;
-    }
-    const PipelineSchedule& schedule = itr->second;
-    absl::StrAppend(&out, "\n\n// Pipeline Schedule\n");
-    for (auto line : absl::StrSplit(schedule.ToString(), '\n')) {
-      absl::StrAppend(&out, "// ", line, "\n");
-    }
-  }
-  return out;
+/* static */ SchedulingContext SchedulingContext::CreateForWholePackage(
+    Package* p) {
+  return SchedulingContext(p);
 }
 
 absl::StatusOr<std::vector<FunctionBase*>>
-SchedulingUnit::GetSchedulableFunctions() const {
+SchedulingContext::GetSchedulableFunctions() const {
   // Package* means 'all FunctionBases in the package'
   if (std::holds_alternative<Package*>(schedulable_unit_)) {
     XLS_RET_CHECK_EQ(ir_, std::get<Package*>(schedulable_unit_));
@@ -95,43 +70,11 @@ SchedulingUnit::GetSchedulableFunctions() const {
   return std::vector<FunctionBase*>{f};
 }
 
-bool SchedulingUnit::IsScheduled() const {
+bool SchedulingContext::IsScheduled() const {
   std::vector<FunctionBase*> schedulable_functions;
   return absl::c_all_of(schedulable_functions, [this](FunctionBase* f) {
     return schedules_.contains(f);
   });
-}
-
-absl::StatusOr<bool> SchedulingOptimizationFunctionBasePass::RunOnFunctionBase(
-    FunctionBase* f, SchedulingUnit* s, const SchedulingPassOptions& options,
-    SchedulingPassResults* results) const {
-  XLS_RET_CHECK_EQ(f->package(), s->GetPackage());
-  VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
-                                long_name(), f->name(),
-                                results->total_invocations);
-  VLOG(3) << "Before:";
-  XLS_VLOG_LINES(3, f->DumpIr());
-
-  XLS_ASSIGN_OR_RETURN(bool changed,
-                       RunOnFunctionBaseInternal(f, s, options, results));
-
-  VLOG(3) << absl::StreamFormat("After [changed = %d]:", changed);
-  XLS_VLOG_LINES(3, f->DumpIr());
-  return changed;
-}
-
-absl::StatusOr<bool> SchedulingOptimizationFunctionBasePass::RunInternal(
-    SchedulingUnit* s, const SchedulingPassOptions& options,
-    SchedulingPassResults* results) const {
-  bool changed = false;
-  XLS_ASSIGN_OR_RETURN(std::vector<FunctionBase*> schedulable_functions,
-                       s->GetSchedulableFunctions());
-  for (FunctionBase* f : schedulable_functions) {
-    XLS_ASSIGN_OR_RETURN(bool function_changed,
-                         RunOnFunctionBaseInternal(f, s, options, results));
-    changed = changed || function_changed;
-  }
-  return changed;
 }
 
 }  // namespace xls

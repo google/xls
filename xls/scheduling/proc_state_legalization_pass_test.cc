@@ -66,10 +66,10 @@ class ProcStateLegalizationPassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Proc* f) { return Run(f, SchedulingPassOptions()); }
   absl::StatusOr<bool> Run(Proc* f, const SchedulingPassOptions& options) {
     PassResults results;
-    SchedulingUnit unit = SchedulingUnit::CreateForSingleFunction(f);
-    SchedulingPassResults scheduling_results;
-    return ProcStateLegalizationPass().RunOnFunctionBase(f, &unit, options,
-                                                         &scheduling_results);
+    SchedulingContext context = SchedulingContext::CreateForSingleFunction(f);
+    PassResults scheduling_results;
+    return ProcStateLegalizationPass().RunOnFunctionBase(
+        f, options, &scheduling_results, context);
   }
 };
 

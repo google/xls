@@ -43,6 +43,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
@@ -237,7 +238,7 @@ using PipelineScheduleOrGroup =
 
 absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
     FunctionBase* main, const SchedulingOptions& scheduling_options,
-    const DelayEstimator* delay_estimator, SchedulingPassResults* results,
+    const DelayEstimator* delay_estimator, PassResults* results,
     synthesis::Synthesizer* synthesizer) {
   SchedulingPassOptions sched_options;
   sched_options.scheduling_options = scheduling_options;
@@ -248,12 +249,13 @@ absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
       CreateSchedulingPassPipeline(optimization_context,
                                    scheduling_options.opt_level());
   XLS_RETURN_IF_ERROR(main->package()->SetTop(main));
-  auto scheduling_unit =
+  auto scheduling_context =
       (scheduling_options.schedule_all_procs())
-          ? SchedulingUnit::CreateForWholePackage(main->package())
-          : SchedulingUnit::CreateForSingleFunction(main);
+          ? SchedulingContext::CreateForWholePackage(main->package())
+          : SchedulingContext::CreateForSingleFunction(main);
   absl::Status scheduling_status =
-      scheduling_pipeline->Run(&scheduling_unit, sched_options, results)
+      scheduling_pipeline
+          ->Run(main->package(), sched_options, results, scheduling_context)
           .status();
   if (!scheduling_status.ok()) {
     if (absl::IsResourceExhausted(scheduling_status)) {
@@ -273,12 +275,12 @@ absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
     }
     return scheduling_status;
   }
-  XLS_RET_CHECK(scheduling_unit.schedules().contains(main));
+  XLS_RET_CHECK(scheduling_context.schedules().contains(main));
   if (scheduling_options.schedule_all_procs()) {
-    return std::move(scheduling_unit).schedules();
+    return std::move(scheduling_context).schedules();
   }
-  auto schedule_itr = scheduling_unit.schedules().find(main);
-  XLS_RET_CHECK(schedule_itr != scheduling_unit.schedules().end());
+  auto schedule_itr = scheduling_context.schedules().find(main);
+  XLS_RET_CHECK(schedule_itr != scheduling_context.schedules().end());
 
   return schedule_itr->second;
 }
@@ -413,7 +415,7 @@ absl::StatusOr<PipelineScheduleOrGroup> Schedule(
       !scheduling_options.fdo_synthesizer_name().empty()) {
     XLS_ASSIGN_OR_RETURN(synthesizer, SetUpSynthesizer(scheduling_options));
   }
-  SchedulingPassResults results;
+  PassResults results;
   absl::StatusOr<PipelineScheduleOrGroup> result = RunSchedulingPipeline(
       *p->GetTop(), scheduling_options, delay_estimator, &results, synthesizer);
   if (metrics != nullptr) {

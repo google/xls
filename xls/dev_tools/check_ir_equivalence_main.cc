@@ -176,14 +176,15 @@ class ProcStateLegalizationPassShim : public OptimizationFunctionBasePass {
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* fb, const OptimizationPassOptions& options,
       PassResults* pass_results, OptimizationContext& context) const override {
-    SchedulingUnit sched = SchedulingUnit::CreateForSingleFunction(fb);
-    SchedulingPassResults results;
+    SchedulingContext sched_context =
+        SchedulingContext::CreateForSingleFunction(fb);
+    PassResults results;
     if (pass_results) {
       results.invocation = std::move(pass_results->invocation);
     }
-    XLS_ASSIGN_OR_RETURN(bool res,
-                         proc_state_sched_pass_.RunOnFunctionBase(
-                             fb, &sched, SchedulingPassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(
+        bool res, proc_state_sched_pass_.RunOnFunctionBase(
+                      fb, SchedulingPassOptions(), &results, sched_context));
     if (pass_results) {
       pass_results->invocation = std::move(results.invocation);
     }

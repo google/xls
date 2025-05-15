@@ -35,7 +35,9 @@
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
 #include "xls/ir/type.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
@@ -149,10 +151,10 @@ static absl::StatusOr<NameSet> ExtractReturnNames(std::string_view tpl) {
 
 // Public interface
 absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
-    CodegenPassUnit* unit, const CodegenPassOptions& options,
-    CodegenPassResults* results) const {
+    Package* package, const CodegenPassOptions& options, PassResults* results,
+    CodegenContext& context) const {
   std::vector<Node*> to_remove;
-  for (const std::unique_ptr<Block>& block : unit->package()->blocks()) {
+  for (const std::unique_ptr<Block>& block : package->blocks()) {
     for (Node* node : block->nodes()) {
       if (!node->Is<Invoke>()) {
         continue;
@@ -193,7 +195,7 @@ absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
     }
   }
   if (!to_remove.empty()) {
-    unit->GcMetadata();
+    context.GcMetadata();
   }
 
   return !to_remove.empty();

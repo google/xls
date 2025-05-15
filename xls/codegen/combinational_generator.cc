@@ -37,25 +37,27 @@ namespace verilog {
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     FunctionBase* module, const CodegenOptions& options,
     const DelayEstimator* delay_estimator, PassPipelineMetricsProto* metrics) {
-  XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
+  XLS_ASSIGN_OR_RETURN(CodegenContext context,
                        FunctionBaseToCombinationalBlock(module, options));
 
   CodegenPassOptions codegen_pass_options;
   codegen_pass_options.codegen_options = options;
   codegen_pass_options.delay_estimator = delay_estimator;
 
-  CodegenPassResults results;
-  OptimizationContext context;
-  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(context)
-                          ->Run(&unit, codegen_pass_options, &results)
-                          .status());
-  XLS_RET_CHECK_NE(unit.top_block(), nullptr);
-  XLS_RET_CHECK(unit.metadata().contains(unit.top_block()));
-  XLS_RET_CHECK(unit.metadata().at(unit.top_block()).signature.has_value());
+  PassResults results;
+  OptimizationContext opt_context;
+  XLS_RETURN_IF_ERROR(
+      CreateCodegenPassPipeline(opt_context)
+          ->Run(module->package(), codegen_pass_options, &results, context)
+          .status());
+  XLS_RET_CHECK_NE(context.top_block(), nullptr);
+  XLS_RET_CHECK(context.metadata().contains(context.top_block()));
+  XLS_RET_CHECK(
+      context.metadata().at(context.top_block()).signature.has_value());
   VerilogLineMap verilog_line_map;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
-      GenerateVerilog(unit.top_block(), options, &verilog_line_map));
+      GenerateVerilog(context.top_block(), options, &verilog_line_map));
 
   if (metrics != nullptr) {
     *metrics = results.ToProto();
@@ -65,7 +67,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
   // not just top.
   return ModuleGeneratorResult{
       verilog, verilog_line_map,
-      unit.metadata().at(unit.top_block()).signature.value()};
+      context.metadata().at(context.top_block()).signature.value()};
 }
 
 }  // namespace verilog
