@@ -2,7 +2,7 @@
 
 [TOC]
 
-Written on 2025-04-08.
+Written on 2025-04-08; last updated 2025-05-15.
 
 ## Objective
 
@@ -296,3 +296,32 @@ to accommodate instances where `f` is true.
 
 In all cases, however, we end up with at most one of the operations on each
 channel active at any given time.
+
+## Breaking Changes
+
+For non-DSLX users, or users who overrode DSLX's choices for channel strictness:
+some proc networks that previously compiled (using
+non-`proven_mutually_exclusive` channel strictness) may now fail with a "Cycle
+detected" error. This is (generally) due to real issues that were hidden by the
+previous external-arbiter implementation; the previous version made choices for
+the FIFO configuration of the channels it introduced to attempt to resolve these
+issues automatically, at the cost of silently penalizing latency and/or
+throughput in various scenarios.
+
+One subset of these issues should be detected by our implementation & converted
+into a more useful error: if there is a channel from proc A to proc B that has
+bypass enabled & uses fully unregistered outputs, then having I/O operations in
+more than one stage of either proc will create a cycle.
+
+To start with, we should report this to the user, with a suggestion that this
+can be resolved by breaking any one of the three unregistered paths involved.
+For the future, if we add backedge bounds controllable on a per-state-element or
+per-next-value basis, we can instead add the scheduling requirement that the
+token backedge for these channels must be trivial, forcing all operations on
+these channels into a single stage; however, if this makes scheduling
+impossible, it may be difficult to present a good error to the user.
+
+However, not every issue is of this form; there are cases where the use of an
+external adapter previously hid genuine cycles due to channel settings, and we
+currently do not have good error reporting for these scenarios. (I recommend
+that this should be improved separately.)
