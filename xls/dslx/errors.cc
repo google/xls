@@ -218,4 +218,25 @@ absl::Status UndefinedNameErrorStatus(const Span& span, const AstNode* expr,
       span.ToString(file_table), name, expr->ToString()));
 }
 
+absl::Status RangeStartGreaterThanEndErrorStatus(const Span& span,
+                                                 const Range* range,
+                                                 const InterpValue& start,
+                                                 const InterpValue& end,
+                                                 const FileTable& file_table) {
+  return absl::InvalidArgumentError(
+      absl::StrFormat("RangeStartGreaterThanEndError: %s Range expr `%s` start "
+                      "value %s is greater than end value %s.",
+                      span.ToString(file_table), range->ToString(),
+                      start.ToString(true), end.ToString(true)));
+}
+
+absl::Status RangeTooLargeErrorStatus(const Span& span, const Range* range,
+                                      const InterpValue& size,
+                                      const FileTable& file_table) {
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "RangeTooLargeError: %s Range expr `%s` has size %s, which is greater "
+      "than maximum number representable by u32.",
+      span.ToString(file_table), range->ToString(), size.ToString(true)));
+}
+
 }  // namespace xls::dslx

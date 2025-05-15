@@ -2577,6 +2577,20 @@ const_assert!(X == u32:1);
 )"));
 }
 
+TEST_P(TypecheckBothVersionsTest, MatchWithRangeInclusive) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f(x: u32) -> u32 {
+  match x {
+    u32:0..=u32:2 => x,
+    _ => u32:42,
+  }
+}
+
+const X: u32 = f(u32:2);
+const_assert!(X == u32:2);
+)"));
+}
+
 TEST_P(TypecheckBothVersionsTest, MatchArmDuplicated) {
   EXPECT_THAT(
       Typecheck(R"(
@@ -3346,6 +3360,15 @@ fn main() {
   let b = u32[4]:[0, 1, 2, 3];
   assert_eq(a, b)
 }
+)";
+
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST_P(TypecheckBothVersionsTest, RangeInclusive) {
+  constexpr std::string_view kProgram = R"(
+const a:u32[5] = u32:0..=u32:4;
+const_assert!(a == u32[5]:[0, 1, 2, 3, 4]);
 )";
 
   XLS_EXPECT_OK(Typecheck(kProgram));

@@ -130,6 +130,19 @@ absl::Status UndefinedNameErrorStatus(const Span& span, const AstNode* expr,
                                       std::string_view name,
                                       const FileTable& file_table);
 
+// To be raised when the start is greater than the end in a range.
+absl::Status RangeStartGreaterThanEndErrorStatus(const Span& span,
+                                                 const Range* range,
+                                                 const InterpValue& start,
+                                                 const InterpValue& end,
+                                                 const FileTable& file_table);
+
+// To be raised when the size of a range is greater than the maximum value
+// representable by u32.
+absl::Status RangeTooLargeErrorStatus(const Span& span, const Range* range,
+                                      const InterpValue& size,
+                                      const FileTable& file_table);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_ERRORS_H_

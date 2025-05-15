@@ -2223,6 +2223,45 @@ fn main() -> s32[4] {
   ExpectIr(converted, TestName());
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ConvertRangeOpUnsignedInclusiveEnd) {
+  const std::string kProgram = R"(
+fn main() -> u4[16] {
+  u4:0..=u4:15
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ConvertRangeOpSignedInclusiveEnd) {
+  const std::string kProgram = R"(
+fn main() -> s4[16] {
+  s4:-8..=s4:7
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ConvertRangeOpInclusiveEndSameValue) {
+  const std::string kProgram = R"(
+fn main() -> s32[1] {
+  s32:0x80000000..=s32:0x80000000
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, PublicFnGetsTokenWrapper) {
   const std::string kProgram = R"(
 fn callee_callee(x:u32) -> u32 {
@@ -3606,6 +3645,21 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
     }
   }
   )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchRangeInclusiveEnd) {
+  constexpr std::string_view program = R"(
+fn main(x: u2) -> u32 {
+match x {
+ u2:0..=u2:3 => u32:1,
+}
+}
+)";
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,

@@ -882,12 +882,15 @@ absl::StatusOr<Expr*> Parser::ParseRangeExpression(
   XLS_ASSIGN_OR_RETURN(Expr * result,
                        ParseLogicalOrExpression(bindings, restrictions));
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-  if (peek->kind() == TokenKind::kDoubleDot) {
+  if (peek->kind() == TokenKind::kDoubleDot ||
+      peek->kind() == TokenKind::kDoubleDotEquals) {
+    bool inclusive_end = peek->kind() == TokenKind::kDoubleDotEquals;
     DropTokenOrDie();
     XLS_ASSIGN_OR_RETURN(Expr * rhs,
                          ParseLogicalOrExpression(bindings, restrictions));
-    result = module_->Make<Range>(
-        Span(result->span().start(), rhs->span().limit()), result, rhs);
+    result =
+        module_->Make<Range>(Span(result->span().start(), rhs->span().limit()),
+                             result, inclusive_end, rhs);
   }
   return result;
 }
@@ -1719,11 +1722,14 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings,
     XLS_ASSIGN_OR_RETURN(Number * number, ParseNumber(bindings));
     XLS_ASSIGN_OR_RETURN(bool peek_is_double_dot,
                          PeekTokenIs(TokenKind::kDoubleDot));
-    if (peek_is_double_dot) {
+    XLS_ASSIGN_OR_RETURN(bool peek_is_double_dot_equals,
+                         PeekTokenIs(TokenKind::kDoubleDotEquals));
+    if (peek_is_double_dot || peek_is_double_dot_equals) {
       XLS_RETURN_IF_ERROR(DropToken());
       XLS_ASSIGN_OR_RETURN(Number * limit, ParseNumber(bindings));
       auto* range = module_->Make<Range>(
-          Span(number->span().start(), limit->span().limit()), number, limit);
+          Span(number->span().start(), limit->span().limit()), number,
+          peek_is_double_dot_equals, limit);
       return module_->Make<NameDefTree>(range->span(), range);
     }
     return module_->Make<NameDefTree>(number->span(), number);

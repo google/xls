@@ -177,8 +177,9 @@ std::vector<NdInterval> NdInterval::SubtractInterval(
     // If there is a gap on the upper side, "peel off" that slice.
     if (upper < remaining_interval.max()) {
       std::vector<InterpValueInterval> new_dims = remaining;
-      new_dims[dim_idx] = InterpValueInterval(upper.Increment().value(),
-                                              remaining_interval.max());
+      new_dims[dim_idx] =
+          InterpValueInterval(upper.IncrementZeroExtendIfOverflow().value(),
+                              remaining_interval.max());
       pieces.push_back(NdInterval(new_dims));
 
       // Update the remaining interval so that it now ends at U.
