@@ -79,6 +79,10 @@ class TrackedBValue {
     record();
     return *this;
   }
+  void destroy() {
+    unrecord();
+    bval_ = xls::BValue();
+  }
   operator xls::BValue() const { return bval_; }
   bool valid() const { return bval_.valid(); }
   xls::Node* node() const { return bval_.node(); }
