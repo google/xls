@@ -259,8 +259,8 @@ class InferenceTable {
  public:
   virtual ~InferenceTable();
 
-  // Creates an empty inference table for the given module.
-  static std::unique_ptr<InferenceTable> Create(Module& module);
+  // Creates an empty inference table.
+  static std::unique_ptr<InferenceTable> Create();
 
   // Defines an inference variable fabricated by the type inference system,
   // which has no direct representation in the DSLX source code that is being

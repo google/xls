@@ -266,8 +266,6 @@ class UnificationCache {
 
 class InferenceTableImpl : public InferenceTable {
  public:
-  explicit InferenceTableImpl(Module& module) : module_(module) {}
-
   absl::StatusOr<const NameRef*> DefineInternalVariable(
       InferenceVariableKind kind, AstNode* definer, std::string_view name,
       std::optional<const TypeAnnotation*> declaration_annotation) override {
@@ -276,9 +274,9 @@ class InferenceTableImpl : public InferenceTable {
     CHECK(definer->GetSpan().has_value());
     Span span = *definer->GetSpan();
     const NameDef* name_def =
-        module_.Make<NameDef>(span, std::string(name), definer);
+        definer->owner()->Make<NameDef>(span, std::string(name), definer);
     const NameRef* name_ref =
-        module_.Make<NameRef>(span, std::string(name), name_def);
+        definer->owner()->Make<NameRef>(span, std::string(name), name_def);
     AddVariable(name_def,
                 std::make_unique<InferenceVariable>(definer, name_ref, kind));
     if (declaration_annotation.has_value()) {
@@ -299,7 +297,7 @@ class InferenceTableImpl : public InferenceTable {
         InferenceVariableKind kind,
         TypeAnnotationToInferenceVariableKind(binding.type_annotation()));
     const NameDef* name_def = binding.name_def();
-    const NameRef* name_ref = module_.Make<NameRef>(
+    const NameRef* name_ref = binding.owner()->Make<NameRef>(
         name_def->span(), name_def->identifier(), name_def);
     AddVariable(name_def,
                 std::make_unique<InferenceVariable>(name_def, name_ref, kind));
@@ -316,18 +314,6 @@ class InferenceTableImpl : public InferenceTable {
     VLOG(5) << "Add parametric invocation: " << node.ToString()
             << " from parent context: "
             << ::xls::dslx::ToString(parent_context);
-    // If we call a function in a different module, we need to add the
-    // parametric bindings here.
-    if (module_.name() != callee.owner()->name()) {
-      for (const ParametricBinding* binding : callee.parametric_bindings()) {
-        if (!variables_.contains(binding->name_def())) {
-          XLS_ASSIGN_OR_RETURN(const NameRef* name_ref,
-                               DefineParametricVariable(*binding));
-          XLS_RETURN_IF_ERROR(
-              SetTypeAnnotation(name_ref, binding->type_annotation()));
-        }
-      }
-    }
     auto context = std::make_unique<ParametricContext>(
         parametric_contexts_.size(), &node,
         ParametricInvocationDetails{&callee, caller}, invocation_type_info,
@@ -556,8 +542,7 @@ class InferenceTableImpl : public InferenceTable {
         (it == type_annotations_per_type_variable_.end())
             ? std::vector<const TypeAnnotation*>()
             : it->second;
-    if (parametric_context.has_value() &&
-        (*parametric_context)->node()->owner() == &module_) {
+    if (parametric_context.has_value()) {
       const auto& invocation_specific_annotations =
           mutable_parametric_context_data_.at(*parametric_context)
               .type_annotations_per_type_variable;
@@ -823,7 +808,7 @@ class InferenceTableImpl : public InferenceTable {
       std::optional<const ParametricContext*> context,
       const InferenceVariable* variable, const TypeAnnotation* annotation) {
     CHECK(variable->kind() == InferenceVariableKind::kType);
-    if (context.has_value() && (*context)->node()->owner() == &module_) {
+    if (context.has_value()) {
       mutable_parametric_context_data_.at(*context)
           .type_annotations_per_type_variable[variable]
           .push_back(annotation);
@@ -834,7 +819,6 @@ class InferenceTableImpl : public InferenceTable {
                               variable->name_ref());
   }
 
-  Module& module_;
   // The variables of all kinds that have been defined by the user or
   // internally.
   absl::flat_hash_map<const NameDef*, std::unique_ptr<InferenceVariable>>
@@ -870,8 +854,8 @@ class InferenceTableImpl : public InferenceTable {
 
 InferenceTable::~InferenceTable() = default;
 
-std::unique_ptr<InferenceTable> InferenceTable::Create(Module& module) {
-  return std::make_unique<InferenceTableImpl>(module);
+std::unique_ptr<InferenceTable> InferenceTable::Create() {
+  return std::make_unique<InferenceTableImpl>();
 }
 
 absl::StatusOr<Number*> MakeTypeCheckedNumber(

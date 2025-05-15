@@ -104,12 +104,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                          subject.name_def().span(), import_data_.file_table(),
                          import_data_.vfs()));
       CHECK(result.imported_member != nullptr);
-      InferenceTable* imported_table =
-          result.imported_module->inference_table();
       for (NameDef* name_def :
            ModuleMemberGetNameDefs(*result.imported_member)) {
         std::optional<const NameRef*> type_var =
-            imported_table->GetTypeVariable(name_def);
+            table_.GetTypeVariable(name_def);
         std::optional<NameDef*> subject_name_def =
             subject.use_tree_entry().GetLeafNameDef();
         if (type_var.has_value() && subject_name_def.has_value()) {
@@ -236,14 +234,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                 node, *struct_def->def, struct_def->parametrics, node->attr()));
         CHECK(ref.has_value());
 
-        return SetCrossTableTypeAnnotation(
-            node, (*import_module)->inference_table(), *ref);
+        return SetCrossModuleTypeAnnotation(node, *ref);
       }
       XLS_ASSIGN_OR_RETURN(ModuleMember member,
                            GetPublicModuleMember((*import_module)->module(),
                                                  sub_col_ref, file_table_));
-      return SetCrossTableTypeAnnotation(
-          node, (*import_module)->inference_table(), ToAstNode(member));
+      return SetCrossModuleTypeAnnotation(node, ToAstNode(member));
     }
     if (std::holds_alternative<TypeRefTypeAnnotation*>(node->subject())) {
       // This is something like `S<parametrics>::CONSTANT` or
@@ -270,8 +266,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       XLS_ASSIGN_OR_RETURN(
           ModuleMember member,
           GetPublicModuleMember((*import_module)->module(), node, file_table_));
-      XLS_RETURN_IF_ERROR(SetCrossTableTypeAnnotation(
-          node, (*import_module)->inference_table(), ToAstNode(member)));
+      XLS_RETURN_IF_ERROR(
+          SetCrossModuleTypeAnnotation(node, ToAstNode(member)));
       table_.SetColonRefTarget(node, ToAstNode(member));
       return absl::OkStatus();
     }
@@ -1646,13 +1642,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                                GetPublicModuleMember((*import_module)->module(),
                                                      colon_ref, file_table_));
           if (std::holds_alternative<TypeAlias*>(member)) {
-            XLS_RETURN_IF_ERROR(SetCrossTableTypeAnnotation(
-                node, (*import_module)->inference_table(),
-                ToAstNode(&std::get<TypeAlias*>(member)->name_def())));
+            XLS_RETURN_IF_ERROR(SetCrossModuleTypeAnnotation(
+                node, ToAstNode(&std::get<TypeAlias*>(member)->name_def())));
             return DefaultHandler(node);
           }
-          XLS_RETURN_IF_ERROR(SetCrossTableTypeAnnotation(
-              node, (*import_module)->inference_table(), ToAstNode(member)));
+          XLS_RETURN_IF_ERROR(
+              SetCrossModuleTypeAnnotation(node, ToAstNode(member)));
           return DefaultHandler(node);
         }
       }
@@ -1875,18 +1870,17 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                             node->span().ToString(file_table_), module_.name());
   }
 
-  absl::Status SetCrossTableTypeAnnotation(const AstNode* node,
-                                           const InferenceTable* other_table,
-                                           const AstNode* external_reference) {
+  absl::Status SetCrossModuleTypeAnnotation(const AstNode* node,
+                                            const AstNode* external_reference) {
     std::optional<const NameRef*> type_var =
-        other_table->GetTypeVariable(external_reference);
+        table_.GetTypeVariable(external_reference);
     // In parametric cases, we may not have a type variable for the member.
     if (type_var.has_value()) {
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           node, module_.Make<TypeVariableTypeAnnotation>(*type_var)));
     } else {
       std::optional<const TypeAnnotation*> annotation =
-          other_table->GetTypeAnnotation(external_reference);
+          table_.GetTypeAnnotation(external_reference);
       if (annotation.has_value()) {
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, *annotation));
       }

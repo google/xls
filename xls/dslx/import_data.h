@@ -49,12 +49,10 @@ class ModuleInfo {
  public:
   ModuleInfo(std::unique_ptr<Module> module, TypeInfo* type_info,
              std::filesystem::path path,
-             std::unique_ptr<InferenceTable> inference_table = nullptr,
              std::unique_ptr<InferenceTableConverter>
                  inference_table_converter = nullptr)
       : module_(std::move(module)),
         type_info_(type_info),
-        inference_table_(std::move(inference_table)),
         inference_table_converter_(std::move(inference_table_converter)),
         path_(std::move(path)) {}
 
@@ -65,8 +63,6 @@ class ModuleInfo {
   const std::filesystem::path& path() const { return path_; }
   // TODO: erinzmoore - Once typechecking is complete, bar use of the inference
   // objects.
-  InferenceTable* inference_table() { return inference_table_.get(); }
-
   InferenceTableConverter* inference_table_converter() {
     return inference_table_converter_.get();
   }
@@ -74,7 +70,6 @@ class ModuleInfo {
  private:
   std::unique_ptr<Module> module_;
   TypeInfo* type_info_;
-  std::unique_ptr<InferenceTable> inference_table_;
   std::unique_ptr<InferenceTableConverter> inference_table_converter_;
   std::filesystem::path path_;
 };
@@ -164,6 +159,15 @@ class ImportData {
 
   absl::StatusOr<ModuleInfo*> Put(const ImportTokens& subject,
                                   std::unique_ptr<ModuleInfo> module_info);
+
+  // Creates the `InferenceTable` for the corpus, if it does not already exist,
+  // and returns it. This is a data structure only used by type inference v2.
+  InferenceTable* GetOrCreateInferenceTable() {
+    if (inference_table_ == nullptr) {
+      inference_table_ = InferenceTable::Create();
+    }
+    return inference_table_.get();
+  }
 
   TypeInfoOwner& type_info_owner() { return type_info_owner_; }
 
@@ -290,6 +294,7 @@ class ImportData {
   // See comment on AddToImporterStack() above.
   std::vector<ImportRecord> importer_stack_;
 
+  std::unique_ptr<InferenceTable> inference_table_;
   std::unique_ptr<VirtualizableFilesystem> vfs_;
 };
 

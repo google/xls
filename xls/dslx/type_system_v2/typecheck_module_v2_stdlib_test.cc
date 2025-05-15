@@ -23,5 +23,11 @@ TEST(TypecheckV2BuiltinTest, ImportStd) {
   XLS_EXPECT_OK(TypecheckV2("import std;"));
 }
 
+TEST(TypecheckV2BuiltinTest, ImportAbsDiff) {
+  // This is an auxiliary lib that imports std. Importing this one proves that
+  // cross-module use of entities in std works.
+  XLS_EXPECT_OK(TypecheckV2("import abs_diff;"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

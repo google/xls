@@ -62,7 +62,7 @@ class InferenceTableTest : public ::testing::Test {
     warning_collector_.emplace(kAllWarningsSet);
     module_ =
         std::make_unique<Module>("test", /*fs_path=*/std::nullopt, file_table_);
-    table_ = InferenceTable::Create(*module_);
+    table_ = InferenceTable::Create();
   }
 
   absl::StatusOr<TypeInfo*> ConvertTableToTypeInfo() {
@@ -88,7 +88,7 @@ class InferenceTableTest : public ::testing::Test {
     Parser parser("fake", &scanner);
     XLS_ASSERT_OK_AND_ASSIGN(module_, parser.ParseModule());
     root_type_info_ = *import_data_->type_info_owner().New(module_.get());
-    table_ = InferenceTable::Create(*module_);
+    table_ = InferenceTable::Create();
   }
 
   TypeInfo* CreateTypeInfo() {

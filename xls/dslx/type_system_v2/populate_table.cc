@@ -42,7 +42,8 @@
 namespace xls::dslx {
 
 absl::Status PopulateBuiltinStubs(ImportData* import_data,
-                                  WarningCollector* warnings) {
+                                  WarningCollector* warnings,
+                                  InferenceTable* table) {
   XLS_ASSIGN_OR_RETURN(ImportTokens builtin_tokens,
                        ImportTokens::FromString(kBuiltinStubsModuleName));
   if (import_data->Contains(builtin_tokens)) {
@@ -51,11 +52,8 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> builtins_module,
                        LoadBuiltinStubs());
-  std::unique_ptr<InferenceTable> builtins_table =
-      InferenceTable::Create(*builtins_module);
   std::unique_ptr<PopulateTableVisitor> builtins_visitor =
-      CreatePopulateTableVisitor(builtins_module.get(), builtins_table.get(),
-                                 import_data,
+      CreatePopulateTableVisitor(builtins_module.get(), table, import_data,
                                  /*typecheck_imported_module=*/nullptr);
   XLS_RETURN_IF_ERROR(
       builtins_visitor->PopulateFromModule(builtins_module.get()));
@@ -63,17 +61,17 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
   Module* builtins_ptr = builtins_module.get();
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<InferenceTableConverter> builtins_converter,
-      CreateInferenceTableConverter(
-          *builtins_table, *builtins_module, *import_data, *warnings,
-          import_data->file_table(), TypeSystemTracer::Create()));
+      CreateInferenceTableConverter(*table, *builtins_module, *import_data,
+                                    *warnings, import_data->file_table(),
+                                    TypeSystemTracer::Create()));
   XLS_ASSIGN_OR_RETURN(TypeInfo * builtins_type_info,
                        import_data->GetRootTypeInfo(builtins_ptr));
 
   XLS_ASSIGN_OR_RETURN(std::filesystem::path builtins_path, BuiltinStubsPath());
   std::unique_ptr<ModuleInfo> builtins_module_info =
-      std::make_unique<ModuleInfo>(
-          std::move(builtins_module), builtins_type_info, builtins_path,
-          std::move(builtins_table), std::move(builtins_converter));
+      std::make_unique<ModuleInfo>(std::move(builtins_module),
+                                   builtins_type_info, builtins_path,
+                                   std::move(builtins_converter));
   return import_data->Put(builtin_tokens, std::move(builtins_module_info))
       .status();
 }
@@ -81,7 +79,7 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
 absl::Status PopulateTable(InferenceTable* table, Module* module,
                            ImportData* import_data, WarningCollector* warnings,
                            TypecheckModuleFn typecheck_imported_module) {
-  XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(import_data, warnings));
+  XLS_RETURN_IF_ERROR(PopulateBuiltinStubs(import_data, warnings, table));
 
   std::unique_ptr<PopulateTableVisitor> visitor = CreatePopulateTableVisitor(
       module, table, import_data, std::move(typecheck_imported_module));

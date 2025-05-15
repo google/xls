@@ -42,7 +42,7 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<Module> module, std::filesystem::path path,
     ImportData* import_data, WarningCollector* warnings) {
   std::string_view module_name = module->name();
-  std::unique_ptr<InferenceTable> table = InferenceTable::Create(*module);
+  InferenceTable* table = import_data->GetOrCreateInferenceTable();
   std::unique_ptr<TypeSystemTracer> tracer = TypeSystemTracer::Create();
   auto& tracer_ref = *tracer;
   auto typecheck_imported_module = [import_data, warnings](
@@ -50,8 +50,8 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
                                        std::filesystem::path path) {
     return TypecheckModuleV2(std::move(module), path, import_data, warnings);
   };
-  XLS_RETURN_IF_ERROR(PopulateTable(table.get(), module.get(), import_data,
-                                    warnings, typecheck_imported_module));
+  XLS_RETURN_IF_ERROR(PopulateTable(table, module.get(), import_data, warnings,
+                                    typecheck_imported_module));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<InferenceTableConverter> converter,
                        CreateInferenceTableConverter(
                            *table, *module, *import_data, *warnings,
@@ -85,7 +85,7 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
 
   return std::make_unique<ModuleInfo>(std::move(module), type_info,
                                       std::filesystem::path(path),
-                                      std::move(table), std::move(converter));
+                                      std::move(converter));
 }
 
 }  // namespace xls::dslx

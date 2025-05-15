@@ -78,11 +78,9 @@ class StatefulResolver : public TypeAnnotationResolver {
                          ImportTokens::FromString(node->owner()->name()));
     XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module_info,
                          import_data_.Get(import_tokens));
-    InferenceTable* imported_table = imported_module_info->inference_table();
     return TypeAnnotationResolver::Create(
-        imported_module_info->module(), *imported_table, file_table_,
-        error_generator_, evaluator_, parametric_struct_instantiator_, tracer_,
-        import_data_);
+        imported_module_info->module(), table_, file_table_, error_generator_,
+        evaluator_, parametric_struct_instantiator_, tracer_, import_data_);
   }
 
   absl::StatusOr<std::optional<const TypeAnnotation*>>
