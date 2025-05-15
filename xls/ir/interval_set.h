@@ -408,7 +408,16 @@ class IntervalSet {
     absl::Format(&sink, "%s", set.ToString());
   }
 
+  // Actually check exhaustively for normalization instead of trusting the flag.
+  absl::Status CheckIsNormalizedForTesting() const;
+
  private:
+  IntervalSet(std::in_place_t in_place, bool is_normalized, int64_t bit_count,
+              std::vector<Interval> intervals)
+      : is_normalized_(is_normalized),
+        bit_count_(bit_count),
+        intervals_(intervals) {}
+
   bool is_normalized_;
   int64_t bit_count_;
   std::vector<Interval> intervals_;

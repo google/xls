@@ -291,11 +291,15 @@ cc_library(
         ":bits_ops",
         ":interval",
         "//xls/common:iterator_range",
+        "//xls/common/status:ret_check",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@cppitertools",
     ],
 )
 
@@ -343,8 +347,11 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@google_benchmark//:benchmark",
         "@googletest//:gtest",
     ],
 )

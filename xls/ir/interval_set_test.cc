@@ -20,16 +20,20 @@
 #include <utility>
 #include <vector>
 
+#include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set_test_utils.h"
 
+using ::absl_testing::IsOk;
 using ::testing::ExplainMatchResult;
 using ::testing::IsTrue;
 using ::testing::Not;
@@ -39,6 +43,19 @@ using ::testing::UnorderedElementsAreArray;
 
 namespace xls {
 namespace {
+
+IntervalSet OracleCombine(const IntervalSet& lhs, const IntervalSet& rhs) {
+  IntervalSet res(lhs.BitCount());
+  CHECK_EQ(lhs.BitCount(), rhs.BitCount());
+  for (const Interval& interval : lhs.Intervals()) {
+    res.AddInterval(interval);
+  }
+  for (const Interval& interval : rhs.Intervals()) {
+    res.AddInterval(interval);
+  }
+  res.Normalize();
+  return res;
+}
 
 Interval MakeInterval(uint64_t start, uint64_t end, int64_t width) {
   return Interval(UBits(start, width), UBits(end, width));
@@ -677,6 +694,57 @@ void DisjointEquivalentToEmptyIntersection(const IntervalSet& lhs,
 FUZZ_TEST(IntervalFuzzTest, DisjointEquivalentToEmptyIntersection)
     .WithDomains(ArbitraryNormalizedIntervalSet(32),
                  ArbitraryNormalizedIntervalSet(32));
+
+void CombineMatchesOracle(const IntervalSet& lhs, const IntervalSet& rhs) {
+  auto combo = IntervalSet::Combine(lhs, rhs);
+  EXPECT_THAT(combo.CheckIsNormalizedForTesting(), IsOk());
+  EXPECT_EQ(OracleCombine(lhs, rhs), combo);
+}
+
+const auto& CombineMatchesOracle8 = CombineMatchesOracle;
+const auto& CombineMatchesOracle32 = CombineMatchesOracle;
+
+FUZZ_TEST(IntervalFuzzTest, CombineMatchesOracle8)
+    .WithDomains(ArbitraryNormalizedIntervalSet(8),
+                 ArbitraryNormalizedIntervalSet(8));
+FUZZ_TEST(IntervalFuzzTest, CombineMatchesOracle32)
+    .WithDomains(ArbitraryNormalizedIntervalSet(32),
+                 ArbitraryNormalizedIntervalSet(32));
+
+template <typename F>
+void CombineBenchmark(benchmark::State& state, F f) {
+  static constexpr int64_t kSize = 10000;
+  std::vector<std::pair<int64_t, int64_t>> v1;
+  std::vector<std::pair<int64_t, int64_t>> v2;
+  v1.reserve(kSize / 2);
+  v2.reserve(kSize / 2);
+  for (int64_t i = 10; i < kSize; i += 2) {
+    if (i % 4 == 0) {
+      v1.push_back({i, i + 1});
+    } else {
+      v2.push_back({i, i + 1});
+    }
+  }
+  auto i1 = Intervals(v1, 32);
+  auto i2 = Intervals(v2, 32);
+  i1.Normalize();
+  i2.Normalize();
+  for (auto s : state) {
+    f(i1, i2);
+  }
+}
+void BM_CombineOracle(benchmark::State& state) {
+  CombineBenchmark(state, [](const IntervalSet& lhs, const IntervalSet& rhs) {
+    benchmark::DoNotOptimize(OracleCombine(lhs, rhs));
+  });
+}
+void BM_Combine(benchmark::State& state) {
+  CombineBenchmark(state, [](const IntervalSet& lhs, const IntervalSet& rhs) {
+    benchmark::DoNotOptimize(IntervalSet::Combine(lhs, rhs));
+  });
+}
+BENCHMARK(BM_CombineOracle);
+BENCHMARK(BM_Combine);
 
 }  // namespace
 }  // namespace xls

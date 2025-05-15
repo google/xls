@@ -19,13 +19,18 @@
 #include <list>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "cppitertools/sliding_window.hpp"
 #include "xls/common/iterator_range.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
@@ -246,18 +251,132 @@ IntervalSet IntervalSet::NegativeAbsoluteIntervals() const {
   return true;
 }
 
+namespace {
+// Precondition: low_it and high_it are both iterators into a sorted interval
+// list containing only proper intervals, the list is the minimal
+// representation of the interval set, and the lower_bound of *low_it is <= the
+// lower_bound of *high_it
+//
+// This will return the upper bound of the combined interval starting at
+// low_it->lower_bound. The low_it will be advanced to the position after the
+// last interval subsumed by the interval between the initial
+// low_it->lower_bound and the returned value. The high_it will be advanced to
+// the position after the last interval subsumed by the interval between the
+// initial low_it->lower_bound and the returned value.
+//
+// This is to optimize a hot-spot in the CondSpec pass.
+const Bits& CombineAndAdvance(absl::Span<Interval const>::iterator& low_it,
+                              absl::Span<Interval const>::iterator low_end,
+                              absl::Span<Interval const>::iterator& high_it,
+                              absl::Span<Interval const>::iterator high_end) {
+  // Both inputs are normalized so we know that no intervals in low_it or
+  // high_it overlap with other intervals in the same list.
+  DCHECK_NE(high_it, high_end);
+  DCHECK_NE(low_it, low_end);
+  // Short circuit contains everything remaining.
+  if (low_it->UpperBound().IsAllOnes()) {
+    const Bits& res = low_it->UpperBound();
+    low_it = low_end;
+    high_it = high_end;
+    return res;
+  }
+  if (bits_ops::UGreaterThan(high_it->LowerBound(), low_it->UpperBound())) {
+    // high is fully outside of low.
+    const Bits& res = low_it->UpperBound();
+    ++low_it;
+    return res;
+  }
+  // combines both low and high.
+  // Advance past any fully contained intervals.
+  while (
+      high_it != high_end &&
+      bits_ops::ULessThanOrEqual(high_it->UpperBound(), low_it->UpperBound())) {
+    ++high_it;
+  }
+  // 3 possibilities.
+  // 1) All the other sets values have been consumed. Means low_it contains
+  // all of them. Just return.
+  // 2) low and high don't overlap at all, just return.
+  if (high_it == high_end ||
+      bits_ops::UGreaterThan(high_it->LowerBound(), low_it->UpperBound())) {
+    const Bits& res = low_it->UpperBound();
+    ++low_it;
+    return res;
+  }
+  // 3) low and high still overlap.
+  ++low_it;
+  if (low_it != low_end) {
+    return CombineAndAdvance(high_it, high_end, low_it, low_end);
+  }
+  // no more lows.
+  const Bits& res = high_it->UpperBound();
+  ++high_it;
+  return res;
+}
+}  // namespace
+
+// Combine 2 normalized intervals. This is optimized to improve a hotspot in
+// cond-spec.
 IntervalSet IntervalSet::Combine(const IntervalSet& lhs,
                                  const IntervalSet& rhs) {
   CHECK_EQ(lhs.BitCount(), rhs.BitCount());
-  IntervalSet combined(lhs.BitCount());
-  for (const Interval& interval : lhs.intervals_) {
-    combined.AddInterval(interval);
+  if (!lhs.IsNormalized() || !rhs.IsNormalized()) {
+    IntervalSet l = lhs;
+    l.Normalize();
+    IntervalSet r = rhs;
+    r.Normalize();
+    return Combine(l, r);
   }
-  for (const Interval& interval : rhs.intervals_) {
-    combined.AddInterval(interval);
+  std::vector<Interval> combined_intervals;
+  combined_intervals.reserve(lhs.Intervals().size() + rhs.Intervals().size());
+  auto it_l = lhs.Intervals().begin();
+  auto it_r = rhs.Intervals().begin();
+  while (it_l != lhs.Intervals().end() && it_r != rhs.Intervals().end()) {
+    bool lt = bits_ops::ULessThan(it_l->LowerBound(), it_r->LowerBound());
+    Bits lower;
+    Bits upper;
+    if (lt) {
+      lower = it_l->LowerBound();
+      upper = CombineAndAdvance(it_l, lhs.Intervals().end(), it_r,
+                                rhs.Intervals().end());
+    } else {
+      lower = it_r->LowerBound();
+      upper = CombineAndAdvance(it_r, rhs.Intervals().end(), it_l,
+                                lhs.Intervals().end());
+    }
+    // This doesn't merge adjacent values so we need to do that ourselves.
+    if (!combined_intervals.empty() &&
+        bits_ops::Increment(combined_intervals.back().UpperBound()) == lower) {
+      combined_intervals.back() =
+          Interval(combined_intervals.back().LowerBound(), upper);
+    } else {
+      combined_intervals.push_back(Interval(lower, upper));
+    }
   }
-  combined.Normalize();
-  return combined;
+  // Add the rest of the intervals unmodified.
+  if (it_l != lhs.Intervals().end() || it_r != rhs.Intervals().end()) {
+    bool first = true;
+    auto [remaining, end_it] =
+        (it_l == lhs.Intervals().end())
+            ? std::make_pair(it_r, rhs.Intervals().end())
+            : std::make_pair(it_l, lhs.Intervals().end());
+    for (; remaining != end_it; ++remaining) {
+      if (first && !combined_intervals.empty() &&
+          bits_ops::Increment(combined_intervals.back().UpperBound()) ==
+              remaining->LowerBound()) {
+        combined_intervals.back() = Interval(
+            combined_intervals.back().LowerBound(), remaining->UpperBound());
+      } else {
+        combined_intervals.push_back(*remaining);
+      }
+      first = false;
+    }
+  }
+
+  // By construction we know that the result is already normalized.
+  return IntervalSet(std::in_place, /*is_normalized=*/true,
+                     /*bit_count=*/lhs.BitCount(),
+                     /*intervals=*/std::move(combined_intervals));
 }
 
 IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
@@ -453,6 +572,24 @@ bool IntervalSet::IsMaximal() const {
 }
 
 bool IntervalSet::IsNormalized() const { return is_normalized_; }
+
+absl::Status IntervalSet::CheckIsNormalizedForTesting() const {
+  XLS_RET_CHECK(is_normalized_) << "Marked as not-normalized";
+  XLS_RET_CHECK(absl::c_is_sorted(intervals_)) << "Intervals are not sorted";
+  XLS_RET_CHECK(absl::c_none_of(intervals_, [](const Interval& i) {
+    return i.IsImproper();
+  })) << "Improper intervals!";
+  XLS_RET_CHECK(absl::c_all_of(intervals_, [&](const Interval& i) {
+    return i.BitCount() == bit_count_;
+  })) << "incorrect bitcount!";
+  for (const auto& vs : iter::sliding_window(intervals_, 2)) {
+    XLS_RET_CHECK(!Interval::Overlaps(vs[0], vs[1]))
+        << "Adjacent overlaping intervals " << vs[0] << " and " << vs[1];
+    XLS_RET_CHECK(!Interval::Abuts(vs[0], vs[1]))
+        << "Adjacent uncombined intervals " << vs[0] << " and " << vs[1];
+  }
+  return absl::OkStatus();
+}
 
 bool IntervalSet::IsEmpty() const {
   CHECK(IsNormalized());
