@@ -167,12 +167,13 @@ PreInliningPassGroup::PreInliningPassGroup()
   Add<IfOptLevelAtLeast<1, Inner>>();
 }
 
-UnrollingAndInliningPassGroup::UnrollingAndInliningPassGroup()
+UnrollingAndInliningPassGroup::UnrollingAndInliningPassGroup(
+    InliningPass::InlineDepth inline_depth)
     : OptimizationCompoundPass(UnrollingAndInliningPassGroup::kName,
                                "full function inlining passes") {
   Add<UnrollPass>();
   Add<MapInliningPass>();
-  Add<InliningPass>();
+  Add<InliningPass>(inline_depth);
   Add<DeadFunctionEliminationPass>();
 }
 
@@ -303,6 +304,15 @@ PostInliningPassGroup::PostInliningPassGroup()
   Add<LabelRecoveryPass>();
   Add<ResourceSharingPass>();
 }
+
+IterativeSimplifyAndUnrollPassGroup::IterativeSimplifyAndUnrollPassGroup()
+    : OptimizationFixedPointCompoundPass(
+          IterativeSimplifyAndUnrollPassGroup::kName,
+          "Iteratively inline and simplify") {
+  Add<PreInliningPassGroup>();
+  Add<UnrollingAndInliningPassGroup>(InliningPass::InlineDepth::kLeafOnly);
+}
+
 std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
     bool debug_optimizations) {
   auto top = std::make_unique<OptimizationCompoundPass>(
@@ -314,8 +324,7 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
     top->AddWeakInvariantChecker<VerifierChecker>();
   }
 
-  top->Add<PreInliningPassGroup>();
-  top->Add<UnrollingAndInliningPassGroup>();
+  top->Add<IterativeSimplifyAndUnrollPassGroup>();
   top->Add<PostInliningPassGroup>();
 
   return top;
@@ -404,10 +413,14 @@ XLS_REGISTER_MODULE_INITIALIZER(simp_pass, {
       RegisterOptimizationPass<CapOptLevel<2, SimplificationPass>>("simp(2)")));
   CHECK_OK((
       RegisterOptimizationPass<CapOptLevel<3, SimplificationPass>>("simp(3)")));
+  CHECK_OK((RegisterOptimizationPass<InliningPass>(
+      "iterative-inlining", InliningPass::InlineDepth::kLeafOnly)));
 });
 
 REGISTER_OPT_PASS(PreInliningPassGroup);
-REGISTER_OPT_PASS(UnrollingAndInliningPassGroup);
+REGISTER_OPT_PASS(UnrollingAndInliningPassGroup,
+                  InliningPass::InlineDepth::kFull);
+REGISTER_OPT_PASS(IterativeSimplifyAndUnrollPassGroup);
 REGISTER_OPT_PASS(ProcStateFlatteningFixedPointPass);
 REGISTER_OPT_PASS(PostInliningPassGroup);
 

@@ -86,6 +86,21 @@ std::vector<FunctionBase*> CalledFunctions(FunctionBase* function_base) {
 }
 }  // namespace
 
+absl::StatusOr<CallGraph> CallGraph::Create(Package* package) {
+  CallGraph call_graph_analysis(package);
+  // NB We could dedup but its useful to know how many edges there are.
+  for (FunctionBase* f : package->GetFunctionBases()) {
+    for (Node* node : f->nodes()) {
+      std::optional<Function*> callee = CalledFunction(node);
+      if (callee.has_value()) {
+        call_graph_analysis.callee_functions_[f].push_back(node);
+        call_graph_analysis.caller_functions_[*callee].push_back(f);
+      }
+    }
+  }
+  return call_graph_analysis;
+}
+
 // Recursive DFS visitor of the call graph induced by invoke
 // instructions. Builds a post order of functions in the post_order vector.
 static void DfsVisit(FunctionBase* f,

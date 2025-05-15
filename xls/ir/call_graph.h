@@ -20,11 +20,42 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/package.h"
 
 namespace xls {
+
+class CallGraph {
+ public:
+  static absl::StatusOr<CallGraph> Create(Package* package);
+
+  // All invoke/map/etc that 'fb' directly contains.
+  absl::Span<Node* const> FunctionsCalledBy(FunctionBase* fb) const {
+    if (!callee_functions_.contains(fb)) {
+      return absl::Span<Node* const>();
+    }
+    return callee_functions_.at(fb);
+  }
+
+  // All functions which call 'fb'. NB A function called multiple times will be
+  // included more than once in this list.
+  absl::Span<FunctionBase* const> FunctionsWhichCall(FunctionBase* fb) const {
+    if (!caller_functions_.contains(fb)) {
+      return absl::Span<FunctionBase* const>();
+    }
+    return caller_functions_.at(fb);
+  }
+
+ private:
+  explicit CallGraph(Package* package) : package_(package) {}
+  Package* package_;
+  absl::flat_hash_map<FunctionBase*, std::vector<Node*>> callee_functions_;
+  absl::flat_hash_map<FunctionBase*, std::vector<FunctionBase*>>
+      caller_functions_;
+};
 
 // Returns the functions called and blocks instantiated transitively by the
 // given FunctionBase. Called functions/instantiated blocks are returned before

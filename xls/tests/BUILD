@@ -29,7 +29,7 @@ package(
 cc_test(
     name = "basic_ir_ops_test",
     srcs = ["basic_ir_ops_test.cc"],
-    shard_count = 2,
+    shard_count = 3,
     deps = [
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

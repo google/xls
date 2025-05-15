@@ -24,10 +24,14 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
+#include "xls/common/module_initializer.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/call_graph.h"
@@ -39,6 +43,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
 namespace {
@@ -209,6 +214,46 @@ absl::Status InlineInvoke(Invoke* invoke, OptimizationContext& context,
   return invoke->function_base()->RemoveNode(invoke);
 }
 
+std::vector<FunctionBase*> GetFunctionsToInlineByLeaf(Package* p,
+                                                      const CallGraph& cg) {
+  std::vector<FunctionBase*> functions = FunctionsInPostOrder(p);
+  std::vector<FunctionBase*> functions_to_inline;
+  functions_to_inline.reserve(functions.size());
+  absl::flat_hash_set<FunctionBase*> to_inline_set;
+  to_inline_set.reserve(functions.size());
+  for (FunctionBase* f : functions) {
+    if (cg.FunctionsCalledBy(f).empty()) {
+      // No invokes at all.
+      continue;
+    }
+    // Inline function if all of the functions it calls are either leafs or
+    // the single call of a non-leaf which transitively only calls leafs.
+    if (absl::c_all_of(cg.FunctionsCalledBy(f), [&](Node* n) {
+          CHECK(n->Is<Invoke>()) << "all maps and for-loops must be cleared "
+                                    "before inlining. Found: "
+                                 << n;
+          Invoke* called = n->As<Invoke>();
+          int64_t to_inline_cnt = absl::c_count_if(
+              cg.FunctionsCalledBy(called->to_apply()), [](Node* n) {
+                CHECK(n->Is<Invoke>()) << "all maps and for-loops must be "
+                                          "cleared before inlining. Found: "
+                                       << n;
+                // Need to avoid counting FFI functions.
+                return IsInlineable(n->As<Invoke>());
+              });
+          // Also inline the invoke if the callee is only called by the invoke
+          // and the callee is also being inlined.
+          return to_inline_cnt == 0 ||
+                 (to_inline_cnt == 1 &&
+                  to_inline_set.contains(called->to_apply()));
+        })) {
+      functions_to_inline.push_back(f);
+      to_inline_set.insert(f);
+    }
+  }
+  return functions_to_inline;
+}
+
 }  // namespace
 
 absl::Status InliningPass::InlineOneInvoke(Invoke* invoke) {
@@ -221,16 +266,23 @@ absl::StatusOr<bool> InliningPass::RunInternal(
     Package* p, const OptimizationPassOptions& options, PassResults* results,
     OptimizationContext& context) const {
   bool changed = false;
+  XLS_ASSIGN_OR_RETURN(CallGraph cg, CallGraph::Create(p));
   // Inline all the invokes of each function where functions are processed in a
   // post order of the call graph (leaves first). This ensures that when a
   // function Foo is inlined into its callsites, no invokes remain in Foo. This
-  // avoid duplicate work.
+  // avoid duplicate work. We also inline all function which have a single
+  // caller and only call leaf funcs.
   int inline_count = 0;
-  for (FunctionBase* f : FunctionsInPostOrder(p)) {
+  std::vector<FunctionBase*> functions_to_inline;
+  if (depth_ == InlineDepth::kFull) {
+    functions_to_inline = FunctionsInPostOrder(p);
+  } else {
+    functions_to_inline = GetFunctionsToInlineByLeaf(p, cg);
+  }
+  for (FunctionBase* f : functions_to_inline) {
     // Create copy of nodes() because we will be adding and removing nodes
     // during inlining.
-    std::vector<Node*> nodes(f->nodes().begin(), f->nodes().end());
-    for (Node* node : nodes) {
+    for (Node* node : cg.FunctionsCalledBy(f)) {
       if (node->Is<Invoke>() && IsInlineable(node->As<Invoke>())) {
         XLS_RETURN_IF_ERROR(
             InlineInvoke(node->As<Invoke>(), context, inline_count++));
@@ -241,6 +293,17 @@ absl::StatusOr<bool> InliningPass::RunInternal(
   return changed;
 }
 
-REGISTER_OPT_PASS(InliningPass);
+absl::StatusOr<PassPipelineProto::Element> InliningPass::ToProto() const {
+  PassPipelineProto::Element res;
+  *res.mutable_pass_name() =
+      (depth_ == InlineDepth::kFull) ? "inlining" : "leaf-inlining";
+  return res;
+}
+
+REGISTER_OPT_PASS(InliningPass, InliningPass::InlineDepth::kFull);
+XLS_REGISTER_MODULE_INITIALIZER(inlining_pass, {
+  CHECK_OK(RegisterOptimizationPass<InliningPass>(
+      "leaf-inlining", InliningPass::InlineDepth::kLeafOnly));
+});
 
 }  // namespace xls

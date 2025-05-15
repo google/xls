@@ -44,12 +44,14 @@ using ::testing::Eq;
 
 class InliningPassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Inline(Package* package) {
+  absl::StatusOr<bool> Inline(
+      Package* package,
+      InliningPass::InlineDepth depth = InliningPass::InlineDepth::kFull) {
     PassResults results;
     OptimizationContext context;
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         InliningPass().Run(package, OptimizationPassOptions(),
-                                            &results, context));
+    XLS_ASSIGN_OR_RETURN(bool changed, InliningPass(depth).Run(
+                                           package, OptimizationPassOptions(),
+                                           &results, context));
     XLS_RETURN_IF_ERROR(
         DeadCodeEliminationPass()
             .Run(package, OptimizationPassOptions(), &results, context)
@@ -121,6 +123,67 @@ fn caller() -> bits[32] {
   ASSERT_THAT(Inline(package.get()), IsOkAndHolds(true));
   Function* f = FindFunction("caller", package.get());
   EXPECT_THAT(f->return_value(), m::Add(m ::Literal(2), m::Literal(2)));
+}
+
+TEST_F(InliningPassTest, TransitiveLeaf) {
+  const std::string program = R"(
+package some_package
+
+fn callee2(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+fn callee1(x: bits[32], y: bits[32]) -> bits[32] {
+  ret invoke.2: bits[32] = invoke(x, y, to_apply=callee2)
+}
+
+fn caller() -> bits[32] {
+  literal.3: bits[32] = literal(value=2)
+  ret invoke.4: bits[32] = invoke(literal.3, literal.3, to_apply=callee1)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(program));
+  ASSERT_THAT(Inline(package.get(), InliningPass::InlineDepth::kLeafOnly),
+              IsOkAndHolds(true));
+  Function* f = FindFunction("caller", package.get());
+  Function* c1 = FindFunction("callee1", package.get());
+  EXPECT_THAT(f->return_value(), m::Add());
+  EXPECT_THAT(c1->return_value(), m::Add(m::Param("x"), m::Param("y")));
+}
+TEST_F(InliningPassTest, TransitiveLeafMultiUse) {
+  const std::string program = R"(
+package some_package
+
+fn callee2(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+fn callee3(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.8: bits[32] = add(x, y)
+}
+
+fn callee1(x: bits[32], y: bits[32]) -> bits[32] {
+  invoke.2: bits[32] = invoke(x, y, to_apply=callee2)
+  invoke.9: bits[32] = invoke(y, x, to_apply=callee2)
+  ret add.10: bits[32] = add(invoke.2, invoke.9)
+}
+
+fn caller() -> bits[32] {
+  literal.3: bits[32] = literal(value=2)
+  ret invoke.4: bits[32] = invoke(literal.3, literal.3, to_apply=callee1)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(program));
+  ScopedRecordIr sri(package.get());
+  ASSERT_THAT(Inline(package.get(), InliningPass::InlineDepth::kLeafOnly),
+              IsOkAndHolds(true));
+  Function* f = FindFunction("caller", package.get());
+  Function* c1 = FindFunction("callee1", package.get());
+  EXPECT_THAT(f->return_value(), m::Invoke());
+  EXPECT_THAT(c1->return_value(), m::Add(m::Add(m::Param("x"), m::Param("y")),
+                                         m::Add(m::Param("y"), m::Param("x"))));
 }
 
 TEST_F(InliningPassTest, TransitiveWithFfiLeafFunction) {
