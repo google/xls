@@ -193,4 +193,5 @@ def xls_ir_verilog_build_and_test(
     build_test(
         name = "__" + name,
         targets = [":" + name],
+        tags = kwargs["tags"] if "tags" in kwargs else [],
     )
