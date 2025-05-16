@@ -12,8 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Provides utilities for defining Python representations of XLS structs.
+"""
+
 import random
-from dataclasses import asdict, astuple, dataclass, fields
+from dataclasses import asdict
+from dataclasses import astuple
+from dataclasses import dataclass
+from dataclasses import fields
 
 from cocotb.binary import BinaryValue
 
@@ -22,13 +29,18 @@ class TruncationError(Exception):
   pass
 
 def xls_dataclass(cls):
-  """
-  Class decorator for XLS structs.
+  """Class decorator for XLS structs.
+
   Usage:
 
-  @xls_dataclass
-  class MyStruct(XLSStruct):
-    ...
+    @xls_dataclass
+    class MyStruct(XLSStruct):
+      ...
+  Args:
+    cls (type): The class to decorate.
+
+  Returns:
+    type: The dataclass-decorated class with repr disabled.
   """
   return dataclass(cls, repr=False)
 
@@ -70,8 +82,7 @@ class XLSStruct:
 
   @classmethod
   def _masks(cls):
-    """
-    Returns a list of field-sized bitmasks.
+    """Returns a list of field-sized bitmasks.
 
     For example for fields of widths 2, 3, 4
     returns [2'b11, 3'b111, 4'b1111].
@@ -84,9 +95,7 @@ class XLSStruct:
 
   @classmethod
   def _positions(cls):
-    """
-    Returns a list of start positions in a bit vector for
-    struct's fields.
+    """Returns a list of start positions in a bit vector for struct's fields.
 
     For example for fields of widths 1, 2, 3, 4, 5, 6
     returns [20, 18, 15, 11, 6, 0]
@@ -103,16 +112,12 @@ class XLSStruct:
   @classmethod
   @property
   def total_width(cls):
-    """
-    Returns total bit width of the struct
-    """
+    """Returns total bit width of the struct."""
     return sum(field.type for field in fields(cls))
 
   @property
   def value(self):
-    """
-    Returns struct's value as a Python integer
-    """
+    """Returns struct's value as a Python integer."""
     value = 0
     masks = self._masks()
     positions = self._positions()
@@ -124,31 +129,25 @@ class XLSStruct:
 
   @property
   def binaryvalue(self):
-    """
-    Returns struct's value as a cocotb.binary.BinaryValue
-    """
+    """Returns struct's value as a cocotb.binary.BinaryValue."""
     return BinaryValue(self.binstr)
 
   @property
   def binstr(self):
-    """
-    Returns struct's value as a string with its binary representation
-    """
+    """Returns struct's value as a string with its binary representation."""
     return f"{self.value:>0{self.total_width}b}"
 
   @property
   def hexstr(self):
-    """
-    Returns struct's value as a string with its hex representation
-    (without leading "0x")
+    """Returns struct's value as a string with its hex representation.
+
+    The result does NOT have leading "0x".
     """
     return f"{self.value:>0{self.total_width // 4}x}"
 
   @classmethod
   def from_int(cls, value):
-    """
-    Returns an instance of the struct from Python integer
-    """
+    """Returns an instance of the struct from Python integer."""
     instance = {}
     masks = cls._masks()
     positions = cls._positions()
@@ -158,9 +157,7 @@ class XLSStruct:
 
   @classmethod
   def randomize(cls):
-    """
-    Returns an instance of the struct with all fields' values randomized
-    """
+    """Returns an instance of the struct with all fields' values randomized."""
     instance = {}
     for field in fields(cls):
       instance[field.name] = random.randrange(0, 2**field.type)
@@ -171,5 +168,5 @@ class XLSStruct:
 
   def __repr__(self):
     classname = self.__class__.__name__
-    fields = [f"{name}={hex(value)}" for name, value in asdict(self).items()]
-    return f"{classname}({', '.join(fields)})"
+    class_fields = [f"{name}={hex(value)}" for name, value in asdict(self).items()]
+    return f"{classname}({', '.join(class_fields)})"

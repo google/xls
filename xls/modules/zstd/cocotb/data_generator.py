@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
-from enum import Enum
+"""Module for generating and decompressing test frames."""
+
+import pathlib
+import enum
 
 from xls.common import runfiles
 import subprocess
 import zstandard
 
-class BlockType(Enum):
+class BlockType(enum.Enum):
   RAW = 0
   RLE = 1
   COMPRESSED = 2
@@ -33,10 +35,10 @@ class BlockType(Enum):
     try:
       return BlockType[s]
     except KeyError as e:
-      raise ValueError(str(e))
+      raise ValueError(str(e)) from e
 
 def CallDecodecorpus(args):
-  decodecorpus = Path(runfiles.get_path("decodecorpus", repository = "zstd"))
+  decodecorpus = pathlib.Path(runfiles.get_path("decodecorpus", repository = "zstd"))
   cmd = args
   cmd.insert(0, str(decodecorpus))
   cmd_concat = " ".join(cmd)

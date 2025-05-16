@@ -17,12 +17,12 @@ module xls_fifo_wrapper (
 clk, rst,
 push_ready, push_data, push_valid,
 pop_ready,  pop_data,  pop_valid);
-  parameter Width = 32,
-            Depth = 32,
-            EnableBypass = 0,
-            RegisterPushOutputs = 1,
-            RegisterPopOutputs = 1;
-  localparam AddrWidth = $clog2(Depth) + 1;
+  parameter int Width = 32,
+                Depth = 32,
+                EnableBypass = 0,
+                RegisterPushOutputs = 1,
+                RegisterPopOutputs = 1;
+  localparam int AddrWidth = $clog2(Depth) + 1;
   input  wire             clk;
   input  wire             rst;
   output wire             push_ready;

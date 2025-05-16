@@ -18,18 +18,18 @@
 `default_nettype none
 
 module mem_reader_wrapper #(
-    parameter DSLX_DATA_W = 64,
-    parameter DSLX_ADDR_W = 16,
-    parameter AXI_DATA_W  = 128,
-    parameter AXI_ADDR_W  = 16,
-    parameter AXI_DEST_W  = 8,
-    parameter AXI_ID_W    = 8,
+    parameter int DSLX_DATA_W = 64,
+    parameter int DSLX_ADDR_W = 16,
+    parameter int AXI_DATA_W  = 128,
+    parameter int AXI_ADDR_W  = 16,
+    parameter int AXI_DEST_W  = 8,
+    parameter int AXI_ID_W    = 8,
 
-    parameter CTRL_W   = (DSLX_ADDR_W),
-    parameter REQ_W    = (2 * DSLX_ADDR_W),
-    parameter RESP_W   = (1 + DSLX_DATA_W + DSLX_ADDR_W + 1),
-    parameter AXI_AR_W = (AXI_ID_W + AXI_ADDR_W + 28),
-    parameter AXI_R_W  = (AXI_ID_W + AXI_DATA_W + 4)
+    parameter int CTRL_W   = (DSLX_ADDR_W),
+    parameter int REQ_W    = (2 * DSLX_ADDR_W),
+    parameter int RESP_W   = (1 + DSLX_DATA_W + DSLX_ADDR_W + 1),
+    parameter int AXI_AR_W = (AXI_ID_W + AXI_ADDR_W + 28),
+    parameter int AXI_R_W  = (AXI_ID_W + AXI_DATA_W + 4)
 ) (
     input wire clk,
     input wire rst,

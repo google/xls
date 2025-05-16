@@ -21,16 +21,16 @@
 `default_nettype none
 
 module zstd_dec_wrapper #(
-    parameter AXI_DATA_W  = 64,
-    parameter AXI_ADDR_W  = 16,
-    parameter S_AXI_ID_W  = 4,
-    parameter M_AXI_ID_W  = 6,
-    parameter AXI_STRB_W  = 8,
-    parameter AWUSER_WIDTH = 1,
-    parameter WUSER_WIDTH = 1,
-    parameter BUSER_WIDTH = 1,
-    parameter ARUSER_WIDTH = 1,
-    parameter RUSER_WIDTH = 1
+    parameter int AXI_DATA_W  = 64,
+    parameter int AXI_ADDR_W  = 16,
+    parameter int S_AXI_ID_W  = 4,
+    parameter int M_AXI_ID_W  = 6,
+    parameter int AXI_STRB_W  = 8,
+    parameter int AWUSER_WIDTH = 1,
+    parameter int WUSER_WIDTH = 1,
+    parameter int BUSER_WIDTH = 1,
+    parameter int ARUSER_WIDTH = 1,
+    parameter int RUSER_WIDTH = 1
 ) (
     input wire clk,
     input wire rst,
@@ -226,11 +226,11 @@ module zstd_dec_wrapper #(
    * XLS Channels representing AXI interfaces
    */
 
-  localparam XLS_AXI_AW_W = AXI_ADDR_W + S_AXI_ID_W + 3 + 2 + 8;
-  localparam XLS_AXI_W_W = AXI_DATA_W + AXI_STRB_W + 1;
-  localparam XLS_AXI_B_W = 3 + S_AXI_ID_W;
-  localparam XLS_AXI_AR_W = S_AXI_ID_W + AXI_ADDR_W + 4 + 8 + 3 + 2 + 4 + 3 + 4;
-  localparam XLS_AXI_R_W = S_AXI_ID_W + AXI_DATA_W + 3 + 1;
+  localparam int XLS_AXI_AW_W = AXI_ADDR_W + S_AXI_ID_W + 3 + 2 + 8;
+  localparam int XLS_AXI_W_W = AXI_DATA_W + AXI_STRB_W + 1;
+  localparam int XLS_AXI_B_W = 3 + S_AXI_ID_W;
+  localparam int XLS_AXI_AR_W = S_AXI_ID_W + AXI_ADDR_W + 4 + 8 + 3 + 2 + 4 + 3 + 4;
+  localparam int XLS_AXI_R_W = S_AXI_ID_W + AXI_DATA_W + 3 + 1;
   // CSR
   wire [XLS_AXI_AW_W-1:0] zstd_dec__csr_axi_aw;
   wire                    zstd_dec__csr_axi_aw_rdy;

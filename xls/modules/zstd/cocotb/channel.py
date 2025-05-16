@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Cocotb interfaces for XLS channels using data, valid, and ready signals."""
+
 from typing import Any, Sequence, Type, Union
 
 import cocotb
@@ -30,6 +32,7 @@ XLS_CHANNEL_OPTIONAL_SIGNALS = []
 
 
 class XLSChannel(Bus):
+  """Represents an XLS- channel with ready/valid handshake."""
   _signals = XLS_CHANNEL_SIGNALS
   _optional_signals = XLS_CHANNEL_OPTIONAL_SIGNALS
 
@@ -41,7 +44,7 @@ class XLSChannel(Bus):
 
   @cocotb.coroutine
   async def recv_channel(self):
-    """Cocotb coroutine that acts as a proc receiving data from a channel"""
+    """Cocotb coroutine that acts as a proc receiving data from a channel."""
     self.rdy.setimmediatevalue(1)
     while True:
       await RisingEdge(self.clk)
@@ -51,6 +54,7 @@ class XLSChannel(Bus):
 
 
 class XLSChannelDriver(BusDriver):
+  """Drives transactions on an XLS channel."""
   _signals = XLS_CHANNEL_SIGNALS
   _optional_signals = XLS_CHANNEL_OPTIONAL_SIGNALS
 
@@ -79,6 +83,7 @@ class XLSChannelDriver(BusDriver):
 
 
 class XLSChannelMonitor(BusMonitor):
+   """Monitors and decodes transactions on an XLS channel."""
   _signals = XLS_CHANNEL_SIGNALS
   _optional_signals = XLS_CHANNEL_OPTIONAL_SIGNALS
 

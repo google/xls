@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""ZSTD test frame generator for DSLX tests
+"""ZSTD test frame generator for DSLX tests.
 
 This module interacts with the data_generator module and underlying Decodecorpus
 in order to generate inputs and expected outputs for the ZSTD Decoder tests in DSLX.
@@ -29,23 +29,29 @@ import argparse
 import math
 import random
 import tempfile
-from pathlib import Path
+import pathlib
 
-from xls.modules.zstd.cocotb.data_generator import (
-  BlockType,
-  DecompressFrame,
-  GenerateFrame,
-)
+import xls.modules.zstd.cocotb.data_generator as data_generator
 
 
 def GenerateTestData(seed, btype):
   with tempfile.NamedTemporaryFile() as tmp:
-    GenerateFrame(seed, btype, tmp.name)
+    data_generator.GenerateFrame(seed, btype, tmp.name)
     tmp.seek(0)
     return tmp.read()
 
 
 def Bytes2DSLX(frames, bytes_per_word, array_name):
+  """Converts a list of byte frames to a DSLX constant array declaration.
+
+  Args:
+    frames (List[bytes]): List of byte sequences representing frames.
+    bytes_per_word (int): Number of bytes per word in the output format.
+    array_name (str): Name of the resulting DSLX constant array.
+
+  Returns:
+    str: A string containing the DSLX constant array declaration.
+  """
   frames_hex = []
   maxlen = max(len(frame) for frame in frames)
   maxlen_size = math.ceil(maxlen / bytes_per_word)
@@ -82,24 +88,24 @@ def Bytes2DSLX(frames, bytes_per_word, array_name):
 
 def GenerateDataStruct():
   return (
-    f"pub struct DataArray<BITS_PER_WORD: u32, LENGTH: u32>{{\n"
-    f"  data: uN[BITS_PER_WORD][LENGTH],\n"
-    f"  length: u32,\n"
-    f"  array_length: u32\n"
-    f"}}\n"
+    "pub struct DataArray<BITS_PER_WORD: u32, LENGTH: u32>{\n"
+    "  data: uN[BITS_PER_WORD][LENGTH],\n"
+    "  length: u32,\n"
+    "  array_length: u32\n"
+    "}\n"
   )
 
-def main2():
+def Main2():
   parser = argparse.ArgumentParser()
   parser.add_argument(
     "input",
     help="Filename of the decodecorpus input",
-    type=Path,
+    type=pathlib.Path,
   )
   parser.add_argument(
     "output",
     help="Filename of the DSLX output file",
-    type=Path,
+    type=pathlib.Path,
   )
   parser.add_argument(
     "--bytes-per-word",
@@ -119,7 +125,7 @@ def main2():
     dslx_frames = Bytes2DSLX(byte_frames, args.bytes_per_word, "FRAMES")
     dslx_output.write(dslx_frames)
 
-    byte_frames_decompressed = list(map(DecompressFrame, byte_frames))
+    byte_frames_decompressed = list(map(data_generator.DecompressFrame, byte_frames))
     dslx_frames_decompressed = Bytes2DSLX(
       byte_frames_decompressed, args.bytes_per_word, "DECOMPRESSED_FRAMES"
     )
@@ -140,17 +146,17 @@ def main():
       "Block types allowed in the generated testcases. If multiple block types "
       "are supplied, generated testcases will cycle through them"
     ),
-    type=BlockType.from_string,
-    choices=list(BlockType),
-    default=BlockType.RANDOM,
+    type=data_generator.BlockType.from_string,
+    choices=list(data_generator.BlockType),
+    default=data_generator.BlockType.RANDOM,
     nargs="+",
   )
   parser.add_argument(
     "-o",
     "--output",
     help="Filename of the DSLX output file",
-    type=Path,
-    default=Path("frames_test_data.x"),
+    type=pathlib.Path,
+    default=pathlib.Path("frames_test_data.x"),
   )
   parser.add_argument(
     "--bytes-per-word",
@@ -160,7 +166,7 @@ def main():
   )
   args = parser.parse_args()
 
-  seed = random.seed(args.seed)
+  random.seed(args.seed)
   byte_frames = [
     GenerateTestData(random.randrange(2**32), args.btype[i % len(args.btype)])
     for i in range(args.n)
@@ -171,7 +177,7 @@ def main():
     dslx_frames = Bytes2DSLX(byte_frames, args.bytes_per_word, "FRAMES")
     dslx_output.write(dslx_frames)
 
-    byte_frames_decompressed = list(map(DecompressFrame, byte_frames))
+    byte_frames_decompressed = list(map(data_generator.DecompressFrame, byte_frames))
     dslx_frames_decompressed = Bytes2DSLX(
       byte_frames_decompressed, args.bytes_per_word, "DECOMPRESSED_FRAMES"
     )

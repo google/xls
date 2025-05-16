@@ -21,19 +21,15 @@ from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles, Event
+from cocotb.triggers import Event
 from cocotb_bus.scoreboard import Scoreboard
-from cocotbext.axi.axi_channels import AxiARBus, AxiRBus, AxiReadBus, AxiRTransaction, AxiRSource, AxiRSink, AxiRMonitor
+import cocotbext.axi.axi_channels as axi_channels
 from cocotbext.axi.axi_ram import AxiRamRead
 from cocotbext.axi.sparse_memory import SparseMemory
 
-from xls.modules.zstd.cocotb.channel import (
-  XLSChannel,
-  XLSChannelDriver,
-  XLSChannelMonitor,
-)
-from xls.modules.zstd.cocotb.utils import reset, run_test
-from xls.modules.zstd.cocotb.xlsstruct import XLSStruct, xls_dataclass
+import xls.modules.zstd.cocotb.channel as xlschannel
+import xls.modules.zstd.cocotb.utils as utils
+import xls.modules.zstd.cocotb.xlsstruct as xlsstruct
 
 # to disable warnings from hexdiff used by cocotb's Scoreboard
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -60,34 +56,34 @@ MEM_READER_RESP_CHANNEL = "resp"
 
 # Override default widths of AXI response signals
 signal_widths = {"rresp": 3, "rlast": 1}
-AxiRBus._signal_widths = signal_widths
-AxiRTransaction._signal_widths = signal_widths
-AxiRSource._signal_widths = signal_widths
-AxiRSink._signal_widths = signal_widths
-AxiRMonitor._signal_widths = signal_widths
+axi_channels.AxiRBus._signal_widths = signal_widths
+axi_channels.AxiRTransaction._signal_widths = signal_widths
+axi_channels.AxiRSource._signal_widths = signal_widths
+axi_channels.AxiRSink._signal_widths = signal_widths
+axi_channels.AxiRMonitor._signal_widths = signal_widths
 
-@xls_dataclass
-class MemReaderReq(XLSStruct):
+@xlsstruct.xls_dataclass
+class MemReaderReq(xlsstruct.XLSStruct):
   addr: DSLX_ADDR_W
   length: DSLX_ADDR_W
 
 
-@xls_dataclass
-class MemReaderResp(XLSStruct):
+@xlsstruct.xls_dataclass
+class MemReaderResp(xlsstruct.XLSStruct):
   status: STATUS_W
   data: DSLX_DATA_W
   length: DSLX_ADDR_W
   last: LAST_W
 
 
-@xls_dataclass
-class AxiReaderReq(XLSStruct):
+@xlsstruct.xls_dataclass
+class AxiReaderReq(xlsstruct.XLSStruct):
   addr: AXI_ADDR_W
   len: AXI_ADDR_W
 
 
-@xls_dataclass
-class AxiStream(XLSStruct):
+@xlsstruct.xls_dataclass
+class AxiStream(xlsstruct.XLSStruct):
   data: AXI_DATA_W
   str: AXI_DATA_W // 8
   keep: AXI_DATA_W // 8 = 0
@@ -96,13 +92,13 @@ class AxiStream(XLSStruct):
   dest: DEST_W = 0
 
 
-@xls_dataclass
-class AxiReaderError(XLSStruct):
+@xlsstruct.xls_dataclass
+class AxiReaderError(xlsstruct.XLSStruct):
   error: ERROR_W
 
 
-@xls_dataclass
-class AxiAr(XLSStruct):
+@xlsstruct.xls_dataclass
+class AxiAr(xlsstruct.XLSStruct):
   id: ID_W
   addr: AXI_ADDR_W
   region: 4
@@ -114,8 +110,8 @@ class AxiAr(XLSStruct):
   qos: 4
 
 
-@xls_dataclass
-class AxiR(XLSStruct):
+@xlsstruct.xls_dataclass
+class AxiR(xlsstruct.XLSStruct):
   id: ID_W
   data: AXI_DATA_W
   resp: 3
@@ -177,15 +173,18 @@ def generate_test_data(test_cases, xfer_base=0x0, seed=1234):
   return (req, resp, mem_writes)
 
 
-async def test_mem_reader(dut, req_input, resp_output, mem_contents={}):
+async def test_mem_reader(dut, req_input, resp_output, mem_contents=None):
+  if mem_contents is None:
+    mem_contents = {}
+
   clock = Clock(dut.clk, 10, units="us")
   cocotb.start_soon(clock.start())
 
-  mem_reader_resp_bus = XLSChannel(
+  _mem_reader_resp_bus = xlschannel.XLSChannel(
     dut, MEM_READER_RESP_CHANNEL, dut.clk, start_now=True
   )
-  mem_reader_req_driver = XLSChannelDriver(dut, MEM_READER_REQ_CHANNEL, dut.clk)
-  mem_reader_resp_monitor = XLSChannelMonitor(
+  mem_reader_req_driver = xlschannel.XLSChannelDriver(dut, MEM_READER_REQ_CHANNEL, dut.clk)
+  mem_reader_resp_monitor = xlschannel.XLSChannelMonitor(
     dut, MEM_READER_RESP_CHANNEL, dut.clk, MemReaderResp, callback=print_callback()
   )
 
@@ -195,18 +194,18 @@ async def test_mem_reader(dut, req_input, resp_output, mem_contents={}):
   scoreboard = Scoreboard(dut)
   scoreboard.add_interface(mem_reader_resp_monitor, resp_output)
 
-  ar_bus = AxiARBus.from_prefix(dut, AXI_AR_PREFIX)
-  r_bus = AxiRBus.from_prefix(dut, AXI_R_PREFIX)
-  axi_read_bus = AxiReadBus(ar=ar_bus, r=r_bus)
+  ar_bus = axi_channels.AxiARBus.from_prefix(dut, AXI_AR_PREFIX)
+  r_bus = axi_channels.AxiRBus.from_prefix(dut, AXI_R_PREFIX)
+  axi_read_bus = axi_channels.AxiReadBus(ar=ar_bus, r=r_bus)
 
   mem_size = 2**AXI_ADDR_W
   sparse_mem = SparseMemory(mem_size)
   for addr, data in mem_contents.items():
     sparse_mem.write(addr, (data).to_bytes(8, "little"))
 
-  memory = AxiRamRead(axi_read_bus, dut.clk, dut.rst, size=mem_size, mem=sparse_mem)
+  _memory = AxiRamRead(axi_read_bus, dut.clk, dut.rst, size=mem_size, mem=sparse_mem)
 
-  await reset(dut.clk, dut.rst, cycles=10)
+  await utils.reset(dut.clk, dut.rst, cycles=10)
   await mem_reader_req_driver.send(req_input)
   await terminate.wait()
 
@@ -268,4 +267,4 @@ if __name__ == "__main__":
     "xls/modules/zstd/memory/rtl/mem_reader_wrapper.v",
   ]
   test_module = [Path(__file__).stem]
-  run_test(toplevel, test_module, verilog_sources)
+  utils.run_test(toplevel, test_module, verilog_sources)

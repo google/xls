@@ -12,8 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-from queue import Queue
+"""Scoreboard creator for measuring request-response latency.
+
+Tracks transactions from channel monitors, computes cycle-based latency,
+and logs results.
+"""
+
+import dataclasses
+import queue
 
 from cocotb.clock import Clock
 from cocotb.log import SimLog
@@ -23,20 +29,26 @@ from xls.modules.zstd.cocotb.channel import XLSChannelMonitor
 from xls.modules.zstd.cocotb.xlsstruct import XLSStruct
 
 
-@dataclass
+@dataclasses.dataclass
 class LatencyQueueItem:
+  """
+  Data container for items in a latency queue.
+  """
+
   transaction: XLSStruct
   timestamp: int
 
 
 class LatencyScoreboard:
+  """Tracks and reports latency between request and response transactions."""
+
   def __init__(self, dut, clock: Clock, req_monitor: XLSChannelMonitor, resp_monitor: XLSChannelMonitor):
     self.dut = dut
     self.log = SimLog(f"zstd.cocotb.scoreboard.{self.dut._name}")
     self.clock = clock
     self.req_monitor = req_monitor
     self.resp_monitor = resp_monitor
-    self.pending_req = Queue()
+    self.pending_req = queue.Queue()
     self.results = []
 
     self.req_monitor.add_callback(self._req_callback)
@@ -48,7 +60,7 @@ class LatencyScoreboard:
   def _req_callback(self, transaction: XLSStruct):
     self.pending_req.put(LatencyQueueItem(transaction, self._current_cycle()))
 
-  def _resp_callback(self, transaction: XLSStruct):
+  def _resp_callback(self, _transaction: XLSStruct):
     latency_item = self.pending_req.get()
     self.results.append(self._current_cycle() - latency_item.timestamp)
 
@@ -56,11 +68,12 @@ class LatencyScoreboard:
     return sum(self.results)/len(self.results)
 
   def report_result(self):
+    """Logs a summary of latency measurements and any unfulfilled requests."""
     if not self.pending_req.empty():
       self.log.warning(f"There are unfulfilled requests from channel {self.req_monitor.name}")
       while not self.pending_req.empty():
         self.log.warning(f"Unfulfilled request: {self.pending_req.get()}")
-    if len(self.results) > 0:
+    if self.results:
       self.log.info(f"Latency report - 1st latency: {self.results[0]}")
     if len(self.results) > 1:
       self.log.info(f"Latency report - 2nd latency: {self.results[1]}")

@@ -16,60 +16,55 @@
 
 import random
 import logging
-from enum import Enum
-from pathlib import Path
+import enum
+import pathlib
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles, Event
+from cocotb.triggers import Event
 from cocotb.binary import BinaryValue
 from cocotb_bus.scoreboard import Scoreboard
 
-from cocotbext.axi.axis import AxiStreamSource, AxiStreamBus, AxiStreamFrame
-from cocotbext.axi.axi_channels import AxiAWBus, AxiWBus, AxiBBus, AxiWriteBus, AxiAWMonitor, AxiWMonitor, AxiBMonitor, AxiBTransaction, AxiBSource, AxiBSink
+import cocotbext.axi.axi_channels as axi_channels
 from cocotbext.axi.axi_ram import AxiRamWrite
 from cocotbext.axi.sparse_memory import SparseMemory
 
-from xls.modules.zstd.cocotb.channel import (
-  XLSChannel,
-  XLSChannelDriver,
-  XLSChannelMonitor,
-)
-from xls.modules.zstd.cocotb.utils import reset, run_test
-from xls.modules.zstd.cocotb.xlsstruct import XLSStruct, xls_dataclass
+import xls.modules.zstd.cocotb.channel as xlschannel
+import xls.modules.zstd.cocotb.utils as utils
+import xls.modules.zstd.cocotb.xlsstruct as xlsstruct
 
 DATA_WIDTH = 32
 ADDR_WIDTH = 16
 
 # Override default widths of AXI response signals
 signal_widths = {"bresp": 3}
-AxiBBus._signal_widths = signal_widths
-AxiBTransaction._signal_widths = signal_widths
-AxiBSource._signal_widths = signal_widths
-AxiBSink._signal_widths = signal_widths
-AxiBMonitor._signal_widths = signal_widths
+axi_channels.AxiBBus._signal_widths = signal_widths
+axi_channels.AxiBTransaction._signal_widths = signal_widths
+axi_channels.AxiBSource._signal_widths = signal_widths
+axi_channels.AxiBSink._signal_widths = signal_widths
+axi_channels.AxiBMonitor._signal_widths = signal_widths
 
-@xls_dataclass
-class DataInStruct(XLSStruct):
+@xlsstruct.xls_dataclass
+class DataInStruct(xlsstruct.XLSStruct):
   data: DATA_WIDTH
   length: ADDR_WIDTH
   last: 1
 
-@xls_dataclass
-class WriteReqStruct(XLSStruct):
+@xlsstruct.xls_dataclass
+class WriteReqStruct(xlsstruct.XLSStruct):
   offset: ADDR_WIDTH
   length: ADDR_WIDTH
 
-@xls_dataclass
-class MemWriterRespStruct(XLSStruct):
+@xlsstruct.xls_dataclass
+class MemWriterRespStruct(xlsstruct.XLSStruct):
   status: 1
 
-class MemWriterRespStatus(Enum):
+class MemWriterRespStatus(enum.Enum):
   OKAY = 0
   ERROR = 1
 
-@xls_dataclass
-class WriteRequestStruct(XLSStruct):
+@xlsstruct.xls_dataclass
+class WriteRequestStruct(xlsstruct.XLSStruct):
   address: ADDR_WIDTH
   length: ADDR_WIDTH
 
@@ -80,12 +75,12 @@ def set_termination_event(monitor, event, transactions):
   monitor.add_callback(terminate_cb)
 
 async def test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt):
-  GENERIC_WRITE_REQ_CHANNEL = "req"
-  GENERIC_WRITE_RESP_CHANNEL = "resp"
-  GENERIC_DATA_IN_CHANNEL = "data_in"
-  AXI_AW_CHANNEL = "axi_aw"
-  AXI_W_CHANNEL = "axi_w"
-  AXI_B_CHANNEL = "axi_b"
+  generic_write_req_channel = "req"
+  generic_write_resp_channel = "resp"
+  generic_data_in_channel = "data_in"
+  axi_aw_channel = "axi_aw"
+  axi_w_channel = "axi_w"
+  axi_b_channel = "axi_b"
 
   terminate = Event()
 
@@ -94,22 +89,22 @@ async def test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_
   clock = Clock(dut.clk, 10, units="us")
   cocotb.start_soon(clock.start())
 
-  resp_bus = XLSChannel(dut, GENERIC_WRITE_RESP_CHANNEL, dut.clk, start_now=True)
+  _resp_bus = xlschannel.XLSChannel(dut, generic_write_resp_channel, dut.clk, start_now=True)
 
-  driver_write_req = XLSChannelDriver(dut, GENERIC_WRITE_REQ_CHANNEL, dut.clk)
-  driver_data_in = XLSChannelDriver(dut, GENERIC_DATA_IN_CHANNEL, dut.clk)
+  driver_write_req = xlschannel.XLSChannelDriver(dut, generic_write_req_channel, dut.clk)
+  driver_data_in = xlschannel.XLSChannelDriver(dut, generic_data_in_channel, dut.clk)
 
-  bus_axi_aw = AxiAWBus.from_prefix(dut, AXI_AW_CHANNEL)
-  bus_axi_w = AxiWBus.from_prefix(dut, AXI_W_CHANNEL)
-  bus_axi_b = AxiBBus.from_prefix(dut, AXI_B_CHANNEL)
-  bus_axi_write = AxiWriteBus(bus_axi_aw, bus_axi_w, bus_axi_b)
+  bus_axi_aw = axi_channels.AxiAWBus.from_prefix(dut, axi_aw_channel)
+  bus_axi_w = axi_channels.AxiWBus.from_prefix(dut, axi_w_channel)
+  bus_axi_b = axi_channels.AxiBBus.from_prefix(dut, axi_b_channel)
+  bus_axi_write = axi_channels.AxiWriteBus(bus_axi_aw, bus_axi_w, bus_axi_b)
 
-  monitor_write_req = XLSChannelMonitor(dut, GENERIC_WRITE_REQ_CHANNEL, dut.clk, WriteRequestStruct)
-  monitor_data_in = XLSChannelMonitor(dut, GENERIC_DATA_IN_CHANNEL, dut.clk, WriteRequestStruct)
-  monitor_write_resp = XLSChannelMonitor(dut, GENERIC_WRITE_RESP_CHANNEL, dut.clk, MemWriterRespStruct)
-  monitor_axi_aw = AxiAWMonitor(bus_axi_aw, dut.clk, dut.rst)
-  monitor_axi_w = AxiWMonitor(bus_axi_w, dut.clk, dut.rst)
-  monitor_axi_b = AxiBMonitor(bus_axi_b, dut.clk, dut.rst)
+  _monitor_write_req = xlschannel.XLSChannelMonitor(dut, generic_write_req_channel, dut.clk, WriteRequestStruct)
+  _monitor_data_in = xlschannel.XLSChannelMonitor(dut, generic_data_in_channel, dut.clk, WriteRequestStruct)
+  monitor_write_resp = xlschannel.XLSChannelMonitor(dut, generic_write_resp_channel, dut.clk, MemWriterRespStruct)
+  _monitor_axi_aw = axi_channels.AxiAWMonitor(bus_axi_aw, dut.clk, dut.rst)
+  _monitor_axi_w = axi_channels.AxiWMonitor(bus_axi_w, dut.clk, dut.rst)
+  _monitor_axi_b = axi_channels.AxiBMonitor(bus_axi_b, dut.clk, dut.rst)
 
   set_termination_event(monitor_write_resp, terminate, resp_cnt)
 
@@ -122,7 +117,7 @@ async def test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_
   scoreboard = Scoreboard(dut)
   scoreboard.add_interface(monitor_write_resp, write_resp_expect)
 
-  await reset(dut.clk, dut.rst, cycles=10)
+  await utils.reset(dut.clk, dut.rst, cycles=10)
   await cocotb.start(driver_write_req.send(write_req_input))
   await cocotb.start(driver_data_in.send(data_in_input))
 
@@ -212,8 +207,6 @@ async def ram_test_random(dut):
   await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
 
 def generate_test_data_random(test_count, mem_size):
-  AXI_AXSIZE_ENCODING_MAX_4B_TRANSFER = 2 # Must be in sync with AXI_AXSIZE_ENCODING enum in axi.x
-
   write_req_input = []
   data_in_input = []
   write_resp_expect = []
@@ -224,7 +217,7 @@ def generate_test_data_random(test_count, mem_size):
 
   xfer_baseaddr = 0
 
-  for i in range(test_count):
+  for _ in range(test_count):
     # Generate offset from the absolute address
     max_xfer_offset = mem_size - xfer_baseaddr
     xfer_offset = random.randrange(0, max_xfer_offset)
@@ -277,32 +270,36 @@ def generate_test_data_random(test_count, mem_size):
   return (write_req_input, data_in_input, write_resp_expect, memory_verification, memory, test_count)
 
 def bytes_to_4k_boundary(addr):
-    AXI_4K_BOUNDARY = 0x1000
-    return AXI_4K_BOUNDARY - (addr % AXI_4K_BOUNDARY)
+  axi_4k_boundary = 0x1000
+  return axi_4k_boundary - (addr % axi_4k_boundary)
 
 def write_expected_memory(transfer_req, data_to_write, memory):
-    """
-    Write test data to reference memory keeping the AXI 4kb boundary
-    by spliting the write requests into smaller ones.
-    """
-    prev_id = 0
-    address = transfer_req.address
-    length = transfer_req.length
+  """
+  Write test data to reference memory keeping the AXI 4kb boundary
+  by spliting the write requests into smaller ones.
 
-    BYTES_IN_TRANSFER = 4
-    MAX_AXI_BURST_BYTES = 256 * BYTES_IN_TRANSFER
+  Args:
+    transfer_req: The transfer request object containing address and length information.
+    data_to_write: A bytes-like object or list of data that needs to be written.
+    memory: SparseMemory object simulating memory storage, where the data will be written.
+  """
+  prev_id = 0
+  address = transfer_req.address
+  length = transfer_req.length
 
-    while (length > 0):
-      bytes_to_4k = bytes_to_4k_boundary(address)
-      new_len = min(length, min(bytes_to_4k, MAX_AXI_BURST_BYTES))
-      new_data = data_to_write[prev_id:prev_id+new_len]
-      memory.write(address, new_data)
-      address = address + new_len
-      length = length - new_len
-      prev_id = prev_id + new_len
+  bytes_in_transfer = 4
+  max_axi_burst_bytes = 256 * bytes_in_transfer
+
+  while (length > 0):
+    bytes_to_4k = bytes_to_4k_boundary(address)
+    new_len = min(length, min(bytes_to_4k, max_axi_burst_bytes))
+    new_data = data_to_write[prev_id:prev_id+new_len]
+    memory.write(address, new_data)
+    address = address + new_len
+    length = length - new_len
+    prev_id = prev_id + new_len
 
 def generate_test_data_arbitrary(mem_size, test_cases):
-  AXI_AXSIZE_ENCODING_MAX_4B_TRANSFER = 2 # Must be in sync with AXI_AXSIZE_ENCODING enum in axi.x
   test_count = len(test_cases)
 
   random.seed(1234)
@@ -369,7 +366,6 @@ def generate_test_data_arbitrary(mem_size, test_cases):
   return (write_req_input, data_in_input, write_resp_expect, memory_verification, memory, test_count)
 
 def generate_padded_test_data_arbitrary(mem_size, test_cases):
-  AXI_AXSIZE_ENCODING_MAX_4B_TRANSFER = 2 # Must be in sync with AXI_AXSIZE_ENCODING enum in axi.x
   test_count = len(test_cases)
 
   random.seed(1234)
@@ -445,8 +441,8 @@ if __name__ == "__main__":
       "xls/modules/zstd/memory/mem_writer.v",
       "xls/modules/zstd/memory/rtl/mem_writer_wrapper.v",
     ]
-    test_module=[Path(__file__).stem]
-    run_test(toplevel, test_module, verilog_sources)
+    test_module=[pathlib.Path(__file__).stem]
+    utils.run_test(toplevel, test_module, verilog_sources)
 
 test_cases_single_burst_1_transfer = [
   # Aligned Address; Aligned Length

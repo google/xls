@@ -12,25 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Helpers for setting up and running simulations using Icarus Verilog with Cocotb."""
+
 import os
-from pathlib import Path
+import pathlib
 
 import cocotb
-from cocotb.runner import check_results_file, get_runner
+from cocotb.runner import check_results_file
+from cocotb.runner import get_runner
 from cocotb.triggers import ClockCycles
 
 from xls.common import runfiles
 
 
 def setup_com_iverilog():
-  iverilog_path = Path(runfiles.get_path("iverilog", repository = "com_icarus_iverilog"))
-  vvp_path = Path(runfiles.get_path("vvp", repository = "com_icarus_iverilog"))
+  iverilog_path = pathlib.Path(runfiles.get_path("iverilog", repository = "com_icarus_iverilog"))
+  vvp_path = pathlib.Path(runfiles.get_path("vvp", repository = "com_icarus_iverilog"))
   os.environ["PATH"] += os.pathsep + str(iverilog_path.parent)
   os.environ["PATH"] += os.pathsep + str(vvp_path.parent)
-  build_dir = Path(os.environ['BUILD_WORKING_DIRECTORY'], "sim_build")
+  build_dir = pathlib.Path(os.environ['BUILD_WORKING_DIRECTORY'], "sim_build")
   return build_dir
 
 def run_test(toplevel, test_module, verilog_sources):
+  """Builds and runs a Cocotb testbench using Icarus Verilog."""
   build_dir = setup_com_iverilog()
   runner = get_runner("icarus")
   runner.build(
@@ -51,7 +55,7 @@ def run_test(toplevel, test_module, verilog_sources):
 
 @cocotb.coroutine
 async def reset(clk, rst, cycles=1):
-  """Cocotb coroutine that performs the reset"""
+  """Cocotb coroutine that performs the reset."""
   rst.value = 1
   await ClockCycles(clk, cycles)
   rst.value = 0
