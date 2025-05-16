@@ -528,6 +528,21 @@ absl::Status VerifyBlockChannelMetadata(Block* block) {
   return absl::OkStatus();
 }
 
+// Verify that no two blocks have the same provenance.
+absl::Status VerifyBlockProvenance(Package* package) {
+  absl::flat_hash_set<BlockProvenance> provenances;
+  for (const auto& block : package->blocks()) {
+    if (block->GetProvenance().has_value()) {
+      auto [_, inserted] = provenances.insert(*block->GetProvenance());
+      if (!inserted) {
+        XLS_RET_CHECK(inserted) << "Multiple blocks have the same provenance: "
+                                << absl::StrCat(*block->GetProvenance());
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::Status VerifyPackage(
@@ -592,6 +607,7 @@ absl::Status VerifyPackage(
 
   XLS_RETURN_IF_ERROR(VerifyChannels(package, codegen, topo_sort));
   XLS_RETURN_IF_ERROR(VerifyElaboration(package));
+  XLS_RETURN_IF_ERROR(VerifyBlockProvenance(package));
 
   // TODO(meheff): Verify main entry point is one of the functions.
   // TODO(meheff): Verify functions called by any node are in the set of

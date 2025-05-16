@@ -69,8 +69,9 @@ struct ResetAttribute {
   ResetBehavior behavior;
 };
 
-using IrAttributePayload = std::variant<InitiationInterval, ChannelPortMetadata,
-                                        ForeignFunctionData, ResetAttribute>;
+using IrAttributePayload =
+    std::variant<InitiationInterval, ChannelPortMetadata, ForeignFunctionData,
+                 ResetAttribute, BlockProvenance>;
 struct IrAttribute {
   std::string name;
   IrAttributePayload payload;

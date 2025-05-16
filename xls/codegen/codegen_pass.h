@@ -379,21 +379,9 @@ class CodegenContext {
   // Sets the top block.
   void SetTopBlock(Block* ABSL_NONNULL b) { top_block_ = b; }
 
-  // Adds necessary maps from the FunctionBase to the Block.
-  void AssociateBlock(FunctionBase* fb, Block* block) {
-    function_base_to_block_.emplace(fb, block);
-  }
-
   // Adds necessary maps from the FunctionBase to the Schedule.
   void AssociateSchedule(FunctionBase* fb, PipelineSchedule schedule) {
     function_base_to_schedule_.emplace(fb, std::move(schedule));
-  }
-
-  // Adds necessary maps from the FunctionBase to the Block and Schedule.
-  void AssociateScheduleAndBlock(FunctionBase* fb, PipelineSchedule schedule,
-                                 Block* block) {
-    function_base_to_schedule_.emplace(fb, std::move(schedule));
-    function_base_to_block_.emplace(fb, block);
   }
 
   // Returns the metadata map.
@@ -418,17 +406,6 @@ class CodegenContext {
 
   // Clean up any dangling pointers in codegen metadata.
   void GcMetadata();
-
-  // Returns function to block mapping.
-  const absl::btree_map<FunctionBase*, Block*,
-                        struct FunctionBase::NameLessThan>&
-  function_base_to_block() const {
-    return function_base_to_block_;
-  }
-  absl::btree_map<FunctionBase*, Block*, struct FunctionBase::NameLessThan>&
-  function_base_to_block() {
-    return function_base_to_block_;
-  }
 
   // Returns function to schedule mapping.
   const absl::btree_map<FunctionBase*, PipelineSchedule,
@@ -465,10 +442,6 @@ class CodegenContext {
   absl::btree_map<FunctionBase*, PipelineSchedule,
                   struct FunctionBase::NameLessThan>
       function_base_to_schedule_;
-
-  // Sorted map from FunctionBase to block.
-  absl::btree_map<FunctionBase*, Block*, struct FunctionBase::NameLessThan>
-      function_base_to_block_;
 
   // The top-level block to generate a Verilog module for.
   Block* top_block_;

@@ -268,6 +268,9 @@ std::string Block::DumpIr() const {
   std::string res = absl::StrFormat("block %s(%s) {\n", name(),
                                     absl::StrJoin(port_strings, ", "));
 
+  if (provenance_.has_value()) {
+    absl::StrAppendFormat(&res, "  #![%v]\n", *provenance_);
+  }
   if (reset_behavior_.has_value()) {
     absl::StrAppendFormat(
         &res, "  #![reset(port=\"%s\", asynchronous=%s, active_low=%s)]\n",

@@ -2368,6 +2368,9 @@ absl::StatusOr<Block*> Parser::ParseBlock(
       XLS_RETURN_IF_ERROR(
           block->SetResetPort(reset_port.value(), reset.behavior));
     }
+    if (std::holds_alternative<BlockProvenance>(attribute.payload)) {
+      block->SetProvenance(std::get<BlockProvenance>(attribute.payload));
+    }
   }
 
   return block;
@@ -2855,6 +2858,37 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
             .port_name = port.value(),
             .behavior = ResetBehavior{.asynchronous = asynchronous.value(),
                                       .active_low = active_low.value()}}};
+  }
+  if (attribute_name.value() == "provenance") {
+    std::optional<std::string> name;
+    std::optional<BlockProvenanceKind> kind;
+
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+    absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
+    handlers["name"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(name, ParseQuotedString());
+      return absl::OkStatus();
+    };
+    handlers["kind"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(std::string kind_string, ParseQuotedString());
+      if (kind_string == "proc") {
+        kind = BlockProvenanceKind::kProc;
+      } else if (kind_string == "function") {
+        kind = BlockProvenanceKind::kFunction;
+      } else {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Invalid block provenance kind `%s`", kind_string));
+      }
+      return absl::OkStatus();
+    };
+    XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers, {"name", "kind"}));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+
+    return IrAttribute{
+        .name = attribute_name.value(),
+        .payload = BlockProvenance{.name = name.value(), .kind = kind.value()}};
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Unknown attribute: ", attribute_name.value()));

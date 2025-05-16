@@ -1059,4 +1059,20 @@ block my_block(rst: bits[1]) {
       Optional(ResetBehavior{.asynchronous = true, .active_low = false}));
 }
 
+TEST(IrParserTest, BlockWithProvenance) {
+  constexpr std::string_view input = R"(package test
+
+block my_block(rst: bits[1]) {
+  #![provenance(name="foo", kind="proc")]
+  rst: bits[1] = input_port(name=rst)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b, pkg->GetBlock("my_block"));
+  EXPECT_THAT(b->GetProvenance(),
+              Optional(BlockProvenance{.name = "foo",
+                                       .kind = BlockProvenanceKind::kProc}));
+}
+
 }  // namespace xls

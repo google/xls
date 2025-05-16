@@ -434,4 +434,8 @@ TEST(IrParserRoundTripTest, ChannelPortMetadata) {
   ParsePackageAndCheckDump(TestName());
 }
 
+TEST(IrParserRoundTripTest, BlockProvenance) {
+  ParsePackageAndCheckDump(TestName());
+}
+
 }  // namespace xls

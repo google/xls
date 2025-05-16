@@ -85,7 +85,8 @@ absl::StatusOr<CodegenContext> CreateBlocksFor(
 
     const PipelineSchedule& schedule = schedules.at(fb);
 
-    context.AssociateScheduleAndBlock(fb, schedule, block);
+    block->SetFunctionBaseProvenance(fb);
+    context.AssociateSchedule(fb, schedule);
   }
 
   context.GcMetadata();
