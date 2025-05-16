@@ -37,4 +37,5 @@ message IrConverterOptionsFlagsProto {
   optional string interface_textproto_file = 12;
   optional FifoConfigProto default_fifo_config = 13;
   optional string enable_warnings = 14;
+  optional bool proc_scoped_channels = 15;
 }

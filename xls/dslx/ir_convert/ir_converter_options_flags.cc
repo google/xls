@@ -71,6 +71,9 @@ ABSL_FLAG(std::optional<std::string>, ir_converter_options_proto, std::nullopt,
 ABSL_FLAG(std::optional<std::string>, default_fifo_config, std::nullopt,
           "Textproto description of a default FifoConfigProto. If unspecified, "
           "no default FIFO config is specified and codegen may fail.");
+ABSL_FLAG(bool, proc_scoped_channels, false,
+          "Whether to generate proc-scoped channels; if false, generates "
+          "global channels.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 ABSL_FLAG(std::optional<std::string>, ir_converter_options_used_textproto_file,
           std::nullopt,
@@ -106,6 +109,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_OPTIONAL_FLAG(disable_warnings);
   POPULATE_OPTIONAL_FLAG(enable_warnings);
   POPULATE_FLAG(warnings_as_errors);
+  POPULATE_FLAG(proc_scoped_channels);
   POPULATE_OPTIONAL_FLAG(interface_proto_file);
   POPULATE_OPTIONAL_FLAG(interface_textproto_file);
 
