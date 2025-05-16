@@ -110,6 +110,7 @@ In case an error occurs during the decoding process it is also signaled on the
 ## ZSTD decoder architecture
 
 ### Top level Proc
+
 This state machine is responsible for controlling the operation of the whole
 decoder. It uses the configuration data from the CSRs, connects all underlying
 modules and sends processing requests to those based on the state of the
@@ -187,6 +188,7 @@ the memory, the decoder sends the `Notify` signal and transitions back to the
 ### Internal modules
 
 #### FrameHeaderDecoder
+
 This proc receives requests with the address of the beginning of the ZSTD frame.
 It then reads the frame data from the memory and starts parsing the frame
 header. If the magic number is not detected or the frame header is invalid, the
@@ -195,6 +197,7 @@ header into internal DSLX representation, calculate the length of the header and
 send those as a response with `OKAY` status.
 
 #### BlockHeaderDecoder
+
 ZSTD block header size is always 3 bytes. BlockHeaderDecoder always reads 4
 bytes of data. It extracts the information on block type, size and whether the
 block is the last one in the ZSTD frame and puts that data in the response. The
@@ -202,12 +205,14 @@ additional byte is also placed in the response as an optimization for the
 RleBlockDecoder.
 
 #### RawBlockDecoder
+
 This proc passes the data read from the memory directly to its output channel.
 It preserves the block ID and attaches a tag, stating that the data contains
 literals and should be placed in the history buffer unchanged, to each data
 output.
 
 #### RleBlockDecoder
+
 This proc receives a tuple (s, N), where s is an 8-bit symbol and N is an
 accompanying `symbol_count`. It does not have to read the 8-bit symbol from the
 memory because `BlockHeaderDecoder` did that before and passed the symbol in the
@@ -216,6 +221,7 @@ the given symbol. This step preserves the block ID and attaches the literals tag
 to all its outputs.
 
 #### CompressedBlockDecoder[^1]
+
 This part of the design is responsible for decoding the compressed data blocks.
 It ingests the bytes stream, and internally translates and interprets incoming
 data. Only this part of the design creates data chunks tagged both with
@@ -224,6 +230,7 @@ description can be found in [Compressed block decoder
 architecture](#compressed-block-decoder-architecture1) paragraph of this doc.
 
 #### Commands aggregator (DecMux)
+
 This stage takes the output from either RAW, RLE or CompressedBlockDecoder and
 sends it to the History buffer and command execution stage. This stage orders
 streams based on the ID value assigned by the top level proc. It is expected
@@ -241,8 +248,10 @@ The command aggregator starts by waiting for `ID = 0`, after receiving the
 `last_block` are set the command aggregator will wait for `ID = 0`.
 
 #### History buffer and command execution (SequenceExecutor)
+
 This stage receives data which is tagged either `literals` or `copy`. This stage
 will show the following behavior, depending on the tag:
+
 * `literals`
     * Packet contents placed as newest in the history buffer,
     * Packet contents copied to the decoder's output,
@@ -254,6 +263,7 @@ history buffer to the decoder's output,
 history buffer to the history buffer as the newest.
 
 ### Compressed block decoder architecture[^1] {#compressed-block-decoder-architecture1}
+
 This part of the design is responsible for processing the compressed blocks up
 to the `literals`/`copy` command sequence. This sequence is then processed by
 the history buffer to generate the expected data output. An overview of the
@@ -266,6 +276,7 @@ Treeless blocks.
 ![data flow diagram of compressed block decoder](img/ZSTD_compressed_block_decoder.png)
 
 #### Compressed block dispatcher
+
 This proc parses literals section headers to calculate block compression format,
 Huffmman tree size (if applicable based on compression format), compressed and
 regenerated sizes for literals. If compressed block format is
@@ -278,6 +289,7 @@ After sending literals to literals decompression, it redirects the remaining
 bytes to the sequence parsing stages.
 
 #### Command Constructor
+
 This stage takes literals length, offset length and copy length. When `literals
 length` is greater than 0, it will send a request to the literals buffer to
 obtain `literals length` literals and then send them to the history buffer. Then
@@ -291,6 +303,7 @@ repeated offset memory. Formed commands are sent to the Commands aggregator
 ![data flow diagram of literals decoder](img/ZSTD_compressed_block_literals_decoder.png)
 
 ##### Literals decoder dispatcher
+
 This proc parses and consumes the literals section header. Based on the received
 values it passes the remaining bytes to RAW/RLE/Huffman tree/Huffman code
 decoders. It also controls the 4 stream operation mode [4-stream mode in
@@ -302,13 +315,16 @@ encoding, the dispatcher will send the `finished` tag 4 times, each time a fully
 compressed stream is sent to the bitstream buffer.
 
 ##### RAW Literals
+
 This stage simply passes the incoming bytes as literals to the literals buffer.
 
 ##### RLE Literals
+
 This stage works similarly to the [RLE stage](#rleblockdecoder) for RLE data
 blocks.
 
 ##### Huffman bitstream buffer
+
 This stage takes data from the literals decoder dispatcher and stores it in the
 buffer memory. Once the data with the `finished` tag set is received, this stage
 sends a tuple containing (start, end) positions for the current bitstream to the
@@ -317,6 +333,7 @@ decoder when decoding is done and all bits got processed. Upon receiving this
 message, the buffer will reclaim free space.
 
 ##### Huffman codes decoder
+
 This stage receives bitstream pointers from the Huffman bitstream buffer and
 Huffman tree configuration from the Huffman tree builder. It accesses the
 bitstream buffers memory to retrieve bitstream data in reversed byte order and
@@ -324,6 +341,7 @@ runs it through an array of comparators to decode Huffman code to correct
 literals values.
 
 ##### Literals buffer
+
 This stage receives data either from RAW, RLE or Huffman decoder and stores it.
 Upon receiving the literals copy command from the Command Constructor for `N`
 number of bytes, it provides a reply with `N` literals.
@@ -333,23 +351,28 @@ number of bytes, it provides a reply with `N` literals.
 ![data flow diagram of weight decoders](img/ZSTD_compressed_block_Huffman_decoder.png)
 
 ##### Huffman tree decoder dispatcher
+
 This stage parses and consumes the Huffman tree description header. Based on the
 value of the Huffman descriptor header, it passes the tree description to the
 FSE decoder or to direct weight extraction.
 
 ##### FSE weight decoder
+
 This stage performs multiple functions.
+
 1. It decodes and builds the FSE distribution table.
 2. It stores all remaining bitstream data.
 3. After receiving the last byte, it translates the bitstream to Huffman
 weights using 2 interleaved FSE streams.
 
 ##### Direct weight decoder
+
 This stage takes the incoming bytes and translates them to the stream of Huffman
 tree weights. The first byte of the transfer defines the number of symbols to be
 decoded.
 
 ##### Weight aggregator
+
 This stage receives tree weights either from the FSE decoder or the direct
 decoder and transfers them to Huffman tree builder. This stage also resolves the
 number of bits of the final weight and the max number of bits required in the
@@ -357,6 +380,7 @@ tree representation. This stage will emit the weights and number of symbols of
 the same weight before the current symbol for all possible byte values.
 
 ##### Huffman tree builder
+
 This stage takes `max_number_of_bits` (maximal length of Huffman code) as the
 first value, then the number of symbols with lower weight for each possible
 weight (11 bytes), followed by a tuple (number of preceding symbols with the
@@ -369,6 +393,7 @@ configure the Huffman codes decoder.
 ![data flow diagram of sequence decoder](img/ZSTD_compressed_block_sequence_decoder.png)
 
 ##### Sequence Header parser and dispatcher
+
 This stage parses and consumes `Sequences_Section_Header`. Based on the parsed
 data, it redirects FSE description to the FSE table decoder and triggers
 Literals FSE, Offset FSE or Match FSE decoder to reconfigure its values based on
@@ -380,6 +405,7 @@ followed by decode and state advance. FSE decoders send each other the number of
 bits they read.
 
 ##### Literals FSE decoder
+
 This stage reconfigures its FSE table when triggered from [sequence header parse
 and dispatcher](#sequence-header-parser-and-dispatcher). It initializes its
 state as the first FSE decoder. In the decode phase, this stage is the last one
@@ -388,6 +414,7 @@ transmitted to all other decoders. This stage is the first stage to get a new
 FSE state from the bitstream, and it transmits the number of bits it used.
 
 ##### Offset FSE decoder
+
 This stage reconfigures its FSE table when triggered from [sequence header parse
 and dispatcher](#sequence-header-parser-and-dispatcher). It initializes its
 state as the second FSE decoder. In the decode phase, this stage is the first
@@ -397,6 +424,7 @@ FSE state after the decode phase, and it transmits the number of used bits to
 other decoders.
 
 ##### Match FSE decoder
+
 This stage reconfigures its FSE table when triggered from [sequence header parse
 and dispatcher](#sequence-header-parser-and-dispatcher). It initializes its
 state as the last FSE decoder. In the decode phase, this stage is the second one
@@ -574,7 +602,7 @@ in the simulation and compared against the results from the reference library.
 Verilog tests are available in the `zstd_dec_cocotb_test.py` file and can be
 launched with the following Bazel command:
 
-```
+```shell
 bazel run -c opt -- //xls/modules/zstd:zstd_dec_cocotb_test --logtostderr
 ```
 
