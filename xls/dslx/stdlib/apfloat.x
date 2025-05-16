@@ -2142,47 +2142,47 @@ fn ldexp_test() {
     assert_eq(ldexp(qnan<u32:8, u32:23>(), s32:1), qnan<u32:8, u32:23>());
 
     // Subnormal input.
-    let pos_denormal = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:0, bexp: u8:0, fraction: u23:99 };
+    let pos_denormal = APFloat { sign: u1:0, bexp: u8:0, fraction: u23:99 };
     assert_eq(ldexp(pos_denormal, s32:1), zero<u32:8, u32:23>(u1:0));
-    let neg_denormal = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:1, bexp: u8:0, fraction: u23:99 };
+    let neg_denormal = APFloat { sign: u1:1, bexp: u8:0, fraction: u23:99 };
     assert_eq(ldexp(neg_denormal, s32:1), zero<u32:8, u32:23>(u1:1));
 
     // Output subnormal, flush to zero.
     assert_eq(ldexp(pos_denormal, s32:-1), zero<u32:8, u32:23>(u1:0));
 
     // Subnormal result rounds up to normal number.
-    let frac = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:0, bexp: u8:10, fraction: u23:0x7fffff };
-    let expected = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:0, bexp: u8:1, fraction: u23:0 };
+    let frac = APFloat { sign: u1:0, bexp: u8:10, fraction: u23:0x7fffff };
+    let expected = APFloat { sign: u1:0, bexp: u8:1, fraction: u23:0 };
     assert_eq(ldexp(frac, s32:-10), expected);
-    let frac = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:1, bexp: u8:10, fraction: u23:0x7fffff };
-    let expected = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:1, bexp: u8:1, fraction: u23:0 };
+    let frac = APFloat { sign: u1:1, bexp: u8:10, fraction: u23:0x7fffff };
+    let expected = APFloat { sign: u1:1, bexp: u8:1, fraction: u23:0 };
     assert_eq(ldexp(frac, s32:-10), expected);
 
     // Large positive input exponents.
-    let frac = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:0, bexp: u8:128, fraction: u23:0x0 };
+    let frac = APFloat { sign: u1:0, bexp: u8:128, fraction: u23:0x0 };
     let expected = inf<u32:8, u32:23>(u1:0);
     assert_eq(ldexp(frac, s32:0x7FFFFFFF - s32:1), expected);
-    let frac = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:0, bexp: u8:128, fraction: u23:0x0 };
+    let frac = APFloat { sign: u1:0, bexp: u8:128, fraction: u23:0x0 };
     let expected = inf<u32:8, u32:23>(u1:0);
     assert_eq(ldexp(frac, s32:0x7FFFFFFF), expected);
-    let frac = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:1, bexp: u8:128, fraction: u23:0x0 };
+    let frac = APFloat { sign: u1:1, bexp: u8:128, fraction: u23:0x0 };
     let expected = inf<u32:8, u32:23>(u1:1);
     assert_eq(ldexp(frac, s32:0x7FFFFFFF - s32:1), expected);
-    let frac = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:1, bexp: u8:128, fraction: u23:0x0 };
+    let frac = APFloat { sign: u1:1, bexp: u8:128, fraction: u23:0x0 };
     let expected = inf<u32:8, u32:23>(u1:1);
     assert_eq(ldexp(frac, s32:0x7FFFFFFF), expected);
 
     // Large negative input exponents.
-    let frac = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:0, bexp: u8:126, fraction: u23:0x0 };
+    let frac = APFloat { sign: u1:0, bexp: u8:126, fraction: u23:0x0 };
     let expected = zero<u32:8, u32:23>(u1:0);
     assert_eq(ldexp(frac, s32:0x80000000 + s32:0x1), expected);
-    let frac = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:0, bexp: u8:126, fraction: u23:0x0 };
+    let frac = APFloat { sign: u1:0, bexp: u8:126, fraction: u23:0x0 };
     let expected = zero<u32:8, u32:23>(u1:0);
     assert_eq(ldexp(frac, s32:0x80000000), expected);
-    let frac = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:1, bexp: u8:126, fraction: u23:0x0 };
+    let frac = APFloat { sign: u1:1, bexp: u8:126, fraction: u23:0x0 };
     let expected = zero<u32:8, u32:23>(u1:1);
     assert_eq(ldexp(frac, s32:0x80000000 + s32:0x1), expected);
-    let frac = APFloat<EXP_SZ, FRACTION_SZ> { sign: u1:1, bexp: u8:126, fraction: u23:0x0 };
+    let frac = APFloat { sign: u1:1, bexp: u8:126, fraction: u23:0x0 };
     let expected = zero<u32:8, u32:23>(u1:1);
     assert_eq(ldexp(frac, s32:0x80000000), expected);
 
