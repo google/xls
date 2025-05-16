@@ -28,10 +28,8 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
-#include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/concurrent_stage_groups.h"
-#include "xls/codegen/module_signature.h"
 #include "xls/codegen/passes_ng/stage_conversion.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
@@ -337,14 +335,6 @@ struct CodegenMetadata {
   std::variant<FunctionConversionMetadata, ProcConversionMetadata>
       conversion_metadata;
 
-  // The signature is generated (and potentially mutated) during the codegen
-  // process.
-  // TODO(https://github.com/google/xls/issues/410): 2021/04/27 Consider adding
-  // a "block" construct which corresponds to a verilog module. This block could
-  // hold its own signature. This would help prevent the signature from getting
-  // out-of-sync with the IR.
-  std::optional<ModuleSignature> signature;
-
   // Proven knowledge about which stages are active concurrently.
   //
   // If absent all stages should be considered potentially concurrently active
@@ -379,21 +369,9 @@ class CodegenContext {
   // Sets the top block.
   void SetTopBlock(Block* ABSL_NONNULL b) { top_block_ = b; }
 
-  // Adds necessary maps from the FunctionBase to the Block.
-  void AssociateBlock(FunctionBase* fb, Block* block) {
-    function_base_to_block_.emplace(fb, block);
-  }
-
   // Adds necessary maps from the FunctionBase to the Schedule.
   void AssociateSchedule(FunctionBase* fb, PipelineSchedule schedule) {
     function_base_to_schedule_.emplace(fb, std::move(schedule));
-  }
-
-  // Adds necessary maps from the FunctionBase to the Block and Schedule.
-  void AssociateScheduleAndBlock(FunctionBase* fb, PipelineSchedule schedule,
-                                 Block* block) {
-    function_base_to_schedule_.emplace(fb, std::move(schedule));
-    function_base_to_block_.emplace(fb, block);
   }
 
   // Returns the metadata map.
@@ -418,17 +396,6 @@ class CodegenContext {
 
   // Clean up any dangling pointers in codegen metadata.
   void GcMetadata();
-
-  // Returns function to block mapping.
-  const absl::btree_map<FunctionBase*, Block*,
-                        struct FunctionBase::NameLessThan>&
-  function_base_to_block() const {
-    return function_base_to_block_;
-  }
-  absl::btree_map<FunctionBase*, Block*, struct FunctionBase::NameLessThan>&
-  function_base_to_block() {
-    return function_base_to_block_;
-  }
 
   // Returns function to schedule mapping.
   const absl::btree_map<FunctionBase*, PipelineSchedule,
@@ -465,10 +432,6 @@ class CodegenContext {
   absl::btree_map<FunctionBase*, PipelineSchedule,
                   struct FunctionBase::NameLessThan>
       function_base_to_schedule_;
-
-  // Sorted map from FunctionBase to block.
-  absl::btree_map<FunctionBase*, Block*, struct FunctionBase::NameLessThan>
-      function_base_to_block_;
 
   // The top-level block to generate a Verilog module for.
   Block* top_block_;

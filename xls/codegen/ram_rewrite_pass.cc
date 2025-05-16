@@ -538,8 +538,9 @@ absl::StatusOr<bool> Ram1RWRewrite(Package* package,
          ram_config.rw_port_configuration().response_channel_name,
          ram_config.rw_port_configuration().write_completion_channel_name});
 
-    if (metadata.signature.has_value()) {
-      ModuleSignature& signature = *metadata.signature;
+    if (block->GetSignature().has_value()) {
+      XLS_ASSIGN_OR_RETURN(ModuleSignature signature,
+                           ModuleSignature::FromProto(*block->GetSignature()));
       XLS_RETURN_IF_ERROR(
           Ram1RWUpdateSignature(signature, ram_config, ram_name, package,
                                 /*req_addr_port=*/req_addr_port,
@@ -549,6 +550,7 @@ absl::StatusOr<bool> Ram1RWRewrite(Package* package,
                                 /*req_wr_mask_port=*/req_wr_mask_port,
                                 /*req_rd_mask_port=*/req_rd_mask_port,
                                 /*resp_rd_data_port=*/resp_rd_data_port));
+      block->SetSignature(signature.proto());
     }
   }
 
@@ -722,7 +724,7 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
     CodegenMetadata& metadata =
         context.GetMetadataForBlock(context.top_block());
 
-    if (metadata.signature.has_value()) {
+    if (context.top_block()->GetSignature().has_value()) {
       ClearRewrittenMetadata(
           metadata.streaming_io_and_pipeline,
           {
@@ -731,8 +733,11 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
               ram_config.w_port_configuration().request_channel_name,
               ram_config.w_port_configuration().write_completion_channel_name,
           });
-      ModuleSignature& signature = metadata.signature.value();
-      auto builder = ModuleSignatureBuilder::FromProto(signature.proto());
+      XLS_ASSIGN_OR_RETURN(
+          ModuleSignature signature,
+          ModuleSignature::FromProto(*context.top_block()->GetSignature()));
+      auto builder = ModuleSignatureBuilder::FromProto(
+          *context.top_block()->GetSignature());
 
       for (std::string_view channel_name : {
                ram_config.r_port_configuration().request_channel_name,
@@ -797,6 +802,7 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
       });
 
       XLS_ASSIGN_OR_RETURN(signature, builder.Build());
+      context.top_block()->SetSignature(signature.proto());
     }
   }
 

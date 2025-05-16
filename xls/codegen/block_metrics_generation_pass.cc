@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_metrics.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
@@ -30,13 +31,18 @@ absl::StatusOr<bool> BlockMetricsGenerationPass::RunInternal(
     CodegenContext& context) const {
   bool changed = false;
   for (auto& [block, metadata] : context.metadata()) {
-    if (!metadata.signature.has_value()) {
+    if (!block->GetSignature().has_value()) {
       return absl::InvalidArgumentError(
           "Block metrics should be run after signature generation.");
     }
     XLS_ASSIGN_OR_RETURN(BlockMetricsProto block_metrics,
                          GenerateBlockMetrics(block, options.delay_estimator));
-    XLS_RETURN_IF_ERROR(metadata.signature->ReplaceBlockMetrics(block_metrics));
+
+    XLS_ASSIGN_OR_RETURN(ModuleSignature signature,
+                         ModuleSignature::FromProto(*block->GetSignature()));
+    XLS_RETURN_IF_ERROR(signature.ReplaceBlockMetrics(block_metrics));
+    block->SetSignature(signature.proto());
+
     changed = true;
   }
 
