@@ -34,7 +34,9 @@ nav:
     - Scheduling:
       - Overview: 'scheduling.md'
       - Delay Estimation: 'delay_estimation.md'
-    - Visualizer: 'ir_visualization.md'
+    - Ir Visualization:
+      - Web Visualizer: 'ir_visualization.md'
+      - Cytoscape: 'ir_to_cytoscape.md'
     - Native JIT:
       - Overview: 'ir_jit.md'
       - Data Layout: 'data_layout.md'
