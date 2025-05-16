@@ -57,6 +57,7 @@ _VERILOG_FILE_EXTENSION = "v"
 _SIGNATURE_TEXTPROTO_FILE_EXTENSION = ".sig.textproto"
 _SCHEDULE_TEXTPROTO_FILE_EXTENSION = ".schedule.textproto"
 _VERILOG_LINE_MAP_TEXTPROTO_FILE_EXTENSION = ".verilog_line_map.textproto"
+_BLOCK_METRICS_FILE_EXTENSION = ".metrics.textproto"
 _BLOCK_IR_FILE_EXTENSION = ".block.ir"
 _SCHEDULE_IR_FILE_EXTENSION = ".schedule.opt.ir"
 _CODEGEN_LOG_FILE_EXTENSION = ".codegen.log"
@@ -141,6 +142,12 @@ xls_ir_verilog_attrs = {
               _SCHEDULING_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION + " extension " +
               "is used.",
     ),
+    "block_metrics_file": attr.output(
+        doc = "The filename to write the metrics, including the bill of materials, " +
+              "for the generated Verilog file. If not specified, the basename of the " +
+              "Verilog file followed by a " +
+              _BLOCK_METRICS_FILE_EXTENSION + " extension is used.",
+    ),
 }
 
 def _is_combinational_generator(arguments):
@@ -206,6 +213,10 @@ def append_xls_ir_verilog_generated_files(args, basename, arguments):
     args.setdefault(
         "scheduling_options_used_textproto_file",
         basename + _SCHEDULING_OPTIONS_USED_TEXTPROTO_FILE_EXTENSION,
+    )
+    args.setdefault(
+        "block_metrics_file",
+        basename + _BLOCK_METRICS_FILE_EXTENSION,
     )
     return args
 
@@ -383,6 +394,17 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
     )
     log_file = ctx.actions.declare_file(codegen_log_filename)
     my_generated_files.append(log_file)
+
+    block_metrics_filename = get_output_filename_value(
+        ctx,
+        "block_metrics_file",
+        verilog_basename + _BLOCK_METRICS_FILE_EXTENSION,
+    )
+    block_metrics_file = ctx.actions.declare_file(block_metrics_filename)
+    my_generated_files.append(block_metrics_file)
+    final_args += " --block_metrics_path={}".format(
+        block_metrics_file.path,
+    )
 
     codegen_config_textproto_file = get_output_filename_value(
         ctx,

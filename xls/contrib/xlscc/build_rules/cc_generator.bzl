@@ -86,6 +86,7 @@ def xls_ac_fuzz_binaries(name, deps, seed_start, seed_count, test_ac_fixed, test
                 "@com_google_absl//absl/strings:str_format",
                 "//xls/codegen:combinational_generator",
                 "//xls/codegen:module_signature",
+                "//xls/codegen:codegen_result",
                 "//xls/common:init_xls",
                 "//xls/common:subprocess",
                 "//xls/common/file:filesystem",

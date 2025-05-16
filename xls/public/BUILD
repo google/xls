@@ -37,7 +37,7 @@ cc_library(
     ],
     deps = [
         ":ir",
-        "//xls/codegen:module_signature",
+        "//xls/codegen:codegen_result",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
@@ -56,6 +56,7 @@ cc_library(
         "//xls/ir",
         "//xls/passes:optimization_pass",
         "//xls/scheduling:pipeline_schedule_cc_proto",
+        "//xls/scheduling:scheduling_result",
         "//xls/tools:codegen",
         "//xls/tools:codegen_flags_cc_proto",
         "//xls/tools:opt",

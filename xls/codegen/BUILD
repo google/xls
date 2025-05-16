@@ -60,9 +60,11 @@ cc_library(
     deps = [
         ":block_conversion",
         ":block_generator",
+        ":block_metrics",
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
+        ":codegen_result",
         ":module_signature",
         ":verilog_line_map_cc_proto",
         "//xls/common/status:ret_check",
@@ -117,8 +119,8 @@ cc_test(
     ]),
     deps = [
         ":codegen_options",
+        ":codegen_result",
         ":combinational_generator",
-        ":module_signature",
         ":pipeline_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -183,11 +185,14 @@ cc_library(
     deps = [
         ":block_conversion",
         ":block_generator",
+        ":block_metrics",
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
+        ":codegen_result",
         ":module_signature",
         ":verilog_line_map_cc_proto",
+        ":xls_metrics_cc_proto",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -289,9 +294,11 @@ cc_library(
     deps = [
         ":block_conversion_pass_pipeline",
         ":block_generator",
+        ":block_metrics",
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
+        ":codegen_result",
         ":module_signature",
         ":verilog_line_map_cc_proto",
         "//xls/common/logging:log_lines",
@@ -616,6 +623,7 @@ cc_library(
     hdrs = ["signature_generation_pass.h"],
     deps = [
         ":codegen_pass",
+        ":module_signature",
         ":signature_generator",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -632,7 +640,6 @@ cc_library(
     srcs = ["codegen_pass_pipeline.cc"],
     hdrs = ["codegen_pass_pipeline.h"],
     deps = [
-        ":block_metrics_generation_pass",
         ":block_stitching_pass",
         ":codegen_checker",
         ":codegen_pass",
@@ -1016,6 +1023,7 @@ cc_test(
     shard_count = 50,
     deps = [
         ":codegen_options",
+        ":codegen_result",
         ":module_signature",
         ":module_signature_cc_proto",
         ":pipeline_generator",
@@ -1146,6 +1154,7 @@ cc_test(
         ":block_conversion_test_fixture",
         ":codegen_options",
         ":codegen_pass",
+        ":codegen_result",
         "//xls/common:casts",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
@@ -1173,6 +1182,7 @@ cc_test(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
+        "//xls/scheduling:scheduling_result",
         "//xls/tools:codegen",
         "//xls/tools:codegen_flags_cc_proto",
         "//xls/tools:scheduling_options_flags_cc_proto",
@@ -1311,6 +1321,7 @@ cc_test(
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
+        ":codegen_result",
         ":module_signature",
         ":op_override",
         ":signature_generator",
@@ -1340,6 +1351,7 @@ cc_test(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
+        "//xls/scheduling:scheduling_result",
         "//xls/simulation:module_simulator",
         "//xls/simulation:module_testbench",
         "//xls/simulation:module_testbench_thread",
@@ -1424,22 +1436,6 @@ cc_test(
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "block_metrics_generation_pass",
-    srcs = ["block_metrics_generation_pass.cc"],
-    hdrs = ["block_metrics_generation_pass.h"],
-    deps = [
-        ":block_metrics",
-        ":codegen_pass",
-        ":xls_metrics_cc_proto",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/passes:pass_base",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -1703,6 +1699,7 @@ cc_test(
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
+        ":module_signature",
         ":module_signature_cc_proto",
         ":ram_configuration",
         ":ram_rewrite_pass",
@@ -1978,6 +1975,7 @@ cc_test(
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_options",
+        "//xls/scheduling:scheduling_result",
         "//xls/tools:codegen",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -2051,6 +2049,20 @@ cc_library(
         "//xls/ir",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "codegen_result",
+    hdrs = ["codegen_result.h"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":module_signature",
+        ":module_signature_cc_proto",
+        ":verilog_line_map_cc_proto",
+        ":xls_metrics_cc_proto",
+        "//xls/passes:pass_metrics_cc_proto",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
     ],
 )
 

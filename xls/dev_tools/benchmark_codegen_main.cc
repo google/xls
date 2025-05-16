@@ -29,6 +29,7 @@
 #include "absl/time/time.h"
 #include "xls/codegen/block_metrics.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
@@ -89,7 +90,7 @@ absl::Status PrintCombinationalCodegenInfo(
     FunctionBase* f, const verilog::CodegenOptions& codegen_options,
     const DelayEstimator* delay_estimator) {
   absl::Time start = absl::Now();
-  XLS_ASSIGN_OR_RETURN(verilog::ModuleGeneratorResult result,
+  XLS_ASSIGN_OR_RETURN(verilog::CodegenResult result,
                        verilog::GenerateCombinationalModule(f, codegen_options,
                                                             delay_estimator));
   absl::Duration total_time = absl::Now() - start;
@@ -104,7 +105,7 @@ absl::Status PrintPipelinedCodegenInfo(
     const verilog::CodegenOptions& codegen_options) {
   absl::Time start = absl::Now();
   XLS_ASSIGN_OR_RETURN(
-      verilog::ModuleGeneratorResult codegen_result,
+      verilog::CodegenResult codegen_result,
       verilog::ToPipelineModuleText(schedule, f, codegen_options));
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Codegen time: %dms\n",

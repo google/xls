@@ -2344,18 +2344,6 @@ block example(in: bits[32], out: bits[32]) {
                        HasSubstr("Unknown attribute: foobar")));
 }
 
-TEST(IrParserErrorTest, ParseBlockAttributeInitiationInterval) {
-  std::string input = R"(package test
-
-#[initiation_interval(12)]
-block example(in: bits[32], out: bits[32]) {
-  in: bits[32] = input_port(name=in, id=2)
-  out: () = output_port(in, name=out, id=5)
-}
-)";
-  XLS_EXPECT_OK(Parser::ParsePackage(input));
-}
-
 TEST(IrParserErrorTest, ParseChannelAttribute) {
   std::string input = R"(package test
 
@@ -2547,6 +2535,20 @@ TEST(IrParserErrorTest, ChannelInterfaceDirectionMismatch) {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("No declared channel or channel interface with "
                          "direction `receive` with name `out_ch`")));
+}
+
+TEST(IrParserTest, BlockWithInvalidSignature) {
+  constexpr std::string_view input = R"(package test
+
+#[signature("""not a valid proto""")]
+block my_block(rst: bits[1]) {
+  #![provenance(name="foo", kind="proc")]
+  rst: bits[1] = input_port(name=rst)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid module signature")));
 }
 
 }  // namespace xls

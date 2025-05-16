@@ -34,6 +34,7 @@ ABSL_DECLARE_FLAG(std::string, output_codegen_pass_metrics_path);
 ABSL_DECLARE_FLAG(std::string, top);
 ABSL_DECLARE_FLAG(std::optional<std::string>,
                   codegen_options_used_textproto_file);
+ABSL_DECLARE_FLAG(std::string, block_metrics_path);
 ABSL_DECLARE_FLAG(int64_t, max_trace_verbosity);
 
 namespace xls {

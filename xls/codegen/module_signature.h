@@ -253,10 +253,6 @@ class ModuleSignature {
 
   absl::StatusOr<ChannelProto> GetChannel(std::string_view channel_name) const;
 
-  // Replace the signature with block metrics created during codegen.
-  // TODO(tedhong): 2022-01-28 Support incremental update of metrics.
-  absl::Status ReplaceBlockMetrics(BlockMetricsProto block_metrics);
-
   absl::Span<const InstantiationProto* const> GetInstantiations() const {
     return proto_.instantiations();
   }
@@ -278,14 +274,6 @@ class ModuleSignature {
 
   // Duplicate instantiations to enable a convenience method.
   std::vector<InstantiationProto> instantiations_;
-};
-
-// Abstraction gathering the Verilog text and module signature produced by the
-// generator.
-struct ModuleGeneratorResult {
-  std::string verilog_text;
-  VerilogLineMap verilog_line_map;
-  ModuleSignature signature;
 };
 
 std::ostream& operator<<(std::ostream& os, const ModuleSignature& signature);

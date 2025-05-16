@@ -80,6 +80,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen.h"
 
 namespace xls::verilog {
@@ -146,7 +147,7 @@ absl::StatusOr<std::pair<bool, CodegenContext>> RunBlockStitchingPass(
       bool changed, ChannelLegalizationPass().Run(p, OptimizationPassOptions(),
                                                   &opt_results, opt_context));
   TestDelayEstimator delay_estimator;
-  XLS_ASSIGN_OR_RETURN(PipelineScheduleOrGroup schedule,
+  XLS_ASSIGN_OR_RETURN(SchedulingResult scheduling_result,
                        Schedule(p,
                                 SchedulingOptions()
                                     .clock_period_ps(100)
@@ -155,12 +156,11 @@ absl::StatusOr<std::pair<bool, CodegenContext>> RunBlockStitchingPass(
                                     // Multi-proc scheduling
                                     .schedule_all_procs(true),
                                 &delay_estimator));
-  XLS_RET_CHECK(std::holds_alternative<PackagePipelineSchedules>(schedule));
-
   XLS_ASSIGN_OR_RETURN(
-      CodegenContext context,
-      PackageToPipelinedBlocks(std::get<PackagePipelineSchedules>(schedule),
-                               options, p));
+      PackagePipelineSchedules schedules,
+      PackagePipelineSchedulesFromProto(p, scheduling_result.schedules));
+  XLS_ASSIGN_OR_RETURN(CodegenContext context,
+                       PackageToPipelinedBlocks(schedules, options, p));
   CodegenCompoundPass ccp("block_stitching_and_friends",
                           "Block stitching and friends.");
   // Some tests rely on the side effect condition pass to update the predicates

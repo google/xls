@@ -14,14 +14,17 @@
 
 #include "xls/codegen/combinational_generator.h"
 
+#include <optional>
 #include <string>
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/block_generator.h"
+#include "xls/codegen/block_metrics.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/status/ret_check.h"
@@ -34,9 +37,9 @@
 namespace xls {
 namespace verilog {
 
-absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
+absl::StatusOr<CodegenResult> GenerateCombinationalModule(
     FunctionBase* module, const CodegenOptions& options,
-    const DelayEstimator* delay_estimator, PassPipelineMetricsProto* metrics) {
+    const DelayEstimator* delay_estimator) {
   XLS_ASSIGN_OR_RETURN(CodegenContext context,
                        FunctionBaseToCombinationalBlock(module, options));
 
@@ -52,22 +55,28 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
           .status());
   XLS_RET_CHECK_NE(context.top_block(), nullptr);
   XLS_RET_CHECK(context.metadata().contains(context.top_block()));
-  XLS_RET_CHECK(
-      context.metadata().at(context.top_block()).signature.has_value());
+  XLS_RET_CHECK(context.top_block()->GetSignature().has_value());
   VerilogLineMap verilog_line_map;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
       GenerateVerilog(context.top_block(), options, &verilog_line_map));
 
-  if (metrics != nullptr) {
-    *metrics = results.ToProto();
-  }
+  XLS_ASSIGN_OR_RETURN(
+      ModuleSignature signature,
+      ModuleSignature::FromProto(*context.top_block()->GetSignature()));
+
+  XlsMetricsProto metrics;
+  XLS_ASSIGN_OR_RETURN(
+      *metrics.mutable_block_metrics(),
+      GenerateBlockMetrics(context.top_block(), /*delay_estimator=*/nullptr));
 
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
-  return ModuleGeneratorResult{
-      verilog, verilog_line_map,
-      context.metadata().at(context.top_block()).signature.value()};
+  return CodegenResult{.verilog_text = verilog,
+                       .verilog_line_map = verilog_line_map,
+                       .signature = signature,
+                       .block_metrics = metrics,
+                       .pass_pipeline_metrics = results.ToProto()};
 }
 
 }  // namespace verilog

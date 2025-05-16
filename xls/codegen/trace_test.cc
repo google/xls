@@ -19,8 +19,8 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/combinational_generator.h"
-#include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/common/status/matchers.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -123,7 +123,7 @@ TEST_P(TraceTest, ClockedSimpleTraceTest) {
                           SchedulingOptions().pipeline_stages(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       ToPipelineModuleText(
           schedule, entry,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -184,7 +184,7 @@ TEST_P(TraceTest, ClockedSimpleTraceTestWithInvertedSimulationMacro) {
                           SchedulingOptions().pipeline_stages(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedule, entry,
                            BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())

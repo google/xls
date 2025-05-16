@@ -24,6 +24,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/codegen/xls_metrics.pb.h"
 
 namespace xls {
 
@@ -45,17 +46,17 @@ bool operator<(const BomItem& lhs, const BomItem& rhs);
 // Calculate a BOM summary from a given list of ModuleSignatureProto files.
 // Using absl::btree_map as we *want* the items to be stored in sorted order.
 absl::StatusOr<absl::btree_map<BomItem, int64_t>> BomCalculateSummary(
-    const absl::flat_hash_map<std::string, ModuleSignatureProto>&
-        signature_data);
+    const absl::flat_hash_map<std::string, verilog::XlsMetricsProto>&
+        metrics_data);
 
-// Finds all the ModuleSignatureProto files under a given path.
+// Finds all the XlsMetricsProto files under a given path.
 //
 // Typical return codes (not guaranteed exhaustive):
 //  * StatusCode::kOk
 //  * StatusCode::kFailedPrecondition
-absl::StatusOr<absl::flat_hash_map<std::string, ModuleSignatureProto>>
-CollectSignatureProtos(const std::filesystem::path& root,
-                       const std::string& match);
+absl::StatusOr<absl::flat_hash_map<std::string, verilog::XlsMetricsProto>>
+CollectMetricsProtos(const std::filesystem::path& root,
+                     const std::string& match);
 
 // Print the BOM summary as a text table suitable for human consumption.
 // The output looks like the following;

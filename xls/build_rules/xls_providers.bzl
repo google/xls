@@ -236,6 +236,7 @@ _VERILOG_FIELDS = {
     "schedule_file": "File: The schedule of the module.",
     "verilog_line_map_file": "File: The Verilog line map file.",
     "verilog_file": "File: The Verilog file.",
+    "block_metrics_file": "File: The block metrics file.",
 }
 
 _CODEGEN_FIELDS = dicts.add(CODEGEN_FIELDS, SCHEDULING_FIELDS, _VERILOG_FIELDS)

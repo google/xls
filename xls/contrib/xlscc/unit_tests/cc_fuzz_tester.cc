@@ -32,8 +32,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_replace.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/combinational_generator.h"
-#include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -119,7 +119,7 @@ class GeneratedTester : public XlsccTestBase {
     CHECK(top.value()->IsFunction());
 
     XLS_ASSIGN_OR_RETURN(
-        xls::verilog::ModuleGeneratorResult result,
+        xls::verilog::CodegenResult result,
         xls::verilog::GenerateCombinationalModule(
             top.value(),
             xls::verilog::CodegenOptions().use_system_verilog(false)));
