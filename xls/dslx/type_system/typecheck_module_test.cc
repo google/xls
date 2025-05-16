@@ -71,14 +71,14 @@ class TypecheckBothVersionsTest
   std::unique_ptr<ImportData> import_data_;
 };
 
-TEST(TypecheckErrorTest, EnumItemSelfReference) {
+TEST_P(TypecheckBothVersionsTest, EnumItemSelfReference) {
   std::string_view text = "enum E:u2{ITEM=E::ITEM}";
   EXPECT_THAT(Typecheck(text),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Cannot find a definition for name: \"E\"")));
 }
 
-TEST(TypecheckErrorTest, TypeAliasSelfReference) {
+TEST_P(TypecheckBothVersionsTest, TypeAliasSelfReference) {
   std::string_view text = "type T=uN[T::A as u2];";
   EXPECT_THAT(Typecheck(text),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -392,7 +392,7 @@ const MY_TUPLE = (u32, u64):(u32:32, u64:64);
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, ProcWithImplEmpty) {
+TEST_P(TypecheckBothVersionsTest, ProcWithImplEmpty) {
   constexpr std::string_view kProgram = R"(
 proc Foo {}
 
@@ -401,7 +401,7 @@ impl Foo {}
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, ProcWithImplAndMembers) {
+TEST_P(TypecheckBothVersionsTest, ProcWithImplAndMembers) {
   constexpr std::string_view kProgram = R"(
 proc Foo {
   foo: u32,
@@ -413,7 +413,7 @@ impl Foo {}
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, ProcWithImplAndParametrics) {
+TEST_P(TypecheckBothVersionsTest, ProcWithImplAndParametrics) {
   constexpr std::string_view kProgram = R"(
 proc Proc<A: u32, B: u32 = {u32:32}, C:u32 = {B / u32:2}> {
   a: uN[A],
@@ -4737,17 +4737,23 @@ fn f() { priority_sel(u3:0b000, u4[3]:[u4:1, u4:2, u4:4], u5:0); }
                                  "argument 1 element type")));
 }
 
-TEST(TypecheckErrorTest, OperatorOnParametricBuiltin) {
-  EXPECT_THAT(Typecheck(R"(
-fn f() { fail!%2 }
+TEST_P(TypecheckBothVersionsTest, OperatorOnParametricBuiltin) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f() { fail! % 2; }
 )")
-                  .status(),
-              IsPosError("TypeInferenceError",
-                         HasSubstr("Name 'fail!' is a parametric function, but "
-                                   "it is not being invoked")));
+          .status(),
+      IsPosError(
+          "TypeInferenceError",
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Name 'fail!' is a parametric function, but it "
+                              "is not being invoked"),
+                HasSubstrInV2(GetParam(),
+                              "Expected type `uN[2]` but got `fail!`, which is "
+                              "a parametric function not being invoked"))));
 }
 
-TEST(TypecheckErrorTest, InvokeATokenValueViaShadowing) {
+TEST_P(TypecheckBothVersionsTest, InvokeATokenValueViaShadowing) {
   EXPECT_THAT(
       Typecheck(R"(
 fn shadowed() {}
@@ -4761,7 +4767,7 @@ fn f(shadowed: token) {
                  HasSubstr("Invocation callee `shadowed` is not a function")));
 }
 
-TEST(TypecheckErrorTest, InvokeATokenValueNoShadowing) {
+TEST_P(TypecheckBothVersionsTest, InvokeATokenValueNoShadowing) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f(tok: token) {
@@ -4822,8 +4828,10 @@ TEST(TypecheckErrorTest, InstantiateALiteralNumber) {
                                    "please annotate a type.")));
 }
 
-TEST(TypecheckErrorTest, SignedValueToBuiltinExpectingUNViaParametric) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest,
+       SignedValueToBuiltinExpectingUNViaParametric) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn p<S: bool, N: u32>() -> u32 {
   clz(xN[S][N]:0xdeadbeef) as u32
 }
@@ -4831,27 +4839,31 @@ fn p<S: bool, N: u32>() -> u32 {
 fn main() -> u32 {
   p<true, u32:32>()
 }
-)")
-                  .status(),
-              IsPosError("TypeInferenceError",
-                         HasSubstr("Want argument 0 to be unsigned; got "
-                                   "xN[is_signed=1][32] (type is signed)")));
+)"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Want argument 0 to be unsigned; got "
+                              "xN[is_signed=1][32] (type is signed)"),
+                HasSignednessMismatchInV2(GetParam(), "uN[32]", "sN[32]"))));
 }
 
 // Passes a signed value to a builtin function that expects a `uN[N]`.
-TEST(TypecheckErrorTest, SignedValueToBuiltinExpectingUN) {
-  EXPECT_THAT(Typecheck(R"(
-fn main() {
+TEST_P(TypecheckBothVersionsTest, SignedValueToBuiltinExpectingUN) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn main() -> u32 {
   clz(s32:0xdeadbeef)
 }
-)")
-                  .status(),
-              IsPosError("TypeInferenceError",
-                         HasSubstr("Want argument 0 to be unsigned; got "
-                                   "sN[32] (type is signed)")));
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Want argument 0 to be unsigned; got sN[32] "
+                                   "(type is signed)"),
+                     HasSignednessMismatchInV2(GetParam(), "uN[32]", "s32"))));
 }
 
-TEST(TypecheckErrorTest, DuplicateParametricBinding) {
+TEST_P(TypecheckBothVersionsTest, DuplicateParametricBinding) {
   EXPECT_THAT(
       Typecheck("fn p<N: u1, N: u2>() -> u32 { u32:42 }").status(),
       IsPosError("ParseError", HasSubstr("Duplicate parametric binding: `N`")));
@@ -4896,7 +4908,7 @@ fn main() -> u32 {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, UnassignedReturnValueTypeMismatchParametric) {
+TEST_P(TypecheckBothVersionsTest, UnassignedReturnValueTypeMismatchParametric) {
   constexpr std::string_view kProgram = R"(
 fn ignored<N:u32>() -> uN[N] { zero!<uN[N]>() }
 
@@ -4907,10 +4919,11 @@ fn main(x: u32) -> u32 {
 )";
   EXPECT_THAT(
       Typecheck(kProgram).status(),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "uN[31] vs uN[32]: Could not deduce type for binary operation")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "uN[31] vs uN[32]: Could not deduce type "
+                                   "for binary operation"),
+                     HasSizeMismatchInV2(GetParam(), "uN[31]", "u32"))));
 }
 
 // Previously this would cause us to RET_CHECK because we were assuming we
@@ -4929,7 +4942,7 @@ const_assert!(f<u32:8>() == u8:255);
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, MatchPackageLevelConstant) {
+TEST_P(TypecheckBothVersionsTest, MatchPackageLevelConstant) {
   constexpr std::string_view kProgram = R"(
 const FOO = u8:0xff;
 fn f(x: u8) -> u2 {
@@ -4962,7 +4975,7 @@ fn f(x: u8) -> u2 {
   EXPECT_EQ(const_expr->ToString(), "u8:255");
 }
 
-TEST(TypecheckTest, MatchPackageLevelConstantIntoTypeAlias) {
+TEST_P(TypecheckBothVersionsTest, MatchPackageLevelConstantIntoTypeAlias) {
   constexpr std::string_view kProgram = R"(
 const C = u32:2;
 fn f(x: u32) -> u2 {
@@ -5034,41 +5047,57 @@ fn main() -> u32 {
 })"));
 }
 
-TEST(TypecheckTest, BitCountAsConstExpr) {
+TEST_P(TypecheckBothVersionsTest, BitCountAsConstExpr) {
   XLS_ASSERT_OK(Typecheck(R"(
 fn main() -> u64 {
   uN[bit_count<u32[2]>()]:0
 })"));
 }
 
-TEST(TypecheckTest, BitCountWithNoTypeArgument) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, BitCountWithNoTypeArgument) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn main() -> u32 {
   bit_count<>()
 })"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Invalid number of parametrics passed to "
-                                 "'bit_count', expected 1, got 0")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Invalid number of parametrics passed to "
+                                   "'bit_count', expected 1, got 0"),
+                     HasSubstrInV2(GetParam(),
+                                   "Could not infer parametric(s): T"))));
 }
 
-TEST(TypecheckTest, BitCountWithMultipleTypeArguments) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, BitCountWithMultipleTypeArguments) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn main() -> u32 {
   bit_count<u32, u16>()
 })"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Invalid number of parametrics passed to "
-                                 "'bit_count', expected 1, got 2")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(
+              HasSubstrInV1(GetParam(),
+                            "Invalid number of parametrics passed to "
+                            "'bit_count', expected 1, got 2"),
+              HasSubstrInV2(
+                  GetParam(),
+                  "Too many parametric values supplied; limit: 1 given: 2"))));
 }
 
-TEST(TypecheckTest, BitCountWithExprArgument) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, BitCountWithExprArgument) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn main() -> u32 {
   bit_count<u32:0>()
 })"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("The parametric argument for 'bit_count' "
-                                 "should be a type and not a value.")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "The parametric argument for 'bit_count' should "
+                              "be a type and not a value."),
+                HasSubstrInV2(GetParam(),
+                              "Expected parametric type, saw `u32:0`"))));
 }
 
 // Note: we use two different type signatures here for the two functions being
