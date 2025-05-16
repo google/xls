@@ -2192,6 +2192,8 @@ std::string Function::ToString() const {
   if (extern_verilog_module_.has_value()) {
     annotation_str = absl::StrFormat("#[extern_verilog(\"%s\")]\n",
                                      extern_verilog_module_->code_template());
+  } else if (used_in_tests()) {
+    annotation_str = "#[cfg(test)]\n";
   }
   return absl::StrFormat("%s%sfn %s%s(%s)%s%s", annotation_str, pub_str,
                          name_def_->ToString(), parametric_str, params_str,

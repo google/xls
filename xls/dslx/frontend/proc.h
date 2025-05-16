@@ -120,6 +120,16 @@ class ProcLike : public AstNode {
   }
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
+  void set_used_in_tests(bool used_in_tests) {
+    body_.config->set_used_in_tests(used_in_tests);
+    body_.init->set_used_in_tests(used_in_tests);
+    body_.next->set_used_in_tests(used_in_tests);
+  }
+  bool used_in_tests() const {
+    CHECK((body_.init->used_in_tests() == body_.config->used_in_tests()) &&
+          (body_.config->used_in_tests() == body_.next->used_in_tests()));
+    return body_.init->used_in_tests();
+  }
 
   Function& config() const { return *body_.config; }
   Function& next() const { return *body_.next; }

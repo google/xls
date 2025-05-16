@@ -170,7 +170,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
 // Given that there is no invocation of ProcA and ProcB, they (ProcA and ProcB)
 // are the top level procs.
 absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
-                                                    TypeInfo* type_info);
+                                                    TypeInfo* type_info,
+                                                    bool inlude_tests = false);
 
 }  // namespace xls::dslx
 

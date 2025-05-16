@@ -401,6 +401,7 @@ class AstCloner : public AstNodeVisitor {
       new_function->set_extern_verilog_module(*n->extern_verilog_module());
     }
     new_function->set_disable_format(n->disable_format());
+    new_function->set_used_in_tests(n->used_in_tests());
     old_to_new_[n] = new_function;
     new_name_def->set_definer(old_to_new_.at(n));
     if (n->impl().has_value()) {

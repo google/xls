@@ -34,6 +34,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
@@ -2282,6 +2283,8 @@ class Function : public AstNode {
     disable_format_ = disable_format;
   }
   bool disable_format() const { return disable_format_; }
+  void set_used_in_tests(bool used_in_tests) { used_in_tests_ = used_in_tests; }
+  bool used_in_tests() const { return used_in_tests_; }
 
   FunctionTag tag() const { return tag_; }
   std::optional<Proc*> proc() const { return proc_; }
@@ -2314,6 +2317,7 @@ class Function : public AstNode {
   const bool is_public_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
   bool disable_format_ = false;
+  bool used_in_tests_ = false;
 };
 
 // A lambda expression.
@@ -3475,7 +3479,9 @@ class TestFunction : public AstNode {
 
   std::string_view GetNodeTypeName() const override { return "TestFunction"; }
   std::string ToString() const override {
-    return absl::StrFormat("#[test]\n%s", fn_.ToString());
+      return absl::StrFormat("#[test]\n%s",
+          absl::StrReplaceAll(fn_.ToString(), {{"#[cfg(test)]\n", ""}})
+      );
   }
 
   Function& fn() const { return fn_; }

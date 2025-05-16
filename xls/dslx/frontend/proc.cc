@@ -25,6 +25,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 #include "xls/common/indent.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -109,6 +110,7 @@ std::vector<AstNode*> ProcLike::GetChildren(bool want_types) const {
 }
 
 std::string ProcLike::ToString() const {
+  std::string attr_str = used_in_tests() ? "#[cfg(test)]\n" : "";
   std::string pub_str = is_public() ? "pub " : "";
   std::string parametric_str;
   if (!parametric_bindings().empty()) {
@@ -136,13 +138,13 @@ std::string ProcLike::ToString() const {
   std::string init_str = Indent(
       absl::StrCat("init ", init().body()->ToString()), kRustSpacesPerIndent);
 
-  constexpr std::string_view kTemplate = R"(%sproc %s%s {
+  constexpr std::string_view kTemplate = R"(%s%sproc %s%s {
 %s%s
 %s
 %s
 })";
   return absl::StrFormat(
-      kTemplate, pub_str, name_def()->identifier(), parametric_str,
+      kTemplate, attr_str, pub_str, name_def()->identifier(), parametric_str,
       Indent(stmts_str, kRustSpacesPerIndent),
       Indent(config().ToUndecoratedString("config"), kRustSpacesPerIndent),
       init_str,
@@ -154,7 +156,9 @@ std::string ProcLike::ToString() const {
 TestProc::~TestProc() = default;
 
 std::string TestProc::ToString() const {
-  return absl::StrFormat("#[test_proc]\n%s", proc_->ToString());
+  return absl::StrFormat(
+      "#[test_proc]\n%s",
+      absl::StrReplaceAll(proc_->ToString(), {{"#[cfg(test)]\n", ""}}));
 }
 
 // -- class ProcMember
