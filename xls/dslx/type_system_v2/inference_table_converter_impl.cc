@@ -2344,12 +2344,38 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       formal_member_types.push_back(member->type());
     }
     if (instantiator_node.has_value()) {
+      absl::flat_hash_map<std::string, Expr*> actual_member_exprs_by_name;
       for (const auto& [name, expr] :
            (*instantiator_node)->GetOrderedMembers(&struct_def)) {
-        actual_member_exprs.push_back(expr);
+        actual_member_exprs_by_name.emplace(name, expr);
       }
-      CHECK_EQ(actual_member_exprs.size(), formal_member_types.size());
+
+      // If there are "splatted" members, i.e., implied copies from members of
+      // an existing struct, we need synthetic longhand member initializers for
+      // parametric inference.
+      if (actual_member_exprs_by_name.size() != formal_member_types.size() &&
+          (*instantiator_node)->kind() == AstNodeKind::kSplatStructInstance) {
+        const auto* splat =
+            dynamic_cast<const SplatStructInstance*>(*instantiator_node);
+        for (const StructMemberNode* member : struct_def.members()) {
+          if (!actual_member_exprs_by_name.contains(member->name())) {
+            XLS_ASSIGN_OR_RETURN(
+                Expr * initializer,
+                CreateInitializerForSplattedStructMember(*splat, *member));
+            actual_member_exprs_by_name.emplace(member->name(), initializer);
+          }
+        }
+      }
+
+      // At this point we should have an `Expr` per formal member of the struct
+      // definition.
+      CHECK_EQ(actual_member_exprs_by_name.size(), formal_member_types.size());
+      for (const StructMemberNode* member : struct_def.members()) {
+        actual_member_exprs.push_back(
+            actual_member_exprs_by_name.at(member->name()));
+      }
     }
+
     auto infer_pending_implicit_parametrics = [&]() -> absl::Status {
       VLOG(6) << "Infer implicit parametrics: " << implicit_parametrics.size();
       if (implicit_parametrics.empty()) {
@@ -2407,6 +2433,38 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return CreateStructAnnotation(module_, const_cast<StructDef*>(&struct_def),
                                   resolved_parametrics_vector,
                                   instantiator_node);
+  }
+
+  // Creates a member initializer `Expr` for a splatted member of a struct
+  // instance.
+  //
+  // For example, given a struct like:
+  //   `Foo { a: u32, b: u8, c: u16 }`
+  // and an instance expression like:
+  //   `Foo { a: 5, ..x }`
+  // the intent is `Foo { a: 5, b: x.b, c: x.c }`.
+  //
+  // It may be useful, e.g. for parametric inference, to actually have the `x.b`
+  // and `x.c` expressions internally, so that the splatted struct instance can
+  // be treated the same as a longhand one. This function creates that `Expr`
+  // for the given `member`, populating the inference table as if it had been in
+  // the source code.
+  absl::StatusOr<Expr*> CreateInitializerForSplattedStructMember(
+      const SplatStructInstance& instance, const StructMemberNode& member) {
+    Expr* expr =
+        module_.Make<Attr>(instance.span(), instance.splatted(), member.name());
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* type_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, expr,
+            absl::Substitute("internal_type_splatted_member_$0_at_$1_in_$2",
+                             member.name(),
+                             instance.span().ToString(file_table_),
+                             instance.owner()->name()),
+            member.type()));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(expr, type_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(expr, member.type()));
+    return expr;
   }
 
   // Converts the type of the given struct `member` into one that has any

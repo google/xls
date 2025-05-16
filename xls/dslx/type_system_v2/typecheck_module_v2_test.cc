@@ -1256,6 +1256,42 @@ const Y = S { field2: [2, 3], ..X };
           HasNodeWithType("Y", "S { field: uN[32], field2: uN[16][2] }"))));
 }
 
+TEST(TypecheckV2Test, SplatParametricStructWithFunctionReturnValue) {
+  // Note that triggering the creation of a struct `ParametricContext` at the
+  // point of the `Y` declaration is necessary in order to test possible missing
+  // handling of splatted members in the logic that creates the context. If we
+  // were to have the 2 instance expressions in the same caller context, the
+  // same struct context would be reused for Y.
+  EXPECT_THAT(
+      R"(
+struct S<A: u32, B: u32> { field: uN[A], field2: uN[B] }
+fn s_factory<A: u32, B: u32>(a: uN[A], b: uN[B]) -> S<A, B> {
+  S {field: a, field2: b}
+}
+const X = s_factory<16, 32>(4, 5);
+const Y = S<16, 32> { field: 3, ..X };
+)",
+      TypecheckSucceeds(
+          HasNodeWithType("Y", "S { field: uN[16], field2: uN[32] }")));
+}
+
+TEST(TypecheckV2Test, SplatImplicitParametricStructWithFunctionReturnValue) {
+  // As in the related test, the 2 struct instance expressions need to be in
+  // different parametric caller contexts in order for `Y` to get a new struct
+  // context and test the desired logic.
+  EXPECT_THAT(
+      R"(
+struct S<A: u32, B: u32> { field: uN[A], field2: uN[B] }
+fn s_factory<A: u32, B: u32>(a: uN[A], b: uN[B]) -> S<A, B> {
+  S {field: a, field2: b}
+}
+const X = s_factory<16, 32>(4, 5);
+const Y = S { field: 3, ..X };
+)",
+      TypecheckSucceeds(
+          HasNodeWithType("Y", "S { field: uN[16], field2: uN[32] }")));
+}
+
 TEST(TypecheckV2Test, GlobalStructConstantWithSecondMemberSplatted) {
   EXPECT_THAT(
       R"(
