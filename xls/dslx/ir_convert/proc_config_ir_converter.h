@@ -64,14 +64,13 @@ struct ProcConversionData {
   absl::flat_hash_map<ProcId, MemberNameToValue> id_to_members;
 };
 
-// ProcConfigIrConverter is specialized for converting - you guessed it! - Proc
-// Config functions into IR.  Config functions don't _actually_ lower to IR:
-// instead they define constants and bind channels to Proc members.
+// ProcConfigIrConverter is specialized for converting Proc Config functions
+// into IR. Config functions don't _actually_ lower to IR: instead they define
+// constants and bind channels to Proc members.
 class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
  public:
-  ProcConfigIrConverter(PackageConversionData* conversion_info, Function* f,
-                        TypeInfo* type_info, ImportData* import_data,
-                        ProcConversionData* proc_data,
+  ProcConfigIrConverter(Function* f, TypeInfo* type_info,
+                        ImportData* import_data, ProcConversionData* proc_data,
                         ChannelScope* channel_scope,
                         const ParametricEnv& bindings, const ProcId& proc_id);
 
@@ -98,7 +97,6 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   const FileTable& file_table() const { return import_data_->file_table(); }
 
  private:
-  PackageConversionData* conversion_info_;
   Function* f_;
   TypeInfo* type_info_;
   ImportData* import_data_;

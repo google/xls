@@ -72,9 +72,8 @@ absl::Status ParseAndAcceptWithConverter(std::string_view module_text,
 
   ChannelScope channel_scope(&conv, &import_data);
   channel_scope.EnterFunctionContext(tm.type_info, bindings);
-  ProcConfigIrConverter converter(&conv, f, tm.type_info, &import_data,
-                                  &proc_data, &channel_scope, bindings,
-                                  proc_id);
+  ProcConfigIrConverter converter(f, tm.type_info, &import_data, &proc_data,
+                                  &channel_scope, bindings, proc_id);
   return f->Accept(&converter);
 }
 

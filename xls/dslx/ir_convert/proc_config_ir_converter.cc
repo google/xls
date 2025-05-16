@@ -20,7 +20,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
@@ -56,13 +55,13 @@ std::optional<ChannelOrArray> ProcConfigValueToChannelOrArray(
 
 }  // namespace
 
-ProcConfigIrConverter::ProcConfigIrConverter(
-    PackageConversionData* conversion_info, Function* f, TypeInfo* type_info,
-    ImportData* import_data, ProcConversionData* proc_data,
-    ChannelScope* channel_scope, const ParametricEnv& bindings,
-    const ProcId& proc_id)
-    : conversion_info_(conversion_info),
-      f_(f),
+ProcConfigIrConverter::ProcConfigIrConverter(Function* f, TypeInfo* type_info,
+                                             ImportData* import_data,
+                                             ProcConversionData* proc_data,
+                                             ChannelScope* channel_scope,
+                                             const ParametricEnv& bindings,
+                                             const ProcId& proc_id)
+    : f_(f),
       type_info_(type_info),
       import_data_(import_data),
       proc_data_(proc_data),

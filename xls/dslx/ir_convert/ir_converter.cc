@@ -69,7 +69,6 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
@@ -189,9 +188,8 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   if (f->tag() == FunctionTag::kProcConfig) {
     // TODO(rspringer): 2021-09-29: Probably need to pass constants in here.
     ProcConfigIrConverter config_converter(
-        package_data.conversion_info, f, record.type_info(), import_data,
-        proc_data, channel_scope, record.parametric_env(),
-        record.proc_id().value());
+        f, record.type_info(), import_data, proc_data, channel_scope,
+        record.parametric_env(), record.proc_id().value());
     XLS_RETURN_IF_ERROR(f->Accept(&config_converter));
     XLS_RETURN_IF_ERROR(config_converter.Finalize());
     return absl::OkStatus();
