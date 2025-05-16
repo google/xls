@@ -138,7 +138,7 @@ def main(argv: Sequence[str]) -> None:
       graph.add_edge(edge.source_id, edge.target_id, **edge_attrs(edge))
 
   with open(_OUTPUT.value, 'w') as out:
-    out.write(json.dumps(nx.readwrite.json_graph.cytoscape_graph(graph)))
+    out.write(json.dumps(nx.readwrite.json_graph.cytoscape_data(graph)))
 
 
 if __name__ == '__main__':
