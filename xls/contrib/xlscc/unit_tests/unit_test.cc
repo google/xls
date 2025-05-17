@@ -350,6 +350,11 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     package_ = std::make_unique<xls::Package>("my_package");
     absl::flat_hash_map<const clang::NamedDecl*, xlscc::ChannelBundle>
         top_channel_injections = {};
+    fprintf(stderr, "---- SourceToIR\n");
+
+    // LOG(INFO) << "GraphViz file:";
+    // LOG(INFO) << GenerateSliceGraph(*func);
+
     XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
                          translator_->GenerateIR_Top_Function(
                              package_.get(), top_channel_injections));
@@ -432,6 +437,15 @@ void XlsccTestBase::BuildTestIR(
 
   LOG(INFO) << "Package IR: ";
   LOG(INFO) << package_text;
+
+  XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
+                           translator_->GetTopFunction());
+
+  const xlscc::GeneratedFunction* top_func =
+      translator_->GetGeneratedFunction(top_decl);
+
+  LOG(INFO) << "GraphViz file:";
+  LOG(INFO) << GenerateSliceGraph(*top_func);
 
   for (const xlscc::HLSChannel& ch : block_spec_.channels()) {
     if (ch.type() == xlscc::CHANNEL_TYPE_DIRECT_IN) {
@@ -956,7 +970,8 @@ XlsccTestBase::GetStatesByIONodeForFSMProc(std::string_view func_name) {
 
 void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
                            std::list<IOOpTest> outputs,
-                           absl::flat_hash_map<std::string, xls::Value> args) {
+                           absl::flat_hash_map<std::string, xls::Value> args,
+                           std::optional<int> total_io_ops) {
   xlscc::GeneratedFunction* func;
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src,
                            SourceToIr(content, &func, /* clang_argv= */ {},
@@ -965,9 +980,22 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
   LOG(INFO) << "Package IR: ";
   LOG(INFO) << ir_src;
 
+  XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
+                           translator_->GetTopFunction());
+
+  const xlscc::GeneratedFunction* top_func =
+      translator_->GetGeneratedFunction(top_decl);
+
+  LOG(INFO) << "GraphViz file:";
+  LOG(INFO) << GenerateSliceGraph(*top_func);
+
   XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
 
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package_->GetTopAsFunction());
+
+  if (total_io_ops.has_value()) {
+    EXPECT_EQ(func->io_ops.size(), total_io_ops.value());
+  }
 
   int64_t io_ops_values = 0;
   for (const xlscc::IOOp& op : func->io_ops) {
