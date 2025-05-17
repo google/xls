@@ -24,8 +24,6 @@ const xls::Node* RemoveIdentities(const xls::Node* node);
 // This function checks, in the presence of continuations, that two nodes are
 // equivalent. Simply checking that the node pointers are equal produces
 // false negatives with continuations.
-// TODO(seanhaskell): Is this necessary anymore once function slices are
-// implemented?
 bool NodesEquivalentWithContinuations(const xls::Node* a, const xls::Node* b);
 
 }  // namespace xlscc

@@ -157,7 +157,7 @@ Translator::Translator(bool error_on_init_interval, bool error_on_uninitialized,
       z3_rlimit_(z3_rlimit),
       error_on_init_interval_(error_on_init_interval),
       error_on_uninitialized_(error_on_uninitialized),
-      generate_fsms_for_pipelined_loops_(generate_fsms_for_pipelined_loops),
+      generate_new_fsm_(generate_fsms_for_pipelined_loops),
       merge_states_(merge_states),
       split_states_on_channel_ops_(split_states_on_channel_ops),
       debug_ir_trace_flags_(debug_ir_trace_flags),
@@ -775,9 +775,8 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
 
   xls_names_for_functions_generated_[funcdecl] = xls_name;
 
-  // TODO(seanhaskell): Name _first_slice
   auto builder = std::make_unique<TrackedFunctionBuilder>(
-      absl::StrFormat("%s", xls_name), package_);
+      absl::StrFormat("%s_first_slice", xls_name), package_);
 
   sf.slices.push_back(GeneratedFunctionSlice{});
 
@@ -1383,8 +1382,10 @@ absl::Status Translator::GenerateIR_Function_Body(
 
   XLSCC_CHECK(!context().sf->slices.empty(), body_loc);
   context().sf->slices.back().function = last_slice_function;
-  sf.xls_func = last_slice_function;
+
   XLS_RETURN_IF_ERROR(OptimizeContinuations(sf, body_loc));
+
+  XLS_RETURN_IF_ERROR(GenerateFunctionSliceWrapper(sf, body_loc));
 
   return absl::OkStatus();
 }
@@ -3436,11 +3437,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   } else {
     XLSCC_CHECK(!functions_in_progress_.contains(signature), loc);
 
-    std::unique_ptr<FunctionInProgress> generate_function_header =
-        std::make_unique<FunctionInProgress>();
+    auto generate_function_header = std::make_unique<FunctionInProgress>();
     auto generated_function = std::make_unique<GeneratedFunction>();
     func = generated_function.get();
-
     // Overwrites generated_function
     XLS_ASSIGN_OR_RETURN(*generate_function_header,
                          GenerateIR_Function_Header(*func, funcdecl));
@@ -5166,8 +5165,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_LocalChannel(
   }
 
   std::string ch_name = absl::StrFormat(
-      "__internal_%s_%s_%i", context().sf->clang_decl->getNameAsString(),
-      namedecl->getNameAsString(), next_local_channel_number_++);
+      "__internal_%s_%s", context().sf->clang_decl->getNameAsString(),
+      namedecl->getNameAsString());
   XLS_ASSIGN_OR_RETURN(xls::Type * item_type_xls,
                        TranslateTypeToXLS(channel_type->GetItemType(), loc));
   XLS_ASSIGN_OR_RETURN(
@@ -5794,6 +5793,9 @@ std::string Debug_OpName(const IOOp& op) {
   if (op.op == OpType::kTrace) {
     return "trace";
   }
+  if (op.op == OpType::kLoop) {
+    return op.loop_op_type == LoopOpType::kBegin ? "begin" : "jump";
+  }
   if (op.channel != nullptr) {
     std::string op_type_name;
     switch (op.op) {
@@ -5901,10 +5903,9 @@ absl::StatusOr<Z3_lbool> Translator::CheckAssumptions(
   return seh.status();
 }
 
-absl::StatusOr<bool> Translator::BitMustBe(bool assert_value,
-                                           TrackedBValue& bval,
-                                           Z3_solver& solver, Z3_context ctx,
-                                           const xls::SourceInfo& loc) {
+absl::StatusOr<bool> Translator::BitMustBe(
+    bool assert_value, TrackedBValue& bval, Z3_solver& solver,
+    xls::solvers::z3::IrTranslator* z3_translator, const xls::SourceInfo& loc) {
   // Invalid is interpreted as literal 1
   if (!bval.valid()) {
     return assert_value;
@@ -5912,11 +5913,8 @@ absl::StatusOr<bool> Translator::BitMustBe(bool assert_value,
 
   // Simplify break logic in easy ways;
   // Z3 fails to solve some cases without this.
-
   XLS_RETURN_IF_ERROR(ShortCircuitBVal(bval, loc));
 
-  XLS_ASSIGN_OR_RETURN(xls::solvers::z3::IrTranslator * z3_translator,
-                       GetZ3Translator(bval.builder()->function()));
   XLS_RETURN_IF_ERROR(bval.node()->Accept(z3_translator));
 
   absl::Span<xls::Node*> positive_assumptions, negative_assumptions;
@@ -6402,16 +6400,20 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
   // Detect recursion of top function
   functions_in_call_stack_.insert(signature);
 
-  inst_functions_[signature] = std::make_unique<GeneratedFunction>();
-  GeneratedFunction& sf = *inst_functions_[signature];
+  auto generate_function_header = std::make_unique<FunctionInProgress>();
+  auto generated_function = std::make_unique<GeneratedFunction>();
+
+  GeneratedFunction& sf = *generated_function;
 
   XLS_ASSIGN_OR_RETURN(
-      FunctionInProgress header,
+      *generate_function_header,
       GenerateIR_Function_Header(
           sf, top_function,
           /*name_override=*/
           absl::StrCat(top_function->getNameAsString(), name_postfix),
           force_static, member_references_become_channels));
+  generate_function_header->generated_function = std::move(generated_function);
+  functions_in_progress_[signature] = std::move(generate_function_header);
 
   auto clean_up_bvalues = [&sf]() { CleanUpBValuesInTopFunction(sf); };
 
@@ -6433,13 +6435,18 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
     }
   }
 
-  XLS_RETURN_IF_ERROR(GenerateIR_Function_Body(sf, top_function, header));
+  XLS_RETURN_IF_ERROR(GenerateIR_Function_Body(
+      sf, top_function, *functions_in_progress_.at(top_function)));
 
   if (sf.xls_func == nullptr) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Top function %s has no outputs at %s", top_function->getNameAsString(),
         LocString(*top_function)));
   }
+
+  inst_functions_[signature] =
+      std::move(functions_in_progress_.at(signature)->generated_function);
+  functions_in_progress_.erase(signature);
 
   return &sf;
 }

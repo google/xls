@@ -414,9 +414,20 @@ class CReferenceType : public CType {
   std::shared_ptr<CType> pointee_type_;
 };
 
-enum class OpType { kNull = 0, kSend, kRecv, kSendRecv, kRead, kWrite, kTrace };
+enum class OpType {
+  kNull = 0,
+  kSend,
+  kRecv,
+  kSendRecv,
+  kRead,
+  kWrite,
+  kTrace,
+  kLoop
+};
 enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory, kTrace };
 enum class TraceType { kNull = 0, kAssert, kTrace };
+enum class LoopOpType { kNull = 0, kBegin, kEndJump };
+// TODO(seanhaskell): Remove with old FSM
 enum class IOSchedulingOption { kNone = 0, kASAPBefore = 1, kASAPAfter = 2 };
 
 // __xls_channel in C/C++

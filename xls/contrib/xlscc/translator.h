@@ -122,7 +122,10 @@ struct IOOp {
   // If None is specified, then actions happen in parallel, except
   // as sequenced by after_ops. If ASAP is specified, then after_ops
   // is unused.
+  // TODO(seanhaskell): Remove with old FSM
   IOSchedulingOption scheduling_option = IOSchedulingOption::kNone;
+
+  LoopOpType loop_op_type = LoopOpType::kNull;
 
   // --- Not preserved across calls ---
 
@@ -163,6 +166,7 @@ struct SideEffectingParameter {
 struct GeneratedFunction;
 
 // Encapsulates values needed to generate procs for a pipelined loop body
+// TODO(seanhaskell): Remove with old FSM
 struct PipelinedLoopSubProc {
   std::string name_prefix;
 
@@ -240,15 +244,22 @@ struct ContinuationValue {
   // TODO(seanhaskell): Output node
   xls::Node* output_node = nullptr;
 
-  const clang::NamedDecl* decl = nullptr;
+  // When outputs are merged, multiple decls can end up associated with one
+  // output
+  absl::flat_hash_set<const clang::NamedDecl*> decls;
 
   // name is for human readability/debug only
   std::string name;
+
+  // Precomputed literal, used for unrolling, IO pruning, etc
+  std::optional<xls::Value> literal = std::nullopt;
 };
 
 struct ContinuationInput {
   ContinuationValue* continuation_out = nullptr;
-  xls::Node* input_node = nullptr;
+  xls::Param* input_node = nullptr;
+
+  absl::flat_hash_set<const clang::NamedDecl*> decls;
 
   // name is for human readability/debug only
   std::string name;
@@ -568,7 +579,7 @@ class Translator {
   // Make unrolling configurable from main
   explicit Translator(
       bool error_on_init_interval = false, bool error_on_uninitialized = false,
-      bool generate_fsms_for_pipelined_loops = false, bool merge_states = false,
+      bool generate_new_fsm = false, bool merge_states = false,
       bool split_states_on_channel_ops = false,
       DebugIrTraceFlags debug_ir_trace_flags = DebugIrTraceFlags_None,
       int64_t max_unroll_iters = 1000, int64_t warn_unroll_iters = 100,
@@ -918,7 +929,7 @@ class Translator {
   const bool error_on_uninitialized_;
 
   // Generates an FSM to implement pipelined loops.
-  const bool generate_fsms_for_pipelined_loops_;
+  const bool generate_new_fsm_;
 
   // Merge states in FSM for pipelined loops.
   const bool merge_states_;
@@ -985,7 +996,10 @@ class Translator {
 
   int next_asm_number_ = 1;
   int next_for_number_ = 1;
-  int next_local_channel_number_ = 1;
+  int64_t next_channel_number_ = 1;
+
+  absl::flat_hash_set<std::string> used_channel_names_;
+  std::string GetUniqueChannelName(const std::string& name);
 
   mutable std::unique_ptr<clang::MangleContext> mangler_;
 
@@ -1005,6 +1019,7 @@ class Translator {
 
   // Initially contains keys for the channels of the top function,
   // then subroutine parameters are added as their headers are translated.
+  // TODO(seanhaskell): Remove with old FSM
   absl::btree_multimap<const IOChannel*, ChannelBundle>
       external_channels_by_internal_channel_;
 
@@ -1245,8 +1260,12 @@ class Translator {
         extra_next_state_values;
   };
 
-  absl::StatusOr<GenerateFSMInvocationReturn> GenerateFSMInvocation(
+  absl::StatusOr<GenerateFSMInvocationReturn> GenerateOldFSMInvocation(
       PreparedBlock& prepared, xls::ProcBuilder& pb, int nesting_level,
+      const xls::SourceInfo& body_loc);
+
+  absl::StatusOr<GenerateFSMInvocationReturn> GenerateNewFSMInvocation(
+      PreparedBlock& prepared, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc);
 
   struct LayoutFSMStatesReturn {
@@ -1333,6 +1352,11 @@ class Translator {
   absl::Status NewContinuation(IOOp& op);
   absl::Status OptimizeContinuations(GeneratedFunction& func,
                                      const xls::SourceInfo& loc);
+  // This function is a temporary adapter for the old FSM generation style.
+  // It creates a single function containing all slices and fills it into the
+  // GeneratedFunction::function field.
+  absl::Status GenerateFunctionSliceWrapper(GeneratedFunction& func,
+                                            const xls::SourceInfo& loc);
 
   absl::StatusOr<std::shared_ptr<LValue>> CreateChannelParam(
       const clang::NamedDecl* channel_name,
@@ -1396,7 +1420,8 @@ class Translator {
       const clang::Stmt* init, const clang::Expr* cond_expr,
       const clang::Stmt* inc, const clang::Stmt* body, int64_t max_iters,
       bool propagate_break_up, clang::ASTContext& ctx,
-      const xls::SourceInfo& loc);
+      const xls::SourceInfo& loc, bool add_loop_jump = false);
+
   // init, cond, and inc can be nullptr
   absl::Status GenerateIR_PipelinedLoop(
       bool always_first_iter, bool warn_inferred_loop_type,
@@ -1404,6 +1429,24 @@ class Translator {
       const clang::Stmt* inc, const clang::Stmt* body,
       int64_t initiation_interval_arg, int64_t unroll_factor,
       bool schedule_asap, clang::ASTContext& ctx, const xls::SourceInfo& loc);
+
+  absl::Status GenerateIR_PipelinedLoopOldFSM(
+      bool always_first_iter, bool warn_inferred_loop_type,
+      const clang::Stmt* init, const clang::Expr* cond_expr,
+      const clang::Stmt* inc, const clang::Stmt* body,
+      int64_t initiation_interval_arg, int64_t unroll_factor,
+      bool schedule_asap, clang::ASTContext& ctx, const xls::SourceInfo& loc);
+
+  absl::Status GenerateIR_PipelinedLoopNewFSM(
+      bool always_first_iter, bool warn_inferred_loop_type,
+      const clang::Stmt* init, const clang::Expr* cond_expr,
+      const clang::Stmt* inc, const clang::Stmt* body,
+      int64_t initiation_interval_arg, int64_t unroll_factor,
+      bool schedule_asap, clang::ASTContext& ctx, const xls::SourceInfo& loc);
+
+  absl::StatusOr<IOOp*> GenerateIR_AddLoopBegin(const xls::SourceInfo& loc);
+  absl::Status GenerateIR_AddLoopEndJump(const clang::Expr* cond_expr,
+                                         const xls::SourceInfo& loc);
 
   absl::StatusOr<PipelinedLoopSubProc> GenerateIR_PipelinedLoopBody(
       const clang::Expr* cond_expr, const clang::Stmt* inc,
@@ -1417,9 +1460,6 @@ class Translator {
           context_field_indices,
       const std::vector<const clang::NamedDecl*>& variable_fields_order,
       bool* uses_on_reset, const xls::SourceInfo& loc);
-
-  absl::Status GenerateIR_PipelinedLoopProc(
-      const PipelinedLoopSubProc& pipelined_loop_proc);
 
   struct PipelinedLoopContentsReturn {
     TrackedBValue token_out;
@@ -1613,7 +1653,8 @@ class Translator {
   // bval can be invalid, in which case it is interpreted as 1
   // Short circuits the BValue
   absl::StatusOr<bool> BitMustBe(bool assert_value, TrackedBValue& bval,
-                                 Z3_solver& solver, Z3_context ctx,
+                                 Z3_solver& solver,
+                                 xls::solvers::z3::IrTranslator* z3_translator,
                                  const xls::SourceInfo& loc);
 
   absl::StatusOr<ConstValue> TranslateBValToConstVal(const CValue& bvalue,
