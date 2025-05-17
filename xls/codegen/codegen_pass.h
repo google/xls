@@ -166,8 +166,12 @@ class StreamingOutput {
   Node* GetReadyPort() const { return port_ready_; }
   void SetReadyPort(Node* value) { port_ready_ = value; }
   ChannelRef GetChannel() const { return channel_; }
+
   const std ::optional<Node*>& GetPredicate() const { return predicate_; }
   void SetPredicate(std::optional<Node*> value) { predicate_ = value; }
+
+  const std::optional<Node*>& GetData() const { return data_; }
+  void SetData(Node* value) { data_ = value; }
 
   const std ::optional<FifoInstantiation*>& GetFifoInstantiation() const {
     return fifo_instantiation_;
@@ -195,7 +199,9 @@ class StreamingOutput {
   Node* port_ready_;
   ChannelRef channel_;
   std::optional<FifoInstantiation*> fifo_instantiation_;
+
   std::optional<Node*> predicate_;
+  std::optional<Node*> data_;
 };
 
 // Data structures holding the port representing single value inputs/outputs

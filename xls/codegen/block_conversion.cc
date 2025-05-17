@@ -296,9 +296,10 @@ absl::Status AddCombinationalFlowControl(
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
     std::vector<std::optional<Node*>>& stage_valid,
-    const CodegenOptions& options, Block* block) {
+    const CodegenOptions& options, Proc* proc, Block* block) {
   std::string_view valid_suffix = options.streaming_channel_valid_suffix();
   std::string_view ready_suffix = options.streaming_channel_ready_suffix();
+  std::string_view data_suffix = options.streaming_channel_data_suffix();
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<Node*> all_active_outputs_ready,
@@ -316,10 +317,14 @@ absl::Status AddCombinationalFlowControl(
   std::vector<Node*> next_stage_open{literal_1};
   XLS_RETURN_IF_ERROR(MakeOutputValidPortsForOutputChannels(
       all_active_inputs_valid, pipelined_valids, next_stage_open,
-      streaming_outputs, valid_suffix, block));
+      streaming_outputs, valid_suffix, proc, {}, block));
+  XLS_RETURN_IF_ERROR(MakeOutputDataPortsForOutputChannels(
+      all_active_inputs_valid, pipelined_valids, next_stage_open,
+      streaming_outputs, data_suffix, block));
 
   XLS_RETURN_IF_ERROR(MakeOutputReadyPortsForInputChannels(
-      all_active_outputs_ready, streaming_inputs, ready_suffix, block));
+      all_active_outputs_ready, streaming_inputs, ready_suffix, proc, {},
+      block));
 
   XLS_RET_CHECK(stage_valid.empty());
   XLS_RET_CHECK_EQ(all_active_inputs_valid.size(), 1);
@@ -634,7 +639,8 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
 }
 
 absl::StatusOr<std::vector<FunctionBase*>> GetBlockConversionOrder(
-    Package* package, absl::Span<Proc* const> procs_to_convert) {
+    Package* package, absl::Span<Proc* const> procs_to_convert,
+    const std::optional<ProcElaboration>& proc_elab) {
   FunctionBase* top = *package->GetTop();
   if (top->IsFunction()) {
     XLS_RET_CHECK(procs_to_convert.empty());
@@ -643,17 +649,18 @@ absl::StatusOr<std::vector<FunctionBase*>> GetBlockConversionOrder(
   CHECK(top->IsProc());
   if (package->ChannelsAreProcScoped()) {
     XLS_RET_CHECK(procs_to_convert.empty());
+    XLS_RET_CHECK(proc_elab.has_value());
     // The order of block conversion must be from the leaf up as *instantiated*
     // procs must be converted before *instantiating* proc.
-    XLS_ASSIGN_OR_RETURN(ProcElaboration elab,
-                         ProcElaboration::Elaborate(top->AsProcOrDie()));
-    std::vector<FunctionBase*> order(elab.procs().begin(), elab.procs().end());
+    std::vector<FunctionBase*> order(proc_elab->procs().begin(),
+                                     proc_elab->procs().end());
     std::reverse(order.begin(), order.end());
     return order;
   }
   // For the non-proc-scoped channels case, the set of procs to convert must be
   // given.
   XLS_RET_CHECK(!procs_to_convert.empty());
+  XLS_RET_CHECK(!proc_elab.has_value());
   std::vector<FunctionBase*> order(procs_to_convert.begin(),
                                    procs_to_convert.end());
   std::sort(order.begin(), order.end(), FunctionBase::NameLessThan);
@@ -686,8 +693,16 @@ absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
       }
     }
   }
-  XLS_ASSIGN_OR_RETURN(std::vector<FunctionBase*> conversion_order,
-                       GetBlockConversionOrder(package, procs_to_convert));
+
+  std::optional<ProcElaboration> proc_elab;
+  if (top->IsProc() && package->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(proc_elab,
+                         ProcElaboration::Elaborate(top->AsProcOrDie()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<FunctionBase*> conversion_order,
+      GetBlockConversionOrder(package, procs_to_convert, proc_elab));
 
   // Make `unit` optional because we haven't created the top block yet. We will
   // create it on the first iteration and emplace `unit`.
@@ -732,8 +747,13 @@ absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
           package->AddBlock(std::make_unique<Block>(sub_block_name, package));
     }
     if (fb->IsProc()) {
+      absl::Span<ProcInstance* const> instances;
+      if (package->ChannelsAreProcScoped()) {
+        XLS_RET_CHECK(proc_elab.has_value());
+        instances = proc_elab->GetInstances(fb->AsProcOrDie());
+      }
       XLS_RETURN_IF_ERROR(SingleProcToPipelinedBlock(
-          schedule, options, context, fb->AsProcOrDie(), sub_block,
+          schedule, options, context, fb->AsProcOrDie(), instances, sub_block,
           converted_blocks));
     } else if (fb->IsFunction()) {
       XLS_RET_CHECK_EQ(conversion_order.size(), 1);
@@ -888,9 +908,9 @@ absl::StatusOr<CodegenContext> ProcToCombinationalBlock(
 
   XLS_RET_CHECK_EQ(streaming_io.pipeline_registers.size(), 0);
 
-  XLS_RETURN_IF_ERROR(
-      AddCombinationalFlowControl(streaming_io.inputs, streaming_io.outputs,
-                                  streaming_io.stage_valid, options, block));
+  XLS_RETURN_IF_ERROR(AddCombinationalFlowControl(
+      streaming_io.inputs, streaming_io.outputs, streaming_io.stage_valid,
+      options, proc, block));
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
