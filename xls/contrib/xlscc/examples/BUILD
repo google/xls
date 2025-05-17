@@ -105,9 +105,6 @@ xls_cc_ir(
     block_from_class = "MyBlock",
     block_pb_out = "simple_unsigned_pipelined_loop_fsm.pbtxt",
     ir_file = "simple_unsigned_pipelined_loop_fsm.ir",
-    xlscc_args = {
-        "generate_fsms_for_pipelined_loops": "true",
-    },
 )
 
 xls_ir_opt_ir(
@@ -122,9 +119,6 @@ xls_cc_ir(
     block_from_class = "MyBlock",
     block_pb_out = "simple_unsigned_nested_pipelined_loop_fsm.pbtxt",
     ir_file = "simple_unsigned_nested_pipelined_loop_fsm.ir",
-    xlscc_args = {
-        "generate_fsms_for_pipelined_loops": "true",
-    },
 )
 
 xls_ir_opt_ir(
@@ -139,9 +133,6 @@ xls_cc_ir(
     block_from_class = "MyBlock",
     block_pb_out = "simple_pipelined_loop_fsm.pbtxt",
     ir_file = "simple_pipelined_loop_fsm.ir",
-    xlscc_args = {
-        "generate_fsms_for_pipelined_loops": "true",
-    },
 )
 
 xls_ir_opt_ir(
@@ -156,9 +147,6 @@ xls_cc_ir(
     block_from_class = "MyBlock",
     block_pb_out = "simple_backwards_pipelined_loop_fsm.pbtxt",
     ir_file = "simple_backwards_pipelined_loop_fsm.ir",
-    xlscc_args = {
-        "generate_fsms_for_pipelined_loops": "true",
-    },
 )
 
 xls_ir_opt_ir(
@@ -173,9 +161,6 @@ xls_cc_ir(
     block_from_class = "MyBlock",
     block_pb_out = "simple_nested_pipelined_loop_fsm.pbtxt",
     ir_file = "simple_nested_pipelined_loop_fsm.ir",
-    xlscc_args = {
-        "generate_fsms_for_pipelined_loops": "true",
-    },
 )
 
 xls_ir_opt_ir(

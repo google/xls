@@ -4104,10 +4104,11 @@ TEST_F(TranslatorLogicTest, ConditionsPerVariable) {
   xlscc::GeneratedFunction* pfunc = nullptr;
   XLS_ASSERT_OK(SourceToIr(content, &pfunc).status());
   ASSERT_NE(pfunc, nullptr);
-  xls::Node* return_node = pfunc->xls_func->return_value();
+  ASSERT_EQ(pfunc->slices.size(), 1);
+  xls::Node* return_node = pfunc->slices.front().function->return_value();
   ASSERT_NE(return_node, nullptr);
+  ASSERT_TRUE(return_node->Is<xls::Select>());
   xls::Select* select_node = return_node->As<xls::Select>();
-  ASSERT_NE(select_node, nullptr);
   const absl::Span<xls::Node* const>& cases = select_node->cases();
   ASSERT_EQ(cases.size(), 2);
   // Check for direct reference to parameter
@@ -5053,9 +5054,9 @@ TEST_F(TranslatorLogicTest, OnlyUnknownPragmasGiveNoWarnings) {
   int st() {
     return 1;
   })";
-  ASSERT_THAT(SourceToIr(content).status(),
+  EXPECT_THAT(SourceToIr(content).status(),
               absl_testing::StatusIs(absl::StatusCode::kOk));
-  ASSERT_EQ(this->log_entries_.size(), 0);
+  EXPECT_EQ(this->log_entries_.size(), 0);
 }
 
 TEST_F(TranslatorLogicTest, OnlyValidPragmasGiveNoWarnings) {

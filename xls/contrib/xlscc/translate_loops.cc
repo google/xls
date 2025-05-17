@@ -155,21 +155,20 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
     const xls::SourceInfo& loc) {
   XLSCC_CHECK(max_iters > 0, loc);
 
-  XLS_ASSIGN_OR_RETURN(xls::solvers::z3::IrTranslator * z3_translator_parent,
-                       GetZ3Translator(context().fb->function()));
-  Z3_solver solver =
-      xls::solvers::z3::CreateSolver(z3_translator_parent->ctx(), 1);
+  Z3_solver current_solver = nullptr;
+  xls::solvers::z3::IrTranslator* current_z3_translator = nullptr;
 
-  class SolverDeref {
-   public:
-    SolverDeref(Z3_context ctx, Z3_solver solver)
-        : ctx_(ctx), solver_(solver) {}
-    ~SolverDeref() { Z3_solver_dec_ref(ctx_, solver_); }
-
-   private:
-    Z3_context ctx_;
-    Z3_solver solver_;
+  auto deref_solver = [&current_solver, &current_z3_translator]() {
+    if (current_solver == nullptr) {
+      return;
+    }
+    CHECK_NE(current_z3_translator, nullptr);
+    Z3_solver_dec_ref(current_z3_translator->ctx(), current_solver);
+    current_solver = nullptr;
+    current_z3_translator = nullptr;
   };
+
+  auto deref_solver_guard = absl::MakeCleanup(deref_solver);
 
   // Generate the declaration within a private context
   PushContextGuard for_init_guard(*this, loc);
@@ -226,11 +225,23 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
       XLS_RETURN_IF_ERROR(and_condition(cond_expr_cval.rvalue(), loc));
     }
 
-    {
+    if (max_iters > 1) {
       // We use the relative condition so that returns also stop unrolling
-      XLS_ASSIGN_OR_RETURN(bool condition_must_be_false,
-                           BitMustBe(false, context().relative_condition,
-                                     solver, z3_translator_parent->ctx(), loc));
+      XLS_ASSIGN_OR_RETURN(xls::solvers::z3::IrTranslator * z3_translator,
+                           GetZ3Translator(context().fb->function()));
+
+      if (z3_translator != current_z3_translator) {
+        deref_solver();
+        current_z3_translator = z3_translator;
+        current_solver =
+            xls::solvers::z3::CreateSolver(current_z3_translator->ctx(), 1);
+      };
+
+      XLS_ASSIGN_OR_RETURN(
+          bool condition_must_be_false,
+          BitMustBe(false, context().relative_condition, current_solver,
+                    current_z3_translator, loc));
+
       if (condition_must_be_false) {
         break;
       }
@@ -573,8 +584,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   }
 
   // Create synthetic channels and IO ops
-  xls::Type* context_out_xls_type = context_tuple_out.rvalue().GetType();
-
   std::shared_ptr<CStructType> context_in_cvars_struct_ctype;
   absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
       context_in_field_indices;
@@ -597,9 +606,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         fields, /*no_tuple=*/false, /*synthetic_int=*/false);
   }
 
-  XLS_ASSIGN_OR_RETURN(xls::Type * context_in_struct_xls_type,
-                       TranslateTypeToXLS(context_in_cvars_struct_ctype, loc));
-
   // Pick a construct to correlate the channels for this construct
   const clang::Stmt* identify_channels_stmt = body;
   XLSCC_CHECK(identify_channels_stmt != nullptr, loc);
@@ -609,18 +615,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   {
     std::string ch_name = absl::StrFormat("%s_ctx_out", name_prefix);
     xls::Channel* xls_channel = nullptr;
-    if (!generate_fsms_for_pipelined_loops_) {
-      XLS_ASSIGN_OR_RETURN(
-          xls_channel,
-          package_->CreateStreamingChannel(
-              ch_name, xls::ChannelOps::kSendReceive, context_out_xls_type,
-              /*initial_values=*/{},
-              /*fifo_config=*/
-              xls::FifoConfig(/*depth=*/0, /*bypass=*/true,
-                              /*register_push_outputs=*/false,
-                              /*register_pop_outputs=*/false),
-              xls::FlowControl::kReadyValid));
-    }
+
     IOChannel new_channel;
     new_channel.item_type = context_tuple_out.type();
     new_channel.unique_name = ch_name;
@@ -631,18 +626,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   {
     std::string ch_name = absl::StrFormat("%s_ctx_in", name_prefix);
     xls::Channel* xls_channel = nullptr;
-    if (!generate_fsms_for_pipelined_loops_) {
-      XLS_ASSIGN_OR_RETURN(xls_channel,
-                           package_->CreateStreamingChannel(
-                               ch_name, xls::ChannelOps::kSendReceive,
-                               context_in_struct_xls_type,
-                               /*initial_values=*/{},
-                               /*fifo_config=*/
-                               xls::FifoConfig(/*depth=*/0, /*bypass=*/true,
-                                               /*register_push_outputs=*/false,
-                                               /*register_pop_outputs=*/false),
-                               xls::FlowControl::kReadyValid));
-    }
+
     IOChannel new_channel;
     new_channel.item_type = context_in_cvars_struct_ctype;
     new_channel.unique_name = ch_name;
@@ -659,12 +643,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   sub_proc.context_out_cvars_struct_ctype = context_out_cvars_struct_ctype;
   sub_proc.context_out_field_indices = context_out_field_indices;
   sub_proc.context_out_lval_conds_ctype = context_out_lval_conds_ctype;
-
-  // TODO(seanhaskell): Move this to GenerateIR_Block() for pipelined loops
-  // with multiple different sets of IO ops
-  if (!generate_fsms_for_pipelined_loops_) {
-    XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopProc(sub_proc));
-  }
 
   CHECK_EQ(sub_proc.vars_changed_in_body.size(), lvalues_out.size());
 
@@ -815,8 +793,6 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     context().ast_context = prev_context.ast_context;
     context().in_pipelined_for_body = true;
     context().outer_pipelined_loop_init_interval = init_interval;
-
-    context().sf->slices.push_back(GeneratedFunctionSlice{});
 
     TrackedBValue context_struct_val =
         context().fb->Param(absl::StrFormat("%s_context_vars", name_prefix),
@@ -1009,16 +985,8 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     TrackedBValue ret_val = MakeFlexTuple(return_bvals, loc);
     generated_func->return_value_count = return_bvals.size();
 
-    XLS_ASSIGN_OR_RETURN(xls::Function * last_slice_function,
+    XLS_ASSIGN_OR_RETURN(context().sf->xls_func,
                          body_builder.builder()->BuildWithReturnValue(ret_val));
-
-    XLSCC_CHECK(!context().sf->slices.empty(), loc);
-    context().sf->slices.back().function = last_slice_function;
-    generated_func->xls_func = last_slice_function;
-
-    // NOTE: No call to OptimizeContinuations here, as it confuses the
-    // logic here, and continuations aren't meant to be used with this legacy
-    // FSM generation.
 
     // Analyze context variables changed
     for (const clang::NamedDecl* decl : variable_fields_order) {
@@ -1064,15 +1032,6 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       vars_to_save_between_iters_set.insert(decl);
     }
 
-    // In non-FSM mode, All variables accessed or changed are saved in state,
-    // because a streaming channel is used for the context
-    if (!generate_fsms_for_pipelined_loops_) {
-      for (const std::pair<const clang::NamedDecl*, int64_t>& accessed :
-           vars_accessed_in_body) {
-        vars_to_save_between_iters_set.insert(accessed.first);
-      }
-    }
-
     for (const clang::NamedDecl* decl : vars_to_save_between_iters_set) {
       vars_to_save_between_iters.push_back(decl);
     }
@@ -1111,73 +1070,6 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       .vars_to_save_between_iters = vars_to_save_between_iters};
 
   return pipelined_loop_proc;
-}
-
-absl::Status Translator::GenerateIR_PipelinedLoopProc(
-    const PipelinedLoopSubProc& pipelined_loop_proc) {
-  const std::string& name_prefix = pipelined_loop_proc.name_prefix;
-  IOChannel* context_out_channel = pipelined_loop_proc.context_out_channel;
-  IOChannel* context_in_channel = pipelined_loop_proc.context_in_channel;
-  const xls::SourceInfo& loc = pipelined_loop_proc.loc;
-
-  TrackedProcBuilder pb_tracked(absl::StrFormat("%s_proc", name_prefix),
-                                package_);
-  xls::ProcBuilder& pb = *pb_tracked.builder();
-
-  auto temp_sf = std::make_unique<GeneratedFunction>();
-
-  PushContextGuard pb_guard(*this, loc);
-  context() = TranslationContext();
-  context().propagate_up = false;
-  context().fb = absl::implicit_cast<xls::BuilderBase*>(&pb);
-  context().in_pipelined_for_body = true;
-  context().sf = temp_sf.get();
-
-  TrackedBValue token = pb.Literal(xls::Value::Token());
-
-  TrackedBValue placeholder_cond = pb.Literal(xls::UBits(1, 1));
-
-  XLSCC_CHECK(context_out_channel->generated.has_value(), loc);
-  XLSCC_CHECK_NE(context_out_channel->generated.value(), nullptr, loc);
-
-  TrackedBValue receive =
-      pb.ReceiveIf(context_out_channel->generated.value(), token,
-                   /*pred=*/placeholder_cond, loc,
-                   /*name=*/absl::StrFormat("%s_receive_context", name_prefix));
-  token = pb.TupleIndex(
-      receive, 0, loc,
-      /*name=*/absl::StrFormat("%s_receive_context_token", name_prefix));
-  TrackedBValue received_context_tuple = pb.TupleIndex(
-      receive, 1, loc,
-      /*name=*/absl::StrFormat("%s_receive_context_tup", name_prefix));
-
-  XLS_ASSIGN_OR_RETURN(
-      PipelinedLoopContentsReturn contents_ret,
-      GenerateIR_PipelinedLoopContents(pipelined_loop_proc, pb, token,
-                                       received_context_tuple,
-                                       /*in_state_condition=*/TrackedBValue(),
-                                       /*in_fsm=*/false));
-
-  auto* receive_node = receive.node()->As<xls::Receive>();
-  bool replaced = receive_node->ReplaceOperand(
-      /*old_operand=*/placeholder_cond.node(),
-      /*new_operand=*/contents_ret.first_iter.node());
-  XLSCC_CHECK(replaced, loc);
-
-  token = contents_ret.token_out;
-
-  // Send back context on break
-  XLSCC_CHECK(context_in_channel->generated.has_value(), loc);
-  XLSCC_CHECK_NE(context_in_channel->generated.value(), nullptr, loc);
-
-  token = pb.SendIf(context_in_channel->generated.value(), token,
-                    contents_ret.do_break, contents_ret.out_tuple, loc);
-
-  XLS_RETURN_IF_ERROR(BuildWithNextStateValueMap(
-                          pb, token, contents_ret.extra_next_state_values, loc)
-                          .status());
-
-  return absl::OkStatus();
 }
 
 absl::StatusOr<Translator::PipelinedLoopContentsReturn>
