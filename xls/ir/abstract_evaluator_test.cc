@@ -15,6 +15,7 @@
 #include "xls/ir/abstract_evaluator.h"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -779,6 +780,66 @@ TEST(AbstractEvaluatorTest, SLessThan) {
   a = SBits(0, 32);
   b = SBits(-16, 32);
   EXPECT_EQ(eval.SLessThan(ToBoxedVector(a), ToBoxedVector(b)).value, 0);
+}
+
+TEST(AbstractEvaluatorTest, Select) {
+  TestAbstractEvaluator eval;
+  auto eval_select = [&](const Bits& selector, absl::Span<const Bits> cases,
+                         std::optional<Bits> default_value = std::nullopt) {
+    std::vector<std::vector<BoxedBool>> boxed_cases;
+    for (auto const& i : cases) {
+      boxed_cases.push_back(ToBoxedVector(i));
+    }
+    std::optional<std::vector<BoxedBool>> boxed_default_value;
+    if (default_value.has_value()) {
+      boxed_default_value = ToBoxedVector(*default_value);
+    }
+    return FromBoxedVector(eval.Select(
+        ToBoxedVector(selector), eval.SpanOfVectorsToVectorOfSpans(boxed_cases),
+        boxed_default_value));
+  };
+
+  EXPECT_EQ(
+      eval_select(UBits(0, 2),
+                  {UBits(0x00FF, 16), UBits(0x0FF0, 16), UBits(0xFF00, 16)},
+                  UBits(0xF00F, 16)),
+      UBits(0x00FF, 16));
+  EXPECT_EQ(
+      eval_select(UBits(1, 2),
+                  {UBits(0x00FF, 16), UBits(0x0FF0, 16), UBits(0xFF00, 16)},
+                  UBits(0xF00F, 16)),
+      UBits(0x0FF0, 16));
+  EXPECT_EQ(
+      eval_select(UBits(2, 2),
+                  {UBits(0x00FF, 16), UBits(0x0FF0, 16), UBits(0xFF00, 16)},
+                  UBits(0xF00F, 16)),
+      UBits(0xFF00, 16));
+  EXPECT_EQ(
+      eval_select(UBits(3, 2),
+                  {UBits(0x00FF, 16), UBits(0x0FF0, 16), UBits(0xFF00, 16)},
+                  UBits(0xF00F, 16)),
+      UBits(0xF00F, 16));
+
+  EXPECT_EQ(eval_select(UBits(0, 2), {UBits(0x00EE, 16)}, UBits(0xE00E, 16)),
+            UBits(0x00EE, 16));
+  EXPECT_EQ(eval_select(UBits(1, 2), {UBits(0x00EE, 16)}, UBits(0xE00E, 16)),
+            UBits(0xE00E, 16));
+  EXPECT_EQ(eval_select(UBits(2, 2), {UBits(0x00EE, 16)}, UBits(0xE00E, 16)),
+            UBits(0xE00E, 16));
+  EXPECT_EQ(eval_select(UBits(3, 2), {UBits(0x00EE, 16)}, UBits(0xE00E, 16)),
+            UBits(0xE00E, 16));
+
+  EXPECT_EQ(eval_select(UBits(0, 2), {}, UBits(0xD00D, 16)), UBits(0xD00D, 16));
+  EXPECT_EQ(eval_select(UBits(1, 2), {}, UBits(0xD00D, 16)), UBits(0xD00D, 16));
+  EXPECT_EQ(eval_select(UBits(2, 2), {}, UBits(0xD00D, 16)), UBits(0xD00D, 16));
+  EXPECT_EQ(eval_select(UBits(3, 2), {}, UBits(0xD00D, 16)), UBits(0xD00D, 16));
+
+  EXPECT_EQ(eval_select(UBits(0, 1), {UBits(0x00CC, 16), UBits(0xCC00, 16)}),
+            UBits(0x00CC, 16));
+  EXPECT_EQ(eval_select(UBits(1, 1), {UBits(0x00CC, 16), UBits(0xCC00, 16)}),
+            UBits(0xCC00, 16));
+
+  EXPECT_EQ(eval_select(UBits(0, 0), {}, UBits(0x0BB0, 16)), UBits(0x0BB0, 16));
 }
 
 TEST(AbstractEvaluatorTest, PrioritySelect) {
