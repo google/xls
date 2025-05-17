@@ -31,6 +31,17 @@ const xls::Node* RemoveIdentities(const xls::Node* node) {
 }
 
 bool NodesEquivalentWithContinuations(const xls::Node* a, const xls::Node* b) {
+  if (a == nullptr || b == nullptr) {
+    return a == b;
+  }
+
+  if (a->Is<xls::Literal>()) {
+    if (!b->Is<xls::Literal>()) {
+      return false;
+    }
+    return a->As<xls::Literal>()->value() == b->As<xls::Literal>()->value();
+  }
+
   return RemoveIdentities(a) == RemoveIdentities(b);
 }
 
