@@ -58,9 +58,8 @@ struct BlockProvenance {
 
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const BlockProvenance& v) {
-    return absl::Format(
-        &sink, "provenance(name=\"%s\", kind=\"%s\")", v.name,
-        v.kind == BlockProvenanceKind::kProc ? "proc" : "function");
+    absl::Format(&sink, "provenance(name=\"%s\", kind=\"%s\")", v.name,
+                 v.kind == BlockProvenanceKind::kProc ? "proc" : "function");
   }
 
   template <typename H>
