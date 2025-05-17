@@ -42,6 +42,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -86,6 +87,7 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
@@ -400,23 +402,18 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
 }
 
 absl::Status PrintScheduleInfo(FunctionBase* f,
-                               const PipelineScheduleOrGroup& schedules,
+                               const PackagePipelineSchedules& schedules,
                                const BddQueryEngine& bdd_query_engine,
                                const DelayEstimator& delay_estimator,
                                std::optional<int64_t> clock_period_ps) {
-  if (std::holds_alternative<PipelineSchedule>(schedules)) {
-    const PipelineSchedule& schedule = std::get<PipelineSchedule>(schedules);
+  if (schedules.size() == 1) {
+    const PipelineSchedule& schedule = schedules.begin()->second;
     if (schedule.min_clock_period_ps().has_value()) {
       std::cout << absl::StreamFormat("Min clock period ps: %d\n",
                                       *schedule.min_clock_period_ps());
     }
-    return PrintScheduleInfo(f, schedule, bdd_query_engine, delay_estimator,
-                             clock_period_ps);
   }
-
-  CHECK(std::holds_alternative<PackagePipelineSchedules>(schedules));
-  for (auto& [function_base, schedule] :
-       std::get<PackagePipelineSchedules>(schedules)) {
+  for (auto& [function_base, schedule] : schedules) {
     std::cout << "\n\nFunction: " << function_base->name() << "\n";
     XLS_RETURN_IF_ERROR(PrintScheduleInfo(function_base, schedule,
                                           bdd_query_engine, delay_estimator,
@@ -696,7 +693,7 @@ absl::Status RunInterpreterAndJit(FunctionBase* function_base,
 absl::Status AnalyzeAndPrintCriticalPath(
     FunctionBase* f, std::optional<int64_t> effective_clock_period_ps,
     const DelayEstimator& delay_estimator, const QueryEngine& query_engine,
-    PipelineScheduleOrGroup* schedules, synthesis::Synthesizer* synthesizer) {
+    PackagePipelineSchedules* schedules, synthesis::Synthesizer* synthesizer) {
   XLS_ASSIGN_OR_RETURN(
       std::vector<CriticalPathEntry> critical_path,
       AnalyzeCriticalPath(f, effective_clock_period_ps, delay_estimator));
@@ -704,9 +701,8 @@ absl::Status AnalyzeAndPrintCriticalPath(
   if (synthesizer) {
     if (schedules) {
       XLS_ASSIGN_OR_RETURN(
-          delay_diff,
-          CreateDelayDiffByStage(f, std::get<PipelineSchedule>(*schedules),
-                                 delay_estimator, synthesizer));
+          delay_diff, CreateDelayDiffByStage(f, schedules->begin()->second,
+                                             delay_estimator, synthesizer));
       delay_diff.total_diff.critical_path = std::move(critical_path);
     } else {
       XLS_ASSIGN_OR_RETURN(
@@ -797,18 +793,21 @@ absl::Status RealMain(std::string_view path) {
         f, effective_clock_period_ps, delay_estimator, query_engine,
         /*schedules=*/nullptr, synthesizer.get()));
   } else if (benchmark_codegen) {
-    PipelineScheduleOrGroup schedules = PackagePipelineSchedules();
+    PackagePipelineSchedules schedules;
     if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
       XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
                            SetUpSchedulingOptions(
                                scheduling_options_flags_proto, package.get()));
-      PassPipelineMetricsProto sched_metrics;
+      XLS_ASSIGN_OR_RETURN(
+          SchedulingResult scheduling_result,
+          Schedule(package.get(), scheduling_options, &delay_estimator));
       XLS_ASSIGN_OR_RETURN(schedules,
-                           Schedule(package.get(), scheduling_options,
-                                    &delay_estimator, &sched_metrics));
+                           PackagePipelineSchedulesFromProto(
+                               package.get(), scheduling_result.schedules));
       std::cout << absl::StreamFormat(
           "Scheduling time: %dms\n",
-          PassPipelineDuration(sched_metrics) / absl::Milliseconds(1));
+          PassPipelineDuration(scheduling_result.pass_pipeline_metrics) /
+              absl::Milliseconds(1));
       XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
           f, effective_clock_period_ps, delay_estimator, query_engine,
           &schedules, synthesizer.get()));
@@ -820,20 +819,22 @@ absl::Status RealMain(std::string_view path) {
                     scheduling_options_flags_proto.clock_period_ps())
               : std::nullopt));
     }
-    PassPipelineMetricsProto codegen_metrics;
-    XLS_ASSIGN_OR_RETURN(CodegenResult codegen_result,
-                         Codegen(package.get(), scheduling_options_flags_proto,
-                                 codegen_flags_proto, delay_model_flag_passed,
-                                 &schedules, &codegen_metrics));
+    XLS_ASSIGN_OR_RETURN(
+        verilog::CodegenResult codegen_result,
+        Codegen(package.get(), scheduling_options_flags_proto,
+                codegen_flags_proto, delay_model_flag_passed,
+                codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE
+                    ? &schedules
+                    : nullptr));
     std::cout << absl::StreamFormat(
         "Codegen time: %dms\n",
-        PassPipelineDuration(codegen_metrics) / absl::Milliseconds(1));
+        PassPipelineDuration(codegen_result.pass_pipeline_metrics) /
+            absl::Milliseconds(1));
 
     std::cout << absl::StreamFormat(
         "Lines of Verilog: %d\n",
         std::vector<std::string>(
-            absl::StrSplit(codegen_result.module_generator_result.verilog_text,
-                           '\n'))
+            absl::StrSplit(codegen_result.verilog_text, '\n'))
             .size());
 
     // Print out state information for procs.

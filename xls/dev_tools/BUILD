@@ -614,6 +614,7 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":pass_metrics",
+        "//xls/codegen:codegen_result",
         "//xls/codegen:module_signature",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
@@ -651,6 +652,7 @@ cc_binary(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:schedule_util",
         "//xls/scheduling:scheduling_options",
+        "//xls/scheduling:scheduling_result",
         "//xls/tools:codegen",
         "//xls/tools:codegen_flags",
         "//xls/tools:codegen_flags_cc_proto",
@@ -677,6 +679,7 @@ cc_binary(
     deps = [
         "//xls/codegen:block_metrics",
         "//xls/codegen:codegen_options",
+        "//xls/codegen:codegen_result",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",
         "//xls/codegen:pipeline_generator",
@@ -750,6 +753,7 @@ cc_binary(
     srcs = ["repl.cc"],
     deps = [
         "//xls/codegen:codegen_options",
+        "//xls/codegen:codegen_result",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",
         "//xls/common:exit_status",

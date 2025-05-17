@@ -929,18 +929,6 @@ top proc example(tkn: token, init={token}) {
   EXPECT_EQ(f->GetInitiationInterval(), 12);
 }
 
-TEST(IrParserTest, ParseBlockAttributeInitiationInterval) {
-  std::string input = R"(package test
-
-#[initiation_interval(12)]
-block example(in: bits[32], out: bits[32]) {
-  in: bits[32] = input_port(name=in, id=2)
-  out: () = output_port(in, name=out, id=5)
-}
-)";
-  XLS_EXPECT_OK(Parser::ParsePackage(input));
-}
-
 TEST(IrParserTest, ParseValidFifoInstantiation) {
   constexpr std::string_view ir_text = R"(package test
 

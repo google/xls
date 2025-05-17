@@ -1808,20 +1808,16 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
   }
 
   if (metrics_reporter) {
-    const ::xls::verilog::ModuleSignature signature =
-        xls_codegen_results.value().module_generator_result.signature;
-    if (signature.proto().has_metrics()) {
-      const ::xls::verilog::XlsMetricsProto& metrics =
-          signature.proto().metrics();
-      if (metrics.has_block_metrics()) {
-        const ::xls::verilog::BlockMetricsProto& block_metrics =
-            metrics.block_metrics();
-        metrics_reporter(**package, block_metrics);
-      }
+    const ::xls::verilog::XlsMetricsProto& metrics =
+        xls_codegen_results->codegen_result.block_metrics;
+    if (metrics.has_block_metrics()) {
+      const ::xls::verilog::BlockMetricsProto& block_metrics =
+          metrics.block_metrics();
+      metrics_reporter(**package, block_metrics);
     }
   }
 
-  output << xls_codegen_results->module_generator_result.verilog_text;
+  output << xls_codegen_results->codegen_result.verilog_text;
   return success();
 }
 

@@ -136,7 +136,7 @@ void SimTestBase::RunAndExpectEq(
     EXPECT_TRUE(top.value()->IsFunction());
 
     XLS_ASSERT_OK_AND_ASSIGN(
-        verilog::ModuleGeneratorResult result,
+        verilog::CodegenResult result,
         verilog::GenerateCombinationalModule(
             top.value(), verilog::CodegenOptions().use_system_verilog(false)));
 

@@ -29,6 +29,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
@@ -339,6 +340,13 @@ class Block : public FunctionBase {
     return provenance_;
   }
 
+  const std::optional<verilog::ModuleSignatureProto>& GetSignature() const {
+    return signature_;
+  }
+  void SetSignature(verilog::ModuleSignatureProto signature) {
+    signature_ = std::move(signature);
+  }
+
  private:
   // Sets the name of the given port node (InputPort or OutputPort) to the
   // given name. Unlike xls::Node::SetName which may name the node `name` with
@@ -416,6 +424,7 @@ class Block : public FunctionBase {
       channel_port_metadata_;
 
   std::optional<BlockProvenance> provenance_;
+  std::optional<verilog::ModuleSignatureProto> signature_;
 };
 
 }  // namespace xls
