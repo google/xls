@@ -1091,7 +1091,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
     // Set all op tokens from previous states to the input of this state
     absl::flat_hash_map<const IOOp*, TrackedBValue> op_tokens_prev = op_tokens;
-    for (auto [op, _] : op_tokens_prev) {
+    for (const auto& [op, _] : op_tokens_prev) {
       CHECK_NE(prepared.orig_token.node(), nullptr);
       op_tokens[op] = prepared.orig_token;
     }
