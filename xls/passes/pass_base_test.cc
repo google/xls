@@ -135,7 +135,7 @@ class LevelUpPass : public OptimizationFunctionBasePass {
 // Pass which adds literal nodes to the graph.
 class NodeAdderPass : public OptimizationFunctionBasePass {
  public:
-  NodeAdderPass(int64_t nodes_to_add)
+  explicit NodeAdderPass(int64_t nodes_to_add)
       : OptimizationFunctionBasePass(
             absl::StrFormat("node_adder_%d", nodes_to_add),
             absl::StrFormat("Node adder %d", nodes_to_add)),
@@ -159,7 +159,7 @@ class NodeAdderPass : public OptimizationFunctionBasePass {
 // Pass which adds a single literal nodes if the graph has less than N nodes.
 class AddNodesUpToNPass : public OptimizationFunctionBasePass {
  public:
-  AddNodesUpToNPass(int64_t n)
+  explicit AddNodesUpToNPass(int64_t n)
       : OptimizationFunctionBasePass(absl::StrFormat("add_up_to_%d", n),
                                      absl::StrFormat("Add up to %d", n)),
         n_(n) {}
@@ -184,7 +184,7 @@ class AddNodesUpToNPass : public OptimizationFunctionBasePass {
 // value N times.
 class NodeReplacerPass : public OptimizationFunctionBasePass {
  public:
-  NodeReplacerPass(int64_t replacement_count)
+  explicit NodeReplacerPass(int64_t replacement_count)
       : OptimizationFunctionBasePass(
             absl::StrFormat("replacer_%d", replacement_count),
             absl::StrFormat("Replacer %d", replacement_count)),
@@ -601,7 +601,8 @@ TEST_F(PassBaseTest, DumpIrWithNestedPasses) {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<std::filesystem::path> dump_paths,
                            GetDirectoryEntries(options.ir_dump_path));
   std::vector<std::string> dump_filenames;
-  for (const std::filesystem::path path : dump_paths) {
+  dump_filenames.reserve(dump_paths.size());
+  for (const std::filesystem::path& path : dump_paths) {
     dump_filenames.push_back(path.filename().string());
   }
   EXPECT_THAT(

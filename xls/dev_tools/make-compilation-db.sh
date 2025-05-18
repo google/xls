@@ -37,10 +37,8 @@ BAZEL_OPTS="-c opt --remote_download_outputs=all"
   @linenoise @nlohmann_json//:singleheader-json \
   @zstd @at_clifford_yosys//:json11 \
   @verible//verible/common/lsp:lsp-protocol.h \
-  @llvm-project//clang:{ast,tooling} \
   //xls/common:xls_gunit_main \
   //xls/solvers:z3_ir_translator \
-  //xls/contrib/mlir:{math_to_xls,arith_to_xls,scf_to_xls} \
   //xls/dslx/tests/trace_fmt_issue_651:trace_{u16,u21,s32,enum,u16_hex,u21_hex}_wrapper \
   $("${BANT}" list-targets @com_google_ortools//... | awk '/cc_proto_library/ {print $3}') \
   $("${BANT}" list-targets | \

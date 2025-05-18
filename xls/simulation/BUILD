@@ -176,6 +176,7 @@ cc_test(
     ]),
     shard_count = 10,
     deps = [
+        "//xls/common/status:status_macros",
         ":module_testbench",
         ":module_testbench_thread",
         ":testbench_signal_capture",
@@ -371,6 +372,7 @@ cc_library(
     srcs = ["module_testbench_thread.cc"],
     hdrs = ["module_testbench_thread.h"],
     deps = [
+        "//xls/common/status:status_macros",
         ":testbench_metadata",
         ":testbench_signal_capture",
         ":testbench_stream",

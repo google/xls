@@ -20,16 +20,17 @@
 #include <string>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/source_location.h"
@@ -102,19 +103,26 @@ class SequentialConsumer {
 class ModuleTestbenchTest : public VerilogTestBase {
  protected:
   // Creates and returns a module which simply flops its input twice.
-  Module* MakeTwoStageIdentityPipeline(VerilogFile* f, int64_t width = 16) {
+  absl::StatusOr<Module*> MakeTwoStageIdentityPipeline(VerilogFile* f,
+                                                       int64_t width = 16) {
     Module* m = f->AddModule("test_module", SourceInfo());
-    LogicRef* clk =
-        m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
-    LogicRef* in =
-        m->AddInput("in", f->BitVectorType(width, SourceInfo()), SourceInfo());
-    LogicRef* out = m->AddOutput("out", f->BitVectorType(width, SourceInfo()),
-                                 SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * clk,
+        m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * in,
+        m->AddInput("in", f->BitVectorType(width, SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * out,
+        m->AddOutput("out", f->BitVectorType(width, SourceInfo()),
+                     SourceInfo()));
 
-    LogicRef* p0 =
-        m->AddReg("p0", f->BitVectorType(width, SourceInfo()), SourceInfo());
-    LogicRef* p1 =
-        m->AddReg("p1", f->BitVectorType(width, SourceInfo()), SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * p0,
+        m->AddReg("p0", f->BitVectorType(width, SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * p1,
+        m->AddReg("p1", f->BitVectorType(width, SourceInfo()), SourceInfo()));
 
     auto af = m->Add<AlwaysFlop>(SourceInfo(), clk);
     af->AddRegister(p0, in, SourceInfo());
@@ -125,22 +133,29 @@ class ModuleTestbenchTest : public VerilogTestBase {
   }
 
   // Creates and returns a module which simply flops its input twice.
-  Module* MakeTwoStageIdentityPipelineWithReset(VerilogFile* f,
-                                                int64_t width = 16) {
+  absl::StatusOr<Module*> MakeTwoStageIdentityPipelineWithReset(
+      VerilogFile* f, int64_t width = 16) {
     Module* m = f->AddModule("test_module", SourceInfo());
-    LogicRef* clk =
-        m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
-    LogicRef* reset =
-        m->AddInput("reset", f->ScalarType(SourceInfo()), SourceInfo());
-    LogicRef* in =
-        m->AddInput("in", f->BitVectorType(width, SourceInfo()), SourceInfo());
-    LogicRef* out = m->AddOutput("out", f->BitVectorType(width, SourceInfo()),
-                                 SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * clk,
+        m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * reset,
+        m->AddInput("reset", f->ScalarType(SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * in,
+        m->AddInput("in", f->BitVectorType(width, SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * out,
+        m->AddOutput("out", f->BitVectorType(width, SourceInfo()),
+                     SourceInfo()));
 
-    LogicRef* p0 =
-        m->AddReg("p0", f->BitVectorType(width, SourceInfo()), SourceInfo());
-    LogicRef* p1 =
-        m->AddReg("p1", f->BitVectorType(width, SourceInfo()), SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * p0,
+        m->AddReg("p0", f->BitVectorType(width, SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * p1,
+        m->AddReg("p1", f->BitVectorType(width, SourceInfo()), SourceInfo()));
 
     AlwaysFlop* af = m->Add<AlwaysFlop>(
         SourceInfo(), clk,
@@ -154,25 +169,38 @@ class ModuleTestbenchTest : public VerilogTestBase {
   }
   // Creates and returns a adder module which flops its input twice.
   // The flip-flops use a synchronous active-high reset.
-  Module* MakeTwoStageAdderPipeline(VerilogFile* f, int64_t width = 16) {
+  absl::StatusOr<Module*> MakeTwoStageAdderPipeline(VerilogFile* f,
+                                                    int64_t width = 16) {
     Module* m = f->AddModule("test_module", SourceInfo());
-    LogicRef* clk =
-        m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
-    LogicRef* reset =
-        m->AddInput("reset", f->ScalarType(SourceInfo()), SourceInfo());
-    LogicRef* operand_0 = m->AddInput(
-        "operand_0", f->BitVectorType(width, SourceInfo()), SourceInfo());
-    LogicRef* operand_1 = m->AddInput(
-        "operand_1", f->BitVectorType(width, SourceInfo()), SourceInfo());
-    LogicRef* result = m->AddWire(
-        "result", f->BitVectorType(width, SourceInfo()), SourceInfo());
-    LogicRef* out = m->AddOutput("out", f->BitVectorType(width, SourceInfo()),
-                                 SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * clk,
+        m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * reset,
+        m->AddInput("reset", f->ScalarType(SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * operand_0,
+        m->AddInput("operand_0", f->BitVectorType(width, SourceInfo()),
+                    SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * operand_1,
+        m->AddInput("operand_1", f->BitVectorType(width, SourceInfo()),
+                    SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * result,
+        m->AddWire("result", f->BitVectorType(width, SourceInfo()),
+                   SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * out,
+        m->AddOutput("out", f->BitVectorType(width, SourceInfo()),
+                     SourceInfo()));
 
-    LogicRef* p0 =
-        m->AddReg("p0", f->BitVectorType(width, SourceInfo()), SourceInfo());
-    LogicRef* p1 =
-        m->AddReg("p1", f->BitVectorType(width, SourceInfo()), SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * p0,
+        m->AddReg("p0", f->BitVectorType(width, SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * p1,
+        m->AddReg("p1", f->BitVectorType(width, SourceInfo()), SourceInfo()));
 
     auto af = m->Add<AlwaysFlop>(
         SourceInfo(), clk, Reset{reset, /*async*/ false, /*active_low*/ false});
@@ -185,9 +213,13 @@ class ModuleTestbenchTest : public VerilogTestBase {
     return m;
   }
   // Creates and returns a module which simply prints two messages.
-  Module* MakeTwoMessageModule(VerilogFile* f) {
+  absl::StatusOr<Module*> MakeTwoMessageModule(VerilogFile* f) {
     Module* m = f->AddModule("test_module", SourceInfo());
-    m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * clk,
+        m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo()));
+    (void)clk;  // unused
+
     Initial* initial = m->Add<Initial>(SourceInfo());
     initial->statements()->Add<Display>(
         SourceInfo(), std::vector<Expression*>{f->Make<QuotedString>(
@@ -198,21 +230,28 @@ class ModuleTestbenchTest : public VerilogTestBase {
     return m;
   }
   // Creates a module which concatenates two values together.
-  Module* MakeConcatModule(VerilogFile* f, int64_t width = 16) {
+  absl::StatusOr<Module*> MakeConcatModule(VerilogFile* f, int64_t width = 16) {
     Module* m = f->AddModule("test_module", SourceInfo());
-    LogicRef* clk =
-        m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
-    LogicRef* a =
-        m->AddInput("a", f->BitVectorType(width, SourceInfo()), SourceInfo());
-    LogicRef* b =
-        m->AddInput("b", f->BitVectorType(width, SourceInfo()), SourceInfo());
-    LogicRef* out = m->AddOutput(
-        "out", f->BitVectorType(2 * width, SourceInfo()), SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * clk,
+        m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * a,
+        m->AddInput("a", f->BitVectorType(width, SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * b,
+        m->AddInput("b", f->BitVectorType(width, SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * out,
+        m->AddOutput("out", f->BitVectorType(2 * width, SourceInfo()),
+                     SourceInfo()));
 
-    LogicRef* a_d =
-        m->AddReg("a_d", f->BitVectorType(width, SourceInfo()), SourceInfo());
-    LogicRef* b_d =
-        m->AddReg("b_d", f->BitVectorType(width, SourceInfo()), SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * a_d,
+        m->AddReg("a_d", f->BitVectorType(width, SourceInfo()), SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * b_d,
+        m->AddReg("b_d", f->BitVectorType(width, SourceInfo()), SourceInfo()));
 
     auto af = m->Add<AlwaysFlop>(SourceInfo(), clk);
     af->AddRegister(a_d, a, SourceInfo());
@@ -226,7 +265,7 @@ class ModuleTestbenchTest : public VerilogTestBase {
 
 TEST_P(ModuleTestbenchTest, TwoStagePipelineZeroThreads) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -237,7 +276,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineZeroThreads) {
 
 TEST_P(ModuleTestbenchTest, TwoStageAdderPipelineThreeThreadsWithDoneSignal) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageAdderPipeline(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageAdderPipeline(&f));
 
   ResetProto reset_proto;
   reset_proto.set_name("reset");
@@ -276,16 +315,16 @@ TEST_P(ModuleTestbenchTest, TwoStageAdderPipelineThreeThreadsWithDoneSignal) {
   result->MainBlock().AtEndOfCycle().ExpectEq("out", 0x64);
   result->MainBlock().AtEndOfCycle().ExpectEq("out", 0xaa);
 
+  XLS_ASSERT_OK_AND_ASSIGN(std::string generated, tb->GenerateVerilog());
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 tb->GenerateVerilog());
-
+                                 generated);
   XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(ModuleTestbenchTest,
        TwoStageAdderPipelineThreeThreadsWithDoneSignalAtOutputOnly) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageAdderPipeline(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageAdderPipeline(&f));
 
   ResetProto reset_proto;
   reset_proto.set_name("reset");
@@ -326,15 +365,16 @@ TEST_P(ModuleTestbenchTest,
   result->MainBlock().AtEndOfCycle().ExpectEq("out", 0x64);
   result->MainBlock().AtEndOfCycle().ExpectEq("out", 0xaa);
 
+  XLS_ASSERT_OK_AND_ASSIGN(std::string generated, tb->GenerateVerilog());
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 tb->GenerateVerilog());
+                                 generated);
 
   XLS_ASSERT_OK(tb->Run());
 }
 
 TEST_P(ModuleTestbenchTest, TwoStagePipeline) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -358,7 +398,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipeline) {
 
 TEST_P(ModuleTestbenchTest, WhenXAndWhenNotX) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeConcatModule(&f, /*width=*/8);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeConcatModule(&f, /*width=*/8));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -386,7 +426,7 @@ TEST_P(ModuleTestbenchTest, WhenXAndWhenNotX) {
 
 TEST_P(ModuleTestbenchTest, TwoStagePipelineWithWideInput) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f, 128);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f, 128));
 
   Bits input1 = bits_ops::Concat(
       {UBits(0x1234567887654321ULL, 64), UBits(0xababababababababULL, 64)});
@@ -414,7 +454,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithWideInput) {
 
 TEST_P(ModuleTestbenchTest, TwoStagePipelineWithX) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f));
 
   // Drive the pipeline with a valid value, then X, then another valid
   // value.
@@ -440,7 +480,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithX) {
 
 TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -469,22 +509,31 @@ TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
 TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
   VerilogFile f = NewVerilogFile();
   Module* m = f.AddModule("test_module", SourceInfo());
-  LogicRef* clk = m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* x =
-      m->AddInput("x", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* y =
-      m->AddInput("y", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* out0 =
-      m->AddOutput("out0", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* out1 =
-      m->AddOutput("out1", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * x,
+      m->AddInput("x", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * y,
+      m->AddInput("y", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out0,
+      m->AddOutput("out0", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out1,
+      m->AddOutput("out1", f.BitVectorType(8, SourceInfo()), SourceInfo()));
 
-  LogicRef* not_x =
-      m->AddReg("not_x", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* sum =
-      m->AddReg("sum", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* sum_plus_1 =
-      m->AddReg("sum_plus_1", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * not_x,
+      m->AddReg("not_x", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * sum,
+      m->AddReg("sum", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * sum_plus_1,
+      m->AddReg("sum_plus_1", f.BitVectorType(8, SourceInfo()), SourceInfo()));
 
   // Logic is as follows:
   //
@@ -531,8 +580,13 @@ TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
 TEST_P(ModuleTestbenchTest, TestTimeout) {
   VerilogFile f = NewVerilogFile();
   Module* m = f.AddModule("test_module", SourceInfo());
-  m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* out = m->AddOutput("out", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  (void)clk;  // unused
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out,
+      m->AddOutput("out", f.ScalarType(SourceInfo()), SourceInfo()));
   m->Add<ContinuousAssignment>(SourceInfo(), out,
                                f.PlainLiteral(0, SourceInfo()));
 
@@ -552,7 +606,7 @@ TEST_P(ModuleTestbenchTest, TestTimeout) {
 
 TEST_P(ModuleTestbenchTest, TracesFound) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoMessageModule(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoMessageModule(&f));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -570,7 +624,7 @@ TEST_P(ModuleTestbenchTest, TracesFound) {
 
 TEST_P(ModuleTestbenchTest, TracesNotFound) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoMessageModule(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoMessageModule(&f));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -588,7 +642,7 @@ TEST_P(ModuleTestbenchTest, TracesNotFound) {
 
 TEST_P(ModuleTestbenchTest, TracesOutOfOrder) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoMessageModule(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoMessageModule(&f));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -613,11 +667,15 @@ TEST_P(ModuleTestbenchTest, AssertTest) {
 
   VerilogFile f = NewVerilogFile();
   Module* m = f.AddModule("test_module", SourceInfo());
-  LogicRef* clk = m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* a =
-      m->AddInput("a", f.BitVectorType(32, SourceInfo()), SourceInfo());
-  LogicRef* b =
-      m->AddInput("b", f.BitVectorType(32, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddInput("a", f.BitVectorType(32, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddInput("b", f.BitVectorType(32, SourceInfo()), SourceInfo()));
   auto is_unknown = [&](Expression* e) {
     return f.Make<SystemFunctionCall>(SourceInfo(), "isunknown",
                                       std::vector<Expression*>({e}));
@@ -644,8 +702,9 @@ TEST_P(ModuleTestbenchTest, AssertTest) {
     seq.Set("b", 300);
     seq.NextCycle();
 
+    XLS_ASSERT_OK_AND_ASSIGN(std::string generated, tb->GenerateVerilog());
     ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                   tb->GenerateVerilog());
+                                   generated);
 
     XLS_ASSERT_OK(tb->Run());
   }
@@ -667,7 +726,8 @@ TEST_P(ModuleTestbenchTest, AssertTest) {
 
 TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatN) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Module * m, MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
       ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
@@ -696,8 +756,9 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatN) {
     loop.AtEndOfCycle().CaptureMultiple("out", &output);
   }
 
+  XLS_ASSERT_OK_AND_ASSIGN(std::string generated, tb->GenerateVerilog());
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 tb->GenerateVerilog());
+                                 generated);
 
   XLS_ASSERT_OK(tb->Run());
 
@@ -709,7 +770,8 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatN) {
 
 TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatZeroTimes) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Module * m, MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
       ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
@@ -745,7 +807,8 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatZeroTimes) {
 
 TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithExpectations) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Module * m, MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
       ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
@@ -777,7 +840,8 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithExpectations) {
 
 TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithFailedExpectations) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Module * m, MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
       ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
@@ -815,7 +879,8 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithFailedExpectations) {
 
 TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatForever) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Module * m, MakeTwoStageIdentityPipelineWithReset(&f, /*width=*/16));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
       ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
@@ -844,8 +909,9 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatForever) {
     loop.AtEndOfCycle().CaptureMultiple("out", &output);
   }
 
+  XLS_ASSERT_OK_AND_ASSIGN(std::string generated, tb->GenerateVerilog());
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 tb->GenerateVerilog());
+                                 generated);
 
   XLS_ASSERT_OK(tb->Run());
 
@@ -857,7 +923,7 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatForever) {
 
 TEST_P(ModuleTestbenchTest, DuplicateThreadNames) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -871,7 +937,7 @@ TEST_P(ModuleTestbenchTest, DuplicateThreadNames) {
 
 TEST_P(ModuleTestbenchTest, InputPortsDrivenByTwoThreads) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -891,7 +957,7 @@ TEST_P(ModuleTestbenchTest, InputPortsDrivenByTwoThreads) {
 
 TEST_P(ModuleTestbenchTest, InvalidInputPortName) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -906,7 +972,7 @@ TEST_P(ModuleTestbenchTest, InvalidInputPortName) {
 
 TEST_P(ModuleTestbenchTest, DrivingInvalidInputPort) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
@@ -925,7 +991,8 @@ TEST_P(ModuleTestbenchTest, StreamingIo) {
   constexpr int64_t kWidth = 32;
 
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f, kWidth);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m,
+                           MakeTwoStageIdentityPipeline(&f, kWidth));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
       ModuleTestbench::CreateFromVastModule(
@@ -955,8 +1022,9 @@ TEST_P(ModuleTestbenchTest, StreamingIo) {
     loop.AtEndOfCycle().CaptureAndWriteToStream("out", output_stream);
   }
 
+  XLS_ASSERT_OK_AND_ASSIGN(std::string generated, tb->GenerateVerilog());
   ExpectVerilogEqualToGoldenFile(
-      GoldenFilePath(kTestName, kTestdataPath), tb->GenerateVerilog(),
+      GoldenFilePath(kTestName, kTestdataPath), generated,
       /*macro_definitions=*/
       {
           VerilogSimulator::MacroDefinition{input_stream->path_macro_name,
@@ -972,7 +1040,7 @@ TEST_P(ModuleTestbenchTest, StreamingIo) {
 
 TEST_P(ModuleTestbenchTest, CycleLimit) {
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f));
 
   {
     // Default cycle limit.
@@ -1020,7 +1088,7 @@ TEST_P(ModuleTestbenchTest, StreamingIoWithError) {
   constexpr int64_t kInputCount = 10;
 
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f, 32);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f, 32));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
       ModuleTestbench::CreateFromVastModule(
@@ -1078,7 +1146,7 @@ TEST_P(ModuleTestbenchTest, StreamingIoProducesX) {
   constexpr int64_t kInputCount = 10;
 
   VerilogFile f = NewVerilogFile();
-  Module* m = MakeTwoStageIdentityPipeline(&f, 32);
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, MakeTwoStageIdentityPipeline(&f, 32));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,
       ModuleTestbench::CreateFromVastModule(
@@ -1124,16 +1192,24 @@ TEST_P(ModuleTestbenchTest, StreamingIoMultipleInputOutput) {
   // Build a module with kNumPorts input and output ports. Each input port
   // passes its value through to the corresponding output port.
   Module* m = f.AddModule("test_module", SourceInfo());
-  m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  (void)clk;  // unused
   std::vector<LogicRef*> input_ports;
   std::vector<LogicRef*> output_ports;
   for (int64_t i = 0; i < kNumPorts; ++i) {
-    input_ports.push_back(m->AddInput(absl::StrCat("in", i),
-                                      f.BitVectorType(kWidth, SourceInfo()),
-                                      SourceInfo()));
-    output_ports.push_back(m->AddOutput(absl::StrCat("out", i),
-                                        f.BitVectorType(kWidth, SourceInfo()),
-                                        SourceInfo()));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        LogicRef * input_port,
+        m->AddInput(absl::StrCat("in", i),
+                    f.BitVectorType(kWidth, SourceInfo()), SourceInfo()));
+    input_ports.push_back(input_port);
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        LogicRef * output_port,
+        m->AddOutput(absl::StrCat("out", i),
+                     f.BitVectorType(kWidth, SourceInfo()), SourceInfo()));
+    output_ports.push_back(output_port);
     m->Add<ContinuousAssignment>(SourceInfo(), output_ports.back(),
                                  input_ports.back());
   }

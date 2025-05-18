@@ -546,7 +546,8 @@ ModuleSimulator::CreateProcTestbench(
     for (const auto& [channel_name, channel_values] : channel_inputs) {
       XLS_ASSIGN_OR_RETURN(ChannelInterfaceProto channel_proto,
                            signature_.GetChannelInterfaceByName(channel_name));
-      XLS_RET_CHECK_EQ(channel_proto.direction(), PORT_DIRECTION_INPUT);
+      ChannelDirectionProto channel_direction = channel_proto.direction();
+      XLS_RET_CHECK_EQ(channel_direction, CHANNEL_DIRECTION_RECEIVE);
       XLS_ASSIGN_OR_RETURN(
           PortProto data_port,
           signature_.GetInputPortByName(channel_proto.data_port_name()));
@@ -668,7 +669,7 @@ ModuleSimulator::RunInputSeriesProc(
     for (const auto& [channel_name, channel_values] : outputs) {
       XLS_ASSIGN_OR_RETURN(ChannelInterfaceProto channel_proto,
                            signature_.GetChannelInterfaceByName(channel_name));
-      XLS_RET_CHECK_EQ(channel_proto.direction(), PORT_DIRECTION_OUTPUT);
+      XLS_RET_CHECK_EQ(channel_proto.direction(), CHANNEL_DIRECTION_SEND);
       XLS_ASSIGN_OR_RETURN(
           PortProto data_port,
           signature_.GetOutputPortByName(channel_proto.data_port_name()));
@@ -705,7 +706,7 @@ ModuleSimulator::RunInputSeriesProc(
   for (const auto& [channel_name, channel_bits] : channel_outputs_bits) {
     XLS_ASSIGN_OR_RETURN(ChannelInterfaceProto channel_proto,
                          signature_.GetChannelInterfaceByName(channel_name));
-    XLS_RET_CHECK_EQ(channel_proto.direction(), PORT_DIRECTION_OUTPUT);
+    XLS_RET_CHECK_EQ(channel_proto.direction(), CHANNEL_DIRECTION_SEND);
     XLS_ASSIGN_OR_RETURN(
         PortProto data_port,
         signature_.GetOutputPortByName(channel_proto.data_port_name()));

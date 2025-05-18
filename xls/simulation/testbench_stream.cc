@@ -43,19 +43,24 @@
 namespace xls {
 namespace verilog {
 
-/* static */ VastStreamEmitter VastStreamEmitter::Create(
+/* static */ absl::StatusOr<VastStreamEmitter> VastStreamEmitter::Create(
     const TestbenchStream& stream, Module* m) {
   VastStreamEmitter emitter(stream);
-  emitter.file_descriptor_ =
-      m->AddInteger(absl::StrFormat("__%s_fd", stream.name), SourceInfo()),
-  emitter.count_ =
-      m->AddInteger(absl::StrFormat("__%s_cnt", stream.name), SourceInfo());
-  emitter.errno_ =
-      m->AddInteger(absl::StrFormat("__%s_errno", stream.name), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      emitter.file_descriptor_,
+      m->AddInteger(absl::StrFormat("__%s_fd", stream.name), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      emitter.count_,
+      m->AddInteger(absl::StrFormat("__%s_cnt", stream.name), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      emitter.errno_,
+      m->AddInteger(absl::StrFormat("__%s_errno", stream.name), SourceInfo()));
   constexpr int64_t kStringSize = 256;
-  emitter.error_string_ = m->AddReg(
-      absl::StrFormat("__%s_error_str", stream.name),
-      m->file()->BitVectorType(kStringSize * 8, SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      emitter.error_string_,
+      m->AddReg(absl::StrFormat("__%s_error_str", stream.name),
+                m->file()->BitVectorType(kStringSize * 8, SourceInfo()),
+                SourceInfo()));
   return emitter;
 }
 

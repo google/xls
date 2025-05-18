@@ -14,10 +14,10 @@
 
 #include "xls/codegen/finite_state_machine.h"
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/source_location.h"
@@ -39,8 +39,9 @@ TEST_P(FiniteStateMachineTest, TrivialFsm) {
   VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
-  LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
   FsmBuilder fsm("TrivialFsm", module, clk, UseSystemVerilog());
   auto foo = fsm.AddState("Foo");
   auto bar = fsm.AddState("Bar");
@@ -57,8 +58,9 @@ TEST_P(FiniteStateMachineTest, TrivialFsmWithOutputs) {
   VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
-  LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
   FsmBuilder fsm("TrivialFsm", module, clk, UseSystemVerilog());
   auto foo = fsm.AddState("Foo");
   auto bar = fsm.AddState("Bar");
@@ -85,18 +87,23 @@ TEST_P(FiniteStateMachineTest, SimpleFsm) {
   VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
-  LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* rst_n =
-      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* ready_in =
-      module->AddInput("ready_in", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* done_out =
-      module->AddOutput("done_out", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst_n,
+      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * ready_in,
+      module->AddInput("ready_in", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * done_out,
+      module->AddOutput("done_out", f.ScalarType(SourceInfo()), SourceInfo()));
 
   // The "done" output is a wire, create a reg copy for assignment in the FSM.
-  LogicRef* done =
-      module->AddReg("done", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * done,
+      module->AddReg("done", f.ScalarType(SourceInfo()), SourceInfo()));
   module->Add<ContinuousAssignment>(SourceInfo(), done_out, done);
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
@@ -123,16 +130,21 @@ TEST_P(FiniteStateMachineTest, FsmWithNestedLogic) {
   VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
-  LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* rst_n =
-      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* foo =
-      module->AddInput("foo", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* bar =
-      module->AddInput("bar", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* qux =
-      module->AddOutput("qux_out", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst_n,
+      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * foo,
+      module->AddInput("foo", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * bar,
+      module->AddInput("bar", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * qux,
+      module->AddOutput("qux_out", f.ScalarType(SourceInfo()), SourceInfo()));
 
   FsmBuilder fsm("NestLogic", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});
@@ -165,10 +177,12 @@ TEST_P(FiniteStateMachineTest, CounterFsm) {
   VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
-  LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* rst =
-      module->AddInput("rst", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst,
+      module->AddInput("rst", f.ScalarType(SourceInfo()), SourceInfo()));
   FsmBuilder fsm("CounterFsm", module, clk, UseSystemVerilog(),
                  Reset{rst, /*async=*/true, /*active_low=*/false});
   auto foo = fsm.AddState("Foo");
@@ -190,14 +204,18 @@ TEST_P(FiniteStateMachineTest, ComplexFsm) {
   VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
-  LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* foo_in =
-      module->AddInput("foo_in", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* bar_in =
-      module->AddOutput("bar_in", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* qux_in =
-      module->AddOutput("qux_in", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * foo_in,
+      module->AddInput("foo_in", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * bar_in,
+      module->AddOutput("bar_in", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * qux_in,
+      module->AddOutput("qux_in", f.ScalarType(SourceInfo()), SourceInfo()));
 
   FsmBuilder fsm("ComplexFsm", module, clk, UseSystemVerilog());
   auto hungry = fsm.AddState("Hungry");
@@ -242,13 +260,19 @@ TEST_P(FiniteStateMachineTest, OutputAssignments) {
   VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
-  LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* rst_n =
-      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst_n,
+      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo()));
 
-  LogicRef* a = module->AddInput("a", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* b = module->AddInput("b", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      module->AddInput("a", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      module->AddInput("b", f.ScalarType(SourceInfo()), SourceInfo()));
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});
@@ -312,12 +336,16 @@ TEST_P(FiniteStateMachineTest, MultipleAssignments) {
   VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
-  LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* rst_n =
-      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst_n,
+      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo()));
 
-  LogicRef* a = module->AddInput("a", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      module->AddInput("a", f.ScalarType(SourceInfo()), SourceInfo()));
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});
@@ -338,13 +366,19 @@ TEST_P(FiniteStateMachineTest, MultipleConditionalAssignments) {
   VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
-  LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* rst_n =
-      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst_n,
+      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo()));
 
-  LogicRef* a = module->AddInput("a", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* b = module->AddInput("b", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      module->AddInput("a", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      module->AddInput("b", f.ScalarType(SourceInfo()), SourceInfo()));
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});

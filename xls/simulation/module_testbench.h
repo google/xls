@@ -116,7 +116,7 @@ class ModuleTestbench {
   }
 
   // Generates the Verilog representation of the testbench.
-  std::string GenerateVerilog() const;
+  absl::StatusOr<std::string> GenerateVerilog() const;
 
   // Runs the simulation.
   absl::Status Run() const;

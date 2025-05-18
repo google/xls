@@ -84,11 +84,11 @@ TEST_P(ModuleBuilderTest, NewSections) {
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
 
-  LogicRef* a = mb.DeclareVariable("a", u32);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * a, mb.DeclareVariable("a", u32));
   XLS_ASSERT_OK(mb.Assign(a, file.Add(x, y, SourceInfo()), u32));
 
   mb.NewDeclarationAndAssignmentSections();
-  LogicRef* b = mb.DeclareVariable("b", u32);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * b, mb.DeclareVariable("b", u32));
   XLS_ASSERT_OK(mb.Assign(b, file.Add(a, y, SourceInfo()), u32));
 
   XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Negate(b, SourceInfo())));
@@ -219,7 +219,7 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnable) {
                    /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
-  LogicRef* load_enable = mb.AddInputPort("le", 1);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * load_enable, mb.AddInputPort("le", 1));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register a,
@@ -249,7 +249,7 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnableAndReset) {
                    /*clk_name=*/"clk", reset);
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
-  LogicRef* load_enable = mb.AddInputPort("le", 1);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * load_enable, mb.AddInputPort("le", 1));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register a,
@@ -283,9 +283,9 @@ TEST_P(ModuleBuilderTest, ComplexComputation) {
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
   mb.declaration_section()->Add<Comment>(SourceInfo(), "Declaration section.");
   mb.assignment_section()->Add<Comment>(SourceInfo(), "Assignment section.");
-  LogicRef* a = mb.DeclareVariable("a", u32);
-  LogicRef* b = mb.DeclareVariable("b", u16);
-  LogicRef* c = mb.DeclareVariable("c", u16);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * a, mb.DeclareVariable("a", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * b, mb.DeclareVariable("b", u16));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * c, mb.DeclareVariable("c", u16));
   XLS_ASSERT_OK(mb.Assign(a, file.Shrl(x, y, SourceInfo()), u32));
   XLS_ASSERT_OK(mb.Assign(b, file.Slice(y, 16, 0, SourceInfo()), u16));
   XLS_ASSERT_OK(mb.Assign(c, file.Add(b, b, SourceInfo()), u16));

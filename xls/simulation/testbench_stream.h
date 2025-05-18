@@ -57,7 +57,8 @@ class VastStreamEmitter {
  public:
   // Creates an emitter. Also, emits into the module the declarations of
   // variables used to interact with the stream (e.g, the file descriptor).
-  static VastStreamEmitter Create(const TestbenchStream& stream, Module* m);
+  static absl::StatusOr<VastStreamEmitter> Create(const TestbenchStream& stream,
+                                                  Module* m);
 
   // Emit a $fopen/$fclose call into `block` which opens/closes the file.
   void EmitOpen(StatementBlock* block) const;

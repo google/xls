@@ -481,7 +481,7 @@ absl::Status ModuleTestbench::CaptureOutputsAndCheckExpectations(
   return absl::OkStatus();
 }
 
-std::string ModuleTestbench::GenerateVerilog() const {
+absl::StatusOr<std::string> ModuleTestbench::GenerateVerilog() const {
   VerilogFile file(file_type_);
   Module* m = file.AddModule("testbench", SourceInfo());
 
@@ -496,10 +496,12 @@ std::string ModuleTestbench::GenerateVerilog() const {
       // port in the Verilog module.
       continue;
     }
-    LogicRef* ref = m->AddReg(
-        port_name,
-        file.BitVectorType(metadata_.GetPortWidth(port_name), SourceInfo()),
-        SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * ref,
+        m->AddReg(
+            port_name,
+            file.BitVectorType(metadata_.GetPortWidth(port_name), SourceInfo()),
+            SourceInfo()));
     signal_refs[port_name] = ref;
     if (metadata_.IsClock(port_name)) {
       clk = ref;
@@ -514,10 +516,12 @@ std::string ModuleTestbench::GenerateVerilog() const {
       // port in the Verilog module.
       continue;
     }
-    LogicRef* ref = m->AddWire(
-        port_name,
-        file.BitVectorType(metadata_.GetPortWidth(port_name), SourceInfo()),
-        SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * ref,
+        m->AddWire(
+            port_name,
+            file.BitVectorType(metadata_.GetPortWidth(port_name), SourceInfo()),
+            SourceInfo()));
     signal_refs[port_name] = ref;
     connections.push_back(Connection{port_name, ref});
   }
@@ -525,7 +529,8 @@ std::string ModuleTestbench::GenerateVerilog() const {
   // If DUT has no clock, create a clock reg (not connected to the DUT) as the
   // testbench requires a clock for sequencing.
   if (clk == nullptr) {
-    clk = m->AddReg("clk", file.ScalarType(SourceInfo()), SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        clk, m->AddReg("clk", file.ScalarType(SourceInfo()), SourceInfo()));
     signal_refs["clk"] = clk;
   }
 
@@ -561,8 +566,9 @@ std::string ModuleTestbench::GenerateVerilog() const {
                     "Variable declarations for supporting streaming I/O.");
     // Declare variables required for performing IO.
     for (const std::unique_ptr<TestbenchStream>& stream : streams_) {
-      stream_emitters.insert(
-          {stream->name, VastStreamEmitter::Create(*stream, m)});
+      XLS_ASSIGN_OR_RETURN(VastStreamEmitter emitter,
+                           VastStreamEmitter::Create(*stream, m));
+      stream_emitters.insert({stream->name, std::move(emitter)});
     }
 
     m->Add<BlankLine>(SourceInfo());
@@ -627,7 +633,8 @@ std::string ModuleTestbench::GenerateVerilog() const {
                         dut_input_names.empty()
                             ? "<none>"
                             : absl::StrJoin(dut_input_names, ", ")));
-    thread->EmitInto(m, clk, &signal_refs, stream_emitters);
+    XLS_RETURN_IF_ERROR(
+        thread->EmitInto(m, clk, &signal_refs, stream_emitters));
     if (thread->done_signal_name().has_value()) {
       thread_done_signals.push_back(
           signal_refs.at(thread->done_signal_name().value()));
@@ -690,7 +697,7 @@ absl::Status ModuleTestbench::Run() const {
     return absl::InvalidArgumentError(
         "Testbenches with streaming IO should be run with RunWithStreamingIO");
   }
-  std::string verilog_text = GenerateVerilog();
+  XLS_ASSIGN_OR_RETURN(std::string verilog_text, GenerateVerilog());
   XLS_VLOG_LINES(3, verilog_text);
   std::pair<std::string, std::string> stdout_stderr;
   XLS_ASSIGN_OR_RETURN(stdout_stderr,
@@ -729,7 +736,7 @@ absl::Status ModuleTestbench::RunWithStreamingIo(
         input_producers.size() + output_consumers.size(), streams_.size()));
   }
 
-  std::string verilog_text = GenerateVerilog();
+  XLS_ASSIGN_OR_RETURN(std::string verilog_text, GenerateVerilog());
   XLS_VLOG_LINES(3, verilog_text);
 
   XLS_ASSIGN_OR_RETURN(TempDirectory temp_dir, TempDirectory::Create());
