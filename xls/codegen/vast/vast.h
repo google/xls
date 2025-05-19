@@ -2262,33 +2262,28 @@ class Module final : public VastNode {
   template <typename T, typename... Args>
   inline T* Add(const SourceInfo& loc, Args&&... args);
 
-  absl::StatusOr<LogicRef*> AddInput(std::string_view name,
-                                               DataType* type,
-                                               const SourceInfo& loc);
-  absl::StatusOr<LogicRef*> AddOutput(std::string_view name,
-                                                DataType* type,
-                                                const SourceInfo& loc);
+  absl::StatusOr<LogicRef*> AddInput(std::string_view name, DataType* type,
+                                     const SourceInfo& loc);
+  absl::StatusOr<LogicRef*> AddOutput(std::string_view name, DataType* type,
+                                      const SourceInfo& loc);
 
-  absl::StatusOr<LogicRef*> AddReg(std::string_view name,
-                                             DataType* type,
-                                             const SourceInfo& loc,
-                                             Expression* init = nullptr,
-                                             ModuleSection* section = nullptr);
-  absl::StatusOr<LogicRef*> AddWire(std::string_view name,
-                                              DataType* type,
-                                              const SourceInfo& loc,
-                                              ModuleSection* section = nullptr);
+  absl::StatusOr<LogicRef*> AddReg(std::string_view name, DataType* type,
+                                   const SourceInfo& loc,
+                                   Expression* init = nullptr,
+                                   ModuleSection* section = nullptr);
+  absl::StatusOr<LogicRef*> AddWire(std::string_view name, DataType* type,
+                                    const SourceInfo& loc,
+                                    ModuleSection* section = nullptr);
   // Variation of AddWire that takes an initializer expression.
-  absl::StatusOr<LogicRef*> AddWire(std::string_view name,
-                                              DataType* type, Expression* init,
-                                              const SourceInfo& loc,
-                                              ModuleSection* section = nullptr);
-  absl::StatusOr<LogicRef*> AddInteger(
-      std::string_view name, const SourceInfo& loc,
-      ModuleSection* section = nullptr);
-  absl::StatusOr<LogicRef*> AddGenvar(
-      std::string_view name, const SourceInfo& loc,
-      ModuleSection* section = nullptr);
+  absl::StatusOr<LogicRef*> AddWire(std::string_view name, DataType* type,
+                                    Expression* init, const SourceInfo& loc,
+                                    ModuleSection* section = nullptr);
+  absl::StatusOr<LogicRef*> AddInteger(std::string_view name,
+                                       const SourceInfo& loc,
+                                       ModuleSection* section = nullptr);
+  absl::StatusOr<LogicRef*> AddGenvar(std::string_view name,
+                                      const SourceInfo& loc,
+                                      ModuleSection* section = nullptr);
 
   ParameterRef* AddParameter(std::string_view name, Expression* rhs,
                              const SourceInfo& loc);
@@ -2316,24 +2311,26 @@ class Module final : public VastNode {
   // Adds a (wire) port to this module with the given name and type. Returns
   // a reference to that wire.
   LogicRef* AddInputInternal(std::string_view name, DataType* type,
-                     const SourceInfo& loc);
+                             const SourceInfo& loc);
   LogicRef* AddOutputInternal(std::string_view name, DataType* type,
-                      const SourceInfo& loc);
+                              const SourceInfo& loc);
 
   // Adds a reg/wire definition to the module with the given type and, for regs,
   // initialized with the given value. Returns a reference to the definition.
-  LogicRef* AddRegInternal(std::string_view name, DataType* type, const SourceInfo& loc,
-                   Expression* init = nullptr,
-                   ModuleSection* section = nullptr);
+  LogicRef* AddRegInternal(std::string_view name, DataType* type,
+                           const SourceInfo& loc, Expression* init = nullptr,
+                           ModuleSection* section = nullptr);
   LogicRef* AddWireInternal(std::string_view name, DataType* type,
-                    const SourceInfo& loc, ModuleSection* section = nullptr);
+                            const SourceInfo& loc,
+                            ModuleSection* section = nullptr);
   // Variation of AddWire that takes an initializer expression.
-  LogicRef* AddWireInternal(std::string_view name, DataType* type, Expression* init,
-                    const SourceInfo& loc, ModuleSection* section = nullptr);
+  LogicRef* AddWireInternal(std::string_view name, DataType* type,
+                            Expression* init, const SourceInfo& loc,
+                            ModuleSection* section = nullptr);
   LogicRef* AddIntegerInternal(std::string_view name, const SourceInfo& loc,
-                       ModuleSection* section = nullptr);
+                               ModuleSection* section = nullptr);
   LogicRef* AddGenvarInternal(std::string_view name, const SourceInfo& loc,
-                      ModuleSection* section = nullptr);
+                              ModuleSection* section = nullptr);
 
   // Add the given Def as a port on the module.
   LogicRef* AddPortDef(ModulePortDirection direction, Def* def,
