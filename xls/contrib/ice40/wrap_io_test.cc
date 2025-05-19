@@ -47,10 +47,14 @@ TEST_P(WrapIOTest, Ice40WrapIOIdentity32b) {
 
   const std::string kWrappedModuleName = "device_to_wrap";
   Module* wrapped_m = file.AddModule("device_to_wrap", SourceInfo());
-  LogicRef* m_input = wrapped_m->AddInput(
-      "in", file.BitVectorType(32, SourceInfo()), SourceInfo());
-  LogicRef* m_output = wrapped_m->AddOutput(
-      "out", file.BitVectorType(32, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * m_input,
+      wrapped_m->AddInput("in", file.BitVectorType(32, SourceInfo()),
+                          SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * m_output,
+      wrapped_m->AddOutput("out", file.BitVectorType(32, SourceInfo()),
+                           SourceInfo()));
   wrapped_m->Add<ContinuousAssignment>(SourceInfo(), m_output, m_input);
 
   ModuleSignatureBuilder b(kWrappedModuleName);
@@ -77,10 +81,14 @@ TEST_P(WrapIOTest, WrapIOIncrement8b) {
 
   const std::string kWrappedModuleName = TestBaseName();
   Module* wrapped_m = file.AddModule(kWrappedModuleName, SourceInfo());
-  LogicRef* m_input = wrapped_m->AddInput(
-      "in", file.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* m_output = wrapped_m->AddOutput(
-      "out", file.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * m_input,
+      wrapped_m->AddInput("in", file.BitVectorType(8, SourceInfo()),
+                          SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * m_output,
+      wrapped_m->AddOutput("out", file.BitVectorType(8, SourceInfo()),
+                           SourceInfo()));
   wrapped_m->Add<ContinuousAssignment>(
       SourceInfo(), m_output,
       file.Add(m_input, file.PlainLiteral(1, SourceInfo()), SourceInfo()));
@@ -118,10 +126,14 @@ TEST_P(WrapIOTest, WrapIONot16b) {
 
   const std::string kWrappedModuleName = TestBaseName();
   Module* wrapped_m = file.AddModule(kWrappedModuleName, SourceInfo());
-  LogicRef* m_input = wrapped_m->AddInput(
-      "in", file.BitVectorType(16, SourceInfo()), SourceInfo());
-  LogicRef* m_output = wrapped_m->AddOutput(
-      "out", file.BitVectorType(16, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * m_input,
+      wrapped_m->AddInput("in", file.BitVectorType(16, SourceInfo()),
+                          SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * m_output,
+      wrapped_m->AddOutput("out", file.BitVectorType(16, SourceInfo()),
+                           SourceInfo()));
   wrapped_m->Add<ContinuousAssignment>(SourceInfo(), m_output,
                                        file.BitwiseNot(m_input, SourceInfo()));
 

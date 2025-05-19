@@ -130,41 +130,68 @@ absl::StatusOr<Module*> WrapIO(std::string_view module_name,
   // components.
   Module* io_wrapper = f->AddModule("io_wrapper", SourceInfo());
 
-  LogicRef* clk =
-      io_wrapper->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* rst_n =
-      io_wrapper->AddWire("rst_n", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * clk,
+      io_wrapper->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * rst_n,
+      io_wrapper->AddWire("rst_n", f->ScalarType(SourceInfo()), SourceInfo()));
   Reset reset{rst_n, /*asynchronous=*/false, /*active_low=*/true};
   XLS_RETURN_IF_ERROR(
       io_strategy->AddTopLevelDependencies(clk, reset, io_wrapper));
 
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * rx_byte,
+      io_wrapper->AddWire("rx_byte", f->BitVectorType(8, SourceInfo()),
+                          SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * rx_byte_valid,
+      io_wrapper->AddWire("rx_byte_valid", f->ScalarType(SourceInfo()),
+                          SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * rx_byte_done,
+      io_wrapper->AddWire("rx_byte_done", f->ScalarType(SourceInfo()),
+                          SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * tx_byte,
+      io_wrapper->AddWire("tx_byte", f->BitVectorType(8, SourceInfo()),
+                          SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * tx_byte_valid,
+      io_wrapper->AddWire("tx_byte_valid", f->ScalarType(SourceInfo()),
+                          SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * tx_byte_ready,
+      io_wrapper->AddWire("tx_byte_ready", f->ScalarType(SourceInfo()),
+                          SourceInfo()));
+
   IOStrategy::Input input_signals = {
-      .rx_byte = io_wrapper->AddWire(
-          "rx_byte", f->BitVectorType(8, SourceInfo()), SourceInfo()),
-      .rx_byte_valid = io_wrapper->AddWire(
-          "rx_byte_valid", f->ScalarType(SourceInfo()), SourceInfo()),
-      .rx_byte_done = io_wrapper->AddWire(
-          "rx_byte_done", f->ScalarType(SourceInfo()), SourceInfo()),
+      .rx_byte = rx_byte,
+      .rx_byte_valid = rx_byte_valid,
+      .rx_byte_done = rx_byte_done,
   };
   IOStrategy::Output output_signals = {
-      .tx_byte = io_wrapper->AddWire(
-          "tx_byte", f->BitVectorType(8, SourceInfo()), SourceInfo()),
-      .tx_byte_valid = io_wrapper->AddWire(
-          "tx_byte_valid", f->ScalarType(SourceInfo()), SourceInfo()),
-      .tx_byte_ready = io_wrapper->AddWire(
-          "tx_byte_ready", f->ScalarType(SourceInfo()), SourceInfo()),
+      .tx_byte = tx_byte,
+      .tx_byte_valid = tx_byte_valid,
+      .tx_byte_ready = tx_byte_ready,
   };
   XLS_RETURN_IF_ERROR(io_strategy->InstantiateIOBlocks(
       input_signals, output_signals, io_wrapper));
 
-  LogicRef* flat_input = io_wrapper->AddWire(
-      "flat_input",
-      f->BitVectorType(signature.TotalDataInputBits(), SourceInfo()),
-      SourceInfo());
-  LogicRef* flat_input_valid = io_wrapper->AddWire(
-      "flat_input_valid", f->ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* flat_input_ready = io_wrapper->AddWire(
-      "flat_input_ready", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * flat_input,
+      io_wrapper->AddWire(
+          "flat_input",
+          f->BitVectorType(signature.TotalDataInputBits(), SourceInfo()),
+          SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * flat_input_valid,
+      io_wrapper->AddWire("flat_input_valid", f->ScalarType(SourceInfo()),
+                          SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * flat_input_ready,
+      io_wrapper->AddWire("flat_input_ready", f->ScalarType(SourceInfo()),
+                          SourceInfo()));
   {
     std::vector<Connection> connections;
     connections.push_back(Connection{"clk", clk});
@@ -183,14 +210,20 @@ absl::StatusOr<Module*> WrapIO(std::string_view module_name,
         SourceInfo(), input_controller_m->name(), "input_controller",
         /*parameters=*/absl::Span<const Connection>(), connections);
   }
-  LogicRef* flat_output = io_wrapper->AddWire(
-      "flat_output",
-      f->BitVectorType(signature.TotalDataOutputBits(), SourceInfo()),
-      SourceInfo());
-  LogicRef* flat_output_valid = io_wrapper->AddWire(
-      "flat_output_valid", f->ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* flat_output_ready = io_wrapper->AddWire(
-      "flat_output_ready", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * flat_output,
+      io_wrapper->AddWire(
+          "flat_output",
+          f->BitVectorType(signature.TotalDataOutputBits(), SourceInfo()),
+          SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * flat_output_valid,
+      io_wrapper->AddWire("flat_output_valid", f->ScalarType(SourceInfo()),
+                          SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * flat_output_ready,
+      io_wrapper->AddWire("flat_output_ready", f->ScalarType(SourceInfo()),
+                          SourceInfo()));
 
   {
     std::vector<Connection> connections;
@@ -234,17 +267,24 @@ static Literal* Hex8Literal(uint8_t value, VerilogFile* f) {
 
 absl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
   Module* m = f->AddModule("input_resetter", SourceInfo());
-  auto clk = m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
-  auto byte_in =
-      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo());
-  auto byte_in_ready =
-      m->AddOutput("byte_in_ready", f->ScalarType(SourceInfo()), SourceInfo());
-  auto byte_in_valid =
-      m->AddInput("byte_in_valid", f->ScalarType(SourceInfo()), SourceInfo());
-  auto rst_n_in =
-      m->AddInput("rst_n_in", f->ScalarType(SourceInfo()), SourceInfo());
-  auto rst_n_out =
-      m->AddOutput("rst_n_out", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * clk,
+      m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_in,
+      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_in_ready,
+      m->AddOutput("byte_in_ready", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_in_valid,
+      m->AddInput("byte_in_valid", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * rst_n_in,
+      m->AddInput("rst_n_in", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * rst_n_out,
+      m->AddOutput("rst_n_out", f->ScalarType(SourceInfo()), SourceInfo()));
 
   LocalParamItemRef* reset_control_code =
       m->Add<LocalParam>(SourceInfo())
@@ -287,18 +327,26 @@ absl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
 absl::StatusOr<Module*> InputShiftRegisterModule(int64_t bit_count,
                                                  VerilogFile* f) {
   Module* m = f->AddModule("input_shifter", SourceInfo());
-  LogicRef* clk = m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* clear =
-      m->AddInput("clear", f->ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* byte_in =
-      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* write_en =
-      m->AddInput("write_en", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * clk,
+      m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * clear,
+      m->AddInput("clear", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_in,
+      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * write_en,
+      m->AddInput("write_en", f->ScalarType(SourceInfo()), SourceInfo()));
 
-  LogicRef* data_out = m->AddOutput(
-      "data_out", f->BitVectorType(bit_count, SourceInfo()), SourceInfo());
-  LogicRef* done =
-      m->AddOutput("done", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * data_out,
+      m->AddOutput("data_out", f->BitVectorType(bit_count, SourceInfo()),
+                   SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * done,
+      m->AddOutput("done", f->ScalarType(SourceInfo()), SourceInfo()));
 
   const int64_t n_bytes = CeilOfRatio(bit_count, int64_t{8});
   LocalParamItemRef* n_bytes_ref =
@@ -306,22 +354,30 @@ absl::StatusOr<Module*> InputShiftRegisterModule(int64_t bit_count,
           ->AddItem("TotalInputBytes", f->PlainLiteral(n_bytes, SourceInfo()),
                     SourceInfo());
 
-  LogicRef* data_reg = m->AddReg(
-      "data", f->BitVectorType(bit_count, SourceInfo()), SourceInfo());
-  LogicRef* data_reg_next = m->AddReg(
-      "data_next", f->BitVectorType(bit_count, SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * data_reg,
+      m->AddReg("data", f->BitVectorType(bit_count, SourceInfo()),
+                SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * data_reg_next,
+      m->AddReg("data_next", f->BitVectorType(bit_count, SourceInfo()),
+                SourceInfo()));
 
   // A counter which keeps track of the number of bytes shifted in. When the
   // counter reaches zero, the register is full and 'done' is asserted.
   XLS_RET_CHECK_GT(n_bytes, 0);
-  LogicRef* byte_countdown = m->AddReg(
-      "byte_countdown",
-      f->BitVectorType(Bits::MinBitCountUnsigned(n_bytes), SourceInfo()),
-      SourceInfo());
-  LogicRef* byte_countdown_next = m->AddReg(
-      "byte_countdown_next",
-      f->BitVectorType(Bits::MinBitCountUnsigned(n_bytes), SourceInfo()),
-      SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_countdown,
+      m->AddReg(
+          "byte_countdown",
+          f->BitVectorType(Bits::MinBitCountUnsigned(n_bytes), SourceInfo()),
+          SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_countdown_next,
+      m->AddReg(
+          "byte_countdown_next",
+          f->BitVectorType(Bits::MinBitCountUnsigned(n_bytes), SourceInfo()),
+          SourceInfo()));
 
   // Logic for the counter and shift register:
   //
@@ -371,12 +427,16 @@ absl::StatusOr<Module*> InputShiftRegisterModule(int64_t bit_count,
 // IOControlCode::kEscape). The module is purely combinational.
 static absl::StatusOr<Module*> EscapeDecoderModule(VerilogFile* f) {
   Module* m = f->AddModule("escape_decoder", SourceInfo());
-  LogicRef* byte_in =
-      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* byte_out =
-      m->AddOutput("byte_out", f->BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* is_escaped =
-      m->AddInput("is_escaped", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_in,
+      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_out,
+      m->AddOutput("byte_out", f->BitVectorType(8, SourceInfo()),
+                   SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * is_escaped,
+      m->AddInput("is_escaped", f->ScalarType(SourceInfo()), SourceInfo()));
 
   // Logic for the counter and shift register:
   //
@@ -403,8 +463,10 @@ static absl::StatusOr<Module*> EscapeDecoderModule(VerilogFile* f) {
       m->Add<LocalParam>(SourceInfo())
           ->AddItem("EscapeControlCode", Hex8Literal(IOControlCode::kEscape, f),
                     SourceInfo());
-  LogicRef* byte_out_reg = m->AddReg(
-      "byte_out_reg", f->BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_out_reg,
+      m->AddReg("byte_out_reg", f->BitVectorType(8, SourceInfo()),
+                SourceInfo()));
   auto ac = m->Add<Always>(SourceInfo(), std::vector<SensitivityListElement>(
                                              {ImplicitEventExpression()}));
   auto cond = ac->statements()->Add<Conditional>(
@@ -437,39 +499,51 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
   XLS_ASSIGN_OR_RETURN(Module * decoder_m, EscapeDecoderModule(f));
 
   Module* m = f->AddModule("input_controller", SourceInfo());
-  LogicRef* clk = m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * clk,
+      m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo()));
 
   // Byte-wide input with ready/valid flow control.
-  LogicRef* byte_in =
-      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* byte_in_valid =
-      m->AddInput("byte_in_valid", f->ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* byte_in_ready =
-      m->AddOutput("byte_in_ready", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_in,
+      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_in_valid,
+      m->AddInput("byte_in_valid", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_in_ready,
+      m->AddOutput("byte_in_ready", f->ScalarType(SourceInfo()), SourceInfo()));
 
   // Arbitrary width output with ready/valid flow control.
-  LogicRef* data_out = m->AddOutput(
-      "data_out",
-      f->BitVectorType(signature.TotalDataInputBits(), SourceInfo()),
-      SourceInfo());
-  LogicRef* data_out_ready =
-      m->AddInput("data_out_ready", f->ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* data_out_valid =
-      m->AddOutput("data_out_valid", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * data_out,
+      m->AddOutput(
+          "data_out",
+          f->BitVectorType(signature.TotalDataInputBits(), SourceInfo()),
+          SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * data_out_ready,
+      m->AddInput("data_out_ready", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(LogicRef * data_out_valid,
+                       m->AddOutput("data_out_valid",
+                                    f->ScalarType(SourceInfo()), SourceInfo()));
 
   // The external reset signal.
-  LogicRef* rst_n_in =
-      m->AddInput("rst_n_in", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * rst_n_in,
+      m->AddInput("rst_n_in", f->ScalarType(SourceInfo()), SourceInfo()));
 
   // The reset signal generated by the input controller. This is based on the
   // external reset signal and any reset control code passed in via the input.
-  LogicRef* rst_n_out =
-      m->AddOutput("rst_n_out", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * rst_n_out,
+      m->AddOutput("rst_n_out", f->ScalarType(SourceInfo()), SourceInfo()));
 
   // The byte_in ready signal generated by the reset FSM. This is used to ack
   // the input byte when it is a reset control code.
-  LogicRef* reset_fsm_byte_in_ready = m->AddWire(
-      "reset_fsm_byte_in_ready", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(LogicRef * reset_fsm_byte_in_ready,
+                       m->AddWire("reset_fsm_byte_in_ready",
+                                  f->ScalarType(SourceInfo()), SourceInfo()));
   {
     std::vector<Connection> connections;
     connections.push_back(Connection{"clk", clk});
@@ -485,16 +559,21 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
 
   // Shift register used to accumulate the input bytes into an arbitrary width
   // register for passing to the device function.
-  LogicRef* shifter_clear =
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * shifter_clear,
       m->AddReg("shifter_clear", f->ScalarType(SourceInfo()), SourceInfo(),
-                /*init=*/f->Literal(UBits(1, 1), SourceInfo()));
-  LogicRef* shifter_byte_in = m->AddWire(
-      "shifter_byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* shifter_write_en =
+                /*init=*/f->Literal(UBits(1, 1), SourceInfo())));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * shifter_byte_in,
+      m->AddWire("shifter_byte_in", f->BitVectorType(8, SourceInfo()),
+                 SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * shifter_write_en,
       m->AddReg("shifter_write_en", f->ScalarType(SourceInfo()), SourceInfo(),
-                f->Literal(UBits(0, 1), SourceInfo()));
-  LogicRef* shifter_done =
-      m->AddWire("shifter_done", f->ScalarType(SourceInfo()), SourceInfo());
+                f->Literal(UBits(0, 1), SourceInfo())));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * shifter_done,
+      m->AddWire("shifter_done", f->ScalarType(SourceInfo()), SourceInfo()));
   {
     std::vector<Connection> connections;
     connections.push_back(Connection{"clk", clk});
@@ -590,22 +669,33 @@ absl::StatusOr<Module*> OutputControllerModule(const ModuleSignature& signature,
   const int64_t output_bits = signature.TotalDataOutputBits();
 
   Module* m = f->AddModule("output_controller", SourceInfo());
-  LogicRef* clk = m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* rst_n =
-      m->AddInput("rst_n", f->ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* data_in = m->AddInput(
-      "data_in", f->BitVectorType(output_bits, SourceInfo()), SourceInfo());
-  LogicRef* data_in_valid =
-      m->AddInput("data_in_valid", f->ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* data_in_ready =
-      m->AddOutput("data_in_ready", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * clk,
+      m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * rst_n,
+      m->AddInput("rst_n", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * data_in,
+      m->AddInput("data_in", f->BitVectorType(output_bits, SourceInfo()),
+                  SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * data_in_valid,
+      m->AddInput("data_in_valid", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * data_in_ready,
+      m->AddOutput("data_in_ready", f->ScalarType(SourceInfo()), SourceInfo()));
 
-  LogicRef* byte_out =
-      m->AddOutput("byte_out", f->BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* byte_out_ready =
-      m->AddInput("byte_out_ready", f->ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* byte_out_valid =
-      m->AddOutput("byte_out_valid", f->ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_out,
+      m->AddOutput("byte_out", f->BitVectorType(8, SourceInfo()),
+                   SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * byte_out_ready,
+      m->AddInput("byte_out_ready", f->ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(LogicRef * byte_out_valid,
+                       m->AddOutput("byte_out_valid",
+                                    f->ScalarType(SourceInfo()), SourceInfo()));
 
   // TODO(meheff): Expose use_system_verilog as an option in the WrapIO API
   // rather than hard-coding it as false.
