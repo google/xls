@@ -181,9 +181,9 @@ cc_library(
     srcs = ["null_io_strategy.cc"],
     hdrs = ["null_io_strategy.h"],
     deps = [
-        "//xls/common/status:status_macros",
         ":io_strategy",
         "//xls/codegen/vast",
+        "//xls/common/status:status_macros",
         "//xls/ir:source_location",
         "//xls/simulation:verilog_include",
         "@com_google_absl//absl/status",
