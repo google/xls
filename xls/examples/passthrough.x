@@ -15,8 +15,6 @@
 // A simple proc that forwards the received information from
 // an input channel to an output channel.
 
-import std;
-
 proc Passthrough {
     data_r: chan<u32> in;
     data_s: chan<u32> out;

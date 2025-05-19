@@ -15,7 +15,6 @@
 // Parameterized fixed and floating point dot product
 // implementations.
 
-import std;
 import float32;
 
 type F32 = float32::F32;

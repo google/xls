@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std;
-
 const ARRAY_SIZE = u32:256;
 
 // Microbenchmark which does some operations on a large array.

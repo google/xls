@@ -17,7 +17,6 @@
 // processing, is essentially a convolution of a
 // filter of a series of samples.
 
-import std;
 import float32;
 
 type F32 = float32::F32;
