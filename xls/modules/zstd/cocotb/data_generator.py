@@ -22,6 +22,8 @@ import subprocess
 import zstandard
 
 class BlockType(enum.Enum):
+  """Enum encoding of ZSTD block types."""
+
   RAW = 0
   RLE = 1
   COMPRESSED = 2
@@ -38,7 +40,9 @@ class BlockType(enum.Enum):
       raise ValueError(str(e)) from e
 
 def CallDecodecorpus(args):
-  decodecorpus = pathlib.Path(runfiles.get_path("decodecorpus", repository = "zstd"))
+  decodecorpus = pathlib.Path(
+    runfiles.get_path("decodecorpus", repository = "zstd")
+  )
   cmd = args
   cmd.insert(0, str(decodecorpus))
   cmd_concat = " ".join(cmd)

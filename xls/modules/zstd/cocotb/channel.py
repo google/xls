@@ -37,7 +37,9 @@ class XLSChannel(Bus):
   _optional_signals = XLS_CHANNEL_OPTIONAL_SIGNALS
 
   def __init__(self, entity, name, clk, *, start_now=False, **kwargs: Any):
-    super().__init__(entity, name, self._signals, self._optional_signals, **kwargs)
+    super().__init__(
+      entity, name, self._signals, self._optional_signals, **kwargs
+    )
     self.clk = clk
     if start_now:
         self.start_recv_loop()
@@ -58,17 +60,30 @@ class XLSChannelDriver(BusDriver):
   _signals = XLS_CHANNEL_SIGNALS
   _optional_signals = XLS_CHANNEL_OPTIONAL_SIGNALS
 
-  def __init__(self, entity: SimHandleBase, name: str, clock: SimHandleBase, **kwargs: Any):
+  def __init__(
+    self,
+    entity: SimHandleBase,
+    name: str,
+    clock: SimHandleBase,
+    **kwargs: Any
+  ):
     BusDriver.__init__(self, entity, name, clock, **kwargs)
 
     self.bus.data.setimmediatevalue(0)
     self.bus.vld.setimmediatevalue(0)
 
-  async def _driver_send(self, transaction: Transaction, sync: bool = True, **kwargs: Any) -> None:
+  async def _driver_send(
+    self,
+    transaction: Transaction,
+    sync: bool = True,
+    **kwargs: Any
+  ) -> None:
     if sync:
       await RisingEdge(self.clock)
 
-    data_to_send = (transaction if isinstance(transaction, Sequence) else [transaction])
+    data_to_send = (
+      transaction if isinstance(transaction, Sequence) else [transaction]
+    )
 
     for word in data_to_send:
       self.bus.vld.value = 1
@@ -83,11 +98,18 @@ class XLSChannelDriver(BusDriver):
 
 
 class XLSChannelMonitor(BusMonitor):
-   """Monitors and decodes transactions on an XLS channel."""
+  """Monitors and decodes transactions on an XLS channel."""
   _signals = XLS_CHANNEL_SIGNALS
   _optional_signals = XLS_CHANNEL_OPTIONAL_SIGNALS
 
-  def __init__(self, entity: SimHandleBase, name: str, clock: SimHandleBase, struct: Type[XLSStruct], **kwargs: Any):
+  def __init__(
+    self,
+    entity: SimHandleBase,
+    name: str,
+    clock: SimHandleBase,
+    struct: Type[XLSStruct],
+    **kwargs: Any
+  ):
     BusMonitor.__init__(self, entity, name, clock, **kwargs)
     self.struct = struct
 

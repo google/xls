@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # Copyright 2024 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,16 +21,15 @@ import pathlib
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import Event
-from cocotb.binary import BinaryValue
 from cocotb_bus.scoreboard import Scoreboard
 
-import cocotbext.axi.axi_channels as axi_channels
+from cocotbext.axi import axi_channels
 from cocotbext.axi.axi_ram import AxiRamWrite
 from cocotbext.axi.sparse_memory import SparseMemory
 
 import xls.modules.zstd.cocotb.channel as xlschannel
-import xls.modules.zstd.cocotb.utils as utils
-import xls.modules.zstd.cocotb.xlsstruct as xlsstruct
+from xls.modules.zstd.cocotb import utils
+from xls.modules.zstd.cocotb import xlsstruct
 
 DATA_WIDTH = 32
 ADDR_WIDTH = 16
@@ -74,7 +72,16 @@ def set_termination_event(monitor, event, transactions):
       event.set()
   monitor.add_callback(terminate_cb)
 
-async def test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt):
+async def test_writer(
+  dut,
+  mem_size,
+  write_req_input,
+  data_in_input,
+  write_resp_expect,
+  memory_verification,
+  expected_memory,
+  resp_cnt
+):
   generic_write_req_channel = "req"
   generic_write_resp_channel = "resp"
   generic_data_in_channel = "data_in"
@@ -89,22 +96,38 @@ async def test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_
   clock = Clock(dut.clk, 10, units="us")
   cocotb.start_soon(clock.start())
 
-  _resp_bus = xlschannel.XLSChannel(dut, generic_write_resp_channel, dut.clk, start_now=True)
+  # prefix unused objects with unused_
+  # to suppress linter and keep the objects alive
+  unused_resp_bus = xlschannel.XLSChannel(
+    dut, generic_write_resp_channel, dut.clk, start_now=True
+  )
 
-  driver_write_req = xlschannel.XLSChannelDriver(dut, generic_write_req_channel, dut.clk)
-  driver_data_in = xlschannel.XLSChannelDriver(dut, generic_data_in_channel, dut.clk)
+  driver_write_req = xlschannel.XLSChannelDriver(
+    dut, generic_write_req_channel, dut.clk
+  )
+  driver_data_in = xlschannel.XLSChannelDriver(
+    dut, generic_data_in_channel, dut.clk
+  )
 
   bus_axi_aw = axi_channels.AxiAWBus.from_prefix(dut, axi_aw_channel)
   bus_axi_w = axi_channels.AxiWBus.from_prefix(dut, axi_w_channel)
   bus_axi_b = axi_channels.AxiBBus.from_prefix(dut, axi_b_channel)
   bus_axi_write = axi_channels.AxiWriteBus(bus_axi_aw, bus_axi_w, bus_axi_b)
 
-  _monitor_write_req = xlschannel.XLSChannelMonitor(dut, generic_write_req_channel, dut.clk, WriteRequestStruct)
-  _monitor_data_in = xlschannel.XLSChannelMonitor(dut, generic_data_in_channel, dut.clk, WriteRequestStruct)
-  monitor_write_resp = xlschannel.XLSChannelMonitor(dut, generic_write_resp_channel, dut.clk, MemWriterRespStruct)
-  _monitor_axi_aw = axi_channels.AxiAWMonitor(bus_axi_aw, dut.clk, dut.rst)
-  _monitor_axi_w = axi_channels.AxiWMonitor(bus_axi_w, dut.clk, dut.rst)
-  _monitor_axi_b = axi_channels.AxiBMonitor(bus_axi_b, dut.clk, dut.rst)
+  unused_monitor_write_req = xlschannel.XLSChannelMonitor(
+    dut, generic_write_req_channel, dut.clk, WriteRequestStruct
+  )
+  unused_monitor_data_in = xlschannel.XLSChannelMonitor(
+    dut, generic_data_in_channel, dut.clk, WriteRequestStruct
+  )
+  monitor_write_resp = xlschannel.XLSChannelMonitor(
+    dut, generic_write_resp_channel, dut.clk, MemWriterRespStruct
+  )
+  unused_monitor_axi_aw = axi_channels.AxiAWMonitor(
+    bus_axi_aw, dut.clk, dut.rst
+  )
+  unused_monitor_axi_w = axi_channels.AxiWMonitor(bus_axi_w, dut.clk, dut.rst)
+  unused_monitor_axi_b = axi_channels.AxiBMonitor(bus_axi_b, dut.clk, dut.rst)
 
   set_termination_event(monitor_write_resp, terminate, resp_cnt)
 
@@ -124,87 +147,314 @@ async def test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_
   await terminate.wait()
 
   for bundle in memory_verification:
-    memory_contents = bytearray(memory.read(bundle["base_address"], bundle["length"]))
-    expected_memory_contents = bytearray(expected_memory.read(bundle["base_address"], bundle["length"]))
-    assert memory_contents == expected_memory_contents, "{} bytes of memory contents at base address {}:\n{}\nvs\n{}\nHEXDUMP:\n{}\nvs\n{}".format(hex(bundle["length"]), hex(bundle["base_address"]), memory_contents, expected_memory_contents, memory.hexdump(bundle["base_address"], bundle["length"]), expected_memory.hexdump(bundle["base_address"], bundle["length"]))
+    memory_contents = bytearray(
+      memory.read(bundle["base_address"], bundle["length"])
+    )
+    expected_memory_contents = bytearray(
+      expected_memory.read(bundle["base_address"], bundle["length"])
+    )
+    assert memory_contents == expected_memory_contents, (
+      (
+        "{} bytes of memory contents at base address {}:\n"
+        "{}\nvs\n{}"
+        "\nHEXDUMP:\n{}"
+        "\nvs\n{}"
+      ).format(
+        hex(bundle["length"]),
+        hex(bundle["base_address"]),
+        memory_contents,
+        expected_memory_contents,
+        memory.hexdump(bundle["base_address"], bundle["length"]),
+        expected_memory.hexdump(bundle["base_address"], bundle["length"])
+      )
+    )
 
 @cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_single_burst_1_transfer(dut):
   mem_size = 2**ADDR_WIDTH
 
-  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_single_burst_1_transfer)
-  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+  (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  ) = generate_test_data_arbitrary(mem_size, test_cases_single_burst_1_transfer)
+
+  await test_writer(
+    dut,
+    mem_size,
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  )
+
 
 @cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_single_burst_2_transfers(dut):
   mem_size = 2**ADDR_WIDTH
 
-  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_single_burst_2_transfers)
-  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+  (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  ) = generate_test_data_arbitrary(
+    mem_size, test_cases_single_burst_2_transfers
+  )
+  await test_writer(
+    dut,
+    mem_size,
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  )
+
 
 @cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_single_burst_almost_max_burst_transfer(dut):
   mem_size = 2**ADDR_WIDTH
 
-  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_single_burst_almost_max_burst_transfer)
-  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+  (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  ) = generate_test_data_arbitrary(
+      mem_size, test_cases_single_burst_almost_max_burst_transfer
+  )
+  await test_writer(
+    dut,
+    mem_size,
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  )
+
 
 @cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_single_burst_max_burst_transfer(dut):
   mem_size = 2**ADDR_WIDTH
 
-  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_single_burst_max_burst_transfer)
-  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+  (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  ) = generate_test_data_arbitrary(
+      mem_size, test_cases_single_burst_max_burst_transfer
+  )
+  await test_writer(
+    dut,
+    mem_size,
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  )
+
 
 @cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_multiburst_2_full_bursts(dut):
   mem_size = 2**ADDR_WIDTH
 
-  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_multiburst_2_full_bursts)
-  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+  (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  ) = generate_test_data_arbitrary(
+    mem_size, test_cases_multiburst_2_full_bursts
+  )
+  await test_writer(
+    dut,
+    mem_size,
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  )
+
 
 @cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_multiburst_1_full_burst_and_single_transfer(dut):
   mem_size = 2**ADDR_WIDTH
 
-  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_multiburst_1_full_burst_and_single_transfer)
-  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+  (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  ) = generate_test_data_arbitrary(
+      mem_size, test_cases_multiburst_1_full_burst_and_single_transfer
+  )
+  await test_writer(
+    dut,
+    mem_size,
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  )
+
 
 @cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_multiburst_crossing_4kb_boundary(dut):
   mem_size = 2**ADDR_WIDTH
 
-  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_multiburst_crossing_4kb_boundary)
-  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+  (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  ) = generate_test_data_arbitrary(
+      mem_size, test_cases_multiburst_crossing_4kb_boundary
+  )
+  await test_writer(
+    dut,
+    mem_size,
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  )
+
 
 @cocotb.test(timeout_time=2000, timeout_unit="ms")
-async def ram_test_multiburst_crossing_4kb_boundary_with_perfectly_aligned_full_bursts(dut):
+async def ram_test_multiburst_crossing_4kb_boundary_with_perfectly_aligned_full_bursts(
+    dut,
+):
   mem_size = 2**ADDR_WIDTH
 
-  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_multiburst_crossing_4kb_boundary_with_perfectly_aligned_full_bursts)
-  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+  (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  ) = generate_test_data_arbitrary(
+      mem_size,
+      test_cases_multiburst_crossing_4kb_boundary_with_perfectly_aligned_full_bursts,
+  )
+  await test_writer(
+    dut,
+    mem_size,
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  )
+
 
 @cocotb.test(timeout_time=2000, timeout_unit="ms")
-async def ram_test_multiburst_crossing_4kb_boundary_with_2_full_bursts_and_1_transfer(dut):
+async def ram_test_multiburst_crossing_4kb_boundary_with_2_full_bursts_and_1_transfer(
+    dut,
+):
   mem_size = 2**ADDR_WIDTH
 
-  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_multiburst_crossing_4kb_boundary_with_2_full_bursts_and_1_transfer)
-  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+  (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  ) = generate_test_data_arbitrary(
+      mem_size,
+      test_cases_multiburst_crossing_4kb_boundary_with_2_full_bursts_and_1_transfer,
+  )
+  await test_writer(
+    dut,
+    mem_size,
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  )
+
 
 @cocotb.test(timeout_time=5000, timeout_unit="ms")
 async def ram_test_not_full_packets(dut):
   mem_size = 2**ADDR_WIDTH
 
-  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_padded_test_data_arbitrary(mem_size, test_cases_not_full_packets)
-  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+  (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  ) = generate_padded_test_data_arbitrary(mem_size, test_cases_not_full_packets)
+  await test_writer(
+    dut,
+    mem_size,
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt,
+  )
+
 
 @cocotb.test(timeout_time=5000, timeout_unit="ms")
 async def ram_test_random(dut):
   mem_size = 2**ADDR_WIDTH
   test_count = 50
 
-  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_random(test_count, mem_size)
-  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+  (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt
+  ) = generate_test_data_random(test_count, mem_size)
+  await test_writer(
+    dut,
+    mem_size,
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    expected_memory,
+    resp_cnt
+  )
 
 def generate_test_data_random(test_count, mem_size):
   write_req_input = []
@@ -265,9 +515,18 @@ def generate_test_data_random(test_count, mem_size):
     }
     memory_verification.append(memory_bundle)
 
-  write_resp_expect = [MemWriterRespStruct(status=MemWriterRespStatus.OKAY.value)] * test_count
+  write_resp_expect = [
+    MemWriterRespStruct(status=MemWriterRespStatus.OKAY.value)
+  ] * test_count
 
-  return (write_req_input, data_in_input, write_resp_expect, memory_verification, memory, test_count)
+  return (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    memory,
+    test_count
+  )
 
 def bytes_to_4k_boundary(addr):
   axi_4k_boundary = 0x1000
@@ -275,8 +534,9 @@ def bytes_to_4k_boundary(addr):
 
 def write_expected_memory(transfer_req, data_to_write, memory):
   """
-  Write test data to reference memory keeping the AXI 4kb boundary
-  by spliting the write requests into smaller ones.
+  Write test data to reference memory keeping the AXI 4kb boundary.
+
+  Split the write requests into smaller ones as needed.
 
   Args:
     transfer_req: The transfer request object containing address and length information.
@@ -361,9 +621,18 @@ def generate_test_data_arbitrary(mem_size, test_cases):
     }
     memory_verification.append(memory_bundle)
 
-  write_resp_expect = [MemWriterRespStruct(status=MemWriterRespStatus.OKAY.value)] * test_count
+  write_resp_expect = [
+    MemWriterRespStruct(status=MemWriterRespStatus.OKAY.value)
+  ] * test_count
 
-  return (write_req_input, data_in_input, write_resp_expect, memory_verification, memory, test_count)
+  return (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    memory,
+    test_count
+  )
 
 def generate_padded_test_data_arbitrary(mem_size, test_cases):
   test_count = len(test_cases)
@@ -408,9 +677,12 @@ def generate_padded_test_data_arbitrary(mem_size, test_cases):
       last = packet_len == bytes_to_packetize
 
       data_in = DataInStruct(
-          data = int.from_bytes(data_to_write[packetized_bytes:packetized_bytes+packet_len], byteorder='little'),
-          length = packet_len,
-          last = last
+          data=int.from_bytes(
+            data_to_write[packetized_bytes:packetized_bytes+packet_len],
+            byteorder='little'
+          ),
+          length=packet_len,
+          last=last
       )
       data_in_input.append(data_in)
 
@@ -431,9 +703,18 @@ def generate_padded_test_data_arbitrary(mem_size, test_cases):
     }
     memory_verification.append(memory_bundle)
 
-  write_resp_expect = [MemWriterRespStruct(status=MemWriterRespStatus.OKAY.value)] * test_count
+  write_resp_expect = [
+    MemWriterRespStruct(status=MemWriterRespStatus.OKAY.value)
+  ] * test_count
 
-  return (write_req_input, data_in_input, write_resp_expect, memory_verification, memory, test_count)
+  return (
+    write_req_input,
+    data_in_input,
+    write_resp_expect,
+    memory_verification,
+    memory,
+    test_count
+  )
 
 if __name__ == "__main__":
     toplevel = "mem_writer_wrapper"
@@ -607,9 +888,11 @@ test_cases_multiburst_crossing_4kb_boundary = [
 ]
 
 test_cases_multiburst_crossing_4kb_boundary_with_perfectly_aligned_full_bursts = [
-  # Aligned Address; Aligned Length; Multi-Burst; crossing 4kB boundary with perfectly aligned full bursts
+  # Aligned Address; Aligned Length; Multi-Burst;
+  # crossing 4kB boundary with perfectly aligned full bursts
   (0x0C00, 0x800),
-  # Unaligned Address; Unaligned Length; Multi-Burst; crossing 4kB boundary with perfectly aligned full bursts
+  # Unaligned Address; Unaligned Length; Multi-Burst;
+  # crossing 4kB boundary with perfectly aligned full bursts
   (0x1C01, 0x7FF),
   (0x2C02, 0x7FE),
   (0x3C03, 0x7FD),

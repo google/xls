@@ -14,12 +14,13 @@
 
 """ZSTD test frame generator for DSLX tests.
 
-This module interacts with the data_generator module and underlying Decodecorpus
-in order to generate inputs and expected outputs for the ZSTD Decoder tests in DSLX.
+This module interacts with the data_generator module and underlying
+Decodecorpus in order to generate inputs and expected outputs for the ZSTD
+Decoder tests in DSLX.
 
-It generates the ZSTD frame and then decodes it with the reference ZSTD library.
-Both the encoded frame and decoded data are written to a DSLX file by converting raw
-bytes of the frame and decoded data into DSLX structures.
+It generates the ZSTD frame and then decodes it with the reference ZSTD
+library. Both the encoded frame and decoded data are written to a DSLX file by
+converting raw bytes of the frame and decoded data into DSLX structures.
 
 Resulting file can be included in the ZSTD Decoder DSLX test and used as the
 inputs and expected output for the testbench.
@@ -31,7 +32,7 @@ import random
 import tempfile
 import pathlib
 
-import xls.modules.zstd.cocotb.data_generator as data_generator
+from xls.modules.zstd.cocotb import data_generator
 
 
 def GenerateTestData(seed, btype):
@@ -95,42 +96,6 @@ def GenerateDataStruct():
     "}\n"
   )
 
-def Main2():
-  parser = argparse.ArgumentParser()
-  parser.add_argument(
-    "input",
-    help="Filename of the decodecorpus input",
-    type=pathlib.Path,
-  )
-  parser.add_argument(
-    "output",
-    help="Filename of the DSLX output file",
-    type=pathlib.Path,
-  )
-  parser.add_argument(
-    "--bytes-per-word",
-    help="Width of a word in memory, in bytes",
-    type=int,
-    default=8,
-  )
-
-  args = parser.parse_args()
-
-  with open(args.input, "rb") as fd:
-    byte_frames = [fd.read()]
-
-  with open(args.output, "w") as dslx_output:
-    dslx_output.write(GenerateDataStruct())
-
-    dslx_frames = Bytes2DSLX(byte_frames, args.bytes_per_word, "FRAMES")
-    dslx_output.write(dslx_frames)
-
-    byte_frames_decompressed = list(map(data_generator.DecompressFrame, byte_frames))
-    dslx_frames_decompressed = Bytes2DSLX(
-      byte_frames_decompressed, args.bytes_per_word, "DECOMPRESSED_FRAMES"
-    )
-    dslx_output.write(dslx_frames_decompressed)
-
 
 def main():
   parser = argparse.ArgumentParser()
@@ -177,7 +142,9 @@ def main():
     dslx_frames = Bytes2DSLX(byte_frames, args.bytes_per_word, "FRAMES")
     dslx_output.write(dslx_frames)
 
-    byte_frames_decompressed = list(map(data_generator.DecompressFrame, byte_frames))
+    byte_frames_decompressed = list(
+      map(data_generator.DecompressFrame, byte_frames)
+    )
     dslx_frames_decompressed = Bytes2DSLX(
       byte_frames_decompressed, args.bytes_per_word, "DECOMPRESSED_FRAMES"
     )

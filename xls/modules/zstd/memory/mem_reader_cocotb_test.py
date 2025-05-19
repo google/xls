@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # Copyright 2024 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,22 +13,22 @@
 # limitations under the License.
 
 
+import pathlib
 import random
 import sys
 import warnings
-from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import Event
 from cocotb_bus.scoreboard import Scoreboard
-import cocotbext.axi.axi_channels as axi_channels
+from cocotbext.axi import axi_channels
 from cocotbext.axi.axi_ram import AxiRamRead
 from cocotbext.axi.sparse_memory import SparseMemory
 
 import xls.modules.zstd.cocotb.channel as xlschannel
-import xls.modules.zstd.cocotb.utils as utils
-import xls.modules.zstd.cocotb.xlsstruct as xlsstruct
+from xls.modules.zstd.cocotb import utils
+from xls.modules.zstd.cocotb import xlsstruct
 
 # to disable warnings from hexdiff used by cocotb's Scoreboard
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -157,11 +156,14 @@ def generate_test_data(test_cases, xfer_base=0x0, seed=1234):
     req += [MemReaderReq(addr=xfer_addr, length=xfer_length)]
 
     rem = xfer_length % data_w_div8
-    for addr in range(xfer_addr, xfer_max_addr - (data_w_div8 - 1), data_w_div8):
+    range_end = xfer_max_addr - (data_w_div8 - 1)
+    for addr in range(xfer_addr, range_end, data_w_div8):
       last = ((addr + data_w_div8) >= xfer_max_addr) & (rem == 0)
       data = random.randint(0, 1 << (data_w_div8 * 8))
       mem_writes.update({addr: data})
-      resp += [MemReaderResp(status=0, data=data, length=data_w_div8, last=last)]
+      resp += [
+        MemReaderResp(status=0, data=data, length=data_w_div8, last=last)
+      ]
 
     if rem > 0:
       addr = xfer_max_addr - rem
@@ -180,12 +182,20 @@ async def test_mem_reader(dut, req_input, resp_output, mem_contents=None):
   clock = Clock(dut.clk, 10, units="us")
   cocotb.start_soon(clock.start())
 
-  _mem_reader_resp_bus = xlschannel.XLSChannel(
+  # prefix unused objects with unused_
+  # to suppress linter and keep the objects alive
+  unused_mem_reader_resp_bus = xlschannel.XLSChannel(
     dut, MEM_READER_RESP_CHANNEL, dut.clk, start_now=True
   )
-  mem_reader_req_driver = xlschannel.XLSChannelDriver(dut, MEM_READER_REQ_CHANNEL, dut.clk)
+  mem_reader_req_driver = xlschannel.XLSChannelDriver(
+    dut, MEM_READER_REQ_CHANNEL, dut.clk
+  )
   mem_reader_resp_monitor = xlschannel.XLSChannelMonitor(
-    dut, MEM_READER_RESP_CHANNEL, dut.clk, MemReaderResp, callback=print_callback()
+    dut,
+    MEM_READER_RESP_CHANNEL,
+    dut.clk,
+    MemReaderResp,
+    callback=print_callback()
   )
 
   terminate = Event()
@@ -203,7 +213,9 @@ async def test_mem_reader(dut, req_input, resp_output, mem_contents=None):
   for addr, data in mem_contents.items():
     sparse_mem.write(addr, (data).to_bytes(8, "little"))
 
-  _memory = AxiRamRead(axi_read_bus, dut.clk, dut.rst, size=mem_size, mem=sparse_mem)
+  unused_memory = AxiRamRead(
+    axi_read_bus, dut.clk, dut.rst, size=mem_size, mem=sparse_mem
+  )
 
   await utils.reset(dut.clk, dut.rst, cycles=10)
   await mem_reader_req_driver.send(req_input)
@@ -259,12 +271,12 @@ async def mem_reader_aligned_transfer_shorter_than_bus4(dut):
 
 
 if __name__ == "__main__":
-  sys.path.append(str(Path(__file__).parent))
+  sys.path.append(str(pathlib.Path(__file__).parent))
 
   toplevel = "mem_reader_wrapper"
   verilog_sources = [
     "xls/modules/zstd/memory/mem_reader_adv.v",
     "xls/modules/zstd/memory/rtl/mem_reader_wrapper.v",
   ]
-  test_module = [Path(__file__).stem]
+  test_module = [pathlib.Path(__file__).stem]
   utils.run_test(toplevel, test_module, verilog_sources)

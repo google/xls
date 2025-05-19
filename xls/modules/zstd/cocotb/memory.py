@@ -13,8 +13,7 @@
 # limitations under the License.
 
 """
-Extensions of the cocotb AXI RAM models that initialize
-memory contents from a binary file.
+Extensions of the cocotb AXI RAM models to memory contents from a binary file.
 """
 
 import os

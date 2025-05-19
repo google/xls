@@ -60,7 +60,7 @@ class LatencyScoreboard:
   def _req_callback(self, transaction: XLSStruct):
     self.pending_req.put(LatencyQueueItem(transaction, self._current_cycle()))
 
-  def _resp_callback(self, _transaction: XLSStruct):
+  def _resp_callback(self, unused_transaction: XLSStruct):
     latency_item = self.pending_req.get()
     self.results.append(self._current_cycle() - latency_item.timestamp)
 

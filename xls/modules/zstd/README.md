@@ -28,18 +28,18 @@ decoder's `Memory Interface`.
 
 Once the decoding process is started, the decoder:
 
-1. Reads the configuration from the CSRs,
-2. Decodes the Frame Header,
-3. Decodes the Block Header,
-4. Decodes the Block Data with the correct processing unit picked based on the
-Block Type from the Block Header,
-5. Aggregates the processing unit results in the correct order into a stream
-and routes it to the history buffer,
-6. Assembles the data block outputs based on the history buffer contents and
-updates the history,
-7. Prepares the final output of the decoder and writes it to the memory,
-8. (Optional) Calculates checksum and compares it against the checksum read
-from the frame.[^2]
+1.  Reads the configuration from the CSRs,
+2.  Decodes the Frame Header,
+3.  Decodes the Block Header,
+4.  Decodes the Block Data with the correct processing unit picked based on the
+    Block Type from the Block Header,
+5.  Aggregates the processing unit results in the correct order into a stream
+    and routes it to the history buffer,
+6.  Assembles the data block outputs based on the history buffer contents and
+    updates the history,
+7.  Prepares the final output of the decoder and writes it to the memory,
+8.  (Optional) Calculates checksum and compares it against the checksum read
+    from the frame.[^2]
 
 ![brief data flow diagram of ZstdDecoder](img/ZSTD_decoder.png)
 
@@ -253,14 +253,14 @@ This stage receives data which is tagged either `literals` or `copy`. This stage
 will show the following behavior, depending on the tag:
 
 * `literals`
-    * Packet contents placed as newest in the history buffer,
-    * Packet contents copied to the decoder's output,
+    *   Packet contents placed as newest in the history buffer,
+    *   Packet contents copied to the decoder's output,
 * `copy`
-    * Wait for all previous writes to be completed,
-    * Copy `copy_length` literals starting `offset _length` from the newest in
-history buffer to the decoder's output,
-    * Copy `copy_length` literals starting `offset _length` from the newest in
-history buffer to the history buffer as the newest.
+    *   Wait for all previous writes to be completed,
+    *   Copy `copy_length` literals starting `offset _length` from the newest in
+        history buffer to the decoder's output,
+    *   Copy `copy_length` literals starting `offset _length` from the newest in
+        history buffer to the history buffer as the newest.
 
 ### Compressed block decoder architecture[^1] {#compressed-block-decoder-architecture1}
 
@@ -360,10 +360,10 @@ FSE decoder or to direct weight extraction.
 
 This stage performs multiple functions.
 
-1. It decodes and builds the FSE distribution table.
-2. It stores all remaining bitstream data.
-3. After receiving the last byte, it translates the bitstream to Huffman
-weights using 2 interleaved FSE streams.
+1.  It decodes and builds the FSE distribution table.
+2.  It stores all remaining bitstream data.
+3.  After receiving the last byte, it translates the bitstream to Huffman
+    weights using 2 interleaved FSE streams.
 
 ##### Direct weight decoder
 
@@ -468,8 +468,7 @@ Crossbar](https://github.com/alexforencich/verilog-axi).
 
 ![diagram of interfaces of decoder and its wrapper](img/ZSTD_decoder_wrapper.png)
 
-**Figure
-Zstd decoder wrapper connection diagram.**
+**Figure: Zstd decoder wrapper connection diagram.**
 
 Cocotb testbench interacts with the decoder with the help of a
 [cocotbext-axi](https://github.com/alexforencich/cocotbext-axi) extension that
@@ -545,19 +544,19 @@ calculated from current `WINDOW_LOG_MAX` (by default in Top Level Proc tests
 
 The `assert!()` or `fail!()` will occur in:
 
-* RawBlockDecoder
-  * Receive `BlockDataPacket` with `ID` different than the previous packet which
-    did not have the `last` flag set
-* DecoderMux
-  * At the beginning of the simulation or after receiving
-    `ExtendedBlockDataPacket` with `last` and `last_block` (decoding new ZSTD
-    frame) set receive on channels `raw_r`, `rle_r` and `cmp_r`
-    `ExtendedBlockDataPackets` without any of those having `ID==0`
-  * Receive `ExtendedBlockDataPacket` with a smaller `ID` than any of the
-    previously processed packets during the current ZSTD frame decoding
-* SequenceExecutor
-  * Receive `SequenceExecutorPacket` with `msg_type==SEQUENCE` and `content`
-    field with value: `0`
+*   RawBlockDecoder
+    *   Receive `BlockDataPacket` with `ID` different than the previous packet
+        which did not have the `last` flag set
+*   DecoderMux
+    *   At the beginning of the simulation or after receiving
+        `ExtendedBlockDataPacket` with `last` and `last_block` (decoding new
+        ZSTD frame) set receive on channels `raw_r`, `rle_r` and `cmp_r`
+        `ExtendedBlockDataPackets` without any of those having `ID==0`
+    *   Receive `ExtendedBlockDataPacket` with a smaller `ID` than any of the
+        previously processed packets during the current ZSTD frame decoding
+*   SequenceExecutor
+    *   Receive `SequenceExecutorPacket` with `msg_type==SEQUENCE` and `content`
+        field with value: `0`
 
 There are also several `impossible cases` covered by `fail!()`.
 Those are mostly enforced by the type checker for the `match` expressions to

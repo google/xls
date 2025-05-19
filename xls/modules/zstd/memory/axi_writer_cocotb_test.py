@@ -22,14 +22,14 @@ from cocotb.clock import Clock
 from cocotb.triggers import Event
 from cocotb_bus.scoreboard import Scoreboard
 
-import cocotbext.axi.axis as axis
-import cocotbext.axi.axi_channels as axi_channels
+from cocotbext.axi import axis
+from cocotbext.axi import axi_channels
 from cocotbext.axi.axi_ram import AxiRamWrite
 from cocotbext.axi.sparse_memory import SparseMemory
 
 import xls.modules.zstd.cocotb.channel as xlschannel
-import xls.modules.zstd.cocotb.utils as utils
-import xls.modules.zstd.cocotb.xlsstruct as xlsstruct
+from xls.modules.zstd.cocotb import utils
+from xls.modules.zstd.cocotb import xlsstruct
 
 ID_WIDTH = 4
 ADDR_WIDTH = 16
@@ -71,28 +71,50 @@ async def ram_test(dut):
   mem_size = 2**ADDR_WIDTH
   test_count = 200
 
-  (addr_req_input, axi_st_input, addr_resp_expect, memory_verification, expected_memory) = generate_test_data_random(test_count, mem_size)
+  (
+    addr_req_input,
+    axi_st_input,
+    addr_resp_expect,
+    memory_verification,
+    expected_memory
+  ) = generate_test_data_random(test_count, mem_size)
 
   dut.rst.setimmediatevalue(0)
 
   clock = Clock(dut.clk, 10, units="us")
   cocotb.start_soon(clock.start())
 
-  _resp_bus = xlschannel.XLSChannel(dut, generic_addr_resp_channel, dut.clk, start_now=True)
+  # prefix unused objects with unused_
+  # to suppress linter and keep the objects alive
+  unused_resp_bus = xlschannel.XLSChannel(
+    dut, generic_addr_resp_channel, dut.clk, start_now=True
+  )
 
-  driver_addr_req = xlschannel.XLSChannelDriver(dut, generic_addr_req_channel, dut.clk)
-  driver_axi_st = axis.AxiStreamSource(axis.AxiStreamBus.from_prefix(dut, axi_stream_channel), dut.clk, dut.rst)
+  driver_addr_req = xlschannel.XLSChannelDriver(
+    dut, generic_addr_req_channel, dut.clk
+  )
+  driver_axi_st = axis.AxiStreamSource(
+    axis.AxiStreamBus.from_prefix(dut, axi_stream_channel),
+    dut.clk,
+    dut.rst
+  )
 
   bus_axi_aw = axi_channels.AxiAWBus.from_prefix(dut, axi_aw_channel)
   bus_axi_w = axi_channels.AxiWBus.from_prefix(dut, axi_w_channel)
   bus_axi_b = axi_channels.AxiBBus.from_prefix(dut, axi_b_channel)
   bus_axi_write = axi_channels.AxiWriteBus(bus_axi_aw, bus_axi_w, bus_axi_b)
 
-  _monitor_addr_req = xlschannel.XLSChannelMonitor(dut, generic_addr_req_channel, dut.clk, WriteRequestStruct)
-  monitor_addr_resp = xlschannel.XLSChannelMonitor(dut, generic_addr_resp_channel, dut.clk, AxiWriterRespStruct)
-  _monitor_axi_aw = axi_channels.AxiAWMonitor(bus_axi_aw, dut.clk, dut.rst)
-  _monitor_axi_w = axi_channels.AxiWMonitor(bus_axi_w, dut.clk, dut.rst)
-  _monitor_axi_b = axi_channels.AxiBMonitor(bus_axi_b, dut.clk, dut.rst)
+  unused_monitor_addr_req = xlschannel.XLSChannelMonitor(
+    dut, generic_addr_req_channel, dut.clk, WriteRequestStruct
+  )
+  monitor_addr_resp = xlschannel.XLSChannelMonitor(
+    dut, generic_addr_resp_channel, dut.clk, AxiWriterRespStruct
+  )
+  unused_monitor_axi_aw = axi_channels.AxiAWMonitor(
+    bus_axi_aw, dut.clk, dut.rst
+  )
+  unused_monitor_axi_w = axi_channels.AxiWMonitor(bus_axi_w, dut.clk, dut.rst)
+  unused_monitor_axi_b = axi_channels.AxiBMonitor(bus_axi_b, dut.clk, dut.rst)
 
   set_termination_event(monitor_addr_resp, terminate, test_count)
 
@@ -112,9 +134,27 @@ async def ram_test(dut):
   await terminate.wait()
 
   for bundle in memory_verification:
-    memory_contents = bytearray(memory.read(bundle["base_address"], bundle["length"]))
-    expected_memory_contents = bytearray(expected_memory.read(bundle["base_address"], bundle["length"]))
-    assert memory_contents == expected_memory_contents, "{} bytes of memory contents at base address {}:\n{}\nvs\n{}\nHEXDUMP:\n{}\nvs\n{}".format(hex(bundle["length"]), hex(bundle["base_address"]), memory_contents, expected_memory_contents, memory.hexdump(bundle["base_address"], bundle["length"]), expected_memory.hexdump(bundle["base_address"], bundle["length"]))
+    memory_contents = bytearray(
+      memory.read(bundle["base_address"], bundle["length"])
+    )
+    expected_memory_contents = bytearray(
+      expected_memory.read(bundle["base_address"], bundle["length"])
+    )
+    assert memory_contents == expected_memory_contents, (
+      (
+        "{} bytes of memory contents at base address {}:\n"
+        "{}\nvs\n{}"
+        "\nHEXDUMP:\n{}"
+        "\nvs\n{}"
+      ).format(
+        hex(bundle["length"]),
+        hex(bundle["base_address"]),
+        memory_contents,
+        expected_memory_contents,
+        memory.hexdump(bundle["base_address"], bundle["length"]),
+        expected_memory.hexdump(bundle["base_address"], bundle["length"])
+      )
+    )
 
 @cocotb.coroutine
 async def drive_axi_st(driver, inputs):
@@ -146,7 +186,12 @@ def generate_test_data_random(test_count, mem_size):
     addr_req_input.append(transfer_req)
 
     data_to_write = random.randbytes(xfer_len)
-    axi_st_frame = axis.AxiStreamFrame(tdata=data_to_write, tkeep=[15]*xfer_len, tid=i % (1 << ID_WIDTH), tdest=(i % (1 << ID_WIDTH)))
+    axi_st_frame = axis.AxiStreamFrame(
+      tdata=data_to_write,
+      tkeep=[15]*xfer_len,
+      tid=i % (1 << ID_WIDTH),
+      tdest=(i % (1 << ID_WIDTH))
+    )
     axi_st_input.append(axi_st_frame)
 
     write_expected_memory(transfer_req, axi_st_frame.tdata, memory)
@@ -159,7 +204,13 @@ def generate_test_data_random(test_count, mem_size):
 
   addr_resp_expect = [AxiWriterRespStruct(status=False)] * test_count
 
-  return (addr_req_input, axi_st_input, addr_resp_expect, memory_verification, memory)
+  return (
+    addr_req_input,
+    axi_st_input,
+    addr_resp_expect,
+    memory_verification,
+    memory
+  )
 
 def bytes_to_4k_boundary(addr):
   axi_4k_boundary = 0x1000
@@ -173,7 +224,8 @@ def write_expected_memory(transfer_req, data_to_write, memory):
   Args:
     transfer_req: The transfer request object containing address and length
       information.
-    data_to_write: A bytes-like object or list of data that needs to be written.
+    data_to_write: A bytes-like object or list of data that needs to be
+      written.
     memory: SparseMemory object simulating memory storage, where the data will
       be written.
   """
@@ -212,12 +264,21 @@ def generate_test_data_arbitrary(mem_size):
     addr_req_input.append(transfer_req)
 
     data_chunks = []
-    data_bytes = [[(0xEF + j) & 0xFF, 0xBE, 0xAD, 0xDE] for j in range(xfer_len[i])]
-    _data_words = [int.from_bytes(data_bytes[j]) for j in range(xfer_len[i])]
+    data_bytes = [
+      [(0xEF + j) & 0xFF, 0xBE, 0xAD, 0xDE] for j in range(xfer_len[i])
+    ]
+    unused_data_words = [
+      int.from_bytes(data_bytes[j]) for j in range(xfer_len[i])
+    ]
     for j in range(xfer_len[i]):
       data_chunks += data_bytes[j]
     data_to_write = bytearray(data_chunks)
-    axi_st_frame = axis.AxiStreamFrame(tdata=data_to_write, tkeep=[15]*xfer_len[i], tid=i, tdest=i)
+    axi_st_frame = axis.AxiStreamFrame(
+      tdata=data_to_write,
+      tkeep=[15]*xfer_len[i],
+      tid=i,
+      tdest=i
+    )
     axi_st_input.append(axi_st_frame)
 
     write_expected_memory(transfer_req, axi_st_frame.tdata, memory)
@@ -230,7 +291,13 @@ def generate_test_data_arbitrary(mem_size):
 
   addr_resp_expect = [AxiWriterRespStruct(status=False)] * testcase_num
 
-  return (addr_req_input, axi_st_input, addr_resp_expect, memory_verification, memory)
+  return (
+    addr_req_input,
+    axi_st_input,
+    addr_resp_expect,
+    memory_verification,
+    memory
+  )
 
 if __name__ == "__main__":
     toplevel = "axi_writer_wrapper"

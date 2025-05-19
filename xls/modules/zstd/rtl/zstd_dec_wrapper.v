@@ -226,62 +226,62 @@ module zstd_dec_wrapper #(
    * XLS Channels representing AXI interfaces
    */
 
-  localparam int XLS_AXI_AW_W = AXI_ADDR_W + S_AXI_ID_W + 3 + 2 + 8;
-  localparam int XLS_AXI_W_W = AXI_DATA_W + AXI_STRB_W + 1;
-  localparam int XLS_AXI_B_W = 3 + S_AXI_ID_W;
-  localparam int XLS_AXI_AR_W = S_AXI_ID_W + AXI_ADDR_W + 4 + 8 + 3 + 2 + 4 + 3 + 4;
-  localparam int XLS_AXI_R_W = S_AXI_ID_W + AXI_DATA_W + 3 + 1;
+  localparam int XlsAxiAwW = AXI_ADDR_W + S_AXI_ID_W + 3 + 2 + 8;
+  localparam int XlsAxiWW = AXI_DATA_W + AXI_STRB_W + 1;
+  localparam int XlsAxiBW = 3 + S_AXI_ID_W;
+  localparam int XlsAxiArW = S_AXI_ID_W + AXI_ADDR_W + 4 + 8 + 3 + 2 + 4 + 3 + 4;
+  localparam int XlsAxiRW = S_AXI_ID_W + AXI_DATA_W + 3 + 1;
   // CSR
-  wire [XLS_AXI_AW_W-1:0] zstd_dec__csr_axi_aw;
-  wire                    zstd_dec__csr_axi_aw_rdy;
-  wire                    zstd_dec__csr_axi_aw_vld;
-  wire [XLS_AXI_W_W-1:0] zstd_dec__csr_axi_w;
-  wire                    zstd_dec__csr_axi_w_rdy;
-  wire                    zstd_dec__csr_axi_w_vld;
-  wire [ XLS_AXI_B_W-1:0] zstd_dec__csr_axi_b;
-  wire                    zstd_dec__csr_axi_b_rdy;
-  wire                    zstd_dec__csr_axi_b_vld;
-  wire [XLS_AXI_AR_W-1:0] zstd_dec__csr_axi_ar;
-  wire                    zstd_dec__csr_axi_ar_rdy;
-  wire                    zstd_dec__csr_axi_ar_vld;
-  wire [ XLS_AXI_R_W-1:0] zstd_dec__csr_axi_r;
-  wire                    zstd_dec__csr_axi_r_rdy;
-  wire                    zstd_dec__csr_axi_r_vld;
+  wire [XlsAxiAwW-1:0] zstd_dec__csr_axi_aw;
+  wire                 zstd_dec__csr_axi_aw_rdy;
+  wire                 zstd_dec__csr_axi_aw_vld;
+  wire [XlsAxiWW-1:0]  zstd_dec__csr_axi_w;
+  wire                 zstd_dec__csr_axi_w_rdy;
+  wire                 zstd_dec__csr_axi_w_vld;
+  wire [ XlsAxiBW-1:0] zstd_dec__csr_axi_b;
+  wire                 zstd_dec__csr_axi_b_rdy;
+  wire                 zstd_dec__csr_axi_b_vld;
+  wire [XlsAxiArW-1:0] zstd_dec__csr_axi_ar;
+  wire                 zstd_dec__csr_axi_ar_rdy;
+  wire                 zstd_dec__csr_axi_ar_vld;
+  wire [ XlsAxiRW-1:0] zstd_dec__csr_axi_r;
+  wire                 zstd_dec__csr_axi_r_rdy;
+  wire                 zstd_dec__csr_axi_r_vld;
 
   // Frame Header Decoder
-  wire [XLS_AXI_AR_W-1:0] zstd_dec__fh_axi_ar;
-  wire                    zstd_dec__fh_axi_ar_rdy;
-  wire                    zstd_dec__fh_axi_ar_vld;
-  wire [ XLS_AXI_R_W-1:0] zstd_dec__fh_axi_r;
-  wire                    zstd_dec__fh_axi_r_rdy;
-  wire                    zstd_dec__fh_axi_r_vld;
+  wire [XlsAxiArW-1:0] zstd_dec__fh_axi_ar;
+  wire                 zstd_dec__fh_axi_ar_rdy;
+  wire                 zstd_dec__fh_axi_ar_vld;
+  wire [ XlsAxiRW-1:0] zstd_dec__fh_axi_r;
+  wire                 zstd_dec__fh_axi_r_rdy;
+  wire                 zstd_dec__fh_axi_r_vld;
 
   // Block Header Decoder
-  wire [XLS_AXI_AR_W-1:0] zstd_dec__bh_axi_ar;
-  wire                    zstd_dec__bh_axi_ar_rdy;
-  wire                    zstd_dec__bh_axi_ar_vld;
-  wire [ XLS_AXI_R_W-1:0] zstd_dec__bh_axi_r;
-  wire                    zstd_dec__bh_axi_r_rdy;
-  wire                    zstd_dec__bh_axi_r_vld;
+  wire [XlsAxiArW-1:0] zstd_dec__bh_axi_ar;
+  wire                 zstd_dec__bh_axi_ar_rdy;
+  wire                 zstd_dec__bh_axi_ar_vld;
+  wire [ XlsAxiRW-1:0] zstd_dec__bh_axi_r;
+  wire                 zstd_dec__bh_axi_r_rdy;
+  wire                 zstd_dec__bh_axi_r_vld;
 
   // Raw Block Decoder
-  wire [XLS_AXI_AR_W-1:0] zstd_dec__raw_axi_ar;
-  wire                    zstd_dec__raw_axi_ar_rdy;
-  wire                    zstd_dec__raw_axi_ar_vld;
-  wire [ XLS_AXI_R_W-1:0] zstd_dec__raw_axi_r;
-  wire                    zstd_dec__raw_axi_r_rdy;
-  wire                    zstd_dec__raw_axi_r_vld;
+  wire [XlsAxiArW-1:0] zstd_dec__raw_axi_ar;
+  wire                 zstd_dec__raw_axi_ar_rdy;
+  wire                 zstd_dec__raw_axi_ar_vld;
+  wire [ XlsAxiRW-1:0] zstd_dec__raw_axi_r;
+  wire                 zstd_dec__raw_axi_r_rdy;
+  wire                 zstd_dec__raw_axi_r_vld;
 
   // Output Memory Interface
-  wire [XLS_AXI_AW_W-1:0] zstd_dec__output_axi_aw;
-  wire                    zstd_dec__output_axi_aw_rdy;
-  wire                    zstd_dec__output_axi_aw_vld;
-  wire [XLS_AXI_W_W-1:0]  zstd_dec__output_axi_w;
-  wire                    zstd_dec__output_axi_w_rdy;
-  wire                    zstd_dec__output_axi_w_vld;
-  wire [XLS_AXI_B_W-1:0]  zstd_dec__output_axi_b;
-  wire                    zstd_dec__output_axi_b_rdy;
-  wire                    zstd_dec__output_axi_b_vld;
+  wire [XlsAxiAwW-1:0] zstd_dec__output_axi_aw;
+  wire                 zstd_dec__output_axi_aw_rdy;
+  wire                 zstd_dec__output_axi_aw_vld;
+  wire [XlsAxiWW-1:0]  zstd_dec__output_axi_w;
+  wire                 zstd_dec__output_axi_w_rdy;
+  wire                 zstd_dec__output_axi_w_vld;
+  wire [XlsAxiBW-1:0]  zstd_dec__output_axi_b;
+  wire                 zstd_dec__output_axi_b_rdy;
+  wire                 zstd_dec__output_axi_b_vld;
 
   /*
    * Mapping XLS Channels to AXI channels fields

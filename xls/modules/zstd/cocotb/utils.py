@@ -26,8 +26,12 @@ from xls.common import runfiles
 
 
 def setup_com_iverilog():
-  iverilog_path = pathlib.Path(runfiles.get_path("iverilog", repository = "com_icarus_iverilog"))
-  vvp_path = pathlib.Path(runfiles.get_path("vvp", repository = "com_icarus_iverilog"))
+  iverilog_path = pathlib.Path(
+    runfiles.get_path("iverilog", repository = "com_icarus_iverilog")
+  )
+  vvp_path = pathlib.Path(
+    runfiles.get_path("vvp", repository = "com_icarus_iverilog")
+  )
   os.environ["PATH"] += os.pathsep + str(iverilog_path.parent)
   os.environ["PATH"] += os.pathsep + str(vvp_path.parent)
   build_dir = pathlib.Path(os.environ['BUILD_WORKING_DIRECTORY'], "sim_build")

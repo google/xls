@@ -166,13 +166,13 @@ module mem_writer_wrapper (
            axi_stream_clean_tid,
            axi_stream_clean_tdest,
            axi_stream_clean_tlast} = mem_writer
-    .__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1 // verilog-lint: waive-line-length
+    .__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1 // verilog_lint: waive line-length
     .mem_writer__axi_st_clean_data;
   assign axi_stream_clean_tvalid = mem_writer
-    .__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1 // verilog-lint: waive-line-length
+    .__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1 // verilog_lint: waive line-length
     .mem_writer__axi_st_clean_vld;
   assign axi_stream_clean_tready = mem_writer
-    .__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1 // verilog-lint: waive-line-length
+    .__xls_modules_zstd_memory_axi_stream_add_empty__MemWriterInst__MemWriter_0__AxiStreamAddEmpty_0__16_32_4_2_4_4_next_inst1 // verilog_lint: waive line-length
     .mem_writer__axi_st_clean_rdy;
 
   assign { axi_stream_padded_tdata,
@@ -181,13 +181,13 @@ module mem_writer_wrapper (
            axi_stream_padded_tid,
            axi_stream_padded_tdest,
            axi_stream_padded_tlast} = mem_writer
-    .__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4 // verilog-lint: waive-line-length
+    .__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4 // verilog_lint: waive line-length
     .mem_writer__axi_st_padded_data;
   assign axi_stream_padded_tvalid = mem_writer
-    .__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4 // verilog-lint: waive-line-length
+    .__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4 // verilog_lint: waive line-length
     .mem_writer__axi_st_padded_vld;
   assign axi_stream_padded_tready = mem_writer
-    .__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4 // verilog-lint: waive-line-length
+    .__xls_modules_zstd_memory_axi_writer__MemWriterInst__MemWriter_0__AxiWriter_0__16_32_4_4_4_2_next_inst4 // verilog_lint: waive line-length
     .mem_writer__axi_st_padded_rdy;
 
   mem_writer mem_writer (

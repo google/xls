@@ -18,18 +18,18 @@ import pathlib
 import tempfile
 
 import cocotb
+from cocotb import triggers
 from cocotb.clock import Clock
-import cocotb.triggers as triggers
 
+from cocotbext.axi import axi_channels
 from cocotbext.axi.axi_master import AxiMaster
-import cocotbext.axi.axi_channels as axi_channels
 from cocotbext.axi.sparse_memory import SparseMemory
 
 import xls.modules.zstd.cocotb.channel as xlschannel
-import xls.modules.zstd.cocotb.data_generator as data_generator
+from xls.modules.zstd.cocotb import data_generator
 from xls.modules.zstd.cocotb.memory import AxiRamFromFile
 from xls.modules.zstd.cocotb.utils import run_test
-import xls.modules.zstd.cocotb.xlsstruct as xlsstruct
+from xls.modules.zstd.cocotb import xlsstruct
 
 AXI_DATA_W = 64
 AXI_DATA_W_BYTES = AXI_DATA_W // 8
@@ -138,7 +138,9 @@ async def test_csr(dut):
     expected[0] += i
     await csr_write(cpu, reg, expected)
     read = await csr_read(cpu, reg)
-    assert read.data == expected, "Expected data doesn't match contents of the {}".format(reg)
+    assert read.data == expected, (
+      "Expected data doesn't match contents of the {}".format(reg)
+    )
     i += 1
   await triggers.ClockCycles(dut.clk, 10)
 
@@ -155,7 +157,8 @@ async def test_reset(dut):
   await start_decoder(cpu)
   timeout = 10
   status = await csr_read(cpu, CSR.STATUS)
-  while ((int.from_bytes(status.data, byteorder='little') == Status.IDLE.value) & (timeout != 0)):
+  while ((int.from_bytes(status.data, byteorder='little') == Status.IDLE.value)
+      & (timeout != 0)):
     status = await csr_read(cpu, CSR.STATUS)
     timeout -= 1
   assert (timeout != 0)
@@ -177,7 +180,8 @@ async def start_decoder(cpu):
 
 async def wait_for_idle(cpu, timeout=100):
   status = await csr_read(cpu, CSR.STATUS)
-  while ((int.from_bytes(status.data, byteorder='little') != Status.IDLE.value) & (timeout != 0)):
+  while ((int.from_bytes(status.data, byteorder='little') != Status.IDLE.value)
+      & (timeout != 0)):
     status = await csr_read(cpu, CSR.STATUS)
     timeout -= 1
   assert (timeout != 0)
@@ -213,7 +217,9 @@ def prepare_test_environment(dut):
 async def test_decoder(dut, seed, block_type, axi_buses, cpu):
   memory_bus = axi_buses["memory"]
 
-  (_notify_channel, notify_monitor) = connect_xls_channel(dut, NOTIFY_CHANNEL, NotifyStruct)
+  (unused_notify_channel, notify_monitor) = connect_xls_channel(
+    dut, NOTIFY_CHANNEL, NotifyStruct
+  )
   assert_notify = triggers.Event()
   set_termination_event(notify_monitor, assert_notify, 1)
 
@@ -234,7 +240,13 @@ async def test_decoder(dut, seed, block_type, axi_buses, cpu):
     reference_memory.write(obuf_addr, expected_decoded_frame)
 
     # Initialise testbench memory with generated ZSTD frame
-    memory = AxiRamFromFile(bus=memory_bus, clock=dut.clk, reset=dut.rst, path=encoded.name, size=mem_size)
+    memory = AxiRamFromFile(
+      bus=memory_bus,
+      clock=dut.clk,
+      reset=dut.rst,
+      path=encoded.name,
+      size=mem_size
+    )
 
     await configure_decoder(dut, cpu, ibuf_addr, obuf_addr)
     await start_decoder(cpu)
@@ -242,15 +254,33 @@ async def test_decoder(dut, seed, block_type, axi_buses, cpu):
     await wait_for_idle(cpu)
     # Read decoded frame in chunks of AXI_DATA_W length
     # Compare against frame decompressed with the reference library
-    for read_op in range(0, ((len(expected_decoded_frame) + (AXI_DATA_W_BYTES - 1)) // AXI_DATA_W_BYTES)):
+    chunks_nb = (
+      len(expected_decoded_frame) + (AXI_DATA_W_BYTES - 1)
+    ) // AXI_DATA_W_BYTES
+    for read_op in range(0, chunks_nb):
       addr = obuf_addr + (read_op * AXI_DATA_W_BYTES)
       mem_contents = memory.read(addr, AXI_DATA_W_BYTES)
       exp_mem_contents = reference_memory.read(addr, AXI_DATA_W_BYTES)
-      assert mem_contents == exp_mem_contents, "{} bytes of memory contents at address {} don't match the expected contents:\n{}\nvs\n{}".format(AXI_DATA_W_BYTES, hex(addr), hex(int.from_bytes(mem_contents, byteorder='little')), hex(int.from_bytes(exp_mem_contents, byteorder='little')))
+      assert mem_contents == exp_mem_contents, (
+        (
+          "{} bytes of memory contents at address {} "
+          "don't match the expected contents:\n"
+          "{}\nvs\n{}"
+        ).format(
+          AXI_DATA_W_BYTES,
+          hex(addr),
+          hex(int.from_bytes(mem_contents, byteorder='little')),
+          hex(int.from_bytes(exp_mem_contents, byteorder='little'))
+        )
+      )
 
   await triggers.ClockCycles(dut.clk, 20)
 
-async def testing_routine(dut, test_cases=1, block_type=data_generator.BlockType.RANDOM):
+async def testing_routine(
+  dut,
+  test_cases=1,
+  block_type=data_generator.BlockType.RANDOM
+):
   (axi_buses, cpu) = prepare_test_environment(dut)
   for test_case in range(test_cases):
     await test_decoder(dut, test_case, block_type, axi_buses, cpu)
