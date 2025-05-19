@@ -120,21 +120,33 @@ TEST_F(FlatteningTest, ExpressionFlattening) {
   ArrayType* a_of_b5 = p.GetArrayType(3, b5);
   ArrayType* array_2d = p.GetArrayType(2, a_of_b5);
 
-  verilog::VerilogFile f(verilog::FileType::kVerilog);
-  verilog::Module* m = f.AddModule(TestName(), SourceInfo());
+  {
+    verilog::VerilogFile f(verilog::FileType::kVerilog);
+    verilog::Module* m = f.AddModule(TestName(), SourceInfo());
 
-  EXPECT_EQ(
-      FlattenArray(m->AddReg("foo", f.UnpackedArrayType(5, {3}, SourceInfo()),
-                             SourceInfo()),
-                   a_of_b5, &f, SourceInfo())
-          ->Emit(nullptr),
-      "{foo[2], foo[1], foo[0]}");
-  EXPECT_EQ(
-      FlattenArray(m->AddReg("foo", f.UnpackedArrayType(5, {2}, SourceInfo()),
-                             SourceInfo()),
-                   array_2d, &f, SourceInfo())
-          ->Emit(nullptr),
-      "{{foo[1][2], foo[1][1], foo[1][0]}, {foo[0][2], foo[0][1], foo[0][0]}}");
+    XLS_ASSERT_OK_AND_ASSIGN(
+        verilog::LogicRef * foo,
+        m->AddReg("foo", f.UnpackedArrayType(5, {3}, SourceInfo()),
+                  SourceInfo()));
+    auto* flattened = FlattenArray(foo, a_of_b5, &f, SourceInfo());
+    std::string emitted = flattened->Emit(nullptr);
+    EXPECT_EQ(emitted, "{foo[2], foo[1], foo[0]}");
+  }
+
+  {
+    verilog::VerilogFile f(verilog::FileType::kVerilog);
+    verilog::Module* m = f.AddModule(TestName(), SourceInfo());
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        verilog::LogicRef * foo,
+        m->AddReg("foo", f.UnpackedArrayType(5, {2}, SourceInfo()),
+                  SourceInfo()));
+    auto* flattened = FlattenArray(foo, array_2d, &f, SourceInfo());
+    std::string emitted = flattened->Emit(nullptr);
+    EXPECT_EQ(emitted,
+              "{{foo[1][2], foo[1][1], foo[1][0]}, {foo[0][2], foo[0][1], "
+              "foo[0][0]}}");
+  }
 }
 
 TEST_F(FlatteningTest, ExpressionUnflattening) {
@@ -143,35 +155,54 @@ TEST_F(FlatteningTest, ExpressionUnflattening) {
   ArrayType* a_of_b5 = p.GetArrayType(3, b5);
   ArrayType* array_2d = p.GetArrayType(2, a_of_b5);
 
-  verilog::VerilogFile f(verilog::FileType::kVerilog);
-  verilog::Module* m = f.AddModule(TestName(), SourceInfo());
+  {
+    verilog::VerilogFile f(verilog::FileType::kVerilog);
+    verilog::Module* m = f.AddModule(TestName(), SourceInfo());
 
-  EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.BitVectorType(15, SourceInfo()),
-                                     SourceInfo()),
-                           a_of_b5, &f, SourceInfo())
-                ->Emit(nullptr),
-            "'{foo[4:0], foo[9:5], foo[14:10]}");
-  EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.BitVectorType(30, SourceInfo()),
-                                     SourceInfo()),
-                           array_2d, &f, SourceInfo())
-                ->Emit(nullptr),
-            "'{'{foo[4:0], foo[9:5], foo[14:10]}, '{foo[19:15], foo[24:20], "
-            "foo[29:25]}}");
-
+    XLS_ASSERT_OK_AND_ASSIGN(
+        verilog::LogicRef * foo,
+        m->AddReg("foo", f.BitVectorType(15, SourceInfo()), SourceInfo()));
+    auto* unflattened = UnflattenArray(foo, a_of_b5, &f, SourceInfo());
+    std::string emitted = unflattened->Emit(nullptr);
+    EXPECT_EQ(emitted, "'{foo[4:0], foo[9:5], foo[14:10]}");
+  }
+  {
+    verilog::VerilogFile f(verilog::FileType::kVerilog);
+    verilog::Module* m = f.AddModule(TestName(), SourceInfo());
+    XLS_ASSERT_OK_AND_ASSIGN(
+        verilog::LogicRef * foo,
+        m->AddReg("foo", f.BitVectorType(30, SourceInfo()), SourceInfo()));
+    auto* unflattened = UnflattenArray(foo, array_2d, &f, SourceInfo());
+    std::string emitted = unflattened->Emit(nullptr);
+    EXPECT_EQ(emitted,
+              "'{'{foo[4:0], foo[9:5], foo[14:10]}, '{foo[19:15], foo[24:20], "
+              "foo[29:25]}}");
+  }
   TupleType* tuple_type = p.GetTupleType({array_2d, b5, a_of_b5});
-  EXPECT_EQ(
-      UnflattenArrayShapedTupleElement(
-          m->AddReg("foo", f.BitVectorType(50, SourceInfo()), SourceInfo()),
-          tuple_type, 0, &f, SourceInfo())
-          ->Emit(nullptr),
-      "'{'{foo[24:20], foo[29:25], foo[34:30]}, '{foo[39:35], "
-      "foo[44:40], foo[49:45]}}");
-  EXPECT_EQ(
-      UnflattenArrayShapedTupleElement(
-          m->AddReg("foo", f.BitVectorType(50, SourceInfo()), SourceInfo()),
-          tuple_type, 2, &f, SourceInfo())
-          ->Emit(nullptr),
-      "'{foo[4:0], foo[9:5], foo[14:10]}");
+  {
+    verilog::VerilogFile f(verilog::FileType::kVerilog);
+    verilog::Module* m = f.AddModule(TestName(), SourceInfo());
+    XLS_ASSERT_OK_AND_ASSIGN(
+        verilog::LogicRef * foo,
+        m->AddReg("foo", f.BitVectorType(50, SourceInfo()), SourceInfo()));
+    auto* unflattened =
+        UnflattenArrayShapedTupleElement(foo, tuple_type, 0, &f, SourceInfo());
+    std::string emitted = unflattened->Emit(nullptr);
+    EXPECT_EQ(emitted,
+              "'{'{foo[24:20], foo[29:25], foo[34:30]}, '{foo[39:35], "
+              "foo[44:40], foo[49:45]}}");
+  }
+  {
+    verilog::VerilogFile f(verilog::FileType::kVerilog);
+    verilog::Module* m = f.AddModule(TestName(), SourceInfo());
+    XLS_ASSERT_OK_AND_ASSIGN(
+        verilog::LogicRef * foo,
+        m->AddReg("foo", f.BitVectorType(50, SourceInfo()), SourceInfo()));
+    auto* unflattened =
+        UnflattenArrayShapedTupleElement(foo, tuple_type, 2, &f, SourceInfo());
+    std::string emitted = unflattened->Emit(nullptr);
+    EXPECT_EQ(emitted, "'{foo[4:0], foo[9:5], foo[14:10]}");
+  }
 }
 
 }  // namespace

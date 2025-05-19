@@ -67,7 +67,7 @@ class ModuleBuilder {
       std::optional<std::string_view> sv_type = std::nullopt);
 
   // Add an input port of the given width.
-  LogicRef* AddInputPort(
+  absl::StatusOr<LogicRef*> AddInputPort(
       std::string_view name, int64_t bit_count,
       std::optional<std::string_view> sv_type = std::nullopt);
 
@@ -129,11 +129,12 @@ class ModuleBuilder {
 
   // Declares a variable with the given name and XLS type. Returns a reference
   // to the variable.
-  LogicRef* DeclareVariable(std::string_view name, Type* type);
+  absl::StatusOr<LogicRef*> DeclareVariable(std::string_view name, Type* type);
 
   // Declares a flat variable with the given name and number of bits. Returns a
   // reference to the variable.
-  LogicRef* DeclareVariable(std::string_view name, int64_t bit_count);
+  absl::StatusOr<LogicRef*> DeclareVariable(std::string_view name,
+                                            int64_t bit_count);
 
   // Assigns the rhs to the lhs using continuous assignment where both sides
   // have the given XLS type. The emitted verilog may require multiple

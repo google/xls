@@ -257,10 +257,11 @@ class ModuleTestbenchThread {
                              const BitsOrX& initial_value);
 
   // Emit the thread contents into the verilog file with the contents specified.
-  void EmitInto(Module* m, LogicRef* clk,
-                absl::flat_hash_map<std::string, LogicRef*>* signal_refs,
-                const absl::flat_hash_map<std::string, VastStreamEmitter>&
-                    stream_emitters);
+  absl::Status EmitInto(
+      Module* m, LogicRef* clk,
+      absl::flat_hash_map<std::string, LogicRef*>* signal_refs,
+      const absl::flat_hash_map<std::string, VastStreamEmitter>&
+          stream_emitters);
 
   absl::Span<const DutInput> dut_inputs() const { return dut_inputs_; }
   const TestbenchMetadata& metadata() const { return *metadata_; }

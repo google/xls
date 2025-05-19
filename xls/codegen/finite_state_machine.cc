@@ -524,10 +524,12 @@ absl::Status FsmBuilder::Build() {
   DataType* type =
       file_->Make<BitVectorType>(SourceInfo(), /*width=*/state_bits,
                                  /*is_signed=*/false);
-  LogicRef* state =
-      module_->AddReg("state", type, SourceInfo(), initial_state_value);
-  LogicRef* state_next =
-      module_->AddReg("state_next", type, SourceInfo(), initial_state_value);
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * state,
+      module_->AddReg("state", type, SourceInfo(), initial_state_value));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * state_next,
+      module_->AddReg("state_next", type, SourceInfo(), initial_state_value));
   for (RegDef* def : defs_) {
     module_->AddModuleMember(def);
   }

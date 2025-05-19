@@ -137,6 +137,33 @@ std::string CombineKindAndDataType(std::string_view kind_str,
   return result;
 }
 
+// Helper to sort and join defined names for error messages.
+static std::string DefinedNamesToString(
+    const absl::flat_hash_set<std::string>& names) {
+  std::vector<std::string> sorted_names(names.begin(), names.end());
+  std::sort(sorted_names.begin(), sorted_names.end());
+  return absl::StrJoin(sorted_names, ", ");
+}
+
+// Helper to add a name to the set and return a status if already defined.
+static absl::Status NoteDefined(absl::flat_hash_set<std::string>* defined_names,
+                                std::string_view name, std::string_view kind) {
+  VLOG(3) << absl::StreamFormat("Noting defined: `%s` kind: %s defined: %s",
+                                name, kind,
+                                DefinedNamesToString(*defined_names));
+  if (auto it = defined_names->find(name); it != defined_names->end()) {
+    return absl::FailedPreconditionError(
+        absl::StrFormat("Attempted to declare %s with name '%s' multiple times "
+                        "in the same module. Already defined: [%s]",
+                        kind, name, DefinedNamesToString(*defined_names)));
+  } else {
+    VLOG(3) << absl::StreamFormat("Successfully defined name `%s` with kind %s",
+                                  name, kind);
+    defined_names->insert(std::string(name));
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 int Precedence(OperatorKind kind) {
@@ -622,8 +649,8 @@ LogicRef* Module::AddPortDef(ModulePortDirection direction, Def* def,
   return file()->Make<LogicRef>(loc, def);
 }
 
-LogicRef* Module::AddInput(std::string_view name, DataType* type,
-                           const SourceInfo& loc) {
+LogicRef* Module::AddInputInternal(std::string_view name, DataType* type,
+                                   const SourceInfo& loc) {
   return AddPortDef(
       ModulePortDirection::kInput,
       type->IsUserDefined()
@@ -632,8 +659,8 @@ LogicRef* Module::AddInput(std::string_view name, DataType* type,
       loc);
 }
 
-LogicRef* Module::AddOutput(std::string_view name, DataType* type,
-                            const SourceInfo& loc) {
+LogicRef* Module::AddOutputInternal(std::string_view name, DataType* type,
+                                    const SourceInfo& loc) {
   return AddPortDef(
       ModulePortDirection::kOutput,
       type->IsUserDefined()
@@ -642,9 +669,23 @@ LogicRef* Module::AddOutput(std::string_view name, DataType* type,
       loc);
 }
 
-LogicRef* Module::AddReg(std::string_view name, DataType* type,
-                         const SourceInfo& loc, Expression* init,
-                         ModuleSection* section) {
+absl::StatusOr<LogicRef*> Module::AddInput(std::string_view name,
+                                           DataType* type,
+                                           const SourceInfo& loc) {
+  XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "input"));
+  return AddInputInternal(name, type, loc);
+}
+
+absl::StatusOr<LogicRef*> Module::AddOutput(std::string_view name,
+                                            DataType* type,
+                                            const SourceInfo& loc) {
+  XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "output"));
+  return AddOutputInternal(name, type, loc);
+}
+
+LogicRef* Module::AddRegInternal(std::string_view name, DataType* type,
+                                 const SourceInfo& loc, Expression* init,
+                                 ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
   }
@@ -652,17 +693,33 @@ LogicRef* Module::AddReg(std::string_view name, DataType* type,
                                 section->Add<RegDef>(loc, name, type, init));
 }
 
-LogicRef* Module::AddWire(std::string_view name, DataType* type,
-                          const SourceInfo& loc, ModuleSection* section) {
+absl::StatusOr<LogicRef*> Module::AddReg(std::string_view name, DataType* type,
+                                         const SourceInfo& loc,
+                                         Expression* init,
+                                         ModuleSection* section) {
+  XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "reg"));
+  return AddRegInternal(name, type, loc, init, section);
+}
+
+LogicRef* Module::AddWireInternal(std::string_view name, DataType* type,
+                                  const SourceInfo& loc,
+                                  ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
   }
   return file()->Make<LogicRef>(loc, section->Add<WireDef>(loc, name, type));
 }
 
-LogicRef* Module::AddWire(std::string_view name, DataType* type,
-                          Expression* init, const SourceInfo& loc,
-                          ModuleSection* section) {
+absl::StatusOr<LogicRef*> Module::AddWire(std::string_view name, DataType* type,
+                                          const SourceInfo& loc,
+                                          ModuleSection* section) {
+  XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "wire"));
+  return AddWireInternal(name, type, loc, section);
+}
+
+LogicRef* Module::AddWireInternal(std::string_view name, DataType* type,
+                                  Expression* init, const SourceInfo& loc,
+                                  ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
   }
@@ -670,20 +727,44 @@ LogicRef* Module::AddWire(std::string_view name, DataType* type,
                                 section->Add<WireDef>(loc, name, type, init));
 }
 
-LogicRef* Module::AddInteger(std::string_view name, const SourceInfo& loc,
-                             ModuleSection* section) {
+absl::StatusOr<LogicRef*> Module::AddWire(std::string_view name, DataType* type,
+                                          Expression* init,
+                                          const SourceInfo& loc,
+                                          ModuleSection* section) {
+  XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "wire"));
+  return AddWireInternal(name, type, init, loc, section);
+}
+
+LogicRef* Module::AddIntegerInternal(std::string_view name,
+                                     const SourceInfo& loc,
+                                     ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
   }
   return file()->Make<LogicRef>(loc, section->Add<IntegerDef>(loc, name));
 }
 
-LogicRef* Module::AddGenvar(std::string_view name, const SourceInfo& loc,
-                            ModuleSection* section) {
+absl::StatusOr<LogicRef*> Module::AddInteger(std::string_view name,
+                                             const SourceInfo& loc,
+                                             ModuleSection* section) {
+  XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "integer"));
+  return AddIntegerInternal(name, loc, section);
+}
+
+LogicRef* Module::AddGenvarInternal(std::string_view name,
+                                    const SourceInfo& loc,
+                                    ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
   }
   return file()->Make<LogicRef>(loc, section->Add<GenvarDef>(loc, name));
+}
+
+absl::StatusOr<LogicRef*> Module::AddGenvar(std::string_view name,
+                                            const SourceInfo& loc,
+                                            ModuleSection* section) {
+  XLS_RETURN_IF_ERROR(NoteDefined(&defined_names_, name, "genvar"));
+  return AddGenvarInternal(name, loc, section);
 }
 
 ParameterRef* Module::AddParameter(std::string_view name, Expression* rhs,

@@ -647,29 +647,33 @@ a + c : struct_t
 }
 
 TEST_F(InferVastTypesTest, UnpackedArray) {
-  // reg[15:0] a[2][4];
-  // reg[15:0] b[2][4];
-  // parameter logic [15:0] c[2][4] = a;
-  // a == b
+  // reg[15:0] x[2][4];
+  // reg[15:0] y[2][4];
+  // parameter logic [15:0] z[2][4] = x;
+  // x == y
   // There's not much you can do with unpacked arrays that is valid. We
   // basically want to make sure we don't crash on them.
-  LogicRef* a = module_->AddReg(
-      "a", file_.UnpackedArrayType(16, {2, 4}, NextLoc()), NextLoc());
-  LogicRef* b = module_->AddReg(
-      "b", file_.UnpackedArrayType(16, {2, 4}, NextLoc()), NextLoc());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * x,
+      module_->AddReg("x", file_.UnpackedArrayType(16, {2, 4}, NextLoc()),
+                      NextLoc()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * y,
+      module_->AddReg("y", file_.UnpackedArrayType(16, {2, 4}, NextLoc()),
+                      NextLoc()));
   module_->AddParameter(
-      file_.Make<Def>(NextLoc(), "c", DataKind::kLogic,
+      file_.Make<Def>(NextLoc(), "z", DataKind::kLogic,
                       file_.UnpackedArrayType(16, {2, 4}, NextLoc())),
-      a, NextLoc());
+      x, NextLoc());
 
-  // The `a` ref in the init of `c`.
-  EXPECT_EQ(InferTypesToString(), "a : [15:0] [2][4]");
+  // The `x` ref in the init of `z`.
+  EXPECT_EQ(InferTypesToString(), "x : [15:0] [2][4]");
 
-  EXPECT_EQ(InferTypesToString(file_.Equals(a, b, NextLoc())),
+  EXPECT_EQ(InferTypesToString(file_.Equals(x, y, NextLoc())),
             R"(
-a : [15:0] [2][4]
-b : [15:0] [2][4]
-a == b : logic
+x : [15:0] [2][4]
+y : [15:0] [2][4]
+x == y : logic
 )");
 }
 

@@ -183,6 +183,7 @@ cc_library(
     deps = [
         ":io_strategy",
         "//xls/codegen/vast",
+        "//xls/common/status:status_macros",
         "//xls/ir:source_location",
         "//xls/simulation:verilog_include",
         "@com_google_absl//absl/status",

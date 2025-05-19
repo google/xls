@@ -32,6 +32,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/codegen/vast/vast.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/source_location.h"
@@ -535,15 +536,17 @@ void ModuleTestbenchThread::DeclareInternalSignal(
   internal_signals_.push_back(signal);
 }
 
-void ModuleTestbenchThread::EmitInto(
+absl::Status ModuleTestbenchThread::EmitInto(
     Module* m, LogicRef* clk,
     absl::flat_hash_map<std::string, LogicRef*>* signal_refs,
     const absl::flat_hash_map<std::string, VastStreamEmitter>&
         stream_emitters) {
   for (const TestbenchSignal& signal : internal_signals_) {
-    (*signal_refs)[signal.name] = m->AddReg(
-        signal.name, m->file()->BitVectorType(signal.width, SourceInfo()),
-        SourceInfo(), /*init=*/nullptr);
+    XLS_ASSIGN_OR_RETURN(
+        (*signal_refs)[signal.name],
+        m->AddReg(signal.name,
+                  m->file()->BitVectorType(signal.width, SourceInfo()),
+                  SourceInfo(), /*init=*/nullptr));
   }
 
   StructuredProcedure* procedure = m->Add<Initial>(SourceInfo());
@@ -603,6 +606,7 @@ void ModuleTestbenchThread::EmitInto(
         SourceInfo(), (*signal_refs)[done_signal_->name],
         procedure->file()->Literal(UBits(1, 1), SourceInfo()));
   }
+  return absl::OkStatus();
 }
 
 void ModuleTestbenchThread::CheckCanDriveSignal(std::string_view signal_name) {

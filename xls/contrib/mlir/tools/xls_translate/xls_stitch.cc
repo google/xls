@@ -116,9 +116,9 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
   vast::DataType* i1 = f.BitVectorType(1, SourceInfo());
 
   vast::LogicRef* clk =
-      top->AddInput(options.clock_signal_name, i1, SourceInfo());
+      top->AddInput(options.clock_signal_name, i1, SourceInfo()).value();
   vast::LogicRef* rst =
-      top->AddInput(options.reset_signal_name, i1, SourceInfo());
+      top->AddInput(options.reset_signal_name, i1, SourceInfo()).value();
 
   DenseMap<ChanOp, ChannelLogicRefs> channelRefs;
   auto result = op->walk([&](ChanOp chan) {
@@ -149,20 +149,20 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
     ChannelLogicRefs refs;
     if (chan.getSendSupported() && chan.getRecvSupported()) {
       // Interior port; this becomes a wire.
-      refs.data = top->AddWire(names.data, dataType, SourceInfo());
-      refs.ready = top->AddWire(names.ready, i1, SourceInfo());
-      refs.valid = top->AddWire(names.valid, i1, SourceInfo());
+      refs.data = top->AddWire(names.data, dataType, SourceInfo()).value();
+      refs.ready = top->AddWire(names.ready, i1, SourceInfo()).value();
+      refs.valid = top->AddWire(names.valid, i1, SourceInfo()).value();
     } else if (chan.getSendSupported()) {
       // Output port; this becomes an output port.
-      refs.data = top->AddOutput(names.data, dataType, SourceInfo());
-      refs.ready = top->AddInput(names.ready, i1, SourceInfo());
-      refs.valid = top->AddOutput(names.valid, i1, SourceInfo());
+      refs.data = top->AddOutput(names.data, dataType, SourceInfo()).value();
+      refs.ready = top->AddInput(names.ready, i1, SourceInfo()).value();
+      refs.valid = top->AddOutput(names.valid, i1, SourceInfo()).value();
     } else {
       assert(chan.getRecvSupported());
       // Input port; this becomes an input port.
-      refs.data = top->AddInput(names.data, dataType, SourceInfo());
-      refs.ready = top->AddOutput(names.ready, i1, SourceInfo());
-      refs.valid = top->AddInput(names.valid, i1, SourceInfo());
+      refs.data = top->AddInput(names.data, dataType, SourceInfo()).value();
+      refs.ready = top->AddOutput(names.ready, i1, SourceInfo()).value();
+      refs.valid = top->AddInput(names.valid, i1, SourceInfo()).value();
     }
     channelRefs[chan] = refs;
     return mlir::WalkResult::advance();

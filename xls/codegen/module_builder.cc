@@ -327,12 +327,12 @@ ModuleBuilder::ModuleBuilder(std::string_view name, VerilogFile* file,
   NewDeclarationAndAssignmentSections();
 
   if (clk_name.has_value()) {
-    clk_ = AddInputPort(clk_name.value(), /*bit_count=*/1);
+    clk_ = AddInputPort(clk_name.value(), /*bit_count=*/1).value();
   }
 
   if (rst_proto.has_value()) {
     rst_ = Reset();
-    rst_->signal = AddInputPort(rst_proto->name(), /*bit_count=*/1);
+    rst_->signal = AddInputPort(rst_proto->name(), /*bit_count=*/1).value();
     rst_->asynchronous = rst_proto->asynchronous();
     rst_->active_low = rst_proto->active_low();
   }
@@ -390,19 +390,22 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
         "Codegen packs arrays at port boundaries, see "
         "https://github.com/google/xls/issues/1637.");
   }
-  LogicRef* port =
-      AddInputPort(SanitizeIdentifier(name), type->GetFlatBitCount(), sv_type);
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * port,
+      AddInputPort(SanitizeIdentifier(name), type->GetFlatBitCount(), sv_type));
   if (!type->IsArray()) {
     return port;
   }
   // All inputs are flattened so unflatten arrays with a sequence of
   // assignments.
   ArrayType* array_type = type->AsArrayOrDie();
-  LogicRef* ar = module_->AddWire(
-      absl::StrCat(SanitizeIdentifier(name), "_unflattened"),
-      file_->UnpackedArrayType(NestedElementWidth(array_type),
-                               NestedArrayBounds(array_type), SourceInfo()),
-      SourceInfo(), input_section());
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * ar,
+      module_->AddWire(
+          absl::StrCat(SanitizeIdentifier(name), "_unflattened"),
+          file_->UnpackedArrayType(NestedElementWidth(array_type),
+                                   NestedArrayBounds(array_type), SourceInfo()),
+          SourceInfo(), input_section()));
   XLS_RETURN_IF_ERROR(AssignFromSlice(
       ar, port, type->AsArrayOrDie(), 0, [&](Expression* lhs, Expression* rhs) {
         input_section()->Add<ContinuousAssignment>(SourceInfo(), lhs, rhs);
@@ -410,23 +413,28 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
   return ar;
 }
 
-LogicRef* ModuleBuilder::AddInputPort(std::string_view name, int64_t bit_count,
-                                      std::optional<std::string_view> sv_type) {
+absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
+    std::string_view name, int64_t bit_count,
+    std::optional<std::string_view> sv_type) {
   auto* raw_bits_type = file_->BitVectorType(bit_count, SourceInfo());
   if (sv_type && options_.emit_sv_types()) {
-    LogicRef* port = module_->AddInput(
-        SanitizeIdentifier(name),
-        file_->ExternType(raw_bits_type, *sv_type, SourceInfo()), SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * port,
+        module_->AddInput(
+            SanitizeIdentifier(name),
+            file_->ExternType(raw_bits_type, *sv_type, SourceInfo()),
+            SourceInfo()));
     if (!sv_type.has_value()) {
       return port;
     }
     // If a SystemVerilog type is specified then create a flattened copy of the
     // value for use inside the module because bit indexing into structs can
     // cause lint warnings.
-    LogicRef* wire =
+    XLS_ASSIGN_OR_RETURN(
+        LogicRef * wire,
         module_->AddWire(absl::StrCat(SanitizeIdentifier(name), "_flattened"),
                          file_->BitVectorType(bit_count, SourceInfo()),
-                         SourceInfo(), input_section());
+                         SourceInfo(), input_section()));
     input_section()->Add<ContinuousAssignment>(SourceInfo(), wire, port);
     return wire;
   }
@@ -446,12 +454,15 @@ absl::Status ModuleBuilder::AddOutputPort(
           "Codegen packs arrays at port boundaries, see "
           "https://github.com/google/xls/issues/1637.");
     }
-    output_port = module_->AddOutput(
-        SanitizeIdentifier(name),
-        file_->ExternType(bits_type, *sv_type, SourceInfo()), SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        output_port,
+        module_->AddOutput(SanitizeIdentifier(name),
+                           file_->ExternType(bits_type, *sv_type, SourceInfo()),
+                           SourceInfo()));
   } else {
-    output_port =
-        module_->AddOutput(SanitizeIdentifier(name), bits_type, SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        output_port,
+        module_->AddOutput(SanitizeIdentifier(name), bits_type, SourceInfo()));
   }
 
   if (type->IsArray()) {
@@ -474,12 +485,15 @@ absl::Status ModuleBuilder::AddOutputPort(
   LogicRef* output_port;
   DataType* bits_type = file_->BitVectorType(bit_count, SourceInfo());
   if (sv_type && options_.emit_sv_types()) {
-    output_port = module_->AddOutput(
-        SanitizeIdentifier(name),
-        file_->ExternType(bits_type, *sv_type, SourceInfo()), SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        output_port,
+        module_->AddOutput(SanitizeIdentifier(name),
+                           file_->ExternType(bits_type, *sv_type, SourceInfo()),
+                           SourceInfo()));
   } else {
-    output_port =
-        module_->AddOutput(SanitizeIdentifier(name), bits_type, SourceInfo());
+    XLS_ASSIGN_OR_RETURN(
+        output_port,
+        module_->AddOutput(SanitizeIdentifier(name), bits_type, SourceInfo()));
   }
   output_section()->Add<ContinuousAssignment>(SourceInfo(), output_port, value);
   return absl::OkStatus();
@@ -506,8 +520,9 @@ absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
     return module_->AddWire(SanitizeIdentifier(name), data_type, rhs,
                             SourceInfo(), constants_section());
   }
-  LogicRef* ref = module_->AddWire(SanitizeIdentifier(name), data_type,
-                                   SourceInfo(), constants_section());
+  XLS_ASSIGN_OR_RETURN(LogicRef * ref,
+                       module_->AddWire(SanitizeIdentifier(name), data_type,
+                                        SourceInfo(), constants_section()));
   XLS_RETURN_IF_ERROR(
       AddAssignmentFromValue(ref, value, [&](Expression* lhs, Expression* rhs) {
         constants_section()->Add<ContinuousAssignment>(SourceInfo(), lhs, rhs);
@@ -515,7 +530,8 @@ absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
   return ref;
 }
 
-LogicRef* ModuleBuilder::DeclareVariable(std::string_view name, Type* type) {
+absl::StatusOr<LogicRef*> ModuleBuilder::DeclareVariable(std::string_view name,
+                                                         Type* type) {
   DataType* data_type;
   if (type->IsArray()) {
     ArrayType* array_type = type->AsArrayOrDie();
@@ -529,8 +545,8 @@ LogicRef* ModuleBuilder::DeclareVariable(std::string_view name, Type* type) {
                           declaration_section());
 }
 
-LogicRef* ModuleBuilder::DeclareVariable(std::string_view name,
-                                         int64_t bit_count) {
+absl::StatusOr<LogicRef*> ModuleBuilder::DeclareVariable(std::string_view name,
+                                                         int64_t bit_count) {
   return module_->AddWire(SanitizeIdentifier(name),
                           file_->BitVectorType(bit_count, SourceInfo()),
                           SourceInfo(), declaration_section());
@@ -606,9 +622,10 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate1D(
   std::string genvar_name = absl::StrCat(op_name_sanitized, "__index");
   std::string generate_loop_name = absl::StrCat(op_name_sanitized, "__gen");
 
-  auto* genvar = module_->AddGenvar(genvar_name, SourceInfo());
+  XLS_ASSIGN_OR_RETURN(auto* genvar,
+                       module_->AddGenvar(genvar_name, SourceInfo()));
 
-  auto* generate_loop = module_->Add<GenerateLoop>(
+  GenerateLoop* generate_loop = module_->Add<GenerateLoop>(
       SourceInfo(), genvar, file_->PlainLiteral(0, SourceInfo()),
       file_->PlainLiteral(array_type->size(), SourceInfo()),
       generate_loop_name);
@@ -787,7 +804,7 @@ bool ModuleBuilder::CanEmitAsserts() const {
 
 absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
     std::string_view name, Node* node, absl::Span<Expression* const> inputs) {
-  LogicRef* ref = DeclareVariable(name, node->GetType());
+  XLS_ASSIGN_OR_RETURN(LogicRef * ref, DeclareVariable(name, node->GetType()));
 
   // TODO(meheff): Arrays should not be special cased here. Instead each op
   // should be expressed using a generator which takes an span of input
@@ -1263,7 +1280,8 @@ absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
         gate->GetType()->ToString()));
   }
 
-  LogicRef* ref = DeclareVariable(gate->GetName(), gate->GetType());
+  XLS_ASSIGN_OR_RETURN(LogicRef * ref,
+                       DeclareVariable(gate->GetName(), gate->GetType()));
 
   // Emit the gate as an AND of the (potentially replicated) condition and the
   // data. For example:
@@ -1326,17 +1344,19 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     // Currently, an array register requires SystemVerilog because there is an
     // array assignment in the always flop block.
     ArrayType* array_type = type->AsArrayOrDie();
-    reg = module_->AddReg(
-        SanitizeIdentifier(name),
-        file_->UnpackedArrayType(NestedElementWidth(array_type),
+    XLS_ASSIGN_OR_RETURN(
+        reg, module_->AddReg(SanitizeIdentifier(name),
+                             file_->UnpackedArrayType(
+                                 NestedElementWidth(array_type),
                                  NestedArrayBounds(array_type), SourceInfo()),
-        SourceInfo(),
-        /*init=*/nullptr, declaration_section());
+                             SourceInfo(),
+                             /*init=*/nullptr, declaration_section()));
   } else {
-    reg = module_->AddReg(
-        SanitizeIdentifier(name),
-        file_->BitVectorType(type->GetFlatBitCount(), SourceInfo()),
-        SourceInfo(), /*init=*/nullptr, declaration_section());
+    XLS_ASSIGN_OR_RETURN(
+        reg, module_->AddReg(
+                 SanitizeIdentifier(name),
+                 file_->BitVectorType(type->GetFlatBitCount(), SourceInfo()),
+                 SourceInfo(), /*init=*/nullptr, declaration_section()));
   }
   return Register{.ref = reg,
                   .next = next,
@@ -1356,10 +1376,12 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
         "Block has no reset signal, but register has reset value.");
   }
 
-  return Register{.ref = module_->AddReg(
-                      SanitizeIdentifier(name),
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * ref,
+      module_->AddReg(SanitizeIdentifier(name),
                       file_->BitVectorType(bit_count, SourceInfo()),
-                      SourceInfo(), /*init=*/nullptr, declaration_section()),
+                      SourceInfo(), /*init=*/nullptr, declaration_section()));
+  return Register{.ref = ref,
                   .next = next,
                   .reset_value = reset_value,
                   .load_enable = nullptr,

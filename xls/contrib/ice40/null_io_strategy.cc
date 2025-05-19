@@ -16,6 +16,7 @@
 
 #include "absl/status/status.h"
 #include "xls/codegen/vast/vast.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/source_location.h"
 
 namespace xls {
@@ -25,13 +26,17 @@ absl::Status NullIOStrategy::AddTopLevelDependencies(LogicRef* clk, Reset reset,
                                                      Module* m) {
   DataType* u1 = m->file()->ScalarType(SourceInfo());
   DataType* u8 = m->file()->BitVectorType(8, SourceInfo());
-  byte_in_ = m->AddInput("byte_in", u8, SourceInfo());
-  byte_in_ready_ = m->AddOutput("byte_in_ready", u1, SourceInfo());
-  byte_in_valid_ = m->AddInput("byte_in_valid", u1, SourceInfo());
+  XLS_ASSIGN_OR_RETURN(byte_in_, m->AddInput("byte_in", u8, SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(byte_in_ready_,
+                       m->AddOutput("byte_in_ready", u1, SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(byte_in_valid_,
+                       m->AddInput("byte_in_valid", u1, SourceInfo()));
 
-  byte_out_ = m->AddOutput("byte_out", u8, SourceInfo());
-  byte_out_ready_ = m->AddInput("byte_out_ready", u1, SourceInfo());
-  byte_out_valid_ = m->AddOutput("byte_out_valid", u1, SourceInfo());
+  XLS_ASSIGN_OR_RETURN(byte_out_, m->AddOutput("byte_out", u8, SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(byte_out_ready_,
+                       m->AddInput("byte_out_ready", u1, SourceInfo()));
+  XLS_ASSIGN_OR_RETURN(byte_out_valid_,
+                       m->AddOutput("byte_out_valid", u1, SourceInfo()));
 
   return absl::OkStatus();
 }

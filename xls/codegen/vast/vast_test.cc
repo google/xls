@@ -334,62 +334,80 @@ TEST_P(VastTest, DataTypes) {
 TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
   VerilogFile f(GetFileType());
   Module* module = f.Make<Module>(SourceInfo(), "my_module");
-  LogicRef* a_ref =
-      module->AddInput("a", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* b_ref =
-      module->AddOutput("b", f.BitVectorType(4, SourceInfo()), SourceInfo());
-  LogicRef* array = module->AddInput(
-      "array", f.PackedArrayType(8, {42, 3}, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a_ref,
+      module->AddInput("a", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b_ref,
+      module->AddOutput("b", f.BitVectorType(4, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * array,
+      module->AddInput("array", f.PackedArrayType(8, {42, 3}, SourceInfo()),
+                       SourceInfo()));
 
   // Define a bunch of random regs.
-  LogicRef* r1 =
-      module->AddReg("r1", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* r2 =
-      module->AddReg("r2", f.BitVectorType(2, SourceInfo()), SourceInfo());
-  LogicRef* r1_init = module->AddReg(
-      "r1_init",
-      f.Make<BitVectorType>(SourceInfo(), f.PlainLiteral(1, SourceInfo()),
-                            /*is_signed=*/false),
-      SourceInfo(), f.PlainLiteral(1, SourceInfo()));
-  LogicRef* s =
-      module->AddReg("s", f.BitVectorType(42, SourceInfo()), SourceInfo());
-  LogicRef* s_init =
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * r1,
+      module->AddReg("r1", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * r2,
+      module->AddReg("r2", f.BitVectorType(2, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * r1_init,
+      module->AddReg(
+          "r1_init",
+          f.Make<BitVectorType>(SourceInfo(), f.PlainLiteral(1, SourceInfo()),
+                                /*is_signed=*/false),
+          SourceInfo(), f.PlainLiteral(1, SourceInfo())));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * s,
+      module->AddReg("s", f.BitVectorType(42, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * s_init,
       module->AddReg("s_init", f.BitVectorType(42, SourceInfo()), SourceInfo(),
-                     f.Literal(123, 42, SourceInfo()));
-  LogicRef* t = module->AddReg(
-      "t",
-      f.Make<PackedArrayType>(
-          SourceInfo(),
-          /*width=*/f.PlainLiteral(42, SourceInfo()), /*packed_dims=*/
-          std::vector<Expression*>(
-              {f.PlainLiteral(8, SourceInfo()),
-               f.Add(f.PlainLiteral(8, SourceInfo()),
-                     f.PlainLiteral(42, SourceInfo()), SourceInfo())}),
-          /*is_signed=*/false),
-      SourceInfo());
-  LogicRef* signed_foo = module->AddReg(
-      "signed_foo", f.BitVectorType(8, SourceInfo(), /*is_signed=*/true),
-      SourceInfo());
+                     f.Literal(123, 42, SourceInfo())));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * t,
+      module->AddReg(
+          "t",
+          f.Make<PackedArrayType>(
+              SourceInfo(),
+              /*width=*/f.PlainLiteral(42, SourceInfo()), /*packed_dims=*/
+              std::vector<Expression*>(
+                  {f.PlainLiteral(8, SourceInfo()),
+                   f.Add(f.PlainLiteral(8, SourceInfo()),
+                         f.PlainLiteral(42, SourceInfo()), SourceInfo())}),
+              /*is_signed=*/false),
+          SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * signed_foo,
+      module->AddReg("signed_foo",
+                     f.BitVectorType(8, SourceInfo(), /*is_signed=*/true),
+                     SourceInfo()));
 
   // Define a bunch of random wires.
-  LogicRef* x =
-      module->AddWire("x", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* y =
-      module->AddWire("y", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* z = module->AddWire(
-      "z",
-      f.Make<PackedArrayType>(
-          SourceInfo(),
-          f.Mul(f.PlainLiteral(3, SourceInfo()),
-                f.PlainLiteral(3, SourceInfo()), SourceInfo()),
-          /*packed_dims=*/
-          std::vector<Expression*>(
-              {f.PlainLiteral(8, SourceInfo()),
-               f.Add(f.PlainLiteral(8, SourceInfo()),
-                     f.PlainLiteral(42, SourceInfo()), SourceInfo())}),
-          /*is_signed=*/true),
-      SourceInfo());
-  LogicRef* i = module->AddInteger("i", SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * x,
+      module->AddWire("x", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * y,
+      module->AddWire("y", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * z,
+      module->AddWire(
+          "z",
+          f.Make<PackedArrayType>(
+              SourceInfo(),
+              f.Mul(f.PlainLiteral(3, SourceInfo()),
+                    f.PlainLiteral(3, SourceInfo()), SourceInfo()),
+              /*packed_dims=*/
+              std::vector<Expression*>(
+                  {f.PlainLiteral(8, SourceInfo()),
+                   f.Add(f.PlainLiteral(8, SourceInfo()),
+                         f.PlainLiteral(42, SourceInfo()), SourceInfo())}),
+              /*is_signed=*/true),
+          SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * i, module->AddInteger("i", SourceInfo()));
 
   VastNode* assign = module->Add<ContinuousAssignment>(
       SourceInfo(), b_ref,
@@ -452,10 +470,14 @@ endmodule)");
 TEST_P(VastTest, ModuleWithUnpackedArrayRegWithSize) {
   VerilogFile f(GetFileType());
   Module* module = f.Make<Module>(SourceInfo(), "my_module");
-  LogicRef* out_ref =
-      module->AddOutput("out", f.BitVectorType(64, SourceInfo()), SourceInfo());
-  LogicRef* arr_ref = module->AddReg(
-      "arr", f.UnpackedArrayType(4, {8, 64}, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out_ref,
+      module->AddOutput("out", f.BitVectorType(64, SourceInfo()),
+                        SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * arr_ref,
+      module->AddReg("arr", f.UnpackedArrayType(4, {8, 64}, SourceInfo()),
+                     SourceInfo()));
   module->Add<ContinuousAssignment>(
       SourceInfo(), out_ref,
       f.Index(f.Index(arr_ref, 2, SourceInfo()), 1, SourceInfo()));
@@ -481,8 +503,10 @@ endmodule)");
 TEST_P(VastTest, ModuleWithUnpackedArrayRegWithPackedDims) {
   VerilogFile f(GetFileType());
   Module* module = f.Make<Module>(SourceInfo(), "my_module");
-  LogicRef* out_ref =
-      module->AddOutput("out", f.BitVectorType(64, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out_ref,
+      module->AddOutput("out", f.BitVectorType(64, SourceInfo()),
+                        SourceInfo()));
   DataType* element_type = f.Make<PackedArrayType>(
       SourceInfo(),
       /*width=*/f.PlainLiteral(4, SourceInfo()),
@@ -495,7 +519,8 @@ TEST_P(VastTest, ModuleWithUnpackedArrayRegWithPackedDims) {
       /*unpacked_dims=*/
       std::vector<Expression*>(
           {f.PlainLiteral(8, SourceInfo()), f.PlainLiteral(64, SourceInfo())}));
-  LogicRef* arr_ref = module->AddReg("arr", array_type, SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * arr_ref,
+                           module->AddReg("arr", array_type, SourceInfo()));
   module->Add<ContinuousAssignment>(
       SourceInfo(), out_ref,
       f.Index(f.Index(arr_ref, 2, SourceInfo()), 1, SourceInfo()));
@@ -521,11 +546,13 @@ endmodule)");
 TEST_P(VastTest, ModuleWithUserDataTypes) {
   VerilogFile f(GetFileType());
   Module* module = f.Make<Module>(SourceInfo(), "my_module");
-  LogicRef* out_ref = module->AddOutput(
-      "out",
-      f.Make<ExternType>(SourceInfo(), f.BitVectorType(64, SourceInfo()),
-                         "foobar"),
-      SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out_ref,
+      module->AddOutput(
+          "out",
+          f.Make<ExternType>(SourceInfo(), f.BitVectorType(64, SourceInfo()),
+                             "foobar"),
+          SourceInfo()));
   module->Add<ContinuousAssignment>(SourceInfo(), out_ref,
                                     f.Literal(UBits(32, 64), SourceInfo()));
   if (UseSystemVerilog()) {
@@ -674,9 +701,15 @@ TEST_P(VastTest, Literals) {
 TEST_P(VastTest, Precedence) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("precedence", SourceInfo());
-  auto a = m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  auto b = m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  auto c = m->AddReg("c", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * c,
+      m->AddReg("c", f.BitVectorType(8, SourceInfo()), SourceInfo()));
   EXPECT_EQ("-a", f.Negate(a, SourceInfo())->Emit(nullptr));
   // Though technically not required by precedence the Verilog consumers are
   // happier if nested unary are wrapped in parens.
@@ -714,9 +747,15 @@ TEST_P(VastTest, Precedence) {
 TEST_P(VastTest, UnaryReductionOperations) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("precedence", SourceInfo());
-  auto a = m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  auto b = m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  auto c = m->AddReg("c", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * c,
+      m->AddReg("c", f.BitVectorType(8, SourceInfo()), SourceInfo()));
   // Verify reduction operations are parentheses-wrapped when inside of binary
   // infix expressions.
   EXPECT_EQ("|a", f.OrReduce(a, SourceInfo())->Emit(nullptr));
@@ -733,8 +772,12 @@ TEST_P(VastTest, UnaryReductionOperations) {
 TEST_P(VastTest, NestedUnaryOps) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("NestedUnaryOps", SourceInfo());
-  auto a = m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  auto b = m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo()));
   EXPECT_EQ("-a", f.Negate(a, SourceInfo())->Emit(nullptr));
   EXPECT_EQ(
       "-(~a)",
@@ -763,12 +806,15 @@ TEST_P(VastTest, ReturnStatement) {
 TEST_P(VastTest, Case) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* thing_next =
-      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* thing =
-      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* my_state =
-      m->AddWire("my_state", f.BitVectorType(2, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing_next,
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing,
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * my_state,
+      m->AddWire("my_state", f.BitVectorType(2, SourceInfo()), SourceInfo()));
   AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
   Case* case_statement = ac->statements()->Add<Case>(SourceInfo(), my_state);
   StatementBlock* one_block =
@@ -792,12 +838,15 @@ endcase)");
 TEST_P(VastTest, Casez) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* thing_next =
-      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* thing =
-      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* my_state =
-      m->AddWire("my_state", f.BitVectorType(2, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing_next,
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing,
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * my_state,
+      m->AddWire("my_state", f.BitVectorType(2, SourceInfo()), SourceInfo()));
   AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
   Case* case_statement = ac->statements()->Add<Case>(
       SourceInfo(), my_state, CaseType(CaseKeyword::kCasez));
@@ -822,12 +871,15 @@ endcase)");
 TEST_P(VastTest, CaseWithHighZ) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* thing_next =
-      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* thing =
-      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* my_state =
-      m->AddWire("my_state", f.BitVectorType(2, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing_next,
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing,
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * my_state,
+      m->AddWire("my_state", f.BitVectorType(2, SourceInfo()), SourceInfo()));
   AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
   Case* case_statement = ac->statements()->Add<Case>(SourceInfo(), my_state);
   FourValueBinaryLiteral* msb_set = f.Make<FourValueBinaryLiteral>(
@@ -859,12 +911,15 @@ endcase)");
 TEST_P(VastTest, StatementIfdefAndIfndefInCase) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* thing_next =
-      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* thing =
-      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* my_state =
-      m->AddWire("my_state", f.BitVectorType(2, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing_next,
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing,
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * my_state,
+      m->AddWire("my_state", f.BitVectorType(2, SourceInfo()), SourceInfo()));
   AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
   Case* case_statement = ac->statements()->Add<Case>(SourceInfo(), my_state);
   FourValueBinaryLiteral* msb_set = f.Make<FourValueBinaryLiteral>(
@@ -908,10 +963,12 @@ endcase)");
 TEST_P(VastTest, StatementIfdefWithElsif) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* thing_next =
-      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* thing =
-      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing_next,
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing,
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo()));
   Initial* initial = m->Add<Initial>(SourceInfo());
   StatementConditionalDirective* ifdef =
       initial->statements()->Add<StatementConditionalDirective>(
@@ -935,10 +992,12 @@ end)");
 TEST_P(VastTest, StatementIfdefWithElse) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* thing_next =
-      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* thing =
-      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing_next,
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing,
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo()));
   Initial* initial = m->Add<Initial>(SourceInfo());
   StatementConditionalDirective* ifdef =
       initial->statements()->Add<StatementConditionalDirective>(
@@ -962,10 +1021,12 @@ end)");
 TEST_P(VastTest, StatementIfdefWithElsifAndElse) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* thing_next =
-      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* thing =
-      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing_next,
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing,
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo()));
   Initial* initial = m->Add<Initial>(SourceInfo());
   StatementConditionalDirective* ifdef =
       initial->statements()->Add<StatementConditionalDirective>(
@@ -993,8 +1054,9 @@ end)");
 TEST_P(VastTest, ModuleIfdefWithElsif) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* thing =
-      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing,
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo()));
 
   ModuleConditionalDirective* ifdef = m->Add<ModuleConditionalDirective>(
       SourceInfo(), ConditionalDirectiveKind::kIfdef, "SYNTHESIS");
@@ -1018,8 +1080,9 @@ endmodule)");
 TEST_P(VastTest, ModuleIfdefWithElse) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* thing =
-      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * thing,
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo()));
 
   ModuleConditionalDirective* ifdef = m->Add<ModuleConditionalDirective>(
       SourceInfo(), ConditionalDirectiveKind::kIfdef, "SYNTHESIS");
@@ -1050,15 +1113,18 @@ TEST_P(VastTest, AlwaysFlopTestNoReset) {
 
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* clk =
-      m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo()));
   AlwaysFlop* af = f.Make<AlwaysFlop>(SourceInfo(), clk);
   for (const std::string& signal_name : fsm_signals) {
-    LogicRef* signal =
-        m->AddReg(signal_name, f.BitVectorType(1, SourceInfo()), SourceInfo());
-    LogicRef* signal_next =
+    XLS_ASSERT_OK_AND_ASSIGN(
+        LogicRef * signal,
+        m->AddReg(signal_name, f.BitVectorType(1, SourceInfo()), SourceInfo()));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        LogicRef * signal_next,
         m->AddReg(absl::StrCat(signal_name, "_next"),
-                  f.BitVectorType(1, SourceInfo()), SourceInfo());
+                  f.BitVectorType(1, SourceInfo()), SourceInfo()));
     af->AddRegister(signal, signal_next, SourceInfo());
   }
   m->AddModuleMember(af);
@@ -1075,17 +1141,25 @@ end)");
 TEST_P(VastTest, AlwaysFlopTestSyncReset) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* clk =
-      m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* rst =
-      m->AddInput("my_rst", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst,
+      m->AddInput("my_rst", f.BitVectorType(1, SourceInfo()), SourceInfo()));
 
-  LogicRef* a = m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* a_next =
-      m->AddReg("a_next", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* b = m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* b_next =
-      m->AddReg("b_next", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a_next,
+      m->AddReg("a_next", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b_next,
+      m->AddReg("b_next", f.BitVectorType(8, SourceInfo()), SourceInfo()));
 
   AlwaysFlop* af = m->Add<AlwaysFlop>(
       SourceInfo(), clk,
@@ -1108,17 +1182,25 @@ end)");
 TEST_P(VastTest, AlwaysFlopTestAsyncResetActiveLow) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* clk =
-      m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* rst =
-      m->AddInput("my_rst_n", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst,
+      m->AddInput("my_rst_n", f.BitVectorType(1, SourceInfo()), SourceInfo()));
 
-  LogicRef* a = m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* a_next =
-      m->AddReg("a_next", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* b = m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* b_next =
-      m->AddReg("b_next", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a_next,
+      m->AddReg("a_next", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b_next,
+      m->AddReg("b_next", f.BitVectorType(8, SourceInfo()), SourceInfo()));
 
   AlwaysFlop* af = m->Add<AlwaysFlop>(
       SourceInfo(), clk,
@@ -1141,19 +1223,25 @@ end)");
 TEST_P(VastTest, AlwaysFf) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* clk =
-      m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* rst_n =
-      m->AddInput("rst_n", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* foo =
-      m->AddInput("foo", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* bar =
-      m->AddInput("bar", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst_n,
+      m->AddInput("rst_n", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * foo,
+      m->AddInput("foo", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * bar,
+      m->AddInput("bar", f.BitVectorType(1, SourceInfo()), SourceInfo()));
 
-  LogicRef* foo_reg =
-      m->AddReg("foo_reg", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* bar_reg =
-      m->AddReg("bar_reg", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * foo_reg,
+      m->AddReg("foo_reg", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * bar_reg,
+      m->AddReg("bar_reg", f.BitVectorType(1, SourceInfo()), SourceInfo()));
 
   AlwaysFf* always_ff =
       f.Make<AlwaysFf>(SourceInfo(), std::vector<SensitivityListElement>{
@@ -1175,10 +1263,12 @@ end)");
 TEST_P(VastTest, Always) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* foo =
-      m->AddReg("foo", f.BitVectorType(32, SourceInfo()), SourceInfo());
-  LogicRef* bar =
-      m->AddReg("bar", f.BitVectorType(32, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * foo,
+      m->AddReg("foo", f.BitVectorType(32, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * bar,
+      m->AddReg("bar", f.BitVectorType(32, SourceInfo()), SourceInfo()));
 
   Always* always = f.Make<Always>(
       SourceInfo(),
@@ -1199,10 +1289,12 @@ end)");
 TEST_P(VastTest, AlwaysSignalInSensitivityList) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* foo =
-      m->AddReg("foo", f.BitVectorType(32, SourceInfo()), SourceInfo());
-  LogicRef* bar =
-      m->AddReg("bar", f.BitVectorType(32, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * foo,
+      m->AddReg("foo", f.BitVectorType(32, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * bar,
+      m->AddReg("bar", f.BitVectorType(32, SourceInfo()), SourceInfo()));
 
   Always* always = f.Make<Always>(
       SourceInfo(), std::vector<SensitivityListElement>{foo, bar});
@@ -1222,20 +1314,31 @@ end)");
 TEST_P(VastTest, AlwaysCombTest) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* rx_byte_done = m->AddWire(
-      "rx_byte_done", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* rx_byte_done_next = m->AddWire(
-      "rx_byte_done_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rx_byte_done,
+      m->AddWire("rx_byte_done", f.BitVectorType(1, SourceInfo()),
+                 SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rx_byte_done_next,
+      m->AddWire("rx_byte_done_next", f.BitVectorType(1, SourceInfo()),
+                 SourceInfo()));
 
-  LogicRef* tx_byte_next = m->AddWire(
-      "tx_byte_next", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* tx_byte =
-      m->AddWire("tx_byte", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * tx_byte_next,
+      m->AddWire("tx_byte_next", f.BitVectorType(8, SourceInfo()),
+                 SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * tx_byte,
+      m->AddWire("tx_byte", f.BitVectorType(8, SourceInfo()), SourceInfo()));
 
-  LogicRef* tx_byte_valid_next = m->AddWire(
-      "tx_byte_valid_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* tx_byte_valid = m->AddWire(
-      "tx_byte_valid", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * tx_byte_valid_next,
+      m->AddWire("tx_byte_valid_next", f.BitVectorType(1, SourceInfo()),
+                 SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * tx_byte_valid,
+      m->AddWire("tx_byte_valid", f.BitVectorType(1, SourceInfo()),
+                 SourceInfo()));
 
   AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
   for (auto p : std::vector<std::pair<Expression*, Expression*>>{
@@ -1335,9 +1438,15 @@ TEST_P(VastTest, TemplateInstantiationTest) {
 TEST_P(VastTest, BlockingAndNonblockingAssignments) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* a = m->AddReg("a", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* b = m->AddReg("b", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* c = m->AddReg("c", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * c,
+      m->AddReg("c", f.BitVectorType(1, SourceInfo()), SourceInfo()));
   AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
   ac->statements()->Add<BlockingAssignment>(SourceInfo(), a, b);
   ac->statements()->Add<NonblockingAssignment>(SourceInfo(), b, c);
@@ -1374,10 +1483,13 @@ TEST_P(VastTest, ParameterAndLocalParam) {
   LocalParamItemRef* state_bits =
       m->Add<LocalParam>(SourceInfo())
           ->AddItem("StateBits", f.Literal(2, 2, SourceInfo()), SourceInfo());
-  m->AddReg(
-      "state",
-      f.Make<BitVectorType>(SourceInfo(), state_bits, /*is_signed=*/false),
-      SourceInfo(), idle);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * state,
+      m->AddReg(
+          "state",
+          f.Make<BitVectorType>(SourceInfo(), state_bits, /*is_signed=*/false),
+          SourceInfo(), idle));
+  (void)state;  // unused
 
   EXPECT_EQ(m->Emit(nullptr),
             R"(module top;
@@ -1395,10 +1507,12 @@ endmodule)");
 TEST_P(VastTest, SimpleConditional) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* input =
-      m->AddInput("input", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* output =
-      m->AddReg("output", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * input,
+      m->AddInput("input", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * output,
+      m->AddReg("output", f.BitVectorType(1, SourceInfo()), SourceInfo()));
   AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
   Conditional* if_statement =
       ac->statements()->Add<Conditional>(SourceInfo(), input);
@@ -1413,12 +1527,15 @@ end)");
 TEST_P(VastTest, SignedOperation) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* a =
-      m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* b =
-      m->AddInput("b", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* out =
-      m->AddOutput("out", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddInput("b", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * out,
+      m->AddOutput("out", f.BitVectorType(8, SourceInfo()), SourceInfo()));
   m->Add<ContinuousAssignment>(
       SourceInfo(), out,
       f.Div(f.Make<SignedCast>(SourceInfo(), a),
@@ -1436,14 +1553,18 @@ endmodule)");
 TEST_P(VastTest, ComplexConditional) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* input1 =
-      m->AddInput("input1", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* input2 =
-      m->AddInput("input2", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* output1 =
-      m->AddReg("output1", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* output2 =
-      m->AddReg("output2", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * input1,
+      m->AddInput("input1", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * input2,
+      m->AddInput("input2", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * output1,
+      m->AddReg("output1", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * output2,
+      m->AddReg("output2", f.BitVectorType(1, SourceInfo()), SourceInfo()));
 
   AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
   Conditional* conditional =
@@ -1482,14 +1603,18 @@ end)");
 TEST_P(VastTest, NestedConditional) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* input1 =
-      m->AddInput("input1", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* input2 =
-      m->AddInput("input2", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* output1 =
-      m->AddReg("output1", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* output2 =
-      m->AddReg("output2", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * input1,
+      m->AddInput("input1", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * input2,
+      m->AddInput("input2", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * output1,
+      m->AddReg("output1", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * output2,
+      m->AddReg("output2", f.BitVectorType(1, SourceInfo()), SourceInfo()));
 
   AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
   Conditional* conditional =
@@ -1534,8 +1659,9 @@ endmodule)");
 TEST_P(VastTest, TestbenchClock) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("testbench", SourceInfo());
-  LogicRef* clk =
-      m->AddReg("clk", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddReg("clk", f.BitVectorType(1, SourceInfo()), SourceInfo()));
 
   Initial* initial = m->Add<Initial>(SourceInfo());
   Statement* clk_equals_zero = f.Make<BlockingAssignment>(
@@ -1564,10 +1690,12 @@ endmodule
 TEST_P(VastTest, TestbenchDisplayAndMonitor) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("testbench", SourceInfo());
-  LogicRef* input1 =
-      m->AddInput("input1", f.BitVectorType(1, SourceInfo()), SourceInfo());
-  LogicRef* input2 =
-      m->AddInput("input2", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * input1,
+      m->AddInput("input1", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * input2,
+      m->AddInput("input2", f.BitVectorType(1, SourceInfo()), SourceInfo()));
 
   Initial* initial = m->Add<Initial>(SourceInfo());
   std::vector<Expression*> display_args = {
@@ -1608,38 +1736,41 @@ TEST_P(VastTest, Concat) {
   EXPECT_EQ(
       "{32'h0000_002a}",
       f.Concat({f.Literal(42, 32, SourceInfo())}, SourceInfo())->Emit(nullptr));
-  EXPECT_EQ(
-      "{a, 8'h7b, b}",
-      f.Concat({m->AddReg("a", f.BitVectorType(1, SourceInfo()), SourceInfo()),
-                f.Literal(123, 8, SourceInfo()),
-                m->AddReg("b", f.BitVectorType(1, SourceInfo()), SourceInfo())},
-               SourceInfo())
-          ->Emit(nullptr));
-  EXPECT_EQ(
-      "{42{a, 8'h7b, b}}",
-      f.Concat(/*replication=*/42,
-               {m->AddReg("a", f.BitVectorType(1, SourceInfo()), SourceInfo()),
-                f.Literal(123, 8, SourceInfo()),
-                m->AddReg("b", f.BitVectorType(1, SourceInfo()), SourceInfo())},
-               SourceInfo())
-          ->Emit(nullptr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  EXPECT_EQ("{a, 8'h7b, b}",
+            f.Concat({a, f.Literal(123, 8, SourceInfo()), b}, SourceInfo())
+                ->Emit(nullptr));
+  EXPECT_EQ("{42{a, 8'h7b, b}}",
+            f.Concat(/*replication=*/42,
+                     {a, f.Literal(123, 8, SourceInfo()), b}, SourceInfo())
+                ->Emit(nullptr));
 }
 
 TEST_P(VastTest, PartSelect) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("PartSelect", SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo()));
   EXPECT_EQ("a[4'h3 +: 16'h0006]",
-            f.PartSelect(
-                 m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo()),
-                 f.Literal(3, 4, SourceInfo()), f.Literal(6, 16, SourceInfo()),
-                 SourceInfo())
+            f.PartSelect(a, f.Literal(3, 4, SourceInfo()),
+                         f.Literal(6, 16, SourceInfo()), SourceInfo())
                 ->Emit(nullptr));
-  EXPECT_EQ("b[c +: 16'h0012]",
-            f.PartSelect(
-                 m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo()),
-                 m->AddReg("c", f.BitVectorType(1, SourceInfo()), SourceInfo()),
-                 f.Literal(18, 16, SourceInfo()), SourceInfo())
-                ->Emit(nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * c,
+      m->AddReg("c", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  PartSelect* part_select =
+      f.PartSelect(b, c, f.Literal(18, 16, SourceInfo()), SourceInfo());
+  EXPECT_EQ("b[c +: 16'h0012]", part_select->Emit(nullptr));
 }
 
 TEST_P(VastTest, ArrayAssignmentPattern) {
@@ -1649,28 +1780,32 @@ TEST_P(VastTest, ArrayAssignmentPattern) {
       "'{32'h0000_002a}",
       f.ArrayAssignmentPattern({f.Literal(42, 32, SourceInfo())}, SourceInfo())
           ->Emit(nullptr));
-  EXPECT_EQ(
-      "'{a, 32'h0000_007b, b}",
-      f.ArrayAssignmentPattern(
-           {m->AddReg("a", f.BitVectorType(32, SourceInfo()), SourceInfo()),
-            f.Literal(123, 32, SourceInfo()),
-            m->AddReg("b", f.BitVectorType(32, SourceInfo()), SourceInfo())},
-           SourceInfo())
-          ->Emit(nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", f.BitVectorType(32, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(32, SourceInfo()), SourceInfo()));
+  EXPECT_EQ("'{a, 32'h0000_007b, b}",
+            f.ArrayAssignmentPattern({a, f.Literal(123, 32, SourceInfo()), b},
+                                     SourceInfo())
+                ->Emit(nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * foo,
+      m->AddReg("foo", f.BitVectorType(32, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * bar,
+      m->AddReg("bar", f.BitVectorType(32, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * baz,
+      m->AddReg("baz", f.BitVectorType(32, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * qux,
+      m->AddReg("qux", f.BitVectorType(32, SourceInfo()), SourceInfo()));
   EXPECT_EQ("'{'{foo, bar}, '{baz, qux}}",
             f.ArrayAssignmentPattern(
-                 {f.ArrayAssignmentPattern(
-                      {m->AddReg("foo", f.BitVectorType(32, SourceInfo()),
-                                 SourceInfo()),
-                       m->AddReg("bar", f.BitVectorType(32, SourceInfo()),
-                                 SourceInfo())},
-                      SourceInfo()),
-                  f.ArrayAssignmentPattern(
-                      {m->AddReg("baz", f.BitVectorType(32, SourceInfo()),
-                                 SourceInfo()),
-                       m->AddReg("qux", f.BitVectorType(32, SourceInfo()),
-                                 SourceInfo())},
-                      SourceInfo())},
+                 {f.ArrayAssignmentPattern({foo, bar}, SourceInfo()),
+                  f.ArrayAssignmentPattern({baz, qux}, SourceInfo())},
                  SourceInfo())
                 ->Emit(nullptr));
 }
@@ -1679,8 +1814,11 @@ TEST_P(VastTest, ModuleSections) {
   VerilogFile f(GetFileType());
   Module* module = f.Make<Module>(SourceInfo(), "my_module");
   ModuleSection* s0 = module->Add<ModuleSection>(SourceInfo());
-  module->AddReg("foo", f.BitVectorType(1, SourceInfo()), SourceInfo(),
-                 f.PlainLiteral(1, SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * foo,
+      module->AddReg("foo", f.BitVectorType(1, SourceInfo()), SourceInfo(),
+                     f.PlainLiteral(1, SourceInfo())));
+  (void)foo;  // unused
   ModuleSection* s1 = module->Add<ModuleSection>(SourceInfo());
   // Create an empty section.
   module->Add<ModuleSection>(SourceInfo());
@@ -1694,9 +1832,13 @@ TEST_P(VastTest, ModuleSections) {
   s1->Add<Comment>(SourceInfo(), "more stuff in section 1");
   s0->Add<Comment>(SourceInfo(), "more stuff in section 0");
   s0->Add<InlineVerilogStatement>(SourceInfo(), "`SOME_MACRO(42);");
-  module->AddReg("section_0_reg", f.BitVectorType(42, SourceInfo()),
-                 SourceInfo(), /*init=*/nullptr,
-                 /*section=*/s0);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * section_0_reg,
+      module->AddReg("section_0_reg", f.BitVectorType(42, SourceInfo()),
+                     SourceInfo(), /*init=*/nullptr,
+                     /*section=*/s0));
+  (void)section_0_reg;  // unused
+
   LineInfo line_info;
   EXPECT_EQ(module->Emit(&line_info),
             R"(module my_module;
@@ -1743,8 +1885,9 @@ TEST_P(VastTest, VerilogFunction) {
   EXPECT_EQ(func->statement_block()->Emit(nullptr), R"(begin
   func = foo << bar;
 end)");
-  LogicRef* qux =
-      m->AddWire("qux", f.BitVectorType(32, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * qux,
+      m->AddWire("qux", f.BitVectorType(32, SourceInfo()), SourceInfo()));
   m->Add<ContinuousAssignment>(
       SourceInfo(), qux,
       f.Make<VerilogFunctionCall>(
@@ -1772,8 +1915,9 @@ TEST_P(VastTest, VerilogFunctionNoArguments) {
       SourceInfo(), func->return_value_ref(),
       f.Literal(UBits(0x42, 42), SourceInfo()));
 
-  LogicRef* qux =
-      m->AddWire("qux", f.BitVectorType(32, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * qux,
+      m->AddWire("qux", f.BitVectorType(32, SourceInfo()), SourceInfo()));
   m->Add<ContinuousAssignment>(
       SourceInfo(), qux,
       f.Make<VerilogFunctionCall>(SourceInfo(), func,
@@ -1805,8 +1949,9 @@ TEST_P(VastTest, VerilogFunctionWithRegDefs) {
   func->AddStatement<BlockingAssignment>(SourceInfo(), func->return_value_ref(),
                                          bar);
 
-  LogicRef* qux =
-      m->AddWire("qux", f.BitVectorType(32, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * qux,
+      m->AddWire("qux", f.BitVectorType(32, SourceInfo()), SourceInfo()));
   m->Add<ContinuousAssignment>(
       SourceInfo(), qux,
       f.Make<VerilogFunctionCall>(SourceInfo(), func,
@@ -1835,8 +1980,9 @@ TEST_P(VastTest, VerilogFunctionWithScalarReturn) {
   func->AddStatement<BlockingAssignment>(SourceInfo(), func->return_value_ref(),
                                          f.PlainLiteral(1, SourceInfo()));
 
-  LogicRef* qux =
-      m->AddWire("qux", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * qux,
+      m->AddWire("qux", f.BitVectorType(1, SourceInfo()), SourceInfo()));
   m->Add<ContinuousAssignment>(
       SourceInfo(), qux,
       f.Make<VerilogFunctionCall>(SourceInfo(), func,
@@ -1861,11 +2007,14 @@ TEST_P(VastTest, DeferredImmediateAssertionTest) {
 
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* rst = m->AddInput("rst", f.ScalarType(SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst,
+      m->AddInput("rst", f.ScalarType(SourceInfo()), SourceInfo()));
   Expression* rst_asserted =
       f.CaseNotEquals(rst, f.Literal1(0, SourceInfo()), SourceInfo());
-  LogicRef* a =
-      m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
 
   m->Add<DeferredImmediateAssertion>(
       SourceInfo(), f.Equals(a, f.Literal(0, 8, SourceInfo()), SourceInfo()),
@@ -1903,10 +2052,15 @@ TEST_P(VastTest, ConcurrentAssertionTest) {
 
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* clk = m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* rst = m->AddInput("rst", f.ScalarType(SourceInfo()), SourceInfo());
-  LogicRef* a =
-      m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst,
+      m->AddInput("rst", f.ScalarType(SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo()));
 
   m->Add<ConcurrentAssertion>(
       SourceInfo(), f.Equals(a, f.Literal(0, 8, SourceInfo()), SourceInfo()),
@@ -1966,10 +2120,14 @@ TEST_P(VastTest, VerilogFunctionWithComplicatedTypes) {
   VastNode* body = func->AddStatement<BlockingAssignment>(
       SourceInfo(), func->return_value_ref(), f.PlainLiteral(0, SourceInfo()));
 
-  LogicRef* a = m->AddReg("a", foo_type, SourceInfo());
-  LogicRef* b = m->AddWire("b", bar_type, SourceInfo());
-  LogicRef* c = m->AddWire("c", baz_type, SourceInfo());
-  LogicRef* qux = m->AddWire("qux", return_type, SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * a,
+                           m->AddReg("a", foo_type, SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * b,
+                           m->AddWire("b", bar_type, SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * c,
+                           m->AddWire("c", baz_type, SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * qux,
+                           m->AddWire("qux", return_type, SourceInfo()));
   m->Add<ContinuousAssignment>(
       SourceInfo(), qux,
       f.Make<VerilogFunctionCall>(SourceInfo(), func,
@@ -2029,16 +2187,20 @@ TEST_P(VastTest, RegAndWireDefWithInit) {
   VastNode* body = func->AddStatement<BlockingAssignment>(
       SourceInfo(), func->return_value_ref(), f.PlainLiteral(0, SourceInfo()));
 
-  LogicRef* a =
-      m->AddReg("a", foo_type, SourceInfo(), f.Literal1(0, SourceInfo()));
-  LogicRef* b =
-      m->AddWire("b", bar_type, f.PlainLiteral(0, SourceInfo()), SourceInfo());
-  LogicRef* c =
-      m->AddWire("c", baz_type, f.Literal(0, 33, SourceInfo()), SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", foo_type, SourceInfo(), f.Literal1(0, SourceInfo())));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddWire("b", bar_type, f.PlainLiteral(0, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * c,
+      m->AddWire("c", baz_type, f.Literal(0, 33, SourceInfo()), SourceInfo()));
 
   VerilogFunctionCall* func_call = f.Make<VerilogFunctionCall>(
       SourceInfo(), func, std::vector<Expression*>{a, b, c});
-  LogicRef* qux = m->AddWire("qux", return_type, func_call, SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * qux, m->AddWire("qux", return_type, func_call, SourceInfo()));
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
             R"(module top;
@@ -2190,7 +2352,8 @@ TEST_P(VastTest, EnumAssignment) {
   // Note that this is an externally defined type.
   DataType* extern_enum_type = f.ExternType(enum_type, "color_e", si);
 
-  LogicRef* signal = m->AddWire("signal", extern_enum_type, SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * signal, m->AddWire("signal", extern_enum_type, SourceInfo()));
   m->Add<ContinuousAssignment>(si, signal, red_ref);
 
   LineInfo line_info;
@@ -2216,8 +2379,11 @@ TEST_P(VastTest, ExternTypePort) {
   DataType* extern_enum_type = f.ExternType(enum_type, "color_e", si);
 
   // Declare a port of the extern type.
-  m->AddInput("input", extern_enum_type, si);
-  LogicRef* output = m->AddOutput("output", extern_enum_type, si);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * input,
+                           m->AddInput("input", extern_enum_type, si));
+  (void)input;  // unused
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * output,
+                           m->AddOutput("output", extern_enum_type, si));
 
   m->Add<ContinuousAssignment>(si, output, red_ref);
 
@@ -2242,7 +2408,9 @@ TEST_P(VastTest, ExternalPackageTypePort) {
   // Make an extern package type to use in the `input` construction.
   auto* data_type = f.Make<ExternPackageType>(si, "mypack", "mystruct_t");
 
-  m->AddInput("my_input", data_type, si);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * input,
+                           m->AddInput("my_input", data_type, si));
+  (void)input;  // unused
 
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
@@ -2268,7 +2436,9 @@ TEST_P(VastTest, ExternalPackageTypePackedArrayPort) {
   auto* packed_array =
       f.Make<PackedArrayType>(si, data_type, packed_dims, dims_are_max);
 
-  m->AddInput("my_input", packed_array, si);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * input,
+                           m->AddInput("my_input", packed_array, si));
+  (void)input;  // unused
 
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
@@ -2296,9 +2466,9 @@ TEST_P(VastTest, SliceOfMultidimensionalPackedArrayOnLhsAndRhs) {
   DataType* b_type = f.BitVectorType(2, si);
   DataType* c_type = f.BitVectorType(3, si);
 
-  LogicRef* a = m->AddWire("a", a_type, si);
-  LogicRef* b = m->AddWire("b", b_type, si);
-  LogicRef* c = m->AddWire("c", c_type, si);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * a, m->AddWire("a", a_type, si));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * b, m->AddWire("b", b_type, si));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * c, m->AddWire("c", c_type, si));
 
   m->AddModuleMember(f.Make<ContinuousAssignment>(
       si,
@@ -2329,10 +2499,13 @@ TEST_P(VastTest, SimpleGenerateLoop) {
   Module* m = f.AddModule("top", si);
 
   // Add a 32-bit input and output.
-  LogicRef* input = m->AddInput("my_input", f.BitVectorType(32, si), si);
-  LogicRef* output = m->AddOutput("my_output", f.BitVectorType(32, si), si);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * input, m->AddInput("my_input", f.BitVectorType(32, si), si));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * output,
+      m->AddOutput("my_output", f.BitVectorType(32, si), si));
 
-  LogicRef* i = m->AddGenvar("i", si);
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * i, m->AddGenvar("i", si));
 
   // Add a generate loop that assigns the output to be the input at index i.
   // This is not generally necessary but shows a simple legal case.

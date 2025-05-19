@@ -138,9 +138,10 @@ struct xls_vast_logic_ref* xls_vast_verilog_module_add_input(
     struct xls_vast_data_type* type) {
   auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
   auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
-  xls::verilog::LogicRef* logic_ref =
+  absl::StatusOr<xls::verilog::LogicRef*> logic_ref =
       cpp_module->AddInput(name, cpp_type, xls::SourceInfo());
-  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref);
+  CHECK_OK(logic_ref.status());
+  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref.value());
 }
 
 struct xls_vast_logic_ref* xls_vast_verilog_module_add_output(
@@ -148,9 +149,10 @@ struct xls_vast_logic_ref* xls_vast_verilog_module_add_output(
     struct xls_vast_data_type* type) {
   auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
   auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
-  xls::verilog::LogicRef* logic_ref =
+  absl::StatusOr<xls::verilog::LogicRef*> logic_ref =
       cpp_module->AddOutput(name, cpp_type, xls::SourceInfo());
-  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref);
+  CHECK_OK(logic_ref.status());
+  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref.value());
 }
 
 struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
@@ -158,9 +160,10 @@ struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
     struct xls_vast_data_type* type) {
   auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
   auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
-  xls::verilog::LogicRef* logic_ref =
+  absl::StatusOr<xls::verilog::LogicRef*> logic_ref =
       cpp_module->AddWire(name, cpp_type, xls::SourceInfo());
-  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref);
+  CHECK_OK(logic_ref.status());
+  return reinterpret_cast<xls_vast_logic_ref*>(logic_ref.value());
 }
 
 char* xls_vast_verilog_file_emit(const struct xls_vast_verilog_file* f) {
