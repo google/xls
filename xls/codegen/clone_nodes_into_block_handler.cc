@@ -380,7 +380,7 @@ AddChannelConnections(Proc* proc, Block* block, const CodegenOptions& options) {
 
     // Iterate through nodes and add data/valid/ready ports for any non-loopback
     // channel node encountered.
-    std::vector<std::pair<Channel*, ChannelDirection>> channels;
+    absl::flat_hash_set<std::pair<Channel*, ChannelDirection>> channels;
     for (Node* node : proc->nodes()) {
       if (node->Is<ChannelNode>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel,
@@ -390,18 +390,20 @@ AddChannelConnections(Proc* proc, Block* block, const CodegenOptions& options) {
           continue;
         }
         if (node->Is<Receive>()) {
-          channels.push_back({channel, ChannelDirection::kReceive});
+          channels.insert({channel, ChannelDirection::kReceive});
         } else if (node->Is<Send>()) {
-          channels.push_back({channel, ChannelDirection::kSend});
+          channels.insert({channel, ChannelDirection::kSend});
         }
       }
     }
-    std::sort(channels.begin(), channels.end(),
+    std::vector<std::pair<Channel*, ChannelDirection>> sorted_channels(
+        channels.begin(), channels.end());
+    std::sort(sorted_channels.begin(), sorted_channels.end(),
               [](std::pair<Channel*, ChannelDirection> a,
                  std::pair<Channel*, ChannelDirection> b) {
                 return a.first->name() < b.first->name();
               });
-    for (auto [channel, direction] : channels) {
+    for (auto [channel, direction] : sorted_channels) {
       if (direction == ChannelDirection::kReceive) {
         XLS_ASSIGN_OR_RETURN(
             CloneNodesIntoBlockHandler::ChannelConnection connection,
@@ -1002,17 +1004,6 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(
     }
   }
 
-  // The channel data signal is initially wired to a dummy value. Replace it
-  // with the real data value.
-  if (connection.data->Is<OutputPort>()) {
-    XLS_RETURN_IF_ERROR(connection.data->ReplaceOperandNumber(
-        OutputPort::kOperandOperand, node_map_.at(send->data())));
-  } else {
-    XLS_RET_CHECK(connection.data->Is<InstantiationInput>());
-    XLS_RETURN_IF_ERROR(connection.data->ReplaceOperandNumber(
-        InstantiationInput::kDataOperand, node_map_.at(send->data())));
-  }
-
   // Map the Send node to the token operand of the Send in the
   // block.
   Node* next_node = node_map_.at(send->token());
@@ -1024,6 +1015,17 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(
   next_node = token_buf;
 
   if (ChannelRefKind(connection.channel) == ChannelKind::kSingleValue) {
+    // The channel data signal is initially wired to a dummy value. Replace it
+    // with the real data value.
+    if (connection.data->Is<OutputPort>()) {
+      XLS_RETURN_IF_ERROR(connection.data->ReplaceOperandNumber(
+          OutputPort::kOperandOperand, node_map_.at(send->data())));
+    } else {
+      XLS_RET_CHECK(connection.data->Is<InstantiationInput>());
+      XLS_RETURN_IF_ERROR(connection.data->ReplaceOperandNumber(
+          InstantiationInput::kDataOperand, node_map_.at(send->data())));
+    }
+
     result_.single_value_outputs.push_back(SingleValueOutput(
         connection.data->As<OutputPort>(), connection.channel));
     return next_node;
@@ -1040,6 +1042,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(
   if (send->predicate().has_value()) {
     streaming_output.SetPredicate(node_map_.at(send->predicate().value()));
   }
+  streaming_output.SetData(node_map_.at(send->data()));
 
   result_.outputs[stage].push_back(streaming_output);
 

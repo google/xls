@@ -14,6 +14,7 @@
 
 #include "xls/scheduling/sdc_scheduler.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -24,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -38,6 +40,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -410,6 +413,10 @@ absl::Status SDCSchedulingModel::AddSchedulingConstraint(
     return AddSendThenRecvConstraint(
         std::get<SendThenRecvConstraint>(constraint));
   }
+  if (std::holds_alternative<SameChannelConstraint>(constraint)) {
+    return AddSameChannelConstraint(
+        std::get<SameChannelConstraint>(constraint));
+  }
   return absl::InternalError("Unhandled scheduling constraint type");
 }
 
@@ -554,6 +561,88 @@ absl::Status SDCSchedulingModel::AddSendThenRecvConstraint(
       }
       stack.insert(stack.end(), node->operands().begin(),
                    node->operands().end());
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::Status SDCSchedulingModel::AddSameChannelConstraint(
+    const SameChannelConstraint& constraint) {
+  CHECK_GE(constraint.MinimumLatency(), 0);
+  if (constraint.MinimumLatency() == 0) {
+    return absl::OkStatus();
+  }
+
+  // Collects all operations on each channel in topological order; used to order
+  // arbitrary-static-order channels.
+  absl::flat_hash_map<ChannelRef, std::vector<Node*>> ops_on_channel;
+  // Used for all other channels.
+  absl::flat_hash_map<
+      Node*, absl::flat_hash_map<ChannelRef,
+                                 absl::btree_set<Node*, Node::NodeIdLessThan>>>
+      node_io_dependencies;
+  node_io_dependencies.reserve(graph_.nodes().size());
+  for (const ScheduleNode& schedule_node : graph_.nodes()) {
+    Node* node = schedule_node.node;
+    absl::flat_hash_map<ChannelRef,
+                        absl::btree_set<Node*, Node::NodeIdLessThan>>&
+        io_dependencies = node_io_dependencies[node];
+    for (Node* operand : schedule_node.predecessors) {
+      auto it = node_io_dependencies.find(operand);
+      if (it == node_io_dependencies.end()) {
+        continue;
+      }
+      for (const auto& [channel, nodes] : it->second) {
+        io_dependencies[channel].insert(nodes.begin(), nodes.end());
+      }
+    }
+
+    if (!node->Is<ChannelNode>()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(ChannelRef channel,
+                         node->As<ChannelNode>()->GetChannelRef());
+    std::optional<ChannelStrictness> strictness = ChannelRefStrictness(channel);
+
+    if (strictness == ChannelStrictness::kArbitraryStaticOrder) {
+      // Find the most recent operation (of the same type) on this channel.
+      auto it = std::find_if(ops_on_channel[channel].rbegin(),
+                             ops_on_channel[channel].rend(),
+                             [op = node->op()](Node* predecessor) {
+                               return predecessor->op() == op;
+                             });
+      if (it != ops_on_channel[channel].rend()) {
+        DiffAtLeastConstraint(node, *it, constraint.MinimumLatency(),
+                              "same_channel_arbitrary_order");
+      }
+      ops_on_channel[channel].push_back(node);
+    } else {
+      ops_on_channel[channel].push_back(node);
+
+      absl::btree_set<Node*, Node::NodeIdLessThan>& dependencies =
+          io_dependencies[channel];
+      if (dependencies.empty()) {
+        dependencies.insert(schedule_node.node);
+        continue;
+      }
+
+      // This operation has dependencies on other operations on the same
+      // channel. Ensure that this operation is scheduled at least
+      // MinimumLatency cycles after any dependencies of the same type, at which
+      // point we have accounted for the delay with respect to them; further
+      // operations in the chain only need to delay with respect to this node.
+      absl::btree_set<Node*, Node::NodeIdLessThan> new_dependencies;
+      for (Node* dependency : dependencies) {
+        if (dependency->op() == schedule_node.node->op()) {
+          DiffAtLeastConstraint(schedule_node.node, dependency,
+                                constraint.MinimumLatency(),
+                                "same_channel_dependency");
+        } else {
+          new_dependencies.insert(dependency);
+        }
+      }
+      new_dependencies.insert(schedule_node.node);
+      dependencies = std::move(new_dependencies);
     }
   }
   return absl::OkStatus();

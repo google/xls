@@ -182,10 +182,25 @@ class SendThenRecvConstraint {
   int64_t minimum_latency_;
 };
 
+// When this is present, whenever we have a dependency between two operations on
+// the same channel, the dependent operation will always be scheduled at least
+// `MinimumLatency()` cycles later. This ensures that we don't try to execute
+// two operations on the same channel at the same time.
+class SameChannelConstraint {
+ public:
+  explicit SameChannelConstraint(int64_t minimum_latency)
+      : minimum_latency_(minimum_latency) {}
+
+  int64_t MinimumLatency() const { return minimum_latency_; }
+
+ private:
+  int64_t minimum_latency_;
+};
+
 using SchedulingConstraint =
     std::variant<IOConstraint, NodeInCycleConstraint, DifferenceConstraint,
                  RecvsFirstSendsLastConstraint, BackedgeConstraint,
-                 SendThenRecvConstraint>;
+                 SendThenRecvConstraint, SameChannelConstraint>;
 
 // Options for what the scheduler should do if scheduling fails.
 struct SchedulingFailureBehavior {
@@ -241,6 +256,7 @@ class SchedulingOptions {
         constraints_({
             BackedgeConstraint(),
             SendThenRecvConstraint(/*minimum_latency=*/1),
+            SameChannelConstraint(/*minimum_latency=*/1),
         }),
         use_fdo_(false),
         fdo_iteration_number_(5),

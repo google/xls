@@ -15,27 +15,30 @@
 #include "xls/codegen/conversion_utils.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "xls/codegen/codegen_checker.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/codegen/codegen_wrapper_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/vast/vast.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
@@ -44,8 +47,10 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
@@ -54,6 +59,41 @@
 #include "re2/re2.h"
 
 namespace xls::verilog {
+
+namespace {
+
+absl::Status CheckForMultiplexingCycle(Channel* channel,
+                                       std::string_view proc_name) {
+  if (channel->kind() != ChannelKind::kStreaming) {
+    return absl::OkStatus();
+  }
+  StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
+  if (!streaming_channel->channel_config().fifo_config().has_value()) {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Cannot allow multiple operations from proc `", proc_name,
+                     "` on streaming channel `", ChannelRefName(channel),
+                     "`, which has no known FIFO configuration."));
+  }
+  const FifoConfig& fifo_config =
+      *streaming_channel->channel_config().fifo_config();
+  bool push_to_pop_combo_paths =
+      fifo_config.bypass() && !fifo_config.register_pop_outputs();
+  bool pop_to_push_combo_paths = !fifo_config.register_push_outputs();
+  if (push_to_pop_combo_paths && pop_to_push_combo_paths) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot allow multiple operations from proc `%s` on streaming channel "
+        "`%s` due to a combinational cycle. This can be fixed by reconfiguring "
+        "channel `%s` in any of the following ways:\n"
+        "\t1. use proven-mutually-exclusive channel strictness (if possible),\n"
+        "\t2. register push outputs,\n"
+        "\t3. register pop outputs, or\n"
+        "\t4. disable combinational bypass paths.",
+        proc_name, ChannelRefName(channel), ChannelRefName(channel)));
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace
 
 std::optional<PackageInterfaceProto::Function> FindFunctionInterface(
     const std::optional<PackageInterfaceProto>& src,
@@ -379,32 +419,188 @@ static absl::Status ReplacePortOrFifoInstantiationDataOperand(Node* node,
 
 // Make valid ports (output) for the output channel.
 //
-// A valid signal is asserted iff all active
-// inputs valid signals are asserted and the predicate of the data channel (if
-// any) is asserted.
+// A valid signal is asserted iff all active inputs valid signals are asserted
+// and the predicate of the data channel (if any) is asserted.
 absl::Status MakeOutputValidPortsForOutputChannels(
     absl::Span<Node* const> all_active_inputs_valid,
     absl::Span<Node* const> pipelined_valids,
     absl::Span<Node* const> next_stage_open,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
-    std::string_view valid_suffix, Block* block) {
+    std::string_view valid_suffix, Proc* proc,
+    absl::Span<ProcInstance* const> instances, Block* block) {
+  absl::flat_hash_map<Node*,
+                      absl::btree_map<Stage, std::vector<std::optional<Node*>>>>
+      valid_predicates;
+  absl::flat_hash_map<Node*, ChannelRef> channels;
   for (Stage stage = 0; stage < streaming_outputs.size(); ++stage) {
-    for (StreamingOutput& streaming_output : streaming_outputs.at(stage)) {
-      std::vector<Node*> operands{all_active_inputs_valid.at(stage),
-                                  pipelined_valids.at(stage),
-                                  next_stage_open.at(stage)};
+    for (StreamingOutput& streaming_output : streaming_outputs[stage]) {
+      valid_predicates[streaming_output.GetValidPort()][stage].push_back(
+          streaming_output.GetPredicate());
+      channels[streaming_output.GetValidPort()] = streaming_output.GetChannel();
+    }
+  }
 
-      if (streaming_output.GetPredicate().has_value()) {
-        operands.push_back(streaming_output.GetPredicate().value());
+  for (auto& [valid_port, predicates_by_stage] : valid_predicates) {
+    if (predicates_by_stage.size() > 1) {
+      // We have more than one stage that could operate on this channel; we need
+      // to ensure that there's no combinational cycle.
+      ChannelRef channel = channels[valid_port];
+      if (std::holds_alternative<Channel*>(channel)) {
+        CHECK(instances.empty());
+        XLS_RETURN_IF_ERROR(CheckForMultiplexingCycle(
+            std::get<Channel*>(channel), proc->name()));
+      } else {
+        CHECK(std::holds_alternative<ChannelInterface*>(channel));
+        CHECK(!instances.empty());
+        for (ProcInstance* instance : instances) {
+          XLS_RETURN_IF_ERROR(CheckForMultiplexingCycle(
+              instance->GetChannelBinding(channel).instance->channel,
+              instance->GetName()));
+        }
+      }
+    }
+    std::vector<Node*> valids;
+    for (auto& [stage, predicates] : predicates_by_stage) {
+      if (predicates.empty()) {
+        continue;
       }
 
-      XLS_ASSIGN_OR_RETURN(Node * valid, block->MakeNode<NaryOp>(
-                                             SourceInfo(), operands, Op::kAnd));
-      // The valid port/instantiation-input is already created but is set
-      // to a dummy value.
-      XLS_RETURN_IF_ERROR(ReplacePortOrFifoInstantiationDataOperand(
-          streaming_output.GetValidPort(), valid));
+      std::vector<Node*> operands;
+      operands.reserve(4);
+      operands.push_back(all_active_inputs_valid.at(stage));
+      operands.push_back(pipelined_valids.at(stage));
+      operands.push_back(next_stage_open.at(stage));
+
+      std::vector<Node*> conditions;
+      conditions.reserve(predicates.size());
+      for (const auto& predicate : predicates) {
+        if (predicate.has_value()) {
+          conditions.push_back(predicate.value());
+        } else {
+          conditions.clear();
+          break;
+        }
+      }
+      if (!conditions.empty()) {
+        XLS_ASSIGN_OR_RETURN(Node * predicate,
+                             NaryOrIfNeeded(block, conditions));
+        operands.push_back(predicate);
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          Node * stage_valid,
+          block->MakeNode<NaryOp>(SourceInfo(), operands, Op::kAnd));
+      valids.push_back(stage_valid);
     }
+    XLS_ASSIGN_OR_RETURN(Node * valid, NaryOrIfNeeded(block, valids));
+
+    // The valid port/instantiation-input is already created but is set to a
+    // placeholder value.
+    XLS_RETURN_IF_ERROR(
+        ReplacePortOrFifoInstantiationDataOperand(valid_port, valid));
+  }
+
+  return absl::OkStatus();
+}
+
+namespace {
+
+struct PredicatedValue {
+  std::optional<Node*> predicate;
+  Node* value;
+};
+
+absl::StatusOr<Node*> OneHotSelectIfNeeded(
+    FunctionBase* f, absl::Span<const PredicatedValue> predicated_values,
+    bool ignore_single_value_predicate) {
+  if (predicated_values.empty()) {
+    return absl::InvalidArgumentError("predicated_values is empty");
+  }
+  if (predicated_values.size() == 1 &&
+      (ignore_single_value_predicate ||
+       !predicated_values.begin()->predicate.has_value())) {
+    return predicated_values.begin()->value;
+  }
+
+  std::vector<Node*> predicates;
+  std::vector<Node*> values;
+  predicates.reserve(predicated_values.size());
+  values.reserve(predicated_values.size());
+  for (const auto& [predicate, value] : predicated_values) {
+    std::optional<Node*> effective_predicate = predicate;
+    if (!effective_predicate.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          effective_predicate,
+          f->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
+    }
+    predicates.push_back(*effective_predicate);
+    values.push_back(value);
+  }
+
+  absl::c_reverse(predicates);
+  XLS_ASSIGN_OR_RETURN(Node * selector, ConcatIfNeeded(f, predicates));
+  return f->MakeNode<OneHotSelect>(SourceInfo(), selector, values);
+}
+
+};  // namespace
+
+// Make data ports (output) for the output channel.
+//
+// A data signal is passed to the output port iff all active inputs valid
+// signals are asserted and the predicate of the data operation (if any) is
+// asserted.
+absl::Status MakeOutputDataPortsForOutputChannels(
+    absl::Span<Node* const> all_active_inputs_valid,
+    absl::Span<Node* const> pipelined_valids,
+    absl::Span<Node* const> next_stage_open,
+    std::vector<std::vector<StreamingOutput>>& streaming_outputs,
+    std::string_view data_suffix, Block* block) {
+  absl::flat_hash_map<Node*,
+                      absl::btree_map<Stage, std::vector<PredicatedValue>>>
+      data_values;
+  for (Stage stage = 0; stage < streaming_outputs.size(); ++stage) {
+    for (StreamingOutput& streaming_output : streaming_outputs[stage]) {
+      data_values[*streaming_output.GetDataPort()][stage].push_back(
+          PredicatedValue{.predicate = streaming_output.GetPredicate(),
+                          .value = *streaming_output.GetData()});
+    }
+  }
+  for (auto& [data_port, data_values_by_stage] : data_values) {
+    std::vector<PredicatedValue> datas;
+    for (auto& [stage, stage_data_values] : data_values_by_stage) {
+      if (stage_data_values.empty()) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          Node * stage_data,
+          OneHotSelectIfNeeded(block, stage_data_values,
+                               /*ignore_single_value_predicate=*/true));
+
+      std::optional<Node*> valid = std::nullopt;
+      if (data_values_by_stage.size() > 1) {
+        // More than one stage can produce data for this channel; generate a
+        // predicate for the output. (Skip creating the predicate otherwise, to
+        // avoid creating an unnecessary node.)
+        XLS_ASSIGN_OR_RETURN(valid, block->MakeNode<NaryOp>(
+                                        SourceInfo(),
+                                        absl::MakeConstSpan({
+                                            all_active_inputs_valid.at(stage),
+                                            pipelined_valids.at(stage),
+                                            next_stage_open.at(stage),
+                                        }),
+                                        Op::kAnd));
+      }
+      datas.push_back({.predicate = valid, .value = stage_data});
+    }
+    XLS_ASSIGN_OR_RETURN(Node * data,
+                         OneHotSelectIfNeeded(block, datas,
+                                              /*ignore_single_value_predicate=*/
+                                              true));
+
+    // The data port/instantiation-input is already created but is set to a
+    // placeholder value.
+    XLS_RETURN_IF_ERROR(
+        ReplacePortOrFifoInstantiationDataOperand(data_port, data));
   }
 
   return absl::OkStatus();
@@ -418,23 +614,75 @@ absl::Status MakeOutputValidPortsForOutputChannels(
 absl::Status MakeOutputReadyPortsForInputChannels(
     absl::Span<Node* const> all_active_outputs_ready,
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
-    std::string_view ready_suffix, Block* block) {
+    std::string_view ready_suffix, Proc* proc,
+    absl::Span<ProcInstance* const> instances, Block* block) {
+  absl::flat_hash_map<Node*,
+                      absl::btree_map<Stage, std::vector<std::optional<Node*>>>>
+      ready_predicates;
+  absl::flat_hash_map<Node*, ChannelRef> channels;
   for (Stage stage = 0; stage < streaming_inputs.size(); ++stage) {
     for (StreamingInput& streaming_input : streaming_inputs[stage]) {
-      Node* ready = all_active_outputs_ready.at(stage);
-      if (streaming_input.GetPredicate().has_value()) {
-        std::vector<Node*> operands{streaming_input.GetPredicate().value(),
-                                    all_active_outputs_ready.at(stage)};
-        XLS_ASSIGN_OR_RETURN(
-            ready, block->MakeNode<NaryOp>(SourceInfo(), operands, Op::kAnd));
-      }
-
-      // The ready port/instantiation-input is already created but is set to a
-      // dummy value.
-      XLS_RETURN_IF_ERROR(ReplacePortOrFifoInstantiationDataOperand(
-          streaming_input.GetReadyPort(), ready));
+      ready_predicates[streaming_input.GetReadyPort()][stage].push_back(
+          streaming_input.GetPredicate());
+      channels[streaming_input.GetReadyPort()] = streaming_input.GetChannel();
     }
   }
+
+  for (auto& [ready_port, predicates_by_stage] : ready_predicates) {
+    if (predicates_by_stage.size() > 1) {
+      // We have more than one stage that could operate on this channel; we need
+      // to ensure that there's no combinational cycle.
+      ChannelRef channel = channels[ready_port];
+      if (std::holds_alternative<Channel*>(channel)) {
+        CHECK(instances.empty());
+        XLS_RETURN_IF_ERROR(CheckForMultiplexingCycle(
+            std::get<Channel*>(channel), proc->name()));
+      } else {
+        CHECK(std::holds_alternative<ChannelInterface*>(channel));
+        CHECK(!instances.empty());
+        for (ProcInstance* instance : instances) {
+          XLS_RETURN_IF_ERROR(CheckForMultiplexingCycle(
+              instance->GetChannelBinding(channel).instance->channel,
+              instance->GetName()));
+        }
+      }
+    }
+
+    std::vector<Node*> readys;
+    for (auto& [stage, predicates] : predicates_by_stage) {
+      Node* stage_ready = all_active_outputs_ready.at(stage);
+      if (predicates.empty()) {
+        continue;
+      }
+      std::vector<Node*> conditions;
+      conditions.reserve(predicates.size());
+      for (const auto& predicate : predicates) {
+        if (predicate.has_value()) {
+          conditions.push_back(predicate.value());
+        } else {
+          conditions.clear();
+          break;
+        }
+      }
+      if (!conditions.empty()) {
+        XLS_ASSIGN_OR_RETURN(Node * predicate,
+                             NaryOrIfNeeded(block, conditions));
+        XLS_ASSIGN_OR_RETURN(
+            stage_ready,
+            block->MakeNode<NaryOp>(
+                SourceInfo(), absl::MakeConstSpan({stage_ready, predicate}),
+                Op::kAnd));
+      }
+      readys.push_back(stage_ready);
+    }
+    XLS_ASSIGN_OR_RETURN(Node * ready, NaryOrIfNeeded(block, readys));
+
+    // The ready port/instantiation-input is already created but is set to a
+    // placeholder value.
+    XLS_RETURN_IF_ERROR(
+        ReplacePortOrFifoInstantiationDataOperand(ready_port, ready));
+  }
+
   return absl::OkStatus();
 }
 

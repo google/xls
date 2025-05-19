@@ -136,7 +136,7 @@ module running_sum(
     .rst(rst),
     .push_data(p1_sum),
     .push_valid(__fifo_loopback_push_data_valid_and_not_has_been_sent),
-    .pop_ready(p0_not_first_cycle & p1_data_enable),
+    .pop_ready(p1_data_enable & p0_not_first_cycle),
     .push_ready(instantiation_output_1036),
     .pop_data(instantiation_output_1037),
     .pop_valid(instantiation_output_1038)

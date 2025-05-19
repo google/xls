@@ -28,6 +28,8 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/ir/block.h"
 #include "xls/ir/node.h"
+#include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls::verilog {
@@ -108,25 +110,37 @@ absl::Status RemoveDeadTokenNodes(Block* block, CodegenContext& context);
 
 // Make valid ports (output) for the output channel.
 //
-// A valid signal is asserted iff all active
-// inputs valid signals are asserted and the predicate of the data channel (if
-// any) is asserted.
+// A valid signal is asserted iff all active inputs valid signals are asserted
+// and the predicate of the data operation (if any) is asserted.
 absl::Status MakeOutputValidPortsForOutputChannels(
     absl::Span<Node* const> all_active_inputs_valid,
     absl::Span<Node* const> pipelined_valids,
     absl::Span<Node* const> next_stage_open,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
-    std::string_view valid_suffix, Block* block);
+    std::string_view valid_suffix, Proc* proc,
+    absl::Span<ProcInstance* const> instances, Block* block);
+
+// Make data ports (output) for each output channel.
+//
+// A data signal is passed to the output port iff its associated active inputs
+// valid signal is asserted and the predicate of the data operation (if any) is
+// asserted.
+absl::Status MakeOutputDataPortsForOutputChannels(
+    absl::Span<Node* const> all_active_inputs_valid,
+    absl::Span<Node* const> pipelined_valids,
+    absl::Span<Node* const> next_stage_open,
+    std::vector<std::vector<StreamingOutput>>& streaming_outputs,
+    std::string_view data_suffix, Block* block);
 
 // Make ready ports (output) for each input channel.
 //
-// A ready signal is asserted iff all active
-// output ready signals are asserted and the predicate of the data channel (if
-// any) is asserted.
+// A ready signal is asserted iff all active output ready signals are asserted
+// and the predicate of the data operation (if any) is asserted.
 absl::Status MakeOutputReadyPortsForInputChannels(
     absl::Span<Node* const> all_active_outputs_ready,
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
-    std::string_view ready_suffix, Block* block);
+    std::string_view ready_suffix, Proc* proc,
+    absl::Span<ProcInstance* const> instances, Block* block);
 }  // namespace xls::verilog
 
 #endif  // XLS_CODEGEN_CONVERSION_UTILS_H_

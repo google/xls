@@ -73,23 +73,29 @@ class RamRewritePassTest : public IrTestBase {
   }
 
   absl::StatusOr<SendChannelRef> CreateOutputToRam(
-      std::string_view name, Type* type, Package* p,
-      std::optional<Proc*> proc_scope) {
+      std::string_view name, Type* type, ChannelStrictness strictness,
+      Package* p, std::optional<Proc*> proc_scope) {
     if (proc_scope.has_value()) {
       return proc_scope.value()->AddOutputChannel(
-          name, type, ChannelKind::kStreaming, kDefaultChannelStrictness);
+          name, type, ChannelKind::kStreaming, strictness);
     }
-    return p->CreateStreamingChannel(name, ChannelOps::kSendOnly, type);
+    return p->CreateStreamingChannel(
+        name, ChannelOps::kSendOnly, type, /*initial_values=*/{},
+        /*channel_config=*/{}, /*flow_control=*/FlowControl::kReadyValid,
+        /*strictness=*/strictness);
   }
 
   absl::StatusOr<ReceiveChannelRef> CreateInputFromRam(
-      std::string_view name, Type* type, Package* p,
-      std::optional<Proc*> proc_scope) {
+      std::string_view name, Type* type, ChannelStrictness strictness,
+      Package* p, std::optional<Proc*> proc_scope) {
     if (proc_scope.has_value()) {
       return proc_scope.value()->AddInputChannel(
-          name, type, ChannelKind::kStreaming, kDefaultChannelStrictness);
+          name, type, ChannelKind::kStreaming, strictness);
     }
-    return p->CreateStreamingChannel(name, ChannelOps::kReceiveOnly, type);
+    return p->CreateStreamingChannel(
+        name, ChannelOps::kReceiveOnly, type, /*initial_values=*/{},
+        /*channel_config=*/{}, /*flow_control=*/FlowControl::kReadyValid,
+        /*strictness=*/strictness);
   }
 
   struct RamChannels {
@@ -100,7 +106,8 @@ class RamRewritePassTest : public IrTestBase {
   };
   absl::StatusOr<RamChannels> MakeAbstractRam(
       Package* p, const RamConfig& config, std::string_view name_prefix,
-      Type* data_type, std::optional<Proc*> proc_scope = std::nullopt) {
+      Type* data_type, ChannelStrictness strictness = kDefaultChannelStrictness,
+      std::optional<Proc*> proc_scope = std::nullopt) {
     int64_t data_width = data_type->GetFlatBitCount();
     if (config.kind != RamKind::kAbstract) {
       return absl::InvalidArgumentError(absl::StrFormat(
@@ -119,19 +126,19 @@ class RamRewritePassTest : public IrTestBase {
     XLS_ASSIGN_OR_RETURN(
         SendChannelRef read_req,
         CreateOutputToRam(absl::StrCat(name_prefix, "_read_req"), read_req_type,
-                          p, proc_scope));
+                          strictness, p, proc_scope));
     XLS_ASSIGN_OR_RETURN(
         ReceiveChannelRef read_resp,
         CreateInputFromRam(absl::StrCat(name_prefix, "_read_resp"),
-                           read_resp_type, p, proc_scope));
+                           read_resp_type, strictness, p, proc_scope));
     XLS_ASSIGN_OR_RETURN(
         SendChannelRef write_req,
         CreateOutputToRam(absl::StrCat(name_prefix, "_write_req"),
-                          write_req_type, p, proc_scope));
+                          write_req_type, strictness, p, proc_scope));
     XLS_ASSIGN_OR_RETURN(
         ReceiveChannelRef write_resp,
         CreateInputFromRam(absl::StrCat(name_prefix, "_write_resp"),
-                           write_resp_type, p, proc_scope));
+                           write_resp_type, strictness, p, proc_scope));
     return RamChannels{
         .read_req = read_req,
         .read_resp = read_resp,
@@ -186,7 +193,8 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewrite) {
   XLS_ASSERT_OK_AND_ASSIGN(
       RamChannels channels,
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
-                      /*data_type=*/p->GetBitsType(32)));
+                      /*data_type=*/p->GetBitsType(32),
+                      /*strictness=*/ChannelStrictness::kTotalOrder));
 
   pb->Send(channels.read_req,
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
@@ -235,10 +243,10 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteDataIsTuple) {
   config_1rw.kind = RamKind::k1RW;
   XLS_ASSERT_OK_AND_ASSIGN(
       RamChannels channels,
-      MakeAbstractRam(
-          p.get(), config_abstract, "ram_abstract",
-          /*data_type=*/
-          p->GetTupleType({p->GetBitsType(32), p->GetBitsType(1)})));
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
+                      /*data_type=*/
+                      p->GetTupleType({p->GetBitsType(32), p->GetBitsType(1)}),
+                      ChannelStrictness::kTotalOrder));
   pb->Send(channels.read_req, pb->Literal(Value::Tuple({
                                   Value(UBits(0, 10)),  // addr
                                   Value::Tuple({})      // mask
@@ -292,7 +300,8 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWWithMaskRewrite) {
   XLS_ASSERT_OK_AND_ASSIGN(
       RamChannels channels,
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
-                      /*data_type=*/p->GetBitsType(32)));
+                      /*data_type=*/p->GetBitsType(32),
+                      ChannelStrictness::kTotalOrder));
 
   pb->Send(
       channels.read_req,
@@ -343,14 +352,16 @@ TEST_F(RamRewritePassTest, MultipleAbstractTo1RWRewrite) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto abstract0_ram_channels,
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract0",
-                      /*data_type=*/p->GetBitsType(32)));
+                      /*data_type=*/p->GetBitsType(32),
+                      ChannelStrictness::kTotalOrder));
   auto& [ram_abstract0_read_req, ram_abstract0_read_resp,
          ram_abstract0_write_req, ram_abstract0_write_resp] =
       abstract0_ram_channels;
   XLS_ASSERT_OK_AND_ASSIGN(
       auto abstract1_ram_channels,
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract1",
-                      /*data_type=*/p->GetBitsType(32)));
+                      /*data_type=*/p->GetBitsType(32),
+                      ChannelStrictness::kTotalOrder));
   auto& [ram_abstract1_read_req, ram_abstract1_read_resp,
          ram_abstract1_write_req, ram_abstract1_write_resp] =
       abstract1_ram_channels;
@@ -726,7 +737,8 @@ TEST_F(RamRewritePassTest, MultipleAbstractTo1RWAnd1R1WRewrite) {
   XLS_ASSERT_OK_AND_ASSIGN(
       RamChannels channels0,
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract0",
-                      /*data_type=*/p->GetBitsType(32)));
+                      /*data_type=*/p->GetBitsType(32),
+                      ChannelStrictness::kTotalOrder));
   XLS_ASSERT_OK_AND_ASSIGN(
       RamChannels channels1,
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract1",
@@ -810,7 +822,8 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteProcScoped) {
   XLS_ASSERT_OK_AND_ASSIGN(
       RamChannels channels,
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
-                      /*data_type=*/p->GetBitsType(32), pb.proc()));
+                      /*data_type=*/p->GetBitsType(32),
+                      ChannelStrictness::kTotalOrder, pb.proc()));
 
   pb.Send(channels.read_req,
           pb.Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
@@ -858,7 +871,8 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1R1WRewriteProcScoped) {
   XLS_ASSERT_OK_AND_ASSIGN(
       RamChannels channels,
       MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
-                      /*data_type=*/p->GetBitsType(32), pb.proc()));
+                      /*data_type=*/p->GetBitsType(32),
+                      ChannelStrictness::kTotalOrder, pb.proc()));
 
   pb.Send(channels.read_req,
           pb.Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));

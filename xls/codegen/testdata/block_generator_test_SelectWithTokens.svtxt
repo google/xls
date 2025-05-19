@@ -52,8 +52,8 @@ module pipelined_proc(
     end
   end
   assign ctrl_ready = pipeline_enable;
-  assign in0_ready = ctrl_0 & pipeline_enable;
-  assign in1_ready = ctrl_data & pipeline_enable;
+  assign in0_ready = pipeline_enable & ctrl_0;
+  assign in1_ready = pipeline_enable & ctrl_data;
   assign out_data = __out_data_reg;
   assign out_valid = __out_data_valid_reg;
 endmodule

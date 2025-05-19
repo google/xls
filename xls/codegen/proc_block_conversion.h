@@ -18,11 +18,13 @@
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/ir/block.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
@@ -38,7 +40,8 @@ namespace xls::verilog {
 //                            proc/function the block was created from.
 absl::Status SingleProcToPipelinedBlock(
     const PipelineSchedule& schedule, const CodegenOptions& options,
-    CodegenContext& context, Proc* proc, Block* ABSL_NONNULL block,
+    CodegenContext& context, Proc* proc,
+    absl::Span<ProcInstance* const> instances, Block* ABSL_NONNULL block,
     const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks);
 
 }  // namespace xls::verilog

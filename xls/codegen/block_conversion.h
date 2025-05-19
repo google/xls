@@ -35,6 +35,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
@@ -131,7 +132,7 @@ absl::Status AddCombinationalFlowControl(
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
     std::vector<std::optional<Node*>>& stage_valid,
-    const CodegenOptions& options, Block* block);
+    const CodegenOptions& options, Proc* proc, Block* block);
 
 // Update io channel metadata with latest information from block conversion.
 absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io, Block* block);
@@ -143,7 +144,8 @@ absl::StatusOr<std::string> StreamingIOName(Node* node);
 // bottom up in the tree of proc instantiations. `procs_to_convert` is the set
 // of Procs to convert. `procs_to_convert` must not be specified otherwise.
 absl::StatusOr<std::vector<FunctionBase*>> GetBlockConversionOrder(
-    Package* package, absl::Span<Proc* const> procs_to_convert = {});
+    Package* package, absl::Span<Proc* const> procs_to_convert = {},
+    const std::optional<ProcElaboration>& proc_elab = std::nullopt);
 
 }  // namespace xls::verilog
 

@@ -22,8 +22,8 @@ module foo_proc(
   assign in1_select = continuation_4_output__1 ? in1 : 32'h0000_0000;
   assign p0_all_active_inputs_valid = (~continuation_4_output__1 | in1_vld) & (~ctx_3__relative_condition_output__2 | in2_vld);
   assign out_send_value = continuation_4_output__1 ? in1_select : in2_select;
-  assign in1_rdy = continuation_4_output__1 & out_rdy;
-  assign in2_rdy = ctx_3__relative_condition_output__2 & out_rdy;
+  assign in1_rdy = out_rdy & continuation_4_output__1;
+  assign in2_rdy = out_rdy & ctx_3__relative_condition_output__2;
   assign out = out_send_value;
   assign out_vld = p0_all_active_inputs_valid & 1'h1 & 1'h1;
 endmodule
