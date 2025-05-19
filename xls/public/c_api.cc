@@ -244,7 +244,7 @@ char* xls_schedule_and_codegen_result_get_verilog_text(
   CHECK(result != nullptr);
   auto* cpp_result =
       reinterpret_cast<const xls::ScheduleAndCodegenResult*>(result);
-  return xls::ToOwnedCString(cpp_result->module_generator_result.verilog_text);
+  return xls::ToOwnedCString(cpp_result->codegen_result.verilog_text);
 }
 
 void xls_schedule_and_codegen_result_free(

@@ -134,6 +134,11 @@ absl::Status RealMain(std::string_view ir_path) {
                          codegen_result.pass_pipeline_metrics));
   }
 
+  if (!absl::GetFlag(FLAGS_block_metrics_path).empty()) {
+    XLS_RETURN_IF_ERROR(SetTextProtoFile(
+        absl::GetFlag(FLAGS_block_metrics_path), codegen_result.block_metrics));
+  }
+
   const std::string& verilog_path = absl::GetFlag(FLAGS_output_verilog_path);
   if (!verilog_path.empty()) {
     for (int64_t i = 0; i < codegen_result.verilog_line_map.mapping_size();

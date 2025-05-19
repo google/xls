@@ -1,38 +1,36 @@
-# proto-file: xls/codegen/module_signature.proto
-# proto-message: ModuleSignatureProto
+# proto-file: xls/codegen/xls_metrics.proto
+# proto-message: XlsMetricsProto
 
-metrics {
-  block_metrics {
-    # Top identical BOM items to be counted together.
-    bill_of_materials {
-      op: OP_NE
-      kind: BOM_KIND_COMPARISON
-      output_width: 1
-      maximum_input_width: 8
-      number_of_arguments: 2
-    }
-    bill_of_materials {
-      op: OP_NE
-      kind: BOM_KIND_COMPARISON
-      output_width: 1
-      maximum_input_width: 8
-      number_of_arguments: 2
-    }
-    # Third BOM item with different width
-    bill_of_materials {
-      op: OP_NE
-      kind: BOM_KIND_COMPARISON
-      output_width: 1
-      maximum_input_width: 16
-      number_of_arguments: 2
-    }
-    # Fourth BOM item with different OP
-    bill_of_materials {
-      op: OP_ADD
-      kind: BOM_KIND_ADDER
-      output_width: 8
-      maximum_input_width: 8
-      number_of_arguments: 2
-    }
+block_metrics {
+  # Top identical BOM items to be counted together.
+  bill_of_materials {
+    op: OP_NE
+    kind: BOM_KIND_COMPARISON
+    output_width: 1
+    maximum_input_width: 8
+    number_of_arguments: 2
+  }
+  bill_of_materials {
+    op: OP_NE
+    kind: BOM_KIND_COMPARISON
+    output_width: 1
+    maximum_input_width: 8
+    number_of_arguments: 2
+  }
+  # Third BOM item with different width
+  bill_of_materials {
+    op: OP_NE
+    kind: BOM_KIND_COMPARISON
+    output_width: 1
+    maximum_input_width: 16
+    number_of_arguments: 2
+  }
+  # Fourth BOM item with different OP
+  bill_of_materials {
+    op: OP_ADD
+    kind: BOM_KIND_ADDER
+    output_width: 8
+    maximum_input_width: 8
+    number_of_arguments: 2
   }
 }

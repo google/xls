@@ -60,6 +60,7 @@ cc_library(
     deps = [
         ":block_conversion",
         ":block_generator",
+        ":block_metrics",
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
@@ -184,12 +185,14 @@ cc_library(
     deps = [
         ":block_conversion",
         ":block_generator",
+        ":block_metrics",
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
         ":codegen_result",
         ":module_signature",
         ":verilog_line_map_cc_proto",
+        ":xls_metrics_cc_proto",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -293,6 +296,7 @@ cc_library(
     deps = [
         ":block_conversion_pass_pipeline",
         ":block_generator",
+        ":block_metrics",
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
@@ -642,7 +646,6 @@ cc_library(
     srcs = ["codegen_pass_pipeline.cc"],
     hdrs = ["codegen_pass_pipeline.h"],
     deps = [
-        ":block_metrics_generation_pass",
         ":block_stitching_pass",
         ":codegen_checker",
         ":codegen_pass",
@@ -1443,23 +1446,6 @@ cc_test(
 )
 
 cc_library(
-    name = "block_metrics_generation_pass",
-    srcs = ["block_metrics_generation_pass.cc"],
-    hdrs = ["block_metrics_generation_pass.h"],
-    deps = [
-        ":block_metrics",
-        ":codegen_pass",
-        ":module_signature",
-        ":xls_metrics_cc_proto",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/passes:pass_base",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-    ],
-)
-
-cc_library(
     name = "block_metrics",
     srcs = ["block_metrics.cc"],
     hdrs = ["block_metrics.h"],
@@ -2075,6 +2061,7 @@ cc_library(
 cc_library(
     name = "codegen_result",
     hdrs = ["codegen_result.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":module_signature",
         ":module_signature_cc_proto",

@@ -31,7 +31,7 @@ struct CodegenResult {
   std::string verilog_text;
   VerilogLineMap verilog_line_map;
   ModuleSignature signature;
-  XlsMetricsProto bom;
+  XlsMetricsProto block_metrics;
   PassPipelineMetricsProto pass_pipeline_metrics;
 };
 

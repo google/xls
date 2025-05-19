@@ -630,6 +630,7 @@ cc_library(
 cc_library(
     name = "scheduling_result",
     hdrs = ["scheduling_result.h"],
+    visibility = ["//xls:xls_users"],
     deps = [
         ":pipeline_schedule_cc_proto",
         "//xls/passes:pass_metrics_cc_proto",

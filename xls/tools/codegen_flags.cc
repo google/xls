@@ -187,13 +187,16 @@ ABSL_FLAG(std::vector<std::string>, assertion_macro_names, {"ASSERT_ON"},
           "prefixed with `!` the polarity of the guard is inverted (`ifndef).");
 ABSL_FLAG(int64_t, codegen_version, 0,
           "Version of codegen to use.  Either 2 (refactored codegen), 1 "
-          "(orignal codegen path), or 0 for default");
+          "(original codegen path), or 0 for default");
 ABSL_FLAG(std::string, output_scheduling_pass_metrics_path, "",
           "Output path for the pass pipeline metrics for scheduling passes as "
           "a PassPipelineMetricsProto.");
 ABSL_FLAG(std::string, output_codegen_pass_metrics_path, "",
           "Output path for the pass pipeline metrics for codegen  passes as a "
           "PassPipelineMetricsProto.");
+ABSL_FLAG(std::string, block_metrics_path, "",
+          "The filename to write the metrics, including the bill of "
+          "materials, for the generated Verilog file");
 
 struct SeedSeq {
   std::vector<int32_t> elements;

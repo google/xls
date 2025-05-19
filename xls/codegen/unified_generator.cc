@@ -22,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion_pass_pipeline.h"
 #include "xls/codegen/block_generator.h"
+#include "xls/codegen/block_metrics.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
@@ -112,12 +113,17 @@ absl::StatusOr<CodegenResult> GenerateModuleText(
       ModuleSignature signature,
       ModuleSignature::FromProto(*codegen_context.top_block()->GetSignature()));
 
+  XlsMetricsProto metrics;
+  XLS_ASSIGN_OR_RETURN(
+      *metrics.mutable_block_metrics(),
+      GenerateBlockMetrics(codegen_context.top_block(), delay_estimator));
+
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
   return CodegenResult{.verilog_text = verilog,
                        .verilog_line_map = verilog_line_map,
                        .signature = signature,
-                       .bom = signature.proto().metrics(),
+                       .block_metrics = metrics,
                        .pass_pipeline_metrics = results.ToProto()};
 }
 

@@ -138,16 +138,8 @@ absl::StatusOr<ScheduleAndCodegenResult> ScheduleAndCodegenPackage(
   XLS_ASSIGN_OR_RETURN(
       result, ScheduleAndCodegen(p, scheduling_options_flags_proto,
                                  codegen_flags_proto, with_delay_model));
-  const SchedulingResult& scheduling_result = result.first;
-  const verilog::CodegenResult& codegen_result = result.second;
-  return ScheduleAndCodegenResult{
-      .module_generator_result =
-          verilog::ModuleGeneratorResult{
-              .verilog_text = codegen_result.verilog_text,
-              .verilog_line_map = codegen_result.verilog_line_map,
-              .signature = codegen_result.signature},
-      .pipeline_schedule_group_proto = scheduling_result.schedules,
-  };
+  return ScheduleAndCodegenResult{.scheduling_result = result.first,
+                                  .codegen_result = result.second};
 }
 
 }  // namespace xls

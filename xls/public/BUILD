@@ -38,7 +38,6 @@ cc_library(
     deps = [
         ":ir",
         "//xls/codegen:codegen_result",
-        "//xls/codegen:module_signature",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",

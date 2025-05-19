@@ -59,26 +59,22 @@ bool operator<(const BomItem& lhs, const BomItem& rhs) {
 }
 
 absl::StatusOr<absl::btree_map<BomItem, int64_t>> BomCalculateSummary(
-    const absl::flat_hash_map<std::string, ModuleSignatureProto>&
-        signature_data) {
+    const absl::flat_hash_map<std::string, verilog::XlsMetricsProto>&
+        metrics_data) {
   absl::btree_map<BomItem, int64_t> summary;
-  for (const auto& [path, signature] : signature_data) {
-    if (!signature.has_metrics()) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Proto ModuleSignatureProto from %s has empty metrics.", path));
-    }
-    if (!signature.metrics().has_block_metrics()) {
+  for (const auto& [path, metrics] : metrics_data) {
+    if (!metrics.has_block_metrics()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Proto ModuleSignatureProto from %s has empty block metrics.", path));
     }
-    if (signature.metrics().block_metrics().bill_of_materials().empty()) {
+    if (metrics.block_metrics().bill_of_materials().empty()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Proto ModuleSignatureProto from %s has no bill of materials.",
           path));
     }
 
     for (const verilog::BomEntryProto& item :
-         signature.metrics().block_metrics().bill_of_materials()) {
+         metrics.block_metrics().bill_of_materials()) {
       if (!item.has_op()) {
         return absl::InvalidArgumentError(
             absl::StrFormat("ModuleSignatureProto from %s has a BomEmptyProto "
@@ -103,26 +99,26 @@ absl::StatusOr<absl::btree_map<BomItem, int64_t>> BomCalculateSummary(
   return summary;
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, ModuleSignatureProto>>
-CollectSignatureProtos(const std::filesystem::path& root,
-                       const std::string& match) {
-  absl::flat_hash_map<std::string, ModuleSignatureProto> signature_protos;
+absl::StatusOr<absl::flat_hash_map<std::string, verilog::XlsMetricsProto>>
+CollectMetricsProtos(const std::filesystem::path& root,
+                     const std::string& match) {
+  absl::flat_hash_map<std::string, verilog::XlsMetricsProto> metrics_protos;
   XLS_ASSIGN_OR_RETURN(std::vector<std::filesystem::path> filenames,
                        FindFilesMatchingRegex(root, match));
   for (const std::filesystem::path& path : filenames) {
-    verilog::ModuleSignatureProto signature;
+    verilog::XlsMetricsProto metrics;
 
     if (absl::EndsWith(path.filename().c_str(), ".textproto")) {
-      XLS_RETURN_IF_ERROR(ParseTextProtoFile(path, &signature));
+      XLS_RETURN_IF_ERROR(ParseTextProtoFile(path, &metrics));
     } else if (absl::EndsWith(path.filename().c_str(), ".proto")) {
-      XLS_RETURN_IF_ERROR(ParseProtobinFile(path.filename(), &signature));
+      XLS_RETURN_IF_ERROR(ParseProtobinFile(path.filename(), &metrics));
     } else {
       return absl::InvalidArgumentError(
           absl::StrCat(path.c_str(), " is not a .proto or .textproto file"));
     }
-    signature_protos[std::string{path}] = signature;
+    metrics_protos[std::string{path}] = metrics;
   }
-  return signature_protos;
+  return metrics_protos;
 }
 
 constexpr int64_t kColumns = 5;  // 4 fields in xls::bom::item and the count

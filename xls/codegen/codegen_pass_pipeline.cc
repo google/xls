@@ -20,7 +20,6 @@
 #include <memory>
 
 #include "absl/status/statusor.h"
-#include "xls/codegen/block_metrics_generation_pass.h"
 #include "xls/codegen/block_stitching_pass.h"
 #include "xls/codegen/codegen_checker.h"
 #include "xls/codegen/codegen_pass.h"
@@ -121,9 +120,6 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline(
 
   // Legalize names.
   top->Add<NameLegalizationPass>();
-
-  // Final metrics collection for the final block.
-  top->Add<BlockMetricsGenerationPass>();
 
   return top;
 }

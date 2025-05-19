@@ -17,7 +17,6 @@ syntax = "proto3";
 package xls.verilog;
 
 import "google/api/field_behavior.proto";
-import "xls/codegen/xls_metrics.proto";
 import "xls/ir/channel.proto";
 import "xls/ir/foreign_function_data.proto";
 import "xls/ir/xls_type.proto";
@@ -301,12 +300,6 @@ message ModuleSignatureProto {
     CombinationalInterface combinational = 8;
     UnknownInterface unknown = 10;
   }
-
-  // Metrics collected during codegen
-  // TODO(tedhong): 2022/01/28 Consider factoring out this into a separate
-  //                file that consolidates all metrics throughout
-  //                an xls flow.
-  optional XlsMetricsProto metrics = 11;
 
   repeated InstantiationProto instantiations = 14;
 }

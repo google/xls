@@ -33,15 +33,15 @@ TEST(BomTest, TestBomSummary) {
       std::filesystem::path testfile_path,
       GetXlsRunfilePath("xls/tools/testdata/bom.sig.textproto"));
   std::filesystem::path root_path(testfile_path.parent_path());
-  using MapT = absl::flat_hash_map<std::string, ModuleSignatureProto>;
+  using MapT = absl::flat_hash_map<std::string, verilog::XlsMetricsProto>;
   XLS_ASSERT_OK_AND_ASSIGN(
-      MapT signature_protos,
-      CollectSignatureProtos(root_path, ".*/bom\\.sig\\.textproto"));
-  EXPECT_EQ(signature_protos.size(), 1);
+      MapT metrics_protos,
+      CollectMetricsProtos(root_path, ".*/bom\\.sig\\.textproto"));
+  EXPECT_EQ(metrics_protos.size(), 1);
 
   // Calculate and check the summary
   XLS_ASSERT_OK_AND_ASSIGN(auto bom_summary,
-                           BomCalculateSummary(signature_protos));
+                           BomCalculateSummary(metrics_protos));
 
   // Extract the items expected in the BOM
   EXPECT_EQ(bom_summary.size(), 3);

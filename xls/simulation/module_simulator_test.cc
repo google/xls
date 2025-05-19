@@ -91,7 +91,7 @@ absl::StatusOr<verilog::CodegenResult> GetInputChannelMonitorModule() {
       .verilog_text = verilog_text,
       .verilog_line_map = VerilogLineMap(),
       .signature = signature,
-      .bom = XlsMetricsProto(),
+      .block_metrics = XlsMetricsProto(),
       .pass_pipeline_metrics = PassPipelineMetricsProto()};
 }
 
@@ -218,7 +218,7 @@ endmodule
       .verilog_text = std::string{text},
       .verilog_line_map = VerilogLineMap(),
       .signature = signature,
-      .bom = XlsMetricsProto(),
+      .block_metrics = XlsMetricsProto(),
       .pass_pipeline_metrics = PassPipelineMetricsProto()};
 }
 

@@ -253,10 +253,6 @@ class ModuleSignature {
 
   absl::StatusOr<ChannelProto> GetChannel(std::string_view channel_name) const;
 
-  // Replace the signature with block metrics created during codegen.
-  // TODO(tedhong): 2022-01-28 Support incremental update of metrics.
-  absl::Status ReplaceBlockMetrics(BlockMetricsProto block_metrics);
-
   absl::Span<const InstantiationProto* const> GetInstantiations() const {
     return proto_.instantiations();
   }

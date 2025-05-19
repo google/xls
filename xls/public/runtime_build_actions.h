@@ -29,16 +29,16 @@
 // these actions remaining stable, they will evolve as the XLS system evolves.
 
 #include <filesystem>  // NOLINT
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/codegen/module_signature.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/public/ir.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
+#include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -111,19 +111,9 @@ absl::StatusOr<std::string> ProtoToDslx(std::string_view proto_def,
                                         std::string_view text_proto,
                                         std::string_view binding_name);
 
-// This replicates a previously defined internal struct. It should be removed.
-namespace verilog {
-struct ModuleGeneratorResult {
-  std::string verilog_text;
-  VerilogLineMap verilog_line_map;
-  ModuleSignature signature;
-};
-}  // namespace verilog
-
 struct ScheduleAndCodegenResult {
-  verilog::ModuleGeneratorResult module_generator_result;
-  std::optional<PackagePipelineSchedulesProto> pipeline_schedule_group_proto =
-      std::nullopt;
+  SchedulingResult scheduling_result;
+  verilog::CodegenResult codegen_result;
 };
 
 // Schedules and codegen a given package.

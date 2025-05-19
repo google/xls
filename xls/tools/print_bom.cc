@@ -69,9 +69,8 @@ std::string AbslUnparseFlag(PrintBomOutputMode mode) {
 ABSL_FLAG(std::string, root_path, ".",
           "Path to start the recursive search at.");
 
-ABSL_FLAG(
-    std::string, file_pattern, ".*\\.sig\\.(text)?proto",
-    "Regex pattern used to find `ModuleSignatureProto` (text)proto files.");
+ABSL_FLAG(std::string, file_pattern, ".*\\.sig\\.(text)?proto",
+          "Regex pattern used to find `XlsMetricsProto` (text)proto files.");
 
 ABSL_FLAG(PrintBomOutputMode, output_as, PrintBomOutputMode::kTable,
           "Format to output the BOM.");
@@ -82,24 +81,23 @@ ABSL_FLAG(std::vector<std::string>, op_kind, {},
 namespace xls {
 
 static absl::Status RealMain() {
-  using MapT = absl::flat_hash_map<std::string, ModuleSignatureProto>;
-  XLS_ASSIGN_OR_RETURN(
-      MapT signature_data,
-      CollectSignatureProtos(absl::GetFlag(FLAGS_root_path),
-                             absl::GetFlag(FLAGS_file_pattern)));
-  if (signature_data.empty()) {
+  using MapT = absl::flat_hash_map<std::string, verilog::XlsMetricsProto>;
+  XLS_ASSIGN_OR_RETURN(MapT metrics_data,
+                       CollectMetricsProtos(absl::GetFlag(FLAGS_root_path),
+                                            absl::GetFlag(FLAGS_file_pattern)));
+  if (metrics_data.empty()) {
     return absl::NotFoundError(
         "No protobuf files, check --root_path and --file_pattern values.");
   }
 
-  std::cerr << "\nFound " << signature_data.size() << " protobuf files.\n";
-  for (const auto& protos : signature_data) {
+  std::cerr << "\nFound " << metrics_data.size() << " protobuf files.\n";
+  for (const auto& protos : metrics_data) {
     std::cerr << " * " << protos.first << "\n";
   }
   std::cerr << "\n";
 
   using BMapT = absl::btree_map<BomItem, int64_t>;
-  XLS_ASSIGN_OR_RETURN(BMapT bom_summary, BomCalculateSummary(signature_data));
+  XLS_ASSIGN_OR_RETURN(BMapT bom_summary, BomCalculateSummary(metrics_data));
 
   std::vector<std::string> op_kinds = absl::GetFlag(FLAGS_op_kind);
   if (!op_kinds.empty()) {
