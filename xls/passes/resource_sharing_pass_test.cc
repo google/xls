@@ -102,38 +102,34 @@ void InterpretAndCheck(Function *f, const std::vector<int32_t> &inputs,
 }
 
 TEST_F(ResourceSharingPassTest, MergeSingleUnsignedMultiplication) {
-  // The next IR has been generated from the following DSLX code:
-  /*
-    pub fn my_main_function (op: u32, i: u32, j: u32, k: u32, z: u32) -> u32{
-      let v = match op {
-        u32:0 => op_0(i, j),
-        u32:1 => op_1(k, z),
-        _ => fail!("unsupported_operation", zero!<u32>()),
-      };
-      v
-    }
-  */
-  const std::string program = R"(
-fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: bits[32], z: bits[32]) -> bits[32] {
-  bit_slice.62: bits[31] = bit_slice(op, start=1, width=31)
-  literal.63: bits[32] = literal(value=1)
-  literal.64: bits[32] = literal(value=0)
-  or_reduce.65: bits[1] = or_reduce(bit_slice.62)
-  eq.66: bits[1] = eq(op, literal.63)
-  eq.67: bits[1] = eq(op, literal.64)
-  t: bits[32] = umul(k, z)
-  literal.69: bits[32] = literal(value=4294967295)
-  after_all.39: token = after_all()
-  not.80: bits[1] = not(or_reduce.65)
-  concat.71: bits[2] = concat(eq.66, eq.67)
-  umul.72: bits[32] = umul(i, j)
-  add.73: bits[32] = add(t, literal.69)
-  ret v: bits[32] = priority_sel(concat.71, cases=[umul.72, add.73], default=literal.64)
-})";
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+
+  // Create the IR body
+  BValue mulIJ = fb.UMul(i, j);
+  BValue mulKZ = fb.UMul(k, z);
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+  BValue add = fb.Add(mulKZ, kNeg1);
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {mulIJ, add}, k0);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
@@ -149,27 +145,34 @@ fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: 
 }
 
 TEST_F(ResourceSharingPassTest, MergeSingleSignedMultiplication) {
-  const std::string program = R"(
-fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: bits[32], z: bits[32]) -> bits[32] {
-  bit_slice.62: bits[31] = bit_slice(op, start=1, width=31)
-  literal.63: bits[32] = literal(value=1)
-  literal.64: bits[32] = literal(value=0)
-  or_reduce.65: bits[1] = or_reduce(bit_slice.62)
-  eq.66: bits[1] = eq(op, literal.63)
-  eq.67: bits[1] = eq(op, literal.64)
-  t: bits[32] = smul(k, z)
-  literal.69: bits[32] = literal(value=4294967295)
-  after_all.39: token = after_all()
-  not.80: bits[1] = not(or_reduce.65)
-  concat.71: bits[2] = concat(eq.66, eq.67)
-  smul.72: bits[32] = smul(i, j)
-  add.73: bits[32] = add(t, literal.69)
-  ret v: bits[32] = priority_sel(concat.71, cases=[smul.72, add.73], default=literal.64)
-})";
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+
+  // Create the IR body
+  BValue mulIJ = fb.SMul(i, j);
+  BValue mulKZ = fb.SMul(k, z);
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+  BValue add = fb.Add(mulKZ, kNeg1);
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {mulIJ, add}, k0);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
@@ -185,39 +188,61 @@ fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: 
 }
 
 TEST_F(ResourceSharingPassTest, MergeMultipleUnsignedMultiplications) {
-  const std::string program = R"(
-fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: bits[32], z: bits[32], w: bits[32], p: bits[32], o: bits[32], y: bits[32]) -> bits[32] {
-  t__2: bits[32] = umul(o, y)
-  bit_slice.96: bits[30] = bit_slice(op, start=2, width=30)
-  literal.97: bits[32] = literal(value=3)
-  literal.98: bits[32] = literal(value=2)
-  literal.99: bits[32] = literal(value=1)
-  literal.100: bits[32] = literal(value=0)
-  bit_slice.125: bits[31] = bit_slice(t__2, start=1, width=31)
-  literal.130: bits[31] = literal(value=1)
-  or_reduce.101: bits[1] = or_reduce(bit_slice.96)
-  eq.102: bits[1] = eq(op, literal.97)
-  eq.103: bits[1] = eq(op, literal.98)
-  eq.104: bits[1] = eq(op, literal.99)
-  eq.105: bits[1] = eq(op, literal.100)
-  t: bits[32] = umul(k, z)
-  literal.107: bits[32] = literal(value=4294967295)
-  t__1: bits[32] = umul(w, p)
-  add.127: bits[31] = add(bit_slice.125, literal.130)
-  bit_slice.128: bits[1] = bit_slice(t__2, start=0, width=1)
-  after_all.63: token = after_all()
-  not.124: bits[1] = not(or_reduce.101)
-  concat.113: bits[4] = concat(eq.102, eq.103, eq.104, eq.105)
-  umul.114: bits[32] = umul(i, j)
-  add.115: bits[32] = add(t, literal.107)
-  add.116: bits[32] = add(t__1, literal.99)
-  concat.129: bits[32] = concat(add.127, bit_slice.128)
-  ret v: bits[32] = priority_sel(concat.113, cases=[umul.114, add.115, add.116, concat.129], default=literal.100)
-})";
+  // Create the function builder
+  auto package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+
+  // Fetch the types
+  Type* u32_type = package->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+  BValue w = fb.Param("w", u32_type);
+  BValue p = fb.Param("p", u32_type);
+  BValue o = fb.Param("o", u32_type);
+  BValue y = fb.Param("y", u32_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue k1_31bits = fb.Literal(UBits(1, 31));
+  BValue k2 = fb.Literal(UBits(2, 32));
+  BValue k3 = fb.Literal(UBits(3, 32));
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+
+  // Step 1: results
+  BValue result0 = fb.UMul(i, j);
+
+  BValue mulKZ = fb.UMul(k, z);
+  BValue result1 = fb.Add(mulKZ, kNeg1);
+
+  BValue mulWP = fb.UMul(w, p);
+  BValue result2 = fb.Add(mulWP, k1);
+
+  BValue mulOY = fb.UMul(o, y);
+  BValue mulOY_0_1 = fb.BitSlice(mulOY, 0, 1);
+  BValue mulOY_1_32 = fb.BitSlice(mulOY, 1, 31);
+
+  BValue add0 = fb.Add(mulOY_1_32, k1_31bits);
+  BValue result3 = fb.Concat({add0, mulOY_0_1});
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue isOp2 = fb.Eq(op, k2);
+  BValue isOp3 = fb.Eq(op, k3);
+  BValue selector = fb.Concat({isOp3, isOp2, isOp1, isOp0});
+  BValue select =
+      fb.PrioritySelect(selector, {result0, result1, result2, result3}, k0);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
@@ -235,39 +260,61 @@ fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: 
 }
 
 TEST_F(ResourceSharingPassTest, MergeMultipleSignedMultiplications) {
-  const std::string program = R"(
-fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: bits[32], z: bits[32], w: bits[32], p: bits[32], o: bits[32], y: bits[32]) -> bits[32] {
-  t__2: bits[32] = smul(o, y)
-  bit_slice.96: bits[30] = bit_slice(op, start=2, width=30)
-  literal.97: bits[32] = literal(value=3)
-  literal.98: bits[32] = literal(value=2)
-  literal.99: bits[32] = literal(value=1)
-  literal.100: bits[32] = literal(value=0)
-  bit_slice.125: bits[31] = bit_slice(t__2, start=1, width=31)
-  literal.130: bits[31] = literal(value=1)
-  or_reduce.101: bits[1] = or_reduce(bit_slice.96)
-  eq.102: bits[1] = eq(op, literal.97)
-  eq.103: bits[1] = eq(op, literal.98)
-  eq.104: bits[1] = eq(op, literal.99)
-  eq.105: bits[1] = eq(op, literal.100)
-  t: bits[32] = smul(k, z)
-  literal.107: bits[32] = literal(value=4294967295)
-  t__1: bits[32] = smul(w, p)
-  add.127: bits[31] = add(bit_slice.125, literal.130)
-  bit_slice.128: bits[1] = bit_slice(t__2, start=0, width=1)
-  after_all.63: token = after_all()
-  not.124: bits[1] = not(or_reduce.101)
-  concat.113: bits[4] = concat(eq.102, eq.103, eq.104, eq.105)
-  smul.114: bits[32] = smul(i, j)
-  add.115: bits[32] = add(t, literal.107)
-  add.116: bits[32] = add(t__1, literal.99)
-  concat.129: bits[32] = concat(add.127, bit_slice.128)
-  ret v: bits[32] = priority_sel(concat.113, cases=[smul.114, add.115, add.116, concat.129], default=literal.100)
-})";
+  // Create the function builder
+  auto package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+
+  // Fetch the types
+  Type* u32_type = package->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+  BValue w = fb.Param("w", u32_type);
+  BValue p = fb.Param("p", u32_type);
+  BValue o = fb.Param("o", u32_type);
+  BValue y = fb.Param("y", u32_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue k1_31bits = fb.Literal(UBits(1, 31));
+  BValue k2 = fb.Literal(UBits(2, 32));
+  BValue k3 = fb.Literal(UBits(3, 32));
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+
+  // Step 1: results
+  BValue result0 = fb.SMul(i, j);
+
+  BValue mulKZ = fb.SMul(k, z);
+  BValue result1 = fb.Add(mulKZ, kNeg1);
+
+  BValue mulWP = fb.SMul(w, p);
+  BValue result2 = fb.Add(mulWP, k1);
+
+  BValue mulOY = fb.SMul(o, y);
+  BValue mulOY_0_1 = fb.BitSlice(mulOY, 0, 1);
+  BValue mulOY_1_32 = fb.BitSlice(mulOY, 1, 31);
+
+  BValue add0 = fb.Add(mulOY_1_32, k1_31bits);
+  BValue result3 = fb.Concat({add0, mulOY_0_1});
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue isOp2 = fb.Eq(op, k2);
+  BValue isOp3 = fb.Eq(op, k3);
+  BValue selector = fb.Concat({isOp3, isOp2, isOp1, isOp0});
+  BValue select =
+      fb.PrioritySelect(selector, {result0, result1, result2, result3}, k0);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
@@ -298,126 +345,202 @@ TEST_F(ResourceSharingPassTest, NotPossibleFolding0) {
     v + v0 + v1
   }
   */
-  const std::string program = R"(
-fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: bits[32], z: bits[32]) -> bits[32] {
-  literal.56: bits[32] = literal(value=1)
-  literal.57: bits[32] = literal(value=0)
-  eq.58: bits[1] = eq(op, literal.56)
-  eq.59: bits[1] = eq(op, literal.57)
-  umul.60: bits[32] = umul(k, z)
-  literal.61: bits[32] = literal(value=4294967295)
-  bit_slice.62: bits[31] = bit_slice(op, start=1, width=31)
-  concat.63: bits[2] = concat(eq.58, eq.59)
-  v0: bits[32] = umul(i, j)
-  v1: bits[32] = add(umul.60, literal.61)
-  or_reduce.66: bits[1] = or_reduce(bit_slice.62)
-  v: bits[32] = priority_sel(concat.63, cases=[v0, v1], default=literal.57)
-  after_all.35: token = after_all()
-  not.76: bits[1] = not(or_reduce.66)
-  add.69: bits[32] = add(v, v0)
-  ret add.71: bits[32] = add(add.69, v1)
-})";
+
+  // Create the function builder
+  auto package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+
+  // Fetch the types
+  Type* u32_type = package->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+
+  // Step 1: results
+  BValue result0 = fb.UMul(i, j);
+  BValue mulKZ = fb.UMul(k, z);
+  BValue result1 = fb.Add(mulKZ, kNeg1);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {result0, result1}, k0);
+
+  // Step 3: post-select computation
+  BValue post_select_add0 = fb.Add(select, result0);
+  BValue post_select_add1 = fb.Add(post_select_add0, result1);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(post_select_add1));
 
   // We expect the transformation to be not applicable
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
 }
 
 TEST_F(ResourceSharingPassTest, NotPossibleFolding1) {
-  const std::string program = R"(
-fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: bits[32], z: bits[32], w: bits[32], p: bits[32], o: bits[32], y: bits[32]) -> bits[32] {
-  literal.66: bits[32] = literal(value=0)
-  t: bits[32] = umul(o, y)
-  eq.67: bits[1] = eq(op, literal.66)
-  bit_slice.84: bits[31] = bit_slice(t, start=1, width=31)
-  literal.89: bits[31] = literal(value=1)
-  umul.69: bits[32] = umul(i, j)
-  sign_ext.82: bits[32] = sign_ext(eq.67, new_bit_count=32)
-  add.86: bits[31] = add(bit_slice.84, literal.89)
-  bit_slice.87: bits[1] = bit_slice(t, start=0, width=1)
-  after_all.46: token = after_all()
-  v: bits[32] = and(umul.69, sign_ext.82)
-  v2: bits[32] = concat(add.86, bit_slice.87)
-  ret add.76: bits[32] = add(v, v2)
-})";
+  // Create the function builder
+  auto package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+
+  // Fetch the types
+  Type* u32_type = package->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue o = fb.Param("o", u32_type);
+  BValue y = fb.Param("y", u32_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1_31bits = fb.Literal(UBits(1, 31));
+
+  // Step 1: results
+  BValue mulIJ = fb.UMul(i, j);
+
+  BValue mulOY = fb.UMul(o, y);
+  BValue mulOY_0_1 = fb.BitSlice(mulOY, 0, 1);
+  BValue mulOY_1_32 = fb.BitSlice(mulOY, 1, 31);
+
+  BValue add0 = fb.Add(mulOY_1_32, k1_31bits);
+  BValue concat = fb.Concat({add0, mulOY_0_1});
+
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp0_32bits = fb.SignExtend(isOp0, 32);
+  BValue and0 = fb.And(mulIJ, isOp0_32bits);
+
+  BValue add1 = fb.Add(and0, concat);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(add1));
 
   // We expect the transformation to be not applicable
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
 }
 
 TEST_F(ResourceSharingPassTest, NotPossibleFolding2) {
-  const std::string program = R"(
-fn __sample__main(x0: bits[46] id=1) -> bits[46] {
-  literal.141: bits[46] = literal(value=42)
-  umul.142: bits[92] = umul(literal.141, x0)
-  x1: bits[46] = umul(x0, x0)
-  bit_slice.155: bits[1] = bit_slice(umul.142, start=91, width=1)
-  x14: bits[2] = bit_slice(x1, start=41, width=2)
-  x3: bits[46] = zero_ext(bit_slice.155, new_bit_count=46)
-  x2: bits[46] = literal(value=0)
-  ret x19: bits[46] = priority_sel(x14, cases=[x1, x3], default=x2)
-})";
+  // Create the function builder
+  auto package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+
+  // Fetch the types
+  Type* u46_type = package->GetBitsType(46);
+
+  // Create the parameters of the IR function
+  BValue x0 = fb.Param("x0", u46_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 46));
+  BValue k42 = fb.Literal(UBits(42, 46));
+
+  // Step 1: results
+  BValue mul_x0_k42 = fb.UMul(x0, k42, 92);
+  BValue mul_x0_x0 = fb.UMul(x0, x0);
+  BValue mul_x0_k42_91_1 = fb.BitSlice(mul_x0_k42, 91, 1);
+  BValue mul_x0_x0_41_2 = fb.BitSlice(mul_x0_x0, 41, 2);
+  BValue x3 = fb.ZeroExtend(mul_x0_k42_91_1, 46);
+
+  // Step 2: select the result to return
+  BValue select = fb.PrioritySelect(mul_x0_x0_41_2, {mul_x0_x0, x3}, k0);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation to be not applicable
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
 }
 
 TEST_F(ResourceSharingPassTest, NotPossibleFolding3) {
-  const std::string program = R"(
-fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: bits[32], z: bits[32]) -> bits[32] {
-  bit_slice.62: bits[31] = bit_slice(op, start=1, width=31)
-  literal.63: bits[32] = literal(value=1)
-  literal.64: bits[32] = literal(value=0)
-  or_reduce.65: bits[1] = or_reduce(bit_slice.62)
-  eq.66: bits[1] = eq(op, literal.63)
-  eq.67: bits[1] = eq(op, literal.64)
-  t: bits[32] = umul(k, z)
-  literal.69: bits[32] = literal(value=4294967295)
-  after_all.39: token = after_all()
-  not.80: bits[1] = not(or_reduce.65)
-  concat.71: bits[2] = concat(eq.66, eq.67)
-  smul.72: bits[32] = smul(i, j)
-  add.73: bits[32] = add(t, literal.69)
-  ret v: bits[32] = priority_sel(concat.71, cases=[smul.72, add.73], default=literal.64)
-})";
+  // Create the function builder
+  auto package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+
+  // Fetch the types
+  Type* u32_type = package->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+
+  // Step 1: results
+  BValue result0 = fb.SMul(i, j);
+  BValue mulKZ = fb.UMul(k, z);
+  BValue result1 = fb.Add(mulKZ, kNeg1);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {result0, result1}, k0);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation to be not applicable
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
 }
 
 TEST_F(ResourceSharingPassTest, NotPossibleFolding4) {
-  const std::string program = R"(
-    fn function_0(x: bits[2], y: bits[32]) -> bits[32] {
-      bit_slice.3: bits[16] = bit_slice(y, start=16, width=16)
-      literal.4: bits[16] = literal(value=4)
-      literal.8: bits[32] = literal(value=8)
-      bit_slice.5: bits[16] = bit_slice(y, start=0, width=16)
-      umul.6: bits[16] = umul(bit_slice.3, literal.4)
-      umul.7: bits[16] = umul(bit_slice.5, literal.8)
-      concat.9: bits[32] = concat(umul.6, umul.7)
-      umul.10: bits[32] = umul(y, literal.8)
-      literal.11: bits[32] = literal(value=0)
-      ret priority_sel.12: bits[32] = priority_sel(x, cases=[concat.9, umul.10], default=literal.11)
-    })";
+  // Create the function builder
+  auto package = CreatePackage();
+  FunctionBuilder fb(TestName(), package.get());
+
+  // Fetch the types
+  Type* u2_type = package->GetBitsType(2);
+  Type* u32_type = package->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue x = fb.Param("x", u2_type);
+  BValue y = fb.Param("y", u32_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k4 = fb.Literal(UBits(4, 16));
+  BValue k8 = fb.Literal(UBits(8, 32));
+
+  // Step 1: results
+  BValue y_0_15 = fb.BitSlice(y, 0, 16);
+  BValue y_16_31 = fb.BitSlice(y, 16, 16);
+  BValue mul0 = fb.UMul(y_16_31, k4);
+  BValue mul1 = fb.UMul(y_0_15, k8, 16);
+  BValue muls = fb.Concat({mul0, mul1});
+  BValue mul2 = fb.UMul(y, k8);
+
+  // Step 2: select the result to return
+  BValue select = fb.PrioritySelect(x, {muls, mul2}, k0);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation to be applicable
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
@@ -439,31 +562,47 @@ TEST_F(ResourceSharingPassTest, NotPossibleFolding4) {
 
 TEST_F(ResourceSharingPassTest,
        MergeMultiplicationsThatAreNotPostDominatedBySelect) {
-  const std::string program = R"(
-fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: bits[32], z: bits[32]) -> bits[32] {
-  literal.72: bits[32] = literal(value=0)
-  literal.71: bits[32] = literal(value=1)
-  eq.75: bits[1] = eq(op, literal.72)
-  bit_slice.73: bits[31] = bit_slice(op, start=1, width=31)
-  eq.74: bits[1] = eq(op, literal.71)
-  t: bits[32] = umul(k, z)
-  literal.77: bits[32] = literal(value=4294967295)
-  not.92: bits[1] = not(eq.75)
-  or_reduce.78: bits[1] = or_reduce(bit_slice.73)
-  concat.79: bits[2] = concat(eq.74, eq.75)
-  umul.80: bits[32] = umul(i, j)
-  v1: bits[32] = add(t, literal.77)
-  sign_ext.93: bits[32] = sign_ext(not.92, new_bit_count=32)
-  after_all.44: token = after_all()
-  not.91: bits[1] = not(or_reduce.78)
-  v: bits[32] = priority_sel(concat.79, cases=[umul.80, v1], default=literal.72)
-  v1__1: bits[32] = and(v1, sign_ext.93)
-  ret add.86: bits[32] = add(v, v1__1)
-})";
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+
+  // Step 1: results
+  BValue mulIJ = fb.UMul(i, j);
+  BValue mulKZ = fb.UMul(k, z);
+  BValue add = fb.Add(mulKZ, kNeg1);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {mulIJ, add}, k0);
+
+  // Step 3: post-select computation
+  BValue not0 = fb.Not(isOp0);
+  BValue not0Extended = fb.SignExtend(not0, 32);
+  BValue post_select_and = fb.And(add, not0Extended);
+  BValue post_select_add = fb.Add(select, post_select_and);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(post_select_add));
 
   // We expect the transformation successfully completed and it returned true
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
@@ -480,28 +619,42 @@ fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: 
 
 TEST_F(ResourceSharingPassTest,
        MergeSingleUnsignedMultiplicationDifferentBitwidths) {
-  const std::string program = R"(
-fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: bits[16], z: bits[16]) -> bits[32] {
-  bit_slice.62: bits[31] = bit_slice(op, start=1, width=31)
-  literal.63: bits[32] = literal(value=1)
-  literal.64: bits[32] = literal(value=0)
-  or_reduce.65: bits[1] = or_reduce(bit_slice.62)
-  eq.66: bits[1] = eq(op, literal.63)
-  eq.67: bits[1] = eq(op, literal.64)
-  t: bits[16] = umul(k, z)
-  literal.69: bits[16] = literal(value=42)
-  after_all.39: token = after_all()
-  not.80: bits[1] = not(or_reduce.65)
-  concat.71: bits[2] = concat(eq.66, eq.67)
-  umul.72: bits[32] = umul(i, j)
-  add.73: bits[16] = add(t, literal.69)
-  zero_ext.74: bits[32] = zero_ext(add.73, new_bit_count=32)
-  ret v: bits[32] = priority_sel(concat.71, cases=[umul.72, zero_ext.74], default=literal.64)
-})";
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u16_type = p->GetBitsType(16);
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u16_type);
+  BValue z = fb.Param("z", u16_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue k42 = fb.Literal(UBits(42, 16));
+
+  // Step 1: results
+  BValue mulIJ = fb.UMul(i, j, 32);
+  BValue mulKZ = fb.UMul(k, z, 16);
+  BValue add = fb.Add(mulKZ, k42);
+  BValue addExtended = fb.ZeroExtend(add, 32);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {mulIJ, addExtended}, k0);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
   // Unfortunately, ScopedVerifyEquivalence timed out and therefore we did not
@@ -520,28 +673,42 @@ fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: 
 
 TEST_F(ResourceSharingPassTest,
        MergeSingleUnsignedMultiplicationDifferentBitwidths2) {
-  const std::string program = R"(
-fn __main_function__my_main_function(op: bits[32], i: bits[32], j: bits[32], k: bits[16], z: bits[16]) -> bits[32] {
-  bit_slice.62: bits[31] = bit_slice(op, start=1, width=31)
-  literal.63: bits[32] = literal(value=1)
-  literal.64: bits[32] = literal(value=0)
-  or_reduce.65: bits[1] = or_reduce(bit_slice.62)
-  eq.66: bits[1] = eq(op, literal.63)
-  eq.67: bits[1] = eq(op, literal.64)
-  t: bits[16] = smul(k, z)
-  literal.69: bits[16] = literal(value=42)
-  after_all.39: token = after_all()
-  not.80: bits[1] = not(or_reduce.65)
-  concat.71: bits[2] = concat(eq.66, eq.67)
-  smul.72: bits[32] = smul(i, j)
-  add.73: bits[16] = add(t, literal.69)
-  zero_ext.74: bits[32] = zero_ext(add.73, new_bit_count=32)
-  ret v: bits[32] = priority_sel(concat.71, cases=[smul.72, zero_ext.74], default=literal.64)
-})";
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u16_type = p->GetBitsType(16);
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u16_type);
+  BValue z = fb.Param("z", u16_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue k42 = fb.Literal(UBits(42, 16));
+
+  // Step 1: results
+  BValue mulIJ = fb.SMul(i, j, 32);
+  BValue mulKZ = fb.SMul(k, z, 16);
+  BValue add = fb.Add(mulKZ, k42);
+  BValue addExtended = fb.ZeroExtend(add, 32);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {mulIJ, addExtended}, k0);
 
   // Create the function
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
