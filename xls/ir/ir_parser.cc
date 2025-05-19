@@ -40,6 +40,8 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "google/protobuf/text_format.h"
+#include "xls/codegen/module_signature.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -2261,15 +2263,6 @@ absl::StatusOr<Proc*> Parser::ParseProc(
 
 absl::StatusOr<Block*> Parser::ParseBlock(
     Package* package, absl::Span<const IrAttribute> outer_attributes) {
-  for (const IrAttribute& attribute : outer_attributes) {
-    if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
-      continue;
-    } else {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid attribute for block: %s", attribute.name));
-    }
-  }
-
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse block; at EOF.");
   }
@@ -2370,6 +2363,30 @@ absl::StatusOr<Block*> Parser::ParseBlock(
     }
     if (std::holds_alternative<BlockProvenance>(attribute.payload)) {
       block->SetProvenance(std::get<BlockProvenance>(attribute.payload));
+    }
+  }
+
+  for (const IrAttribute& attribute : outer_attributes) {
+    if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
+      block->SetInitiationInterval(
+          std::get<InitiationInterval>(attribute.payload).value);
+    } else if (std::holds_alternative<verilog::ModuleSignatureProto>(
+                   attribute.payload)) {
+      // Verify the signature is properly formed by creating a ModuleSignature
+      // object from it.
+      absl::StatusOr<verilog::ModuleSignature> signature =
+          verilog::ModuleSignature::FromProto(
+              std::get<verilog::ModuleSignatureProto>(attribute.payload));
+      if (!signature.ok()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Block `%s` has an invalid signature: %s",
+                            block->name(), signature.status().message()));
+      }
+      block->SetSignature(
+          std::get<verilog::ModuleSignatureProto>(attribute.payload));
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid attribute for block: %s", attribute.name));
     }
   }
 
@@ -2889,6 +2906,19 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
     return IrAttribute{
         .name = attribute_name.value(),
         .payload = BlockProvenance{.name = name.value(), .kind = kind.value()}};
+  }
+  if (attribute_name.value() == "signature") {
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+    XLS_ASSIGN_OR_RETURN(std::string proto_string, ParseQuotedString());
+    verilog::ModuleSignatureProto proto;
+    bool success = google::protobuf::TextFormat::ParseFromString(proto_string, &proto);
+    if (!success) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid module signature @ %s",
+                          attribute_name.pos().ToHumanString()));
+    }
+    return IrAttribute{.name = attribute_name.value(), .payload = proto};
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Unknown attribute: ", attribute_name.value()));

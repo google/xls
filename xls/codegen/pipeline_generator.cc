@@ -83,10 +83,10 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   if (metrics != nullptr) {
     *metrics = results.ToProto();
   }
-  XLS_RET_CHECK(
-      context.top_block() != nullptr &&
-      context.HasMetadataForBlock(context.top_block()) &&
-      context.GetMetadataForBlock(context.top_block()).signature.has_value());
+  XLS_RET_CHECK(context.top_block() != nullptr &&
+                context.HasMetadataForBlock(context.top_block()) &&
+                context.top_block()->GetSignature().has_value());
+
   VerilogLineMap verilog_line_map;
   const auto& pipeline = context.GetMetadataForBlock(context.top_block())
                              .streaming_io_and_pipeline;
@@ -96,11 +96,13 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
                       &verilog_line_map, pipeline.input_port_sv_type,
                       pipeline.output_port_sv_type));
 
+  XLS_ASSIGN_OR_RETURN(
+      ModuleSignature signature,
+      ModuleSignature::FromProto(*context.top_block()->GetSignature()));
+
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
-  return ModuleGeneratorResult{
-      verilog, verilog_line_map,
-      context.GetMetadataForBlock(context.top_block()).signature.value()};
+  return ModuleGeneratorResult{verilog, verilog_line_map, std::move(signature)};
 }
 
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
@@ -143,10 +145,9 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     *metrics = results.ToProto();
   }
 
-  XLS_RET_CHECK(
-      context.top_block() != nullptr &&
-      context.HasMetadataForBlock(context.top_block()) &&
-      context.GetMetadataForBlock(context.top_block()).signature.has_value());
+  XLS_RET_CHECK(context.top_block() != nullptr &&
+                context.HasMetadataForBlock(context.top_block()) &&
+                context.top_block()->GetSignature().has_value());
   VerilogLineMap verilog_line_map;
   const auto& pipeline = context.GetMetadataForBlock(context.top_block())
                              .streaming_io_and_pipeline;
@@ -156,11 +157,13 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
                       pipeline.input_port_sv_type,
                       pipeline.output_port_sv_type));
 
+  XLS_ASSIGN_OR_RETURN(
+      ModuleSignature signature,
+      ModuleSignature::FromProto(*context.top_block()->GetSignature()));
+
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
-  return ModuleGeneratorResult{
-      verilog, verilog_line_map,
-      context.GetMetadataForBlock(context.top_block()).signature.value()};
+  return ModuleGeneratorResult{verilog, verilog_line_map, std::move(signature)};
 }
 
 }  // namespace verilog

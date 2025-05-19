@@ -622,6 +622,7 @@ cc_library(
     hdrs = ["signature_generation_pass.h"],
     deps = [
         ":codegen_pass",
+        ":module_signature",
         ":signature_generator",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -1440,6 +1441,7 @@ cc_library(
     deps = [
         ":block_metrics",
         ":codegen_pass",
+        ":module_signature",
         ":xls_metrics_cc_proto",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -1709,6 +1711,7 @@ cc_test(
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
+        ":module_signature",
         ":module_signature_cc_proto",
         ":ram_configuration",
         ":ram_rewrite_pass",

@@ -42,6 +42,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/ram_configuration.h"
 #include "xls/common/proto_test_utils.h"
@@ -481,16 +482,17 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
 
   EXPECT_TRUE(changed);
 
-  ASSERT_TRUE(
-      context.HasMetadataForBlock(context.top_block()) &&
-      context.GetMetadataForBlock(context.top_block()).signature.has_value());
+  ASSERT_TRUE(context.HasMetadataForBlock(context.top_block()) &&
+              context.top_block()->GetSignature().has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleSignature signature,
+      ModuleSignature::FromProto(*context.top_block()->GetSignature()));
   for (const auto& config : codegen_options.ram_configurations()) {
     absl::flat_hash_set<std::string> channel_names;
     if (std::holds_alternative<Ram1RWConfiguration>(config)) {
       auto ram1rw_config = std::get<Ram1RWConfiguration>(config);
       bool found = false;
-      for (auto& ram :
-           context.GetMetadataForBlock(context.top_block()).signature->rams()) {
+      for (auto& ram : signature.rams()) {
         if (ram.ram_oneof_case() != RamProto::RamOneofCase::kRam1Rw) {
           continue;
         }
@@ -502,9 +504,7 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
         }
         // Check the port information matches.
         EXPECT_THAT(
-            context.GetMetadataForBlock(context.top_block())
-                .signature->proto()
-                .data_ports(),
+            signature.proto().data_ports(),
             IsSupersetOf({
                 EqualsProto(ram.ram_1rw().rw_port().response().read_data()),
                 EqualsProto(ram.ram_1rw().rw_port().request().address()),
@@ -539,8 +539,7 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
               package->GetTupleType({}))
               ? 0
               : 1;
-      EXPECT_THAT(context.GetMetadataForBlock(context.top_block())
-                      .signature->data_outputs(),
+      EXPECT_THAT(signature.data_outputs(),
                   AllOf(Contains(PortProtoByName(
                             absl::StrCat(ram1rw_config.ram_name(), "_addr"))),
                         Contains(PortProtoByName(absl::StrCat(
@@ -555,15 +554,13 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
                         Contains(PortProtoByName(absl::StrCat(
                                      ram1rw_config.ram_name(), "_rd_mask")))
                             .Times(read_mask_times)));
-      EXPECT_THAT(context.GetMetadataForBlock(context.top_block())
-                      .signature->data_inputs(),
+      EXPECT_THAT(signature.data_inputs(),
                   Contains(PortProtoByName(
                       absl::StrCat(ram1rw_config.ram_name(), "_rd_data"))));
     } else if (std::holds_alternative<Ram1R1WConfiguration>(config)) {
       auto ram1r1w_config = std::get<Ram1R1WConfiguration>(config);
       bool found = false;
-      for (auto& ram :
-           context.GetMetadataForBlock(context.top_block()).signature->rams()) {
+      for (auto& ram : signature.rams()) {
         if (ram.ram_oneof_case() != RamProto::RamOneofCase::kRam1R1W) {
           continue;
         }
@@ -575,9 +572,7 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
         }
         // Check the port information matches.
         EXPECT_THAT(
-            context.GetMetadataForBlock(context.top_block())
-                .signature->proto()
-                .data_ports(),
+            signature.proto().data_ports(),
             IsSupersetOf({
                 EqualsProto(ram.ram_1r1w().r_port().response().data()),
                 EqualsProto(ram.ram_1r1w().r_port().request().address()),
@@ -621,8 +616,7 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
               package->GetTupleType({}))
               ? 0
               : 1;
-      EXPECT_THAT(context.GetMetadataForBlock(context.top_block())
-                      .signature->data_outputs(),
+      EXPECT_THAT(signature.data_outputs(),
                   AllOf(Contains(PortProtoByName(absl::StrCat(
                             ram1r1w_config.ram_name(), "_rd_addr"))),
                         Contains(PortProtoByName(absl::StrCat(
@@ -639,24 +633,20 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
                         Contains(PortProtoByName(absl::StrCat(
                                      ram1r1w_config.ram_name(), "_wr_mask")))
                             .Times(write_mask_times)));
-      EXPECT_THAT(context.GetMetadataForBlock(context.top_block())
-                      .signature->data_inputs(),
+      EXPECT_THAT(signature.data_inputs(),
                   Contains(PortProtoByName(
                       absl::StrCat(ram1r1w_config.ram_name(), "_rd_data"))));
     }
-    for (auto& channel : context.GetMetadataForBlock(context.top_block())
-                             .signature->GetChannelInterfaces()) {
+    for (auto& channel : signature.GetChannelInterfaces()) {
       EXPECT_THAT(channel_names, Not(Contains(Eq(channel.channel_name()))));
     }
     for (auto& channel_name : channel_names) {
-      EXPECT_THAT(context.GetMetadataForBlock(context.top_block())
-                      .signature->data_inputs(),
+      EXPECT_THAT(signature.data_inputs(),
                   Not(Contains(AnyOf(
                       PortProtoByName(channel_name),
                       PortProtoByName(absl::StrCat(channel_name, "_valid")),
                       PortProtoByName(absl::StrCat(channel_name, "_ready"))))));
-      EXPECT_THAT(context.GetMetadataForBlock(context.top_block())
-                      .signature->data_outputs(),
+      EXPECT_THAT(signature.data_outputs(),
                   Not(Contains(AnyOf(
                       PortProtoByName(channel_name),
                       PortProtoByName(absl::StrCat(channel_name, "_valid")),

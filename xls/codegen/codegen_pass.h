@@ -28,10 +28,8 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
-#include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/concurrent_stage_groups.h"
-#include "xls/codegen/module_signature.h"
 #include "xls/codegen/passes_ng/stage_conversion.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
@@ -342,14 +340,6 @@ struct CodegenMetadata {
   StreamingIOPipeline streaming_io_and_pipeline;
   std::variant<FunctionConversionMetadata, ProcConversionMetadata>
       conversion_metadata;
-
-  // The signature is generated (and potentially mutated) during the codegen
-  // process.
-  // TODO(https://github.com/google/xls/issues/410): 2021/04/27 Consider adding
-  // a "block" construct which corresponds to a verilog module. This block could
-  // hold its own signature. This would help prevent the signature from getting
-  // out-of-sync with the IR.
-  std::optional<ModuleSignature> signature;
 
   // Proven knowledge about which stages are active concurrently.
   //

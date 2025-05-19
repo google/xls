@@ -40,6 +40,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -250,6 +251,15 @@ std::vector<Node*> Block::DumpOrder() const {
 }
 
 std::string Block::DumpIr() const {
+  std::string res;
+
+  if (GetSignature().has_value()) {
+    std::string textproto;
+    google::protobuf::TextFormat::Printer printer;
+    printer.SetSingleLineMode(true);
+    printer.PrintToString(*GetSignature(), &textproto);
+    absl::StrAppend(&res, "#[signature(\"\"\"", textproto, "\"\"\"]\n");
+  }
   std::vector<std::string> port_strings;
   for (const Port& port : GetPorts()) {
     if (std::holds_alternative<ClockPort*>(port)) {
@@ -265,8 +275,8 @@ std::string Block::DumpIr() const {
           std::get<OutputPort*>(port)->operand(0)->GetType()->ToString()));
     }
   }
-  std::string res = absl::StrFormat("block %s(%s) {\n", name(),
-                                    absl::StrJoin(port_strings, ", "));
+  absl::StrAppendFormat(&res, "block %s(%s) {\n", name(),
+                        absl::StrJoin(port_strings, ", "));
 
   if (provenance_.has_value()) {
     absl::StrAppendFormat(&res, "  #![%v]\n", *provenance_);

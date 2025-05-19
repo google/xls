@@ -94,8 +94,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
   XLS_RET_CHECK(
       codegen_context.HasTopBlock() &&
       codegen_context.HasMetadataForBlock(codegen_context.top_block()) &&
-      codegen_context.GetMetadataForBlock(codegen_context.top_block())
-          .signature.has_value());
+      codegen_context.top_block()->GetSignature().has_value());
 
   // VAST Generation: Block to Verilog codegen pass.
   VerilogLineMap verilog_line_map;
@@ -108,12 +107,13 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
                       pipeline.input_port_sv_type,
                       pipeline.output_port_sv_type));
 
+  XLS_ASSIGN_OR_RETURN(
+      ModuleSignature signature,
+      ModuleSignature::FromProto(*codegen_context.top_block()->GetSignature()));
+
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
-  return ModuleGeneratorResult{
-      verilog, verilog_line_map,
-      codegen_context.GetMetadataForBlock(codegen_context.top_block())
-          .signature.value()};
+  return ModuleGeneratorResult{verilog, verilog_line_map, std::move(signature)};
 }
 
 }  // namespace verilog

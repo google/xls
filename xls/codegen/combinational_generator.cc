@@ -15,6 +15,7 @@
 #include "xls/codegen/combinational_generator.h"
 
 #include <string>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion.h"
@@ -52,8 +53,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
           .status());
   XLS_RET_CHECK_NE(context.top_block(), nullptr);
   XLS_RET_CHECK(context.metadata().contains(context.top_block()));
-  XLS_RET_CHECK(
-      context.metadata().at(context.top_block()).signature.has_value());
+  XLS_RET_CHECK(context.top_block()->GetSignature().has_value());
   VerilogLineMap verilog_line_map;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
@@ -63,11 +63,13 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     *metrics = results.ToProto();
   }
 
+  XLS_ASSIGN_OR_RETURN(
+      ModuleSignature signature,
+      ModuleSignature::FromProto(*context.top_block()->GetSignature()));
+
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
-  return ModuleGeneratorResult{
-      verilog, verilog_line_map,
-      context.metadata().at(context.top_block()).signature.value()};
+  return ModuleGeneratorResult{verilog, verilog_line_map, std::move(signature)};
 }
 
 }  // namespace verilog
