@@ -57,7 +57,7 @@ using ::testing::Not;
 using ::testing::Values;
 
 struct TestParams {
-  bool generate_fsms_for_pipelined_loops;
+  bool generate_new_fsm;
   bool merge_states;
   bool split_states_on_channel_ops;
 };
@@ -65,7 +65,7 @@ struct TestParams {
 class TranslatorProcTestWithoutFSMParam : public XlsccTestBase {
  public:
   TranslatorProcTestWithoutFSMParam() {
-    generate_fsms_for_pipelined_loops_ = false;
+    generate_new_fsm_ = false;
     merge_states_ = false;
     split_states_on_channel_ops_ = false;
   }
@@ -75,8 +75,7 @@ class TranslatorProcTest : public TranslatorProcTestWithoutFSMParam,
                            public ::testing::WithParamInterface<TestParams> {
  protected:
   TranslatorProcTest() {
-    generate_fsms_for_pipelined_loops_ =
-        GetParam().generate_fsms_for_pipelined_loops;
+    generate_new_fsm_ = GetParam().generate_new_fsm;
     merge_states_ = GetParam().merge_states;
     split_states_on_channel_ops_ = GetParam().split_states_on_channel_ops;
   }
@@ -84,27 +83,25 @@ class TranslatorProcTest : public TranslatorProcTestWithoutFSMParam,
 
 std::string GetTestInfo(const ::testing::TestParamInfo<TestParams>& info) {
   return absl::StrFormat(
-      "With%sFSM%s%s",
-      info.param.generate_fsms_for_pipelined_loops ? "" : "out",
+      "With%sFSM%s%s", info.param.generate_new_fsm ? "New" : "",
       info.param.split_states_on_channel_ops ? "_SplitOnChannelOps" : "",
       info.param.merge_states ? "_MergeStates" : "");
 }
 
 INSTANTIATE_TEST_SUITE_P(
     TranslatorProcTest, TranslatorProcTest,
-    Values(TestParams{.generate_fsms_for_pipelined_loops = true,
+    Values(TestParams{.generate_new_fsm = false,
                       .merge_states = false,
                       .split_states_on_channel_ops = false},
-           TestParams{.generate_fsms_for_pipelined_loops = true,
+           TestParams{.generate_new_fsm = false,
                       .merge_states = true,
                       .split_states_on_channel_ops = false},
-           TestParams{.generate_fsms_for_pipelined_loops = true,
+           TestParams{.generate_new_fsm = false,
                       .merge_states = false,
                       .split_states_on_channel_ops = true},
-           TestParams{.generate_fsms_for_pipelined_loops = true,
+           TestParams{.generate_new_fsm = false,
                       .merge_states = true,
-                      .split_states_on_channel_ops = true},
-           TestParams{.generate_fsms_for_pipelined_loops = false}),
+                      .split_states_on_channel_ops = true}),
     GetTestInfo);
 
 TEST_P(TranslatorProcTest, IOProcMux) {
@@ -821,24 +818,9 @@ TEST_P(TranslatorProcTest, ForPipelined) {
 
   const int64_t loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
-                           GetBitsForChannelNameContains("__for_1_ctx_out"));
-  EXPECT_EQ(channel_bits_out,
-            generate_fsms_for_pipelined_loops_ ? 0L : 1 + 32 + 64);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
-                           GetBitsForChannelNameContains("__for_1_ctx_in"));
-  EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelined1Iter) {
@@ -1335,23 +1317,9 @@ TEST_P(TranslatorProcTest, ForPipelinedJustAssign) {
 
   int64_t loop_proc_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_proc_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_proc_bits : 0L);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
-                           GetBitsForChannelNameContains("__for_1_ctx_out"));
-  EXPECT_EQ(channel_bits_out, generate_fsms_for_pipelined_loops_ ? 0L : 1 + 64);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
-                           GetBitsForChannelNameContains("__for_1_ctx_in"));
-  EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
+  EXPECT_EQ(top_proc_state_bits, loop_proc_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedUseReceivedFromOldState) {
@@ -1401,24 +1369,9 @@ TEST_P(TranslatorProcTest, ForPipelinedUseReceivedFromOldState) {
 
   const int64_t loop_proc_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_proc_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_proc_bits : 0L);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
-                           GetBitsForChannelNameContains("__for_1_ctx_out"));
-  EXPECT_EQ(channel_bits_out,
-            generate_fsms_for_pipelined_loops_ ? 0L : 1 + 32 + 64);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
-                           GetBitsForChannelNameContains("__for_1_ctx_in"));
-  EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
+  EXPECT_EQ(top_proc_state_bits, loop_proc_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedAttribute) {
@@ -1569,15 +1522,9 @@ TEST_P(TranslatorProcTest, ForPipelinedII2) {
 
   const int loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedII2Error) {
@@ -1673,15 +1620,9 @@ TEST_P(TranslatorProcTest, WhilePipelined) {
 
   const int64_t loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, DoWhilePipelined) {
@@ -1739,15 +1680,9 @@ TEST_P(TranslatorProcTest, DoWhilePipelined) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 3);
   }
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : (1 + 64 + 32 + 32));
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (1 + 64 + 32) : 0L);
+  EXPECT_EQ(top_proc_state_bits, 1 + 64 + 32);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedSerial) {
@@ -1798,25 +1733,9 @@ TEST_P(TranslatorProcTest, ForPipelinedSerial) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 10);
   }
 
-  const int64_t loop_1_body_bits = 1 + 32 + 64;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t first_body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(first_body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_1_body_bits);
-
-  const int64_t loop_2_body_bits = 1 + 32 + 16;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t second_body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_2"));
-  EXPECT_EQ(second_body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_2_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits, generate_fsms_for_pipelined_loops_
-                                     ? (32 + 1 + 64 + 1 + 16 + 32)
-                                     : 0L);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 64 + 1 + 16 + 32);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedSerialPhasedAndNested) {
@@ -1949,24 +1868,9 @@ TEST_P(TranslatorProcTest, ForPipelinedSerialIO) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 5);
   }
 
-  const int64_t loop_1_body_bits = 1 + 32 + 64;
-  const int64_t loop_2_body_bits = 1 + 32 + 16;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t first_body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(first_body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_1_body_bits);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t second_body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_2"));
-  EXPECT_EQ(second_body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_2_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits, generate_fsms_for_pipelined_loops_
-                                     ? (32 + 1 + 64 + 1 + 16 + 32)
-                                     : 0L);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 64 + 1 + 16 + 32);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedReturnInBody) {
@@ -2063,24 +1967,9 @@ TEST_P(TranslatorProcTest, ForPipelinedMoreVars) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 10);
   }
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : (1 + 32 + 64 + 64));
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            16 + (generate_fsms_for_pipelined_loops_ ? (1 + 32 + 64) : 0L));
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
-                           GetBitsForChannelNameContains("__for_1_ctx_out"));
-  EXPECT_EQ(channel_bits_out,
-            generate_fsms_for_pipelined_loops_ ? 0L : 1 + 32 + 64 + 64);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
-                           GetBitsForChannelNameContains("__for_1_ctx_in"));
-  EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
+  EXPECT_EQ(top_proc_state_bits, 16 + 1 + 32 + 64);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedMoreVars2) {
@@ -2212,15 +2101,9 @@ TEST_P(TranslatorProcTest, ForPipelinedBlank) {
 
   const int64_t loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedPreCondBreak) {
@@ -2269,15 +2152,9 @@ TEST_P(TranslatorProcTest, ForPipelinedPreCondBreak) {
   }
 
   // r shouldn't be in state
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : (1 + 32 + 32 + 64));
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (1 + 32 + 64) : 0L);
+  EXPECT_EQ(top_proc_state_bits, 1 + 32 + 64);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedSaveAcrossLoop) {
@@ -2600,15 +2477,9 @@ TEST_P(TranslatorProcTest, ForPipelinedInFunction) {
 
   int64_t loop_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedInMethod) {
@@ -2665,15 +2536,9 @@ TEST_P(TranslatorProcTest, ForPipelinedInMethod) {
 
   const int64_t loop_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedInMethodWithMember) {
@@ -2734,15 +2599,9 @@ TEST_P(TranslatorProcTest, ForPipelinedInMethodWithMember) {
 
   const int64_t loop_bits = 1 + 32 + 64 + 32;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            32 + (generate_fsms_for_pipelined_loops_ ? loop_bits : 0L));
+  EXPECT_EQ(top_proc_state_bits, 32 + loop_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedInFunctionInIf) {
@@ -2801,15 +2660,9 @@ TEST_P(TranslatorProcTest, ForPipelinedInFunctionInIf) {
 
   const int64_t loop_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedStaticInBody) {
@@ -2862,24 +2715,9 @@ TEST_P(TranslatorProcTest, ForPipelinedStaticInBody) {
 
   const int64_t loop_proc_bits = 1 + 16 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_proc_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_proc_bits : 0L);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_out,
-                           GetBitsForChannelNameContains("__for_1_ctx_out"));
-  EXPECT_EQ(channel_bits_out,
-            generate_fsms_for_pipelined_loops_ ? 0L : 1 + 32 + 16);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t channel_bits_in,
-                           GetBitsForChannelNameContains("__for_1_ctx_in"));
-  EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
+  EXPECT_EQ(top_proc_state_bits, loop_proc_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedStaticOuter) {
@@ -2928,15 +2766,9 @@ TEST_P(TranslatorProcTest, ForPipelinedStaticOuter) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 8);
   }
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : (1 + 32 + 16 + 64));
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            16 + (generate_fsms_for_pipelined_loops_ ? (1 + 32 + 64) : 0L));
+  EXPECT_EQ(top_proc_state_bits, 16 + 1 + 32 + 64);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedStaticOuter2) {
@@ -2985,17 +2817,9 @@ TEST_P(TranslatorProcTest, ForPipelinedStaticOuter2) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 8);
   }
 
-  const int64_t loop_body_bits = 1 + 32 + 64 + 16;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            (generate_fsms_for_pipelined_loops_ ? (32 + 16 + 1 + 64) : 16));
+  EXPECT_EQ(top_proc_state_bits, 32 + 16 + 1 + 64);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedStaticOuter3) {
@@ -3044,17 +2868,9 @@ TEST_P(TranslatorProcTest, ForPipelinedStaticOuter3) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 2);
   }
 
-  const int64_t loop_body_bits = 1 + 32 + 64 + 16;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 16 + 1 + 64) : 16);
+  EXPECT_EQ(top_proc_state_bits, 32 + 16 + 1 + 64);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedOneState) {
@@ -3157,24 +2973,9 @@ TEST_P(TranslatorProcTest, ForPipelinedNested) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 16);
   }
 
-  const int64_t inner_loop_bits = 1 + 32 + 64;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t innermost_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_2"));
-  EXPECT_EQ(innermost_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : inner_loop_bits);
-
-  const int64_t outer_loop_bits = 1 + 32 + 16;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : outer_loop_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 16 + 1 + 64) : 0L);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 16 + 1 + 64);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedNestedBreak) {
@@ -3260,8 +3061,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedCheckFSM) {
       }
     };)";
 
-  generate_fsms_for_pipelined_loops_ = true;
-
   XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
                          /*io_test_mode=*/false,
                          /*error_on_init_interval=*/false));
@@ -3309,7 +3108,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedMergeCheckFSM) {
       }
     };)";
 
-  generate_fsms_for_pipelined_loops_ = true;
   merge_states_ = true;
 
   // Test full merging
@@ -3385,7 +3183,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedSplitSubProcCheckFSM) {
       }
     };)";
 
-  generate_fsms_for_pipelined_loops_ = true;
   merge_states_ = true;
 
   // Test full merging
@@ -3465,7 +3262,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam,
       }
     };)";
 
-  generate_fsms_for_pipelined_loops_ = true;
   merge_states_ = true;
 
   // Test full merging
@@ -3568,22 +3364,9 @@ TEST_P(TranslatorProcTest, ForPipelinedNested2) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 16);
   }
 
-  const int64_t loop_body_bits = 1 + 32 + 32 + 64;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t innermost_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_2"));
-  EXPECT_EQ(innermost_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 64 + 1 + 64) : 0);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 64 + 1 + 64);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedNestedInheritIIWithLabel) {
@@ -3635,27 +3418,9 @@ TEST_P(TranslatorProcTest, ForPipelinedNestedInheritIIWithLabel) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 16);
   }
 
-  const int64_t loop_body_bits = 1 + 32 + 64;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t innermost_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_3"));
-  EXPECT_EQ(innermost_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t inner_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_2"));
-  EXPECT_EQ(inner_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 3 * (1 + 64)) : 0);
+  EXPECT_EQ(top_proc_state_bits, 32 + 3 * (1 + 64));
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedNestedWithIO) {
@@ -3724,22 +3489,9 @@ TEST_P(TranslatorProcTest, ForPipelinedNestedWithIO) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 4);
   }
 
-  const int64_t loop_body_bits = 1 + 32 + 64;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t innermost_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_2"));
-  EXPECT_EQ(innermost_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 64 + 1 + 64) : 0);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 64 + 1 + 64);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedNestedWithIO2) {
@@ -3859,15 +3611,9 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBody) {
 
   const int64_t loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedIOInBody2) {
@@ -3917,15 +3663,9 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBody2) {
 
   const int64_t loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedIOInBody3) {
@@ -3974,15 +3714,9 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBody3) {
 
   const int64_t loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedNestedNoPragma) {
@@ -4031,24 +3765,9 @@ TEST_P(TranslatorProcTest, ForPipelinedNestedNoPragma) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 16);
   }
 
-  const int64_t loop_1_body_bits = 1 + 32 + 64;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t innermost_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_2"));
-  EXPECT_EQ(innermost_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_1_body_bits);
-
-  const int64_t loop_2_body_bits = 1 + 32 + 64;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_2_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 64 + 1 + 64) : 0L);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 64 + 1 + 64);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine) {
@@ -4100,15 +3819,9 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine) {
 
   const int64_t loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine2) {
@@ -4155,15 +3868,9 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine2) {
   }
   const int64_t loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutineMultiCall) {
@@ -4273,15 +3980,9 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine) {
 
   const int64_t loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine2) {
@@ -4342,27 +4043,11 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine2) {
 
   const int64_t innermost_loop_bits = 1 + 16 + 8;
 
-  {
-    XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                             GetStateBitsForProcNameContains("for_2"));
-    EXPECT_EQ(body_proc_state_bits,
-              generate_fsms_for_pipelined_loops_ ? 0L : innermost_loop_bits);
-  }
-
   const int64_t loop_bits = 1 + 32 + 64;
-
-  {
-    XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                             GetStateBitsForProcNameContains("for_1"));
-    EXPECT_EQ(body_proc_state_bits,
-              generate_fsms_for_pipelined_loops_ ? 0L : loop_bits);
-  }
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits, generate_fsms_for_pipelined_loops_
-                                     ? loop_bits + innermost_loop_bits
-                                     : 0);
+  EXPECT_EQ(top_proc_state_bits, loop_bits + innermost_loop_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine3) {
@@ -4487,37 +4172,13 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine4) {
 
   const int64_t sub_sub_sub_bits = 1 + 16 + 8;
 
-  {
-    XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                             GetStateBitsForProcNameContains("for_3"));
-    EXPECT_EQ(body_proc_state_bits,
-              generate_fsms_for_pipelined_loops_ ? 0L : sub_sub_sub_bits);
-  }
-
   const int64_t sub_sub_bits = 1 + 16 + 8;
-
-  {
-    XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                             GetStateBitsForProcNameContains("for_2"));
-    EXPECT_EQ(body_proc_state_bits,
-              generate_fsms_for_pipelined_loops_ ? 0L : sub_sub_bits);
-  }
 
   const int64_t sub_bits = 1 + 32 + 64;
 
-  {
-    XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                             GetStateBitsForProcNameContains("for_1"));
-    EXPECT_EQ(body_proc_state_bits,
-              generate_fsms_for_pipelined_loops_ ? 0L : sub_bits);
-  }
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_
-                ? (sub_bits + sub_sub_bits + sub_sub_sub_bits)
-                : 0);
+  EXPECT_EQ(top_proc_state_bits, sub_bits + sub_sub_bits + sub_sub_sub_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutineDeclOrder) {
@@ -4568,15 +4229,9 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutineDeclOrder) {
 
   const int64_t loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine3) {
@@ -4679,17 +4334,9 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine4) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 2);
   }
 
-  const int64_t loop_body_bits = 1 + 32 + 64;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 64 + 1 + 32) : 0L);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 64 + 1 + 32);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedNoPragma) {
@@ -4739,15 +4386,9 @@ TEST_P(TranslatorProcTest, ForPipelinedNoPragma) {
 
   const int64_t loop_body_bits = 1 + 32 + 64;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, PipelinedLoopUsingMemberChannel) {
@@ -4801,15 +4442,9 @@ TEST_P(TranslatorProcTest, PipelinedLoopUsingMemberChannel) {
 
   const int64_t loop_body_bits = 1 + 32 + 32;
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? loop_body_bits : 0L);
+  EXPECT_EQ(top_proc_state_bits, loop_body_bits);
 }
 
 TEST_P(TranslatorProcTest, PipelinedLoopUsingMemberChannelAndVariable) {
@@ -4862,17 +4497,9 @@ TEST_P(TranslatorProcTest, PipelinedLoopUsingMemberChannelAndVariable) {
     ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 4);
   }
 
-  const int64_t loop_body_bits = 1 + 32 + 32;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : loop_body_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 32 + 1 + 32) : 0L);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 32 + 1 + 32);
 }
 
 TEST_P(TranslatorProcTest, PipelinedLoopWithOuterRef) {
@@ -6646,16 +6273,14 @@ TEST_P(TranslatorProcTest, DebugTraceInPipelinedLoop) {
     absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
     outputs["out"] = {xls::Value(xls::SBits(4, 32))};
 
-    ProcTest(
-        content, /*block_spec=*/std::nullopt, inputs, outputs,
-        /*min_ticks = */ 1,
-        /*max_ticks=*/100,
-        /*top_level_init_interval=*/0,
-        /*top_class_name=*/"",
-        /*expected_tick_status=*/absl::OkStatus(),
-        /*expected_events_by_proc_name=*/
-        {{generate_fsms_for_pipelined_loops_ ? "Block_proc" : "__for_1_proc",
-          expected_events}});
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /*min_ticks = */ 1,
+             /*max_ticks=*/100,
+             /*top_level_init_interval=*/0,
+             /*top_class_name=*/"",
+             /*expected_tick_status=*/absl::OkStatus(),
+             /*expected_events_by_proc_name=*/
+             {{"Block_proc", expected_events}});
   }
 }
 
@@ -7518,8 +7143,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedASAPTrivial) {
     ch_out1->set_type(CHANNEL_TYPE_FIFO);
   }
 
-  generate_fsms_for_pipelined_loops_ = false;
-
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {
       xls::Value(xls::SBits(80, 32)), xls::Value(xls::SBits(80, 32)),
@@ -7562,8 +7185,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedASAPOutsideScopeAccess) {
       }
     };)";
 
-  generate_fsms_for_pipelined_loops_ = false;
-
   XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
                          /*io_test_mode=*/false,
                          /*error_on_init_interval=*/false));
@@ -7604,38 +7225,19 @@ TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopASAP) {
          }
       };)";
 
-  if (!generate_fsms_for_pipelined_loops_) {
-    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_ = std::make_unique<xls::Package>("my_package");
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
+                                             /*top_level_init_interval=*/1);
 
-    {
-      absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
-      outputs["out"] = {
-          xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(10, 32)),
-          xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(11, 32)),
-          xls::Value(xls::SBits(2, 32)), xls::Value(xls::SBits(12, 32)),
-          xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(13, 32)),
-          xls::Value(xls::SBits(4, 32)), xls::Value(xls::SBits(14, 32)),
-          xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(15, 32))};
-      ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
-               /* min_ticks = */ 6,
-               /* max_ticks = */ 7,
-               /* top_level_init_interval = */ 1);
-    }
-  } else {
-    XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
-                           /*io_test_mode=*/false,
-                           /*error_on_init_interval=*/false));
-    package_ = std::make_unique<xls::Package>("my_package");
-    HLSBlock block_spec;
-    auto ret =
-        translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
-                                               /*top_level_init_interval=*/1);
-
-    ASSERT_THAT(ret.status(),
-                absl_testing::StatusIs(
-                    absl::StatusCode::kUnimplemented,
-                    testing::HasSubstr("loops with scheduling options")));
-  }
+  ASSERT_THAT(ret.status(),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("loops with scheduling options")));
 }
 TEST_P(TranslatorProcTest, PipelinedLoopASAPDataDependency) {
   const std::string content = R"(
@@ -7711,37 +7313,19 @@ TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopASAPDataDependencyMethod) {
          }
       };)";
 
-  if (!generate_fsms_for_pipelined_loops_) {
-    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_ = std::make_unique<xls::Package>("my_package");
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
+                                             /*top_level_init_interval=*/1);
 
-    {
-      absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
-      outputs["out"] = {
-          xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(10, 32)),
-          xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(11, 32)),
-          xls::Value(xls::SBits(2, 32)), xls::Value(xls::SBits(12, 32)),
-          xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(13, 32)),
-          xls::Value(xls::SBits(4, 32)), xls::Value(xls::SBits(14, 32)),
-          xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(15, 32))};
-      ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
-               /* min_ticks = */ 6,
-               /* max_ticks = */ 7);
-    }
-  } else {
-    XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
-                           /*io_test_mode=*/false,
-                           /*error_on_init_interval=*/false));
-    package_ = std::make_unique<xls::Package>("my_package");
-    HLSBlock block_spec;
-    auto ret =
-        translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
-                                               /*top_level_init_interval=*/1);
-
-    ASSERT_THAT(ret.status(),
-                absl_testing::StatusIs(
-                    absl::StatusCode::kUnimplemented,
-                    testing::HasSubstr("loops with scheduling options")));
-  }
+  ASSERT_THAT(ret.status(),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("loops with scheduling options")));
 }
 
 TEST_P(TranslatorProcTest, PipelinedLoopSerialDataDependency) {
@@ -8054,15 +7638,9 @@ TEST_P(TranslatorProcTest, ForPipelinedWithDirectIn) {
     ProcTest(content, block_spec, inputs, outputs);
   }
 
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(body_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : (1 + 64 + 32 + 32));
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (1 + 32) : 0);
+  EXPECT_EQ(top_proc_state_bits, 1 + 32);
 }
 
 // Different variables names i and j as the same name may or may not get merged
@@ -8113,28 +7691,12 @@ TEST_P(TranslatorProcTest, ForPipelinedSerialShared) {
                       xls::Value(xls::SBits(20 + 1 + 2 + 3 + 4 - 3 - 4, 32))};
 
     ProcTest(content, block_spec, inputs, outputs,
-             /* min_ticks = */ generate_fsms_for_pipelined_loops_ ? 6 * 3 : 15);
+             /* min_ticks = */ 6 * 3);
   }
-
-  const int64_t first_loop_bits = 1 + 32 + 16;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t first_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(first_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : first_loop_bits);
-
-  const int64_t second_loop_bits = 1 + 32 + 16;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t second_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_2"));
-  EXPECT_EQ(second_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : second_loop_bits);
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits, generate_fsms_for_pipelined_loops_
-                                     ? (32 + 1 + 16 + 1 + 16 + 32)
-                                     : 0L);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 16 + 1 + 16 + 32);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedNestedShared) {
@@ -8186,24 +7748,9 @@ TEST_P(TranslatorProcTest, ForPipelinedNestedShared) {
              /* min_ticks = */ 8);
   }
 
-  const int64_t first_loop_bits = 1 + 32 + 16;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t first_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(first_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : first_loop_bits);
-
-  const int64_t second_loop_bits = 1 + 32 + 16;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t second_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_2"));
-  EXPECT_EQ(second_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : second_loop_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? (32 + 1 + 16 + 1 + 16) : 0L);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 16 + 1 + 16);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedStaticShared) {
@@ -8273,25 +7820,9 @@ TEST_P(TranslatorProcTest, ForPipelinedStaticShared) {
              /* min_ticks = */ 8);
   }
 
-  const int64_t first_loop_bits = 1 + 32 + 16;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t first_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(first_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : first_loop_bits);
-
-  const int64_t second_loop_bits = 1 + 32 + 16;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t second_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_2"));
-  EXPECT_EQ(second_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : second_loop_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits, generate_fsms_for_pipelined_loops_
-                                     ? (32 + 1 + 16 + 1 + 16 + 1 + 16)
-                                     : 32);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 16 + 1 + 16 + 1 + 16);
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedStaticSharedInBody) {
@@ -8344,25 +7875,9 @@ TEST_P(TranslatorProcTest, ForPipelinedStaticSharedInBody) {
              /* min_ticks = */ 8);
   }
 
-  const int64_t first_loop_bits = 81;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t first_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_1"));
-  EXPECT_EQ(first_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : first_loop_bits);
-
-  const int64_t second_loop_bits = 49;
-
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t second_proc_state_bits,
-                           GetStateBitsForProcNameContains("for_2"));
-  EXPECT_EQ(second_proc_state_bits,
-            generate_fsms_for_pipelined_loops_ ? 0L : second_loop_bits);
-
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
-  EXPECT_EQ(top_proc_state_bits, generate_fsms_for_pipelined_loops_
-                                     ? (32 + 1 + 16 + 32 + 1 + 16)
-                                     : 0);
+  EXPECT_EQ(top_proc_state_bits, 32 + 1 + 16 + 32 + 1 + 16);
 }
 
 TEST_F(TranslatorProcTestWithoutFSMParam, MergedStatesIOFeedThrough) {
@@ -8385,7 +7900,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam, MergedStatesIOFeedThrough) {
       }
     };)";
 
-  generate_fsms_for_pipelined_loops_ = true;
   merge_states_ = true;
   split_states_on_channel_ops_ = true;
 
@@ -9295,7 +8809,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam, MultiBlockMultiStateSubBlock) {
                       xls::Value(xls::SBits((20 + 1) * 10, 32)),
                       xls::Value(xls::SBits((10 + 2) * 10, 32))};
 
-    generate_fsms_for_pipelined_loops_ = true;
     split_states_on_channel_ops_ = true;
     merge_states_ = false;
 
@@ -9500,7 +9013,7 @@ TEST_P(TranslatorProcTest, ForPartiallyUnrolled) {
   // 2 iterations on 4 inputs, single state
   int64_t min_ticks = 8, max_ticks = 8;
 
-  if (!merge_states_ && generate_fsms_for_pipelined_loops_) {
+  if (!merge_states_) {
     // 4 inputs/activations: 2 IO states, loop state iterates 2x
     min_ticks = 16;
     max_ticks = 16;
@@ -9556,7 +9069,7 @@ TEST_P(TranslatorProcTest, ForFullyPipelined) {
   // 4 iterations on 4 inputs, single state
   int64_t min_ticks = 16, max_ticks = 16;
 
-  if (!merge_states_ && generate_fsms_for_pipelined_loops_) {
+  if (!merge_states_) {
     // 4 inputs/activations: 2 IO states, loop state iterates 4x
     min_ticks = 24;
     max_ticks = 24;
@@ -9611,7 +9124,7 @@ TEST_P(TranslatorProcTest, ForFullyPipelinedInferredByDefault) {
   // 4 iterations on 4 inputs, single state
   int64_t min_ticks = 16, max_ticks = 16;
 
-  if (!merge_states_ && generate_fsms_for_pipelined_loops_) {
+  if (!merge_states_) {
     // 4 inputs/activations: 2 IO states, loop state iterates 4x
     min_ticks = 24;
     max_ticks = 24;
@@ -9708,7 +9221,7 @@ TEST_P(TranslatorProcTest, ForFullyPipelinedInferredInner) {
   // 4 iterations on 4 inputs, single state
   int64_t min_ticks = 16, max_ticks = 16;
 
-  if (!merge_states_ && generate_fsms_for_pipelined_loops_) {
+  if (!merge_states_) {
     // 4 inputs/activations: 2 IO states, loop state iterates 4x
     min_ticks = 24;
     max_ticks = 24;
@@ -9755,8 +9268,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam, StateElementReuseInLoopInCall) {
       __xls_channel<int , __xls_channel_dir_In>& in;
       __xls_channel<int, __xls_channel_dir_Out>& out;
     };)";
-
-  generate_fsms_for_pipelined_loops_ = true;
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(80, 32)),
@@ -9815,8 +9326,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam, StateElementReuseInLoopInNestedCall) {
       __xls_channel<int, __xls_channel_dir_Out>& out;
     };)";
 
-  generate_fsms_for_pipelined_loops_ = true;
-
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(80, 32)),
                   xls::Value(xls::SBits(100, 32))};
@@ -9871,8 +9380,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam, StateElementReuseInLoopInMultiCall) {
       __xls_channel<int, __xls_channel_dir_Out>& out_foo;
       __xls_channel<int, __xls_channel_dir_Out>& out_bar;
     };)";
-
-  generate_fsms_for_pipelined_loops_ = true;
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
 
@@ -9932,8 +9439,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam,
       __xls_channel<int, __xls_channel_dir_Out>& out_bar;
     };)";
 
-  generate_fsms_for_pipelined_loops_ = true;
-
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
 
   {
@@ -9989,8 +9494,6 @@ TEST_F(TranslatorProcTestWithoutFSMParam,
 
       __xls_channel<int, __xls_channel_dir_Out>& out_foo;
     };)";
-
-  generate_fsms_for_pipelined_loops_ = true;
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
 
