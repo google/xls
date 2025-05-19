@@ -627,6 +627,15 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "scheduling_result",
+    hdrs = ["scheduling_result.h"],
+    deps = [
+        ":pipeline_schedule_cc_proto",
+        "//xls/passes:pass_metrics_cc_proto",
+    ],
+)
+
 cc_test(
     name = "pipeline_scheduling_pass_test",
     srcs = ["pipeline_scheduling_pass_test.cc"],

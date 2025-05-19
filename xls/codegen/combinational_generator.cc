@@ -14,8 +14,8 @@
 
 #include "xls/codegen/combinational_generator.h"
 
+#include <optional>
 #include <string>
-#include <utility>
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion.h"
@@ -23,6 +23,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/status/ret_check.h"
@@ -35,9 +36,9 @@
 namespace xls {
 namespace verilog {
 
-absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
+absl::StatusOr<CodegenResult> GenerateCombinationalModule(
     FunctionBase* module, const CodegenOptions& options,
-    const DelayEstimator* delay_estimator, PassPipelineMetricsProto* metrics) {
+    const DelayEstimator* delay_estimator) {
   XLS_ASSIGN_OR_RETURN(CodegenContext context,
                        FunctionBaseToCombinationalBlock(module, options));
 
@@ -59,17 +60,17 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
       std::string verilog,
       GenerateVerilog(context.top_block(), options, &verilog_line_map));
 
-  if (metrics != nullptr) {
-    *metrics = results.ToProto();
-  }
-
   XLS_ASSIGN_OR_RETURN(
       ModuleSignature signature,
       ModuleSignature::FromProto(*context.top_block()->GetSignature()));
 
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
-  return ModuleGeneratorResult{verilog, verilog_line_map, std::move(signature)};
+  return CodegenResult{.verilog_text = verilog,
+                       .verilog_line_map = verilog_line_map,
+                       .signature = signature,
+                       .bom = signature.proto().metrics(),
+                       .pass_pipeline_metrics = results.ToProto()};
 }
 
 }  // namespace verilog

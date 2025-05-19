@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/verilog_line_map.pb.h"
@@ -57,7 +58,7 @@ constexpr char kTestdataPath[] = "xls/simulation/testdata";
 
 // Returns a test module which can be used to monitor the ready/valid interface
 // of a streaming channel.
-absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
+absl::StatusOr<verilog::CodegenResult> GetInputChannelMonitorModule() {
   constexpr std::string_view kModulePath =
       "xls/simulation/input_channel_monitor.v";
   XLS_ASSIGN_OR_RETURN(std::string runfile_path,
@@ -86,14 +87,17 @@ absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
                                  "monitor_data", "monitor_ready",
                                  "monitor_valid", FLOP_KIND_NONE);
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
-  return ModuleGeneratorResult{.verilog_text = verilog_text,
-                               .verilog_line_map = VerilogLineMap(),
-                               .signature = signature};
+  return verilog::CodegenResult{
+      .verilog_text = verilog_text,
+      .verilog_line_map = VerilogLineMap(),
+      .signature = signature,
+      .bom = XlsMetricsProto(),
+      .pass_pipeline_metrics = PassPipelineMetricsProto()};
 }
 
 // Returns a pipelined proc which reads from two channels `operand_0` and
 // `operand_1` and writes the sum to channel `result`.
-absl::StatusOr<ModuleGeneratorResult> GetPipelinedProc() {
+absl::StatusOr<verilog::CodegenResult> GetPipelinedProc() {
   constexpr std::string_view text = R"(
 module proc_adder_pipeline(
   input wire clk,
@@ -210,9 +214,12 @@ endmodule
                                  FLOP_KIND_NONE);
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
 
-  return ModuleGeneratorResult{.verilog_text = std::string(text),
-                               .verilog_line_map = VerilogLineMap(),
-                               .signature = signature};
+  return verilog::CodegenResult{
+      .verilog_text = std::string{text},
+      .verilog_line_map = VerilogLineMap(),
+      .signature = signature,
+      .bom = XlsMetricsProto(),
+      .pass_pipeline_metrics = PassPipelineMetricsProto()};
 }
 
 // A test for ModuleSimulator which uses bare Verilog.
@@ -559,7 +566,7 @@ endmodule
 }
 
 TEST_P(ModuleSimulatorTest, RunPipelinedProcBits) {
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult result, GetPipelinedProc());
+  XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenResult result, GetPipelinedProc());
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   absl::flat_hash_map<std::string, int64_t> output_channel_counts = {
@@ -584,7 +591,7 @@ TEST_P(ModuleSimulatorTest, RunPipelinedProcBits) {
 }
 
 TEST_P(ModuleSimulatorTest, RunPipelinedProcValues) {
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult result, GetPipelinedProc());
+  XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenResult result, GetPipelinedProc());
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
 
@@ -603,7 +610,7 @@ TEST_P(ModuleSimulatorTest, RunPipelinedProcValues) {
 }
 
 TEST_P(ModuleSimulatorTest, RunPipelinedProcValidHoldoff) {
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult result, GetPipelinedProc());
+  XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenResult result, GetPipelinedProc());
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
 
@@ -643,7 +650,7 @@ TEST_P(ModuleSimulatorTest, RunPipelinedProcValidHoldoff) {
 }
 
 TEST_P(ModuleSimulatorTest, RunPipelinedProcReadyHoldoff) {
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult result, GetPipelinedProc());
+  XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenResult result, GetPipelinedProc());
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
 
@@ -675,7 +682,7 @@ TEST_P(ModuleSimulatorTest, RunPipelinedProcReadyHoldoff) {
 }
 
 TEST_P(ModuleSimulatorTest, TestNoValidHoldOff) {
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult module,
+  XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenResult module,
                            GetInputChannelMonitorModule());
   ModuleSimulator simulator =
       NewModuleSimulator(module.verilog_text, module.signature);
@@ -697,7 +704,7 @@ TEST_P(ModuleSimulatorTest, TestNoValidHoldOff) {
 }
 
 TEST_P(ModuleSimulatorTest, TestValidHoldoffWithoutDrivenValues) {
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult module,
+  XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenResult module,
                            GetInputChannelMonitorModule());
   ModuleSimulator simulator =
       NewModuleSimulator(module.verilog_text, module.signature);
@@ -723,7 +730,7 @@ TEST_P(ModuleSimulatorTest, TestValidHoldoffWithoutDrivenValues) {
 }
 
 TEST_P(ModuleSimulatorTest, TestValidHoldoffWithDrivenValues) {
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult module,
+  XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenResult module,
                            GetInputChannelMonitorModule());
   ModuleSimulator simulator =
       NewModuleSimulator(module.verilog_text, module.signature);
@@ -756,7 +763,7 @@ TEST_P(ModuleSimulatorTest, TestValidHoldoffWithDrivenValues) {
 }
 
 TEST_P(ModuleSimulatorTest, TestValidHoldoffWithDrivenX) {
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult module,
+  XLS_ASSERT_OK_AND_ASSIGN(verilog::CodegenResult module,
                            GetInputChannelMonitorModule());
   ModuleSimulator simulator =
       NewModuleSimulator(module.verilog_text, module.signature);

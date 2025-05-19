@@ -13,10 +13,12 @@
 // limitations under the License.
 
 #include <optional>
+#include <utility>
 #include <variant>
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/package.h"
@@ -24,6 +26,7 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -32,52 +35,28 @@
 
 namespace xls {
 
-using PipelineScheduleOrGroup =
-    std::variant<PipelineSchedule, PackagePipelineSchedules>;
-
-absl::StatusOr<PipelineScheduleOrGroup> Schedule(
+absl::StatusOr<SchedulingResult> Schedule(
     Package* p, const SchedulingOptions& scheduling_options,
-    const DelayEstimator* delay_estimator,
-    PassPipelineMetricsProto* metrics = nullptr);
-
-struct CodegenResult {
-  verilog::ModuleGeneratorResult module_generator_result;
-  std::optional<PackagePipelineSchedulesProto>
-      package_pipeline_schedules_proto = std::nullopt;
-};
-
-absl::StatusOr<CodegenResult> CodegenPipeline(
-    Package* p, PipelineScheduleOrGroup schedules,
-    const verilog::CodegenOptions& codegen_options,
-    const DelayEstimator* delay_estimator,
-    PassPipelineMetricsProto* metrics = nullptr);
-
-absl::StatusOr<CodegenResult> CodegenCombinational(
-    Package* p, const verilog::CodegenOptions& codegen_options,
-    const DelayEstimator* delay_estimator,
-    PassPipelineMetricsProto* metrics = nullptr);
+    const DelayEstimator* delay_estimator);
 
 absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     const CodegenFlagsProto& p);
 
 // Run scheduling and/or codegen based on options from the given flags protos.
-absl::StatusOr<PipelineScheduleOrGroup> Schedule(
+absl::StatusOr<SchedulingResult> Schedule(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
-    const CodegenFlagsProto& codegen_flags_proto,
-    PassPipelineMetricsProto* metrics = nullptr);
-absl::StatusOr<CodegenResult> Codegen(
-    Package* p,
-    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
-    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model,
-    const PipelineScheduleOrGroup* schedules,
-    PassPipelineMetricsProto* metrics = nullptr);
-absl::StatusOr<CodegenResult> ScheduleAndCodegen(
+    const CodegenFlagsProto& codegen_flags_proto);
+absl::StatusOr<verilog::CodegenResult> Codegen(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
     const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model,
-    PassPipelineMetricsProto* scheduling_metrics = nullptr,
-    PassPipelineMetricsProto* codegen_metrics = nullptr);
+    const PackagePipelineSchedules* schedules);
+absl::StatusOr<std::pair<SchedulingResult, verilog::CodegenResult>>
+ScheduleAndCodegen(
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model);
 
 }  // namespace xls
 

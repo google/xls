@@ -613,6 +613,7 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
   }
   ASSERT_TRUE(clone.min_clock_period_ps().has_value());
   EXPECT_EQ(*clone.min_clock_period_ps(), *schedule.min_clock_period_ps());
+  EXPECT_EQ(clone.length(), schedule.length());
 }
 
 TEST_F(PipelineScheduleTest, NodeDelayInScheduleProto) {

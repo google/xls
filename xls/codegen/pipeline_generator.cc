@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -27,13 +28,13 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
@@ -43,18 +44,9 @@
 namespace xls {
 namespace verilog {
 
-absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
-    const PipelineSchedule& schedule, Function* func,
-    const CodegenOptions& options, const DelayEstimator* delay_estimator,
-    PassPipelineMetricsProto* metrics) {
-  return ToPipelineModuleText(schedule, static_cast<FunctionBase*>(func),
-                              options, delay_estimator, metrics);
-}
-
-absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
+absl::StatusOr<CodegenResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, FunctionBase* module,
-    const CodegenOptions& options, const DelayEstimator* delay_estimator,
-    PassPipelineMetricsProto* metrics) {
+    const CodegenOptions& options, const DelayEstimator* delay_estimator) {
   VLOG(2) << "Generating pipelined module for module:";
   XLS_VLOG_LINES(2, module->DumpIr());
   XLS_VLOG_LINES(2, schedule.ToString());
@@ -80,9 +72,6 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
       CreateCodegenPassPipeline(opt_context)
           ->Run(module->package(), pass_options, &results, context)
           .status());
-  if (metrics != nullptr) {
-    *metrics = results.ToProto();
-  }
   XLS_RET_CHECK(context.top_block() != nullptr &&
                 context.HasMetadataForBlock(context.top_block()) &&
                 context.top_block()->GetSignature().has_value());
@@ -102,13 +91,18 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
 
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
-  return ModuleGeneratorResult{verilog, verilog_line_map, std::move(signature)};
+  return CodegenResult{
+      .verilog_text = verilog,
+      .verilog_line_map = verilog_line_map,
+      .signature = signature,
+      .bom = signature.proto().metrics(),
+      .pass_pipeline_metrics = results.ToProto(),
+  };
 }
 
-absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
+absl::StatusOr<CodegenResult> ToPipelineModuleText(
     const PackagePipelineSchedules& schedules, Package* package,
-    const CodegenOptions& options, const DelayEstimator* delay_estimator,
-    PassPipelineMetricsProto* metrics) {
+    const CodegenOptions& options, const DelayEstimator* delay_estimator) {
   VLOG(2) << "Generating pipelined module for module:";
   XLS_VLOG_LINES(2, package->DumpIr());
   if (VLOG_IS_ON(2)) {
@@ -141,9 +135,6 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(opt_context)
                           ->Run(package, pass_options, &results, context)
                           .status());
-  if (metrics != nullptr) {
-    *metrics = results.ToProto();
-  }
 
   XLS_RET_CHECK(context.top_block() != nullptr &&
                 context.HasMetadataForBlock(context.top_block()) &&
@@ -163,7 +154,13 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
 
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
-  return ModuleGeneratorResult{verilog, verilog_line_map, std::move(signature)};
+  return CodegenResult{
+      .verilog_text = verilog,
+      .verilog_line_map = verilog_line_map,
+      .signature = signature,
+      .bom = signature.proto().metrics(),
+      .pass_pipeline_metrics = results.ToProto(),
+  };
 }
 
 }  // namespace verilog

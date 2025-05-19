@@ -280,14 +280,6 @@ class ModuleSignature {
   std::vector<InstantiationProto> instantiations_;
 };
 
-// Abstraction gathering the Verilog text and module signature produced by the
-// generator.
-struct ModuleGeneratorResult {
-  std::string verilog_text;
-  VerilogLineMap verilog_line_map;
-  ModuleSignature signature;
-};
-
 std::ostream& operator<<(std::ostream& os, const ModuleSignature& signature);
 
 }  // namespace verilog

@@ -40,6 +40,7 @@
 #include "absl/log/log.h"
 #include "linenoise.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/common/file/filesystem.h"
@@ -410,7 +411,7 @@ absl::Status CommandVerilog(std::optional<std::string> function_name) {
   XLS_RET_CHECK(main != nullptr);
   // TODO(taktoa): 2021-03-10 add ability to generate non-combinational modules
   XLS_ASSIGN_OR_RETURN(
-      verilog::ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       verilog::GenerateCombinationalModule(main, verilog::CodegenOptions()));
   std::cout << result.verilog_text;
   return absl::OkStatus();

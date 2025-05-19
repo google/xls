@@ -46,6 +46,7 @@
 #include "xls/codegen/block_conversion_test_fixture.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
@@ -75,6 +76,7 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
@@ -6219,10 +6221,10 @@ TEST_F(ProcConversionTestFixture, SimpleMultiProcConversion) {
       xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
   codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
 
+  std::pair<SchedulingResult, verilog::CodegenResult> result;
   XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenResult result,
-      ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
-                         /*with_delay_model=*/true));
+      result, ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
+                                 /*with_delay_model=*/true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("p"));
 
@@ -6319,10 +6321,10 @@ TEST_F(ProcConversionTestFixture,
       xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
   codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
 
+  std::pair<SchedulingResult, verilog::CodegenResult> result;
   XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenResult result,
-      ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
-                         /*with_delay_model=*/true));
+      result, ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
+                                 /*with_delay_model=*/true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("p"));
 
@@ -6421,10 +6423,10 @@ TEST_F(ProcConversionTestFixture, SimpleFunctionWithProcsPresent) {
       xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
   codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
 
+  std::pair<SchedulingResult, verilog::CodegenResult> result;
   XLS_ASSERT_OK_AND_ASSIGN(
-      CodegenResult result,
-      ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
-                         /*with_delay_model=*/true));
+      result, ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
+                                 /*with_delay_model=*/true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("p"));
 

@@ -132,7 +132,7 @@ absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
   if (schedule_it->second.has_min_clock_period_ps()) {
     min_clock_period_ps = schedule_it->second.min_clock_period_ps();
   }
-  return PipelineSchedule(function, cycle_map, /*length=*/std::nullopt,
+  return PipelineSchedule(function, cycle_map, schedule_it->second.length(),
                           min_clock_period_ps);
 }
 
@@ -607,6 +607,7 @@ PipelineScheduleProto PipelineSchedule::ToProto(
   if (min_clock_period_ps_.has_value()) {
     proto.set_min_clock_period_ps(*min_clock_period_ps_);
   }
+  proto.set_length(length());
   return proto;
 }
 

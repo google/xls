@@ -25,6 +25,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/logging/log_lines.h"
@@ -40,7 +41,7 @@
 namespace xls {
 namespace verilog {
 
-absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
+absl::StatusOr<CodegenResult> GenerateModuleText(
     const PackagePipelineSchedules& schedules, Package* package,
     const CodegenOptions& options, const DelayEstimator* delay_estimator) {
   VLOG(2) << "Generating module for package:";
@@ -113,7 +114,11 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
 
   // TODO: google/xls#1323 - add all block signatures to ModuleGeneratorResult,
   // not just top.
-  return ModuleGeneratorResult{verilog, verilog_line_map, std::move(signature)};
+  return CodegenResult{.verilog_text = verilog,
+                       .verilog_line_map = verilog_line_map,
+                       .signature = signature,
+                       .bom = signature.proto().metrics(),
+                       .pass_pipeline_metrics = results.ToProto()};
 }
 
 }  // namespace verilog

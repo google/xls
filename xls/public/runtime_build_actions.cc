@@ -18,12 +18,14 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
@@ -41,6 +43,7 @@
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/opt.h"
@@ -131,13 +134,19 @@ absl::StatusOr<ScheduleAndCodegenResult> ScheduleAndCodegenPackage(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
     const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model) {
+  std::pair<SchedulingResult, verilog::CodegenResult> result;
   XLS_ASSIGN_OR_RETURN(
-      CodegenResult result,
-      ScheduleAndCodegen(p, scheduling_options_flags_proto, codegen_flags_proto,
-                         with_delay_model));
+      result, ScheduleAndCodegen(p, scheduling_options_flags_proto,
+                                 codegen_flags_proto, with_delay_model));
+  const SchedulingResult& scheduling_result = result.first;
+  const verilog::CodegenResult& codegen_result = result.second;
   return ScheduleAndCodegenResult{
-      .module_generator_result = result.module_generator_result,
-      .pipeline_schedule_group_proto = result.package_pipeline_schedules_proto,
+      .module_generator_result =
+          verilog::ModuleGeneratorResult{
+              .verilog_text = codegen_result.verilog_text,
+              .verilog_line_map = codegen_result.verilog_line_map,
+              .signature = codegen_result.signature},
+      .pipeline_schedule_group_proto = scheduling_result.schedules,
   };
 }
 

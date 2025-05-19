@@ -17,7 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
-#include "xls/codegen/module_signature.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
@@ -30,7 +30,7 @@ namespace verilog {
 // schedules. Modules are pipelined with a latency and initiation interval
 // given in the signature. If a delay estimator is provided, the signature also
 // includes delay information about the pipeline stages.
-absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
+absl::StatusOr<CodegenResult> GenerateModuleText(
     const PackagePipelineSchedules& schedules, Package* package,
     const CodegenOptions& options,
     const DelayEstimator* delay_estimator = nullptr);

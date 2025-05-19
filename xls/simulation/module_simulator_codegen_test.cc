@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_generator.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
@@ -70,7 +71,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipeline) {
       RunPipelineSchedule(func, *delay_estimator_,
                           SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -100,7 +101,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipelineBatched) {
       RunPipelineSchedule(func, *delay_estimator_,
                           SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -141,7 +142,7 @@ TEST_P(ModuleSimulatorCodegenTest, SingleNegatePipeline) {
       RunPipelineSchedule(func, *delay_estimator_,
                           SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -172,7 +173,7 @@ TEST_P(ModuleSimulatorCodegenTest, TripleNegatePipelineBatched) {
       RunPipelineSchedule(func, *delay_estimator_,
                           SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -218,7 +219,7 @@ TEST_P(ModuleSimulatorCodegenTest, AddsWithSharedResource) {
       RunPipelineSchedule(func, *delay_estimator_,
                           SchedulingOptions().clock_period_ps(40)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -255,7 +256,7 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAdds) {
                           SchedulingOptions().clock_period_ps(40)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -297,7 +298,7 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAddWithValid) {
   reset.set_active_low(false);
   reset.set_reset_data_path(false);
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions()
@@ -336,7 +337,7 @@ TEST_P(ModuleSimulatorCodegenTest, AddTwoTupleElements) {
                           SchedulingOptions().clock_period_ps(40)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -385,7 +386,7 @@ TEST_P(ModuleSimulatorCodegenTest, CombinationalModule) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator =
@@ -408,7 +409,7 @@ TEST_P(ModuleSimulatorCodegenTest, ReturnLiteral) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator =
@@ -429,7 +430,7 @@ TEST_P(ModuleSimulatorCodegenTest, ReturnParameter) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator =
@@ -487,7 +488,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughArrayCombinationalModule) {
   BValue x = fb.Param("x", package.GetArrayType(3, package.GetBitsType(8)));
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(x));
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator =
@@ -505,7 +506,7 @@ TEST_P(ModuleSimulatorCodegenTest, ConstructArrayCombinationalModule) {
   fb.Array({fb.Param("x", u8), fb.Param("y", u8), fb.Param("z", u8)}, u8);
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator =
@@ -524,7 +525,7 @@ TEST_P(ModuleSimulatorCodegenTest, FunctionEmptyTuple) {
   BValue x = fb.Param("x", package.GetTupleType({}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(x));
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator =
@@ -556,7 +557,7 @@ TEST_P(ModuleSimulatorCodegenTest, ProcEmptyTuple) {
   pb.Send(out, x);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      verilog::CodegenResult result,
       GenerateCombinationalModule(proc, codegen_options()));
 
   ModuleSimulator simulator =

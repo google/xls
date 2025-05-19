@@ -22,6 +22,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -40,6 +41,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/op_override.h"
 #include "xls/codegen/signature_generator.h"
@@ -72,6 +74,7 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_result.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/module_testbench_thread.h"
@@ -224,8 +227,12 @@ class BlockGeneratorTest : public VerilogTestBase {
     codegen_flags_proto.set_fifo_module("xls_fifo_wrapper");
     codegen_flags_proto.set_nodata_fifo_module("xls_nodata_fifo_wrapper");
 
-    return ScheduleAndCodegen(&package, scheduling_options_flags_proto,
-                              codegen_flags_proto, /*with_delay_model=*/true);
+    std::pair<SchedulingResult, verilog::CodegenResult> result;
+    XLS_ASSIGN_OR_RETURN(
+        result,
+        ScheduleAndCodegen(&package, scheduling_options_flags_proto,
+                           codegen_flags_proto, /*with_delay_model=*/true));
+    return result.second;
   }
 };
 
@@ -1847,15 +1854,14 @@ TEST_P(BlockGeneratorTest, MultiProcWithInternalFifo) {
                                  .verilog_text = kDepth1Fifo.rtl};
   std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
 
-  result.module_generator_result.verilog_text = absl::StrCat(
-      "`include \"fifo.v\"\n\n", result.module_generator_result.verilog_text);
+  result.verilog_text =
+      absl::StrCat("`include \"fifo.v\"\n\n", result.verilog_text);
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.module_generator_result.verilog_text,
+                                 result.verilog_text,
                                  /*macro_definitions=*/{}, include_definitions);
 
   ModuleSimulator simulator = NewModuleSimulator(
-      result.module_generator_result.verilog_text,
-      result.module_generator_result.signature, include_definitions);
+      result.verilog_text, result.signature, include_definitions);
 
   absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
   input_values["in"] = {UBits(0, 32), UBits(20, 32), UBits(30, 32)};
@@ -1883,15 +1889,14 @@ TEST_P(BlockGeneratorTest, MultiProcWithInternalNoDataFifo) {
                                  .verilog_text = kDepth1NoDataFifo.rtl};
   std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
 
-  result.module_generator_result.verilog_text = absl::StrCat(
-      "`include \"fifo.v\"\n\n", result.module_generator_result.verilog_text);
+  result.verilog_text =
+      absl::StrCat("`include \"fifo.v\"\n\n", result.verilog_text);
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.module_generator_result.verilog_text,
+                                 result.verilog_text,
                                  /*macro_definitions=*/{}, include_definitions);
 
   ModuleSimulator simulator = NewModuleSimulator(
-      result.module_generator_result.verilog_text,
-      result.module_generator_result.signature, include_definitions);
+      result.verilog_text, result.signature, include_definitions);
 
   absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
   input_values["in"] = {UBits(0, 0), UBits(0, 0), UBits(0, 0)};
@@ -1918,16 +1923,15 @@ TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
                                  .verilog_text = kDepth0Fifo.rtl};
   std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
 
-  result.module_generator_result.verilog_text = absl::StrCat(
-      "`include \"fifo.v\"\n\n", result.module_generator_result.verilog_text);
+  result.verilog_text =
+      absl::StrCat("`include \"fifo.v\"\n\n", result.verilog_text);
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.module_generator_result.verilog_text,
+                                 result.verilog_text,
                                  /*macro_definitions=*/{}, include_definitions);
 
   ModuleSimulator simulator = NewModuleSimulator(
-      result.module_generator_result.verilog_text,
-      result.module_generator_result.signature, include_definitions);
+      result.verilog_text, result.signature, include_definitions);
 
   absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
   input_values["in"] = {UBits(0, 32), UBits(20, 32), UBits(30, 32)};
@@ -1954,16 +1958,15 @@ TEST_P(BlockGeneratorTest, MultiProcNoDataDirectConnect) {
                                  .verilog_text = kDepth0NoDataFifo.rtl};
   std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
 
-  result.module_generator_result.verilog_text = absl::StrCat(
-      "`include \"fifo.v\"\n\n", result.module_generator_result.verilog_text);
+  result.verilog_text =
+      absl::StrCat("`include \"fifo.v\"\n\n", result.verilog_text);
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.module_generator_result.verilog_text,
+                                 result.verilog_text,
                                  /*macro_definitions=*/{}, include_definitions);
 
   ModuleSimulator simulator = NewModuleSimulator(
-      result.module_generator_result.verilog_text,
-      result.module_generator_result.signature, include_definitions);
+      result.verilog_text, result.signature, include_definitions);
 
   absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
   input_values["in"] = {UBits(0, 0), UBits(0, 0), UBits(0, 0)};

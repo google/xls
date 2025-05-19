@@ -111,6 +111,15 @@ absl::StatusOr<std::string> ProtoToDslx(std::string_view proto_def,
                                         std::string_view text_proto,
                                         std::string_view binding_name);
 
+// This replicates a previously defined internal struct. It should be removed.
+namespace verilog {
+struct ModuleGeneratorResult {
+  std::string verilog_text;
+  VerilogLineMap verilog_line_map;
+  ModuleSignature signature;
+};
+}  // namespace verilog
+
 struct ScheduleAndCodegenResult {
   verilog::ModuleGeneratorResult module_generator_result;
   std::optional<PackagePipelineSchedulesProto> pipeline_schedule_group_proto =

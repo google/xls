@@ -25,8 +25,8 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/combinational_generator.h"
-#include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
@@ -136,7 +136,7 @@ void SimTestBase::RunAndExpectEq(
     EXPECT_TRUE(top.value()->IsFunction());
 
     XLS_ASSERT_OK_AND_ASSIGN(
-        verilog::ModuleGeneratorResult result,
+        verilog::CodegenResult result,
         verilog::GenerateCombinationalModule(
             top.value(), verilog::CodegenOptions().use_system_verilog(false)));
 

@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/test_fifos.h"
@@ -112,7 +113,7 @@ TEST_P(PipelineGeneratorTest, TrivialFunction) {
                           SchedulingOptions().clock_period_ps(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -136,7 +137,7 @@ TEST_P(PipelineGeneratorTest, ReturnLiteral) {
                           SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedule, func,
                            BuildPipelineOptions()
                                .flop_inputs(false)
@@ -167,7 +168,7 @@ TEST_P(PipelineGeneratorTest, ReturnTupleLiteral) {
                           SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedule, func,
                            BuildPipelineOptions()
                                .flop_inputs(false)
@@ -196,7 +197,7 @@ TEST_P(PipelineGeneratorTest, ReturnEmptyTuple) {
                           SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -219,7 +220,7 @@ TEST_P(PipelineGeneratorTest, NestedEmptyTuple) {
                           SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -245,7 +246,7 @@ TEST_P(PipelineGeneratorTest, TakesEmptyTuple) {
       RunPipelineSchedule(f, TestDelayEstimator(),
                           SchedulingOptions().pipeline_stages(5)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, f,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -269,7 +270,7 @@ TEST_P(PipelineGeneratorTest, PassesEmptyTuple) {
       RunPipelineSchedule(f, TestDelayEstimator(),
                           SchedulingOptions().pipeline_stages(5)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, f,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -292,7 +293,7 @@ TEST_P(PipelineGeneratorTest, ReturnArrayLiteral) {
                           SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedule, func,
                            BuildPipelineOptions()
                                .flop_inputs(false)
@@ -323,7 +324,7 @@ TEST_P(PipelineGeneratorTest, SingleNegate) {
                           SchedulingOptions().clock_period_ps(40)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -344,7 +345,7 @@ TEST_P(PipelineGeneratorTest, PassThroughArray) {
                           SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -376,7 +377,7 @@ TEST_P(PipelineGeneratorTest, TupleOfArrays) {
                           SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -408,7 +409,7 @@ TEST_P(PipelineGeneratorTest, MultidimensionalArray) {
                           SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -454,7 +455,7 @@ TEST_P(PipelineGeneratorTest, TreeOfAdds) {
           SchedulingOptions().clock_period_ps(add_delay_in_ps * 2)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -500,7 +501,7 @@ TEST_P(PipelineGeneratorTest, BigExpressionInOneStage) {
                           SchedulingOptions().clock_period_ps(4000)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -527,7 +528,7 @@ TEST_P(PipelineGeneratorTest, IdentityOfMul) {
                           SchedulingOptions().clock_period_ps(50)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -555,7 +556,7 @@ TEST_P(PipelineGeneratorTest, RequiredNamedIntermediates) {
                           SchedulingOptions().clock_period_ps(400)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -584,7 +585,7 @@ TEST_P(PipelineGeneratorTest, BinarySelect) {
                           SchedulingOptions().clock_period_ps(400)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -612,7 +613,7 @@ TEST_P(PipelineGeneratorTest, TwoBitSelector) {
                           SchedulingOptions().clock_period_ps(400)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -641,7 +642,7 @@ TEST_P(PipelineGeneratorTest, TwoBitSelectorAllCasesPopulated) {
                           SchedulingOptions().clock_period_ps(400)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -698,7 +699,7 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithoutResetAndWithoutOutputValid) {
                           SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedule, func,
                            BuildPipelineOptions()
                                .valid_control("in_valid", std::nullopt)
@@ -732,7 +733,7 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithSimulation) {
   reset.set_active_low(false);
   reset.set_reset_data_path(false);
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions()
@@ -810,7 +811,7 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
     reset.set_active_low(active_low);
     reset.set_reset_data_path(false);
     XLS_ASSERT_OK_AND_ASSIGN(
-        ModuleGeneratorResult result,
+        CodegenResult result,
         ToPipelineModuleText(
             schedule, func,
             BuildPipelineOptions()
@@ -902,7 +903,7 @@ TEST_P(PipelineGeneratorTest, CustomModuleName) {
                           SchedulingOptions().clock_period_ps(40)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().module_name("foobar").use_system_verilog(
@@ -925,7 +926,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopInputsAndOutputs) {
                           SchedulingOptions().pipeline_stages(2)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedule, func,
                            BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())
@@ -957,7 +958,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopInputsNotOutputs) {
                           SchedulingOptions().pipeline_stages(2)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedule, func,
                            BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())
@@ -989,7 +990,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopOutputsNotInputs) {
                           SchedulingOptions().pipeline_stages(2)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedule, func,
                            BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())
@@ -1021,7 +1022,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopNeitherInputsNorOutputs) {
                           SchedulingOptions().pipeline_stages(2)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedule, func,
                            BuildPipelineOptions()
                                .use_system_verilog(UseSystemVerilog())
@@ -1056,7 +1057,7 @@ TEST_P(PipelineGeneratorTest, EmitsCoverpoints) {
                           SchedulingOptions().pipeline_stages(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
@@ -1092,7 +1093,7 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
   reset_proto.set_active_low(false);
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions()
@@ -1197,7 +1198,7 @@ proc ii_greater_than_one(st: bits[32], init={0}) {
   reset_proto.set_active_low(false);
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, proc,
           BuildPipelineOptions()
@@ -1236,7 +1237,7 @@ TEST_P(PipelineGeneratorTest, SingleProcWithProcScopedChannels) {
   reset_proto.set_active_low(false);
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, proc,
           BuildPipelineOptions()
@@ -1265,7 +1266,7 @@ TEST_P(PipelineGeneratorTest, FunctionWithDataPathReset) {
   reset.set_active_low(false);
   reset.set_reset_data_path(true);
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions()
@@ -1309,7 +1310,7 @@ TEST_P(PipelineGeneratorTest, FunctionWithoutDataPathReset) {
   reset.set_active_low(false);
   reset.set_reset_data_path(false);
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, func,
           BuildPipelineOptions()
@@ -1374,7 +1375,7 @@ TEST_P(PipelineGeneratorTest, ProcScopedChannelsWithLoopbackChannel) {
   reset_proto.set_active_low(false);
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(
           schedule, proc,
           BuildPipelineOptions()
@@ -1434,7 +1435,7 @@ TEST_P(PipelineGeneratorTest, TrivialProcHierarchyWithProcScopedChannels) {
     schedules.emplace(proc.get(), std::move(schedule));
   }
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedules, &p,
                            CodegenOptions()
                                .use_system_verilog(UseSystemVerilog())
@@ -1492,7 +1493,7 @@ TEST_P(PipelineGeneratorTest, MultiplyInstantiatedProc) {
     schedules.emplace(proc.get(), std::move(schedule));
   }
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedules, &p,
                            CodegenOptions()
                                .use_system_verilog(UseSystemVerilog())
@@ -1555,7 +1556,7 @@ TEST_P(PipelineGeneratorTest, DeclaredChannelInProc) {
     schedules.emplace(proc.get(), std::move(schedule));
   }
   XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleGeneratorResult result,
+      CodegenResult result,
       ToPipelineModuleText(schedules, &p,
                            CodegenOptions()
                                .use_system_verilog(UseSystemVerilog())

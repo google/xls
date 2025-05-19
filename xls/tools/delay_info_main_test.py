@@ -43,6 +43,7 @@ schedules {
       timed_nodes: { node: "sum" node_delay_ps: 1 }
       timed_nodes: { node: "not_sum" node_delay_ps: 1 }
     }
+    length: 2
   }
 }
 """

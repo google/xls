@@ -19,7 +19,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -28,8 +27,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/codegen/combinational_generator.h"
-#include "xls/codegen/module_signature.h"
 #include "xls/codegen/op_override.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/ram_configuration.h"
@@ -50,6 +49,7 @@
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/scheduling/scheduling_pass_pipeline.h"
+#include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -143,16 +143,14 @@ struct CodegenMetadata {
   }
 };
 
-absl::StatusOr<PipelineScheduleOrGroup> ScheduleFromMetadata(
-    Package* p, const CodegenMetadata& metadata,
-    PassPipelineMetricsProto* metrics) {
-  return Schedule(p, metadata.scheduling_options, metadata.delay_estimator,
-                  metrics);
+absl::StatusOr<SchedulingResult> ScheduleFromMetadata(
+    Package* p, const CodegenMetadata& metadata) {
+  return Schedule(p, metadata.scheduling_options, metadata.delay_estimator);
 }
 
 absl::StatusOr<PackagePipelineSchedules> DeterminePipelineSchedules(
     GeneratorKind generator_kind, Package* p,
-    const PipelineScheduleOrGroup* schedules) {
+    const PackagePipelineSchedules* schedules) {
   if (!p->GetTop().has_value()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Package %s has no top function.", p->name()));
@@ -160,7 +158,7 @@ absl::StatusOr<PackagePipelineSchedules> DeterminePipelineSchedules(
   FunctionBase* top = p->GetTop().value();
 
   // Codegen for a single combinational proc or function.
-  if (schedules == nullptr) {
+  if (schedules->empty()) {
     XLS_RET_CHECK_EQ(generator_kind, GENERATOR_KIND_COMBINATIONAL);
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
                          PipelineSchedule::SingleStage(p->GetTop().value()));
@@ -168,33 +166,46 @@ absl::StatusOr<PackagePipelineSchedules> DeterminePipelineSchedules(
   }
 
   XLS_RET_CHECK_EQ(generator_kind, GENERATOR_KIND_PIPELINE);
-
-  // Codegen for a single proc.
-  if (std::holds_alternative<PipelineSchedule>(*schedules)) {
-    return PackagePipelineSchedules{
-        {top, std::get<PipelineSchedule>(*schedules)}};
-  }
-
-  // Multi-proc codegen is in play.
-  return std::get<PackagePipelineSchedules>(*schedules);
+  return *schedules;
 }
 
-absl::StatusOr<CodegenResult> CodegenFromMetadata(
+absl::StatusOr<verilog::CodegenResult> CodegenPipeline(
+    Package* p, const PackagePipelineSchedules& schedules,
+    const verilog::CodegenOptions& codegen_options,
+    const DelayEstimator* delay_estimator) {
+  XLS_RETURN_IF_ERROR(VerifyPackage(p, /*codegen=*/true));
+
+  if (schedules.size() == 1) {
+    const PipelineSchedule& schedule = schedules.at(*p->GetTop());
+    return verilog::ToPipelineModuleText(schedule, *p->GetTop(),
+                                         codegen_options, delay_estimator);
+  }
+  return verilog::ToPipelineModuleText(schedules, p, codegen_options,
+                                       delay_estimator);
+}
+
+absl::StatusOr<verilog::CodegenResult> CodegenCombinational(
+    Package* p, const verilog::CodegenOptions& codegen_options,
+    const DelayEstimator* delay_estimator) {
+  return verilog::GenerateCombinationalModule(*p->GetTop(), codegen_options,
+                                              delay_estimator);
+}
+
+absl::StatusOr<verilog::CodegenResult> CodegenFromMetadata(
     Package* p, GeneratorKind generator_kind, const CodegenMetadata& metadata,
-    const PipelineScheduleOrGroup* schedules,
-    PassPipelineMetricsProto* metrics) {
+    const PackagePipelineSchedules* schedules) {
   if (metadata.codegen_options.codegen_version() ==
           verilog::CodegenOptions::Version::kOneDotZero ||
       metadata.codegen_options.codegen_version() ==
           verilog::CodegenOptions::Version::kDefault) {
     if (generator_kind == GENERATOR_KIND_COMBINATIONAL) {
       return CodegenCombinational(p, metadata.codegen_options,
-                                  metadata.delay_estimator, metrics);
+                                  metadata.delay_estimator);
     }
     XLS_RET_CHECK_EQ(generator_kind, GENERATOR_KIND_PIPELINE);
     XLS_RET_CHECK(schedules != nullptr);
     return CodegenPipeline(p, *schedules, metadata.codegen_options,
-                           metadata.delay_estimator, metrics);
+                           metadata.delay_estimator);
   }
 
   // Codegen 2.0.
@@ -208,15 +219,8 @@ absl::StatusOr<CodegenResult> CodegenFromMetadata(
       PackagePipelineSchedulesToProto(package_schedules,
                                       *metadata.delay_estimator);
 
-  XLS_ASSIGN_OR_RETURN(verilog::ModuleGeneratorResult result,
-                       verilog::GenerateModuleText(package_schedules, p,
-                                                   metadata.codegen_options,
-                                                   metadata.delay_estimator));
-
-  return CodegenResult{
-      .module_generator_result = result,
-      .package_pipeline_schedules_proto = package_pipeline_schedules_proto,
-  };
+  return verilog::GenerateModuleText(
+      package_schedules, p, metadata.codegen_options, metadata.delay_estimator);
 }
 
 verilog::CodegenOptions::IOKind ToIOKind(IOKindProto p) {
@@ -233,13 +237,11 @@ verilog::CodegenOptions::IOKind ToIOKind(IOKindProto p) {
   }
 }
 
-using PipelineScheduleOrGroup =
-    std::variant<PipelineSchedule, PackagePipelineSchedules>;
-
-absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
+absl::StatusOr<SchedulingResult> RunSchedulingPipeline(
     FunctionBase* main, const SchedulingOptions& scheduling_options,
-    const DelayEstimator* delay_estimator, PassResults* results,
+    const DelayEstimator* delay_estimator,
     synthesis::Synthesizer* synthesizer) {
+  PassResults results;
   SchedulingPassOptions sched_options;
   sched_options.scheduling_options = scheduling_options;
   sched_options.delay_estimator = delay_estimator;
@@ -255,7 +257,7 @@ absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
           : SchedulingContext::CreateForSingleFunction(main);
   absl::Status scheduling_status =
       scheduling_pipeline
-          ->Run(main->package(), sched_options, results, scheduling_context)
+          ->Run(main->package(), sched_options, &results, scheduling_context)
           .status();
   if (!scheduling_status.ok()) {
     if (absl::IsResourceExhausted(scheduling_status)) {
@@ -276,13 +278,9 @@ absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
     return scheduling_status;
   }
   XLS_RET_CHECK(scheduling_context.schedules().contains(main));
-  if (scheduling_options.schedule_all_procs()) {
-    return std::move(scheduling_context).schedules();
-  }
-  auto schedule_itr = scheduling_context.schedules().find(main);
-  XLS_RET_CHECK(schedule_itr != scheduling_context.schedules().end());
-
-  return schedule_itr->second;
+  return SchedulingResult{.schedules = PackagePipelineSchedulesToProto(
+                              scheduling_context.schedules(), *delay_estimator),
+                          .pass_pipeline_metrics = results.ToProto()};
 }
 
 }  // namespace
@@ -404,9 +402,9 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   return options;
 }
 
-absl::StatusOr<PipelineScheduleOrGroup> Schedule(
+absl::StatusOr<SchedulingResult> Schedule(
     Package* p, const SchedulingOptions& scheduling_options,
-    const DelayEstimator* delay_estimator, PassPipelineMetricsProto* metrics) {
+    const DelayEstimator* delay_estimator) {
   QCHECK(scheduling_options.pipeline_stages() != 0 ||
          scheduling_options.clock_period_ps() != 0)
       << "Must specify --pipeline_stages or --clock_period_ps (or both).";
@@ -415,93 +413,41 @@ absl::StatusOr<PipelineScheduleOrGroup> Schedule(
       !scheduling_options.fdo_synthesizer_name().empty()) {
     XLS_ASSIGN_OR_RETURN(synthesizer, SetUpSynthesizer(scheduling_options));
   }
-  PassResults results;
-  absl::StatusOr<PipelineScheduleOrGroup> result = RunSchedulingPipeline(
-      *p->GetTop(), scheduling_options, delay_estimator, &results, synthesizer);
-  if (metrics != nullptr) {
-    *metrics = results.ToProto();
-  }
-  return result;
+  return RunSchedulingPipeline(*p->GetTop(), scheduling_options,
+                               delay_estimator, synthesizer);
 }
 
-absl::StatusOr<CodegenResult> CodegenPipeline(
-    Package* p, PipelineScheduleOrGroup schedules,
-    const verilog::CodegenOptions& codegen_options,
-    const DelayEstimator* delay_estimator, PassPipelineMetricsProto* metrics) {
-  XLS_RETURN_IF_ERROR(VerifyPackage(p, /*codegen=*/true));
-
-  verilog::ModuleGeneratorResult result;
-  PackagePipelineSchedulesProto package_pipeline_schedules_proto;
-  if (std::holds_alternative<PipelineSchedule>(schedules)) {
-    const PipelineSchedule& schedule = std::get<PipelineSchedule>(schedules);
-    package_pipeline_schedules_proto.mutable_schedules()->insert(
-        {schedule.function_base()->name(), schedule.ToProto(*delay_estimator)});
-    XLS_ASSIGN_OR_RETURN(result, verilog::ToPipelineModuleText(
-                                     schedule, *p->GetTop(), codegen_options,
-                                     delay_estimator, metrics));
-  } else if (std::holds_alternative<PackagePipelineSchedules>(schedules)) {
-    const PackagePipelineSchedules& schedule_group =
-        std::get<PackagePipelineSchedules>(schedules);
-    package_pipeline_schedules_proto =
-        PackagePipelineSchedulesToProto(schedule_group, *delay_estimator);
-    XLS_ASSIGN_OR_RETURN(result, verilog::ToPipelineModuleText(
-                                     schedule_group, p, codegen_options,
-                                     delay_estimator, metrics));
-  } else {
-    LOG(FATAL) << absl::StreamFormat("Unknown schedules type (%d).",
-                                     schedules.index());
-  }
-
-  return CodegenResult{
-      .module_generator_result = result,
-      .package_pipeline_schedules_proto = package_pipeline_schedules_proto,
-  };
-}
-
-absl::StatusOr<CodegenResult> CodegenCombinational(
-    Package* p, const verilog::CodegenOptions& codegen_options,
-    const DelayEstimator* delay_estimator, PassPipelineMetricsProto* metrics) {
-  XLS_ASSIGN_OR_RETURN(
-      verilog::ModuleGeneratorResult result,
-      verilog::GenerateCombinationalModule(*p->GetTop(), codegen_options,
-                                           delay_estimator, metrics));
-  return CodegenResult{.module_generator_result = result};
-}
-
-absl::StatusOr<PipelineScheduleOrGroup> Schedule(
+absl::StatusOr<SchedulingResult> Schedule(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
-    const CodegenFlagsProto& codegen_flags_proto,
-    PassPipelineMetricsProto* metrics) {
+    const CodegenFlagsProto& codegen_flags_proto) {
   XLS_RETURN_IF_ERROR(MaybeSetTop(p, codegen_flags_proto));
   XLS_ASSIGN_OR_RETURN(
       CodegenMetadata metadata,
       CodegenMetadata::Create(p, scheduling_options_flags_proto,
                               codegen_flags_proto, /*with_delay_model=*/true));
-  return ScheduleFromMetadata(p, metadata, metrics);
+  return ScheduleFromMetadata(p, metadata);
 }
 
-absl::StatusOr<CodegenResult> Codegen(
+absl::StatusOr<verilog::CodegenResult> Codegen(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
     const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model,
-    const PipelineScheduleOrGroup* schedules,
-    PassPipelineMetricsProto* metrics) {
+    const PackagePipelineSchedules* schedules) {
   XLS_RETURN_IF_ERROR(MaybeSetTop(p, codegen_flags_proto));
   XLS_ASSIGN_OR_RETURN(
       CodegenMetadata metadata,
       CodegenMetadata::Create(p, scheduling_options_flags_proto,
                               codegen_flags_proto, with_delay_model));
   return CodegenFromMetadata(p, codegen_flags_proto.generator(), metadata,
-                             schedules, metrics);
+                             schedules);
 }
 
-absl::StatusOr<CodegenResult> ScheduleAndCodegen(
+absl::StatusOr<std::pair<SchedulingResult, verilog::CodegenResult>>
+ScheduleAndCodegen(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
-    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model,
-    PassPipelineMetricsProto* scheduling_metrics,
-    PassPipelineMetricsProto* codegen_metrics) {
+    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model) {
   XLS_RETURN_IF_ERROR(MaybeSetTop(p, codegen_flags_proto));
   XLS_ASSIGN_OR_RETURN(
       CodegenMetadata metadata,
@@ -510,15 +456,17 @@ absl::StatusOr<CodegenResult> ScheduleAndCodegen(
 
   XLS_RETURN_IF_ERROR(MaybeSetTop(p, codegen_flags_proto));
 
-  PipelineScheduleOrGroup schedules = PackagePipelineSchedules();
-  PipelineScheduleOrGroup* schedules_ptr = nullptr;
+  SchedulingResult scheduling_result;
   if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
-    XLS_ASSIGN_OR_RETURN(schedules,
-                         ScheduleFromMetadata(p, metadata, scheduling_metrics));
-    schedules_ptr = &schedules;
+    XLS_ASSIGN_OR_RETURN(scheduling_result, ScheduleFromMetadata(p, metadata));
   }
-  return CodegenFromMetadata(p, codegen_flags_proto.generator(), metadata,
-                             schedules_ptr, codegen_metrics);
+  XLS_ASSIGN_OR_RETURN(
+      PackagePipelineSchedules schedules,
+      PackagePipelineSchedulesFromProto(p, scheduling_result.schedules));
+  XLS_ASSIGN_OR_RETURN(verilog::CodegenResult codegen_result,
+                       CodegenFromMetadata(p, codegen_flags_proto.generator(),
+                                           metadata, &schedules));
+  return std::make_pair(scheduling_result, codegen_result);
 }
 
 }  // namespace xls

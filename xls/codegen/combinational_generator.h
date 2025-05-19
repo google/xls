@@ -17,7 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
-#include "xls/codegen/module_signature.h"
+#include "xls/codegen/codegen_result.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"
 
@@ -28,10 +28,9 @@ namespace verilog {
 // use_system_verilog is true the generated module will be SystemVerilog
 // otherwise it will be Verilog. This adds a proc to the package which
 // represents the combinational module. This proc is used for code generation.
-absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
+absl::StatusOr<CodegenResult> GenerateCombinationalModule(
     FunctionBase* module, const CodegenOptions& options,
-    const DelayEstimator* delay_estimator = nullptr,
-    PassPipelineMetricsProto* metrics = nullptr);
+    const DelayEstimator* delay_estimator = nullptr);
 
 }  // namespace verilog
 }  // namespace xls
