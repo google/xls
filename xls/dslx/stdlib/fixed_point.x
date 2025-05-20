@@ -257,8 +257,12 @@ pub fn add
 pub fn sub
     <NB_A: u32, EN_A: u32, BU_A: u32, NB_B: u32, EN_B: u32, BU_B: u32,
      BE_A: s32 = {binary_exponent(EN_A, BU_A)}, BE_B: s32 = {binary_exponent(EN_B, BU_B)},
-     NB_R: u32 = {aligned_width(NB_A, BE_A, NB_B, BE_B)}, BE_R: s32 = {std::min(BE_A, BE_B)},
-     EN_R: u32 = {is_negative(BE_R)}, BU_R: u32 = {binary_uexponent(BE_R)}>
+     NB_R:
+     u32 = {
+         aligned_width(NB_A, BE_A, NB_B, BE_B) +
+         if num_bits_overlapping(NB_A, BE_A, NB_B, BE_B) == u32:0 { u32:0 } else { u32:1 }},
+     BE_R: s32 = {std::min(BE_A, BE_B)}, EN_R: u32 = {is_negative(BE_R)},
+     BU_R: u32 = {binary_uexponent(BE_R)}>
     (lhs: FixedPoint<NB_A, EN_A, BU_A>, rhs: FixedPoint<NB_B, EN_B, BU_B>)
     -> FixedPoint<NB_R, EN_R, BU_R> {
     // Widen before left shifting to avoid overflow
@@ -931,7 +935,7 @@ fn test_sub_zero_zero_exp0() {
     let a = make_fixed_point<s32:0>(s2:0b0);
     let b = make_fixed_point<s32:0>(s2:0b0);
     let result = sub(a, b);
-    assert_eq(result, make_fixed_point<s32:0>(s2:0b0));
+    assert_eq(result, make_fixed_point<s32:0>(s3:0b0));
 }
 
 #[test]
@@ -942,7 +946,7 @@ fn test_sub_3_1_exp0() {
     let a = make_fixed_point<s32:0>(s3:0b11);
     let b = make_fixed_point<s32:0>(s3:0b01);
     let result = sub(a, b);
-    assert_eq(result, make_fixed_point<s32:0>(s3:0b10));
+    assert_eq(result, make_fixed_point<s32:0>(s4:0b10));
 }
 
 #[test]
@@ -953,7 +957,7 @@ fn test_sub_6_2_exp1() {
     let a = make_fixed_point<s32:1>(s4:0b110);
     let b = make_fixed_point<s32:1>(s3:0b10);
     let result = sub(a, b);
-    assert_eq(result, make_fixed_point<s32:1>(s4:0b100));
+    assert_eq(result, make_fixed_point<s32:1>(s5:0b100));
 }
 
 #[test]
@@ -966,7 +970,7 @@ fn test_sub_8_3_exp_neg1() {
     let a = make_fixed_point<s32:1>(s5:0b1000);
     let b = make_fixed_point<s32:-1>(s5:0b0011);
     let result = sub(a, b);
-    assert_eq(result, make_fixed_point<s32:-1>(s7:0b11101));
+    assert_eq(result, make_fixed_point<s32:-1>(s8:0b11101));
 }
 
 #[test]
@@ -979,7 +983,7 @@ fn test_sub_lhs_has_smaller_exponent() {
     let a = make_fixed_point<s32:-2>(s20:0b1010110011);
     let b = make_fixed_point<s32:3>(s6:0b10101);
     let result = sub(a, b);
-    assert_eq(result, make_fixed_point<s32:-2>(s20:0b10011));
+    assert_eq(result, make_fixed_point<s32:-2>(s21:0b10011));
 }
 
 #[test]
@@ -989,7 +993,7 @@ fn test_sub_negative_result() {
     let a = make_fixed_point<s32:0>(s3:1);
     let b = make_fixed_point<s32:0>(s3:3);
     let result = sub(a, b);
-    assert_eq(result, make_fixed_point<s32:0>(s3:-2));  // -2 * 2^0 = -2
+    assert_eq(result, make_fixed_point<s32:0>(s4:-2));  // -2 * 2^0 = -2
 }
 
 #[test]
@@ -999,7 +1003,7 @@ fn test_sub_negative_result_fractional_only() {
     let a = make_fixed_point<s32:-2>(s6:1);
     let b = make_fixed_point<s32:-3>(s6:6);
     let result = sub(a, b);
-    assert_eq(result, make_fixed_point<s32:-3>(s7:-4));
+    assert_eq(result, make_fixed_point<s32:-3>(s8:-4));
 }
 
 #[test]
@@ -1010,7 +1014,7 @@ fn test_sub_negative_result_lhs_neg_exponent() {
     let a = make_fixed_point<s32:-2>(s6:12);
     let b = make_fixed_point<s32:0>(s4:4);
     let result = sub(a, b);
-    assert_eq(result, make_fixed_point<s32:-2>(s6:-4));
+    assert_eq(result, make_fixed_point<s32:-2>(s7:-4));
 }
 
 #[test]
@@ -1020,7 +1024,7 @@ fn test_sub_negative_result_rhs_neg_exponent() {
     let a = make_fixed_point<s32:0>(s3:2);
     let b = make_fixed_point<s32:-2>(s6:11);
     let result = sub(a, b);
-    assert_eq(result, make_fixed_point<s32:-2>(s6:-3));
+    assert_eq(result, make_fixed_point<s32:-2>(s7:-3));
 }
 
 #[test]
@@ -1031,7 +1035,7 @@ fn test_sub_negative_result_both_neg_exponent() {
     let a = make_fixed_point<s32:-2>(s6:22);
     let b = make_fixed_point<s32:-2>(s6:24);
     let result = sub(a, b);
-    assert_eq(result, make_fixed_point<s32:-2>(s6:-2));
+    assert_eq(result, make_fixed_point<s32:-2>(s7:-2));
 }
 
 #[test]
@@ -1056,6 +1060,70 @@ fn test_sub_result_pos_neg_exponent() {
     let b = make_fixed_point<s32:-4>(s6:11);
     let result = sub(a, b);
     assert_eq(result, make_fixed_point<s32:-4>(s10:245));
+}
+
+#[test]
+fn test_add_overflow() {
+    // Max s4 value 0b0111 = 7
+    let a = make_fixed_point<s32:0>(s4:7);
+
+    // 7 + 7 = 14, overflow an s4 number
+    let result = add(a, a);
+
+    // Expected result: 7 + 7 = 14 (0b01110)
+    assert_eq(result, make_fixed_point<s32:0>(s5:14));
+}
+
+#[test]
+fn test_sub_overflow() {
+    // Max s4 value 0b0111 = 7
+    // Min s4 value 0b1000 = -8
+    let a = make_fixed_point<s32:0>(s4:7);
+    let b = make_fixed_point<s32:0>(s4:-8);
+
+    // 7 - (-8) = 15, overflow the s4 number
+    let result = sub(a, b);
+
+    // Expected result: 7 - (-8) = 15 (0b01111)
+    assert_eq(result, make_fixed_point<s32:0>(s5:15));
+}
+
+#[test]
+fn test_add_no_overlap() {
+    // 7 = 0b0111
+    let a = make_fixed_point<s32:0>(s4:7);
+
+    // 3 = 0b0011
+    let b = make_fixed_point<s32:-4>(s4:3);
+
+    // No overlap
+    let result = add(a, b);
+
+    // Expected result with no overlap
+    //   a      = 0b0111_0000
+    //   b      = 0b0000_0011
+    // +
+    //   result = 0b0111_0011
+    assert_eq(result, make_fixed_point<s32:-4>(s8:0b0111_0011));
+}
+
+#[test]
+fn test_sub_no_overlap() {
+    // 7 = 0b0111
+    let a = make_fixed_point<s32:0>(s4:7);
+
+    // 3 = 0b0011
+    let b = make_fixed_point<s32:-4>(s4:3);
+
+    // No overlap
+    let result = sub(a, b);
+
+    // Expected result with no overlap
+    //   a      = 0b0111_0000
+    //   b      = 0b0000_0011
+    // -
+    //   result = 0b0110_1101
+    assert_eq(result, make_fixed_point<s32:-4>(s8:0b0110_1101));
 }
 
 #[test]
