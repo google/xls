@@ -2012,6 +2012,145 @@ fn f() -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ImportedParametricFnWithDefault) {
+  auto import_data = CreateImportDataForTest();
+  const char* imported_program = R"(
+pub fn some_function<N: u32, M: u32 = {N + u32:1}>() -> uN[M] { uN[M]:0 }
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  const char* importer_program = R"(
+import fake.imported.stuff;
+
+fn main() -> u5 {
+  let var = stuff::some_function<u32:4>();
+  var
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(importer_program,
+                           ConvertOptions{.emit_positions = false},
+                           &import_data));
+  ExpectIr(converted, TestName());
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ImportConstantArray) {
+  auto import_data = CreateImportDataForTest();
+  const char* imported_program = R"(
+const SIZE = u32:5;
+pub const ARRAY = u32[SIZE]:[1, 2, 3, 4, 5];
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  const char* importer_program = R"(
+import fake.imported.stuff;
+
+fn main() -> u32[5] {
+  let var = stuff::ARRAY;
+  var
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(importer_program,
+                           ConvertOptions{.emit_positions = false},
+                           &import_data));
+  ExpectIr(converted, TestName());
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ImportStruct) {
+  auto import_data = CreateImportDataForTest();
+  const char* imported_program = R"(
+pub struct S { x: u5[2] }
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  const char* importer_program = R"(
+import fake.imported.stuff;
+
+fn main() -> u5 {
+  let s = stuff::S{x: [u5:1, u5:2]};
+  s.x[u1:1]
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(importer_program,
+                           ConvertOptions{.emit_positions = false},
+                           &import_data));
+  ExpectIr(converted, TestName());
+}
+
+// TODO: erinzmoore - Support impl functions.
+TEST_P(IrConverterWithBothTypecheckVersionsTest, DISABLED_ImportStructImpl) {
+  auto import_data = CreateImportDataForTest();
+  const char* imported_program = R"(
+pub struct S { x: u5 }
+
+impl S {
+  fn X(self) -> u5 { self.x }
+}
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  const char* importer_program = R"(
+import fake.imported.stuff;
+
+fn main() -> u5 {
+  let s = stuff::S{x: u5:1};
+  s.X()
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(importer_program,
+                           ConvertOptions{.emit_positions = false},
+                           &import_data));
+  ExpectIr(converted, TestName());
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ChainOfImports) {
+  auto import_data = CreateImportDataForTest();
+  const char* first_imported_program = R"(
+pub const SOME_CONSTANT = u32:1;
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(first_imported_program,
+                                  "fake/imported/first.x",
+                                  "fake.imported.first", &import_data));
+
+  const char* second_imported_program = R"(
+import fake.imported.first;
+
+pub fn get_const() -> u32 {
+  first::SOME_CONSTANT
+}
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(second_imported_program,
+                                  "fake/imported/second.x",
+                                  "fake.imported.second", &import_data));
+
+  const char* importer_program = R"(
+import fake.imported.second;
+
+fn main() -> u1 {
+  uN[second::get_const()]:0
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(importer_program,
+                           ConvertOptions{.emit_positions = false},
+                           &import_data));
+  ExpectIr(converted, TestName());
+}
+
 // Tests that a parametric constexpr function can be imported.
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ParametricConstexprImport) {
   // Place the *imported* module into the import cache.

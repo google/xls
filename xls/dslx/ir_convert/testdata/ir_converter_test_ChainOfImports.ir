@@ -1,0 +1,7 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__main() -> bits[1] {
+  ret literal.1: bits[1] = literal(value=0, id=1)
+}
