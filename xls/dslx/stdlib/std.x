@@ -217,6 +217,9 @@ fn sat_sub_test() {
     assert_eq(sat_sub(u16:65535, u16:1), u16:65534);
 }
 
+// Returns the value of x-1 with saturation at 0.
+pub fn bounded_minus_1<N: u32>(x: uN[N]) -> uN[N] { sat_sub(x, uN[N]:1) }
+
 // Returns unsigned mul of x (N bits) and y (M bits) as an N+M bit value.
 pub fn umul<N: u32, M: u32, R: u32 = {N + M}>(x: uN[N], y: uN[M]) -> uN[R] {
     (x as uN[R]) * (y as uN[R])
@@ -330,9 +333,6 @@ fn iterative_div_test() {
     // Divide by 0.
     assert_eq(u8:0xff, iterative_div(u8:64, u8:0));
 }
-
-// Returns the value of x-1 with saturation at 0.
-pub fn bounded_minus_1<N: u32>(x: uN[N]) -> uN[N] { if x == uN[N]:0 { x } else { x - uN[N]:1 } }
 
 // Extracts the LSb (least significant bit) from the value `x` and returns it.
 pub fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }
