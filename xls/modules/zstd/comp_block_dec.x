@@ -1636,4 +1636,3 @@ proc CompressBlockDecoderTest {
         send(tok, terminator, true);
     }
 }
-
