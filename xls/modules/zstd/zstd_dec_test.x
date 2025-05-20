@@ -898,4 +898,3 @@ proc ZstdDecoderTest {
         send(tok, terminator, true);
     }
 }
-
