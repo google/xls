@@ -758,5 +758,3 @@ proc AxiRamReaderTest {
         send(tok, terminator, true);
     }
 }
-
-
