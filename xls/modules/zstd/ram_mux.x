@@ -235,4 +235,3 @@ proc RamMuxTest {
         let tok = send(tok, terminator, true);
     }
 }
-
