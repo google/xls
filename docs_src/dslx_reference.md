@@ -1516,10 +1516,23 @@ This corresponds to the C/C++ ternary `?:` operator:
 condition ? consequent : alternate
 ```
 
-Note: both the `if` and `else` are *required* to be present, as with the `?:`
-operator, unlike a C++ `if` statement. This is because it is an *expression*
-that must always *produce* a result value, not a *statement* that causes a
-mutating effect.
+In DSLX, the `else` branch is optional. If it is not provided, it is treated
+as though there is an `else` branch that returns the unit type `()`:
+
+```
+if condition { consequent }
+// is equivalent to:
+if condition { consequent } else { () }
+```
+
+This implies that if the `else` branch is omitted, the `consequent` must also
+return the unit type `()` to ensure the whole if expression produces
+a consistent result.
+
+!!! NOTE
+    Unlike a C++ `if` statement or a ternary operator `?:`, DSLX `if` is
+    an *expression* that must always produce a result value, not just a *statement*
+    that causes a mutating effect.
 
 Furthermore, you can have multiple branches via `else if`:
 
