@@ -1214,7 +1214,9 @@ fn test_vslice() {
 // This function ensures that all bits of the argument are used.
 pub fn split_msbs<N: u32, X: u32, Z: u32 = {X - N}, FROM_START: s32 = {Z as s32}>
     (x: bits[X]) -> (bits[N], bits[Z]) {
-    assert!(N <= X, "split_msbs_requires_n_less_equal_x");
+    // Can't split more bits than exist
+    const_assert!(N <= X);
+
     let msbs = x[FROM_START:];
     let lsbs = x[0:FROM_START];
     (msbs, lsbs)
@@ -1242,7 +1244,9 @@ fn prop_split_msbs(n: uN[4], o: uN[3]) -> bool {
 // This function ensures that all bits of the argument are used.
 pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}, FROM_START: s32 = {N as s32}>
     (x: bits[X]) -> (bits[Y], bits[N]) {
-    assert!(N <= X, "split_lsbs_requires_n_less_equal_x");
+    // Can't split more bits than exist
+    const_assert!(N <= X);
+
     let msbs = x[FROM_START:];
     let lsbs = x[0:FROM_START];
     (msbs, lsbs)
