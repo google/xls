@@ -119,21 +119,35 @@ absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
   if (schedule_it == package_schedules_proto.schedules().end()) {
     return absl::InvalidArgumentError("Function does not have a schedule.");
   }
+  // Getting a node by name is slow (linear in number of nodes in the function)
+  // so build up a map for fast lookup.
+  absl::flat_hash_map<std::string, Node*> nodes_by_name;
+  nodes_by_name.reserve(function->node_count());
+  for (Node* node : function->nodes()) {
+    auto [_, inserted] = nodes_by_name.insert({node->GetName(), node});
+    XLS_RET_CHECK(inserted) << "Duplicate node name: " << node->GetName();
+  }
   ScheduleCycleMap cycle_map;
+  cycle_map.reserve(function->node_count());
   for (const auto& stage : schedule_it->second.stages()) {
     for (const auto& timed_node : stage.timed_nodes()) {
       // NOTE: we handle timing with our estimator, so ignore timings from proto
       // but it might be useful in the future to e.g. detect regressions.
-      XLS_ASSIGN_OR_RETURN(Node * node, function->GetNode(timed_node.node()));
-      cycle_map[node] = stage.stage();
+      auto it = nodes_by_name.find(timed_node.node());
+      if (it == nodes_by_name.end()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Node `%s` found in schedule does not exist in function `%s`",
+            timed_node.node(), function->name()));
+      }
+      cycle_map[it->second] = stage.stage();
     }
   }
   std::optional<int64_t> min_clock_period_ps;
   if (schedule_it->second.has_min_clock_period_ps()) {
     min_clock_period_ps = schedule_it->second.min_clock_period_ps();
   }
-  return PipelineSchedule(function, cycle_map, schedule_it->second.length(),
-                          min_clock_period_ps);
+  return PipelineSchedule(function, std::move(cycle_map),
+                          schedule_it->second.length(), min_clock_period_ps);
 }
 
 absl::StatusOr<PipelineSchedule> PipelineSchedule::SingleStage(
@@ -577,6 +591,8 @@ PipelineScheduleProto PipelineSchedule::ToProto(
   // Compute nodes and paths delays.
   absl::flat_hash_map<Node*, int64_t> node_delays;
   absl::flat_hash_map<Node*, int64_t> node_path_delays;
+  node_delays.reserve(function_base_->node_count());
+  node_path_delays.reserve(function_base_->node_count());
   for (Node* node : TopoSort(function_base_)) {
     int64_t delay_to_node_start = 0;
     for (Node* operand : node->operands()) {
@@ -593,9 +609,11 @@ PipelineScheduleProto PipelineSchedule::ToProto(
 
   PipelineScheduleProto proto;
   proto.set_function(function_base_->name());
+  proto.mutable_stages()->Reserve(cycle_to_nodes_.size());
   for (int i = 0; i < cycle_to_nodes_.size(); i++) {
     StageProto* stage = proto.add_stages();
     stage->set_stage(i);
+    stage->mutable_timed_nodes()->Reserve(cycle_to_nodes_[i].size());
     for (Node* node : cycle_to_nodes_[i]) {
       TimedNodeProto* timed_node = stage->add_timed_nodes();
       timed_node->set_node(node->GetName());
