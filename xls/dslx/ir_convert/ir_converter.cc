@@ -75,6 +75,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_scanner.h"
+#include "xls/ir/proc_conversion.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/ir/xls_ir_interface.pb.h"
@@ -241,6 +242,28 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
   return absl::OkStatus();
 }
 
+// Converts the procs in the package to new-style procs. If the top is not
+// a proc, or there is at least one new-style proc already in the package,
+// it will not be converted.
+absl::Status ConvertToNewStyleProcs(Package* package) {
+  if (package->GetTop().has_value() && package->GetTop().value()->IsProc()) {
+    // Make sure all are old style
+    for (const std::unique_ptr<xls::Proc>& proc : package->procs()) {
+      if (proc->is_new_style_proc()) {
+        VLOG(5) << "Will not convert " << package->name()
+                << " to new style procs; found a new style proc already: "
+                << proc->name();
+        return absl::OkStatus();
+      }
+    }
+    XLS_RETURN_IF_ERROR(ConvertPackageToNewStyleProcs(package));
+  } else {
+    VLOG(5) << "Will not convert " << package->name()
+            << " to new style procs; package top is not a proc";
+  }
+  return absl::OkStatus();
+}
+
 // Converts the functions in the call graph in a specified order.
 //
 // Args:
@@ -334,8 +357,13 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
                                                    &channel_scope, options));
   }
 
-  VLOG(3) << "Verifying converted package";
+  if (options.proc_scoped_channels) {
+    VLOG(3) << "Converting package to new style procs/proc scoped channels";
+    XLS_RETURN_IF_ERROR(
+        ConvertToNewStyleProcs(package_data.conversion_info->package.get()));
+  }
   if (options.verify_ir) {
+    VLOG(3) << "Verifying converted package";
     XLS_RETURN_IF_ERROR(
         VerifyPackage(package_data.conversion_info->package.get()));
   }

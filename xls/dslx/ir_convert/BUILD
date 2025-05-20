@@ -363,6 +363,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_scanner",
+        "//xls/ir:proc_conversion",
         "//xls/ir:value",
         "//xls/ir:verifier",
         "//xls/ir:xls_ir_interface_cc_proto",

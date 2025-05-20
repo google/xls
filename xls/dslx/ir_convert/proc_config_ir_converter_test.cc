@@ -40,6 +40,7 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 
 namespace xls::dslx {
@@ -48,6 +49,8 @@ namespace {
 using ::absl_testing::StatusIs;
 using ::testing::Contains;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
+using ::testing::SizeIs;
 
 namespace m = ::xls::op_matchers;
 
@@ -201,8 +204,6 @@ proc main {
 
   auto import_data = CreateImportDataForTest();
 
-  ParametricEnv bindings;
-
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
@@ -247,8 +248,6 @@ proc main {
 )";
 
   auto import_data = CreateImportDataForTest();
-
-  ParametricEnv bindings;
 
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
@@ -476,8 +475,6 @@ proc main {
 
   auto import_data = CreateImportDataForTest();
 
-  ParametricEnv bindings;
-
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
@@ -488,6 +485,72 @@ proc main {
   EXPECT_THAT(conv.package->channels(),
               AllOf(Contains(m::Channel("test_module__my_chan")),
                     Contains(m::Channel("test_module__my_chan__1"))));
+}
+
+TEST(ProcConfigIrConverterTest, ProcScopedChannels) {
+  constexpr std::string_view kModule = R"(
+proc passthrough {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  init {}
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    (c_in, c_out)
+  }
+  next(state: ()) {
+    let (tok, data) = recv(join(), c_in);
+    let tok = send(tok, c_out, data);
+    ()
+  }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  PackageConversionData conv{.package =
+                                 std::make_unique<Package>(tm.module->name())};
+  XLS_ASSERT_OK(ConvertOneFunctionIntoPackage(
+      tm.module, "passthrough", &import_data,
+      /* parametric_env */ nullptr,
+      ConvertOptions{.verify_ir = true, .proc_scoped_channels = true}, &conv));
+  EXPECT_THAT(conv.package->channels(), IsEmpty());
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc, conv.package->GetTopAsProc());
+  EXPECT_TRUE(proc->is_new_style_proc());
+  EXPECT_THAT(proc->interface(), SizeIs(2));
+}
+
+TEST(ProcConfigIrConverterTest, GlobalScopedChannels) {
+  constexpr std::string_view kModule = R"(
+proc passthrough {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  init {}
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    (c_in, c_out)
+  }
+  next(state: ()) {
+    let (tok, data) = recv(join(), c_in);
+    let tok = send(tok, c_out, data);
+    ()
+  }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  PackageConversionData conv{.package =
+                                 std::make_unique<Package>(tm.module->name())};
+  XLS_ASSERT_OK(ConvertOneFunctionIntoPackage(
+      tm.module, "passthrough", &import_data,
+      /* parametric_env */ nullptr, ConvertOptions{}, &conv));
+  EXPECT_THAT(conv.package->channels(),
+              AllOf(Contains(m::Channel("test_module__c_in")),
+                    Contains(m::Channel("test_module__c_out"))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc, conv.package->GetTopAsProc());
+  EXPECT_FALSE(proc->is_new_style_proc());
 }
 
 }  // namespace
