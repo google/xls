@@ -199,20 +199,26 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   if (!node->Is<Literal>() && node->GetType()->IsBits()) {
     // Sequence of known bits at the most-significant end of the value.
     absl::InlinedVector<bool, 1> known_prefix;
-    int64_t i = node->BitCountOrDie() - 1;
-    while (i >= 0 && query_engine.IsKnown(TreeBitLocation(node, i))) {
-      known_prefix.push_back(query_engine.IsOne(TreeBitLocation(node, i)));
-      --i;
+    for (int64_t i = node->BitCountOrDie() - 1; i >= 0; --i) {
+      std::optional<bool> value =
+          query_engine.KnownValue(TreeBitLocation(node, i));
+      if (!value.has_value()) {
+        break;
+      }
+      known_prefix.push_back(*value);
     }
     std::reverse(known_prefix.begin(), known_prefix.end());
 
     // Sequence of known bits at the least-significant end of the value.
     absl::InlinedVector<bool, 1> known_suffix;
     if (known_prefix.size() != node->BitCountOrDie()) {
-      i = 0;
-      while (query_engine.IsKnown(TreeBitLocation(node, i))) {
-        known_suffix.push_back(query_engine.IsOne(TreeBitLocation(node, i)));
-        ++i;
+      for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
+        std::optional<bool> value =
+            query_engine.KnownValue(TreeBitLocation(node, i));
+        if (!value.has_value()) {
+          break;
+        }
+        known_suffix.push_back(*value);
       }
     }
     // If the op has known prefix and/or suffix replace the known bits with a
