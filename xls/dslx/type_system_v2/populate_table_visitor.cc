@@ -14,7 +14,6 @@
 
 #include "xls/dslx/type_system_v2/populate_table_visitor.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <initializer_list>
 #include <iterator>

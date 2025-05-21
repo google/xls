@@ -36,6 +36,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/deduce_utils.h"
@@ -637,68 +638,111 @@ class StatefulResolver : public TypeAnnotationResolver {
                           });
   }
 
+  // Helper for `ReplaceIndirectTypeAnnotations`. A visitor instance is intended
+  // to be used once, and the result of handling that one annotation can be
+  // obtained by calling `result()`.
+  class ReplaceIndirectTypeAnnotationsVisitor
+      : public AstNodeVisitorWithDefault {
+   public:
+    ReplaceIndirectTypeAnnotationsVisitor(
+        Module& module, StatefulResolver& resolver,
+        std::optional<const ParametricContext*> parametric_context,
+        TypeAnnotationFilter filter)
+        : module_(module),
+          resolver_(resolver),
+          parametric_context_(parametric_context),
+          filter_(filter) {}
+
+    absl::Status HandleTypeVariableTypeAnnotation(
+        const TypeVariableTypeAnnotation* variable_type_annotation) override {
+      XLS_ASSIGN_OR_RETURN(
+          result_,
+          resolver_.ResolveAndUnifyTypeAnnotations(
+              parametric_context_, variable_type_annotation->type_variable(),
+              variable_type_annotation->span(), filter_));
+      return absl::OkStatus();
+    }
+
+    absl::Status HandleMemberTypeAnnotation(
+        const MemberTypeAnnotation* member_type) override {
+      XLS_ASSIGN_OR_RETURN(
+          result_, resolver_.ResolveMemberType(parametric_context_, member_type,
+                                               filter_));
+      VLOG(5) << "Member type expansion for: " << member_type->member_name()
+              << " yielded: " << result_->ToString();
+      return absl::OkStatus();
+    }
+
+    absl::Status HandleElementTypeAnnotation(
+        const ElementTypeAnnotation* element_type) override {
+      XLS_ASSIGN_OR_RETURN(result_,
+                           resolver_.ResolveElementType(parametric_context_,
+                                                        element_type, filter_));
+      return absl::OkStatus();
+    }
+
+    absl::Status HandleReturnTypeAnnotation(
+        const ReturnTypeAnnotation* return_type) override {
+      XLS_ASSIGN_OR_RETURN(
+          result_, resolver_.ResolveReturnType(parametric_context_, return_type,
+                                               filter_));
+      return absl::OkStatus();
+    }
+
+    absl::Status HandleParamTypeAnnotation(
+        const ParamTypeAnnotation* param_type) override {
+      if (filter_.Filter(param_type)) {
+        result_ = module_.Make<AnyTypeAnnotation>();
+        return absl::OkStatus();
+      }
+      XLS_ASSIGN_OR_RETURN(
+          result_,
+          resolver_.ResolveParamType(parametric_context_, param_type, filter_));
+      return absl::OkStatus();
+    }
+
+    absl::Status HandleSelfTypeAnnotation(
+        const SelfTypeAnnotation* self_type) override {
+      XLS_ASSIGN_OR_RETURN(
+          result_, resolver_.ResolveSelfType(parametric_context_, self_type));
+      CHECK(result_ != nullptr);
+      return absl::OkStatus();
+    }
+
+    absl::Status HandleSliceTypeAnnotation(
+        const SliceTypeAnnotation* slice_type) override {
+      XLS_ASSIGN_OR_RETURN(
+          result_,
+          resolver_.ResolveSliceType(parametric_context_, slice_type, filter_));
+      return absl::OkStatus();
+    }
+
+    // The result is either `nullopt`, if a direct annotation was visited; or
+    // the direct replacement, if an indirect annotation was visited.
+    std::optional<AstNode*> result() const {
+      return result_ == nullptr
+                 ? std::nullopt
+                 : std::make_optional(const_cast<TypeAnnotation*>(result_));
+    }
+
+   private:
+    Module& module_;
+    StatefulResolver& resolver_;
+    std::optional<const ParametricContext*> parametric_context_;
+    TypeAnnotationFilter filter_;
+    const TypeAnnotation* result_ = nullptr;
+  };
+
   // The "replace" function for an AstCloner that replaces indirect annotations
   // with their resolved & unified versions.
   absl::StatusOr<std::optional<AstNode*>> ReplaceIndirectTypeAnnotations(
       const AstNode* node,
       std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation, TypeAnnotationFilter filter) {
-    if (const auto* variable_type_annotation =
-            dynamic_cast<const TypeVariableTypeAnnotation*>(node)) {
-      XLS_ASSIGN_OR_RETURN(
-          const TypeAnnotation* unified,
-          ResolveAndUnifyTypeAnnotations(
-              parametric_context, variable_type_annotation->type_variable(),
-              annotation->span(), filter));
-      return const_cast<TypeAnnotation*>(unified);
-    }
-    if (const auto* member_type =
-            dynamic_cast<const MemberTypeAnnotation*>(node)) {
-      XLS_ASSIGN_OR_RETURN(
-          const TypeAnnotation* result,
-          ResolveMemberType(parametric_context, member_type, filter));
-      VLOG(5) << "Member type expansion for: " << member_type->member_name()
-              << " yielded: " << result->ToString();
-      return const_cast<TypeAnnotation*>(result);
-    }
-    if (const auto* element_type =
-            dynamic_cast<const ElementTypeAnnotation*>(node)) {
-      XLS_ASSIGN_OR_RETURN(
-          const TypeAnnotation* result,
-          ResolveElementType(parametric_context, element_type, filter));
-      return const_cast<TypeAnnotation*>(result);
-    }
-    if (const auto* return_type =
-            dynamic_cast<const ReturnTypeAnnotation*>(node)) {
-      XLS_ASSIGN_OR_RETURN(
-          const TypeAnnotation* result,
-          ResolveReturnType(parametric_context, return_type, filter));
-      return const_cast<TypeAnnotation*>(result);
-    }
-    if (const auto* param_type =
-            dynamic_cast<const ParamTypeAnnotation*>(node)) {
-      if (filter.Filter(param_type)) {
-        return module_.Make<AnyTypeAnnotation>();
-      }
-      XLS_ASSIGN_OR_RETURN(
-          const TypeAnnotation* result,
-          ResolveParamType(parametric_context, param_type, filter));
-      return const_cast<TypeAnnotation*>(result);
-    }
-    if (const auto* self_type = dynamic_cast<const SelfTypeAnnotation*>(node)) {
-      XLS_ASSIGN_OR_RETURN(const TypeAnnotation* expanded,
-                           ResolveSelfType(parametric_context, self_type));
-      CHECK(expanded != nullptr);
-      return const_cast<TypeAnnotation*>(expanded);
-    }
-    if (const auto* slice_type =
-            dynamic_cast<const SliceTypeAnnotation*>(node)) {
-      XLS_ASSIGN_OR_RETURN(
-          const TypeAnnotation* expanded,
-          ResolveSliceType(parametric_context, slice_type, filter));
-      return const_cast<TypeAnnotation*>(expanded);
-    }
-    return std::nullopt;
+    ReplaceIndirectTypeAnnotationsVisitor visitor(module_, *this,
+                                                  parametric_context, filter);
+    XLS_RETURN_IF_ERROR(node->Accept(&visitor));
+    return visitor.result();
   }
 
   // The "replace" function for an AstCloner that replaces type aliases with the
@@ -709,6 +753,10 @@ class StatefulResolver : public TypeAnnotationResolver {
   // that will be discovered and handled.
   absl::StatusOr<std::optional<AstNode*>> ReplaceTypeAliasWithTarget(
       const AstNode* node) {
+    if (node->kind() != AstNodeKind::kTypeAnnotation) {
+      return std::nullopt;
+    }
+
     bool replaced_anything = false;
     std::optional<const TypeAnnotation*> latest =
         dynamic_cast<const TypeAnnotation*>(node);

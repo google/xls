@@ -583,15 +583,17 @@ class InferenceTableImpl : public InferenceTable {
           NodeData copy = it->second;
           node_data_.emplace(new_node, std::move(copy));
         }
-        if (const auto* new_node_as_annotation =
+        if (new_node->kind() == AstNodeKind::kTypeAnnotation) {
+          if (auto_literal_annotations_.contains(
+                  dynamic_cast<const TypeAnnotation*>(old_node))) {
+            const auto* new_node_as_annotation =
                 dynamic_cast<const TypeAnnotation*>(new_node);
-            new_node_as_annotation != nullptr &&
-            auto_literal_annotations_.contains(
-                dynamic_cast<const TypeAnnotation*>(old_node))) {
-          auto_literal_annotations_.insert(new_node_as_annotation);
+            auto_literal_annotations_.insert(new_node_as_annotation);
+          }
         }
-        if (const auto* old_node_as_colon_ref =
-                dynamic_cast<const ColonRef*>(old_node)) {
+        if (old_node->kind() == AstNodeKind::kColonRef) {
+          const auto* old_node_as_colon_ref =
+              dynamic_cast<const ColonRef*>(old_node);
           std::optional<const AstNode*> target =
               GetColonRefTarget(old_node_as_colon_ref);
           if (target.has_value()) {

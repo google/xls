@@ -195,10 +195,12 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
     std::vector<const AstNode*> invocations;
     std::vector<const AstNode*> non_invocations;
 
+    const Invocation* current_invocation =
+        node->kind() == AstNodeKind::kInvocation
+            ? dynamic_cast<const Invocation*>(node)
+            : nullptr;
     for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
-      if (const auto* current_invocation =
-              dynamic_cast<const Invocation*>(node);
-          current_invocation != nullptr &&
+      if (current_invocation != nullptr &&
           child == current_invocation->callee()) {
         continue;
       }
@@ -328,8 +330,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_RETURN_IF_ERROR(node->Accept(&visitor));
     for (const AstNode* node : visitor.nodes()) {
       VLOG(5) << "Next node: " << node->ToString();
-      if (const auto* invocation = dynamic_cast<const Invocation*>(node)) {
-        XLS_RETURN_IF_ERROR(ConvertInvocation(invocation, parametric_context));
+      if (node->kind() == AstNodeKind::kInvocation) {
+        XLS_RETURN_IF_ERROR(ConvertInvocation(
+            dynamic_cast<const Invocation*>(node), parametric_context));
       } else {
         XLS_RETURN_IF_ERROR(
             GenerateTypeInfo(parametric_context, node,
@@ -347,6 +350,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // output type info. `converted_parametric_envs_` must be populated for both
   // the caller and callee of the parametric invocation before doing this.
   absl::Status AddInvocationTypeInfo(
+      const Invocation* invocation,
       const ParametricContext* parametric_context) {
     VLOG(5) << "Adding invocation type info for "
             << parametric_context->ToString();
@@ -372,8 +376,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         converted_parametric_envs_.at(parametric_context);
     VLOG(5) << "Parent env: " << parent_env.ToString();
     VLOG(5) << "Callee env: " << callee_env.ToString();
-    const auto* invocation =
-        dynamic_cast<const Invocation*>(parametric_context->node());
     CHECK_NE(invocation, nullptr);
 
     XLS_ASSIGN_OR_RETURN(TypeInfo * parent_ti,
@@ -611,7 +613,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                              invocation_context, invocation));
     const bool canonicalized = table_.MapToCanonicalInvocationTypeInfo(
         invocation_context, std::move(env));
-    XLS_RETURN_IF_ERROR(AddInvocationTypeInfo(invocation_context));
+    XLS_RETURN_IF_ERROR(AddInvocationTypeInfo(invocation, invocation_context));
 
     // For an instance method call like `some_object.parametric_fn(args)`, type
     // checking will annotate the callee node, `some_object.parametric_fn` as
@@ -815,16 +817,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // pre-unified.
     bool node_is_annotation = false;
     if (!annotation.has_value()) {
-      if (const auto* node_as_annotation =
-              dynamic_cast<const TypeAnnotation*>(node)) {
+      if (node->kind() == AstNodeKind::kTypeAnnotation) {
         // If the node itself is a `TypeAnnotation`, it doesn't need type
         // unification.
         node_is_annotation = true;
-        annotation = node_as_annotation;
+        annotation = dynamic_cast<const TypeAnnotation*>(node);
 
         // Builtin fragments of bits-like types, like `uN` and `xN[true]` have
         // no `Type` conversion. We only convert the complete thing.
-        if (IsBitsLikeFragment(node_as_annotation)) {
+        if (IsBitsLikeFragment(*annotation)) {
           return absl::OkStatus();
         }
       } else {
@@ -894,10 +895,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_RETURN_IF_ERROR(ValidateConcreteType(node, type->get(), *ti,
                                              *annotation, warning_collector_,
                                              import_data_, file_table_));
-    if (const auto* literal = dynamic_cast<const Number*>(node);
-        literal != nullptr && literal->type_annotation() != nullptr) {
-      ti->SetItem(literal->type_annotation(),
-                  *std::make_unique<MetaType>((*type)->CloneToUnique()));
+    if (node->kind() == AstNodeKind::kNumber) {
+      if (const auto* literal = dynamic_cast<const Number*>(node);
+          literal->type_annotation() != nullptr) {
+        ti->SetItem(literal->type_annotation(),
+                    *std::make_unique<MetaType>((*type)->CloneToUnique()));
+      }
     }
     ti->SetItem(node, **type);
     XLS_RETURN_IF_ERROR(NoteIfConstExpr(parametric_context, node, **type, ti));
@@ -1733,10 +1736,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // inference_table_test. The equivalent is done by `TypecheckModuleV2`, and
     // that's where the logic belongs, but that doesn't yet deal with parametric
     // variables.
-    if (auto* number = dynamic_cast<const Number*>(expr);
-        number != nullptr && number->type_annotation() != nullptr) {
-      type_info->SetItem(number->type_annotation(),
-                         MetaType(type->CloneToUnique()));
+    if (expr->kind() == AstNodeKind::kNumber) {
+      if (auto* number = dynamic_cast<const Number*>(expr);
+          number->type_annotation() != nullptr) {
+        type_info->SetItem(number->type_annotation(),
+                           MetaType(type->CloneToUnique()));
+      }
     }
 
     XLS_ASSIGN_OR_RETURN(
@@ -1759,14 +1764,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         caller_context.has_value() && (*caller_context)->is_struct()
             ? caller_context
             : std::nullopt;
-    if (const auto* colon_ref = dynamic_cast<const ColonRef*>(callee)) {
+    if (callee->kind() == AstNodeKind::kColonRef) {
+      const auto* colon_ref = dynamic_cast<const ColonRef*>(callee);
       std::optional<const AstNode*> target =
           table_.GetColonRefTarget(colon_ref);
       if (target.has_value()) {
         function_node = *target;
       }
-    } else if (const auto* name_ref = dynamic_cast<const NameRef*>(callee)) {
+    } else if (callee->kind() == AstNodeKind::kNameRef) {
       // Either a local function or a built-in function call.
+      const auto* name_ref = dynamic_cast<const NameRef*>(callee);
       if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
         const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
         function_node = def->definer();
@@ -1794,7 +1801,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               file_table_);
         }
       }
-    } else if (const auto* attr = dynamic_cast<const Attr*>(callee)) {
+    } else if (callee->kind() == AstNodeKind::kAttr) {
+      const auto* attr = dynamic_cast<const Attr*>(callee);
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(attr->lhs(), caller_function, caller_context));
       target_object = attr->lhs();
@@ -1939,9 +1947,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         return absl::OkStatus();
       }
       absl::flat_hash_map<std::string, InterpValue> new_values;
-      XLS_ASSIGN_OR_RETURN(
-          new_values, InferImplicitFunctionParametrics(invocation_context,
-                                                       implicit_parametrics));
+      XLS_ASSIGN_OR_RETURN(new_values, InferImplicitFunctionParametrics(
+                                           invocation_context, invocation,
+                                           implicit_parametrics));
       implicit_parametrics.clear();
       values.merge(std::move(new_values));
       return absl::OkStatus();
@@ -2053,15 +2061,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // error.
   absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>>
   InferImplicitFunctionParametrics(
-      const ParametricContext* invocation_context,
+      const ParametricContext* invocation_context, const Invocation* invocation,
       absl::flat_hash_set<const ParametricBinding*> implicit_parametrics) {
     VLOG(5) << "Inferring " << implicit_parametrics.size()
             << " implicit parametrics for invocation: "
             << ToString(invocation_context);
     const auto& context_data =
         std::get<ParametricInvocationDetails>(invocation_context->details());
-    const auto* invocation =
-        dynamic_cast<const Invocation*>(invocation_context->node());
     CHECK_NE(invocation, nullptr);
     const absl::Span<Param* const> formal_args = context_data.callee->params();
     const absl::Span<Expr* const> actual_args = invocation->args();

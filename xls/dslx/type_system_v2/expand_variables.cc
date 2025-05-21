@@ -70,7 +70,8 @@ class VariableExpander : public AstNodeVisitorWithDefault {
         XLS_RETURN_IF_ERROR(annotation->Accept(this));
       }
     }
-    if (const auto* annotation = dynamic_cast<const TypeAnnotation*>(node)) {
+    if (node->kind() == AstNodeKind::kTypeAnnotation) {
+      const auto* annotation = dynamic_cast<const TypeAnnotation*>(node);
       annotations_.push_back(annotation);
     }
     for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {

@@ -25,6 +25,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
@@ -35,7 +36,8 @@
 namespace xls::dslx {
 namespace {
 
-class FastConcretizerImpl : public FastConcretizer {
+class FastConcretizerImpl : public FastConcretizer,
+                            public AstNodeVisitorWithDefault {
  public:
   explicit FastConcretizerImpl(const FileTable& file_table)
       : file_table_(file_table) {}
@@ -51,38 +53,50 @@ class FastConcretizerImpl : public FastConcretizer {
                            GetU32(signedness_and_bit_count->bit_count));
       return std::make_unique<BitsType>(is_signed, bit_count);
     }
-    if (const auto* array_type =
-            dynamic_cast<const ArrayTypeAnnotation*>(annotation)) {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> element_type,
-                           Concretize(array_type->element_type()));
-      XLS_ASSIGN_OR_RETURN(uint32_t dim, GetU32(array_type->dim()));
-      return std::make_unique<ArrayType>(std::move(element_type),
-                                         TypeDim(InterpValue::MakeU32(dim)));
-    }
-    if (const auto* tuple_type =
-            dynamic_cast<const TupleTypeAnnotation*>(annotation)) {
-      std::vector<std::unique_ptr<Type>> member_types;
-      for (const TypeAnnotation* member : tuple_type->members()) {
-        XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> member_type,
-                             Concretize(member));
-        member_types.push_back(std::move(member_type));
-      }
-      return std::make_unique<TupleType>(std::move(member_types));
-    }
-    if (const auto* function_type =
-            dynamic_cast<const FunctionTypeAnnotation*>(annotation)) {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> return_type,
-                           Concretize(function_type->return_type()));
-      std::vector<std::unique_ptr<Type>> param_types;
-      for (const TypeAnnotation* param : function_type->param_types()) {
-        XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> param_type,
-                             Concretize(param));
-        param_types.push_back(std::move(param_type));
-      }
-      return std::make_unique<FunctionType>(std::move(param_types),
-                                            std::move(return_type));
-    }
 
+    result_ = nullptr;
+    XLS_RETURN_IF_ERROR(annotation->Accept(this));
+    CHECK(result_ != nullptr);
+    return std::move(result_);
+  }
+
+  absl::Status HandleArrayTypeAnnotation(
+      const ArrayTypeAnnotation* array_type) override {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> element_type,
+                         Concretize(array_type->element_type()));
+    XLS_ASSIGN_OR_RETURN(uint32_t dim, GetU32(array_type->dim()));
+    result_ = std::make_unique<ArrayType>(std::move(element_type),
+                                          TypeDim(InterpValue::MakeU32(dim)));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTupleTypeAnnotation(
+      const TupleTypeAnnotation* tuple_type) override {
+    std::vector<std::unique_ptr<Type>> member_types;
+    for (const TypeAnnotation* member : tuple_type->members()) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> member_type,
+                           Concretize(member));
+      member_types.push_back(std::move(member_type));
+    }
+    result_ = std::make_unique<TupleType>(std::move(member_types));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleFunctionTypeAnnotation(
+      const FunctionTypeAnnotation* function_type) override {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> return_type,
+                         Concretize(function_type->return_type()));
+    std::vector<std::unique_ptr<Type>> param_types;
+    for (const TypeAnnotation* param : function_type->param_types()) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> param_type, Concretize(param));
+      param_types.push_back(std::move(param_type));
+    }
+    result_ = std::make_unique<FunctionType>(std::move(param_types),
+                                             std::move(return_type));
+    return absl::OkStatus();
+  }
+
+  absl::Status DefaultHandler(const AstNode*) override {
     return absl::UnimplementedError("Node is not handled by fast concretizer.");
   }
 
@@ -124,6 +138,7 @@ class FastConcretizerImpl : public FastConcretizer {
   }
 
   const FileTable& file_table_;
+  std::unique_ptr<Type> result_;
 };
 
 }  // namespace

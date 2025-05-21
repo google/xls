@@ -229,7 +229,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   // This check can be removed after figuring out the reasoning behind that.
   absl::Status HandleFor(const For* forexpr) override {
     const Type* type = *ti_.GetItem(forexpr->iterable());
-    if (!dynamic_cast<const ArrayType*>(type)) {
+    if (!type->IsArray()) {
       return TypeInferenceErrorStatus(
           forexpr->iterable()->span(), type,
           absl::Substitute("Expect array type annotation on a for loop's "
@@ -321,9 +321,10 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   }
 
   absl::Status DefaultHandler(const AstNode* node) override {
-    if (node->parent() != nullptr) {
+    if (node->parent() != nullptr &&
+        node->parent()->kind() == AstNodeKind::kBinop) {
       if (const auto* binop = dynamic_cast<Binop*>(node->parent());
-          binop != nullptr && binop->binop_kind() == BinopKind::kConcat &&
+          binop->binop_kind() == BinopKind::kConcat &&
           (binop->lhs() == node || binop->rhs() == node)) {
         XLS_RETURN_IF_ERROR(
             PreValidateConcatOperand(dynamic_cast<const Expr*>(node)));
@@ -534,11 +535,11 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     const Type& index_type = *signature.params()[1];
 
     // 1. index must be tuple of uNs or scalar uN
-    if (const TupleType* index_tuple =
-            dynamic_cast<const TupleType*>(&index_type)) {
-      for (int i = 0; i < index_tuple->size(); ++i) {
+    if (index_type.IsTuple()) {
+      const TupleType& index_tuple = index_type.AsTuple();
+      for (int i = 0; i < index_tuple.size(); ++i) {
         XLS_RETURN_IF_ERROR(ValidateUpdateIndexUnsigned(
-            invocation.span(), index_tuple->GetMemberType(i)));
+            invocation.span(), index_tuple.GetMemberType(i)));
       }
     } else {
       XLS_RETURN_IF_ERROR(
@@ -550,8 +551,8 @@ class TypeValidator : public AstNodeVisitorWithDefault {
         index_type.IsTuple() ? index_type.AsTuple().size() : 1;
     const Type* element_type = &array_type;
     for (int64_t i = 0; i < index_dimensions; ++i) {
-      if (auto* sub_array = dynamic_cast<const ArrayType*>(element_type)) {
-        element_type = &sub_array->element_type();
+      if (element_type->IsArray()) {
+        element_type = &element_type->AsArray().element_type();
       } else {
         return TypeInferenceErrorStatus(
             invocation.span(), &index_type,
