@@ -56,6 +56,8 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
                        CreateInferenceTableConverter(
                            *table, *module, *import_data, *warnings,
                            import_data->file_table(), std::move(tracer)));
+  import_data->SetInferenceTableConverter(module.get(), converter.get());
+
   absl::Status status =
       converter->ConvertSubtree(module.get(), /*function=*/std::nullopt,
                                 /*parametric_context=*/std::nullopt);

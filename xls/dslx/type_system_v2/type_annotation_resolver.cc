@@ -74,13 +74,9 @@ class StatefulResolver : public TypeAnnotationResolver {
 
   absl::StatusOr<std::unique_ptr<TypeAnnotationResolver>> ResolverForNode(
       const AstNode* node) {
-    XLS_ASSIGN_OR_RETURN(ImportTokens import_tokens,
-                         ImportTokens::FromString(node->owner()->name()));
-    XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module_info,
-                         import_data_.Get(import_tokens));
     return TypeAnnotationResolver::Create(
-        imported_module_info->module(), table_, file_table_, error_generator_,
-        evaluator_, parametric_struct_instantiator_, tracer_, import_data_);
+        *node->owner(), table_, file_table_, error_generator_, evaluator_,
+        parametric_struct_instantiator_, tracer_, import_data_);
   }
 
   absl::StatusOr<std::optional<const TypeAnnotation*>>

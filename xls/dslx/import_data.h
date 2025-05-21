@@ -169,6 +169,25 @@ class ImportData {
     return inference_table_.get();
   }
 
+  // Sets the `InferenceTableConverter` for the given module. This is for use by
+  // type inference v2 during the process of typechecking a corpus.
+  void SetInferenceTableConverter(Module* module,
+                                  InferenceTableConverter* converter) {
+    module_to_inference_table_converter_[module] = converter;
+  }
+
+  // Returns the `InferenceTableConverter` that was previously set for this
+  // module, or an error if one was not set. This is for use by type inference
+  // v2 during the process of typechecking a corpus.
+  absl::StatusOr<InferenceTableConverter*> GetInferenceTableConverter(
+      Module* module);
+
+  // Returns the `InferenceTableConverter` that was set for a previously
+  // imported module with the given name, or an error if no such module has been
+  // imported with type inference v2.
+  absl::StatusOr<InferenceTableConverter*> GetInferenceTableConverter(
+      std::string_view module_name);
+
   TypeInfoOwner& type_info_owner() { return type_info_owner_; }
 
   // Helper that gets the "root" type information for the module of the given
@@ -294,7 +313,11 @@ class ImportData {
   // See comment on AddToImporterStack() above.
   std::vector<ImportRecord> importer_stack_;
 
+  // Cross-module state used by type inference v2.
   std::unique_ptr<InferenceTable> inference_table_;
+  absl::flat_hash_map<Module*, InferenceTableConverter*>
+      module_to_inference_table_converter_;
+
   std::unique_ptr<VirtualizableFilesystem> vfs_;
 };
 

@@ -43,6 +43,7 @@
 #include "xls/dslx/import_record.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system_v2/inference_table_converter.h"
 
 namespace xls::dslx {
 
@@ -60,6 +61,24 @@ absl::StatusOr<ModuleInfo*> ImportData::Get(const ImportTokens& subject) const {
   return it->second.get();
 }
 
+absl::StatusOr<InferenceTableConverter*> ImportData::GetInferenceTableConverter(
+    Module* module) {
+  const auto it = module_to_inference_table_converter_.find(module);
+  if (it == module_to_inference_table_converter_.end()) {
+    return absl::NotFoundError(
+        absl::StrCat("No converter exists for module: ", module->name()));
+  }
+  return it->second;
+}
+
+absl::StatusOr<InferenceTableConverter*> ImportData::GetInferenceTableConverter(
+    std::string_view module_name) {
+  XLS_ASSIGN_OR_RETURN(ImportTokens import_tokens,
+                       ImportTokens::FromString(module_name));
+  XLS_ASSIGN_OR_RETURN(ModuleInfo * info, Get(import_tokens));
+  return GetInferenceTableConverter(&info->module());
+}
+
 absl::StatusOr<ModuleInfo*> ImportData::Put(
     const ImportTokens& subject, std::unique_ptr<ModuleInfo> module_info) {
   auto* pmodule_info = module_info.get();
@@ -67,6 +86,10 @@ absl::StatusOr<ModuleInfo*> ImportData::Put(
   if (!inserted) {
     return absl::InvalidArgumentError(
         "Module is already loaded for import of " + subject.ToString());
+  }
+  if (pmodule_info->inference_table_converter() != nullptr) {
+    SetInferenceTableConverter(&pmodule_info->module(),
+                               pmodule_info->inference_table_converter());
   }
   path_to_module_info_[std::string{pmodule_info->path()}] = pmodule_info;
   return pmodule_info;

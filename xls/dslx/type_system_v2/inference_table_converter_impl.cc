@@ -281,17 +281,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             /*parametric_struct_instantiator=*/*this, *tracer_, import_data_)),
         fast_concretizer_(FastConcretizer::Create(file_table)) {}
 
-  static absl::StatusOr<InferenceTableConverter*> FromImportData(
-      ImportData& import_data, std::string module_name) {
-    XLS_ASSIGN_OR_RETURN(ImportTokens import_tokens,
-                         ImportTokens::FromString(module_name));
-    XLS_ASSIGN_OR_RETURN(ModuleInfo * info, import_data.Get(import_tokens));
-    std::optional<InferenceTableConverter*> inference_table_converter =
-        info->inference_table_converter();
-    CHECK(inference_table_converter.has_value());
-    return *inference_table_converter;
-  }
-
   // Returns true if the given function is a builtin.
   bool IsBuiltin(const Function* node) {
     return node->owner()->name() == kBuiltinStubsModuleName;
@@ -320,12 +309,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
     if ((!parametric_context.has_value() ||
          (*parametric_context)->is_invocation()) &&
-        node->owner()->name() != module_.name()) {
+        node->owner() != &module_) {
       VLOG(5) << "Wrong module in ConvertSubtree; delegating to converter for  "
               << node->owner()->name();
-      XLS_ASSIGN_OR_RETURN(InferenceTableConverter * converter,
-                           InferenceTableConverterImpl::FromImportData(
-                               import_data_, node->owner()->name()));
+      XLS_ASSIGN_OR_RETURN(
+          InferenceTableConverter * converter,
+          import_data_.GetInferenceTableConverter(node->owner()));
       return converter->ConvertSubtree(node, function, parametric_context,
                                        filter_param_type_annotations);
     }
@@ -1735,7 +1724,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (!type_info->Contains(const_cast<Expr*>(expr))) {
       type_info->SetItem(expr, *type);
     }
-    if (type_annotation->owner() == &module_) {
+    if (type_annotation->owner() == type_info->module()) {
       // Prevent bleed-over from a different module.
       type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
     }
@@ -1785,10 +1774,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                      name_ref->name_def())) {
         if (module_.name() != kBuiltinStubsModuleName) {
           VLOG(5) << "ResolveFunction of builtin; delegating";
-          XLS_ASSIGN_OR_RETURN(
-              InferenceTableConverter * builtins_converter,
-              InferenceTableConverterImpl::FromImportData(
-                  import_data_, std::string(kBuiltinStubsModuleName)));
+          XLS_ASSIGN_OR_RETURN(InferenceTableConverter * builtins_converter,
+                               import_data_.GetInferenceTableConverter(
+                                   std::string(kBuiltinStubsModuleName)));
           // Delegate to builtins converter.
           return builtins_converter->ResolveFunction(callee, caller_function,
                                                      caller_context);
@@ -2256,8 +2244,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         Evaluate(ParametricContextScopedExpr(
-            parametric_context, CreateBoolAnnotation(module_, expr->span()),
-            expr)));
+            parametric_context,
+            CreateBoolAnnotation(*expr->owner(), expr->span()), expr)));
     return value.GetBitValueUnsigned();
   }
 
@@ -2318,8 +2306,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // to a vector at the end.
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
                          GetTypeInfo(struct_def.owner(), parent_context));
-    XLS_ASSIGN_OR_RETURN(TypeInfo * instance_type_info,
-                         import_data_.type_info_owner().New(&module_, ti));
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * instance_type_info,
+        import_data_.type_info_owner().New(struct_def.owner(), ti));
     ParametricBindings bindings(struct_def.parametric_bindings());
     absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
     auto set_value = [&](const ParametricBinding* binding,
