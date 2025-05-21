@@ -237,12 +237,12 @@ pub proc MemReaderAdv<
         axi_ar_s: chan<AxiAr> out,
         axi_r_r: chan<AxiR> in
     ) {
-        let (reader_req_s, reader_req_r) = chan<AxiReaderReq, u32:0>("reader_req");
-        let (reader_err_s, reader_err_r) = chan<AxiReaderError, u32:0>("reader_err");
+        let (reader_req_s, reader_req_r) = chan<AxiReaderReq, u32:1>("reader_req");
+        let (reader_err_s, reader_err_r) = chan<AxiReaderError, u32:1>("reader_err");
 
-        let (axi_st_in_s, axi_st_in_r) = chan<AxiStreamInput, u32:0>("axi_st_in");
-        let (axi_st_remove_s, axi_st_remove_r) = chan<AxiStreamOutput, u32:0>("axi_st_remove");
-        let (axi_st_out_s, axi_st_out_r) = chan<AxiStreamOutput, u32:0>("axi_st_out");
+        let (axi_st_in_s, axi_st_in_r) = chan<AxiStreamInput, u32:1>("axi_st_in");
+        let (axi_st_remove_s, axi_st_remove_r) = chan<AxiStreamOutput, u32:1>("axi_st_remove");
+        let (axi_st_out_s, axi_st_out_r) = chan<AxiStreamOutput, u32:1>("axi_st_out");
 
         spawn MemReaderInternal<
             DSLX_DATA_W, DSLX_ADDR_W,
@@ -273,7 +273,6 @@ pub proc MemReaderAdv<
 // AXI bus that has the same data width as DSLX-side of the design.
 pub proc MemReader<
     DATA_W: u32, ADDR_W: u32, DEST_W: u32, ID_W: u32,
-    CHANNEL_DEPTH: u32 = {u32:0},
     DATA_W_DIV8: u32 = {DATA_W / u32:8},
 > {
     type Req = MemReaderReq<ADDR_W>;
@@ -292,11 +291,11 @@ pub proc MemReader<
         axi_ar_s: chan<AxiAr> out,
         axi_r_r: chan<AxiR> in
     ) {
-        let (reader_req_s, reader_req_r) = chan<AxiReaderReq, CHANNEL_DEPTH>("reader_req");
-        let (reader_err_s, reader_err_r) = chan<AxiReaderError, CHANNEL_DEPTH>("reader_err");
+        let (reader_req_s, reader_req_r) = chan<AxiReaderReq, u32:1>("reader_req");
+        let (reader_err_s, reader_err_r) = chan<AxiReaderError, u32:1>("reader_err");
 
-        let (axi_st_in_s, axi_st_in_r) = chan<AxiStreamInput, CHANNEL_DEPTH>("axi_st_in");
-        let (axi_st_out_s, axi_st_out_r) = chan<AxiStreamOutput, CHANNEL_DEPTH>("axi_st_out");
+        let (axi_st_in_s, axi_st_in_r) = chan<AxiStreamInput, u32:1>("axi_st_in");
+        let (axi_st_out_s, axi_st_out_r) = chan<AxiStreamOutput, u32:1>("axi_st_out");
 
         spawn MemReaderInternal<
             DATA_W, ADDR_W, DATA_W, ADDR_W, DEST_W, ID_W
@@ -579,7 +578,8 @@ proc MemReaderTest {
 
         let tok = send(tok, axi_r_s, AxiR {
             id: AxiId:0x0,
-            data: AxiData:0x1122_3344_5566_7788_9900_AABB_CCDD_EEFF,
+            data: AxiData:0x1122_3344_5566_7788_9900_AABB_CCDD_EE55,
+            // Addresses:    ^ 0xFFF                              ^ 0xFF0
             resp: AxiResp::OKAY,
             last: AxiLast:true
         });
@@ -599,7 +599,8 @@ proc MemReaderTest {
 
         let tok = send(tok, axi_r_s, AxiR {
             id: AxiId:0x0,
-            data: AxiData:0x1122_3344_5566_7788_9900_AABB_CCDD_EEFF,
+            data: AxiData:0x5522_3344_5566_7788_9900_AABB_CCDD_EEFF,
+            // Addresses:    ^ 0x100F                             ^ 0x1000
             resp: AxiResp::OKAY,
             last: AxiLast:true
         });
@@ -607,7 +608,8 @@ proc MemReaderTest {
         let (tok, resp) = recv(tok, resp_r);
         assert_eq(resp, Resp {
             status: Status::OKAY,
-            data: Data:0x11FF,
+            data: Data:0xFF11,
+            //     0x1000 ^ ^ 0x0FFF
             length: Length:2,
             last: true
         });
