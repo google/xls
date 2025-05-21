@@ -17,6 +17,7 @@
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
@@ -364,6 +365,15 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+py_library(
+    name = "data_generator_py",
+    srcs = ["data_generator.py"],
+    deps = [
+        "//xls/common:runfiles",
+        "@zstd//:decodecorpus",
     ],
 )
 
@@ -1440,6 +1450,29 @@ xls_dslx_test(
     size = "enormous",
     library = ":comp_block_dec_dslx",
     tags = ["manual"],
+)
+
+py_binary(
+    name = "zstd_test_frames_generator",
+    srcs = ["zstd_frame_dslx.py"],
+    imports = ["."],
+    main = "zstd_frame_dslx.py",
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("zstandard"),
+        "//xls/common:runfiles",
+        ":data_generator_py",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+genrule(
+    name = "zstd_test_frames_generate",
+    srcs = [],
+    outs = ["zstd_frame_testcases.x"],
+    cmd = "$(location :zstd_test_frames_generator) --seed 36 -n 1 --btype COMPRESSED -o $@",
+    tools = [":zstd_test_frames_generator"],
 )
 
 xls_dslx_library(
