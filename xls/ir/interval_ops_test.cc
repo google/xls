@@ -39,6 +39,7 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/interval_test_utils.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/ternary.h"
@@ -1426,6 +1427,44 @@ TEST(IntervalOpsTest, XorIdentity) {
   EXPECT_EQ(interval_ops::Xor(identity, test_set), test_set);
   EXPECT_EQ(interval_ops::Xor(test_set, identity), test_set);
 }
+
+TEST(IntervalOpsTest, OneHot) {
+  IntervalSet test_set1 = FromRanges(
+      {{130, 138}, {120, 128}, {90, 98}, {80, 88}, {40, 58}, {10, 28}}, 8);
+  EXPECT_EQ(
+      interval_ops::OneHot(test_set1, LsbOrMsb::kLsb, /*max_intervals=*/4),
+      FromRanges({{1, 8}, {16, 16}, {32, 32}, {128, 128}}, 9));
+  EXPECT_EQ(
+      interval_ops::OneHot(test_set1, LsbOrMsb::kLsb, /*max_intervals=*/16),
+      FromValues({1, 2, 4, 8, 16, 32, 128}, 9));
+  EXPECT_EQ(
+      interval_ops::OneHot(test_set1, LsbOrMsb::kMsb, /*max_intervals=*/4),
+      FromRanges({{8, 16}, {32, 32}, {64, 64}, {128, 128}}, 9));
+  EXPECT_EQ(
+      interval_ops::OneHot(test_set1, LsbOrMsb::kMsb, /*max_intervals=*/16),
+      FromValues({8, 16, 32, 64, 128}, 9));
+
+  IntervalSet test_set2 = FromRanges(
+      {{130, 138}, {120, 128}, {90, 98}, {80, 88}, {40, 58}, {0, 28}}, 8);
+  EXPECT_EQ(
+      interval_ops::OneHot(test_set2, LsbOrMsb::kLsb, /*max_intervals=*/4),
+      FromRanges({{1, 16}, {32, 32}, {128, 128}, {256, 256}}, 9));
+  EXPECT_EQ(
+      interval_ops::OneHot(test_set2, LsbOrMsb::kMsb, /*max_intervals=*/4),
+      FromRanges({{1, 32}, {64, 64}, {128, 128}, {256, 256}}, 9));
+}
+
+void OneHotZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+                  LsbOrMsb lsb_or_msb) {
+  UnaryOpFuzz(
+      "one_hot",
+      [&](FunctionBuilder& fb, BValue l) { return fb.OneHot(l, lsb_or_msb); },
+      [&](const auto& l) { return OneHot(l, lsb_or_msb); }, lhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, OneHotZ3Fuzz)
+    .WithDomains(IntervalDomain(8),
+                 fuzztest::ElementOf({LsbOrMsb::kLsb, LsbOrMsb::kMsb}));
 
 }  // namespace
 }  // namespace xls::interval_ops

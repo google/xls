@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/fixed_array.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/types/span.h"
@@ -1334,24 +1335,62 @@ IntervalSet Gate(const IntervalSet& cond, const IntervalSet& val) {
   // Definitely not zero.
   return val;
 }
+
+namespace {
+
+class OneHotTestVector {
+ public:
+  OneHotTestVector(int64_t width, LsbOrMsb lsb_or_msb)
+      : higher_priority_(lsb_or_msb == LsbOrMsb::kMsb
+                             ? std::strong_ordering::greater
+                             : std::strong_ordering::less),
+        test_vector_storage_(width, TernaryValue::kUnknown) {}
+
+  // Construct a test vector that has the `test_bit` set to 1, all
+  // higher-priority bits set to 0, and all lower-priority bits set to unknown.
+  // This describes every value that, when fed into a OneHot with the given
+  // directionality, can lead to a result with the `test_bit` set.
+  TernarySpan operator()(int64_t test_bit) {
+    for (int64_t i = 0; i < test_vector_storage_.size(); ++i) {
+      std::strong_ordering cmp = (i <=> test_bit);
+      if (cmp == std::strong_ordering::equal) {
+        test_vector_storage_[i] = TernaryValue::kKnownOne;
+      } else if (cmp == higher_priority_) {
+        test_vector_storage_[i] = TernaryValue::kKnownZero;
+      } else {
+        test_vector_storage_[i] = TernaryValue::kUnknown;
+      }
+    }
+    return absl::MakeConstSpan(test_vector_storage_);
+  }
+
+ private:
+  const std::strong_ordering higher_priority_;
+  absl::FixedArray<TernaryValue> test_vector_storage_;
+};
+
+}  // namespace
+
 IntervalSet OneHot(const IntervalSet& val, LsbOrMsb lsb_or_msb,
-                   int64_t max_interval_bits) {
+                   int64_t max_intervals) {
+  const int64_t new_width = val.BitCount() + 1;
   if (val.IsEmpty()) {
-    // If the input is empty, so is the output.
-    return IntervalSet(val.BitCount() + 1);
+    return IntervalSet(new_width);
   }
-  TernaryEvaluator tern;
-  TernaryVector src = ExtractTernaryVector(val);
-  TernaryVector res;
-  switch (lsb_or_msb) {
-    case LsbOrMsb::kLsb:
-      res = tern.OneHotLsbToMsb(src);
-      break;
-    case LsbOrMsb::kMsb:
-      res = tern.OneHotMsbToLsb(src);
-      break;
+
+  IntervalSet result(new_width);
+  OneHotTestVector test_vector(val.BitCount(), lsb_or_msb);
+  for (int64_t i = 0; i < val.BitCount(); ++i) {
+    if (CoversTernary(val, test_vector(i))) {
+      result.AddInterval(Interval::Precise(Bits::PowerOfTwo(i, new_width)));
+    }
   }
-  return FromTernary(res, max_interval_bits);
+  if (val.CoversZero()) {
+    result.AddInterval(
+        Interval::Precise(Bits::PowerOfTwo(val.BitCount(), new_width)));
+  }
+
+  return MinimizeIntervals(std::move(result), max_intervals);
 }
 
 int64_t MinimumBitCount(const IntervalSet& a) {

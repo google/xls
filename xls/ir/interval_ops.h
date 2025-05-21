@@ -149,7 +149,7 @@ inline IntervalSet SGe(const IntervalSet& a, const IntervalSet& b) {
 // Misc
 IntervalSet Gate(const IntervalSet& cond, const IntervalSet& val);
 IntervalSet OneHot(const IntervalSet& val, LsbOrMsb lsb_or_msb,
-                   int64_t max_interval_bits = 4);
+                   int64_t max_intervals = 16);
 
 }  // namespace xls::interval_ops
 

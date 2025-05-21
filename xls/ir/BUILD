@@ -244,6 +244,7 @@ cc_library(
         "//xls/common:iterator_range",
         "//xls/passes:ternary_evaluator",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
