@@ -13,6 +13,7 @@ pyyaml==6.0.1
 # We build most of z3 ourselves but building python is really complicated. Just
 # use pypi version
 z3-solver==4.14.0.0
+zstandard==0.23.0
 
 # Note: numpy and scipy version availability seems to differ between Ubuntu
 # versions that we want to support (e.g. 18.04 vs 20.04), so we accept a
