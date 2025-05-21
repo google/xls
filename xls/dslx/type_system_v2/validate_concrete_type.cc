@@ -26,6 +26,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -185,8 +186,8 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     if (builtin.has_value()) {
       const auto it = builtin_validators->find(*builtin);
       if (it != builtin_validators->end()) {
-        const auto& signature = dynamic_cast<const FunctionType&>(
-            **ti_.GetItem(invocation->callee()));
+        const auto& signature =
+            (*ti_.GetItem(invocation->callee()))->AsFunction();
         return (this->*it->second)(*invocation, signature);
       }
     }
@@ -323,11 +324,11 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   absl::Status DefaultHandler(const AstNode* node) override {
     if (node->parent() != nullptr &&
         node->parent()->kind() == AstNodeKind::kBinop) {
-      if (const auto* binop = dynamic_cast<Binop*>(node->parent());
+      if (const auto* binop = down_cast<Binop*>(node->parent());
           binop->binop_kind() == BinopKind::kConcat &&
           (binop->lhs() == node || binop->rhs() == node)) {
         XLS_RETURN_IF_ERROR(
-            PreValidateConcatOperand(dynamic_cast<const Expr*>(node)));
+            PreValidateConcatOperand(down_cast<const Expr*>(node)));
       }
     }
     return absl::OkStatus();
@@ -413,11 +414,8 @@ class TypeValidator : public AstNodeVisitorWithDefault {
       // validated, which is before the Binop we are currently processing.
       return absl::OkStatus();
     }
-
-    const auto* lhs_array = dynamic_cast<const ArrayType*>(lhs);
-    const auto* rhs_array = dynamic_cast<const ArrayType*>(rhs);
-    bool lhs_is_array = lhs_array != nullptr && !lhs_bits_like.has_value();
-    bool rhs_is_array = rhs_array != nullptr && !rhs_bits_like.has_value();
+    bool lhs_is_array = lhs->IsArray() && !lhs_bits_like.has_value();
+    bool rhs_is_array = rhs->IsArray() && !rhs_bits_like.has_value();
 
     if (lhs_is_array != rhs_is_array) {
       return TypeInferenceErrorStatus(
@@ -429,6 +427,8 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     }
 
     if (lhs_is_array) {
+      const auto* lhs_array = down_cast<const ArrayType*>(lhs);
+      const auto* rhs_array = down_cast<const ArrayType*>(rhs);
       if (lhs_array->element_type() != rhs_array->element_type()) {
         return TypeMismatchErrorStatus(
             lhs_array->element_type(), rhs_array->element_type(),

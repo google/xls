@@ -114,14 +114,13 @@ absl::StatusOr<bool> RefersToStruct(
     std::optional<const ParametricContext*> parametric_context,
     const TypeAnnotation* annotation, const StructDef& struct_def,
     const ImportData& import_data) {
-  if (auto* element_annotation =
-          dynamic_cast<const ElementTypeAnnotation*>(annotation)) {
-    annotation = element_annotation->container_type();
+  if (annotation->IsAnnotation<ElementTypeAnnotation>()) {
+    annotation =
+        annotation->AsAnnotation<ElementTypeAnnotation>()->container_type();
   }
-  if (auto* member_annotation =
-          dynamic_cast<const MemberTypeAnnotation*>(annotation)) {
+  if (annotation->IsAnnotation<MemberTypeAnnotation>()) {
     const std::vector<const TypeAnnotation*> annotations =
-        ExpandVariables(member_annotation, table, parametric_context);
+        ExpandVariables(annotation, table, parametric_context);
     for (const TypeAnnotation* annotation : annotations) {
       XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
                            GetStructOrProcDef(annotation, import_data));
@@ -217,8 +216,8 @@ TypeAnnotationFilter TypeAnnotationFilter::FilterSingleAny() {
   return TypeAnnotationFilter(std::make_unique<Impl>(FilterElement(
       TypeAnnotationFilterKind::kSingleAny,
       [](const TypeAnnotation* annotation) {
-        const auto* any = dynamic_cast<const AnyTypeAnnotation*>(annotation);
-        return any != nullptr && !any->multiple();
+        return annotation->IsAnnotation<AnyTypeAnnotation>() &&
+               !annotation->AsAnnotation<AnyTypeAnnotation>()->multiple();
       })));
 }
 
@@ -226,17 +225,17 @@ TypeAnnotationFilter TypeAnnotationFilter::FilterMultiAny() {
   return TypeAnnotationFilter(std::make_unique<Impl>(FilterElement(
       TypeAnnotationFilterKind::kMultiAny,
       [](const TypeAnnotation* annotation) {
-        const auto* any = dynamic_cast<const AnyTypeAnnotation*>(annotation);
-        return any != nullptr && any->multiple();
+        return annotation->IsAnnotation<AnyTypeAnnotation>() &&
+               annotation->AsAnnotation<AnyTypeAnnotation>()->multiple();
       })));
 }
 
 TypeAnnotationFilter TypeAnnotationFilter::FilterParamTypes() {
-  return TypeAnnotationFilter(std::make_unique<Impl>(FilterElement(
-      TypeAnnotationFilterKind::kMultiAny,
-      [](const TypeAnnotation* annotation) {
-        return dynamic_cast<const ParamTypeAnnotation*>(annotation) != nullptr;
-      })));
+  return TypeAnnotationFilter(std::make_unique<Impl>(
+      FilterElement(TypeAnnotationFilterKind::kMultiAny,
+                    [](const TypeAnnotation* annotation) {
+                      return annotation->IsAnnotation<ParamTypeAnnotation>();
+                    })));
 }
 
 TypeAnnotationFilter TypeAnnotationFilter::FilterRefsWithMissingTypeInfo(
@@ -278,9 +277,10 @@ TypeAnnotationFilter TypeAnnotationFilter::CaptureVariables(
   return TypeAnnotationFilter(std::make_unique<Impl>(FilterElement(
       TypeAnnotationFilterKind::kCaptureVariables,
       [container](const TypeAnnotation* candidate) {
-        if (const auto* tvta =
-                dynamic_cast<const TypeVariableTypeAnnotation*>(candidate)) {
-          container->insert(tvta->type_variable());
+        if (candidate->IsAnnotation<TypeVariableTypeAnnotation>()) {
+          container->insert(
+              candidate->AsAnnotation<TypeVariableTypeAnnotation>()
+                  ->type_variable());
         }
         return false;
       })));

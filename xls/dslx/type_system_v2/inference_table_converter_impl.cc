@@ -197,7 +197,7 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
 
     const Invocation* current_invocation =
         node->kind() == AstNodeKind::kInvocation
-            ? dynamic_cast<const Invocation*>(node)
+            ? down_cast<const Invocation*>(node)
             : nullptr;
     for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
       if (current_invocation != nullptr &&
@@ -332,7 +332,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       VLOG(5) << "Next node: " << node->ToString();
       if (node->kind() == AstNodeKind::kInvocation) {
         XLS_RETURN_IF_ERROR(ConvertInvocation(
-            dynamic_cast<const Invocation*>(node), parametric_context));
+            down_cast<const Invocation*>(node), parametric_context));
       } else {
         XLS_RETURN_IF_ERROR(
             GenerateTypeInfo(parametric_context, node,
@@ -396,7 +396,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (i < formal_bindings.size()) {
         const ParametricBinding* binding = formal_bindings.at(i);
         bool formal_is_type_parametric =
-            dynamic_cast<GenericTypeAnnotation*>(binding->type_annotation());
+            binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>();
         if (std::holds_alternative<Expr*>(parametric) &&
             formal_is_type_parametric) {
           const Expr* expr = std::get<Expr*>(parametric);
@@ -502,8 +502,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                invocation->callee()));
       CHECK(signature.has_value());
       const auto* function_type =
-          dynamic_cast<const FunctionTypeAnnotation*>(*signature);
-      CHECK(function_type);
+          (*signature)->AsAnnotation<FunctionTypeAnnotation>();
       XLS_RETURN_IF_ERROR(
           table_.AddTypeAnnotationToVariableForParametricContext(
               caller_context, *table_.GetTypeVariable(invocation),
@@ -629,8 +628,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         *table_.GetTypeVariable(invocation->callee());
     XLS_RETURN_IF_ERROR(table_.RemoveTypeAnnotationsFromTypeVariable(
         callee_variable, [](const TypeAnnotation* annotation) {
-          return dynamic_cast<const MemberTypeAnnotation*>(annotation) !=
-                 nullptr;
+          return annotation->IsAnnotation<MemberTypeAnnotation>();
         }));
 
     const FunctionTypeAnnotation* parametric_free_function_type = nullptr;
@@ -792,7 +790,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // 6. The original call pops the stack at the end.
     std::unique_ptr<ProcTypeInfoFrame> proc_type_info_frame;
     if (node->kind() == AstNodeKind::kProc) {
-      const Proc* proc = dynamic_cast<const Proc*>(node);
+      const Proc* proc = down_cast<const Proc*>(node);
       if (!IsProcAtTopOfTypeInfoStack(proc)) {
         XLS_ASSIGN_OR_RETURN(proc_type_info_frame, PushProcTypeInfo(proc));
         return ConvertSubtree(proc, std::nullopt, parametric_context);
@@ -800,7 +798,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     if (node->kind() == AstNodeKind::kImport) {
-      const Import* import = dynamic_cast<const Import*>(node);
+      const Import* import = down_cast<const Import*>(node);
       XLS_ASSIGN_OR_RETURN(ModuleInfo * imported_module_info,
                            import_data_.Get(ImportTokens(import->subject())));
       base_type_info_->AddImport(const_cast<Import*>(import),
@@ -821,7 +819,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         // If the node itself is a `TypeAnnotation`, it doesn't need type
         // unification.
         node_is_annotation = true;
-        annotation = dynamic_cast<const TypeAnnotation*>(node);
+        annotation = down_cast<const TypeAnnotation*>(node);
 
         // Builtin fragments of bits-like types, like `uN` and `xN[true]` have
         // no `Type` conversion. We only convert the complete thing.
@@ -856,7 +854,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // Don't require an implicit token by default. `ConvertInvocation` will
       // set this to true, for the caller of an invocation, in the narrow cases
       // where we want it.
-      const Function& function = *dynamic_cast<const Function*>(node);
+      const Function& function = *down_cast<const Function*>(node);
       if (!ti->GetRequiresImplicitToken(function).has_value()) {
         ti->NoteRequiresImplicitToken(function, false);
       }
@@ -896,7 +894,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                              *annotation, warning_collector_,
                                              import_data_, file_table_));
     if (node->kind() == AstNodeKind::kNumber) {
-      if (const auto* literal = dynamic_cast<const Number*>(node);
+      if (const auto* literal = down_cast<const Number*>(node);
           literal->type_annotation() != nullptr) {
         ti->SetItem(literal->type_annotation(),
                     *std::make_unique<MetaType>((*type)->CloneToUnique()));
@@ -1065,7 +1063,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(annotation, resolver_->ResolveIndirectTypeAnnotations(
                                          parametric_context, annotation,
                                          TypeAnnotationFilter::None()));
-    if (dynamic_cast<const AnyTypeAnnotation*>(annotation) != nullptr) {
+    if (annotation->IsAnnotation<AnyTypeAnnotation>()) {
       return absl::InvalidArgumentError(
           "Attempting to concretize `Any` type, which means there was "
           "insufficient type info.");
@@ -1073,8 +1071,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (IsToken(annotation)) {
       return std::make_unique<TokenType>();
     }
-    if (const auto* tuple =
-            dynamic_cast<const TupleTypeAnnotation*>(annotation)) {
+    if (annotation->IsAnnotation<TupleTypeAnnotation>()) {
+      const auto* tuple = annotation->AsAnnotation<TupleTypeAnnotation>();
       std::vector<std::unique_ptr<Type>> member_types;
       member_types.reserve(tuple->members().size());
       for (const TypeAnnotation* member : tuple->members()) {
@@ -1093,8 +1091,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return std::make_unique<ArrayType>(std::move(element_type),
                                          TypeDim(InterpValue::MakeU32(size)));
     }
-    if (const auto* function =
-            dynamic_cast<const FunctionTypeAnnotation*>(annotation)) {
+    if (annotation->IsAnnotation<FunctionTypeAnnotation>()) {
+      const auto* function = annotation->AsAnnotation<FunctionTypeAnnotation>();
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<Type> return_type,
           Concretize(function->return_type(), parametric_context));
@@ -1108,8 +1106,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return std::make_unique<FunctionType>(std::move(param_types),
                                             std::move(return_type));
     }
-    if (const auto* channel =
-            dynamic_cast<const ChannelTypeAnnotation*>(annotation)) {
+    if (annotation->IsAnnotation<ChannelTypeAnnotation>()) {
+      const auto* channel = annotation->AsAnnotation<ChannelTypeAnnotation>();
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> payload_type,
                            Concretize(channel->payload(), parametric_context));
       std::unique_ptr<Type> type = std::make_unique<ChannelType>(
@@ -1203,11 +1201,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (struct_def_base->kind() == AstNodeKind::kStructDef) {
         return std::make_unique<StructType>(
             std::move(member_types),
-            *dynamic_cast<const StructDef*>(struct_def_base));
+            *down_cast<const StructDef*>(struct_def_base));
       }
       return std::make_unique<ProcType>(
-          std::move(member_types),
-          *dynamic_cast<const ProcDef*>(struct_def_base));
+          std::move(member_types), *down_cast<const ProcDef*>(struct_def_base));
     }
     XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
                          GetSignednessAndBitCountWithUserFacingError(
@@ -1325,11 +1322,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       std::optional<const Type*> callee_type =
           ti->GetItem(invocation->callee());
       if (callee_type.has_value()) {
-        const auto* function_type =
-            dynamic_cast<const FunctionType*>(*callee_type);
-        CHECK_NE(function_type, nullptr);
+        const auto& function_type = (*callee_type)->AsFunction();
         return NoteBuiltinInvocationConstExpr(callee_nameref->identifier(),
-                                              invocation, *function_type, ti);
+                                              invocation, function_type, ti);
       }
     }
     return absl::OkStatus();
@@ -1368,8 +1363,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const ColonRef* colon_ref, const Type& type, TypeInfo* ti) {
     // Handle enum here, at this point its type is concretized and all its
     // values are evaluated as constexpr.
-    if (const auto* enum_type = dynamic_cast<const EnumType*>(&type)) {
-      const EnumDef& enum_def = enum_type->nominal_type();
+    if (type.IsEnum()) {
+      const auto& enum_type = type.AsEnum();
+      const EnumDef& enum_def = enum_type.nominal_type();
       absl::StatusOr<Expr*> enum_value = enum_def.GetValue(colon_ref->attr());
       if (!enum_value.ok()) {
         return UndefinedNameErrorStatus(colon_ref->span(), colon_ref,
@@ -1433,7 +1429,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
           &import_data_, evaluation_ti, &warning_collector_,
           GetParametricEnv(parametric_context),
-          dynamic_cast<const ConstantDef*>(*target)->value(), &type);
+          down_cast<const ConstantDef*>(*target)->value(), &type);
       if (value.ok()) {
         VLOG(6) << "Noting constexpr for ColonRef: " << colon_ref->ToString()
                 << ", value: " << value->ToString();
@@ -1513,9 +1509,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     TypeAnnotation* accumulator_type = nullptr;
     std::optional<const TypeAnnotation*> name_type_annotation =
         table_.GetTypeAnnotation(unroll_for->names());
-    if (name_type_annotation) {
-      if (const TupleTypeAnnotation* types =
-              dynamic_cast<const TupleTypeAnnotation*>(*name_type_annotation)) {
+    if (name_type_annotation.has_value()) {
+      if ((*name_type_annotation)->IsAnnotation<TupleTypeAnnotation>()) {
+        const auto* types =
+            (*name_type_annotation)->AsAnnotation<TupleTypeAnnotation>();
         CHECK_EQ(types->size(), 2);
         iterator_type = types->members()[0];
         accumulator_type = types->members()[1];
@@ -1544,16 +1541,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       absl::StatusOr<uint64_t> size_from_type(TypeMissingErrorStatus(
           *unroll_for->iterable(), nullptr, file_table_));
       std::optional<Type*> iterable_type = ti->GetItem(unroll_for->iterable());
-      if (iterable_type) {
-        if (auto iterable_array_type =
-                dynamic_cast<ArrayType*>(*iterable_type)) {
-          if (std::holds_alternative<InterpValue>(
-                  iterable_array_type->size().value())) {
-            InterpValue dim =
-                std::get<InterpValue>(iterable_array_type->size().value());
-            size_from_type = dim.GetBitValueUnsigned();
-          }
-        }
+      if (iterable_type.has_value() && (*iterable_type)->IsArray() &&
+          std::holds_alternative<InterpValue>(
+              (*iterable_type)->AsArray().size().value())) {
+        InterpValue dim =
+            std::get<InterpValue>((*iterable_type)->AsArray().size().value());
+        size_from_type = dim.GetBitValueUnsigned();
       }
       XLS_ASSIGN_OR_RETURN(size, size_from_type);
     }
@@ -1610,7 +1603,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           AstNode * copy_body,
           table_.Clone(unroll_for->body(), &NoopCloneReplacer));
       StatementBlock* copy_body_statementblock =
-          dynamic_cast<StatementBlock*>(copy_body);
+          down_cast<StatementBlock*>(copy_body);
       absl::Span<Statement* const> statements =
           copy_body_statementblock->statements();
       if (has_result_value) {
@@ -1737,7 +1730,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // that's where the logic belongs, but that doesn't yet deal with parametric
     // variables.
     if (expr->kind() == AstNodeKind::kNumber) {
-      if (auto* number = dynamic_cast<const Number*>(expr);
+      if (auto* number = down_cast<const Number*>(expr);
           number->type_annotation() != nullptr) {
         type_info->SetItem(number->type_annotation(),
                            MetaType(type->CloneToUnique()));
@@ -1765,7 +1758,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             ? caller_context
             : std::nullopt;
     if (callee->kind() == AstNodeKind::kColonRef) {
-      const auto* colon_ref = dynamic_cast<const ColonRef*>(callee);
+      const auto* colon_ref = down_cast<const ColonRef*>(callee);
       std::optional<const AstNode*> target =
           table_.GetColonRefTarget(colon_ref);
       if (target.has_value()) {
@@ -1773,7 +1766,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     } else if (callee->kind() == AstNodeKind::kNameRef) {
       // Either a local function or a built-in function call.
-      const auto* name_ref = dynamic_cast<const NameRef*>(callee);
+      const auto* name_ref = down_cast<const NameRef*>(callee);
       if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
         const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
         function_node = def->definer();
@@ -1802,7 +1795,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         }
       }
     } else if (callee->kind() == AstNodeKind::kAttr) {
-      const auto* attr = dynamic_cast<const Attr*>(callee);
+      const auto* attr = down_cast<const Attr*>(callee);
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(attr->lhs(), caller_function, caller_context));
       target_object = attr->lhs();
@@ -1925,11 +1918,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                          resolver_->ResolveAndUnifyTypeAnnotationsForNode(
                              caller_context, mapper_invocation->callee()));
     CHECK(mapper_type.has_value());
-    const auto* mapper_fn_type =
-        dynamic_cast<const FunctionTypeAnnotation*>(*mapper_type);
-    CHECK_NE(mapper_fn_type, nullptr);
-
-    return mapper_fn_type;
+    return (*mapper_type)->AsAnnotation<FunctionTypeAnnotation>();
   }
 
   // Determines any implicit parametric values in the given `invocation`, and
@@ -1976,8 +1965,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           invocation_context->parametric_bindings()[i];
 
       if (i < explicit_parametrics.size() &&
-          dynamic_cast<const GenericTypeAnnotation*>(
-              binding->type_annotation())) {
+          binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
         // This is a <T: type> reference
         ExprOrType actual_parametric_type = explicit_parametrics[i];
         XLS_RETURN_IF_ERROR(
@@ -2083,7 +2071,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // parametrics of the struct referred to by `Self`; only the parametric
       // bindings belonging to the function.
       if (i == 0 &&
-          dynamic_cast<const SelfTypeAnnotation*>(param->type_annotation())) {
+          param->type_annotation()->IsAnnotation<SelfTypeAnnotation>()) {
         continue;
       }
       formal_types.push_back(param->type_annotation());
@@ -2351,7 +2339,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (actual_member_exprs_by_name.size() != formal_member_types.size() &&
           (*instantiator_node)->kind() == AstNodeKind::kSplatStructInstance) {
         const auto* splat =
-            dynamic_cast<const SplatStructInstance*>(*instantiator_node);
+            down_cast<const SplatStructInstance*>(*instantiator_node);
         for (const StructMemberNode* member : struct_def.members()) {
           if (!actual_member_exprs_by_name.contains(member->name())) {
             XLS_ASSIGN_OR_RETURN(
@@ -2488,7 +2476,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             AstNode * clone,
             table_.Clone(binding->expr(),
                          NameRefMapper(parametrics_and_constants)));
-        value_expr = dynamic_cast<Expr*>(clone);
+        value_expr = down_cast<Expr*>(clone);
       } else {
         value_expr = struct_or_proc_ref.parametrics[i];
       }
@@ -2527,8 +2515,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       replacer = ChainCloneReplacers(
           std::move(replacer),
           [&](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
-            if (const auto* self =
-                    dynamic_cast<const SelfTypeAnnotation*>(node)) {
+            if (node->kind() == AstNodeKind::kTypeAnnotation &&
+                down_cast<const TypeAnnotation*>(node)
+                    ->IsAnnotation<SelfTypeAnnotation>()) {
               return const_cast<TypeAnnotation*>(*real_self_type);
             }
             return std::nullopt;
@@ -2536,9 +2525,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
     XLS_ASSIGN_OR_RETURN(AstNode * clone,
                          table_.Clone(type, std::move(replacer)));
-    const auto* result = dynamic_cast<const TypeAnnotation*>(clone);
-    CHECK(result != nullptr);
-    return result;
+    return down_cast<const TypeAnnotation*>(clone);
   }
 
   // Wraps `BitCountMismatchErrorStatus` with resolution of parametrics, so that

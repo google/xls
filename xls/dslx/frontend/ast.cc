@@ -1027,7 +1027,7 @@ TypeRefTypeAnnotation::TypeRefTypeAnnotation(
     Module* owner, Span span, TypeRef* type_ref,
     std::vector<ExprOrType> parametrics,
     std::optional<const StructInstanceBase*> instantiator)
-    : TypeAnnotation(owner, std::move(span)),
+    : TypeAnnotation(owner, std::move(span), kAnnotationKind),
       type_ref_(type_ref),
       parametrics_(std::move(parametrics)),
       instantiator_(instantiator) {}
@@ -1066,7 +1066,7 @@ std::string TypeRefTypeAnnotation::ToString() const {
 
 TypeVariableTypeAnnotation::TypeVariableTypeAnnotation(
     Module* owner, const NameRef* type_variable)
-    : TypeAnnotation(owner, type_variable->span()),
+    : TypeAnnotation(owner, type_variable->span(), kAnnotationKind),
       type_variable_(type_variable) {}
 
 std::string TypeVariableTypeAnnotation::ToString() const {
@@ -1079,7 +1079,7 @@ std::string TypeVariableTypeAnnotation::ToString() const {
 MemberTypeAnnotation::MemberTypeAnnotation(Module* owner,
                                            const TypeAnnotation* struct_type,
                                            std::string_view member_name)
-    : TypeAnnotation(owner, struct_type->span()),
+    : TypeAnnotation(owner, struct_type->span(), kAnnotationKind),
       struct_type_(struct_type),
       member_name_(member_name) {}
 
@@ -1093,7 +1093,7 @@ std::string MemberTypeAnnotation::ToString() const {
 ElementTypeAnnotation::ElementTypeAnnotation(
     Module* owner, const TypeAnnotation* container_type,
     std::optional<const Expr*> tuple_index, bool allow_bit_vector_destructuring)
-    : TypeAnnotation(owner, container_type->span()),
+    : TypeAnnotation(owner, container_type->span(), kAnnotationKind),
       container_type_(container_type),
       tuple_index_(tuple_index),
       allow_bit_vector_destructuring_(allow_bit_vector_destructuring) {
@@ -1114,7 +1114,9 @@ std::string ElementTypeAnnotation::ToString() const {
 SliceTypeAnnotation::SliceTypeAnnotation(
     Module* owner, Span span, TypeAnnotation* source_type,
     std::variant<Slice*, WidthSlice*> slice)
-    : TypeAnnotation(owner, span), source_type_(source_type), slice_(slice) {}
+    : TypeAnnotation(owner, span, kAnnotationKind),
+      source_type_(source_type),
+      slice_(slice) {}
 
 std::vector<AstNode*> SliceTypeAnnotation::GetChildren(bool want_types) const {
   return std::vector<AstNode*>{source_type_, ToAstNode(slice_)};
@@ -1130,7 +1132,7 @@ std::string SliceTypeAnnotation::ToString() const {
 FunctionTypeAnnotation::FunctionTypeAnnotation(
     Module* owner, std::vector<const TypeAnnotation*> param_types,
     TypeAnnotation* return_type)
-    : TypeAnnotation(owner, return_type->span()),
+    : TypeAnnotation(owner, return_type->span(), kAnnotationKind),
       param_types_(std::move(param_types)),
       return_type_(return_type) {
   CHECK_NE(return_type, nullptr);
@@ -1163,7 +1165,7 @@ std::vector<AstNode*> FunctionTypeAnnotation::GetChildren(
 
 ReturnTypeAnnotation::ReturnTypeAnnotation(Module* owner,
                                            TypeAnnotation* function_type)
-    : TypeAnnotation(owner, function_type->span()),
+    : TypeAnnotation(owner, function_type->span(), kAnnotationKind),
       function_type_(function_type) {}
 
 std::string ReturnTypeAnnotation::ToString() const {
@@ -1175,7 +1177,7 @@ std::string ReturnTypeAnnotation::ToString() const {
 ParamTypeAnnotation::ParamTypeAnnotation(Module* owner,
                                          TypeAnnotation* function_type,
                                          int param_index)
-    : TypeAnnotation(owner, function_type->span()),
+    : TypeAnnotation(owner, function_type->span(), kAnnotationKind),
       function_type_(function_type),
       param_index_(param_index) {}
 
@@ -1189,7 +1191,7 @@ std::string ParamTypeAnnotation::ToString() const {
 ArrayTypeAnnotation::ArrayTypeAnnotation(Module* owner, Span span,
                                          TypeAnnotation* element_type,
                                          Expr* dim, bool dim_is_min)
-    : TypeAnnotation(owner, std::move(span)),
+    : TypeAnnotation(owner, std::move(span), kAnnotationKind),
       element_type_(element_type),
       dim_(dim),
       dim_is_min_(dim_is_min) {}
@@ -1212,7 +1214,7 @@ std::string ArrayTypeAnnotation::ToString() const {
 SelfTypeAnnotation::SelfTypeAnnotation(Module* owner, Span span,
                                        bool explicit_type,
                                        TypeAnnotation* struct_ref)
-    : TypeAnnotation(owner, std::move(span)),
+    : TypeAnnotation(owner, std::move(span), kAnnotationKind),
       explicit_type_(explicit_type),
       struct_ref_(struct_ref) {}
 
@@ -2327,7 +2329,7 @@ std::string Cast::ToStringInternal() const {
 BuiltinTypeAnnotation::BuiltinTypeAnnotation(Module* owner, Span span,
                                              BuiltinType builtin_type,
                                              BuiltinNameDef* builtin_name_def)
-    : TypeAnnotation(owner, std::move(span)),
+    : TypeAnnotation(owner, std::move(span), kAnnotationKind),
       builtin_type_(builtin_type),
       builtin_name_def_(builtin_name_def) {}
 
@@ -2351,7 +2353,7 @@ absl::StatusOr<bool> BuiltinTypeAnnotation::GetSignedness() const {
 ChannelTypeAnnotation::ChannelTypeAnnotation(
     Module* owner, Span span, ChannelDirection direction,
     TypeAnnotation* payload, std::optional<std::vector<Expr*>> dims)
-    : TypeAnnotation(owner, std::move(span)),
+    : TypeAnnotation(owner, std::move(span), kAnnotationKind),
       direction_(direction),
       payload_(payload),
       dims_(std::move(dims)) {}
@@ -2374,7 +2376,8 @@ std::string ChannelTypeAnnotation::ToString() const {
 
 TupleTypeAnnotation::TupleTypeAnnotation(Module* owner, Span span,
                                          std::vector<TypeAnnotation*> members)
-    : TypeAnnotation(owner, std::move(span)), members_(std::move(members)) {}
+    : TypeAnnotation(owner, std::move(span), kAnnotationKind),
+      members_(std::move(members)) {}
 
 TupleTypeAnnotation::~TupleTypeAnnotation() = default;
 
