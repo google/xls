@@ -58,14 +58,6 @@ class Node {
   virtual ~Node() = default;
 
   // Accepts the visitor, instructing it to visit this node.
-  //
-  // The visitor is instructed to visit this node with:
-  //
-  // * This node with kPre
-  // * Each operand of this node with kIn and the operand number
-  //   * After calling kIn with an operand number returns, that operand is
-  //     visited.
-  // * This node with kPost
   absl::Status Accept(DfsVisitor* visitor);
 
   // Visits this node with the given visitor. Visits only this node and does not
