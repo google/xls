@@ -143,8 +143,9 @@ absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
           dynamic_cast<const BuiltinTypeAnnotation*>(annotation)) {
     if (ignore_missing_dimensions) {
       absl::StatusOr<bool> signedness = builtin_annotation->GetSignedness();
-      return SignednessAndBitCountResult(signedness.value_or(false),
-                                         builtin_annotation->GetBitCount());
+      return SignednessAndBitCountResult{
+          .signedness = signedness.value_or(false),
+          .bit_count = builtin_annotation->GetBitCount()};
     }
     switch (builtin_annotation->builtin_type()) {
       case BuiltinType::kXN:
@@ -165,8 +166,9 @@ absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
         // array-style bit count inside the builtin annotation.
         XLS_ASSIGN_OR_RETURN(bool signedness,
                              builtin_annotation->GetSignedness());
-        return SignednessAndBitCountResult(signedness,
-                                           builtin_annotation->GetBitCount());
+        return SignednessAndBitCountResult{
+            .signedness = signedness,
+            .bit_count = builtin_annotation->GetBitCount()};
     }
   }
   if (const auto* array_annotation =
