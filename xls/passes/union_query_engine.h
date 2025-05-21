@@ -27,7 +27,6 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -43,12 +42,6 @@ namespace xls {
 
 // A query engine that combines the results of multiple (unowned) given query
 // engines.
-//
-// `GetKnownBits` and `GetKnownBitsValues` use `const_cast<...>(this)` under the
-// hood, so it is undefined behavior to define a `const UnionQueryEngine`
-// variable (but `const UnionQueryEngine*` is fine, the storage location just
-// must be mutable). This is due to an infelicity in the QueryEngine API that
-// will be fixed at some point.
 //
 // The unioned query engines are not owned and must live at least as long as
 // this query engine does.
@@ -106,8 +99,6 @@ class UnownedUnionQueryEngine : public QueryEngine {
   std::optional<int64_t> KnownLeadingSignBits(Node* node) const override;
 
  private:
-  absl::flat_hash_map<Node*, Bits> known_bits_;
-  absl::flat_hash_map<Node*, Bits> known_bit_values_;
   std::vector<QueryEngine*> engines_;
 };
 
@@ -133,12 +124,6 @@ class UnownedConstUnionQueryEngine : public UnownedUnionQueryEngine {
 };
 
 // A query engine that combines the results of multiple given query engines.
-//
-// `GetKnownBits` and `GetKnownBitsValues` use `const_cast<...>(this)` under the
-// hood, so it is undefined behavior to define a `const UnionQueryEngine`
-// variable (but `const UnionQueryEngine*` is fine, the storage location just
-// must be mutable). This is due to an infelicity in the QueryEngine API that
-// will be fixed at some point.
 class UnionQueryEngine : public UnownedUnionQueryEngine {
  public:
   // If any `unowned_engines` are provided, they must live at least as long as
