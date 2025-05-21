@@ -50,7 +50,10 @@ class TreeBitLocation {
         bit_index_(bit_index),
         tree_index_(tree_index.begin(), tree_index.end()) {}
 
-  Node* node() const { return node_; }
+  // TODO: https://github.com/google/xls/issues/2235 - Replace node() with this.
+  const NodeRef& node_ref() const { return node_; }
+
+  Node* node() const { return node_.node(); }
 
   int64_t bit_index() const { return bit_index_; }
 
@@ -77,7 +80,7 @@ class TreeBitLocation {
   }
 
  private:
-  Node* node_;
+  NodeRef node_;
   int64_t bit_index_;
   std::vector<int64_t> tree_index_;
 };

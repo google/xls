@@ -29,7 +29,6 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
@@ -49,6 +48,35 @@ absl::Span<ChangeListener* const> GetChangeListeners(
 
 // Forward declaration to avoid circular dependency.
 class DfsVisitor;
+
+// A (non-owning) reference to a node; contains both the node's ID and the
+// pointer to the node, enabling efficient access & safe comparison.
+class NodeRef {
+ public:
+  explicit NodeRef(Node* node);
+
+  int64_t id() const { return id_; }
+  Node* node() const { return node_; }
+
+  // On dereference, behaves exactly like the underlying node.
+  Node& operator*() const { return *node_; }
+  Node* operator->() const { return node_; }
+
+  friend bool operator==(const NodeRef& a, const NodeRef& b) {
+    DCHECK(a.id() != b.id() || a.node() == b.node())
+        << "False node match due to reused ID";
+    return a.id() == b.id();
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const NodeRef& node) {
+    return h.combine(std::move(h), node.id());
+  }
+
+ private:
+  int64_t id_;
+  Node* node_;
+};
 
 // Abstract type for a node (representing an expression) in the high level IR.
 //
@@ -336,6 +364,9 @@ class Node {
   absl::InlinedVector<Node*, 2> users_;
 };
 
+inline NodeRef::NodeRef(Node* node)
+    : id_(node == nullptr ? -1 : node->id()), node_(node) {}
+
 inline std::ostream& operator<<(std::ostream& os, const Node& node) {
   os << node.ToString();
   return os;
@@ -344,10 +375,20 @@ inline std::ostream& operator<<(std::ostream& os, const Node* node) {
   os << (node == nullptr ? std::string("<nullptr Node*>") : node->ToString());
   return os;
 }
-
-inline void NodeAppend(std::string* out, const Node* n) {
-  absl::StrAppend(out, n->ToString());
+inline std::ostream& operator<<(std::ostream& os, const NodeRef& node) {
+  os << node->ToString();
+  return os;
 }
+
+inline bool operator==(const NodeRef& a, Node* b) {
+  if (b == nullptr) {
+    return a.node() == nullptr;
+  }
+  DCHECK(a.id() != b->id() || a.node() == b)
+      << "False node match due to reused ID";
+  return a.id() == b->id();
+}
+inline bool operator==(Node* a, const NodeRef& b) { return b == a; }
 
 }  // namespace xls
 

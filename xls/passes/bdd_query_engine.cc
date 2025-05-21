@@ -497,16 +497,17 @@ BddTree BddQueryEngine::ComputeInfo(
     Node* node, absl::Span<const BddTree* const> operand_infos) const {
   if (!ShouldEvaluate(node)) {
     VLOG(3) << "  node filtered out by generic ShouldEvaluate heuristic.";
-    return leaf_type_tree::Clone(GetVariablesFor(node));
+    return leaf_type_tree::Clone(GetVariablesFor(NodeRef(node)));
   }
   if (node_filter_.has_value() && !(*node_filter_)(node)) {
     VLOG(3) << "  node filtered out by configured filter.";
-    return leaf_type_tree::Clone(GetVariablesFor(node));
+    return leaf_type_tree::Clone(GetVariablesFor(NodeRef(node)));
   }
 
   VLOG(3) << "  computing BDD value...";
-  BddNodeEvaluator node_evaluator(
-      *evaluator_, [this](Node* node) { return GetVariablesFor(node); });
+  BddNodeEvaluator node_evaluator(*evaluator_, [this](Node* node) {
+    return GetVariablesFor(NodeRef(node));
+  });
   absl::flat_hash_set<Node*> injected_operands;
   injected_operands.reserve(node->operand_count());
   for (auto [operand, operand_info] :
@@ -1270,7 +1271,7 @@ bool BddQueryEngine::IsFullyKnown(
 }
 
 BddNodeIndex BddQueryEngine::GetVariableFor(TreeBitLocation location) const {
-  if (auto it = node_variables_.find(location.node());
+  if (auto it = node_variables_.find(location.node_ref());
       it != node_variables_.end()) {
     if (it->second->type() == location.node()->GetType()) {
       return std::get<BddNodeIndex>(
@@ -1286,7 +1287,7 @@ BddNodeIndex BddQueryEngine::GetVariableFor(TreeBitLocation location) const {
   CHECK(bit_variables_.emplace(location, result).second);
   return result;
 }
-BddTreeView BddQueryEngine::GetVariablesFor(Node* node) const {
+BddTreeView BddQueryEngine::GetVariablesFor(NodeRef node) const {
   if (auto it = node_variables_.find(node);
       it != node_variables_.end() && it->second->type() == node->GetType()) {
     // If a node has changed type (which can happen!), we need a new set of

@@ -224,10 +224,11 @@ class BddQueryEngine
   mutable absl::flat_hash_map<TreeBitLocation, BddNodeIndex> bit_variables_;
   BddNodeIndex GetVariableFor(TreeBitLocation location) const;
 
-  // A map from nodes to BDD variables used to represent fully-unknown values;
-  // used to avoid creating new variables for the same node.
-  mutable absl::flat_hash_map<Node*, std::unique_ptr<BddTree>> node_variables_;
-  BddTreeView GetVariablesFor(Node* node) const;
+  // A map from node IDs to BDD variables used to represent fully-unknown
+  // values; used to avoid creating new variables for the same node.
+  mutable absl::flat_hash_map<NodeRef, std::unique_ptr<BddTree>>
+      node_variables_;
+  BddTreeView GetVariablesFor(NodeRef node) const;
 };
 
 }  // namespace xls
