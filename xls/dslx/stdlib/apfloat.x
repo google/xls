@@ -3439,7 +3439,8 @@ fn is_product_nan<EXP_CARRY: u32, WIDE_FRACTION: u32>
 fn mul_no_round
     <EXP_SZ: u32, FRACTION_SZ: u32, WIDE_FRACTION: u32 = {(FRACTION_SZ + u32:1) * u32:2},
      EXP_CARRY: u32 = {EXP_SZ + u32:1}, EXP_SIGN_CARRY: u32 = {EXP_SZ + u32:2}>
-    (a: APFloat<EXP_SZ, FRACTION_SZ>, b: APFloat<EXP_SZ, FRACTION_SZ>) -> Product {
+    (a: APFloat<EXP_SZ, FRACTION_SZ>, b: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> Product<EXP_CARRY, WIDE_FRACTION> {
     // These steps are taken from apfloat_mul_2.x; look there for full comments.
     // Widen the fraction to full size and prepend the formerly-implicit "1".
     let a_fraction = (a.fraction as uN[WIDE_FRACTION]) | (uN[WIDE_FRACTION]:1 << FRACTION_SZ);
