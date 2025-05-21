@@ -124,11 +124,9 @@ class BddQueryEngine
     return QueryEngine::IsFullyKnown(n);
   }
   bool IsKnown(const TreeBitLocation& bit) const override {
-    return QueryEngine::IsKnown(bit);
+    return KnownValue(bit).has_value();
   }
-  std::optional<bool> KnownValue(const TreeBitLocation& bit) const override {
-    return QueryEngine::KnownValue(bit);
-  }
+  std::optional<bool> KnownValue(const TreeBitLocation& bit) const override;
   std::optional<Value> KnownValue(Node* node) const override {
     return QueryEngine::KnownValue(node);
   }

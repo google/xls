@@ -478,6 +478,21 @@ class BddNodeEvaluator : public AbstractNodeEvaluator<SaturatingBddEvaluator> {
 
 }  // namespace
 
+std::optional<bool> BddQueryEngine::KnownValue(
+    const TreeBitLocation& bit) const {
+  std::optional<BddNodeIndex> idx = GetBddNode(bit);
+  if (!idx.has_value()) {
+    return std::nullopt;
+  }
+  if (*idx == bdd().one()) {
+    return true;
+  }
+  if (*idx == bdd().zero()) {
+    return false;
+  }
+  return std::nullopt;
+}
+
 BddTree BddQueryEngine::ComputeInfo(
     Node* node, absl::Span<const BddTree* const> operand_infos) const {
   if (!ShouldEvaluate(node)) {
