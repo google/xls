@@ -1178,8 +1178,7 @@ TEST(FunctionBuilderTest, BinOpMismatchedWidths) {
     b_add.Add(param8, param16);
     EXPECT_THAT(b_add.Build().status(),
                 StatusIs(absl::StatusCode::kInvalidArgument,
-                         HasSubstr("Operands of add must have the same type "
-                                   "but have types bits[8] and bits[16]")));
+                         HasSubstr("Expected operand 1 of add")));
   }
 
   // Test And
@@ -1190,8 +1189,7 @@ TEST(FunctionBuilderTest, BinOpMismatchedWidths) {
     b_and.And(param8, param16);
     EXPECT_THAT(b_and.Build().status(),
                 StatusIs(absl::StatusCode::kInvalidArgument,
-                         HasSubstr("Operands of and must have the same type "
-                                   "but have types bits[8] and bits[16]")));
+                         HasSubstr("Expected operand 1 of and")));
   }
 }
 
@@ -1205,10 +1203,9 @@ TEST(FunctionBuilderTest, UnaryOpIncorrectType) {
     FunctionBuilder b_neg("f_neg", &p);
     BValue tok_param = b_neg.Param("tok", token_type);
     b_neg.Negate(tok_param);
-    EXPECT_THAT(
-        b_neg.Build().status(),
-        StatusIs(absl::StatusCode::kInvalidArgument,
-                 HasSubstr("Operand of neg must be bits type, got token")));
+    EXPECT_THAT(b_neg.Build().status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("Expected neg")));
   }
 
   // Test Not on array
@@ -1216,11 +1213,9 @@ TEST(FunctionBuilderTest, UnaryOpIncorrectType) {
     FunctionBuilder b_not("f_not", &p);
     BValue arr_param = b_not.Param("arr", array_type);
     b_not.Not(arr_param);
-    EXPECT_THAT(
-        b_not.Build().status(),
-        StatusIs(
-            absl::StatusCode::kInvalidArgument,
-            HasSubstr("Operand of not must be bits type, got bits[8][4]")));
+    EXPECT_THAT(b_not.Build().status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("Expected not")));
   }
 }
 
@@ -1233,8 +1228,7 @@ TEST(FunctionBuilderTest, BitSliceIncorrectType) {
   b.BitSlice(tuple_param, /*start=*/0, /*width=*/4);
   EXPECT_THAT(b.Build().status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Operand of bit_slice must be bits type, got "
-                                 "(bits[8], bits[16])")));
+                       HasSubstr("Expected operand 0 of bit_slice")));
 }
 
 TEST(FunctionBuilderTest, SelectMismatchedCaseTypes) {
@@ -1249,13 +1243,9 @@ TEST(FunctionBuilderTest, SelectMismatchedCaseTypes) {
     BValue case0 = b.Param("case0", type8);
     BValue case1 = b.Param("case1", type16);
     b.Select(sel, {case0, case1});
-    EXPECT_THAT(
-        b.Build().status(),
-        StatusIs(
-            absl::StatusCode::kInvalidArgument,
-            HasSubstr(
-                "All elements of 'cases' must have the same type. Element @ 1 "
-                "has type bits[16] but prior element type is bits[8]")));
+    EXPECT_THAT(b.Build().status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("type bits[16] does not match node type")));
   }
 
   // Test 2: Default value type mismatches case type
@@ -1267,8 +1257,7 @@ TEST(FunctionBuilderTest, SelectMismatchedCaseTypes) {
     b.Select(sel, {case0}, default_val);
     EXPECT_THAT(b.Build().status(),
                 StatusIs(absl::StatusCode::kInvalidArgument,
-                         HasSubstr("Default value (type bits[16]) must have "
-                                   "the same type as cases (type bits[8])")));
+                         HasSubstr("type bits[8] does not match node type")));
   }
 }
 
