@@ -32,6 +32,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value_builder.h"
+#include "xls/passes/query_engine.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
 
@@ -127,6 +128,115 @@ TEST_F(BitCountQueryEngineTest, SignExtend) {
     EXPECT_EQ(qe.KnownLeadingZeros(f->return_value()), 11);
     EXPECT_EQ(qe.KnownLeadingOnes(f->return_value()), 0);
     EXPECT_EQ(qe.KnownLeadingSignBits(f->return_value()), 11);
+  }
+}
+
+TEST_F(BitCountQueryEngineTest, KnownValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue input = fb.Param("foo", p->GetBitsType(8));
+  fb.SignExtend(input, 9);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  {
+    BitCountQueryEngine qe;
+    XLS_ASSERT_OK(qe.Populate(f));
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 7)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 6)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 5)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 4)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 3)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 2)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 1)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 0)), std::nullopt);
+
+    Node* ret = f->return_value();
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 8)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 7)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 6)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 5)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 4)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 3)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 2)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 1)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 0)), std::nullopt);
+  }
+  {
+    BitCountQueryEngine qe;
+    XLS_ASSERT_OK(qe.Populate(f));
+    XLS_ASSERT_OK(qe.AddGiven(
+        input.node(), LeadingBitsTree::CreateSingleElementTree(
+                          p->GetBitsType(8), LeadingBits::SignValues(3))));
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 7)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 6)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 5)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 4)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 3)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 2)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 1)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 0)), std::nullopt);
+
+    Node* ret = f->return_value();
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 8)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 7)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 6)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 5)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 4)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 3)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 2)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 1)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 0)), std::nullopt);
+  }
+  {
+    BitCountQueryEngine qe;
+    XLS_ASSERT_OK(qe.Populate(f));
+    XLS_ASSERT_OK(qe.AddGiven(
+        input.node(), LeadingBitsTree::CreateSingleElementTree(
+                          p->GetBitsType(8), LeadingBits::KnownOnes(3))));
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 7)), true);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 6)), true);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 5)), true);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 4)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 3)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 2)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 1)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 0)), std::nullopt);
+
+    Node* ret = f->return_value();
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 8)), true);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 7)), true);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 6)), true);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 5)), true);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 4)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 3)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 2)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 1)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 0)), std::nullopt);
+  }
+  {
+    BitCountQueryEngine qe;
+    XLS_ASSERT_OK(qe.Populate(f));
+    XLS_ASSERT_OK(qe.AddGiven(
+        input.node(), LeadingBitsTree::CreateSingleElementTree(
+                          p->GetBitsType(8), LeadingBits::KnownZeros(3))));
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 7)), false);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 6)), false);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 5)), false);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 4)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 3)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 2)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 1)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(input.node(), 0)), std::nullopt);
+
+    Node* ret = f->return_value();
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 8)), false);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 7)), false);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 6)), false);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 5)), false);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 4)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 3)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 2)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 1)), std::nullopt);
+    EXPECT_EQ(qe.KnownValue(TreeBitLocation(ret, 0)), std::nullopt);
   }
 }
 

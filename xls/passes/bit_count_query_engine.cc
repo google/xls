@@ -375,6 +375,26 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
 };
 }  // namespace
 
+std::optional<bool> BitCountQueryEngine::KnownValue(
+    const TreeBitLocation& loc) const {
+  std::optional<SharedLeafTypeTree<internal::LeadingBits>> bits_tree =
+      GetInfo(loc.node());
+  if (!bits_tree) {
+    return std::nullopt;
+  }
+  LeafTypeTreeView<internal::LeadingBits> view =
+      bits_tree->AsView(loc.tree_index());
+  const internal::LeadingBits& bits = view.Get({});
+  Type* ty = view.type();
+  if (bits.value() == TernaryValue::kUnknown) {
+    return std::nullopt;
+  }
+  if (loc.bit_index() >= ty->GetFlatBitCount() - bits.count()) {
+    return bits.value() == TernaryValue::kKnownOne;
+  }
+  return std::nullopt;
+}
+
 LeafTypeTree<internal::LeadingBits> BitCountQueryEngine::ComputeInfo(
     Node* node,
     absl::Span<const LeafTypeTree<internal::LeadingBits>* const> operand_infos)

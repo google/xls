@@ -4036,6 +4036,7 @@ cc_test(
     srcs = ["bit_count_query_engine_test.cc"],
     deps = [
         ":bit_count_query_engine",
+        ":query_engine",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",

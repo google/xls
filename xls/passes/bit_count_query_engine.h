@@ -163,6 +163,8 @@ class BitCountQueryEngine : public LazyQueryEngine<internal::LeadingBits> {
     return std::nullopt;
   }
 
+  std::optional<bool> KnownValue(const TreeBitLocation& loc) const override;
+
   std::optional<int64_t> KnownLeadingOnes(Node* n) const override {
     auto info = GetInfo(n);
     if (!info || !n->GetType()->IsBits()) {
