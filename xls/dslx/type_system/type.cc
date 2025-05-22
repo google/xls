@@ -529,6 +529,12 @@ const ArrayType& Type::AsArray() const {
   return *s;
 }
 
+const FunctionType& Type::AsFunction() const {
+  auto* s = dynamic_cast<const FunctionType*>(this);
+  CHECK(s != nullptr) << "Type is not a function: " << *this;
+  return *s;
+}
+
 const TupleType& Type::AsTuple() const {
   auto* s = dynamic_cast<const TupleType*>(this);
   CHECK(s != nullptr) << "Type is not a tuple: " << *this;

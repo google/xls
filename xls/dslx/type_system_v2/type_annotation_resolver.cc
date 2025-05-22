@@ -124,18 +124,22 @@ class StatefulResolver : public TypeAnnotationResolver {
                              node->parent()->ToString()),
             file_table_);
       }
-      if (const auto* loop = dynamic_cast<const ForLoopBase*>(node);
-          loop && !VariableHasAnyExplicitTypeAnnotations(parametric_context,
-                                                         *type_variable)) {
-        // Disallow this with similar rationale to the const/NameDef case above.
-        return TypeInferenceErrorStatus(
-            *node_span, /*type=*/nullptr,
-            absl::Substitute(
-                "Loop cannot have an implicit result type derived from init "
-                "expression `$0`. Either this expression or the loop "
-                "accumulator declaration must have a type.",
-                loop->init()->ToString()),
-            file_table_);
+      if (node->kind() == AstNodeKind::kFor ||
+          node->kind() == AstNodeKind::kUnrollFor) {
+        const auto* loop = down_cast<const ForLoopBase*>(node);
+        if (!VariableHasAnyExplicitTypeAnnotations(parametric_context,
+                                                   *type_variable)) {
+          // Disallow this with similar rationale to the const/NameDef case
+          // above.
+          return TypeInferenceErrorStatus(
+              *node_span, /*type=*/nullptr,
+              absl::Substitute(
+                  "Loop cannot have an implicit result type derived from init "
+                  "expression `$0`. Either this expression or the loop "
+                  "accumulator declaration must have a type.",
+                  loop->init()->ToString()),
+              file_table_);
+        }
       }
       absl::StatusOr<const TypeAnnotation*> result =
           ResolveAndUnifyTypeAnnotations(parametric_context, *type_variable,
@@ -192,8 +196,7 @@ class StatefulResolver : public TypeAnnotationResolver {
     std::optional<const TypeAnnotation*> cached =
         table_.GetCachedUnifiedTypeForVariable(parametric_context,
                                                type_variable);
-    if (cached.has_value() &&
-        dynamic_cast<const AnyTypeAnnotation*>(*cached) == nullptr) {
+    if (cached.has_value() && !(*cached)->IsAnnotation<AnyTypeAnnotation>()) {
       VLOG(6) << "Using cached type for " << type_variable->ToString();
       trace.SetUsedCache(true);
       trace.SetResult(*cached);
@@ -229,7 +232,7 @@ class StatefulResolver : public TypeAnnotationResolver {
     // is only durable/relevant enough to reuse locally within the scope of the
     // one external resolution request.
     if (!filtered_top_level && reject_count == 0 &&
-        dynamic_cast<const AnyTypeAnnotation*>(result) == nullptr) {
+        !result->IsAnnotation<AnyTypeAnnotation>()) {
       VLOG(6) << "Caching unified type: " << result->ToString()
               << " for variable: " << type_variable->ToString();
       table_.SetCachedUnifiedTypeForVariable(parametric_context, type_variable,
@@ -432,12 +435,13 @@ class StatefulResolver : public TypeAnnotationResolver {
         ResolveIndirectTypeAnnotations(
             parametric_context, element_type->container_type(),
             filter.Chain(TypeAnnotationFilter::BlockRecursion(element_type))));
-    if (const auto* array_type =
-            dynamic_cast<const ArrayTypeAnnotation*>(container_type)) {
-      return array_type->element_type();
+    if (container_type->IsAnnotation<ArrayTypeAnnotation>()) {
+      return container_type->AsAnnotation<ArrayTypeAnnotation>()
+          ->element_type();
     }
-    if (const auto* tuple_type =
-            dynamic_cast<const TupleTypeAnnotation*>(container_type)) {
+    if (container_type->IsAnnotation<TupleTypeAnnotation>()) {
+      const auto* tuple_type =
+          container_type->AsAnnotation<TupleTypeAnnotation>();
       if (!element_type->tuple_index().has_value()) {
         return TypeInferenceErrorStatusForAnnotation(
             tuple_type->span(), tuple_type,
@@ -456,9 +460,9 @@ class StatefulResolver : public TypeAnnotationResolver {
       }
       return tuple_type->members()[index];
     }
-    if (const auto* channel_type =
-            dynamic_cast<const ChannelTypeAnnotation*>(container_type)) {
-      return GetChannelArrayElementType(module_, channel_type);
+    if (container_type->IsAnnotation<ChannelTypeAnnotation>()) {
+      return GetChannelArrayElementType(
+          module_, container_type->AsAnnotation<ChannelTypeAnnotation>());
     }
     if (element_type->allow_bit_vector_destructuring()) {
       absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
@@ -488,8 +492,7 @@ class StatefulResolver : public TypeAnnotationResolver {
             parametric_context, return_type->function_type(),
             filter.Chain(TypeAnnotationFilter::BlockRecursion(return_type))));
     TypeAnnotation* result_type =
-        dynamic_cast<const FunctionTypeAnnotation*>(function_type)
-            ->return_type();
+        function_type->AsAnnotation<FunctionTypeAnnotation>()->return_type();
     VLOG(6) << "Resulting return type: " << result_type->ToString();
     return result_type;
   }
@@ -504,8 +507,7 @@ class StatefulResolver : public TypeAnnotationResolver {
             parametric_context, param_type->function_type(),
             filter.Chain(TypeAnnotationFilter::BlockRecursion(param_type))));
     const std::vector<const TypeAnnotation*>& resolved_types =
-        dynamic_cast<const FunctionTypeAnnotation*>(function_type)
-            ->param_types();
+        function_type->AsAnnotation<FunctionTypeAnnotation>()->param_types();
     CHECK(param_type->param_index() < resolved_types.size());
     VLOG(6) << "Resulting argument type: "
             << resolved_types[param_type->param_index()]->ToString();
@@ -531,8 +533,8 @@ class StatefulResolver : public TypeAnnotationResolver {
                                        slice_type->source_type(), filter));
     int64_t source_size = 0;
     TypeAnnotation* element_type = nullptr;
-    if (const auto* array_type =
-            dynamic_cast<const ArrayTypeAnnotation*>(source_type)) {
+    if (source_type->IsAnnotation<ArrayTypeAnnotation>()) {
+      const auto* array_type = source_type->AsAnnotation<ArrayTypeAnnotation>();
       element_type = array_type->element_type();
       XLS_ASSIGN_OR_RETURN(
           source_size,
@@ -758,12 +760,13 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
 
     bool replaced_anything = false;
-    std::optional<const TypeAnnotation*> latest =
-        dynamic_cast<const TypeAnnotation*>(node);
+    std::optional<const TypeAnnotation*> latest;
+    if (node->kind() == AstNodeKind::kTypeAnnotation) {
+      latest = down_cast<const TypeAnnotation*>(node);
+    }
     while (latest.has_value() &&
-           dynamic_cast<const TypeRefTypeAnnotation*>(*latest)) {
-      const auto* type_ref =
-          dynamic_cast<const TypeRefTypeAnnotation*>(*latest);
+           (*latest)->IsAnnotation<TypeRefTypeAnnotation>()) {
+      const auto* type_ref = (*latest)->AsAnnotation<TypeRefTypeAnnotation>();
       latest = table_.GetTypeAnnotation(ToAstNode(
           TypeDefinitionGetNameDef(type_ref->type_ref()->type_definition())));
       if (latest.has_value()) {

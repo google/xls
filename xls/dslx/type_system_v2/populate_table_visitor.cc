@@ -38,6 +38,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
@@ -812,10 +813,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             InferenceVariableKind::kType, const_cast<Expr*>(node->dim()),
             GenerateInternalTypeVariableName(node->dim())));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->dim(), dim_variable));
-    if (const auto* builtin_element =
-            dynamic_cast<const BuiltinTypeAnnotation*>(node->element_type());
-        builtin_element != nullptr &&
-        builtin_element->builtin_type() == BuiltinType::kXN) {
+    if (node->element_type()->IsAnnotation<BuiltinTypeAnnotation>() &&
+        node->element_type()
+                ->AsAnnotation<BuiltinTypeAnnotation>()
+                ->builtin_type() == BuiltinType::kXN) {
       // For an `xN[S][N]`-style annotation, there is one ArrayTypeAnnotation
       // wrapping another, and so we get into this function twice. The "outer"
       // one has the dimension `N` and an ArrayTypeAnnotation for the element
@@ -1473,7 +1474,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // An invocation like foo.bar(args), which is targeting an instance
       // function of a struct, needs the actual object type added to the
       // signature in place of the formal `Self`.
-      const Attr* attr = dynamic_cast<const Attr*>(node->callee());
+      const Attr* attr = down_cast<const Attr*>(node->callee());
       XLS_ASSIGN_OR_RETURN(
           const NameRef* obj_type_variable,
           table_.DefineInternalVariable(
@@ -1982,10 +1983,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     // We allow indirect member/element annotations through at this point,
     // because we can't yet prove whether they amount to something expected.
     if (annotation.has_value()) {
-      if (dynamic_cast<const T*>(*annotation) ||
-          dynamic_cast<const MemberTypeAnnotation*>(*annotation) ||
-          dynamic_cast<const ElementTypeAnnotation*>(*annotation) ||
-          dynamic_cast<const ParamTypeAnnotation*>(*annotation)) {
+      if ((*annotation)->IsAnnotation<T>() ||
+          (*annotation)->IsAnnotation<MemberTypeAnnotation>() ||
+          (*annotation)->IsAnnotation<ElementTypeAnnotation>() ||
+          (*annotation)->IsAnnotation<ParamTypeAnnotation>()) {
         return annotation;
       }
       VLOG(5) << "Declaration type is unsupported kind: "
@@ -2023,7 +2024,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     const StructDef* struct_def =
-        dynamic_cast<const StructDef*>(struct_or_proc_ref->def);
+        down_cast<const StructDef*>(struct_or_proc_ref->def);
     const NameRef* type_variable = *table_.GetTypeVariable(node);
     if (source.has_value()) {
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(*source, type_variable));

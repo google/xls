@@ -414,6 +414,7 @@ class Type {
   const ProcType& AsProc() const;
   const EnumType& AsEnum() const;
   const ArrayType& AsArray() const;
+  const FunctionType& AsFunction() const;
   const MetaType& AsMeta() const;
   const TupleType& AsTuple() const;
 

@@ -23,6 +23,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
@@ -73,6 +74,7 @@ class FastConcretizerImpl : public FastConcretizer,
   absl::Status HandleTupleTypeAnnotation(
       const TupleTypeAnnotation* tuple_type) override {
     std::vector<std::unique_ptr<Type>> member_types;
+    member_types.reserve(tuple_type->members().size());
     for (const TypeAnnotation* member : tuple_type->members()) {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> member_type,
                            Concretize(member));
@@ -87,6 +89,7 @@ class FastConcretizerImpl : public FastConcretizer,
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> return_type,
                          Concretize(function_type->return_type()));
     std::vector<std::unique_ptr<Type>> param_types;
+    param_types.reserve(function_type->param_types().size());
     for (const TypeAnnotation* param : function_type->param_types()) {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> param_type, Concretize(param));
       param_types.push_back(std::move(param_type));
@@ -105,8 +108,9 @@ class FastConcretizerImpl : public FastConcretizer,
     if (std::holds_alternative<bool>(value)) {
       return std::get<bool>(value);
     }
-    if (const auto* literal =
-            dynamic_cast<const Number*>(std::get<const Expr*>(value))) {
+    if (std::get<const Expr*>(value)->kind() == AstNodeKind::kNumber) {
+      const auto* literal =
+          down_cast<const Number*>(std::get<const Expr*>(value));
       XLS_ASSIGN_OR_RETURN(Bits bits, literal->GetBits(32, file_table_));
       if (bits_ops::SGreaterThanOrEqual(bits, 0) &&
           bits_ops::SLessThanOrEqual(bits, 1)) {
@@ -124,8 +128,9 @@ class FastConcretizerImpl : public FastConcretizer,
         return result;
       }
     }
-    if (const auto* literal =
-            dynamic_cast<const Number*>(std::get<const Expr*>(value))) {
+    if (std::get<const Expr*>(value)->kind() == AstNodeKind::kNumber) {
+      const auto* literal =
+          down_cast<const Number*>(std::get<const Expr*>(value));
       XLS_ASSIGN_OR_RETURN(const Bits bits, literal->GetBits(32, file_table_));
       if (bits_ops::SGreaterThanOrEqual(bits, 0) &&
           bits_ops::SLessThanOrEqual(bits, kMaxUint32AsInt64)) {

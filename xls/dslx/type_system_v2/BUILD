@@ -276,6 +276,7 @@ cc_library(
         ":import_utils",
         ":inference_table",
         ":type_annotation_utils",
+        "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
@@ -412,6 +413,7 @@ cc_library(
     srcs = ["type_annotation_utils.cc"],
     hdrs = ["type_annotation_utils.h"],
     deps = [
+        "//xls/common:casts",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
@@ -436,6 +438,7 @@ cc_library(
     hdrs = ["validate_concrete_type.h"],
     deps = [
         ":type_annotation_utils",
+        "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -471,6 +474,7 @@ cc_library(
     hdrs = ["expand_variables.h"],
     deps = [
         ":inference_table",
+        "//xls/common:casts",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
@@ -524,6 +528,7 @@ cc_library(
     hdrs = ["fast_concretizer.h"],
     deps = [
         ":type_annotation_utils",
+        "//xls/common:casts",
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
