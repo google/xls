@@ -325,6 +325,10 @@ class InferenceTable {
   virtual std::vector<const ParametricContext*> GetParametricInvocations()
       const = 0;
 
+  // Retrieves the parametric contexts for the given invocation.
+  virtual std::vector<const ParametricContext*> GetParametricContexts(
+      const Invocation* node) const = 0;
+
   // Defines a parametric struct context with the given parametric values, or
   // returns the existing one with the same values. The idea is to tie each
   // struct parameterization to a canonicalized env to avoid unnecessary

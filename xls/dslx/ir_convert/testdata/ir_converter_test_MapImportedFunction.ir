@@ -1,0 +1,22 @@
+package test_module
+
+file_number 0 "fake/imported/stuff.x"
+file_number 1 "test_module.x"
+
+fn __fake_imported_stuff__some_function(x: bits[32] id=1) -> bits[32] {
+  ret x: bits[32] = param(name=x, id=1)
+}
+
+fn __SYNTHETIC_LOOP_BODY___test_module__main_CALLING___fake_imported_stuff__some_function__MAP_0(idx: bits[32] id=5, array_val: bits[32][2] id=6, input_array: bits[32][2] id=7) -> bits[32][2] {
+  array_index.8: bits[32] = array_index(input_array, indices=[idx], id=8)
+  map_some_function_call: bits[32] = invoke(array_index.8, to_apply=__fake_imported_stuff__some_function, id=9)
+  ret map_iteration: bits[32][2] = array_update(array_val, map_some_function_call, indices=[idx], id=10)
+}
+
+fn __test_module__main() -> bits[32][2] {
+  literal.2: bits[32] = literal(value=1, id=2)
+  literal.3: bits[32] = literal(value=2, id=3)
+  literal.11: bits[32][2] = literal(value=[0, 0], id=11)
+  array.4: bits[32][2] = array(literal.2, literal.3, id=4)
+  ret map_invocation__some_function: bits[32][2] = counted_for(literal.11, trip_count=2, stride=1, body=__SYNTHETIC_LOOP_BODY___test_module__main_CALLING___fake_imported_stuff__some_function__MAP_0, invariant_args=[array.4], id=12)
+}

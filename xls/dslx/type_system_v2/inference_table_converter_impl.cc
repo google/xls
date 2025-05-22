@@ -352,6 +352,49 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const ParametricContext* parametric_context) {
     VLOG(5) << "Adding invocation type info for "
             << parametric_context->ToString();
+    CHECK_NE(invocation, nullptr);
+    // For `map`, the parametric context is that for the mapped invocation.
+    if (IsBuiltinFn(invocation->callee()) &&
+        invocation->callee()->ToString() == "map") {
+      // Add Invocation data for all invocations of the map node.
+      for (const auto* inv_node : module_.FindNodes(
+               AstNodeKind::kInvocation, invocation->args()[1]->span())) {
+        const Invocation* mapped_inv =
+            dynamic_cast<const Invocation*>(inv_node);
+        XLS_RET_CHECK(mapped_inv != nullptr);
+        XLS_RETURN_IF_ERROR(
+            LookupContextAndAddInvocation(invocation, mapped_inv));
+      }
+      return absl::OkStatus();
+    }
+    return AddInvocationTypeInfoInternal(invocation, parametric_context);
+  }
+
+  absl::Status LookupContextAndAddInvocation(
+      const Invocation* invocation, const Invocation* mapped_invocation) {
+    std::vector<const ParametricContext*> parametric_contexts =
+        table_.GetParametricContexts(mapped_invocation);
+    // If the mapped invocation is non-parametric, just add the invocation
+    // and return.
+    if (parametric_contexts.empty()) {
+      XLS_ASSIGN_OR_RETURN(TypeInfo * parent_ti,
+                           GetTypeInfo(invocation->owner(), std::nullopt));
+      std::optional<const InvocationData> inv_data =
+          parent_ti->GetInvocationData(mapped_invocation);
+      XLS_RET_CHECK(inv_data.has_value());
+      return parent_ti->AddInvocation(*invocation, (*inv_data).callee(),
+                                      (*inv_data).caller());
+    }
+    for (const ParametricContext* parametric_context : parametric_contexts) {
+      XLS_RETURN_IF_ERROR(
+          AddInvocationTypeInfoInternal(invocation, parametric_context));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status AddInvocationTypeInfoInternal(
+      const Invocation* invocation,
+      const ParametricContext* parametric_context) {
     ParametricEnv parent_env;
     const auto& data =
         std::get<ParametricInvocationDetails>(parametric_context->details());
@@ -374,7 +417,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         converted_parametric_envs_.at(parametric_context);
     VLOG(5) << "Parent env: " << parent_env.ToString();
     VLOG(5) << "Callee env: " << callee_env.ToString();
-    CHECK_NE(invocation, nullptr);
 
     XLS_ASSIGN_OR_RETURN(TypeInfo * parent_ti,
                          GetTypeInfo(invocation->owner(), parametric_context));

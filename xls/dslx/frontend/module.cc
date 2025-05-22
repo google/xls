@@ -109,6 +109,18 @@ const AstNode* Module::FindNode(AstNodeKind kind, const Span& target) const {
   return nullptr;
 }
 
+std::vector<const AstNode*> Module::FindNodes(AstNodeKind kind,
+                                              const Span& target) const {
+  std::vector<const AstNode*> found;
+  for (const auto& node : nodes_) {
+    if (node->kind() == kind && node->GetSpan().has_value() &&
+        node->GetSpan().value() == target) {
+      found.push_back(node.get());
+    }
+  }
+  return found;
+}
+
 std::vector<const AstNode*> Module::FindIntercepting(const Pos& target) const {
   std::vector<const AstNode*> found;
   for (const auto& node : nodes_) {

@@ -1920,8 +1920,10 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
 
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
-      MangleDslxName(lookup_module->name(), mapped_fn->identifier(), convention,
-                     free_set, node_parametric_env.value()));
+      MangleDslxName(
+          lookup_module->name(), mapped_fn->identifier(), convention, free_set,
+          (node_parametric_env.has_value() ? node_parametric_env.value()
+                                           : nullptr)));
   VLOG(5) << "Getting function with mangled name: " << mangled_name
           << " from package: " << package()->name();
   XLS_ASSIGN_OR_RETURN(xls::Function * f, package()->GetFunction(mangled_name));
