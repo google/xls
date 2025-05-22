@@ -14,15 +14,11 @@
 
 #include "xls/dslx/ir_convert/function_converter.h"
 
-#include <filesystem>  // NOLINT
 #include <memory>
-#include <string>
 #include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/strings/str_format.h"
-#include "xls/common/golden_files.h"
 #include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
@@ -30,6 +26,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/ir_convert/test_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/package.h"
 #include "xls/ir/xls_ir_interface.pb.h"
@@ -38,15 +35,8 @@ namespace xls::dslx {
 namespace {
 using ::xls::proto_testing::EqualsProto;
 
-constexpr std::string_view kTestName = "function_converter_test";
-constexpr std::string_view kTestdataPath = "xls/dslx/ir_convert/testdata";
-
-static std::string TestName() {
-  return ::testing::UnitTest::GetInstance()->current_test_info()->name();
-}
-
-static std::filesystem::path TestFilePath(std::string_view test_name) {
-  return absl::StrFormat("%s/%s_%s.ir", kTestdataPath, kTestName, test_name);
+void ExpectIr(std::string_view got) {
+  return ::xls::dslx::ExpectIr(got, TestName(), "function_converter_test");
 }
 
 PackageConversionData MakeConversionData(std::string_view n) {
@@ -76,7 +66,7 @@ TEST(FunctionConverterTest, ConvertsSimpleFunctionWithoutError) {
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
+  ExpectIr(package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -110,7 +100,7 @@ TEST(FunctionConverterTest, ConvertsSimpleFunctionWithAsserts) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
+  ExpectIr(package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__itok__test_module__f" }
@@ -157,7 +147,7 @@ TEST(FunctionConverterTest, TracksMultipleTypeAliasSvType) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
+  ExpectIr(package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -197,7 +187,7 @@ TEST(FunctionConverterTest, TracksTypeAliasSvType) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
+  ExpectIr(package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -239,7 +229,7 @@ fn f(b: Baz) -> FooBar { b + u32:42 })",
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
+  ExpectIr(package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -385,7 +375,7 @@ TEST(FunctionConverterTest, ConvertsFunctionWithZipBuiltin) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
+  ExpectIr(package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -440,7 +430,7 @@ TEST(FunctionConverterTest, ConvertsFunctionWithUpdate2DBuiltin) {
       converter.HandleFunction(f, tm.type_info, /*parametric_env=*/nullptr));
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
+  ExpectIr(package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }
@@ -491,7 +481,7 @@ TEST(FunctionConverterTest, ConvertsFunctionWithUpdate2DBuiltinEmptyTuple) {
 
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
   EXPECT_EQ(package_data.ir_to_dslx.size(), 1);
-  ExpectEqualToGoldenFile(TestFilePath(TestName()), package.DumpIr());
+  ExpectIr(package.DumpIr());
   EXPECT_THAT(package.interface, EqualsProto(R"pb(
                 functions {
                   base { top: true name: "__test_module__f" }

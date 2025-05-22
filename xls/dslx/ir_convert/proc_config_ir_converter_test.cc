@@ -33,6 +33,7 @@
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
+#include "xls/dslx/ir_convert/test_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/bits.h"
@@ -53,6 +54,11 @@ using ::testing::IsEmpty;
 using ::testing::SizeIs;
 
 namespace m = ::xls::op_matchers;
+
+void ExpectIr(std::string_view got) {
+  return ::xls::dslx::ExpectIr(got, TestName(),
+                               "proc_config_ir_converter_test");
+}
 
 PackageConversionData MakeConversionData(std::string_view n) {
   return {.package = std::make_unique<Package>(n)};
@@ -518,6 +524,8 @@ proc passthrough {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc, conv.package->GetTopAsProc());
   EXPECT_TRUE(proc->is_new_style_proc());
   EXPECT_THAT(proc->interface(), SizeIs(2));
+
+  ExpectIr(conv.DumpIr());
 }
 
 TEST(ProcConfigIrConverterTest, GlobalScopedChannels) {

@@ -177,12 +177,14 @@ cc_library(
 cc_test(
     name = "proc_config_ir_converter_test",
     srcs = ["proc_config_ir_converter_test.cc"],
+    data = glob(["testdata/*.ir"]),
     deps = [
         ":channel_scope",
         ":conversion_info",
         ":convert_options",
         ":ir_converter",
         ":proc_config_ir_converter",
+        ":test_utils",
         "//xls/common:casts",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -213,6 +215,7 @@ cc_test(
     deps = [
         ":convert_options",
         ":ir_converter",
+        ":test_utils",
         "//xls/common:golden_files",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
@@ -252,7 +255,6 @@ cc_library(
     name = "function_converter",
     srcs = ["function_converter.cc"],
     hdrs = ["function_converter.h"],
-    data = glob(["testdata/*.ir"]),
     deps = [
         ":channel_scope",
         ":conversion_info",
@@ -308,11 +310,12 @@ cc_library(
 cc_test(
     name = "function_converter_test",
     srcs = ["function_converter_test.cc"],
+    data = glob(["testdata/*.ir"]),
     deps = [
         ":conversion_info",
         ":convert_options",
         ":function_converter",
-        "//xls/common:golden_files",
+        ":test_utils",
         "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -322,7 +325,6 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "//xls/ir",
         "//xls/ir:xls_ir_interface_cc_proto",
-        "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
     ],
 )
@@ -540,5 +542,18 @@ py_test(
         "//xls/common:test_base",
         "//xls/ir:xls_ir_interface_py_pb2",
         "//xls/ir:xls_type_py_pb2",
+    ],
+)
+
+cc_library(
+    name = "test_utils",
+    testonly = True,
+    srcs = ["test_utils.cc"],
+    hdrs = ["test_utils.h"],
+    deps = [
+        "//xls/common:golden_files",
+        "@com_google_absl//absl/strings:str_format",
+        "@googletest//:gtest",
+        "@re2",
     ],
 )

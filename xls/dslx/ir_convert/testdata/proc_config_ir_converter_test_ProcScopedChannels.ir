@@ -1,0 +1,19 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top proc __test_module__passthrough_0_next<test_module__c_in: bits[32] in, test_module__c_out: bits[32] out>(__state: (), init={()}) {
+  chan_interface test_module__c_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface test_module__c_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  after_all.4: token = after_all(id=4)
+  literal.3: bits[1] = literal(value=1, id=3)
+  receive.5: (token, bits[32]) = receive(after_all.4, predicate=literal.3, channel=test_module__c_in, id=5)
+  tok: token = tuple_index(receive.5, index=0, id=7, pos=[(0,9,9)])
+  data: bits[32] = tuple_index(receive.5, index=1, id=8, pos=[(0,9,14)])
+  __state: () = state_read(state_element=__state, id=2)
+  tuple.10: () = tuple(id=10, pos=[(0,11,4)])
+  __token: token = literal(value=token, id=1)
+  tuple_index.6: token = tuple_index(receive.5, index=0, id=6)
+  tok__1: token = send(tok, data, predicate=literal.3, channel=test_module__c_out, id=9)
+  next_value.11: () = next_value(param=__state, value=tuple.10, id=11)
+}
