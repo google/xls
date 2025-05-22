@@ -500,7 +500,7 @@ absl::StatusOr<dslx::Expr*> DslxBuilder::HandleIntegerExponentiation(
       absl::flat_hash_map<std::string, dslx::InterpValue>{
           {"N", dslx::InterpValue::MakeUBits(32, rhs_bit_count)}});
   XLS_RETURN_IF_ERROR(type_info().AddInvocationTypeInfo(
-      *invocation, /*caller=*/nullptr,
+      *invocation, /*callee=*/nullptr, /*caller=*/nullptr,
       /*caller_env=*/deduce_ctx().GetCurrentParametricEnv(),
       /*callee_env=*/parametric_env,
       /*derived_type_info=*/nullptr));

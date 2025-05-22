@@ -3763,6 +3763,27 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ImplColonRef) {
+  constexpr std::string_view program = R"(
+  struct F {}
+
+  impl F {
+    fn bar() -> u32 { u32:0 }
+  }
+
+  fn bar() -> u32 { u32:0 }
+
+  fn top_fn() -> u32 {
+    F::bar()
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        MatchExhaustiveRangeInTrailingArm) {
   constexpr std::string_view program = R"(

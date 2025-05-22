@@ -498,7 +498,8 @@ def get_mangled_ir_symbol(
         function_name,
         parametric_values = None,
         is_implicit_token = False,
-        is_proc_next = False):
+        is_proc_next = False,
+        scope = ""):
     """Returns the mangled IR symbol for the module/function combination.
 
     "Mangling" is the process of turning nicely namedspaced symbols into
@@ -520,6 +521,7 @@ def get_mangled_ir_symbol(
       is_proc_next: A boolean flag denoting whether the symbol is a
         next proc function. The argument is mutually exclusive with arguments:
         'parametric_values' and 'is_implicit_token'.
+      scope: The scope of the function.
 
     Returns:
       The "mangled" symbol string.
@@ -539,6 +541,9 @@ def get_mangled_ir_symbol(
     if is_implicit_token:
         prefix_str = "itok__"
 
+    if scope != "":
+        scope = scope + "__"
+
     suffix = ""
 
     if parametric_values:
@@ -549,9 +554,10 @@ def get_mangled_ir_symbol(
             ],
         )
 
-    mangled_name = "__{}{}__{}{}".format(
+    mangled_name = "__{}{}__{}{}{}".format(
         prefix_str,
         module_name,
+        scope,
         function_name,
         suffix,
     )

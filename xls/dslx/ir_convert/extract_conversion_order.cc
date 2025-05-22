@@ -21,9 +21,7 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -33,13 +31,13 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc_id.h"
@@ -287,21 +285,33 @@ class InvocationVisitor : public ExprVisitor {
       XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
     }
 
-    if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
-      XLS_ASSIGN_OR_RETURN(callee_info, HandleColonRefInvocation(colon_ref));
-    } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
-      XLS_ASSIGN_OR_RETURN(callee_info,
-                           HandleNameRefInvocation(name_ref, node));
-    } else {
-      return absl::UnimplementedError(
-          "Only calls to named functions are currently supported "
-          "for IR conversion; callee: " +
-          node->callee()->ToString());
-    }
+    std::optional<const InvocationData> inv_data =
+        type_info_->GetInvocationData(node);
 
-    if (!callee_info.has_value()) {
-      // Happens for example when we're invoking a builtin, there's nothing to
-      // convert.
+    // TODO: erinzmoore - Once v1 is removed, delete if/else clause here and
+    // require that `inv_data` is present and complete.
+    if (inv_data.has_value() && (*inv_data).callee() != nullptr) {
+      if (IsBuiltin((*inv_data).callee())) {
+        return absl::OkStatus();
+      }
+
+      bool is_parametric = (*inv_data).callee()->IsParametric();
+      // Temporarily store null type_info for parametric functions. Parametric
+      // bindings will be resolved below and used to look up the invocation type
+      // info.
+      // TODO: erinzmoore - Once v1 is removed, provide way to look up all
+      // CalleeInfo directly from `TypeInfo` for an {invocation, bindings} pair.
+      TypeInfo* invocation_ti = is_parametric ? nullptr : type_info_;
+      if (!is_parametric && (*inv_data).callee()->owner() != module_) {
+        invocation_ti =
+            *type_info_->GetImportedTypeInfo((*inv_data).callee()->owner());
+      }
+
+      callee_info = CalleeInfo{(*inv_data).callee()->owner(),
+                               const_cast<Function*>((*inv_data).callee()),
+                               invocation_ti};
+    } else {
+      XLS_RET_CHECK(IsBuiltinFn(node->callee()));
       return absl::OkStatus();
     }
 
@@ -348,6 +358,7 @@ class InvocationVisitor : public ExprVisitor {
         callee_info->type_info = *instantiation_type_info;
       }
     }
+    XLS_RET_CHECK(callee_info->type_info != nullptr);
 
     XLS_ASSIGN_OR_RETURN(
         auto callee,
@@ -448,105 +459,6 @@ class InvocationVisitor : public ExprVisitor {
   std::vector<Callee>& callees() { return callees_; }
 
  private:
-  // Helper for invocations of ColonRef callees.
-  absl::StatusOr<CalleeInfo> HandleColonRefInvocation(
-      const ColonRef* colon_ref) {
-    std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
-    XLS_RET_CHECK(import.has_value());
-    std::optional<const ImportedInfo*> info =
-        type_info_->GetImported(import.value());
-    XLS_RET_CHECK(info.has_value());
-    Module* module = (*info)->module;
-    XLS_ASSIGN_OR_RETURN(Function * f,
-                         module->GetMemberOrError<Function>(colon_ref->attr()));
-    return CalleeInfo{
-        .module = module, .callee = f, .type_info = (*info)->type_info};
-  }
-
-  absl::StatusOr<std::optional<CalleeInfo>> HandleMapInvocation(
-      const Invocation* invocation) {
-    // We need to make sure we convert the mapped function!
-    XLS_RET_CHECK_EQ(invocation->args().size(), 2);
-    Expr* fn_node = invocation->args()[1];
-    VLOG(5) << "map() invoking function expression: `" << fn_node->ToString()
-            << "`";
-
-    if (auto* mapped_ref = dynamic_cast<FunctionRef*>(fn_node)) {
-      fn_node = mapped_ref->callee();
-    }
-
-    if (auto* mapped_colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
-      VLOG(5) << "map() invoking ColonRef: " << mapped_colon_ref->ToString();
-      const std::string& identifier = mapped_colon_ref->attr();
-      std::optional<ImportSubject> import =
-          mapped_colon_ref->ResolveImportSubject();
-      XLS_RET_CHECK(import.has_value());
-      std::optional<const ImportedInfo*> info =
-          type_info_->GetImported(import.value());
-      XLS_RET_CHECK(info.has_value());
-      Module* this_m = (*info)->module;
-      TypeInfo* callee_type_info = (*info)->type_info;
-      VLOG(5) << "Module for callee: " << this_m->name();
-      XLS_ASSIGN_OR_RETURN(Function * f,
-                           this_m->GetMemberOrError<Function>(identifier));
-      return CalleeInfo{
-          .module = this_m, .callee = f, .type_info = callee_type_info};
-    }
-
-    VLOG(5) << "map() invoking NameRef";
-    auto* mapped_name_ref = dynamic_cast<NameRef*>(fn_node);
-    XLS_RET_CHECK(mapped_name_ref != nullptr);
-
-    if (IsBuiltinParametricNameRef(mapped_name_ref)) {
-      VLOG(5) << "map() invoking builtin parametric nameref: "
-              << mapped_name_ref->identifier();
-      return std::nullopt;
-    }
-
-    Module* this_m = mapped_name_ref->owner();
-    std::string identifier = mapped_name_ref->identifier();
-    XLS_ASSIGN_OR_RETURN(Function * f,
-                         this_m->GetMemberOrError<Function>(identifier));
-    return CalleeInfo{.module = this_m, .callee = f, .type_info = type_info_};
-  }
-
-  // Helper for invocations of NameRef callees.
-  absl::StatusOr<std::optional<CalleeInfo>> HandleNameRefInvocation(
-      const NameRef* name_ref, const Invocation* invocation) {
-    bool is_builtin = IsBuiltinParametricNameRef(name_ref);
-
-    // Map is special because it's the only higher-order function -- it takes an
-    // argument which is a callee function ref.
-    if (is_builtin && name_ref->identifier() == "map") {
-      return HandleMapInvocation(invocation);
-    }
-
-    if (is_builtin) {
-      return std::nullopt;
-    }
-
-    if (std::optional<const UseTreeEntry*> tree_entry =
-            IsExternNameRef(*name_ref);
-        tree_entry.has_value()) {
-      XLS_RET_CHECK(tree_entry.value() != nullptr);
-      XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported_info,
-                           type_info_->GetImportedOrError(tree_entry.value()));
-      XLS_RET_CHECK(imported_info != nullptr);
-      XLS_ASSIGN_OR_RETURN(Function * f,
-                           imported_info->module->GetMemberOrError<Function>(
-                               name_ref->identifier()));
-      XLS_RET_CHECK(f != nullptr);
-      return CalleeInfo{.module = imported_info->module,
-                        .callee = f,
-                        .type_info = imported_info->type_info};
-    }
-
-    Module* this_m = name_ref->owner();
-    XLS_ASSIGN_OR_RETURN(Function * f, this_m->GetMemberOrError<Function>(
-                                           name_ref->identifier()));
-    return CalleeInfo{.module = this_m, .callee = f, .type_info = type_info_};
-  }
-
   Module* module_;
   TypeInfo* type_info_;
   const ParametricEnv& bindings_;

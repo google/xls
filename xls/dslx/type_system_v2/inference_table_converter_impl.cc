@@ -283,11 +283,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             /*parametric_struct_instantiator=*/*this, *tracer_, import_data_)),
         fast_concretizer_(FastConcretizer::Create(file_table)) {}
 
-  // Returns true if the given function is a builtin.
-  bool IsBuiltin(const Function* node) {
-    return node->owner()->name() == kBuiltinStubsModuleName;
-  }
-
   absl::Status ConvertSubtree(
       const AstNode* node, std::optional<const Function*> function,
       std::optional<const ParametricContext*> parametric_context,
@@ -381,8 +376,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(TypeInfo * parent_ti,
                          GetTypeInfo(invocation->owner(), parametric_context));
     XLS_RETURN_IF_ERROR(parent_ti->AddInvocationTypeInfo(
-        *invocation, data.caller.has_value() ? *data.caller : nullptr,
-        parent_env, callee_env,
+        *invocation, data.callee,
+        data.caller.has_value() ? *data.caller : nullptr, parent_env,
+        callee_env,
         IsBuiltin(data.callee) ? nullptr : parametric_context->type_info()));
     return absl::OkStatus();
   }
@@ -517,6 +513,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_RETURN_IF_ERROR(
             ConvertSubtree(actual_param, caller, caller_context));
       }
+      XLS_ASSIGN_OR_RETURN(TypeInfo * parent_ti,
+                           GetTypeInfo(invocation->owner(), caller_context));
+      XLS_RETURN_IF_ERROR(parent_ti->AddInvocation(
+          *invocation, function, caller.has_value() ? *caller : nullptr));
       return GenerateTypeInfo(caller_context, invocation,
                               function_type->return_type());
     }

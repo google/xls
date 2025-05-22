@@ -24,6 +24,7 @@
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
@@ -47,6 +48,10 @@ absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs() {
   Scanner s = {file_table, fileno, text};
   Parser parser = {std::string(kBuiltinStubsModuleName), &s, true};
   return parser.ParseModule();
+}
+
+bool IsBuiltin(const Function* node) {
+  return node->owner()->name() == kBuiltinStubsModuleName;
 }
 
 }  // namespace xls::dslx

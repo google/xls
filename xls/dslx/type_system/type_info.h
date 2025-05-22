@@ -62,7 +62,7 @@ struct SliceData {
   absl::flat_hash_map<ParametricEnv, StartAndWidth> bindings_to_start_width;
 };
 
-// For a given invocation, this is the data we record on the parameteric callee
+// For a given invocation, this is the data we record on the parametric callee
 // -- "callee_bindings" notes what the parametric environment is for the callee
 // and "derived_type_info" holds the type information that is specific to that
 // parametric instantiation.
@@ -74,11 +74,13 @@ struct InvocationCalleeData {
 // Parametric instantiation information related to an invocation AST node.
 struct InvocationData {
  public:
-  InvocationData(const Invocation* node, const Function* caller,
+  InvocationData(const Invocation* node, const Function* callee,
+                 const Function* caller,
                  absl::flat_hash_map<ParametricEnv, InvocationCalleeData>
                      env_to_callee_data);
 
   const Invocation* node() const { return node_; }
+  const Function* callee() const { return callee_; }
   const Function* caller() const { return caller_; }
 
   const absl::flat_hash_map<ParametricEnv, InvocationCalleeData>&
@@ -104,6 +106,8 @@ struct InvocationData {
 
   // Invocation/Spawn AST node.
   const Invocation* node_;
+
+  const Function* callee_;
 
   // Function containing the above invocation "node". This is held for
   // "referential integrity" so we can check the validity of the caller
@@ -176,6 +180,7 @@ class TypeInfo {
   // Args:
   //   invocation: The invocation node that (may have) caused parametric
   //     instantiation.
+  //   callee: The function being invoked.
   //   caller: The function containing the invocation -- note that this can be
   //     nullptr if the invocation is at the top level of the module.
   //   caller_env: The caller's symbolic bindings at the point of invocation.
@@ -184,10 +189,15 @@ class TypeInfo {
   // Returns an error status if internal invariants are violated; e.g. if the
   // "caller_env" is not a valid env for the "caller".
   absl::Status AddInvocationTypeInfo(const Invocation& invocation,
+                                     const Function* callee,
                                      const Function* caller,
                                      const ParametricEnv& caller_env,
                                      const ParametricEnv& callee_env,
                                      TypeInfo* derived_type_info);
+
+  // Add data for a non-parametric invocation.
+  absl::Status AddInvocation(const Invocation& invocation,
+                             const Function* callee, const Function* caller);
 
   // Attempts to retrieve "instantiation" type information -- that is, when
   // there's an invocation with parametrics in a caller, it may map to
@@ -350,6 +360,11 @@ class TypeInfo {
   GetRootInvocations() const {
     return GetRoot()->invocations();
   }
+
+  // Returns the InvocationData for the given invocation, if present in this
+  // TypeInfo's root.
+  std::optional<const InvocationData> GetInvocationData(
+      const Invocation* invocation) const;
 
   const absl::flat_hash_map<ImportSubject, ImportedInfo>& GetRootImports()
       const {

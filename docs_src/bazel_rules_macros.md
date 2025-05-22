@@ -666,7 +666,7 @@ identical to this macro.
 load("//xls/build_rules:xls_build_defs.bzl", "get_mangled_ir_symbol")
 
 get_mangled_ir_symbol(<a href="#get_mangled_ir_symbol-module_name">module_name</a>, <a href="#get_mangled_ir_symbol-function_name">function_name</a>, <a href="#get_mangled_ir_symbol-parametric_values">parametric_values</a>, <a href="#get_mangled_ir_symbol-is_implicit_token">is_implicit_token</a>,
-                      <a href="#get_mangled_ir_symbol-is_proc_next">is_proc_next</a>)
+                      <a href="#get_mangled_ir_symbol-is_proc_next">is_proc_next</a>, <a href="#get_mangled_ir_symbol-scope">scope</a>)
 </pre>
 
 Returns the mangled IR symbol for the module/function combination.
@@ -687,6 +687,7 @@ converted, we use their mangled names to refer to them in the IR namespace.
 | <a id="get_mangled_ir_symbol-parametric_values"></a>parametric_values |  Any parametric values used for instantiation (e.g. for a parametric entry point that is known to be instantiated in the IR converted module). This is generally for more advanced use cases like internals testing. The argument is mutually exclusive with argument 'is_proc_next'.   |  `None` |
 | <a id="get_mangled_ir_symbol-is_implicit_token"></a>is_implicit_token |  A boolean flag denoting whether the symbol contains an implicit token. The argument is mutually exclusive with argument 'is_proc_next'.   |  `False` |
 | <a id="get_mangled_ir_symbol-is_proc_next"></a>is_proc_next |  A boolean flag denoting whether the symbol is a next proc function. The argument is mutually exclusive with arguments: 'parametric_values' and 'is_implicit_token'.   |  `False` |
+| <a id="get_mangled_ir_symbol-scope"></a>scope |  The scope of the function.   |  `""` |
 
 **RETURNS**
 

@@ -138,20 +138,10 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
   const ParametricEnv& caller_bindings = caller_fn_entry.parametric_env();
   Function* caller = caller_fn_entry.f();
 
-  std::optional<TypeInfo*> dti = ctx->type_info()->GetInvocationTypeInfo(
-      element_invocation, caller_bindings);
-  if (dti.has_value()) {
-    XLS_RETURN_IF_ERROR(ctx->type_info()->AddInvocationTypeInfo(
-        *node, caller, caller_bindings, tab.parametric_env, dti.value()));
-  } else {
-    XLS_RETURN_IF_ERROR(ctx->type_info()->AddInvocationTypeInfo(
-        *node, caller, caller_bindings, tab.parametric_env,
-        /*derived_type_info=*/nullptr));
-  }
-
   // We can't blindly resolve the function or else we might fail due to look up
   // a parametric builtin.
   bool callee_needs_implicit_token = false;
+  Function* callee_fn = nullptr;
   if (IsBuiltinFn(callee)) {
     callee_needs_implicit_token = GetBuiltinFnRequiresImplicitToken(callee);
   } else {
@@ -167,7 +157,14 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
            "requires an implicit token: "
         << fn->identifier();
     callee_needs_implicit_token = callee_opt.value();
+    callee_fn = fn;
   }
+
+  std::optional<TypeInfo*> dti = ctx->type_info()->GetInvocationTypeInfo(
+      element_invocation, caller_bindings);
+  XLS_RETURN_IF_ERROR(ctx->type_info()->AddInvocationTypeInfo(
+      *node, callee_fn, caller, caller_bindings, tab.parametric_env,
+      dti.has_value() ? *dti : nullptr));
 
   // If the callee function needs an implicit token type (e.g. because it has
   // a fail!() or cover!() operation transitively) then so do we.
@@ -479,6 +476,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
            "requires an implicit token: "
         << fn->identifier();
     callee_needs_implicit_token = callee_opt.value();
+    // Parametric and proc functions will be added separately.
+    if (!fn->IsParametric() && !fn->IsInProc()) {
+      XLS_RETURN_IF_ERROR(
+          ctx->type_info()->AddInvocation(*node, fn, entry.f()));
+    }
   }
 
   // If the callee function needs an implicit token type (e.g. because it has

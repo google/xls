@@ -31,6 +31,9 @@ absl::StatusOr<std::filesystem::path> BuiltinStubsPath();
 // Load the (empty) functions in the builtin_stubs.x file into a Module.
 absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs();
 
+// Returns true if the given function is a builtin.
+bool IsBuiltin(const Function* node);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_BUILTIN_STUBS_UTILS_H_

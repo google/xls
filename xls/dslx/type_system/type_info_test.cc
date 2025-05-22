@@ -82,7 +82,8 @@ fn main() -> u32 {
 
   // We should not be able to add a caller environment in `main()`.
   EXPECT_THAT(tm.type_info->AddInvocationTypeInfo(
-                  *invoke_p, /*caller=*/main, bad_caller_env, valid_callee_env,
+                  *invoke_p, /*callee=*/nullptr, /*caller=*/main,
+                  bad_caller_env, valid_callee_env,
                   /*derived_type_info=*/nullptr),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("caller `main` given env with key `A` not "

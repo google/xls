@@ -648,6 +648,7 @@ cc_library(
     data = ["builtin_stubs.x"],
     deps = [
         ":ast",
+        ":module",
         ":parser",
         ":pos",
         ":scanner",

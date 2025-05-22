@@ -46,9 +46,10 @@
 namespace xls::dslx {
 
 InvocationData::InvocationData(
-    const Invocation* node, const Function* caller,
+    const Invocation* node, const Function* callee, const Function* caller,
     absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data)
     : node_(node),
+      callee_(callee),
       caller_(caller),
       env_to_callee_data_(std::move(env_to_callee_data)) {
   // If we have a caller, check that the invocation node is contained within the
@@ -393,6 +394,16 @@ std::string TypeInfo::GetTypeInfoTreeString() const {
   return absl::StrJoin(pieces, "\n");
 }
 
+std::optional<const InvocationData> TypeInfo::GetInvocationData(
+    const Invocation* invocation) const {
+  const TypeInfo* top = GetRoot();
+  auto it = top->invocations_.find(invocation);
+  if (it == top->invocations_.end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+
 std::optional<Type*> TypeInfo::GetItem(const AstNode* key) const {
   CHECK_EQ(key->owner(), module_) << absl::StreamFormat(
       "attempted to get type information for AST node: `%s`; but it is from "
@@ -418,7 +429,27 @@ absl::StatusOr<Type*> TypeInfo::GetItemOrError(const AstNode* key) const {
       absl::StrCat("Could not find concrete type for node: ", key->ToString()));
 }
 
+absl::Status TypeInfo::AddInvocation(const Invocation& invocation,
+                                     const Function* callee,
+                                     const Function* caller) {
+  CHECK_EQ(invocation.owner(), module_);
+
+  // We keep all instantiation info on the top-level type info. The "context
+  // stack" doesn't matter so it creates a more understandable tree to flatten
+  // it all against the top level.
+  TypeInfo* top = GetRoot();
+  auto it = top->invocations_.find(&invocation);
+  if (it != top->invocations_.end()) {
+    XLS_RET_CHECK(it->second.callee() == callee);
+    return absl::OkStatus();
+  }
+  top->invocations_.emplace(&invocation,
+                            InvocationData(&invocation, callee, caller, {}));
+  return absl::OkStatus();
+}
+
 absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
+                                             const Function* callee,
                                              const Function* caller,
                                              const ParametricEnv& caller_env,
                                              const ParametricEnv& callee_env,
@@ -443,9 +474,9 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
     env_to_callee_data[caller_env] =
         InvocationCalleeData{callee_env, derived_type_info};
 
-    top->invocations_.emplace(
-        &invocation,
-        InvocationData{&invocation, caller, std::move(env_to_callee_data)});
+    top->invocations_.emplace(&invocation,
+                              InvocationData(&invocation, callee, caller,
+                                             std::move(env_to_callee_data)));
     return absl::OkStatus();
   }
   VLOG(3) << "Adding to existing invocation data.";
