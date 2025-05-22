@@ -22,6 +22,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -91,7 +92,6 @@
   X(ConstantDef)                  \
   X(EnumDef)                      \
   X(Function)                     \
-  X(GenericTypeAnnotation)        \
   X(Import)                       \
   X(Impl)                         \
   X(MatchArm)                     \
@@ -125,12 +125,13 @@
   X(BuiltinTypeAnnotation)        \
   X(ChannelTypeAnnotation)        \
   X(ElementTypeAnnotation)        \
-  X(SliceTypeAnnotation)          \
   X(FunctionTypeAnnotation)       \
+  X(GenericTypeAnnotation)        \
   X(MemberTypeAnnotation)         \
   X(ParamTypeAnnotation)          \
   X(ReturnTypeAnnotation)         \
   X(SelfTypeAnnotation)           \
+  X(SliceTypeAnnotation)          \
   X(TupleTypeAnnotation)          \
   X(TypeRefTypeAnnotation)        \
   X(TypeVariableTypeAnnotation)   \
@@ -285,19 +286,65 @@ inline std::vector<AstNode*> ToAstNodes(absl::Span<NodeT* const> source) {
   return result;
 }
 
+// Sub-kinds of type annotations. For historical reasons, they are grouped
+// together into the one overall node kind (kTypeAnnotation).
+enum class TypeAnnotationKind : uint8_t {
+  kAny,
+  kArray,
+  kBuiltin,
+  kChannel,
+  kElement,
+  kFunction,
+  kGeneric,
+  kMember,
+  kParam,
+  kReturn,
+  kSelf,
+  kSlice,
+  kTuple,
+  kTypeRef,
+  kTypeVariable
+};
+
 // Abstract base class for type annotations.
 class TypeAnnotation : public AstNode {
  public:
-  TypeAnnotation(Module* owner, Span span) : AstNode(owner), span_(span) {}
+  TypeAnnotation(Module* owner, Span span, TypeAnnotationKind annotation_kind)
+      : AstNode(owner), span_(span), annotation_kind_(annotation_kind) {}
 
   ~TypeAnnotation() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kTypeAnnotation; }
+
+  // Returns whether this object is of the given concrete annotation class.
+  // For example, `some_annotation.IsAnnotation<ArrayTypeAnnotation>()`.
+  template <typename T>
+  bool IsAnnotation() const {
+    static_assert(std::is_base_of<TypeAnnotation, T>::value,
+                  "T is not a TypeAnnotation subclass");
+    return T::kAnnotationKind == annotation_kind();
+  }
+
+  // Returns this object casted to the given concrete annotation class. This
+  // crashes unless `IsAnnotation<T>()` returns true.
+  template <typename T>
+  T* AsAnnotation() {
+    CHECK(IsAnnotation<T>());
+    return down_cast<T*>(this);
+  }
+  template <typename T>
+  const T* AsAnnotation() const {
+    CHECK(IsAnnotation<T>());
+    return down_cast<const T*>(this);
+  }
+
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
+  TypeAnnotationKind annotation_kind() const { return annotation_kind_; }
 
  private:
   Span span_;
+  TypeAnnotationKind annotation_kind_;
 };
 
 #include "xls/dslx/frontend/ast_builtin_types.inc"
@@ -325,6 +372,9 @@ int64_t GetBuiltinTypeBitCount(BuiltinType type);
 // Represents a built-in type annotation; e.g. `u32`, `bits`, etc.
 class BuiltinTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kBuiltin;
+
   BuiltinTypeAnnotation(Module* owner, Span span, BuiltinType builtin_type,
                         BuiltinNameDef* builtin_name_def);
 
@@ -363,6 +413,9 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
 // Represents a tuple type annotation; e.g. `(u32, s42)`.
 class TupleTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kTuple;
+
   TupleTypeAnnotation(Module* owner, Span span,
                       std::vector<TypeAnnotation*> members);
 
@@ -375,6 +428,7 @@ class TupleTypeAnnotation : public TypeAnnotation {
   std::string_view GetNodeTypeName() const override {
     return "TupleTypeAnnotation";
   }
+
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -406,6 +460,9 @@ class TupleTypeAnnotation : public TypeAnnotation {
 // infer any implicit parametrics.
 class TypeRefTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kTypeRef;
+
   TypeRefTypeAnnotation(
       Module* owner, Span span, TypeRef* type_ref,
       std::vector<ExprOrType> parametrics,
@@ -446,6 +503,9 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
 // to different types in different invocation contexts.
 class TypeVariableTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kTypeVariable;
+
   explicit TypeVariableTypeAnnotation(Module* owner,
                                       const NameRef* type_variable);
 
@@ -480,6 +540,9 @@ class TypeVariableTypeAnnotation : public TypeAnnotation {
 // determined.
 class MemberTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kMember;
+
   MemberTypeAnnotation(Module* owner, const TypeAnnotation* struct_type,
                        std::string_view member_name);
 
@@ -517,6 +580,9 @@ class MemberTypeAnnotation : public TypeAnnotation {
 // allowed to actually do this.
 class ElementTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kElement;
+
   ElementTypeAnnotation(Module* owner, const TypeAnnotation* container_type,
                         std::optional<const Expr*> tuple_index = std::nullopt,
                         bool allow_bit_vector_destructuring = false);
@@ -553,6 +619,9 @@ class ElementTypeAnnotation : public TypeAnnotation {
 // inference.
 class SliceTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kSlice;
+
   SliceTypeAnnotation(Module* owner, Span span, TypeAnnotation* source_type,
                       std::variant<Slice*, WidthSlice*> slice);
 
@@ -581,6 +650,9 @@ class SliceTypeAnnotation : public TypeAnnotation {
 // a unit tuple type annotation for the return type.
 class FunctionTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kFunction;
+
   FunctionTypeAnnotation(Module* owner,
                          std::vector<const TypeAnnotation*> param_types,
                          TypeAnnotation* return_type);
@@ -613,6 +685,9 @@ class FunctionTypeAnnotation : public TypeAnnotation {
 // either a `FunctionTypeAnnotation` or something that expands into to one.
 class ReturnTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kReturn;
+
   ReturnTypeAnnotation(Module* owner, TypeAnnotation* function_type);
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -640,6 +715,9 @@ class ReturnTypeAnnotation : public TypeAnnotation {
 // either a `FunctionTypeAnnotation` or something that expands into to one.
 class ParamTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kParam;
+
   ParamTypeAnnotation(Module* owner, TypeAnnotation* function_type,
                       int param_index);
 
@@ -670,8 +748,12 @@ class ParamTypeAnnotation : public TypeAnnotation {
 // represents a placeholder for more than one type.
 class AnyTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kAny;
+
   explicit AnyTypeAnnotation(Module* owner, bool multiple = false)
-      : TypeAnnotation(owner, Span::None()), multiple_(multiple) {}
+      : TypeAnnotation(owner, Span::None(), kAnnotationKind),
+        multiple_(multiple) {}
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleAnyTypeAnnotation(this);
@@ -696,6 +778,9 @@ class AnyTypeAnnotation : public TypeAnnotation {
 // Represents an array type annotation; e.g. `u32[5]`.
 class ArrayTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kArray;
+
   ArrayTypeAnnotation(Module* owner, Span span, TypeAnnotation* element_type,
                       Expr* dim, bool dim_is_min = false);
 
@@ -732,6 +817,9 @@ class ArrayTypeAnnotation : public TypeAnnotation {
 // the typechecking deduction step, the type will be determined by context.
 class SelfTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kSelf;
+
   SelfTypeAnnotation(Module* owner, Span span, bool explicit_type,
                      TypeAnnotation* struct_ref);
 
@@ -763,10 +851,13 @@ class SelfTypeAnnotation : public TypeAnnotation {
 // Represents the `type` in a `<T: type>` annotation.
 class GenericTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kGeneric;
+
   static std::string_view GetDebugTypeName() { return "generic type"; }
 
   GenericTypeAnnotation(Module* owner, Span span)
-      : TypeAnnotation(owner, span) {}
+      : TypeAnnotation(owner, span, kAnnotationKind) {}
 
   ~GenericTypeAnnotation() override;
 
@@ -1059,6 +1150,9 @@ class Expr : public AstNode {
 // can convert `dims_` to a set of AstNodes.
 class ChannelTypeAnnotation : public TypeAnnotation {
  public:
+  static constexpr TypeAnnotationKind kAnnotationKind =
+      TypeAnnotationKind::kChannel;
+
   // If this is a scalar channel, then `dims` will be nullopt.
   ChannelTypeAnnotation(Module* owner, Span span, ChannelDirection direction,
                         TypeAnnotation* payload,

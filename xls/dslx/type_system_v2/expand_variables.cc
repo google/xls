@@ -21,6 +21,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
@@ -71,7 +72,7 @@ class VariableExpander : public AstNodeVisitorWithDefault {
       }
     }
     if (node->kind() == AstNodeKind::kTypeAnnotation) {
-      const auto* annotation = dynamic_cast<const TypeAnnotation*>(node);
+      const auto* annotation = down_cast<const TypeAnnotation*>(node);
       annotations_.push_back(annotation);
     }
     for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
