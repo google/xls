@@ -524,15 +524,6 @@ using ChannelRef = std::variant<Channel*, ChannelInterface*>;
 using SendChannelRef = std::variant<Channel*, SendChannelInterface*>;
 using ReceiveChannelRef = std::variant<Channel*, ReceiveChannelInterface*>;
 
-// Converts a send/receive ChannelRef into a generic ChannelRef.
-ChannelRef AsChannelRef(SendChannelRef ref);
-ChannelRef AsChannelRef(ReceiveChannelRef ref);
-
-// Converts a base ChannelRef into a send/receive form. CHECK fails if the
-// ChannelRef is not of the appropriate direction.
-SendChannelRef AsSendChannelRefOrDie(ChannelRef ref);
-ReceiveChannelRef AsReceiveChannelRefOrDie(ChannelRef ref);
-
 // Return the name/type/kind/etc of a channel reference.
 std::string_view ChannelRefName(ChannelRef ref);
 Type* ChannelRefType(ChannelRef ref);

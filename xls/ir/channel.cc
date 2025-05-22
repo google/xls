@@ -375,38 +375,6 @@ std::unique_ptr<ReceiveChannelInterface> ReceiveChannelInterface::Clone(
   return clone;
 }
 
-ChannelRef AsChannelRef(SendChannelRef ref) {
-  if (std::holds_alternative<SendChannelInterface*>(ref)) {
-    return std::get<SendChannelInterface*>(ref);
-  }
-  return std::get<Channel*>(ref);
-}
-
-ChannelRef AsChannelRef(ReceiveChannelRef ref) {
-  if (std::holds_alternative<ReceiveChannelInterface*>(ref)) {
-    return std::get<ReceiveChannelInterface*>(ref);
-  }
-  return std::get<Channel*>(ref);
-}
-
-SendChannelRef AsSendChannelRefOrDie(ChannelRef ref) {
-  if (std::holds_alternative<ChannelInterface*>(ref)) {
-    ChannelInterface* cref = std::get<ChannelInterface*>(ref);
-    CHECK_EQ(cref->direction(), ChannelDirection::kSend);
-    return down_cast<SendChannelInterface*>(cref);
-  }
-  return std::get<Channel*>(ref);
-}
-
-ReceiveChannelRef AsReceiveChannelRefOrDie(ChannelRef ref) {
-  if (std::holds_alternative<ChannelInterface*>(ref)) {
-    ChannelInterface* cref = std::get<ChannelInterface*>(ref);
-    CHECK_EQ(cref->direction(), ChannelDirection::kReceive);
-    return down_cast<ReceiveChannelInterface*>(cref);
-  }
-  return std::get<Channel*>(ref);
-}
-
 std::string_view ChannelRefName(ChannelRef ref) {
   return absl::visit([](const auto& ch) { return ch->name(); }, ref);
 }
