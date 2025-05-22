@@ -369,6 +369,7 @@ TEST_P(NarrowingPassTest, LiteralArrayIndex) {
   BValue a = fb.Param("a", p->GetArrayType(4, p->GetBitsType(32)));
   fb.ArrayIndex(a, {fb.Literal(Value(UBits(0, 32)))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -385,6 +386,7 @@ TEST_P(NarrowingPassTest, LiteralArrayIndex3d) {
       a, {fb.Literal(Value(UBits(0, 32))), fb.Literal(Value(UBits(5, 16))),
           fb.Literal(Value(UBits(1, 64)))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::ArrayIndex(m::Param("a"), /*indices=*/{
                                                    m::Literal(UBits(0, 6)),
@@ -398,6 +400,7 @@ TEST_P(NarrowingPassTest, LiteralArrayIndexOddNumberOfElements) {
   BValue a = fb.Param("a", p->GetArrayType(5, p->GetBitsType(32)));
   fb.ArrayIndex(a, {fb.Literal(Value(UBits(0, 32)))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -410,6 +413,7 @@ TEST_P(NarrowingPassTest, NonzeroLiteralArrayIndex) {
   fb.ArrayIndex(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
                 {fb.Literal(Value(UBits(0x0f, 8)))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -422,6 +426,7 @@ TEST_P(NarrowingPassTest, OutofBoundsLiteralArrayIndex) {
   fb.ArrayIndex(fb.Param("a", p->GetArrayType(42, p->GetBitsType(32))),
                 {fb.Literal(Value(UBits(123, 64)))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -435,6 +440,7 @@ TEST_P(NarrowingPassTest, NarrowableArrayIndexAllZeros) {
                 {fb.And(fb.Param("idx", p->GetBitsType(8)),
                         fb.Literal(Value(UBits(0, 8))))});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -447,6 +453,7 @@ TEST_P(NarrowingPassTest, MultiplyWiderThanSumOfOperands) {
   Type* u8 = p->GetBitsType(8);
   fb.SMul(fb.Param("lhs", u8), fb.Param("rhs", u8), /*result_width=*/42);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -530,6 +537,7 @@ TEST_P(NarrowingPassTest, ExtendedSMulOperands) {
           fb.SignExtend(fb.Param("rhs", u17), 23),
           /*result_width=*/29);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // The zero-extended operand should be sliced down to the (zero) sign bit.
   EXPECT_THAT(f->return_value(),
@@ -579,6 +587,7 @@ TEST_P(NarrowingPassTest, PartialMultiplyWiderThanSumOfOperands) {
       fb.SMulp(fb.Param("lhs", u8), fb.Param("rhs", u8), /*result_width=*/42);
   BValue product = fb.Add(fb.TupleIndex(smulp, 0), fb.TupleIndex(smulp, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(product));
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   ASSERT_THAT(f->return_value(),
               AllOf(m::Type("bits[42]"), m::SignExt(m::Type("bits[16]"))));
@@ -619,14 +628,17 @@ TEST_P(NarrowingPassTest, ExtendedUMulpOperands) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u17 = p->GetBitsType(17);
-  fb.UMulp(fb.ZeroExtend(fb.Param("lhs", u17), 32),
-           fb.SignExtend(fb.Param("rhs", u17), 54),
-           /*result_width=*/62);
+  BValue mul = fb.UMulp(fb.ZeroExtend(fb.Param("lhs", u17), 32),
+                        fb.SignExtend(fb.Param("rhs", u17), 54),
+                        /*result_width=*/62);
+  fb.Add(fb.TupleIndex(mul, 0), fb.TupleIndex(mul, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // Only the zero-extend should have been elided.
+  auto mul_match = m::UMulp(m::Param("lhs"), m::SignExt(m::Param("rhs")));
   EXPECT_THAT(f->return_value(),
-              m::UMulp(m::Param("lhs"), m::SignExt(m::Param("rhs"))));
+              m::Add(m::TupleIndex(mul_match, 0), m::TupleIndex(mul_match, 1)));
 }
 
 TEST_P(NarrowingPassTest, ExtendedUMulpSignAgnosticToUMulp) {
@@ -672,16 +684,20 @@ TEST_P(NarrowingPassTest, ExtendedSMulpOperands) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u17 = p->GetBitsType(17);
-  fb.SMulp(fb.ZeroExtend(fb.Param("lhs", u17), 21),
-           fb.SignExtend(fb.Param("rhs", u17), 23),
-           /*result_width=*/29);
+  BValue mul = fb.SMulp(fb.ZeroExtend(fb.Param("lhs", u17), 21),
+                        fb.SignExtend(fb.Param("rhs", u17), 23),
+                        /*result_width=*/29);
+  fb.Add(fb.TupleIndex(mul, 0), fb.TupleIndex(mul, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   // The zero-extended operand should be sliced down to the (zero) sign bit.
+  auto mul_match =
+      m::SMulp(m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0,
+                           /*width=*/18),
+               m::Param("rhs"));
   EXPECT_THAT(f->return_value(),
-              m::SMulp(m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0,
-                                   /*width=*/18),
-                       m::Param("rhs")));
+              m::Add(m::TupleIndex(mul_match, 0), m::TupleIndex(mul_match, 1)));
 }
 
 TEST_P(NarrowingPassTest, ExtendedSMulpSignAgnosticToUMulp) {
@@ -852,6 +868,7 @@ TEST_P(NarrowingPassTest, LeadingZerosOfUnsignedCompare) {
   fb.UGt(fb.ZeroExtend(fb.Param("lhs", p->GetBitsType(17)), 42),
          fb.ZeroExtend(fb.Param("rhs", p->GetBitsType(23)), 42));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
@@ -1193,6 +1210,7 @@ TEST_P(NarrowingPassTest, AddWithLeadingZeros) {
   fb.Add(fb.ZeroExtend(fb.Param("lhs", p->GetBitsType(10)), 42),
          fb.ZeroExtend(fb.Param("rhs", p->GetBitsType(30)), 42));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::ZeroExt(m::Add(m::BitSlice(m::ZeroExt(m::Param("lhs")),
@@ -1241,6 +1259,7 @@ TEST_P(NarrowingPassTest, ArrayIndexWithAllSameValue) {
   fb.ArrayIndex(array, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   if (analysis() == NarrowingPass::AnalysisType::kRange) {
+    ScopedVerifyEquivalence sve(f);
     ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
     EXPECT_THAT(f->return_value(), m::Literal(600));
   }
@@ -1271,6 +1290,7 @@ TEST_P(NarrowingPassTest, ConvertArrayIndexToSelect) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   if (analysis() == NarrowingPass::AnalysisType::kRange) {
+    ScopedVerifyEquivalence sve(f);
     ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
     EXPECT_THAT(f->return_value(),
                 m::Select(m::And(m::Eq(index.node(), m::Literal(7))),
@@ -1357,6 +1377,7 @@ TEST_P(NarrowingPassTest, NarrowableArray) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Concat(m::Literal(UBits(0, 11)),
@@ -1376,6 +1397,7 @@ TEST_P(NarrowingPassTest, EliminableArray) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
 }
@@ -1390,6 +1412,7 @@ TEST_F(ContextNarrowingPassTest, ExactMatch) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   ASSERT_EQ(f->return_value(), result.node());
   ASSERT_THAT(result.node(),
@@ -1411,6 +1434,7 @@ TEST_F(ContextNarrowingPassTest, ExactMatchWithEq) {
       fb.Select(fb.Eq(param, lit_10), {fb.Literal(UBits(13, 64)), add_10});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
 
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   ASSERT_EQ(f->return_value(), result.node());
@@ -1429,6 +1453,7 @@ TEST_F(ContextNarrowingPassTest, ExactMatchWithEq2) {
   BValue result = fb.Select(fb.Eq(param, lit_10), {param, add_10});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
 
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   ASSERT_EQ(f->return_value(), result.node());
@@ -1449,6 +1474,7 @@ TEST_F(ContextNarrowingPassTest, MaxSizeShift) {
   BValue result = fb.Select(cond, {y, shift_l});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
 
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   ASSERT_EQ(f->return_value(), result.node());
@@ -1471,6 +1497,7 @@ TEST_F(ContextNarrowingPassTest, KnownSmallAdd) {
   BValue result = fb.Select(cond, {x, add});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
 
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   ASSERT_EQ(f->return_value(), result.node());
