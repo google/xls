@@ -39,7 +39,6 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
@@ -53,11 +52,10 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/type_zero_value.h"
+#include "xls/dslx/type_system_v2/constant_collector.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/fast_concretizer.h"
 #include "xls/dslx/type_system_v2/import_utils.h"
@@ -281,6 +279,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             module, table, file_table,
             /*error_generator=*/*this, /*evaluator=*/*this,
             /*parametric_struct_instantiator=*/*this, *tracer_, import_data_)),
+        constant_collector_(CreateConstantCollector(
+            table_, module_, import_data_, warning_collector_, file_table_,
+            /*converter=*/*this,
+            /*evaluator=*/*this,
+            /*parametric_struct_instantiator=*/*this, *tracer_)),
         fast_concretizer_(FastConcretizer::Create(file_table)) {}
 
   absl::Status ConvertSubtree(
@@ -706,7 +709,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // provided module, its root type info is returned.
   absl::StatusOr<TypeInfo*> GetTypeInfo(
       const Module* module,
-      std::optional<const ParametricContext*> parametric_context) {
+      std::optional<const ParametricContext*> parametric_context) override {
     TypeInfo* return_ti = base_type_info_;
     if (!proc_type_info_stack_.empty()) {
       return_ti = proc_type_info_stack_.top();
@@ -728,7 +731,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // limiting this to invocations once the bytecode interpreter is able to
   // look up type info for parametric impls.
   ParametricEnv GetParametricEnv(
-      std::optional<const ParametricContext*> parametric_context) {
+      std::optional<const ParametricContext*> parametric_context) override {
     if (parametric_context.has_value() &&
         (*parametric_context)->is_invocation()) {
       const auto it = converted_parametric_envs_.find(*parametric_context);
@@ -901,7 +904,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
     ti->SetItem(node, **type);
-    XLS_RETURN_IF_ERROR(NoteIfConstExpr(parametric_context, node, **type, ti));
+    XLS_RETURN_IF_ERROR(constant_collector_->CollectConstants(
+        parametric_context, node, **type, ti));
     VLOG(5) << "Generated type: " << (*ti->GetItem(node))->ToString()
             << " for node: " << node->ToString() << " in ti module "
             << ti->module()->name();
@@ -1225,456 +1229,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     VLOG(5) << "Concretized: " << annotation->ToString()
             << " to signed: " << signedness << ", bit count: " << bit_count;
     return std::make_unique<BitsType>(signedness, bit_count);
-  }
-
-  // Helper that notes the constexpr value for `node` in `ti`, if applicable,
-  // once its concrete `type` has been determined.
-  absl::Status NoteIfConstExpr(
-      std::optional<const ParametricContext*> parametric_context,
-      const AstNode* node, const Type& type, TypeInfo* ti) {
-    if (const auto* constant_def = dynamic_cast<const ConstantDef*>(node)) {
-      VLOG(6) << "Checking constant def value: " << constant_def->ToString()
-              << " with type: " << type.ToString();
-      absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
-          &import_data_, ti, &warning_collector_,
-          GetParametricEnv(parametric_context), constant_def->value(), &type);
-      if (value.ok()) {
-        VLOG(6) << "Constant def: " << constant_def->ToString()
-                << " has value: " << value->ToString();
-        ti->NoteConstExpr(constant_def, *value);
-        ti->NoteConstExpr(constant_def->value(), *value);
-        ti->NoteConstExpr(constant_def->name_def(), *value);
-      }
-    }
-    if (const auto* zero_macro = dynamic_cast<const ZeroMacro*>(node)) {
-      VLOG(6) << "Checking zero_macro value: " << zero_macro->ToString()
-              << " with type: " << type.ToString();
-
-      XLS_ASSIGN_OR_RETURN(InterpValue value,
-                           MakeZeroValue(type, import_data_, *node->GetSpan()));
-      ti->NoteConstExpr(zero_macro, value);
-    }
-    if (const auto* all_ones_macro = dynamic_cast<const AllOnesMacro*>(node)) {
-      VLOG(6) << "Checking all_ones_macro value: " << all_ones_macro->ToString()
-              << " with type: " << type.ToString();
-
-      XLS_ASSIGN_OR_RETURN(
-          InterpValue value,
-          MakeAllOnesValue(type, import_data_, *node->GetSpan()));
-      ti->NoteConstExpr(all_ones_macro, value);
-    }
-    if (const auto* name_ref = dynamic_cast<const NameRef*>(node)) {
-      if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
-        const NameDef* name_def =
-            std::get<const NameDef*>(name_ref->name_def());
-        if (ti->IsKnownConstExpr(name_def)) {
-          ti->NoteConstExpr(name_ref, *ti->GetConstExprOption(name_def));
-        }
-      }
-    }
-    if (const auto* colon_ref = dynamic_cast<const ColonRef*>(node)) {
-      // Imports should have already been marked constexpr in their own module.
-      if (IsImport(colon_ref)) {
-        return absl::OkStatus();
-      }
-      return NoteColonRefIfConstExpr(parametric_context, colon_ref, type, ti);
-    }
-    if (const auto* number = dynamic_cast<const Number*>(node)) {
-      XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(*number, type));
-      ti->NoteConstExpr(number, value);
-    }
-    if (const auto* let = dynamic_cast<const Let*>(node)) {
-      return NoteLetIfConstExpr(let, parametric_context, type, ti);
-    }
-    if (const auto* index = dynamic_cast<const Index*>(node)) {
-      // A `Slice` actually has its bounds stored in `TypeInfo` out-of-band from
-      // the real type info, mirroring the `StartAndWidthExprs` that we store in
-      // the `InferenceTable`.
-      if (std::holds_alternative<Slice*>(index->rhs())) {
-        std::optional<StartAndWidthExprs> start_and_width_exprs =
-            table_.GetSliceStartAndWidthExprs(ToAstNode(index->rhs()));
-        CHECK(start_and_width_exprs.has_value());
-        StartAndWidth start_and_width;
-        XLS_ASSIGN_OR_RETURN(start_and_width.start,
-                             EvaluateU32OrExpr(parametric_context,
-                                               start_and_width_exprs->start));
-        XLS_ASSIGN_OR_RETURN(start_and_width.width,
-                             EvaluateU32OrExpr(parametric_context,
-                                               start_and_width_exprs->width));
-        ti->AddSliceStartAndWidth(std::get<Slice*>(index->rhs()),
-                                  GetParametricEnv(parametric_context),
-                                  start_and_width);
-      }
-    }
-    if (const auto* const_assert = dynamic_cast<const ConstAssert*>(node)) {
-      return CheckConstAssert(const_assert, parametric_context, type, ti);
-    }
-    if (const auto* unroll_for = dynamic_cast<const UnrollFor*>(node)) {
-      return ExpandUnrollFor(unroll_for, parametric_context, type, ti);
-    }
-    if (const auto* format_macro = dynamic_cast<const FormatMacro*>(node)) {
-      return NoteFormatMacroVerbosityConstExpr(format_macro, type, ti);
-    }
-    if (const auto* invocation = dynamic_cast<const Invocation*>(node);
-        invocation != nullptr && IsBuiltinFn(invocation->callee())) {
-      NameRef* callee_nameref = dynamic_cast<NameRef*>(invocation->callee());
-      CHECK_NE(callee_nameref, nullptr);
-      std::optional<const Type*> callee_type =
-          ti->GetItem(invocation->callee());
-      if (callee_type.has_value()) {
-        const auto& function_type = (*callee_type)->AsFunction();
-        return NoteBuiltinInvocationConstExpr(callee_nameref->identifier(),
-                                              invocation, function_type, ti);
-      }
-    }
-    return absl::OkStatus();
-  }
-
-  // Used when a `ConstAssert` is concretized, to actually check if the asserted
-  // expression holds.
-  absl::Status CheckConstAssert(
-      const ConstAssert* node,
-      std::optional<const ParametricContext*> parametric_context,
-      const Type& type, TypeInfo* ti) {
-    absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
-        &import_data_, ti, &warning_collector_,
-        GetParametricEnv(parametric_context), node->arg(), &type);
-    if (!value.ok()) {
-      return TypeInferenceErrorStatus(
-          node->span(), nullptr,
-          absl::Substitute("const_assert! expression is not constexpr: `$0`",
-                           node->arg()->ToString()),
-          file_table_);
-    }
-    VLOG(6) << "Evaluated const assert: " << node->arg()->ToString()
-            << " to: " << value->ToString();
-    if (value->IsFalse()) {
-      return TypeInferenceErrorStatus(
-          node->span(), nullptr,
-          absl::Substitute("const_assert! failure: `$0`",
-                           node->arg()->ToString()),
-          file_table_);
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status NoteColonRefIfConstExpr(
-      std::optional<const ParametricContext*> parametric_context,
-      const ColonRef* colon_ref, const Type& type, TypeInfo* ti) {
-    // Handle enum here, at this point its type is concretized and all its
-    // values are evaluated as constexpr.
-    if (type.IsEnum()) {
-      const auto& enum_type = type.AsEnum();
-      const EnumDef& enum_def = enum_type.nominal_type();
-      absl::StatusOr<Expr*> enum_value = enum_def.GetValue(colon_ref->attr());
-      if (!enum_value.ok()) {
-        return UndefinedNameErrorStatus(colon_ref->span(), colon_ref,
-                                        colon_ref->attr(), file_table_);
-      }
-      XLS_ASSIGN_OR_RETURN(
-          TypeInfo * eval_ti,
-          GetTypeInfo((*enum_value)->owner(), parametric_context));
-      XLS_ASSIGN_OR_RETURN(InterpValue value,
-                           eval_ti->GetConstExpr(*enum_value));
-      ti->NoteConstExpr(colon_ref, value);
-      return absl::OkStatus();
-    }
-
-    const std::optional<const AstNode*> target =
-        table_.GetColonRefTarget(colon_ref);
-
-    if (!target.has_value()) {
-      std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
-      if (bits_like.has_value()) {
-        VLOG(6) << "ColonRef is a universal constant referenced with an "
-                   "indirect annotation: "
-                << colon_ref->ToString();
-        XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
-        XLS_ASSIGN_OR_RETURN(uint32_t bit_count, bits_like->size.GetAsInt64());
-        XLS_ASSIGN_OR_RETURN(
-            InterpValueWithTypeAnnotation member,
-            GetBuiltinMember(module_, is_signed, bit_count, colon_ref->attr(),
-                             colon_ref->span(), type.ToString(), file_table_));
-        ti->NoteConstExpr(colon_ref, std::move(member.value));
-      } else {
-        VLOG(6) << "ColonRef has no constexpr value: " << colon_ref->ToString();
-      }
-      return absl::OkStatus();
-    }
-
-    // In a case like `S<parametrics>::CONSTANT`, what we do here is
-    // constexpr-evaluate `CONSTANT` against the parametric context `TypeInfo`
-    // for `S<parametrics>`. This will be `evaluation_ti`. Then we map the
-    // result of that to the `ColonRef` node, in the `TypeInfo` where the
-    // `ColonRef` resides (which is `ti`). In a non-parametric case like
-    // `S::CONSTANT`, there is only one `TypeInfo` involved, so this logic
-    // that figures out `evaluation_ti` is a no-op.
-    XLS_ASSIGN_OR_RETURN(TypeInfo * evaluation_ti,
-                         import_data_.GetRootTypeInfoForNode(*target));
-    VLOG(6) << "Checking ColonRef constexpr value for: "
-            << colon_ref->ToString()
-            << " with target: " << (*target)->ToString();
-    if ((*target)->kind() == AstNodeKind::kConstantDef) {
-      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc,
-                           GetStructOrProcRef(colon_ref, import_data_));
-      if (struct_or_proc.has_value() && struct_or_proc->def->IsParametric()) {
-        XLS_ASSIGN_OR_RETURN(
-            const ParametricContext* struct_context,
-            GetOrCreateParametricStructContext(parametric_context,
-                                               *struct_or_proc, colon_ref));
-        evaluation_ti = struct_context->type_info();
-      }
-
-      // Evaluate the value, and note it if successful.
-      absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
-          &import_data_, evaluation_ti, &warning_collector_,
-          GetParametricEnv(parametric_context),
-          down_cast<const ConstantDef*>(*target)->value(), &type);
-      if (value.ok()) {
-        VLOG(6) << "Noting constexpr for ColonRef: " << colon_ref->ToString()
-                << ", value: " << value->ToString();
-        ti->NoteConstExpr(colon_ref, *value);
-      }
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status NoteLetIfConstExpr(
-      const Let* let,
-      std::optional<const ParametricContext*> parametric_context,
-      const Type& type, TypeInfo* ti) {
-    absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
-        &import_data_, ti, &warning_collector_,
-        GetParametricEnv(parametric_context), let->rhs(), &type);
-    if (let->is_const()) {
-      if (!value.ok()) {
-        return value.status();
-      }
-      // Reminder: we don't allow name destructuring in constant defs, so this
-      // is expected to never fail.
-      XLS_RET_CHECK_EQ(let->name_def_tree()->GetNameDefs().size(), 1);
-      NameDef* name_def = let->name_def_tree()->GetNameDefs()[0];
-      WarnOnInappropriateConstantName(name_def->identifier(), let->span(),
-                                      *let->owner(), &warning_collector_);
-    } else if (!value.ok()) {
-      return absl::OkStatus();
-    }
-    ti->NoteConstExpr(let, *value);
-    ti->NoteConstExpr(let->rhs(), *value);
-    const auto note_members =
-        [&](AstNode* name_def, TypeOrAnnotation _,
-            std::optional<InterpValue> const_expr) -> absl::Status {
-      if (const_expr.has_value()) {
-        ti->NoteConstExpr(name_def, *const_expr);
-      }
-      return absl::OkStatus();
-    };
-    XLS_RETURN_IF_ERROR(MatchTupleNodeToType(note_members, let->name_def_tree(),
-                                             &type, file_table_, *value));
-    return absl::OkStatus();
-  }
-
-  // Unroll for is expanded to a sequence of statements as following.
-  // ```
-  // let X = unroll_for! (i, a) in iterable {
-  //   body_statements
-  //   last_body_expr
-  // } (init);
-  // ```
-  // becomes
-  // ```
-  // let a = init;
-  // let i = iterable[0];
-  // body_statements
-  // let a = last_body_expr;
-  // let i = iterable[1];
-  // body_statements
-  // let a = last_body_expr;
-  // ... // repeat for each element in iterable
-  // let i = iterable[iterable.size() - 1];
-  // body_statements
-  // let X = last_body_expr;
-  // ```
-  absl::Status ExpandUnrollFor(
-      const UnrollFor* unroll_for,
-      std::optional<const ParametricContext*> parametric_context,
-      const Type& type, TypeInfo* ti) {
-    TypeSystemTrace trace = tracer_->TraceUnroll(unroll_for);
-    std::vector<Statement*> unrolled_statements;
-
-    CHECK_EQ(unroll_for->names()->nodes().size(), 2);
-    NameDefTree* iterator_name = unroll_for->names()->nodes()[0];
-    NameDefTree* accumulator_name = unroll_for->names()->nodes()[1];
-    TypeAnnotation* iterator_type = nullptr;
-    TypeAnnotation* accumulator_type = nullptr;
-    std::optional<const TypeAnnotation*> name_type_annotation =
-        table_.GetTypeAnnotation(unroll_for->names());
-    if (name_type_annotation.has_value()) {
-      if ((*name_type_annotation)->IsAnnotation<TupleTypeAnnotation>()) {
-        const auto* types =
-            (*name_type_annotation)->AsAnnotation<TupleTypeAnnotation>();
-        CHECK_EQ(types->size(), 2);
-        iterator_type = types->members()[0];
-        accumulator_type = types->members()[1];
-      } else {
-        return absl::InvalidArgumentError(
-            absl::StrCat("Invalid type annotation in unroll_for!: ",
-                         unroll_for->type_annotation()->ToString(),
-                         ", expect a tuple type with two members"));
-      }
-    }
-
-    // The only thing that needs to be evaluated to a constant here is the size
-    // of the iterable, while the elements need not to be constants. However if
-    // the entire iterable is a constant array, we can use their evaluated
-    // values directly.
-    absl::StatusOr<InterpValue> const_iterable =
-        ConstexprEvaluator::EvaluateToValue(
-            &import_data_, ti, &warning_collector_,
-            GetParametricEnv(parametric_context), unroll_for->iterable());
-    const std::vector<InterpValue>* iterable_values = nullptr;
-    uint64_t size = 0;
-    if (const_iterable.ok()) {
-      XLS_ASSIGN_OR_RETURN(iterable_values, const_iterable->GetValues());
-      size = iterable_values->size();
-    } else {
-      absl::StatusOr<uint64_t> size_from_type(TypeMissingErrorStatus(
-          *unroll_for->iterable(), nullptr, file_table_));
-      std::optional<Type*> iterable_type = ti->GetItem(unroll_for->iterable());
-      if (iterable_type.has_value() && (*iterable_type)->IsArray() &&
-          std::holds_alternative<InterpValue>(
-              (*iterable_type)->AsArray().size().value())) {
-        InterpValue dim =
-            std::get<InterpValue>((*iterable_type)->AsArray().size().value());
-        size_from_type = dim.GetBitValueUnsigned();
-      }
-      XLS_ASSIGN_OR_RETURN(size, size_from_type);
-    }
-
-    bool has_result_value = !accumulator_name->IsWildcardLeaf();
-    Expr* accumulator_value = unroll_for->init();
-    for (uint64_t i = 0; i < size; i++) {
-      if (has_result_value) {
-        Let* accumulator =
-            module_.Make<Let>(accumulator_name->span(), accumulator_name,
-                              accumulator_type, accumulator_value, false);
-        XLS_RETURN_IF_ERROR(
-            table_.SetTypeAnnotation(accumulator, accumulator_type));
-        unrolled_statements.push_back(module_.Make<Statement>(accumulator));
-      }
-      if (!iterator_name->IsWildcardLeaf()) {
-        Let* iterator = nullptr;
-        if (iterable_values && (*iterable_values)[i].FitsInUint64()) {
-          Number* value =
-              module_.Make<Number>(unroll_for->iterable()->span(),
-                                   (*iterable_values)[i].ToString(true),
-                                   NumberKind::kOther, iterator_type);
-          XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(value, iterator_type));
-
-          XLS_RETURN_IF_ERROR(
-              ConvertSubtree(value, std::nullopt, parametric_context));
-          XLS_ASSIGN_OR_RETURN(Type * value_type, ti->GetItemOrError(value));
-          ti->SetItem(value, MetaType(value_type->CloneToUnique()));
-
-          iterator = module_.Make<Let>(iterator_name->span(), iterator_name,
-                                       iterator_type, value, false);
-        } else {
-          Expr* index = module_.Make<Number>(
-              unroll_for->iterable()->span(), std::to_string(i),
-              NumberKind::kOther,
-              CreateU32Annotation(module_, unroll_for->span()), false);
-          XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-              index, CreateU32Annotation(module_, unroll_for->span())));
-          XLS_RETURN_IF_ERROR(
-              ConvertSubtree(index, std::nullopt, parametric_context));
-          XLS_ASSIGN_OR_RETURN(Type * index_type, ti->GetItemOrError(index));
-          ti->SetItem(index, MetaType(index_type->CloneToUnique()));
-          Expr* element =
-              module_.Make<Index>(unroll_for->iterable()->span(),
-                                  unroll_for->iterable(), index, false);
-          iterator = module_.Make<Let>(iterator_name->span(), iterator_name,
-                                       iterator_type, element, false);
-        }
-        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(iterator, iterator_type));
-        unrolled_statements.push_back(module_.Make<Statement>(iterator));
-      }
-
-      XLS_ASSIGN_OR_RETURN(
-          AstNode * copy_body,
-          table_.Clone(unroll_for->body(), &NoopCloneReplacer));
-      StatementBlock* copy_body_statementblock =
-          down_cast<StatementBlock*>(copy_body);
-      absl::Span<Statement* const> statements =
-          copy_body_statementblock->statements();
-      if (has_result_value) {
-        // If accumulator is not wildcard, we expect the last body statement to
-        // be an expr updating the accumulator, which will be handled in the
-        // next iteration.
-        CHECK_GT(statements.size(), 0);
-        unrolled_statements.insert(unrolled_statements.end(),
-                                   statements.begin(), statements.end() - 1);
-        accumulator_value = std::get<Expr*>(statements.back()->wrapped());
-      } else {
-        unrolled_statements.insert(unrolled_statements.end(),
-                                   statements.begin(), statements.end());
-      }
-    }
-    // Handle the final result of unroll_for! expr.
-    if (has_result_value) {
-      XLS_RETURN_IF_ERROR(
-          table_.SetTypeAnnotation(accumulator_value, accumulator_type));
-      Statement* last = module_.Make<Statement>(accumulator_value);
-      unrolled_statements.push_back(last);
-    }
-    StatementBlock* unrolled_statement_block = module_.Make<StatementBlock>(
-        unroll_for->span(), unrolled_statements, !has_result_value);
-
-    XLS_RETURN_IF_ERROR(ConvertSubtree(unrolled_statement_block, std::nullopt,
-                                       parametric_context));
-    if (has_result_value) {
-      absl::StatusOr<InterpValue> const_result =
-          ConstexprEvaluator::EvaluateToValue(
-              &import_data_, ti, &warning_collector_,
-              GetParametricEnv(parametric_context),
-              std::get<Expr*>(unrolled_statements.back()->wrapped()));
-      if (const_result.ok()) {
-        ti->NoteConstExpr(unroll_for, *const_result);
-      }
-    }
-
-    ti->NoteUnrolledLoop(unroll_for, GetParametricEnv(parametric_context),
-                         unrolled_statement_block);
-    return absl::OkStatus();
-  }
-
-  absl::Status NoteFormatMacroVerbosityConstExpr(const FormatMacro* node,
-                                                 const Type& type,
-                                                 TypeInfo* ti) {
-    if (!node->verbosity().has_value()) {
-      return absl::OkStatus();
-    }
-    absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
-        &import_data_, ti, &warning_collector_, ParametricEnv(),
-        *node->verbosity(), &type);
-    if (!value.ok()) {
-      return TypeInferenceErrorStatus(
-          (*node->verbosity())->span(), &type,
-          absl::Substitute("$0 verbosity values must be compile-time "
-                           "constants; got `$1`.",
-                           node->macro(), (*node->verbosity())->ToString()),
-          file_table_);
-    }
-    absl::StatusOr<int64_t> value_as_int64 = value->GetBitValueViaSign();
-    if (!value_as_int64.ok() || *value_as_int64 < 0) {
-      return TypeInferenceErrorStatus(
-          (*node->verbosity())->span(), &type,
-          absl::Substitute(
-              "$0 verbosity values must be positive integers; got `$1`.",
-              node->macro(), (*node->verbosity())->ToString()),
-          file_table_);
-    }
-    ti->NoteConstExpr(*node->verbosity(), *value);
-    return absl::OkStatus();
   }
 
   // Constexpr-evaluates the given expression, whose dependencies must already
@@ -2591,6 +2145,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   const FileTable& file_table_;
   std::unique_ptr<TypeSystemTracer> tracer_;
   std::unique_ptr<TypeAnnotationResolver> resolver_;
+  std::unique_ptr<ConstantCollector> constant_collector_;
   std::unique_ptr<FastConcretizer> fast_concretizer_;
   absl::flat_hash_map<const ParametricContext*, ParametricEnv>
       converted_parametric_envs_;

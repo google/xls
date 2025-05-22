@@ -20,6 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 
@@ -63,6 +64,17 @@ class InferenceTableConverter {
 
   // Returns the resulting base type info for the entire conversion.
   virtual TypeInfo* GetBaseTypeInfo() = 0;
+
+  // Returns the appropriate TypeInfo for a node owned by `module` when analyzed
+  // in the given `parametric_context`.
+  virtual absl::StatusOr<TypeInfo*> GetTypeInfo(
+      const Module* module,
+      std::optional<const ParametricContext*> parametric_context) = 0;
+
+  // Returns the `ParametricEnv` corresponding to the given `ParametricContext`.
+  // If the context is `nullopt` then an empty env is returned.
+  virtual ParametricEnv GetParametricEnv(
+      std::optional<const ParametricContext*> parametric_context) = 0;
 };
 
 }  // namespace xls::dslx
