@@ -77,12 +77,12 @@ class RamRewritePassTest : public IrTestBase {
       Package* p, std::optional<Proc*> proc_scope) {
     if (proc_scope.has_value()) {
       return proc_scope.value()->AddOutputChannel(
-          name, type, ChannelKind::kStreaming, strictness);
+          name, type, ChannelKind::kStreaming, FlowControl::kReadyValid,
+          strictness);
     }
     return p->CreateStreamingChannel(
         name, ChannelOps::kSendOnly, type, /*initial_values=*/{},
-        /*channel_config=*/{}, /*flow_control=*/FlowControl::kReadyValid,
-        /*strictness=*/strictness);
+        /*channel_config=*/{}, FlowControl::kReadyValid, strictness);
   }
 
   absl::StatusOr<ReceiveChannelRef> CreateInputFromRam(
@@ -90,7 +90,8 @@ class RamRewritePassTest : public IrTestBase {
       Package* p, std::optional<Proc*> proc_scope) {
     if (proc_scope.has_value()) {
       return proc_scope.value()->AddInputChannel(
-          name, type, ChannelKind::kStreaming, strictness);
+          name, type, ChannelKind::kStreaming, FlowControl::kReadyValid,
+          strictness);
     }
     return p->CreateStreamingChannel(
         name, ChannelOps::kReceiveOnly, type, /*initial_values=*/{},
