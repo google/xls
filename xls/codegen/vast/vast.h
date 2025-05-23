@@ -152,8 +152,10 @@ class LineInfo {
 };
 
 // Returns a sanitized identifier string based on the given name. Invalid
-// characters are replaced with '_'.
-std::string SanitizeIdentifier(std::string_view name);
+// characters are replaced with '_'. (System)Verilog keywords are
+// suffixed with "_".
+std::string SanitizeVerilogIdentifier(std::string_view name,
+                                      bool system_verilog = true);
 
 // Base type for a VAST node. All nodes are owned by a VerilogFile.
 class VastNode {

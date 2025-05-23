@@ -134,7 +134,7 @@ std::string PipelineSignalName(std::string_view root, int64_t stage) {
   if (!RE2::PartialMatch(root, *kPipelinePrefix, &base)) {
     base = root;
   }
-  return absl::StrFormat("p%d_%s", stage, SanitizeIdentifier(base));
+  return absl::StrFormat("p%d_%s", stage, base);
 }
 
 absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(

@@ -306,11 +306,12 @@ ModuleBuilder::ModuleBuilder(std::string_view name, VerilogFile* file,
                              CodegenOptions options,
                              std::optional<std::string_view> clk_name,
                              std::optional<ResetProto> rst_proto)
-    : module_name_(SanitizeIdentifier(name)),
+    : module_name_(SanitizeVerilogIdentifier(name)),
       file_(file),
       package_("__ModuleBuilder_type_generator"),
       options_(std::move(options)),
-      query_engine_(BddQueryEngine::kDefaultPathLimit) {
+      query_engine_(BddQueryEngine::kDefaultPathLimit),
+      name_uniquer_(/*separator=*/"__") {
   module_ = file_->AddModule(module_name_, SourceInfo());
   functions_section_ = module_->Add<ModuleSection>(SourceInfo());
   constants_section_ = module_->Add<ModuleSection>(SourceInfo());
@@ -325,6 +326,9 @@ ModuleBuilder::ModuleBuilder(std::string_view name, VerilogFile* file,
   trace_section_ = module_->Add<ModuleSection>(SourceInfo());
 
   NewDeclarationAndAssignmentSections();
+
+  // Add the module's name to the name uniquer.
+  name_uniquer_.GetSanitizedUniqueName(module_name_);
 
   if (clk_name.has_value()) {
     clk_ = AddInputPort(clk_name.value(), /*bit_count=*/1).value();
@@ -390,19 +394,21 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
         "Codegen packs arrays at port boundaries, see "
         "https://github.com/google/xls/issues/1637.");
   }
-  XLS_ASSIGN_OR_RETURN(
-      LogicRef * port,
-      AddInputPort(SanitizeIdentifier(name), type->GetFlatBitCount(), sv_type));
+  XLS_ASSIGN_OR_RETURN(LogicRef * port,
+                       AddInputPort(name, type->GetFlatBitCount(), sv_type));
   if (!type->IsArray()) {
     return port;
   }
+
+  std::string unflattened_name =
+      SanitizeAndUniquifyName(absl::StrCat(name, "_unflattened"));
   // All inputs are flattened so unflatten arrays with a sequence of
   // assignments.
   ArrayType* array_type = type->AsArrayOrDie();
   XLS_ASSIGN_OR_RETURN(
       LogicRef * ar,
       module_->AddWire(
-          absl::StrCat(SanitizeIdentifier(name), "_unflattened"),
+          unflattened_name,
           file_->UnpackedArrayType(NestedElementWidth(array_type),
                                    NestedArrayBounds(array_type), SourceInfo()),
           SourceInfo(), input_section()));
@@ -416,13 +422,20 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
 absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
     std::string_view name, int64_t bit_count,
     std::optional<std::string_view> sv_type) {
+  std::string sanitized_unique_name = SanitizeAndUniquifyName(name);
+  if (sanitized_unique_name != name) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Unable to name input port `%s` on module `%s` because "
+                        "it is an invalid identifier, is a verilog keyword, or "
+                        "collides with another identifier in the module",
+                        name, module_name_));
+  }
   auto* raw_bits_type = file_->BitVectorType(bit_count, SourceInfo());
   if (sv_type && options_.emit_sv_types()) {
     XLS_ASSIGN_OR_RETURN(
         LogicRef * port,
         module_->AddInput(
-            SanitizeIdentifier(name),
-            file_->ExternType(raw_bits_type, *sv_type, SourceInfo()),
+            name, file_->ExternType(raw_bits_type, *sv_type, SourceInfo()),
             SourceInfo()));
     if (!sv_type.has_value()) {
       return port;
@@ -430,21 +443,31 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(
     // If a SystemVerilog type is specified then create a flattened copy of the
     // value for use inside the module because bit indexing into structs can
     // cause lint warnings.
+    std::string flattened_name =
+        SanitizeAndUniquifyName(absl::StrCat(name, "_flattened"));
     XLS_ASSIGN_OR_RETURN(
         LogicRef * wire,
-        module_->AddWire(absl::StrCat(SanitizeIdentifier(name), "_flattened"),
+        module_->AddWire(flattened_name,
                          file_->BitVectorType(bit_count, SourceInfo()),
                          SourceInfo(), input_section()));
     input_section()->Add<ContinuousAssignment>(SourceInfo(), wire, port);
     return wire;
   }
-  return module_->AddInput(SanitizeIdentifier(name), raw_bits_type,
-                           SourceInfo());
+  return module_->AddInput(name, raw_bits_type, SourceInfo());
 }
 
 absl::Status ModuleBuilder::AddOutputPort(
     std::string_view name, Type* type, Expression* value,
     std::optional<std::string_view> sv_type) {
+  std::string sanitized_unique_name = SanitizeAndUniquifyName(name);
+  if (sanitized_unique_name != name) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Unable to name output port `%s` on module `%s` because "
+        "it is an invalid identifier, is a verilog keyword, or "
+        "collides with another identifier in the module",
+        name, module_name_));
+  }
+
   LogicRef* output_port;
   DataType* bits_type =
       file_->BitVectorType(type->GetFlatBitCount(), SourceInfo());
@@ -456,13 +479,12 @@ absl::Status ModuleBuilder::AddOutputPort(
     }
     XLS_ASSIGN_OR_RETURN(
         output_port,
-        module_->AddOutput(SanitizeIdentifier(name),
+        module_->AddOutput(name,
                            file_->ExternType(bits_type, *sv_type, SourceInfo()),
                            SourceInfo()));
   } else {
-    XLS_ASSIGN_OR_RETURN(
-        output_port,
-        module_->AddOutput(SanitizeIdentifier(name), bits_type, SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(output_port,
+                         module_->AddOutput(name, bits_type, SourceInfo()));
   }
 
   if (type->IsArray()) {
@@ -482,18 +504,26 @@ absl::Status ModuleBuilder::AddOutputPort(
 absl::Status ModuleBuilder::AddOutputPort(
     std::string_view name, int64_t bit_count, Expression* value,
     std::optional<std::string_view> sv_type) {
+  std::string sanitized_unique_name = SanitizeAndUniquifyName(name);
+  if (sanitized_unique_name != name) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Unable to name output port `%s` on module `%s` because "
+        "it is an invalid identifier, is a verilog keyword, or "
+        "collides with another identifier in the module",
+        name, module_name_));
+  }
+
   LogicRef* output_port;
   DataType* bits_type = file_->BitVectorType(bit_count, SourceInfo());
   if (sv_type && options_.emit_sv_types()) {
     XLS_ASSIGN_OR_RETURN(
         output_port,
-        module_->AddOutput(SanitizeIdentifier(name),
+        module_->AddOutput(name,
                            file_->ExternType(bits_type, *sv_type, SourceInfo()),
                            SourceInfo()));
   } else {
-    XLS_ASSIGN_OR_RETURN(
-        output_port,
-        module_->AddOutput(SanitizeIdentifier(name), bits_type, SourceInfo()));
+    XLS_ASSIGN_OR_RETURN(output_port,
+                         module_->AddOutput(name, bits_type, SourceInfo()));
   }
   output_section()->Add<ContinuousAssignment>(SourceInfo(), output_port, value);
   return absl::OkStatus();
@@ -517,12 +547,12 @@ absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
     XLS_ASSIGN_OR_RETURN(Expression * rhs,
                          FlattenValueToExpression(value, file_));
     // Add wire with init.
-    return module_->AddWire(SanitizeIdentifier(name), data_type, rhs,
+    return module_->AddWire(SanitizeAndUniquifyName(name), data_type, rhs,
                             SourceInfo(), constants_section());
   }
-  XLS_ASSIGN_OR_RETURN(LogicRef * ref,
-                       module_->AddWire(SanitizeIdentifier(name), data_type,
-                                        SourceInfo(), constants_section()));
+  XLS_ASSIGN_OR_RETURN(
+      LogicRef * ref, module_->AddWire(SanitizeAndUniquifyName(name), data_type,
+                                       SourceInfo(), constants_section()));
   XLS_RETURN_IF_ERROR(
       AddAssignmentFromValue(ref, value, [&](Expression* lhs, Expression* rhs) {
         constants_section()->Add<ContinuousAssignment>(SourceInfo(), lhs, rhs);
@@ -541,13 +571,13 @@ absl::StatusOr<LogicRef*> ModuleBuilder::DeclareVariable(std::string_view name,
   } else {
     data_type = file_->BitVectorType(type->GetFlatBitCount(), SourceInfo());
   }
-  return module_->AddWire(SanitizeIdentifier(name), data_type, SourceInfo(),
-                          declaration_section());
+  return module_->AddWire(SanitizeAndUniquifyName(name), data_type,
+                          SourceInfo(), declaration_section());
 }
 
 absl::StatusOr<LogicRef*> ModuleBuilder::DeclareVariable(std::string_view name,
                                                          int64_t bit_count) {
-  return module_->AddWire(SanitizeIdentifier(name),
+  return module_->AddWire(SanitizeAndUniquifyName(name),
                           file_->BitVectorType(bit_count, SourceInfo()),
                           SourceInfo(), declaration_section());
 }
@@ -614,13 +644,13 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate1D(
     Type* xls_type) {
   ArrayType* array_type = xls_type->AsArrayOrDie();
 
-  std::string op_name_sanitized = SanitizeIdentifier(op_name);
-
   // Create names derived from the unique operation name to ensure the derived
   // names are unique. We namespace via double underscore in an attempt to
   // reserve the suffixes and avoid collisions.
-  std::string genvar_name = absl::StrCat(op_name_sanitized, "__index");
-  std::string generate_loop_name = absl::StrCat(op_name_sanitized, "__gen");
+  std::string genvar_name =
+      SanitizeAndUniquifyName(absl::StrCat(op_name, "__index"));
+  std::string generate_loop_name =
+      SanitizeAndUniquifyName(absl::StrCat(op_name, "__gen"));
 
   XLS_ASSIGN_OR_RETURN(auto* genvar,
                        module_->AddGenvar(genvar_name, SourceInfo()));
@@ -800,6 +830,13 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
 bool ModuleBuilder::CanEmitAsserts() const {
   return options_.use_system_verilog() ||
          options_.GetOpOverride(Op::kAssert).has_value();
+}
+
+std::string ModuleBuilder::SanitizeAndUniquifyName(std::string_view name) {
+  std::string n =
+      SanitizeVerilogIdentifier(name_uniquer_.GetSanitizedUniqueName(name),
+                                options_.use_system_verilog());
+  return n;
 }
 
 absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
@@ -1172,7 +1209,8 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
   }
 
   if (asrt->label().has_value()) {
-    if (asrt->label().value() != SanitizeIdentifier(asrt->label().value())) {
+    if (asrt->label().value() !=
+        SanitizeAndUniquifyName(asrt->label().value())) {
       return absl::InvalidArgumentError(
           "Assert label must be a valid SystemVerilog identifier.");
     }
@@ -1345,7 +1383,7 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     // array assignment in the always flop block.
     ArrayType* array_type = type->AsArrayOrDie();
     XLS_ASSIGN_OR_RETURN(
-        reg, module_->AddReg(SanitizeIdentifier(name),
+        reg, module_->AddReg(SanitizeAndUniquifyName(name),
                              file_->UnpackedArrayType(
                                  NestedElementWidth(array_type),
                                  NestedArrayBounds(array_type), SourceInfo()),
@@ -1354,7 +1392,7 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
   } else {
     XLS_ASSIGN_OR_RETURN(
         reg, module_->AddReg(
-                 SanitizeIdentifier(name),
+                 SanitizeAndUniquifyName(name),
                  file_->BitVectorType(type->GetFlatBitCount(), SourceInfo()),
                  SourceInfo(), /*init=*/nullptr, declaration_section()));
   }
@@ -1378,7 +1416,7 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
 
   XLS_ASSIGN_OR_RETURN(
       LogicRef * ref,
-      module_->AddReg(SanitizeIdentifier(name),
+      module_->AddReg(SanitizeAndUniquifyName(name),
                       file_->BitVectorType(bit_count, SourceInfo()),
                       SourceInfo(), /*init=*/nullptr, declaration_section()));
   return Register{.ref = ref,

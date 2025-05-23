@@ -3,11 +3,11 @@ module my_register(
   input wire [31:0] a,
   output wire [31:0] result
 );
-  reg [31:0] my_register;
+  reg [31:0] my_register__1;
   always_ff @ (posedge clk) begin
-    my_register <= a;
+    my_register__1 <= a;
   end
-  assign result = my_register;
+  assign result = my_register__1;
 endmodule
 
 

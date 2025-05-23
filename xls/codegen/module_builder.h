@@ -31,6 +31,7 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/node_representation.h"
 #include "xls/codegen/vast/vast.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -345,6 +346,9 @@ class ModuleBuilder {
   // Returns true if the module builder is configured to emit asserts.
   bool CanEmitAsserts() const;
 
+  // Sanitize and uniquify the given name for use as a Verilog identifier.
+  std::string SanitizeAndUniquifyName(std::string_view name);
+
   std::string module_name_;
   VerilogFile* file_;
 
@@ -378,6 +382,10 @@ class ModuleBuilder {
   absl::flat_hash_map<std::string, VerilogFunction*> node_functions_;
 
   BddQueryEngine query_engine_;
+
+  // Uniquer used to ensure wires, regs, and other RTL constructs have unique
+  // names.
+  NameUniquer name_uniquer_;
 };
 
 }  // namespace verilog

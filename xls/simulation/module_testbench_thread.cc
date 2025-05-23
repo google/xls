@@ -512,7 +512,7 @@ ModuleTestbenchThread::ModuleTestbenchThread(
   }
   if (generate_done_signal) {
     std::string done_signal_name =
-        absl::StrFormat("__thread_%s_done", SanitizeIdentifier(name));
+        SanitizeVerilogIdentifier(absl::StrFormat("__thread_%s_done", name));
     done_signal_ = TestbenchSignal{
         .name = done_signal_name, .width = 1, .initial_value = UBits(0, 1)};
     DeclareInternalSignal(done_signal_->name, done_signal_->width,

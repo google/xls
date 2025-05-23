@@ -31,6 +31,7 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
@@ -63,7 +64,7 @@ FlopKindProto ToProtoFlop(FlopKind f) {
 absl::StatusOr<ModuleSignature> GenerateSignature(
     const CodegenOptions& options, Block* block,
     const absl::flat_hash_map<Node*, Stage>& stage_map) {
-  ModuleSignatureBuilder b(block->name());
+  ModuleSignatureBuilder b(SanitizeVerilogIdentifier(block->name()));
 
   // Optionally add clock and reset.
   if (options.clock_name().has_value()) {

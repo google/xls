@@ -20,9 +20,10 @@
 
 namespace xls::verilog {
 
-// For now, we only expose the SanitizeIdentifier function from VAST.
+// For now, we only expose the SanitizeVerilogIdentifier function from VAST.
 // For other uses, consider using the C API.
-std::string SanitizeIdentifier(std::string_view name);
+std::string SanitizeVerilogIdentifier(std::string_view name,
+                                      bool system_verilog = true);
 
 }  // namespace xls::verilog
 

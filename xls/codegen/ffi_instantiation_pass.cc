@@ -170,7 +170,7 @@ absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
       }
 
       // TODO(hzeller): Better ways to generate a name ?
-      const std::string inst_name = SanitizeIdentifier(
+      const std::string inst_name = SanitizeVerilogIdentifier(
           absl::StrCat(fun->name(), "_", invocation->GetName(), "_inst"));
       XLS_ASSIGN_OR_RETURN(xls::Instantiation * instantiation,
                            block->AddInstantiation(

@@ -603,7 +603,7 @@ absl::StatusOr<bool> BlockStitchingPass::RunInternal(
         "Splitting outputs is not supported by block stitching.");
   }
   std::string top_block_name(options.codegen_options.module_name().value_or(
-      SanitizeIdentifier(context.top_block()->name())));
+      context.top_block()->name()));
 
   XLS_ASSIGN_OR_RETURN(
       Block * top_block,

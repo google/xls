@@ -50,17 +50,23 @@ class VastTest : public testing::TestWithParam<bool> {
   }
 };
 
-TEST_P(VastTest, SanitizeIdentifier) {
-  EXPECT_EQ("foo", SanitizeIdentifier("foo"));
-  EXPECT_EQ("foo_bar", SanitizeIdentifier("foo_bar"));
-  EXPECT_EQ("__bar77__", SanitizeIdentifier("__bar77__"));
+TEST_P(VastTest, SanitizeVerilogIdentifier) {
+  EXPECT_EQ("foo", SanitizeVerilogIdentifier("foo"));
+  EXPECT_EQ("foo_bar", SanitizeVerilogIdentifier("foo_bar"));
+  EXPECT_EQ("__bar77__", SanitizeVerilogIdentifier("__bar77__"));
 
-  EXPECT_EQ("__foo_", SanitizeIdentifier("  foo "));
-  EXPECT_EQ("_42", SanitizeIdentifier("42"));
-  EXPECT_EQ("_42_", SanitizeIdentifier("42 "));
-  EXPECT_EQ("name_of_a_thing", SanitizeIdentifier("name of a thing"));
-  EXPECT_EQ("_qux", SanitizeIdentifier(".qux"));
-  EXPECT_EQ("add_1234", SanitizeIdentifier("add.1234"));
+  EXPECT_EQ("__foo_", SanitizeVerilogIdentifier("  foo "));
+  EXPECT_EQ("_42", SanitizeVerilogIdentifier("42"));
+  EXPECT_EQ("_42_", SanitizeVerilogIdentifier("42 "));
+  EXPECT_EQ("name_of_a_thing", SanitizeVerilogIdentifier("name of a thing"));
+  EXPECT_EQ("_qux", SanitizeVerilogIdentifier(".qux"));
+  EXPECT_EQ("add_1234", SanitizeVerilogIdentifier("add.1234"));
+
+  EXPECT_EQ("module_", SanitizeVerilogIdentifier("module"));
+  EXPECT_EQ("class",
+            SanitizeVerilogIdentifier("class", /*system_verilog=*/false));
+  EXPECT_EQ("class_",
+            SanitizeVerilogIdentifier("class", /*system_verilog=*/true));
 }
 
 TEST_P(VastTest, EmitScalarLogicDef) {

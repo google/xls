@@ -44,7 +44,6 @@
 #include "xls/codegen/conversion_utils.h"
 #include "xls/codegen/mark_channel_fifos_pass.h"
 #include "xls/codegen/proc_block_conversion.h"
-#include "xls/codegen/vast/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -649,8 +648,7 @@ absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
 
   // Make `unit` optional because we haven't created the top block yet. We will
   // create it on the first iteration and emplace `unit`.
-  std::string module_name(
-      SanitizeIdentifier(options.module_name().value_or(top->name())));
+  std::string module_name(options.module_name().value_or(top->name()));
   Block* top_block =
       package->AddBlock(std::make_unique<Block>(module_name, package));
   top_block->SetFunctionBaseProvenance(top);
@@ -658,12 +656,9 @@ absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
   // We use a uniquer here because the top block name comes from the codegen
   // option's `module_name` field (if set). A non-top proc could have the same
   // name, so the name uniquer will ensure that the sub-block gets a suffix if
-  // needed. Note that the NameUniquer's sanitize performs a different function
-  // from `SanitizeIdentifier()`, which is used to ensure that identifiers are
-  // OK for RTL.
+  // needed.
   NameUniquer block_name_uniquer("__");
-  XLS_RET_CHECK_EQ(block_name_uniquer.GetSanitizedUniqueName(module_name),
-                   module_name);
+  block_name_uniquer.GetSanitizedUniqueName(module_name);
   CodegenContext context(top_block);
 
   // Run codegen passes as appropriate
@@ -682,8 +677,8 @@ absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
         "Missing schedule for functionbase `%s`", fb->name());
 
     const PipelineSchedule& schedule = schedules.at(fb);
-    std::string sub_block_name = block_name_uniquer.GetSanitizedUniqueName(
-        SanitizeIdentifier(fb->name()));
+    std::string sub_block_name =
+        block_name_uniquer.GetSanitizedUniqueName(fb->name());
     Block* sub_block;
     if (fb == top) {
       sub_block = top_block;
@@ -737,8 +732,7 @@ absl::StatusOr<CodegenContext> FunctionToCombinationalBlock(
     Function* f, const CodegenOptions& options) {
   XLS_RET_CHECK(!options.valid_control().has_value())
       << "Combinational block generator does not support valid control.";
-  std::string module_name(
-      options.module_name().value_or(SanitizeIdentifier(f->name())));
+  std::string module_name(options.module_name().value_or(f->name()));
   Block* block = f->package()->AddBlock(
       std::make_unique<Block>(module_name, f->package()));
   block->SetFunctionBaseProvenance(f);
@@ -816,9 +810,9 @@ absl::StatusOr<CodegenContext> ProcToCombinationalBlock(
                       })));
   }
 
-  std::string module_name = SanitizeIdentifier(std::string{
-      options.module_name().has_value() ? options.module_name().value()
-                                        : proc->name()});
+  std::string module_name = std::string{options.module_name().has_value()
+                                            ? options.module_name().value()
+                                            : proc->name()};
   Block* block = proc->package()->AddBlock(
       std::make_unique<Block>(module_name, proc->package()));
   block->SetFunctionBaseProvenance(proc);

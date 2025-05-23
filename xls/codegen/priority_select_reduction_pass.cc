@@ -105,7 +105,7 @@ absl::StatusOr<bool> PrioritySelectReductionPass::RunInternal(
                   "Selector %s was expected to be one-hot, and is not.",
                   selector->GetName()),
               /*label=*/
-              SanitizeIdentifier(
+              SanitizeVerilogIdentifier(
                   absl::StrCat(sel->GetName(), "_selector_one_hot_A")),
               /*original_label=*/std::nullopt));
       XLS_ASSIGN_OR_RETURN(

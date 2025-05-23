@@ -27,6 +27,7 @@ cc_library(
     srcs = ["vast.cc"],
     hdrs = ["vast.h"],
     deps = [
+        ":verilog_keywords",
         "//xls/common:indent",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
@@ -239,6 +240,16 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "verilog_keywords",
+    srcs = ["verilog_keywords.cc"],
+    hdrs = ["verilog_keywords.h"],
+    deps = [
+        "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/container:flat_hash_set",
     ],
 )
 

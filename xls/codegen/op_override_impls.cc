@@ -102,7 +102,7 @@ absl::StatusOr<NodeRepresentation> EmitOpOverrideAssignment(
           std::get<Expression*>(inputs[i])->Emit(nullptr);
     }
   }
-  placeholders["output"] = name;
+  placeholders["output"] = ref->GetName();
   placeholders["width"] = absl::StrCat(node->GetType()->GetFlatBitCount());
 
   for (const auto& itr : op_override.placeholder_aliases()) {
@@ -198,7 +198,7 @@ absl::StatusOr<NodeRepresentation> EmitOpOverrideInstantiation(
           absl::StrCat(node->operand(i)->GetType()->GetFlatBitCount());
     }
   }
-  placeholders["output"] = name;
+  placeholders["output"] = ref->GetName();
   placeholders["output_width"] =
       absl::StrCat(node->GetType()->GetFlatBitCount());
 

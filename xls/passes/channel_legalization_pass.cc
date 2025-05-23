@@ -470,7 +470,7 @@ absl::Status CheckMutualExclusion(Proc* proc,
                                   "in the same activation as %v",
                                   proc->name(), node->channel_name(), *node),
                   /*label=*/
-                  verilog::SanitizeIdentifier(
+                  verilog::SanitizeVerilogIdentifier(
                       absl::StrCat(node->GetName(), "__no_conflicting_ops_A")),
                   /*original_label=*/std::nullopt)
               .status());

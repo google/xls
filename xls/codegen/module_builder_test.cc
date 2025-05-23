@@ -801,6 +801,98 @@ TEST_P(ModuleBuilderTest, ArrayUpdate1D) {
                                  file.Emit());
 }
 
+TEST_P(ModuleBuilderTest, NameCollisionsOnPorts) {
+  VerilogFile file = NewVerilogFile();
+  Package p(TestBaseName());
+  Type* u32 = p.GetBitsType(32);
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
+                   /*clk_name=*/"clk");
+  XLS_ASSERT_OK(mb.AddInputPort("x", u32).status());
+  EXPECT_THAT(mb.AddInputPort("x", u32),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unable to name input port `x` on module")));
+}
+
+TEST_P(ModuleBuilderTest, NameCollisionsBetweenRegAndPortRegDeclaredFirst) {
+  VerilogFile file = NewVerilogFile();
+  Package p(TestBaseName());
+  Type* u32 = p.GetBitsType(32);
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
+                   /*clk_name=*/"clk");
+  XLS_ASSERT_OK(
+      mb.DeclareRegister("x", u32, file.Literal(UBits(0, 32), SourceInfo()))
+          .status());
+  EXPECT_THAT(mb.AddInputPort("x", u32),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unable to name input port `x` on module")));
+}
+
+TEST_P(ModuleBuilderTest, NameCollisionsBetweenRegAndPortRegDeclaredSecond) {
+  VerilogFile file = NewVerilogFile();
+  Package p(TestBaseName());
+  Type* u32 = p.GetBitsType(32);
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
+                   /*clk_name=*/"clk");
+
+  // A name collision is not an error if the port is declared before the reg
+  // because the reg has some flexibility when named (it can have a uniquifying
+  // suffix);
+  XLS_ASSERT_OK(mb.AddInputPort("x", u32).status());
+  XLS_ASSERT_OK(
+      mb.DeclareRegister("x", u32, file.Literal(UBits(0, 32), SourceInfo()))
+          .status());
+}
+
+TEST_P(ModuleBuilderTest, PortNamedWithVerilogKeyword) {
+  VerilogFile file = NewVerilogFile();
+  Package p(TestBaseName());
+  Type* u32 = p.GetBitsType(32);
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
+                   /*clk_name=*/"clk");
+  EXPECT_THAT(
+      mb.AddInputPort("module", u32),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Unable to name input port `module` on module")));
+}
+
+TEST_P(ModuleBuilderTest, RegNamedWithVerilogKeyword) {
+  VerilogFile file = NewVerilogFile();
+  Package p(TestBaseName());
+  Type* u32 = p.GetBitsType(32);
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
+                   /*clk_name=*/"clk");
+  // Reg names have some flexibility when named (it can have a
+  // uniquifying/sanitizing suffix);
+  XLS_ASSERT_OK(mb.DeclareRegister("module", u32,
+                                   file.Literal(UBits(0, 32), SourceInfo()))
+                    .status());
+}
+
+TEST_P(ModuleBuilderTest, PortCollidesWithClockName) {
+  VerilogFile file = NewVerilogFile();
+  Package p(TestBaseName());
+  Type* u32 = p.GetBitsType(32);
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
+                   /*clk_name=*/"clk");
+  EXPECT_THAT(mb.AddInputPort("clk", u32),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unable to name input port `clk` on module")));
+}
+
+TEST_P(ModuleBuilderTest, PortCollidesWithModuleName) {
+  VerilogFile file = NewVerilogFile();
+  Package p(TestBaseName());
+  Type* u32 = p.GetBitsType(32);
+  ModuleBuilder mb("my,module", &file, codegen_options(),
+                   /*clk_name=*/"clk");
+  EXPECT_THAT(
+      mb.AddInputPort("my_module", u32),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Unable to name input port `my_module` on module `my_module`")));
+}
+
 INSTANTIATE_TEST_SUITE_P(ModuleBuilderTestInstantiation, ModuleBuilderTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<ModuleBuilderTest>);

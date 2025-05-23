@@ -1481,7 +1481,7 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
     }
 
     std::string name =
-        ::xls::verilog::SanitizeIdentifier(chan_op.getSymName().str());
+        ::xls::verilog::SanitizeVerilogIdentifier(chan_op.getSymName().str());
     ::xls::ChannelOps kind = ::xls::ChannelOps::kSendReceive;
     if (!chan_op.getSendSupported()) {
       kind = ::xls::ChannelOps::kReceiveOnly;
@@ -1573,9 +1573,10 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(Operation* op,
       }
       std::string name;
       if (auto loc = dyn_cast<NameLoc>(v.getLoc())) {
-        name = ::xls::verilog::SanitizeIdentifier(loc.getName().str());
+        name = ::xls::verilog::SanitizeVerilogIdentifier(loc.getName().str());
       } else {
-        name = ::xls::verilog::SanitizeIdentifier(debugString(v.getLoc()));
+        name =
+            ::xls::verilog::SanitizeVerilogIdentifier(debugString(v.getLoc()));
       }
       auto& count = usedNames[name];
       // If not unique, append counter.

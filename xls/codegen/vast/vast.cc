@@ -35,6 +35,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/codegen/vast/verilog_keywords.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -343,7 +344,8 @@ std::optional<std::vector<LineSpan>> LineInfo::LookupNode(
   return spans_.at(node).completed_spans;
 }
 
-std::string SanitizeIdentifier(std::string_view name) {
+std::string SanitizeVerilogIdentifier(std::string_view name,
+                                      bool system_verilog) {
   if (name.empty()) {
     return "_";
   }
@@ -356,6 +358,11 @@ std::string SanitizeIdentifier(std::string_view name) {
     if (!absl::ascii_isalnum(sanitized[i])) {
       sanitized[i] = '_';
     }
+  }
+  // (System)Verilog keywords are suffixed with "_".
+  if ((system_verilog ? SystemVerilogKeywords() : VerilogKeywords())
+          .contains(sanitized)) {
+    return sanitized + "_";
   }
   return sanitized;
 }

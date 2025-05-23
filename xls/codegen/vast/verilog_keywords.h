@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/contrib/mlir/util/identifier.h"
+#ifndef XLS_CODEGEN_VAST_VERILOG_KEYWORDS_H_
+#define XLS_CODEGEN_VAST_VERILOG_KEYWORDS_H_
 
 #include <string>
 
-#include "llvm/include/llvm/ADT/StringRef.h"
-#include "mlir/include/mlir/Support/LLVM.h"
-#include "xls/codegen/vast/vast.h"
+#include "absl/container/flat_hash_set.h"
 
-namespace mlir::xls {
+namespace xls {
 
-std::string CleanupIdentifier(StringRef name) {
-  return ::xls::verilog::SanitizeVerilogIdentifier(name.str());
-}
+const absl::flat_hash_set<std::string>& VerilogKeywords();
+const absl::flat_hash_set<std::string>& SystemVerilogKeywords();
 
-}  // namespace mlir::xls
+}  // namespace xls
+
+#endif  // XLS_CODEGEN_VAST_VERILOG_KEYWORDS_H_

@@ -47,7 +47,7 @@ absl::StatusOr<CodegenContext> CreateBlocksFor(
   FunctionBase* top = *package->GetTop();
 
   std::string module_name(
-      SanitizeIdentifier(options.module_name().value_or(top->name())));
+      SanitizeVerilogIdentifier(options.module_name().value_or(top->name())));
 
   Block* top_block =
       package->AddBlock(std::make_unique<Block>(module_name, package));
@@ -58,8 +58,8 @@ absl::StatusOr<CodegenContext> CreateBlocksFor(
   // option's `module_name` field (if set). A non-top proc could have the same
   // name, so the name uniquer will ensure that the sub-block gets a suffix if
   // needed. Note that the NameUniquer's sanitize performs a different function
-  // from `SanitizeIdentifier()`, which is used to ensure that identifiers are
-  // OK for RTL.
+  // from `SanitizeVerilogIdentifier()`, which is used to ensure that
+  // identifiers are OK for RTL.
   NameUniquer block_name_uniquer("__");
   XLS_RET_CHECK_EQ(block_name_uniquer.GetSanitizedUniqueName(module_name),
                    module_name);
@@ -77,7 +77,7 @@ absl::StatusOr<CodegenContext> CreateBlocksFor(
     std::string sub_block_name =
         (fb == top) ? module_name
                     : block_name_uniquer.GetSanitizedUniqueName(
-                          SanitizeIdentifier(fb->name()));
+                          SanitizeVerilogIdentifier(fb->name()));
     Block* block = (fb == top) ? top_block
                                : package->AddBlock(std::make_unique<Block>(
                                      sub_block_name, package));
