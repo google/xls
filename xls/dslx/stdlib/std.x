@@ -170,6 +170,56 @@ fn sadd_test() {
     assert_eq(s4:-8, sadd(s3:-4, s3:-4));
 }
 
+// Saturating subtraction: returns x - y, saturating at 0 if x < y.
+pub fn sat_sub<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x < y { uN[N]:0 } else { x - y } }
+
+#[test]
+fn sat_sub_test() {
+    assert_eq(sat_sub(u8:0, u8:0), u8:0);
+    assert_eq(sat_sub(u8:0, u8:1), u8:0);
+    assert_eq(sat_sub(u8:0, u8:255), u8:0);
+
+    assert_eq(sat_sub(u8:128, u8:0), u8:128);
+    assert_eq(sat_sub(u8:128, u8:1), u8:127);
+    assert_eq(sat_sub(u8:128, u8:128), u8:0);
+    assert_eq(sat_sub(u8:128, u8:129), u8:0);
+    assert_eq(sat_sub(u8:128, u8:255), u8:0);
+
+    // Edge cases: max and min values
+    assert_eq(sat_sub(u8:255, u8:255), u8:0);
+    assert_eq(sat_sub(u8:255, u8:254), u8:1);
+    assert_eq(sat_sub(u8:255, u8:0), u8:255);
+    assert_eq(sat_sub(u8:1, u8:255), u8:0);
+    assert_eq(sat_sub(u8:1, u8:2), u8:0);
+    assert_eq(sat_sub(u8:1, u8:1), u8:0);
+    assert_eq(sat_sub(u8:2, u8:1), u8:1);
+    assert_eq(sat_sub(u8:2, u8:2), u8:0);
+    assert_eq(sat_sub(u8:2, u8:3), u8:0);
+
+    // 1-bit values
+    assert_eq(sat_sub(u1:0, u1:0), u1:0);
+    assert_eq(sat_sub(u1:1, u1:0), u1:1);
+    assert_eq(sat_sub(u1:1, u1:1), u1:0);
+    assert_eq(sat_sub(u1:0, u1:1), u1:0);
+
+    // 4-bit values
+    assert_eq(sat_sub(u4:0, u4:15), u4:0);
+    assert_eq(sat_sub(u4:15, u4:0), u4:15);
+    assert_eq(sat_sub(u4:8, u4:8), u4:0);
+    assert_eq(sat_sub(u4:7, u4:8), u4:0);
+    assert_eq(sat_sub(u4:8, u4:7), u4:1);
+
+    // Large difference
+    assert_eq(sat_sub(u16:0, u16:65535), u16:0);
+    assert_eq(sat_sub(u16:65535, u16:0), u16:65535);
+    assert_eq(sat_sub(u16:65535, u16:65535), u16:0);
+    assert_eq(sat_sub(u16:1, u16:65535), u16:0);
+    assert_eq(sat_sub(u16:65535, u16:1), u16:65534);
+}
+
+// Returns the value of x-1 with saturation at 0.
+pub fn bounded_minus_1<N: u32>(x: uN[N]) -> uN[N] { sat_sub(x, uN[N]:1) }
+
 // Returns unsigned mul of x (N bits) and y (M bits) as an N+M bit value.
 pub fn umul<N: u32, M: u32, R: u32 = {N + M}>(x: uN[N], y: uN[M]) -> uN[R] {
     (x as uN[R]) * (y as uN[R])
@@ -283,9 +333,6 @@ fn iterative_div_test() {
     // Divide by 0.
     assert_eq(u8:0xff, iterative_div(u8:64, u8:0));
 }
-
-// Returns the value of x-1 with saturation at 0.
-pub fn bounded_minus_1<N: u32>(x: uN[N]) -> uN[N] { if x == uN[N]:0 { x } else { x - uN[N]:1 } }
 
 // Extracts the LSb (least significant bit) from the value `x` and returns it.
 pub fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }
@@ -1214,7 +1261,9 @@ fn test_vslice() {
 // This function ensures that all bits of the argument are used.
 pub fn split_msbs<N: u32, X: u32, Z: u32 = {X - N}, FROM_START: s32 = {Z as s32}>
     (x: bits[X]) -> (bits[N], bits[Z]) {
-    assert!(N <= X, "split_msbs_requires_n_less_equal_x");
+    // Can't split more bits than exist
+    const_assert!(N <= X);
+
     let msbs = x[FROM_START:];
     let lsbs = x[0:FROM_START];
     (msbs, lsbs)
@@ -1242,7 +1291,9 @@ fn prop_split_msbs(n: uN[4], o: uN[3]) -> bool {
 // This function ensures that all bits of the argument are used.
 pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}, FROM_START: s32 = {N as s32}>
     (x: bits[X]) -> (bits[Y], bits[N]) {
-    assert!(N <= X, "split_lsbs_requires_n_less_equal_x");
+    // Can't split more bits than exist
+    const_assert!(N <= X);
+
     let msbs = x[FROM_START:];
     let lsbs = x[0:FROM_START];
     (msbs, lsbs)

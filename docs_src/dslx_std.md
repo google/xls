@@ -1156,6 +1156,13 @@ fn test_split_lsbs() {
 
 ### Mathematical Functions
 
+#### `std::sat_sub`
+
+```dslx-snippet
+// Saturating subtraction: returns x - y, saturating at 0 if x < y.
+pub fn sat_sub<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x < y { uN[N]:0 } else { x - y } }
+```
+
 #### `std::bounded_minus_1`
 
 ```dslx-snippet
