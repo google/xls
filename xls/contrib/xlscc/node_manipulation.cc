@@ -20,18 +20,19 @@
 
 namespace xlscc {
 
-const xls::Node* RemoveIdentities(const xls::Node* node) {
-  if (node == nullptr) {
-    return node;
-  }
-  while (node->op() == xls::Op::kIdentity) {
-    node = node->operand(xls::UnOp::kArgOperand);
-  }
-  return node;
-}
-
 bool NodesEquivalentWithContinuations(const xls::Node* a, const xls::Node* b) {
-  return RemoveIdentities(a) == RemoveIdentities(b);
+  if (a == nullptr || b == nullptr) {
+    return a == b;
+  }
+
+  if (a->Is<xls::Literal>()) {
+    if (!b->Is<xls::Literal>()) {
+      return false;
+    }
+    return a->As<xls::Literal>()->value() == b->As<xls::Literal>()->value();
+  }
+
+  return a == b;
 }
 
 }  // namespace xlscc

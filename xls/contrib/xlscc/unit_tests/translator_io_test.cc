@@ -792,7 +792,38 @@ TEST_F(TranslatorIOTest, Unrolled) {
   IOTest(content, /*inputs=*/{},
          /*outputs=*/
          {IOOpTest("out", 0, true), IOOpTest("out", 1, true),
-          IOOpTest("out", 2, true), IOOpTest("out", 3, true)});
+          IOOpTest("out", 2, true), IOOpTest("out", 3, true)},
+         /*args=*/{},
+         /*total_io_ops=*/4);
+}
+
+TEST_F(TranslatorIOTest, UnrolledConditionalIO) {
+  const std::string content = R"(
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int ctrl = in.read();
+         int ret = 5;
+         #pragma hls_unroll yes
+         for(int i=0;i<3;++i) {
+           if(ctrl == 1) {
+            ret += 2*in.read();
+           }
+         }
+         out.write(ret);
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("in", 1, true), IOOpTest("in", 10, true),
+          IOOpTest("in", 20, true), IOOpTest("in", 100, true)},
+         /*outputs=*/{IOOpTest("out", 265, true)});
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("in", 0, true), IOOpTest("in", 0, false),
+          IOOpTest("in", 0, false), IOOpTest("in", 0, false)},
+         /*outputs=*/{IOOpTest("out", 5, true)});
 }
 
 TEST_F(TranslatorIOTest, UnrolledSubroutine) {

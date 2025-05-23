@@ -956,7 +956,8 @@ XlsccTestBase::GetStatesByIONodeForFSMProc(std::string_view func_name) {
 
 void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
                            std::list<IOOpTest> outputs,
-                           absl::flat_hash_map<std::string, xls::Value> args) {
+                           absl::flat_hash_map<std::string, xls::Value> args,
+                           std::optional<int> total_io_ops) {
   xlscc::GeneratedFunction* func;
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src,
                            SourceToIr(content, &func, /* clang_argv= */ {},
@@ -968,6 +969,10 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
   XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
 
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package_->GetTopAsFunction());
+
+  if (total_io_ops.has_value()) {
+    EXPECT_EQ(func->io_ops.size(), total_io_ops.value());
+  }
 
   int64_t io_ops_values = 0;
   for (const xlscc::IOOp& op : func->io_ops) {

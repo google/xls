@@ -158,8 +158,11 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   }
 
   IOOp* ret = &context().sf->io_ops.back();
-  XLSCC_CHECK(!context().sf->slices.empty(), loc);
-  context().sf->slices.back().after_op = ret;
+  // TODO(seanhaskell): Turn this back into a CHECK once old pipelined loop
+  // body generation is removed.
+  if (!context().sf->slices.empty()) {
+    context().sf->slices.back().after_op = ret;
+  }
   return ret;
 }
 
@@ -633,15 +636,30 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
 
 IOChannel* Translator::AddChannel(const IOChannel& new_channel,
                                   const xls::SourceInfo& loc) {
-  // Assertion for linear scan. If it fires, consider changing data structure
-  XLSCC_CHECK_LE(context().sf->io_channels.size(), 128, loc);
-  for (const IOChannel& existing_channel : context().sf->io_channels) {
-    XLSCC_CHECK_NE(new_channel.unique_name, existing_channel.unique_name, loc);
-  }
-
   context().sf->io_channels.push_back(new_channel);
   IOChannel* ret = &context().sf->io_channels.back();
 
+  ret->unique_name = GetUniqueChannelName(ret->unique_name);
+
+  // Assertion for linear scan. If it fires, consider changing data structure
+  XLSCC_CHECK_LE(context().sf->io_channels.size(), 128, loc);
+  for (const IOChannel& existing_channel : context().sf->io_channels) {
+    if (&existing_channel == ret) {
+      continue;
+    }
+    XLSCC_CHECK_NE(ret->unique_name, existing_channel.unique_name, loc);
+  }
+
+  return ret;
+}
+
+std::string Translator::GetUniqueChannelName(const std::string& name) {
+  std::string ret = name;
+  while (used_channel_names_.contains(ret)) {
+    ret = absl::StrFormat("%s__%i", ret, next_channel_number_++);
+  }
+  CHECK(!used_channel_names_.contains(ret));
+  used_channel_names_.insert(ret);
   return ret;
 }
 
@@ -653,7 +671,8 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateChannelParam(
   IOChannel new_channel;
 
   new_channel.item_type = channel_type->GetItemType();
-  new_channel.unique_name = channel_name->getQualifiedNameAsString();
+  new_channel.unique_name = channel_name->getNameAsString();
+
   new_channel.memory_size = channel_type->GetMemorySize();
 
   auto lvalue = std::make_shared<LValue>(AddChannel(new_channel, loc));

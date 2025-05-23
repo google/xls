@@ -244,12 +244,14 @@ struct ContinuationValue {
 
   // name is for human readability/debug only
   std::string name;
+
+  // Precomputed literal, used for unrolling, IO pruning, etc
+  std::optional<xls::Value> literal = std::nullopt;
 };
 
 struct ContinuationInput {
   ContinuationValue* continuation_out = nullptr;
-  xls::Node* input_node = nullptr;
-
+  xls::Param* input_node = nullptr;
   // name is for human readability/debug only
   std::string name;
 };
@@ -353,6 +355,7 @@ struct GeneratedFunction {
       const;
 };
 
+std::string GenerateReadableTypeName(xls::Type* type);
 std::string GenerateSliceGraph(const GeneratedFunction& func);
 
 struct TranslationContext;
@@ -985,7 +988,10 @@ class Translator {
 
   int next_asm_number_ = 1;
   int next_for_number_ = 1;
-  int next_local_channel_number_ = 1;
+  int64_t next_channel_number_ = 1;
+
+  absl::flat_hash_set<std::string> used_channel_names_;
+  std::string GetUniqueChannelName(const std::string& name);
 
   mutable std::unique_ptr<clang::MangleContext> mangler_;
 
@@ -1333,6 +1339,11 @@ class Translator {
   absl::Status NewContinuation(IOOp& op);
   absl::Status OptimizeContinuations(GeneratedFunction& func,
                                      const xls::SourceInfo& loc);
+  // This function is a temporary adapter for the old FSM generation style.
+  // It creates a single function containing all slices and fills it into the
+  // GeneratedFunction::function field.
+  absl::Status GenerateFunctionSliceWrapper(GeneratedFunction& func,
+                                            const xls::SourceInfo& loc);
 
   absl::StatusOr<std::shared_ptr<LValue>> CreateChannelParam(
       const clang::NamedDecl* channel_name,
@@ -1613,7 +1624,8 @@ class Translator {
   // bval can be invalid, in which case it is interpreted as 1
   // Short circuits the BValue
   absl::StatusOr<bool> BitMustBe(bool assert_value, TrackedBValue& bval,
-                                 Z3_solver& solver, Z3_context ctx,
+                                 Z3_solver& solver,
+                                 xls::solvers::z3::IrTranslator* z3_translator,
                                  const xls::SourceInfo& loc);
 
   absl::StatusOr<ConstValue> TranslateBValToConstVal(const CValue& bvalue,
