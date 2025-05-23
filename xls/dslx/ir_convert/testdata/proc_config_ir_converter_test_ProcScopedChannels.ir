@@ -3,8 +3,8 @@ package test_module
 file_number 0 "test_module.x"
 
 top proc __test_module__passthrough_0_next<test_module__c_in: bits[32] in, test_module__c_out: bits[32] out>(__state: (), init={()}) {
-  chan_interface test_module__c_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
-  chan_interface test_module__c_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=none, flop_kind=none)
+  chan_interface test_module__c_in(direction=receive, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
+  chan_interface test_module__c_out(direction=send, kind=streaming, strictness=proven_mutually_exclusive, flow_control=ready_valid, flop_kind=none)
   after_all.4: token = after_all(id=4)
   literal.3: bits[1] = literal(value=1, id=3)
   receive.5: (token, bits[32]) = receive(after_all.4, predicate=literal.3, channel=test_module__c_in, id=5)
