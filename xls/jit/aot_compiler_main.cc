@@ -25,7 +25,6 @@
 #include <string>
 #include <string_view>
 
-#include "absl/algorithm/container.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -51,10 +50,12 @@
 #include "xls/jit/block_jit.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/function_jit.h"
+#include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/observer.h"
+#include "xls/jit/type_buffer_metadata.h"
 #include "xls/jit/type_layout.pb.h"
 
 ABSL_FLAG(std::string, input, "", "Path to the IR to compile.");
@@ -198,28 +199,26 @@ absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
   proto.set_xls_package_name(package->name());
   proto.set_xls_function_identifier(func->name());
   proto.set_function_symbol(object_code.function_name());
-  absl::c_for_each(object_code.input_buffer_sizes(),
-                   [&](int64_t i) { proto.add_input_buffer_sizes(i); });
-  absl::c_for_each(object_code.input_buffer_preferred_alignments(),
-                   [&](int64_t i) { proto.add_input_buffer_alignments(i); });
-  absl::c_for_each(object_code.input_buffer_abi_alignments(), [&](int64_t i) {
-    proto.add_input_buffer_abi_alignments(i);
-  });
-  absl::c_for_each(object_code.output_buffer_sizes(),
-                   [&](int64_t i) { proto.add_output_buffer_sizes(i); });
-  absl::c_for_each(object_code.output_buffer_preferred_alignments(),
-                   [&](int64_t i) { proto.add_output_buffer_alignments(i); });
-  absl::c_for_each(object_code.output_buffer_abi_alignments(), [&](int64_t i) {
-    proto.add_output_buffer_abi_alignments(i);
-  });
   if (object_code.HasPackedFunction()) {
     proto.set_packed_function_symbol(*object_code.packed_function_name());
-    absl::c_for_each(object_code.packed_input_buffer_sizes(), [&](int64_t i) {
-      proto.add_packed_input_buffer_sizes(i);
-    });
-    absl::c_for_each(object_code.packed_output_buffer_sizes(), [&](int64_t i) {
-      proto.add_packed_output_buffer_sizes(i);
-    });
+  }
+  for (const TypeBufferMetadata& metadata :
+       object_code.GetInputBufferMetadata()) {
+    proto.add_input_buffer_sizes(metadata.size);
+    proto.add_input_buffer_alignments(metadata.preferred_alignment);
+    proto.add_input_buffer_abi_alignments(metadata.abi_alignment);
+    if (object_code.HasPackedFunction()) {
+      proto.add_packed_input_buffer_sizes(metadata.packed_size);
+    }
+  }
+  for (const TypeBufferMetadata& metadata :
+       object_code.GetOutputBufferMetadata()) {
+    proto.add_output_buffer_sizes(metadata.size);
+    proto.add_output_buffer_alignments(metadata.preferred_alignment);
+    proto.add_output_buffer_abi_alignments(metadata.abi_alignment);
+    if (object_code.HasPackedFunction()) {
+      proto.add_packed_output_buffer_sizes(metadata.packed_size);
+    }
   }
 
   proto.set_temp_buffer_size(object_code.temp_buffer_size());

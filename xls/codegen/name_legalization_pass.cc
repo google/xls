@@ -49,7 +49,7 @@ absl::Status RenameRegister(Block* block, Register* old_reg) {
   XLS_ASSIGN_OR_RETURN(RegisterRead * old_read,
                        block->GetRegisterRead(old_reg));
   XLS_ASSIGN_OR_RETURN(RegisterWrite * old_write,
-                       block->GetRegisterWrite(old_reg));
+                       block->GetUniqueRegisterWrite(old_reg));
 
   XLS_RETURN_IF_ERROR(
       old_read->ReplaceUsesWithNew<RegisterRead>(new_reg).status());

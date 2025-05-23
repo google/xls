@@ -683,7 +683,8 @@ absl::StatusOr<RegisterRead*> Block::GetRegisterRead(Register* reg) const {
                       name(), reg->name()));
 }
 
-absl::StatusOr<RegisterWrite*> Block::GetRegisterWrite(Register* reg) const {
+absl::StatusOr<RegisterWrite*> Block::GetUniqueRegisterWrite(
+    Register* reg) const {
   XLS_RET_CHECK(register_writes_.contains(reg)) << absl::StreamFormat(
       "Block %s does not have register %s (%p)", name(), reg->name(), reg);
   const std::vector<RegisterWrite*>& writes = register_writes_.at(reg);
@@ -698,6 +699,13 @@ absl::StatusOr<RegisterWrite*> Block::GetRegisterWrite(Register* reg) const {
   return absl::InvalidArgumentError(
       absl::StrFormat("Block %s has multiple write operation for register %s",
                       name(), reg->name()));
+}
+
+absl::StatusOr<absl::Span<RegisterWrite* const>> Block::GetRegisterWrites(
+    Register* reg) const {
+  XLS_RET_CHECK(register_writes_.contains(reg)) << absl::StreamFormat(
+      "Block %s does not have register %s (%p)", name(), reg->name(), reg);
+  return register_writes_.at(reg);
 }
 
 absl::Status Block::ReorderPorts(absl::Span<const std::string> port_names) {

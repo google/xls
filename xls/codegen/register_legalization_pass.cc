@@ -61,7 +61,7 @@ absl::StatusOr<bool> RegisterLegalizationPass::RunInternal(
     // RegisterWrite.
     XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read, block->GetRegisterRead(reg));
     XLS_ASSIGN_OR_RETURN(RegisterWrite * reg_write,
-                         block->GetRegisterWrite(reg));
+                         block->GetUniqueRegisterWrite(reg));
     XLS_RETURN_IF_ERROR(
         reg_read->ReplaceUsesWithNew<xls::Literal>(ZeroOfType(reg->type()))
             .status());

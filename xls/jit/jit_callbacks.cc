@@ -84,6 +84,11 @@ void RecordNodeResult(InstanceContext* thiz, int64_t node_ptr,
     thiz->observer->RecordNodeValue(node_ptr, data);
   }
 }
+
+void RecordActiveRegisterWrite(InstanceContext* thiz, int64_t register_no,
+                               int64_t register_write_no) {
+  thiz->active_register_writes[register_no].push_back(register_write_no);
+}
 }  // namespace
 
 InstanceContextVTable::InstanceContextVTable()
@@ -95,7 +100,8 @@ InstanceContextVTable::InstanceContextVTable()
       queue_receive_wrapper(&QueueReceiveWrapper),
       queue_send_wrapper(&QueueSendWrapper),
       record_active_next_value(&RecordActiveNextValue),
-      record_node_result(&RecordNodeResult) {}
+      record_node_result(&RecordNodeResult),
+      record_active_register_write(&RecordActiveRegisterWrite) {}
 
 Type* InstanceContext::ParseTypeFromProto(absl::Span<uint8_t const> data) {
   TypeProto proto;

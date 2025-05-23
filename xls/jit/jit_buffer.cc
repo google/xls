@@ -14,7 +14,6 @@
 
 #include "xls/jit/jit_buffer.h"
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -32,34 +31,37 @@
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/jit/type_buffer_metadata.h"
 
 namespace xls {
 
-namespace {
-using AlignedPtr = std::unique_ptr<uint8_t[], DeleteAligned>;
-// This allocates the actual memory that's used in the jit-argument-set and
-// returns it and the pointers into it that make up each argument.
-std::pair<AlignedPtr, std::vector<uint8_t*>> AllocateAlignedBuffer(
-    absl::Span<int64_t const> sizes, absl::Span<int64_t const> alignments,
-    bool zero = false) {
+JitBuffer AllocateAlignedBuffer(absl::Span<const TypeBufferMetadata> metadata,
+                                bool zero) {
   static_assert(sizeof(int64_t) >= sizeof(intptr_t),
                 "More than 64 bit pointers");
-  CHECK_EQ(sizes.size(), alignments.size());
-  if (alignments.empty()) {
-    return {AlignedPtr(), std::vector<uint8_t*>{}};
+  if (metadata.empty()) {
+    return JitBuffer{.buffer = JitBuffer::AlignedPtr(),
+                     .pointers = std::vector<uint8_t*>{}};
   }
-  int64_t max_align = *absl::c_max_element(alignments);
+  int64_t max_align =
+      absl::c_max_element(metadata, [](const TypeBufferMetadata& a,
+                                       const TypeBufferMetadata& b) {
+        return a.preferred_alignment < b.preferred_alignment;
+      })->preferred_alignment;
   std::vector<int64_t> offsets;
-  offsets.reserve(sizes.size());
+  offsets.reserve(metadata.size());
   offsets.push_back(0);
-  for (int64_t i = 1; i < sizes.size(); ++i) {
-    int64_t cur_idx = offsets.back() + sizes[i - 1];
-    offsets.push_back(RoundUpToNearest(cur_idx, alignments[i]));
+  for (int64_t i = 1; i < metadata.size(); ++i) {
+    int64_t cur_idx = offsets.back() + metadata[i - 1].size;
+    offsets.push_back(
+        RoundUpToNearest(cur_idx, metadata[i].preferred_alignment));
   }
-  int64_t total_size = offsets.back() + sizes.back();
+  int64_t total_size = offsets.back() + metadata.back().size;
   if (total_size == 0) {
     // Leave with nullptr to catch illegal accesses if the size is 0.
-    return {AlignedPtr(), std::vector<uint8_t*>(sizes.size(), nullptr)};
+    return JitBuffer{
+        .buffer = JitBuffer::AlignedPtr(),
+        .pointers = std::vector<uint8_t*>(metadata.size(), nullptr)};
   }
   std::vector<uint8_t*> ptrs;
   uint8_t* buffer =
@@ -72,34 +74,40 @@ std::pair<AlignedPtr, std::vector<uint8_t*>> AllocateAlignedBuffer(
   ptrs.reserve(offsets.size());
   absl::c_transform(offsets, std::back_inserter(ptrs),
                     [&](int64_t p) { return buffer + p; });
-  return {AlignedPtr(buffer), std::move(ptrs)};
+  return JitBuffer{.buffer = JitBuffer::AlignedPtr(buffer),
+                   .pointers = std::move(ptrs)};
 }
-}  // namespace
 
-JitArgumentSet JitArgumentSet::CreateInput(const JittedFunctionBase* source,
-                                           absl::Span<int64_t const> aligns,
-                                           absl::Span<int64_t const> sizes,
-                                           bool zero) {
-  auto [buf, ptr] = AllocateAlignedBuffer(sizes, aligns, zero);
-  return JitArgumentSet(source, std::move(buf), std::move(ptr),
-                        /*is_inputs=*/true, /*is_outputs=*/false);
-}
-JitArgumentSet JitArgumentSet::CreateOutput(const JittedFunctionBase* source,
-                                            absl::Span<int64_t const> aligns,
-                                            absl::Span<int64_t const> sizes) {
-  auto [buf, ptr] = AllocateAlignedBuffer(sizes, aligns);
-  return JitArgumentSet(source, std::move(buf), std::move(ptr),
-                        /*is_inputs=*/false, /*is_outputs=*/true);
-}
-absl::StatusOr<JitArgumentSet> JitArgumentSet::CreateInputOutput(
+std::unique_ptr<JitArgumentSetOwnedBuffer>
+JitArgumentSetOwnedBuffer::CreateInput(
     const JittedFunctionBase* source,
-    std::array<absl::Span<int64_t const>, 2> aligns,
-    std::array<absl::Span<int64_t const>, 2> sizes) {
-  XLS_RET_CHECK(absl::c_equal(sizes[0], sizes[1]));
-  XLS_RET_CHECK(absl::c_equal(aligns[0], aligns[1]));
-  auto [buf, ptr] = AllocateAlignedBuffer(sizes[0], aligns[0]);
-  return JitArgumentSet(source, std::move(buf), std::move(ptr),
-                        /*is_inputs=*/true, /*is_outputs=*/true);
+    absl::Span<const TypeBufferMetadata> metadata, bool zero) {
+  return std::make_unique<JitArgumentSetOwnedBuffer>(
+      source, AllocateAlignedBuffer(metadata, zero),
+      /*is_inputs=*/true,
+      /*is_outputs=*/false);
+}
+
+std::unique_ptr<JitArgumentSetOwnedBuffer>
+JitArgumentSetOwnedBuffer::CreateOutput(
+    const JittedFunctionBase* source,
+    absl::Span<const TypeBufferMetadata> metadata) {
+  return std::make_unique<JitArgumentSetOwnedBuffer>(
+      source, AllocateAlignedBuffer(metadata),
+      /*is_inputs=*/false,
+      /*is_outputs=*/true);
+}
+
+absl::StatusOr<std::unique_ptr<JitArgumentSetOwnedBuffer>>
+JitArgumentSetOwnedBuffer::CreateInputOutput(
+    const JittedFunctionBase* source,
+    absl::Span<const TypeBufferMetadata> input_metadata,
+    absl::Span<const TypeBufferMetadata> output_metadata) {
+  XLS_RET_CHECK(absl::c_equal(input_metadata, output_metadata));
+  JitBuffer buf = AllocateAlignedBuffer(input_metadata);
+  return std::make_unique<JitArgumentSetOwnedBuffer>(source, std::move(buf),
+                                                     /*is_inputs=*/true,
+                                                     /*is_outputs=*/true);
 }
 
 void* AllocateAligned(int64_t alignment, int64_t size) {
