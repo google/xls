@@ -145,8 +145,8 @@ proc HuffmanRawWeightsDecoder<
         let do_recv_data = state.fsm == FSM::DECODING && buffer_len < (WEIGHTS_RAM_DATA_W as uN[BUFF_LEN_LOG2]);
         let (tok, mem_rd_resp, mem_rd_resp_valid) = recv_if_non_blocking(tok, mem_rd_resp_r, do_recv_data, zero!<MemReaderResp>());
         if do_recv_data && mem_rd_resp_valid {
-            trace_fmt!("[RAW] Received MemReader response {:#x}", mem_rd_resp);
-            trace_fmt!("[RAW] Data {:#x}", mem_rd_resp.data);
+            trace_fmt!("Received MemReader response {:#x}", mem_rd_resp);
+            trace_fmt!("Data {:#x}", mem_rd_resp.data);
         } else {};
 
         const MAX_WEIGHTS_IN_PACKET = AXI_DATA_W >> u32:2;
@@ -1334,7 +1334,7 @@ pub proc HuffmanWeightsDecoder<
         let tok = join();
 
         let (tok, req) = recv(tok, req_r);
-        trace_fmt!("Received Huffman weights decoding request {:#x}", req);
+        trace_fmt!("[HuffmanFseWeightsDecoder] Received Huffman weights decoding request {:#x}", req);
         // Fetch Huffman Tree Header
         let header_mem_rd_req = MemReaderReq {
             addr: req.addr,
@@ -1350,7 +1350,7 @@ pub proc HuffmanWeightsDecoder<
         // Receive response from HuffmanRawWeightsDecoder or HuffmanFseWeightsDecoder
 
         let header_byte = header_mem_rd_resp.data as u8;
-        trace_fmt!("Huffman weights header: {:#x}", header_byte);
+        trace_fmt!("[HuffmanFseWeightsDecoder] Huffman weights header: {:#x}", header_byte);
 
         let weights_type = if header_byte < u8:128 {
             WeightsType::FSE
@@ -1363,7 +1363,7 @@ pub proc HuffmanWeightsDecoder<
 
         // FSE
         if weights_type == WeightsType::FSE {
-            trace_fmt!("Decoding FSE Huffman weights");
+            trace_fmt!("[HuffmanFseWeightsDecoder] Decoding FSE Huffman weights");
         } else {};
         let fse_weights_req = FseWeightsReq {
             addr: req.addr,
@@ -1380,7 +1380,7 @@ pub proc HuffmanWeightsDecoder<
 
         // RAW
         if weights_type == WeightsType::RAW {
-            trace_fmt!("Decoding RAW Huffman weights");
+            trace_fmt!("[HuffmanFseWeightsDecoder] Decoding RAW Huffman weights");
         } else {};
         let raw_weights_req = RawWeightsReq {
             addr: req.addr,

@@ -143,7 +143,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
     next (state: State) {
         // receive start
         let (tok, ctrl, ctrl_valid) = recv_if_non_blocking(join(), ctrl_r, state.fsm == FSM::IDLE, zero!<Ctrl>());
-        if (ctrl_valid) { trace_fmt!("Received Ctrl: {:#x}", ctrl); } else {};
+        if (ctrl_valid) { trace_fmt!("[HuffmanControlAndSequence] Received Ctrl: {:#x}", ctrl); } else {};
 
         let state = if ctrl_valid {
             State {
@@ -167,13 +167,13 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
             addr: ctrl.base_addr
         };
         send_if(tok, weights_dec_req_s, new_config, weights_dec_req);
-        if (new_config) { trace_fmt!("Sent Weights Decoding Request: {:#x}", weights_dec_req); } else {};
+        if (new_config) { trace_fmt!("[HuffmanControlAndSequence] Sent Weights Decoding Request: {:#x}", weights_dec_req); } else {};
 
         // recv response
         let (tok, weights_dec_resp, weights_dec_resp_valid) = recv_if_non_blocking(tok, weights_dec_resp_r, state.weights_dec_pending, zero!<WeightsDecResp>());
-        if (weights_dec_resp_valid) { trace_fmt!("Received Weights Decoding response: {:#x}", weights_dec_resp); } else {};
+        if (weights_dec_resp_valid) { trace_fmt!("[HuffmanControlAndSequence] Received Weights Decoding response: {:#x}", weights_dec_resp); } else {};
         let state = if weights_dec_resp_valid {
-            trace_fmt!("Tree description size: {:#x}", weights_dec_resp.tree_description_size);
+            trace_fmt!("[HuffmanControlAndSequence] Tree description size: {:#x}", weights_dec_resp.tree_description_size);
             State {
                 weights_dec_pending: false,
                 tree_description_size: weights_dec_resp.tree_description_size,
@@ -191,7 +191,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
         let do_send_jump_table_req = !state.weights_dec_pending && state.jump_table_dec_pending && !state.jump_table_req_sent;
         let tok = send_if(tok, mem_rd_req_s, do_send_jump_table_req, jump_table_req);
         if do_send_jump_table_req {
-            trace_fmt!("Sent Jump Table read request {:#x}", jump_table_req);
+            trace_fmt!("[HuffmanControlAndSequence] Sent Jump Table read request {:#x}", jump_table_req);
         } else {};
         let (tok, jump_table_raw, jump_table_valid) = recv_if_non_blocking(tok, mem_rd_resp_r, state.jump_table_dec_pending, zero!<MemReaderResp>());
         let stream_sizes = jump_table_raw.data[0:48] as u16[3];
@@ -203,9 +203,9 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
             total_streams_size - JUMP_TABLE_SIZE as uN[AXI_ADDR_W] - (stream_sizes[0] + stream_sizes[1] + stream_sizes[2]) as uN[AXI_ADDR_W]
         ];
         if jump_table_valid {
-            trace_fmt!("Received Jump Table: {:#x}", jump_table_raw);
-            trace_fmt!("Total streams size: {:#x}", total_streams_size);
-            trace_fmt!("Stream sizes: {:#x}", stream_sizes);
+            trace_fmt!("[HuffmanControlAndSequence] Received Jump Table: {:#x}", jump_table_raw);
+            trace_fmt!("[HuffmanControlAndSequence] Total streams size: {:#x}", total_streams_size);
+            trace_fmt!("[HuffmanControlAndSequence] Stream sizes: {:#x}", stream_sizes);
         } else {};
         let state = if do_send_jump_table_req {
             State {
@@ -236,7 +236,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
         let send_prescan_start = start_decoding & (!state.prescan_start_sent);
         send_if(tok, prescan_start_s, send_prescan_start, true);
         send_if(tok, code_builder_start_s, send_prescan_start, true);
-        if (send_prescan_start) { trace_fmt!("Sent START to prescan and code builder"); } else {};
+        if (send_prescan_start) { trace_fmt!("[HuffmanControlAndSequence] Sent START to prescan and code builder"); } else {};
 
         let state = if send_prescan_start {
             State {
@@ -271,7 +271,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
             len: huffman_stream_len,
         };
         send_if(tok, axi_reader_ctrl_s, start_decoding, axi_reader_ctrl);
-        if (start_decoding) { trace_fmt!("Sent request to AXI reader: {:#x}", axi_reader_ctrl); } else {};
+        if (start_decoding) { trace_fmt!("[HuffmanControlAndSequence] Sent request to AXI reader: {:#x}", axi_reader_ctrl); } else {};
 
         // send reconfigure/keep to data preprocessor and decoder
         let config = if (state.multi_stream_decodings_finished > u3:0) {
@@ -283,7 +283,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
             new_config: config,
         };
         send_if(tok, data_preprocess_start_s, start_decoding, preprocessor_start);
-        if start_decoding { trace_fmt!("Sent preprocessor start: {:#x}", preprocessor_start); } else {};
+        if start_decoding { trace_fmt!("[HuffmanControlAndSequence] Sent preprocessor start: {:#x}", preprocessor_start); } else {};
         let decoder_start = DecoderStart {
             new_config: config,
             id: state.ctrl.id,  // sending only if ctrl is valid
@@ -291,7 +291,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
             last_stream: !state.ctrl.multi_stream || (state.ctrl.multi_stream && state.multi_stream_decodings_finished == u3:3),
         };
         send_if(tok, decoder_start_s, start_decoding, decoder_start);
-        if start_decoding { trace_fmt!("Sent decoder start: {:#x}", decoder_start); } else {};
+        if start_decoding { trace_fmt!("[HuffmanControlAndSequence] Sent decoder start: {:#x}", decoder_start); } else {};
         let state = if start_decoding {
             State {
                 stream_dec_pending: true,
@@ -303,7 +303,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
 
         // receive done
         let (_, _, decoder_done_valid) = recv_if_non_blocking(tok, decoder_done_r, state.fsm == FSM::DECODING, ());
-        if (decoder_done_valid) { trace_fmt!("Received Decoder Done"); } else {};
+        if (decoder_done_valid) { trace_fmt!("[HuffmanControlAndSequence] Received Decoder Done"); } else {};
         let multi_stream_decodings_finished = if state.multi_stream_dec_pending {
             state.multi_stream_decodings_finished + u3:1
         } else {
@@ -321,7 +321,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
         };
 
         let state = if (multi_stream_decodings_finished == u3:4) {
-            trace_fmt!("Multi-Stream decoding done");
+            trace_fmt!("[HuffmanControlAndSequence] Multi-Stream decoding done");
             State {
                 multi_stream_dec_pending: false,
                 multi_stream_decodings_finished: u3:0,
@@ -334,7 +334,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
         let resp = Resp { status: Status::OKAY };
         let do_send_resp = decoder_done_valid && !state.multi_stream_dec_pending && state.multi_stream_decodings_finished == u3:0;
         send_if(tok, resp_s, do_send_resp, resp);
-        if (do_send_resp) { trace_fmt!("Sent Ctrl response: {:#x}", resp); } else {};
+        if (do_send_resp) { trace_fmt!("[HuffmanControlAndSequence] Sent Ctrl response: {:#x}", resp); } else {};
 
         if do_send_resp {
             zero!<State>()

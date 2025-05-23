@@ -97,7 +97,7 @@ pub proc HuffmanDataPreprocessor {
 
         let state = if start_valid {
             let fsm = if start.new_config {
-                trace_fmt!("Waiting for new config");
+                trace_fmt!("[HuffmanDataPreprocessor] Waiting for new config");
                 FSM::AWAITING_CONFIG
             } else {
                 FSM::READ_DATA
@@ -117,7 +117,7 @@ pub proc HuffmanDataPreprocessor {
         );
 
         let state = if config_valid {
-            trace_fmt!("Received config {:#x}", config);
+            trace_fmt!("[HuffmanDataPreprocessor] Received config {:#x}", config);
             State {
                 fsm: FSM::READ_DATA,
                 lookahead_config: config,
@@ -132,8 +132,8 @@ pub proc HuffmanDataPreprocessor {
 
         // process data
         let state = if data_valid {
-            trace_fmt!("Received data {:#b}", data);
-            trace_fmt!("Data in state {:#b} (length {})", state.data_in, state.data_in_len);
+            trace_fmt!("[HuffmanDataPreprocessor] Received data {:#b}", data);
+            trace_fmt!("[HuffmanDataPreprocessor] Data in state {:#b} (length {})", state.data_in, state.data_in_len);
             State {
                 data_in: state.data_in | ((rev(data.data) as Data) << state.data_in_len),
                 data_in_len: state.data_in_len + CodeLen:8,
@@ -163,7 +163,7 @@ pub proc HuffmanDataPreprocessor {
         let processed_data = if do_process_data {
             let data_bits = state.data_out;
             let data_bits_len = state.data_out_len;
-            trace_fmt!("Processing data {:#b} (length {})", state.data_out, state.data_out_len);
+            trace_fmt!("[HuffmanDataPreprocessor] Processing data {:#b} (length {})", state.data_out, state.data_out_len);
 
             // remove prefix
             let prefix_len = if state.remove_prefix {
@@ -180,7 +180,7 @@ pub proc HuffmanDataPreprocessor {
                         )
                     }
                 }((u4:1, false));
-                trace_fmt!("Prefix len: {}", prefix_len);
+                trace_fmt!("[HuffmanDataPreprocessor] Prefix len: {}", prefix_len);
                 prefix_len
             } else {
                 u4:0
@@ -249,7 +249,7 @@ pub proc HuffmanDataPreprocessor {
 
         let tok = send_if(tok, preprocessed_data_s, do_process_data, processed_data);
         if do_process_data {
-            trace_fmt!("Sent preprocessed data {:#x} (length {})", processed_data.data, processed_data.data_len);
+            trace_fmt!("[HuffmanDataPreprocessor] Sent preprocessed data {:#x} (length {})", processed_data.data, processed_data.data_len);
         } else {};
 
         let state = if do_process_data {
@@ -448,7 +448,7 @@ proc HuffmanDataPreprocessor_test {
             let (tok, preprocessed_data) = recv(tok, preprocessed_data_r);
             trace_fmt!("Received #{} preprocessed data {:#x}", i + u32:1, preprocessed_data);
             assert_eq(TEST_PREPROCESSED_DATA[i], preprocessed_data);
-            
+
             (tok, cfg_idx, data_idx)
         }((tok, u32:0, u32:0));
 
