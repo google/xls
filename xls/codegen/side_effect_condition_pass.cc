@@ -135,8 +135,8 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
       continue;
     }
     const CodegenMetadata& metadata = context.GetMetadataForBlock(block.get());
-    bool is_function = std::holds_alternative<FunctionConversionMetadata>(
-        metadata.conversion_metadata);
+    bool is_function = !block->GetProvenance().has_value() ||
+                       block->GetProvenance()->IsFromFunction();
     if (is_function && (!options.codegen_options.valid_control().has_value() ||
                         !options.schedule.has_value())) {
       continue;

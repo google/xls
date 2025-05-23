@@ -1516,7 +1516,7 @@ absl::Status SingleProcToPipelinedBlock(
   // First element is skipped as the initial stage valid flops will be
   // constructed from the input flops and/or input valid ports and will be
   // added later in AddInputFlops() and AddIdleOutput().
-  ProcConversionMetadata proc_metadata;
+  std::vector<std::optional<Node*>> valid_flops;
   std::vector<Node*> all_active_outputs_ready;
   XLS_RETURN_IF_ERROR(AddBubbleFlowControl(
       options, streaming_io_and_pipeline, proc, instances, block,
@@ -1524,7 +1524,7 @@ absl::Status SingleProcToPipelinedBlock(
   CHECK_GE(streaming_io_and_pipeline.stage_valid.size(), 1);
   std::copy(streaming_io_and_pipeline.stage_valid.begin() + 1,
             streaming_io_and_pipeline.stage_valid.end(),
-            std::back_inserter(proc_metadata.valid_flops));
+            std::back_inserter(valid_flops));
 
   VLOG(3) << "After Flow Control";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -1538,13 +1538,13 @@ absl::Status SingleProcToPipelinedBlock(
   XLS_VLOG_LINES(3, block->DumpIr());
 
   XLS_RETURN_IF_ERROR(AddInputOutputFlops(options, streaming_io_and_pipeline,
-                                          block, proc_metadata.valid_flops));
+                                          block, valid_flops));
   VLOG(3) << "After Input or Output Flops";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   if (options.add_idle_output()) {
-    XLS_RETURN_IF_ERROR(AddIdleOutput(proc_metadata.valid_flops,
-                                      streaming_io_and_pipeline, block));
+    XLS_RETURN_IF_ERROR(
+        AddIdleOutput(valid_flops, streaming_io_and_pipeline, block));
   }
   VLOG(3) << "After Add Idle Output";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -1554,7 +1554,6 @@ absl::Status SingleProcToPipelinedBlock(
       block,
       CodegenMetadata{
           .streaming_io_and_pipeline = std::move(streaming_io_and_pipeline),
-          .conversion_metadata = std::move(proc_metadata),
           .concurrent_stages = std::move(concurrent_stages),
       });
 

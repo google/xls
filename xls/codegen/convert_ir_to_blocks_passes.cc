@@ -120,8 +120,8 @@ absl::StatusOr<bool> ConvertFuncsToCombinationalBlocksPass::RunInternal(
       output->set_system_verilog_type(func_interface->sv_result_type());
     }
 
-    context.GetMetadataForBlock(block)
-        .conversion_metadata.emplace<FunctionConversionMetadata>();
+    // Create empty metadata object for the block.
+    context.SetMetadataForBlock(block, CodegenMetadata());
 
     changed = true;
   }
@@ -197,7 +197,6 @@ absl::StatusOr<bool> ConvertProcsToCombinationalBlocksPass::RunInternal(
     //                codegen pipeline.
     context.GetMetadataForBlock(block) = CodegenMetadata{
         .streaming_io_and_pipeline = std::move(streaming_io),
-        .conversion_metadata = ProcConversionMetadata(),
         .concurrent_stages = std::nullopt,
     };
 

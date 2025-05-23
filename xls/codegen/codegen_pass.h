@@ -284,33 +284,9 @@ struct StreamingIOPipeline {
   absl::flat_hash_map<Node*, Stage> node_to_stage_map;
 };
 
-// Plumbs a valid signal through the block. This includes:
-// (1) Add an input port for a single-bit valid signal.
-// (2) Add a pipeline register for the valid signal at each pipeline stage.
-// (3) Add an output port for the valid signal from the final stage of the
-//     pipeline.
-// (4) Use the (pipelined) valid signal as the load enable signal for other
-//     pipeline registers in each stage. This is a power optimization
-//     which reduces switching in the data path when the valid signal is
-//     deasserted.
-// TODO(meheff): 2021/08/21 This might be better performed as a codegen pass.
-struct ValidPorts {
-  InputPort* input;
-  OutputPort* output;
-};
-
-struct FunctionConversionMetadata {
-  std::optional<ValidPorts> valid_ports;
-};
-struct ProcConversionMetadata {
-  std::vector<std::optional<Node*>> valid_flops;
-};
-
 // Per-block metadata used for codegen.
 struct CodegenMetadata {
   StreamingIOPipeline streaming_io_and_pipeline;
-  std::variant<FunctionConversionMetadata, ProcConversionMetadata>
-      conversion_metadata;
 
   // Proven knowledge about which stages are active concurrently.
   //

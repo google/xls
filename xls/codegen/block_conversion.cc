@@ -75,6 +75,11 @@ namespace xls {
 namespace verilog {
 namespace {
 
+struct ValidPorts {
+  InputPort* input;
+  OutputPort* output;
+};
+
 // Plumb valid signal through the pipeline stages, ANDing with a valid produced
 // by each stage. Gather the pipelined valid signal in a vector where the
 // zero-th element is the input port and subsequent elements are the pipelined
@@ -376,10 +381,10 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
       CloneNodesIntoPipelinedBlock(transformed_schedule, options, block,
                                    converted_blocks));
 
-  FunctionConversionMetadata function_metadata;
+  std::optional<ValidPorts> valid_ports;
   if (options.valid_control().has_value()) {
     XLS_ASSIGN_OR_RETURN(
-        function_metadata.valid_ports,
+        valid_ports,
         AddValidSignal(
             absl::MakeSpan(streaming_io_and_pipeline.pipeline_registers),
             options, block, streaming_io_and_pipeline.pipeline_valid,
@@ -399,15 +404,14 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
   if (block->GetResetPort().has_value()) {
     port_order.push_back(block->GetResetPort().value()->GetName());
   }
-  if (function_metadata.valid_ports.has_value()) {
-    port_order.push_back(function_metadata.valid_ports->input->GetName());
+  if (valid_ports.has_value()) {
+    port_order.push_back(valid_ports->input->GetName());
   }
   for (Param* param : f->params()) {
     port_order.push_back(param->GetName());
   }
-  if (function_metadata.valid_ports.has_value() &&
-      function_metadata.valid_ports->output != nullptr) {
-    port_order.push_back(function_metadata.valid_ports->output->GetName());
+  if (valid_ports.has_value() && valid_ports->output != nullptr) {
+    port_order.push_back(valid_ports->output->GetName());
   }
   port_order.push_back(std::string{options.output_port_name()});
   XLS_RETURN_IF_ERROR(block->ReorderPorts(port_order));
@@ -416,7 +420,6 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
       block,
       CodegenMetadata{
           .streaming_io_and_pipeline = std::move(streaming_io_and_pipeline),
-          .conversion_metadata = function_metadata,
           .concurrent_stages = std::move(concurrent_stages),
       });
 
@@ -786,8 +789,9 @@ absl::StatusOr<CodegenContext> FunctionToCombinationalBlock(
     output->set_system_verilog_type(func_interface->sv_result_type());
   }
 
-  context.GetMetadataForBlock(block)
-      .conversion_metadata.emplace<FunctionConversionMetadata>();
+  // Create empty metadata object for the block.
+  context.SetMetadataForBlock(block, CodegenMetadata());
+
   context.GcMetadata();
   return context;
 }
@@ -859,7 +863,6 @@ absl::StatusOr<CodegenContext> ProcToCombinationalBlock(
       context.top_block(),
       CodegenMetadata{
           .streaming_io_and_pipeline = std::move(streaming_io),
-          .conversion_metadata = ProcConversionMetadata(),
           .concurrent_stages = std::nullopt,
       });
   XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block, context));
