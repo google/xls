@@ -14,6 +14,7 @@
 
 # Build rules for XLS ZSTD codec implementation.
 
+# pytype binary, library
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
