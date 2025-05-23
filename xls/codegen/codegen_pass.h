@@ -485,51 +485,6 @@ class CodegenProcPass : public ProcPass<CodegenPassOptions, CodegenContext> {
   }
 };
 
-// Map from channel to block inputs/outputs.
-class ChannelMap {
- public:
-  using StreamingInputMap =
-      absl::flat_hash_map<Channel*, const StreamingInput*>;
-  using StreamingOutputMap =
-      absl::flat_hash_map<Channel*, const StreamingOutput*>;
-  using SingleValueInputMap =
-      absl::flat_hash_map<Channel*, const SingleValueInput*>;
-  using SingleValueOutputMap =
-      absl::flat_hash_map<Channel*, const SingleValueOutput*>;
-
-  // Populate mapping from channel to block inputs/outputs for all blocks.
-  static ChannelMap Create(const CodegenContext& context);
-
-  const StreamingInputMap& channel_to_streaming_input() const {
-    return channel_to_streaming_input_;
-  }
-  const StreamingOutputMap& channel_to_streaming_output() const {
-    return channel_to_streaming_output_;
-  }
-  const SingleValueInputMap& channel_to_single_value_input() const {
-    return channel_to_single_value_input_;
-  }
-  const SingleValueOutputMap& channel_to_single_value_output() const {
-    return channel_to_single_value_output_;
-  }
-
- private:
-  ChannelMap(StreamingInputMap&& channel_to_streaming_input,
-             StreamingOutputMap&& channel_to_streaming_output,
-             SingleValueInputMap&& channel_to_single_value_input,
-             SingleValueOutputMap&& channel_to_single_value_output)
-      : channel_to_streaming_input_(std::move(channel_to_streaming_input)),
-        channel_to_streaming_output_(std::move(channel_to_streaming_output)),
-        channel_to_single_value_input_(
-            std::move(channel_to_single_value_input)),
-        channel_to_single_value_output_(
-            std::move(channel_to_single_value_output)) {}
-  StreamingInputMap channel_to_streaming_input_;
-  StreamingOutputMap channel_to_streaming_output_;
-  SingleValueInputMap channel_to_single_value_input_;
-  SingleValueOutputMap channel_to_single_value_output_;
-};
-
 }  // namespace xls::verilog
 
 #endif  // XLS_CODEGEN_CODEGEN_PASS_H_

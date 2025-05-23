@@ -49,6 +49,107 @@
 namespace xls::verilog {
 namespace {
 
+// Map from channel to block inputs/outputs.
+class ChannelMap {
+ public:
+  using StreamingInputMap =
+      absl::flat_hash_map<Channel*, const StreamingInput*>;
+  using StreamingOutputMap =
+      absl::flat_hash_map<Channel*, const StreamingOutput*>;
+  using SingleValueInputMap =
+      absl::flat_hash_map<Channel*, const SingleValueInput*>;
+  using SingleValueOutputMap =
+      absl::flat_hash_map<Channel*, const SingleValueOutput*>;
+
+  // Populate mapping from channel to block inputs/outputs for all blocks.
+  static ChannelMap Create(const CodegenContext& context) {
+    ChannelMap::StreamingInputMap channel_to_streaming_input;
+    ChannelMap::StreamingOutputMap channel_to_streaming_output;
+    ChannelMap::SingleValueInputMap channel_to_single_value_input;
+    ChannelMap::SingleValueOutputMap channel_to_single_value_output;
+
+    for (auto& [block, metadata] : context.metadata()) {
+      for (const std::vector<StreamingInput>& inputs :
+           metadata.streaming_io_and_pipeline.inputs) {
+        for (const StreamingInput& input : inputs) {
+          VLOG(5) << absl::StreamFormat("Input found on %v for %s", *block,
+                                        input.GetChannelName());
+          if (!input.IsExternal()) {
+            VLOG(5) << absl::StreamFormat("Skipping internal input %s",
+                                          input.GetChannelName());
+            continue;
+          }
+          Channel* channel =
+              block->package()->GetChannel(input.GetChannelName()).value();
+          channel_to_streaming_input[channel] = &input;
+        }
+      }
+      for (const SingleValueInput& input :
+           metadata.streaming_io_and_pipeline.single_value_inputs) {
+        VLOG(5) << absl::StreamFormat("Input found on %v for %s", *block,
+                                      ChannelRefName(input.GetChannel()));
+        channel_to_single_value_input[std::get<Channel*>(input.GetChannel())] =
+            &input;
+      }
+      for (const std::vector<StreamingOutput>& outputs :
+           metadata.streaming_io_and_pipeline.outputs) {
+        for (const StreamingOutput& output : outputs) {
+          VLOG(5) << absl::StreamFormat("Output found on %v for %s.", *block,
+                                        output.GetChannelName());
+          if (!output.IsExternal()) {
+            VLOG(5) << absl::StreamFormat("Skipping internal output %s",
+                                          output.GetChannelName());
+            continue;
+          }
+          Channel* channel =
+              block->package()->GetChannel(output.GetChannelName()).value();
+          channel_to_streaming_output[channel] = &output;
+        }
+      }
+      for (const SingleValueOutput& output :
+           metadata.streaming_io_and_pipeline.single_value_outputs) {
+        VLOG(5) << absl::StreamFormat("Output found on %v for %s.", *block,
+                                      ChannelRefName(output.GetChannel()));
+        channel_to_single_value_output[std::get<Channel*>(
+            output.GetChannel())] = &output;
+      }
+    }
+    return ChannelMap(std::move(channel_to_streaming_input),
+                      std::move(channel_to_streaming_output),
+                      std::move(channel_to_single_value_input),
+                      std::move(channel_to_single_value_output));
+  }
+
+  const StreamingInputMap& channel_to_streaming_input() const {
+    return channel_to_streaming_input_;
+  }
+  const StreamingOutputMap& channel_to_streaming_output() const {
+    return channel_to_streaming_output_;
+  }
+  const SingleValueInputMap& channel_to_single_value_input() const {
+    return channel_to_single_value_input_;
+  }
+  const SingleValueOutputMap& channel_to_single_value_output() const {
+    return channel_to_single_value_output_;
+  }
+
+ private:
+  ChannelMap(StreamingInputMap&& channel_to_streaming_input,
+             StreamingOutputMap&& channel_to_streaming_output,
+             SingleValueInputMap&& channel_to_single_value_input,
+             SingleValueOutputMap&& channel_to_single_value_output)
+      : channel_to_streaming_input_(std::move(channel_to_streaming_input)),
+        channel_to_streaming_output_(std::move(channel_to_streaming_output)),
+        channel_to_single_value_input_(
+            std::move(channel_to_single_value_input)),
+        channel_to_single_value_output_(
+            std::move(channel_to_single_value_output)) {}
+  StreamingInputMap channel_to_streaming_input_;
+  StreamingOutputMap channel_to_streaming_output_;
+  SingleValueInputMap channel_to_single_value_input_;
+  SingleValueOutputMap channel_to_single_value_output_;
+};
+
 // Instantiate all blocks in the package in the container block.
 // Returns a map that identifies each block with its instantiation in the
 // container block.
