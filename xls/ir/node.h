@@ -94,6 +94,12 @@ class Node {
 
   Type* GetType() const { return type_; }
 
+  // Precondition: this node's result type must be known to be a `BitsType`.
+  //
+  // Convenience helper for getting the bit count of the result type. Many
+  // operations produce bits-typed outputs, so this is a useful helper even
+  // though it is not properly polymorphic. It must only be called on nodes that
+  // we are sure are producing bits-typed results.
   int64_t BitCountOrDie() const {
     return GetType()->AsBitsOrDie()->bit_count();
   }
