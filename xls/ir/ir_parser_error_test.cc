@@ -848,11 +848,30 @@ proc my_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
                        HasSubstr("No such channel `ch`")));
 }
 
-TEST(IrParserErrorTest, NewStyleProcWithDuplicateChannelNames) {
+TEST(IrParserErrorTest, NewStyleProcWithLoopbackChannelInterfaces) {
+  // In contrast to 2 conflicting interfaces with the same name and direction,
+  // the same name and complementary directions is possible when a stage proc
+  // uses a loopback channel owned by its pipeline proc.
   Package p("my_package");
   const std::string input =
       R"(proc my_proc<ch: bits[32] in, ch: bits[32] out>(my_token: token, my_state: bits[32], init={token, 42}) {
-  chan_interface in_ch(direction=receive, kind=streaming)
+  chan_interface ch(direction=receive, kind=streaming)
+  chan_interface ch(direction=send, kind=streaming)
+  send.1: token = send(my_token, my_state, channel=ch, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  next (tuple_index.4, my_state)
+}
+)";
+  XLS_EXPECT_OK(Parser::ParseProc(input, &p));
+}
+
+TEST(IrParserErrorTest, NewStyleProcWithDuplicateChannelNames) {
+  Package p("my_package");
+  const std::string input =
+      R"(proc my_proc<ch: bits[32] in, ch: bits[32] in>(my_token: token, my_state: bits[32], init={token, 42}) {
+  chan_interface ch(direction=receive, kind=streaming)
   send.1: token = send(my_token, my_state, channel=ch, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)

@@ -715,7 +715,9 @@ absl::StatusOr<ChannelInterface*> Proc::AddChannelInterface(
   }
   for (const std::unique_ptr<ChannelInterface>& other_channel_interface :
        channel_interfaces_) {
-    if (other_channel_interface->name() == channel_interface->name()) {
+    if (other_channel_interface->name() == channel_interface->name() &&
+        other_channel_interface->direction() ==
+            channel_interface->direction()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Cannot add channel `%s` to proc `%s`. Already an "
           "%s channel of same name on the proc.",

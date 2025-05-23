@@ -25,6 +25,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/passes_ng/stage_conversion.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.h"
@@ -72,6 +73,9 @@ absl::StatusOr<bool> StateToChannelConversionPass::RunOnProcInternal(
             {state->initial_value()}, options.state_channel_config,
             FlowControl::kReadyValid,
             ChannelStrictness::kProvenMutuallyExclusive, /*id=*/std::nullopt));
+
+    context.stage_conversion_metadata().AddStateLoopbackChannelName(
+        proc, channel_name);
 
     // Token: here per channel, but possibly only one needed for all of state.
     absl::Span<Node*> no_dependencies;

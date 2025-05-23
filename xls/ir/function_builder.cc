@@ -1093,10 +1093,12 @@ absl::StatusOr<ChannelWithInterfaces> ProcBuilder::AddChannel(
   XLS_RET_CHECK(proc()->is_new_style_proc());
   Channel* channel;
   if (kind == ChannelKind::kStreaming) {
-    XLS_ASSIGN_OR_RETURN(channel,
-                         proc()->package()->CreateStreamingChannelInProc(
-                             name, ChannelOps::kSendReceive, type, proc()));
+    XLS_ASSIGN_OR_RETURN(
+        channel,
+        proc()->package()->CreateStreamingChannelInProc(
+            name, ChannelOps::kSendReceive, type, proc(), initial_values));
   } else {
+    XLS_RET_CHECK(initial_values.empty());
     XLS_RET_CHECK_EQ(kind, ChannelKind::kSingleValue);
     XLS_ASSIGN_OR_RETURN(channel,
                          proc()->package()->CreateSingleValueChannelInProc(

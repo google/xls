@@ -629,11 +629,6 @@ static absl::Status VerifyProcScopedChannels(Proc* proc) {
   // Verify no duplicate channel names.
   absl::flat_hash_set<std::string_view> channel_names;
   for (ChannelInterface* channel_ref : proc->interface()) {
-    if (!channel_names.insert(channel_ref->name()).second) {
-      return absl::InternalError(
-          absl::StrFormat("Duplicate channel name `%s` in proc `%s`",
-                          channel_ref->name(), proc->name()));
-    }
     XLS_RETURN_IF_ERROR(check_channel_ref_unique(channel_ref->name(),
                                                  channel_ref->direction()));
   }
@@ -655,11 +650,12 @@ static absl::Status VerifyProcScopedChannels(Proc* proc) {
        proc->channel_interfaces()) {
     if (channel_interfaces[{channel_ref->name(), channel_ref->direction()}] !=
         0) {
-      return absl::InternalError(absl::StrFormat(
-          "%s channel reference `%s` appears in Proc::GetChannelInterfaces() "
-          "but not in the interface or declared channels",
-          ChannelDirectionToString(channel_ref->direction()),
-          channel_ref->name()));
+      return absl::InternalError(
+          absl::StrFormat("%s channel reference `%s` appears in "
+                          "Proc::GetChannelInterfaces() for proc `%s` "
+                          "but not in the interface or declared channels",
+                          ChannelDirectionToString(channel_ref->direction()),
+                          channel_ref->name(), proc->name()));
     }
   }
 

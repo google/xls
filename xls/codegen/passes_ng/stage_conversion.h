@@ -17,10 +17,12 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -63,6 +65,8 @@ class SpecialUseMetadata {
     kLoopback = 0x10,
     kReadState = 0x20,
     kNextState = 0x40,
+    kNextStateLoopback = kLoopback | kNextState,
+    kReadStateLoopback = kLoopback | kReadState
   };
 
   // Associates a double-ended channel with the node.
@@ -160,8 +164,16 @@ class ProcMetadata {
   //                    created from.
   //  input - parent:   Pointer to the parent metadata object.  nullptr for
   //                    the top-level proc.
-  ProcMetadata(Proc* proc, FunctionBase* orig, ProcMetadata* parent)
-      : proc_(proc), orig_(orig), parent_(parent) {}
+  //
+  //  input - state_loopback_channel_names:
+  //                    The names of state loopback channels created in `orig`
+  //                    by state-channel conversion.
+  ProcMetadata(Proc* proc, FunctionBase* orig, ProcMetadata* parent,
+               absl::flat_hash_set<std::string> state_loopback_channel_names)
+      : proc_(proc),
+        orig_(orig),
+        parent_(parent),
+        state_loopback_channel_names_(state_loopback_channel_names) {}
 
   bool IsTop() const { return parent_ == nullptr; }
 
@@ -189,6 +201,27 @@ class ProcMetadata {
     return metadata;
   }
 
+  // Adds metadata for a receive channel interface in a pipeline or stage proc
+  // that is a duplicate of one in the original top proc.
+  SpecialUseMetadata* AddProcReceiveChannelInterface(
+      ReceiveChannelInterface* new_interface) {
+    bool is_state_channel =
+        state_loopback_channel_names_.contains(new_interface->name());
+
+    SpecialUseMetadata* metadata =
+        special_use_metadata_
+            .emplace_back(std::make_unique<SpecialUseMetadata>(
+                new_interface,
+                is_state_channel
+                    ? SpecialUseMetadata::Purpose::kReadStateLoopback
+                    : SpecialUseMetadata::Purpose::kExternalInput))
+            .get();
+
+    channel_interface_to_metadata_map_[new_interface] = metadata;
+
+    return metadata;
+  }
+
   // Associate with a send channel interface with a node in the original
   // function/proc.  After stage conversion a send op is used to send the
   // node's value to subsequent stages and/or external blocks.
@@ -207,7 +240,28 @@ class ProcMetadata {
     return metadata;
   }
 
-  // Associated a channel with a node in the original function/proc.
+  // Adds metadata for a send channel interface in a pipeline or stage proc that
+  // is a duplicate of one in the original top proc.
+  SpecialUseMetadata* AddProcSendChannelInterface(
+      SendChannelInterface* new_interface) {
+    bool is_state_channel =
+        state_loopback_channel_names_.contains(new_interface->name());
+
+    SpecialUseMetadata* metadata =
+        special_use_metadata_
+            .emplace_back(std::make_unique<SpecialUseMetadata>(
+                new_interface,
+                is_state_channel
+                    ? SpecialUseMetadata::Purpose::kNextStateLoopback
+                    : SpecialUseMetadata::Purpose::kExternalOutput))
+            .get();
+
+    channel_interface_to_metadata_map_[new_interface] = metadata;
+
+    return metadata;
+  }
+
+  // Associates a channel with a node in the original function/proc.
   //
   // After stage conversion, the channel is used to pass
   // the node's value between stages.
@@ -223,6 +277,27 @@ class ProcMetadata {
     orig_node_to_metadata_map_[node].push_back(metadata);
     channel_interface_to_metadata_map_[channel.send_interface] = metadata;
     channel_interface_to_metadata_map_[channel.receive_interface] = metadata;
+
+    return metadata;
+  }
+
+  // Adds metadata for a channel in the pipeline proc that is a duplicate of a
+  // corresponding channel in the original top proc.
+  SpecialUseMetadata* AddProcChannel(ChannelWithInterfaces new_channel) {
+    bool is_state_channel =
+        state_loopback_channel_names_.contains(new_channel.channel->name());
+
+    SpecialUseMetadata* metadata =
+        special_use_metadata_
+            .emplace_back(std::make_unique<SpecialUseMetadata>(
+                new_channel, is_state_channel
+                                 ? SpecialUseMetadata::Purpose::kLoopback
+                                 : SpecialUseMetadata::Purpose::kExternalIO))
+            .get();
+
+    channel_interface_to_metadata_map_[new_channel.send_interface] = metadata;
+    channel_interface_to_metadata_map_[new_channel.receive_interface] =
+        metadata;
 
     return metadata;
   }
@@ -268,11 +343,14 @@ class ProcMetadata {
   Proc* proc_;
 
   // Pointer to the original function/proc this proc was created from.
-  FunctionBase* orig_ = nullptr;
+  FunctionBase* orig_;
 
   // Pointer to the metadata associated with the parent proc.
   // nullptr if this is associated with the top-level proc.
-  ProcMetadata* parent_ = nullptr;
+  ProcMetadata* parent_;
+
+  // The names of channels created as part of state-to-channel conversion.
+  absl::flat_hash_set<std::string> state_loopback_channel_names_;
 
   // Maps nodes from the original function base to the new nodes in this proc.
   absl::flat_hash_map<Node*, Node*> from_orig_map_;
@@ -282,6 +360,9 @@ class ProcMetadata {
   std::vector<std::unique_ptr<SpecialUseMetadata>> special_use_metadata_;
   absl::flat_hash_map<Node*, std::vector<SpecialUseMetadata*>>
       orig_node_to_metadata_map_;
+
+  // Associates metadata with each channel interface in a new pipeline or stage
+  // proc.
   absl::flat_hash_map<ChannelInterface*, SpecialUseMetadata*>
       channel_interface_to_metadata_map_;
 };
@@ -301,10 +382,11 @@ class StageConversionMetadata {
   // metadata object and pipeline proc.
   ProcMetadata* AssociateWithNewPipeline(Proc* pipeline, FunctionBase* orig,
                                          ProcMetadata* parent = nullptr) {
-    ProcMetadata* metadata = proc_metadata_
-                                 .emplace_back(std::make_unique<ProcMetadata>(
-                                     pipeline, orig, parent))
-                                 .get();
+    ProcMetadata* metadata =
+        proc_metadata_
+            .emplace_back(std::make_unique<ProcMetadata>(
+                pipeline, orig, parent, GetStateLoopbackChannelNames(orig)))
+            .get();
     orig_to_metadata_map_[orig].push_back(metadata);
     return metadata;
   }
@@ -319,7 +401,8 @@ class StageConversionMetadata {
                                       ProcMetadata* parent) {
     ProcMetadata* metadata =
         proc_metadata_
-            .emplace_back(std::make_unique<ProcMetadata>(stage, orig, parent))
+            .emplace_back(std::make_unique<ProcMetadata>(
+                stage, orig, parent, GetStateLoopbackChannelNames(orig)))
             .get();
     orig_to_metadata_map_[orig].push_back(metadata);
     return metadata;
@@ -333,7 +416,21 @@ class StageConversionMetadata {
   absl::StatusOr<std::vector<ProcMetadata*>> GetChildrenOf(
       ProcMetadata* proc_m);
 
+  // Adds a state loopback channel created during state-to-channel conversion
+  // for the given proc.
+  void AddStateLoopbackChannelName(Proc* proc, std::string_view channel_name) {
+    state_loopback_channel_names_[proc].insert(std::string(channel_name));
+  }
+
  private:
+  absl::flat_hash_set<std::string> GetStateLoopbackChannelNames(
+      FunctionBase* fb) {
+    if (!fb->IsProc()) {
+      return {};
+    }
+    return state_loopback_channel_names_[fb->AsProcOrDie()];
+  }
+
   // Stores metadata associated with the procs that stage conversion
   // creates.
   std::vector<std::unique_ptr<ProcMetadata>> proc_metadata_;
@@ -342,6 +439,11 @@ class StageConversionMetadata {
   // created by stage conversion.
   absl::flat_hash_map<FunctionBase*, std::vector<ProcMetadata*>>
       orig_to_metadata_map_;
+
+  // Stores the names of loopback channels created during state-to-channel
+  // conversion for each original proc.
+  absl::flat_hash_map<Proc*, absl::flat_hash_set<std::string>>
+      state_loopback_channel_names_;
 };
 
 // Converts a func/proc into a pipelined series of stages.

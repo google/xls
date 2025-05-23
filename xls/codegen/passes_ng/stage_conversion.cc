@@ -20,6 +20,8 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -106,6 +108,47 @@ class StageConversionHandler {
     return absl::OkStatus();
   }
 
+  // Creates a channel or interface in the pipeline proc for each one in an
+  // original proc.
+  absl::Status CreatePipelineChannelsForProc(ProcBuilder& pb,
+                                             ProcMetadata* proc_metadata) {
+    XLS_RET_CHECK(proc_metadata != nullptr);
+
+    if (!is_proc_) {
+      return absl::OkStatus();
+    }
+
+    Proc* p = function_base_->AsProcOrDie();
+
+    if (!p->is_new_style_proc()) {
+      return absl::UnimplementedError("Old-style procs are not supported yet.");
+    }
+
+    for (Channel* orig_channel : p->channels()) {
+      XLS_ASSIGN_OR_RETURN(
+          ChannelWithInterfaces pipeline_channel,
+          pb.AddChannel(orig_channel->name(), orig_channel->type(),
+                        orig_channel->kind(), orig_channel->initial_values()));
+      proc_metadata->AddProcChannel(pipeline_channel);
+    }
+
+    for (ChannelInterface* interface : p->interface()) {
+      if (interface->direction() == ChannelDirection::kSend) {
+        XLS_ASSIGN_OR_RETURN(
+            SendChannelInterface * pipeline_interface,
+            pb.AddOutputChannel(interface->name(), interface->type()));
+        proc_metadata->AddProcSendChannelInterface(pipeline_interface);
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            ReceiveChannelInterface * pipeline_interface,
+            pb.AddInputChannel(interface->name(), interface->type()));
+        proc_metadata->AddProcReceiveChannelInterface(pipeline_interface);
+      }
+    }
+
+    return absl::OkStatus();
+  }
+
   // Add datapath input/output channels between stages. A channel is needed for
   // each node which is scheduled at or before a cycle and has a use after this
   // cycle.
@@ -171,6 +214,46 @@ class StageConversionHandler {
 
       XLS_RET_CHECK_OK(
           pb.InstantiateProc(stage_name, stage_proc, channel_interfaces));
+    }
+
+    return absl::OkStatus();
+  }
+
+  // Adds a channel interface in a stage proc for each one that the original
+  // proc uses in that stage.
+  absl::Status CreateChannelInterfacesForProcStage(
+      const PipelineSchedule& schedule, int64_t stage, ProcBuilder& pb,
+      ProcMetadata* proc_metadata) {
+    XLS_RET_CHECK(proc_metadata != nullptr);
+
+    absl::btree_set<ChannelInterface*> orig_send_interfaces;
+    absl::btree_set<ChannelInterface*> orig_receive_interfaces;
+
+    // Determine which channel interfaces are used by this stage.
+    for (Node* node : schedule.nodes_in_cycle(stage)) {
+      if (node->Is<Send>()) {
+        XLS_ASSIGN_OR_RETURN(ChannelInterface * chan_interface,
+                             node->As<Send>()->GetChannelInterface());
+        orig_send_interfaces.insert(chan_interface);
+      } else if (node->Is<Receive>()) {
+        XLS_ASSIGN_OR_RETURN(ChannelInterface * chan_interface,
+                             node->As<Receive>()->GetChannelInterface());
+        orig_receive_interfaces.insert(chan_interface);
+      }
+    }
+
+    for (ChannelInterface* orig_send_interface : orig_send_interfaces) {
+      XLS_ASSIGN_OR_RETURN(SendChannelInterface * new_interface,
+                           pb.AddOutputChannel(orig_send_interface->name(),
+                                               orig_send_interface->type()));
+      proc_metadata->AddProcSendChannelInterface(new_interface);
+    }
+
+    for (ChannelInterface* orig_receive_interface : orig_receive_interfaces) {
+      XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * new_interface,
+                           pb.AddInputChannel(orig_receive_interface->name(),
+                                              orig_receive_interface->type()));
+      proc_metadata->AddProcReceiveChannelInterface(new_interface);
     }
 
     return absl::OkStatus();
@@ -308,13 +391,15 @@ class StageConversionHandler {
       // TODO(tedhong): 2024-12-19 Create a path/id scheme so that we don't need
       // to rely on string matching to associate channels.
       if (purpose & (SpecialUseMetadata::Purpose::kDatapathInput |
-                     SpecialUseMetadata::Purpose::kExternalInput)) {
+                     SpecialUseMetadata::Purpose::kExternalInput |
+                     SpecialUseMetadata::Purpose::kReadState)) {
         XLS_ASSIGN_OR_RETURN(
             ReceiveChannelInterface * interface,
             top_proc->GetReceiveChannelInterface(interface_channel_name));
         channel_interfaces.push_back(interface);
       } else if (purpose & (SpecialUseMetadata::Purpose::kDatapathOutput |
-                            SpecialUseMetadata::Purpose::kExternalOutput)) {
+                            SpecialUseMetadata::Purpose::kExternalOutput |
+                            SpecialUseMetadata::Purpose::kNextState)) {
         XLS_ASSIGN_OR_RETURN(
             SendChannelInterface * interface,
             top_proc->GetSendChannelInterface(interface_channel_name));
@@ -359,10 +444,6 @@ class StageConversionHandler {
 
   absl::Status SendStageOutput(Node* orig_node, ProcBuilder& pb,
                                ProcMetadata* proc_metadata) {
-    if (is_proc_) {
-      return absl::OkStatus();
-    }
-
     if (!proc_metadata->HasFromOrigMapping(orig_node)) {
       return absl::InternalError(
           absl::StrFormat("Stage %s has no mapping for node %s",
@@ -514,6 +595,8 @@ absl::Status SingleFunctionBaseToPipelinedStages(
       top_builder, top_metadata));
   XLS_RET_CHECK_OK(stage_conversion.CreatePipelineOutputChannelsForFunction(
       top_builder, top_metadata));
+  XLS_RET_CHECK_OK(stage_conversion.CreatePipelineChannelsForProc(
+      top_builder, top_metadata));
   XLS_RET_CHECK_OK(stage_conversion.CreatePipelineDatapathChannels(
       schedule, top_builder, top_metadata));
 
@@ -528,6 +611,13 @@ absl::Status SingleFunctionBaseToPipelinedStages(
 
     ProcMetadata* stage_metadata = metadata.AssociateWithNewStage(
         stage_builder.proc(), function_base, top_metadata);
+
+    // If this is a proc, add duplicates of the channel interfaces from the
+    // original proc that this stage uses.
+    if (function_base->IsProc()) {
+      XLS_RET_CHECK_OK(stage_conversion.CreateChannelInterfacesForProcStage(
+          schedule, stage, stage_builder, stage_metadata));
+    }
 
     // If this is the first stage, add in input channels.
     if (stage == 0) {
