@@ -75,6 +75,9 @@ class FunctionBase {
 
   void ClearInitiationInterval() { initiation_interval_ = std::nullopt; }
 
+  // Returns true if this is the top FunctionBase of the package.
+  bool IsTop() const { return package()->IsTop(this); }
+
   // DumpIr emits the IR in a parsable, hierarchical text format.
   virtual std::string DumpIr() const = 0;
 

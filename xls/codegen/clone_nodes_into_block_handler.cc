@@ -173,21 +173,16 @@ absl::StatusOr<FifoConnections> AddFifoInstantiation(
       << absl::StreamFormat("Channel %s has no fifo config.", channel->name());
 
   std::string inst_name = absl::StrFormat("fifo_%s", channel->name());
-  XLS_ASSIGN_OR_RETURN(
-      xls::Instantiation * instantiation,
-      block->AddInstantiation(
-          inst_name, std::make_unique<xls::FifoInstantiation>(
-                         inst_name, *channel->channel_config().fifo_config(),
-                         channel->type(), channel->name(), block->package())));
+  XLS_ASSIGN_OR_RETURN(xls::FifoInstantiation * instantiation,
+                       block->AddFifoInstantiation(
+                           inst_name, *channel->channel_config().fifo_config(),
+                           channel->type(), channel->name()));
   XLS_RETURN_IF_ERROR(block
                           ->MakeNode<xls::InstantiationInput>(
                               SourceInfo(), block->GetResetPort().value(),
                               instantiation,
                               xls::FifoInstantiation::kResetPortName)
                           .status());
-  xls::FifoInstantiation* fifo_instantiation =
-      down_cast<xls::FifoInstantiation*>(instantiation);
-
   XLS_ASSIGN_OR_RETURN(
       Node * dummy_data,
       block->MakeNode<xls::Literal>(SourceInfo(), ZeroOfType(channel->type())));
@@ -195,40 +190,40 @@ absl::StatusOr<FifoConnections> AddFifoInstantiation(
                                        SourceInfo(), Value(UBits(1, 1))));
 
   XLS_ASSIGN_OR_RETURN(
-      Node * push_data,
-      block->MakeNode<xls::InstantiationInput>(
-          SourceInfo(), dummy_data, fifo_instantiation, "push_data"));
-  XLS_ASSIGN_OR_RETURN(
-      Node * push_valid,
-      block->MakeNode<xls::InstantiationInput>(
-          SourceInfo(), one, fifo_instantiation, "push_valid"));
-  XLS_ASSIGN_OR_RETURN(Node * push_ready,
+      InstantiationConnection * push_data,
+      block->MakeNode<xls::InstantiationInput>(SourceInfo(), dummy_data,
+                                               instantiation, "push_data"));
+  XLS_ASSIGN_OR_RETURN(InstantiationConnection * push_valid,
+                       block->MakeNode<xls::InstantiationInput>(
+                           SourceInfo(), one, instantiation, "push_valid"));
+  XLS_ASSIGN_OR_RETURN(InstantiationConnection * push_ready,
                        block->MakeNode<xls::InstantiationOutput>(
-                           SourceInfo(), fifo_instantiation, "push_ready"));
+                           SourceInfo(), instantiation, "push_ready"));
   CloneNodesIntoBlockHandler::ChannelConnection push_connection{
       .channel = channel,
       .direction = ChannelDirection::kSend,
+      .kind = ConnectionKind::kInternal,
       .data = push_data,
       .valid = push_valid,
       .ready = push_ready};
 
-  XLS_ASSIGN_OR_RETURN(Node * pop_data,
+  XLS_ASSIGN_OR_RETURN(InstantiationConnection * pop_data,
                        block->MakeNode<xls::InstantiationOutput>(
-                           SourceInfo(), fifo_instantiation, "pop_data"));
-  XLS_ASSIGN_OR_RETURN(Node * pop_valid,
+                           SourceInfo(), instantiation, "pop_data"));
+  XLS_ASSIGN_OR_RETURN(InstantiationConnection * pop_valid,
                        block->MakeNode<xls::InstantiationOutput>(
-                           SourceInfo(), fifo_instantiation, "pop_valid"));
-  XLS_ASSIGN_OR_RETURN(Node * pop_ready,
+                           SourceInfo(), instantiation, "pop_valid"));
+  XLS_ASSIGN_OR_RETURN(InstantiationConnection * pop_ready,
                        block->MakeNode<xls::InstantiationInput>(
-                           SourceInfo(), one, fifo_instantiation, "pop_ready"));
+                           SourceInfo(), one, instantiation, "pop_ready"));
   CloneNodesIntoBlockHandler::ChannelConnection pop_connection{
       .channel = channel,
       .direction = ChannelDirection::kReceive,
+      .kind = ConnectionKind::kInternal,
       .data = pop_data,
       .valid = pop_valid,
       .ready = pop_ready};
-
-  return FifoConnections{.instantiation = fifo_instantiation,
+  return FifoConnections{.instantiation = instantiation,
                          .receive_connection = pop_connection,
                          .send_connection = push_connection};
 }
@@ -273,6 +268,7 @@ AddPortsForReceive(ChannelRef channel, Block* block,
   CloneNodesIntoBlockHandler::ChannelConnection connection{
       .channel = channel,
       .direction = ChannelDirection::kReceive,
+      .kind = ConnectionKind::kExternal,
       .data = data,
       .valid = valid,
       .ready = ready};
@@ -320,6 +316,7 @@ absl::StatusOr<CloneNodesIntoBlockHandler::ChannelConnection> AddPortsForSend(
   CloneNodesIntoBlockHandler::ChannelConnection connection{
       .channel = channel,
       .direction = ChannelDirection::kSend,
+      .kind = ConnectionKind::kExternal,
       .data = data,
       .valid = valid,
       .ready = ready};
@@ -980,8 +977,8 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
   Node* signal_valid =
       receive->is_blocking() ? connection.valid.value() : literal_1;
 
-  StreamingInput streaming_input(connection.data, connection.valid.value(),
-                                 connection.ready.value(), connection.channel);
+  StreamingInput streaming_input(block(), ChannelRefName(connection.channel),
+                                 connection.kind);
   streaming_input.SetSignalData(next_node);
   streaming_input.SetSignalValid(signal_valid);
 
@@ -1035,9 +1032,8 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(
   XLS_RET_CHECK_EQ(ChannelRefFlowControl(connection.channel),
                    FlowControl::kReadyValid);
 
-  StreamingOutput streaming_output(connection.data, connection.valid.value(),
-                                   connection.ready.value(),
-                                   connection.channel);
+  StreamingOutput streaming_output(block(), ChannelRefName(connection.channel),
+                                   connection.kind);
 
   if (send->predicate().has_value()) {
     streaming_output.SetPredicate(node_map_.at(send->predicate().value()));

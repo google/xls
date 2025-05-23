@@ -162,8 +162,8 @@ absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
         // If predicate has an assigned name, let the not expression get
         // inlined. Otherwise, give a descriptive name.
         if (!streaming_output.GetPredicate().value()->HasAssignedName()) {
-          not_pred->SetName(absl::StrFormat(
-              "%s_not_pred", ChannelRefName(streaming_output.GetChannel())));
+          not_pred->SetName(absl::StrFormat("%s_not_pred",
+                                            streaming_output.GetChannelName()));
         }
         std::vector<Node*> operands{not_pred, streaming_output.GetReadyPort()};
         XLS_ASSIGN_OR_RETURN(
@@ -173,9 +173,8 @@ absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
         // the ready port. If it has an assigned name, just let everything
         // inline. Otherwise, give a descriptive name.
         if (!streaming_output.GetReadyPort()->HasAssignedName()) {
-          active_ready->SetName(
-              absl::StrFormat("%s_active_ready",
-                              ChannelRefName(streaming_output.GetChannel())));
+          active_ready->SetName(absl::StrFormat(
+              "%s_active_ready", streaming_output.GetChannelName()));
         }
         active_readys.push_back(active_ready);
       } else {
@@ -232,8 +231,8 @@ absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
         // If predicate has an assigned name, let the not expression get
         // inlined. Otherwise, give a descriptive name.
         if (!streaming_input.GetPredicate().value()->HasAssignedName()) {
-          not_pred->SetName(absl::StrFormat(
-              "%s_not_pred", ChannelRefName(streaming_input.GetChannel())));
+          not_pred->SetName(
+              absl::StrFormat("%s_not_pred", streaming_input.GetChannelName()));
         }
         std::vector<Node*> operands = {not_pred, streaming_input_valid};
         XLS_ASSIGN_OR_RETURN(
@@ -244,7 +243,7 @@ absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
         // inline. Otherwise, give a descriptive name.
         if (!streaming_input_valid->HasAssignedName()) {
           active_valid->SetName(absl::StrFormat(
-              "%s_active_valid", ChannelRefName(streaming_input.GetChannel())));
+              "%s_active_valid", streaming_input.GetChannelName()));
         }
         active_valids.push_back(active_valid);
       } else {

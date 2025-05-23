@@ -963,10 +963,11 @@ absl::StatusOr<Block*> Block::Clone(
       XLS_ASSIGN_OR_RETURN(
           Type * data_type,
           target_package->MapTypeFromOtherPackage(fifo_inst->data_type()));
-      XLS_ASSIGN_OR_RETURN(instantiation_map[inst],
-                           cloned_block->AddFifoInstantiation(
-                               inst->name(), fifo_inst->fifo_config(),
-                               data_type, fifo_inst->channel_name()));
+      XLS_ASSIGN_OR_RETURN(
+          FifoInstantiation * cloned_inst,
+          cloned_block->AddFifoInstantiation(
+              inst->name(), fifo_inst->fifo_config(), data_type));
+      instantiation_map[inst] = cloned_inst;
     }
   }
 
@@ -1183,7 +1184,7 @@ absl::StatusOr<PortNode*> Block::GetPortNode(std::string_view name) const {
 }
 
 absl::StatusOr<std::optional<PortNode*>> Block::GetReadyPortForChannel(
-    std::string_view channel_name, ChannelDirection direction) {
+    std::string_view channel_name, ChannelDirection direction) const {
   XLS_ASSIGN_OR_RETURN(const ChannelPortMetadata* metadata,
                        GetChannelPortMetadataInternal(channel_name, direction));
   if (!metadata->ready_port.has_value()) {
@@ -1193,7 +1194,7 @@ absl::StatusOr<std::optional<PortNode*>> Block::GetReadyPortForChannel(
 }
 
 absl::StatusOr<std::optional<PortNode*>> Block::GetValidPortForChannel(
-    std::string_view channel_name, ChannelDirection direction) {
+    std::string_view channel_name, ChannelDirection direction) const {
   XLS_ASSIGN_OR_RETURN(const ChannelPortMetadata* metadata,
                        GetChannelPortMetadataInternal(channel_name, direction));
   if (!metadata->valid_port.has_value()) {
@@ -1203,13 +1204,88 @@ absl::StatusOr<std::optional<PortNode*>> Block::GetValidPortForChannel(
 }
 
 absl::StatusOr<std::optional<PortNode*>> Block::GetDataPortForChannel(
-    std::string_view channel_name, ChannelDirection direction) {
+    std::string_view channel_name, ChannelDirection direction) const {
   XLS_ASSIGN_OR_RETURN(const ChannelPortMetadata* metadata,
                        GetChannelPortMetadataInternal(channel_name, direction));
   if (!metadata->data_port.has_value()) {
     return std::nullopt;
   }
   return GetPortNode(*metadata->data_port);
+}
+
+absl::StatusOr<FifoInstantiation*> Block::GetFifoInstantiationForChannel(
+    std::string_view channel_name) const {
+  for (Instantiation* inst : GetInstantiations()) {
+    if (inst->kind() == InstantiationKind::kFifo) {
+      XLS_ASSIGN_OR_RETURN(FifoInstantiation * fifo_inst,
+                           inst->AsFifoInstantiation());
+      if (fifo_inst->channel_name().has_value() &&
+          *fifo_inst->channel_name() == channel_name) {
+        return fifo_inst;
+      }
+    }
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("No fifo instantation for channel `%s` in block `%s`",
+                      channel_name, name()));
+}
+
+namespace {
+
+absl::StatusOr<std::optional<InstantiationConnection*>>
+GetInstantiationConnectionByName(const Block* block, Instantiation* inst,
+                                 std::string_view port_name) {
+  for (InstantiationInput* input : block->GetInstantiationInputs(inst)) {
+    if (input->port_name() == port_name) {
+      return input;
+    }
+  }
+  for (InstantiationOutput* output : block->GetInstantiationOutputs(inst)) {
+    if (output->port_name() == port_name) {
+      return output;
+    }
+  }
+  return absl::NotFoundError(absl::StrFormat(
+      "No connection for port `%s` of instantiation `%s` found in block `%s`",
+      port_name, inst->name(), block->name()));
+}
+
+}  // namespace
+
+absl::StatusOr<std::optional<InstantiationConnection*>>
+Block::GetReadyInstantiationConnectionForChannel(
+    std::string_view channel_name, ChannelDirection direction) const {
+  XLS_ASSIGN_OR_RETURN(FifoInstantiation * inst,
+                       GetFifoInstantiationForChannel(channel_name));
+  return GetInstantiationConnectionByName(
+      this, inst,
+      direction == ChannelDirection::kSend
+          ? FifoInstantiation::kPushReadyPortName
+          : FifoInstantiation::kPopReadyPortName);
+}
+
+absl::StatusOr<std::optional<InstantiationConnection*>>
+Block::GetValidInstantiationConnectionForChannel(
+    std::string_view channel_name, ChannelDirection direction) const {
+  XLS_ASSIGN_OR_RETURN(FifoInstantiation * inst,
+                       GetFifoInstantiationForChannel(channel_name));
+  return GetInstantiationConnectionByName(
+      this, inst,
+      direction == ChannelDirection::kSend
+          ? FifoInstantiation::kPushValidPortName
+          : FifoInstantiation::kPopValidPortName);
+}
+
+absl::StatusOr<std::optional<InstantiationConnection*>>
+Block::GetDataInstantiationConnectionForChannel(
+    std::string_view channel_name, ChannelDirection direction) const {
+  XLS_ASSIGN_OR_RETURN(FifoInstantiation * inst,
+                       GetFifoInstantiationForChannel(channel_name));
+  return GetInstantiationConnectionByName(
+      this, inst,
+      direction == ChannelDirection::kSend
+          ? FifoInstantiation::kPushDataPortName
+          : FifoInstantiation::kPopDataPortName);
 }
 
 std::vector<std::pair<std::string, ChannelDirection>>

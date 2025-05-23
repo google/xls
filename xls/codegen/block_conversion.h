@@ -134,9 +134,6 @@ absl::Status AddCombinationalFlowControl(
     std::vector<std::optional<Node*>>& stage_valid,
     const CodegenOptions& options, Proc* proc, Block* block);
 
-// Update io channel metadata with latest information from block conversion.
-absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io, Block* block);
-
 absl::StatusOr<std::string> StreamingIOName(Node* node);
 
 // Returns the order in which procs/functions should be converted to blocks. The

@@ -53,6 +53,9 @@ struct BlockProvenance {
   // The kind of IR construct (proc or function) this block was lowered from.
   BlockProvenanceKind kind;
 
+  bool IsFromProc() const { return kind == BlockProvenanceKind::kProc; }
+  bool IsFromFunction() const { return kind == BlockProvenanceKind::kFunction; }
+
   bool operator==(const BlockProvenance& other) const {
     return name == other.name && kind == other.kind;
   }
@@ -229,7 +232,7 @@ class Block : public FunctionBase {
       std::string_view name, std::unique_ptr<Instantiation> instantiation);
 
   // Removes the given instantiation from the block. InstantationInput or
-  // InstantationOutput operations for this instantation should be removed
+  // InstantiationOutput operations for this instantiation should be removed
   // prior to calling this method
   absl::Status RemoveInstantiation(Instantiation* instantiation);
 
@@ -310,11 +313,27 @@ class Block : public FunctionBase {
   // no ready/valid/data port exists for the channel (for example, a data port
   // for a empty tuple typed channel).
   absl::StatusOr<std::optional<PortNode*>> GetReadyPortForChannel(
-      std::string_view channel_name, ChannelDirection direction);
+      std::string_view channel_name, ChannelDirection direction) const;
   absl::StatusOr<std::optional<PortNode*>> GetValidPortForChannel(
-      std::string_view channel_name, ChannelDirection direction);
+      std::string_view channel_name, ChannelDirection direction) const;
   absl::StatusOr<std::optional<PortNode*>> GetDataPortForChannel(
-      std::string_view channel_name, ChannelDirection direction);
+      std::string_view channel_name, ChannelDirection direction) const;
+
+  // Returns the FifoInstantiation reresenting the channel with the given name.
+  absl::StatusOr<FifoInstantiation*> GetFifoInstantiationForChannel(
+      std::string_view channel_name) const;
+
+  // Returns the instantiation input/output associated with teh ready/valid/data
+  // signal for the given channel in the given direction.
+  absl::StatusOr<std::optional<InstantiationConnection*>>
+  GetReadyInstantiationConnectionForChannel(std::string_view channel_name,
+                                            ChannelDirection direction) const;
+  absl::StatusOr<std::optional<InstantiationConnection*>>
+  GetValidInstantiationConnectionForChannel(std::string_view channel_name,
+                                            ChannelDirection direction) const;
+  absl::StatusOr<std::optional<InstantiationConnection*>>
+  GetDataInstantiationConnectionForChannel(std::string_view channel_name,
+                                           ChannelDirection direction) const;
 
   // Returns the names of and directions of channels which correspond to ports
   // on this block.

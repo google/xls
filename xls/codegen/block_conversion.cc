@@ -341,66 +341,6 @@ absl::StatusOr<StreamingIOPipeline> CloneProcNodesIntoBlock(
   return cloner.GetResult();
 }
 
-absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
-                                   Block* block) {
-  for (const auto& inputs : io.inputs) {
-    for (const StreamingInput& input : inputs) {
-      CHECK_NE(*input.GetDataPort(), nullptr);
-      CHECK_NE(input.GetValidPort(), nullptr);
-      CHECK_NE(input.GetReadyPort(), nullptr);
-      // Ports are either all external IOs or all from instantiations.
-      CHECK(input.IsExternal() || input.IsInstantiation());
-
-      if (input.IsExternal()) {
-        XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-            input.GetChannel(), ChannelDirection::kReceive,
-            input.GetDataPort().value()->GetName(),
-            input.GetValidPort()->GetName(), input.GetReadyPort()->GetName()));
-      }
-    }
-  }
-
-  for (const auto& outputs : io.outputs) {
-    for (const StreamingOutput& output : outputs) {
-      CHECK_NE(*output.GetDataPort(), nullptr);
-      CHECK_NE(output.GetValidPort(), nullptr);
-      CHECK_NE(output.GetReadyPort(), nullptr);
-      // Ports are either all external IOs or all from instantiations.
-      CHECK(output.IsExternal() || output.IsInstantiation());
-
-      if (output.IsExternal()) {
-        XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-            output.GetChannel(), ChannelDirection::kSend,
-            output.GetDataPort().value()->GetName(),
-            output.GetValidPort()->GetName(),
-            output.GetReadyPort()->GetName()));
-      }
-    }
-  }
-
-  for (const SingleValueInput& input : io.single_value_inputs) {
-    CHECK_NE(input.GetDataPort(), nullptr);
-
-    XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-        input.GetChannel(), ChannelDirection::kReceive,
-        input.GetDataPort()->GetName(),
-        /*valid_port=*/std::nullopt,
-        /*ready_port=*/std::nullopt));
-  }
-
-  for (const SingleValueOutput& output : io.single_value_outputs) {
-    CHECK_NE(output.GetDataPort(), nullptr);
-
-    XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-        output.GetChannel(), ChannelDirection::kSend,
-        output.GetDataPort()->GetName(),
-        /*valid_port=*/std::nullopt,
-        /*ready_port=*/std::nullopt));
-  }
-
-  return absl::OkStatus();
-}
-
 absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
                                             const CodegenOptions& options,
                                             CodegenContext& context,
@@ -710,6 +650,8 @@ absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
       SanitizeIdentifier(options.module_name().value_or(top->name())));
   Block* top_block =
       package->AddBlock(std::make_unique<Block>(module_name, package));
+  top_block->SetFunctionBaseProvenance(top);
+
   // We use a uniquer here because the top block name comes from the codegen
   // option's `module_name` field (if set). A non-top proc could have the same
   // name, so the name uniquer will ensure that the sub-block gets a suffix if
@@ -745,6 +687,7 @@ absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
     } else {
       sub_block =
           package->AddBlock(std::make_unique<Block>(sub_block_name, package));
+      sub_block->SetFunctionBaseProvenance(fb);
     }
     if (fb->IsProc()) {
       absl::Span<ProcInstance* const> instances;
@@ -795,6 +738,7 @@ absl::StatusOr<CodegenContext> FunctionToCombinationalBlock(
       options.module_name().value_or(SanitizeIdentifier(f->name())));
   Block* block = f->package()->AddBlock(
       std::make_unique<Block>(module_name, f->package()));
+  block->SetFunctionBaseProvenance(f);
 
   // A map from the nodes in 'f' to their corresponding node in the block.
   absl::flat_hash_map<Node*, Node*> node_map;
@@ -878,6 +822,7 @@ absl::StatusOr<CodegenContext> ProcToCombinationalBlock(
                                         : proc->name()});
   Block* block = proc->package()->AddBlock(
       std::make_unique<Block>(module_name, proc->package()));
+  block->SetFunctionBaseProvenance(proc);
 
   XLS_ASSIGN_OR_RETURN(StreamingIOPipeline streaming_io,
                        CloneProcNodesIntoBlock(proc, options, block));
@@ -924,13 +869,6 @@ absl::StatusOr<CodegenContext> ProcToCombinationalBlock(
       });
   XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block, context));
   VLOG(3) << "After RemoveDeadTokenNodes";
-  XLS_VLOG_LINES(3, block->package()->DumpIr());
-
-  XLS_RETURN_IF_ERROR(
-      UpdateChannelMetadata(context.GetMetadataForBlock(context.top_block())
-                                .streaming_io_and_pipeline,
-                            context.top_block()));
-  VLOG(3) << "After UpdateChannelMetadata";
   XLS_VLOG_LINES(3, block->package()->DumpIr());
 
   context.GcMetadata();

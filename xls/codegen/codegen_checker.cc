@@ -69,26 +69,26 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
       if (input.GetDataPort().has_value()) {
         XLS_RET_CHECK(nodes.contains(*input.GetDataPort()))
             << absl::StreamFormat("Port not found for %s",
-                                  ChannelRefName(input.GetChannel()));
+                                  input.GetChannelName());
       }
       XLS_RET_CHECK(nodes.contains(input.GetReadyPort())) << absl::StreamFormat(
-          "Ready port not found for %s", ChannelRefName(input.GetChannel()));
+          "Ready port not found for %s", input.GetChannelName());
       XLS_RET_CHECK(nodes.contains(input.GetValidPort())) << absl::StreamFormat(
-          "Valid port not found for %s", ChannelRefName(input.GetChannel()));
+          "Valid port not found for %s", input.GetChannelName());
       if (input.GetSignalData().has_value()) {
         XLS_RET_CHECK(nodes.contains(*input.GetSignalData()))
             << absl::StreamFormat("Signal data not found for %s",
-                                  ChannelRefName(input.GetChannel()));
+                                  input.GetChannelName());
       }
       if (input.GetSignalValid().has_value()) {
         XLS_RET_CHECK(nodes.contains(*input.GetSignalValid()))
             << absl::StreamFormat("Signal valid not found for %s",
-                                  ChannelRefName(input.GetChannel()));
+                                  input.GetChannelName());
       }
       if (input.GetPredicate().has_value()) {
         XLS_RET_CHECK(nodes.contains(*input.GetPredicate()))
             << absl::StreamFormat("Predicate not found for %s",
-                                  ChannelRefName(input.GetChannel()));
+                                  input.GetChannelName());
       }
     }
   }
@@ -105,7 +105,7 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
       if (output.GetPredicate().has_value()) {
         XLS_RET_CHECK(nodes.contains(*output.GetPredicate()))
             << absl::StreamFormat("Predicate not found for %s",
-                                  ChannelRefName(output.GetChannel()));
+                                  output.GetChannelName());
       }
     }
   }

@@ -1567,11 +1567,6 @@ absl::Status SingleProcToPipelinedBlock(
 
   // TODO: add simplification pass here to remove unnecessary `1 & x`
 
-  XLS_RETURN_IF_ERROR(UpdateChannelMetadata(
-      context.GetMetadataForBlock(block).streaming_io_and_pipeline, block));
-  VLOG(3) << "After UpdateChannelMetadata";
-  XLS_VLOG_LINES(3, block->DumpIr());
-
   return absl::OkStatus();
 }
 }  // namespace xls::verilog

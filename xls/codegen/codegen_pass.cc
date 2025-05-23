@@ -14,9 +14,7 @@
 
 #include "xls/codegen/codegen_pass.h"
 
-#include <cstdint>
 #include <optional>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -24,15 +22,118 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_split.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
+#include "xls/ir/proc.h"
 
 namespace xls::verilog {
+
+std::optional<Node*> StreamingInput::GetDataPort() const {
+  if (kind_ == ConnectionKind::kExternal) {
+    return block_
+        ->GetDataPortForChannel(channel_name_, ChannelDirection::kReceive)
+        .value();
+  }
+  return block_
+      ->GetDataInstantiationConnectionForChannel(channel_name_,
+                                                 ChannelDirection::kReceive)
+      .value();
+}
+
+Node* StreamingInput::GetValidPort() const {
+  if (kind_ == ConnectionKind::kExternal) {
+    return block_
+        ->GetValidPortForChannel(channel_name_, ChannelDirection::kReceive)
+        .value()
+        .value();
+  }
+  return block_
+      ->GetValidInstantiationConnectionForChannel(channel_name_,
+                                                  ChannelDirection::kReceive)
+      .value()
+      .value();
+}
+
+Node* StreamingInput::GetReadyPort() const {
+  if (kind_ == ConnectionKind::kExternal) {
+    return block_
+        ->GetReadyPortForChannel(channel_name_, ChannelDirection::kReceive)
+        .value()
+        .value();
+  }
+  return block_
+      ->GetReadyInstantiationConnectionForChannel(channel_name_,
+                                                  ChannelDirection::kReceive)
+      .value()
+      .value();
+}
+
+ChannelRef StreamingInput::GetChannel() const {
+  if (block_->package()->ChannelsAreProcScoped()) {
+    const std::optional<BlockProvenance>& provenance = block_->GetProvenance();
+    CHECK(provenance.has_value());
+    CHECK(provenance->IsFromProc());
+    Proc* proc = block_->package()->GetProc(provenance->name).value();
+    return proc
+        ->GetChannelInterface(GetChannelName(), ChannelDirection::kReceive)
+        .value();
+  }
+  return block_->package()->GetChannel(GetChannelName()).value();
+}
+
+std::optional<Node*> StreamingOutput::GetDataPort() const {
+  if (kind_ == ConnectionKind::kExternal) {
+    return block_->GetDataPortForChannel(channel_name_, ChannelDirection::kSend)
+        .value();
+  }
+  return block_
+      ->GetDataInstantiationConnectionForChannel(channel_name_,
+                                                 ChannelDirection::kSend)
+      .value();
+}
+
+Node* StreamingOutput::GetValidPort() const {
+  if (kind_ == ConnectionKind::kExternal) {
+    return block_
+        ->GetValidPortForChannel(channel_name_, ChannelDirection::kSend)
+        .value()
+        .value();
+  }
+  return block_
+      ->GetValidInstantiationConnectionForChannel(channel_name_,
+                                                  ChannelDirection::kSend)
+      .value()
+      .value();
+}
+
+Node* StreamingOutput::GetReadyPort() const {
+  if (kind_ == ConnectionKind::kExternal) {
+    return block_
+        ->GetReadyPortForChannel(channel_name_, ChannelDirection::kSend)
+        .value()
+        .value();
+  }
+  return block_
+      ->GetReadyInstantiationConnectionForChannel(channel_name_,
+                                                  ChannelDirection::kSend)
+      .value()
+      .value();
+}
+
+ChannelRef StreamingOutput::GetChannel() const {
+  if (block_->package()->ChannelsAreProcScoped()) {
+    const std::optional<BlockProvenance>& provenance = block_->GetProvenance();
+    CHECK(provenance.has_value());
+    CHECK(provenance->IsFromProc());
+    Proc* proc = block_->package()->GetProc(provenance->name).value();
+    return proc->GetChannelInterface(GetChannelName(), ChannelDirection::kSend)
+        .value();
+  }
+  return block_->package()->GetChannel(GetChannelName()).value();
+}
 
 void CodegenContext::GcMetadata() {
   absl::flat_hash_set<Node*> nodes;
@@ -46,10 +147,6 @@ void CodegenContext::GcMetadata() {
     for (std::vector<StreamingInput>& inputs :
          block_metadata.streaming_io_and_pipeline.inputs) {
       for (StreamingInput& input : inputs) {
-        if (input.GetDataPort().has_value() &&
-            !nodes.contains(*input.GetDataPort())) {
-          input.ClearDataPort();
-        }
         if (input.GetSignalData().has_value() &&
             !nodes.contains(*input.GetSignalData())) {
           input.SetSignalData(std::nullopt);
@@ -67,10 +164,6 @@ void CodegenContext::GcMetadata() {
     for (std::vector<StreamingOutput>& outputs :
          block_metadata.streaming_io_and_pipeline.outputs) {
       for (StreamingOutput& output : outputs) {
-        if (output.GetDataPort().has_value() &&
-            !nodes.contains(*output.GetDataPort())) {
-          output.SetDataPort(std::nullopt);
-        }
         if (output.GetPredicate().has_value() &&
             !nodes.contains(*output.GetPredicate())) {
           output.SetPredicate(std::nullopt);
@@ -117,14 +210,15 @@ void CodegenContext::GcMetadata() {
          metadata.streaming_io_and_pipeline.inputs) {
       for (const StreamingInput& input : inputs) {
         VLOG(5) << absl::StreamFormat("Input found on %v for %s", *block,
-                                      ChannelRefName(input.GetChannel()));
+                                      input.GetChannelName());
         if (!input.IsExternal()) {
           VLOG(5) << absl::StreamFormat("Skipping internal input %s",
-                                        ChannelRefName(input.GetChannel()));
+                                        input.GetChannelName());
           continue;
         }
-        channel_to_streaming_input[std::get<Channel*>(input.GetChannel())] =
-            &input;
+        Channel* channel =
+            block->package()->GetChannel(input.GetChannelName()).value();
+        channel_to_streaming_input[channel] = &input;
       }
     }
     for (const SingleValueInput& input :
@@ -138,14 +232,15 @@ void CodegenContext::GcMetadata() {
          metadata.streaming_io_and_pipeline.outputs) {
       for (const StreamingOutput& output : outputs) {
         VLOG(5) << absl::StreamFormat("Output found on %v for %s.", *block,
-                                      ChannelRefName(output.GetChannel()));
+                                      output.GetChannelName());
         if (!output.IsExternal()) {
           VLOG(5) << absl::StreamFormat("Skipping internal output %s",
-                                        ChannelRefName(output.GetChannel()));
+                                        output.GetChannelName());
           continue;
         }
-        channel_to_streaming_output[std::get<Channel*>(output.GetChannel())] =
-            &output;
+        Channel* channel =
+            block->package()->GetChannel(output.GetChannelName()).value();
+        channel_to_streaming_output[channel] = &output;
       }
     }
     for (const SingleValueOutput& output :

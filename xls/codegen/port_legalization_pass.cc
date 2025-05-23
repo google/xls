@@ -62,6 +62,7 @@ absl::StatusOr<bool> PortLegalizationPass::RunInternal(
       }
     }
     for (Node* node : to_remove) {
+      VLOG(4) << "Removing zero-width instantiation port " << node->GetName();
       XLS_RETURN_IF_ERROR(block->RemoveNode(node));
     }
     to_remove.clear();
@@ -89,7 +90,8 @@ absl::StatusOr<bool> PortLegalizationPass::RunInternal(
       } else if (std::holds_alternative<OutputPort*>(port)) {
         OutputPort* output_port = std::get<OutputPort*>(port);
         if (output_port->operand(0)->GetType()->GetFlatBitCount() == 0) {
-          VLOG(4) << "Removing zero-width output port " << output_port->name();
+          VLOG(4) << "Removing zero-width output port "
+                  << output_port->GetName();
           XLS_RETURN_IF_ERROR(block->RemoveNode(output_port));
           changed = true;
         }

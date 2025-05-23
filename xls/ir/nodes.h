@@ -580,7 +580,28 @@ class OutputPort final : public PortNode {
   std::string_view name() const { return GetNameView(); }
 };
 
-class InstantiationInput final : public Node {
+class InstantiationConnection : public Node {
+ public:
+  static constexpr std::array<Op, 2> kOps = {Op::kInstantiationInput,
+                                             Op::kInstantiationOutput};
+  InstantiationConnection(Op op, Type* type, const SourceInfo& loc,
+                          Instantiation* instantiation,
+                          std::string_view port_name, std::string_view name,
+                          FunctionBase* function)
+      : Node(op, type, loc, name, function),
+        instantiation_(instantiation),
+        port_name_(port_name) {}
+
+  Instantiation* instantiation() const { return instantiation_; }
+
+  const std::string& port_name() const { return port_name_; }
+
+ private:
+  Instantiation* instantiation_;
+  std::string port_name_;
+};
+
+class InstantiationInput final : public InstantiationConnection {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kInstantiationInput};
   static constexpr int64_t kDataOperand = 0;
@@ -592,9 +613,6 @@ class InstantiationInput final : public Node {
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
-  Instantiation* instantiation() const { return instantiation_; }
-
-  const std::string& port_name() const { return port_name_; }
 
   Node* data() const { return operand(0); }
 
@@ -605,7 +623,7 @@ class InstantiationInput final : public Node {
   std::string port_name_;
 };
 
-class InstantiationOutput final : public Node {
+class InstantiationOutput final : public InstantiationConnection {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kInstantiationOutput};
   InstantiationOutput(const SourceInfo& loc, Instantiation* instantiation,
@@ -615,9 +633,6 @@ class InstantiationOutput final : public Node {
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
-  Instantiation* instantiation() const { return instantiation_; }
-
-  const std::string& port_name() const { return port_name_; }
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
 

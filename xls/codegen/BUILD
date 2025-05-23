@@ -239,21 +239,6 @@ cc_library(
 )
 
 cc_library(
-    name = "update_channel_metadata_pass",
-    srcs = ["update_channel_metadata_pass.cc"],
-    hdrs = ["update_channel_metadata_pass.h"],
-    deps = [
-        ":block_conversion",
-        ":codegen_pass",
-        ":codegen_util",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/passes:pass_base",
-        "@com_google_absl//absl/status:statusor",
-    ],
-)
-
-cc_library(
     name = "block_conversion_dead_token_removal_pass",
     srcs = ["block_conversion_dead_token_removal_pass.cc"],
     hdrs = ["block_conversion_dead_token_removal_pass.h"],
@@ -278,7 +263,6 @@ cc_library(
         ":codegen_pass",
         ":convert_ir_to_blocks_passes",
         ":mark_channel_fifos_pass",
-        ":update_channel_metadata_pass",
         "//xls/codegen/vast",
         "//xls/common/status:ret_check",
         "//xls/ir",
@@ -580,7 +564,6 @@ cc_library(
     deps = [
         ":codegen_options",
         ":concurrent_stage_groups",
-        ":module_signature",
         "//xls/codegen/passes_ng:stage_conversion",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
@@ -597,9 +580,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
     ],
 )
 

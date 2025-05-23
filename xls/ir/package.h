@@ -100,6 +100,11 @@ class Package {
   // parameter must exist.
   absl::Status SetTopByName(std::string_view top_name);
 
+  // Returns true if the package's top is set to `f`.
+  bool IsTop(const FunctionBase* f) const {
+    return top_.has_value() && f == *top_;
+  }
+
   // Helper function to get the top as a function, proc or block.
   absl::StatusOr<Function*> GetTopAsFunction() const;
   absl::StatusOr<Proc*> GetTopAsProc() const;

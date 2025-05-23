@@ -17,9 +17,9 @@
 
 #include <compare>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -70,6 +70,8 @@ struct CodegenPassOptions : public PassOptionsBase {
 
 using Stage = int64_t;
 
+enum class ConnectionKind { kInternal, kExternal };
+
 // Data structures holding the data and (optional) predicate nodes representing
 // streaming inputs (receive over streaming channel) and streaming outputs (send
 // over streaming channel) in the generated block.
@@ -77,28 +79,24 @@ class StreamingInput {
   // Note that these ports can either be external I/Os or be ports from a FIFO
   // instantiation.
  public:
-  StreamingInput(std::optional<Node*> port, Node* port_valid, Node* port_ready,
-                 ChannelRef channel)
-      : port_(port),
-        port_valid_(port_valid),
-        port_ready_(port_ready),
-        channel_(channel) {}
+  StreamingInput(Block* block, std::string_view channel_name,
+                 ConnectionKind kind)
+      : block_(block), channel_name_(channel_name), kind_(kind) {}
 
-  const std::optional<Node*>& GetDataPort() const { return port_; }
-  void ClearDataPort() { port_ = std::nullopt; }
-  Node* GetValidPort() const { return port_valid_; }
-  Node* GetReadyPort() const { return port_ready_; }
-  void SetReadyPort(Node* value) { port_ready_ = value; }
-  ChannelRef GetChannel() const { return channel_; }
+  std::optional<Node*> GetDataPort() const;
+  Node* GetValidPort() const;
+  Node* GetReadyPort() const;
+  std::string_view GetChannelName() const { return channel_name_; }
+  ChannelRef GetChannel() const;
 
   const std ::optional<Node*>& GetPredicate() const { return predicate_; }
   void SetPredicate(std::optional<Node*> value) { predicate_ = value; }
 
-  const std ::optional<FifoInstantiation*>& GetFifoInstantiation() const {
-    return fifo_instantiation_;
-  }
-  void SetFifoInstantiation(FifoInstantiation* value) {
-    fifo_instantiation_ = value;
+  std ::optional<FifoInstantiation*> GetFifoInstantiation() const {
+    if (IsExternal()) {
+      return std::nullopt;
+    }
+    return block_->GetFifoInstantiationForChannel(channel_name_).value();
   }
 
   const std ::optional<Node*>& GetSignalData() const { return signal_data_; }
@@ -106,24 +104,13 @@ class StreamingInput {
   const std ::optional<Node*>& GetSignalValid() const { return signal_valid_; }
   void SetSignalValid(std::optional<Node*> value) { signal_valid_ = value; }
 
-  bool IsExternal() const {
-    return (!GetDataPort().has_value() ||
-            GetDataPort().value()->op() == Op::kInputPort) &&
-           GetValidPort()->op() == Op::kInputPort &&
-           GetReadyPort()->op() == Op::kOutputPort;
-  }
-  bool IsInstantiation() const {
-    return (!GetDataPort().has_value() ||
-            GetDataPort().value()->op() == Op::kInstantiationOutput) &&
-           GetValidPort()->op() == Op::kInstantiationOutput &&
-           GetReadyPort()->op() == Op::kInstantiationInput;
-  }
+  bool IsExternal() const { return kind_ == ConnectionKind::kExternal; }
+  bool IsInstantiation() const { return kind_ == ConnectionKind::kInternal; }
 
  private:
-  std::optional<Node*> port_;
-  Node* port_valid_;
-  Node* port_ready_;
-  ChannelRef channel_;
+  Block* block_;
+  std::string channel_name_;
+  ConnectionKind kind_;
 
   // signal_data and signal_valid represent the internal view of the streaming
   // input.  These are used (ex. for handling non-blocking receives) as
@@ -144,26 +131,21 @@ class StreamingInput {
   //  -----------------------------------------------
   std::optional<Node*> signal_data_;
   std::optional<Node*> signal_valid_;
-  std::optional<FifoInstantiation*> fifo_instantiation_;
   std::optional<Node*> predicate_;
 };
 
 class StreamingOutput {
  public:
-  StreamingOutput(std::optional<Node*> port, Node* port_valid, Node* port_ready,
-                  ChannelRef channel)
-      : port_(port),
-        port_valid_(port_valid),
-        port_ready_(port_ready),
-        channel_(channel) {}
+  StreamingOutput(Block* block, std::string_view channel_name,
+                  ConnectionKind kind)
+      : block_(block), channel_name_(channel_name), kind_(kind) {}
 
-  const std ::optional<Node*>& GetDataPort() const { return port_; }
-  void SetDataPort(std::optional<Node*> value) { port_ = value; }
-  Node* GetValidPort() const { return port_valid_; }
-  void SetValidPort(Node* value) { port_valid_ = value; }
-  Node* GetReadyPort() const { return port_ready_; }
-  void SetReadyPort(Node* value) { port_ready_ = value; }
-  ChannelRef GetChannel() const { return channel_; }
+  std::optional<Node*> GetDataPort() const;
+  Node* GetValidPort() const;
+  Node* GetReadyPort() const;
+  std::string_view GetChannelName() const { return channel_name_; }
+
+  ChannelRef GetChannel() const;
 
   const std ::optional<Node*>& GetPredicate() const { return predicate_; }
   void SetPredicate(std::optional<Node*> value) { predicate_ = value; }
@@ -171,32 +153,22 @@ class StreamingOutput {
   const std::optional<Node*>& GetData() const { return data_; }
   void SetData(Node* value) { data_ = value; }
 
-  const std ::optional<FifoInstantiation*>& GetFifoInstantiation() const {
-    return fifo_instantiation_;
-  }
-  void SetFifoInstantiation(FifoInstantiation* value) {
-    fifo_instantiation_ = value;
+  std ::optional<FifoInstantiation*> GetFifoInstantiation() const {
+    if (IsExternal()) {
+      return std::nullopt;
+    }
+    return block_->GetFifoInstantiationForChannel(channel_name_).value();
   }
 
-  bool IsExternal() const {
-    return GetDataPort().value()->op() == Op::kOutputPort &&
-           GetValidPort()->op() == Op::kOutputPort &&
-           GetReadyPort()->op() == Op::kInputPort;
-  }
-  bool IsInstantiation() const {
-    return GetDataPort().value()->op() == Op::kInstantiationInput &&
-           GetValidPort()->op() == Op::kInstantiationInput &&
-           GetReadyPort()->op() == Op::kInstantiationOutput;
-  }
+  bool IsExternal() const { return kind_ == ConnectionKind::kExternal; }
+  bool IsInstantiation() const { return kind_ == ConnectionKind::kInternal; }
 
  private:
   // Note that these ports can either be external I/Os or be ports from a FIFO
   // instantiation.
-  std::optional<Node*> port_;
-  Node* port_valid_;
-  Node* port_ready_;
-  ChannelRef channel_;
-  std::optional<FifoInstantiation*> fifo_instantiation_;
+  Block* block_;
+  std::string channel_name_;
+  ConnectionKind kind_;
 
   std::optional<Node*> predicate_;
   std::optional<Node*> data_;

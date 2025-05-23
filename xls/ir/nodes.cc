@@ -1177,15 +1177,10 @@ InstantiationOutput::InstantiationOutput(const SourceInfo& loc,
                                          std::string_view port_name,
                                          std::string_view name,
                                          FunctionBase* function)
-    : Node(Op::kInstantiationOutput,
-           instantiation->GetOutputPort(port_name).value().type, loc, name,
-           function),
-      instantiation_(instantiation),
-      port_name_(port_name) {
-  CHECK(IsOpClass<InstantiationOutput>(op_))
-      << "Op `" << op_
-      << "` is not a valid op for Node class `InstantiationOutput`.";
-}
+    : InstantiationConnection(
+          Op::kInstantiationOutput,
+          instantiation->GetOutputPort(port_name).value().type, loc,
+          instantiation, port_name, name, function) {}
 
 absl::StatusOr<Node*> InstantiationOutput::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
@@ -1211,13 +1206,9 @@ InstantiationInput::InstantiationInput(const SourceInfo& loc, Node* data,
                                        std::string_view port_name,
                                        std::string_view name,
                                        FunctionBase* function)
-    : Node(Op::kInstantiationInput, function->package()->GetTupleType({}), loc,
-           name, function),
-      instantiation_(instantiation),
-      port_name_(port_name) {
-  CHECK(IsOpClass<InstantiationInput>(op_))
-      << "Op `" << op_
-      << "` is not a valid op for Node class `InstantiationInput`.";
+    : InstantiationConnection(Op::kInstantiationInput,
+                              function->package()->GetTupleType({}), loc,
+                              instantiation, port_name, name, function) {
   AddOperand(data);
 }
 

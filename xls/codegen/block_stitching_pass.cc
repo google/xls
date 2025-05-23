@@ -386,12 +386,10 @@ absl::Status StitchStreamingChannel(
         << absl::StreamFormat("Channel %s has no fifo config.",
                               channel->name());
     XLS_ASSIGN_OR_RETURN(
-        xls::Instantiation * instantiation,
-        container->AddInstantiation(
-            inst_name,
-            std::make_unique<xls::FifoInstantiation>(
-                inst_name, *channel->channel_config().fifo_config(),
-                channel->type(), channel->name(), container->package())));
+        xls::FifoInstantiation * instantiation,
+        container->AddFifoInstantiation(
+            inst_name, *channel->channel_config().fifo_config(),
+            channel->type(), channel->name()));
     XLS_RET_CHECK(container->GetResetPort().has_value());
     XLS_RETURN_IF_ERROR(container
                             ->MakeNode<xls::InstantiationInput>(

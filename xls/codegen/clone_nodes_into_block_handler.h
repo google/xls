@@ -132,6 +132,7 @@ class CloneNodesIntoBlockHandler {
    public:
     ChannelRef channel;
     ChannelDirection direction;
+    ConnectionKind kind;
     Node* data;
     std::optional<Node*> valid;
     std::optional<Node*> ready;
