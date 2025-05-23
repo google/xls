@@ -178,28 +178,30 @@ class StreamingOutput {
 // in the generated block.
 struct SingleValueInput {
  public:
-  SingleValueInput(InputPort* port, ChannelRef channel)
-      : port_(port), channel_(channel) {}
+  SingleValueInput(Block* block, std::string_view channel_name)
+      : block_(block), channel_name_(channel_name) {}
 
-  ChannelRef GetChannel() const { return channel_; }
-  InputPort* GetDataPort() const { return port_; }
+  std::string_view GetChannelName() const { return channel_name_; }
+  ChannelRef GetChannel() const;
+  std::optional<InputPort*> GetDataPort() const;
 
  private:
-  InputPort* port_;
-  ChannelRef channel_;
+  Block* block_;
+  std::string channel_name_;
 };
 
 class SingleValueOutput {
  public:
-  SingleValueOutput(OutputPort* port, ChannelRef channel)
-      : port_(port), channel_(channel) {}
+  SingleValueOutput(Block* block, std::string_view channel_name)
+      : block_(block), channel_name_(channel_name) {}
 
-  ChannelRef GetChannel() const { return channel_; }
-  OutputPort* GetDataPort() const { return port_; }
+  std::string_view GetChannelName() const { return channel_name_; }
+  ChannelRef GetChannel() const;
+  std::optional<OutputPort*> GetDataPort() const;
 
  private:
-  OutputPort* port_;
-  ChannelRef channel_;
+  Block* block_;
+  std::string channel_name_;
 };
 
 // A data structure representing a pipeline register for a single XLS IR value.

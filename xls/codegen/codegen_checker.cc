@@ -110,10 +110,14 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
     }
   }
   for (const SingleValueInput& input : streaming_io.single_value_inputs) {
-    XLS_RET_CHECK(nodes.contains(input.GetDataPort()));
+    if (input.GetDataPort().has_value()) {
+      XLS_RET_CHECK(nodes.contains(*input.GetDataPort()));
+    }
   }
   for (const SingleValueOutput& output : streaming_io.single_value_outputs) {
-    XLS_RET_CHECK(nodes.contains(output.GetDataPort()));
+    if (output.GetDataPort().has_value()) {
+      XLS_RET_CHECK(nodes.contains(*output.GetDataPort()));
+    }
   }
   for (const PipelineStageRegisters& stage_registers :
        streaming_io.pipeline_registers) {

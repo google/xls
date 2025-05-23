@@ -417,48 +417,50 @@ absl::Status StitchSingleValueChannel(
 
   Node* input_node = nullptr;
   if (has_output) {
+    std::optional<OutputPort*> output_port = subblock_output->GetDataPort();
+    XLS_RET_CHECK(output_port.has_value());
     auto subblock_inst_iter = instantiations.find(
-        subblock_output->GetDataPort()->function_base()->AsBlockOrDie());
+        output_port.value()->function_base()->AsBlockOrDie());
     if (subblock_inst_iter == instantiations.end()) {
-      return absl::NotFoundError(
-          absl::StrCat("Could not find inst for ",
-                       *subblock_output->GetDataPort()->function_base()));
+      return absl::NotFoundError(absl::StrCat(
+          "Could not find inst for ", *output_port.value()->function_base()));
     }
     XLS_ASSIGN_OR_RETURN(input_node,
                          container->MakeNode<InstantiationOutput>(
                              SourceInfo(), subblock_inst_iter->second,
-                             subblock_output->GetDataPort()->GetName()));
+                             output_port.value()->GetName()));
   } else {
+    std::optional<InputPort*> input_port = subblock_input->GetDataPort();
+    XLS_RET_CHECK(input_port.has_value());
     XLS_ASSIGN_OR_RETURN(
-        input_node,
-        container->AddInputPort(subblock_input->GetDataPort()->GetName(),
-                                subblock_input->GetDataPort()->GetType()));
+        input_node, container->AddInputPort(input_port.value()->GetName(),
+                                            input_port.value()->GetType()));
     XLS_RETURN_IF_ERROR(container->AddChannelPortMetadata(
-        channel, ChannelDirection::kReceive,
-        subblock_input->GetDataPort()->GetName(),
+        channel, ChannelDirection::kReceive, input_port.value()->GetName(),
         /*valid_port=*/std::nullopt, /*ready_port=*/std::nullopt));
   }
   if (has_input) {
+    std::optional<InputPort*> input_port = subblock_input->GetDataPort();
+    XLS_RET_CHECK(input_port.has_value());
     auto subblock_inst_iter = instantiations.find(
-        subblock_input->GetDataPort()->function_base()->AsBlockOrDie());
+        input_port.value()->function_base()->AsBlockOrDie());
     if (subblock_inst_iter == instantiations.end()) {
-      return absl::NotFoundError(
-          absl::StrCat("Could not find inst for ",
-                       *subblock_input->GetDataPort()->function_base()));
+      return absl::NotFoundError(absl::StrCat(
+          "Could not find inst for ", *input_port.value()->function_base()));
     }
     return container
         ->MakeNode<InstantiationInput>(SourceInfo(), input_node,
                                        subblock_inst_iter->second,
-                                       subblock_input->GetDataPort()->GetName())
+                                       input_port.value()->GetName())
         .status();
   }
+  std::optional<OutputPort*> output_port = subblock_output->GetDataPort();
+  XLS_RET_CHECK(output_port.has_value());
   XLS_RETURN_IF_ERROR(
-      container
-          ->AddOutputPort(subblock_output->GetDataPort()->GetName(), input_node)
+      container->AddOutputPort(output_port.value()->GetName(), input_node)
           .status());
   return container->AddChannelPortMetadata(
-      channel, ChannelDirection::kSend,
-      subblock_output->GetDataPort()->GetName(),
+      channel, ChannelDirection::kSend, output_port.value()->GetName(),
       /*valid_port=*/std::nullopt, /*ready_port=*/std::nullopt);
 }
 

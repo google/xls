@@ -898,7 +898,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
     }
 
     result_.single_value_inputs.push_back(
-        SingleValueInput(connection.data->As<InputPort>(), connection.channel));
+        SingleValueInput(block(), ChannelRefName(connection.channel)));
 
     return next_node;
   }
@@ -1021,8 +1021,8 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(
           InstantiationInput::kDataOperand, node_map_.at(send->data())));
     }
 
-    result_.single_value_outputs.push_back(SingleValueOutput(
-        connection.data->As<OutputPort>(), connection.channel));
+    result_.single_value_outputs.push_back(
+        SingleValueOutput(block(), ChannelRefName(connection.channel)));
     return next_node;
   }
 

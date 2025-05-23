@@ -25,7 +25,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -808,18 +807,22 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
       }
       for (absl::flat_hash_map<std::string, Value>& cycle_values :
            fixed_values) {
-        auto input_iter = inputs.find(metadata_input.GetDataPort()->GetName());
+        auto input_iter =
+            inputs.find(metadata_input.GetDataPort().value()->GetName());
         if (input_iter == inputs.end()) {
           return absl::InvalidArgumentError(
               absl::StrFormat("No input provided for channel %s",
-                              metadata_input.GetDataPort()->GetName()));
+                              metadata_input.GetDataPort().value()->GetName()));
         }
         XLS_RET_CHECK_EQ(input_iter->second.size(), 1)
             << "Single value channels may only have a single input";
-        XLS_RET_CHECK(metadata_input.GetDataPort()->GetType()->IsBits());
-        cycle_values[metadata_input.GetDataPort()->GetName()] = Value(
-            UBits(input_iter->second.front(),
-                  metadata_input.GetDataPort()->GetType()->GetFlatBitCount()));
+        XLS_RET_CHECK(
+            metadata_input.GetDataPort().value()->GetType()->IsBits());
+        cycle_values[metadata_input.GetDataPort().value()->GetName()] =
+            Value(UBits(input_iter->second.front(), metadata_input.GetDataPort()
+                                                        .value()
+                                                        ->GetType()
+                                                        ->GetFlatBitCount()));
       }
     }
 
@@ -868,12 +871,12 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
         continue;
       }
       std::vector<uint64_t>& channel_int_outputs =
-          actual_outputs[output.GetDataPort()->name()];
+          actual_outputs[output.GetDataPort().value()->name()];
       channel_int_outputs.reserve(results.outputs.size());
       for (const absl::flat_hash_map<std::string, Value>& value_map :
            results.outputs) {
-        XLS_RET_CHECK(value_map.contains(output.GetDataPort()->name()));
-        const Value& value = value_map.at(output.GetDataPort()->name());
+        XLS_RET_CHECK(value_map.contains(output.GetDataPort().value()->name()));
+        const Value& value = value_map.at(output.GetDataPort().value()->name());
         XLS_RET_CHECK(value.IsBits());
         XLS_ASSIGN_OR_RETURN(int64_t value_int, value.bits().ToUint64());
         channel_int_outputs.push_back(value_int);
