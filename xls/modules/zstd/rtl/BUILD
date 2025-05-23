@@ -34,15 +34,15 @@ package(
 
 exports_files(
     [
-        "zstd_dec_wrapper.v",
-        "xls_fifo_wrapper.v",
+        "zstd_dec_wrapper.sv",
+        "xls_fifo_wrapper.sv",
     ],
 )
 
 verilog_library(
     name = "xls_fifo_wrapper_verilog_lib",
     srcs = [
-        ":xls_fifo_wrapper.v",
+        ":xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )

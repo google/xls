@@ -435,7 +435,7 @@ verilog_library(
     name = "frame_header_dec_verilog_lib",
     srcs = [
         ":frame_header_dec.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -531,7 +531,7 @@ verilog_library(
     name = "block_header_dec_verilog_lib",
     srcs = [
         ":block_header_dec.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -610,7 +610,7 @@ verilog_library(
     name = "raw_block_dec_verilog_lib",
     srcs = [
         ":raw_block_dec.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -688,7 +688,7 @@ verilog_library(
     name = "rle_block_dec_verilog_lib",
     srcs = [
         ":rle_block_dec.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -766,7 +766,7 @@ verilog_library(
     name = "dec_mux_verilog_lib",
     srcs = [
         ":dec_mux.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -906,7 +906,7 @@ verilog_library(
     name = "sequence_executor_lib",
     srcs = [
         ":sequence_executor.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -986,7 +986,7 @@ verilog_library(
     name = "axi_csr_accessor_verilog_lib",
     srcs = [
         ":axi_csr_accessor.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -1063,7 +1063,7 @@ verilog_library(
     name = "csr_config_verilog_lib",
     srcs = [
         ":csr_config.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -1143,7 +1143,7 @@ verilog_library(
     name = "ram_rw_handler_verilog_lib",
     srcs = [
         ":ram_rw_handler.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -1248,7 +1248,7 @@ verilog_library(
     name = "fse_proba_freq_dec_lib",
     srcs = [
         ":fse_proba_freq_dec.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
@@ -1394,7 +1394,7 @@ verilog_library(
     name = "refilling_shift_buffer_internal_verilog_lib",
     srcs = [
         ":refilling_shift_buffer_internal.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
     ],
     tags = ["manual"],
 )
