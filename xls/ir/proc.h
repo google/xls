@@ -306,13 +306,15 @@ class Proc : public FunctionBase {
   // Add input/output channels to the interface of the proc.
   absl::StatusOr<ReceiveChannelInterface*> AddInputChannel(
       std::string_view name, Type* type, ChannelKind kind,
+      FlowControl flow_control,
       std::optional<ChannelStrictness> strictness = std::nullopt);
   absl::StatusOr<SendChannelInterface*> AddOutputChannel(
       std::string_view name, Type* type, ChannelKind kind,
+      FlowControl flow_control,
       std::optional<ChannelStrictness> strictness = std::nullopt);
   absl::StatusOr<ChannelInterface*> AddInterfaceChannel(
       std::string_view name, ChannelDirection direction, Type* type,
-      ChannelKind kind,
+      ChannelKind kind, FlowControl flow_control,
       std::optional<ChannelStrictness> strictness = std::nullopt);
 
   // Remove a channel from the interface of the proc. ChannelInterfaceslater
