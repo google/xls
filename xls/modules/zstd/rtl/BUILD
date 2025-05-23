@@ -23,6 +23,7 @@ The sources contain:
 
 """
 
+# pytype binary, library
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 
 package(
