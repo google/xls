@@ -379,6 +379,9 @@ bool xls_package_get_type_for_value(struct xls_package* package,
 bool xls_type_to_string(struct xls_type* type, char** error_out,
                         char** result_out);
 
+// Returns the count of bits required to represent the type.
+int64_t xls_type_get_flat_bit_count(struct xls_type* type);
+
 // Returns the type of the given function.
 //
 // Note: the returned type does not need to be freed, it is tied to the
