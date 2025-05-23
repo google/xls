@@ -248,6 +248,86 @@ fn f() -> bits[0] {
   XLS_EXPECT_OK(VerifyPackage(p.get()));
 }
 
+TEST_F(VerifierTest, NumericCompareArrayOperands) {
+  std::string input = R"(
+package p
+
+fn f(a: bits[32][4], b: bits[32][4]) -> bits[1] {
+  ret ult.1: bits[1] = ult(a, b)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Expected operand 0 of ult.1 to have Bits "
+                                 "type, has type bits[32][4]")));
+}
+
+TEST_F(VerifierTest, NumericCompareTupleOperands) {
+  std::string input = R"(
+package p
+
+fn f(a: (bits[32], bits[16]), b: (bits[32], bits[16])) -> bits[1] {
+  ret sge.1: bits[1] = sge(a, b)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Expected operand 0 of sge.1 to have Bits "
+                                 "type, has type (bits[32], bits[16])")));
+}
+
+TEST_F(VerifierTest, NumericCompareMismatchedBitWidths) {
+  std::string input = R"(
+package p
+
+fn f(a: bits[32], b: bits[16]) -> bits[1] {
+  ret ugt.1: bits[1] = ugt(a, b)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Expected operand 1 of ugt.1 to have bit "
+                         "count 32 (same as operand 0), has bit count 16")));
+}
+
+TEST_F(VerifierTest, EqCompareTokenOperands) {
+  std::string input = R"(
+package p
+
+fn f() -> bits[1] {
+  tok_a: token = literal(value=token, id=1)
+  tok_b: token = literal(value=token, id=2)
+  ret eq_val: bits[1] = eq(tok_a, tok_b, id=3)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Operand 0 of eq_val cannot be Token type "
+                                 "for this operation")));
+}
+
+TEST_F(VerifierTest, NeCompareTokenOperands) {
+  std::string input = R"(
+package p
+
+fn f() -> bits[1] {
+  tok_a: token = literal(value=token, id=1)
+  tok_b: token = literal(value=token, id=2)
+  ret ne_val: bits[1] = ne(tok_a, tok_b, id=3)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
+  EXPECT_THAT(VerifyPackage(p.get()),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Operand 0 of ne_val cannot be Token type "
+                                 "for this operation")));
+}
+
 TEST_F(VerifierTest, SelectWithTooNarrowSelector) {
   std::string input = R"(
 package p
@@ -404,11 +484,12 @@ fn main(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_cou
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(VerifyPackage(p.get()),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Parameter 1 (accumulator) of function body "
-                                 "used as dynamic_counted_for body should have "
-                                 "bits[32] type, got bits[128] instead")));
+  EXPECT_THAT(
+      VerifyPackage(p.get()),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Parameter 1 (accumulator) of function body used as "
+                         "dynamic_counted_for body should have bits[32] type, "
+                         "got bits[128] instead")));
 }
 
 TEST_F(VerifierTest, DynamicCountedForInvariantDoesNotMatchBodyParamType) {
