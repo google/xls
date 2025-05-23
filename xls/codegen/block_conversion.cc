@@ -750,9 +750,9 @@ absl::StatusOr<CodegenContext> FunctionToCombinationalBlock(
       FindFunctionInterface(options.package_interface(), f->name());
   for (Param* param : f->params()) {
     XLS_ASSIGN_OR_RETURN(
-        node_map[param],
+        InputPort * input,
         block->AddInputPort(param->GetName(), param->GetType(), param->loc()));
-
+    node_map[param] = input;
     if (func_interface) {
       auto name =
           absl::c_find_if(func_interface->parameters(),
@@ -760,10 +760,7 @@ absl::StatusOr<CodegenContext> FunctionToCombinationalBlock(
                             return p.name() == param->name();
                           });
       if (name != func_interface->parameters().end() && name->has_sv_type()) {
-        context.GetMetadataForBlock(block)
-            .streaming_io_and_pipeline
-            .input_port_sv_type[node_map[param]->As<InputPort>()] =
-            name->sv_type();
+        input->set_system_verilog_type(name->sv_type());
       }
     }
   }
@@ -786,9 +783,7 @@ absl::StatusOr<CodegenContext> FunctionToCombinationalBlock(
                        block->AddOutputPort(options.output_port_name(),
                                             node_map.at(f->return_value())));
   if (func_interface && func_interface->has_sv_result_type()) {
-    context.GetMetadataForBlock(block)
-        .streaming_io_and_pipeline.output_port_sv_type[output] =
-        func_interface->sv_result_type();
+    output->set_system_verilog_type(func_interface->sv_result_type());
   }
 
   context.GetMetadataForBlock(block)

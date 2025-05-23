@@ -1305,20 +1305,14 @@ TEST_P(BlockGeneratorTest, InstantiatedBlockWithExternStructPorts) {
 
   XLS_ASSERT_OK_AND_ASSIGN(InputPort * x_port, block->GetInputPort("x"));
   XLS_ASSERT_OK_AND_ASSIGN(InputPort * y_port, block->GetInputPort("y"));
-  absl::flat_hash_map<InputPort*, std::string> input_port_sv_types = {
-      {x_port, "pkg::small_arr_t"},
-      {y_port, "pkg::small_arr_t"},
-  };
+  x_port->set_system_verilog_type("pkg::small_arr_t");
+  y_port->set_system_verilog_type("pkg::small_arr_t");
   XLS_ASSERT_OK_AND_ASSIGN(OutputPort * out_port, block->GetOutputPort("out"));
-  absl::flat_hash_map<OutputPort*, std::string> output_port_sv_types = {
-      {out_port, "pkg::big_arr_t"},
-  };
+  out_port->set_system_verilog_type("pkg::big_arr_t");
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string verilog,
-      GenerateVerilog(block, codegen_options(), /*verilog_line_map=*/nullptr,
-                      /*input_port_sv_types=*/input_port_sv_types,
-                      /*output_port_sv_types=*/output_port_sv_types));
+      GenerateVerilog(block, codegen_options(), /*verilog_line_map=*/nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
                            GenerateSignature(codegen_options(), block));
 

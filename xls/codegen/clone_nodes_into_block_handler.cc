@@ -679,7 +679,7 @@ absl::Status CloneNodesIntoBlockHandler::AddOutputPortsIfFunction(
                                   function_base_->name());
         f && f->has_sv_result_type()) {
       // Record sv-type associated with this port.
-      result_.output_port_sv_type[port] = f->sv_result_type();
+      port->set_system_verilog_type(f->sv_result_type());
     }
     return absl::OkStatus();
   }
@@ -770,7 +770,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleFunctionParam(
                                 return p.name() == param->name();
                               });
     if (it != f->parameters().end() && it->has_sv_type()) {
-      result_.input_port_sv_type[res] = it->sv_type();
+      res->set_system_verilog_type(it->sv_type());
     }
   }
   return res;
@@ -872,8 +872,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
           options_.package_interface(), ChannelRefName(connection.channel));
       c && c->has_sv_type()) {
     if (connection.data->Is<InputPort>()) {
-      result_.input_port_sv_type[connection.data->As<InputPort>()] =
-          c->sv_type();
+      connection.data->As<InputPort>()->set_system_verilog_type(c->sv_type());
     }
   }
 
@@ -996,8 +995,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(
           options_.package_interface(), ChannelRefName(connection.channel));
       c && c->has_sv_type()) {
     if (connection.data->Is<OutputPort>()) {
-      result_.output_port_sv_type[connection.data->As<OutputPort>()] =
-          c->sv_type();
+      connection.data->As<OutputPort>()->set_system_verilog_type(c->sv_type());
     }
   }
 

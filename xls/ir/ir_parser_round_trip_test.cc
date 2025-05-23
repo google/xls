@@ -442,4 +442,8 @@ TEST(IrParserRoundTripTest, BlockSignature) {
   ParsePackageAndCheckDump(TestName());
 }
 
+TEST(IrParserRoundTripTest, BlockWithSvTypes) {
+  ParsePackageAndCheckDump(TestName());
+}
+
 }  // namespace xls

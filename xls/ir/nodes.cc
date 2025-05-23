@@ -1091,23 +1091,31 @@ absl::StatusOr<Node*> Encode::CloneInNewFunction(
 absl::StatusOr<Node*> InputPort::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<InputPort>(loc(), name(), GetType());
+  return new_function->MakeNodeWithName<InputPort>(loc(), name(), GetType(),
+                                                   system_verilog_type());
 }
 
 OutputPort::OutputPort(const SourceInfo& loc, Node* operand,
                        std::string_view name, FunctionBase* function)
     : PortNode(loc, Op::kOutputPort, function->package()->GetTupleType({}),
-               name, function) {
-  CHECK(IsOpClass<OutputPort>(op_))
-      << "Op `" << op_ << "` is not a valid op for Node class `OutputPort`.";
+               name, /*system_verilog_type=*/std::nullopt, function) {
+  AddOperand(operand);
+}
+
+OutputPort::OutputPort(const SourceInfo& loc, Node* operand,
+                       std::string_view name,
+                       std::optional<std::string> system_verilog_type,
+                       FunctionBase* function)
+    : PortNode(loc, Op::kOutputPort, function->package()->GetTupleType({}),
+               name, system_verilog_type, function) {
   AddOperand(operand);
 }
 
 absl::StatusOr<Node*> OutputPort::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
-  return new_function->MakeNodeWithName<OutputPort>(loc(), new_operands[0],
-                                                    name());
+  return new_function->MakeNodeWithName<OutputPort>(
+      loc(), new_operands[0], name(), system_verilog_type());
 }
 
 RegisterRead::RegisterRead(const SourceInfo& loc, Register* reg,

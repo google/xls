@@ -1230,8 +1230,16 @@ absl::StatusOr<BValue> Parser::ParseNode(
               op_token.pos()));
       IdentifierString* name =
           arg_parser.AddKeywordArg<IdentifierString>("name");
+      std::optional<QuotedString>* sv_type =
+          arg_parser.AddOptionalKeywordArg<QuotedString>("sv_type");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
       bvalue = bb->InputPort(name->value, type, *loc);
+
+      std::optional<std::string> sv_type_string;
+      if (sv_type->has_value()) {
+        sv_type_string = sv_type->value().value;
+      }
+      bvalue.node()->As<InputPort>()->set_system_verilog_type(sv_type_string);
       break;
     }
     case Op::kOutputPort: {
@@ -1242,8 +1250,16 @@ absl::StatusOr<BValue> Parser::ParseNode(
               op_token.pos()));
       IdentifierString* name =
           arg_parser.AddKeywordArg<IdentifierString>("name");
+      std::optional<QuotedString>* sv_type =
+          arg_parser.AddOptionalKeywordArg<QuotedString>("sv_type");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       bvalue = bb->OutputPort(name->value, operands[0], *loc);
+
+      std::optional<std::string> sv_type_string;
+      if (sv_type->has_value()) {
+        sv_type_string = sv_type->value().value;
+      }
+      bvalue.node()->As<OutputPort>()->set_system_verilog_type(sv_type_string);
       break;
     }
     case Op::kRegisterRead: {

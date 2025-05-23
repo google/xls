@@ -1063,4 +1063,27 @@ block my_block(rst: bits[1]) {
                                        .kind = BlockProvenanceKind::kProc}));
 }
 
+TEST(IrParserTest, BlockWithSvTypes) {
+  constexpr std::string_view ir_text = R"(package test
+
+block my_block(in0: bits[32], in1: bits[32], out: bits[32]) {
+  in0: bits[32] = input_port(name=in0, sv_type="foo")
+  in1: bits[32] = input_port(name=in1)
+  out_output_port: () = output_port(in0, name=out, sv_type="bar")
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b, pkg->GetBlock("my_block"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(InputPort * in0, b->GetInputPort("in0"));
+  EXPECT_EQ(in0->system_verilog_type(), "foo");
+
+  XLS_ASSERT_OK_AND_ASSIGN(InputPort * in1, b->GetInputPort("in1"));
+  EXPECT_EQ(in1->system_verilog_type(), std::nullopt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(OutputPort * out, b->GetOutputPort("out"));
+  EXPECT_EQ(out->system_verilog_type(), "bar");
+}
+
 }  // namespace xls

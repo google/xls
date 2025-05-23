@@ -92,10 +92,8 @@ absl::StatusOr<bool> ConvertFuncsToCombinationalBlocksPass::RunInternal(
                               return p.name() == param->name();
                             });
         if (name != func_interface->parameters().end() && name->has_sv_type()) {
-          context.GetMetadataForBlock(block)
-              .streaming_io_and_pipeline
-              .input_port_sv_type[nodes_function2block[param]
-                                      ->As<InputPort>()] = name->sv_type();
+          nodes_function2block[param]->As<InputPort>()->set_system_verilog_type(
+              name->sv_type());
         }
       }
     }
@@ -119,9 +117,7 @@ absl::StatusOr<bool> ConvertFuncsToCombinationalBlocksPass::RunInternal(
         block->AddOutputPort(options.codegen_options.output_port_name(),
                              nodes_function2block.at(f->return_value())));
     if (func_interface && func_interface->has_sv_result_type()) {
-      context.GetMetadataForBlock(block)
-          .streaming_io_and_pipeline.output_port_sv_type[output] =
-          func_interface->sv_result_type();
+      output->set_system_verilog_type(func_interface->sv_result_type());
     }
 
     context.GetMetadataForBlock(block)

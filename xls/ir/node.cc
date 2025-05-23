@@ -711,9 +711,15 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args.push_back(absl::StrFormat("label=\"%s\"", As<Cover>()->label()));
       break;
     case Op::kInputPort:
-    case Op::kOutputPort:
+    case Op::kOutputPort: {
+      const PortNode* port_node = As<PortNode>();
       args.push_back(absl::StrFormat("name=%s", GetName()));
+      if (port_node->system_verilog_type().has_value()) {
+        args.push_back(absl::StrFormat("sv_type=\"%s\"",
+                                       *port_node->system_verilog_type()));
+      }
       break;
+    }
     case Op::kRegisterRead:
       args.push_back(absl::StrFormat(
           "register=%s", As<RegisterRead>()->GetRegister()->name()));

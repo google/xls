@@ -536,14 +536,26 @@ class PortNode : public Node {
  public:
   static constexpr std::array<Op, 2> kOps = {Op::kInputPort, Op::kOutputPort};
   PortNode(const SourceInfo& loc, Op op, Type* type, std::string_view name,
+           std::optional<std::string> system_verilog_type,
            FunctionBase* function)
-      : Node(op, type, loc, name, function) {}
+      : Node(op, type, loc, name, function),
+        system_verilog_type_(system_verilog_type) {}
 
   virtual Type* port_type() const = 0;
   PortDirection direction() const {
     return op() == Op::kInputPort ? PortDirection::kInput
                                   : PortDirection::kOutput;
   }
+  const std::optional<std::string>& system_verilog_type() const {
+    return system_verilog_type_;
+  }
+
+  void set_system_verilog_type(std::optional<std::string> value) {
+    system_verilog_type_ = value;
+  }
+
+ private:
+  std::optional<std::string> system_verilog_type_;
 };
 
 class InputPort final : public PortNode {
@@ -551,7 +563,13 @@ class InputPort final : public PortNode {
   static constexpr std::array<Op, 1> kOps = {Op::kInputPort};
   InputPort(const SourceInfo& loc, std::string_view name, Type* type,
             FunctionBase* function)
-      : PortNode(loc, Op::kInputPort, type, name, function) {}
+      : PortNode(loc, Op::kInputPort, type, name,
+                 /*system_verilog_type=*/std::nullopt, function) {}
+  InputPort(const SourceInfo& loc, std::string_view name, Type* type,
+            std::optional<std::string> system_verilog_type,
+            FunctionBase* function)
+      : PortNode(loc, Op::kInputPort, type, name, system_verilog_type,
+                 function) {}
 
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
@@ -567,6 +585,9 @@ class OutputPort final : public PortNode {
   static constexpr int64_t kOperandOperand = 0;
 
   OutputPort(const SourceInfo& loc, Node* operand, std::string_view name,
+             FunctionBase* function);
+  OutputPort(const SourceInfo& loc, Node* operand, std::string_view name,
+             std::optional<std::string> system_verilog_type,
              FunctionBase* function);
 
   // Get the value that this port sends.

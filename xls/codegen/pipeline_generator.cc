@@ -78,13 +78,10 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
                 context.top_block()->GetSignature().has_value());
 
   VerilogLineMap verilog_line_map;
-  const auto& pipeline = context.GetMetadataForBlock(context.top_block())
-                             .streaming_io_and_pipeline;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
       GenerateVerilog(context.top_block(), pass_options.codegen_options,
-                      &verilog_line_map, pipeline.input_port_sv_type,
-                      pipeline.output_port_sv_type));
+                      &verilog_line_map));
 
   XLS_ASSIGN_OR_RETURN(
       ModuleSignature signature,
@@ -146,13 +143,9 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
                 context.HasMetadataForBlock(context.top_block()) &&
                 context.top_block()->GetSignature().has_value());
   VerilogLineMap verilog_line_map;
-  const auto& pipeline = context.GetMetadataForBlock(context.top_block())
-                             .streaming_io_and_pipeline;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
-      GenerateVerilog(context.top_block(), options, &verilog_line_map,
-                      pipeline.input_port_sv_type,
-                      pipeline.output_port_sv_type));
+      GenerateVerilog(context.top_block(), options, &verilog_line_map));
 
   XLS_ASSIGN_OR_RETURN(
       ModuleSignature signature,

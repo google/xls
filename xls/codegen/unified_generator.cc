@@ -100,14 +100,9 @@ absl::StatusOr<CodegenResult> GenerateModuleText(
 
   // VAST Generation: Block to Verilog codegen pass.
   VerilogLineMap verilog_line_map;
-  const auto& pipeline =
-      codegen_context.GetMetadataForBlock(codegen_context.top_block())
-          .streaming_io_and_pipeline;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
-      GenerateVerilog(codegen_context.top_block(), options, &verilog_line_map,
-                      pipeline.input_port_sv_type,
-                      pipeline.output_port_sv_type));
+      GenerateVerilog(codegen_context.top_block(), options, &verilog_line_map));
 
   XLS_ASSIGN_OR_RETURN(
       ModuleSignature signature,
