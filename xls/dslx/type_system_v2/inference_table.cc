@@ -397,6 +397,17 @@ class InferenceTableImpl : public InferenceTable {
     return result;
   }
 
+  std::vector<const ParametricContext*> GetParametricContexts(
+      const Invocation* node) const override {
+    std::vector<const ParametricContext*> result;
+    for (const auto& context : parametric_contexts_) {
+      if (context->is_invocation() && context->node() == node) {
+        result.push_back(context.get());
+      }
+    }
+    return result;
+  }
+
   absl::StatusOr<const ParametricContext*> GetOrCreateParametricStructContext(
       const StructDefBase* struct_def, const AstNode* node,
       ParametricEnv parametric_env, const TypeAnnotation* self_type,

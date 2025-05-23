@@ -2001,6 +2001,53 @@ fn f() -> u32 {
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest, MapImportedFunction) {
+  auto import_data = CreateImportDataForTest();
+  const char* imported_program = R"(
+pub fn some_function(x: u32) -> u32 { x }
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  const char* importer_program = R"(
+import fake.imported.stuff;
+
+fn main() -> u32[2] {
+  map([u32:1, u32:2], stuff::some_function)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(importer_program,
+                           ConvertOptions{.emit_positions = false},
+                           &import_data));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       MapImportedParametricFunction) {
+  auto import_data = CreateImportDataForTest();
+  const char* imported_program = R"(
+pub fn some_function<N: u32>(x: uN[N]) -> uN[N] { uN[N]:0 }
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(imported_program, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  const char* importer_program = R"(
+import fake.imported.stuff;
+
+fn main() -> u4[2] {
+  map([u4:1, u4:2], stuff::some_function<u32:4>)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(importer_program,
+                           ConvertOptions{.emit_positions = false},
+                           &import_data));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
        ImportedParametricFnWithDefault) {
   auto import_data = CreateImportDataForTest();
@@ -3553,7 +3600,8 @@ fn main(x: u32[4]) -> u32[4] {
   ExpectIr(converted);
 }
 
-TEST(IrConverterTest, MapInvocationWithParametricFunction) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       MapInvocationWithParametricFunction) {
   constexpr std::string_view program =
       R"(
 fn f<N:u32, K:u32>(x: u32) -> uN[N] { x as uN[N] + K as uN[N] }
@@ -3572,8 +3620,8 @@ fn main() -> (u5[4], u6[4]) {
   ExpectIr(converted);
 }
 
-TEST(IrConverterTest,
-     MapInvocationWithParametricFunctionFromParametricFunction) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       MapInvocationWithParametricFunctionFromParametricFunction) {
   constexpr std::string_view program =
       R"(
 fn f<N:u32>(x: u32) -> uN[N] { x as uN[N] }
