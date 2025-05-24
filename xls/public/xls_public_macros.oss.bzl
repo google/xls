@@ -21,17 +21,28 @@ This module is intended to be loaded by the xls/public/BUILD file.
 # pytype tests are present in this file
 
 def libxls_dylib_binary(name = "libxls.dylib"):
+    # Create a variant of the c_api_symbols.txt file that has leading
+    # underscores on each symbol, as those are the OS X symbols.
+    native.genrule(
+        name = "c_api_symbols_underscores",
+        srcs = [":c_api_symbols.txt"],
+        outs = ["c_api_symbols_underscores.txt"],
+        cmd = "sed 's/^/_/' < $(location :c_api_symbols.txt) > $@",
+    )
+
     native.cc_binary(
         name = name,
         additional_linker_inputs = [
             ":exported_symbols_map",
             ":generate_linker_params_underscores",
+            ":c_api_symbols_underscores.txt",
         ],
         copts = [
             "-fno-exceptions",
         ],
         linkopts = [
             "@$(location :generate_linker_params_underscores)",
+            "-exported_symbols_list $(location :c_api_symbols_underscores.txt)",
         ],
         linkshared = True,
         target_compatible_with = select({
