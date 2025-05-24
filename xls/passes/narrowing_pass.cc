@@ -1795,20 +1795,18 @@ absl::StatusOr<AliasingQueryEngine> GetQueryEngine(
     if (ProcStateRangeQueryEngine::CanAnalyzeProcStateEvolution(f)) {
       // NB ProcStateRange already includes a ternary qe
       owned_engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
-    } else {
-      unowned_engines.push_back(
-          context.SharedQueryEngine<PartialInfoQueryEngine>(f));
     }
+    unowned_engines.push_back(
+        context.SharedQueryEngine<PartialInfoQueryEngine>(f));
     owned_engines.push_back(
         std::make_unique<ContextSensitiveRangeQueryEngine>());
   } else if (analysis == AnalysisType::kRange) {
     if (ProcStateRangeQueryEngine::CanAnalyzeProcStateEvolution(f)) {
       // NB ProcStateRange already includes a ternary qe
       owned_engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
-    } else {
-      unowned_engines.push_back(
-          context.SharedQueryEngine<PartialInfoQueryEngine>(f));
     }
+    unowned_engines.push_back(
+        context.SharedQueryEngine<PartialInfoQueryEngine>(f));
   } else {
     CHECK_EQ(analysis, AnalysisType::kTernary);
     unowned_engines.push_back(
