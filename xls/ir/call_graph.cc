@@ -15,6 +15,7 @@
 #include "xls/ir/call_graph.h"
 
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -34,6 +35,8 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/proc.h"
+#include "xls/ir/proc_instantiation.h"
 
 namespace xls {
 
@@ -57,7 +60,10 @@ std::optional<Function*> CalledFunction(Node* node) {
 }
 
 // Returns the functions called directly by the nodes of the given FunctionBase.
-std::vector<FunctionBase*> CalledFunctions(FunctionBase* function_base) {
+std::vector<FunctionBase*> CalledFunctions(FunctionBase* function_base,
+                                           bool include_procs) {
+  VLOG(3) << absl::StreamFormat("Getting called functions of %s",
+                                function_base->name());
   absl::flat_hash_set<FunctionBase*> called_set;
   std::vector<FunctionBase*> called;
   for (Node* node : function_base->nodes()) {
@@ -82,6 +88,19 @@ std::vector<FunctionBase*> CalledFunctions(FunctionBase* function_base) {
       }
     }
   }
+
+  if (include_procs && function_base->IsProc()) {
+    Proc* proc = function_base->AsProcOrDie();
+    for (const std::unique_ptr<xls::ProcInstantiation>& instantiation :
+         proc->proc_instantiations()) {
+      Proc* instantiated = instantiation->proc();
+      auto [_, inserted] = called_set.insert(instantiated);
+      if (inserted) {
+        called.push_back(instantiated);
+      }
+    }
+  }
+
   return called;
 }
 }  // namespace
@@ -105,23 +124,25 @@ absl::StatusOr<CallGraph> CallGraph::Create(Package* package) {
 // instructions. Builds a post order of functions in the post_order vector.
 static void DfsVisit(FunctionBase* f,
                      absl::flat_hash_set<FunctionBase*>* visited,
-                     std::vector<FunctionBase*>* post_order) {
+                     std::vector<FunctionBase*>* post_order,
+                     bool include_procs) {
   visited->insert(f);
-  for (FunctionBase* callee : CalledFunctions(f)) {
+  for (FunctionBase* callee : CalledFunctions(f, include_procs)) {
     if (!visited->contains(callee)) {
-      DfsVisit(callee, visited, post_order);
+      DfsVisit(callee, visited, post_order, include_procs);
     }
   }
   post_order->push_back(f);
 }
 
-std::vector<FunctionBase*> GetDependentFunctions(FunctionBase* function_base) {
+std::vector<FunctionBase*> GetDependentFunctions(FunctionBase* function_base,
+                                                 bool include_procs) {
   absl::flat_hash_set<FunctionBase*> visited;
   std::vector<FunctionBase*> post_order;
-  DfsVisit(function_base, &visited, &post_order);
+  DfsVisit(function_base, &visited, &post_order, include_procs);
 
   if (VLOG_IS_ON(2)) {
-    VLOG(2) << absl::StreamFormat("DependentFunctions(%s):",
+    VLOG(2) << absl::StreamFormat("DependentFunctions of %s:",
                                   function_base->name());
     for (FunctionBase* f : post_order) {
       VLOG(2) << "  " << f->name();
@@ -135,7 +156,7 @@ std::vector<FunctionBase*> GetDependentFunctions(FunctionBase* function_base) {
 static std::vector<FunctionBase*> GetRootFunctions(const Package* p) {
   absl::flat_hash_set<FunctionBase*> called_functions;
   for (FunctionBase* f : p->GetFunctionBases()) {
-    for (FunctionBase* callee : CalledFunctions(f)) {
+    for (FunctionBase* callee : CalledFunctions(f, true)) {
       called_functions.insert(callee);
     }
   }
@@ -152,7 +173,7 @@ std::vector<FunctionBase*> FunctionsInPostOrder(const Package* p) {
   absl::flat_hash_set<FunctionBase*> visited;
   std::vector<FunctionBase*> post_order;
   for (FunctionBase* f : GetRootFunctions(p)) {
-    DfsVisit(f, &visited, &post_order);
+    DfsVisit(f, &visited, &post_order, true);
   }
   return post_order;
 }
