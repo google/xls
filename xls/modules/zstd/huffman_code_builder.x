@@ -171,7 +171,7 @@ pub proc WeightCodeBuilder
             uN[MAX_WEIGHT + u32:2]:0
         };
 
-        send_if(tok, weights_pow_sum_loopback_s, do_send_loopback, sum_of_weights_powers);
+        let tok = send_if(tok, weights_pow_sum_loopback_s, do_send_loopback, sum_of_weights_powers);
 
         // receive sum of weights powers from loopback
         let (_, sum_of_weights_powers, sum_of_weights_powers_valid) = recv_non_blocking(
@@ -261,7 +261,7 @@ pub proc WeightCodeBuilder
             max_code_length: state.max_number_of_bits,
             valid_weights: seen_weights,
         };
-        send_if(tok, lookahead_config_s, send_lookahead, lookahead_packet);
+        let tok = send_if(tok, lookahead_config_s, send_lookahead, lookahead_packet);
 
         // set symbol valid if weight is nonzero
         let symbols_valid = for (i, symbol_valid) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
@@ -293,7 +293,7 @@ pub proc WeightCodeBuilder
             code_length: codes_length,
             code: codes
         };
-        send_if(tok, codes_s, send_codes, code_packet);
+        let tok = send_if(tok, codes_s, send_codes, code_packet);
         if send_codes {
             trace_fmt!("Sent codes: \nsymbols_valid: {}\ncodes_length: {}\ncodes: {:#b}\nstate.huffman_codes: {:#b}", symbols_valid, codes_length, codes, state.huffman_codes);
         } else {};

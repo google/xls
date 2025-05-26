@@ -141,7 +141,7 @@ proc RefillingShiftBufferInternal<
         // flush at most DATA_W bits in a given next() evaluation
         let flush_amount_bits = std::min(DATA_W as BufferSize, state.bits_to_flush);
         // send "flushing done" notification once we complete it
-        send_if(tok, flushing_done_s, flushing && flushing_end, ());
+        let tok = send_if(tok, flushing_done_s, flushing && flushing_end, ());
         if (flushing && flushing_end) {
             trace_fmt!("Sent done on the flushing done channel");
         } else {};
@@ -160,7 +160,7 @@ proc RefillingShiftBufferInternal<
             zero!<RSBCtrl>()
         };
         let do_send_ctrl = (flushing && flush_amount_bits > BufferSize:0) || snoop_ctrl_valid;
-        send_if(tok, snoop_ctrl_s, do_send_ctrl, ctrl_packet);
+        let tok = send_if(tok, snoop_ctrl_s, do_send_ctrl, ctrl_packet);
         if do_send_ctrl {
             trace_fmt!("Sent snooped/injected control packet: {:#x}", ctrl_packet);
         } else {};
@@ -183,7 +183,7 @@ proc RefillingShiftBufferInternal<
             addr: state.curr_addr,
             length: REFILL_SIZE,
         };
-        send_if(tok, reader_req_s, do_refill_cycle, mem_req);
+        let tok = send_if(tok, reader_req_s, do_refill_cycle, mem_req);
         if (do_refill_cycle) {
             trace_fmt!("[{:#x}] Sent request for data to memory: {:#x}", INSTANCE, mem_req);
         } else {};
@@ -204,7 +204,7 @@ proc RefillingShiftBufferInternal<
         // this send might stall only if proc that receives responses isn't reading from the
         // ShiftBuffer fast enough, apart from that since part of the condition `do_buffer_refill`
         // is `buf_will_have_enough_space` it should not block
-        send_if(tok, buffer_data_in_s, do_buffer_refill, data_packet);
+        let tok = send_if(tok, buffer_data_in_s, do_buffer_refill, data_packet);
         if (do_buffer_refill) {
             trace_fmt!("Sent data to the ShiftBuffer: {:#x}", data_packet);
         } else {};
@@ -263,7 +263,7 @@ proc RefillingShiftBufferInternal<
         // forward data heading for the ShiftBuffer output, attaching an error bit
         // if we've encountered an AXI error, unless we're flushing - in that case discard snoop_data
         let forward_snooped_data = snoop_data_valid && !flushing;
-        send_if(tok, buffer_data_out_s, forward_snooped_data, RSBOutput {
+        let tok = send_if(tok, buffer_data_out_s, forward_snooped_data, RSBOutput {
             data: if BACKWARDS {
                 rev(snoop_data.data) >> (u32:64 - snoop_data.length as u32)
             } else {

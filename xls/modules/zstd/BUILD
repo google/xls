@@ -1338,11 +1338,14 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+refilling_shift_buffer_codegen_args = common_codegen_args | {
+        "module_name": "RefillingShiftBufferInternalInst",
+        "worst_case_throughput" : "3",
+}
+
 xls_dslx_verilog(
     name = "refilling_shift_buffer_internal_verilog",
-    codegen_args = common_codegen_args | {
-        "module_name": "RefillingShiftBufferInternalInst",
-    },
+    codegen_args = refilling_shift_buffer_codegen_args,
     dslx_top = "RefillingShiftBufferInternalInst",
     library = ":refilling_shift_buffer_dslx",
     tags = ["manual"],
@@ -1355,6 +1358,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "10",
     },
+    codegen_args = refilling_shift_buffer_codegen_args,
     tags = ["manual"],
 )
 
@@ -1857,28 +1861,31 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+ram_demux_codegen_args = {
+    "module_name": "RamDemux",
+    "generator": "pipeline",
+    "delay_model": "asap7",
+    "worst_case_throughput": "6",
+    "ram_configurations": ",".join([
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            ram_name = "ram{}".format(num),
+            rd_req = "ram_demux__rd_req{}_s".format(num),
+            rd_resp = "ram_demux__rd_resp{}_r".format(num),
+            wr_req = "ram_demux__wr_req{}_s".format(num),
+            wr_resp = "ram_demux__wr_resp{}_r".format(num),
+        )
+        for num in range(2)
+    ]),
+    "pipeline_stages": "6",
+    "reset": "rst",
+    "use_system_verilog": "false",
+    "materialize_internal_fifos": "true",
+}
+
 xls_dslx_verilog(
     name = "ram_demux_verilog",
-    codegen_args = {
-        "module_name": "RamDemux",
-        "generator": "pipeline",
-        "delay_model": "asap7",
-        "ram_configurations": ",".join([
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
-                ram_name = "ram{}".format(num),
-                rd_req = "ram_demux__rd_req{}_s".format(num),
-                rd_resp = "ram_demux__rd_resp{}_r".format(num),
-                wr_req = "ram_demux__wr_req{}_s".format(num),
-                wr_resp = "ram_demux__wr_resp{}_r".format(num),
-            )
-            for num in range(2)
-        ]),
-        "pipeline_stages": "6",
-        "reset": "rst",
-        "use_system_verilog": "false",
-        "materialize_internal_fifos": "true",
-    },
+    codegen_args = ram_demux_codegen_args,
     dslx_top = "RamDemuxInst",
     library = ":ram_demux_dslx",
     tags = ["manual"],
@@ -1891,9 +1898,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "top": "__ram_demux__RamDemuxInst__RamDemux_0__5_8_0_0_8_5_next",
     },
-    codegen_args = {
-        "pipeline_stages": "10",
-    },
+    codegen_args = ram_demux_codegen_args,
     tags = ["manual"],
 )
 
@@ -2116,6 +2121,7 @@ xls_dslx_verilog(
     codegen_args = {
         "module_name": "RamDemux3",
         "generator": "pipeline",
+        "worst_case_throughput": "6",
         "delay_model": "asap7",
         "ram_configurations": ",".join([
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
@@ -2146,6 +2152,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "delay_model": "asap7",
         "pipeline_stages": "3",
+        "worst_case_throughput": "6",
     },
     tags = ["manual"],
 )
@@ -2364,7 +2371,7 @@ xls_dslx_verilog(
     codegen_args = {
         "module_name": "RawLiteralsDecoder",
         "delay_model": "asap7",
-        "pipeline_stages": "1",
+        "pipeline_stages": "2",
         "reset": "rst",
         "use_system_verilog": "false",
         "materialize_internal_fifos": "true",
@@ -2617,28 +2624,30 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+literals_decoder_codegen_args = {
+    "module_name": "LiteralsDecoder",
+    "delay_model": "asap7",
+    "ram_configurations": ",".join([
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            ram_name = "ram{}".format(num),
+            rd_req = "literals_decoder__rd_req_m{}_s".format(num),
+            rd_resp = "literals_decoder__rd_resp_m{}_r".format(num),
+            wr_req = "literals_decoder__wr_req_m{}_s".format(num),
+            wr_resp = "literals_decoder__wr_resp_m{}_r".format(num),
+        )
+        for num in range(7)
+    ]),
+    "pipeline_stages": "8",
+    "reset": "rst",
+    "worst_case_throughput": "3",
+    "use_system_verilog": "false",
+    "materialize_internal_fifos": "false",  # TODO: set to true once this option works with loopback channels
+}
+
 xls_dslx_verilog(
     name = "literals_decoder_verilog",
-    codegen_args = {
-        "module_name": "LiteralsDecoder",
-        "delay_model": "asap7",
-        "ram_configurations": ",".join([
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
-                ram_name = "ram{}".format(num),
-                rd_req = "literals_decoder__rd_req_m{}_s".format(num),
-                rd_resp = "literals_decoder__rd_resp_m{}_r".format(num),
-                wr_req = "literals_decoder__wr_req_m{}_s".format(num),
-                wr_resp = "literals_decoder__wr_resp_m{}_r".format(num),
-            )
-            for num in range(7)
-        ]),
-        "pipeline_stages": "8",
-        "reset": "rst",
-        "worst_case_throughput": "2",
-        "use_system_verilog": "false",
-        "materialize_internal_fifos": "false",  # TODO: set to true once this option works with loopback channels
-    },
+    codegen_args = literals_decoder_codegen_args,
     dslx_top = "LiteralsDecoderInst",
     library = ":literals_decoder_dslx",
     tags = ["manual"],
@@ -2650,9 +2659,8 @@ xls_benchmark_ir(
     src = ":literals_decoder_verilog.opt.ir",
     benchmark_ir_args = {
         "pipeline_stages": "10",
-        "worst_case_throughput": "2",
-        "delay_model": "asap7",
     },
+    codegen_args = literals_decoder_codegen_args,
     tags = ["manual"],
 )
 
@@ -2822,9 +2830,7 @@ huffman_code_builder_codegen_args = common_codegen_args | {
     "module_name": "HuffmanCodeBuilder",
     "pipeline_stages": "8",
     "clock_period_ps": "750",
-    "worst_case_throughput": "1",
-    "io_constraints": "huffman_code_builder__weight_r:recv:" +
-                      "huffman_code_builder__codes_s:send:2:2",
+    "worst_case_throughput": "5",
 }
 
 xls_dslx_verilog(
