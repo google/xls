@@ -268,7 +268,7 @@ absl::Status XlsccTestBase::ScanFile(
   translator_ = std::make_unique<xlscc::Translator>(
       error_on_init_interval,
       /*error_on_uninitialized=*/error_on_uninitialized,
-      /*generate_fsms_for_pipelined_loops=*/generate_fsms_for_pipelined_loops_,
+      /*generate_new_fsm=*/generate_new_fsm_,
       /*merge_states=*/merge_states_,
       /*split_states_on_channel_ops=*/split_states_on_channel_ops_,
       /*debug_ir_trace_flags=*/xlscc::DebugIrTraceFlags_None,

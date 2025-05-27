@@ -203,7 +203,7 @@ def _xls_cc_ir_impl(ctx):
         "meta_out_text",
         "block_from_class",
         "z3_rlimit",
-        "generate_fsms_for_pipelined_loops",
+        "generate_new_fsm",
         "merge_states",
         "split_states_on_channel_ops",
         "debug_ir_trace_loop_context",

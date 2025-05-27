@@ -520,6 +520,10 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
                              /*next_return_index=*/0, this_type, this_decl,
                              top_decls, caller_sub_function, body_loc));
 
+  if (generate_new_fsm_) {
+    return absl::UnimplementedError("New FSM not yet implemented");
+  }
+
   XLS_ASSIGN_OR_RETURN(
       GenerateFSMInvocationReturn fsm_ret,
       GenerateFSMInvocation(prepared, pb, /*nesting_level=*/0, body_loc));
@@ -828,53 +832,50 @@ absl::StatusOr<Translator::LayoutFSMStatesReturn> Translator::LayoutFSMStates(
     bool add_state = false;
 
     // Decide whether or not to add a state for a pipelined loop.
-    if (generate_fsms_for_pipelined_loops_) {
-      if (sub_proc != nullptr &&
-          op.scheduling_option != IOSchedulingOption::kNone) {
-        return absl::UnimplementedError(
-            absl::StrFormat("Generating FSMs for pipelined loops with "
-                            "scheduling options (ASAP etc)"));
+    if (sub_proc != nullptr &&
+        op.scheduling_option != IOSchedulingOption::kNone) {
+      return absl::UnimplementedError(
+          absl::StrFormat("Generating FSMs for pipelined loops with "
+                          "scheduling options (ASAP etc)"));
+    }
+    if (merge_states_) {
+      // Every pipelined loop goes in its own state
+      if (sub_proc != nullptr && op.op == OpType::kSend &&
+          states.back()->sub_proc != nullptr) {
+        add_state = true;
       }
-      if (merge_states_) {
-        // Every pipelined loop goes in its own state
-        if (sub_proc != nullptr && op.op == OpType::kSend &&
-            states.back()->sub_proc != nullptr) {
-          add_state = true;
-        }
-      } else {
-        // Put regular IOs after a pipelined loop into their own state.
-        // (such as another IO op not associated with a pipelined loop, null)
-        if (sub_proc == nullptr && states.back()->sub_proc != nullptr) {
-          add_state = true;
-        }
-
-        // Put each pipelined loop into its own state.
-        // Subroutines can mean that there are multiple with the same statement.
-        // (sub_proc != null only for pipelined loops)
-        if (sub_proc != nullptr && op.op == OpType::kSend &&
-            // Don't add a blank state
-            (!states.back()->invokes_to_generate.empty() ||
-             states.back()->sub_proc != nullptr)) {
-          add_state = true;
-        }
+    } else {
+      // Put regular IOs after a pipelined loop into their own state.
+      // (such as another IO op not associated with a pipelined loop, null)
+      if (sub_proc == nullptr && states.back()->sub_proc != nullptr) {
+        add_state = true;
       }
-      // If this mode is enabled, then don't allow ops on the same channel
-      // in the same state, including in pipelined loop bodies
-      if (split_states_on_channel_ops_) {
-        std::set<ChannelBundle> channels_used_by_invoke =
-            GetChannelsUsedByOp(op, sub_proc, body_loc);
-        const std::set<ChannelBundle>& channels_used_by_state =
-            states.back()->channels_used;
-        std::set<ChannelBundle> channels_used_by_both;
-        std::set_intersection(
-            channels_used_by_invoke.begin(), channels_used_by_invoke.end(),
-            channels_used_by_state.begin(), channels_used_by_state.end(),
-            std::inserter(channels_used_by_both,
-                          channels_used_by_both.begin()));
 
-        if (!channels_used_by_both.empty()) {
-          add_state = true;
-        }
+      // Put each pipelined loop into its own state.
+      // Subroutines can mean that there are multiple with the same statement.
+      // (sub_proc != null only for pipelined loops)
+      if (sub_proc != nullptr && op.op == OpType::kSend &&
+          // Don't add a blank state
+          (!states.back()->invokes_to_generate.empty() ||
+           states.back()->sub_proc != nullptr)) {
+        add_state = true;
+      }
+    }
+    // If this mode is enabled, then don't allow ops on the same channel
+    // in the same state, including in pipelined loop bodies
+    if (split_states_on_channel_ops_) {
+      std::set<ChannelBundle> channels_used_by_invoke =
+          GetChannelsUsedByOp(op, sub_proc, body_loc);
+      const std::set<ChannelBundle>& channels_used_by_state =
+          states.back()->channels_used;
+      std::set<ChannelBundle> channels_used_by_both;
+      std::set_intersection(
+          channels_used_by_invoke.begin(), channels_used_by_invoke.end(),
+          channels_used_by_state.begin(), channels_used_by_state.end(),
+          std::inserter(channels_used_by_both, channels_used_by_both.begin()));
+
+      if (!channels_used_by_both.empty()) {
+        add_state = true;
       }
     }
 
@@ -1146,8 +1147,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     auto invoke_it = state->invokes_to_generate.begin();
 
     for (; invoke_it != state->invokes_to_generate.end(); ++invoke_it) {
-      if (generate_fsms_for_pipelined_loops_ &&
-          prepared.xls_func->pipeline_loops_by_internal_channel.contains(
+      if (prepared.xls_func->pipeline_loops_by_internal_channel.contains(
               invoke_it->op.channel)) {
         break;
       }
@@ -1163,12 +1163,6 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     for (; invoke_it != state->invokes_to_generate.end(); ++invoke_it) {
       invokes_after_loop.push_back(*invoke_it);
     }
-
-    XLSCC_CHECK(generate_fsms_for_pipelined_loops_ || invokes_for_loop.empty(),
-                body_loc);
-    XLSCC_CHECK(
-        generate_fsms_for_pipelined_loops_ || invokes_after_loop.empty(),
-        body_loc);
 
     TrackedBValue state_token_out = prepared.token;
     TrackedBValue first_iter = pb.Literal(xls::UBits(1, 1), body_loc);
@@ -1291,8 +1285,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
       go_to_next_state_by_state[state->index] =
           sub_fsm_ret.exit_state_condition;
 
-      if (generate_fsms_for_pipelined_loops_ &&
-          (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl)) {
+      if (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl) {
         // op_tokens will skip path to sink
         TrackedBValue literal_1 = pb.Literal(xls::UBits(1, 1), body_loc);
         TrackedBValue trace_out;
@@ -1510,8 +1503,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     fsm_next_state_values.insert({state_elem, bval});
   }
 
-  if (generate_fsms_for_pipelined_loops_ &&
-      (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl)) {
+  if (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl) {
     TrackedBValue literal_1 = pb.Literal(xls::UBits(1, 1), body_loc);
     if (state_index.valid()) {
       prepared.token = pb.Trace(
@@ -1627,8 +1619,7 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
       absl::StrFormat("%s_enter_condition", sub_proc_invoked->name_prefix));
   CHECK_EQ(enter_condition.GetType()->GetFlatBitCount(), 1);
 
-  if (generate_fsms_for_pipelined_loops_ &&
-      (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl)) {
+  if (debug_ir_trace_flags_ & DebugIrTraceFlags_LoopControl) {
     TrackedBValue literal_1 = pb.Literal(xls::UBits(1, 1), body_loc);
     origin_token =
         pb.Trace(origin_token, /*condition=*/literal_1,

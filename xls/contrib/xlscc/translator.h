@@ -576,7 +576,7 @@ class Translator {
   // Make unrolling configurable from main
   explicit Translator(
       bool error_on_init_interval = false, bool error_on_uninitialized = false,
-      bool generate_fsms_for_pipelined_loops = false, bool merge_states = false,
+      bool generate_new_fsm = false, bool merge_states = false,
       bool split_states_on_channel_ops = false,
       DebugIrTraceFlags debug_ir_trace_flags = DebugIrTraceFlags_None,
       int64_t max_unroll_iters = 1000, int64_t warn_unroll_iters = 100,
@@ -926,7 +926,7 @@ class Translator {
   const bool error_on_uninitialized_;
 
   // Generates an FSM to implement pipelined loops.
-  const bool generate_fsms_for_pipelined_loops_;
+  const bool generate_new_fsm_;
 
   // Merge states in FSM for pipelined loops.
   const bool merge_states_;
@@ -1434,9 +1434,6 @@ class Translator {
           context_field_indices,
       const std::vector<const clang::NamedDecl*>& variable_fields_order,
       bool* uses_on_reset, const xls::SourceInfo& loc);
-
-  absl::Status GenerateIR_PipelinedLoopProc(
-      const PipelinedLoopSubProc& pipelined_loop_proc);
 
   struct PipelinedLoopContentsReturn {
     TrackedBValue token_out;

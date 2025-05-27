@@ -5054,9 +5054,9 @@ TEST_F(TranslatorLogicTest, OnlyUnknownPragmasGiveNoWarnings) {
   int st() {
     return 1;
   })";
-  ASSERT_THAT(SourceToIr(content).status(),
+  EXPECT_THAT(SourceToIr(content).status(),
               absl_testing::StatusIs(absl::StatusCode::kOk));
-  ASSERT_EQ(this->log_entries_.size(), 0);
+  EXPECT_EQ(this->log_entries_.size(), 0);
 }
 
 TEST_F(TranslatorLogicTest, OnlyValidPragmasGiveNoWarnings) {

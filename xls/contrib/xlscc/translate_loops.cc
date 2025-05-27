@@ -584,8 +584,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   }
 
   // Create synthetic channels and IO ops
-  xls::Type* context_out_xls_type = context_tuple_out.rvalue().GetType();
-
   std::shared_ptr<CStructType> context_in_cvars_struct_ctype;
   absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
       context_in_field_indices;
@@ -608,9 +606,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         fields, /*no_tuple=*/false, /*synthetic_int=*/false);
   }
 
-  XLS_ASSIGN_OR_RETURN(xls::Type * context_in_struct_xls_type,
-                       TranslateTypeToXLS(context_in_cvars_struct_ctype, loc));
-
   // Pick a construct to correlate the channels for this construct
   const clang::Stmt* identify_channels_stmt = body;
   XLSCC_CHECK(identify_channels_stmt != nullptr, loc);
@@ -620,18 +615,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   {
     std::string ch_name = absl::StrFormat("%s_ctx_out", name_prefix);
     xls::Channel* xls_channel = nullptr;
-    if (!generate_fsms_for_pipelined_loops_) {
-      XLS_ASSIGN_OR_RETURN(
-          xls_channel,
-          package_->CreateStreamingChannel(
-              ch_name, xls::ChannelOps::kSendReceive, context_out_xls_type,
-              /*initial_values=*/{},
-              /*fifo_config=*/
-              xls::FifoConfig(/*depth=*/0, /*bypass=*/true,
-                              /*register_push_outputs=*/false,
-                              /*register_pop_outputs=*/false),
-              xls::FlowControl::kReadyValid));
-    }
+
     IOChannel new_channel;
     new_channel.item_type = context_tuple_out.type();
     new_channel.unique_name = ch_name;
@@ -642,18 +626,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   {
     std::string ch_name = absl::StrFormat("%s_ctx_in", name_prefix);
     xls::Channel* xls_channel = nullptr;
-    if (!generate_fsms_for_pipelined_loops_) {
-      XLS_ASSIGN_OR_RETURN(xls_channel,
-                           package_->CreateStreamingChannel(
-                               ch_name, xls::ChannelOps::kSendReceive,
-                               context_in_struct_xls_type,
-                               /*initial_values=*/{},
-                               /*fifo_config=*/
-                               xls::FifoConfig(/*depth=*/0, /*bypass=*/true,
-                                               /*register_push_outputs=*/false,
-                                               /*register_pop_outputs=*/false),
-                               xls::FlowControl::kReadyValid));
-    }
+
     IOChannel new_channel;
     new_channel.item_type = context_in_cvars_struct_ctype;
     new_channel.unique_name = ch_name;
@@ -670,12 +643,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   sub_proc.context_out_cvars_struct_ctype = context_out_cvars_struct_ctype;
   sub_proc.context_out_field_indices = context_out_field_indices;
   sub_proc.context_out_lval_conds_ctype = context_out_lval_conds_ctype;
-
-  // TODO(seanhaskell): Move this to GenerateIR_Block() for pipelined loops
-  // with multiple different sets of IO ops
-  if (!generate_fsms_for_pipelined_loops_) {
-    XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopProc(sub_proc));
-  }
 
   CHECK_EQ(sub_proc.vars_changed_in_body.size(), lvalues_out.size());
 
@@ -1065,15 +1032,6 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       vars_to_save_between_iters_set.insert(decl);
     }
 
-    // In non-FSM mode, All variables accessed or changed are saved in state,
-    // because a streaming channel is used for the context
-    if (!generate_fsms_for_pipelined_loops_) {
-      for (const std::pair<const clang::NamedDecl*, int64_t>& accessed :
-           vars_accessed_in_body) {
-        vars_to_save_between_iters_set.insert(accessed.first);
-      }
-    }
-
     for (const clang::NamedDecl* decl : vars_to_save_between_iters_set) {
       vars_to_save_between_iters.push_back(decl);
     }
@@ -1112,73 +1070,6 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       .vars_to_save_between_iters = vars_to_save_between_iters};
 
   return pipelined_loop_proc;
-}
-
-absl::Status Translator::GenerateIR_PipelinedLoopProc(
-    const PipelinedLoopSubProc& pipelined_loop_proc) {
-  const std::string& name_prefix = pipelined_loop_proc.name_prefix;
-  IOChannel* context_out_channel = pipelined_loop_proc.context_out_channel;
-  IOChannel* context_in_channel = pipelined_loop_proc.context_in_channel;
-  const xls::SourceInfo& loc = pipelined_loop_proc.loc;
-
-  TrackedProcBuilder pb_tracked(absl::StrFormat("%s_proc", name_prefix),
-                                package_);
-  xls::ProcBuilder& pb = *pb_tracked.builder();
-
-  auto temp_sf = std::make_unique<GeneratedFunction>();
-
-  PushContextGuard pb_guard(*this, loc);
-  context() = TranslationContext();
-  context().propagate_up = false;
-  context().fb = absl::implicit_cast<xls::BuilderBase*>(&pb);
-  context().in_pipelined_for_body = true;
-  context().sf = temp_sf.get();
-
-  TrackedBValue token = pb.Literal(xls::Value::Token());
-
-  TrackedBValue placeholder_cond = pb.Literal(xls::UBits(1, 1));
-
-  XLSCC_CHECK(context_out_channel->generated.has_value(), loc);
-  XLSCC_CHECK_NE(context_out_channel->generated.value(), nullptr, loc);
-
-  TrackedBValue receive =
-      pb.ReceiveIf(context_out_channel->generated.value(), token,
-                   /*pred=*/placeholder_cond, loc,
-                   /*name=*/absl::StrFormat("%s_receive_context", name_prefix));
-  token = pb.TupleIndex(
-      receive, 0, loc,
-      /*name=*/absl::StrFormat("%s_receive_context_token", name_prefix));
-  TrackedBValue received_context_tuple = pb.TupleIndex(
-      receive, 1, loc,
-      /*name=*/absl::StrFormat("%s_receive_context_tup", name_prefix));
-
-  XLS_ASSIGN_OR_RETURN(
-      PipelinedLoopContentsReturn contents_ret,
-      GenerateIR_PipelinedLoopContents(pipelined_loop_proc, pb, token,
-                                       received_context_tuple,
-                                       /*in_state_condition=*/TrackedBValue(),
-                                       /*in_fsm=*/false));
-
-  auto* receive_node = receive.node()->As<xls::Receive>();
-  bool replaced = receive_node->ReplaceOperand(
-      /*old_operand=*/placeholder_cond.node(),
-      /*new_operand=*/contents_ret.first_iter.node());
-  XLSCC_CHECK(replaced, loc);
-
-  token = contents_ret.token_out;
-
-  // Send back context on break
-  XLSCC_CHECK(context_in_channel->generated.has_value(), loc);
-  XLSCC_CHECK_NE(context_in_channel->generated.value(), nullptr, loc);
-
-  token = pb.SendIf(context_in_channel->generated.value(), token,
-                    contents_ret.do_break, contents_ret.out_tuple, loc);
-
-  XLS_RETURN_IF_ERROR(BuildWithNextStateValueMap(
-                          pb, token, contents_ret.extra_next_state_values, loc)
-                          .status());
-
-  return absl::OkStatus();
 }
 
 absl::StatusOr<Translator::PipelinedLoopContentsReturn>

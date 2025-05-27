@@ -101,9 +101,8 @@ ABSL_FLAG(bool, error_on_init_interval, false,
           "than supported");
 
 ABSL_FLAG(
-    bool, generate_fsms_for_pipelined_loops, true,
-    "Generate an FSM for pipelined loops. Non-FSM mode should be considered "
-    "experimental, as it can generate semantically incorrect IR.");
+    bool, generate_new_fsm, false,
+    "Generate the new style of FSM. Defaults to false, or the old style.");
 
 ABSL_FLAG(
     bool, merge_states, true,
@@ -201,8 +200,7 @@ static absl::Status Run(std::string_view cpp_path) {
   xlscc::Translator translator(
       absl::GetFlag(FLAGS_error_on_init_interval),
       absl::GetFlag(FLAGS_error_on_uninitialized),
-      absl::GetFlag(FLAGS_generate_fsms_for_pipelined_loops),
-      absl::GetFlag(FLAGS_merge_states),
+      absl::GetFlag(FLAGS_generate_new_fsm), absl::GetFlag(FLAGS_merge_states),
       absl::GetFlag(FLAGS_split_states_on_channel_ops), ir_trace_flags,
       absl::GetFlag(FLAGS_max_unroll_iters),
       absl::GetFlag(FLAGS_warn_unroll_iters), absl::GetFlag(FLAGS_z3_rlimit),

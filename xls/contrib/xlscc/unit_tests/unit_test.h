@@ -170,7 +170,7 @@ class XlsccTestBase : public xls::SimTestBase, public ::absl::LogSink {
                 const absl::flat_hash_map<std::string, std::list<xls::Value>>&
                     outputs_by_channel,
                 int min_ticks = 1, int max_ticks = 100,
-                int top_level_init_interval = 0,
+                int top_level_init_interval = 1,
                 const char* top_class_name = "",
                 absl::Status expected_tick_status = absl::OkStatus(),
                 const absl::flat_hash_map<std::string, xls::InterpreterEvents>&
@@ -183,7 +183,7 @@ class XlsccTestBase : public xls::SimTestBase, public ::absl::LogSink {
                  const absl::flat_hash_map<std::string, std::list<xls::Value>>&
                      outputs_by_channel,
                  int min_clocks = 1, int max_blocks = 100,
-                 int top_level_init_interval = 0,
+                 int top_level_init_interval = 1,
                  const char* top_class_name = "",
                  absl::Status expected_tick_status = absl::OkStatus(),
                  const absl::flat_hash_map<std::string, xls::InterpreterEvents>&
@@ -222,7 +222,7 @@ class XlsccTestBase : public xls::SimTestBase, public ::absl::LogSink {
   std::unique_ptr<xls::Package> package_;
   std::unique_ptr<xlscc::Translator> translator_;
   xlscc::HLSBlock block_spec_;
-  bool generate_fsms_for_pipelined_loops_ = false;
+  bool generate_new_fsm_ = false;
   bool merge_states_ = false;
   bool split_states_on_channel_ops_ = false;
 
