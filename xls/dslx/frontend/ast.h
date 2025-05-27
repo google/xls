@@ -2648,9 +2648,10 @@ class FunctionRef : public Instantiation {
 // invocation for the config & next members of a spawned Proc.
 class Invocation : public Instantiation {
  public:
-  Invocation(Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
-             std::vector<ExprOrType> explicit_parametrics = {},
-             bool in_parens = false);
+  Invocation(
+      Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
+      std::vector<ExprOrType> explicit_parametrics = {}, bool in_parens = false,
+      std::optional<const Invocation*> originating_invocation = std::nullopt);
 
   ~Invocation() override;
 
@@ -2674,6 +2675,10 @@ class Invocation : public Instantiation {
     return Precedence::kFunctionCallOrArrayIndex;
   }
 
+  std::optional<const Invocation*> originating_invocation() const {
+    return originating_invocation_;
+  }
+
  private:
   std::string ToStringInternal() const final {
     return absl::StrFormat("%s%s(%s)", callee()->ToString(),
@@ -2681,6 +2686,10 @@ class Invocation : public Instantiation {
   }
 
   std::vector<Expr*> args_;
+  // The invocation that caused this node to be generated, e.g., in the case of
+  // `map(f, arr)`, an invocation is generated for `f(arr)` and the
+  // `originating_invocation` will point to the `map` invocation.
+  std::optional<const Invocation*> originating_invocation_;
 };
 
 // Represents a call to spawn a proc, e.g.,

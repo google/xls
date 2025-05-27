@@ -1447,10 +1447,12 @@ std::vector<AstNode*> FunctionRef::GetChildren(bool want_types) const {
 Invocation::Invocation(Module* owner, Span span, Expr* callee,
                        std::vector<Expr*> args,
                        std::vector<ExprOrType> explicit_parametrics,
-                       bool in_parens)
+                       bool in_parens,
+                       std::optional<const Invocation*> originating_invocation)
     : Instantiation(owner, std::move(span), callee,
                     std::move(explicit_parametrics), in_parens),
-      args_(std::move(args)) {}
+      args_(std::move(args)),
+      originating_invocation_(originating_invocation) {}
 
 Invocation::~Invocation() = default;
 

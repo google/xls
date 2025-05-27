@@ -477,10 +477,19 @@ class AstCloner : public AstNodeVisitor {
     for (const Expr* arg : n->args()) {
       new_args.push_back(down_cast<Expr*>(old_to_new_.at(arg)));
     }
+    std::optional<Invocation*> new_originator = std::nullopt;
+    if (n->originating_invocation().has_value()) {
+      if (!old_to_new_.contains(*n->originating_invocation())) {
+        XLS_RETURN_IF_ERROR(ReplaceOrVisit(*n->originating_invocation()));
+      }
+      new_originator =
+          down_cast<Invocation*>(old_to_new_.at(*n->originating_invocation()));
+    }
 
     old_to_new_[n] = module_->Make<Invocation>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->callee())), new_args,
-        CloneParametrics(n->explicit_parametrics()), n->in_parens());
+        CloneParametrics(n->explicit_parametrics()), n->in_parens(),
+        new_originator);
     return absl::OkStatus();
   }
 
