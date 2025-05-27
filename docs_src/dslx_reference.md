@@ -1410,16 +1410,21 @@ We can also `match` on ranges of values using the "range" syntax:
 fn f(x: u32) -> u32 {
     match x {
         u32:1..u32:3 => u32:0,
+        u32:4..=u32:5 => u32:1,
         _ => x,
     }
 }
 
 #[test]
 fn test_f() {
+    // Note: the limit of the range syntax a..b is exclusive.
     assert_eq(f(u32:1), u32:0);
     assert_eq(f(u32:2), u32:0);
-    // Note: the limit of the range syntax is exclusive.
     assert_eq(f(u32:3), u32:3);
+    // Note: the limit of the range syntax a..=b is inclusive.
+    assert_eq(f(u32:4), u32:1);
+    assert_eq(f(u32:5), u32:1);
+    assert_eq(f(u32:6), u32:6);
 }
 ```
 
@@ -1568,7 +1573,15 @@ example will run from 0 to 4 (exclusive):
 
 ```
 for (i, accum): (u32, u32) in u32:0..u32:4 {
+  ...
+}
 ```
+
+The range expression `m..=n` represents a range of values from `m` to `n`,
+inclusive.
+
+A range expression is evaluated at compile time as a constant array containing
+the values in the range.
 
 There also exists a `range()` builtin function that performs the same operation.
 
