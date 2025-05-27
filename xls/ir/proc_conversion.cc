@@ -108,20 +108,22 @@ absl::Status DeclareChannelInProc(Proc* proc, Channel* channel) {
 absl::Status AddInterfaceChannel(Proc* proc, Channel* channel,
                                  ChannelDirection direction) {
   std::optional<ChannelStrictness> strictness;
+  FlowControl flow_control = FlowControl::kNone;
   if (StreamingChannel* streaming_channel =
           dynamic_cast<StreamingChannel*>(channel)) {
     strictness = streaming_channel->GetStrictness();
+    flow_control = streaming_channel->GetFlowControl();
   }
   std::unique_ptr<ChannelInterface> channel_interface;
   if (direction == ChannelDirection::kSend) {
     return proc
         ->AddOutputChannel(channel->name(), channel->type(), channel->kind(),
-                           strictness)
+                           flow_control, strictness)
         .status();
   }
   return proc
       ->AddInputChannel(channel->name(), channel->type(), channel->kind(),
-                        strictness)
+                        flow_control, strictness)
       .status();
 }
 

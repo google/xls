@@ -241,10 +241,10 @@ absl::StatusOr<RamChannel> CreateRamChannel(
   ChannelDirection direction = GetRamLogicalChannelDirection(logical_channel);
   if (metadata.proc_scope.has_value()) {
     XLS_RET_CHECK(p->ChannelsAreProcScoped());
-    XLS_ASSIGN_OR_RETURN(
-        ChannelInterface * channel_ref,
-        metadata.proc_scope.value()->AddInterfaceChannel(
-            name, direction, type, ChannelKind::kStreaming, strictness));
+    XLS_ASSIGN_OR_RETURN(ChannelInterface * channel_ref,
+                         metadata.proc_scope.value()->AddInterfaceChannel(
+                             name, direction, type, ChannelKind::kStreaming,
+                             flow_control, strictness));
 
     return RamChannel{
         .logical_channel = logical_channel,

@@ -734,33 +734,36 @@ absl::StatusOr<ChannelInterface*> Proc::AddChannelInterface(
 
 absl::StatusOr<ReceiveChannelInterface*> Proc::AddInputChannel(
     std::string_view name, Type* type, ChannelKind kind,
-    std::optional<ChannelStrictness> strictness) {
+    FlowControl flow_control, std::optional<ChannelStrictness> strictness) {
   XLS_ASSIGN_OR_RETURN(
       ReceiveChannelInterface * interface,
       AddInputChannelInterface(
           std::make_unique<ReceiveChannelInterface>(name, type, kind)));
   interface->SetStrictness(strictness);
+  interface->SetFlowControl(flow_control);
   return interface;
 }
 
 absl::StatusOr<SendChannelInterface*> Proc::AddOutputChannel(
     std::string_view name, Type* type, ChannelKind kind,
-    std::optional<ChannelStrictness> strictness) {
+    FlowControl flow_control, std::optional<ChannelStrictness> strictness) {
   XLS_ASSIGN_OR_RETURN(
       SendChannelInterface * interface,
       AddOutputChannelInterface(
           std::make_unique<SendChannelInterface>(name, type, kind)));
   interface->SetStrictness(strictness);
+  interface->SetFlowControl(flow_control);
   return interface;
 }
 
 absl::StatusOr<ChannelInterface*> Proc::AddInterfaceChannel(
     std::string_view name, ChannelDirection direction, Type* type,
-    ChannelKind kind, std::optional<ChannelStrictness> strictness) {
+    ChannelKind kind, FlowControl flow_control,
+    std::optional<ChannelStrictness> strictness) {
   if (direction == ChannelDirection::kSend) {
-    return AddOutputChannel(name, type, kind, strictness);
+    return AddOutputChannel(name, type, kind, flow_control, strictness);
   }
-  return AddInputChannel(name, type, kind, strictness);
+  return AddInputChannel(name, type, kind, flow_control, strictness);
 }
 
 absl::Status Proc::RemoveChannelInterface(ChannelInterface* channel_interface) {
