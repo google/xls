@@ -14,8 +14,13 @@
 
 #include "xls/ir/call_graph.h"
 
+#include <string>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
@@ -24,6 +29,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/proc_conversion.h"
 
 namespace xls {
 namespace {
@@ -225,6 +231,117 @@ TEST_F(CallGraphTest, BlockInstantiation) {
   // Check order.
   EXPECT_THAT(p->GetFunctionBases(), ElementsAre(a, b, c));
   EXPECT_THAT(FunctionsInPostOrder(p.get()), ElementsAre(c, b, a));
+}
+
+TEST_F(CallGraphTest, ProcInstantiationConvertToNewStyle) {
+  const std::string_view path =
+      "xls/ir/testdata/call_graph_test_ProcInstantiationConvertToNewStyle.ir";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string proc_iota,
+                           GetFileContents(GetXlsRunfilePath(path).value()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package_ptr, ParsePackageNoVerify(proc_iota));
+  Package* p = package_ptr.get();
+
+  XLS_ASSERT_OK(ConvertPackageToNewStyleProcs(p));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FunctionBase * producer_next,
+      p->GetFunctionBaseByName("__proc_iota__main__producer_0_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FunctionBase * consumer_next,
+      p->GetFunctionBaseByName("__proc_iota__main__consumer_0__2_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FunctionBase * main_next,
+      p->GetFunctionBaseByName("__proc_iota__main_0_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FunctionBase * producer_init,
+      p->GetFunctionBaseByName("__proc_iota__producer.init"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FunctionBase * consumer_init,
+      p->GetFunctionBaseByName("__proc_iota__consumer.init__2"));
+
+  EXPECT_THAT(p->GetFunctionBases(),
+              UnorderedElementsAre(producer_init, consumer_init, producer_next,
+                                   consumer_next, main_next));
+  EXPECT_THAT(FunctionsInPostOrder(p),
+              ElementsAre(producer_init, consumer_init, producer_next,
+                          consumer_next, main_next));
+}
+
+TEST_F(CallGraphTest, ProcInstantiationNewStyle) {
+  auto p = CreatePackage();
+
+  Proc* p1;
+  {
+    TokenlessProcBuilder pb(NewStyleProc{}, "p1", "t1", p.get());
+    XLS_ASSERT_OK_AND_ASSIGN(p1, pb.Build());
+  }
+  Proc* caller;
+  {
+    TokenlessProcBuilder pb(NewStyleProc{}, "caller", "t1", p.get());
+    XLS_ASSERT_OK(pb.InstantiateProc("p1", p1, {}));
+    XLS_ASSERT_OK_AND_ASSIGN(caller, pb.Build());
+  }
+
+  EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(p1, caller));
+  EXPECT_THAT(FunctionsInPostOrder(p.get()), ElementsAre(p1, caller));
+}
+
+TEST_F(CallGraphTest, ProcInstantiationNewStyleRepeated) {
+  auto p = CreatePackage();
+
+  Proc* p1;
+  {
+    TokenlessProcBuilder pb(NewStyleProc{}, "p1", "t1", p.get());
+    XLS_ASSERT_OK_AND_ASSIGN(p1, pb.Build());
+  }
+  Proc* caller;
+  {
+    TokenlessProcBuilder pb(NewStyleProc{}, "caller", "t1", p.get());
+    XLS_ASSERT_OK(pb.InstantiateProc("p1", p1, {}));
+    XLS_ASSERT_OK(pb.InstantiateProc("p2", p1, {}));
+    XLS_ASSERT_OK_AND_ASSIGN(caller, pb.Build());
+  }
+
+  EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(p1, caller));
+  EXPECT_THAT(FunctionsInPostOrder(p.get()), ElementsAre(p1, caller));
+}
+
+TEST_F(CallGraphTest, GetDependentFunctions) {
+  auto p = CreatePackage();
+
+  Proc* p1;
+  {
+    TokenlessProcBuilder pb(NewStyleProc{}, "p1", "t1", p.get());
+    XLS_ASSERT_OK_AND_ASSIGN(p1, pb.Build());
+  }
+  Proc* caller;
+  {
+    TokenlessProcBuilder pb(NewStyleProc{}, "caller", "t1", p.get());
+    // Intentionally repeated
+    XLS_ASSERT_OK(pb.InstantiateProc("p1", p1, {}));
+    XLS_ASSERT_OK(pb.InstantiateProc("p2", p1, {}));
+    XLS_ASSERT_OK_AND_ASSIGN(caller, pb.Build());
+  }
+
+  EXPECT_THAT(GetDependentFunctions(caller, true), ElementsAre(p1, caller));
+  EXPECT_THAT(GetDependentFunctions(caller, false), ElementsAre(caller));
+}
+
+TEST_F(CallGraphTest, ProcsNoInstantiation) {
+  auto p = CreatePackage();
+
+  Proc* p1;
+  {
+    TokenlessProcBuilder bb(NewStyleProc(), "p1", "t1", p.get());
+    XLS_ASSERT_OK_AND_ASSIGN(p1, bb.Build());
+  }
+  Proc* p2;
+  {
+    TokenlessProcBuilder bb(NewStyleProc(), "p2", "t1", p.get());
+    XLS_ASSERT_OK_AND_ASSIGN(p2, bb.Build());
+  }
+  EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(p1, p2));
+  EXPECT_THAT(FunctionsInPostOrder(p.get()), UnorderedElementsAre(p1, p2));
 }
 
 }  // namespace

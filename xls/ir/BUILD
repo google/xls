@@ -2080,12 +2080,18 @@ cc_test(
 cc_test(
     name = "call_graph_test",
     srcs = ["call_graph_test.cc"],
+    data = glob([
+        "testdata/call_graph_test_*.ir",
+    ]),
     deps = [
         ":bits",
         ":function_builder",
         ":ir",
         ":ir_test_base",
+        ":proc_conversion",
         "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "@googletest//:gtest",
     ],

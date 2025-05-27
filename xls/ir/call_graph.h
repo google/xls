@@ -60,8 +60,11 @@ class CallGraph {
 // Returns the functions called and blocks instantiated transitively by the
 // given FunctionBase. Called functions/instantiated blocks are returned before
 // callee/instantiator FunctionBases in the returned order. The final element in
-// the returned vector is `function_base`.
-std::vector<FunctionBase*> GetDependentFunctions(FunctionBase* function_base);
+// the returned vector is `function_base`. If include_procs is true, also
+// includes procs instantiated transitively by the given function base (if it's
+// a proc).
+std::vector<FunctionBase*> GetDependentFunctions(FunctionBase* function_base,
+                                                 bool include_procs = false);
 
 // Clones transitively the given function and its dependencies.
 absl::StatusOr<Function*> CloneFunctionAndItsDependencies(
