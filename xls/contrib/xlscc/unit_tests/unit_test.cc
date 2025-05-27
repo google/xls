@@ -29,6 +29,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/log_severity.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -101,7 +102,12 @@ XlsccTestBase::XlsccTestBase() { ::absl::AddLogSink(this); }
 XlsccTestBase::~XlsccTestBase() { ::absl::RemoveLogSink(this); }
 
 void XlsccTestBase::Send(const ::absl::LogEntry& entry) {
+  if (entry.log_severity() == absl::LogSeverity::kInfo) {
+    return;
+  }
+
   log_entries_.emplace_back(entry);
+  LOG(INFO) << "LogEntry: " << entry.ToString();
 }
 
 void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
@@ -350,9 +356,13 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     package_ = std::make_unique<xls::Package>("my_package");
     absl::flat_hash_map<const clang::NamedDecl*, xlscc::ChannelBundle>
         top_channel_injections = {};
+
     XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
                          translator_->GenerateIR_Top_Function(
                              package_.get(), top_channel_injections));
+
+    testing::Test::RecordProperty("GraphViz file", GenerateSliceGraph(*func));
+
     XLS_RETURN_IF_ERROR(package_->SetTopByName(func->xls_func->name()));
     if (pfunc != nullptr) {
       *pfunc = func;
@@ -432,6 +442,14 @@ void XlsccTestBase::BuildTestIR(
 
   LOG(INFO) << "Package IR: ";
   LOG(INFO) << package_text;
+
+  XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
+                           translator_->GetTopFunction());
+
+  const xlscc::GeneratedFunction* top_func =
+      translator_->GetGeneratedFunction(top_decl);
+
+  testing::Test::RecordProperty("GraphViz file", GenerateSliceGraph(*top_func));
 
   for (const xlscc::HLSChannel& ch : block_spec_.channels()) {
     if (ch.type() == xlscc::CHANNEL_TYPE_DIRECT_IN) {
@@ -965,6 +983,14 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
 
   LOG(INFO) << "Package IR: ";
   LOG(INFO) << ir_src;
+
+  XLS_ASSERT_OK_AND_ASSIGN(const clang::FunctionDecl* top_decl,
+                           translator_->GetTopFunction());
+
+  const xlscc::GeneratedFunction* top_func =
+      translator_->GetGeneratedFunction(top_decl);
+
+  testing::Test::RecordProperty("GraphViz file", GenerateSliceGraph(*top_func));
 
   XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
 

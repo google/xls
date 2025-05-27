@@ -26,6 +26,7 @@
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
@@ -76,11 +77,13 @@ class ContinuationsTest : public XlsccTestBase {
                         std::string_view name) {
     for (const xlscc::ContinuationValue& continuation_out :
          slice.continuations_out) {
-      if (continuation_out.decl == nullptr) {
+      if (continuation_out.decls.empty()) {
         continue;
       }
-      if (continuation_out.decl->getNameAsString() == name) {
-        return true;
+      for (const clang::NamedDecl* decl : continuation_out.decls) {
+        if (decl->getNameAsString() == name) {
+          return true;
+        }
       }
     }
     return false;
@@ -90,11 +93,10 @@ class ContinuationsTest : public XlsccTestBase {
                        std::string_view name) {
     for (const xlscc::ContinuationInput& continuation_in :
          slice.continuations_in) {
-      if (continuation_in.continuation_out->decl == nullptr) {
-        continue;
-      }
-      if (continuation_in.continuation_out->decl->getNameAsString() == name) {
-        return true;
+      for (const clang::NamedDecl* decl : continuation_in.decls) {
+        if (decl->getNameAsString() == name) {
+          return true;
+        }
       }
     }
     return false;
@@ -118,7 +120,7 @@ class ContinuationsTest : public XlsccTestBase {
         LOG(INFO) << absl::StrFormat(
             "  in: %p.%s has %li users",
             slices_by_continuation_out.at(continuation_in.continuation_out),
-            continuation_in.continuation_out->name.c_str(),
+            continuation_in.name.c_str(),
             continuation_in.input_node->users().size());
       }
       LOG(INFO) << "";
@@ -128,17 +130,22 @@ class ContinuationsTest : public XlsccTestBase {
         const std::string type_str =
             GenerateReadableTypeName(continuation_out.output_node->GetType());
 
+        std::vector<std::string> decl_names;
+        decl_names.reserve(continuation_out.decls.size());
+        for (const clang::NamedDecl* decl : continuation_out.decls) {
+          decl_names.push_back(decl->getNameAsString());
+        }
         LOG(INFO) << absl::StrFormat(
-            "  out: %s has %li users, type = %s, literal = %s",
+            "  out: %s has %li users, decls %s, type = %s, literal = %s",
             continuation_out.name.c_str(),
-            continuation_out.output_node->users().size(), type_str.c_str(),
+            continuation_out.output_node->users().size(),
+            absl::StrJoin(decl_names, ","), type_str.c_str(),
             continuation_out.literal.has_value()
                 ? continuation_out.literal.value().ToString().c_str()
                 : "(none)");
       }
     }
-    LOG(INFO) << "GraphViz file:";
-    LOG(INFO) << GenerateSliceGraph(*func);
+    testing::Test::RecordProperty("GraphViz file", GenerateSliceGraph(*func));
   }
 };
 
@@ -160,11 +167,11 @@ std::vector<const typename MapT::mapped_type*> OrderedCValuesForMap(MapT& map) {
   return xlscc::OrderCValuesFunc()(bvals);
 }
 
-// TODO(seanhaskell): Don't continue IO output
+// TODO(seanhaskell): Check one continuation output per node
 
 // TODO(seanhaskell): Merge continuation outputs with same lifetime
 
-// TODO(seanhaskell): Check remove continuation output but not used input
+// TODO(seanhaskell): Don't continue IO output
 // TODO(seanhaskell): Pipelined loop phi
 // TODO(seanhaskell): DISABLED_IOOutputNodesDoNotMakeContinuations
 // TODO(seanhaskell): Check names, incl LValues
@@ -175,8 +182,8 @@ std::vector<const typename MapT::mapped_type*> OrderedCValuesForMap(MapT& map) {
 // used after them (state element isn't shared with assignment in the loop)
 // TODO(seanhaskell): Check that literals don't propagate backwards: short
 // circuit, Z3
+// TODO(seanhaskell): DISABLED_ParameterNotInContinuations
 
-// TODO(seanhaskell): Implement continuation optimization
 TEST_F(ContinuationsTest, DISABLED_IOOutputNodesDoNotMakeContinuations) {
   const std::string content = R"(
     #pragma hls_top
@@ -625,6 +632,125 @@ TEST_F(ContinuationsTest, CopyCValueMapWithSeqNumberDeterminism_WithLValues) {
   }
 }
 
+TEST_F(ContinuationsTest, MergeContinuationValuesWithSameLifetimes) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int r = in.read();
+      int y = r;
+      out.write(1);
+      out.write(3);
+      out.write(r + y);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 5);
+
+  auto slice_it = func->slices.begin();
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "r"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "y"));
+  EXPECT_EQ(second_slice.continuations_out.size(), 1);
+
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "r"));
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "y"));
+
+  EXPECT_TRUE(SliceInputsDecl(fourth_slice, "r"));
+  EXPECT_TRUE(SliceInputsDecl(fourth_slice, "y"));
+  EXPECT_EQ(fourth_slice.continuations_in.size(), 1);
+}
+
+TEST_F(ContinuationsTest, MergeContinuationValuesWithSameLifetimes2) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int ctrl = in.read();
+      int ret = 5;
+      #pragma hls_unroll yes
+      for(int i=0;i<3;++i) {
+        if(ctrl == 1) {
+          ret += 2*in.read() + ctrl;
+        }
+      }
+      out.write(ret);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 6);
+
+  auto slice_it = func->slices.begin();
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fifth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "ctrl"));
+  // Also condition output
+  EXPECT_EQ(second_slice.continuations_out.size(), 2);
+
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "ctrl"));
+  // Also condition input
+  EXPECT_EQ(third_slice.continuations_in.size(), 2);
+  EXPECT_TRUE(SliceOutputsDecl(third_slice, "ret"));
+  // Also condition output
+  EXPECT_EQ(third_slice.continuations_out.size(), 2);
+
+  EXPECT_TRUE(SliceInputsDecl(fourth_slice, "ctrl"));
+  EXPECT_TRUE(SliceInputsDecl(fourth_slice, "ret"));
+  // Also condition input
+  EXPECT_EQ(fourth_slice.continuations_in.size(), 3);
+  EXPECT_TRUE(SliceOutputsDecl(fourth_slice, "ret"));
+  // Also condition output
+  EXPECT_EQ(fourth_slice.continuations_out.size(), 2);
+
+  EXPECT_TRUE(SliceInputsDecl(fifth_slice, "ctrl"));
+  EXPECT_TRUE(SliceInputsDecl(fifth_slice, "ret"));
+  // Also condition input
+  EXPECT_EQ(fifth_slice.continuations_in.size(), 3);
+}
+
+TEST_F(ContinuationsTest, DISABLED_ParameterNotInContinuations) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(int&dir,
+                    __xls_channel<int>& in,
+                    __xls_channel<int>& out1,
+                    __xls_channel<int>& out2) {
+      const int x = in.read();
+      if(dir) {
+        out1.write(x);
+      } else {
+        out2.write(x);
+      }
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 4);
+
+  for (const xlscc::GeneratedFunctionSlice& slice : func->slices) {
+    EXPECT_FALSE(SliceInputsDecl(slice, "dir"));
+    EXPECT_FALSE(SliceOutputsDecl(slice, "dir"));
+  }
+}
+
 TEST_F(ContinuationsTest, LiteralPropagation) {
   const std::string content = R"(
     #pragma hls_top
@@ -668,32 +794,6 @@ TEST_F(ContinuationsTest, LiteralPropagation) {
   EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "y"));
   EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "z"));
   EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "w"));
-}
-
-TEST_F(ContinuationsTest, DISABLED_ParameterNotInContinuations) {
-  const std::string content = R"(
-    #pragma hls_top
-    void my_package(int&dir,
-                    __xls_channel<int>& in,
-                    __xls_channel<int>& out1,
-                    __xls_channel<int>& out2) {
-      const int x = in.read();
-      if(dir) {
-        out1.write(x);
-      } else {
-        out2.write(x);
-      }
-    })";
-
-  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
-                           GenerateTopFunction(content));
-
-  ASSERT_EQ(func->slices.size(), 4);
-
-  for (const xlscc::GeneratedFunctionSlice& slice : func->slices) {
-    EXPECT_FALSE(SliceInputsDecl(slice, "dir"));
-    EXPECT_FALSE(SliceOutputsDecl(slice, "dir"));
-  }
 }
 
 }  // namespace

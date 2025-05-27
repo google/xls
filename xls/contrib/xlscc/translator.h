@@ -240,7 +240,9 @@ struct ContinuationValue {
   // TODO(seanhaskell): Output node
   xls::Node* output_node = nullptr;
 
-  const clang::NamedDecl* decl = nullptr;
+  // When outputs are merged, multiple decls can end up associated with one
+  // output
+  absl::flat_hash_set<const clang::NamedDecl*> decls;
 
   // name is for human readability/debug only
   std::string name;
@@ -252,6 +254,9 @@ struct ContinuationValue {
 struct ContinuationInput {
   ContinuationValue* continuation_out = nullptr;
   xls::Param* input_node = nullptr;
+
+  absl::flat_hash_set<const clang::NamedDecl*> decls;
+
   // name is for human readability/debug only
   std::string name;
 };
@@ -1011,6 +1016,7 @@ class Translator {
 
   // Initially contains keys for the channels of the top function,
   // then subroutine parameters are added as their headers are translated.
+  // TODO(seanhaskell): Remove with old FSM
   absl::btree_multimap<const IOChannel*, ChannelBundle>
       external_channels_by_internal_channel_;
 

@@ -46,7 +46,8 @@ namespace {
 absl::Status FindContinuationNamesInThisContext(
     const TranslationContext& context, int64_t idx_from_top,
     GeneratedFunctionSlice& current_slice,
-    const absl::flat_hash_map<const ContinuationValue*, TrackedBValue*>&
+    const absl::flat_hash_map<const ContinuationValue*,
+                              std::vector<TrackedBValue*>>&
         bvalues_by_continuation_output,
     const xls::SourceInfo& loc) {
   absl::flat_hash_map<const TrackedBValue*, const clang::NamedDecl*>
@@ -66,43 +67,46 @@ absl::Status FindContinuationNamesInThisContext(
       continue;
     }
 
-    CHECK_EQ(continuation_out.decl, nullptr);
+    CHECK(continuation_out.decls.empty());
 
-    const TrackedBValue* bval =
+    const std::vector<TrackedBValue*>& bvals =
         bvalues_by_continuation_output.at(&continuation_out);
-    CHECK_NE(bval, nullptr);
 
-    // Look for names of special context values
-    std::string ctx_found_name = "";
+    for (const TrackedBValue* bval : bvals) {
+      CHECK_NE(bval, nullptr);
 
-    // Look for name and decl in variables
-    if (decl_by_node.contains(bval)) {
-      const clang::NamedDecl* decl = decl_by_node.at(bval);
-      continuation_out.decl = decl;
-      ctx_found_name = decl->getNameAsString();
-    }
+      // Look for names of special context values
+      std::string ctx_found_name = "";
 
-    if (bval == &context.last_return_condition) {
-      ctx_found_name = "last_return_condition";
-    } else if (bval == &context.have_returned_condition) {
-      ctx_found_name = "have_returned_condition";
-    } else if (bval == &context.full_condition) {
-      ctx_found_name = "full_condition";
-    } else if (bval == &context.full_condition_on_enter_block) {
-      ctx_found_name = "full_condition_on_enter_block";
-    } else if (bval == &context.relative_condition) {
-      ctx_found_name = "relative_condition";
-    } else if (bval == &context.relative_break_condition) {
-      ctx_found_name = "relative_break_condition";
-    } else if (bval == &context.relative_continue_condition) {
-      ctx_found_name = "relative_continue_condition";
-    } else if (bval == &context.full_switch_cond) {
-      ctx_found_name = "full_switch_cond";
-    }
+      // Look for name and decl in variables
+      if (decl_by_node.contains(bval)) {
+        const clang::NamedDecl* decl = decl_by_node.at(bval);
+        continuation_out.decls.insert(decl);
+        ctx_found_name = decl->getNameAsString();
+      }
 
-    if (!ctx_found_name.empty()) {
-      continuation_out.name =
-          absl::StrFormat("ctx[%li].%s", idx_from_top, ctx_found_name);
+      if (bval == &context.last_return_condition) {
+        ctx_found_name = "last_return_condition";
+      } else if (bval == &context.have_returned_condition) {
+        ctx_found_name = "have_returned_condition";
+      } else if (bval == &context.full_condition) {
+        ctx_found_name = "full_condition";
+      } else if (bval == &context.full_condition_on_enter_block) {
+        ctx_found_name = "full_condition_on_enter_block";
+      } else if (bval == &context.relative_condition) {
+        ctx_found_name = "relative_condition";
+      } else if (bval == &context.relative_break_condition) {
+        ctx_found_name = "relative_break_condition";
+      } else if (bval == &context.relative_continue_condition) {
+        ctx_found_name = "relative_continue_condition";
+      } else if (bval == &context.full_switch_cond) {
+        ctx_found_name = "full_switch_cond";
+      }
+
+      if (!ctx_found_name.empty()) {
+        continuation_out.name =
+            absl::StrFormat("ctx[%li].%s", idx_from_top, ctx_found_name);
+      }
     }
   }
 
@@ -134,22 +138,39 @@ absl::Status Translator::NewContinuation(IOOp& op) {
   XLSCC_CHECK(!context().sf->slices.empty(), loc);
   GeneratedFunctionSlice& current_slice = context().sf->slices.back();
 
-  // This may create multiple continuation values for a given xls::Node*
-  absl::flat_hash_map<const ContinuationValue*, TrackedBValue*>
-      bvalues_by_continuation_output;
+  // Create only one ContinuationValue per xls::Node
+  //
+  // This prevents unnecessary complexity in the generated IR, such as selects
+  // when propagating variables.
+  //
+  // It is safe because state element allocation considers the lifetimes of the
+  // continuation values.
+  absl::flat_hash_map<xls::Node*, std::vector<TrackedBValue*>>
+      tracked_bvalues_by_node;
+  std::vector<xls::Node*> tracked_nodes_in_order;
 
   for (TrackedBValue* bval : bvalues) {
     // Invalid BValues are not recorded
     XLSCC_CHECK(bval->valid(), loc);
     XLSCC_CHECK_EQ(bval->builder(), context().fb, loc);
+    if (!tracked_bvalues_by_node.contains(bval->node())) {
+      tracked_nodes_in_order.push_back(bval->node());
+    }
+    tracked_bvalues_by_node[bval->node()].push_back(bval);
+  }
 
+  absl::flat_hash_map<const ContinuationValue*, std::vector<TrackedBValue*>>
+      bvalues_by_continuation_output;
+
+  for (xls::Node* node : tracked_nodes_in_order) {
+    std::vector<TrackedBValue*>& bvals = tracked_bvalues_by_node.at(node);
     ContinuationValue continuation_out;
 
     // Filled in for name search, identity is inserted later
-    continuation_out.output_node = bval->node();
+    continuation_out.output_node = node;
 
     absl::StatusOr<xls::Value> result =
-        EvaluateNode(bval->node(), loc, /*do_check=*/false);
+        EvaluateNode(node, loc, /*do_check=*/false);
     if (result.ok()) {
       continuation_out.literal = result.value();
     }
@@ -158,7 +179,7 @@ absl::Status Translator::NewContinuation(IOOp& op) {
 
     CHECK(!bvalues_by_continuation_output.contains(&continuation_out));
     bvalues_by_continuation_output[&current_slice.continuations_out.back()] =
-        bval;
+        bvals;
   }
 
   // Prefer names from the top of the stack first
@@ -185,11 +206,8 @@ absl::Status Translator::NewContinuation(IOOp& op) {
     }
     continuation_idx++;
 
-    const TrackedBValue* bval =
-        bvalues_by_continuation_output.at(&continuation_out);
-
     NATIVE_BVAL identity_bval = context().fb->Identity(
-        *bval, loc,
+        NATIVE_BVAL(continuation_out.output_node, context().fb), loc,
         /*name*/ absl::StrFormat("%s_output", continuation_out.name));
 
     continuation_out.output_node = identity_bval.node();
@@ -209,8 +227,10 @@ absl::Status Translator::NewContinuation(IOOp& op) {
   XLSCC_CHECK_EQ(current_slice.continuations_out.size(),
                  bvalues_by_continuation_output.size(), loc);
 
-  for (const auto& [_, bval] : bvalues_by_continuation_output) {
-    bval->destroy();
+  for (const auto& [_, bvals] : bvalues_by_continuation_output) {
+    for (TrackedBValue* bval : bvals) {
+      bval->destroy();
+    }
   }
 
   // Finish building the current slice
@@ -253,6 +273,7 @@ absl::Status Translator::NewContinuation(IOOp& op) {
     new_slice.continuations_in.push_back(
         ContinuationInput{.continuation_out = &continuation_out,
                           .input_node = input_bval.node()->As<xls::Param>(),
+                          .decls = continuation_out.decls,
                           .name = continuation_out.name});
   }
 
@@ -265,8 +286,7 @@ absl::Status Translator::NewContinuation(IOOp& op) {
   for (const ContinuationInput& continuation_in : new_slice.continuations_in) {
     XLSCC_CHECK_NE(continuation_in.continuation_out, nullptr, loc);
 
-    TrackedBValue* bval =
-        bvalues_by_continuation_output.at(continuation_in.continuation_out);
+    TrackedBValue in_bval;
 
     if (continuation_in.continuation_out->literal.has_value()) {
       // Literals should only be propagated downstream, as upstream feedbacks
@@ -276,15 +296,22 @@ absl::Status Translator::NewContinuation(IOOp& op) {
       // as the downstream slices have not been created yet.
       //
       // The unused continuation input will get optimized away later.
-      *bval = context().fb->Literal(
+      in_bval = context().fb->Literal(
           continuation_in.continuation_out->literal.value(), loc,
           /*name=*/absl::StrFormat("%s_literal", continuation_in.name));
     } else {
       XLSCC_CHECK_EQ(continuation_in.input_node->function_base(),
                      context().fb->function(), loc);
-      *bval = TrackedBValue(continuation_in.input_node, context().fb);
+      in_bval = TrackedBValue(continuation_in.input_node, context().fb);
     }
-    XLSCC_CHECK(bval->valid(), loc);
+    XLSCC_CHECK(in_bval.valid(), loc);
+
+    std::vector<TrackedBValue*>& bvals =
+        bvalues_by_continuation_output.at(continuation_in.continuation_out);
+
+    for (TrackedBValue* bval : bvals) {
+      *bval = in_bval;
+    }
   }
 
   return absl::OkStatus();
@@ -475,10 +502,6 @@ absl::Status Translator::OptimizeContinuations(GeneratedFunction& func,
 
   // TODO: Mark loop phis
 
-  // TODO: Literals (consider phi)
-  // TODO: Remove continuation inputs that feed through other nodes to only
-  // unused outputs
-
   return absl::OkStatus();
 }
 
@@ -539,7 +562,7 @@ std::string GenerateSliceGraph(const GeneratedFunction& func) {
       node_names.push_back(
           absl::StrFormat("  %s [label=%s];", output_name,
                           GraphvizEscape(absl::StrFormat(
-                              "%s__%s", continuation_out.name, type_str))));
+                              "%s : %s", continuation_out.name, type_str))));
 
       nodes_in_output_rank.push_back(output_name);
     }
