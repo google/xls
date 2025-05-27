@@ -162,14 +162,11 @@ std::vector<const typename MapT::mapped_type*> OrderedCValuesForMap(MapT& map) {
 
 // TODO(seanhaskell): Don't continue IO output
 
-// TODO(seanhaskell): Remove continuation inputs that feed through other nodes
-// to only unused outputs
 // TODO(seanhaskell): Merge continuation outputs with same lifetime
 
 // TODO(seanhaskell): Check remove continuation output but not used input
 // TODO(seanhaskell): Pipelined loop phi
 // TODO(seanhaskell): DISABLED_IOOutputNodesDoNotMakeContinuations
-// TODO(seanhaskell): DISABLED_InputsFeedingUnnusedOutputsRemoved
 // TODO(seanhaskell): Check names, incl LValues
 // TODO(seanhaskell): Check that single bit variable used as a condition gets
 // its own continuation without a decl, so that its state element doesn't get
@@ -312,7 +309,7 @@ TEST_F(ContinuationsTest, UnusedContinuationInputsRemoved) {
   EXPECT_FALSE(SliceInputsDecl(fifth_slice, "y"));
 }
 
-TEST_F(ContinuationsTest, DISABLED_InputsFeedingUnnusedOutputsRemoved) {
+TEST_F(ContinuationsTest, InputsFeedingUnnusedOutputsRemoved) {
   const std::string content = R"(
     #pragma hls_top
     void my_package(__xls_channel<int>& in,

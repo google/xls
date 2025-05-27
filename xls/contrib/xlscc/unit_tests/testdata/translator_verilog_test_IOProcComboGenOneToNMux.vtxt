@@ -12,15 +12,15 @@ module foo_proc(
 );
   wire continuation_6_output__1;
   wire ctx_3__relative_condition_output__1;
-  wire literal_242;
+  wire literal_239;
   wire p0_all_active_outputs_ready;
   assign continuation_6_output__1 = dir == 32'h0000_0000;
   assign ctx_3__relative_condition_output__1 = ~continuation_6_output__1;
-  assign literal_242 = 1'h1;
+  assign literal_239 = 1'h1;
   assign p0_all_active_outputs_ready = (~continuation_6_output__1 | out1_rdy) & (~ctx_3__relative_condition_output__1 | out2_rdy);
   assign in_rdy = p0_all_active_outputs_ready;
   assign out1 = in;
-  assign out1_vld = in_vld & literal_242 & literal_242 & continuation_6_output__1;
+  assign out1_vld = in_vld & literal_239 & literal_239 & continuation_6_output__1;
   assign out2 = in;
-  assign out2_vld = in_vld & literal_242 & literal_242 & ctx_3__relative_condition_output__1;
+  assign out2_vld = in_vld & literal_239 & literal_239 & ctx_3__relative_condition_output__1;
 endmodule

@@ -32,8 +32,12 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
+#include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xlscc {
 
@@ -437,19 +441,36 @@ absl::Status RemovePassThroughs(GeneratedFunction& func, bool& changed,
   return absl::OkStatus();
 }
 
+// Uses XLS' Dead Code Removal pass to remove the nodes between unused outputs,
+// which have been removed, and inputs feeding only unused outputs.
+absl::Status RemoveDeadCode(GeneratedFunction& func, bool& changed,
+                            xls::Package* package,
+                            xls::OptimizationContext& context,
+                            const xls::SourceInfo& loc) {
+  xls::DeadCodeEliminationPass dce_pass;
+  xls::PassResults results;
+  xls::OptimizationPassOptions options;
+
+  XLS_ASSIGN_OR_RETURN(bool dce_changed,
+                       dce_pass.Run(package, options, &results, context));
+
+  changed = changed || dce_changed;
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::Status Translator::OptimizeContinuations(GeneratedFunction& func,
                                                const xls::SourceInfo& loc) {
   bool changed = true;
+  xls::OptimizationContext context;
 
   do {
     changed = false;
     XLS_RETURN_IF_ERROR(RemoveUnusedContinuationInputs(func, changed, loc));
     XLS_RETURN_IF_ERROR(RemoveUnusedContinuationOutputs(func, changed, loc));
     XLS_RETURN_IF_ERROR(RemovePassThroughs(func, changed, loc));
-
-    // TODO(seanhaskell): Dead code removal
+    XLS_RETURN_IF_ERROR(RemoveDeadCode(func, changed, package_, context, loc));
   } while (changed);
 
   // TODO: Mark loop phis
