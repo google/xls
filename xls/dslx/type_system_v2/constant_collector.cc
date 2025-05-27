@@ -86,8 +86,8 @@ class Visitor : public AstNodeVisitorWithDefault {
             << " with type: " << type_.ToString();
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
         &import_data_, ti_, &warning_collector_,
-        converter_.GetParametricEnv(parametric_context_), constant_def->value(),
-        &type_);
+        converter_.GetParametricEnv(parametric_context_),
+        constant_def->value());
     if (value.ok()) {
       VLOG(6) << "Constant def: " << constant_def->ToString()
               << " has value: " << value->ToString();
@@ -203,7 +203,7 @@ class Visitor : public AstNodeVisitorWithDefault {
       absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
           &import_data_, evaluation_ti, &warning_collector_,
           converter_.GetParametricEnv(parametric_context_),
-          down_cast<const ConstantDef*>(*target)->value(), &type_);
+          down_cast<const ConstantDef*>(*target)->value());
       if (value.ok()) {
         VLOG(6) << "Noting constexpr for ColonRef: " << colon_ref->ToString()
                 << ", value: " << value->ToString();
@@ -222,7 +222,7 @@ class Visitor : public AstNodeVisitorWithDefault {
   absl::Status HandleLet(const Let* let) override {
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
         &import_data_, ti_, &warning_collector_,
-        converter_.GetParametricEnv(parametric_context_), let->rhs(), &type_);
+        converter_.GetParametricEnv(parametric_context_), let->rhs());
     if (let->is_const()) {
       if (!value.ok()) {
         return value.status();
@@ -279,7 +279,7 @@ class Visitor : public AstNodeVisitorWithDefault {
   absl::Status HandleConstAssert(const ConstAssert* node) override {
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
         &import_data_, ti_, &warning_collector_,
-        converter_.GetParametricEnv(parametric_context_), node->arg(), &type_);
+        converter_.GetParametricEnv(parametric_context_), node->arg());
     if (!value.ok()) {
       return TypeInferenceErrorStatus(
           node->span(), nullptr,
@@ -477,7 +477,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     }
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
         &import_data_, ti_, &warning_collector_, ParametricEnv(),
-        *node->verbosity(), &type_);
+        *node->verbosity());
     if (!value.ok()) {
       return TypeInferenceErrorStatus(
           (*node->verbosity())->span(), &type_,

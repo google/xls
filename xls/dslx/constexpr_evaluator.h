@@ -54,7 +54,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   static absl::StatusOr<InterpValue> EvaluateToValue(
       ImportData* import_data, TypeInfo* type_info,
       WarningCollector* warning_collector, const ParametricEnv& bindings,
-      const Expr* expr, const Type* type = nullptr);
+      const Expr* expr);
 
   // A concrete type is only necessary when:
   //  - Deducing a Number that is undecorated and whose type is specified by
