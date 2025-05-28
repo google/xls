@@ -5,6 +5,25 @@ module main(
   input wire [31:0] d,
   output wire [63:0] out
 );
+  function automatic [15:0] priority_sel_16b_2way (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1, input reg [15:0] default_value);
+    begin
+      unique casez (sel)
+        2'b?1: begin
+          priority_sel_16b_2way = case0;
+        end
+        2'b10: begin
+          priority_sel_16b_2way = case1;
+        end
+        2'b00: begin
+          priority_sel_16b_2way = default_value;
+        end
+        default: begin
+          // Propagate X
+          priority_sel_16b_2way = 'X;
+        end
+      endcase
+    end
+  endfunction
   function automatic [31:0] priority_sel_32b_2way (input reg [1:0] sel, input reg [31:0] case0, input reg [31:0] case1, input reg [31:0] default_value);
     begin
       unique casez (sel)
@@ -24,7 +43,7 @@ module main(
       endcase
     end
   endfunction
-  wire [31:0] priority_sel_36;
-  assign priority_sel_36 = priority_sel_32b_2way(p, x, y, d);
-  assign out = {priority_sel_32b_2way(p, {x[31:16], x[15:0]}, {y[31:16], y[15:0]}, {d[31:16], d[15:0]}), priority_sel_36[31:16], priority_sel_36[15:0]};
+  wire [31:0] tuple_59;
+  assign tuple_59 = {priority_sel_16b_2way(p, x[31:16], y[31:16], d[31:16]), priority_sel_16b_2way(p, x[15:0], y[15:0], d[15:0])};
+  assign out = {priority_sel_32b_2way(p, {x[31:16], x[15:0]}, {y[31:16], y[15:0]}, {d[31:16], d[15:0]}), tuple_59[31:16], tuple_59[15:0]};
 endmodule

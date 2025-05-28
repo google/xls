@@ -24,9 +24,11 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
@@ -116,6 +118,42 @@ TEST_F(RegisterLegalizationPassTest, KeepsUnitListsValid) {
                   .streaming_io_and_pipeline.pipeline_registers,
               testing::ElementsAre(testing::ElementsAre(
                   m::PipelineRegister(reg32, write32, read32.node()))));
+}
+
+TEST_F(RegisterLegalizationPassTest, MultipleRegisterWrites) {
+  auto p = CreatePackage();
+
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(Register * r,
+                           bb.block()->AddRegister("r", p->GetBitsType(32)));
+  BValue en1 = bb.InputPort("en1", p->GetBitsType(1));
+  BValue en2 = bb.InputPort("en2", p->GetBitsType(1));
+  BValue en3 = bb.InputPort("en3", p->GetBitsType(1));
+  bb.RegisterRead(r);
+  bb.RegisterWrite(r, bb.Literal(UBits(10, 32)), en1);
+  bb.RegisterWrite(r, bb.Literal(UBits(20, 32)), en2);
+  bb.RegisterWrite(r, bb.Literal(UBits(30, 32)), en3);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_THAT(block->GetRegisterWrites(r), IsOkAndHolds(testing::SizeIs(3)));
+  EXPECT_THAT(Run(block), IsOkAndHolds(true));
+  EXPECT_THAT(block->GetRegisterWrites(r), IsOkAndHolds(testing::SizeIs(1)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * rw,
+                           block->GetUniqueRegisterWrite(r));
+  EXPECT_THAT(rw->data(),
+              op_matchers::OneHotSelect(
+                  op_matchers::Concat(),
+                  {op_matchers::Literal(30), op_matchers::Literal(20),
+                   op_matchers::Literal(10)}));
+  EXPECT_THAT(rw->load_enable(),
+              Optional(op_matchers::Or(op_matchers::Name("en1"),
+                                       op_matchers::Name("en2"),
+                                       op_matchers::Name("en3"))));
+
+  // Pass should be idempotent.
+  EXPECT_THAT(Run(block), IsOkAndHolds(false));
 }
 
 }  // namespace

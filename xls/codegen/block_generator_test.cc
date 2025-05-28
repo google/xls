@@ -95,6 +95,20 @@ using ::testing::HasSubstr;
 constexpr char kTestName[] = "block_generator_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";
 
+absl::Status RunCodegenPasses(Package* package, CodegenContext& codegen_context,
+                              const CodegenOptions& options,
+                              const PipelineSchedule& schedule,
+                              DelayEstimator* estimator) {
+  OptimizationContext opt_context;
+  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(opt_context);
+  PassResults results;
+  const CodegenPassOptions codegen_pass_options{.codegen_options = options,
+                                                .schedule = schedule,
+                                                .delay_estimator = estimator};
+  return passes->Run(package, codegen_pass_options, &results, codegen_context)
+      .status();
+}
+
 class BlockGeneratorTest : public VerilogTestBase {
  protected:
   CodegenOptions codegen_options(
@@ -1772,6 +1786,8 @@ proc bad_alternator(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
       FunctionBaseToPipelinedBlock(schedule, options, proc));
+  XLS_ASSERT_OK(
+      RunCodegenPasses(package.get(), context, options, schedule, estimator));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
                            GenerateVerilog(context.top_block(), options));
@@ -2353,13 +2369,8 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
       FunctionBaseToPipelinedBlock(schedule, options, proc));
-  OptimizationContext opt_context;
-  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(opt_context);
-  PassResults results;
-  const CodegenPassOptions codegen_pass_options{.codegen_options = options,
-                                                .schedule = schedule,
-                                                .delay_estimator = estimator};
-  XLS_ASSERT_OK(passes->Run(&package, codegen_pass_options, &results, context));
+  XLS_ASSERT_OK(
+      RunCodegenPasses(&package, context, options, schedule, estimator));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
                            GenerateVerilog(context.top_block(), options));
@@ -2397,15 +2408,8 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
       FunctionBaseToPipelinedBlock(schedule, options, proc));
-
-  OptimizationContext opt_context;
-  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(opt_context);
-  PassResults results;
-  const CodegenPassOptions codegen_pass_options = {
-      .codegen_options = options,
-      .schedule = schedule,
-      .delay_estimator = estimator};
-  XLS_ASSERT_OK(passes->Run(&package, codegen_pass_options, &results, context));
+  XLS_ASSERT_OK(
+      RunCodegenPasses(&package, context, options, schedule, estimator));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
                            GenerateVerilog(context.top_block(), options));

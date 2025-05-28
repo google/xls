@@ -228,24 +228,32 @@ static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
     }
     CHECK(!state_register->next_values.empty());
 
-    if (state_register->reg == nullptr && state_register->reg_full == nullptr) {
+    if (state_register->reg == nullptr &&
+        !state_register->reg_full.has_value()) {
       // No actual contents for this state element, and no need to track it for
       // flow control; skip it.
       continue;
     }
 
-    SourceInfo write_loc = state_register->reg_write != nullptr
-                               ? state_register->reg_write->loc()
-                               : state_register->reg_full_write->loc();
+    SourceInfo write_loc = state_register->reg_writes.empty()
+                               ? state_register->reg_full->sets.front()->loc()
+                               : state_register->reg_writes.front()->loc();
 
-    std::vector<Node*> values;
-    std::vector<Node*> write_conditions;
-    std::vector<Node*> unchanged_conditions;
-    values.reserve(state_register->next_values.size());
-    write_conditions.reserve(state_register->next_values.size());
-    unchanged_conditions.reserve(state_register->next_values.size());
-    for (const StateRegister::NextValue& next_value :
-         state_register->next_values) {
+    if (!state_register->reg_writes.empty()) {
+      XLS_RET_CHECK_EQ(state_register->next_values.size(),
+                       state_register->reg_writes.size());
+    }
+    if (state_register->reg_full.has_value()) {
+      XLS_RET_CHECK_EQ(state_register->next_values.size(),
+                       state_register->reg_full->sets.size());
+    }
+    for (int64_t i = 0; i < state_register->next_values.size(); ++i) {
+      const StateRegister::NextValue& next_value =
+          state_register->next_values[i];
+      std::optional<RegisterWrite*> reg_write =
+          state_register->reg_writes.empty()
+              ? std::nullopt
+              : std::make_optional(state_register->reg_writes[i]);
       Node* activated_predicate;
       if (next_value.predicate.has_value()) {
         XLS_ASSIGN_OR_RETURN(
@@ -259,104 +267,33 @@ static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
         activated_predicate = state_enables.at(next_value.stage);
       }
 
-      if (next_value.value.has_value()) {
-        values.push_back(*next_value.value);
-        write_conditions.push_back(activated_predicate);
-      } else {
-        unchanged_conditions.push_back(activated_predicate);
+      if (reg_write.has_value()) {
+        XLS_RETURN_IF_ERROR(
+            reg_write.value()->SetLoadEnable(activated_predicate));
+      }
+      if (state_register->reg_full.has_value()) {
+        XLS_RETURN_IF_ERROR(state_register->reg_full->sets[i]->SetLoadEnable(
+            activated_predicate));
       }
     }
 
-    Node* value;
-    std::optional<Node*> load_enable;
-    if (values.empty()) {
-      // If we never change the state element, write the current value
-      // unconditionally.
-      value = state_register->reg_read;
-      load_enable = std::nullopt;
-    } else if (values.size() == 1) {
-      value = values[0];
-      load_enable = write_conditions[0];
-    } else {
-      XLS_ASSIGN_OR_RETURN(Node * selector, block->MakeNode<xls::Concat>(
-                                                write_loc, write_conditions));
-
-      // Reverse the order of the values, so they match up to the selector.
-      std::reverse(values.begin(), values.end());
-      XLS_ASSIGN_OR_RETURN(
-          value, block->MakeNode<OneHotSelect>(write_loc, selector, values));
-
-      XLS_ASSIGN_OR_RETURN(
-          load_enable,
-          block->MakeNode<NaryOp>(write_loc, write_conditions, Op::kOr));
-    }
-
-    if (state_register->reg) {
-      XLS_ASSIGN_OR_RETURN(
-          RegisterWrite * new_reg_write,
-          block->MakeNode<RegisterWrite>(
-              /*loc=*/write_loc,
-              /*data=*/value,
-              /*load_enable=*/load_enable,
-              /*reset=*/state_register->reg_write->reset(),
-              /*reg=*/state_register->reg_write->GetRegister()));
-      XLS_RET_CHECK(node_to_stage_map.contains(state_register->reg_write));
-      node_to_stage_map.erase(state_register->reg_write);
-      XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_write));
-      state_register->reg_write = new_reg_write;
-    }
-
-    if (state_register->reg_full) {
-      // The state register's fullness changes whenever we read or write the
-      // state parameter's value - and it changes to 1 if we're writing, or 0
-      // if we're only reading. In other words, the fullness register should
-      // be load-enabled if we're reading or writing, and its value should be
-      // set to 1 if we're writing.
-
-      // However, it also updates to 1 if we *would have* written an unchanged
-      // value (even though that lets us skip actually writing to the state
-      // register), so we also need to account for those.
-      Node* value_determined;
-      if (unchanged_conditions.empty()) {
-        // There should be an active write, since there's nothing to support
-        // leaving the register unchanged.
-        CHECK(load_enable.has_value());
-        value_determined = *load_enable;
-      } else {
-        std::vector<Node*> determined_conditions = unchanged_conditions;
-        if (load_enable.has_value()) {
-          determined_conditions.push_back(*load_enable);
-        }
+    // Predicate the clearing of the reg full bit with the stage activation of
+    // the stage containing the state read.
+    if (state_register->reg_full.has_value()) {
+      RegisterWrite* reg_clear = state_register->reg_full->clear;
+      Node* new_predicate;
+      if (reg_clear->load_enable().has_value()) {
         XLS_ASSIGN_OR_RETURN(
-            value_determined,
-            block->MakeNode<NaryOp>(write_loc, determined_conditions, Op::kOr));
+            new_predicate,
+            block->MakeNode<NaryOp>(
+                write_loc,
+                std::vector<Node*>{state_enables.at(state_register->read_stage),
+                                   *reg_clear->load_enable()},
+                Op::kAnd));
+      } else {
+        new_predicate = state_enables.at(state_register->read_stage);
       }
-
-      // The state register is read from iff the reading stage is active and the
-      // read predicate (if any) is true.
-      absl::InlinedVector<Node*, 2> read_conditions(
-          {state_enables.at(state_register->read_stage)});
-      if (state_register->read_predicate != nullptr) {
-        read_conditions.push_back(state_register->read_predicate);
-      }
-      XLS_ASSIGN_OR_RETURN(Node * value_consumed,
-                           NaryAndIfNeeded(block, read_conditions));
-
-      XLS_ASSIGN_OR_RETURN(
-          Node * reg_full_load_enable,
-          block->MakeNode<NaryOp>(
-              write_loc, std::vector<Node*>{value_consumed, value_determined},
-              Op::kOr));
-      XLS_ASSIGN_OR_RETURN(
-          RegisterWrite * new_reg_full_write,
-          block->MakeNode<RegisterWrite>(
-              /*loc=*/write_loc,
-              /*data=*/value_determined,
-              /*load_enable=*/reg_full_load_enable,
-              /*reset=*/state_register->reg_full_write->reset(),
-              /*reg=*/state_register->reg_full_write->GetRegister()));
-      XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_full_write));
-      state_register->reg_full_write = new_reg_full_write;
+      XLS_RETURN_IF_ERROR(reg_clear->SetLoadEnable(new_predicate));
     }
   }
 
@@ -392,37 +329,33 @@ static absl::StatusOr<Node*> UpdateSingleStagePipelineWithFlowControl(
                                       "pipeline_enable"));
 
   for (std::optional<StateRegister>& state_register : state_registers) {
-    if (state_register.has_value() && state_register->reg) {
-      std::vector<Node*> write_predicates;
-      for (const StateRegister::NextValue& next_value :
-           state_register->next_values) {
-        if (next_value.value.has_value() && next_value.predicate.has_value()) {
-          write_predicates.push_back(*next_value.predicate);
-        }
-      }
-
-      Node* load_enable = pipeline_enable;
-      if (!write_predicates.empty()) {
-        XLS_ASSIGN_OR_RETURN(Node * active_write,
-                             NaryOrIfNeeded(block, write_predicates));
+    if (!state_register.has_value() || state_register->reg_writes.empty()) {
+      continue;
+    }
+    CHECK(!state_register->next_values.empty());
+    XLS_RET_CHECK_EQ(state_register->next_values.size(),
+                     state_register->reg_writes.size());
+    if (state_register->reg_full.has_value()) {
+      XLS_RET_CHECK_EQ(state_register->reg_full->sets.size(),
+                       state_register->reg_writes.size());
+    }
+    SourceInfo loc = state_register->reg_writes.front()->loc();
+    for (int64_t i = 0; i < state_register->next_values.size(); ++i) {
+      const StateRegister::NextValue& next_value =
+          state_register->next_values[i];
+      RegisterWrite* reg_write = state_register->reg_writes[i];
+      Node* activated_predicate;
+      if (next_value.predicate.has_value()) {
         XLS_ASSIGN_OR_RETURN(
-            load_enable,
+            activated_predicate,
             block->MakeNode<NaryOp>(
-                state_register->reg_write->loc(),
-                std::vector<Node*>{active_write, pipeline_enable}, Op::kAnd));
+                loc, std::vector<Node*>{*next_value.predicate, pipeline_enable},
+                Op::kAnd));
+      } else {
+        activated_predicate = pipeline_enable;
       }
 
-      XLS_ASSIGN_OR_RETURN(
-          RegisterWrite * new_reg_write,
-          block->MakeNode<RegisterWrite>(
-              /*loc=*/state_register->reg_write->loc(),
-              /*data=*/state_register->reg_write->data(),
-              /*load_enable=*/load_enable,
-              /*reset=*/state_register->reg_write->reset(),
-              /*reg=*/state_register->reg_write->GetRegister()));
-      XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_write));
-      CHECK(!node_to_stage_map.contains(state_register->reg_write));
-      state_register->reg_write = new_reg_write;
+      XLS_RETURN_IF_ERROR(reg_write->SetLoadEnable(activated_predicate));
     }
   }
 
@@ -446,7 +379,8 @@ static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
     for (const int64_t index : input_states[stage]) {
       const std::optional<StateRegister>& state_register =
           state_registers[index];
-      if (!state_register.has_value() || !state_register->reg_full) {
+      if (!state_register.has_value() ||
+          !state_register->reg_full.has_value()) {
         // The state is replaced by the same cycle that reads it, so it will
         // always be valid.
         continue;
@@ -457,25 +391,26 @@ static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
       // that wants to read it.
       std::string state_valid_name = "";
       absl::InlinedVector<Node*, 2> state_valid_conditions(
-          {state_register->reg_full_read});
-      if (state_register->read_predicate != nullptr) {
+          {state_register->reg_full->read});
+      if (state_register->read_predicate.has_value()) {
         // Don't block if we're not reading the state.
 
         // If predicate has an assigned name, let the not expression get
         // inlined. Otherwise, give a descriptive name.
         std::string name = "";
-        if (!state_register->read_predicate->HasAssignedName()) {
+        if (!state_register->read_predicate.value()->HasAssignedName()) {
           name = absl::StrFormat("%s_not_read", state_register->name);
         }
         XLS_ASSIGN_OR_RETURN(
-            Node * unread, block->MakeNodeWithName<UnOp>(
-                               state_register->reg_full_read->loc(),
-                               state_register->read_predicate, Op::kNot, name));
+            Node * unread,
+            block->MakeNodeWithName<UnOp>(
+                state_register->reg_full->read->loc(),
+                state_register->read_predicate.value(), Op::kNot, name));
 
         // not_read will have an assigned name or be inlined, so only check the
         // state full register read. If it has an assigned name, just let
         // everything inline. Otherwise, give a descriptive name.
-        if (!state_register->reg_full_read->HasAssignedName()) {
+        if (!state_register->reg_full->read->HasAssignedName()) {
           state_valid_name =
               absl::StrFormat("%s_state_valid", state_register->name);
         }
@@ -484,9 +419,10 @@ static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
 
       XLS_ASSIGN_OR_RETURN(
           Node * state_valid,
-          NaryOrIfNeeded(block, state_valid_conditions,
-                         /*name=*/state_valid_name,
-                         /*source_info=*/state_register->reg_full_read->loc()));
+          NaryOrIfNeeded(
+              block, state_valid_conditions,
+              /*name=*/state_valid_name,
+              /*source_info=*/state_register->reg_full->read->loc()));
       active_valids.push_back(state_valid);
     }
 

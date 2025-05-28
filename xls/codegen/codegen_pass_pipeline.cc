@@ -43,6 +43,7 @@
 #include "xls/passes/identity_removal_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/select_simplification_pass.h"
 
 namespace xls::verilog {
 
@@ -105,9 +106,14 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline(
 
   // Do some trivial simplifications to any flow control logic added during code
   // generation.
+  // DONOTSUBMIT DO_NOT_SUBMIT
   top->Add<CodegenWrapperPass>(
       std::make_unique<CsePass>(/*common_literals=*/false), context);
   top->Add<CodegenWrapperPass>(std::make_unique<BasicSimplificationPass>(),
+                               context);
+  top->Add<CodegenWrapperPass>(std::make_unique<SelectSimplificationPass>(),
+                               context);
+  top->Add<CodegenWrapperPass>(std::make_unique<SelectSimplificationPass>(),
                                context);
 
   // Swap out fifo instantiations with materialized fifos where required by

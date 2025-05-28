@@ -5,13 +5,13 @@ module main(
   input wire [15:0] d,
   output wire [15:0] out
 );
-  wire [1:0] one_hot_15;
+  wire [1:0] concat_27;
   wire [2:0] one_hot_18;
   wire eq_20;
-  assign one_hot_15 = {!p, p};
-  assign one_hot_18 = {one_hot_15[1:0] == 2'h0, one_hot_15[1] && !one_hot_15[0], one_hot_15[0]};
-  assign eq_20 = one_hot_15 == one_hot_18[1:0];
-  assign out = x & {16{one_hot_15[0]}} | y & {16{one_hot_15[1]}};
+  assign concat_27 = {~p, p};
+  assign one_hot_18 = {concat_27[1:0] == 2'h0, concat_27[1] && !concat_27[0], concat_27[0]};
+  assign eq_20 = concat_27 == one_hot_18[1:0];
+  assign out = x & {16{concat_27[0]}} | y & {16{concat_27[1]}};
   `ifdef ASSERT_ON
   __xls_invariant_priority_sel_16_selector_one_hot_A: assert final ($isunknown(eq_20) || eq_20) else $fatal(0, "Selector one_hot.15 was expected to be one-hot, and is not.");
   `endif  // ASSERT_ON

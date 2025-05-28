@@ -7,8 +7,8 @@ module pipelined_proc(
 );
   wire [6:0] lookup_table[1][4];
   assign lookup_table = '{'{7'h00, 7'h00, 7'h00, 7'h00}};
-  reg __x;
-  reg __z;
+  reg x;
+  reg z;
   reg [6:0] __out_data_reg;
   reg __out_data_valid_reg;
   wire p0_all_active_inputs_valid;
@@ -29,19 +29,19 @@ module pipelined_proc(
   assign out_data_valid_load_en = out_ready | out_data_valid_inv;
   assign out_data_load_en = __out_valid_buf & out_data_valid_load_en;
   assign p0_stage_done = p0_all_active_states_valid & p0_all_active_inputs_valid & out_data_load_en;
-  assign sel_1028 = __x ? 33'h0_0000_0002 : 33'h0_0000_0001;
-  assign sel_1029 = __z ? 4'h5 : 4'h4;
+  assign sel_1028 = x ? 33'h0_0000_0002 : 33'h0_0000_0001;
+  assign sel_1029 = z ? 4'h5 : 4'h4;
   assign pipeline_enable = p0_stage_done & p0_stage_done;
   assign entry = lookup_table[sel_1028 > 33'h0_0000_0000 ? 1'h0 : sel_1028[0:0]][sel_1029 > 4'h3 ? 2'h3 : sel_1029[1:0]];
   always_ff @ (posedge clk) begin
     if (rst) begin
-      __x <= 1'h0;
-      __z <= 1'h0;
+      x <= 1'h0;
+      z <= 1'h0;
       __out_data_reg <= 7'h00;
       __out_data_valid_reg <= 1'h0;
     end else begin
-      __x <= pipeline_enable ? __x : __x;
-      __z <= pipeline_enable ? __z : __z;
+      x <= pipeline_enable ? x : x;
+      z <= pipeline_enable ? z : z;
       __out_data_reg <= out_data_load_en ? entry : __out_data_reg;
       __out_data_valid_reg <= out_data_valid_load_en ? __out_valid_buf : __out_data_valid_reg;
     end
