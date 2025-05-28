@@ -14,38 +14,40 @@
 
 // Test demonstrating use (and correct implementation) of arrays of channels.
 proc consumer {
-  send_chans: chan<u16>[128] out;
-  recv_chans: chan<u16>[128][64] in;
+    send_chans: chan<u16>[128] out;
+    recv_chans: chan<u16>[128][64] in;
 
-  init { () }
-  config(send_chans: chan<u16>[128] out, recv_chans: chan<u16>[128][64] in) {
-    (send_chans, recv_chans)
-  }
-  next(state: ()) {
-    let (tok, i) = recv(join(), recv_chans[0][0]);
-    let tok = send(tok, send_chans[1], i + i);
-  }
+    config(send_chans: chan<u16>[128] out, recv_chans: chan<u16>[128][64] in) {
+        (send_chans, recv_chans)
+    }
+
+    init { () }
+
+    next(state: ()) {
+        let (tok, i) = recv(join(), recv_chans[0][0]);
+        let tok = send(tok, send_chans[1], i + i);
+    }
 }
 
 #[test_proc]
 proc producer {
-  ps: chan<u16>[128][64][32] out;
-  cs: chan<u16>[128][64][32] in;
-  terminator: chan<bool> out;
+    ps: chan<u16>[128][64][32] out;
+    cs: chan<u16>[128][64][32] in;
+    terminator: chan<bool> out;
 
-  init { () }
+    config(terminator: chan<bool> out) {
+        let (ps, cs) = chan<u16>[128][64][32]("multidim_chan");
+        spawn consumer(ps[0][1], cs[0]);
+        (ps, cs, terminator)
+    }
 
-  config(terminator: chan<bool> out) {
-    let (ps, cs) = chan<u16>[128][64][32]("multidim_chan");
-    spawn consumer(ps[0][1], cs[0]);
-    (ps, cs, terminator)
-  }
+    init { () }
 
-  next(state: ()) {
-    let tok = send(join(), ps[0][0][0], u16:1);
-    let (tok, result) = recv(tok, cs[0][1][1]);
-    assert_eq(result, u16:2);
+    next(state: ()) {
+        let tok = send(join(), ps[0][0][0], u16:1);
+        let (tok, result) = recv(tok, cs[0][1][1]);
+        assert_eq(result, u16:2);
 
-    let tok = send(tok, terminator, true);
-  }
+        let tok = send(tok, terminator, true);
+    }
 }

@@ -11,14 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 proc producer {
     s: chan<u32> out;
 
-    init { true }
+    config(s: chan<u32> out) { (s,) }
 
-    config(s: chan<u32> out) {
-        (s,)
-    }
+    init { true }
 
     next(do_send: bool) {
         let tok = send_if(join(), s, do_send, ((do_send) as u32));
@@ -29,11 +28,9 @@ proc producer {
 proc consumer {
     r: chan<u32> in;
 
-    init { true }
+    config(r: chan<u32> in) { (r,) }
 
-    config(r: chan<u32> in) {
-        (r,)
-    }
+    init { true }
 
     next(do_recv: bool) {
         let (tok, _) = recv_if(join(), r, do_recv, u32:42);
@@ -42,12 +39,14 @@ proc consumer {
 }
 
 proc main {
-    init { () }
     config() {
         let (s, r) = chan<u32>("my_chan");
         spawn producer(s);
         spawn consumer(r);
     }
+
+    init { () }
+
     next(state: ()) { () }
 }
 
@@ -56,8 +55,6 @@ proc test_main {
     terminator: chan<bool> out;
     data0: chan<u32> in;
     data1: chan<u32> out;
-
-    init { () }
 
     config(terminator: chan<bool> out) {
         let (data0_s, data0_r) = chan<u32>("data0");
@@ -68,6 +65,8 @@ proc test_main {
 
         (terminator, data0_r, data1_s)
     }
+
+    init { () }
 
     next(state: ()) {
         // Sending consumer data.

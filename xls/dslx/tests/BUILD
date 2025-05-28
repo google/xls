@@ -1162,8 +1162,6 @@ dslx_lang_test(name = "parametric_to_value")
 
 dslx_lang_test(
     name = "constexpr_with_typed_stuff_after",
-    # TODO(leary): 2023-10-20 Puts inline comment in a bad spot.
-    test_autofmt = False,
 )
 
 dslx_lang_test(name = "for_up_to_constexpr_cast")
@@ -1212,9 +1210,6 @@ dslx_lang_test(
     compare = "none",
     # No normal 'function' entry point, it is a test proc.
     convert_to_ir = False,
-    # TODO(leary): 2023-10-20 Arrays of channels are being formatted
-    # incorrectly.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -1228,8 +1223,6 @@ dslx_lang_test(
     name = "proc_smoke",
     # No normal 'function' entry point, it is a test proc.
     convert_to_ir = False,
-    # TODO(leary): 2023-10-20 Comment adorning proc next fn is being deleted.
-    test_autofmt = False,
 )
 
 dslx_lang_test(
@@ -1272,8 +1265,6 @@ dslx_lang_test(
     name = "send_if_recv_if",
     convert_to_ir = False,
     dslx_entry = "main",
-    # TODO(leary): 2023-10-20 Crashes! (assertion failure)
-    test_autofmt = False,
 )
 
 xls_dslx_ir(
@@ -1286,8 +1277,6 @@ dslx_lang_test(
     name = "non_blocking_receives",
     convert_to_ir = False,
     dslx_entry = "proc_main",
-    # TODO(leary): 2023-10-20 Crashes! (assertion failure)
-    test_autofmt = False,
 )
 
 xls_dslx_ir(

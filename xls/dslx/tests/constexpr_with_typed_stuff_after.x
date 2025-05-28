@@ -30,21 +30,18 @@
 // functions/tests as expected.
 
 const MY_CONST = u32:42;
-type MyBits = bits[MY_CONST]; // This name reference forces constexpr eval.
 
-struct Simple {
-  x: u32
-}
-const SIMPLE = Simple{ x: u32:2 };
+type MyBits = bits[MY_CONST];  // This name reference forces constexpr eval.
+
+struct Simple { x: u32 }
+
+const SIMPLE = Simple { x: u32:2 };
+
 // The struct access requires type information, but we forced constexpr eval
 // higher up in the file.
 const TWO = SIMPLE.x;
 
-fn main() -> (u32, bits[42]) {
-  (TWO, MyBits:0)
-}
+fn main() -> (u32, bits[42]) { (TWO, MyBits:0) }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), (u32:2, bits[42]:0))
-}
+fn test_main() { assert_eq(main(), (u32:2, bits[42]:0)) }
