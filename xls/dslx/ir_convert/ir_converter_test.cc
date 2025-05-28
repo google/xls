@@ -1048,7 +1048,8 @@ fn test() -> Foo<u32:6, u32:5> {
   ExpectIr(converted);
 }
 
-TEST(IrConverterTest, ParametricDefaultClog2InStruct) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ParametricDefaultClog2InStruct) {
   const char* kProgram = R"(
 import std;
 

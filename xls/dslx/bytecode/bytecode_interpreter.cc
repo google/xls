@@ -562,8 +562,12 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
 
     const InvocationData& invocation_data =
         caller_type_info->GetRootInvocations().at(invocation);
+    // If the invocation data doesn't contain these bindings, it may be a set of
+    // outer bindings that were resolved before adding the invocation to type
+    // info. Check to see if callee data is available for default bindings.
     XLS_RET_CHECK(
-        invocation_data.env_to_callee_data().contains(caller_bindings))
+        (invocation_data.env_to_callee_data().contains(caller_bindings)) ||
+        invocation_data.env_to_callee_data().contains(ParametricEnv()))
         << "invocation: `" << invocation_data.node()->ToString() << "` @ "
         << invocation_data.node()->span().ToString(file_table()) << " caller: `"
         << (invocation_data.caller() == nullptr
@@ -573,7 +577,9 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
         << " caller_bindings: " << caller_bindings;
 
     const InvocationCalleeData& callee_data =
-        invocation_data.env_to_callee_data().at(caller_bindings);
+        invocation_data.env_to_callee_data().contains(caller_bindings)
+            ? invocation_data.env_to_callee_data().at(caller_bindings)
+            : invocation_data.env_to_callee_data().at(ParametricEnv());
     callee_type_info = callee_data.derived_type_info;
     callee_bindings = callee_data.callee_bindings;
   } else {

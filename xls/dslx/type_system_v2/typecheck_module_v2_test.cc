@@ -7520,5 +7520,41 @@ fn main(x: u32) -> u32 {
                                 "ImportEnum")))));
 }
 
+TEST(TypecheckV2Test, ParametricDefaultClog2InStruct) {
+  constexpr std::string_view kImported = R"(
+pub fn clog2<N: u32>(x: bits[N]) -> bits[N] {
+    if x >= bits[N]:1 { (N as bits[N]) - clz(x - bits[N]:1) } else { bits[N]:0 }
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+struct Foo<X: u32, Y: u32 = {imported::clog2(X)}> {
+    a: uN[X],
+    b: uN[Y],
+}
+
+fn make_zero_foo<X: u32>() -> Foo<X> {
+    zero!<Foo<X>>()
+}
+
+fn main() -> Foo<30> {
+    make_zero_foo<30>()
+}
+
+fn test() -> Foo<5> {
+    make_zero_foo<5>()
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(AllOf(
+          HasNodeWithType("make_zero_foo<5>()", "Foo { a: uN[5], b: uN[3] }"),
+          HasNodeWithType("make_zero_foo<30>()",
+                          "Foo { a: uN[30], b: uN[5] }")))));
+}
+
 }  // namespace
 }  // namespace xls::dslx
