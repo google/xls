@@ -36,7 +36,9 @@
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
@@ -60,6 +62,7 @@
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
+#include "xls/interpreter/random_value.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
@@ -71,6 +74,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
@@ -171,6 +175,8 @@ ABSL_FLAG(
     "for all channels.");
 
 ABSL_FLAG(int64_t, random_seed, 42, "Random seed");
+ABSL_FLAG(bool, random_inputs, false,
+          "Simply pass in random inputs. Output checking is disabled");
 ABSL_FLAG(double, prob_input_valid_assert, 1.0,
           "Single-cycle probability of asserting valid with more input ready.");
 ABSL_FLAG(bool, show_trace, false, "Whether or not to print trace messages.");
@@ -1103,6 +1109,43 @@ GetValuesForEachChannels(
   return values_for_channels;
 }
 
+std::vector<Value> GenerateRandomValuesForChannel(Channel* chan,
+                                                  int64_t total_ticks,
+                                                  absl::BitGenRef rng) {
+  std::vector<Value> res;
+  int64_t cnt = absl::Uniform<int64_t>(rng, 0, total_ticks);
+  res.reserve(cnt);
+  for (int64_t i = 0; i < cnt; ++i) {
+    res.push_back(RandomValue(chan->type(), rng));
+  }
+  return res;
+}
+
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
+GenerateRandomInputsForPackage(Package* package, int64_t total_ticks,
+                               absl::BitGenRef rng) {
+  std::vector<Channel*> chans;
+  if (package->ChannelsAreProcScoped()) {
+    XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
+    for (Channel* chan : top->channels()) {
+      if (chan->CanReceive() && !chan->CanSend()) {
+        chans.push_back(chan);
+      }
+    }
+  } else {
+    for (Channel* chan : package->channels()) {
+      if (chan->CanReceive() && !chan->CanSend()) {
+        chans.push_back(chan);
+      }
+    }
+  }
+  absl::btree_map<std::string, std::vector<Value>> res;
+  for (Channel* chan : chans) {
+    res[chan->name()] = GenerateRandomValuesForChannel(chan, total_ticks, rng);
+  }
+  return res;
+}
+
 static absl::Status RealMain(
     std::string_view ir_file, std::string_view backend,
     std::string_view block_signature_proto, std::vector<int64_t> ticks,
@@ -1116,12 +1159,16 @@ static absl::Status RealMain(
     const std::string& testvector_proto,
     const std::string& expected_proto_outputs_for_all_channels,
     const int random_seed, const double prob_input_valid_assert,
-    bool show_trace, std::string_view output_stats_path, bool fail_on_assert) {
+    bool show_trace, std::string_view output_stats_path, bool fail_on_assert,
+    bool random_inputs) {
   auto timeout = StartTimeoutTimer();
   // Don't waste time and memory parsing more input than can possibly be
   // consumed.
   const int64_t total_ticks =
       std::accumulate(ticks.begin(), ticks.end(), static_cast<int64_t>(0));
+
+  XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_file));
+  XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
 
   absl::btree_map<std::string, std::vector<Value>> inputs_for_channels;
   if (!inputs_for_channels_text.empty()) {
@@ -1140,6 +1187,11 @@ static absl::Status RealMain(
     XLS_ASSIGN_OR_RETURN(
         inputs_for_channels,
         ParseChannelValuesFromTestVectorFile(testvector_proto, total_ticks));
+  } else if (random_inputs) {
+    absl::BitGen rng{std::seed_seq{random_seed}};
+    XLS_ASSIGN_OR_RETURN(
+        inputs_for_channels,
+        GenerateRandomInputsForPackage(package.get(), total_ticks, rng));
   }
 
   absl::btree_map<std::string, std::vector<Value>>
@@ -1166,9 +1218,6 @@ static absl::Status RealMain(
     XLS_RETURN_IF_ERROR(
         xls::ParseTextProtoFile(ram_rewrites_textproto_path, &ram_rewrites));
   }
-
-  XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_file));
-  XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
 
   if (backend.starts_with("block")) {
     RunBlockOptions block_options = {
@@ -1249,23 +1298,28 @@ int main(int argc, char* argv[]) {
           absl::Span<const bool>{
               !absl::GetFlag(FLAGS_inputs_for_channels).empty(),
               !absl::GetFlag(FLAGS_inputs_for_all_channels).empty(),
-              !absl::GetFlag(FLAGS_proto_inputs_for_all_channels).empty()},
+              !absl::GetFlag(FLAGS_proto_inputs_for_all_channels).empty(),
+              absl::GetFlag(FLAGS_random_inputs)},
           true) > 1) {
     LOG(QFATAL) << "Only one of --inputs_for_channels, "
-                   "--inputs_for_all_channels, and "
+                   "--inputs_for_all_channels, --random_inputs, and "
                    "--proto_inputs_for_all_channels must be set.";
   }
 
-  if (absl::c_count(
-          absl::Span<const bool>{
-              !absl::GetFlag(FLAGS_expected_outputs_for_channels).empty(),
-              !absl::GetFlag(FLAGS_expected_outputs_for_all_channels).empty(),
-              !absl::GetFlag(FLAGS_expected_proto_outputs_for_all_channels)
-                   .empty()},
-          true) > 1) {
+  int64_t output_cnt = absl::c_count(
+      absl::Span<const bool>{
+          !absl::GetFlag(FLAGS_expected_outputs_for_channels).empty(),
+          !absl::GetFlag(FLAGS_expected_outputs_for_all_channels).empty(),
+          !absl::GetFlag(FLAGS_expected_proto_outputs_for_all_channels)
+               .empty()},
+      true);
+  if (!absl::GetFlag(FLAGS_random_inputs) && output_cnt > 1) {
     LOG(QFATAL) << "Only one of --expected_outputs_for_channels, "
                    "--expected_outputs_for_all_channels, and "
                    "--expected_proto_outputs_for_all_channels must be set.";
+  }
+  if (absl::GetFlag(FLAGS_random_inputs) && output_cnt > 1) {
+    LOG(QFATAL) << "expected output cannot be used with --random_inputs";
   }
 
   return xls::ExitStatus(xls::RealMain(
@@ -1282,5 +1336,5 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_random_seed),
       absl::GetFlag(FLAGS_prob_input_valid_assert),
       absl::GetFlag(FLAGS_show_trace), absl::GetFlag(FLAGS_output_stats_path),
-      absl::GetFlag(FLAGS_fail_on_assert)));
+      absl::GetFlag(FLAGS_fail_on_assert), absl::GetFlag(FLAGS_random_inputs)));
 }
