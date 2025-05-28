@@ -427,8 +427,9 @@ absl::Status MakeOutputValidPortsForOutputChannels(
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
     std::string_view valid_suffix, Proc* proc,
     absl::Span<ProcInstance* const> instances, Block* block) {
-  absl::flat_hash_map<Node*,
-                      absl::btree_map<Stage, std::vector<std::optional<Node*>>>>
+  absl::btree_map<Node*,
+                  absl::btree_map<Stage, std::vector<std::optional<Node*>>>,
+                  Node::NodeIdLessThan>
       valid_predicates;
   absl::flat_hash_map<Node*, ChannelRef> channels;
   for (Stage stage = 0; stage < streaming_outputs.size(); ++stage) {
@@ -554,8 +555,8 @@ absl::Status MakeOutputDataPortsForOutputChannels(
     absl::Span<Node* const> next_stage_open,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
     std::string_view data_suffix, Block* block) {
-  absl::flat_hash_map<Node*,
-                      absl::btree_map<Stage, std::vector<PredicatedValue>>>
+  absl::btree_map<Node*, absl::btree_map<Stage, std::vector<PredicatedValue>>,
+                  Node::NodeIdLessThan>
       data_values;
   for (Stage stage = 0; stage < streaming_outputs.size(); ++stage) {
     for (StreamingOutput& streaming_output : streaming_outputs[stage]) {
@@ -615,8 +616,9 @@ absl::Status MakeOutputReadyPortsForInputChannels(
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
     std::string_view ready_suffix, Proc* proc,
     absl::Span<ProcInstance* const> instances, Block* block) {
-  absl::flat_hash_map<Node*,
-                      absl::btree_map<Stage, std::vector<std::optional<Node*>>>>
+  absl::btree_map<Node*,
+                  absl::btree_map<Stage, std::vector<std::optional<Node*>>>,
+                  Node::NodeIdLessThan>
       ready_predicates;
   absl::flat_hash_map<Node*, ChannelRef> channels;
   for (Stage stage = 0; stage < streaming_inputs.size(); ++stage) {
