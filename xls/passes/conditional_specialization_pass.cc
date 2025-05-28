@@ -259,6 +259,11 @@ class ConditionSet {
   // Returns the conditions as predicates
   std::vector<std::pair<TreeBitLocation, bool>> GetPredicates() const {
     std::vector<std::pair<TreeBitLocation, bool>> predicates;
+    predicates.reserve(absl::c_accumulate(
+        conditions(), int64_t{0},
+        [](int64_t acc, const Condition& condition) -> int64_t {
+          return acc + condition.node->BitCountOrDie();
+        }));
     for (const Condition& condition : conditions()) {
       std::optional<TernarySpan> ternary = condition.partial.Ternary();
       if (!ternary.has_value()) {
