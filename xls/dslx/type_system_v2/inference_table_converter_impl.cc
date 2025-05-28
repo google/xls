@@ -439,11 +439,19 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         const FunctionAndTargetObject function_and_target_object,
         ResolveFunction(invocation->callee(), caller, caller_context));
 
-    // This is one condition for enabling an "implicit token" in v1.
-    // TODO: https://github.com/google/xls/issues/193 - Handle the condition
-    // based on root type info of the callee.
-    if (caller.has_value() && IsBuiltin(function_and_target_object.function) &&
-        GetBuiltinFnRequiresImplicitToken(invocation->callee())) {
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * callee_ti,
+        GetTypeInfo(function_and_target_object.function->owner(),
+                    std::nullopt));
+    std::optional<bool> callee_noted_requires_token =
+        callee_ti->GetRequiresImplicitToken(
+            *function_and_target_object.function);
+    bool callee_requires_implicit_token =
+        (IsBuiltin(function_and_target_object.function) &&
+         GetBuiltinFnRequiresImplicitToken(invocation->callee())) ||
+        (callee_noted_requires_token.has_value() &&
+         *callee_noted_requires_token);
+    if (caller.has_value() && callee_requires_implicit_token) {
       XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
                            GetTypeInfo((*caller)->owner(), caller_context));
       ti->NoteRequiresImplicitToken(**caller, true);
