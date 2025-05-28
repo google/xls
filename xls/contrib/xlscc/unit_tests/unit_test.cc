@@ -107,7 +107,7 @@ void XlsccTestBase::Send(const ::absl::LogEntry& entry) {
   }
 
   log_entries_.emplace_back(entry);
-  LOG(INFO) << "LogEntry: " << entry.ToString();
+  LOG(INFO) << "LogEntry: " << entry.text_message();
 }
 
 void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
