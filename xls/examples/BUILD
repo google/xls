@@ -526,27 +526,43 @@ xls_dslx_library(
 xls_dslx_ir(
     name = "proc_iota_ir",
     dslx_top = "main",
+    ir_conv_args = {"proc_scoped_channels": "false"},
     ir_file = "proc_iota.ir",
     library = ":proc_iota",
 )
 
-xls_ir_opt_ir(
-    name = "proc_iota_consumer_opt_ir",
-    src = "proc_iota.ir",
-    top = "__proc_iota__main__consumer_0__2_next",
-)
-
-xls_ir_opt_ir(
-    name = "proc_iota_producer_opt_ir",
-    src = "proc_iota.ir",
-    top = "__proc_iota__main__producer_0_next",
+xls_dslx_ir(
+    name = "proc_iota_ir_proc_scoped",
+    dslx_top = "main",
+    ir_conv_args = {"proc_scoped_channels": "true"},
+    ir_file = "proc_iota_proc_scoped.ir",
+    library = ":proc_iota",
 )
 
 [
     (
+        xls_ir_opt_ir(
+            name = "proc_iota_consumer%s_opt_ir" % channel_mode,
+            src = "proc_iota%s.ir" % channel_mode,
+            top = "__proc_iota__main__consumer_0__2_next",
+        ),
+        xls_ir_opt_ir(
+            name = "proc_iota_producer%s_opt_ir" % channel_mode,
+            src = "proc_iota%s.ir" % channel_mode,
+            top = "__proc_iota__main__producer_0_next",
+        ),
+    )
+    for channel_mode in [
+        "",
+        "_proc_scoped",
+    ]
+]
+
+[
+    (
         xls_ir_verilog(
-            name = "proc_iota_" + procmodule + "_sv",
-            src = ":proc_iota_" + procmodule + "_opt_ir",
+            name = "proc_iota_%s%s_sv" % (procmodule, channel_mode),
+            src = "proc_iota_%s%s_opt_ir" % (procmodule, channel_mode),
             codegen_args = {
                 "module_name": "proc_iota_" + procmodule,
                 "generator": "pipeline",
@@ -560,12 +576,16 @@ xls_ir_opt_ir(
                 "streaming_channel_valid_suffix": "_valid",
                 "use_system_verilog": "true",
             },
-            verilog_file = "proc_iota_" + procmodule + ".sv",
+            verilog_file = "proc_iota_%s%s.sv" % (procmodule, channel_mode),
         ),
     )
     for procmodule in [
         "consumer",
         "producer",
+    ]
+    for channel_mode in [
+        "",
+        "_proc_scoped",
     ]
 ]
 
