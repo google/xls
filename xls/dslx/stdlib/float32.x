@@ -216,14 +216,7 @@ pub fn fixed_fraction(input_float: F32) -> u23 {
     fixed_fraction as u23
 }
 
-// Converts the given signed integer, into a floating-point number, rounding
-// the resulting fraction with the usual guard, round, sticky bits according to
-// the usual "round to nearest, half to even" rounding mode.
-pub fn from_int32(x: s32) -> F32 {
-    let sign = (x >> 31) as u1;
-    let fraction = if sign { -x as u31 } else { x as u31 };
-    let lz = clz(fraction) as u8;
-
+fn from_int32_internal(sign: u1, fraction: u32, lz: u8) -> F32 {
     // Shift the fraction to be max width, normalize it, and drop the
     // leading/implicit one.
     let fraction = (fraction as u34 << (lz + u8:3)) as u33;
@@ -250,12 +243,34 @@ pub fn from_int32(x: s32) -> F32 {
 
     let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 };
     let result = if bexp <= u8:126 && fraction == u23:0 { zero } else { result };
+    result
+}
 
+// Converts the given signed integer, into a floating-point number, rounding
+// the resulting fraction with the usual guard, round, sticky bits according to
+// the usual "round to nearest, half to even" rounding mode.
+pub fn from_int32(x: s32) -> F32 {
     // -INT_MAX is a special case; making it positive can drop its value.
     let is_neg_int_max = x == s32:-2147483648;
     let neg_int_max = F32 { sign: u1:1, bexp: u8:158, fraction: u23:0 };
-    let result = if is_neg_int_max { neg_int_max } else { result };
-    result
+    if is_neg_int_max {
+        neg_int_max
+    } else {
+        let sign = (x >> 31) as u1;
+        let fraction = if sign { -x as u31 } else { x as u31 };
+        let lz = clz(fraction) as u8;
+        from_int32_internal(sign, fraction as u32, lz)
+    }
+}
+
+// Converts the given unsigned integer, into a floating-point number, rounding
+// the resulting fraction with the usual guard, round, sticky bits according to
+// the usual "round to nearest, half to even" rounding mode.
+pub fn from_uint32(x: u32) -> F32 {
+    let sign = u1:0;
+    let fraction = x as u32;
+    let lz = (clz(x) as u8) - u8:1;
+    from_int32_internal(sign, fraction, lz)
 }
 
 #[test]
@@ -309,6 +324,40 @@ fn from_int32_test() {
 
     let expected = F32 { sign: u1:1, bexp: ExpBits:158, fraction: FractionBits:0x0 };
     let actual = from_int32(s32:-2147483648);
+    assert_eq(expected, actual);
+}
+
+#[test]
+fn from_uint32_test() {
+    type ExpBits = uN[F32_EXP_SZ];
+    type FractionBits = uN[F32_FRACTION_SZ];
+
+    let expected = F32 { sign: u1:0, bexp: ExpBits:0, fraction: FractionBits:0 };
+    let actual = from_uint32(u32:0);
+    assert_eq(expected, actual);
+
+    let expected = F32 { sign: u1:0, bexp: ExpBits:127, fraction: FractionBits:0 };
+    let actual = from_uint32(u32:1);
+    assert_eq(expected, actual);
+
+    let expected = F32 { sign: u1:0, bexp: ExpBits:128, fraction: FractionBits:0 };
+    let actual = from_uint32(u32:2);
+    assert_eq(expected, actual);
+
+    let expected = F32 { sign: u1:0, bexp: ExpBits:156, fraction: FractionBits:0x7fffff };
+    let actual = from_uint32(u32:1073741760);
+    assert_eq(expected, actual);
+
+    let expected = F32 { sign: u1:0, bexp: ExpBits:156, fraction: FractionBits:0x3fffff };
+    let actual = from_uint32(u32:805306304);
+    assert_eq(expected, actual);
+
+    let expected = F32 { sign: u1:0, bexp: ExpBits:157, fraction: FractionBits:0x7fffff };
+    let actual = from_uint32(u32:2147483583);
+    assert_eq(expected, actual);
+
+    let expected = F32 { sign: u1:0, bexp: ExpBits:158, fraction: FractionBits:0x0 };
+    let actual = from_uint32(u32:2147483647);
     assert_eq(expected, actual);
 }
 
