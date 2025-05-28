@@ -427,10 +427,16 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
         sched_config_textproto_file.path,
     )
 
+    if "local" in ctx.attr.tags:
+        execution_requirements = {"no-remote-exec": "1"}
+    else:
+        execution_requirements = None
+
     ctx.actions.run_shell(
         outputs = my_generated_files,
         tools = tools,
         inputs = runfiles.files,
+        execution_requirements = execution_requirements,
         command = "set -o pipefail; {} {} {} 2>&1 | tee {}".format(
             codegen_tool.path,
             src.ir_file.path,

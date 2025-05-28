@@ -272,10 +272,16 @@ def _optimize_ir(ctx, src, original_input_files):
     log_file = ctx.actions.declare_file(opt_log_filename)
     args.add("--alsologto", log_file)
 
+    if "local" in ctx.attr.tags:
+        execution_requirements = {"no-remote-exec": "1"}
+    else:
+        execution_requirements = None
+
     runfiles = get_runfiles_for_xls(ctx, [], [src.ir_file] + ram_rewrite_files + debug_src_files + original_input_files)
     ctx.actions.run(
         outputs = [opt_ir_file, log_file],
         executable = ctx.executable._xls_opt_ir_tool,
+        execution_requirements = execution_requirements,
         # The files required for optimizing the IR file.
         inputs = runfiles.files,
         arguments = [args],
