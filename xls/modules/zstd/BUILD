@@ -18,7 +18,6 @@
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
@@ -346,36 +345,6 @@ xls_benchmark_verilog(
     name = "shift_buffer_verilog_benchmark",
     tags = ["manual"],
     verilog_target = "shift_buffer_verilog",
-)
-
-cc_library(
-    name = "data_generator",
-    srcs = ["data_generator.cc"],
-    hdrs = ["data_generator.h"],
-    data = [
-        "@zstd//:decodecorpus",
-    ],
-    tags = ["manual"],
-    deps = [
-        "//xls/common:subprocess",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-py_library(
-    name = "data_generator_py",
-    srcs = ["data_generator.py"],
-    deps = [
-        "//xls/common:runfiles",
-        "@zstd//:decodecorpus",
-    ],
 )
 
 xls_dslx_library(
@@ -1453,29 +1422,6 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-py_binary(
-    name = "zstd_test_frames_generator",
-    srcs = ["zstd_frame_dslx.py"],
-    imports = ["."],
-    main = "zstd_frame_dslx.py",
-    tags = ["manual"],
-    visibility = ["//xls:xls_users"],
-    deps = [
-        requirement("zstandard"),
-        "//xls/common:runfiles",
-        ":data_generator_py",
-        "@com_google_protobuf//:protobuf_python",
-    ],
-)
-
-genrule(
-    name = "zstd_test_frames_generate",
-    srcs = [],
-    outs = ["zstd_frame_testcases.x"],
-    cmd = "$(location :zstd_test_frames_generator) --seed 36 -n 1 --btype COMPRESSED -o $@",
-    tools = [":zstd_test_frames_generator"],
-)
-
 xls_dslx_library(
     name = "ram_merge_dslx",
     srcs = ["ram_merge.x"],
@@ -1523,7 +1469,6 @@ xls_dslx_test(
         "data/comp_frame_huffman_fse.x",
         "zstd_dec.x",
         "zstd_dec_test.x",
-        "zstd_frame_testcases.x",
     ],
     tags = ["manual"],
     deps = zstd_dec_deps,
