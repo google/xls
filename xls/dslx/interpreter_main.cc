@@ -89,6 +89,8 @@ ABSL_FLAG(std::string, evaluator, "dslx-interpreter",
           "What evaluator should be used to actually execute the dslx test. "
           "'dslx-interpreter' is the DSLX bytecode interpreter. 'ir-jit' is "
           "the XLS-IR JIT. ir-interpreter' is the XLS-IR interpreter.");
+ABSL_FLAG(bool, type_inference_v2, false,
+          "Whether to use type system v2 when type checking the input.");
 // LINT.ThenChange(//xls/build_rules/xls_dslx_rules.bzl)
 
 namespace xls::dslx {
@@ -147,6 +149,7 @@ absl::StatusOr<TestResult> RealMain(
       WarningKindSet warnings,
       GetWarningsSetFromFlags(absl::GetFlag(FLAGS_enable_warnings),
                               absl::GetFlag(FLAGS_disable_warnings)));
+  bool type_inference_v2 = absl::GetFlag(FLAGS_type_inference_v2);
 
   RealFilesystem vfs;
 
@@ -190,7 +193,8 @@ absl::StatusOr<TestResult> RealMain(
                                  .warnings_as_errors = warnings_as_errors,
                                  .warnings = warnings,
                                  .trace_channels = trace_channels,
-                                 .max_ticks = max_ticks};
+                                 .max_ticks = max_ticks,
+                                 .type_inference_v2 = type_inference_v2};
 
   std::unique_ptr<AbstractTestRunner> test_runner = GetTestRunner(evaluator);
   XLS_ASSIGN_OR_RETURN(TestResultData test_result,

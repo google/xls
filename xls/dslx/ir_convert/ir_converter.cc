@@ -557,7 +557,8 @@ absl::Status AddContentsToPackage(
                                  /*print_on_error=*/true,
                                  /*filename=*/path_value, printed_error));
   absl::StatusOr<TypecheckedModule> typechecked_module =
-      TypecheckModule(std::move(module), path_value, import_data);
+      TypecheckModule(std::move(module), path_value, import_data,
+                      convert_options.type_inference_v2);
   if (!typechecked_module.ok()) {
     *printed_error =
         TryPrintError(typechecked_module.status(), import_data->file_table(),

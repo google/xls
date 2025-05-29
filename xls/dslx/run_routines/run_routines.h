@@ -113,6 +113,7 @@ struct ParseAndTestOptions {
   std::optional<int64_t> max_ticks;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;
+  bool type_inference_v2 = false;
 };
 
 // As above, but a subset of the options required for the ParseAndProve()

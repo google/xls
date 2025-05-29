@@ -55,6 +55,9 @@ struct ConvertOptions {
   // Should we generate proc-scoped channels?
   // See https://github.com/google/xls/issues/2078
   bool proc_scoped_channels = false;
+
+  // Whether to use type system v2 to perform type checking.
+  bool type_inference_v2 = false;
 };
 
 }  // namespace xls::dslx

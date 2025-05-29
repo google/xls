@@ -41,6 +41,8 @@ namespace xls::dslx {
 absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<Module> module, std::filesystem::path path,
     ImportData* import_data, WarningCollector* warnings) {
+  VLOG(3) << "Using type system v2 for type checking\n";
+
   std::string_view module_name = module->name();
   InferenceTable* table = import_data->GetOrCreateInferenceTable();
   std::unique_ptr<TypeSystemTracer> tracer = TypeSystemTracer::Create();

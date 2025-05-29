@@ -94,6 +94,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   bool convert_tests = ir_converter_options.convert_tests();
   bool warnings_as_errors = ir_converter_options.warnings_as_errors();
   bool proc_scoped_channels = ir_converter_options.proc_scoped_channels();
+  bool type_inference_v2 = ir_converter_options.type_inference_v2();
 
   // Start with the default set, then enable the to-enable and then disable the
   // to-disable.
@@ -116,6 +117,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
       .convert_tests = convert_tests,
       .default_fifo_config = default_fifo_config,
       .proc_scoped_channels = proc_scoped_channels,
+      .type_inference_v2 = type_inference_v2,
   };
 
   // The following checks are performed inside ConvertFilesToPackage(), but we

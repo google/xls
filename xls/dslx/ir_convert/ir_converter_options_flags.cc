@@ -74,6 +74,8 @@ ABSL_FLAG(std::optional<std::string>, default_fifo_config, std::nullopt,
 ABSL_FLAG(bool, proc_scoped_channels, false,
           "Whether to generate proc-scoped channels; if false, generates "
           "global channels.");
+ABSL_FLAG(bool, type_inference_v2, false,
+          "Whether to use type system v2 when type checking the input.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 ABSL_FLAG(std::optional<std::string>, ir_converter_options_used_textproto_file,
           std::nullopt,
@@ -112,6 +114,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_FLAG(proc_scoped_channels);
   POPULATE_OPTIONAL_FLAG(interface_proto_file);
   POPULATE_OPTIONAL_FLAG(interface_textproto_file);
+  POPULATE_FLAG(type_inference_v2);
 
 #undef POPULATE_FLAG
 

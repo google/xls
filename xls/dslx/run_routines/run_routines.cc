@@ -893,7 +893,8 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   FileTable& file_table = import_data.file_table();
 
   absl::StatusOr<TypecheckedModule> tm =
-      ParseAndTypecheck(program, filename, module_name, &import_data);
+      ParseAndTypecheck(program, filename, module_name, &import_data, nullptr,
+                        options.type_inference_v2);
   if (!tm.ok()) {
     if (TryPrintError(tm.status(), import_data.file_table(),
                       import_data.vfs())) {
