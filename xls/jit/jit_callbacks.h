@@ -100,6 +100,13 @@ struct InstanceContextVTable {
   // Data is in JIT data format and can be read using the appropriate type
   // information for the node.
   const RecordNodeResultFn record_node_result;
+
+  using RecordActiveRegisterWriteFn = void (*)(InstanceContext* thiz,
+                                               int64_t register_no,
+                                               int64_t register_write_no);
+  // This is a shim to let JIT code record the activation of a register write
+  // node.
+  const RecordActiveRegisterWriteFn record_active_register_write;
 };
 
 // Data structure passed to the JITted function which contains instance-specific
@@ -135,7 +142,9 @@ struct InstanceContext {
       offsetof(InstanceContextVTable, record_active_next_value);
   static constexpr int64_t kRecordNodeResultOffset =
       offsetof(InstanceContextVTable, record_node_result);
-  static constexpr int64_t kVTableLength = 9;
+  static constexpr int64_t kRecordActiveRegisterWrite =
+      offsetof(InstanceContextVTable, record_active_register_write);
+  static constexpr int64_t kVTableLength = 10;
   using VTableArrayType = std::array<void (*)(), kVTableLength>;
 
   static constexpr bool IsVtableOffset(int64_t v) {
@@ -143,7 +152,7 @@ struct InstanceContext {
            v == kRecordTraceOffset || v == kCreateTraceBufferOffset ||
            v == kRecordAssertionOffset || v == kQueueReceiveWrapperOffset ||
            v == kQueueSendWrapperOffset || v == kRecordActiveNextValueOffset ||
-           v == kRecordNodeResultOffset;
+           v == kRecordNodeResultOffset || v == kRecordActiveRegisterWrite;
   }
 
   Type* ParseTypeFromProto(absl::Span<uint8_t const> data);
@@ -156,6 +165,12 @@ struct InstanceContext {
   // The active next values for each parameter (if we are evaluating a proc).
   // Map from node-id of the param to node-id of the next
   absl::flat_hash_map<int64_t, absl::flat_hash_set<int64_t>> active_next_values;
+
+  // The active register writes for each register (if we are evaluating a
+  // block). Map from register index (in Block::GetRegisters) to register write
+  // index (in Block::GetRegisterWrites). This is only recorded for registers
+  // which have multiple writes.
+  absl::flat_hash_map<int64_t, std::vector<int64_t>> active_register_writes;
 
   // The channel queues used by the proc instance. The order of queues is
   // assigned at JIT compile time. The indices of particular queues is baked

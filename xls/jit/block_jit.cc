@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -249,8 +250,6 @@ absl::StatusOr<ElaborationJitData> CloneElaborationPackage(
 BlockJit::InterfaceMetadata::CreateFromBlock(Block* block) {
   InterfaceMetadata metadata;
   metadata.block_name = block->name();
-  // metadata.type_manager =
-  // std::make_unique<Package>(block->package()->name());
   metadata.input_port_names.reserve(block->GetInputPorts().size());
   metadata.output_port_names.reserve(block->GetOutputPorts().size());
   metadata.register_names.reserve(block->GetRegisters().size());
@@ -454,22 +453,64 @@ std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation(
       new BlockJitContinuation(metadata_, this, function_, sample_time));
 }
 
+absl::Status BlockJit::ReconcileMultipleRegisterWrites(
+    BlockJitContinuation& continuation) {
+  absl::Span<uint8_t* const> register_output_pointers =
+      continuation.output_arg_set().get_element_pointers().subspan(
+          metadata_.OutputPortCount(), metadata_.RegisterCount());
+  absl::Span<uint8_t* const> extra_register_write_pointers =
+      continuation.output_arg_set().get_element_pointers().subspan(
+          metadata_.OutputPortCount() + metadata_.RegisterCount());
+  if (!extra_register_write_pointers.empty()) {
+    for (int64_t reg_no = 0; reg_no < metadata_.RegisterCount(); ++reg_no) {
+      auto it = continuation.callbacks_.active_register_writes.find(reg_no);
+      if (it != continuation.callbacks_.active_register_writes.end()) {
+        const std::vector<int64_t>& activated_reg_writes = it->second;
+        XLS_RET_CHECK_GE(activated_reg_writes.size(), 1);
+        if (activated_reg_writes.size() == 1) {
+          // Only one register write activated. Ensure the activated value ends
+          // up in the register buffer (the buffer of the first register write).
+          if (activated_reg_writes.front() == 0) {
+            // The first register write (maybe only) activated. Nothing to do.
+          } else {
+            // Copy the value to the register output buffer.
+            register_output_pointers[reg_no];
+            extra_register_write_pointers[activated_reg_writes.front() - 1];
+            GetRegisterBufferMetadata()[reg_no];
+            memcpy(
+                register_output_pointers[reg_no],
+                extra_register_write_pointers[activated_reg_writes.front() - 1],
+                GetRegisterBufferMetadata()[reg_no].size);
+          }
+        } else {
+          return absl::InternalError(absl::StrFormat(
+              "Multiple writes of register `%s` activated in the same cycle",
+              metadata_.register_names[reg_no]));
+        }
+      }
+    }
+  }
+  continuation.callbacks_.active_register_writes.clear();
+  return absl::OkStatus();
+}
+
 absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
   // Run to update the registers
   InterpreterEvents fake_events;
   function_.RunJittedFunction(
-      continuation.input_buffers_.current(),
-      continuation.clocked_taps_output_buffers_.current(),
+      continuation.input_arg_set(), continuation.output_arg_set(),
       continuation.temp_buffer_, &continuation.GetEvents(),
       /*instance_context=*/&continuation.callbacks_, runtime_.get(),
       /*continuation_point=*/0);
+  XLS_RETURN_IF_ERROR(ReconcileMultipleRegisterWrites(continuation));
+
   // Finalize the register writes by moving them to the read side.
   continuation.SwapRegisters();
   if (continuation.sample_time() ==
       BlockEvaluator::OutputPortSampleTime::kAfterLastClock) {
     // Run again to get the output wires
-    function_.RunJittedFunction(continuation.input_buffers_.current(),
-                                *continuation.raw_taps_output_buffers_,
+    function_.RunJittedFunction(continuation.input_arg_set(),
+                                *continuation.after_last_clock_output_set_,
                                 continuation.temp_buffer_, &fake_events,
                                 /*instance_context=*/&continuation.callbacks_,
                                 runtime_.get(),
@@ -478,64 +519,18 @@ absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<JitArgumentSet> BlockJitContinuation::CombineBuffers(
-    const JittedFunctionBase& jit_func, const JitArgumentSet& left,
-    int64_t left_count, const JitArgumentSet& rest, int64_t rest_start,
-    bool is_inputs) {
-  XLS_RET_CHECK_EQ(left.source(), &jit_func);
-  XLS_RET_CHECK_EQ(rest.source(), &jit_func);
-  const auto& final_sizes = is_inputs ? jit_func.input_buffer_sizes()
-                                      : jit_func.output_buffer_sizes();
-  const auto& final_aligns =
-      is_inputs ? jit_func.input_buffer_preferred_alignments()
-                : jit_func.output_buffer_preferred_alignments();
-  const absl::Span<int64_t const> left_sizes =
-      left.is_inputs() ? left.source()->input_buffer_sizes()
-                       : left.source()->output_buffer_sizes();
-  const absl::Span<int64_t const> left_aligns =
-      left.is_inputs() ? left.source()->input_buffer_preferred_alignments()
-                       : left.source()->output_buffer_preferred_alignments();
-  const absl::Span<int64_t const> rest_sizes =
-      rest.is_inputs() ? rest.source()->input_buffer_sizes()
-                       : rest.source()->output_buffer_sizes();
-  const absl::Span<int64_t const> rest_aligns =
-      rest.is_inputs() ? rest.source()->input_buffer_preferred_alignments()
-                       : rest.source()->output_buffer_preferred_alignments();
-  std::vector<uint8_t*> final_ptrs;
-  XLS_RET_CHECK_LE(left_count, final_sizes.size());
-  XLS_RET_CHECK_LE(left_count, left.pointers().size());
-  final_ptrs.reserve(final_sizes.size());
-  for (int64_t i = 0; i < left_count; ++i) {
-    XLS_RET_CHECK_EQ(final_sizes[i], left_sizes[i]) << i;
-    XLS_RET_CHECK_EQ(final_aligns[i], left_aligns[i]) << i;
-    final_ptrs.push_back(left.pointers()[i]);
+namespace {
+
+// Concatenates the points from `buffers` and returns the resulting vector.
+std::vector<uint8_t*> ComposeBuffers(absl::Span<JitBuffer* const> buffers) {
+  std::vector<uint8_t*> result;
+  for (JitBuffer* buffer : buffers) {
+    absl::c_copy(buffer->pointers, std::back_inserter(result));
   }
-  for (int64_t i = left_count; i < final_sizes.size(); ++i) {
-    XLS_RET_CHECK_EQ(final_sizes[i], rest_sizes[rest_start])
-        << i << " rest: " << rest_start;
-    XLS_RET_CHECK_EQ(final_aligns[i], rest_aligns[rest_start])
-        << i << " rest: " << rest_start;
-    final_ptrs.push_back(rest.pointers()[rest_start++]);
-  }
-  return JitArgumentSet(&jit_func, /*data=*/nullptr, std::move(final_ptrs),
-                        /*is_inputs=*/is_inputs, /*is_outputs=*/!is_inputs);
+  return result;
 }
 
-BlockJitContinuation::IOSpace BlockJitContinuation::MakeCombinedBuffers(
-    const JittedFunctionBase& jit_func,
-    const BlockJit::InterfaceMetadata& metadata, const JitArgumentSet& ports,
-    const BlockJitContinuation::BufferPair& regs, bool input) {
-  int64_t num_ports =
-      input ? metadata.InputPortCount() : metadata.OutputPortCount();
-  // Registers use the input port offsets.
-  int64_t num_input_ports = metadata.InputPortCount();
-  return IOSpace(CombineBuffers(jit_func, ports, num_ports, regs[0],
-                                num_input_ports, input)
-                     .value(),
-                 CombineBuffers(jit_func, ports, num_ports, regs[1],
-                                num_input_ports, input)
-                     .value());
-}
+}  // namespace
 
 BlockJitContinuation::BlockJitContinuation(
     const BlockJit::InterfaceMetadata& metadata, BlockJit* jit,
@@ -544,30 +539,73 @@ BlockJitContinuation::BlockJitContinuation(
     : metadata_(metadata),
       block_jit_(jit),
       sample_time_(sample_time),
-      // Force registers to start out as zeros to match block-interpreter.
-      register_buffers_memory_{jit_func.CreateInputBuffer(/*zero=*/true),
-                               jit_func.CreateInputBuffer(/*zero=*/true)},
-      input_port_buffers_memory_(jit_func.CreateInputBuffer()),
-      clocked_output_port_buffers_memory_(jit_func.CreateOutputBuffer()),
-      input_buffers_(MakeCombinedBuffers(jit_func, metadata_,
-                                         input_port_buffers_memory_,
-                                         register_buffers_memory_,
-                                         /*input=*/true)),
-      clocked_taps_output_buffers_(MakeCombinedBuffers(
-          jit_func, metadata_, clocked_output_port_buffers_memory_,
-          register_buffers_memory_,
-          /*input=*/false)),
-      raw_taps_output_buffers_(
+
+      input_port_buffers_(
+          AllocateAlignedBuffer(jit->GetInputPortBufferMetadata())),
+      output_port_buffers_(
+          AllocateAlignedBuffer(jit->GetOutputPortBufferMetadata())),
+      register_buffers_({AllocateAlignedBuffer(jit->GetRegisterBufferMetadata(),
+                                               /*zero=*/true),
+                         AllocateAlignedBuffer(jit->GetRegisterBufferMetadata(),
+                                               /*zero=*/true)}),
+      // These register writes are those writes beyond the first register write
+      // for a register.
+      extra_register_write_buffers_(
+          AllocateAlignedBuffer(jit->GetExtraRegisterWriteBufferMetadata())),
+
+      // The layout of the input buffers are:
+      //
+      //   {...input ports..,
+      //    ...register reads...}
+      //
+      // To enable copyfree register value reuse from output of one cycle to
+      // input of the next cycle, the input register buffers of input_sets_[0]
+      // alias the output register buffers of output_sets_[1] and vice versa.
+      input_sets_(
+          {JitArgumentSet(
+               &jit_func,
+               ComposeBuffers({&input_port_buffers_, &register_buffers_[0]}),
+               /*is_inputs=*/true,
+               /*is_outputs=*/false),
+           JitArgumentSet(
+               &jit_func,
+               ComposeBuffers({&input_port_buffers_, &register_buffers_[1]}),
+               /*is_inputs=*/true,
+               /*is_outputs=*/false)}),
+
+      // The layout of the output buffers are:
+      //
+      //   {...output ports..,
+      //    ...first register writes...,
+      //    ...extra register writes... }
+      //
+      // The "first" register writes are the set of first elements in
+      // Block::GetRegisterWrites. The "extra" register writes are the second
+      // and further register writes from Block::GetRegisterWrites. After
+      // running the JIT-ed code, registers with multiple writes are reconciled
+      // and the next register value is written into the "first" register write
+      // buffer so these buffers can be used as input register values for the
+      // next cycle.
+      output_sets_(
+          {JitArgumentSet(
+               &jit_func,
+               ComposeBuffers({&output_port_buffers_, &register_buffers_[1],
+                               &extra_register_write_buffers_}),
+               /*is_outputs=*/false,
+               /*is_outputs=*/true),
+           JitArgumentSet(
+               &jit_func,
+               ComposeBuffers({&output_port_buffers_, &register_buffers_[0],
+                               &extra_register_write_buffers_}),
+               /*is_inputs=*/false,
+               /*is_inputs=*/true)}),
+
+      after_last_clock_output_set_(
           sample_time_ == BlockEvaluator::OutputPortSampleTime::kAfterLastClock
-              ? std::make_optional(jit_func.CreateOutputBuffer())
-              : std::nullopt),
+              ? jit_func.CreateOutputBuffer()
+              : nullptr),
       temp_buffer_(jit_func.CreateTempBuffer()),
-      callbacks_(InstanceContext::CreateForBlock()) {
-  // since input and output share the same register pointers they need to use
-  // different sides at all times.
-  input_buffers_.SetActive(IOSpace::RegisterSpace::kLeft);
-  clocked_taps_output_buffers_.SetActive(IOSpace::RegisterSpace::kRight);
-}
+      callbacks_(InstanceContext::CreateForBlock()) {}
 
 absl::Status BlockJitContinuation::SetInputPorts(
     absl::Span<const Value> values) {
@@ -592,7 +630,7 @@ absl::Status BlockJitContinuation::SetInputPorts(
   // TODO(allight): This is a lot of copying. We could do this more efficiently
   for (int i = 0; i < inputs.size(); ++i) {
     memcpy(input_port_pointers()[i], inputs[i],
-           block_jit_->input_port_sizes()[i]);
+           block_jit_->GetInputPortBufferMetadata()[i].size);
   }
   return absl::OkStatus();
 }
@@ -643,7 +681,8 @@ absl::Status BlockJitContinuation::SetRegisters(
   XLS_RET_CHECK_EQ(metadata_.RegisterCount(), regs.size());
   // TODO(allight): This is a lot of copying. We could do this more efficiently
   for (int i = 0; i < regs.size(); ++i) {
-    memcpy(register_pointers()[i], regs[i], block_jit_->register_sizes()[i]);
+    memcpy(register_pointers()[i], regs[i],
+           block_jit_->GetRegisterBufferMetadata()[i].size);
   }
   return absl::OkStatus();
 }

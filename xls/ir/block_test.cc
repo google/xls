@@ -541,10 +541,12 @@ TEST_F(BlockTest, BlockRegisterNodes) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   EXPECT_THAT(block->GetRegisterRead(a_reg), IsOkAndHolds(a_read.node()));
-  EXPECT_THAT(block->GetRegisterWrite(a_reg), IsOkAndHolds(a_write.node()));
+  EXPECT_THAT(block->GetUniqueRegisterWrite(a_reg),
+              IsOkAndHolds(a_write.node()));
 
   EXPECT_THAT(block->GetRegisterRead(b_reg), IsOkAndHolds(b_read.node()));
-  EXPECT_THAT(block->GetRegisterWrite(b_reg), IsOkAndHolds(b_write.node()));
+  EXPECT_THAT(block->GetUniqueRegisterWrite(b_reg),
+              IsOkAndHolds(b_write.node()));
 }
 
 TEST_F(BlockTest, GetRegisterReadWrite) {
@@ -563,7 +565,7 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
                HasSubstr(
                    "Block my_block has no read operation for register a_reg")));
   EXPECT_THAT(
-      block->GetRegisterWrite(reg),
+      block->GetUniqueRegisterWrite(reg),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr(
@@ -574,7 +576,7 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
 
   EXPECT_THAT(block->GetRegisterRead(reg), IsOkAndHolds(reg_read));
   EXPECT_THAT(
-      block->GetRegisterWrite(reg),
+      block->GetUniqueRegisterWrite(reg),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr(
@@ -587,7 +589,7 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
                                      /*reset=*/std::nullopt, reg));
 
   EXPECT_THAT(block->GetRegisterRead(reg), IsOkAndHolds(reg_read));
-  EXPECT_THAT(block->GetRegisterWrite(reg), IsOkAndHolds(reg_write));
+  EXPECT_THAT(block->GetUniqueRegisterWrite(reg), IsOkAndHolds(reg_write));
 
   XLS_ASSERT_OK_AND_ASSIGN(RegisterRead * dup_reg_read,
                            block->MakeNode<RegisterRead>(SourceInfo(), reg));
@@ -601,7 +603,7 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Block my_block has multiple read operation "
                                  "for register a_reg")));
-  EXPECT_THAT(block->GetRegisterWrite(reg),
+  EXPECT_THAT(block->GetUniqueRegisterWrite(reg),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Block my_block has multiple write operation "
                                  "for register a_reg")));

@@ -122,7 +122,7 @@ class FunctionJit {
     InterpreterEvents events;
     uint8_t* output_buffers[1] = {result_buffer};
     jitted_function_base_.RunPackedJittedFunction(
-        arg_buffers, output_buffers, temp_buffer_.get(), &events,
+        arg_buffers, output_buffers, temp_buffer_.get_base_pointer(), &events,
         /*instance_context=*/&callbacks_, runtime(), /*continuation_point=*/0);
 
     return InterpreterEventsToStatus(events);
@@ -153,25 +153,27 @@ class FunctionJit {
   // Gets the size of the compiled function's arguments (or return value) in the
   // native LLVM data layout (not the packed layout).
   int64_t GetArgTypeSize(int arg_index) const {
-    return jitted_function_base_.input_buffer_sizes()[arg_index];
+    return jitted_function_base_.GetInputBufferMetadata()[arg_index].size;
   }
   int64_t GetArgTypeAlignment(int arg_index) const {
-    return jitted_function_base_.input_buffer_abi_alignments()[arg_index];
+    return jitted_function_base_.GetInputBufferMetadata()[arg_index]
+        .abi_alignment;
   }
   int64_t GetReturnTypeSize() const {
-    return jitted_function_base_.output_buffer_sizes()[0];
+    return jitted_function_base_.GetOutputBufferMetadata()[0].size;
   }
   int64_t GetReturnTypeAlignment() const {
-    return jitted_function_base_.output_buffer_abi_alignments()[0];
+    return jitted_function_base_.GetOutputBufferMetadata()[0].abi_alignment;
   }
 
   // Gets the size of the compiled function's arguments (or return value) in the
   // packed layout.
   int64_t GetPackedArgTypeSize(int arg_index) const {
-    return jitted_function_base_.packed_input_buffer_sizes().at(arg_index);
+    return jitted_function_base_.GetInputBufferMetadata()[arg_index]
+        .packed_size;
   }
   int64_t GetPackedReturnTypeSize() const {
-    return jitted_function_base_.output_buffer_sizes()[0];
+    return jitted_function_base_.GetOutputBufferMetadata()[0].packed_size;
   }
 
   // Returns the size of the temporary buffer which must be passed to the jitted
@@ -306,9 +308,9 @@ class FunctionJit {
   JittedFunctionBase jitted_function_base_;
 
   // Pre-allocated & aligned storage for a set of arguments. Not thread safe.
-  JitArgumentSet arg_buffers_;
+  std::unique_ptr<JitArgumentSetOwnedBuffer> arg_buffers_;
   // Pre-allocated & aligned storage for a result. Not thread safe.
-  JitArgumentSet result_buffers_;
+  std::unique_ptr<JitArgumentSetOwnedBuffer> result_buffers_;
   // Pre-allocated & aligned storage for required temporary storage. NB Not
   // thread safe.
   JitTempBuffer temp_buffer_;

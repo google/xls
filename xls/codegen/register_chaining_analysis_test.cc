@@ -108,7 +108,8 @@ class RegisterChainingAnalysisTest : public IrTestBase {
                      .node()
                      ->As<RegisterRead>();
       XLS_ASSIGN_OR_RETURN(regs[i], bb.block()->GetRegister(reg_name));
-      XLS_ASSIGN_OR_RETURN(writes[i], bb.block()->GetRegisterWrite(regs[i]));
+      XLS_ASSIGN_OR_RETURN(writes[i],
+                           bb.block()->GetUniqueRegisterWrite(regs[i]));
     }
     bb.OutputPort(absl::StrFormat("%sOUT", prefix), BValue(reads.back(), &bb));
     std::array<RegisterData, kCount> result{};
@@ -198,17 +199,23 @@ TEST_F(RegisterChainingAnalysisTest, LongChain) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(Register * a, blk->GetRegister("reg_A"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_a, blk->GetRegisterWrite(a));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_a,
+                           blk->GetUniqueRegisterWrite(a));
   XLS_ASSERT_OK_AND_ASSIGN(Register * b, blk->GetRegister("reg_B"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_b, blk->GetRegisterWrite(b));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_b,
+                           blk->GetUniqueRegisterWrite(b));
   XLS_ASSERT_OK_AND_ASSIGN(Register * c, blk->GetRegister("reg_C"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_c, blk->GetRegisterWrite(c));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_c,
+                           blk->GetUniqueRegisterWrite(c));
   XLS_ASSERT_OK_AND_ASSIGN(Register * d, blk->GetRegister("reg_D"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_d, blk->GetRegisterWrite(d));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_d,
+                           blk->GetUniqueRegisterWrite(d));
   XLS_ASSERT_OK_AND_ASSIGN(Register * e, blk->GetRegister("reg_E"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_e, blk->GetRegisterWrite(e));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_e,
+                           blk->GetUniqueRegisterWrite(e));
   XLS_ASSERT_OK_AND_ASSIGN(Register * f, blk->GetRegister("reg_F"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_f, blk->GetRegisterWrite(f));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_f,
+                           blk->GetUniqueRegisterWrite(f));
 
   RegisterData a_data{
       .reg = a,
@@ -292,17 +299,23 @@ TEST_F(RegisterChainingAnalysisTest, BrokenChain) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(Register * a, blk->GetRegister("reg_A"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_a, blk->GetRegisterWrite(a));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_a,
+                           blk->GetUniqueRegisterWrite(a));
   XLS_ASSERT_OK_AND_ASSIGN(Register * b, blk->GetRegister("reg_B"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_b, blk->GetRegisterWrite(b));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_b,
+                           blk->GetUniqueRegisterWrite(b));
   XLS_ASSERT_OK_AND_ASSIGN(Register * c, blk->GetRegister("reg_C"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_c, blk->GetRegisterWrite(c));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_c,
+                           blk->GetUniqueRegisterWrite(c));
   XLS_ASSERT_OK_AND_ASSIGN(Register * d, blk->GetRegister("reg_D"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_d, blk->GetRegisterWrite(d));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_d,
+                           blk->GetUniqueRegisterWrite(d));
   XLS_ASSERT_OK_AND_ASSIGN(Register * e, blk->GetRegister("reg_E"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_e, blk->GetRegisterWrite(e));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_e,
+                           blk->GetUniqueRegisterWrite(e));
   XLS_ASSERT_OK_AND_ASSIGN(Register * f, blk->GetRegister("reg_F"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_f, blk->GetRegisterWrite(f));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_f,
+                           blk->GetUniqueRegisterWrite(f));
 
   RegisterData a_data{
       .reg = a,
@@ -386,15 +399,20 @@ TEST_F(RegisterChainingAnalysisTest, LoopbackRegister) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(Register * a, blk->GetRegister("reg_A"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_a, blk->GetRegisterWrite(a));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_a,
+                           blk->GetUniqueRegisterWrite(a));
   XLS_ASSERT_OK_AND_ASSIGN(Register * b, blk->GetRegister("reg_B"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_b, blk->GetRegisterWrite(b));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_b,
+                           blk->GetUniqueRegisterWrite(b));
   XLS_ASSERT_OK_AND_ASSIGN(Register * c, blk->GetRegister("reg_C"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_c, blk->GetRegisterWrite(c));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_c,
+                           blk->GetUniqueRegisterWrite(c));
   XLS_ASSERT_OK_AND_ASSIGN(Register * d, blk->GetRegister("reg_D"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_d, blk->GetRegisterWrite(d));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_d,
+                           blk->GetUniqueRegisterWrite(d));
   XLS_ASSERT_OK_AND_ASSIGN(Register * e, blk->GetRegister("reg_E"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_e, blk->GetRegisterWrite(e));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_e,
+                           blk->GetUniqueRegisterWrite(e));
 
   RegisterData a_data{
       .reg = a,
@@ -480,13 +498,17 @@ TEST_F(RegisterChainingAnalysisTest, LoopbackRegisterChainSplits) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(Register * a, blk->GetRegister("reg_A"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_a, blk->GetRegisterWrite(a));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_a,
+                           blk->GetUniqueRegisterWrite(a));
   XLS_ASSERT_OK_AND_ASSIGN(Register * c, blk->GetRegister("reg_C"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_c, blk->GetRegisterWrite(c));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_c,
+                           blk->GetUniqueRegisterWrite(c));
   XLS_ASSERT_OK_AND_ASSIGN(Register * d, blk->GetRegister("reg_D"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_d, blk->GetRegisterWrite(d));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_d,
+                           blk->GetUniqueRegisterWrite(d));
   XLS_ASSERT_OK_AND_ASSIGN(Register * e, blk->GetRegister("reg_E"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_e, blk->GetRegisterWrite(e));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_e,
+                           blk->GetUniqueRegisterWrite(e));
 
   RegisterData a_data{
       .reg = a,
@@ -567,17 +589,23 @@ TEST_F(RegisterChainingAnalysisTest, MultipleChains) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(Register * a, blk->GetRegister("reg_A"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_a, blk->GetRegisterWrite(a));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_a,
+                           blk->GetUniqueRegisterWrite(a));
   XLS_ASSERT_OK_AND_ASSIGN(Register * b, blk->GetRegister("reg_B"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_b, blk->GetRegisterWrite(b));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_b,
+                           blk->GetUniqueRegisterWrite(b));
   XLS_ASSERT_OK_AND_ASSIGN(Register * c, blk->GetRegister("reg_C"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_c, blk->GetRegisterWrite(c));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_c,
+                           blk->GetUniqueRegisterWrite(c));
   XLS_ASSERT_OK_AND_ASSIGN(Register * x, blk->GetRegister("reg_X"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_x, blk->GetRegisterWrite(x));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_x,
+                           blk->GetUniqueRegisterWrite(x));
   XLS_ASSERT_OK_AND_ASSIGN(Register * y, blk->GetRegister("reg_Y"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_y, blk->GetRegisterWrite(y));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_y,
+                           blk->GetUniqueRegisterWrite(y));
   XLS_ASSERT_OK_AND_ASSIGN(Register * z, blk->GetRegister("reg_Z"));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_z, blk->GetRegisterWrite(z));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * write_z,
+                           blk->GetUniqueRegisterWrite(z));
 
   RegisterData a_data{
       .reg = a,

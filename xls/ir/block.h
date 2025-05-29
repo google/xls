@@ -209,11 +209,16 @@ class Block : public FunctionBase {
   // block or if no or more than one such read/write operation exists. A block
   // with a register without both a read and write operation is malformed but
   // may exist temporarily after the creation of the register and before
-  // adding the read and write operations, or when replacing a register
-  // read/write operation where two such operations may briefly exist
-  // simultaneously.
+  // adding the read and write operations. A register must have only one
+  // register read, but may have multiple register writes.
   absl::StatusOr<RegisterRead*> GetRegisterRead(Register* reg) const;
-  absl::StatusOr<RegisterWrite*> GetRegisterWrite(Register* reg) const;
+  absl::StatusOr<RegisterWrite*> GetUniqueRegisterWrite(Register* reg) const;
+
+  // Returns the register write operations associated with given register. A
+  // register may have multiple writes, but only one may activate in a given
+  // cycle.
+  absl::StatusOr<absl::Span<RegisterWrite* const>> GetRegisterWrites(
+      Register* reg) const;
 
   // Add an instantiation of the given block `instantiated_block` to this
   // block. InstantiationInput and InstantiationOutput operations must be

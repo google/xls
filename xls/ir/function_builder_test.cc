@@ -1150,7 +1150,8 @@ TEST(FunctionBuilderTest, Registers) {
 
   auto get_reg_write = [&](BValue reg_read) {
     return block
-        ->GetRegisterWrite(reg_read.node()->As<RegisterRead>()->GetRegister())
+        ->GetUniqueRegisterWrite(
+            reg_read.node()->As<RegisterRead>()->GetRegister())
         .value();
   };
   EXPECT_FALSE(get_reg_write(x_1)->reset().has_value());
