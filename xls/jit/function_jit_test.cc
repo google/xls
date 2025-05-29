@@ -899,11 +899,9 @@ TEST(FunctionJitTest, TokenCompareError) {
 
   b.Eq(p0, p0);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-
-  EXPECT_THAT(FunctionJit::Create(f),
+  EXPECT_THAT(b.Build(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Tokens are incomparable")));
+                       HasSubstr("cannot be Token type for this operation")));
 }
 
 // Make sure the token comparison error is still reported when the token is

@@ -551,31 +551,31 @@ class NodeChecker : public DfsVisitor {
 
   absl::Status HandleEq(CompareOp* eq) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(eq, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandsSameBitsType(eq));
+    XLS_RETURN_IF_ERROR(ExpectOperandsSameTypeNoToken(eq));
     return ExpectHasBitsType(eq, /*expected_bit_count=*/1);
   }
 
   absl::Status HandleUGe(CompareOp* ge) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(ge, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandsSameBitsType(ge));
+    XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(ge));
     return ExpectHasBitsType(ge, /*expected_bit_count=*/1);
   }
 
   absl::Status HandleUGt(CompareOp* gt) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(gt, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandsSameBitsType(gt));
+    XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(gt));
     return ExpectHasBitsType(gt, /*expected_bit_count=*/1);
   }
 
   absl::Status HandleSGe(CompareOp* ge) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(ge, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandsSameBitsType(ge));
+    XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(ge));
     return ExpectHasBitsType(ge, /*expected_bit_count=*/1);
   }
 
   absl::Status HandleSGt(CompareOp* gt) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(gt, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandsSameBitsType(gt));
+    XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(gt));
     return ExpectHasBitsType(gt, /*expected_bit_count=*/1);
   }
 
@@ -715,24 +715,24 @@ class NodeChecker : public DfsVisitor {
 
   absl::Status HandleULe(CompareOp* le) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(le, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandsSameBitsType(le));
+    XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(le));
     return ExpectHasBitsType(le, /*expected_bit_count=*/1);
   }
 
   absl::Status HandleULt(CompareOp* lt) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(lt, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandsSameBitsType(lt));
+    XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(lt));
     return ExpectHasBitsType(lt, /*expected_bit_count=*/1);
   }
   absl::Status HandleSLe(CompareOp* le) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(le, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandsSameBitsType(le));
+    XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(le));
     return ExpectHasBitsType(le, /*expected_bit_count=*/1);
   }
 
   absl::Status HandleSLt(CompareOp* lt) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(lt, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandsSameBitsType(lt));
+    XLS_RETURN_IF_ERROR(ExpectOperandsAreBitsAndSameWidth(lt));
     return ExpectHasBitsType(lt, /*expected_bit_count=*/1);
   }
 
@@ -836,7 +836,7 @@ class NodeChecker : public DfsVisitor {
 
   absl::Status HandleNe(CompareOp* ne) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCount(ne, 2));
-    XLS_RETURN_IF_ERROR(ExpectOperandsSameBitsType(ne));
+    XLS_RETURN_IF_ERROR(ExpectOperandsSameTypeNoToken(ne));
     return ExpectHasBitsType(ne, /*expected_bit_count=*/1);
   }
 
@@ -1465,12 +1465,41 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
-  // Verifies all operands are BitsType with the same bit count.
-  absl::Status ExpectOperandsSameBitsType(Node* node) const {
+  // Verifies all operands are BitsType with the same bit count as the first
+  // operand.
+  absl::Status ExpectOperandsAreBitsAndSameWidth(Node* node) const {
+    if (node->operand_count() == 0) {
+      return absl::OkStatus();
+    }
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(node, 0));
+    Type* type = node->operand(0)->GetType();
+    // Already checked operand 0 is BitsType. Now check other operands.
+    for (int64_t i = 1; i < node->operand_count(); ++i) {
+      XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(node, i));
+      if (node->operand(i)->GetType()->AsBitsOrDie()->bit_count() !=
+          type->AsBitsOrDie()->bit_count()) {
+        return absl::InternalError(absl::StrFormat(
+            "Expected operand %d of %s to have bit count %d (same as operand "
+            "0), has bit count %d: %s",
+            i, node->GetName(), type->AsBitsOrDie()->bit_count(),
+            node->operand(i)->GetType()->AsBitsOrDie()->bit_count(),
+            node->ToString()));
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  // Verifies all operands are the same type, and that type is not Token.
+  absl::Status ExpectOperandsSameTypeNoToken(Node* node) const {
     if (node->operand_count() == 0) {
       return absl::OkStatus();
     }
     Type* type = node->operand(0)->GetType();
+    if (type->IsToken()) {
+      return absl::InternalError(absl::StrFormat(
+          "Operand 0 of %s cannot be Token type for this operation: %s",
+          node->GetName(), node->ToString()));
+    }
     for (int64_t i = 1; i < node->operand_count(); ++i) {
       XLS_RETURN_IF_ERROR(ExpectOperandHasType(node, i, type));
     }
