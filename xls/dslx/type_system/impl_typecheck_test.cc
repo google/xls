@@ -727,6 +727,28 @@ fn f() -> u15 {
   XLS_EXPECT_OK(Typecheck(program));
 }
 
+TEST(TypecheckTest, CallFunctionOnStructMember) {
+  constexpr std::string_view program = R"(
+struct G { }
+
+impl G {
+  fn x(self: Self) -> u32 {
+     u32:1
+  }
+}
+
+struct F { g: G }
+
+impl F {
+  fn y(self: Self) -> u32 {
+    self.g.x()
+  }
+}
+
+)";
+  XLS_EXPECT_OK(Typecheck(program));
+}
+
 TEST(TypecheckTest, ImportedImplTypeAlias) {
   constexpr std::string_view kImported = R"(
 pub struct Empty<X: u32> { }
