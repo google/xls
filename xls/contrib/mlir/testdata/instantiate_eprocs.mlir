@@ -1,6 +1,7 @@
 // RUN: xls_opt -instantiate-eprocs -symbol-dce -split-input-file %s 2>&1 | FileCheck %s
 
 // CHECK-LABEL: xls.chan @InstantiateTwice : i32
+// CHECK: func.func @transform
 // CHECK: xls.eproc @different_name
 // CHECK-SAME: min_pipeline_stages = 3
 // CHECK: xls.blocking_receive %0, @InstantiateTwice
@@ -14,7 +15,12 @@ xls.chan @Local : i32
 xls.eproc @p(%arg0: i32) zeroinitializer discardable attributes {min_pipeline_stages = 3 : i64} {
   %0 = xls.after_all  : !xls.token
   %tkn_out, %result = xls.blocking_receive %0, @Local : i32
-  xls.yield %arg0 : i32
+  %1 = func.call @transform(%result) : (i32) -> i32
+  xls.yield %1 : i32
+}
+
+func.func @transform(%arg0: i32) -> (i32) {
+  return %arg0 : i32
 }
 
 xls.instantiate_eproc @p as "different_name" (@Local as @InstantiateTwice)
@@ -108,3 +114,4 @@ xls.instantiate_eproc @fetch_0 (@fetch_arg0 as @IntegrationTestLabel, @fetch_arg
 xls.chan @boundary1 {send_supported = false} : i32
 xls.chan @boundary2 {recv_supported = false} : i32
 xls.instantiate_eproc @rom_0 (@rom_arg0 as @boundary1, @rom_arg1 as @boundary2)
+

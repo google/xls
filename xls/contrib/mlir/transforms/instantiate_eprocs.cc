@@ -91,8 +91,9 @@ class InstantiateEprocPattern : public OpRewritePattern<InstantiateEprocOp> {
     }
     mlir::AttrTypeReplacer replacer;
     replacer.addReplacement([&](SymbolRefAttr attr) {
-      return SymbolRefAttr::get(op.getContext(),
-                                localToGlobal[attr.getLeafReference()]);
+      return SymbolRefAttr::get(
+          op.getContext(), localToGlobal.lookup_or(attr.getLeafReference(),
+                                                   attr.getLeafReference()));
     });
     replacer.recursivelyReplaceElementsIn(cloned);
     op.erase();
