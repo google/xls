@@ -233,6 +233,12 @@ BValue BuilderBase::OneHot(BValue input, LsbOrMsb priority,
   if (ErrorPending()) {
     return BValue();
   }
+  if (!input.GetType()->IsBits()) {
+    return SetError(
+        absl::StrFormat("One-hot input must be of Bits type; is: %s",
+                        input.GetType()->ToString()),
+        loc);
+  }
   return AddNode<xls::OneHot>(loc, input.node(), priority, name);
 }
 
@@ -700,6 +706,12 @@ BValue BuilderBase::Encode(BValue arg, const SourceInfo& loc,
                            std::string_view name) {
   if (ErrorPending()) {
     return BValue();
+  }
+  if (!arg.GetType()->IsBits()) {
+    return SetError(
+        absl::StrFormat("Encode argument must be of Bits type; is: %s",
+                        arg.GetType()->ToString()),
+        loc);
   }
   return AddNode<xls::Encode>(loc, arg.node(), name);
 }

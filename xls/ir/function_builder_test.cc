@@ -1165,4 +1165,100 @@ TEST(FunctionBuilderTest, Registers) {
   EXPECT_THAT(get_reg_write(x_3)->load_enable().value(), m::InputPort("le"));
 }
 
+TEST(FunctionBuilderTest, BinOpMismatchedWidths) {
+  Package p("p");
+  BitsType* type8 = p.GetBitsType(8);
+  BitsType* type16 = p.GetBitsType(16);
+
+  // Test Add
+  {
+    FunctionBuilder b_add("f_add", &p);
+    BValue param8 = b_add.Param("p8", type8);
+    BValue param16 = b_add.Param("p16", type16);
+    b_add.Add(param8, param16);
+    EXPECT_THAT(b_add.Build().status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("Expected operand 1 of add")));
+  }
+
+  // Test And
+  {
+    FunctionBuilder b_and("f_and", &p);
+    BValue param8 = b_and.Param("p8", type8);
+    BValue param16 = b_and.Param("p16", type16);
+    b_and.And(param8, param16);
+    EXPECT_THAT(b_and.Build().status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("Expected operand 1 of and")));
+  }
+}
+
+TEST(FunctionBuilderTest, UnaryOpIncorrectType) {
+  Package p("p");
+  Type* token_type = p.GetTokenType();
+  Type* array_type = p.GetArrayType(4, p.GetBitsType(8));
+
+  // Test Negate on token
+  {
+    FunctionBuilder b_neg("f_neg", &p);
+    BValue tok_param = b_neg.Param("tok", token_type);
+    b_neg.Negate(tok_param);
+    EXPECT_THAT(b_neg.Build().status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("Expected neg")));
+  }
+
+  // Test Not on array
+  {
+    FunctionBuilder b_not("f_not", &p);
+    BValue arr_param = b_not.Param("arr", array_type);
+    b_not.Not(arr_param);
+    EXPECT_THAT(b_not.Build().status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("Expected not")));
+  }
+}
+
+TEST(FunctionBuilderTest, BitSliceIncorrectType) {
+  Package p("p");
+  Type* tuple_type = p.GetTupleType({p.GetBitsType(8), p.GetBitsType(16)});
+
+  FunctionBuilder b("f_slice", &p);
+  BValue tuple_param = b.Param("tup", tuple_type);
+  b.BitSlice(tuple_param, /*start=*/0, /*width=*/4);
+  EXPECT_THAT(b.Build().status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected operand 0 of bit_slice")));
+}
+
+TEST(FunctionBuilderTest, SelectMismatchedCaseTypes) {
+  Package p("p");
+  BitsType* type8 = p.GetBitsType(8);
+  BitsType* type16 = p.GetBitsType(16);
+
+  // Test 1: Mismatched bits widths between cases (no default value)
+  {
+    FunctionBuilder b("f_sel_cases_mismatch", &p);
+    BValue sel = b.Param("sel", p.GetBitsType(1));
+    BValue case0 = b.Param("case0", type8);
+    BValue case1 = b.Param("case1", type16);
+    b.Select(sel, {case0, case1});
+    EXPECT_THAT(b.Build().status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("type bits[16] does not match node type")));
+  }
+
+  // Test 2: Default value type mismatches case type
+  {
+    FunctionBuilder b("f_sel_default_mismatch", &p);
+    BValue sel = b.Param("sel", p.GetBitsType(1));
+    BValue case0 = b.Param("case0", type8);
+    BValue default_val = b.Param("default_val", type16);
+    b.Select(sel, {case0}, default_val);
+    EXPECT_THAT(b.Build().status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         HasSubstr("type bits[8] does not match node type")));
+  }
+}
+
 }  // namespace xls
