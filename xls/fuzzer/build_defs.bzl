@@ -23,7 +23,7 @@ def _to_suffix(path):
         basename = basename[len("crasher_"):]
     return basename
 
-def generate_crasher_regression_tests(name, srcs, prefix, failing = None, tags = None):
+def generate_crasher_regression_tests(name, srcs, prefix, failing = None, no_unopt_interpreter = None, tags = None):
     """Generates targets for fuzz-found issues.
 
     Also generates a manual suite called ":regression_tests" that will include
@@ -35,12 +35,15 @@ def generate_crasher_regression_tests(name, srcs, prefix, failing = None, tags =
         prefix: Prefix directory path for the testdata files.
         failing: Optional list of failing testdata paths (must be a string
             match with a member in srcs).
+        no_unopt_interpreter: Optional list of testdata paths that should not
+            use the unopt interpreter.
         tags: Optional mapping of testdata paths to additional tags (must
             be a string match with a member in srcs).
     """
     names = []
     failing = failing or []
     tags = tags or {}
+    no_unopt_interpreter = no_unopt_interpreter or []
     for f in srcs:
         if not f.endswith(".x"):
             fail()
@@ -49,10 +52,15 @@ def generate_crasher_regression_tests(name, srcs, prefix, failing = None, tags =
         names.append(test_name)
         fullpath = prefix + "/" + f
         broken = f in failing
+        target_tags = tags.get(f, [])
+        extra_args = []
+        if f in no_unopt_interpreter:
+            extra_args.append("--unopt_interpreter=false")
+
         native.sh_test(
             name = test_name,
             srcs = ["//xls/fuzzer:run_crasher_sh"],
-            args = [fullpath],
+            args = [fullpath] + extra_args,
             data = [
                 "//xls/fuzzer:run_crasher",
                 f,

@@ -147,6 +147,13 @@ class SampleOptions {
   int64_t proc_ticks() const { return proto_.proc_ticks(); }
   void set_proc_ticks(int64_t value) { proto_.set_proc_ticks(value); }
 
+  bool disable_unopt_interpreter() const {
+    return proto_.disable_unopt_interpreter();
+  }
+  void set_disable_unopt_interpreter(bool value = true) {
+    proto_.set_disable_unopt_interpreter(value);
+  }
+
   const std::vector<KnownFailure>& known_failures() const {
     if (known_failures_.empty() && proto_.known_failure_size() > 0) {
       known_failures_.reserve(proto_.known_failure_size());
@@ -276,8 +283,8 @@ class Sample {
  private:
   bool TestVectorEqual(const testvector::SampleInputsProto& tv) const;
 
-  std::string input_text_;  // Code sample as text.
-  SampleOptions options_;   // How to run the sample.
+  std::string input_text_;                    // Code sample as text.
+  SampleOptions options_;                     // How to run the sample.
   testvector::SampleInputsProto testvector_;  // Input data.
 };
 
