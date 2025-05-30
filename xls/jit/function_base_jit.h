@@ -41,6 +41,7 @@
 #include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_compiler.h"
+#include "xls/jit/type_buffer_metadata.h"
 
 namespace xls {
 
@@ -106,24 +107,24 @@ class JittedFunctionBase {
   // Create a buffer with space for all inputs, correctly aligned.
   //
   // If 'zero' then zero initialize the buffer contents.
-  JitArgumentSet CreateInputBuffer(bool zero = false) const;
+  std::unique_ptr<JitArgumentSetOwnedBuffer> CreateInputBuffer(
+      bool zero = false) const;
 
   // Create a buffer with space for all outputs, correctly aligned.
-  JitArgumentSet CreateOutputBuffer() const;
+  std::unique_ptr<JitArgumentSetOwnedBuffer> CreateOutputBuffer() const;
 
   // Return if the required alignments and sizes of both the inputs and outputs
   // are identical.
   bool InputsAndOutputsAreEquivalent() const {
-    return absl::c_equal(input_buffer_sizes_, output_buffer_sizes_) &&
-           absl::c_equal(input_buffer_preferred_alignments_,
-                         output_buffer_preferred_alignments_);
+    return absl::c_equal(input_buffer_metadata_, output_buffer_metadata_);
   }
 
   // Create a buffer capable of being used for both the input and output of a
   // jitted function.
   //
   // Returns an error if `InputsAndOutputsAreEquivalent()` is not true.
-  absl::StatusOr<JitArgumentSet> CreateInputOutputBuffer() const;
+  absl::StatusOr<std::unique_ptr<JitArgumentSetOwnedBuffer>>
+  CreateInputOutputBuffer() const;
 
   // Create a buffer usable as the temporary storage, correctly aligned.
   JitTempBuffer CreateTempBuffer() const;
@@ -163,36 +164,12 @@ class JittedFunctionBase {
 
   std::string_view function_name() const { return function_name_; }
 
-  absl::Span<int64_t const> input_buffer_sizes() const {
-    return input_buffer_sizes_;
+  absl::Span<const TypeBufferMetadata> GetInputBufferMetadata() const {
+    return input_buffer_metadata_;
   }
 
-  absl::Span<int64_t const> output_buffer_sizes() const {
-    return output_buffer_sizes_;
-  }
-
-  absl::Span<int64_t const> packed_input_buffer_sizes() const {
-    return packed_input_buffer_sizes_;
-  }
-
-  absl::Span<int64_t const> packed_output_buffer_sizes() const {
-    return packed_output_buffer_sizes_;
-  }
-
-  absl::Span<int64_t const> input_buffer_preferred_alignments() const {
-    return input_buffer_preferred_alignments_;
-  }
-
-  absl::Span<int64_t const> output_buffer_preferred_alignments() const {
-    return output_buffer_preferred_alignments_;
-  }
-
-  absl::Span<int64_t const> input_buffer_abi_alignments() const {
-    return input_buffer_abi_alignments_;
-  }
-
-  absl::Span<int64_t const> output_buffer_abi_alignments() const {
-    return output_buffer_abi_alignments_;
+  absl::Span<const TypeBufferMetadata> GetOutputBufferMetadata() const {
+    return output_buffer_metadata_;
   }
 
   int64_t temp_buffer_size() const { return temp_buffer_size_; }
@@ -222,14 +199,8 @@ class JittedFunctionBase {
   JittedFunctionBase(std::string function_name, JitFunctionType function,
                      std::optional<std::string> packed_function_name,
                      std::optional<JitFunctionType> packed_function,
-                     std::vector<int64_t> input_buffer_sizes,
-                     std::vector<int64_t> output_buffer_sizes,
-                     std::vector<int64_t> input_buffer_preferred_alignments,
-                     std::vector<int64_t> output_buffer_preferred_alignments,
-                     std::vector<int64_t> input_buffer_abi_alignments,
-                     std::vector<int64_t> output_buffer_abi_alignments,
-                     std::vector<int64_t> packed_input_buffer_sizes,
-                     std::vector<int64_t> packed_output_buffer_sizes,
+                     std::vector<TypeBufferMetadata> input_buffer_metadata,
+                     std::vector<TypeBufferMetadata> output_buffer_metadata,
                      int64_t temp_buffer_size, int64_t temp_buffer_alignment,
                      absl::flat_hash_map<int64_t, int64_t> continuation_points,
                      absl::btree_map<std::string, int64_t> queue_indices)
@@ -237,16 +208,8 @@ class JittedFunctionBase {
         function_(function),
         packed_function_name_(std::move(packed_function_name)),
         packed_function_(packed_function),
-        input_buffer_sizes_(std::move(input_buffer_sizes)),
-        output_buffer_sizes_(std::move(output_buffer_sizes)),
-        input_buffer_preferred_alignments_(
-            std::move(input_buffer_preferred_alignments)),
-        output_buffer_preferred_alignments_(
-            std::move(output_buffer_preferred_alignments)),
-        input_buffer_abi_alignments_(std::move(input_buffer_abi_alignments)),
-        output_buffer_abi_alignments_(std::move(output_buffer_abi_alignments)),
-        packed_input_buffer_sizes_(std::move(packed_input_buffer_sizes)),
-        packed_output_buffer_sizes_(std::move(packed_output_buffer_sizes)),
+        input_buffer_metadata_(std::move(input_buffer_metadata)),
+        output_buffer_metadata_(std::move(output_buffer_metadata)),
         temp_buffer_size_(temp_buffer_size),
         temp_buffer_alignment_(temp_buffer_alignment),
         continuation_points_(std::move(continuation_points)),
@@ -268,20 +231,8 @@ class JittedFunctionBase {
   std::optional<JitFunctionType> packed_function_;
 
   // Sizes of the inputs/outputs in native LLVM format for `function_base`.
-  std::vector<int64_t> input_buffer_sizes_;
-  std::vector<int64_t> output_buffer_sizes_;
-
-  // alignment preferences of each input/output buffer.
-  std::vector<int64_t> input_buffer_preferred_alignments_;
-  std::vector<int64_t> output_buffer_preferred_alignments_;
-
-  // alignment ABI requirements of each input/output buffer.
-  std::vector<int64_t> input_buffer_abi_alignments_;
-  std::vector<int64_t> output_buffer_abi_alignments_;
-
-  // Sizes of the inputs/outputs in packed format for `function_base`.
-  std::vector<int64_t> packed_input_buffer_sizes_;
-  std::vector<int64_t> packed_output_buffer_sizes_;
+  std::vector<TypeBufferMetadata> input_buffer_metadata_;
+  std::vector<TypeBufferMetadata> output_buffer_metadata_;
 
   // Size of the temporary buffer required by `function`.
   int64_t temp_buffer_size_ = -1;

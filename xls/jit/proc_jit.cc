@@ -91,11 +91,11 @@ class ProcJitContinuation : public ProcContinuation {
 
   // Return the various buffers passed to the top-level function implementing
   // the proc.
-  JitArgumentSet& input() { return input_; }
-  JitArgumentSet& output() { return output_; }
+  JitArgumentSet& input() { return *input_; }
+  JitArgumentSet& output() { return *output_; }
   JitTempBuffer& temp_buffer() { return temp_buffer_; }
-  const JitArgumentSet& input() const { return input_; }
-  const JitArgumentSet& output() const { return output_; }
+  const JitArgumentSet& input() const { return *input_; }
+  const JitArgumentSet& output() const { return *output_; }
   const JitTempBuffer& temp_buffer() const { return temp_buffer_; }
 
   // Sets the continuation to resume execution at the entry of the proc. Updates
@@ -137,8 +137,9 @@ class ProcJitContinuation : public ProcContinuation {
 
   // Buffers to hold inputs, outputs, and temporary storage. This is allocated
   // once and then re-used with each invocation of Run. Not thread-safe.
-  JitArgumentSet input_;
-  JitArgumentSet output_;
+
+  std::unique_ptr<JitArgumentSetOwnedBuffer> input_;
+  std::unique_ptr<JitArgumentSetOwnedBuffer> output_;
   JitTempBuffer temp_buffer_;
 
   // Data structure passed to the JIT function which holds instance related
@@ -172,7 +173,7 @@ ProcJitContinuation::ProcJitContinuation(ProcInstance* proc_instance,
     jit_runtime->BlitValueToBuffer(
         state_element->initial_value(), state_element->type(),
         absl::Span<uint8_t>(
-            input_.pointers()[state_index],
+            input_->get_element_pointers()[state_index],
             jit_runtime_->GetTypeByteSize(state_element->type())));
   }
 }
@@ -201,8 +202,8 @@ std::vector<Value> ProcJitContinuation::GetState() const {
   std::vector<Value> state;
   for (StateElement* state_element : proc()->StateElements()) {
     int64_t state_index = *proc()->GetStateElementIndex(state_element);
-    state.push_back(jit_runtime_->UnpackBuffer(input_.pointers()[state_index],
-                                               state_element->type()));
+    state.push_back(jit_runtime_->UnpackBuffer(
+        input_->get_element_pointers()[state_index], state_element->type()));
   }
   return state;
 }
@@ -215,7 +216,7 @@ absl::Status ProcJitContinuation::SetState(std::vector<Value> v) {
     jit_runtime_->BlitValueToBuffer(
         v[state_index], state_element->type(),
         absl::Span<uint8_t>(
-            input_.pointers()[state_index],
+            input_->get_element_pointers()[state_index],
             jit_runtime_->GetTypeByteSize(state_element->type())));
   }
 
@@ -268,7 +269,8 @@ absl::Status ProcJitContinuation::NextTick() {
     // be unchanged by default.
     for (int64_t state_index = 0; state_index < proc()->GetStateElementCount();
          ++state_index) {
-      memcpy(output_.pointers()[state_index], input_.pointers()[state_index],
+      memcpy(output_->get_element_pointers()[state_index],
+             input_->get_element_pointers()[state_index],
              jit_runtime_->GetTypeByteSize(
                  proc()->GetStateElementType(state_index)));
     }

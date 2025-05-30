@@ -15,11 +15,9 @@
 #ifndef XLS_JIT_JIT_BUFFER_H_
 #define XLS_JIT_JIT_BUFFER_H_
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -27,6 +25,7 @@
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/jit/type_buffer_metadata.h"
 
 namespace xls {
 
@@ -47,24 +46,49 @@ class DeleteAligned {
   }
 };
 
+// Data structure containing a block of allocated memory and a set of pointers
+// which point into the block.
+struct JitBuffer {
+  using AlignedPtr = std::unique_ptr<uint8_t[], DeleteAligned>;
+
+  AlignedPtr buffer;
+  std::vector<uint8_t*> pointers;
+};
+
+// Allocate a buffer which can hold the types described by the given
+// metadata. The `pointers` in the returned JitBuffer correspond to the elements
+// in `metadata`. If zero is true, the buffer is zero-ed out.
+JitBuffer AllocateAlignedBuffer(absl::Span<const TypeBufferMetadata> metadata,
+                                bool zero = false);
+
 class JittedFunctionBase;
-// class BlockJitContinuation;
-// A buffer & pointers capable of being used as the inputs and/or outputs for
-// a jitted function.
+
+// A buffer & pointers capable of being used as the inputs and/or outputs for a
+// jitted function. The data structure includes tags (source, is_input,
+// is_output) to check it is being used correctly. The base JitArgumentSet
+// type does not own the underlying allocated memory.
 class JitArgumentSet {
  public:
-  JitArgumentSet(JitArgumentSet&&) = default;
-  JitArgumentSet& operator=(JitArgumentSet&&) = default;
-  JitArgumentSet(const JitArgumentSet&) = delete;
-  JitArgumentSet& operator=(const JitArgumentSet&) = delete;
+  explicit JitArgumentSet(const JittedFunctionBase* source,
+                          std::vector<uint8_t*> pointers, bool is_inputs,
+                          bool is_outputs)
+      : source_(source),
+        pointers_(std::move(pointers)),
+        is_inputs_(is_inputs),
+        is_outputs_(is_outputs) {}
+  virtual ~JitArgumentSet() = default;
 
-  // The pointers to the values.
-  absl::Span<uint8_t* const> pointers() const { return pointers_; }
-  absl::Span<uint8_t*> pointers() { return absl::MakeSpan(pointers_); }
+  // Return the pointers to the elements within the buffer. Each corresponds to
+  // a single XLS value.
+  absl::Span<uint8_t* const> get_element_pointers() const { return pointers_; }
+  absl::Span<uint8_t*> get_element_pointers() {
+    return absl::MakeSpan(pointers_);
+  }
 
-  // The raw pointer the jitted code receives.
-  const uint8_t* const* get() const { return pointers_.data(); }
-  uint8_t* const* get() { return pointers_.data(); }
+  // Return a pointer to the array of elements pointers. This is what the jitted
+  // code receives.
+  const uint8_t* const* get_base_pointer() const { return pointers_.data(); }
+  uint8_t* const* get_base_pointer() { return pointers_.data(); }
 
   // What function this was created for. May only be used on this function.
   const JittedFunctionBase* source() const { return source_; }
@@ -79,53 +103,50 @@ class JitArgumentSet {
   // should only ever be passed in one of these slots however.
   bool is_outputs() const { return is_outputs_; }
 
-  // Create an argument set with the given alignments and sizes. NB Should only
-  // be called by jit-code. The passed in sizes and alignments are not checked
-  // against the source.
-  //
-  // If zero then zero-initialize the buffers.
-  static JitArgumentSet CreateInput(const JittedFunctionBase* source,
-                                    absl::Span<int64_t const> aligns,
-                                    absl::Span<int64_t const> sizes,
-                                    bool zero = false);
-  // Create an argument set with the given alignments and sizes. NB Should only
-  // be called by jit-code. The passed in sizes and alignments are not checked
-  // against the source.
-  static JitArgumentSet CreateOutput(const JittedFunctionBase* source,
-                                     absl::Span<int64_t const> aligns,
-                                     absl::Span<int64_t const> sizes);
-  // Create an argument set with the given alignments and sizes. NB Should only
-  // be called by jit-code. The passed in sizes and alignments are not checked
-  // against the source.
-  static absl::StatusOr<JitArgumentSet> CreateInputOutput(
-      const JittedFunctionBase* source,
-      std::array<absl::Span<int64_t const>, 2> aligns,
-      std::array<absl::Span<int64_t const>, 2> sizes);
-
- private:
-  JitArgumentSet(const JittedFunctionBase* source,
-                 std::unique_ptr<uint8_t[], DeleteAligned>&& data,
-                 std::vector<uint8_t*>&& pointers, bool is_inputs,
-                 std::optional<bool> is_outputs = std::nullopt)
-      : source_(source),
-        data_(std::move(data)),
-        pointers_(std::move(pointers)),
-        is_inputs_(is_inputs),
-        is_outputs_(is_outputs.value_or(!is_inputs_)) {}
-
+ protected:
   const JittedFunctionBase* source_;
-  // Data backing some or all of the pointers.
-  //
-  // NB For buffers created by combining other buffers this will be null. The
-  // actual value here should never be used.
-  std::unique_ptr<uint8_t[], DeleteAligned> data_;
-  // The pointers to each element.
+
+  // Pointers to buffers. Not necessarily owned by this object.
   std::vector<uint8_t*> pointers_;
   bool is_inputs_;
   bool is_outputs_;
+};
 
-  // To allow the continuation to make combined argument sets.
-  friend class BlockJitContinuation;
+// A JitArgumentSet derived class which owns the underlying buffer.
+class JitArgumentSetOwnedBuffer : public JitArgumentSet {
+ public:
+  explicit JitArgumentSetOwnedBuffer(const JittedFunctionBase* source,
+                                     JitBuffer&& buffer, bool is_inputs,
+                                     bool is_outputs)
+      : JitArgumentSet(source, buffer.pointers, is_inputs, is_outputs),
+        buffer_(std::move(buffer.buffer)) {}
+
+  ~JitArgumentSetOwnedBuffer() override = default;
+
+  // Create an argument set with the given alignments and sizes. NB Should
+  // only be called by jit-code. The passed in sizes and alignments are not
+  // checked against the source.
+  //
+  // If zero then zero-initialize the buffers.
+  static std::unique_ptr<JitArgumentSetOwnedBuffer> CreateInput(
+      const JittedFunctionBase* source,
+      absl::Span<const TypeBufferMetadata> metadata, bool zero = false);
+  // Create an argument set with the given alignments and sizes. NB Should only
+  // be called by jit-code. The passed in sizes and alignments are not checked
+  // against the source.
+  static std::unique_ptr<JitArgumentSetOwnedBuffer> CreateOutput(
+      const JittedFunctionBase* source,
+      absl::Span<const TypeBufferMetadata> metadata);
+  // Create an argument set with the given alignments and sizes. NB Should only
+  // be called by jit-code. The passed in sizes and alignments are not checked
+  // against the source.
+  static absl::StatusOr<std::unique_ptr<JitArgumentSetOwnedBuffer>>
+  CreateInputOutput(const JittedFunctionBase* source,
+                    absl::Span<const TypeBufferMetadata> input_metadata,
+                    absl::Span<const TypeBufferMetadata> output_metadata);
+
+ private:
+  JitBuffer::AlignedPtr buffer_;
 };
 
 // A wrapper for a temporary buffer which is aligned as required for the jitted
@@ -137,19 +158,18 @@ class JitTempBuffer {
       : source_(source), data_(MakeBuffer(align, size)) {}
 
   const JittedFunctionBase* source() const { return source_; }
-  void* get() const { return data_.get(); }
+  void* get_base_pointer() const { return data_.get(); }
 
  private:
-  std::unique_ptr<uint8_t[], DeleteAligned> MakeBuffer(size_t align,
-                                                       size_t size) {
-    std::unique_ptr<uint8_t[], DeleteAligned> result(
+  JitBuffer::AlignedPtr MakeBuffer(size_t align, size_t size) {
+    JitBuffer::AlignedPtr result(
         absl::bit_cast<uint8_t*>(AllocateAligned(align, size)));
     CHECK(result != nullptr) << "size: " << size << " align: " << align;
     return result;
   }
 
   const JittedFunctionBase* source_;
-  std::unique_ptr<uint8_t[], DeleteAligned> data_;
+  JitBuffer::AlignedPtr data_;
 };
 
 }  // namespace xls

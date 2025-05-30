@@ -39,6 +39,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/jit/type_buffer_metadata.h"
 #include "xls/jit/type_layout.h"
 
 namespace xls {
@@ -189,6 +190,16 @@ int64_t LlvmTypeConverter::GetTypeAbiAlignment(const Type* type) const {
 int64_t LlvmTypeConverter::GetTypePreferredAlignment(const Type* type) const {
   return data_layout_.getPrefTypeAlign(ConvertToLlvmType(type)).value();
 }
+
+TypeBufferMetadata LlvmTypeConverter::GetTypeBufferMetadata(
+    const Type* type) const {
+  return TypeBufferMetadata{
+      .size = GetTypeByteSize(type),
+      .preferred_alignment = GetTypePreferredAlignment(type),
+      .abi_alignment = GetTypeAbiAlignment(type),
+      .packed_size = GetPackedTypeByteSize(type)};
+}
+
 int64_t LlvmTypeConverter::AlignFor(const Type* type, int64_t offset) const {
   llvm::Align alignment =
       data_layout_.getPrefTypeAlign(ConvertToLlvmType(type));

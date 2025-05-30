@@ -28,6 +28,7 @@
 #include "llvm/include/llvm/IR/Type.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/jit/type_buffer_metadata.h"
 #include "xls/jit/type_layout.h"
 
 namespace xls {
@@ -78,6 +79,8 @@ class LlvmTypeConverter {
 
   // Returns the alignment requirement for the given type.
   int64_t GetTypeAbiAlignment(const Type* type) const;
+
+  TypeBufferMetadata GetTypeBufferMetadata(const Type* type) const;
 
   // Returns the next position (starting from offset) where LLVM would consider
   // an object of the given type to have ended; specifically, the next position

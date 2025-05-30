@@ -19,13 +19,11 @@
 #include <cstdint>
 #include <initializer_list>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-#include "absl/base/attributes.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -47,6 +45,7 @@
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
+#include "xls/jit/type_buffer_metadata.h"
 
 namespace xls {
 
@@ -102,16 +101,22 @@ class BlockJit {
 
   JitRuntime* runtime() const { return runtime_.get(); }
 
-  // Get how large each pointer buffer for the input ports are.
-  absl::Span<const int64_t> input_port_sizes() const {
-    return absl::MakeConstSpan(function_.input_buffer_sizes())
+  // Get metadata about the buffers for the input ports.
+  absl::Span<const TypeBufferMetadata> GetInputPortBufferMetadata() const {
+    return absl::MakeConstSpan(function_.GetInputBufferMetadata())
         .subspan(0, metadata_.InputPortCount());
   }
 
-  // Get how large each pointer buffer for the registers are.
-  absl::Span<int64_t const> register_sizes() const {
-    return absl::MakeConstSpan(function_.input_buffer_sizes())
+  // Get metadata about the buffers for the registers.
+  absl::Span<const TypeBufferMetadata> GetRegisterBufferMetadata() const {
+    return absl::MakeConstSpan(function_.GetInputBufferMetadata())
         .subspan(metadata_.InputPortCount());
+  }
+
+  // Get metadata about the buffers for the output ports.
+  absl::Span<const TypeBufferMetadata> GetOutputPortBufferMetadata() const {
+    return absl::MakeConstSpan(function_.GetOutputBufferMetadata())
+        .subspan(0, metadata_.OutputPortCount());
   }
 
   bool supports_observer() const { return supports_observer_; }
@@ -134,54 +139,6 @@ class BlockJit {
 };
 
 class BlockJitContinuation {
- private:
-  class IOSpace {
-   public:
-    enum class RegisterSpace : uint8_t { kLeft, kRight };
-    IOSpace(JitArgumentSet left, JitArgumentSet right,
-            RegisterSpace initial_space = RegisterSpace::kLeft)
-        : left_(std::move(left)),
-          right_(std::move(right)),
-          current_side_(initial_space) {}
-
-    // Switch the currently active space to the alternate.
-    void Swap() {
-      current_side_ = (current_side_ == RegisterSpace::kLeft)
-                          ? RegisterSpace::kRight
-                          : RegisterSpace::kLeft;
-    }
-
-    // Force a particular set of inputs to be the active inputs.
-    void SetActive(RegisterSpace space) { current_side_ = space; }
-
-    const JitArgumentSet& current() const {
-      switch (current_side_) {
-        case RegisterSpace::kLeft:
-          return left_;
-        case RegisterSpace::kRight:
-          return right_;
-      }
-    }
-
-    JitArgumentSet& current() {
-      switch (current_side_) {
-        case RegisterSpace::kLeft:
-          return left_;
-        case RegisterSpace::kRight:
-          return right_;
-      }
-    }
-
-    const JitArgumentSet& left() const { return left_; }
-
-    const JitArgumentSet& right() const { return right_; }
-
-   private:
-    JitArgumentSet left_;
-    JitArgumentSet right_;
-    RegisterSpace current_side_;
-  };
-
  public:
   // Use the same time step enum as interpreter.
   using OutputPortSampleTime = BlockEvaluator::OutputPortSampleTime;
@@ -219,19 +176,29 @@ class BlockJitContinuation {
   // next cycle.
   absl::Span<uint8_t* const> input_port_pointers() const {
     // Registers follow the input-ports in the input vector.
-    return function_inputs().subspan(0, /*len=*/metadata_.InputPortCount());
+    return input_arg_set().get_element_pointers().subspan(
+        0, /*len=*/metadata_.InputPortCount());
   }
   // Gets pointers to the JIT ABI struct pointers for each register.
   // Write to the pointed-to memory to manually set a register.
   absl::Span<uint8_t* const> register_pointers() const {
     // Previous register values got swapped over to the inputs.
     // Registers follow the input-ports in the input vector.
-    return function_inputs().subspan(metadata_.InputPortCount());
+    return input_arg_set().get_element_pointers().subspan(
+        metadata_.InputPortCount());
   }
   // Gets the pointers to the JIT ABI output pointers for each output port.
   absl::Span<uint8_t const* const> output_port_pointers() const {
-    return function_outputs().subspan(0,
-                                      /*len=*/metadata_.OutputPortCount());
+    switch (sample_time_) {
+      case OutputPortSampleTime::kAtLastPosEdgeClock:
+        return output_arg_set().get_element_pointers().subspan(
+            0,
+            /*len=*/metadata_.OutputPortCount());
+      case OutputPortSampleTime::kAfterLastClock:
+        return after_last_clock_output_set_->get_element_pointers().subspan(
+            0, metadata_.OutputPortCount());
+    }
+    LOG(FATAL) << "unknown sample type.";
   }
 
   const InterpreterEvents& GetEvents() const { return events_; }
@@ -258,41 +225,7 @@ class BlockJitContinuation {
                        BlockEvaluator::OutputPortSampleTime sample_time);
 
  private:
-  using BufferPair = std::array<JitArgumentSet, 2>;
-  static IOSpace MakeCombinedBuffers(
-      const JittedFunctionBase& jit_func,
-      const BlockJit::InterfaceMetadata& metadata, const JitArgumentSet& ports,
-      const BufferPair& regs, bool input);
-
-  // Create a new aligned buffer with the first 'left_count' elements of left
-  // and the rest from right.
-  //
-  // Both left and right must live longer than the returned buffer.
-  // This should only be used to enable some elements to be shared between 2
-  // input & output buffers for block-jit.
-  static absl::StatusOr<JitArgumentSet> CombineBuffers(
-      const JittedFunctionBase& jit_func,
-      const JitArgumentSet& left ABSL_ATTRIBUTE_LIFETIME_BOUND,
-      int64_t left_count,
-      const JitArgumentSet& rest ABSL_ATTRIBUTE_LIFETIME_BOUND,
-      int64_t rest_start, bool is_inputs);
-
-  void SwapRegisters() {
-    input_buffers_.Swap();
-    clocked_taps_output_buffers_.Swap();
-  }
-  absl::Span<uint8_t* const> function_inputs() const {
-    return input_buffers_.current().pointers();
-  }
-  absl::Span<uint8_t* const> function_outputs() const {
-    switch (sample_time_) {
-      case OutputPortSampleTime::kAtLastPosEdgeClock:
-        return clocked_taps_output_buffers_.current().pointers();
-      case OutputPortSampleTime::kAfterLastClock:
-        return raw_taps_output_buffers_->pointers();
-    }
-    LOG(FATAL) << "unknown sample type.";
-  }
+  void SwapRegisters() { arg_set_index_ = arg_set_index_ == 0 ? 1 : 0; }
 
   const BlockJit::InterfaceMetadata& metadata_;
   BlockJit* block_jit_;
@@ -300,32 +233,41 @@ class BlockJitContinuation {
   // At what time in the clock cycle are output ports sampled.
   OutputPortSampleTime sample_time_;
 
-  // Buffers for the registers. Note this includes (unused) space for the input
-  // ports.
-  BufferPair register_buffers_memory_;
-  // Buffers for the input ports. Note this includes (unused) space for the
-  // registers.
-  JitArgumentSet input_port_buffers_memory_;
-  // Buffers for the output ports sampled as though there were flops immediately
-  // before the tap. Note this includes (unused) space for the registers.
-  JitArgumentSet clocked_output_port_buffers_memory_;
+  // Backing buffers for the argument sets. There are two of the register
+  // buffers to enable efficient ping-ponging between them. The output register
+  // buffer becomes the input on the next cycle and vice versa.
+  JitBuffer input_port_buffers_;
+  JitBuffer output_port_buffers_;
+  std::array<JitBuffer, 2> register_buffers_;
 
-  // Input pointers. Memory is owned by register_buffers_memory_ and
-  // input_port_buffers_memory_. Not thread safe. NB The inputs are organized as
-  // <input_ports><Registers>.
-  IOSpace input_buffers_;
+  // JitArgumentSets used to pass inputs/outputs to the jitted block. These
+  // argument sets do not own the buffers but rather hold pointers into the
+  // `*_buffer` JitBuffer fields. Two argument sets are used to enable copy-free
+  // passing of the output registers of run to the input registers of the next
+  // run. The output register buffers of input_sets_[0] alias the input register
+  // buffers of output_sets_[1] and vice versa.
+  std::array<JitArgumentSet, 2> input_sets_;
+  std::array<JitArgumentSet, 2> output_sets_;
 
-  // Output pointers for pre-falling-edge data. Memory is owned by
-  // register_buffers_memory_ and pre_falling_edge_input_port_buffers_memory_.
-  // Not thread safe.  NB The outputs are organized as
-  // <output_ports><Registers>.
-  IOSpace clocked_taps_output_buffers_;
+  // Which of the two JitArgumentSets in input_sets_/output_sets should be
+  // used. This index alternates between 0 and 1.
+  int64_t arg_set_index_ = 0;
 
-  // Buffers for the output ports tapped raw (so they can be mixed with updated
-  // register values). Note this includes space for the registers though their
-  // values are ignored and they are never read. Only available if OnNegEdge
-  // sample time.
-  std::optional<JitArgumentSet> raw_taps_output_buffers_;
+  // Buffers for the output ports that are sampled after the rising edge of the
+  // clock (OutputPortSampleTime::kAfterLastClock) where newly computed register
+  // output values are propagated to output port. Note this includes space for
+  // the registers though their values are ignored and they are never read. Only
+  // available if OutputPortSampleTime::kAfterLastClock sample time.
+  std::unique_ptr<JitArgumentSetOwnedBuffer> after_last_clock_output_set_;
+
+  const JitArgumentSet& input_arg_set() const {
+    return input_sets_[arg_set_index_];
+  }
+
+  const JitArgumentSet& output_arg_set() const {
+    return output_sets_[arg_set_index_];
+  }
+  JitArgumentSet& output_arg_set() { return output_sets_[arg_set_index_]; }
 
   // Temporary scratch storage. Not thread safe.
   JitTempBuffer temp_buffer_;

@@ -323,18 +323,22 @@ absl::StatusOr<InterpreterResult<Value>> RunLlvmInterpreter(
   absl::c_transform(xls_function->params(), std::back_inserter(arg_types),
                     [](const Param* p) { return p->GetType(); });
   JitTempBuffer temp_buffer(jit->jitted_function_base().CreateTempBuffer());
-  JitArgumentSet input_set(jit->jitted_function_base().CreateInputBuffer());
-  JitArgumentSet output_set(jit->jitted_function_base().CreateOutputBuffer());
-  XLS_RETURN_IF_ERROR(
-      jit->runtime()->PackArgs(args, arg_types, input_set.pointers()))
+  std::unique_ptr<JitArgumentSet> input_set(
+      jit->jitted_function_base().CreateInputBuffer());
+  std::unique_ptr<JitArgumentSet> output_set(
+      jit->jitted_function_base().CreateOutputBuffer());
+  XLS_RETURN_IF_ERROR(jit->runtime()->PackArgs(
+      args, arg_types, input_set->get_element_pointers()))
       << "Unable to pack arguments.";
   std::vector<llvm::GenericValue> llvm_arg_values(7);
   // input_ptrs
-  llvm_arg_values[0].PointerVal = absl::bit_cast<void*>(input_set.get());
+  llvm_arg_values[0].PointerVal =
+      absl::bit_cast<void*>(input_set->get_base_pointer());
   // output_ptrs
-  llvm_arg_values[1].PointerVal = absl::bit_cast<void*>(output_set.get());
+  llvm_arg_values[1].PointerVal =
+      absl::bit_cast<void*>(output_set->get_base_pointer());
   // tmp_buffer
-  llvm_arg_values[2].PointerVal = temp_buffer.get();
+  llvm_arg_values[2].PointerVal = temp_buffer.get_base_pointer();
   // events
   llvm_arg_values[3].PointerVal = &events;
   // user_data
@@ -360,8 +364,9 @@ absl::StatusOr<InterpreterResult<Value>> RunLlvmInterpreter(
     return absl::InternalError(exec->getErrorMessage());
   }
 
-  Value result_value = jit->runtime()->UnpackBuffer(
-      output_set.pointers()[0], xls_function->GetType()->return_type());
+  Value result_value =
+      jit->runtime()->UnpackBuffer(output_set->get_element_pointers()[0],
+                                   xls_function->GetType()->return_type());
   return InterpreterResult<Value>{std::move(result_value), std::move(events)};
 }
 

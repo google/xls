@@ -184,16 +184,16 @@ absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
   }
 
   // Allocate argument buffers and copy in arg Values.
-  XLS_RETURN_IF_ERROR(jit_runtime_->PackArgs(args, metadata_.param_types,
-                                             arg_buffers_.pointers()));
+  XLS_RETURN_IF_ERROR(jit_runtime_->PackArgs(
+      args, metadata_.param_types, arg_buffers_->get_element_pointers()));
 
   InterpreterEvents events;
   jitted_function_base_.RunJittedFunction(
-      arg_buffers_, result_buffers_, temp_buffer_, &events,
+      *arg_buffers_, *result_buffers_, temp_buffer_, &events,
       /*instance_context=*/&callbacks_, /*jit_runtime=*/runtime(),
       /*continuation_point=*/0);
-  Value result = jit_runtime_->UnpackBuffer(result_buffers_.pointers()[0],
-                                            metadata_.return_type);
+  Value result = jit_runtime_->UnpackBuffer(
+      result_buffers_->get_element_pointers()[0], metadata_.return_type);
 
   return InterpreterResult<Value>{std::move(result), std::move(events)};
 }
@@ -239,7 +239,8 @@ void FunctionJit::InvokeUnalignedJitFunction(
     InterpreterEvents* events) {
   uint8_t* output_buffers[1] = {output_buffer};
   jitted_function_base_.RunUnalignedJittedFunction<kForceZeroCopy>(
-      arg_buffers.data(), output_buffers, temp_buffer_.get(), events,
+      arg_buffers.data(), output_buffers, temp_buffer_.get_base_pointer(),
+      events,
       /*instance_context=*/&callbacks_, runtime(), /*continuation=*/0);
 }
 

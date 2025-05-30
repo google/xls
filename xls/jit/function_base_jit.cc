@@ -70,6 +70,7 @@
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
+#include "xls/jit/type_buffer_metadata.h"
 
 namespace xls {
 namespace {
@@ -1255,22 +1256,22 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
 
 }  // namespace
 
-JitArgumentSet JittedFunctionBase::CreateInputBuffer(bool zero) const {
-  return JitArgumentSet::CreateInput(this, input_buffer_preferred_alignments(),
-                                     input_buffer_sizes(), zero);
-}
-JitArgumentSet JittedFunctionBase::CreateOutputBuffer() const {
-  return JitArgumentSet::CreateOutput(
-      this, output_buffer_preferred_alignments(), output_buffer_sizes());
+std::unique_ptr<JitArgumentSetOwnedBuffer>
+JittedFunctionBase::CreateInputBuffer(bool zero) const {
+  return JitArgumentSetOwnedBuffer::CreateInput(this, GetInputBufferMetadata(),
+                                                zero);
 }
 
-absl::StatusOr<JitArgumentSet> JittedFunctionBase::CreateInputOutputBuffer()
-    const {
-  return JitArgumentSet::CreateInputOutput(
-      this,
-      {input_buffer_preferred_alignments(),
-       output_buffer_preferred_alignments()},
-      {input_buffer_sizes(), output_buffer_sizes()});
+std::unique_ptr<JitArgumentSetOwnedBuffer>
+JittedFunctionBase::CreateOutputBuffer() const {
+  return JitArgumentSetOwnedBuffer::CreateOutput(this,
+                                                 GetOutputBufferMetadata());
+}
+
+absl::StatusOr<std::unique_ptr<JitArgumentSetOwnedBuffer>>
+JittedFunctionBase::CreateInputOutputBuffer() const {
+  return JitArgumentSetOwnedBuffer::CreateInputOutput(
+      this, GetInputBufferMetadata(), GetOutputBufferMetadata());
 }
 
 JitTempBuffer JittedFunctionBase::CreateTempBuffer() const {
@@ -1354,25 +1355,13 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
 
   for (const Node* input : GetJittedFunctionInputs(xls_function)) {
     Type* input_type = InputType(input);
-    jitted_function.input_buffer_sizes_.push_back(
-        jit_context.type_converter().GetTypeByteSize(input_type));
-    jitted_function.input_buffer_preferred_alignments_.push_back(
-        jit_context.type_converter().GetTypePreferredAlignment(input_type));
-    jitted_function.input_buffer_abi_alignments_.push_back(
-        jit_context.type_converter().GetTypeAbiAlignment(input_type));
-    jitted_function.packed_input_buffer_sizes_.push_back(
-        jit_context.type_converter().GetPackedTypeByteSize(input_type));
+    jitted_function.input_buffer_metadata_.push_back(
+        jit_context.type_converter().GetTypeBufferMetadata(input_type));
   }
   for (const Node* output : GetJittedFunctionOutputs(xls_function)) {
     Type* output_type = OutputType(output);
-    jitted_function.output_buffer_sizes_.push_back(
-        jit_context.type_converter().GetTypeByteSize(output_type));
-    jitted_function.output_buffer_preferred_alignments_.push_back(
-        jit_context.type_converter().GetTypePreferredAlignment(output_type));
-    jitted_function.output_buffer_abi_alignments_.push_back(
-        jit_context.type_converter().GetTypeAbiAlignment(output_type));
-    jitted_function.packed_output_buffer_sizes_.push_back(
-        jit_context.type_converter().GetPackedTypeByteSize(output_type));
+    jitted_function.output_buffer_metadata_.push_back(
+        jit_context.type_converter().GetTypeBufferMetadata(output_type));
   }
   jitted_function.temp_buffer_size_ = allocator.size();
   jitted_function.temp_buffer_alignment_ = allocator.alignment();
@@ -1447,18 +1436,32 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildFromAot(
     queue_indices.insert(abi.proc_metadata().channel_queue_indices().begin(),
                          abi.proc_metadata().channel_queue_indices().end());
   }
-  auto to_vec = [](auto vec_like) {
-    return std::vector<int64_t>(vec_like.begin(), vec_like.end());
-  };
+
+  std::vector<TypeBufferMetadata> input_buffer_metadata;
+  input_buffer_metadata.reserve(abi.input_buffer_sizes().size());
+  for (int64_t i = 0; i < abi.input_buffer_sizes().size(); ++i) {
+    input_buffer_metadata.push_back(TypeBufferMetadata{
+        .size = abi.input_buffer_sizes()[i],
+        .preferred_alignment = abi.input_buffer_alignments()[i],
+        .abi_alignment = abi.input_buffer_abi_alignments()[i],
+        .packed_size =
+            packed_entrypoint ? abi.packed_input_buffer_sizes()[i] : 0});
+  }
+
+  std::vector<TypeBufferMetadata> output_buffer_metadata;
+  output_buffer_metadata.reserve(abi.output_buffer_sizes().size());
+  for (int64_t i = 0; i < abi.output_buffer_sizes().size(); ++i) {
+    output_buffer_metadata.push_back(TypeBufferMetadata{
+        .size = abi.output_buffer_sizes()[i],
+        .preferred_alignment = abi.output_buffer_alignments()[i],
+        .abi_alignment = abi.output_buffer_abi_alignments()[i],
+        .packed_size =
+            packed_entrypoint ? abi.packed_output_buffer_sizes()[i] : 0});
+  }
+
   return JittedFunctionBase(
       abi.function_symbol(), entrypoint, packed_name, packed_entrypoint,
-      to_vec(abi.input_buffer_sizes()), to_vec(abi.output_buffer_sizes()),
-      to_vec(abi.input_buffer_alignments()),
-      to_vec(abi.output_buffer_alignments()),
-      to_vec(abi.input_buffer_abi_alignments()),
-      to_vec(abi.output_buffer_abi_alignments()),
-      to_vec(abi.packed_input_buffer_sizes()),
-      to_vec(abi.packed_output_buffer_sizes()), abi.temp_buffer_size(),
+      input_buffer_metadata, output_buffer_metadata, abi.temp_buffer_size(),
       abi.temp_buffer_alignment(), std::move(continuation_points),
       std::move(queue_indices));
 }
@@ -1473,8 +1476,9 @@ int64_t JittedFunctionBase::RunJittedFunction(
   CHECK(outputs.is_outputs());
   CHECK_EQ(outputs.source(), this);
   CHECK_EQ(temp_buffer.source(), this);
-  return function_(inputs.get(), outputs.get(), temp_buffer.get(), events,
-                   instance_context, jit_runtime, continuation_point);
+  return function_(inputs.get_base_pointer(), outputs.get_base_pointer(),
+                   temp_buffer.get_base_pointer(), events, instance_context,
+                   jit_runtime, continuation_point);
 }
 
 namespace {
@@ -1482,14 +1486,15 @@ bool IsAligned(const void* ptr, int64_t align) {
   return (absl::bit_cast<uintptr_t>(ptr) % align) == 0;
 }
 
-absl::Status VerifyOffsetAlignments(uint8_t const* const* const ptrs,
-                                    absl::Span<int64_t const> alignments) {
+absl::Status VerifyOffsetAbiAlignments(
+    uint8_t const* const* const ptrs,
+    absl::Span<const TypeBufferMetadata> alignments) {
   for (int64_t i = 0; i < alignments.size(); ++i) {
-    if (absl::bit_cast<uintptr_t>(ptrs[i]) % alignments[i] != 0) {
+    if (absl::bit_cast<uintptr_t>(ptrs[i]) % alignments[i].abi_alignment != 0) {
       return absl::InvalidArgumentError(
           absl::StrFormat("element %d of input vector does not have alignment "
                           "of %d. Pointer is %p",
-                          i, alignments[i], ptrs[i]));
+                          i, alignments[i].abi_alignment, ptrs[i]));
     }
   }
   return absl::OkStatus();
@@ -1502,27 +1507,30 @@ int64_t JittedFunctionBase::RunUnalignedJittedFunction(
     InterpreterEvents* events, InstanceContext* instance_context,
     JitRuntime* jit_runtime, int64_t continuation) const {
   if constexpr (kForceZeroCopy) {
-    DCHECK_OK(VerifyOffsetAlignments(inputs, input_buffer_abi_alignments()));
-    DCHECK_OK(VerifyOffsetAlignments(outputs, output_buffer_abi_alignments()));
+    DCHECK_OK(VerifyOffsetAbiAlignments(inputs, GetInputBufferMetadata()));
+    DCHECK_OK(VerifyOffsetAbiAlignments(outputs, GetOutputBufferMetadata()));
     DCHECK(IsAligned(temp_buffer, temp_buffer_alignment_));
   } else {
-    if (!VerifyOffsetAlignments(inputs, input_buffer_abi_alignments()).ok() ||
-        !VerifyOffsetAlignments(outputs, output_buffer_abi_alignments()).ok() ||
+    if (!VerifyOffsetAbiAlignments(inputs, GetInputBufferMetadata()).ok() ||
+        !VerifyOffsetAbiAlignments(outputs, GetOutputBufferMetadata()).ok() ||
         !IsAligned(temp_buffer, temp_buffer_alignment_)) {
-      JitArgumentSet aligned_input(CreateInputBuffer());
-      JitArgumentSet aligned_output(CreateOutputBuffer());
+      std::unique_ptr<JitArgumentSetOwnedBuffer> aligned_input =
+          CreateInputBuffer();
+      std::unique_ptr<JitArgumentSetOwnedBuffer> aligned_output =
+          CreateOutputBuffer();
       JitTempBuffer temp(CreateTempBuffer());
-      memcpy(temp.get(), temp_buffer, temp_buffer_size_);
-      for (int i = 0; i < input_buffer_sizes().size(); ++i) {
-        memcpy(aligned_input.pointers()[i], inputs[i], input_buffer_sizes()[i]);
+      memcpy(temp.get_base_pointer(), temp_buffer, temp_buffer_size_);
+      for (int i = 0; i < GetInputBufferMetadata().size(); ++i) {
+        memcpy(aligned_input->get_element_pointers()[i], inputs[i],
+               GetInputBufferMetadata()[i].size);
       }
       auto result =
-          RunJittedFunction(aligned_input, aligned_output, temp, events,
+          RunJittedFunction(*aligned_input, *aligned_output, temp, events,
                             instance_context, jit_runtime, continuation);
-      memcpy(temp_buffer, temp.get(), temp_buffer_size_);
-      for (int i = 0; i < output_buffer_sizes().size(); ++i) {
-        memcpy(outputs[i], aligned_output.pointers()[i],
-               output_buffer_sizes()[i]);
+      memcpy(temp_buffer, temp.get_base_pointer(), temp_buffer_size_);
+      for (int i = 0; i < GetOutputBufferMetadata().size(); ++i) {
+        memcpy(outputs[i], aligned_output->get_element_pointers()[i],
+               GetOutputBufferMetadata()[i].size);
       }
       return result;
     }
