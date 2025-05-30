@@ -15,6 +15,8 @@
 #include "xls/jit/jit_callbacks.h"
 
 #include <cstdint>
+#include <cstdlib>
+#include <memory>
 #include <string>
 
 #include "absl/log/check.h"
@@ -84,6 +86,14 @@ void RecordNodeResult(InstanceContext* thiz, int64_t node_ptr,
     thiz->observer->RecordNodeValue(node_ptr, data);
   }
 }
+
+void* AllocateBuffer(InstanceContext* thiz, int64_t byte_size,
+                     int64_t alignment) {
+  return std::aligned_alloc(alignment, byte_size);
+}
+
+void DeallocateBuffer(InstanceContext* thiz, void* ptr) { free(ptr); }
+
 }  // namespace
 
 InstanceContextVTable::InstanceContextVTable()
@@ -95,7 +105,9 @@ InstanceContextVTable::InstanceContextVTable()
       queue_receive_wrapper(&QueueReceiveWrapper),
       queue_send_wrapper(&QueueSendWrapper),
       record_active_next_value(&RecordActiveNextValue),
-      record_node_result(&RecordNodeResult) {}
+      record_node_result(&RecordNodeResult),
+      allocate_buffer(&AllocateBuffer),
+      deallocate_buffer(&DeallocateBuffer) {}
 
 Type* InstanceContext::ParseTypeFromProto(absl::Span<uint8_t const> data) {
   TypeProto proto;

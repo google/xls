@@ -65,7 +65,7 @@ struct InstanceContextVTable {
   // event.
   const RecordTraceFn record_trace;
 
-  using CreateTraceBufferFn = std::string* (*)(InstanceContext* thiz);
+  using CreateTraceBufferFn = std::string* (*)(InstanceContext * thiz);
   // This is a shim to let JIT code create a buffer for accumulating trace
   // fragments.
   const CreateTraceBufferFn create_trace_buffer;
@@ -100,6 +100,17 @@ struct InstanceContextVTable {
   // Data is in JIT data format and can be read using the appropriate type
   // information for the node.
   const RecordNodeResultFn record_node_result;
+
+  using AllocateBufferFn = void* (*)(InstanceContext * thiz, int64_t byte_size,
+                                     int64_t alignment);
+  // This is a shim to let the JIT allocate a large buffer on the heap for cases
+  // where its required to avoid blowing out the stack.
+  const AllocateBufferFn allocate_buffer;
+
+  using DeallocateBufferFn = void (*)(InstanceContext* thiz, void* buffer);
+  // This is a shim to let the JIT deallocate the buffer returned by
+  // allocate_buffer.
+  const DeallocateBufferFn deallocate_buffer;
 };
 
 // Data structure passed to the JITted function which contains instance-specific
@@ -135,7 +146,11 @@ struct InstanceContext {
       offsetof(InstanceContextVTable, record_active_next_value);
   static constexpr int64_t kRecordNodeResultOffset =
       offsetof(InstanceContextVTable, record_node_result);
-  static constexpr int64_t kVTableLength = 9;
+  static constexpr int64_t kAllocateBufferOffset =
+      offsetof(InstanceContextVTable, allocate_buffer);
+  static constexpr int64_t kDeallocateBufferOffset =
+      offsetof(InstanceContextVTable, deallocate_buffer);
+  static constexpr int64_t kVTableLength = 11;
   using VTableArrayType = std::array<void (*)(), kVTableLength>;
 
   static constexpr bool IsVtableOffset(int64_t v) {
@@ -143,7 +158,8 @@ struct InstanceContext {
            v == kRecordTraceOffset || v == kCreateTraceBufferOffset ||
            v == kRecordAssertionOffset || v == kQueueReceiveWrapperOffset ||
            v == kQueueSendWrapperOffset || v == kRecordActiveNextValueOffset ||
-           v == kRecordNodeResultOffset;
+           v == kRecordNodeResultOffset || v == kAllocateBufferOffset ||
+           v == kDeallocateBufferOffset;
   }
 
   Type* ParseTypeFromProto(absl::Span<uint8_t const> data);
