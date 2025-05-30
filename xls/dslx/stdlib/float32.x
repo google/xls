@@ -400,7 +400,7 @@ pub fn fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = {u32:1}>(x: F32) -> 
     let half_x = mul(x, ZERO_POINT_FIVE);
 
     // Refine solution w/ Newton's method.
-    let result = for (idx, approx): (u32, F32) in range(u32:0, NUM_REFINEMENTS) {
+    let result = for (idx, approx): (u32, F32) in u32:0..NUM_REFINEMENTS {
         let prod = mul(half_x, approx);
         let prod = mul(prod, approx);
         let nprod = F32 { sign: !prod.sign, bexp: prod.bexp, fraction: prod.fraction };
