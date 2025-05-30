@@ -47,15 +47,13 @@ TrackedBValue::Lock::Lock(Lock&& o) {
   o.locked_ = false;
 }
 
-void TrackedBValue::Lock::UnlockEarly() {
+TrackedBValue::Lock::~Lock() {
   if (locked_) {
     CHECK(TrackedBValue::sLocked);
     TrackedBValue::sLocked = false;
   }
   locked_ = false;
 }
-
-TrackedBValue::Lock::~Lock() { UnlockEarly(); }
 
 TrackedBValue::Lock::Lock() : locked_(true) {
   CHECK(!TrackedBValue::sLocked);

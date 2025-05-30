@@ -110,8 +110,6 @@ class TrackedBValue {
     Lock(Lock&& o);
     ~Lock();
 
-    void UnlockEarly();
-
    private:
     Lock();
     bool locked_ = false;

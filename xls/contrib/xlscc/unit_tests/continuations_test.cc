@@ -47,6 +47,8 @@ class ContinuationsTest : public XlsccTestBase {
  public:
   absl::StatusOr<const xlscc::GeneratedFunction*> GenerateTopFunction(
       std::string_view content) {
+    generate_new_fsm_ = true;
+
     XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                          xls::TempFile::CreateWithContent(content, ".cc"));
 
@@ -77,9 +79,6 @@ class ContinuationsTest : public XlsccTestBase {
                         std::string_view name) {
     for (const xlscc::ContinuationValue& continuation_out :
          slice.continuations_out) {
-      if (continuation_out.decls.empty()) {
-        continue;
-      }
       for (const clang::NamedDecl* decl : continuation_out.decls) {
         if (decl->getNameAsString() == name) {
           return true;
@@ -87,6 +86,20 @@ class ContinuationsTest : public XlsccTestBase {
       }
     }
     return false;
+  };
+
+  int64_t SliceOutputsDeclCount(const xlscc::GeneratedFunctionSlice& slice,
+                                std::string_view name) {
+    int64_t count = 0;
+    for (const xlscc::ContinuationValue& continuation_out :
+         slice.continuations_out) {
+      for (const clang::NamedDecl* decl : continuation_out.decls) {
+        if (decl->getNameAsString() == name) {
+          ++count;
+        }
+      }
+    }
+    return count;
   };
 
   bool SliceInputsDecl(const xlscc::GeneratedFunctionSlice& slice,
@@ -100,7 +113,21 @@ class ContinuationsTest : public XlsccTestBase {
       }
     }
     return false;
-  };
+  }
+
+  int64_t SliceInputsDeclCount(const xlscc::GeneratedFunctionSlice& slice,
+                               std::string_view name) {
+    int64_t count = 0;
+    for (const xlscc::ContinuationInput& continuation_in :
+         slice.continuations_in) {
+      for (const clang::NamedDecl* decl : continuation_in.decls) {
+        if (decl->getNameAsString() == name) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  }
 
   void LogContinuations(xlscc::GeneratedFunction* func) {
     absl::flat_hash_map<const ContinuationValue*, GeneratedFunctionSlice*>
@@ -110,6 +137,14 @@ class ContinuationsTest : public XlsccTestBase {
         slices_by_continuation_out[&continuation_out] = &slice;
       }
     }
+    auto decl_names_string =
+        [](const absl::flat_hash_set<const clang::NamedDecl*>& decls) {
+          std::vector<std::string> decl_names;
+          for (const clang::NamedDecl* decl : decls) {
+            decl_names.push_back(decl->getNameAsString());
+          }
+          return absl::StrJoin(decl_names, ",");
+        };
     for (GeneratedFunctionSlice& slice : func->slices) {
       LOG(INFO) << "";
       LOG(INFO) << absl::StrFormat("Slice %p after %s:", &slice,
@@ -118,9 +153,10 @@ class ContinuationsTest : public XlsccTestBase {
                                        : Debug_OpName(*slice.after_op).c_str());
       for (const ContinuationInput& continuation_in : slice.continuations_in) {
         LOG(INFO) << absl::StrFormat(
-            "  in: %p.%s has %li users",
+            "  in: %p.%s top decls %s has %li users",
             slices_by_continuation_out.at(continuation_in.continuation_out),
             continuation_in.name.c_str(),
+            decl_names_string(continuation_in.decls),
             continuation_in.input_node->users().size());
       }
       LOG(INFO) << "";
@@ -130,16 +166,11 @@ class ContinuationsTest : public XlsccTestBase {
         const std::string type_str =
             GenerateReadableTypeName(continuation_out.output_node->GetType());
 
-        std::vector<std::string> decl_names;
-        decl_names.reserve(continuation_out.decls.size());
-        for (const clang::NamedDecl* decl : continuation_out.decls) {
-          decl_names.push_back(decl->getNameAsString());
-        }
         LOG(INFO) << absl::StrFormat(
-            "  out: %s has %li users, decls %s, type = %s, literal = %s",
+            "  out: %s top decls %s has %li users, type = %s, literal = %s",
             continuation_out.name.c_str(),
-            continuation_out.output_node->users().size(),
-            absl::StrJoin(decl_names, ","), type_str.c_str(),
+            decl_names_string(continuation_out.decls),
+            continuation_out.output_node->users().size(), type_str.c_str(),
             continuation_out.literal.has_value()
                 ? continuation_out.literal.value().ToString().c_str()
                 : "(none)");
@@ -167,12 +198,7 @@ std::vector<const typename MapT::mapped_type*> OrderedCValuesForMap(MapT& map) {
   return xlscc::OrderCValuesFunc()(bvals);
 }
 
-// TODO(seanhaskell): Check one continuation output per node
-
-// TODO(seanhaskell): Merge continuation outputs with same lifetime
-
 // TODO(seanhaskell): Don't continue IO output
-// TODO(seanhaskell): Pipelined loop phi
 // TODO(seanhaskell): DISABLED_IOOutputNodesDoNotMakeContinuations
 // TODO(seanhaskell): Check names, incl LValues
 // TODO(seanhaskell): Check that single bit variable used as a condition gets
@@ -180,9 +206,9 @@ std::vector<const typename MapT::mapped_type*> OrderedCValuesForMap(MapT& map) {
 // overwritten
 // TODO(seanhaskell): Check that loops preserve values declared before them and
 // used after them (state element isn't shared with assignment in the loop)
-// TODO(seanhaskell): Check that literals don't propagate backwards: short
-// circuit, Z3
 // TODO(seanhaskell): DISABLED_ParameterNotInContinuations
+// TODO(seanhaskell): Remove unnecessary conditions from loop body? Can jump
+// past body with loop begin
 
 TEST_F(ContinuationsTest, DISABLED_IOOutputNodesDoNotMakeContinuations) {
   const std::string content = R"(
@@ -794,6 +820,426 @@ TEST_F(ContinuationsTest, LiteralPropagation) {
   EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "y"));
   EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "z"));
   EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "w"));
+}
+
+TEST_F(ContinuationsTest, PipelinedLoopBackwardsPropagation) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int ctrl = in.read();
+      int a = 0;
+      #pragma hls_pipeline_init_interval 1
+      for(int i=1;i <= ctrl;++i) {
+        a += i;
+      }
+      out.write(a);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 5);
+
+  auto slice_it = func->slices.begin();
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "ctrl"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "a"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "i"));
+
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "i"), 2);
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "a"), 2);
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "a"));
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "i"));
+
+  EXPECT_TRUE(SliceInputsDecl(fourth_slice, "a"));
+  EXPECT_FALSE(SliceInputsDecl(fourth_slice, "i"));
+}
+
+TEST_F(ContinuationsTest, PipelinedLoopBackwardsPropagation2) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int a = in.read();
+      #pragma hls_pipeline_init_interval 1
+      for(int i=1;i<=4;++i) {
+        a += i * in.read();
+      }
+      out.write(a);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 6);
+
+  auto slice_it = func->slices.begin();
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fifth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "a"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "i"));
+
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "i"), 2);
+  EXPECT_FALSE(SliceInputsDecl(third_slice, "a"));
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "i"));
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "a"));
+
+  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "a"), 2);
+  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "i"), 2);
+
+  EXPECT_TRUE(SliceInputsDecl(fifth_slice, "a"));
+  EXPECT_FALSE(SliceInputsDecl(fifth_slice, "i"));
+}
+
+TEST_F(ContinuationsTest, PipelinedLoopBackwardsPropagation3) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int a = in.read();
+      #pragma hls_pipeline_init_interval 1
+      for(int i=1;i<=4;++i) {
+        if(a < 30) {
+          a += i * in.read();
+        }
+      }
+      out.write(a);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 6);
+
+  auto slice_it = func->slices.begin();
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fifth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "a"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "i"));
+
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "i"), 2);
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "a"), 2);
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "i"));
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "a"));
+
+  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "a"), 2);
+  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "i"), 2);
+
+  EXPECT_TRUE(SliceInputsDecl(fifth_slice, "a"));
+  EXPECT_FALSE(SliceInputsDecl(fifth_slice, "i"));
+}
+
+TEST_F(ContinuationsTest, PipelinedLoopBackwardsPropagation4) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int ctrl = in.read();
+      int a = ctrl;
+      #pragma hls_pipeline_init_interval 1
+      for(int i=1;i<=4;++i) {
+        if(ctrl == 1) {
+          a += i * in.read();
+        }
+      }
+      out.write(a);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 6);
+
+  auto slice_it = func->slices.begin();
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fifth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "a"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "i"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "ctrl"));
+
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "ctrl"));
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "i"), 2);
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "a"), 2);
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "i"));
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "a"));
+
+  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "a"), 2);
+  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "i"), 2);
+
+  EXPECT_TRUE(SliceInputsDecl(fifth_slice, "a"));
+  EXPECT_FALSE(SliceInputsDecl(fifth_slice, "i"));
+}
+
+TEST_F(ContinuationsTest, PipelinedLoopConstantPropagation) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int c = 5;
+      int a = 0;
+      #pragma hls_pipeline_init_interval 1
+      for(int i=1;i<=4;++i) {
+        a += c * in.read();
+      }
+      out.write(a);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 5);
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "a"));
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "i"));
+  EXPECT_FALSE(SliceOutputsDecl(first_slice, "c"));
+
+  EXPECT_TRUE(SliceInputsDecl(second_slice, "i"));
+  EXPECT_FALSE(SliceInputsDecl(second_slice, "a"));
+
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "i"), 2);
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "a"), 2);
+  EXPECT_TRUE(SliceOutputsDecl(third_slice, "i"));
+  EXPECT_TRUE(SliceOutputsDecl(third_slice, "a"));
+
+  EXPECT_TRUE(SliceInputsDecl(fourth_slice, "a"));
+  EXPECT_FALSE(SliceInputsDecl(fourth_slice, "i"));
+}
+
+TEST_F(ContinuationsTest, PipelinedLoopSameNodeOneBypass) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int r = in.read();
+      int a = r;
+      #pragma hls_pipeline_init_interval 1
+      for(int i=1;i<=4;++i) {
+        a += r * in.read();
+      }
+      out.write(r + a);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 6);
+
+  auto slice_it = func->slices.begin();
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fifth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "i"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "a"));
+
+  EXPECT_FALSE(SliceInputsDecl(third_slice, "a"));
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "i"), 2);
+
+  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "i"), 2);
+  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "a"), 2);
+  EXPECT_TRUE(SliceOutputsDecl(fourth_slice, "a"));
+  EXPECT_TRUE(SliceOutputsDecl(fourth_slice, "i"));
+
+  EXPECT_TRUE(SliceInputsDecl(fifth_slice, "a"));
+  EXPECT_TRUE(SliceInputsDecl(fifth_slice, "r"));
+}
+
+TEST_F(ContinuationsTest, PipelinedLoopNothingOutside) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int c = 5;
+      int a = 0;
+      #pragma hls_pipeline_init_interval 1
+      for(int i=1;i<=4;++i) {
+        a += c * in.read();
+        out.write(a);
+      }
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 5);
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "a"));
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "i"));
+  EXPECT_FALSE(SliceOutputsDecl(first_slice, "c"));
+
+  EXPECT_EQ(SliceInputsDeclCount(second_slice, "i"), 2);
+  EXPECT_FALSE(SliceInputsDecl(second_slice, "a"));
+
+  EXPECT_FALSE(SliceInputsDecl(third_slice, "i"));
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "a"), 2);
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "i"));
+  EXPECT_TRUE(SliceOutputsDecl(third_slice, "a"));
+
+  EXPECT_TRUE(SliceInputsDecl(fourth_slice, "i"));
+  EXPECT_FALSE(SliceInputsDecl(fourth_slice, "a"));
+}
+
+TEST_F(ContinuationsTest, PipelinedLoopInIf) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int c = 5;
+      int a = 0;
+      if (in.read() == 3) {
+        #pragma hls_pipeline_init_interval 1
+        for(int i=1;i<=4;++i) {
+          a += c * in.read();
+          out.write(a);
+        }
+      }
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 6);
+
+  auto slice_it = func->slices.begin();
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fifth_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "a"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "i"));
+
+  EXPECT_FALSE(SliceInputsDecl(third_slice, "a"));
+  EXPECT_EQ(SliceInputsDeclCount(third_slice, "i"), 2);
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "a"));
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "i"));
+
+  EXPECT_FALSE(SliceInputsDecl(fourth_slice, "i"));
+  EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "a"), 2);
+  EXPECT_TRUE(SliceOutputsDecl(fourth_slice, "a"));
+  EXPECT_FALSE(SliceOutputsDecl(fourth_slice, "i"));
+
+  EXPECT_FALSE(SliceInputsDecl(fifth_slice, "a"));
+  EXPECT_EQ(SliceInputsDeclCount(fifth_slice, "i"), 2);
+  EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "a"));
+  EXPECT_TRUE(SliceOutputsDecl(fifth_slice, "i"));
+}
+
+TEST_F(ContinuationsTest, DuplicateName) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int acc = 0;
+      {
+        static int x = in.read();
+        acc += x;
+      }
+      {
+        static int x = in.read();
+        acc += 3*x;
+      }
+      out.write(acc);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 4);
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "x"));
+
+  EXPECT_TRUE(SliceInputsDecl(second_slice, "x"));
+  EXPECT_EQ(SliceOutputsDeclCount(second_slice, "x"), 2);
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "acc"));
+
+  EXPECT_TRUE(SliceOutputsDecl(third_slice, "x"));
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "x"));
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "acc"));
+}
+
+TEST_F(ContinuationsTest, SingleOutputLastSlice) {
+  const std::string content = R"(
+    int single_output(int x) {
+      return x + 1;
+    }
+
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      int x = in.read();
+      int y = single_output(x);
+      out.write(y);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 3);
+
+  // Just checking that optimization doesn't crash
 }
 
 }  // namespace
