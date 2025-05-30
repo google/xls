@@ -540,6 +540,7 @@ cc_library(
         ":error_printer",
         ":virtualizable_file_system",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/dslx/frontend:bindings",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/log",
@@ -547,6 +548,17 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "command_line_utils_test",
+    srcs = ["command_line_utils_test.cc"],
+    deps = [
+        ":command_line_utils",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/status:status_matchers",
+        "@googletest//:gtest",
     ],
 )
 

@@ -43,6 +43,12 @@ bool TryPrintError(const absl::Status& status, FileTable& file_table,
 // path.
 absl::StatusOr<std::string> PathToName(std::string_view path);
 
+// PathToName without canonicalization.
+absl::StatusOr<std::string> RawNameFromPath(std::string_view path);
+
+// Returns true if the file name would be unparsable as an XLS-ir identifier.
+bool NameNeedsCanonicalization(std::string_view path);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_COMMAND_LINE_UTILS_H_

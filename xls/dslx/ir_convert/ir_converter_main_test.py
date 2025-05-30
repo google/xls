@@ -200,6 +200,19 @@ class IrConverterMainTest(test_base.TestCase):
         ),
     )
 
+  def test_allow_bad_package_name(self) -> None:
+    result = self._ir_convert(
+        {"a-name-with-minuses.x": self.A_DOT_X},
+        expect_zero_exit=True,
+        extra_flags=["--nowarnings_as_errors"],
+    )
+    self.assertRegex(
+        result.stderr,
+        r".*Module name 'a-name-with-minuses' is not a valid identifier"
+        r" name.*Using 'a__H0x2D__name__H0x2D__with__H0x2D__minuses' as"
+        r" fallback.*",
+    )
+
   def test_bad_package_name(self) -> None:
     result = self._ir_convert(
         {"a-name-with-minuses.x": self.A_DOT_X},
@@ -208,8 +221,7 @@ class IrConverterMainTest(test_base.TestCase):
     self.assertEmpty(result.ir)
     self.assertRegex(
         result.stderr,
-        r"package name 'a-name-with-minuses' \(len: 19\) is not a valid package"
-        r" name",
+        r".*Module name 'a-name-with-minuses' is not a valid identifier name.*",
     )
 
   def test_bad_package_name_given(self) -> None:

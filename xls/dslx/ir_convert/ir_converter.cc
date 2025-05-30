@@ -623,6 +623,27 @@ absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
     XLS_ASSIGN_OR_RETURN(std::string text,
                          import_data.vfs().GetFileContents(path));
     XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path));
+    if (NameNeedsCanonicalization(path)) {
+      WarningCollector col(convert_options.warnings);
+      Pos pos(import_data.file_table().GetOrCreate(path), 0, 0);
+      col.Add(
+          Span(pos, pos), WarningKind::kIllegalPackageName,
+          absl::StrFormat(
+              "Module name '%s' is not a valid identifier name and "
+              "would fail to parse from text-ir. Avoid use of "
+              "infix or special characters.%s",
+              RawNameFromPath(path).value(),
+              convert_options.warnings_as_errors
+                  ? ""
+                  : absl::StrFormat(" Using '%s' as fallback.", module_name)));
+      if (!col.empty()) {
+        PrintWarnings(col, import_data.file_table(), import_data.vfs());
+        if (convert_options.warnings_as_errors) {
+          return absl::InvalidArgumentError(
+              "Warnings encountered and warnings-as-errors set.");
+        }
+      }
+    }
     XLS_RETURN_IF_ERROR(AddContentsToPackage(
         text, module_name, /*path=*/path, /*entry=*/top, convert_options,
         &import_data, &conversion_data, printed_error));

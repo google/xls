@@ -19,6 +19,7 @@
 
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -26,9 +27,11 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/pos.h"
@@ -61,7 +64,25 @@ bool TryPrintError(const absl::Status& status, FileTable& file_table,
   return print_status.ok();
 }
 
-absl::StatusOr<std::string> PathToName(std::string_view path) {
+namespace {
+// Replace any char which is not in the regex [a-zA-Z0-9_] to with
+// __H0x<hex>__ where hex is the hex representation of the byte. Encoding is
+// ignored.
+std::string CanonicalizeName(std::string_view sv) {
+  std::stringbuf buf;
+  std::string result;
+  for (char c : sv) {
+    if (absl::ascii_isalnum(c) || c == '_') {
+      result.push_back(c);
+    } else {
+      result.append(absl::StrFormat("__H0x%02X__", static_cast<int>(c)));
+    }
+  }
+  return result;
+}
+}  // namespace
+
+absl::StatusOr<std::string> RawNameFromPath(std::string_view path) {
   std::vector<std::string_view> pieces = absl::StrSplit(path, '/');
   if (pieces.empty()) {
     return absl::InvalidArgumentError(
@@ -72,5 +93,13 @@ absl::StatusOr<std::string> PathToName(std::string_view path) {
   XLS_RET_CHECK(!dot_pieces.empty());
   return std::string(dot_pieces[0]);
 }
+absl::StatusOr<std::string> PathToName(std::string_view path) {
+  XLS_ASSIGN_OR_RETURN(std::string raw_name, RawNameFromPath(path));
+  return CanonicalizeName(raw_name);
+}
 
+bool NameNeedsCanonicalization(std::string_view path) {
+  XLS_ASSIGN_OR_RETURN(std::string raw_name, RawNameFromPath(path), true);
+  return CanonicalizeName(raw_name) != raw_name;
+}
 }  // namespace xls::dslx
