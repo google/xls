@@ -22,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/errors.h"
@@ -35,11 +36,12 @@ namespace xls::dslx {
 
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
     const TypeAnnotation* annotation, const ImportData& import_data) {
-  const auto* type_ref_annotation =
-      dynamic_cast<const TypeRefTypeAnnotation*>(annotation);
-  if (type_ref_annotation == nullptr) {
+  if (!annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
     return std::nullopt;
   }
+
+  const auto* type_ref_annotation =
+      down_cast<const TypeRefTypeAnnotation*>(annotation);
 
   // Collect parametrics and instantiator by walking through any type
   // aliases before getting the struct or proc definition.
@@ -50,9 +52,10 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
       type_ref_annotation->type_ref()->type_definition();
 
   while (std::holds_alternative<TypeAlias*>(maybe_alias) &&
-         dynamic_cast<TypeRefTypeAnnotation*>(
-             &std::get<TypeAlias*>(maybe_alias)->type_annotation())) {
-    type_ref_annotation = dynamic_cast<TypeRefTypeAnnotation*>(
+         std::get<TypeAlias*>(maybe_alias)
+             ->type_annotation()
+             .IsAnnotation<TypeRefTypeAnnotation>()) {
+    type_ref_annotation = down_cast<TypeRefTypeAnnotation*>(
         &std::get<TypeAlias*>(maybe_alias)->type_annotation());
     if (!parametrics.empty() && !type_ref_annotation->parametrics().empty()) {
       return TypeInferenceErrorStatus(
@@ -107,14 +110,16 @@ absl::StatusOr<std::optional<StructOrProcRef>> ResolveToStructOrProcRef(
           },
           [&](const NameDef* name_def)
               -> absl::StatusOr<std::optional<StructOrProcRef>> {
-            if (auto* struct_def =
-                    dynamic_cast<StructDefBase*>(name_def->definer())) {
-              return StructOrProcRef{.def = struct_def};
+            if (name_def->definer()->kind() == AstNodeKind::kStructDef ||
+                name_def->definer()->kind() == AstNodeKind::kProcDef) {
+              return StructOrProcRef{
+                  .def = down_cast<StructDefBase*>(name_def->definer())};
             }
-            if (auto* type_alias =
-                    dynamic_cast<TypeAlias*>(name_def->definer())) {
-              return GetStructOrProcRef(&type_alias->type_annotation(),
-                                        import_data);
+            if (name_def->definer()->kind() == AstNodeKind::kTypeAlias) {
+              return GetStructOrProcRef(
+                  &(down_cast<TypeAlias*>(name_def->definer())
+                        ->type_annotation()),
+                  import_data);
             }
             return std::nullopt;
           },
@@ -183,11 +188,11 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
 
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
     const TypeAnnotation* annotation, const ImportData& import_data) {
-  const auto* type_ref_annotation =
-      dynamic_cast<const TypeRefTypeAnnotation*>(annotation);
-  if (type_ref_annotation == nullptr) {
+  if (!annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
     return std::nullopt;
   }
+  const auto* type_ref_annotation =
+      down_cast<const TypeRefTypeAnnotation*>(annotation);
   const TypeDefinition& def =
       type_ref_annotation->type_ref()->type_definition();
   XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> ref,
@@ -206,11 +211,11 @@ absl::StatusOr<std::optional<const EnumDef*>> ResolveToEnumDef(
           [&](TypeAlias* alias)
               -> absl::StatusOr<std::optional<const EnumDef*>> {
             const TypeAnnotation* type_annotation = &alias->type_annotation();
-            if (const TypeRefTypeAnnotation* type_ref_type_annotation =
-                    dynamic_cast<const TypeRefTypeAnnotation*>(
-                        type_annotation)) {
+            if (type_annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
               return ResolveToEnumDef(
-                  type_ref_type_annotation->type_ref()->type_definition(),
+                  down_cast<const TypeRefTypeAnnotation*>(type_annotation)
+                      ->type_ref()
+                      ->type_definition(),
                   import_data);
             }
             return std::nullopt;
@@ -240,10 +245,11 @@ absl::StatusOr<std::optional<const EnumDef*>> ResolveToEnumDef(
 
 absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
     const TypeAnnotation* annotation, const ImportData& import_data) {
-  if (const auto* type_ref_type_annotation =
-          dynamic_cast<const TypeRefTypeAnnotation*>(annotation)) {
-    return ResolveToEnumDef(
-        type_ref_type_annotation->type_ref()->type_definition(), import_data);
+  if (annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+    return ResolveToEnumDef(down_cast<const TypeRefTypeAnnotation*>(annotation)
+                                ->type_ref()
+                                ->type_definition(),
+                            import_data);
   }
   return std::nullopt;
 }

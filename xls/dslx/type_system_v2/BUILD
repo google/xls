@@ -412,6 +412,7 @@ cc_library(
     hdrs = ["import_utils.h"],
     deps = [
         ":type_annotation_utils",
+        "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",

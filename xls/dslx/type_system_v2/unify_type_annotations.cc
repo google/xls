@@ -101,23 +101,20 @@ class Unifier {
         return annotations[0];
       }
     }
-    if (const auto* first_tuple_annotation =
-            dynamic_cast<const TupleTypeAnnotation*>(annotations[0])) {
+    if (annotations[0]->IsAnnotation<TupleTypeAnnotation>()) {
       XLS_ASSIGN_OR_RETURN(
           std::vector<const TupleTypeAnnotation*> tuple_annotations,
           CastAllOrError<TupleTypeAnnotation>(annotations));
       return UnifyTupleTypeAnnotations(tuple_annotations, span);
     }
-    if (const auto* first_array_annotation =
-            CastToNonBitsArrayTypeAnnotation(annotations[0])) {
+    if (CastToNonBitsArrayTypeAnnotation(annotations[0]) != nullptr) {
       XLS_ASSIGN_OR_RETURN(
           std::vector<const ArrayTypeAnnotation*> array_annotations,
           CastAllOrError<ArrayTypeAnnotation>(
               annotations, &CastToNonBitsArrayTypeAnnotation));
       return UnifyArrayTypeAnnotations(array_annotations, span);
     }
-    if (const auto* first_function_annotation =
-            dynamic_cast<const FunctionTypeAnnotation*>(annotations[0])) {
+    if (annotations[0]->IsAnnotation<FunctionTypeAnnotation>()) {
       XLS_ASSIGN_OR_RETURN(
           std::vector<const FunctionTypeAnnotation*> function_annotations,
           CastAllOrError<FunctionTypeAnnotation>(annotations));
@@ -132,8 +129,7 @@ class Unifier {
           module_, module_.GetOrCreateBuiltinNameDef("token"),
           annotations[0]->span());
     }
-    if (const auto* first_channel_annotation =
-            dynamic_cast<const ChannelTypeAnnotation*>(annotations[0])) {
+    if (annotations[0]->IsAnnotation<ChannelTypeAnnotation>()) {
       XLS_ASSIGN_OR_RETURN(
           std::vector<const ChannelTypeAnnotation*> channel_annotations,
           CastAllOrError<ChannelTypeAnnotation>(annotations));
