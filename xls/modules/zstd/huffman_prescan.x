@@ -53,14 +53,13 @@ const COUNTER_WIDTH = hcommon::COUNTER_WIDTH;
 type WeightPreScanMetaData = hcommon::WeightPreScanMetaData;
 type WeightPreScanOutput = hcommon::WeightPreScanOutput;
 
-pub fn WeightPreScanMetaDataSize() -> u32 {
+pub const WEIGHT_PRESCAN_METADATA_SIZE =
     (COUNTER_WIDTH as u32) * (PARALLEL_ACCESS_WIDTH as u32) +
     (MAX_WEIGHT as u32) + u32:1 +
-    (COUNTER_WIDTH as u32) * (MAX_WEIGHT as u32 + u32:1)
-}
+    (COUNTER_WIDTH as u32) * (MAX_WEIGHT as u32 + u32:1);
 
 fn InternalStructToBits<
-    BITS: u32 = {WeightPreScanMetaDataSize()},
+    BITS: u32 = {WEIGHT_PRESCAN_METADATA_SIZE},
     OCCURANCE_WIDTH: u32 ={COUNTER_WIDTH * PARALLEL_ACCESS_WIDTH},
 > (internalStruct: WeightPreScanMetaData) -> bits[BITS] {
     (internalStruct.weights_count as bits[COUNTER_WIDTH * (MAX_WEIGHT + u32:1)] ++
@@ -69,7 +68,7 @@ fn InternalStructToBits<
 }
 
 fn BitsToInternalStruct<
-    BITS: u32 = {WeightPreScanMetaDataSize()},
+    BITS: u32 = {WEIGHT_PRESCAN_METADATA_SIZE},
     OCCURANCE_WIDTH: u32 ={COUNTER_WIDTH * PARALLEL_ACCESS_WIDTH},
 > (rawBits: bits[BITS]) -> WeightPreScanMetaData {
     WeightPreScanMetaData<PARALLEL_ACCESS_WIDTH> {
@@ -80,7 +79,7 @@ fn BitsToInternalStruct<
 }
 
 #[quickcheck(test_count=50000)]
-fn bits_to_struct_to_bits_qtest(x: bits[WeightPreScanMetaDataSize()]) -> bool {
+fn bits_to_struct_to_bits_qtest(x: bits[WEIGHT_PRESCAN_METADATA_SIZE]) -> bool {
     x == InternalStructToBits(BitsToInternalStruct(x))
 }
 
@@ -131,11 +130,11 @@ pub proc WeightPreScan
 
     type InternalRamAddr = uN[RAM_ADDR_WIDTH];
     type InternalData     = WeightPreScanMetaData;
-    type InternalRamData = bits[WeightPreScanMetaDataSize()];
+    type InternalRamData = bits[WEIGHT_PRESCAN_METADATA_SIZE];
 
     type InternalReadReq    = ram::ReadReq<RAM_ADDR_WIDTH, u32:1>;
-    type InternalReadResp   = ram::ReadResp<{WeightPreScanMetaDataSize()}>;
-    type InternalWriteReq   = ram::WriteReq<RAM_ADDR_WIDTH, {WeightPreScanMetaDataSize()}, u32:1>;
+    type InternalReadResp   = ram::ReadResp<WEIGHT_PRESCAN_METADATA_SIZE>;
+    type InternalWriteReq   = ram::WriteReq<RAM_ADDR_WIDTH, WEIGHT_PRESCAN_METADATA_SIZE, u32:1>;
     type InternalWriteResp  = ram::WriteResp;
 
     start_r:    chan<bool> in;
@@ -328,12 +327,12 @@ proc Prescan_test{
     type ReadReq  = ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>;
     type ReadResp = ram::ReadResp<RAM_ACCESS_WIDTH>;
     type WriteReq  = ram::WriteReq<RAM_ADDR_WIDTH, RAM_ACCESS_WIDTH, RAM_NUM_PARTITIONS>;
-    type WriteResp = ram::WriteResp<>;
+    type WriteResp = ram::WriteResp;
 
     type InternalReadReq  = ram::ReadReq<RAM_ADDR_WIDTH, u32:1>;
-    type InternalReadResp = ram::ReadResp<{WeightPreScanMetaDataSize()}>;
-    type InternalWriteReq  = ram::WriteReq<RAM_ADDR_WIDTH, {WeightPreScanMetaDataSize()}, u32:1>;
-    type InternalWriteResp = ram::WriteResp<>;
+    type InternalReadResp = ram::ReadResp<WEIGHT_PRESCAN_METADATA_SIZE>;
+    type InternalWriteReq  = ram::WriteReq<RAM_ADDR_WIDTH, WEIGHT_PRESCAN_METADATA_SIZE, u32:1>;
+    type InternalWriteResp = ram::WriteResp;
 
     terminator:         chan<bool> out;
     external_ram_req:   chan<WriteReq> out;
@@ -357,7 +356,7 @@ proc Prescan_test{
         let (RAMInternalWriteResp_s, RAMInternalWriteResp_r) = chan<InternalWriteResp>("Internal_write_channel_resp");
         let (RAMInternalReadReq_s, RAMInternalReadReq_r) = chan<InternalReadReq>("Internal_read_channel_req");
         let (RAMInternalReadResp_s, RAMInternalReadResp_r) = chan<InternalReadResp>("Internal_read_channel_resp");
-        spawn ram::RamModel<{WeightPreScanMetaDataSize()}, RAM_SIZE, {WeightPreScanMetaDataSize()}>(
+        spawn ram::RamModel<WEIGHT_PRESCAN_METADATA_SIZE, RAM_SIZE, WEIGHT_PRESCAN_METADATA_SIZE>(
             RAMInternalReadReq_r, RAMInternalReadResp_s, RAMInternalWriteReq_r, RAMInternalWriteResp_s
         );
 
