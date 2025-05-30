@@ -820,7 +820,7 @@ class StatelessResolver : public TypeAnnotationResolver {
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* type_variable, const Span& span,
-      TypeAnnotationFilter filter) {
+      TypeAnnotationFilter filter) final {
     return CreateStatefulResolver()->ResolveAndUnifyTypeAnnotations(
         parametric_context, type_variable, span, filter);
   }
@@ -828,7 +828,7 @@ class StatelessResolver : public TypeAnnotationResolver {
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*> annotations, const Span& span,
-      TypeAnnotationFilter filter) {
+      TypeAnnotationFilter filter) final {
     return CreateStatefulResolver()->ResolveAndUnifyTypeAnnotations(
         parametric_context, annotations, span, filter);
   }

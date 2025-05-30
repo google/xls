@@ -420,7 +420,7 @@ class CodegenFunctionPass : public CodegenFunctionBasePass {
  public:
   using CodegenFunctionBasePass::CodegenFunctionBasePass;
 
-  virtual ~CodegenFunctionPass() {}
+  ~CodegenFunctionPass() override = default;
 
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* fb, const CodegenPassOptions& options, PassResults* results,
@@ -454,8 +454,8 @@ class CodegenProcPass : public ProcPass<CodegenPassOptions, CodegenContext> {
  public:
   using ProcPass::ProcPass;
 
-  virtual void GcAfterProcChange(Package* p,
-                                 CodegenContext& context) const override {
+  void GcAfterProcChange(Package* p,
+                         CodegenContext& context) const final {
     context.GcMetadata();
   }
 };
