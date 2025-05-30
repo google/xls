@@ -5173,7 +5173,7 @@ fn f() -> uN[4] {
 }
 )",
               TypecheckFails(HasSubstr("Parametric values defined multiple "
-                                       "times for annotation: `MyS<4>`")));
+                                       "times for annotation: `S<3>`")));
 }
 
 TEST(TypecheckV2Test, ElementInTypeAliasOfStructWithBoundParametrics) {
@@ -7154,6 +7154,26 @@ fn main() -> u5 {
   EXPECT_THAT(
       TypecheckV2(kProgram, "main", &import_data),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
+}
+
+TEST(TypecheckV2Test, ImportTypeAliasWithParametrics) {
+  constexpr std::string_view kImported = R"(
+pub struct S<N: u32> {
+ a: uN[N]
+}
+
+pub type S32 = S<32>;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn get_a(s: imported::S32) -> u32 {
+  s.a
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
 TEST(TypecheckV2Test, ImportedMissingStaticFunctionOnImpl) {

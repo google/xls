@@ -19,124 +19,125 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/variant.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/visitor.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
+namespace {
+
+// Recursive visitor that unwraps a possible chain of type aliasing leading to a
+// struct, impl-style proc, or enum def. After visiting a subtree, the result
+// can be obtained by calling `GetStructOrProcRef` or `GetEnumDef`.
+class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
+ public:
+  explicit TypeRefUnwrapper(const ImportData& import_data)
+      : import_data_(import_data) {}
+
+  absl::Status HandleColonRef(const ColonRef* colon_ref) override {
+    XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
+                         GetImportedModuleInfo(colon_ref, import_data_));
+    if (import_module.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          ModuleMember member,
+          GetPublicModuleMember((*import_module)->module(), colon_ref,
+                                import_data_.file_table()));
+      return ToAstNode(member)->Accept(this);
+    }
+    return ToAstNode(colon_ref->subject())->Accept(this);
+  }
+
+  absl::Status HandleTypeAlias(const TypeAlias* alias) override {
+    return alias->type_annotation().Accept(this);
+  }
+
+  absl::Status HandleTypeRefTypeAnnotation(
+      const TypeRefTypeAnnotation* annotation) override {
+    if (!annotation->parametrics().empty() && !parametrics_.empty()) {
+      return TypeInferenceErrorStatus(
+          annotation->span(), /* type= */ nullptr,
+          absl::StrFormat(
+              "Parametric values defined multiple times for annotation: `%s`",
+              annotation->ToString()),
+          import_data_.file_table());
+    }
+
+    parametrics_ = annotation->parametrics();
+    if (!instantiator_.has_value()) {
+      instantiator_ = annotation->instantiator();
+    }
+    return ToAstNode(annotation->type_ref()->type_definition())->Accept(this);
+  }
+
+  absl::Status HandleProcDef(const ProcDef* def) override {
+    type_def_ = const_cast<ProcDef*>(def);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleStructDef(const StructDef* def) override {
+    type_def_ = const_cast<StructDef*>(def);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleEnumDef(const EnumDef* def) override {
+    type_def_ = const_cast<EnumDef*>(def);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleNameDef(const NameDef* name_def) override {
+    return name_def->definer()->Accept(this);
+  }
+
+  absl::Status HandleNameRef(const NameRef* name_ref) override {
+    return ToAstNode(name_ref->name_def())->Accept(this);
+  }
+
+  std::optional<StructOrProcRef> GetStructOrProcRef() {
+    if (!type_def_.has_value() ||
+        (!std::holds_alternative<StructDef*>(*type_def_) &&
+         !std::holds_alternative<ProcDef*>(*type_def_))) {
+      return std::nullopt;
+    }
+    return StructOrProcRef{
+        .def = down_cast<StructDefBase*>(ToAstNode(*type_def_)),
+        .parametrics = parametrics_,
+        .instantiator = instantiator_};
+  }
+
+  std::optional<const EnumDef*> GetEnumDef() {
+    return type_def_.has_value() && std::holds_alternative<EnumDef*>(*type_def_)
+               ? std::make_optional(std::get<EnumDef*>(*type_def_))
+               : std::nullopt;
+  }
+
+ private:
+  const ImportData& import_data_;
+
+  // These fields get populated as we visit nodes.
+  std::vector<ExprOrType> parametrics_;
+  std::optional<TypeDefinition> type_def_;
+  std::optional<const StructInstanceBase*> instantiator_;
+};
+
+}  // namespace
 
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
     const TypeAnnotation* annotation, const ImportData& import_data) {
   if (!annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
     return std::nullopt;
   }
-
-  const auto* type_ref_annotation =
-      down_cast<const TypeRefTypeAnnotation*>(annotation);
-
-  // Collect parametrics and instantiator by walking through any type
-  // aliases before getting the struct or proc definition.
-  std::vector<ExprOrType> parametrics = type_ref_annotation->parametrics();
-  std::optional<const StructInstanceBase*> instantiator =
-      type_ref_annotation->instantiator();
-  TypeDefinition maybe_alias =
-      type_ref_annotation->type_ref()->type_definition();
-
-  while (std::holds_alternative<TypeAlias*>(maybe_alias) &&
-         std::get<TypeAlias*>(maybe_alias)
-             ->type_annotation()
-             .IsAnnotation<TypeRefTypeAnnotation>()) {
-    type_ref_annotation = down_cast<TypeRefTypeAnnotation*>(
-        &std::get<TypeAlias*>(maybe_alias)->type_annotation());
-    if (!parametrics.empty() && !type_ref_annotation->parametrics().empty()) {
-      return TypeInferenceErrorStatus(
-          annotation->span(), /* type= */ nullptr,
-          absl::StrFormat(
-              "Parametric values defined multiple times for annotation: `%s`",
-              annotation->ToString()),
-          import_data.file_table());
-    }
-
-    parametrics =
-        parametrics.empty() ? type_ref_annotation->parametrics() : parametrics;
-    instantiator = instantiator.has_value()
-                       ? instantiator
-                       : type_ref_annotation->instantiator();
-    maybe_alias = type_ref_annotation->type_ref()->type_definition();
-  }
-
-  XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
-                       GetStructOrProcDef(type_ref_annotation, import_data));
-  if (!def.has_value()) {
-    return std::nullopt;
-  }
-  return StructOrProcRef{
-      .def = *def, .parametrics = parametrics, .instantiator = instantiator};
-}
-
-template <typename T>
-absl::StatusOr<std::optional<StructOrProcRef>> ResolveToStructOrProcRef(
-    T node, const ImportData& import_data) {
-  return absl::visit(
-      Visitor{
-          [&](TypeAlias* alias)
-              -> absl::StatusOr<std::optional<StructOrProcRef>> {
-            return GetStructOrProcRef(&alias->type_annotation(), import_data);
-          },
-          [&](TypeRefTypeAnnotation* type_annotation)
-              -> absl::StatusOr<std::optional<StructOrProcRef>> {
-            return GetStructOrProcRef(type_annotation, import_data);
-          },
-          [](StructDef* struct_def)
-              -> absl::StatusOr<std::optional<StructOrProcRef>> {
-            return StructOrProcRef{.def = struct_def};
-          },
-          [](ProcDef* proc_def)
-              -> absl::StatusOr<std::optional<StructOrProcRef>> {
-            return StructOrProcRef{.def = proc_def};
-          },
-          [&](NameRef* name_ref)
-              -> absl::StatusOr<std::optional<StructOrProcRef>> {
-            return ResolveToStructOrProcRef(name_ref->name_def(), import_data);
-          },
-          [&](const NameDef* name_def)
-              -> absl::StatusOr<std::optional<StructOrProcRef>> {
-            if (name_def->definer()->kind() == AstNodeKind::kStructDef ||
-                name_def->definer()->kind() == AstNodeKind::kProcDef) {
-              return StructOrProcRef{
-                  .def = down_cast<StructDefBase*>(name_def->definer())};
-            }
-            if (name_def->definer()->kind() == AstNodeKind::kTypeAlias) {
-              return GetStructOrProcRef(
-                  &(down_cast<TypeAlias*>(name_def->definer())
-                        ->type_annotation()),
-                  import_data);
-            }
-            return std::nullopt;
-          },
-          [&](ColonRef* colon_ref)
-              -> absl::StatusOr<std::optional<StructOrProcRef>> {
-            return GetStructOrProcRef(colon_ref, import_data);
-          },
-          [](UseTreeEntry*) -> absl::StatusOr<std::optional<StructOrProcRef>> {
-            // TODO(https://github.com/google/xls/issues/352): 2025-01-23
-            // Resolve possible Struct or Proc definition through the extern
-            // UseTreeEntry.
-            return std::nullopt;
-          },
-          [](auto*) -> absl::StatusOr<std::optional<StructOrProcRef>> {
-            return std::nullopt;
-          }},
-      node);
+  TypeRefUnwrapper unwrapper(import_data);
+  XLS_RETURN_IF_ERROR(annotation->Accept(&unwrapper));
+  return unwrapper.GetStructOrProcRef();
 }
 
 absl::StatusOr<std::optional<ModuleInfo*>> GetImportedModuleInfo(
@@ -174,84 +175,26 @@ absl::StatusOr<ModuleMember> GetPublicModuleMember(
 
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
     const ColonRef* colon_ref, const ImportData& import_data) {
-  XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
-                       GetImportedModuleInfo(colon_ref, import_data));
-  if (import_module.has_value()) {
-    XLS_ASSIGN_OR_RETURN(
-        ModuleMember member,
-        GetPublicModuleMember((*import_module)->module(), colon_ref,
-                              import_data.file_table()));
-    return ResolveToStructOrProcRef(member, import_data);
-  }
-  return ResolveToStructOrProcRef(colon_ref->subject(), import_data);
+  TypeRefUnwrapper unwrapper(import_data);
+  XLS_RETURN_IF_ERROR(colon_ref->Accept(&unwrapper));
+  return unwrapper.GetStructOrProcRef();
 }
 
 absl::StatusOr<std::optional<const StructDefBase*>> GetStructOrProcDef(
     const TypeAnnotation* annotation, const ImportData& import_data) {
-  if (!annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
-    return std::nullopt;
-  }
-  const auto* type_ref_annotation =
-      down_cast<const TypeRefTypeAnnotation*>(annotation);
-  const TypeDefinition& def =
-      type_ref_annotation->type_ref()->type_definition();
   XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> ref,
-                       ResolveToStructOrProcRef(def, import_data));
-  if (!ref.has_value()) {
-    return std::nullopt;
-  }
-  return ref->def;
-}
-
-template <typename T>
-absl::StatusOr<std::optional<const EnumDef*>> ResolveToEnumDef(
-    T node, const ImportData& import_data) {
-  return absl::visit(
-      Visitor{
-          [&](TypeAlias* alias)
-              -> absl::StatusOr<std::optional<const EnumDef*>> {
-            const TypeAnnotation* type_annotation = &alias->type_annotation();
-            if (type_annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
-              return ResolveToEnumDef(
-                  down_cast<const TypeRefTypeAnnotation*>(type_annotation)
-                      ->type_ref()
-                      ->type_definition(),
-                  import_data);
-            }
-            return std::nullopt;
-          },
-          [&](ColonRef* colon_ref)
-              -> absl::StatusOr<std::optional<const EnumDef*>> {
-            XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
-                                 GetImportedModuleInfo(colon_ref, import_data));
-            if (import_module.has_value()) {
-              XLS_ASSIGN_OR_RETURN(
-                  ModuleMember member,
-                  GetPublicModuleMember((*import_module)->module(), colon_ref,
-                                        import_data.file_table()));
-              return ResolveToEnumDef(member, import_data);
-            }
-            return std::nullopt;
-          },
-          [](EnumDef* enum_def)
-              -> absl::StatusOr<std::optional<const EnumDef*>> {
-            return enum_def;
-          },
-          [](auto* n) -> absl::StatusOr<std::optional<const EnumDef*>> {
-            return std::nullopt;
-          }},
-      node);
+                       GetStructOrProcRef(annotation, import_data));
+  return ref.has_value() ? std::make_optional(ref->def) : std::nullopt;
 }
 
 absl::StatusOr<std::optional<const EnumDef*>> GetEnumDef(
     const TypeAnnotation* annotation, const ImportData& import_data) {
-  if (annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
-    return ResolveToEnumDef(down_cast<const TypeRefTypeAnnotation*>(annotation)
-                                ->type_ref()
-                                ->type_definition(),
-                            import_data);
+  if (!annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+    return std::nullopt;
   }
-  return std::nullopt;
+  TypeRefUnwrapper unwrapper(import_data);
+  XLS_RETURN_IF_ERROR(annotation->Accept(&unwrapper));
+  return unwrapper.GetEnumDef();
 }
 
 bool IsImport(const ColonRef* colon_ref) {
