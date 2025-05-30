@@ -29,10 +29,6 @@ import xls.modules.zstd.memory.axi_ram_reader;
 import xls.modules.zstd.memory.mem_reader as mem_reader;
 import xls.examples.ram;
 
-pub fn WeightPreScanMetaDataSize() -> u32 {
-    prescan::WeightPreScanMetaDataSize()
-}
-
 pub type HuffmanLiteralsDecoderReq = ctrl::HuffmanControlAndSequenceCtrl;
 pub type HuffmanLiteralsDecoderResp = ctrl::HuffmanControlAndSequenceResp;
 pub type HuffmanLiteralsDecoderStatus = ctrl::HuffmanControlAndSequenceStatus;
@@ -45,7 +41,7 @@ pub const WEIGHTS_NUM_PARTITIONS = ram::num_partitions(WEIGHTS_PARTITION_WORD_SI
 // pub const WEIGHTS_NUM_PARTITIONS: u32 = u32:1;
 
 pub const PRESCAN_ADDR_WIDTH: u32 = prescan::RAM_ADDR_WIDTH;
-pub const PRESCAN_DATA_WIDTH: u32 = prescan::WeightPreScanMetaDataSize();
+pub const PRESCAN_DATA_WIDTH: u32 = prescan::WEIGHT_PRESCAN_METADATA_SIZE;
 pub const PRESCAN_PARTITION_WORD_SIZE: u32 = PRESCAN_DATA_WIDTH;
 pub const PRESCAN_NUM_PARTITIONS = ram::num_partitions(PRESCAN_PARTITION_WORD_SIZE, PRESCAN_DATA_WIDTH);
 
@@ -498,7 +494,7 @@ pub const TEST_PRESCAN_RAM_ADDR_WIDTH = PRESCAN_ADDR_WIDTH;
 pub const TEST_PRESCAN_RAM_DATA_WIDTH = PRESCAN_DATA_WIDTH;
 pub const TEST_PRESCAN_RAM_NUM_PARTITIONS = PRESCAN_NUM_PARTITIONS;
 pub const TEST_PRESCAN_RAM_SIZE = prescan::RAM_SIZE;
-pub const TEST_PRESCAN_WORD_PARTITION_SIZE = prescan::WeightPreScanMetaDataSize();
+pub const TEST_PRESCAN_WORD_PARTITION_SIZE = prescan::WEIGHT_PRESCAN_METADATA_SIZE;
 
 const TEST_WEIGHTS_DPD_RAM_DATA_W = u32:16;
 const TEST_WEIGHTS_DPD_RAM_SIZE = u32:256;
