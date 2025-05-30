@@ -45,7 +45,7 @@ class BlockChannelMetadata {
  public:
   // Creates a new metadata object that can associate a channel interface
   // (in a stage proc) with slots and an adapter in a block.
-  BlockChannelMetadata(const ChannelInterface* ABSL_NONNULL channel_interface)
+  explicit BlockChannelMetadata(const ChannelInterface* ABSL_NONNULL channel_interface)
       : channel_interface_(channel_interface) {}
 
   // Returns the channel interface associated with this set of slots
