@@ -262,7 +262,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   std::unique_ptr<xlscc::Translator> translator(new xlscc::Translator(
       /*error_on_init_interval=*/false,
       /*error_on_uninitialized=*/false,
-      /*generate_fsms_for_pipelined_loops=*/false,
+      /*generate_new_fsm=*/false,
       /*merge_states=*/false, /*split_states_on_channel_ops=*/false,
       /*debug_ir_trace_flags=*/xlscc::DebugIrTraceFlags_None,
       /*max_unroll_iters=*/100,
