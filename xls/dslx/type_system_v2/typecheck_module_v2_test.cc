@@ -3944,6 +3944,31 @@ const Y = f(Foo::X);
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, ImplMethodCallsStaticImplFunction) {
+  EXPECT_THAT(
+      R"(
+struct F<N: u32> { x: uN[N] }
+
+type MyF = F<5>;
+
+impl F<N> {
+    fn static_fn() -> uN[N] {
+        uN[N]:1
+    }
+
+    fn diff_x(self: Self) -> F<N> {
+        F<N> { x: self.x - F<N>::static_fn() }
+    }
+}
+
+const F_ST = MyF { x: 5 };
+const G_ST = F_ST.diff_x();
+
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("F_ST", "F { x: uN[5] }"),
+                              HasNodeWithType("G_ST", "F { x: uN[5] }"))));
+}
+
 TEST(TypecheckV2Test, BasicLet) {
   EXPECT_THAT(
       R"(
@@ -7554,6 +7579,29 @@ fn test() -> Foo<5> {
           HasNodeWithType("make_zero_foo<5>()", "Foo { a: uN[5], b: uN[3] }"),
           HasNodeWithType("make_zero_foo<30>()",
                           "Foo { a: uN[30], b: uN[5] }")))));
+}
+
+TEST(TypecheckV2Test, CallFunctionOnStructMember) {
+  EXPECT_THAT(
+      R"(
+struct G { }
+
+impl G {
+  fn x(self: Self) -> u32 {
+     u32:1
+  }
+}
+
+struct F { g: G }
+
+impl F {
+  fn y(self: Self) -> u32 {
+    self.g.x()
+  }
+}
+
+)",
+      TypecheckSucceeds(HasNodeWithType("y", "(F { g: G {} }) -> uN[32]")));
 }
 
 }  // namespace
