@@ -947,8 +947,8 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleTestProc(const TestProc* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    old_to_new_[n] =
-        module_->Make<TestProc>(down_cast<Proc*>(old_to_new_.at(n->proc())));
+    old_to_new_[n] = module_->Make<TestProc>(
+        down_cast<Proc*>(old_to_new_.at(n->proc())), n->expected_fail_label());
     return absl::OkStatus();
   }
 
