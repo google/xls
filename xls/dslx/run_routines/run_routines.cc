@@ -224,7 +224,7 @@ class QuickCheckProveAssertsNotFiredPass final
   QuickCheckProveAssertsNotFiredPass()
       : OptimizationFunctionBasePass("quickcheck-assert-suplement",
                                      "add asserts to quickcheck goal") {}
-  ~QuickCheckProveAssertsNotFiredPass() = default;
+  ~QuickCheckProveAssertsNotFiredPass() final = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

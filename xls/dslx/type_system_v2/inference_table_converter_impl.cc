@@ -939,7 +939,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // for a use of a struct type with some given parametrics.
   absl::StatusOr<const ParametricContext*> GetOrCreateParametricStructContext(
       std::optional<const ParametricContext*> parent_context,
-      const StructOrProcRef& ref, const AstNode* node) {
+      const StructOrProcRef& ref, const AstNode* node) final {
     VLOG(6) << "Get or create parametric struct context for: "
             << ref.def->identifier();
     XLS_ASSIGN_OR_RETURN(
@@ -1909,7 +1909,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::StatusOr<const TypeAnnotation*> GetParametricFreeStructMemberType(
       std::optional<const ParametricContext*> struct_context,
       const StructOrProcRef& struct_or_proc_ref,
-      const TypeAnnotation* member_type) {
+      const TypeAnnotation* member_type) final {
     if (!struct_or_proc_ref.def->IsParametric()) {
       return member_type;
     }

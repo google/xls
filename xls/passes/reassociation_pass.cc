@@ -774,7 +774,7 @@ class ReassociationCache : public LazyNodeInfo<std::optional<SignednessPair>> {
   LeafTypeTree<std::optional<SignednessPair>> ComputeInfo(
       Node* node,
       absl::Span<const LeafTypeTree<std::optional<SignednessPair>>* const>
-          operand_infos) const {
+          operand_infos) const final {
     if (!node->GetType()->IsBits()) {
       return LeafTypeTree<std::optional<SignednessPair>>::CreateFromFunction(
                  node->GetType(), [](auto v) { return std::nullopt; })
@@ -793,7 +793,7 @@ class ReassociationCache : public LazyNodeInfo<std::optional<SignednessPair>> {
 
   absl::Status MergeWithGiven(
       std::optional<SignednessPair>& info,
-      const std::optional<SignednessPair>& given) const {
+      const std::optional<SignednessPair>& given) const final {
     return absl::InternalError("Cannot merge reassociation information!");
   }
 
