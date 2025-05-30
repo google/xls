@@ -372,8 +372,9 @@ class StatefulResolver : public TypeAnnotationResolver {
                          GetStructOrProcRef(object_type, import_data_));
     if (!struct_or_proc_ref.has_value()) {
       return absl::InvalidArgumentError(absl::Substitute(
-          "Invalid access of member `$0` of non-struct type: `$1`",
-          member_type->member_name(), object_type->ToString()));
+          "Invalid access of member `$0` of non-struct type: `$1` at $2",
+          member_type->member_name(), object_type->ToString(),
+          member_type->span().ToString(file_table_)));
     }
     const StructDefBase* struct_def = struct_or_proc_ref->def;
     if (struct_def->IsParametric()) {

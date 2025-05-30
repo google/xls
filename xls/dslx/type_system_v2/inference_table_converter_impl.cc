@@ -450,6 +450,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     const Function* function = function_and_target_object.function;
+    std::optional<const ParametricContext*> caller_or_target_struct_context =
+        function_and_target_object.target_struct_context.has_value()
+            ? function_and_target_object.target_struct_context
+            : caller_context;
 
     if (caller.has_value() && function == *caller) {
       return TypeInferenceErrorStatus(
@@ -486,19 +490,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             table_.SetTypeAnnotation(invocation->callee(), ft_annotation));
       }
 
-      XLS_RETURN_IF_ERROR(
-          GenerateTypeInfo(function_and_target_object.target_struct_context,
-                           invocation->callee()));
+      XLS_RETURN_IF_ERROR(GenerateTypeInfo(caller_or_target_struct_context,
+                                           invocation->callee()));
       // For non-parametric functions, the formal argument types can be taken at
       // face value. Apply them to the actual arguments, convert them, and
       // convert the invocation itself. We use the unified signature rather than
       // the `Function` object for this, because the `Function` may have struct
       // parametrics in it which are outside their domain here, and the unified
       // signature will not.
-      XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> signature,
-                           resolver_->ResolveAndUnifyTypeAnnotationsForNode(
-                               function_and_target_object.target_struct_context,
-                               invocation->callee()));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<const TypeAnnotation*> signature,
+          resolver_->ResolveAndUnifyTypeAnnotationsForNode(
+              caller_or_target_struct_context, invocation->callee()));
       CHECK(signature.has_value());
       const auto* function_type =
           (*signature)->AsAnnotation<FunctionTypeAnnotation>();
@@ -566,11 +569,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     // The parametric invocation now gets its own data structure set up in both
     // the `InferenceTable` and the `TypeInfo` hierarchy.
-
-    std::optional<const ParametricContext*> caller_or_target_struct_context =
-        function_and_target_object.target_struct_context.has_value()
-            ? function_and_target_object.target_struct_context
-            : caller_context;
     XLS_ASSIGN_OR_RETURN(
         TypeInfo * base_type_info,
         GetTypeInfo(function->owner(), caller_or_target_struct_context));

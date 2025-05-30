@@ -7176,6 +7176,25 @@ fn get_a(s: imported::S32) -> u32 {
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
+TEST(TypecheckV2Test, PassReassignedStructFieldFromParametricFunction) {
+  EXPECT_THAT(
+      R"(
+struct S { a: u32 }
+
+fn s_passthrough(s: S) -> S { s }
+fn u32_passthrough(a: u32) -> u32 { a }
+
+fn f<N: u32>(s: S) -> u32 {
+ let s = s_passthrough(s);
+ u32_passthrough(s.a)
+}
+
+const X = f<1>(S { a: 1 });
+
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
 TEST(TypecheckV2Test, ImportedMissingStaticFunctionOnImpl) {
   constexpr std::string_view kImported = R"(
 pub struct S {}
