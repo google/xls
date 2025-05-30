@@ -29,8 +29,6 @@
 #include "absl/types/span.h"
 #include "google/protobuf/text_format.h"
 #include "xls/codegen/module_signature.pb.h"
-#include "xls/codegen/verilog_line_map.pb.h"
-#include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"

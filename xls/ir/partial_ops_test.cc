@@ -14,6 +14,7 @@
 
 #include "xls/ir/partial_ops.h"
 
+#include <vector>
 #include <algorithm>
 #include <cstdint>
 #include <string>

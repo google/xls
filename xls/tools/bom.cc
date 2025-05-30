@@ -32,7 +32,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"

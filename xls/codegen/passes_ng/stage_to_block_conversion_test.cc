@@ -23,7 +23,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -40,7 +39,6 @@
 #include "xls/interpreter/proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/channel.pb.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
@@ -54,8 +52,6 @@
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/codegen.h"
-#include "xls/tools/codegen_flags.pb.h"
-#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls::verilog {
 namespace {

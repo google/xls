@@ -615,7 +615,6 @@ cc_binary(
     deps = [
         ":pass_metrics",
         "//xls/codegen:codegen_result",
-        "//xls/codegen:module_signature",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -681,7 +680,6 @@ cc_binary(
         "//xls/codegen:codegen_options",
         "//xls/codegen:codegen_result",
         "//xls/codegen:combinational_generator",
-        "//xls/codegen:module_signature",
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:xls_metrics_cc_proto",
         "//xls/common:exit_status",
@@ -755,7 +753,6 @@ cc_binary(
         "//xls/codegen:codegen_options",
         "//xls/codegen:codegen_result",
         "//xls/codegen:combinational_generator",
-        "//xls/codegen:module_signature",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",

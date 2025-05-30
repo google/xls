@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 
+#include "xls/codegen/xls_metrics.pb.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
 #include "absl/status/statusor.h"

@@ -26,7 +26,6 @@
 #include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/channel_scope.h"
-#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/channel.h"

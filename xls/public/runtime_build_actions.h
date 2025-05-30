@@ -37,7 +37,6 @@
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_result.h"
 #include "xls/public/ir.h"
-#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"

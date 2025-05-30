@@ -31,7 +31,6 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/channel_scope.h"
-#include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"

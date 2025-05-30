@@ -16,24 +16,15 @@
 #define XLS_INTERPRETER_BLOCK_EVALUATOR_TEST_BASE_H_
 
 #include <cstdint>
-#include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
-#include "xls/interpreter/observer.h"
-#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/events.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/ir/value.h"
 
 namespace xls {
 

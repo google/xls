@@ -15,11 +15,9 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_UNIFY_TYPE_ANNOTATIONS_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_UNIFY_TYPE_ANNOTATIONS_H_
 
-#include <memory>
 #include <optional>
 #include <vector>
 
-#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -28,7 +26,6 @@
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
-#include "xls/dslx/type_system_v2/type_annotation_filter.h"
 
 namespace xls::dslx {
 

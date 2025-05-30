@@ -15,6 +15,7 @@
 #ifndef XLS_FUZZER_SAMPLE_RUNNER_H_
 #define XLS_FUZZER_SAMPLE_RUNNER_H_
 
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <functional>
 #include <optional>

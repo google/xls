@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/base/log_severity.h"
+#include "xls/contrib/xlscc/translator_types.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log_entry.h"
