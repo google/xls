@@ -215,10 +215,6 @@ const FunctionTypeAnnotation* ExpandVarargs(
 // returns true for `uN` but false for `uN[4]` or `uN[N]`.
 bool IsBitsLikeFragment(const TypeAnnotation* annotation);
 
-// Checks if range is used as a match arm, instead of actually representing an
-// array of values, since the former case should not be annotated as an array.
-bool IsRangeInMatchArm(const Range* range);
-
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_
