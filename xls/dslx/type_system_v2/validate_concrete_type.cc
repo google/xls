@@ -41,6 +41,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_utils.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
@@ -299,12 +300,12 @@ class TypeValidator : public AstNodeVisitorWithDefault {
         InterpValue start,
         ConstexprEvaluator::EvaluateToValue(
             const_cast<ImportData*>(&import_data_), const_cast<TypeInfo*>(&ti_),
-            &warning_collector_, ParametricEnv(), range->start(), type_));
+            &warning_collector_, ParametricEnv(), range->start()));
     XLS_ASSIGN_OR_RETURN(
         InterpValue end,
         ConstexprEvaluator::EvaluateToValue(
             const_cast<ImportData*>(&import_data_), const_cast<TypeInfo*>(&ti_),
-            &warning_collector_, ParametricEnv(), range->end(), type_));
+            &warning_collector_, ParametricEnv(), range->end()));
 
     if (start.Gt(end)->IsTrue()) {
       return RangeStartGreaterThanEndErrorStatus(range->span(), range, start,

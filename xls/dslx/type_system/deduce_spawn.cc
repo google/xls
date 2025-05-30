@@ -151,11 +151,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
         ctx->file_table());
   }
   for (int i = 0; i < node->config()->args().size(); i++) {
-    XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         ConstexprEvaluator::EvaluateToValue(
-                             ctx->import_data(), ctx->type_info(),
-                             ctx->warnings(), ctx->GetCurrentParametricEnv(),
-                             node->config()->args()[i], nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        ConstexprEvaluator::EvaluateToValue(
+            ctx->import_data(), ctx->type_info(), ctx->warnings(),
+            ctx->GetCurrentParametricEnv(), node->config()->args()[i]));
     constexpr_env.Add(proc->config().params()[i], value);
   }
 
@@ -209,11 +209,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
     // env.
     XLS_RET_CHECK_EQ(config_tuple->members().size(), proc->members().size());
     for (int i = 0; i < config_tuple->members().size(); i++) {
-      XLS_ASSIGN_OR_RETURN(InterpValue value,
-                           ConstexprEvaluator::EvaluateToValue(
-                               ctx->import_data(), config_ti, ctx->warnings(),
-                               ctx->GetCurrentParametricEnv(),
-                               config_tuple->members()[i], nullptr));
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue value,
+          ConstexprEvaluator::EvaluateToValue(
+              ctx->import_data(), config_ti, ctx->warnings(),
+              ctx->GetCurrentParametricEnv(), config_tuple->members()[i]));
       constexpr_env.Add(proc->members()[i], value);
     }
   }

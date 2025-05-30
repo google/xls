@@ -141,7 +141,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceEnumDef(const EnumDef* node,
         InterpValue value,
         ConstexprEvaluator::EvaluateToValue(
             ctx->import_data(), ctx->type_info(), ctx->warnings(),
-            ctx->GetCurrentParametricEnv(), member.value, nullptr));
+            ctx->GetCurrentParametricEnv(), member.value));
 
     // Right now we may have the underlying type as the noted constexpr value
     // (e.g. if we evaluated a number that was given as an enum value

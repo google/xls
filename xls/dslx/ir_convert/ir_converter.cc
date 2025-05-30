@@ -199,9 +199,6 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   if (f->tag() == FunctionTag::kProcNext) {
     if (!proc_data->id_to_initial_value.contains(record.proc_id().value())) {
       Proc* p = f->proc().value();
-      XLS_ASSIGN_OR_RETURN(
-          Type * foo, record.type_info()->GetItemOrError(p->init().body()));
-
       // If there's no value in the map, then this should be a top-level proc.
       // Verify that there are no parametric bindings.
       XLS_RET_CHECK(record.parametric_env().empty());
@@ -209,7 +206,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
           InterpValue iv,
           ConstexprEvaluator::EvaluateToValue(
               import_data, record.type_info(), kNoWarningCollector,
-              record.parametric_env(), p->init().body(), foo));
+              record.parametric_env(), p->init().body()));
       XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(iv));
       proc_data->id_to_initial_value[record.proc_id().value()] = ir_value;
     }
