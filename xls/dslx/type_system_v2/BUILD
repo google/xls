@@ -97,6 +97,7 @@ cc_library(
         ":inference_table",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -552,11 +553,23 @@ cc_library(
 
 cc_library(
     name = "evaluator",
+    srcs = ["evaluator.cc"],
     hdrs = ["evaluator.h"],
     deps = [
         ":inference_table",
+        ":inference_table_converter",
+        ":type_annotation_utils",
+        ":type_system_tracer",
+        "//xls/common:casts",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:constexpr_evaluator",
+        "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
+        "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
     ],
 )

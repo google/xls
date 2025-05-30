@@ -15,12 +15,14 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_CONVERTER_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_CONVERTER_H_
 
+#include <memory>
 #include <optional>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 
@@ -56,6 +58,15 @@ class InferenceTableConverter {
       const AstNode* node, std::optional<const Function*> function,
       std::optional<const ParametricContext*> parametric_context,
       bool filter_param_type_annotations = false) = 0;
+
+  // Converts the given type annotation to a concrete `Type`, either statically
+  // or in the context of a parametric invocation. The
+  // `needs_conversion_before_eval` flag indicates if the annotation needs its
+  // subtree converted before evaluating parts of it.
+  virtual absl::StatusOr<std::unique_ptr<Type>> Concretize(
+      const TypeAnnotation* annotation,
+      std::optional<const ParametricContext*> parametric_context,
+      bool needs_conversion_before_eval) = 0;
 
   // Determines what function is being invoked by a `callee` expression.
   virtual absl::StatusOr<const FunctionAndTargetObject> ResolveFunction(

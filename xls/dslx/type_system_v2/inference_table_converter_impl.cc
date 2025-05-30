@@ -259,7 +259,6 @@ class ProcTypeInfoFrame {
 
 class InferenceTableConverterImpl : public InferenceTableConverter,
                                     public UnificationErrorGenerator,
-                                    public Evaluator,
                                     public ParametricStructInstantiator {
  public:
   InferenceTableConverterImpl(InferenceTable& table, Module& module,
@@ -275,14 +274,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         base_type_info_(base_type_info),
         file_table_(file_table),
         tracer_(std::move(tracer)),
+        evaluator_(CreateEvaluator(table_, module_, import_data_,
+                                   warning_collector_, *this, *tracer_)),
         resolver_(TypeAnnotationResolver::Create(
             module, table, file_table,
-            /*error_generator=*/*this, /*evaluator=*/*this,
+            /*error_generator=*/*this, *evaluator_,
             /*parametric_struct_instantiator=*/*this, *tracer_, import_data_)),
         constant_collector_(CreateConstantCollector(
             table_, module_, import_data_, warning_collector_, file_table_,
-            /*converter=*/*this,
-            /*evaluator=*/*this,
+            /*converter=*/*this, *evaluator_,
             /*parametric_struct_instantiator=*/*this, *tracer_)),
         fast_concretizer_(FastConcretizer::Create(file_table)) {}
 
@@ -861,7 +861,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           if (details.callee->owner() != &module_) {
             foreign_resolver = TypeAnnotationResolver::Create(
                 *details.callee->owner(), table_, file_table_,
-                /*error_generator=*/*this, /*evaluator=*/*this,
+                /*error_generator=*/*this, /*evaluator=*/*evaluator_,
                 /*parametric_struct_instantiator=*/*this, *tracer_,
                 import_data_);
             resolver = foreign_resolver.get();
@@ -985,7 +985,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         value_exprs.emplace(binding->name_def(), binding->expr());
         XLS_ASSIGN_OR_RETURN(
             value,
-            Evaluate(ParametricContextScopedExpr(
+            evaluator_->Evaluate(ParametricContextScopedExpr(
                 struct_context, binding->type_annotation(), binding->expr())));
       }
 
@@ -1035,7 +1035,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         VLOG(6) << "Actual parametric: " << binding->identifier()
                 << " expr: " << std::get<Expr*>(parametric)->ToString();
         XLS_ASSIGN_OR_RETURN(InterpValue value,
-                             Evaluate(ParametricContextScopedExpr(
+                             evaluator_->Evaluate(ParametricContextScopedExpr(
                                  parent_context, binding->type_annotation(),
                                  std::get<Expr*>(parametric))));
         VLOG(6) << "Actual parametric: " << binding->identifier()
@@ -1053,19 +1053,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // Returns the resulting base type info for the entire conversion.
   TypeInfo* GetBaseTypeInfo() override { return base_type_info_; }
 
- private:
-  bool IsMapInvocation(const Invocation* node) {
-    return IsBuiltinFn(node->callee()) && node->callee()->ToString() == "map";
-  }
-  // Converts the given type annotation to a concrete `Type`, either statically
-  // or in the context of a parametric invocation. The
-  // `needs_conversion_before_eval` flag indicates if the annotation needs its
-  // subtree converted before evaluating parts of it (this is not applicable if
-  // the fast concretizer handles it).
   absl::StatusOr<std::unique_ptr<Type>> Concretize(
       const TypeAnnotation* annotation,
       std::optional<const ParametricContext*> parametric_context,
-      bool needs_conversion_before_eval = false) {
+      bool needs_conversion_before_eval) override {
     TypeSystemTrace trace = tracer_->TraceConcretize(annotation);
     VLOG(5) << "Concretize: " << annotation->ToString()
             << " in context invocation: " << ToString(parametric_context);
@@ -1110,8 +1101,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return std::make_unique<TupleType>(std::move(member_types));
     }
     if (const auto* array = CastToNonBitsArrayTypeAnnotation(annotation)) {
-      XLS_ASSIGN_OR_RETURN(int64_t size,
-                           EvaluateU32OrExpr(parametric_context, array->dim()));
+      XLS_ASSIGN_OR_RETURN(int64_t size, evaluator_->EvaluateU32OrExpr(
+                                             parametric_context, array->dim()));
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<Type> element_type,
           Concretize(array->element_type(), parametric_context));
@@ -1141,8 +1132,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           std::move(payload_type), channel->direction());
       if (channel->dims().has_value()) {
         for (Expr* dim : *channel->dims()) {
-          XLS_ASSIGN_OR_RETURN(int64_t size,
-                               EvaluateU32OrExpr(parametric_context, dim));
+          XLS_ASSIGN_OR_RETURN(int64_t size, evaluator_->EvaluateU32OrExpr(
+                                                 parametric_context, dim));
           type = std::make_unique<ArrayType>(
               std::move(type), TypeDim(InterpValue::MakeU32(size)));
         }
@@ -1244,85 +1235,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                              }));
     XLS_ASSIGN_OR_RETURN(
         bool signedness,
-        EvaluateBoolOrExpr(parametric_context,
-                           signedness_and_bit_count.signedness));
-    XLS_ASSIGN_OR_RETURN(int64_t bit_count,
-                         EvaluateU32OrExpr(parametric_context,
-                                           signedness_and_bit_count.bit_count));
+        evaluator_->EvaluateBoolOrExpr(parametric_context,
+                                       signedness_and_bit_count.signedness));
+    XLS_ASSIGN_OR_RETURN(
+        int64_t bit_count,
+        evaluator_->EvaluateU32OrExpr(parametric_context,
+                                      signedness_and_bit_count.bit_count));
     VLOG(5) << "Concretized: " << annotation->ToString()
             << " to signed: " << signedness << ", bit count: " << bit_count;
     return std::make_unique<BitsType>(signedness, bit_count);
-  }
-
-  // Constexpr-evaluates the given expression, whose dependencies must already
-  // be noted as constexpr's in the `TypeInfo` corresponding to the scope for
-  // the expression.
-  absl::StatusOr<InterpValue> Evaluate(
-      const ParametricContextScopedExpr& scoped_expr) override {
-    VLOG(7) << "Evaluate: " << scoped_expr.expr()->ToString()
-            << " with owner: " << scoped_expr.expr()->owner()->name()
-            << " in module: " << module_.name()
-            << " in context: " << ToString(scoped_expr.context());
-
-    // Note that `scoped_expr` will not have a `context()` in a case like
-    //  fn foo<X: u32>(...) { ... }
-    //  fn bar() {
-    //    foo<SOME_CONSTANT + 1>(...);
-    //  }
-    // The only scoped expr there is the expression being passed for `X`, which
-    // is in a non-parametric caller and therefore cannot possibly refer to any
-    // parametrics.
-    XLS_ASSIGN_OR_RETURN(
-        TypeInfo * type_info,
-        GetTypeInfo(scoped_expr.expr()->owner(), scoped_expr.context()));
-    return Evaluate(scoped_expr.context(), type_info,
-                    scoped_expr.type_annotation(), scoped_expr.expr());
-  }
-
-  // Variant that uses a specific `TypeInfo`. Use this directly when there is a
-  // need to target a temporary `TypeInfo` object, e.g. for `StructInstance`
-  // parametric values. When populating a real output `TypeInfo` object, prefer
-  // the variant that takes an `ParametricContextScopedExpr`.
-  absl::StatusOr<InterpValue> Evaluate(
-      std::optional<const ParametricContext*> parametric_context,
-      TypeInfo* type_info, const TypeAnnotation* type_annotation,
-      const Expr* expr) {
-    TypeSystemTrace trace = tracer_->TraceEvaluate(parametric_context, expr);
-
-    // This is the type of the parametric binding we are talking about, which is
-    // typically a built-in type, but the way we are concretizing it here would
-    // support it being a complex type that even refers to other parametrics.
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                         Concretize(type_annotation, parametric_context));
-    if (!type_info->Contains(const_cast<Expr*>(expr))) {
-      type_info->SetItem(expr, *type);
-    }
-    if (type_annotation->owner() == type_info->module()) {
-      // Prevent bleed-over from a different module.
-      type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
-    }
-    // TODO: https://github.com/google/xls/issues/193 - The if-statement below
-    // is here temporarily to enable easy testing of parametric variables in
-    // inference_table_test. The equivalent is done by `TypecheckModuleV2`, and
-    // that's where the logic belongs, but that doesn't yet deal with parametric
-    // variables.
-    if (expr->kind() == AstNodeKind::kNumber) {
-      if (auto* number = down_cast<const Number*>(expr);
-          number->type_annotation() != nullptr) {
-        type_info->SetItem(number->type_annotation(),
-                           MetaType(type->CloneToUnique()));
-      }
-    }
-
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue result,
-        ConstexprEvaluator::EvaluateToValue(
-            &import_data_, type_info, &warning_collector_,
-            GetParametricEnv(parametric_context), expr, /*type=*/nullptr));
-    VLOG(7) << "Evaluation result for: " << expr->ToString()
-            << " in context: " << ToString(parametric_context)
-            << " value: " << result.ToString();
-    return result;
   }
 
   absl::StatusOr<const FunctionAndTargetObject> ResolveFunction(
@@ -1428,6 +1349,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         "An invocation callee must be a function, with a possible scope "
         "indicated using `::` or `.`",
         file_table_);
+  }
+
+ private:
+  bool IsMapInvocation(const Invocation* node) {
+    return IsBuiltinFn(node->callee()) && node->callee()->ToString() == "map";
+  }
+
+  // Convenience function that assumes the passed in annotation does not need
+  // subtree conversion.
+  absl::StatusOr<std::unique_ptr<Type>> Concretize(
+      const TypeAnnotation* annotation,
+      std::optional<const ParametricContext*> parametric_context) {
+    return Concretize(annotation, parametric_context,
+                      /*needs_conversion_before_eval=*/false);
   }
 
   // Given an invocation of the `map` builtin, creates a FunctionTypeAnnotation
@@ -1567,7 +1502,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           XLS_RETURN_IF_ERROR(ConvertSubtree(binding->expr(), std::nullopt,
                                              invocation_context));
         }
-        XLS_ASSIGN_OR_RETURN(InterpValue value, Evaluate(*expr));
+        XLS_ASSIGN_OR_RETURN(InterpValue value, evaluator_->Evaluate(*expr));
         invocation_context->type_info()->NoteConstExpr(binding->name_def(),
                                                        value);
         values.emplace(binding->name_def()->identifier(), value);
@@ -1751,7 +1686,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           resolved = SolveForParametrics(
               actual_arg_type, formal_types[i], implicit_parametrics,
               [&](const TypeAnnotation* expected_type, const Expr* expr) {
-                return Evaluate(ParametricContextScopedExpr(
+                return evaluator_->Evaluate(ParametricContextScopedExpr(
                     actual_arg_context, expected_type, expr));
               });
       if (!resolved.ok()) {
@@ -1800,68 +1735,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                        absl::StrJoin(binding_names, ", ")));
     }
     return values;
-  }
-
-  absl::StatusOr<bool> EvaluateBoolOrExpr(
-      std::optional<const ParametricContext*> parametric_context,
-      std::variant<bool, const Expr*> value_or_expr) override {
-    if (std::holds_alternative<bool>(value_or_expr)) {
-      return std::get<bool>(value_or_expr);
-    }
-    const Expr* expr = std::get<const Expr*>(value_or_expr);
-
-    XLS_RETURN_IF_ERROR(ConvertSubtree(expr, std::nullopt, parametric_context));
-
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue value,
-        Evaluate(ParametricContextScopedExpr(
-            parametric_context,
-            CreateBoolAnnotation(*expr->owner(), expr->span()), expr)));
-    return value.GetBitValueUnsigned();
-  }
-
-  absl::StatusOr<int64_t> EvaluateU32OrExpr(
-      std::optional<const ParametricContext*> parametric_context,
-      std::variant<int64_t, const Expr*> value_or_expr) override {
-    return Evaluate32BitIntOrExpr(parametric_context, value_or_expr,
-                                  /*is_signed=*/false);
-  }
-
-  absl::StatusOr<int64_t> EvaluateS32OrExpr(
-      std::optional<const ParametricContext*> parametric_context,
-      std::variant<int64_t, const Expr*> value_or_expr) override {
-    return Evaluate32BitIntOrExpr(parametric_context, value_or_expr,
-                                  /*is_signed=*/true);
-  }
-
-  absl::StatusOr<int64_t> Evaluate32BitIntOrExpr(
-      std::optional<const ParametricContext*> parametric_context,
-      std::variant<int64_t, const Expr*> value_or_expr, bool is_signed) {
-    if (std::holds_alternative<int64_t>(value_or_expr)) {
-      return std::get<int64_t>(value_or_expr);
-    }
-    const Expr* expr = std::get<const Expr*>(value_or_expr);
-
-    XLS_RETURN_IF_ERROR(
-        ConvertSubtree(expr, /*function=*/std::nullopt, parametric_context));
-
-    std::optional<const TypeAnnotation*> type_annotation =
-        table_.GetTypeAnnotation(expr);
-    if (!type_annotation.has_value()) {
-      type_annotation = is_signed
-                            ? CreateS32Annotation(*expr->owner(), expr->span())
-                            : CreateU32Annotation(*expr->owner(), expr->span());
-    }
-    XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         Evaluate(ParametricContextScopedExpr(
-                             parametric_context, *type_annotation, expr)));
-    int64_t result;
-    if (value.IsSigned()) {
-      XLS_ASSIGN_OR_RETURN(result, value.GetBitValueSigned());
-    } else {
-      XLS_ASSIGN_OR_RETURN(result, value.GetBitValueUnsigned());
-    }
-    return result;
   }
 
   absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
@@ -1975,8 +1848,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
         XLS_ASSIGN_OR_RETURN(
             InterpValue value,
-            Evaluate(parent_context, instance_type_info,
-                     binding->type_annotation(), binding->expr()));
+            evaluator_->Evaluate(parent_context, instance_type_info,
+                                 binding->type_annotation(), binding->expr()));
         XLS_RETURN_IF_ERROR(set_value(binding, value));
       } else {
         implicit_parametrics.insert(binding);
@@ -2167,6 +2040,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   TypeInfo* const base_type_info_;
   const FileTable& file_table_;
   std::unique_ptr<TypeSystemTracer> tracer_;
+  std::unique_ptr<Evaluator> evaluator_;
   std::unique_ptr<TypeAnnotationResolver> resolver_;
   std::unique_ptr<ConstantCollector> constant_collector_;
   std::unique_ptr<FastConcretizer> fast_concretizer_;
