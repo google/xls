@@ -1130,6 +1130,10 @@ absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
 absl::Status IrTranslator::HandleDynamicBitSlice(
     DynamicBitSlice* dynamic_bit_slice) {
   ScopedErrorHandler seh(ctx_);
+  if (dynamic_bit_slice->BitCountOrDie() == 0) {
+    NoteTranslation(dynamic_bit_slice, CreateZeroBitsValue());
+    return seh.status();
+  }
   Z3_ast value = GetBitVec(dynamic_bit_slice->operand(0));
   Z3_ast start = GetBitVec(dynamic_bit_slice->operand(1));
   int64_t value_width = dynamic_bit_slice->operand(0)->BitCountOrDie();
