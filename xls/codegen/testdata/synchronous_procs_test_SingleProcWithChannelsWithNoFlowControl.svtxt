@@ -1,0 +1,10 @@
+module my_proc(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] in,
+  output wire [31:0] out
+);
+  wire [31:0] add_18;
+  assign add_18 = in + 32'h0000_002a;
+  assign out = add_18;
+endmodule

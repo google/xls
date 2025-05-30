@@ -58,6 +58,11 @@ namespace xls {
 
 namespace {
 
+// Return a node name which is unique to the package.
+std::string PackageUniqueName(Node* node) {
+  return absl::StrFormat("%s[%d]", node->GetName(), node->id());
+}
+
 using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 namespace math_opt = ::operations_research::math_opt;
 
@@ -248,12 +253,16 @@ SDCSchedulingModel::SDCSchedulingModel(
     }
 
     if (schedule_node.schedule_in_first_stage) {
+      VLOG(2) << "Setting first-stage constraint: "
+              << absl::StrFormat("cycle[%s] ≤ 0", node->GetName());
       model_.AddLinearConstraint(
           cycle_var_.at(node) <= 0,
           absl::StrCat("in_first_stage:", model_node_name));
     }
     if (schedule_node.schedule_in_last_stage) {
       CHECK(!schedule_node.schedule_in_first_stage);
+      VLOG(2) << "Setting last-stage constraint: "
+              << absl::StrFormat("cycle[%s] ≥ $last_stage", node->GetName());
       model_.AddLinearConstraint(
           cycle_var_.at(node) >= last_stage_,
           absl::StrCat("in_last_stage:", model_node_name));
@@ -1009,14 +1018,16 @@ math_opt::LinearConstraint SDCSchedulingModel::DiffAtMostConstraint(
     Node* x, Node* y, int64_t limit, std::string_view name) {
   return model_.AddLinearConstraint(
       cycle_var_.at(x) - cycle_var_.at(y) <= static_cast<double>(limit),
-      absl::StrFormat("%s:%s-%s≤%d", name, x->GetName(), y->GetName(), limit));
+      absl::StrFormat("%s:%s-%s≤%d", name, PackageUniqueName(x),
+                      PackageUniqueName(y), limit));
 }
 
 math_opt::LinearConstraint SDCSchedulingModel::DiffLessThanConstraint(
     Node* x, Node* y, int64_t limit, std::string_view name) {
   return model_.AddLinearConstraint(
       cycle_var_.at(x) - cycle_var_.at(y) <= static_cast<double>(limit - 1),
-      absl::StrFormat("%s:%s-%s<%d", name, x->GetName(), y->GetName(), limit));
+      absl::StrFormat("%s:%s-%s<%d", name, PackageUniqueName(x),
+                      PackageUniqueName(y), limit));
 }
 
 math_opt::LinearConstraint SDCSchedulingModel::DiffAtLeastConstraint(
@@ -1024,25 +1035,28 @@ math_opt::LinearConstraint SDCSchedulingModel::DiffAtLeastConstraint(
   CHECK(!IsUntimed(y));
   return model_.AddLinearConstraint(
       cycle_var_.at(x) - cycle_var_.at(y) >= static_cast<double>(limit),
-      absl::StrFormat("%s:%s-%s≥%d", name, x->GetName(), y->GetName(), limit));
+      absl::StrFormat("%s:%s-%s≥%d", name, PackageUniqueName(x),
+                      PackageUniqueName(y), limit));
 }
 
 math_opt::LinearConstraint SDCSchedulingModel::DiffGreaterThanConstraint(
     Node* x, Node* y, int64_t limit, std::string_view name) {
   return model_.AddLinearConstraint(
       cycle_var_.at(x) - cycle_var_.at(y) >= static_cast<double>(limit + 1),
-      absl::StrFormat("%s:%s-%s≥%d", name, x->GetName(), y->GetName(), limit));
+      absl::StrFormat("%s:%s-%s≥%d", name, PackageUniqueName(x),
+                      PackageUniqueName(y), limit));
 }
 
 math_opt::LinearConstraint SDCSchedulingModel::DiffEqualsConstraint(
     Node* x, Node* y, int64_t diff, std::string_view name) {
   if (x == y) {
-    LOG(FATAL) << "DiffEqualsConstraint: " << x->GetName() << " - "
-               << y->GetName() << " = " << diff << " is unsatisfiable";
+    LOG(FATAL) << "DiffEqualsConstraint: " << PackageUniqueName(x) << " - "
+               << PackageUniqueName(y) << " = " << diff << " is unsatisfiable";
   }
   return model_.AddLinearConstraint(
       cycle_var_.at(x) - cycle_var_.at(y) == static_cast<double>(diff),
-      absl::StrFormat("%s:%s-%s=%d", name, x->GetName(), y->GetName(), diff));
+      absl::StrFormat("%s:%s-%s=%d", name, PackageUniqueName(x),
+                      PackageUniqueName(y), diff));
 }
 
 math_opt::Variable SDCSchedulingModel::AddUpperBoundSlack(

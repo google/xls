@@ -51,6 +51,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/proc_instantiation.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
@@ -159,14 +160,67 @@ bool HasZeroWidthType(TupleType* tuple_type) {
   return false;
 }
 
-struct FifoConnections {
-  xls::FifoInstantiation* instantiation;
+struct InstantiationConnections {
+  xls::Instantiation* instantiation;
   CloneNodesIntoBlockHandler::ChannelConnection receive_connection;
   CloneNodesIntoBlockHandler::ChannelConnection send_connection;
 };
 
+// Adds a DelayLine instantiation to the given block which backs the given
+// channel.
+absl::StatusOr<InstantiationConnections> AddDelayLine(StreamingChannel* channel,
+                                                      Block* block,
+                                                      int64_t delay) {
+  XLS_ASSIGN_OR_RETURN(
+      Node * dummy_data,
+      block->MakeNode<xls::Literal>(SourceInfo(), ZeroOfType(channel->type())));
+
+  std::string inst_name =
+      absl::StrFormat("delay_line_%s_%d", channel->name(), delay);
+  XLS_ASSIGN_OR_RETURN(xls::DelayLineInstantiation * instantiation,
+                       block->AddDelayLineInstantiation(
+                           inst_name, delay, channel->type(), channel->name(),
+                           block->GetResetBehavior()));
+  XLS_ASSIGN_OR_RETURN(InstantiationConnection * data_in,
+                       block->MakeNode<xls::InstantiationInput>(
+                           SourceInfo(), dummy_data, instantiation,
+                           xls::DelayLineInstantiation::kPushDataPortName));
+  XLS_ASSIGN_OR_RETURN(InstantiationConnection * data_out,
+                       block->MakeNode<xls::InstantiationOutput>(
+                           SourceInfo(), instantiation,
+                           DelayLineInstantiation::kPopDataPortName));
+  if (instantiation->GetResetBehavior()) {
+    XLS_RET_CHECK(instantiation->GetResetBehavior() ==
+                  block->GetResetBehavior());
+    XLS_RETURN_IF_ERROR(block
+                            ->MakeNode<xls::InstantiationInput>(
+                                SourceInfo(), block->GetResetPort().value(),
+                                instantiation,
+                                xls::DelayLineInstantiation::kResetPortName)
+                            .status());
+  }
+
+  CloneNodesIntoBlockHandler::ChannelConnection push_connection{
+      .channel = channel,
+      .direction = ChannelDirection::kSend,
+      .kind = ConnectionKind::kInternal,
+      .data = data_in,
+      .valid = std::nullopt,
+      .ready = std::nullopt};
+  CloneNodesIntoBlockHandler::ChannelConnection pop_connection{
+      .channel = channel,
+      .direction = ChannelDirection::kReceive,
+      .kind = ConnectionKind::kInternal,
+      .data = data_out,
+      .valid = std::nullopt,
+      .ready = std::nullopt};
+  return InstantiationConnections{.instantiation = instantiation,
+                                  .receive_connection = pop_connection,
+                                  .send_connection = push_connection};
+}
+
 // Adds a FIFO instantiation to the given block which backs the given channel.
-absl::StatusOr<FifoConnections> AddFifoInstantiation(
+absl::StatusOr<InstantiationConnections> AddFifoInstantiation(
     StreamingChannel* channel, Block* block, const CodegenOptions& options) {
   XLS_RET_CHECK(channel->channel_config().fifo_config().has_value())
       << absl::StreamFormat("Channel %s has no fifo config.", channel->name());
@@ -188,16 +242,19 @@ absl::StatusOr<FifoConnections> AddFifoInstantiation(
   XLS_ASSIGN_OR_RETURN(Node * one, block->MakeNode<xls::Literal>(
                                        SourceInfo(), Value(UBits(1, 1))));
 
-  XLS_ASSIGN_OR_RETURN(
-      InstantiationConnection * push_data,
-      block->MakeNode<xls::InstantiationInput>(SourceInfo(), dummy_data,
-                                               instantiation, "push_data"));
+  XLS_ASSIGN_OR_RETURN(InstantiationConnection * push_data,
+                       block->MakeNode<xls::InstantiationInput>(
+                           SourceInfo(), dummy_data, instantiation,
+                           FifoInstantiation::kPushDataPortName));
   XLS_ASSIGN_OR_RETURN(InstantiationConnection * push_valid,
                        block->MakeNode<xls::InstantiationInput>(
-                           SourceInfo(), one, instantiation, "push_valid"));
-  XLS_ASSIGN_OR_RETURN(InstantiationConnection * push_ready,
-                       block->MakeNode<xls::InstantiationOutput>(
-                           SourceInfo(), instantiation, "push_ready"));
+                           SourceInfo(), one, instantiation,
+                           FifoInstantiation::kPushValidPortName));
+  XLS_ASSIGN_OR_RETURN(
+      InstantiationConnection * push_ready,
+      block->MakeNode<xls::InstantiationOutput>(
+          SourceInfo(), instantiation, FifoInstantiation::kPushReadyPortName));
+
   CloneNodesIntoBlockHandler::ChannelConnection push_connection{
       .channel = channel,
       .direction = ChannelDirection::kSend,
@@ -206,15 +263,19 @@ absl::StatusOr<FifoConnections> AddFifoInstantiation(
       .valid = push_valid,
       .ready = push_ready};
 
-  XLS_ASSIGN_OR_RETURN(InstantiationConnection * pop_data,
-                       block->MakeNode<xls::InstantiationOutput>(
-                           SourceInfo(), instantiation, "pop_data"));
-  XLS_ASSIGN_OR_RETURN(InstantiationConnection * pop_valid,
-                       block->MakeNode<xls::InstantiationOutput>(
-                           SourceInfo(), instantiation, "pop_valid"));
+  XLS_ASSIGN_OR_RETURN(
+      InstantiationConnection * pop_data,
+      block->MakeNode<xls::InstantiationOutput>(
+          SourceInfo(), instantiation, FifoInstantiation::kPopDataPortName));
+  XLS_ASSIGN_OR_RETURN(
+      InstantiationConnection * pop_valid,
+      block->MakeNode<xls::InstantiationOutput>(
+          SourceInfo(), instantiation, FifoInstantiation::kPopValidPortName));
+  ;
   XLS_ASSIGN_OR_RETURN(InstantiationConnection * pop_ready,
                        block->MakeNode<xls::InstantiationInput>(
-                           SourceInfo(), one, instantiation, "pop_ready"));
+                           SourceInfo(), one, instantiation,
+                           FifoInstantiation::kPopReadyPortName));
   CloneNodesIntoBlockHandler::ChannelConnection pop_connection{
       .channel = channel,
       .direction = ChannelDirection::kReceive,
@@ -222,9 +283,9 @@ absl::StatusOr<FifoConnections> AddFifoInstantiation(
       .data = pop_data,
       .valid = pop_valid,
       .ready = pop_ready};
-  return FifoConnections{.instantiation = instantiation,
-                         .receive_connection = pop_connection,
-                         .send_connection = push_connection};
+  return InstantiationConnections{.instantiation = instantiation,
+                                  .receive_connection = pop_connection,
+                                  .send_connection = push_connection};
 }
 
 std::optional<std::string> GetOptionalNodeName(std::optional<Node*> n) {
@@ -238,7 +299,8 @@ std::optional<std::string> GetOptionalNodeName(std::optional<Node*> n) {
 // block port mapping metadata to the block.
 absl::StatusOr<CloneNodesIntoBlockHandler::ChannelConnection>
 AddPortsForReceive(ChannelRef channel, Block* block,
-                   const CodegenOptions& options) {
+                   const CodegenOptions& options,
+                   std::optional<ChannelNode*> receive) {
   std::string_view data_suffix =
       (ChannelRefKind(channel) == ChannelKind::kStreaming)
           ? options.streaming_channel_data_suffix()
@@ -250,40 +312,36 @@ AddPortsForReceive(ChannelRef channel, Block* block,
   std::optional<Node*> valid;
   std::optional<Node*> ready;
   if (ChannelRefKind(channel) == ChannelKind::kStreaming) {
-    XLS_ASSIGN_OR_RETURN(
-        valid, block->AddInputPort(
-                   absl::StrCat(ChannelRefName(channel),
-                                options.streaming_channel_valid_suffix()),
-                   block->package()->GetBitsType(1)));
-    XLS_ASSIGN_OR_RETURN(Node * one, block->MakeNode<xls::Literal>(
-                                         SourceInfo(), Value(UBits(1, 1))));
-    XLS_ASSIGN_OR_RETURN(
-        ready, block->AddOutputPort(
-                   absl::StrCat(ChannelRefName(channel),
-                                options.streaming_channel_ready_suffix()),
-                   one));
+    if (ChannelRefFlowControl(channel) == FlowControl::kReadyValid) {
+      XLS_ASSIGN_OR_RETURN(
+          valid, block->AddInputPort(
+                     absl::StrCat(ChannelRefName(channel),
+                                  options.streaming_channel_valid_suffix()),
+                     block->package()->GetBitsType(1)));
+      XLS_ASSIGN_OR_RETURN(Node * one, block->MakeNode<xls::Literal>(
+                                           SourceInfo(), Value(UBits(1, 1))));
+      XLS_ASSIGN_OR_RETURN(
+          ready, block->AddOutputPort(
+                     absl::StrCat(ChannelRefName(channel),
+                                  options.streaming_channel_ready_suffix()),
+                     one));
+    }
   }
-
-  CloneNodesIntoBlockHandler::ChannelConnection connection{
+  return CloneNodesIntoBlockHandler::ChannelConnection{
       .channel = channel,
       .direction = ChannelDirection::kReceive,
       .kind = ConnectionKind::kExternal,
+      .channel_node = receive,
       .data = data,
       .valid = valid,
       .ready = ready};
-
-  XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-      channel, ChannelDirection::kReceive, GetOptionalNodeName(connection.data),
-      GetOptionalNodeName(connection.valid),
-      GetOptionalNodeName(connection.ready)));
-
-  return connection;
 }
 
 // Adds the ports on `block` required for sending on `channel`. Also, adds the
 // block port mapping metadata to the block.
 absl::StatusOr<CloneNodesIntoBlockHandler::ChannelConnection> AddPortsForSend(
-    ChannelRef channel, Block* block, const CodegenOptions& options) {
+    ChannelRef channel, Block* block, const CodegenOptions& options,
+    std::optional<ChannelNode*> send) {
   std::string_view data_suffix =
       (ChannelRefKind(channel) == ChannelKind::kStreaming)
           ? options.streaming_channel_data_suffix()
@@ -298,64 +356,108 @@ absl::StatusOr<CloneNodesIntoBlockHandler::ChannelConnection> AddPortsForSend(
   std::optional<Node*> valid;
   std::optional<Node*> ready;
   if (ChannelRefKind(channel) == ChannelKind::kStreaming) {
-    XLS_ASSIGN_OR_RETURN(Node * one, block->MakeNode<xls::Literal>(
-                                         SourceInfo(), Value(UBits(1, 1))));
-    XLS_ASSIGN_OR_RETURN(
-        valid, block->AddOutputPort(
-                   absl::StrCat(ChannelRefName(channel),
-                                options.streaming_channel_valid_suffix()),
-                   one));
-    XLS_ASSIGN_OR_RETURN(
-        ready, block->AddInputPort(
-                   absl::StrCat(ChannelRefName(channel),
-                                options.streaming_channel_ready_suffix()),
-                   block->package()->GetBitsType(1)));
+    if (ChannelRefFlowControl(channel) == FlowControl::kReadyValid) {
+      XLS_ASSIGN_OR_RETURN(Node * one, block->MakeNode<xls::Literal>(
+                                           SourceInfo(), Value(UBits(1, 1))));
+      XLS_ASSIGN_OR_RETURN(
+          valid, block->AddOutputPort(
+                     absl::StrCat(ChannelRefName(channel),
+                                  options.streaming_channel_valid_suffix()),
+                     one));
+      XLS_ASSIGN_OR_RETURN(
+          ready, block->AddInputPort(
+                     absl::StrCat(ChannelRefName(channel),
+                                  options.streaming_channel_ready_suffix()),
+                     block->package()->GetBitsType(1)));
+    }
   }
 
-  CloneNodesIntoBlockHandler::ChannelConnection connection{
+  return CloneNodesIntoBlockHandler::ChannelConnection{
       .channel = channel,
       .direction = ChannelDirection::kSend,
       .kind = ConnectionKind::kExternal,
+      .channel_node = send,
       .data = data,
       .valid = valid,
       .ready = ready};
-
-  XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-      channel, ChannelDirection::kSend, GetOptionalNodeName(connection.data),
-      GetOptionalNodeName(connection.valid),
-      GetOptionalNodeName(connection.ready)));
-
-  return connection;
 }
 
 absl::StatusOr<std::vector<CloneNodesIntoBlockHandler::ChannelConnection>>
-AddChannelConnections(Proc* proc, Block* block, const CodegenOptions& options) {
+AddChannelConnections(Proc* proc, Block* block, const CodegenOptions& options,
+                      std::optional<const PackageSchedule*> schedule,
+                      std::optional<const ProcElaboration*> elab) {
   std::vector<CloneNodesIntoBlockHandler::ChannelConnection> connections;
   if (proc->is_new_style_proc()) {
+    absl::flat_hash_map<Channel*, ChannelUsers> channel_users;
+    if (elab.has_value()) {
+      XLS_ASSIGN_OR_RETURN(channel_users,
+                           GetChannelUsers(proc->package(), elab));
+    }
+    absl::flat_hash_map<ChannelInterface*, std::vector<ChannelNode*>>
+        interface_nodes;
+    XLS_ASSIGN_OR_RETURN(interface_nodes, GetChannelInterfaceUsers(proc));
+
     // Iterate through interface and add data/valid/ready ports as needed.
     for (ChannelInterface* interface : proc->interface()) {
+      std::optional<ChannelNode*> channel_node;
+      if (interface_nodes.contains(interface)) {
+        XLS_RET_CHECK_EQ(interface_nodes.at(interface).size(), 1);
+        channel_node = interface_nodes.at(interface).front();
+      }
       if (interface->direction() == ChannelDirection::kSend) {
         XLS_ASSIGN_OR_RETURN(
             CloneNodesIntoBlockHandler::ChannelConnection connection,
-            AddPortsForSend(interface, block, options));
-
+            AddPortsForSend(
+                interface, block, options,
+                channel_node.has_value()
+                    ? std::make_optional(channel_node.value()->As<Send>())
+                    : std::nullopt));
         connections.push_back(connection);
       } else {
         XLS_ASSIGN_OR_RETURN(
             CloneNodesIntoBlockHandler::ChannelConnection connection,
-            AddPortsForReceive(interface, block, options));
+            AddPortsForReceive(
+                interface, block, options,
+                channel_node.has_value()
+                    ? std::make_optional(channel_node.value()->As<Receive>())
+                    : std::nullopt));
         connections.push_back(connection);
       }
     }
     // Create a FIFO instantiation for each channel declared in the proc.
     for (Channel* channel : proc->channels()) {
-      XLS_ASSIGN_OR_RETURN(
-          FifoConnections fifo_connections,
-          AddFifoInstantiation(down_cast<StreamingChannel*>(channel), block,
-                               options));
-
-      connections.push_back(fifo_connections.send_connection);
-      connections.push_back(fifo_connections.receive_connection);
+      InstantiationConnections instantiation_connections;
+      if (down_cast<StreamingChannel*>(channel)->GetFlowControl() ==
+          FlowControl::kNone) {
+        // Channel has no flow control so we don't put in a normal fifo, instead
+        // we need some fixed delay.
+        if (channel_users.at(channel).sends.size() != 1) {
+          return absl::InternalError(absl::StrFormat(
+              "Channel `%s` has zero or multiple sends: %d", channel->name(),
+              channel_users.at(channel).sends.size()));
+        }
+        if (channel_users.at(channel).receives.size() != 1) {
+          return absl::InternalError(absl::StrFormat(
+              "Channel `%s` has zero or multiple receives: %d", channel->name(),
+              channel_users.at(channel).receives.size()));
+        }
+        Send* send = channel_users.at(channel).sends.front();
+        Receive* receive = channel_users.at(channel).receives.front();
+        XLS_RET_CHECK_LE(schedule.value()->GetSynchronousCycle(send),
+                         schedule.value()->GetSynchronousCycle(receive));
+        int64_t delay = schedule.value()->GetSynchronousCycle(receive) -
+                        schedule.value()->GetSynchronousCycle(send);
+        XLS_ASSIGN_OR_RETURN(
+            instantiation_connections,
+            AddDelayLine(down_cast<StreamingChannel*>(channel), block, delay));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            instantiation_connections,
+            AddFifoInstantiation(down_cast<StreamingChannel*>(channel), block,
+                                 options));
+      }
+      connections.push_back(instantiation_connections.send_connection);
+      connections.push_back(instantiation_connections.receive_connection);
     }
   } else {
     // Add a FIFO instantiation for each loopback channel.
@@ -363,13 +465,12 @@ AddChannelConnections(Proc* proc, Block* block, const CodegenOptions& options) {
                          GetLoopbackChannels(proc));
     for (Channel* channel : loopback_channels) {
       XLS_ASSIGN_OR_RETURN(
-          FifoConnections fifo_connections,
+          InstantiationConnections fifo_connections,
           AddFifoInstantiation(down_cast<StreamingChannel*>(channel), block,
                                options));
       connections.push_back(fifo_connections.send_connection);
       connections.push_back(fifo_connections.receive_connection);
     }
-
     absl::flat_hash_set<Channel*> loopback_channel_set;
     loopback_channel_set.insert(loopback_channels.begin(),
                                 loopback_channels.end());
@@ -377,6 +478,9 @@ AddChannelConnections(Proc* proc, Block* block, const CodegenOptions& options) {
     // Iterate through nodes and add data/valid/ready ports for any non-loopback
     // channel node encountered.
     absl::flat_hash_set<std::pair<Channel*, ChannelDirection>> channels;
+    absl::flat_hash_map<std::pair<Channel*, ChannelDirection>,
+                        std::optional<ChannelNode*>>
+        channel_nodes;
     for (Node* node : proc->nodes()) {
       if (node->Is<ChannelNode>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel,
@@ -385,10 +489,13 @@ AddChannelConnections(Proc* proc, Block* block, const CodegenOptions& options) {
           // Loopback channels are handled above.
           continue;
         }
-        if (node->Is<Receive>()) {
-          channels.insert({channel, ChannelDirection::kReceive});
-        } else if (node->Is<Send>()) {
-          channels.insert({channel, ChannelDirection::kSend});
+        std::pair<Channel*, ChannelDirection> key(
+            channel, node->As<ChannelNode>()->direction());
+        channels.insert(key);
+        if (channel_nodes.contains(key)) {
+          channel_nodes[key] = std::nullopt;
+        } else {
+          channel_nodes[key] = node->As<ChannelNode>();
         }
       }
     }
@@ -400,15 +507,19 @@ AddChannelConnections(Proc* proc, Block* block, const CodegenOptions& options) {
                 return a.first->name() < b.first->name();
               });
     for (auto [channel, direction] : sorted_channels) {
+      std::optional<ChannelNode*> channel_node;
+      if (channel_nodes.contains({channel, direction})) {
+        channel_node = channel_nodes.at({channel, direction});
+      }
       if (direction == ChannelDirection::kReceive) {
         XLS_ASSIGN_OR_RETURN(
             CloneNodesIntoBlockHandler::ChannelConnection connection,
-            AddPortsForReceive(channel, block, options));
+            AddPortsForReceive(channel, block, options, channel_node));
         connections.push_back(connection);
       } else {
         XLS_ASSIGN_OR_RETURN(
             CloneNodesIntoBlockHandler::ChannelConnection connection,
-            AddPortsForSend(channel, block, options));
+            AddPortsForSend(channel, block, options, channel_node));
         connections.push_back(connection);
       }
     }
@@ -423,8 +534,9 @@ CloneNodesIntoBlockHandler::AddChannelPortsAndFifoInstantiations() {
   XLS_RET_CHECK(is_proc_);
   Proc* proc = function_base_->AsProcOrDie();
 
-  XLS_ASSIGN_OR_RETURN(std::vector<ChannelConnection> connections,
-                       AddChannelConnections(proc, block(), options_));
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<ChannelConnection> connections,
+      AddChannelConnections(proc, block(), options_, schedule_, elab_));
   for (const ChannelConnection& connection : connections) {
     channel_connections_[std::make_pair(
         std::string{ChannelRefName(connection.channel)},
@@ -449,6 +561,9 @@ absl::Status CloneNodesIntoBlockHandler::ChannelConnection::ReplaceDataSignal(
   XLS_RET_CHECK_EQ(direction, ChannelDirection::kSend);
   if (data->Is<OutputPort>()) {
     return data->ReplaceOperandNumber(OutputPort::kOperandOperand, value);
+  }
+  if (data->Is<UnOp>()) {
+    return data->ReplaceOperandNumber(0, value);
   }
   XLS_RET_CHECK(data->Is<InstantiationInput>());
   return data->ReplaceOperandNumber(InstantiationInput::kDataOperand, value);
@@ -507,7 +622,7 @@ absl::Status CloneNodesIntoBlockHandler::AddBlockInstantiations(
     for (int64_t i = 0; i < proc_instantiation->channel_args().size(); ++i) {
       ChannelInterface* caller_interface =
           proc_instantiation->channel_args()[i];
-      const ChannelConnection& connection =
+      ChannelConnection& connection =
           channel_connections_.at({std::string{caller_interface->name()},
                                    caller_interface->direction()});
       ChannelInterface* callee_interface =
@@ -521,6 +636,9 @@ absl::Status CloneNodesIntoBlockHandler::AddBlockInstantiations(
                           .data_port = callee_port_metadata.data_port.value(),
                           .ready_port = callee_port_metadata.ready_port,
                           .valid_port = callee_port_metadata.valid_port});
+
+      connection.instantiated_channel_interface = callee_interface;
+      connection.instantiated_block = instantiated_block;
     }
 
     // Gather inputs to feed into the instantiation.
@@ -565,15 +683,58 @@ absl::Status CloneNodesIntoBlockHandler::AddBlockInstantiations(
   return absl::OkStatus();
 }
 
+absl::Status CloneNodesIntoBlockHandler::AddBlockMetadata() {
+  XLS_RET_CHECK(is_proc_);
+  Proc* proc = function_base_->AsProcOrDie();
+  std::vector<std::pair<std::string, ChannelDirection>> keys;
+  for (const auto& [key, _] : channel_connections_) {
+    keys.push_back(key);
+  }
+  std::sort(keys.begin(), keys.end());
+  for (const std::pair<std::string, ChannelDirection>& key : keys) {
+    const ChannelConnection& connection = channel_connections_.at(key);
+    if (connection.kind == ConnectionKind::kInternal) {
+      continue;
+    }
+    XLS_RET_CHECK(connection.data->Is<PortNode>());
+    std::optional<int64_t> stage;
+    if (schedule_.has_value()) {
+      if (connection.channel_node.has_value()) {
+        stage = GetSchedule().cycle(*connection.channel_node);
+      } else if (proc->is_new_style_proc()) {
+        // If the channel node is not specified, then the other end of the
+        // connection is a block instantiation.
+        XLS_RET_CHECK(connection.instantiated_channel_interface.has_value());
+        XLS_RET_CHECK(connection.instantiated_block.has_value());
+        XLS_ASSIGN_OR_RETURN(
+            ChannelPortMetadata callee_port_metadata,
+            connection.instantiated_block.value()->GetChannelPortMetadata(
+                connection.instantiated_channel_interface.value()->name(),
+                connection.instantiated_channel_interface.value()
+                    ->direction()));
+        stage = callee_port_metadata.stage;
+      }
+    }
+    XLS_RETURN_IF_ERROR(block()->AddChannelPortMetadata(
+        connection.channel, connection.direction,
+        GetOptionalNodeName(connection.data),
+        GetOptionalNodeName(connection.valid),
+        GetOptionalNodeName(connection.ready), stage));
+  }
+  return absl::OkStatus();
+}
+
 CloneNodesIntoBlockHandler::CloneNodesIntoBlockHandler(
     FunctionBase* proc_or_function, int64_t stage_count,
     const CodegenOptions& options, Block* block,
-    std::optional<const PackageSchedule*> schedule)
+    std::optional<const PackageSchedule*> schedule,
+    std::optional<const ProcElaboration*> elab)
     : is_proc_(proc_or_function->IsProc()),
       function_base_(proc_or_function),
       options_(options),
       block_(block),
-      schedule_(schedule) {
+      schedule_(schedule),
+      elab_(elab) {
   if (is_proc_) {
     Proc* proc = function_base_->AsProcOrDie();
     result_.state_registers.resize(proc->GetStateElementCount());
@@ -856,9 +1017,9 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      Node * literal_1,
-      block()->MakeNode<xls::Literal>(receive->loc(), Value(UBits(1, 1))));
+  XLS_ASSIGN_OR_RETURN(Node * literal_1,
+                       block()->MakeNodeWithName<xls::Literal>(
+                           receive->loc(), Value(UBits(1, 1)), "one"));
 
   if (ChannelRefKind(connection.channel) == ChannelKind::kSingleValue) {
     XLS_RET_CHECK(!connection.valid.has_value());
@@ -884,8 +1045,8 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
   }
 
   XLS_RET_CHECK_EQ(ChannelRefKind(connection.channel), ChannelKind::kStreaming);
-  XLS_RET_CHECK_EQ(ChannelRefFlowControl(connection.channel),
-                   FlowControl::kReadyValid);
+
+  Node* valid = connection.valid.value_or(literal_1);
 
   // If blocking return a tuple of (token, data), and if non-blocking
   // return a tuple of (token, data, valid).
@@ -920,8 +1081,8 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
             receive->loc(), ZeroOfType(connection.data->GetType())));
     // Ensure that the output of the receive is zero when the data is not
     // valid or the predicate is false.
-    Node* valid = connection.valid.value();
     Node* data = connection.data;
+
     if (options_.gate_recvs()) {
       if (receive->predicate().has_value()) {
         XLS_ASSIGN_OR_RETURN(
@@ -929,8 +1090,8 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
             block()->MakeNode<NaryOp>(
                 /*loc=*/receive->loc(),
                 /*args=*/
-                std::vector<Node*>({node_map_.at(receive->predicate().value()),
-                                    connection.valid.value()}),
+                std::vector<Node*>(
+                    {node_map_.at(receive->predicate().value()), valid}),
                 /*op=*/Op::kAnd));
         valid = and_pred;
       }
@@ -953,8 +1114,7 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleReceiveNode(
   }
 
   // To the rest of the logic, a non-blocking receive is always valid.
-  Node* signal_valid =
-      receive->is_blocking() ? connection.valid.value() : literal_1;
+  Node* signal_valid = receive->is_blocking() ? valid : literal_1;
 
   StreamingInput streaming_input(block(), ChannelRefName(connection.channel),
                                  connection.kind);
@@ -1007,8 +1167,6 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleSendNode(
   }
 
   XLS_RET_CHECK_EQ(ChannelRefKind(connection.channel), ChannelKind::kStreaming);
-  XLS_RET_CHECK_EQ(ChannelRefFlowControl(connection.channel),
-                   FlowControl::kReadyValid);
 
   StreamingOutput streaming_output(block(), ChannelRefName(connection.channel),
                                    connection.kind);

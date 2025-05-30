@@ -38,6 +38,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
@@ -92,7 +93,8 @@ class CloneNodesIntoBlockHandler {
   CloneNodesIntoBlockHandler(
       FunctionBase* proc_or_function, int64_t stage_count,
       const CodegenOptions& options, Block* block,
-      std::optional<const PackageSchedule*> schedule = std::nullopt);
+      std::optional<const PackageSchedule*> schedule = std::nullopt,
+      std::optional<const ProcElaboration*> elab = std::nullopt);
 
   // Add ports to the block corresponding to the channels on the interface of
   // the proc. Should only be called for procs.
@@ -106,6 +108,9 @@ class CloneNodesIntoBlockHandler {
   // a noop if channels are not proc-scoped.
   absl::Status AddBlockInstantiations(
       const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks);
+
+  // Add channel port metadata to the block.
+  absl::Status AddBlockMetadata();
 
   // For a given set of sorted nodes, process and clone them into the
   // block.
@@ -136,9 +141,13 @@ class CloneNodesIntoBlockHandler {
     ChannelRef channel;
     ChannelDirection direction;
     ConnectionKind kind;
+    std::optional<ChannelNode*> channel_node;
     Node* data;
     std::optional<Node*> valid;
     std::optional<Node*> ready;
+
+    std::optional<ChannelInterface*> instantiated_channel_interface;
+    std::optional<Block*> instantiated_block;
 
     // Replaces the value driving the data/ready/valid port with the given
     // node.
@@ -213,6 +222,7 @@ class CloneNodesIntoBlockHandler {
 
   Block* block_;
   std::optional<const PackageSchedule*> schedule_;
+  std::optional<const ProcElaboration*> elab_;
   std::optional<ConcurrentStageGroups> concurrent_stages_;
   StreamingIOPipeline result_;
   absl::flat_hash_map<Node*, Node*> node_map_;

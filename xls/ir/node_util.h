@@ -23,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -38,6 +39,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
@@ -391,8 +393,26 @@ inline absl::StatusOr<Op> SignedCompareToUnsigned(Op op) {
   }
 }
 
-absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(
-    Package* package);
+// Return a map which gathers channels nodes in a proc by the channel interface
+// they use.
+absl::StatusOr<
+    absl::flat_hash_map<ChannelInterface*, std::vector<ChannelNode*>>>
+GetChannelInterfaceUsers(Proc* proc);
+
+struct ChannelUsers {
+  std::vector<Send*> sends;
+  std::vector<Receive*> receives;
+};
+
+// Finds and returns the Sends/Receives associated with each channel in the
+// package/elaboration. If channels are proc-scoped `elab` must be specified.
+absl::StatusOr<absl::flat_hash_map<Channel*, ChannelUsers>> GetChannelUsers(
+    Package* package,
+    std::optional<const ProcElaboration*> elab = std::nullopt);
+
+absl::StatusOr<
+    absl::flat_hash_map<ChannelInterface*, std::vector<ChannelNode*>>>
+GetChannelInterfaceUsers(Proc* proc);
 
 // Compare 'lhs' to the literal value 'rhs'.
 //
