@@ -434,9 +434,8 @@ absl::Status CheckAcceptableTopProc(Proc* proc) {
 
 template <typename BlockT>
 absl::Status ConvertOneFunctionIntoPackageInternal(
-    Module* module, BlockT* block, ImportData* import_data,
-    const ParametricEnv* parametric_env, const ConvertOptions& options,
-    PackageConversionData* conv) {
+    BlockT* block, ImportData* import_data, const ParametricEnv* parametric_env,
+    const ConvertOptions& options, PackageConversionData* conv) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * func_type_info,
                        import_data->GetRootTypeInfoForNode(block));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
@@ -447,13 +446,13 @@ absl::Status ConvertOneFunctionIntoPackageInternal(
   return absl::OkStatus();
 }
 
-absl::Status ConvertOneFunctionIntoPackage(Module* module, Function* fn,
+absl::Status ConvertOneFunctionIntoPackage(Function* fn,
                                            ImportData* import_data,
                                            const ParametricEnv* parametric_env,
                                            const ConvertOptions& options,
                                            PackageConversionData* conv) {
-  return ConvertOneFunctionIntoPackageInternal(module, fn, import_data,
-                                               parametric_env, options, conv);
+  return ConvertOneFunctionIntoPackageInternal(fn, import_data, parametric_env,
+                                               options, conv);
 }
 
 absl::Status ConvertOneFunctionIntoPackage(Module* module,
@@ -464,15 +463,15 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
                                            PackageConversionData* conv) {
   std::optional<Function*> fn_or = module->GetFunction(entry_function_name);
   if (fn_or.has_value()) {
-    return ConvertOneFunctionIntoPackageInternal(
-        module, fn_or.value(), import_data, parametric_env, options, conv);
+    return ConvertOneFunctionIntoPackageInternal(fn_or.value(), import_data,
+                                                 parametric_env, options, conv);
   }
 
   absl::StatusOr<Proc*> proc =
       module->GetMemberOrError<Proc>(entry_function_name);
   if (proc.ok()) {
     XLS_RETURN_IF_ERROR(CheckAcceptableTopProc(*proc));
-    return ConvertOneFunctionIntoPackageInternal(module, *proc, import_data,
+    return ConvertOneFunctionIntoPackageInternal(*proc, import_data,
                                                  parametric_env, options, conv);
   }
 
@@ -480,17 +479,15 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
     absl::StatusOr<TestFunction*> test_fn =
         module->GetTest(entry_function_name);
     if (test_fn.ok()) {
-      return ConvertOneFunctionIntoPackageInternal(module, &(*test_fn)->fn(),
-                                                   import_data, parametric_env,
-                                                   options, conv);
+      return ConvertOneFunctionIntoPackageInternal(
+          &(*test_fn)->fn(), import_data, parametric_env, options, conv);
     }
     absl::StatusOr<TestProc*> test_proc =
         module->GetTestProc(entry_function_name);
     if (test_proc.ok()) {
       XLS_RETURN_IF_ERROR(CheckAcceptableTopProc((*test_proc)->proc()));
-      return ConvertOneFunctionIntoPackageInternal(module, (*test_proc)->proc(),
-                                                   import_data, parametric_env,
-                                                   options, conv);
+      return ConvertOneFunctionIntoPackageInternal(
+          (*test_proc)->proc(), import_data, parametric_env, options, conv);
     }
   }
 

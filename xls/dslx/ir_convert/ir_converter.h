@@ -90,7 +90,7 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
                                            PackageConversionData* conv);
 
 // As above but takes a function pointer for a function in the module.
-absl::Status ConvertOneFunctionIntoPackage(Module* module, Function* fn,
+absl::Status ConvertOneFunctionIntoPackage(Function* fn,
                                            ImportData* import_data,
                                            const ParametricEnv* parametric_env,
                                            const ConvertOptions& options,

@@ -772,7 +772,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     };
 
     const absl::Status convert_status = ConvertOneFunctionIntoPackage(
-        entry_module, f, &import_data,
+        f, &import_data,
         /*parametric_env=*/nullptr, ConvertOptions{}, &conv);
     if (handle_if_error(convert_status)) {
       continue;
