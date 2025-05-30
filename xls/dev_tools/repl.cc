@@ -42,7 +42,6 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_result.h"
 #include "xls/codegen/combinational_generator.h"
-#include "xls/codegen/module_signature.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"

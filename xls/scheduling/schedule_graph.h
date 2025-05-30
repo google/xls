@@ -15,6 +15,7 @@
 #ifndef XLS_SCHEDULING_SCHEDULE_GRAPH_H_
 #define XLS_SCHEDULING_SCHEDULE_GRAPH_H_
 
+#include <utility>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -23,11 +24,12 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "xls/ir/channel.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/ir/channel.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/proc_elaboration.h"
 

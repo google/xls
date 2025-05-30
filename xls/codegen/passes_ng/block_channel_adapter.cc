@@ -22,7 +22,6 @@
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/codegen/passes_ng/block_channel_slot.h"
@@ -38,7 +37,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
-#include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls::verilog {
 namespace {

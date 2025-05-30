@@ -109,6 +109,7 @@ cc_library(
     deps = [
         "//xls/ir",
         "//xls/ir:function_builder",
+        "//xls/ir:source_location",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",

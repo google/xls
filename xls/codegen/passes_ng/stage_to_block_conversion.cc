@@ -18,7 +18,6 @@
 #include <vector>
 
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -35,7 +34,6 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
-#include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls::verilog {
 

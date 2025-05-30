@@ -22,7 +22,6 @@
 #include <string_view>
 #include <tuple>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -49,7 +48,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
-#include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/name_uniquer.h"

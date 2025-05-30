@@ -499,7 +499,6 @@ cc_library(
     deps = [
         ":identifier",
         ":mlir_xls",
-        "//xls/codegen:module_signature",
         "//xls/codegen:xls_metrics_cc_proto",
         "//xls/codegen/vast",
         "//xls/common/file:filesystem",

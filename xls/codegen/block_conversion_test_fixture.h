@@ -34,8 +34,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/tools/codegen.h"
-#include "xls/tools/codegen_flags.pb.h"
-#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls::verilog {
 

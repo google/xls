@@ -23,6 +23,7 @@
 #include <string_view>
 #include <vector>
 
+#include "xls/fuzzer/sample_runner.h"
 #include "absl/log/log.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"

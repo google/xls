@@ -21,6 +21,7 @@
 #include <random>
 #include <utility>
 
+#include "xls/fuzzer/sample_runner.h"
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"

@@ -17,6 +17,7 @@
 #include <optional>
 #include <string>
 
+#include "xls/codegen/xls_metrics.pb.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/block_generator.h"

@@ -15,6 +15,7 @@
 #ifndef XLS_FUZZER_RUN_FUZZ_H_
 #define XLS_FUZZER_RUN_FUZZ_H_
 
+#include <utility>
 #include <filesystem>  // NOLINT
 #include <optional>
 

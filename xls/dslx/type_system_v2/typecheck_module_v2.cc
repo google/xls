@@ -15,14 +15,12 @@
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 
 #include <filesystem>  // NOLINT
-#include <iostream>
 #include <memory>
 #include <optional>
 #include <string_view>
 #include <utility>
 
 #include "absl/log/log.h"
-#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"

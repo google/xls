@@ -18,6 +18,7 @@
 #include <string_view>
 
 #include "absl/status/status.h"
+#include "xls/passes/pass_pipeline.pb.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"

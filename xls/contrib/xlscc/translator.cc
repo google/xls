@@ -34,6 +34,7 @@
 #include <utility>
 #include <vector>
 
+#include "xls/contrib/xlscc/translator_types.h"
 #include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/cleanup/cleanup.h"

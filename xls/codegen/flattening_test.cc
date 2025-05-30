@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
 #include "xls/codegen/flattening.h"
 
 #include "gmock/gmock.h"

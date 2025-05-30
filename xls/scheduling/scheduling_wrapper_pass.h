@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "absl/strings/str_format.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"

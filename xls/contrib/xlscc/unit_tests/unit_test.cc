@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "xls/contrib/xlscc/translator_types.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/log_severity.h"

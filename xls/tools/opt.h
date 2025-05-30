@@ -28,7 +28,6 @@
 #include "absl/status/statusor.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
 

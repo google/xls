@@ -23,7 +23,6 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
-#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 

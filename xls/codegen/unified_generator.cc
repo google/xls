@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 
+#include "xls/codegen/xls_metrics.pb.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion_pass_pipeline.h"

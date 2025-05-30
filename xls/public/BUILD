@@ -55,7 +55,6 @@ cc_library(
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/ir",
         "//xls/passes:optimization_pass",
-        "//xls/scheduling:pipeline_schedule_cc_proto",
         "//xls/scheduling:scheduling_result",
         "//xls/tools:codegen",
         "//xls/tools:codegen_flags_cc_proto",
@@ -149,7 +148,6 @@ cc_library(
 cc_library(
     name = "vast",
     hdrs = ["vast.h"],
-    deps = ["//xls/codegen/vast"],
 )
 
 cc_library(

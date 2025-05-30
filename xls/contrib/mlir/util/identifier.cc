@@ -16,8 +16,8 @@
 
 #include <string>
 
-#include "llvm/include/llvm/ADT/StringRef.h"
 #include "mlir/include/mlir/Support/LLVM.h"
+#include "llvm/include/llvm/ADT/StringRef.h"
 #include "xls/codegen/vast/vast.h"
 
 namespace mlir::xls {

@@ -449,6 +449,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -507,7 +508,6 @@ cc_library(
     deps = [
         ":pipeline_schedule",
         ":scheduling_options",
-        "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:delay_estimator",
@@ -515,10 +515,7 @@ cc_library(
         "//xls/ir",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

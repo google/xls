@@ -14,18 +14,11 @@
 
 #include "xls/scheduling/scheduling_pass.h"
 
-#include <string>
-#include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/log/log.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_split.h"
-#include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"

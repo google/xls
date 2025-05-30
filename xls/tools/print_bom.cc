@@ -25,6 +25,7 @@
 // summary of modules used.
 
 #include "absl/container/btree_map.h"
+#include "xls/codegen/xls_metrics.pb.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"

@@ -14,6 +14,7 @@
 
 #include "xls/fuzzer/run_fuzz.h"
 
+#include <utility>
 #include <array>
 #include <cstddef>
 #include <cstdint>

@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "absl/container/flat_hash_set.h"
+#include "xls/contrib/xlscc/translator_types.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "clang/include/clang/AST/Decl.h"
