@@ -83,7 +83,7 @@ class TranslatorProcTest : public TranslatorProcTestWithoutFSMParam,
 
 std::string GetTestInfo(const ::testing::TestParamInfo<TestParams>& info) {
   return absl::StrFormat(
-      "With%sFSM%s%s", info.param.generate_new_fsm ? "New" : "",
+      "With%sFSM%s%s", info.param.generate_new_fsm ? "New" : "Old",
       info.param.split_states_on_channel_ops ? "_SplitOnChannelOps" : "",
       info.param.merge_states ? "_MergeStates" : "");
 }

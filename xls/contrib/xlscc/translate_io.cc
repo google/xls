@@ -32,6 +32,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/contrib/xlscc/translator_types.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
@@ -53,7 +54,8 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   const bool mask_other =
       context().mask_io_other_than_memory_writes && op.op != OpType::kWrite;
 
-  CHECK(op.op == OpType::kTrace || channel != nullptr);
+  CHECK(op.op == OpType::kTrace || op.op == OpType::kLoop ||
+        channel != nullptr);
   CHECK_EQ(op.channel, nullptr);
 
   if (mask || context().mask_side_effects || mask_write || mask_other) {
@@ -74,10 +76,10 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   op.channel = channel;
   op.op_location = loc;
 
-  if (op.op != OpType::kTrace) {
-    op.channel_op_index = channel->total_ops++;
-  } else {
+  if (op.op == OpType::kTrace) {
     op.channel_op_index = context().sf->trace_count++;
+  } else if (channel != nullptr) {
+    op.channel_op_index = channel->total_ops++;
   }
 
   // Add the continuation before, not including the received parameter
@@ -710,6 +712,20 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
           "directions" == nullptr,
           loc);
       break;
+    case OpType::kLoop: {
+      switch (op.loop_op_type) {
+        case xlscc::LoopOpType::kBegin:
+        case xlscc::LoopOpType::kEndJump: {
+          op_condition = retval;
+          break;
+        }
+        default:
+          return absl::UnimplementedError(ErrorMessage(
+              loc, "Unsupported loop type %i in AddConditionToIOReturn",
+              op.loop_op_type));
+      }
+      break;
+    }
     case OpType::kRecv:
       op_condition = retval;
       break;
@@ -759,6 +775,20 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
           "directions" == nullptr,
           loc);
       break;
+    case OpType::kLoop: {
+      switch (op.loop_op_type) {
+        case xlscc::LoopOpType::kBegin:
+        case xlscc::LoopOpType::kEndJump: {
+          new_retval = op_condition;
+          break;
+        }
+        default:
+          return absl::UnimplementedError(ErrorMessage(
+              loc, "Unsupported loop type %i in AddConditionToIOReturn return",
+              op.loop_op_type));
+      }
+      break;
+    }
     case OpType::kRecv:
       new_retval = op_condition;
       break;

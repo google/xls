@@ -122,7 +122,10 @@ struct IOOp {
   // If None is specified, then actions happen in parallel, except
   // as sequenced by after_ops. If ASAP is specified, then after_ops
   // is unused.
+  // TODO(seanhaskell): Remove with old FSM
   IOSchedulingOption scheduling_option = IOSchedulingOption::kNone;
+
+  LoopOpType loop_op_type = LoopOpType::kNull;
 
   // --- Not preserved across calls ---
 
@@ -163,6 +166,7 @@ struct SideEffectingParameter {
 struct GeneratedFunction;
 
 // Encapsulates values needed to generate procs for a pipelined loop body
+// TODO(seanhaskell): Remove with old FSM
 struct PipelinedLoopSubProc {
   std::string name_prefix;
 
@@ -1257,8 +1261,12 @@ class Translator {
         extra_next_state_values;
   };
 
-  absl::StatusOr<GenerateFSMInvocationReturn> GenerateFSMInvocation(
+  absl::StatusOr<GenerateFSMInvocationReturn> GenerateOldFSMInvocation(
       PreparedBlock& prepared, xls::ProcBuilder& pb, int nesting_level,
+      const xls::SourceInfo& body_loc);
+
+  absl::StatusOr<GenerateFSMInvocationReturn> GenerateNewFSMInvocation(
+      PreparedBlock& prepared, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc);
 
   struct LayoutFSMStatesReturn {
@@ -1407,20 +1415,34 @@ class Translator {
       clang::ASTContext& ctx);
 
   // init, cond, and inc can be nullptr
-  // max_iters must be > 0
-  absl::Status GenerateIR_UnrolledLoop(
+  // if max_iters is specified, it must be > 0, and in new FSM mode,
+  // the loop will be pipelined, that is, begin and end IO ops will be added.
+  absl::Status GenerateIR_LoopImpl(
       bool always_first_iter, bool warn_inferred_loop_type,
       const clang::Stmt* init, const clang::Expr* cond_expr,
-      const clang::Stmt* inc, const clang::Stmt* body, int64_t max_iters,
-      bool propagate_break_up, clang::ASTContext& ctx,
-      const xls::SourceInfo& loc);
+      const clang::Stmt* inc, const clang::Stmt* body,
+      std::optional<int64_t> max_iters, bool propagate_break_up,
+      clang::ASTContext& ctx, const xls::SourceInfo& loc);
+
   // init, cond, and inc can be nullptr
-  absl::Status GenerateIR_PipelinedLoop(
+  absl::Status GenerateIR_PipelinedLoopOldFSM(
       bool always_first_iter, bool warn_inferred_loop_type,
       const clang::Stmt* init, const clang::Expr* cond_expr,
       const clang::Stmt* inc, const clang::Stmt* body,
       int64_t initiation_interval_arg, int64_t unroll_factor,
       bool schedule_asap, clang::ASTContext& ctx, const xls::SourceInfo& loc);
+
+  // init, cond, and inc can be nullptr
+  absl::Status GenerateIR_PipelinedLoopNewFSM(
+      bool always_first_iter, bool warn_inferred_loop_type,
+      const clang::Stmt* init, const clang::Expr* cond_expr,
+      const clang::Stmt* inc, const clang::Stmt* body,
+      int64_t initiation_interval_arg, int64_t unroll_factor,
+      bool schedule_asap, clang::ASTContext& ctx, const xls::SourceInfo& loc);
+
+  absl::StatusOr<IOOp*> GenerateIR_AddLoopBegin(const xls::SourceInfo& loc);
+  absl::Status GenerateIR_AddLoopEndJump(const clang::Expr* cond_expr,
+                                         const xls::SourceInfo& loc);
 
   absl::StatusOr<PipelinedLoopSubProc> GenerateIR_PipelinedLoopBody(
       const clang::Expr* cond_expr, const clang::Stmt* inc,

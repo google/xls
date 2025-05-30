@@ -79,6 +79,7 @@
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/node_manipulation.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
+#include "xls/contrib/xlscc/translator_types.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
@@ -5792,6 +5793,9 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
 std::string Debug_OpName(const IOOp& op) {
   if (op.op == OpType::kTrace) {
     return "trace";
+  }
+  if (op.op == OpType::kLoop) {
+    return op.loop_op_type == LoopOpType::kBegin ? "begin" : "jump";
   }
   if (op.channel != nullptr) {
     std::string op_type_name;

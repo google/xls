@@ -520,13 +520,15 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
                              /*next_return_index=*/0, this_type, this_decl,
                              top_decls, caller_sub_function, body_loc));
 
+  GenerateFSMInvocationReturn fsm_ret;
   if (generate_new_fsm_) {
-    return absl::UnimplementedError("New FSM not yet implemented");
+    XLS_ASSIGN_OR_RETURN(fsm_ret,
+                         GenerateNewFSMInvocation(prepared, pb, body_loc));
+  } else {
+    XLS_ASSIGN_OR_RETURN(
+        fsm_ret,
+        GenerateOldFSMInvocation(prepared, pb, /*nesting_level=*/0, body_loc));
   }
-
-  XLS_ASSIGN_OR_RETURN(
-      GenerateFSMInvocationReturn fsm_ret,
-      GenerateFSMInvocation(prepared, pb, /*nesting_level=*/0, body_loc));
 
   XLSCC_CHECK(
       fsm_ret.return_value.valid() && fsm_ret.returns_this_activation.valid(),
@@ -932,9 +934,11 @@ absl::StatusOr<Translator::LayoutFSMStatesReturn> Translator::LayoutFSMStates(
 }
 
 absl::StatusOr<Translator::GenerateFSMInvocationReturn>
-Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
-                                  int nesting_level,
-                                  const xls::SourceInfo& body_loc) {
+Translator::GenerateOldFSMInvocation(PreparedBlock& prepared,
+                                     xls::ProcBuilder& pb, int nesting_level,
+                                     const xls::SourceInfo& body_loc) {
+  XLSCC_CHECK(!generate_new_fsm_, body_loc);
+
   // Create a deterministic ordering for the last state elements
   // (These store the received inputs for IO operations)
   std::vector<int64_t> arg_indices_ordered_by_state_elems;
@@ -1533,6 +1537,15 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
       .return_value = last_ret_val,
       .returns_this_activation = returns_this_activation_vars,
       .extra_next_state_values = fsm_next_state_values};
+}
+
+absl::StatusOr<Translator::GenerateFSMInvocationReturn>
+Translator::GenerateNewFSMInvocation(PreparedBlock& prepared,
+                                     xls::ProcBuilder& pb,
+                                     const xls::SourceInfo& body_loc) {
+  XLSCC_CHECK(generate_new_fsm_, body_loc);
+
+  return absl::UnimplementedError("New FSM not implemented");
 }
 
 std::set<ChannelBundle> Translator::GetChannelsUsedByOp(
@@ -2284,7 +2297,7 @@ Translator::GenerateIRBlockPrepare(
 
 std::optional<ChannelBundle> Translator::GetChannelBundleForOp(
     const IOOp& op, const xls::SourceInfo& loc) {
-  if (op.op == OpType::kTrace) {
+  if (op.op == OpType::kTrace || op.op == OpType::kLoop) {
     return std::nullopt;
   }
 
