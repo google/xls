@@ -3330,6 +3330,24 @@ fn main() {
                                       HasNodeWithType("1..3", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, PatternMatchWithRangeInTuple) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+fn f(x: (u32, u32)) -> u32 {
+    match x {
+        (1, 1..3) => u32:1,
+        _ => u32:0,
+    }
+}
+
+fn main() {
+  const_assert!(f((1, 0)) == 0);
+  const_assert!(f((1, 1)) == 1);
+  const_assert!(f((1, 2)) == 1);
+  const_assert!(f((0, 2)) == 0);
+}
+)"));
+}
+
 TEST(TypecheckV2Test, PatternMatchWithRangeInclusiveEnd) {
   XLS_EXPECT_OK(TypecheckV2(
       R"(

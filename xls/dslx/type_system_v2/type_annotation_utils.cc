@@ -460,19 +460,4 @@ bool IsBitsLikeFragment(const TypeAnnotation* annotation) {
   return false;
 }
 
-bool IsRangeInMatchArm(const Range* range) {
-  if (range->parent() == nullptr ||
-      range->parent()->kind() != AstNodeKind::kNameDefTree) {
-    return false;
-  }
-  const NameDefTree* namedef = down_cast<const NameDefTree*>(range->parent());
-  if (namedef->parent() == nullptr ||
-      namedef->parent()->kind() != AstNodeKind::kMatchArm) {
-    return false;
-  }
-  const MatchArm* matcharm = down_cast<const MatchArm*>(namedef->parent());
-  auto& patterns = matcharm->patterns();
-  return std::find(patterns.begin(), patterns.end(), namedef) != patterns.end();
-}
-
 }  // namespace xls::dslx

@@ -2298,11 +2298,12 @@ NameRef::~NameRef() = default;
 // -- class Range
 
 Range::Range(Module* owner, Span span, Expr* start, bool inclusive_end,
-             Expr* end, bool in_parens)
+             Expr* end, bool in_parens, bool pattern_semantics)
     : Expr(owner, std::move(span), in_parens),
       start_(start),
       end_(end),
-      inclusive_end_(inclusive_end) {}
+      inclusive_end_(inclusive_end),
+      pattern_semantics_(pattern_semantics) {}
 
 Range::~Range() = default;
 
