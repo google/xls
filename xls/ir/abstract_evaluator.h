@@ -813,6 +813,10 @@ class AbstractEvaluator {
   // a right-shift is performed. If 'arithmetic' is true, the shift is
   // arithmetic otherwise it is logical.
   Vector Shift(Span input, Span amount, bool right, bool arithmetic) {
+    // Short-circuit zero-length shifts.
+    if (input.empty()) {
+      return {};
+    }
     // Create the shift using a OneHotSelect. Each case of the OneHotSelect is
     // 'input' shifted by some constant value. The selector bits are each a
     // comparison of 'amount' to a constant value.

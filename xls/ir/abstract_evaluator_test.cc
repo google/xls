@@ -815,6 +815,19 @@ TEST(AbstractEvaluatorTest, PrioritySelect) {
   test_eq(0x0FF0, UBits(0, 0), {}, true, UBits(0x0FF0, 16));
 }
 
+TEST(AbstractEvaluatorTest, Shift) {
+  TestAbstractEvaluator eval;
+  auto test_eq = [&](int64_t expected, const Bits& input, const Bits& amount) {
+    EXPECT_EQ(UBits(expected, input.bit_count()),
+              FromBoxedVector(eval.ShiftRightArith(ToBoxedVector(input),
+                                                   ToBoxedVector(amount))))
+        << expected << " != " << input << " >> " << amount;
+  };
+  test_eq(0, UBits(0, 0), UBits(12, 12));
+  test_eq(0xff, UBits(0x80, 8), UBits(7, 12));
+  test_eq(0x01, UBits(0x40, 8), UBits(6, 12));
+}
+
 TEST(AbstractEvaluatorTest, BitSliceUpdate) {
   TestAbstractEvaluator eval;
   auto test_eq = [&](int64_t expected, const Bits& a, const Bits& start,
