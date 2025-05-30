@@ -400,9 +400,14 @@ generate_crasher_regression_tests(
         "crashers/crasher_2025-04-23_0cd2.x",
         # TODO(https://github.com/google/xls/issues/2142): Remove when fixed.
         "crashers/crasher_2025-05-07_2d16.x",
-        # TODO(https://github.com/google/xls/issues/2263): Remove when fixed.
+    ],
+    # Tests which are too slow in the unopt-ir interpreter.
+    no_unopt_interpreter = [
+        # TODO(https://github.com/google/xls/issues/2263): Enormous copies of
+        # values in unopt-ir. Remove when fixed.
         "crashers/crasher_2025-05-25_eb23.x",
-        # TODO(https://github.com/google/xls/issues/2263): Remove when fixed.
+        # TODO(https://github.com/google/xls/issues/2263): Enormous copies of
+        # values in unopt-ir. Remove when fixed.
         "crashers/crasher_2025-05-26_bdec.x",
     ],
     prefix = package_name(),
@@ -414,8 +419,10 @@ generate_crasher_regression_tests(
         "crashers/crasher_2023-07-06_feae.x": [
             "optonly",
         ],
-
         # Tests which use iverilog and iverilog does not work with sanitizers.
+        "crashers/crasher_2025-05-25_eb23.x": [
+            "optonly",
+        ],
         "crashers/crasher_2022-09-03_4d43.x": [
             "optonly",
         ],

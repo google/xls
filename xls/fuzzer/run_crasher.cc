@@ -38,6 +38,8 @@ ABSL_FLAG(std::optional<std::string>, simulator, std::nullopt,
           "Verilog simulator to use. If not specified, the value specified in "
           "the crasher file. If the simulator is not specified in either "
           "location, the default simulator is used.");
+ABSL_FLAG(bool, unopt_interpreter, true,
+          "Should the interpreter be run on unopt-ir");
 
 namespace xls {
 namespace {
@@ -57,6 +59,11 @@ absl::Status RealMain(const std::filesystem::path& crasher_path,
   }
 
   LOG(INFO) << "Running crasher in directory " << run_dir;
+  if (!absl::GetFlag(FLAGS_unopt_interpreter)) {
+    SampleOptions options = crasher.options();
+    options.set_disable_unopt_interpreter(true);
+    crasher = Sample(crasher.input_text(), options, crasher.testvector());
+  }
   return RunSample(crasher, run_dir).status();
 }
 

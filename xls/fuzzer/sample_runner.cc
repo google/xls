@@ -886,13 +886,16 @@ absl::Status SampleRunner::RunFunction(
   if (args_batch.has_value()) {
     Stopwatch t;
 
-    // Unconditionally evaluate with the interpreter even if using the JIT. This
-    // exercises the interpreter and serves as a reference.
-    XLS_ASSIGN_OR_RETURN(results["evaluated unopt IR (interpreter)"],
-                         EvaluateIrFunction(ir_path, testvector_path, false,
-                                            options, run_dir_, commands_));
-    timing_.set_unoptimized_interpret_ir_ns(
-        absl::ToInt64Nanoseconds(t.GetElapsedTime()));
+    // Unconditionally evaluate with the interpreter even if using the JIT
+    // unless specifically disabled (for perf or other reasons). This exercises
+    // the interpreter and serves as a reference.
+    if (!options.disable_unopt_interpreter()) {
+      XLS_ASSIGN_OR_RETURN(results["evaluated unopt IR (interpreter)"],
+                           EvaluateIrFunction(ir_path, testvector_path, false,
+                                              options, run_dir_, commands_));
+      timing_.set_unoptimized_interpret_ir_ns(
+          absl::ToInt64Nanoseconds(t.GetElapsedTime()));
+    }
 
     if (options.use_jit()) {
       XLS_ASSIGN_OR_RETURN(results["evaluated unopt IR (JIT)"],
@@ -1037,17 +1040,20 @@ absl::Status SampleRunner::RunProc(
   }
 
   if (args_batch.has_value()) {
-    // Unconditionally evaluate with the interpreter even if using the JIT. This
-    // exercises the interpreter and serves as a reference.
+    // Unconditionally evaluate with the interpreter even if using the JIT
+    // unless explicitly disabled. This exercises the interpreter and serves as
+    // a reference.
     Stopwatch t;
-    XLS_ASSIGN_OR_RETURN(results["evaluated unopt IR (interpreter)"],
-                         EvaluateIrProc(ir_path, tick_count, testvector_path,
-                                        false, options, run_dir_, commands_));
-    if (!reference.has_value()) {
-      reference = results["evaluated unopt IR (interpreter)"];
+    if (!options.disable_unopt_interpreter()) {
+      XLS_ASSIGN_OR_RETURN(results["evaluated unopt IR (interpreter)"],
+                           EvaluateIrProc(ir_path, tick_count, testvector_path,
+                                          false, options, run_dir_, commands_));
+      if (!reference.has_value()) {
+        reference = results["evaluated unopt IR (interpreter)"];
+      }
+      timing_.set_unoptimized_interpret_ir_ns(
+          absl::ToInt64Nanoseconds(t.GetElapsedTime()));
     }
-    timing_.set_unoptimized_interpret_ir_ns(
-        absl::ToInt64Nanoseconds(t.GetElapsedTime()));
 
     if (options.use_jit()) {
       t.Reset();
@@ -1056,6 +1062,9 @@ absl::Status SampleRunner::RunProc(
                                           true, options, run_dir_, commands_));
       timing_.set_unoptimized_jit_ns(
           absl::ToInt64Nanoseconds(t.GetElapsedTime()));
+      if (!reference.has_value()) {
+        reference = results["evaluated unopt IR (JIT)"];
+      }
     }
   }
 
@@ -1084,6 +1093,9 @@ absl::Status SampleRunner::RunProc(
                          options, run_dir_, commands_));
       timing_.set_optimized_interpret_ir_ns(
           absl::ToInt64Nanoseconds(t.GetElapsedTime()));
+      if (!reference.has_value()) {
+        reference = results["evaluated opt IR (interpreter)"];
+      }
 
       if (options.codegen()) {
         t.Reset();
