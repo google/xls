@@ -170,7 +170,7 @@ class NaryFoldingAction : public FoldingAction {
       const absl::flat_hash_set<std::pair<Node *, uint32_t>> &from, Node *to,
       Node *select, uint32_t to_case_number);
 
-  NaryFoldingAction(const std::vector<BinaryFoldingAction *> &edges);
+  explicit NaryFoldingAction(const std::vector<BinaryFoldingAction *> &edges);
 
   absl::flat_hash_set<std::pair<Node *, uint32_t>> GetFrom() const;
 

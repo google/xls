@@ -63,7 +63,7 @@ class [[nodiscard]] StatusOrRef {
   // Conversion constructors
   template <typename U>
     requires(std::is_base_of_v<T, U>)
-  StatusOrRef(StatusOrRef<U>&& other ABSL_ATTRIBUTE_LIFETIME_BOUND)
+  explicit StatusOrRef(StatusOrRef<U>&& other ABSL_ATTRIBUTE_LIFETIME_BOUND)
       : value_(std::move(other.value_)) {}
   template <typename U>
     requires(std::is_base_of_v<T, U>)
@@ -72,9 +72,9 @@ class [[nodiscard]] StatusOrRef {
     return *this;
   }
   // conversion to base status-or.
-  operator InnerStatusOr() && { return std::move(value_); }
-  operator InnerStatusOr() & { return value_; }
-  operator InnerStatusOr() const& { return value_; }
+  explicit operator InnerStatusOr() && { return std::move(value_); }
+  explicit operator InnerStatusOr() & { return value_; }
+  explicit operator InnerStatusOr() const& { return value_; }
 
   bool ok() const { return value_.ok(); }
 

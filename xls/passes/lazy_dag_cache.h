@@ -77,7 +77,7 @@ class LazyDagCache {
         const Key& key, absl::Span<const Value* const> input_values) const = 0;
   };
 
-  LazyDagCache<Key, Value>(DagProvider* provider) : provider_(provider) {}
+  explicit LazyDagCache<Key, Value>(DagProvider* provider) : provider_(provider) {}
 
   LazyDagCache<Key, Value>(DagProvider* provider,
                            const LazyDagCache<Key, Value>& other)

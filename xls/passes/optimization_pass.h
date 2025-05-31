@@ -240,7 +240,7 @@ class OptimizationContext {
 
   class InvalidatingVector : public ChangeListener {
    public:
-    InvalidatingVector(FunctionBase* f, std::vector<Node*> value = {})
+    explicit InvalidatingVector(FunctionBase* f, std::vector<Node*> value = {})
         : f_(f), storage_(std::move(value)) {
       f_->RegisterChangeListener(this);
     }
