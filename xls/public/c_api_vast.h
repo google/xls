@@ -46,6 +46,9 @@ struct xls_vast_literal;
 struct xls_vast_instantiation;
 struct xls_vast_continuous_assignment;
 struct xls_vast_comment;
+struct xls_vast_always_base;
+struct xls_vast_statement;
+struct xls_vast_statement_block;
 
 // Note: We define the enum with a fixed width integer type for clarity of the
 // exposed ABI.
@@ -224,10 +227,49 @@ xls_vast_logic_ref_as_indexable_expression(
 struct xls_vast_indexable_expression* xls_vast_index_as_indexable_expression(
     struct xls_vast_index* index);
 
+// Gets the statement block associated with an always_base construct (like always_ff).
+struct xls_vast_statement_block* xls_vast_always_base_get_statement_block(
+    struct xls_vast_always_base* always_base);
+
+// Adds a non-blocking assignment statement (lhs <= rhs) to a statement block
+// and returns a pointer to the created statement.
+struct xls_vast_statement* xls_vast_statement_block_add_nonblocking_assignment(
+    struct xls_vast_statement_block* block,
+    struct xls_vast_expression* lhs, struct xls_vast_expression* rhs);
+
 // Emits/formats the contents of the given verilog file to a string.
 //
 // Note: caller owns the returned string, to be freed by `xls_c_str_free`.
 char* xls_vast_verilog_file_emit(const struct xls_vast_verilog_file* f);
+
+// Adds an always_ff block to the module.
+// 'sensitivity_list_elements' is an array of expressions, typically created
+// using 'xls_vast_verilog_file_make_pos_edge' or 'xls_vast_verilog_file_make_neg_edge'.
+// Returns true on success. On failure, returns false and sets error_out.
+// The caller is responsible for freeing error_out if it is not NULL.
+bool xls_vast_verilog_module_add_always_ff(
+    struct xls_vast_verilog_module* m,
+    struct xls_vast_expression** sensitivity_list_elements,
+    size_t sensitivity_list_count, struct xls_vast_always_base** out_always_ff,
+    char** error_out);
+
+// Adds a register (reg) definition to the module.
+// Returns true on success. On failure, returns false and sets error_out.
+// The caller is responsible for freeing error_out if it is not NULL.
+bool xls_vast_verilog_module_add_reg(
+    struct xls_vast_verilog_module* m, const char* name,
+    struct xls_vast_data_type* type, struct xls_vast_logic_ref** out_reg_ref,
+    char** error_out);
+
+// Creates a positive edge expression (e.g., "posedge clk").
+// 'signal_expr' is typically a logic_ref_as_expression.
+struct xls_vast_expression* xls_vast_verilog_file_make_pos_edge(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* signal_expr);
+
+// Creates a non-blocking assignment statement (lhs <= rhs).
+struct xls_vast_statement* xls_vast_verilog_file_make_nonblocking_assignment(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs);
 
 }  // extern "C"
 
