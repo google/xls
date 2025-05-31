@@ -19,6 +19,7 @@ nav:
       - Enumerate and match: 'tutorials/prefix_scan.md'
       - What is a Proc?: 'tutorials/what_is_a_proc.md'
       - How to use Procs: 'tutorials/how_to_use_procs.md'
+      - Dataflow & Time: 'tutorials/dataflow_and_time.md'
     - \[contrib\] XLS[cc]:
       - Overview: 'tutorials/xlscc_overview.md'
       - Integers: 'tutorials/xlscc_integers.md'

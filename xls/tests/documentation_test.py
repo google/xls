@@ -44,6 +44,7 @@ _INPUT_FILES = [
     'docs_src/tutorials/intro_to_parametrics.md',
     'docs_src/tutorials/how_to_use_procs.md',
     'docs_src/tutorials/what_is_a_proc.md',
+    'docs_src/tutorials/dataflow_and_time.md',
     'docs_src/tutorials/prefix_scan.md',
 ]
 
