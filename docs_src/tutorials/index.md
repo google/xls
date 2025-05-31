@@ -24,3 +24,6 @@ design techniques. Here they are, grouped by topic:
 *   [How to use procs](how_to_use_procs.md) (communicating sequential
     processes): Provides a basic introduction to writing stateful and
     communicating modules, i.e., procs.
+*   [Dataflow & Time in XLS](dataflow_and_time.md) (theoretical musings):
+    Discusses the relationship between dataflow and execution order in XLS, and
+    how DSLX is a "timeless" language.
