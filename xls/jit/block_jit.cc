@@ -526,13 +526,13 @@ BlockJitContinuation::BlockJitContinuation(
           {JitArgumentSet(
                &jit_func,
                ComposeBuffers({&output_port_buffers_, &register_buffers_[1]}),
-               /*is_outputs=*/false,
+               /*is_inputs=*/false,
                /*is_outputs=*/true),
            JitArgumentSet(
                &jit_func,
                ComposeBuffers({&output_port_buffers_, &register_buffers_[0]}),
                /*is_inputs=*/false,
-               /*is_inputs=*/true)}),
+               /*is_outputs=*/true)}),
 
       after_last_clock_output_set_(
           sample_time_ == BlockEvaluator::OutputPortSampleTime::kAfterLastClock

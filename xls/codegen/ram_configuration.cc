@@ -106,7 +106,7 @@ absl::StatusOr<Ram1R1WConfiguration> Ram1R1WConfigurationParseSplitString(
       name, latency, /*read_request_name=*/read_request_channel_name,
       /*read_response_name=*/read_response_channel_name,
       /*write_request_name=*/write_request_channel_name,
-      /*write_completion_channel_name=*/write_completion_channel_name);
+      /*write_completion_name=*/write_completion_channel_name);
 }
 
 // Ram configurations are in the format

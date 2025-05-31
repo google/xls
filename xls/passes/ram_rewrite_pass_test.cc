@@ -82,7 +82,7 @@ class RamRewritePassTest : public IrTestBase {
     }
     return p->CreateStreamingChannel(
         name, ChannelOps::kSendOnly, type, /*initial_values=*/{},
-        /*channel_config=*/{}, FlowControl::kReadyValid, strictness);
+        /*fifo_config=*/{}, FlowControl::kReadyValid, strictness);
   }
 
   absl::StatusOr<ReceiveChannelRef> CreateInputFromRam(
@@ -95,7 +95,7 @@ class RamRewritePassTest : public IrTestBase {
     }
     return p->CreateStreamingChannel(
         name, ChannelOps::kReceiveOnly, type, /*initial_values=*/{},
-        /*channel_config=*/{}, /*flow_control=*/FlowControl::kReadyValid,
+        /*fifo_config=*/{}, /*flow_control=*/FlowControl::kReadyValid,
         /*strictness=*/strictness);
   }
 
