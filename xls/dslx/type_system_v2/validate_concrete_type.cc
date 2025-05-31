@@ -41,10 +41,10 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_utils.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
-#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -67,13 +67,11 @@ absl::StatusOr<BitsLikeProperties> GetBitsLikeOrError(
 class TypeValidator : public AstNodeVisitorWithDefault {
  public:
   explicit TypeValidator(const Type* type, const TypeInfo& ti,
-                         const TypeAnnotation* annotation,
                          WarningCollector& warning_collector,
                          const ImportData& import_data,
                          const FileTable& file_table)
       : type_(type),
         ti_(ti),
-        annotation_(annotation),
         warning_collector_(warning_collector),
         import_data_(import_data),
         file_table_(file_table) {}
@@ -292,7 +290,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleRange(const Range* range) override {
-    if (IsRangeInMatchArm(range)) {
+    if (range->has_pattern_semantics()) {
       return absl::OkStatus();
     }
     XLS_ASSIGN_OR_RETURN(
@@ -622,7 +620,6 @@ class TypeValidator : public AstNodeVisitorWithDefault {
 
   const Type* type_;
   const TypeInfo& ti_;
-  const TypeAnnotation* annotation_;
   WarningCollector& warning_collector_;
   const ImportData& import_data_;
   const FileTable& file_table_;
@@ -632,15 +629,13 @@ class TypeValidator : public AstNodeVisitorWithDefault {
 
 absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
                                   const TypeInfo& ti,
-                                  const TypeAnnotation* annotation,
                                   WarningCollector& warning_collector,
                                   const ImportData& import_data,
                                   const FileTable& file_table) {
   if (type->IsMeta()) {
     XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
   }
-  TypeValidator validator(type, ti, annotation, warning_collector, import_data,
-                          file_table);
+  TypeValidator validator(type, ti, warning_collector, import_data, file_table);
   return node->Accept(&validator);
 }
 

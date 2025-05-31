@@ -478,7 +478,6 @@ cc_library(
     srcs = ["validate_concrete_type.cc"],
     hdrs = ["validate_concrete_type.h"],
     deps = [
-        ":type_annotation_utils",
         "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
@@ -496,6 +495,7 @@ cc_library(
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:deduce_utils",
+        "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:unwrap_meta_type",
@@ -570,6 +570,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
     ],

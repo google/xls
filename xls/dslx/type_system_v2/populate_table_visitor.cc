@@ -1048,7 +1048,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleRange(const Range* node) override {
     VLOG(5) << "HandleRange: " << node->ToString();
 
-    if (IsRangeInMatchArm(node)) {
+    // In a match pattern, a range means "match against anything in this range"
+    // as opposed to "fabricate an array with everything in this range," so the
+    // type of the range expr is just the type of the range endpoints, and
+    // default handling of the children will get us that.
+    if (node->has_pattern_semantics()) {
       return DefaultHandler(node);
     }
 

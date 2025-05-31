@@ -3518,7 +3518,7 @@ class Index : public Expr {
 class Range : public Expr {
  public:
   Range(Module* owner, Span span, Expr* start, bool inclusive_end, Expr* end,
-        bool in_parens = false);
+        bool in_parens = false, bool pattern_semantics = false);
   ~Range() override;
   AstNodeKind kind() const override { return AstNodeKind::kRange; }
   std::string_view GetNodeTypeName() const override { return "Range"; }
@@ -3535,6 +3535,7 @@ class Range : public Expr {
   Expr* start() const { return start_; }
   Expr* end() const { return end_; }
   bool inclusive_end() const { return inclusive_end_; }
+  bool has_pattern_semantics() const { return pattern_semantics_; }
 
   Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kRange;
@@ -3546,6 +3547,7 @@ class Range : public Expr {
   Expr* start_;
   Expr* end_;
   bool inclusive_end_;
+  bool pattern_semantics_;
 };
 
 // Represents a unit test construct.
