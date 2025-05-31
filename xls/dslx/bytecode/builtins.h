@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_BYTECODE_BUILTINS_H_
 #define XLS_DSLX_BYTECODE_BUILTINS_H_
 
+#include <optional>
 #include <string>
 #include <string_view>
 

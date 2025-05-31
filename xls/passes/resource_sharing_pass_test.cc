@@ -14,13 +14,11 @@
 #include "xls/passes/resource_sharing_pass.h"
 
 #include <cstdint>
-#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "cppitertools/zip.hpp"

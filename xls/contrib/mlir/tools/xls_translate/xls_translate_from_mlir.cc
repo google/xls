@@ -62,7 +62,6 @@
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "mlir/include/mlir/Support/LogicalResult.h"
 #include "mlir/include/mlir/Transforms/Passes.h"
-#include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/file/filesystem.h"

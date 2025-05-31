@@ -15,13 +15,14 @@
 #ifndef XLS_CODEGEN_CLONE_NODES_INTO_BLOCK_HANDLER_H_
 #define XLS_CODEGEN_CLONE_NODES_INTO_BLOCK_HANDLER_H_
 
+#include <string>
+#include <utility>
 #include <cstdint>
 #include <optional>
 #include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -29,7 +30,6 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/concurrent_stage_groups.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"

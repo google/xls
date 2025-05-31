@@ -319,7 +319,6 @@ cc_library(
         ":type_and_parametric_env",
         ":type_info",
         ":unwrap_meta_type",
-        "//xls/common:casts",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

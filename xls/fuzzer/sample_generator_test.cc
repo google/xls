@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "xls/fuzzer/sample.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"

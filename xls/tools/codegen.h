@@ -12,19 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <optional>
 #include <utility>
-#include <variant>
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_result.h"
-#include "xls/codegen/module_signature.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/package.h"
-#include "xls/passes/pass_metrics.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
-#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen_flags.pb.h"

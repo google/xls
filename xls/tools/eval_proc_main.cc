@@ -14,6 +14,8 @@
 
 // Tool to evaluate the behavior of a Proc network.
 
+#include <deque>
+#include <iterator>
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
@@ -28,6 +30,11 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "xls/ir/value_utils.h"
+#include "xls/ir/register.h"
+#include "absl/strings/numbers.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/strings/str_cat.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"

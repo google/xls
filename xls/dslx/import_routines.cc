@@ -41,7 +41,6 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {

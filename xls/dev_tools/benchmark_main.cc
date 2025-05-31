@@ -24,7 +24,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -43,7 +42,6 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_result.h"
-#include "xls/codegen/module_signature.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"

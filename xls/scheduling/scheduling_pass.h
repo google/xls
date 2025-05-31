@@ -15,9 +15,6 @@
 #ifndef XLS_SCHEDULING_SCHEDULING_PASS_H_
 #define XLS_SCHEDULING_SCHEDULING_PASS_H_
 
-#include <cstdint>
-#include <string>
-#include <string_view>
 #include <variant>
 #include <vector>
 

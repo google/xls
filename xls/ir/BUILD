@@ -683,7 +683,6 @@ cc_library(
     hdrs = ["verifier.h"],
     deps = [
         ":block_elaboration",
-        ":caret",
         ":channel",
         ":code_template",
         ":ir",
@@ -2367,7 +2366,6 @@ cc_library(
         ":interval",
         ":interval_ops",
         ":interval_set",
-        ":ir",
         ":partial_info",
         ":ternary",
         "//xls/common:math_util",
