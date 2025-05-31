@@ -514,6 +514,7 @@ cc_library(
     hdrs = ["parametric_env.h"],
     deps = [
         "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
