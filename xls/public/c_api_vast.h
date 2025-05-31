@@ -253,6 +253,16 @@ bool xls_vast_verilog_module_add_always_ff(
     size_t sensitivity_list_count, struct xls_vast_always_base** out_always_ff,
     char** error_out);
 
+// Adds an always @ block to the module (Verilog-2001 style).
+// 'sensitivity_list_elements' is an array of expressions.
+// Returns true on success. On failure, returns false and sets error_out.
+// The caller is responsible for freeing error_out if it is not NULL.
+bool xls_vast_verilog_module_add_always_at(
+    struct xls_vast_verilog_module* m,
+    struct xls_vast_expression** sensitivity_list_elements,
+    size_t sensitivity_list_count, struct xls_vast_always_base** out_always_at,
+    char** error_out);
+
 // Adds a register (reg) definition to the module.
 // Returns true on success. On failure, returns false and sets error_out.
 // The caller is responsible for freeing error_out if it is not NULL.

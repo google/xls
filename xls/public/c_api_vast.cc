@@ -480,12 +480,13 @@ bool xls_vast_verilog_module_add_always_ff(
   std::vector<xls::verilog::SensitivityListElement> cpp_elements;
   cpp_elements.reserve(sensitivity_list_count);
   for (size_t i = 0; i < sensitivity_list_count; ++i) {
-    auto* expr = reinterpret_cast<xls::verilog::Expression*>(sensitivity_list_elements[i]);
+    auto* expr =
+        reinterpret_cast<xls::verilog::Expression*>(sensitivity_list_elements[i]);
     if (auto* pe = dynamic_cast<xls::verilog::PosEdge*>(expr)) {
       cpp_elements.push_back(pe);
     } else if (auto* ne = dynamic_cast<xls::verilog::NegEdge*>(expr)) {
       cpp_elements.push_back(ne);
-    } else if (auto* lr = dynamic_cast<xls::verilog::LogicRef*>(expr)){
+    } else if (auto* lr = dynamic_cast<xls::verilog::LogicRef*>(expr)) {
       cpp_elements.push_back(lr);
     } else {
       std::string err_msg = absl::StrCat(
@@ -499,6 +500,47 @@ bool xls_vast_verilog_module_add_always_ff(
   xls::verilog::AlwaysFf* cpp_always_ff = cpp_module->Add<xls::verilog::AlwaysFf>(
       xls::SourceInfo(), cpp_elements);
   *out_always_ff = reinterpret_cast<xls_vast_always_base*>(cpp_always_ff);
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_vast_verilog_module_add_always_at(
+    struct xls_vast_verilog_module* m,
+    struct xls_vast_expression** sensitivity_list_elements,
+    size_t sensitivity_list_count, struct xls_vast_always_base** out_always_at,
+    char** error_out) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  std::vector<xls::verilog::SensitivityListElement> cpp_elements;
+  cpp_elements.reserve(sensitivity_list_count);
+  for (size_t i = 0; i < sensitivity_list_count; ++i) {
+    auto* expr =
+        reinterpret_cast<xls::verilog::Expression*>(sensitivity_list_elements[i]);
+    if (auto* pe = dynamic_cast<xls::verilog::PosEdge*>(expr)) {
+      cpp_elements.push_back(pe);
+    } else if (auto* ne = dynamic_cast<xls::verilog::NegEdge*>(expr)) {
+      cpp_elements.push_back(ne);
+    } else if (auto* lr = dynamic_cast<xls::verilog::LogicRef*>(expr)) {
+      cpp_elements.push_back(lr);
+    } else if (expr == nullptr && sensitivity_list_count == 1 &&
+               sensitivity_list_elements[0] == nullptr) {
+      cpp_elements.push_back(xls::verilog::ImplicitEventExpression{});
+    } else {
+      *error_out = xls::ToOwnedCString(absl::StrFormat(
+          "Unsupported sensitivity list element type at index %d for always @.", i));
+      *out_always_at = nullptr;
+      return false;
+    }
+  }
+
+  xls::verilog::Always* cpp_always_at =
+      cpp_module->Add<xls::verilog::Always>(xls::SourceInfo(), cpp_elements);
+  if (cpp_always_at == nullptr) {
+    *error_out = xls::ToOwnedCString(
+        "Failed to create always @ block in Verilog module.");
+    *out_always_at = nullptr;
+    return false;
+  }
+  *out_always_at = reinterpret_cast<xls_vast_always_base*>(cpp_always_at);
   *error_out = nullptr;
   return true;
 }
