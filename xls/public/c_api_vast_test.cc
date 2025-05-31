@@ -17,12 +17,13 @@
 #include "xls/public/c_api_vast.h"
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
+#include "gtest/gtest.h"
 #include "xls/public/c_api.h"
 #include "xls/public/c_api_format_preference.h"
 
@@ -671,3 +672,246 @@ endmodule
 )";
   EXPECT_EQ(std::string_view{emitted}, kWant);
 }
+
+TEST(XlsCApiTest, VastAlwaysFfReg) {
+  xls_vast_verilog_file* f = xls_vast_make_verilog_file(
+      xls_vast_file_type_system_verilog);  // Use SystemVerilog for always_ff
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m =
+      xls_vast_verilog_file_add_module(f, "test_module");
+  ASSERT_NE(m, nullptr);
+
+  // Data types
+  xls_vast_data_type* scalar_type = xls_vast_verilog_file_make_scalar_type(f);
+  ASSERT_NE(scalar_type, nullptr);
+
+  // Input ports
+  xls_vast_logic_ref* clk_ref =
+      xls_vast_verilog_module_add_input(m, "clk", scalar_type);
+  ASSERT_NE(clk_ref, nullptr);
+  xls_vast_logic_ref* pred_ref =
+      xls_vast_verilog_module_add_input(m, "pred", scalar_type);
+  ASSERT_NE(pred_ref, nullptr);
+  xls_vast_logic_ref* x_ref =
+      xls_vast_verilog_module_add_input(m, "x", scalar_type);
+  ASSERT_NE(x_ref, nullptr);
+
+  // Output port
+  xls_vast_logic_ref* out_ref __attribute__((unused)) =
+      xls_vast_verilog_module_add_output(m, "out", scalar_type);
+  ASSERT_NE(out_ref, nullptr);
+
+  // Registers
+  xls_vast_logic_ref* p0_pred_reg_ref = nullptr;
+  char* error_out = nullptr;
+  ASSERT_TRUE(xls_vast_verilog_module_add_reg(m, "p0_pred", scalar_type,
+                                              &p0_pred_reg_ref, &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(p0_pred_reg_ref, nullptr);
+
+  xls_vast_logic_ref* p0_x_reg_ref = nullptr;
+  ASSERT_TRUE(xls_vast_verilog_module_add_reg(m, "p0_x", scalar_type,
+                                              &p0_x_reg_ref, &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(p0_x_reg_ref, nullptr);
+
+  // always_ff block
+  xls_vast_expression* clk_expr = xls_vast_logic_ref_as_expression(clk_ref);
+  ASSERT_NE(clk_expr, nullptr);
+  xls_vast_expression* posedge_clk_expr =
+      xls_vast_verilog_file_make_pos_edge(f, clk_expr);
+  ASSERT_NE(posedge_clk_expr, nullptr);
+
+  xls_vast_expression* sensitivity_list[] = {posedge_clk_expr};
+  xls_vast_always_base* always_ff_block = nullptr;
+  ASSERT_TRUE(xls_vast_verilog_module_add_always_ff(
+      m, sensitivity_list, 1, &always_ff_block, &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(always_ff_block, nullptr);
+
+  xls_vast_statement_block* stmt_block =
+      xls_vast_always_base_get_statement_block(always_ff_block);
+  ASSERT_NE(stmt_block, nullptr);
+
+  // Non-blocking assignments
+  xls_vast_expression* p0_pred_reg_expr =
+      xls_vast_logic_ref_as_expression(p0_pred_reg_ref);
+  ASSERT_NE(p0_pred_reg_expr, nullptr);
+  xls_vast_expression* pred_expr = xls_vast_logic_ref_as_expression(pred_ref);
+  ASSERT_NE(pred_expr, nullptr);
+  xls_vast_statement* assign_p0_pred =
+      xls_vast_statement_block_add_nonblocking_assignment(
+          stmt_block, p0_pred_reg_expr, pred_expr);
+  ASSERT_NE(assign_p0_pred, nullptr);
+
+  xls_vast_expression* p0_x_reg_expr =
+      xls_vast_logic_ref_as_expression(p0_x_reg_ref);
+  ASSERT_NE(p0_x_reg_expr, nullptr);
+  xls_vast_expression* x_expr = xls_vast_logic_ref_as_expression(x_ref);
+  ASSERT_NE(x_expr, nullptr);
+  xls_vast_statement* assign_p0_x =
+      xls_vast_statement_block_add_nonblocking_assignment(
+          stmt_block, p0_x_reg_expr, x_expr);
+  ASSERT_NE(assign_p0_x, nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+
+  const std::string_view kWant = R"(module test_module(
+  input wire clk,
+  input wire pred,
+  input wire x,
+  output wire out
+);
+  reg p0_pred;
+  reg p0_x;
+  always_ff @ (posedge clk) begin
+    p0_pred <= pred;
+    p0_x <= x;
+  end
+endmodule
+)";
+  EXPECT_EQ(std::string_view{emitted}, kWant);
+}
+
+// Parameterized test for sequential block generation (always_ff vs always @)
+class VastSequentialBlockTest : public testing::TestWithParam<bool> {
+ protected:
+  bool use_system_verilog() const { return GetParam(); }
+};
+
+TEST_P(VastSequentialBlockTest, GenerateSequentialLogic) {
+  xls_vast_verilog_file* f = xls_vast_make_verilog_file(
+      use_system_verilog() ? xls_vast_file_type_system_verilog
+                           : xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m =
+      xls_vast_verilog_file_add_module(f, "test_module");
+  ASSERT_NE(m, nullptr);
+
+  // Data types
+  xls_vast_data_type* scalar_type = xls_vast_verilog_file_make_scalar_type(f);
+  ASSERT_NE(scalar_type, nullptr);
+
+  // Input ports
+  xls_vast_logic_ref* clk_ref =
+      xls_vast_verilog_module_add_input(m, "clk", scalar_type);
+  ASSERT_NE(clk_ref, nullptr);
+  xls_vast_logic_ref* pred_ref =
+      xls_vast_verilog_module_add_input(m, "pred", scalar_type);
+  ASSERT_NE(pred_ref, nullptr);
+  xls_vast_logic_ref* x_ref =
+      xls_vast_verilog_module_add_input(m, "x", scalar_type);
+  ASSERT_NE(x_ref, nullptr);
+
+  // Output port
+  xls_vast_logic_ref* out_ref __attribute__((unused)) =
+      xls_vast_verilog_module_add_output(m, "out", scalar_type);
+  ASSERT_NE(out_ref, nullptr);
+
+  // Registers
+  xls_vast_logic_ref* p0_pred_reg_ref = nullptr;
+  char* error_out = nullptr;
+  ASSERT_TRUE(xls_vast_verilog_module_add_reg(m, "p0_pred", scalar_type,
+                                              &p0_pred_reg_ref, &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(p0_pred_reg_ref, nullptr);
+
+  xls_vast_logic_ref* p0_x_reg_ref = nullptr;
+  ASSERT_TRUE(xls_vast_verilog_module_add_reg(m, "p0_x", scalar_type,
+                                              &p0_x_reg_ref, &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(p0_x_reg_ref, nullptr);
+
+  // always_ff block
+  xls_vast_expression* clk_expr = xls_vast_logic_ref_as_expression(clk_ref);
+  ASSERT_NE(clk_expr, nullptr);
+  xls_vast_expression* posedge_clk_expr =
+      xls_vast_verilog_file_make_pos_edge(f, clk_expr);
+  ASSERT_NE(posedge_clk_expr, nullptr);
+
+  xls_vast_expression* sensitivity_list[] = {posedge_clk_expr};
+  xls_vast_always_base* always_block = nullptr;
+  if (use_system_verilog()) {
+    ASSERT_TRUE(xls_vast_verilog_module_add_always_ff(
+        m, sensitivity_list, 1, &always_block, &error_out));
+  } else {
+    // Call xls_vast_verilog_module_add_always_at for Verilog-2001 style
+    ASSERT_TRUE(xls_vast_verilog_module_add_always_at(
+        m, sensitivity_list, 1, &always_block, &error_out));
+  }
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(always_block, nullptr);
+
+  xls_vast_statement_block* stmt_block =
+      xls_vast_always_base_get_statement_block(always_block);
+  ASSERT_NE(stmt_block, nullptr);
+
+  // Non-blocking assignments
+  xls_vast_expression* p0_pred_reg_expr =
+      xls_vast_logic_ref_as_expression(p0_pred_reg_ref);
+  ASSERT_NE(p0_pred_reg_expr, nullptr);
+  xls_vast_expression* pred_expr = xls_vast_logic_ref_as_expression(pred_ref);
+  ASSERT_NE(pred_expr, nullptr);
+  xls_vast_statement* assign_p0_pred =
+      xls_vast_statement_block_add_nonblocking_assignment(
+          stmt_block, p0_pred_reg_expr, pred_expr);
+  ASSERT_NE(assign_p0_pred, nullptr);
+
+  xls_vast_expression* p0_x_reg_expr =
+      xls_vast_logic_ref_as_expression(p0_x_reg_ref);
+  ASSERT_NE(p0_x_reg_expr, nullptr);
+  xls_vast_expression* x_expr = xls_vast_logic_ref_as_expression(x_ref);
+  ASSERT_NE(x_expr, nullptr);
+  xls_vast_statement* assign_p0_x =
+      xls_vast_statement_block_add_nonblocking_assignment(
+          stmt_block, p0_x_reg_expr, x_expr);
+  ASSERT_NE(assign_p0_x, nullptr);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+
+  std::string kWant_string;
+  if (use_system_verilog()) {
+    kWant_string = R"(module test_module(
+  input wire clk,
+  input wire pred,
+  input wire x,
+  output wire out
+);
+  reg p0_pred;
+  reg p0_x;
+  always_ff @ (posedge clk) begin
+    p0_pred <= pred;
+    p0_x <= x;
+  end
+endmodule
+)";
+  } else {
+    kWant_string = R"(module test_module(
+  input wire clk,
+  input wire pred,
+  input wire x,
+  output wire out
+);
+  reg p0_pred;
+  reg p0_x;
+  always @ (posedge clk) begin
+    p0_pred <= pred;
+    p0_x <= x;
+  end
+endmodule
+)";
+  }
+  std::string_view kWant = kWant_string;
+  EXPECT_EQ(std::string_view{emitted}, kWant);
+}
+
+INSTANTIATE_TEST_SUITE_P(VastSequentialBlockTestSuite, VastSequentialBlockTest,
+                         testing::Bool());
