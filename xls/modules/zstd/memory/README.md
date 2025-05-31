@@ -16,7 +16,7 @@ structures will not match the expected AXI bus signature. To interface with
 other AXI peripherals, additional Verilog wrappers may be needed to split
 the flattened bit vector into individual signals.
 
-# Data Structures
+## Data Structures
 
 As noted, the procs in this directory use channels with dedicated
 structures to represent AXI bus signals in DSLX. For instance, the AXI read
@@ -27,7 +27,7 @@ to receive the read data. These channels are represented by the `AxiAr` and
 The structures used to represent AXI4 Stream interface can be found in
 the `axi_st.x` file.
 
-# Main components
+## Main components
 
 The primary components of this directory are `MemReader` and `MemWriter`,
 which facilitate issuing read and write transactions on the AXI bus.
@@ -38,7 +38,8 @@ The `MemReader` includes several procs that can be used individually:
 
 - `AxiReader`: Handles the creation of AXI transactions, managing unaligned
   addresses and issuing additional transactions when crossing the 4KB boundary
-  or when the read request is longer than maximum possible burst size on the AXI bus
+  or when the read request is longer than maximum possible burst size on the
+  AXI bus
 
 - `AxiStreamDownscaler`: An optional proc available in `MemReaderAdv`,
   enabling DSLX designs to connect to a wider AXI bus.
@@ -48,15 +49,16 @@ The `MemReader` includes several procs that can be used individually:
 
 The `MemWriter` proc is organised in a similar manner, it consists of:
 
-- `AxiWriter`: Handles the creation of AXI write transactions, managing unaligned
-  addresses and issuing additional transactions when crossing the 4KB boundary,
-  or when the write request is longer than maximum possible burst size on the AXI bus
+- `AxiWriter`: Handles the creation of AXI write transactions, managing
+  unaligned addresses and issuing additional transactions when crossing the 4KB
+  boundary, or when the write request is longer than maximum possible burst size
+  on the AXI bus
 
 - `AxiStreamAddEmpty`: Adds empty data bits in the stream of data to write.
   It is used to shift the data in the stream to facilitate writes to unaligned
   addresses.
 
-# Usage
+## Usage
 
 The list below shows the usage of the `MemReader` proc:
 

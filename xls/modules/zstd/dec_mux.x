@@ -26,7 +26,7 @@ type BlockPacketLength = common::BlockPacketLength;
 type CopyOrMatchContent = common::CopyOrMatchContent;
 type CopyOrMatchLength = common::CopyOrMatchLength;
 type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
-type SequenceExecutorPacket = common::SequenceExecutorPacket;
+type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
 
 const MAX_ID = common::DATA_WIDTH;
 const DATA_WIDTH = common::DATA_WIDTH;
@@ -130,7 +130,7 @@ pub proc DecoderMux {
                  (((state.raw_data.packet.id == (state.prev_id + u32:1)) && state.prev_last) ||
                   ((state.raw_data.packet.id == state.prev_id) && !state.prev_last))) {
                     assert!(!state.raw_data_valid_next_frame, "raw_packet_valid_in_current_and_next_frame");
-                    (true,
+                    ((state.raw_data.packet.length as CopyOrMatchLength) != CopyOrMatchLength:0,
                      SequenceExecutorPacket {
                          msg_type: state.raw_data.msg_type,
                          length: state.raw_data.packet.length as CopyOrMatchLength,
@@ -153,7 +153,7 @@ pub proc DecoderMux {
                         (((state.rle_data.packet.id == (state.prev_id + u32:1)) && state.prev_last) ||
                          ((state.rle_data.packet.id == state.prev_id) && !state.prev_last))) {
                     assert!(!state.rle_data_valid_next_frame, "rle_packet_valid_in_current_and_next_frame");
-                    (true,
+                    ((state.rle_data.packet.length as CopyOrMatchLength) != CopyOrMatchLength:0,
                      SequenceExecutorPacket {
                          msg_type: state.rle_data.msg_type,
                          length: state.rle_data.packet.length as CopyOrMatchLength,
@@ -234,19 +234,19 @@ proc DecoderMuxTest {
 
   next(state: ()) {
     let tok = join();
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:32 }});
-    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: false, last_block: bool: false, data: BlockData:0xAAAAAAAA, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:32 }});
-    let tok = send(tok, cmp_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: true,  data: BlockData:0x00000000, length: BlockPacketLength:32 }});
-    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0xBBBBBBBB, length: BlockPacketLength:32 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:4 }});
+    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: false, last_block: bool: false, data: BlockData:0xAAAAAAAA, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:4 }});
+    let tok = send(tok, cmp_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: true,  data: BlockData:0x00000000, length: BlockPacketLength:4 }});
+    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0xBBBBBBBB, length: BlockPacketLength:4 }});
 
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xAAAAAAAA, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xBBBBBBBB, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x00000000, length: CopyOrMatchLength:32 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xAAAAAAAA, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xBBBBBBBB, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x00000000, length: CopyOrMatchLength:4 });
 
     send(tok, terminator, true);
   }
@@ -274,17 +274,15 @@ proc DecoderMuxEmptyRawBlocksTest {
 
   next(state: ()) {
     let tok = join();
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:32 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:4 }});
     let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: false, data: BlockData:0x0,        length: BlockPacketLength:0  }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:32 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:4 }});
     let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:4, last: bool: true,  last_block: bool: true,  data: BlockData:0x0,        length: BlockPacketLength:0  }});
 
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0,        length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:4 });
 
     send(tok, terminator, true);
   }
@@ -312,17 +310,15 @@ proc DecoderMuxEmptyRleBlocksTest {
 
   next(state: ()) {
     let tok = join();
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:32 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:4 }});
     let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: false, data: BlockData:0x0,        length: BlockPacketLength:0  }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:32 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:4 }});
     let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:4, last: bool: true,  last_block: bool: true,  data: BlockData:0x0,        length: BlockPacketLength:0  }});
 
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0,        length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0,        length: CopyOrMatchLength:0  });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:4 });
 
     send(tok, terminator, true);
   }
@@ -350,21 +346,20 @@ proc DecoderMuxEmptyBlockBetweenRegularBlocksOnTheSameInputChannelTest {
 
   next(state: ()) {
     let tok = join();
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:32 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:4 }});
     let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0x0,        length: BlockPacketLength:0  }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: false, last_block: bool: false, data: BlockData:0xAAAAAAAA, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: false, data: BlockData:0xBBBBBBBB, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: true,  data: BlockData:0x00000000, length: BlockPacketLength:32 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: false, last_block: bool: false, data: BlockData:0xAAAAAAAA, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: false, data: BlockData:0xBBBBBBBB, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: true,  data: BlockData:0x00000000, length: BlockPacketLength:4 }});
 
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0,        length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xAAAAAAAA, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xBBBBBBBB, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x00000000, length: CopyOrMatchLength:32 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xAAAAAAAA, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xBBBBBBBB, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x00000000, length: CopyOrMatchLength:4 });
 
     send(tok, terminator, true);
   }
@@ -392,21 +387,20 @@ proc DecoderMuxEmptyBlockBetweenRegularBlocksOnDifferentInputChannelsTest {
 
   next(state: ()) {
     let tok = join();
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:32 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:4 }});
     let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0x0,        length: BlockPacketLength:0  }});
-    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: false, last_block: bool: false, data: BlockData:0xAAAAAAAA, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:32 }});
-    let tok = send(tok, cmp_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: true,  data: BlockData:0x00000000, length: BlockPacketLength:32 }});
-    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: false, data: BlockData:0xBBBBBBBB, length: BlockPacketLength:32 }});
+    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: false, last_block: bool: false, data: BlockData:0xAAAAAAAA, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:4 }});
+    let tok = send(tok, cmp_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: true,  data: BlockData:0x00000000, length: BlockPacketLength:4 }});
+    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: false, data: BlockData:0xBBBBBBBB, length: BlockPacketLength:4 }});
 
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0,        length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xAAAAAAAA, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xBBBBBBBB, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x00000000, length: CopyOrMatchLength:32 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xAAAAAAAA, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xBBBBBBBB, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x00000000, length: CopyOrMatchLength:4 });
 
     send(tok, terminator, true);
   }
@@ -435,22 +429,22 @@ proc DecoderMuxMultipleFramesTest {
   next(state: ()) {
     let tok = join();
     // Frame #1
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:32 }});
-    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: false, last_block: bool: false, data: BlockData:0xAAAAAAAA, length: BlockPacketLength:32 }});
-    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0xBBBBBBBB, length: BlockPacketLength:32 }});
-    let tok = send(tok, cmp_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: false, data: BlockData:0xCCCCCCCC, length: BlockPacketLength:32 }});
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: false, data: BlockData:0xDDDDDDDD, length: BlockPacketLength:32 }});
-    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:4, last: bool: true,  last_block: bool: false, data: BlockData:0xEEEEEEEE, length: BlockPacketLength:32 }});
-    let tok = send(tok, cmp_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:5, last: bool: true,  last_block: bool: true,  data: BlockData:0xFFFFFFFF, length: BlockPacketLength:32 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x11111111, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: false, last_block: bool: false, data: BlockData:0x22222222, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x33333333, length: BlockPacketLength:4 }});
+    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: false, last_block: bool: false, data: BlockData:0xAAAAAAAA, length: BlockPacketLength:4 }});
+    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0xBBBBBBBB, length: BlockPacketLength:4 }});
+    let tok = send(tok, cmp_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: false, data: BlockData:0xCCCCCCCC, length: BlockPacketLength:4 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: false, data: BlockData:0xDDDDDDDD, length: BlockPacketLength:4 }});
+    let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:4, last: bool: true,  last_block: bool: false, data: BlockData:0xEEEEEEEE, length: BlockPacketLength:4 }});
+    let tok = send(tok, cmp_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:5, last: bool: true,  last_block: bool: true,  data: BlockData:0xFFFFFFFF, length: BlockPacketLength:4 }});
     // Frame #2
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x44444444, length: BlockPacketLength:32 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x44444444, length: BlockPacketLength:4 }});
     let tok = send(tok, cmp_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0x0,        length: BlockPacketLength:0  }});
     let tok = send(tok, cmp_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: false, data: BlockData:0x0,        length: BlockPacketLength:0  }});
     let tok = send(tok, rle_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: true,  data: BlockData:0x0,        length: BlockPacketLength:0  }});
     // Frame #3
-    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x55555555, length: BlockPacketLength:32 }});
+    let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:0, last: bool: true,  last_block: bool: false, data: BlockData:0x55555555, length: BlockPacketLength:4 }});
     let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:1, last: bool: true,  last_block: bool: false, data: BlockData:0x0,        length: BlockPacketLength:0  }});
     let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:2, last: bool: true,  last_block: bool: false, data: BlockData:0x0,        length: BlockPacketLength:0  }});
     let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:3, last: bool: true,  last_block: bool: false, data: BlockData:0x0,        length: BlockPacketLength:0  }});
@@ -462,31 +456,21 @@ proc DecoderMuxMultipleFramesTest {
     let tok = send(tok, raw_s, ExtendedBlockDataPacket { msg_type: SequenceExecutorMessageType::LITERAL, packet: BlockDataPacket { id: u32:9, last: bool: true,  last_block: bool: true,  data: BlockData:0x0,        length: BlockPacketLength:0  }});
 
     // Frame #1
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xAAAAAAAA, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xBBBBBBBB, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xCCCCCCCC, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xDDDDDDDD, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xEEEEEEEE, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xFFFFFFFF, length: CopyOrMatchLength:32 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xAAAAAAAA, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xBBBBBBBB, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xCCCCCCCC, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xDDDDDDDD, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xEEEEEEEE, length: CopyOrMatchLength:4 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xFFFFFFFF, length: CopyOrMatchLength:4 });
     // Frame #2
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x44444444, length: CopyOrMatchLength:32 });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x44444444, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
     // Frame #3
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x55555555, length: CopyOrMatchLength:32 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x55555555, length: CopyOrMatchLength:4 });
 
     send(tok, terminator, true);
   }
