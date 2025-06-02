@@ -16,6 +16,7 @@
 #define XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_ENV_H_
 
 #include <cstdint>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -24,6 +25,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
@@ -96,6 +98,9 @@ class ParametricEnv {
 
   int64_t size() const { return bindings_.size(); }
   const std::vector<ParametricEnvItem>& bindings() const { return bindings_; }
+
+  // Returns the value of the given binding, if any is mapped in this env.
+  std::optional<InterpValue> GetValue(const NameDef* binding) const;
 
  private:
   // Sorts all of the bindings_ elements (to maintain the sorted-order invariant

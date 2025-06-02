@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
@@ -76,6 +78,20 @@ void ParametricEnv::Sort() {
         return lhs.identifier < rhs.identifier ||
                (lhs.identifier == rhs.identifier && lhs.value < rhs.value);
       });
+}
+
+std::optional<InterpValue> ParametricEnv::GetValue(
+    const NameDef* binding) const {
+  if (binding->parent() == nullptr ||
+      binding->parent()->kind() != AstNodeKind::kParametricBinding) {
+    return std::nullopt;
+  }
+  for (const ParametricEnvItem& item : bindings_) {
+    if (item.identifier == binding->identifier()) {
+      return item.value;
+    }
+  }
+  return std::nullopt;
 }
 
 }  // namespace xls::dslx

@@ -177,6 +177,18 @@ class ParametricContext {
     details.parametric_free_function_type = type;
   }
 
+  // Returns the value of the given parametric binding in this context. If it is
+  // not a relevant parametric binding, returns `nullopt`.
+  std::optional<InterpValue> GetEnvValue(const NameDef* binding) const {
+    if (invocation_env_.has_value()) {
+      return invocation_env_->GetValue(binding);
+    }
+    if (std::holds_alternative<ParametricStructDetails>(details_)) {
+      return std::get<ParametricStructDetails>(details_).env.GetValue(binding);
+    }
+    return std::nullopt;
+  }
+
  private:
   static std::string DetailsToString(const Details& details) {
     return absl::visit(
