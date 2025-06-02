@@ -41,6 +41,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_utils.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
@@ -292,7 +293,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleRange(const Range* range) override {
-    if (IsRangeInMatchArm(range)) {
+    if (range->has_pattern_semantics()) {
       return absl::OkStatus();
     }
     XLS_ASSIGN_OR_RETURN(

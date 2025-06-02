@@ -720,7 +720,7 @@ class AstCloner : public AstNodeVisitor {
     old_to_new_[n] = module_->Make<Range>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->start())),
         n->inclusive_end(), down_cast<Expr*>(old_to_new_.at(n->end())),
-        n->in_parens());
+        n->in_parens(), n->has_pattern_semantics());
     return absl::OkStatus();
   }
 

@@ -1729,7 +1729,8 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings,
       XLS_ASSIGN_OR_RETURN(Number * limit, ParseNumber(bindings));
       auto* range = module_->Make<Range>(
           Span(number->span().start(), limit->span().limit()), number,
-          peek_is_double_dot_equals, limit);
+          peek_is_double_dot_equals, limit, /*in_parens=*/false,
+          /*pattern_semantics=*/true);
       return module_->Make<NameDefTree>(range->span(), range);
     }
     return module_->Make<NameDefTree>(number->span(), number);
