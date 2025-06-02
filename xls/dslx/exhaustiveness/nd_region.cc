@@ -163,8 +163,8 @@ std::vector<NdInterval> NdInterval::SubtractInterval(
     if (remaining_interval.min() < lower) {
       VLOG(5) << absl::StreamFormat(
           "remaining lower for dimension %d is %s which is < %s", dim_idx,
-          remaining_interval.min().ToString(/*show_types=*/true),
-          lower.ToString(/*show_types=*/true));
+          remaining_interval.min().ToString(/*humanize=*/true),
+          lower.ToString(/*humanize=*/true));
       std::vector<InterpValueInterval> new_dims = remaining;
       new_dims[dim_idx] = InterpValueInterval(remaining_interval.min(),
                                               lower.Decrement().value());
