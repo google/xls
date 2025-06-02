@@ -2123,8 +2123,7 @@ fn main() -> u5 {
   ExpectIr(converted);
 }
 
-// TODO: erinzmoore - Support impl functions.
-TEST_P(IrConverterWithBothTypecheckVersionsTest, DISABLED_ImportStructImpl) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ImportStructImpl) {
   auto import_data = CreateImportDataForTest();
   const char* imported_program = R"(
 pub struct S { x: u5 }
@@ -3857,6 +3856,38 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest,
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ConvertImplFunctionOnStructMember) {
+  constexpr std::string_view program = R"(
+  struct F {}
+
+  impl F {
+    pub fn bar(self) -> F { F {} }
+  }
+
+  struct G { f: F }
+  impl G {
+    pub fn foo(self) -> F {
+      self.f.bar()
+    }
+  }
+
+  fn top_fn() -> F {
+    let g = G { f: F {} };
+    g.foo()
+  }
+
+  fn another_fn() -> G {
+    G { f: F {} }
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ImplColonRef) {
   constexpr std::string_view program = R"(
   struct F {}
@@ -3869,6 +3900,45 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, ImplColonRef) {
 
   fn top_fn() -> u32 {
     F::bar()
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, SimpleImpl) {
+  constexpr std::string_view program = R"(
+  struct F {}
+
+  impl F {
+    pub fn bar() -> u32 { u32:0 }
+  }
+
+  fn top_fn() -> u32 {
+    F::bar()
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, SimpleImplMethod) {
+  constexpr std::string_view program = R"(
+  struct F {}
+
+  impl F {
+    pub fn bar(self) -> F { self }
+  }
+
+  fn top_fn() -> F {
+    let f = F {};
+    f.bar()
   }
   )";
 

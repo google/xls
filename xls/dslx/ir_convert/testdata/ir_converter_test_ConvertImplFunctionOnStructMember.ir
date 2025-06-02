@@ -1,0 +1,23 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__F__bar(self: () id=1) -> () {
+  ret tuple.2: () = tuple(id=2)
+}
+
+fn __test_module__G__foo(self: (()) id=3) -> () {
+  self_f: () = tuple_index(self, index=0, id=4)
+  ret invoke.5: () = invoke(self_f, to_apply=__test_module__F__bar, id=5)
+}
+
+fn __test_module__top_fn() -> () {
+  tuple.6: () = tuple(id=6)
+  g: (()) = tuple(tuple.6, id=7)
+  ret invoke.8: () = invoke(g, to_apply=__test_module__G__foo, id=8)
+}
+
+fn __test_module__another_fn() -> (()) {
+  tuple.9: () = tuple(id=9)
+  ret tuple.10: (()) = tuple(tuple.9, id=10)
+}

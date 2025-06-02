@@ -7638,5 +7638,28 @@ fn test() -> Foo<5> {
                           "Foo { a: uN[30], b: uN[5] }")))));
 }
 
+TEST(TypecheckV2Test, CallFunctionOnStructMember) {
+  EXPECT_THAT(
+      R"(
+struct G { }
+
+impl G {
+  fn x(self: Self) -> u32 {
+     u32:1
+  }
+}
+
+struct F { g: G }
+
+impl F {
+  fn y(self: Self) -> u32 {
+    self.g.x()
+  }
+}
+
+)",
+      TypecheckSucceeds(HasNodeWithType("y", "(F { g: G {} }) -> uN[32]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

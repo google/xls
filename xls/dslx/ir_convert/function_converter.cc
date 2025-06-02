@@ -2379,6 +2379,12 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(std::string called_name, GetCalleeIdentifier(node));
   auto accept_args = [&]() -> absl::StatusOr<std::vector<BValue>> {
     std::vector<BValue> values;
+    if (auto* attr = dynamic_cast<Attr*>(node->callee())) {
+      Expr* param = attr->lhs();
+      XLS_RETURN_IF_ERROR(Visit(param));
+      XLS_ASSIGN_OR_RETURN(BValue value, Use(param));
+      values.push_back(value);
+    }
     for (Expr* arg : node->args()) {
       XLS_RETURN_IF_ERROR(Visit(arg));
       XLS_ASSIGN_OR_RETURN(BValue value, Use(arg));

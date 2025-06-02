@@ -1040,10 +1040,6 @@ absl::StatusOr<std::unique_ptr<Type>> ConcretizeBuiltinTypeAnnotation(
 
 absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
     const Attr* attr, const TypeInfo* type_info) {
-  auto* nr = dynamic_cast<NameRef*>(attr->lhs());
-  if (nr == nullptr) {
-    return std::nullopt;
-  }
   if (!type_info->Contains(attr->lhs())) {
     return std::nullopt;
   }
