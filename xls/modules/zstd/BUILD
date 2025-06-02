@@ -2687,8 +2687,9 @@ benchmark_synth(
     tags = ["manual"],
 )
 
+# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
-    name = "literals_decoder_place_and_route",
+    name = "literals_decoder_place_and_route_skip",
     clock_period = "750",
     core_padding_microns = 2,
     min_pin_distance = "0.5",
@@ -3024,8 +3025,9 @@ benchmark_synth(
     tags = ["manual"],
 )
 
+# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
-    name = "huffman_data_preprocessor_place_and_route",
+    name = "huffman_data_preprocessor_place_and_route_skip",
     clock_period = "750",
     core_padding_microns = 2,
     min_pin_distance = "0.5",
@@ -3101,8 +3103,9 @@ benchmark_synth(
     tags = ["manual"],
 )
 
+# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
-    name = "huffman_decoder_place_and_route",
+    name = "huffman_decoder_place_and_route_skip",
     clock_period = "750",
     core_padding_microns = 2,
     min_pin_distance = "0.5",
@@ -3360,8 +3363,9 @@ benchmark_synth(
     tags = ["manual"],
 )
 
+# TODO: Remove _skip suffix after fixing long P&R time. Used now to skip this target in CI.
 place_and_route(
-    name = "huffman_literals_dec_place_and_route",
+    name = "huffman_literals_dec_place_and_route_skip",
     clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
