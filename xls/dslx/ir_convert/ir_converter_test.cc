@@ -3468,7 +3468,52 @@ fn main(x: u8[42]) -> u32 {
   ExpectIr(converted);
 }
 
-TEST(IrConverterTest, InvokeFunctionWithTraceInForLoop) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       InvokeFunctionWithTraceParametric) {
+  constexpr std::string_view program =
+      R"(
+fn bar<C: u32>() {
+  trace_fmt!("C is {}", C);
+}
+
+fn foo<A: u32>(x: u32, y: u32) -> u32 {
+  bar<A>();
+  x + y
+}
+
+fn main(x: u32, y: u32) -> u32 {
+  foo<u32:1>(x, y)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, InvokeFunctionWithTrace) {
+  constexpr std::string_view program =
+      R"(
+fn foo(x: u32, y: u32) -> u32 {
+  trace_fmt!("x is {}", x);
+  trace_fmt!("y is {}", y);
+  x + y
+}
+
+fn main(x: u32, y: u32) -> u32 {
+  foo(x, y)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       InvokeFunctionWithTraceInForLoop) {
   constexpr std::string_view program =
       R"(
 fn foo(x: u32, y: u32) -> u32 {

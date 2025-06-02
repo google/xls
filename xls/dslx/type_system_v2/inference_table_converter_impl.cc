@@ -422,6 +422,31 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return absl::OkStatus();
   }
 
+  // Checks whether the callee is either a builtin requiring implicit token or
+  // has been noted in type info that it requires implicit token. Notes whether
+  // implicit token is required in the caller's root type info.
+  absl::Status NoteIfRequiresImplicitToken(
+      std::optional<const Function*> caller, const Function* callee_fn,
+      Expr* callee) {
+    if (!caller.has_value()) {
+      return absl::OkStatus();
+    }
+    // ImplicitToken notation always happens at the `root` level, so the context
+    // is not relevant when retrieving type info.
+    XLS_ASSIGN_OR_RETURN(TypeInfo * callee_ti,
+                         GetTypeInfo(callee_fn->owner(), std::nullopt));
+    std::optional<bool> callee_noted_requires_token =
+        callee_ti->GetRequiresImplicitToken(*callee_fn);
+    bool callee_requires_implicit_token =
+        (IsBuiltin(callee_fn) && GetBuiltinFnRequiresImplicitToken(callee)) ||
+        (callee_noted_requires_token.has_value() &&
+         *callee_noted_requires_token);
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                         GetTypeInfo((*caller)->owner(), std::nullopt));
+    ti->NoteRequiresImplicitToken(**caller, callee_requires_implicit_token);
+    return absl::OkStatus();
+  }
+
   // Converts the type info for the given invocation node and its argument
   // nodes. This involves resolving the callee function and applying the formal
   // types of the arguments to the actual arguments in the inference table.
@@ -438,16 +463,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(
         const FunctionAndTargetObject function_and_target_object,
         ResolveFunction(invocation->callee(), caller, caller_context));
-
-    // This is one condition for enabling an "implicit token" in v1.
-    // TODO: https://github.com/google/xls/issues/193 - Handle the condition
-    // based on root type info of the callee.
-    if (caller.has_value() && IsBuiltin(function_and_target_object.function) &&
-        GetBuiltinFnRequiresImplicitToken(invocation->callee())) {
-      XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
-                           GetTypeInfo((*caller)->owner(), caller_context));
-      ti->NoteRequiresImplicitToken(**caller, true);
-    }
 
     const Function* function = function_and_target_object.function;
     std::optional<const ParametricContext*> caller_or_target_struct_context =
@@ -532,6 +547,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             **invocation->originating_invocation(), function,
             caller.has_value() ? *caller : nullptr));
       }
+      XLS_RETURN_IF_ERROR(NoteIfRequiresImplicitToken(
+          caller, function_and_target_object.function, invocation->callee()));
       return GenerateTypeInfo(caller_context, invocation,
                               function_type->return_type());
     }
@@ -718,6 +735,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(function, function, invocation_context));
     }
+    XLS_RETURN_IF_ERROR(NoteIfRequiresImplicitToken(
+        caller, function_and_target_object.function, invocation->callee()));
     return GenerateTypeInfo(caller_context, invocation);
   }
 
