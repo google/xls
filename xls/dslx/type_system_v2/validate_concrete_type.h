@@ -30,7 +30,6 @@ namespace xls::dslx {
 // containing an embedded literal.
 absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
                                   const TypeInfo& ti,
-                                  const TypeAnnotation* annotation,
                                   WarningCollector& warning_collector,
                                   const ImportData& import_data,
                                   const FileTable& file_table);

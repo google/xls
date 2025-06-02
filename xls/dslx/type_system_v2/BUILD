@@ -478,7 +478,6 @@ cc_library(
     srcs = ["validate_concrete_type.cc"],
     hdrs = ["validate_concrete_type.h"],
     deps = [
-        ":type_annotation_utils",
         "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",

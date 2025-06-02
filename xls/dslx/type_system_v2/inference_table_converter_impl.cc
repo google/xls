@@ -911,9 +911,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return node_is_annotation ? absl::OkStatus() : type.status();
     }
 
-    XLS_RETURN_IF_ERROR(ValidateConcreteType(node, type->get(), *ti,
-                                             *annotation, warning_collector_,
-                                             import_data_, file_table_));
+    XLS_RETURN_IF_ERROR(ValidateConcreteType(
+        node, type->get(), *ti, warning_collector_, import_data_, file_table_));
     if (node->kind() == AstNodeKind::kNumber) {
       if (const auto* literal = down_cast<const Number*>(node);
           literal->type_annotation() != nullptr) {
@@ -921,7 +920,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                     *std::make_unique<MetaType>((*type)->CloneToUnique()));
       }
     }
-    ti->SetItem(node, **type);
+
+    if (node->kind() == AstNodeKind::kTypeAnnotation) {
+      MetaType meta_type((*type)->CloneToUnique());
+      ti->SetItem(node, meta_type);
+    } else {
+      ti->SetItem(node, **type);
+    }
+
     XLS_RETURN_IF_ERROR(constant_collector_->CollectConstants(
         parametric_context, node, **type, ti));
     VLOG(5) << "Generated type: " << (*ti->GetItem(node))->ToString()

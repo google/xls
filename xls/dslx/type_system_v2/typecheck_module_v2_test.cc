@@ -6012,7 +6012,7 @@ fn f(x: MyEnum) -> MyEnum {
 const_assert!(MyEnum::A as u1 == u1:0);
 const_assert!(MyEnum::B as u1 == u1:1);
 )",
-      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "MyEnum"),
+      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "typeof(MyEnum)"),
                               HasNodeWithType("x", "MyEnum"),
                               HasNodeWithType("y", "MyEnum"))));
 }
@@ -6032,7 +6032,7 @@ const_assert!(MyEnum::A as s8 == 0);
 const_assert!(MyEnum::B as s8 == -128);
 const_assert!(MyEnum::C as s8 == 127);
 )",
-      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "MyEnum"))));
+      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "typeof(MyEnum)"))));
 }
 
 TEST(TypecheckV2Test, EnumWithAnnotation) {
@@ -6046,7 +6046,7 @@ fn f(x: MyEnum) -> MyEnum {
 }
 const_assert!(MyEnum::A as u9 == 256);
 )",
-      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "MyEnum"),
+      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "typeof(MyEnum)"),
                               HasNodeWithType("x", "MyEnum"))));
 }
 
@@ -6067,7 +6067,7 @@ const_assert!(MyEnum::A as u8 == 64);
 const_assert!(MyEnum::B as u8 == 42);
 const_assert!(MyEnum::C as u8 == 20);
 )",
-      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "MyEnum"))));
+      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "typeof(MyEnum)"))));
 }
 
 TEST(TypecheckV2Test, EnumOutOfRange) {
@@ -6137,7 +6137,7 @@ fn f(x : Alias2) -> Alias1 {
 const_assert!(Alias1::A as u8 == 1);
 const_assert!(Alias2::A as u8 == 1);
 )",
-      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "MyEnum"),
+      TypecheckSucceeds(AllOf(HasNodeWithType("MyEnum", "typeof(MyEnum)"),
                               HasNodeWithType("Alias1", "MyEnum"),
                               HasNodeWithType("Alias2", "MyEnum"),
                               HasNodeWithType("x", "MyEnum"))));
