@@ -2679,17 +2679,18 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-place_and_route(
-    name = "literals_decoder_place_and_route",
-    clock_period = "750",
-    core_padding_microns = 2,
-    min_pin_distance = "0.5",
-    placement_density = "0.30",
-    stop_after_step = "global_routing",
-    synthesized_rtl = ":literals_decoder_synth_asap7",
-    tags = ["manual"],
-    target_die_utilization_percentage = "10",
-)
+# TODO: Uncomment after resolving problems with too long P&R
+# place_and_route(
+#     name = "literals_decoder_place_and_route",
+#     clock_period = "750",
+#     core_padding_microns = 2,
+#     min_pin_distance = "0.5",
+#     placement_density = "0.30",
+#     stop_after_step = "global_routing",
+#     synthesized_rtl = ":literals_decoder_synth_asap7",
+#     tags = ["manual"],
+#     target_die_utilization_percentage = "10",
+# )
 
 xls_dslx_library(
     name = "huffman_common_dslx",
@@ -3016,17 +3017,18 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-place_and_route(
-    name = "huffman_data_preprocessor_place_and_route",
-    clock_period = "750",
-    core_padding_microns = 2,
-    min_pin_distance = "0.5",
-    placement_density = "0.30",
-    stop_after_step = "global_routing",
-    synthesized_rtl = ":huffman_data_preprocessor_synth_asap7",
-    tags = ["manual"],
-    target_die_utilization_percentage = "10",
-)
+# TODO: Uncomment after resolving problems with too long P&R
+# place_and_route(
+#     name = "huffman_data_preprocessor_place_and_route",
+#     clock_period = "750",
+#     core_padding_microns = 2,
+#     min_pin_distance = "0.5",
+#     placement_density = "0.30",
+#     stop_after_step = "global_routing",
+#     synthesized_rtl = ":huffman_data_preprocessor_synth_asap7",
+#     tags = ["manual"],
+#     target_die_utilization_percentage = "10",
+# )
 
 xls_dslx_library(
     name = "huffman_decoder_dslx",
@@ -3093,17 +3095,18 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-place_and_route(
-    name = "huffman_decoder_place_and_route",
-    clock_period = "750",
-    core_padding_microns = 2,
-    min_pin_distance = "0.5",
-    placement_density = "0.30",
-    stop_after_step = "global_routing",
-    synthesized_rtl = ":huffman_decoder_synth_asap7",
-    tags = ["manual"],
-    target_die_utilization_percentage = "10",
-)
+# TODO: Uncomment after resolving problems with too long P&R
+# place_and_route(
+#     name = "huffman_decoder_place_and_route",
+#     clock_period = "750",
+#     core_padding_microns = 2,
+#     min_pin_distance = "0.5",
+#     placement_density = "0.30",
+#     stop_after_step = "global_routing",
+#     synthesized_rtl = ":huffman_decoder_synth_asap7",
+#     tags = ["manual"],
+#     target_die_utilization_percentage = "10",
+# )
 
 xls_dslx_library(
     name = "huffman_ctrl_dslx",
@@ -3349,17 +3352,18 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-place_and_route(
-    name = "huffman_literals_dec_place_and_route",
-    clock_period = CLOCK_PERIOD_PS,
-    core_padding_microns = 2,
-    min_pin_distance = "0.5",
-    placement_density = "0.30",
-    stop_after_step = "global_routing",
-    synthesized_rtl = ":huffman_literals_dec_synth_asap7",
-    tags = ["manual"],
-    target_die_utilization_percentage = "10",
-)
+# TODO: Uncomment after resolving problems with too long P&R
+# place_and_route(
+#     name = "huffman_literals_dec_place_and_route",
+#     clock_period = CLOCK_PERIOD_PS,
+#     core_padding_microns = 2,
+#     min_pin_distance = "0.5",
+#     placement_density = "0.30",
+#     stop_after_step = "global_routing",
+#     synthesized_rtl = ":huffman_literals_dec_synth_asap7",
+#     tags = ["manual"],
+#     target_die_utilization_percentage = "10",
+# )
 
 xls_dslx_library(
     name = "refilling_shift_buffer_mux_dslx",
