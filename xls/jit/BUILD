@@ -546,48 +546,73 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "proc_jit_aot_test",
-    srcs = [
-        "proc_jit_aot_test.cc",
-    ],
-    data = [
-        ":multi_proc.ir",
-        ":multi_proc_aot",
-        ":some_caps_no_idents.ir",
-        ":specialized_caps_aot",
-    ],
-    deps = [
-        ":aot_entrypoint_cc_proto",
-        ":function_base_jit",
-        ":jit_callbacks",
-        ":jit_channel_queue",
-        ":jit_proc_runtime",
-        ":jit_runtime",
-        ":multi_proc_aot",  # build_cleaner: keep
-        ":specialized_caps_aot",  # build_cleaner: keep
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/dev_tools:extract_interface",
-        "//xls/interpreter:channel_queue",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:events",
-        "//xls/ir:type_manager",
-        "//xls/ir:value",
-        "//xls/ir:value_builder",
-        "//xls/ir:value_utils",
-        "//xls/ir:xls_ir_interface_cc_proto",
-        "//xls/public:ir_parser",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/status:statusor",
-        "@googletest//:gtest",
-    ],
+xls_dslx_library(
+    name = "multi_proc_dslx",
+    srcs = ["multi_proc.x"],
 )
+
+[
+    (
+        xls_dslx_ir(
+            name = "multi_proc%s" % suffix,
+            dslx_top = "proc_ten",
+            ir_conv_args = {"proc_scoped_channels": "true" if proc_scoped else "false"},
+            library = ":multi_proc_dslx",
+        ),
+        xls_aot_generate(
+            name = "multi_proc_aot%s" % suffix,
+            src = ":multi_proc",
+            with_msan = XLS_IS_MSAN_BUILD,
+        ),
+        cc_test(
+            name = "proc_jit_aot%s_test" % suffix,
+            srcs = [
+                "proc_jit_aot%s_test.cc" % suffix,
+            ],
+            data = [
+                ":multi_proc%s.ir" % suffix,
+                ":multi_proc_aot%s" % suffix,
+                ":some_caps_no_idents.ir",
+                ":specialized_caps_aot",
+            ],
+            deps = [
+                ":aot_entrypoint_cc_proto",
+                ":function_base_jit",
+                ":jit_callbacks",
+                ":jit_channel_queue",
+                ":jit_proc_runtime",
+                ":jit_runtime",
+                ":multi_proc_aot%s" % suffix,  # build_cleaner: keep
+                ":specialized_caps_aot",  # build_cleaner: keep
+                "//xls/common:xls_gunit_main",
+                "//xls/common/file:filesystem",
+                "//xls/common/file:get_runfile_path",
+                "//xls/common/status:matchers",
+                "//xls/common/status:ret_check",
+                "//xls/common/status:status_macros",
+                "//xls/dev_tools:extract_interface",
+                "//xls/interpreter:channel_queue",
+                "//xls/ir",
+                "//xls/ir:bits",
+                "//xls/ir:events",
+                "//xls/ir:proc_elaboration",
+                "//xls/ir:type_manager",
+                "//xls/ir:value",
+                "//xls/ir:value_builder",
+                "//xls/ir:value_utils",
+                "//xls/ir:xls_ir_interface_cc_proto",
+                "//xls/public:ir_parser",
+                "@com_google_absl//absl/algorithm:container",
+                "@com_google_absl//absl/status:statusor",
+                "@googletest//:gtest",
+            ],
+        ),
+    )
+    for (proc_scoped, suffix) in [
+        (True, "_psc"),
+        (False, ""),
+    ]
+]
 
 cc_library(
     name = "jit_channel_queue",
@@ -1330,23 +1355,6 @@ genrule(
 xls_aot_generate(
     name = "specialized_caps_aot",
     src = ":some_caps_no_idents",
-    with_msan = XLS_IS_MSAN_BUILD,
-)
-
-xls_dslx_library(
-    name = "multi_proc_dslx",
-    srcs = ["multi_proc.x"],
-)
-
-xls_dslx_ir(
-    name = "multi_proc",
-    dslx_top = "proc_ten",
-    library = ":multi_proc_dslx",
-)
-
-xls_aot_generate(
-    name = "multi_proc_aot",
-    src = ":multi_proc",
     with_msan = XLS_IS_MSAN_BUILD,
 )
 
