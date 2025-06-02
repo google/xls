@@ -262,13 +262,13 @@ absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
   proc_data_->id_to_config_args[new_id] = config_args;
 
   if (!node->next()->args().empty()) {
-    // Note: warning collect is nullptr since all warnings should have been
+    // Note: warning_collector is nullptr since all warnings should have been
     // flagged in typechecking.
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         ConstexprEvaluator::EvaluateToValue(
-            import_data_, type_info_, /*warning_collector=*/nullptr, bindings_,
-            node->next()->args()[0], nullptr));
+            import_data_, type_info_, /* warning_collector= */ nullptr,
+            bindings_, node->next()->args()[0]));
     XLS_ASSIGN_OR_RETURN(auto ir_value, value.ConvertToIr());
     proc_data_->id_to_initial_value[new_id] = ir_value;
   }

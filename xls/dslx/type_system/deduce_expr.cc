@@ -770,7 +770,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTupleIndex(const TupleIndex* node,
       InterpValue index_value,
       ConstexprEvaluator::EvaluateToValue(
           ctx->import_data(), ctx->type_info(), ctx->warnings(),
-          ctx->GetCurrentParametricEnv(), node->index(), index_type.get()));
+          ctx->GetCurrentParametricEnv(), node->index()));
   XLS_ASSIGN_OR_RETURN(int64_t index, index_value.GetBitValueViaSign());
   if (index >= tuple_type->size()) {
     return TypeInferenceErrorStatus(

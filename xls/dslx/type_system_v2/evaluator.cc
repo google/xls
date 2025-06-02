@@ -150,11 +150,11 @@ class EvaluatorImpl : public Evaluator {
       }
     }
 
-    XLS_ASSIGN_OR_RETURN(InterpValue result,
-                         ConstexprEvaluator::EvaluateToValue(
-                             &import_data_, type_info, &warning_collector_,
-                             converter_.GetParametricEnv(parametric_context),
-                             expr, /*type=*/nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue result,
+        ConstexprEvaluator::EvaluateToValue(
+            &import_data_, type_info, &warning_collector_,
+            converter_.GetParametricEnv(parametric_context), expr));
     VLOG(7) << "Evaluation result for: " << expr->ToString()
             << " in context: " << ToString(parametric_context)
             << " value: " << result.ToString();

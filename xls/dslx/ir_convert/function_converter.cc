@@ -1301,11 +1301,11 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
     XLS_ASSIGN_OR_RETURN(
         start_value, ConstexprEvaluator::EvaluateToValue(
                          import_data_, current_type_info_, kNoWarningCollector,
-                         bindings, range_op->start(), nullptr));
+                         bindings, range_op->start()));
     XLS_ASSIGN_OR_RETURN(
         limit_value, ConstexprEvaluator::EvaluateToValue(
                          import_data_, current_type_info_, kNoWarningCollector,
-                         bindings, range_op->end(), nullptr));
+                         bindings, range_op->end()));
     inclusive_end = range_op->inclusive_end();
   } else {
     const auto* iterable_call = dynamic_cast<const Invocation*>(iterable);
@@ -1332,11 +1332,11 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
     XLS_ASSIGN_OR_RETURN(
         start_value, ConstexprEvaluator::EvaluateToValue(
                          import_data_, current_type_info_, kNoWarningCollector,
-                         bindings, start, nullptr));
+                         bindings, start));
     XLS_ASSIGN_OR_RETURN(
         limit_value, ConstexprEvaluator::EvaluateToValue(
                          import_data_, current_type_info_, kNoWarningCollector,
-                         bindings, limit, nullptr));
+                         bindings, limit));
   }
 
   if (!start_value.IsBits() || !limit_value.IsBits()) {
@@ -2305,7 +2305,7 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
     absl::StatusOr<InterpValue> verbosity_interp_value =
         ConstexprEvaluator::EvaluateToValue(
             import_data_, current_type_info_, kNoWarningCollector,
-            ParametricEnv(parametric_env_map_), *node->verbosity(), nullptr);
+            ParametricEnv(parametric_env_map_), *node->verbosity());
     if (!verbosity_interp_value.ok()) {
       return IrConversionErrorStatus(
           (*node->verbosity())->span(),

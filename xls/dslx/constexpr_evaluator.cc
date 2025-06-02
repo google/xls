@@ -84,7 +84,7 @@ namespace xls::dslx {
 /* static */ absl::StatusOr<InterpValue> ConstexprEvaluator::EvaluateToValue(
     ImportData* import_data, TypeInfo* type_info,
     WarningCollector* warning_collector, const ParametricEnv& bindings,
-    const Expr* expr, const Type* type) {
+    const Expr* expr) {
   XLS_RETURN_IF_ERROR(
       Evaluate(import_data, type_info, warning_collector, bindings, expr));
   if (type_info->IsKnownConstExpr(expr)) {

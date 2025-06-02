@@ -297,12 +297,12 @@ class TypeValidator : public AstNodeVisitorWithDefault {
         InterpValue start,
         ConstexprEvaluator::EvaluateToValue(
             const_cast<ImportData*>(&import_data_), const_cast<TypeInfo*>(&ti_),
-            &warning_collector_, ParametricEnv(), range->start(), type_));
+            &warning_collector_, ParametricEnv(), range->start()));
     XLS_ASSIGN_OR_RETURN(
         InterpValue end,
         ConstexprEvaluator::EvaluateToValue(
             const_cast<ImportData*>(&import_data_), const_cast<TypeInfo*>(&ti_),
-            &warning_collector_, ParametricEnv(), range->end(), type_));
+            &warning_collector_, ParametricEnv(), range->end()));
 
     if (start.Gt(end)->IsTrue()) {
       return RangeStartGreaterThanEndErrorStatus(range->span(), range, start,
