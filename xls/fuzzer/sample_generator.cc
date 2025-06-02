@@ -78,6 +78,23 @@ using ::xls::dslx::ParseModule;
 using ::xls::dslx::Type;
 using ::xls::dslx::TypecheckedModule;
 
+class HasMapBuiltinVisitor : public AstNodeVisitorWithDefault {
+ public:
+  bool GetHasMap() const { return has_map_; }
+
+  absl::Status HandleInvocation(const dslx::Invocation* n) override {
+    std::optional<std::string_view> builtin_name =
+        dslx::GetBuiltinFnName(n->callee());
+    if (builtin_name.has_value()) {
+      has_map_ = has_map_ || builtin_name.value() == "map";
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  bool has_map_ = false;
+};
+
 class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
  public:
   bool GetHasNbRecv() const { return has_nb_recv_; }
@@ -118,6 +135,29 @@ class IsPotentiallyDelayingNodeVisitor : public AstNodeVisitorWithDefault {
   bool is_recv_ = false;
 };
 
+absl::StatusOr<bool> HasMapBuiltin(const std::string& dslx_text,
+                                   dslx::FileTable& file_table) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Module> module,
+      ParseModule(dslx_text, "sample.x", "sample", file_table));
+  XLS_RET_CHECK(module != nullptr);
+
+  HasMapBuiltinVisitor visitor;
+  // Using std::deque to leverage the `insert` operator.
+  std::deque<AstNode*> bfs_queue;
+  bfs_queue.push_back(module.get());
+  while (!bfs_queue.empty()) {
+    AstNode* node = bfs_queue.front();
+    bfs_queue.pop_front();
+    XLS_RETURN_IF_ERROR(node->Accept(&visitor));
+    if (visitor.GetHasMap()) {
+      return true;
+    }
+    std::vector<AstNode*> children = node->GetChildren(false);
+    bfs_queue.insert(bfs_queue.end(), children.begin(), children.end());
+  }
+  return visitor.GetHasMap();
+}
 }  // namespace
 
 static absl::StatusOr<bool> HasNonBlockingRecv(const std::string& dslx_text,
@@ -468,6 +508,14 @@ absl::StatusOr<Sample> GenerateSample(
   SampleOptions sample_options_copy = sample_options;
   // The generated sample is DSLX so input_is_dslx must be true.
   sample_options_copy.set_input_is_dslx(true);
+
+  // Disable unopt-ir interpreter if the dslx includes 'map'. This can be really
+  // slow and we already have the dslx interpreter to provide a baseline.
+  // TODO(https://github.com/google/xls/issues/2263): Ideally we should not need
+  // to do this.
+  XLS_ASSIGN_OR_RETURN(bool has_map, HasMapBuiltin(dslx_text, file_table));
+  sample_options_copy.set_disable_unopt_interpreter(has_map);
+
   XLS_RET_CHECK(sample_options_copy.codegen_args().empty())
       << "Setting codegen arguments is not supported, they are randomly "
          "generated";
