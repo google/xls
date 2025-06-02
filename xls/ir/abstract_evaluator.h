@@ -742,27 +742,32 @@ class AbstractEvaluator {
     return result;
   }
 
-  template <typename SpanOfSpanLike>
   Vector SelectInternal(
-      Span selector, SpanOfSpanLike cases,
+      Span selector, SpanOfSpan cases,
       std::optional<const Span> default_value = std::nullopt) {
-    // Turn the binary selector into a one-hot selector.
-    Vector one_hot_selector;
-    for (int64_t i = 0; i < cases.size(); ++i) {
-      one_hot_selector.push_back(
-          Equals(selector, BitsToVector(UBits(i, selector.size()))));
+    if (cases.empty()) {
+      CHECK(default_value.has_value());
+      return SpanToVec(*default_value);
     }
-    // Copy the cases span as we may need to append to it.
-    // TODO(allight): In some cases we can avoid copy.
-    std::vector<Span> cases_vec(cases.begin(), cases.end());
-    if (default_value.has_value()) {
-      one_hot_selector.push_back(
-          ULessThan(BitsToVector(UBits(cases_vec.size() - 1, selector.size())),
-                    selector));
-      cases_vec.push_back(*default_value);
+
+    if (selector.empty()) {
+      return SpanToVec(cases.front());
     }
-    return OneHotSelectInternal(one_hot_selector, cases_vec,
-                                /*selector_can_be_zero=*/false);
+
+    // We select between the cases based on the MSB of the selector and recurse,
+    // building a binary tree representing the selector.
+    Element msb = selector.back();
+    Span remaining_selector = selector.subspan(0, selector.size() - 1);
+    int64_t first_msb_high_case = std::min(int64_t{1} << (selector.size() - 1),
+                                           static_cast<int64_t>(cases.size()));
+    SpanOfSpan msb_low_cases = cases.subspan(0, first_msb_high_case);
+    SpanOfSpan msb_high_cases = cases.subspan(first_msb_high_case);
+    Vector if_msb_high = SelectInternal(
+        remaining_selector, cases.subspan(first_msb_high_case), default_value);
+    Vector if_msb_low =
+        SelectInternal(remaining_selector,
+                       cases.subspan(0, first_msb_high_case), default_value);
+    return IfBits(msb, if_msb_high, if_msb_low);
   }
 
   // An implementation of PrioritySelect which takes a span of spans of Elements
