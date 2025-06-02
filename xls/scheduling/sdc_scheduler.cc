@@ -217,33 +217,38 @@ SDCSchedulingModel::SDCSchedulingModel(
 
   for (const ScheduleNode& schedule_node : graph_.nodes()) {
     Node* node = schedule_node.node;
+    std::string model_node_name =
+        graph_.IsFunctionBaseScoped()
+            ? node->GetName()
+            : absl::StrCat(node->function_base()->name(),
+                           "::", node->GetName());
     cycle_var_.emplace(
-        node, model_.AddContinuousVariable(0.0, kMaxStages, node->GetName()));
+        node, model_.AddContinuousVariable(0.0, kMaxStages, model_node_name));
     model_.AddLinearConstraint(
         cycle_var_.at(node) <= last_stage_,
-        absl::StrFormat("pipeline_length:%s", node->GetName()));
+        absl::StrFormat("pipeline_length:%s", model_node_name));
     lifetime_var_.emplace(
         node,
         model_.AddContinuousVariable(
-            0.0, kInfinity, absl::StrFormat("lifetime_%s", node->GetName())));
+            0.0, kInfinity, absl::StrFormat("lifetime_%s", model_node_name)));
     if (node->Is<Next>()) {
       unwanted_inverse_throughput_var_.emplace(
           node, model_.AddContinuousVariable(
                     0.0, kInfinity,
                     absl::StrFormat("unwanted_inverse_throughput_%s",
-                                    node->GetName())));
+                                    model_node_name)));
     }
 
     if (schedule_node.schedule_in_first_stage) {
       model_.AddLinearConstraint(
           cycle_var_.at(node) <= 0,
-          absl::StrCat("in_first_stage:", node->GetName()));
+          absl::StrCat("in_first_stage:", model_node_name));
     }
     if (schedule_node.schedule_in_last_stage) {
       CHECK(!schedule_node.schedule_in_first_stage);
       model_.AddLinearConstraint(
           cycle_var_.at(node) >= last_stage_,
-          absl::StrCat("in_last_stage:", node->GetName()));
+          absl::StrCat("in_last_stage:", model_node_name));
     }
   }
 }
@@ -1087,6 +1092,16 @@ absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
                   : std::nullopt;
   std::unique_ptr<SDCScheduler> scheduler(new SDCScheduler(
       std::move(graph), initiation_interval, std::move(delay_map)));
+  XLS_RETURN_IF_ERROR(scheduler->Initialize());
+  return std::move(scheduler);
+}
+
+absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
+    ScheduleGraph graph, const DelayEstimator& delay_estimator) {
+  XLS_ASSIGN_OR_RETURN(DelayMap delay_map,
+                       ComputeNodeDelays(graph, delay_estimator));
+  std::unique_ptr<SDCScheduler> scheduler(
+      new SDCScheduler(std::move(graph), std::nullopt, std::move(delay_map)));
   XLS_RETURN_IF_ERROR(scheduler->Initialize());
   return std::move(scheduler);
 }

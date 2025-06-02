@@ -18,10 +18,13 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.h"
@@ -91,6 +94,16 @@ class ScheduleGraph {
   static ScheduleGraph Create(
       FunctionBase* f, const absl::flat_hash_set<Node*>& dead_after_synthesis);
 
+  // Return a ScheduleGraph representing the procs in `elab` which can be used
+  // for synchronous scheduling. Non-loopback channels are treated as regular
+  // dataflow edges. Loopback channels and state are represented using
+  // ScheduleBackedge in the returned graph (though they need not technically be
+  // backedges in the dataflow graph).
+  static absl::StatusOr<ScheduleGraph> CreateSynchronousGraph(
+      Package* p, absl::Span<Channel* const> loopback_channels,
+      const ProcElaboration& elab,
+      const absl::flat_hash_set<Node*>& dead_after_synthesis);
+
   std::string_view name() const { return name_; }
 
   // Returns the nodes of the graph in topological sorted order.
@@ -100,6 +113,10 @@ class ScheduleGraph {
 
   // The IR scope which the ScheduleGraph represents.
   std::variant<Package*, FunctionBase*> ir_scope() const { return ir_scope_; }
+
+  bool IsFunctionBaseScoped() const {
+    return std::holds_alternative<FunctionBase*>(ir_scope_);
+  }
 
   // Returns the ScheduleNode representing `node`. CHECK fails if `node` is
   // outside the scope of the graph.
@@ -125,6 +142,20 @@ class ScheduleGraph {
   std::string ToString() const;
 
  private:
+  ScheduleGraph(std::string_view name,
+                std::variant<Package*, FunctionBase*> ir_scope,
+                std::vector<ScheduleNode> nodes,
+                std::vector<ScheduleBackedge> backedges)
+      : name_(name),
+        ir_scope_(ir_scope),
+        nodes_(std::move(nodes)),
+        backedges_(std::move(backedges)) {
+    node_map_.reserve(nodes_.size());
+    for (int64_t i = 0; i < nodes_.size(); ++i) {
+      node_map_[nodes_[i].node] = i;
+    }
+  }
+
   std::string name_;
   std::variant<Package*, FunctionBase*> ir_scope_;
   std::vector<ScheduleNode> nodes_;

@@ -21,6 +21,7 @@
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -40,6 +41,12 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleWithFdo(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options, const synthesis::Synthesizer& synthesizer,
     std::optional<const ProcElaboration*> elab = std::nullopt);
+
+// Produces a pipeline schedule for the network of procs defined by `elab`. The
+// schedule is for a synchronous proc implementation.
+absl::StatusOr<PackagePipelineSchedules> RunSynchronousPipelineSchedule(
+    Package* package, const DelayEstimator& delay_estimator,
+    const SchedulingOptions& options, const ProcElaboration& elab);
 
 }  // namespace xls
 
