@@ -46,7 +46,7 @@ namespace {
 
 class TuplifyFlatStateElement : public Proc::StateElementTransformer {
  public:
-  TuplifyFlatStateElement(std::vector<int64_t> split_ends)
+  explicit TuplifyFlatStateElement(std::vector<int64_t> split_ends)
       : split_ends_(std::move(split_ends)) {}
 
   absl::StatusOr<Node*> TransformStateRead(Proc* proc,

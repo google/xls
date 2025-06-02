@@ -439,7 +439,8 @@ absl::StatusOr<ChannelTypeProto> ToProto(const ChannelType& channel_type,
 
 class ToProtoVisitor : public TypeVisitor {
  public:
-  ToProtoVisitor(const FileTable& file_table) : file_table_(file_table) {}
+  explicit ToProtoVisitor(const FileTable& file_table)
+      : file_table_(file_table) {}
 
   absl::Status HandleBits(const BitsType& type) override {
     XLS_ASSIGN_OR_RETURN(*proto_.mutable_bits_type(),

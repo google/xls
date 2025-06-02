@@ -33,7 +33,7 @@ class InliningPass : public OptimizationPass {
     kLeafOnly,
   };
   static constexpr std::string_view kName = "inlining";
-  InliningPass(InlineDepth depth = InlineDepth::kFull)
+  explicit InliningPass(InlineDepth depth = InlineDepth::kFull)
       : OptimizationPass(kName, "Inlines invocations"), depth_(depth) {}
 
   // Inline a single invoke instruction. Provided for test and utility
