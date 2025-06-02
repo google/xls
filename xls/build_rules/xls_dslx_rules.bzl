@@ -109,7 +109,6 @@ def _get_dslx_test_cmdline(ctx, src, all_srcs, append_cmd_line_args = True):
         "enable_warnings",
         "max_ticks",
         "format_preference",
-        "test_filter",
     )
 
     dslx_test_args = dict(_dslx_test_args)
