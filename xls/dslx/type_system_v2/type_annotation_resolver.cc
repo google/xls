@@ -53,6 +53,63 @@
 namespace xls::dslx {
 namespace {
 
+// A visitor that traverses a `TypeAnnotation` recursively until an annotation
+// is found of a kind which needs resolution (e.g. member or element type). If
+// no such annotation is found, then the top-level annotation can be considered
+// already resolved.
+class NeedsResolutionDetector : public AstNodeVisitorWithDefault {
+ public:
+  absl::Status HandleTypeRefTypeAnnotation(
+      const TypeRefTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
+  absl::Status HandleTypeVariableTypeAnnotation(
+      const TypeVariableTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
+  absl::Status HandleMemberTypeAnnotation(
+      const MemberTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
+  absl::Status HandleElementTypeAnnotation(
+      const ElementTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
+  absl::Status HandleReturnTypeAnnotation(
+      const ReturnTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
+  absl::Status HandleParamTypeAnnotation(const ParamTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
+  absl::Status HandleSelfTypeAnnotation(const SelfTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
+  absl::Status HandleSliceTypeAnnotation(const SliceTypeAnnotation*) override {
+    return MarkNeedsResolution();
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+      if (needs_resolution_) {
+        return absl::OkStatus();
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  bool needs_resolution() const { return needs_resolution_; }
+
+ private:
+  absl::Status MarkNeedsResolution() {
+    needs_resolution_ = true;
+    return absl::OkStatus();
+  }
+
+  bool needs_resolution_ = false;
+};
+
 // A resolver implementation meant for ad hoc internal use within the scope of
 // one single external request. The resolver may temporarily cache information
 // collected while doing the internal resolutions for that request.
@@ -297,6 +354,14 @@ class StatefulResolver : public TypeAnnotationResolver {
     for (int i = 0;; i++) {
       CHECK_LE(i, kMaxIterations);
       bool replaced_anything = false;
+
+      // Avoid wasting time cloning the annotation for nothing.
+      NeedsResolutionDetector detector;
+      XLS_RETURN_IF_ERROR(annotation->Accept(&detector));
+      if (!detector.needs_resolution()) {
+        break;
+      }
+
       ObservableCloneReplacer replace_indirect(
           &replaced_anything, [&](const AstNode* node) {
             return ReplaceIndirectTypeAnnotations(node, parametric_context,
