@@ -3944,6 +3944,31 @@ const Y = f(Foo::X);
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, ImplMethodCallsStaticImplFunction) {
+  EXPECT_THAT(
+      R"(
+struct F<N: u32> { x: uN[N] }
+
+type MyF = F<5>;
+
+impl F<N> {
+    fn static_fn() -> uN[N] {
+        uN[N]:1
+    }
+
+    fn diff_x(self: Self) -> F<N> {
+        F<N> { x: self.x - F<N>::static_fn() }
+    }
+}
+
+const F_ST = MyF { x: 5 };
+const G_ST = F_ST.diff_x();
+
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("F_ST", "F { x: uN[5] }"),
+                              HasNodeWithType("G_ST", "F { x: uN[5] }"))));
+}
+
 TEST(TypecheckV2Test, BasicLet) {
   EXPECT_THAT(
       R"(
