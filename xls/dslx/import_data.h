@@ -169,6 +169,9 @@ class ImportData {
     return inference_table_.get();
   }
 
+  // Returns whether an `InferenceTable` for the corpus has been created yet.
+  bool HasInferenceTable() const { return inference_table_ != nullptr; }
+
   // Sets the `InferenceTableConverter` for the given module. This is for use by
   // type inference v2 during the process of typechecking a corpus.
   void SetInferenceTableConverter(Module* module,

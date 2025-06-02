@@ -68,9 +68,9 @@ class InferenceTableTest : public ::testing::Test {
   absl::StatusOr<TypeInfo*> ConvertTableToTypeInfo() {
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<InferenceTableConverter> converter,
-        CreateInferenceTableConverter(*table_, *module_, *import_data_,
-                                      *warning_collector_, file_table_,
-                                      TypeSystemTracer::Create()));
+        CreateInferenceTableConverter(
+            *table_, *module_, *import_data_, *warning_collector_, file_table_,
+            TypeSystemTracer::Create(/*active=*/false)));
     XLS_RETURN_IF_ERROR(
         converter->ConvertSubtree(module_.get(), /*function=*/std::nullopt,
                                   /*parametric_context=*/std::nullopt));

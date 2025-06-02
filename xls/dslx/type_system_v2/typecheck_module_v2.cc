@@ -25,6 +25,8 @@
 #include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/substitute.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
@@ -35,6 +37,8 @@
 #include "xls/dslx/type_system_v2/populate_table.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
+#include "xls/tools/typecheck_flags.h"
+#include "xls/tools/typecheck_flags.pb.h"
 
 namespace xls::dslx {
 
@@ -44,8 +48,11 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
   VLOG(3) << "Using type system v2 for type checking\n";
 
   std::string_view module_name = module->name();
+  const bool top_module = !import_data->HasInferenceTable();
   InferenceTable* table = import_data->GetOrCreateInferenceTable();
-  std::unique_ptr<TypeSystemTracer> tracer = TypeSystemTracer::Create();
+  XLS_ASSIGN_OR_RETURN(TypecheckFlagsProto flags, GetTypecheckFlagsProto());
+  std::unique_ptr<TypeSystemTracer> tracer =
+      TypeSystemTracer::Create(flags.dump_traces());
   auto& tracer_ref = *tracer;
   auto typecheck_imported_module = [import_data, warnings](
                                        std::unique_ptr<Module> module,
@@ -67,16 +74,22 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     VLOG(1) << "Inference table conversion FAILURE: " << status;
   }
 
-  if (VLOG_IS_ON(5)) {
-    std::cerr << "Inference table after conversion:\n"
-              << table->ToString() << "\n"
-              << "User module traces after conversion:\n"
-              << tracer_ref.ConvertTracesToString() << "\n";
+  if (flags.dump_inference_table() && top_module) {
+    XLS_RETURN_IF_ERROR(SetFileContents(
+        std::filesystem::path(flags.trace_out_dir()) /
+            absl::Substitute("inference_table_$0.txt", module_name),
+        table->ToString()));
   }
 
-  if (VLOG_IS_ON(3)) {
-    std::cerr << "Stats for module " << module_name << ":\n\n"
-              << tracer_ref.ConvertStatsToString() << "\n";
+  if (flags.dump_traces()) {
+    const std::filesystem::path out_dir =
+        std::filesystem::path(flags.trace_out_dir());
+    XLS_RETURN_IF_ERROR(SetFileContents(
+        out_dir / absl::Substitute("traces_$0.txt", module_name),
+        tracer_ref.ConvertTracesToString()));
+    XLS_RETURN_IF_ERROR(SetFileContents(
+        out_dir / absl::Substitute("trace_stats_$0.txt", module_name),
+        tracer_ref.ConvertStatsToString()));
   }
 
   if (!status.ok()) {

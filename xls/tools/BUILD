@@ -1038,3 +1038,27 @@ cc_library(
         "@com_google_protobuf//:protobuf",
     ],
 )
+
+proto_library(
+    name = "typecheck_flags_proto",
+    srcs = ["typecheck_flags.proto"],
+    visibility = ["//xls:xls_users"],
+)
+
+cc_proto_library(
+    name = "typecheck_flags_cc_proto",
+    visibility = ["//xls:xls_users"],
+    deps = [":typecheck_flags_proto"],
+)
+
+cc_library(
+    name = "typecheck_flags",
+    srcs = ["typecheck_flags.cc"],
+    hdrs = ["typecheck_flags.h"],
+    deps = [
+        ":typecheck_flags_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)

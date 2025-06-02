@@ -2077,8 +2077,6 @@ CreateInferenceTableConverter(InferenceTable& table, Module& module,
                               const FileTable& file_table,
                               std::unique_ptr<TypeSystemTracer> tracer) {
   VLOG(1) << "CreateInferenceTableConverter: module " << &module;
-  VLOG(5) << "Inference table before conversion:";
-  VLOG(5) << table.ToString();
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data.type_info_owner().New(&module));

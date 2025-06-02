@@ -34,7 +34,7 @@ namespace {
 class TypeSystemTracerTest : public ::testing::Test {
  public:
   void SetUp() override {
-    tracer_ = TypeSystemTracer::Create();
+    tracer_ = TypeSystemTracer::Create(/*active=*/true);
     import_data_.emplace(CreateImportDataForTest());
     warning_collector_.emplace(kAllWarningsSet);
     module_ =
@@ -47,6 +47,15 @@ class TypeSystemTracerTest : public ::testing::Test {
   std::optional<WarningCollector> warning_collector_;
   std::unique_ptr<Module> module_;
 };
+
+TEST_F(TypeSystemTracerTest, InactiveTracer) {
+  auto tracer = TypeSystemTracer::Create(/*active=*/false);
+  Number* one =
+      module_->Make<Number>(Span::Fake(), "1", NumberKind::kOther, nullptr);
+  tracer->TraceUnify(one);
+  EXPECT_EQ(tracer->ConvertTracesToString(), "");
+  EXPECT_EQ(tracer->ConvertStatsToString(), "");
+}
 
 TEST_F(TypeSystemTracerTest, ConvertTracesToStringWithNoTraces) {
   EXPECT_EQ(tracer_->ConvertTracesToString(), "");

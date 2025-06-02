@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package xls;
+
+// Options for type inference v2.
+message TypecheckFlagsProto {
+  // The directory in which to output trace artifacts.
+  optional string trace_out_dir = 1;
+
+  // Whether to dump the inference table to a file in `trace_output_dir`.
+  optional bool dump_inference_table = 2;
+
+  // Whether to dump per-module traces to files in `trace_output_dir`.
+  optional bool dump_traces = 3;
+}

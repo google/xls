@@ -61,9 +61,10 @@ absl::Status PopulateBuiltinStubs(ImportData* import_data,
   Module* builtins_ptr = builtins_module.get();
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<InferenceTableConverter> builtins_converter,
-      CreateInferenceTableConverter(*table, *builtins_module, *import_data,
-                                    *warnings, import_data->file_table(),
-                                    TypeSystemTracer::Create()));
+      CreateInferenceTableConverter(
+          *table, *builtins_module, *import_data, *warnings,
+          import_data->file_table(),
+          TypeSystemTracer::Create(/*active=*/false)));
   XLS_ASSIGN_OR_RETURN(TypeInfo * builtins_type_info,
                        import_data->GetRootTypeInfo(builtins_ptr));
 

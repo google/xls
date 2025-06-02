@@ -32,12 +32,14 @@ namespace xls::dslx {
 
 class TypeSystemTracerImpl;
 class TypeSystemTraceImpl;
+class NoopTracer;
 
 // An object that represents the scope of a trace record. These objects are
 // dealt out by a `TypeSystemTracer`. When a trace object gets deleted, that
 // indicates we are done with the work it refers to.
 class TypeSystemTrace {
   friend class TypeSystemTracerImpl;
+  friend class NoopTracer;
 
  public:
   TypeSystemTrace(TypeSystemTrace&& other)
@@ -80,7 +82,7 @@ class TypeSystemTrace {
 // TraceX and keep the resulting `TypeSystemTrace` around until that is done.
 class TypeSystemTracer {
  public:
-  static std::unique_ptr<TypeSystemTracer> Create();
+  static std::unique_ptr<TypeSystemTracer> Create(bool active);
 
   virtual ~TypeSystemTracer() = default;
 

@@ -362,8 +362,79 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
   int cached_variable_unification_count_ = 0;
 };
 
-std::unique_ptr<TypeSystemTracer> TypeSystemTracer::Create() {
-  return std::make_unique<TypeSystemTracerImpl>();
+// Implements the tracer interface with negligible overhead, for when tracing is
+// not requested.
+class NoopTracer : public TypeSystemTracer {
+ public:
+  TypeSystemTrace TraceUnify(const AstNode* node) override { return Noop(); }
+
+  TypeSystemTrace TraceUnify(const NameRef* type_variable) override {
+    return Noop();
+  }
+
+  TypeSystemTrace TraceUnify(
+      const std::vector<const TypeAnnotation*>& annotations) override {
+    return Noop();
+  }
+
+  TypeSystemTrace TraceFilter(
+      TypeAnnotationFilter filter,
+      const std::vector<const TypeAnnotation*>& annotations) override {
+    return Noop();
+  }
+
+  TypeSystemTrace TraceResolve(
+      const TypeAnnotation* annotation,
+      std::optional<const ParametricContext*> parametric_context) override {
+    return Noop();
+  }
+
+  TypeSystemTrace TraceConvertActualArgument(const AstNode* node) override {
+    return Noop();
+  }
+
+  TypeSystemTrace TraceConvertNode(const AstNode* node) override {
+    return Noop();
+  }
+
+  TypeSystemTrace TraceConvertInvocation(
+      const Invocation* invocation,
+      std::optional<const ParametricContext*> caller_context) override {
+    return Noop();
+  }
+
+  TypeSystemTrace TraceInferImplicitParametrics(
+      const absl::flat_hash_set<const ParametricBinding*>& bindings) override {
+    return Noop();
+  }
+
+  TypeSystemTrace TraceEvaluate(std::optional<const ParametricContext*> context,
+                                const Expr* expr) override {
+    return Noop();
+  }
+
+  TypeSystemTrace TraceConcretize(const TypeAnnotation* annotation) override {
+    return Noop();
+  }
+
+  TypeSystemTrace TraceUnroll(const AstNode* node) override { return Noop(); }
+
+  std::string ConvertTracesToString() const { return ""; }
+  std::string ConvertStatsToString() const { return ""; }
+
+  static void NoopCleanup() {}
+
+ private:
+  TypeSystemTrace Noop() { return TypeSystemTrace(&impl_, &NoopCleanup); }
+
+  TypeSystemTraceImpl impl_;
+};
+
+std::unique_ptr<TypeSystemTracer> TypeSystemTracer::Create(bool active) {
+  if (active) {
+    return std::make_unique<TypeSystemTracerImpl>();
+  }
+  return std::make_unique<NoopTracer>();
 }
 
 void TypeSystemTrace::SetResult(const TypeAnnotation* annotation) {
