@@ -22,6 +22,7 @@
 #include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/common/math_util.h"
 #include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/type.h"
@@ -89,7 +90,18 @@ void RecordNodeResult(InstanceContext* thiz, int64_t node_ptr,
 
 void* AllocateBuffer(InstanceContext* thiz, int64_t byte_size,
                      int64_t alignment) {
-  return std::aligned_alloc(alignment, byte_size);
+  // The c11 std §7.22.3 states that std::aligned_alloc must be called with
+  // size as a multiple of the alignment. The c17 standard removes this
+  // simply saying that bad alignments fail. For all allocators except the ASAN
+  // one the looser rules are followed and any relatively normal alignment llvm
+  // supports is allowed for any size but asan specifically follows the older
+  // spec. Overallocate to support this behavior.
+  int64_t adj_size = RoundUpToNearest(byte_size, alignment);
+  void* res = std::aligned_alloc(alignment, adj_size);
+  CHECK(res != nullptr) << "Null alloc with " << byte_size
+                        << " (adjusted to: " << adj_size
+                        << ") aligned at: " << alignment;
+  return res;
 }
 
 void DeallocateBuffer(InstanceContext* thiz, void* ptr) { free(ptr); }

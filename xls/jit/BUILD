@@ -75,6 +75,7 @@ cc_library(
         ":jit_channel_queue",
         ":jit_runtime",
         ":observer",
+        "//xls/common:math_util",
         "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:proc_elaboration",
