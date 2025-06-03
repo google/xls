@@ -1023,7 +1023,7 @@ class DiagnosticInterceptor : public clang::TextDiagnosticPrinter {
   DiagnosticInterceptor(CCParser& translator, llvm::raw_ostream& os,
                         clang::DiagnosticOptions* diags,
                         bool OwnsOutputStream = false)
-      : clang::TextDiagnosticPrinter(os, diags, OwnsOutputStream),
+      : clang::TextDiagnosticPrinter(os, *diags, OwnsOutputStream),
         parser_(translator) {}
   void HandleDiagnostic(clang::DiagnosticsEngine::Level level,
                         const clang::Diagnostic& info) override {
@@ -1398,9 +1398,8 @@ void __xlscc_top_class_instance_ref2() {
       new clang::tooling::ToolInvocation(argv, std::move(libtool_action),
                                          libtool_files.get()));
 
-  llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> diag_opts =
-      new clang::DiagnosticOptions();
-  DiagnosticInterceptor diag_print(parser_, llvm::errs(), &*diag_opts);
+  clang::DiagnosticOptions diag_opts;
+  DiagnosticInterceptor diag_print(parser_, llvm::errs(), &diag_opts);
   libtool_inv->setDiagnosticConsumer(&diag_print);
 
   // Errors are extracted via DiagnosticInterceptor,
