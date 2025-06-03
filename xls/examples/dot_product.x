@@ -24,8 +24,7 @@ pub fn dot_product_fixed<BITCOUNT: u32, VECTOR_LENGTH: u32>
   (a: sN[BITCOUNT][VECTOR_LENGTH], b: sN[BITCOUNT][VECTOR_LENGTH])
   -> sN[BITCOUNT]{
 
-  for(idx, acc): (u32, sN[BITCOUNT])
-    in range (u32:0, VECTOR_LENGTH) {
+  for(idx, acc): (u32, sN[BITCOUNT]) in u32:0..VECTOR_LENGTH {
 
     let partial_product = a[idx] * b[idx];
     acc + partial_product
@@ -38,8 +37,7 @@ pub fn dot_product_float32<VECTOR_LENGTH: u32>
   (a: F32[VECTOR_LENGTH], b: F32[VECTOR_LENGTH])
   -> F32{
 
-  for(idx, acc): (u32, F32)
-    in range (u32:0, VECTOR_LENGTH) {
+  for(idx, acc): (u32, F32) in u32:0..VECTOR_LENGTH {
     let partial_product = float32::mul(a[idx], b[idx]);
     float32::add(acc, partial_product)
   } (float32::zero(u1:0))

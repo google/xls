@@ -16,7 +16,7 @@ import std;
 
 // https://en.wikipedia.org/wiki/Greatest_common_divisor#Euclidean_algorithm
 fn gcd_euclidean<N: u32, DN: u32 = {N * u32:2}>(a: uN[N], b: uN[N]) -> uN[N] {
-    let (gcd, _) = for (i, (a, b)) in range(u32:0, DN) {
+    let (gcd, _) = for (i, (a, b)) in u32:0..DN {
         if (b == uN[N]:0) {
             (a, b)
         } else {
@@ -37,7 +37,7 @@ fn gcd_binary_match<N: u32>(a: uN[N], b: uN[N], d: uN[N]) -> (uN[N], uN[N], uN[N
 
 // https://en.wikipedia.org/wiki/Greatest_common_divisor#Binary_GCD_algorithm
 fn gcd_binary<N: u32, DN: u32 = {N * u32:2}>(a: uN[N], b: uN[N]) -> uN[N] {
-    let (a, _, d) = for (i, (a, b, d)) in range(u32:0, DN) {
+    let (a, _, d) = for (i, (a, b, d)) in u32:0..DN {
         if (a == b) {
             (a, b, d)
         } else if (a < b) {

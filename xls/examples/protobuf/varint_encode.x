@@ -19,7 +19,7 @@
 // See https://developers.google.com/protocol-buffers/docs/encoding#varints
 pub fn varint_encode_u32(x: u32) -> (u8[5], u3) {
   let (varint_size, a, _): (u3, u8[5], u32) =
-  for (i, (size, a, x)): (u32, (u3, u8[5], u32)) in range(u32:0, u32:5) {
+  for (i, (size, a, x)): (u32, (u3, u8[5], u32)) in u32:0..u32:5 {
     // Lop off the least significant seven bits.
     let lsb = x as u7;
 

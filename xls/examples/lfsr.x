@@ -23,7 +23,7 @@
 pub fn lfsr<BIT_WIDTH: u32>
     (current_value: uN[BIT_WIDTH], tap_mask: uN[BIT_WIDTH]) -> uN[BIT_WIDTH] {
     // Compute the new bit from the taps
-    let new_bit = for (index, xor_bit): (u32, u1) in range(u32:0, BIT_WIDTH) {
+    let new_bit = for (index, xor_bit): (u32, u1) in u32:0..BIT_WIDTH {
         if tap_mask[index+:u1] == u1:0 { xor_bit } else { xor_bit ^ current_value[index+:u1] }
     }(u1:0);
 

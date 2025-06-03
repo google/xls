@@ -32,7 +32,7 @@ fn sha256_chunk_w_table(chunk: bits[512]) -> u32[64] {
     // Build up the remaining values of the "w" table.
     // TODO(b/149962183): Make range go from 16 - 64 once counted for
     // ranges can start at values other than 0.
-    let w: u32[64] = for (i, w): (u32, u32[64]) in range(u32:0, u32:48) {
+    let w: u32[64] = for (i, w): (u32, u32[64]) in u32:0..u32:48 {
         let w_im15: u32 = w[i + u32:16 - u32:15];
         let s_0: u32 = std::rotr(w_im15, u32:7) ^ std::rotr(w_im15, u32:18) ^ (w_im15 >> u32:3);
         let w_im2: u32 = w[i + u32:16 - u32:2];
@@ -67,7 +67,7 @@ fn sha256_chunk(chunk: bits[512], digest_init: Digest) -> Digest {
 
     // Compute the digest using the "w" table over 64 "rounds".
     let (a, b, c, d, e, f, g, h): Digest = for (i, (a, b, c, d, e, f, g, h)): (u32, Digest) in
-        range(u32:0, u32:64) {
+        u32:0..u32:64 {
         let S1 = std::rotr(e, u32:6) ^ std::rotr(e, u32:11) ^ std::rotr(e, u32:25);
         let ch = (e & f) ^ ((!e) & g);
         let temp1 = h + S1 + ch + K[i] + w[i];

@@ -295,7 +295,7 @@ fn run_cpu() {
   let ra = u16:0;
   let rd = u16:0;
   let ram = u16[32]:[u16:4, 0, ...];
-  let (pc'', _rd, _ra, ram'') = for (_, (pc', rd', ra', ram')): (u32, (u16, u16, u16, u16[32])) in range(u32:0, u32:100) {
+  let (pc'', _rd, _ra, ram'') = for (_, (pc', rd', ra', ram')): (u32, (u16, u16, u16, u16[32])) in u32:0..u32:100 {
     cpu(pc', rd', ra', ram', rom)
   }((pc, rd, ra, ram));
   assert_eq(ram''[u16:1], u16:10);
