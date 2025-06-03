@@ -37,6 +37,10 @@ ABSL_DECLARE_FLAG(std::optional<std::string>,
 ABSL_DECLARE_FLAG(std::string, block_metrics_path);
 ABSL_DECLARE_FLAG(int64_t, max_trace_verbosity);
 
+// Enables or disables insertion of runtime invariant assertions during
+// codegen (e.g., one-hot selector checks).  Enabled by default.
+ABSL_DECLARE_FLAG(bool, add_invariant_assertions);
+
 namespace xls {
 
 // Populates the codegen flags proto from the ABSL flags library values.

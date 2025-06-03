@@ -57,6 +57,7 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
   pass_options.codegen_options = options;
   pass_options.schedule = schedule;
   pass_options.delay_estimator = delay_estimator;
+  pass_options.add_invariant_assertions = options.add_invariant_assertions();
 
   // Convert to block and add in pipe stages according to schedule.
   XLS_ASSIGN_OR_RETURN(CodegenContext context,
@@ -118,6 +119,7 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
   CodegenPassOptions pass_options;
   pass_options.codegen_options = options;
   pass_options.delay_estimator = delay_estimator;
+  pass_options.add_invariant_assertions = options.add_invariant_assertions();
 
   // Convert to block and add in pipe stages according to schedule.
   XLS_ASSIGN_OR_RETURN(CodegenContext context,

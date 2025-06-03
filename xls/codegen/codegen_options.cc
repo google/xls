@@ -222,4 +222,9 @@ CodegenOptions& CodegenOptions::register_merge_strategy(
   return *this;
 }
 
+CodegenOptions& CodegenOptions::add_invariant_assertions(bool value) {
+  add_invariant_assertions_ = value;
+  return *this;
+}
+
 }  // namespace xls::verilog

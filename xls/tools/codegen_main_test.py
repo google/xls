@@ -637,6 +637,44 @@ class CodeGenMainTest(parameterized.TestCase):
     # The tables should include a line for dce pass (dead code elimination).
     self.assertIn('dce', codegen_metrics_output)
 
+  def _one_hot_ir(self) -> str:
+    """Returns IR text containing a priority_select amenable to the reduction pass."""
+    return (
+        "package prio\n\n"
+        "top fn one_hot() -> bits[32] {\n"
+        "  s: bits[2] = literal(value=1)\n"
+        "  a: bits[32] = literal(value=11)\n"
+        "  b: bits[32] = literal(value=22)\n"
+        "  z: bits[32] = literal(value=0)\n"
+        "  ret p: bits[32] = priority_sel(s, cases=[a, b], default=z)\n"
+        "}\n"
+    )
+
+  def test_add_invariant_assertions_flag(self):
+    ir_txt = self._one_hot_ir()
+    ir_file = self.create_tempfile(content=ir_txt)
+
+    # With assertions enabled (default).
+    verilog_with = subprocess.check_output([
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--alsologtostderr',
+        # We pass this explicitly even though it is the default.
+        '--add_invariant_assertions=true',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    self.assertIn('assert', verilog_with.lower())
+
+    # With assertions disabled.
+    verilog_without = subprocess.check_output([
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--alsologtostderr',
+        '--add_invariant_assertions=false',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    self.assertNotIn('assert', verilog_without.lower())
+
 
 if __name__ == '__main__':
   absltest.main()

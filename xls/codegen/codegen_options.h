@@ -352,6 +352,10 @@ class CodegenOptions {
     return randomize_order_seed_;
   }
 
+  // Control whether runtime invariant asserts are emitted.
+  CodegenOptions& add_invariant_assertions(bool value);
+  bool add_invariant_assertions() const { return add_invariant_assertions_; }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -377,6 +381,7 @@ class CodegenOptions {
   std::string streaming_channel_valid_suffix_ = "_vld";
   bool array_index_bounds_checking_ = true;
   bool gate_recvs_ = true;
+  bool add_invariant_assertions_ = true;
   std::vector<RamConfiguration> ram_configurations_;
   int64_t max_trace_verbosity_ = 0;
   RegisterMergeStrategy register_merge_strategy_ =

@@ -65,6 +65,12 @@ struct CodegenPassOptions : public PassOptionsBase {
   // The config to use for loopback channels that are fabricated during codegen
   // to implement proc state members.
   ChannelConfig state_channel_config = ChannelConfig{};
+
+  // If true (default), codegen passes may insert runtime assertions which
+  // check that IR-level invariants hold in the generated RTL. One example is
+  // verifying that the selector for a one-hot select is truly one-hot at
+  // runtime.  Setting this to false disables the emission of such assertions.
+  bool add_invariant_assertions = true;
 };
 
 using Stage = int64_t;

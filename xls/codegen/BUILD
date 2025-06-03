@@ -2118,3 +2118,27 @@ diff_test(
     file1 = ":assertions_comb_no_ifdef_guards.sv",
     file2 = "testdata/assertions_comb_no_ifdef_guards.svtxt",
 )
+
+cc_test(
+    name = "priority_select_reduction_pass_test",
+    srcs = ["priority_select_reduction_pass_test.cc"],
+    deps = [
+        ":block_conversion",
+        ":codegen_options",
+        ":codegen_pass",
+        ":codegen_pass_pipeline",
+        ":priority_select_reduction_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
+    ],
+)

@@ -47,6 +47,8 @@ absl::StatusOr<CodegenResult> GenerateCombinationalModule(
   CodegenPassOptions codegen_pass_options;
   codegen_pass_options.codegen_options = options;
   codegen_pass_options.delay_estimator = delay_estimator;
+  codegen_pass_options.add_invariant_assertions =
+      options.add_invariant_assertions();
 
   PassResults results;
   OptimizationContext opt_context;
