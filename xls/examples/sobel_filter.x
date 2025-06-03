@@ -43,12 +43,10 @@ pub fn apply_stencil_float32<NUM_ROWS:u32, NUM_COLS:u32, NUM_ELMS:u32 = {NUM_ROW
   in_img: F32[NUM_ELMS],
   row_idx:u32, col_idx:u32, stencil: F32[3][3]) -> F32 {
 
-  for(row_offset, sum): (u32, F32)
-    in range(u32:0, u32:3) {
+  for(row_offset, sum): (u32, F32) in u32:0..u32:3 {
 
     let img_row_idx = row_idx + row_offset;
-    for(col_offset, sum): (u32, F32)
-      in range(u32:0, u32:3) {
+    for(col_offset, sum): (u32, F32) in u32:0..u32:3 {
       let img_col_idx = col_idx + col_offset;
 
       let img_idx = img_row_idx*NUM_COLS + img_col_idx;
@@ -99,10 +97,8 @@ pub fn sobel_filter_float32<NUM_ROWS:u32, NUM_COLS:u32, NUM_ELMS:u32 = {NUM_ROWS
   (in_img: F32[NUM_ELMS]) -> F32[NUM_ELMS_OUT]{
 
   // Iterate over output pixels.
-  for(out_row_idx, out_img): (u32, F32[NUM_ELMS_OUT])
-    in range(u32:0, NUM_ROWS_OUT) {
-    for(out_col_idx, out_img): (u32, F32[NUM_ELMS_OUT])
-      in range(u32:0, NUM_COLS_OUT) {
+  for(out_row_idx, out_img): (u32, F32[NUM_ELMS_OUT]) in u32:0..NUM_ROWS_OUT {
+    for(out_col_idx, out_img): (u32, F32[NUM_ELMS_OUT]) in u32:0..NUM_COLS_OUT {
 
       // Iterate over stencil.
       let x_stencil_out = apply_stencil_float32<NUM_ROWS, NUM_COLS>(in_img, out_row_idx, out_col_idx, X_STENCIL_F32);

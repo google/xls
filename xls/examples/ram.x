@@ -69,7 +69,7 @@ fn expand_mask
     <DATA_WIDTH: u32, NUM_PARTITIONS: u32,
      EXPANSION_FACTOR: u32 = {std::ceil_div(DATA_WIDTH, NUM_PARTITIONS)}>
     (partition_mask: uN[NUM_PARTITIONS]) -> uN[DATA_WIDTH] {
-    for (idx, data_mask): (u32, uN[DATA_WIDTH]) in range(u32:0, NUM_PARTITIONS) {
+    for (idx, data_mask): (u32, uN[DATA_WIDTH]) in u32:0..NUM_PARTITIONS {
         let data_mask_segment = flatten(u1[EXPANSION_FACTOR]:[partition_mask[idx+:u1], ...]);
         ((data_mask_segment as uN[DATA_WIDTH]) << (idx * EXPANSION_FACTOR)) | data_mask
     }(uN[DATA_WIDTH]:0)
@@ -108,7 +108,7 @@ fn write_word<DATA_WIDTH: u32, NUM_PARTITIONS: u32>
     let new_word = (mem_word & !expanded_mask) | (write_value & expanded_mask);
     let new_initialization =
         for (idx, partial_initialization): (u32, bool[NUM_PARTITIONS]) in
-            range(u32:0, NUM_PARTITIONS) {
+            u32:0..NUM_PARTITIONS {
             if mask[idx+:bool] {
                 update(partial_initialization, idx, true)
             } else {
@@ -288,11 +288,11 @@ proc RamModelWriteReadMaskedWriteReadTest {
 
     next(state: ()) {
         let NUM_OFFSETS = u32:8;
-        let tok = for (offset, tok): (u32, token) in range(u32:0, NUM_OFFSETS) {
+        let tok = for (offset, tok): (u32, token) in u32:0..NUM_OFFSETS {
             trace!(offset);
 
             // First, write the whole memory.
-            let tok = for (addr, tok): (u32, token) in range(u32:0, u32:256) {
+            let tok = for (addr, tok): (u32, token) in u32:0..u32:256 {
                 let tok = send(
                     tok, write_req,
                     WriteWordReq<u32:32>(addr as uN[8], (addr + offset) as uN[32]));
@@ -301,7 +301,7 @@ proc RamModelWriteReadMaskedWriteReadTest {
             }(tok);
 
             // Now check that what we wrote is still there.
-            let tok = for (addr, tok): (u32, token) in range(u32:0, u32:256) {
+            let tok = for (addr, tok): (u32, token) in u32:0..u32:256 {
                 let tok = send(tok, read_req, ReadWordReq<u32:32>(addr as uN[8]));
                 let (tok, read_data) = recv(tok, read_resp);
                 assert_eq(read_data.data, (addr + offset) as uN[32]);
@@ -311,7 +311,7 @@ proc RamModelWriteReadMaskedWriteReadTest {
         }(join());
 
         // Test that masked writes work.
-        let tok = for (addr, tok): (u32, token) in range(u32:0, u32:256) {
+        let tok = for (addr, tok): (u32, token) in u32:0..u32:256 {
             let bit_idx = addr & u32:0x1F;  // addr % 32
             let tok = send(
                 tok, write_req,
@@ -359,7 +359,7 @@ proc RamModelInitializationTest {
 
     next(state: ()) {
         // Now check that what we wrote is still there.
-        let tok = for (addr, tok): (u32, token) in range(u32:0, u32:256) {
+        let tok = for (addr, tok): (u32, token) in u32:0..u32:256 {
             let tok = send(tok, read_req, ReadWordReq<u32:32>(addr as uN[8]));
             let (tok, read_data) = recv(tok, read_resp);
             assert_eq(read_data.data, u32:0);
@@ -535,10 +535,10 @@ proc SinglePortRamModelTest {
     next(state: ()) {
         let NUM_OFFSETS = u32:30;
         trace!(NUM_OFFSETS);
-        let tok = for (offset, tok): (u32, token) in range(u32:0, NUM_OFFSETS) {
+        let tok = for (offset, tok): (u32, token) in u32:0..NUM_OFFSETS {
             trace!(offset);
             // First, write the whole memory.
-            let tok = for (addr, tok): (u32, token) in range(u32:0, u32:1024) {
+            let tok = for (addr, tok): (u32, token) in u32:0..u32:1024 {
                 let tok = send(
                     tok, req_out,
                     RWRamReq {
@@ -554,7 +554,7 @@ proc SinglePortRamModelTest {
             }(tok);
 
             // Now check that what we wrote is still there.
-            let tok = for (addr, tok): (u32, token) in range(u32:0, u32:1024) {
+            let tok = for (addr, tok): (u32, token) in u32:0..u32:1024 {
                 let tok = send(
                     tok, req_out,
                     RWRamReq {
@@ -677,10 +677,10 @@ proc RamModel2RWTest {
     next(state: ()) {
         let NUM_OFFSETS = u32:30;
         trace!(NUM_OFFSETS);
-        let tok = for (offset, tok): (u32, token) in range(u32:0, NUM_OFFSETS) {
+        let tok = for (offset, tok): (u32, token) in u32:0..NUM_OFFSETS {
             let tok = trace_fmt!("offset = {}", offset);
             // First, write the whole memory.
-            let tok = for (addr, tok): (u32, token) in range(u32:0, u32:1024) {
+            let tok = for (addr, tok): (u32, token) in u32:0..u32:1024 {
                 let tok = send(
                     tok, req0_out,
                     RWRamReq {
@@ -696,7 +696,7 @@ proc RamModel2RWTest {
             }(tok);
 
             // Now check that what we wrote is still there.
-            let tok = for (addr, tok): (u32, token) in range(u32:0, u32:1024) {
+            let tok = for (addr, tok): (u32, token) in u32:0..u32:1024 {
                 let tok = send(
                     tok, req1_out,
                     RWRamReq {
@@ -713,7 +713,7 @@ proc RamModel2RWTest {
             }(tok);
 
             // Now, write addr and read addr-1 simultaneously.
-            let tok = for (addr, tok): (u32, token) in range(u32:0, u32:1024) {
+            let tok = for (addr, tok): (u32, token) in u32:0..u32:1024 {
                 // write addr
                 let write_tok = send(
                     tok, req0_out,

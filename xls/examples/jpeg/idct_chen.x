@@ -226,7 +226,7 @@ fn idct_cols(f: s32[COEFF_PER_MCU]) -> s32[COEFF_PER_MCU] {
   let col7 = idct_col(get_col(f, u8:7));
   // Concatenate the columns. This is awkward to do today...
   // TODO(leary): 2020-08-03 Come up with a plan for making this better.
-  for (i, accum): (u8, s32[COEFF_PER_MCU]) in range(u8:0, COEFF_PER_MCU_U8) {
+  for (i, accum): (u8, s32[COEFF_PER_MCU]) in u8:0..COEFF_PER_MCU_U8 {
     let val: s32 = match i & u8:7 {
       u8:0 => col0[i >> u8:3],
       u8:1 => col1[i >> u8:3],
