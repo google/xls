@@ -120,7 +120,8 @@ class AstCloner : public AstNodeVisitor {
             "Statement not found in old_to_new_: ", old->ToString()));
       }
       auto new_stmt = old_to_new_.at(old);
-      if (auto* verbatim = dynamic_cast<VerbatimNode*>(new_stmt)) {
+      if (new_stmt->kind() == AstNodeKind::kVerbatimNode) {
+        auto* verbatim = down_cast<VerbatimNode*>(new_stmt);
         if (verbatim->IsEmpty()) {
           // Intentionally skip empty verbatim nodes.
           continue;
@@ -546,8 +547,8 @@ class AstCloner : public AstNodeVisitor {
   // `replacement` cast to the given type.
   template <typename T>
   static ModuleMember CastOrVerbatim(AstNode* replacement) {
-    if (auto* verbatim = dynamic_cast<VerbatimNode*>(replacement)) {
-      return verbatim;
+    if (replacement->kind() == AstNodeKind::kVerbatimNode) {
+      return down_cast<VerbatimNode*>(replacement);
     }
     return down_cast<T>(replacement);
   }
@@ -784,9 +785,10 @@ class AstCloner : public AstNodeVisitor {
   // template type.
   template <typename T>
   static absl::StatusOr<T> CastIfNotVerbatim(AstNode* node) {
-    if (auto* verbatim_node = dynamic_cast<VerbatimNode*>(node)) {
-      return absl::InvalidArgumentError(absl::StrCat(
-          "Cannot disable formatting here yet: ", verbatim_node->text()));
+    if (node->kind() == AstNodeKind::kVerbatimNode) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("Cannot disable formatting here yet: ",
+                       down_cast<VerbatimNode*>(node)->text()));
     }
     return down_cast<T>(node);
   }
@@ -839,7 +841,9 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleStructDef(const StructDef* n) override {
     absl::Status status = HandleStructDefBaseInternal(n);
     if (status.ok()) {
-      if (auto new_struct_def = dynamic_cast<StructDef*>(old_to_new_.at(n))) {
+      AstNode* new_node = old_to_new_.at(n);
+      if (new_node->kind() == AstNodeKind::kStructDef) {
+        auto new_struct_def = down_cast<StructDef*>(new_node);
         if (n->extern_type_name().has_value()) {
           new_struct_def->set_extern_type_name(*n->extern_type_name());
         }
@@ -872,10 +876,10 @@ class AstCloner : public AstNodeVisitor {
         XLS_RETURN_IF_ERROR(ReplaceOrVisit(member_node));
       }
       AstNode* new_node = old_to_new_.at(member_node);
-      if (auto* new_constant_def = dynamic_cast<ConstantDef*>(new_node)) {
-        new_members.push_back(new_constant_def);
-      } else if (auto* new_function = dynamic_cast<Function*>(new_node)) {
-        new_members.push_back(new_function);
+      if (new_node->kind() == AstNodeKind::kConstantDef) {
+        new_members.push_back(down_cast<ConstantDef*>(new_node));
+      } else if (new_node->kind() == AstNodeKind::kFunction) {
+        new_members.push_back(down_cast<Function*>(new_node));
       } else {
         new_members.push_back(down_cast<VerbatimNode*>(new_node));
       }
@@ -920,10 +924,10 @@ class AstCloner : public AstNodeVisitor {
 
     std::variant<StatementBlock*, Conditional*> new_alternate;
     AstNode* new_alternate_node = old_to_new_.at(ToAstNode(n->alternate()));
-    if (auto* block = dynamic_cast<StatementBlock*>(new_alternate_node)) {
-      new_alternate = block;
-    } else if (auto* cond = dynamic_cast<Conditional*>(new_alternate_node)) {
-      new_alternate = cond;
+    if (new_alternate_node->kind() == AstNodeKind::kStatementBlock) {
+      new_alternate = down_cast<StatementBlock*>(new_alternate_node);
+    } else if (new_alternate_node->kind() == AstNodeKind::kConditional) {
+      new_alternate = down_cast<Conditional*>(new_alternate_node);
     } else {
       return absl::InternalError("Unexpected Conditional alternate node type.");
     }
@@ -1053,8 +1057,8 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(ToAstNode(n->slice())));
     AstNode* new_slice_node = old_to_new_[ToAstNode(n->slice())];
     std::variant<Slice*, WidthSlice*> new_slice;
-    if (Slice* slice = dynamic_cast<Slice*>(new_slice_node)) {
-      new_slice = slice;
+    if (new_slice_node->kind() == AstNodeKind::kSlice) {
+      new_slice = down_cast<Slice*>(new_slice_node);
     } else {
       new_slice = down_cast<WidthSlice*>(new_slice_node);
     }
@@ -1224,7 +1228,8 @@ class AstCloner : public AstNodeVisitor {
 }  // namespace
 
 std::optional<AstNode*> PreserveTypeDefinitionsReplacer(const AstNode* node) {
-  if (const auto* type_ref = dynamic_cast<const TypeRef*>(node); type_ref) {
+  if (node->kind() == AstNodeKind::kTypeRef) {
+    const auto* type_ref = down_cast<const TypeRef*>(node);
     return node->owner()->Make<TypeRef>(type_ref->span(),
                                         type_ref->type_definition());
   }
@@ -1233,11 +1238,12 @@ std::optional<AstNode*> PreserveTypeDefinitionsReplacer(const AstNode* node) {
 
 CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
   return [=](const AstNode* node) -> std::optional<AstNode*> {
-    if (const auto* name_ref = dynamic_cast<const NameRef*>(node);
-        name_ref != nullptr &&
-        std::holds_alternative<const NameDef*>(name_ref->name_def()) &&
-        std::get<const NameDef*>(name_ref->name_def()) == def) {
-      return replacement;
+    if (node->kind() == AstNodeKind::kNameRef) {
+      const auto* name_ref = down_cast<const NameRef*>(node);
+      if (std::holds_alternative<const NameDef*>(name_ref->name_def()) &&
+          std::get<const NameDef*>(name_ref->name_def()) == def) {
+        return replacement;
+      }
     }
     return std::nullopt;
   };
@@ -1245,7 +1251,7 @@ CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
 
 absl::StatusOr<absl::flat_hash_map<const AstNode*, AstNode*>>
 CloneAstAndGetAllPairs(const AstNode* root, CloneReplacer replacer) {
-  if (dynamic_cast<const Module*>(root) != nullptr) {
+  if (root->kind() == AstNodeKind::kModule) {
     return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
   }
   XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> root_replacement,
