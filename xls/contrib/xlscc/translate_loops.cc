@@ -106,10 +106,10 @@ absl::Status Translator::GenerateIR_Loop(
     const bool warn_inferred_loop_type =
         default_unroll && inferred_loop_warning_on;
 
-    return GenerateIR_LoopImpl(
-        always_first_iter, warn_inferred_loop_type, init, cond_expr, inc, body,
-        /*max_iters=*/std::numeric_limits<int64_t>::max(),
-        /*propagate_break_up=*/false, ctx, loc);
+    return GenerateIR_LoopImpl(always_first_iter, warn_inferred_loop_type, init,
+                               cond_expr, inc, body,
+                               /*max_iters=*/std::nullopt,
+                               /*propagate_break_up=*/false, ctx, loc);
   }
 
   int64_t init_interval = -1;
@@ -194,8 +194,10 @@ absl::Status Translator::GenerateIR_LoopImpl(
 
   absl::Duration slowest_iter = absl::ZeroDuration();
 
+  IOOp* begin_op = nullptr;
+
   if (add_loop_jump) {
-    XLS_RETURN_IF_ERROR(GenerateIR_AddLoopBegin(loc).status());
+    XLS_ASSIGN_OR_RETURN(begin_op, GenerateIR_AddLoopBegin(loc));
   }
 
   for (int64_t nIters = 0; !max_iters.has_value() || nIters < max_iters.value();
@@ -292,7 +294,7 @@ absl::Status Translator::GenerateIR_LoopImpl(
   }
 
   if (add_loop_jump) {
-    XLS_RETURN_IF_ERROR(GenerateIR_AddLoopEndJump(cond_expr, loc));
+    XLS_RETURN_IF_ERROR(GenerateIR_AddLoopEndJump(cond_expr, begin_op, loc));
   }
 
   return absl::OkStatus();
@@ -384,8 +386,7 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::TranslateLValueConditions(
 
 absl::StatusOr<IOOp*> Translator::GenerateIR_AddLoopBegin(
     const xls::SourceInfo& loc) {
-  IOOp label_op = {.op = OpType::kLoop,
-                   .loop_op_type = LoopOpType::kBegin,
+  IOOp label_op = {.op = OpType::kLoopBegin,
                    // Jump past loop condition
                    .ret_value = context().fb->Literal(xls::UBits(0, 1), loc)};
 
@@ -397,7 +398,10 @@ absl::StatusOr<IOOp*> Translator::GenerateIR_AddLoopBegin(
 }
 
 absl::Status Translator::GenerateIR_AddLoopEndJump(const clang::Expr* cond_expr,
+                                                   IOOp* begin_op,
                                                    const xls::SourceInfo& loc) {
+  XLSCC_CHECK_NE(begin_op, nullptr, loc);
+
   TrackedBValue continue_condition = context().full_condition_bval(loc);
 
   if (cond_expr != nullptr) {
@@ -410,13 +414,13 @@ absl::Status Translator::GenerateIR_AddLoopEndJump(const clang::Expr* cond_expr,
                           /*name=*/"continue_jump_condition");
   }
 
-  IOOp jump_op = {.op = OpType::kLoop,
-                  .loop_op_type = LoopOpType::kEndJump,
+  IOOp jump_op = {.op = OpType::kLoopEndJump,
+                  .loop_op_paired = begin_op,
                   // Jump back to begin condition
                   .ret_value = continue_condition};
 
-  XLS_RETURN_IF_ERROR(
-      AddOpToChannel(jump_op, /*channel_param=*/nullptr, loc).status());
+  XLS_ASSIGN_OR_RETURN(begin_op->loop_op_paired,
+                       AddOpToChannel(jump_op, /*channel_param=*/nullptr, loc));
 
   return absl::OkStatus();
 }

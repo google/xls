@@ -409,11 +409,11 @@ enum class OpType {
   kRead,
   kWrite,
   kTrace,
-  kLoop
+  kLoopBegin,
+  kLoopEndJump,
 };
 enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory, kTrace };
 enum class TraceType { kNull = 0, kAssert, kTrace };
-enum class LoopOpType { kNull = 0, kBegin, kEndJump };
 // TODO(seanhaskell): Remove with old FSM
 enum class IOSchedulingOption { kNone = 0, kASAPBefore = 1, kASAPAfter = 2 };
 

@@ -125,7 +125,8 @@ struct IOOp {
   // TODO(seanhaskell): Remove with old FSM
   IOSchedulingOption scheduling_option = IOSchedulingOption::kNone;
 
-  LoopOpType loop_op_type = LoopOpType::kNull;
+  // Jump has a pointer to the begin, begin has a pointer to the jump
+  const IOOp* loop_op_paired = nullptr;
 
   // --- Not preserved across calls ---
 
@@ -244,12 +245,9 @@ struct ContinuationValue {
   // TODO(seanhaskell): Output node
   xls::Node* output_node = nullptr;
 
-  // When outputs are merged, multiple decls can end up associated with one
-  // output
-  absl::flat_hash_set<const clang::NamedDecl*> decls;
-
-  // name is for human readability/debug only
+  // name, decls are for test/debug only
   std::string name;
+  absl::flat_hash_set<const clang::NamedDecl*> decls;
 
   // Precomputed literal, used for unrolling, IO pruning, etc
   std::optional<xls::Value> literal = std::nullopt;
@@ -259,10 +257,9 @@ struct ContinuationInput {
   ContinuationValue* continuation_out = nullptr;
   xls::Param* input_node = nullptr;
 
-  absl::flat_hash_set<const clang::NamedDecl*> decls;
-
-  // name is for human readability/debug only
+  // name, decls are for test/debug only
   std::string name;
+  absl::flat_hash_set<const clang::NamedDecl*> decls;
 };
 
 struct GeneratedFunctionSlice {
@@ -270,11 +267,19 @@ struct GeneratedFunctionSlice {
   const IOOp* after_op = nullptr;
   std::list<ContinuationValue> continuations_out;
   std::list<ContinuationInput> continuations_in;
+
+  // Temporaries used during slice generation only, not optimization
+  absl::flat_hash_map<const clang::NamedDecl*, ContinuationValue*>
+      continuation_outputs_by_decl_top_context;
+  absl::flat_hash_map<const clang::NamedDecl*, ContinuationInput*>
+      continuation_inputs_by_decl_top_context;
 };
 
 // Encapsulates values produced when generating IR for a function
 struct GeneratedFunction {
   const clang::FunctionDecl* clang_decl = nullptr;
+
+  // TODO(seanhaskell): Remove when switching to new FSM
   xls::Function* xls_func = nullptr;
 
   std::list<GeneratedFunctionSlice> slices;
@@ -1351,8 +1356,39 @@ class Translator {
       const IOOp& op, TrackedBValue retval, const xls::SourceInfo& loc);
 
   absl::Status NewContinuation(IOOp& op);
+  absl::Status AddFeedbacksForSlice(GeneratedFunctionSlice& slice,
+                                    const xls::SourceInfo& loc);
+  absl::StatusOr<std::vector<NATIVE_BVAL>>
+  ConvertBValuesToContinuationOutputsForCurrentSlice(
+      absl::flat_hash_map<const ContinuationValue*,
+                          std::vector<TrackedBValue*>>&
+          bvalues_by_continuation_output,
+      absl::flat_hash_map<const TrackedBValue*, ContinuationValue*>&
+          continuation_outputs_by_bval,
+      absl::flat_hash_map<const TrackedBValue*, std::string>&
+          name_found_for_bval,
+      absl::flat_hash_map<const TrackedBValue*, const clang::NamedDecl*>&
+          decls_by_bval_top_context,
+      const xls::SourceInfo& loc);
+  absl::Status AddContinuationsToNewSlice(
+      const IOOp& after_op, GeneratedFunctionSlice& last_slice,
+      GeneratedFunctionSlice& new_slice,
+      const absl::flat_hash_map<const ContinuationValue*,
+                                std::vector<TrackedBValue*>>&
+          bvalues_by_continuation_output,
+      const absl::flat_hash_map<const TrackedBValue*, ContinuationValue*>&
+          continuation_outputs_by_bval,
+      const absl::flat_hash_map<const TrackedBValue*, std::string>&
+          name_found_for_bval,
+      const absl::flat_hash_map<const TrackedBValue*, const clang::NamedDecl*>&
+          decls_by_bval_top_context,
+      const xls::SourceInfo& loc);
+  absl::Status FinishSlice(TrackedBValue return_bval,
+                           const xls::SourceInfo& loc);
+  absl::Status FinishLastSlice(TrackedBValue return_bval);
   absl::Status OptimizeContinuations(GeneratedFunction& func,
                                      const xls::SourceInfo& loc);
+
   // This function is a temporary adapter for the old FSM generation style.
   // It creates a single function containing all slices and fills it into the
   // GeneratedFunction::function field.
@@ -1442,6 +1478,7 @@ class Translator {
 
   absl::StatusOr<IOOp*> GenerateIR_AddLoopBegin(const xls::SourceInfo& loc);
   absl::Status GenerateIR_AddLoopEndJump(const clang::Expr* cond_expr,
+                                         IOOp* begin_op,
                                          const xls::SourceInfo& loc);
 
   absl::StatusOr<PipelinedLoopSubProc> GenerateIR_PipelinedLoopBody(

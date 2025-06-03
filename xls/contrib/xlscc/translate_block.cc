@@ -2298,7 +2298,8 @@ Translator::GenerateIRBlockPrepare(
 
 std::optional<ChannelBundle> Translator::GetChannelBundleForOp(
     const IOOp& op, const xls::SourceInfo& loc) {
-  if (op.op == OpType::kTrace || op.op == OpType::kLoop) {
+  if (op.op == OpType::kTrace || op.op == OpType::kLoopBegin ||
+      op.op == OpType::kLoopEndJump) {
     return std::nullopt;
   }
 

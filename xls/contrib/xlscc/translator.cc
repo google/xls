@@ -1377,17 +1377,14 @@ absl::Status Translator::GenerateIR_Function_Body(
         ErrorMessage(body_loc, "IO ops in operator calls are not supported"));
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      xls::Function * last_slice_function,
-      header.builder->builder()->BuildWithReturnValue(return_bval));
+  XLS_RETURN_IF_ERROR(FinishLastSlice(return_bval));
 
-  XLSCC_CHECK(!context().sf->slices.empty(), body_loc);
-  context().sf->slices.back().function = last_slice_function;
-
-  XLS_RETURN_IF_ERROR(OptimizeContinuations(sf, body_loc));
+  // Don't generate the wrapper for the top function with the new FSM
+  if (generate_new_fsm_ && funcdecl == currently_generating_top_function_) {
+    return absl::OkStatus();
+  }
 
   XLS_RETURN_IF_ERROR(GenerateFunctionSliceWrapper(sf, body_loc));
-
   return absl::OkStatus();
 }
 
@@ -5794,8 +5791,8 @@ std::string Debug_OpName(const IOOp& op) {
   if (op.op == OpType::kTrace) {
     return "trace";
   }
-  if (op.op == OpType::kLoop) {
-    return op.loop_op_type == LoopOpType::kBegin ? "begin" : "jump";
+  if (op.op == OpType::kLoopBegin || op.op == OpType::kLoopEndJump) {
+    return op.op == OpType::kLoopBegin ? "begin" : "jump";
   }
   if (op.channel != nullptr) {
     std::string op_type_name;
@@ -6439,7 +6436,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
   XLS_RETURN_IF_ERROR(GenerateIR_Function_Body(
       sf, top_function, *functions_in_progress_.at(top_function)));
 
-  if (sf.xls_func == nullptr) {
+  if (sf.xls_func == nullptr && !generate_new_fsm_) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Top function %s has no outputs at %s", top_function->getNameAsString(),
         LocString(*top_function)));

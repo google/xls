@@ -171,6 +171,7 @@ cc_library(
         "//xls/ir:value_utils",
         "//xls/passes:dce_pass",
         "//xls/passes:optimization_pass",
+        "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",

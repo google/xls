@@ -54,8 +54,8 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   const bool mask_other =
       context().mask_io_other_than_memory_writes && op.op != OpType::kWrite;
 
-  CHECK(op.op == OpType::kTrace || op.op == OpType::kLoop ||
-        channel != nullptr);
+  CHECK(op.op == OpType::kTrace || op.op == OpType::kLoopBegin ||
+        op.op == OpType::kLoopEndJump || channel != nullptr);
   CHECK_EQ(op.channel, nullptr);
 
   if (mask || context().mask_side_effects || mask_write || mask_other) {
@@ -712,18 +712,9 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
           "directions" == nullptr,
           loc);
       break;
-    case OpType::kLoop: {
-      switch (op.loop_op_type) {
-        case xlscc::LoopOpType::kBegin:
-        case xlscc::LoopOpType::kEndJump: {
-          op_condition = retval;
-          break;
-        }
-        default:
-          return absl::UnimplementedError(ErrorMessage(
-              loc, "Unsupported loop type %i in AddConditionToIOReturn",
-              op.loop_op_type));
-      }
+    case OpType::kLoopEndJump:
+    case OpType::kLoopBegin: {
+      op_condition = retval;
       break;
     }
     case OpType::kRecv:
@@ -775,18 +766,9 @@ absl::StatusOr<TrackedBValue> Translator::AddConditionToIOReturn(
           "directions" == nullptr,
           loc);
       break;
-    case OpType::kLoop: {
-      switch (op.loop_op_type) {
-        case xlscc::LoopOpType::kBegin:
-        case xlscc::LoopOpType::kEndJump: {
-          new_retval = op_condition;
-          break;
-        }
-        default:
-          return absl::UnimplementedError(ErrorMessage(
-              loc, "Unsupported loop type %i in AddConditionToIOReturn return",
-              op.loop_op_type));
-      }
+    case OpType::kLoopBegin:
+    case OpType::kLoopEndJump: {
+      new_retval = op_condition;
       break;
     }
     case OpType::kRecv:
