@@ -364,63 +364,61 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
 
 // Implements the tracer interface with negligible overhead, for when tracing is
 // not requested.
-class NoopTracer : public TypeSystemTracer {
+class NoopTracer final : public TypeSystemTracer {
  public:
-  TypeSystemTrace TraceUnify(const AstNode* node) override { return Noop(); }
+  TypeSystemTrace TraceUnify(const AstNode* node) final { return Noop(); }
 
-  TypeSystemTrace TraceUnify(const NameRef* type_variable) override {
+  TypeSystemTrace TraceUnify(const NameRef* type_variable) final {
     return Noop();
   }
 
   TypeSystemTrace TraceUnify(
-      const std::vector<const TypeAnnotation*>& annotations) override {
+      const std::vector<const TypeAnnotation*>& annotations) final {
     return Noop();
   }
 
   TypeSystemTrace TraceFilter(
       TypeAnnotationFilter filter,
-      const std::vector<const TypeAnnotation*>& annotations) override {
+      const std::vector<const TypeAnnotation*>& annotations) final {
     return Noop();
   }
 
   TypeSystemTrace TraceResolve(
       const TypeAnnotation* annotation,
-      std::optional<const ParametricContext*> parametric_context) override {
+      std::optional<const ParametricContext*> parametric_context) final {
     return Noop();
   }
 
-  TypeSystemTrace TraceConvertActualArgument(const AstNode* node) override {
+  TypeSystemTrace TraceConvertActualArgument(const AstNode* node) final {
     return Noop();
   }
 
-  TypeSystemTrace TraceConvertNode(const AstNode* node) override {
-    return Noop();
-  }
+  TypeSystemTrace TraceConvertNode(const AstNode* node) final { return Noop(); }
 
   TypeSystemTrace TraceConvertInvocation(
       const Invocation* invocation,
-      std::optional<const ParametricContext*> caller_context) override {
+      std::optional<const ParametricContext*> caller_context) final {
     return Noop();
   }
 
   TypeSystemTrace TraceInferImplicitParametrics(
-      const absl::flat_hash_set<const ParametricBinding*>& bindings) override {
+      const absl::flat_hash_set<const ParametricBinding*>& bindings) final {
     return Noop();
   }
 
   TypeSystemTrace TraceEvaluate(std::optional<const ParametricContext*> context,
-                                const Expr* expr) override {
+                                const Expr* expr) final {
     return Noop();
   }
 
-  TypeSystemTrace TraceConcretize(const TypeAnnotation* annotation) override {
+  TypeSystemTrace TraceConcretize(const TypeAnnotation* annotation) final {
     return Noop();
   }
 
-  TypeSystemTrace TraceUnroll(const AstNode* node) override { return Noop(); }
+  TypeSystemTrace TraceUnroll(const AstNode* node) final { return Noop(); }
 
-  std::string ConvertTracesToString() const { return ""; }
-  std::string ConvertStatsToString() const { return ""; }
+  std::string ConvertTracesToString() const final { return ""; }
+  std::string ConvertStatsToString() const final { return ""; }
 
   static void NoopCleanup() {}
 
