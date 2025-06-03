@@ -85,17 +85,10 @@ class IrRunner : public AbstractParsedTestRunner {
         func_runner_(std::move(func_runner)),
         import_data_(import_data) {}
 
-  // TODO need to move to having each test proc have its own package from
-  // ir_convert.
+  template <typename ChannelT>
   absl::StatusOr<RunResult> RunTestSingleProc(
-      xls::Proc* proc, Channel* terminate,
+      ProcRuntime* rt, ChannelT* terminate,
       const BytecodeInterpreterOptions& options) {
-    XLS_RET_CHECK(options.post_fn_eval_hook() == nullptr)
-        << "hooks not supported using non-dslx interpreters";
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcRuntime> rt,
-                         proc_runner_(proc->package()));
-    rt->ResetState();
-    VLOG(2) << "Running proc " << proc->name() << " waiting on " << terminate;
     absl::StatusOr<int64_t> result =
         rt->TickUntilOutput({{terminate, 1}}, options.max_ticks());
     // NB Since the setup is done any failure now is in the tested code. EG
@@ -129,6 +122,30 @@ class IrRunner : public AbstractParsedTestRunner {
                          absl::AbortedError(absl::StrJoin(asserts, "\n"))};
   }
 
+  // TODO need to move to having each test proc have its own package from
+  // ir_convert.
+  absl::StatusOr<RunResult> RunTestSingleProc(
+      xls::Proc* proc, std::string_view terminate_name,
+      const BytecodeInterpreterOptions& options) {
+    XLS_RET_CHECK(options.post_fn_eval_hook() == nullptr)
+        << "hooks not supported using non-dslx interpreters";
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcRuntime> rt,
+                         proc_runner_(proc->package()));
+    rt->ResetState();
+    if (proc->is_new_style_proc()) {
+      ProcInstance* top_instance = rt->elaboration().top();
+      XLS_ASSIGN_OR_RETURN(ChannelInstance * terminate,
+                           top_instance->GetChannelInstance(terminate_name));
+      VLOG(2) << "Running proc " << proc->name() << " waiting on " << terminate;
+      return RunTestSingleProc(rt.get(), terminate, options);
+    } else {
+      XLS_ASSIGN_OR_RETURN(Channel * terminate,
+                           proc->package()->GetChannel(terminate_name));
+      VLOG(2) << "Running proc " << proc->name() << " waiting on " << terminate;
+      return RunTestSingleProc(rt.get(), terminate, options);
+    }
+  }
+
   absl::StatusOr<RunResult> RunTestProc(
       std::string_view name,
       const BytecodeInterpreterOptions& options) override {
@@ -152,15 +169,9 @@ class IrRunner : public AbstractParsedTestRunner {
     XLS_RETURN_IF_ERROR(dfe.Run(package, {}, &pr, context).status());
     // Get the corresponding entries.
     XLS_ASSIGN_OR_RETURN(auto* top, package->GetTopAsProc());
-    XLS_ASSIGN_OR_RETURN(
-        auto* chan, package->GetChannel(finish_name),
-        _ << "available: ["
-          << absl::StrJoin(
-                 package->channels(), ", ",
-                 [](std::string* ret, xls::Channel* c) { *ret = c->name(); })
-          << "]");
-    return RunTestSingleProc(top, chan, options);
+    return RunTestSingleProc(top, finish_name, options);
   }
+
   absl::StatusOr<RunResult> RunTestFunction(
       std::string_view name,
       const BytecodeInterpreterOptions& options) override {
@@ -248,7 +259,12 @@ IrJitTestRunner::CreateTestRunner(ImportData* import_data, TypeInfo* type_info,
         return jit->Run(args);
       },
       [](xls::Package* p) -> absl::StatusOr<std::unique_ptr<ProcRuntime>> {
-        return CreateJitSerialProcRuntime(p, EvaluatorOptions());
+        if (p->ChannelsAreProcScoped()) {
+          XLS_ASSIGN_OR_RETURN(auto* top, p->GetTopAsProc());
+          return CreateJitSerialProcRuntime(top, EvaluatorOptions());
+        } else {
+          return CreateJitSerialProcRuntime(p, EvaluatorOptions());
+        }
       });
 }
 
@@ -262,7 +278,12 @@ IrInterpreterTestRunner::CreateTestRunner(ImportData* import_data,
         return InterpretFunction(f, args);
       },
       [](xls::Package* p) -> absl::StatusOr<std::unique_ptr<ProcRuntime>> {
-        return CreateInterpreterSerialProcRuntime(p, EvaluatorOptions());
+        if (p->ChannelsAreProcScoped()) {
+          XLS_ASSIGN_OR_RETURN(auto* top, p->GetTopAsProc());
+          return CreateInterpreterSerialProcRuntime(top, EvaluatorOptions());
+        } else {
+          return CreateInterpreterSerialProcRuntime(p, EvaluatorOptions());
+        }
       });
 }
 

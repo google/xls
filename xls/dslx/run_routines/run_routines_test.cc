@@ -85,6 +85,8 @@ enum class RunnerType : int8_t {
   kDslxInterpreter,
   kIrJit,
   kIrInterpreter,
+  kIrJitProcScoped,
+  kIrInterpreterProcScoped,
 };
 
 template <typename Sink>
@@ -99,6 +101,12 @@ void AbslStringify(Sink& sink, const RunnerType& v) {
     case RunnerType::kIrInterpreter:
       absl::Format(&sink, "IrInterpreterTestRunner");
       break;
+    case RunnerType::kIrJitProcScoped:
+      absl::Format(&sink, "IrJitTestRunnerProcScoped");
+      break;
+    case RunnerType::kIrInterpreterProcScoped:
+      absl::Format(&sink, "IrInterpreterTestRunnerProcScoped");
+      break;
   }
 }
 }  // namespace
@@ -107,11 +115,12 @@ class RunRoutinesTest : public testing::TestWithParam<RunnerType> {
  public:
   absl::StatusOr<TestResultData> ParseAndTest(
       std::string_view program, std::string_view module_name,
-      std::string_view filename, const ParseAndTestOptions& options) {
+      std::string_view filename, const ParseAndTestOptions& original_options) {
     DslxInterpreterTestRunner dslx;
     IrInterpreterTestRunner ir;
     IrJitTestRunner jit;
     AbstractTestRunner* runner;
+    ParseAndTestOptions options(original_options);
     switch (GetParam()) {
       case RunnerType::kDslxInterpreter:
         runner = &dslx;
@@ -121,6 +130,14 @@ class RunRoutinesTest : public testing::TestWithParam<RunnerType> {
         break;
       case RunnerType::kIrInterpreter:
         runner = &ir;
+        break;
+      case RunnerType::kIrJitProcScoped:
+        runner = &jit;
+        options.convert_options.proc_scoped_channels = true;
+        break;
+      case RunnerType::kIrInterpreterProcScoped:
+        runner = &ir;
+        options.convert_options.proc_scoped_channels = true;
         break;
     }
     return runner->ParseAndTest(program, module_name, filename, options);
@@ -936,12 +953,16 @@ fn test_simple() {
 INSTANTIATE_TEST_SUITE_P(RunRoutinesTest, RunRoutinesTest,
                          testing::Values(RunnerType::kDslxInterpreter,
                                          RunnerType::kIrInterpreter,
-                                         RunnerType::kIrJit),
+                                         RunnerType::kIrJit,
+                                         RunnerType::kIrInterpreterProcScoped,
+                                         RunnerType::kIrJitProcScoped),
                          testing::PrintToStringParamName());
 INSTANTIATE_TEST_SUITE_P(ParseAndTestTest, ParseAndTestTest,
                          testing::Values(RunnerType::kDslxInterpreter,
                                          RunnerType::kIrInterpreter,
-                                         RunnerType::kIrJit),
+                                         RunnerType::kIrJit,
+                                         RunnerType::kIrInterpreterProcScoped,
+                                         RunnerType::kIrJitProcScoped),
                          testing::PrintToStringParamName());
 
 }  // namespace xls::dslx
