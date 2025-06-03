@@ -148,6 +148,9 @@ cc_library(
 cc_library(
     name = "vast",
     hdrs = ["vast.h"],
+    deps = [
+        "//xls/codegen/vast",  # buildcleaner: keep
+    ],
 )
 
 cc_library(
