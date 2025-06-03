@@ -44,8 +44,8 @@ class F64ToF32 {
     if (std::isnan(f)) {
       ASSERT_THAT(j, testing::IsNan());
     } else {
-      ASSERT_EQ(f, j) << std::boolalpha
-                      << "is subnormal: " << (fpclassify(f) == FP_SUBNORMAL)
+      ASSERT_EQ(f, j) << std::boolalpha << "is subnormal: "
+                      << (std::fpclassify(f) == FP_SUBNORMAL)
                       << " inp: " << std::hex << "0x" << v << " "
                       << std::hexfloat << d << " f=" << f << " j=" << j;
     }
