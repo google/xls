@@ -1419,7 +1419,10 @@ xls_dslx_test(
     name = "comp_block_dec_dslx_test",
     size = "enormous",
     library = ":comp_block_dec_dslx",
-    tags = ["manual"],
+    tags = [
+        "local",
+        "manual",
+    ],
 )
 
 xls_dslx_library(
@@ -1470,7 +1473,10 @@ xls_dslx_test(
         "zstd_dec.x",
         "zstd_dec_test.x",
     ],
-    tags = ["manual"],
+    tags = [
+        "local",
+        "manual",
+    ],
     deps = zstd_dec_deps,
 )
 
@@ -2223,7 +2229,10 @@ xls_dslx_library(
 xls_dslx_test(
     name = "sequence_dec_dslx_test",
     library = ":sequence_dec_dslx",
-    tags = ["manual"],
+    tags = [
+        "local",
+        "manual",
+    ],
 )
 
 xls_dslx_verilog(
@@ -3212,7 +3221,10 @@ xls_dslx_test(
     name = "huffman_weights_dec_dslx_test",
     size = "large",
     library = ":huffman_weights_dec_dslx",
-    tags = ["manual"],
+    tags = [
+        "local",
+        "manual",
+    ],
 )
 
 huffman_weights_dec_codegen_args = common_codegen_args | {
