@@ -18,7 +18,7 @@ fn adler32_seq(buf: u8) -> u32 {
     let a = u32:1;
     let b = u32:0;
     // Iterate only over input of length 1, for now.
-    let (a, b) = for (_, (a, b)): (u8, (u32, u32)) in range(u8:0, u8:1) {
+    let (a, b) = for (_, (a, b)): (u8, (u32, u32)) in u8:0..u8:1 {
         let a = (a + (buf as u32)) % u32:65521;
         let b = (b + a) % u32:65521;
         (a, b)

@@ -21,9 +21,9 @@ const ARRAY_SIZE = u32:16;
 // An adder chain would use (n-1) adders and add (n-1) adder delays.
 // This implementation uses ~(n lg n) adders, but only adds (lg n) adder delays.
 fn prefix_sum(values: u16[ARRAY_SIZE]) -> u16[ARRAY_SIZE] {
-    for (i, c): (u32, u16[ARRAY_SIZE]) in range(u32:0, std::flog2(ARRAY_SIZE)) {
+    for (i, c): (u32, u16[ARRAY_SIZE]) in u32:0..std::flog2(ARRAY_SIZE) {
         let lookback = u32:1 << i;
-        for (j, updated): (u32, u16[ARRAY_SIZE]) in range(u32:0, ARRAY_SIZE) {
+        for (j, updated): (u32, u16[ARRAY_SIZE]) in u32:0..ARRAY_SIZE {
             if j >= lookback { update(updated, j, c[j] + c[j - lookback]) } else { updated }
         }(c)
     }(values)

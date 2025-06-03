@@ -252,19 +252,19 @@ proc delay_smoke_test_even {
     }
 
     next(state: ()) {
-        let stok = for (i, tok): (u32, token) in range(u32:0, TEST0_DELAY*u32:5) {
+        let stok = for (i, tok): (u32, token) in u32:0..TEST0_DELAY*u32:5 {
             trace!(i);
             send(tok, data_in_r, i)
         } (join());
         // first, receive the inits
-        let rtok = for (i, tok): (u32, token) in range(u32:0, TEST0_DELAY) {
+        let rtok = for (i, tok): (u32, token) in u32:0..TEST0_DELAY {
             trace!(i);
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, u32:3);
             tok
         } (join());
         // after the inits, check the delayed outputs
-        let rtok = for (i, tok) : (u32, token) in range(u32:0, TEST0_DELAY*u32:4) {
+        let rtok = for (i, tok) : (u32, token) in u32:0..TEST0_DELAY*u32:4 {
             trace!(i);
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, i);
@@ -301,17 +301,17 @@ const TEST1_DELAY = u32:2047;
     }
 
     next(state: ()) {
-        let stok = for (i, tok): (u32, token) in range(u32:0, TEST1_DELAY*u32:5) {
+        let stok = for (i, tok): (u32, token) in u32:0..TEST1_DELAY*u32:5 {
             send(tok, data_in_r, i)
         } (join());
         // first, receive the inits
-        let rtok = for (_, tok): (u32, token) in range(u32:0, TEST1_DELAY) {
+        let rtok = for (_, tok): (u32, token) in u32:0..TEST1_DELAY {
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, u32:3);
             tok
         } (join());
         // after the inits, check the delayed outputs
-        let rtok = for (i, tok): (u32, token) in range(u32:0, TEST1_DELAY*u32:4) {
+        let rtok = for (i, tok): (u32, token) in u32:0..TEST1_DELAY*u32:4 {
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, i);
             tok

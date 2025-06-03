@@ -98,17 +98,17 @@ proc DelayTest {
 
     next(state: ()) {
         // Check that the first DELAY outputs are INIT_DATA.
-        let tok = for (_, tok): (u32, token) in range(u32:0, DELAY) {
+        let tok = for (_, tok): (u32, token) in u32:0..DELAY {
             let (tok, value) = recv(tok, data_in);
             assert_eq(value, INIT_DATA);
             tok
         }(join());
         // Queue up a bunch of inputs.
-        let tok = for (i, tok): (u32, token) in range(u32:0, u32:2 * DELAY) {
+        let tok = for (i, tok): (u32, token) in u32:0..u32:2 * DELAY {
             send(tok, data_out, i)
         }(tok);
         // Check the outputs.
-        let tok = for (i, tok): (u32, token) in range(u32:0, u32:2 * DELAY) {
+        let tok = for (i, tok): (u32, token) in u32:0..u32:2 * DELAY {
             let (tok, value) = recv(tok, data_in);
             assert_eq(value, i);
             tok
