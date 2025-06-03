@@ -33,6 +33,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample.h"
+#include "xls/fuzzer/sample_runner.h"
 
 ABSL_FLAG(bool, wide, false, "Run with wide bits types.");
 ABSL_FLAG(bool, generate_proc, false, "Generate a proc sample.");

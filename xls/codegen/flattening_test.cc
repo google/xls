@@ -14,6 +14,8 @@
 
 #include "xls/codegen/flattening.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/codegen/vast/vast.h"

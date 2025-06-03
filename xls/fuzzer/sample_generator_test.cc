@@ -30,6 +30,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample.h"
+#include "xls/fuzzer/sample.pb.h"
 #include "xls/fuzzer/value_generator.h"
 
 namespace xls {

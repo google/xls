@@ -31,12 +31,10 @@
 #include "xls/codegen/passes_ng/block_channel_adapter.h"
 #include "xls/codegen/passes_ng/block_channel_slot.h"
 #include "xls/codegen/passes_ng/stage_conversion.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
-#include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls::verilog {
 

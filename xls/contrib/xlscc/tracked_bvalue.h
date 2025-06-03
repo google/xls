@@ -15,11 +15,19 @@
 #ifndef XLS_CONTRIB_XLSCC_TRACKED_BVALUE_H_
 #define XLS_CONTRIB_XLSCC_TRACKED_BVALUE_H_
 
+#include <cstdint>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
+#include "xls/ir/source_location.h"
 
 #define DEBUG_SAVE_BACKTRACES 0
 

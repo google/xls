@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstdint>
 #include <ios>
+#include <memory>
 #include <utility>
 
 #include "gmock/gmock.h"

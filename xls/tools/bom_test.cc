@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
+#include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 

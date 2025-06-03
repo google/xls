@@ -18,11 +18,9 @@
 #include <string>
 
 #include "xls/codegen/module_signature.h"
-#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/passes/pass_metrics.pb.h"
-#include "xls/scheduling/pipeline_schedule.pb.h"
 
 namespace xls::verilog {
 

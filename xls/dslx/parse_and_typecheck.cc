@@ -15,9 +15,7 @@
 #include "xls/dslx/parse_and_typecheck.h"
 
 #include <filesystem>  // NOLINT
-#include <iostream>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -25,8 +23,6 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
-#include "absl/log/log.h"
-#include "absl/log/vlog_is_on.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/ret_check.h"
@@ -39,11 +35,6 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_module.h"
-#include "xls/dslx/type_system_v2/inference_table.h"
-#include "xls/dslx/type_system_v2/inference_table_converter.h"
-#include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
-#include "xls/dslx/type_system_v2/populate_table.h"
-#include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 #include "xls/dslx/warning_collector.h"
 

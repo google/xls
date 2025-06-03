@@ -16,7 +16,6 @@
 #define XLS_CODEGEN_CODEGEN_OPTIONS_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>

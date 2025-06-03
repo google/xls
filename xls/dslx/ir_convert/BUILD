@@ -149,7 +149,6 @@ cc_library(
     hdrs = ["proc_config_ir_converter.h"],
     deps = [
         ":channel_scope",
-        ":conversion_info",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
@@ -360,7 +359,6 @@ cc_library(
         "//xls/dslx/frontend:proc_id",
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/type_system:parametric_env",
-        "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/ir",
         "//xls/ir:function_builder",
@@ -387,6 +385,7 @@ cc_library(
     srcs = ["extract_conversion_order.cc"],
     hdrs = ["extract_conversion_order.h"],
     deps = [
+        "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -400,7 +399,9 @@ cc_library(
         "//xls/dslx/frontend:proc_id",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

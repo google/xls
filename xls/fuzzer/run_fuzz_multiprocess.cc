@@ -41,6 +41,7 @@
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/run_fuzz.h"
 #include "xls/fuzzer/sample.h"
+#include "xls/fuzzer/sample_runner.h"
 
 namespace xls {
 namespace {

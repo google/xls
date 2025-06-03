@@ -17,6 +17,7 @@
 
 #include <filesystem>  // NOLINT
 #include <optional>
+#include <utility>
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/statusor.h"

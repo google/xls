@@ -14,7 +14,6 @@
 
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>

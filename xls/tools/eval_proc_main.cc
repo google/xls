@@ -16,7 +16,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <deque>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -30,6 +32,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -38,6 +41,8 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -69,7 +74,9 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/ram_rewrite.pb.h"
+#include "xls/ir/register.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/jit_runtime.h"
