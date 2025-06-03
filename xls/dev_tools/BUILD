@@ -911,3 +911,9 @@ cc_binary(
         "@com_google_absl//absl/status",
     ],
 )
+
+filegroup(
+    name = "type_inference_v2_ir_diff_sh",
+    srcs = ["type_inference_v2_ir_diff.sh"],
+    visibility = ["//xls:xls_users"],
+)
