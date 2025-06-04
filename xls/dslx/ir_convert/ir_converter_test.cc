@@ -3512,6 +3512,30 @@ fn main(x: u32, y: u32) -> u32 {
 }
 
 TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ImplicitTokenFalseDoesntClobberTrue) {
+  constexpr std::string_view program =
+      R"(
+fn foo(x: u32) -> u32 {
+  trace_fmt!("x is {}", x);
+  x
+}
+
+fn bar() {}
+
+fn main() {
+  bar();
+  foo(u32:2);
+  bar();
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
        InvokeFunctionWithTraceInForLoop) {
   constexpr std::string_view program =
       R"(

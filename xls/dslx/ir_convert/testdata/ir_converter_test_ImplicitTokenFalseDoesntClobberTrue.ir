@@ -1,0 +1,25 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__bar() -> () {
+  ret tuple.7: () = tuple(id=7)
+}
+
+fn __itok__test_module__foo(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3) -> (token, bits[32]) {
+  trace.4: token = trace(__token, __activated, format="x is {}", data_operands=[x], id=4)
+  after_all.5: token = after_all(trace.4, id=5)
+  ret tuple.6: (token, bits[32]) = tuple(after_all.5, x, id=6)
+}
+
+fn __itok__test_module__main(__token: token id=8, __activated: bits[1] id=9) -> (token, ()) {
+  literal.11: bits[32] = literal(value=2, id=11)
+  invoke.12: (token, bits[32]) = invoke(__token, __activated, literal.11, to_apply=__itok__test_module__foo, id=12)
+  tuple_index.13: token = tuple_index(invoke.12, index=0, id=13)
+  after_all.17: token = after_all(tuple_index.13, id=17)
+  tuple.16: () = tuple(id=16)
+  invoke.10: () = invoke(to_apply=__test_module__bar, id=10)
+  tuple_index.14: bits[32] = tuple_index(invoke.12, index=1, id=14)
+  invoke.15: () = invoke(to_apply=__test_module__bar, id=15)
+  ret tuple.18: (token, ()) = tuple(after_all.17, tuple.16, id=18)
+}

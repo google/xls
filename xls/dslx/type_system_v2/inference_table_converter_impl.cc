@@ -441,9 +441,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         (IsBuiltin(callee_fn) && GetBuiltinFnRequiresImplicitToken(callee)) ||
         (callee_noted_requires_token.has_value() &&
          *callee_noted_requires_token);
-    XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
-                         GetTypeInfo((*caller)->owner(), std::nullopt));
-    ti->NoteRequiresImplicitToken(**caller, callee_requires_implicit_token);
+    if (callee_requires_implicit_token) {
+      XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                           GetTypeInfo((*caller)->owner(), std::nullopt));
+      std::optional<bool> already_required =
+          ti->GetRequiresImplicitToken(**caller);
+      if (!already_required.has_value() || !*already_required) {
+        ti->NoteRequiresImplicitToken(**caller, callee_requires_implicit_token);
+      }
+    }
     return absl::OkStatus();
   }
 
