@@ -2249,8 +2249,14 @@ DocRef Formatter::Format(const ProcMember& n) {
 DocRef Formatter::Format(const Proc& n, bool is_test) {
   std::vector<DocRef> attribute_pieces;
   if (n.test_only() && !is_test) {
-    attribute_pieces.push_back(arena_.MakeText("#[cfg(test)]"));
-    attribute_pieces.push_back(arena_.hard_line());
+    attribute_pieces.push_back(
+        ConcatN(arena_, {
+                            arena_.MakeText("#"),
+                            arena_.obracket(),
+                            arena_.MakeText(std::string(kCfgTestAttr)),
+                            arena_.cbracket(),
+                            arena_.hard_line(),
+                        }));
   }
 
   std::vector<DocRef> signature_pieces;
