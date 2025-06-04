@@ -260,7 +260,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     }
     std::optional<StartAndWidthExprs> start_and_width_exprs =
         table_.GetSliceStartAndWidthExprs(ToAstNode(index->rhs()));
-    CHECK(start_and_width_exprs.has_value());
+    XLS_RET_CHECK(start_and_width_exprs.has_value());
     StartAndWidth start_and_width;
     XLS_ASSIGN_OR_RETURN(
         start_and_width.start,

@@ -65,6 +65,7 @@ cc_library(
     deps = [
         ":type_annotation_utils",
         "//xls/common:visitor",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
@@ -320,6 +321,7 @@ cc_library(
         ":type_annotation_utils",
         "//xls/common:casts",
         "//xls/common:visitor",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
         "//xls/dslx:errors",
@@ -537,6 +539,8 @@ cc_library(
         ":parametric_struct_instantiator",
         ":type_annotation_filter",
         ":type_annotation_utils",
+        "//xls/common:casts",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:channel_direction",
         "//xls/dslx:errors",
@@ -584,6 +588,7 @@ cc_library(
     deps = [
         ":type_annotation_utils",
         "//xls/common:casts",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",

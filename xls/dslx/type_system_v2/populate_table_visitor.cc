@@ -39,6 +39,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
@@ -103,7 +104,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
           DoImportViaUse(typecheck_imported_module_, subject, &import_data_,
                          subject.name_def().span(), import_data_.file_table(),
                          import_data_.vfs()));
-      CHECK(result.imported_member != nullptr);
+      XLS_RET_CHECK(result.imported_member != nullptr);
       for (NameDef* name_def :
            ModuleMemberGetNameDefs(*result.imported_member)) {
         std::optional<const NameRef*> type_var =
@@ -224,7 +225,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       auto* sub_col_ref = std::get<ColonRef*>(node->subject());
       XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
                            GetImportedModuleInfo(sub_col_ref, import_data_));
-      CHECK(import_module.has_value());
+      XLS_RET_CHECK(import_module.has_value());
       XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_def,
                            GetStructOrProcRef(sub_col_ref, import_data_));
       if (struct_def.has_value()) {
@@ -232,7 +233,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             std::optional<const AstNode*> ref,
             HandleStructAttributeReferenceInternal(
                 node, *struct_def->def, struct_def->parametrics, node->attr()));
-        CHECK(ref.has_value());
+        XLS_RET_CHECK(ref.has_value());
 
         return SetCrossModuleTypeAnnotation(node, *ref);
       }

@@ -27,6 +27,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
+#include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/errors.h"
@@ -166,8 +168,7 @@ class Unifier {
                          GetStructOrProcRef(annotations[0], import_data_));
     if (first_struct_or_proc.has_value()) {
       const auto* struct_def =
-          dynamic_cast<const StructDef*>(first_struct_or_proc->def);
-      CHECK(struct_def != nullptr);
+          down_cast<const StructDef*>(first_struct_or_proc->def);
       std::vector<const TypeAnnotation*> annotations_to_unify;
       for (const TypeAnnotation* annotation : annotations) {
         XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> next_struct_or_proc,
@@ -218,8 +219,8 @@ class Unifier {
         int delta =
             max_static_member_count - tuple_annotation->members().size();
         for (auto* member : tuple_annotation->members()) {
-          const auto* any_annotation = dynamic_cast<AnyTypeAnnotation*>(member);
-          if (any_annotation != nullptr && any_annotation->multiple()) {
+          if (member->IsAnnotation<AnyTypeAnnotation>() &&
+              down_cast<AnyTypeAnnotation*>(member)->multiple()) {
             for (int i = 0; i < delta + 1; i++) {
               expanded_members.push_back(module_.Make<AnyTypeAnnotation>());
             }
@@ -453,14 +454,14 @@ class Unifier {
     for (const TypeAnnotation* annotation : annotations) {
       XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                            GetStructOrProcRef(annotation, import_data_));
-      CHECK(struct_or_proc_ref.has_value());
+      XLS_RET_CHECK(struct_or_proc_ref.has_value());
       if (struct_or_proc_ref->instantiator.has_value()) {
         instantiator = struct_or_proc_ref->instantiator;
       }
       for (int i = 0; i < struct_or_proc_ref->parametrics.size(); i++) {
         ExprOrType parametric = struct_or_proc_ref->parametrics[i];
         const ParametricBinding* binding = struct_def.parametric_bindings()[i];
-        CHECK(std::holds_alternative<Expr*>(parametric));
+        XLS_RET_CHECK(std::holds_alternative<Expr*>(parametric));
         auto* expr = std::get<Expr*>(parametric);
         XLS_ASSIGN_OR_RETURN(
             InterpValue value,
@@ -612,7 +613,9 @@ class Unifier {
       const std::vector<const TypeAnnotation*>& annotations,
       absl::FunctionRef<const T*(const TypeAnnotation*)> cast_fn =
           [](const TypeAnnotation* annotation) {
-            return dynamic_cast<const T*>(annotation);
+            return annotation->IsAnnotation<T>()
+                       ? down_cast<const T*>(annotation)
+                       : nullptr;
           }) {
     std::vector<const T*> result;
     result.reserve(annotations.size());

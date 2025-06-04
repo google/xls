@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
@@ -57,7 +58,7 @@ class FastConcretizerImpl : public FastConcretizer,
 
     result_ = nullptr;
     XLS_RETURN_IF_ERROR(annotation->Accept(this));
-    CHECK(result_ != nullptr);
+    XLS_RET_CHECK(result_ != nullptr);
     return std::move(result_);
   }
 

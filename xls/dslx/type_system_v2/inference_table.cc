@@ -38,6 +38,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
@@ -271,7 +272,7 @@ class InferenceTableImpl : public InferenceTable {
       std::optional<const TypeAnnotation*> declaration_annotation) override {
     VLOG(6) << "DefineInternalVariable of kind " << (int)kind << " with name "
             << name << " and definer: " << definer->ToString();
-    CHECK(definer->GetSpan().has_value());
+    XLS_RET_CHECK(definer->GetSpan().has_value());
     Span span = *definer->GetSpan();
     const NameDef* name_def =
         definer->owner()->Make<NameDef>(span, std::string(name), definer);
@@ -322,7 +323,7 @@ class InferenceTableImpl : public InferenceTable {
         callee.parametric_bindings();
     const std::vector<ExprOrType>& explicit_parametrics =
         node.explicit_parametrics();
-    CHECK(explicit_parametrics.size() <= bindings.size());
+    XLS_RET_CHECK(explicit_parametrics.size() <= bindings.size());
     MutableParametricContextData mutable_data;
     for (int i = 0; i < bindings.size(); i++) {
       const ParametricBinding* binding = bindings[i];

@@ -157,7 +157,7 @@ class StatefulResolver : public TypeAnnotationResolver {
       // the type annotation of the node if it has a variable associated with
       // it.
       std::optional<Span> node_span = node->GetSpan();
-      CHECK(node_span.has_value());
+      XLS_RET_CHECK(node_span.has_value());
       if (node->parent() != nullptr &&
           ((node->parent()->kind() == AstNodeKind::kConstantDef ||
             node->parent()->kind() == AstNodeKind::kNameDef)) &&
@@ -466,7 +466,7 @@ class StatefulResolver : public TypeAnnotationResolver {
               ResolveAndUnifyTypeAnnotationsForNode(
                   parametric_context, std::get<ConstantDef*>(*impl_member),
                   filter));
-          CHECK(member_type.has_value());
+          XLS_RET_CHECK(member_type.has_value());
           return parametric_struct_instantiator_
               .GetParametricFreeStructMemberType(
                   parametric_context, *struct_or_proc_ref, *member_type);
@@ -579,7 +579,7 @@ class StatefulResolver : public TypeAnnotationResolver {
             filter.Chain(TypeAnnotationFilter::BlockRecursion(param_type))));
     const std::vector<const TypeAnnotation*>& resolved_types =
         function_type->AsAnnotation<FunctionTypeAnnotation>()->param_types();
-    CHECK(param_type->param_index() < resolved_types.size());
+    XLS_RET_CHECK(param_type->param_index() < resolved_types.size());
     VLOG(6) << "Resulting argument type: "
             << resolved_types[param_type->param_index()]->ToString();
     return resolved_types[param_type->param_index()];
@@ -778,7 +778,7 @@ class StatefulResolver : public TypeAnnotationResolver {
         const SelfTypeAnnotation* self_type) override {
       XLS_ASSIGN_OR_RETURN(
           result_, resolver_.ResolveSelfType(parametric_context_, self_type));
-      CHECK(result_ != nullptr);
+      XLS_RET_CHECK(result_ != nullptr);
       return absl::OkStatus();
     }
 
