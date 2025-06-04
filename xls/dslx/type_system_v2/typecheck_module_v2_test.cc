@@ -7688,5 +7688,33 @@ impl F {
       TypecheckSucceeds(HasNodeWithType("y", "(F { g: G {} }) -> uN[32]")));
 }
 
+TEST(TypecheckV2Test, ImportedImplConstant) {
+  constexpr std::string_view kImported = R"(
+pub struct X<EXP_SZ: u32, FRACTION_SZ: u32> { }
+
+impl X<EXP_SZ, FRACTION_SZ> {
+    const EXP_SIZE = EXP_SZ;
+    const FRACTION_SIZE = FRACTION_SZ;
+    const TOTAL_SIZE = u32:1 + EXP_SZ + FRACTION_SZ;
+}
+
+pub type MyX = X<u32:23, u32:8>;
+)";
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+const MXU_RESULT_F32_PADDING = u32:5;
+const PADDED_F32_W = imported::MyX::TOTAL_SIZE + MXU_RESULT_F32_PADDING;
+
+const_assert!(PADDED_F32_W == u32:37);
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  HasNodeWithType("MXU_RESULT_F32_PADDING", "uN[32]"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

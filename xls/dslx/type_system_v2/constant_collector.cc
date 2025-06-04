@@ -130,8 +130,9 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleColonRef(const ColonRef* colon_ref) override {
-    // Imports should have already been marked constexpr in their own module.
-    if (IsImport(colon_ref)) {
+    // Imported Enums have been handled by their own module and will be looked
+    // up.
+    if (IsImport(colon_ref) && type_.IsEnum()) {
       return absl::OkStatus();
     }
 
