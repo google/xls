@@ -7084,6 +7084,33 @@ fn main() -> u5 {
                                      HasNodeWithType("s.x", "uN[5]")))));
 }
 
+TEST(TypecheckV2Test, ImportReturnsStructWithForeignConstant) {
+  constexpr std::string_view kFoo = R"(
+pub struct S<N: u32> { x: uN[N] }
+)";
+  constexpr std::string_view kBar = R"(
+import foo;
+
+pub const BAR_N = u32:5;
+type BAR_S = foo::S<BAR_N>;
+
+pub fn bar() -> BAR_S {
+  BAR_S { x: 2 }
+}
+)";
+  constexpr std::string_view kBaz = R"(
+import bar;
+
+fn main() {
+  const_assert!(bar::bar().x == u5:2);
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kFoo, "foo", &import_data).status());
+  XLS_EXPECT_OK(TypecheckV2(kBar, "bar", &import_data).status());
+  XLS_EXPECT_OK(TypecheckV2(kBaz, "baz", &import_data).status());
+}
+
 TEST(TypecheckV2Test, ImportStructImpl) {
   constexpr std::string_view kImported = R"(
 pub struct S { x: u5 }

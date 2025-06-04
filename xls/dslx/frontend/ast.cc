@@ -419,6 +419,7 @@ std::vector<AnyNameDef> FreeVariables::GetNameDefs() const {
 }
 
 void FreeVariables::Add(std::string identifier, const NameRef* name_ref) {
+  name_refs_.insert(name_ref);
   auto it = values_.insert({identifier, {name_ref}});
   if (!it.second) {
     it.first->second.push_back(name_ref);
@@ -2652,8 +2653,11 @@ static Span MakeNumberSpan(Span expr_span,
 
 Number::Number(Module* owner, Span span, std::string text,
                NumberKind number_kind, TypeAnnotation* type_annotation,
-               bool in_parens)
-    : Expr(owner, MakeNumberSpan(std::move(span), type_annotation), in_parens),
+               bool in_parens, bool leave_span_intact)
+    : Expr(owner,
+           leave_span_intact ? span
+                             : MakeNumberSpan(std::move(span), type_annotation),
+           in_parens),
       text_(std::move(text)),
       number_kind_(number_kind),
       type_annotation_(type_annotation) {}

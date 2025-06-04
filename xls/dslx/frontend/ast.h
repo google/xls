@@ -223,6 +223,11 @@ class FreeVariables {
     return values_;
   }
 
+  // Returns all the `NameRef` objects for all the free variables.
+  const absl::flat_hash_set<const NameRef*>& name_refs() const {
+    return name_refs_;
+  }
+
   // Returns the number of unique free variables (note: not the number of
   // references, but the number of free variables).
   int64_t GetFreeVariableCount() const { return values_.size(); }
@@ -237,6 +242,7 @@ class FreeVariables {
   std::string ToString() const;
 
  private:
+  absl::flat_hash_set<const NameRef*> name_refs_;
   absl::flat_hash_map<std::string, std::vector<const NameRef*>> values_;
 };
 
@@ -1401,7 +1407,8 @@ enum class NumberKind : uint8_t {
 class Number : public Expr {
  public:
   Number(Module* owner, Span span, std::string text, NumberKind kind,
-         TypeAnnotation* type, bool in_parens = false);
+         TypeAnnotation* type, bool in_parens = false,
+         bool leave_span_intact = true);
 
   ~Number() override;
 

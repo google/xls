@@ -39,6 +39,7 @@
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
@@ -308,6 +309,10 @@ class StatefulResolver : public TypeAnnotationResolver {
       TypeAnnotationFilter filter) override {
     XLS_RETURN_IF_ERROR(ResolveIndirectTypeAnnotations(parametric_context,
                                                        annotations, filter));
+    for (int i = 0; i < annotations.size(); i++) {
+      XLS_ASSIGN_OR_RETURN(annotations[i],
+                           ReplaceForeignConstantRefs(annotations[i]));
+    }
     TypeSystemTrace trace = tracer_.TraceUnify(annotations);
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* result,
@@ -842,6 +847,88 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
     return replaced_anything ? std::make_optional(const_cast<AstNode*>(node))
                              : std::nullopt;
+  }
+
+  // Replaces any references to foreign constants in `annotation`, i.e.
+  // constants that are not owned by annotation->owner(). In the returned
+  // annotation, any such references have been replaced with fabricated literal
+  // values owned by annotation->owner().
+  absl::StatusOr<const TypeAnnotation*> ReplaceForeignConstantRefs(
+      const TypeAnnotation* annotation) {
+    // Find all the foreign name refs in `annotation`.
+    absl::flat_hash_set<const AstNode*> refs;
+    FreeVariables vars =
+        GetFreeVariablesByLambda(annotation, [&](const NameRef& ref) -> bool {
+          if (!std::holds_alternative<const NameDef*>(ref.name_def())) {
+            return false;
+          }
+          const auto* def = std::get<const NameDef*>(ref.name_def());
+          if (def->owner() == &module_) {
+            return false;
+          }
+          if (def->parent() != nullptr &&
+              def->parent()->kind() == AstNodeKind::kConstantDef) {
+            return true;
+          }
+          return false;
+        });
+
+    // Nothing to do if there are no foreign refs.
+    if (vars.name_refs().empty()) {
+      return annotation;
+    }
+
+    // Clone `annotation` and replace the foreign refs with literals.
+    XLS_ASSIGN_OR_RETURN(
+        AstNode * result,
+        table_.Clone(
+            annotation,
+            [&](const AstNode* node)
+                -> absl::StatusOr<std::optional<AstNode*>> {
+              if (node->kind() == AstNodeKind::kTypeRef) {
+                return const_cast<AstNode*>(node);
+              }
+              if (node->kind() != AstNodeKind::kNameRef ||
+                  !vars.name_refs().contains(down_cast<const NameRef*>(node))) {
+                return std::nullopt;
+              }
+
+              const NameRef* ref = down_cast<const NameRef*>(node);
+              const NameDef* def = std::get<const NameDef*>(ref->name_def());
+              XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                                   import_data_.GetRootTypeInfoForNode(def));
+              XLS_ASSIGN_OR_RETURN(InterpValue value, ti->GetConstExpr(def));
+
+              // Get a type for `ref` that is owned by annotation->owner(),
+              // because the end goal is to fabricate a literal in that module.
+              // Note that there is no need for a parametric context because we
+              // only deal with references to module-level constants here.
+              XLS_ASSIGN_OR_RETURN(
+                  std::optional<const TypeAnnotation*> ref_type,
+                  ResolveAndUnifyTypeAnnotationsForNode(
+                      std::nullopt, ref, TypeAnnotationFilter::None()));
+              CHECK(ref_type.has_value());
+              if ((*ref_type)->owner() != annotation->owner()) {
+                XLS_ASSIGN_OR_RETURN(
+                    // Trivially unifying the already-unified annotation for the
+                    // annotation->owner() module is tantamount to saying "clone
+                    // it into that module." There isn't currently a standalone
+                    // util for this.
+                    ref_type, UnifyTypeAnnotations(
+                                  *annotation->owner(), table_, file_table_,
+                                  error_generator_, evaluator_,
+                                  parametric_struct_instantiator_, std::nullopt,
+                                  std::vector<const TypeAnnotation*>{*ref_type},
+                                  annotation->span(), import_data_));
+              }
+              auto* result = annotation->owner()->Make<Number>(
+                  Span::None(), value.ToString(/*humanize=*/true),
+                  NumberKind::kOther, const_cast<TypeAnnotation*>(*ref_type),
+                  /*in_parens=*/false, /*leave_span_intact=*/true);
+              return result;
+            }));
+
+    return down_cast<const TypeAnnotation*>(result);
   }
 
   Module& module_;

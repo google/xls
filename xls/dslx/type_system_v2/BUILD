@@ -382,6 +382,7 @@ cc_test(
     name = "typecheck_module_v2_stdlib_test",
     srcs = ["typecheck_module_v2_stdlib_test.cc"],
     deps = [
+        ":matchers",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/type_system:typecheck_test_utils",
@@ -666,6 +667,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node",

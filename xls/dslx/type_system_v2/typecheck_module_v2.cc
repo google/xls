@@ -43,10 +43,12 @@ namespace xls::dslx {
 absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
     std::unique_ptr<Module> module, std::filesystem::path path,
     ImportData* import_data, WarningCollector* warnings) {
-  VLOG(3) << "Using type system v2 for type checking\n";
-
   std::string_view module_name = module->name();
   const bool top_module = !import_data->HasInferenceTable();
+  if (top_module) {
+    VLOG(3) << "Using type system v2 for type checking\n";
+  }
+
   InferenceTable* table = import_data->GetOrCreateInferenceTable();
   XLS_ASSIGN_OR_RETURN(TypecheckFlagsProto flags, GetTypecheckFlagsProto());
   std::unique_ptr<TypeSystemTracer> tracer =
