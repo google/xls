@@ -111,22 +111,57 @@ bool IsAssociativeOp(Node* n) {
   return n->OpIn({Op::kAdd, Op::kSub, Op::kSMul, Op::kUMul});
 }
 
-// Creates a sum/product as a minimum depth tree. The tree is biased to the left
-// side. This is to ensure that as long as the input is sorted by bit-count then
-// the deeper sections will be on smaller values.
+// For addition elements, nodes that represent variables that are the same type
+// and next to each other will be combined. For example, (b + a + a) becomes
+// (b + (a + a)) instead of ((b + a) + a). After, create a sum/product as a
+// minimum depth tree. The tree is biased to the left side. This is to ensure
+// that as long as the input is sorted by bit-count then the deeper sections
+// will be on smaller values.
 // TODO(allight): Consider if/when a perfectly balanced tree could be better. I
 // think the answer is never but it is hard to say.
 template <typename MakeOp, typename T>
   requires(std::is_invocable_r_v<absl::StatusOr<T>, MakeOp, const T&, const T&>)
-absl::StatusOr<T> CreateTreeSum(MakeOp make_op, absl::Span<T const> nodes) {
+absl::StatusOr<T> CreateTreeSum(MakeOp make_op, absl::Span<T const> nodes,
+                                std::optional<Op> op) {
   XLS_RET_CHECK(!nodes.empty());
   std::vector<T> prev;
   prev.reserve(nodes.size());
   std::vector<T> cur(nodes.begin(), nodes.end());
+  // Use of a 2 pointer list traversal algorithm to combine same variable nodes
+  // for addition elements only.
+  if (op == Op::kAdd) {
+    std::swap(prev, cur);
+    cur.clear();
+    cur.reserve(prev.size() / 2 + prev.size() % 2);
+    int64_t left_idx = 0;
+    int64_t right_idx = 1;
+    while (left_idx < prev.size()) {
+      // In the case of (a), no pair is needed so just transfer the node to the
+      // other list.
+      if (right_idx >= prev.size()) {
+        cur.push_back(prev[left_idx]);
+        break;
+        // In the case of (a + b + b), pair the second two nodes.
+      } else if (right_idx + 1 < prev.size() &&
+                 prev[right_idx].node == prev[right_idx + 1].node) {
+        XLS_ASSIGN_OR_RETURN(std::back_inserter(cur),
+                             make_op(prev[right_idx], prev[right_idx + 1]));
+        right_idx += 2;
+        // In the case of (a + a + b) or (a + b + c) or (a + b), pair the first
+        // two nodes.
+      } else {
+        XLS_ASSIGN_OR_RETURN(std::back_inserter(cur),
+                             make_op(prev[left_idx], prev[right_idx]));
+        left_idx = right_idx + 1;
+        right_idx += 2;
+      }
+    }
+  }
+  // Create a minimum depth tree.
   while (cur.size() > 1) {
     std::swap(prev, cur);
     cur.clear();
-    cur.reserve(prev.size() / 2);
+    cur.reserve(prev.size() / 2 + prev.size() % 2);
     // Bias toward the left side.
     for (auto&& elements : iter::chunked(prev, 2)) {
       if (elements.size() == 1) {
@@ -1088,12 +1123,6 @@ class Reassociation {
     // Make sure that variable elements are sorted consistently to ensure that
     // CSE will be able to merge them. Sort by bit-count, non-reassociativity,
     // negatedness then id.
-    // TODO(allight): Try to be intelligent about how we set parents. IE
-    // prefer (X + X) + A over (A + X) + X. In addition to potentially exposing
-    // better oppurtunities to later passes (eg X + X == X << 1) this could also
-    // allow much better reassociation overall by exploting reuse. To do this we
-    // probably want to refactor the current list to instead use an explicit
-    // multi-set to keep track of nodes in the reassociation.
     auto is_basic_candidate = [&](Node* n) -> bool {
       auto elem = cache_.GetInfo(n)->Get({});
       return elem && (!elem->signed_values.is_leaf() ||
@@ -1248,8 +1277,9 @@ class Reassociation {
     if (!elements.constants().empty()) {
       // Add the constants to the final result. Let ConstProp deal with actually
       // reducing the constant to a single value.
-      XLS_ASSIGN_OR_RETURN(std::back_inserter(variable_elements),
-                           CreateTreeSum(make_sum, elements.constants()));
+      XLS_ASSIGN_OR_RETURN(
+          std::back_inserter(variable_elements),
+          CreateTreeSum(make_sum, elements.constants(), elements.op()));
       // Resort the variable elements to avoid issues where larger adds then
       // needed are consistently created.
       absl::c_sort(variable_elements, elements_cmp);
@@ -1269,7 +1299,8 @@ class Reassociation {
     } else {
       XLS_ASSIGN_OR_RETURN(
           replacement,
-          CreateTreeSum(make_sum, absl::MakeConstSpan(variable_elements)));
+          CreateTreeSum(make_sum, absl::MakeConstSpan(variable_elements),
+                        elements.op()));
     }
     // give the replacement the original name.
     std::string original_name =

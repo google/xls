@@ -328,6 +328,157 @@ TEST_F(ReassociationPassTest, ChainOfThreeAddsRight) {
                                         m::Add(m::Param("c"), m::Param("d"))));
 }
 
+TEST_F(ReassociationPassTest, PairSameAheadAndIsolateLoner) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  fb.Add(a, fb.Add(a, fb.Add(a, fb.Add(b, b))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::Add(m::Add(m::Param("a"), m::Param("a")),
+                            m::Add(m::Param("b"), m::Param("b"))),
+                     m::Param("a")));
+}
+
+TEST_F(ReassociationPassTest, PairSameAheadAndPairDifferentWithInterval) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  fb.Add(a, fb.Add(a, fb.Add(a, fb.Add(b, fb.Add(b, c)))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::Add(m::Add(m::Param("a"), m::Param("a")),
+                            m::Add(m::Param("b"), m::Param("b"))),
+                     m::Add(m::Param("a"), m::Param("c"))));
+}
+
+TEST_F(ReassociationPassTest, PairSameAheadTwice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  fb.Add(a, fb.Add(a, fb.Add(a, fb.Add(b, fb.Add(b, fb.Add(c, c))))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Add(m::Add(m::Add(m::Param("a"), m::Param("a")),
+                    m::Add(m::Param("b"), m::Param("b"))),
+             m::Add(m::Add(m::Param("c"), m::Param("c")), m::Param("a"))));
+}
+
+TEST_F(ReassociationPassTest, PairSameAheadTwiceAndPairDifferentWithInterval) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue d = fb.Param("d", u32);
+  fb.Add(a,
+         fb.Add(a, fb.Add(a, fb.Add(b, fb.Add(b, fb.Add(c, fb.Add(c, d)))))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::Add(m::Add(m::Param("a"), m::Param("a")),
+                            m::Add(m::Param("b"), m::Param("b"))),
+                     m::Add(m::Add(m::Param("c"), m::Param("c")),
+                            m::Add(m::Param("a"), m::Param("d")))));
+}
+
+TEST_F(ReassociationPassTest, PairSameTwiceAndPairAhead) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  fb.Add(a, fb.Add(a, fb.Add(a, fb.Add(a, fb.Add(b, fb.Add(c, c))))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Add(m::Add(m::Add(m::Param("a"), m::Param("a")),
+                    m::Add(m::Param("a"), m::Param("a"))),
+             m::Add(m::Add(m::Param("c"), m::Param("c")), m::Param("b"))));
+}
+
+TEST_F(ReassociationPassTest, PairScrambledDifferentWithIntervalTwice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue c = fb.Param("c", u32);
+  BValue d = fb.Param("d", u32);
+  fb.Add(
+      d,
+      fb.Add(
+          a,
+          fb.Add(
+              d,
+              fb.Add(
+                  d,
+                  fb.Add(
+                      b,
+                      fb.Add(
+                          c,
+                          fb.Add(
+                              a,
+                              fb.Add(c,
+                                     fb.Add(b, fb.Add(a, fb.Add(b, c)))))))))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::Add(m::Add(m::Add(m::Param("a"), m::Param("a")),
+                                   m::Add(m::Param("b"), m::Param("b"))),
+                            m::Add(m::Add(m::Param("a"), m::Param("b")),
+                                   m::Add(m::Param("c"), m::Param("c")))),
+                     m::Add(m::Add(m::Param("d"), m::Param("d")),
+                            m::Add(m::Param("c"), m::Param("d")))));
+}
+
+TEST_F(ReassociationPassTest, PairSameWithZeroExtend) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.ZeroExtend(fb.Param("a", p->GetBitsType(14)), 32);
+  BValue b = fb.ZeroExtend(fb.Param("b", p->GetBitsType(13)), 32);
+  BValue c = fb.ZeroExtend(fb.Param("c", p->GetBitsType(12)), 32);
+  BValue d = fb.ZeroExtend(fb.Param("d", p->GetBitsType(11)), 32);
+  BValue e = fb.ZeroExtend(fb.Param("e", p->GetBitsType(10)), 32);
+  fb.Add(c,
+         fb.Add(b, fb.Add(a, fb.Add(d, fb.Add(d, fb.Add(e, fb.Add(e, d)))))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ZeroExt(m::Add(
+          m::ZeroExt(m::Add(m::ZeroExt(m::Add(m::ZeroExt(m::Param("e")),
+                                              m::ZeroExt(m::Param("e")))),
+                            m::ZeroExt(m::Add(m::ZeroExt(m::Param("d")),
+                                              m::ZeroExt(m::Param("d")))))),
+          m::ZeroExt(m::Add(m::ZeroExt(m::Add(m::ZeroExt(m::Param("d")),
+                                              m::ZeroExt(m::Param("c")))),
+                            m::ZeroExt(m::Add(m::ZeroExt(m::Param("b")),
+                                              m::ZeroExt(m::Param("a")))))))));
+}
+
 TEST_F(ReassociationPassTest, NearToFinalBitWidth) {
   auto p = CreatePackage();
   // We need to make the addition unbalanced so reassociation actually touches
