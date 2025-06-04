@@ -302,6 +302,7 @@ issues](https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22g
 if you're interested in contributing, or reach out via [GitHub
 discussions](https://github.com/google/xls/discussions)!
 
+*   [Aidan Kirk](https://github.com/aidankirk12)
 *   [Albert Magyar](https://github.com/albert-magyar)
 *   [Alex Light](https://github.com/allight)
 *   [Amin Kalantar](https://github.com/aminiok1)
