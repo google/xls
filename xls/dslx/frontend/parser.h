@@ -619,7 +619,8 @@ class Parser : public TokenParser {
   absl::StatusOr<TestFunction*> ParseTestFunction(Bindings& bindings,
                                                   const Span& attribute_span);
 
-  absl::StatusOr<TestProc*> ParseTestProc(Bindings& bindings);
+  absl::StatusOr<TestProc*> ParseTestProc(
+      Bindings& bindings, std::optional<std::string> expected_fail_label);
 
   // Parses a constant definition (e.g. at the top level of a module). Token
   // cursor should be over the `const` keyword.
