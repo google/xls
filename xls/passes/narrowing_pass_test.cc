@@ -314,6 +314,93 @@ TEST_P(NarrowingPassTest, ShiftWithKnownZeroPrefix) {
               m::Shll(m::Param("in"), m::BitSlice(/*start=*/0, /*width=*/2)));
 }
 
+TEST_P(NarrowingPassTest, ShraNarrowValueAndAmount) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue shift_val = fb.Param("val", p->GetBitsType(3));
+  BValue shift_amnt = fb.Param("amnt", p->GetBitsType(3));
+  // Max 6-bit signed value
+  BValue shift_val_big =
+      fb.Add(fb.SignExtend(shift_val, 256),
+             fb.SignExtend(fb.Param("add_val", p->GetBitsType(5)), 256));
+  // 4 bits.
+  BValue shift_amnt_big =
+      fb.And(fb.SignExtend(shift_amnt, 256), fb.Literal(UBits(0b1111, 256)));
+  fb.Shra(shift_val_big, shift_amnt_big);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::SignExt(AllOf(m::Shra(m::Type("bits[6]"), m::Type("bits[4]")),
+                               m::Type("bits[6]"))));
+}
+
+TEST_P(NarrowingPassTest, ShrlNarrowValueAndAmount) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue shift_val = fb.Param("val", p->GetBitsType(3));
+  BValue shift_amnt = fb.Param("amnt", p->GetBitsType(3));
+  // Max 6-bit unsigned value
+  BValue shift_val_big =
+      fb.Add(fb.ZeroExtend(shift_val, 256),
+             fb.ZeroExtend(fb.Param("add_val", p->GetBitsType(5)), 256));
+  // 4 bits.
+  BValue shift_amnt_big =
+      fb.And(fb.SignExtend(shift_amnt, 256), fb.Literal(UBits(0b1111, 256)));
+  fb.Shrl(shift_val_big, shift_amnt_big);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ZeroExt(AllOf(m::Shrl(m::Type("bits[6]"), m::Type("bits[4]")),
+                               m::Type("bits[6]"))));
+}
+
+TEST_P(NarrowingPassTest, ShllKnownLeadingNarrowValueAndAmount) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue shift_val = fb.Param("val", p->GetBitsType(3));
+  BValue shift_amnt = fb.Param("amnt", p->GetBitsType(3));
+  // Max 6-bit unsigned value
+  BValue shift_val_big =
+      fb.Add(fb.ZeroExtend(shift_val, 256),
+             fb.ZeroExtend(fb.Param("add_val", p->GetBitsType(5)), 256));
+  // 4 bits max of 15.
+  BValue shift_amnt_big =
+      fb.And(fb.SignExtend(shift_amnt, 256), fb.Literal(UBits(0b1111, 256)));
+  fb.Shll(shift_val_big, shift_amnt_big);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Literal(),
+                        AllOf(m::Shll(m::Type("bits[21]"), m::Type("bits[4]")),
+                              m::Type("bits[21]"))));
+}
+
+TEST_P(NarrowingPassTest, ShllUnknownLeadingNarrowValueAndAmount) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue shift_val = fb.Param("val", p->GetBitsType(3));
+  BValue shift_amnt = fb.Param("amnt", p->GetBitsType(3));
+  // Max 6-bit signed value
+  BValue shift_val_big =
+      fb.Add(fb.SignExtend(shift_val, 256),
+             fb.SignExtend(fb.Param("add_val", p->GetBitsType(5)), 256));
+  // 4 bits max of 15.
+  BValue shift_amnt_big =
+      fb.And(fb.SignExtend(shift_amnt, 256), fb.Literal(UBits(0b1111, 256)));
+  fb.Shll(shift_val_big, shift_amnt_big);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::SignExt(AllOf(m::Shll(m::Type("bits[21]"), m::Type("bits[4]")),
+                               m::Type("bits[21]"))));
+}
+
 TEST_P(NarrowingPassTest, DecodeWithKnownZeroIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

@@ -678,56 +678,251 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return Change();
   }
 
+  // If leading bits are known of the shift-value we can remove any where the
+  // unknown bits cannot overwrite them. We will also narrow shift_amnt and
+  // split the value based on the calculated ranges of shift_amnt.
   absl::Status HandleShll(BinOp* shll) override {
-    return MaybeNarrowShiftAmount(shll);
+    Node* shift_value = shll->operand(0);
+    Node* shift_amnt = shll->operand(1);
+    // Narrow the shift amount.
+    const QueryEngine& shift_amnt_qe =
+        QueryEngineForNodeAndUser(shift_amnt, shll);
+    if (shift_amnt_qe.IsAllZeros(shift_amnt)) {
+      // Shift amount is zero. Replace with (slice of) input operand of shift.
+      XLS_RETURN_IF_ERROR(shll->ReplaceUsesWith(shift_value));
+      return Change();
+    }
+    // NB Shifting all the bits off the end unconditionally would be caught by
+    // earlier checks for constant results.
+
+    const QueryEngine& value_qe = QueryEngineForNodeAndUser(shift_value, shll);
+    int64_t leading_value_signs = CountLeadingKnownSignBits(shift_value, shll);
+    bool is_sign_bit_known = value_qe.IsMsbKnown(shift_value);
+    auto replace_with_narrowed = [&](Node* narrow_shift_val,
+                                     Node* narrow_shift_amnt) -> absl::Status {
+      if (narrow_shift_val == shift_value && narrow_shift_amnt == shift_amnt) {
+        return NoChange();
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrow_shift,
+          shift_value->function_base()->MakeNodeWithName<BinOp>(
+              shll->loc(), narrow_shift_val, narrow_shift_amnt, Op::kShll,
+              shll->HasAssignedName()
+                  ? absl::StrFormat("%s_narrowed", shll->GetNameView())
+                  : ""));
+      if (shift_value == narrow_shift_val) {
+        XLS_RETURN_IF_ERROR(shll->ReplaceUsesWith(narrow_shift));
+        return Change(shll, narrow_shift);
+      }
+      if (is_sign_bit_known) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * leading,
+            shll->function_base()->MakeNodeWithName<Literal>(
+                shll->loc(),
+                Value(SBits(
+                    value_qe.GetKnownMsb(shift_value) ? -1 : 0,
+                    shll->BitCountOrDie() - narrow_shift->BitCountOrDie())),
+                shll->HasAssignedName()
+                    ? absl::StrFormat("%s_leading", shll->GetNameView())
+                    : ""));
+        XLS_ASSIGN_OR_RETURN(
+            Node * res, shll->ReplaceUsesWithNew<Concat>(
+                            absl::Span<Node* const>{leading, narrow_shift}));
+        return Change(shll, res);
+      }
+      XLS_ASSIGN_OR_RETURN(
+          Node * res, shll->ReplaceUsesWithNew<ExtendOp>(
+                          narrow_shift, shll->BitCountOrDie(), Op::kSignExt));
+      return Change(shll, res);
+    };
+
+    Node* narrowed_shift_amnt;
+    int64_t leading_amnt_zeros = CountLeadingKnownZeros(shift_amnt, shll);
+    if (leading_amnt_zeros > 0) {
+      XLS_ASSIGN_OR_RETURN(
+          narrowed_shift_amnt,
+          shll->function_base()->MakeNode<BitSlice>(
+              shll->loc(), shift_amnt, /*start=*/0,
+              /*width=*/shift_amnt->BitCountOrDie() - leading_amnt_zeros));
+    } else {
+      narrowed_shift_amnt = shift_amnt;
+    }
+
+    // If op is like (SSSSSSSABCD) << (X) where X+4 < value-width we can narrow
+    // cutting off some of the high shift-value bits.
+    // If sign bit isn't known we always want to keep it around to allow
+    // sign-extend
+    int64_t unknown_bits =
+        (shift_value->BitCountOrDie() - leading_value_signs) +
+        (is_sign_bit_known ? 0 : 1);
+    if (leading_value_signs == 0 ||
+        unknown_bits >= shift_value->BitCountOrDie()) {
+      return replace_with_narrowed(shift_value, narrowed_shift_amnt);
+    }
+    Bits max_shift_bits = shift_amnt_qe.MaxUnsignedValue(shift_amnt);
+    if (!max_shift_bits.FitsInNBitsUnsigned(63)) {
+      // Potentially the entire shift_value is shifted out.
+      return replace_with_narrowed(shift_value, narrowed_shift_amnt);
+    }
+    XLS_ASSIGN_OR_RETURN(int64_t max_shift, max_shift_bits.ToUint64());
+    int64_t max_result_unknown_bits = max_shift + unknown_bits;
+    XLS_RET_CHECK_GT(max_shift, 0);
+    XLS_RET_CHECK_GT(max_result_unknown_bits, 0);
+    if (max_result_unknown_bits >= shift_value->BitCountOrDie()) {
+      // Some bit we don't know the value of is shifted to the leading bit
+      // location.
+      return replace_with_narrowed(shift_value, narrowed_shift_amnt);
+    }
+    // Narrow the actual shift.
+    XLS_ASSIGN_OR_RETURN(
+        Node * narrowed_shift_value,
+        shll->function_base()->MakeNodeWithName<BitSlice>(
+            shll->loc(), shift_value, 0, max_result_unknown_bits,
+            shift_value->HasAssignedName()
+                ? absl::StrFormat("%s_narrowed_for_shll",
+                                  shift_value->GetNameView())
+                : ""));
+
+    return replace_with_narrowed(narrowed_shift_value, narrowed_shift_amnt);
   }
+
   absl::Status HandleShra(BinOp* shra) override {
-    return MaybeNarrowShiftAmount(shra);
+    return MaybeNarrowShiftRight(shra);
   }
   absl::Status HandleShrl(BinOp* shrl) override {
-    return MaybeNarrowShiftAmount(shrl);
+    return MaybeNarrowShiftRight(shrl);
   }
 
-  // Narrow the shift-amount operand of shift operations if the shift-amount
-  // has leading zeros.
-  absl::Status MaybeNarrowShiftAmount(Node* shift) {
-    XLS_RET_CHECK(shift->op() == Op::kShll || shift->op() == Op::kShrl ||
-                  shift->op() == Op::kShra);
-    int64_t leading_zeros =
-        CountLeadingKnownZeros(shift->operand(1), /*user=*/shift);
-    if (leading_zeros == 0) {
-      return NoChange();
-    }
+  // Shift right can be narrowed in several complimentary ways.
+  //
+  // K=bit has a known value
+  // X=bit has an unknown value
+  // 1=bit is true
+  // 0=bit is false
+  //
+  // Imagine we have some computation like
+  //
+  // ```
+  // shift_value = KK..K_XXXX_KK...K;
+  // shift_amnt = ...; // range is (a, b)
+  // logic = shrl(shift_value, shift_amnt);
+  // arith = shra(shift_value, shift_amnt);
+  // ```
+  //
+  // We can cut off the known top bits if they are all the same value and its a
+  // arith shift or if they are all 0s. We append back the 'K' value if we cut
+  // it down smaller than the actual result.
+  //
+  // TODO(allight): Choosing to narrow with adding arithmetic to the
+  // shift-amount is something we should consider. It likely will almost always
+  // be beneficial but its not a very narrow-ing transform and there might be
+  // some tricky edge cases.
+  absl::Status MaybeNarrowShiftRight(Node* shift) {
+    XLS_RET_CHECK(shift->OpIn({Op::kShrl, Op::kShra})) << shift;
+    bool is_arithmetic = shift->op() == Op::kShra;
 
-    if (leading_zeros == shift->operand(1)->BitCountOrDie()) {
+    Node* shift_value = shift->operand(0);
+    Node* shift_amnt = shift->operand(1);
+    const QueryEngine& shift_amnt_qe =
+        QueryEngineForNodeAndUser(shift_amnt, shift);
+    if (shift_amnt_qe.IsAllZeros(shift_amnt)) {
       // Shift amount is zero. Replace with (slice of) input operand of shift.
-      if (shift->BitCountOrDie() == shift->operand(0)->BitCountOrDie()) {
-        XLS_RETURN_IF_ERROR(shift->ReplaceUsesWith(shift->operand(0)));
-        // Operand(0) should already have ranges associated with it so no need
-        // to mark an alias.
-        return Change();
-      }
-      // Shift instruction is narrower than its input operand. Replace with
-      // slice of input.
-      XLS_RET_CHECK_LE(shift->BitCountOrDie(),
-                       shift->operand(0)->BitCountOrDie());
-      XLS_ASSIGN_OR_RETURN(Node * replacement,
-                           shift->ReplaceUsesWithNew<BitSlice>(
-                               shift->operand(0), /*start=*/0,
-                               /*width=*/shift->BitCountOrDie()));
-      return Change(/*original=*/shift, /*replacement=*/replacement);
+      XLS_RETURN_IF_ERROR(shift->ReplaceUsesWith(shift_value));
+      return Change();
     }
+    int64_t leading_bit_cnt =
+        is_arithmetic ? CountLeadingKnownSignBits(shift_value, shift)
+                      : CountLeadingKnownZeros(shift_value, shift);
+    // How many bits have values which aren't provably the sign-bit/zero.
+    int64_t values_bit_cnt = shift_value->BitCountOrDie() - leading_bit_cnt;
+    XLS_RET_CHECK_GE(values_bit_cnt, 0);
+    if (values_bit_cnt == 0) {
+      // value is all the fill bit value.
+      XLS_RETURN_IF_ERROR(shift->ReplaceUsesWith(shift_value));
+      return Change();
+    }
+    // How many bits we need to keep in the shift_value to be able to expand it
+    // out the original value. For arithmetic we need to keep a sign-bit-valued
+    // bit.
+    int64_t to_ext_bit_count =
+        is_arithmetic ? values_bit_cnt + 1 : values_bit_cnt;
 
-    // Prune the leading zeros from the shift amount.
+    IntervalSet amnt_range = shift_amnt_qe.GetIntervals(shift_amnt).Get({});
+    if (!amnt_range.IsEmpty() && amnt_range.LowerBound()->FitsInInt64() &&
+        amnt_range.LowerBound()->ToUint64().value() > values_bit_cnt) {
+      // Shift all non-sign-bit values out.
+      if (is_arithmetic) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * sign_bit,
+            shift->function_base()->MakeNodeWithName<BitSlice>(
+                shift_value->loc(), shift_value,
+                shift_value->BitCountOrDie() - 1, 1,
+                shift_value->HasAssignedName()
+                    ? absl::StrFormat("%s_sign_bit", shift_value->GetNameView())
+                    : ""));
+        XLS_RETURN_IF_ERROR(
+            shift
+                ->ReplaceUsesWithNew<ExtendOp>(sign_bit, shift->BitCountOrDie(),
+                                               Op::kSignExt)
+                .status());
+      } else {
+        // TODO(allight): I think this will be dead since result should be
+        // constant anyway.
+        XLS_RETURN_IF_ERROR(shift
+                                ->ReplaceUsesWithNew<Literal>(
+                                    Value(UBits(0, shift->BitCountOrDie())))
+                                .status());
+      }
+      return Change();
+    }
+    Node* narrowed_shift_amnt;
+    int64_t leading_amnt_zeros = CountLeadingKnownZeros(shift_amnt, shift);
+    if (leading_amnt_zeros > 0) {
+      XLS_ASSIGN_OR_RETURN(
+          narrowed_shift_amnt,
+          shift->function_base()->MakeNode<BitSlice>(
+              shift->loc(), shift_amnt, /*start=*/0,
+              /*width=*/shift_amnt->BitCountOrDie() - leading_amnt_zeros));
+      XLS_RETURN_IF_ERROR(Change());
+    } else {
+      narrowed_shift_amnt = shift_amnt;
+    }
+    if (to_ext_bit_count == shift->BitCountOrDie()) {
+      // All bits are important to result, can't narrow the shift_value.
+      if (narrowed_shift_amnt != shift_amnt) {
+        // Still narrowed the shift-amount some.
+        XLS_ASSIGN_OR_RETURN(
+            Node * replacment,
+            shift->ReplaceUsesWithNew<BinOp>(shift_value, narrowed_shift_amnt,
+                                             shift->op()));
+        return Change(/*original=*/shift, replacment);
+      } else {
+        return NoChange();
+      }
+    }
+    // We can narrow the shift value to only those bits that aren't the sign
+    // bit.
     XLS_ASSIGN_OR_RETURN(
-        Node * narrowed_shift_amount,
-        shift->function_base()->MakeNode<BitSlice>(
-            shift->loc(), shift->operand(1), /*start=*/0,
-            /*width=*/shift->operand(1)->BitCountOrDie() - leading_zeros));
+        Node * narrowed_shift_value,
+        shift->function_base()->MakeNodeWithName<BitSlice>(
+            shift->loc(), shift_value, /*start=*/0,
+            /*width=*/to_ext_bit_count,
+            shift_value->HasAssignedName()
+                ? absl::StrFormat("%s_shift_bits", shift_value->GetNameView())
+                : ""));
     XLS_ASSIGN_OR_RETURN(
-        Node * replacment,
-        shift->ReplaceUsesWithNew<BinOp>(shift->operand(0),
-                                         narrowed_shift_amount, shift->op()));
+        Node * narrowed_shift,
+        shift->function_base()->MakeNodeWithName<BinOp>(
+            shift->loc(), narrowed_shift_value, narrowed_shift_amnt,
+            shift->op(),
+            shift->HasAssignedName()
+                ? absl::StrFormat("%s_narrowed", shift->GetNameView())
+                : ""));
+    XLS_ASSIGN_OR_RETURN(Node * replacment,
+                         shift->ReplaceUsesWithNew<ExtendOp>(
+                             narrowed_shift, shift->BitCountOrDie(),
+                             is_arithmetic ? Op::kSignExt : Op::kZeroExt));
     return Change(/*original=*/shift, replacment);
   }
 
