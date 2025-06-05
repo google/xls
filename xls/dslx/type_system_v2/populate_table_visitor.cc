@@ -172,53 +172,83 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
   absl::Status HandleColonRef(const ColonRef* node) override {
+    // Generally this handler sets both a type annotation and a colon ref target
+    // for `node` (the target is a dedicated piece of data specific to
+    // `ColonRef` nodes). If the `ColonRef` refers to a type, then these two
+    // things are the same. If the `ColonRef` is to a constant or function, then
+    // the target is e.g. a `ConstantDef` or `Function` and the type annotation
+    // is its type.
+
     VLOG(5) << "HandleColonRef: " << node->ToString() << " of subject kind: "
             << AstNodeKindToString(ToAstNode(node->subject())->kind());
 
+    // All single `ColonRef` cases are inside here.
     if (std::holds_alternative<NameRef*>(node->subject())) {
+      // `SomeEnum::SOME_CONSTANT` case.
       std::variant<const NameDef*, BuiltinNameDef*> any_name_def =
           std::get<NameRef*>(node->subject())->name_def();
-      if (auto* name_def = std::get_if<const NameDef*>(&any_name_def)) {
-        if (auto enum_def =
-                dynamic_cast<const EnumDef*>((*name_def)->definer())) {
-          return table_.SetTypeAnnotation(
-              node, module_.Make<TypeRefTypeAnnotation>(
-                        (*name_def)->span(),
-                        module_.Make<TypeRef>(
-                            enum_def->span(),
-                            TypeDefinition(const_cast<EnumDef*>(enum_def))),
-                        std::vector<ExprOrType>(), std::nullopt));
-        }
+      if (auto* name_def = std::get_if<const NameDef*>(&any_name_def);
+          name_def && (*name_def)->definer()->kind() == AstNodeKind::kEnumDef) {
+        const auto* enum_def =
+            down_cast<const EnumDef*>((*name_def)->definer());
+        const TypeAnnotation* type_ref_annotation =
+            module_.Make<TypeRefTypeAnnotation>(
+                (*name_def)->span(),
+                module_.Make<TypeRef>(
+                    enum_def->span(),
+                    TypeDefinition(const_cast<EnumDef*>(enum_def))),
+                std::vector<ExprOrType>(), std::nullopt);
+        table_.SetColonRefTarget(node, type_ref_annotation);
+        return table_.SetTypeAnnotation(node, type_ref_annotation);
       }
-      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_def,
+
+      // `imported_module::SomeStruct` case.
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_ref,
                            GetStructOrProcRef(node, import_data_));
-      if (struct_def.has_value()) {
+      if (struct_ref.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            TypeDefinition type_def,
+            ToTypeDefinition(const_cast<StructDefBase*>(struct_ref->def)));
+        const TypeAnnotation* type_ref_annotation =
+            module_.Make<TypeRefTypeAnnotation>(
+                node->span(), module_.Make<TypeRef>(node->span(), type_def),
+                struct_ref->parametrics, std::nullopt);
+        table_.SetColonRefTarget(node, type_ref_annotation);
+        return table_.SetTypeAnnotation(node, type_ref_annotation);
+      }
+
+      // `SomeStruct::CONSTANT` or `SomeStruct::function` case.
+      XLS_ASSIGN_OR_RETURN(struct_ref,
+                           GetStructOrProcRefForSubject(node, import_data_));
+      if (struct_ref.has_value()) {
         XLS_ASSIGN_OR_RETURN(
             std::optional<const AstNode*> def,
             HandleStructAttributeReferenceInternal(
-                node, *struct_def->def, struct_def->parametrics, node->attr()));
+                node, *struct_ref->def, struct_ref->parametrics, node->attr()));
         if (def.has_value()) {
           return PropagateDefToRef(*def, node);
         }
       }
+
+      // Built-in member of a built-in type case, like `u32::ZERO`.
       AstNode* def = ToAstNode(std::get<NameRef*>(node->subject())->name_def());
       if (auto* builtin_name_def = dynamic_cast<BuiltinNameDef*>(def)) {
-        // This would be a built-in member of a built-in type, like `u32::ZERO`.
         return table_.SetTypeAnnotation(
             node, module_.Make<MemberTypeAnnotation>(
                       CreateBuiltinTypeAnnotation(module_, builtin_name_def,
                                                   node->span()),
                       node->attr()));
       }
+
+      // Built-in member of a built-in type being accessed via a type alias.
       const AstNode* definer = dynamic_cast<const NameDef*>(def)->definer();
       if (const auto* alias = dynamic_cast<const TypeAlias*>(definer)) {
-        // This would be a built-in member of a built-in type being accessed via
-        // a type alias.
         return table_.SetTypeAnnotation(
             node, module_.Make<MemberTypeAnnotation>(&alias->type_annotation(),
                                                      node->attr()));
       }
     }
+
     // A double colon ref should resolve to a struct definition with an
     // associated impl or to an imported enum.
     if (std::holds_alternative<ColonRef*>(node->subject())) {
@@ -226,13 +256,13 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
                            GetImportedModuleInfo(sub_col_ref, import_data_));
       XLS_RET_CHECK(import_module.has_value());
-      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_def,
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_ref,
                            GetStructOrProcRef(sub_col_ref, import_data_));
-      if (struct_def.has_value()) {
+      if (struct_ref.has_value()) {
         XLS_ASSIGN_OR_RETURN(
             std::optional<const AstNode*> ref,
             HandleStructAttributeReferenceInternal(
-                node, *struct_def->def, struct_def->parametrics, node->attr()));
+                node, *struct_ref->def, struct_ref->parametrics, node->attr()));
         XLS_RET_CHECK(ref.has_value());
 
         return SetCrossModuleTypeAnnotation(node, *ref);
@@ -242,11 +272,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                                                  sub_col_ref, file_table_));
       return SetCrossModuleTypeAnnotation(node, ToAstNode(member));
     }
+
+    // `S<parametrics>::CONSTANT` or `S<parametrics>::static_fn`. We can't fully
+    // resolve these things on the spot, so we do some basic validation and then
+    // produce a `MemberTypeAnnotation` for deferred resolution.
     if (std::holds_alternative<TypeRefTypeAnnotation*>(node->subject())) {
-      // This is something like `S<parametrics>::CONSTANT` or
-      // `S<parametrics>::static_fn`. We can't fully resolve these things on
-      // the spot, so we do some basic validation and then produce a
-      // `MemberTypeAnnotation` for deferred resolution.
       const auto* annotation =
           std::get<TypeRefTypeAnnotation*>(node->subject());
       XLS_RETURN_IF_ERROR(annotation->Accept(this));
@@ -261,20 +291,35 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       return table_.SetTypeAnnotation(
           node, module_.Make<MemberTypeAnnotation>(annotation, node->attr()));
     }
+
+    // Any imported_module::entity case not covered above.
     XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
                          GetImportedModuleInfo(node, import_data_));
     if (import_module.has_value()) {
       XLS_ASSIGN_OR_RETURN(
           ModuleMember member,
           GetPublicModuleMember((*import_module)->module(), node, file_table_));
-      XLS_RETURN_IF_ERROR(
-          SetCrossModuleTypeAnnotation(node, ToAstNode(member)));
+      absl::StatusOr<TypeDefinition> type_def =
+          ToTypeDefinition(ToAstNode(member));
+      if (type_def.ok()) {
+        const TypeAnnotation* type_ref_annotation =
+            module_.Make<TypeRefTypeAnnotation>(
+                node->span(), module_.Make<TypeRef>(node->span(), *type_def),
+                std::vector<ExprOrType>(), std::nullopt);
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeAnnotation(node, type_ref_annotation));
+      } else {
+        XLS_RETURN_IF_ERROR(
+            SetCrossModuleTypeAnnotation(node, ToAstNode(member)));
+      }
       table_.SetColonRefTarget(node, ToAstNode(member));
       return absl::OkStatus();
     }
-    return absl::UnimplementedError(
-        "Type inference version 2 is a work in progress and has limited "
-        "support for colon references so far.");
+
+    return TypeInferenceErrorStatus(
+        node->span(), /*type=*/nullptr,
+        absl::Substitute("Invalid colon reference: `$0`", node->ToString()),
+        file_table_);
   }
 
   absl::Status HandleNumber(const Number* node) override {
@@ -883,6 +928,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       }
     }
     return DefaultHandler(node);
+  }
+
+  absl::Status HandleTypeRef(const TypeRef* node) override {
+    // `TypeRef::GetChildren` does not yield the type definition it contains. We
+    // want that to be processed here in case it's a `ColonRef`.
+    return ToAstNode(node->type_definition())->Accept(this);
   }
 
   absl::Status HandleSelfTypeAnnotation(
@@ -1639,24 +1690,30 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleZeroOrOneMacro(const AstNode* node, ExprOrType type) {
     if (std::holds_alternative<Expr*>(type)) {
       Expr* expr = std::get<Expr*>(type);
-      if (ColonRef* colon_ref = dynamic_cast<ColonRef*>(expr)) {
-        XLS_ASSIGN_OR_RETURN(std::optional<ModuleInfo*> import_module,
-                             GetImportedModuleInfo(colon_ref, import_data_));
-        if (import_module.has_value()) {
-          XLS_ASSIGN_OR_RETURN(ModuleMember member,
-                               GetPublicModuleMember((*import_module)->module(),
-                                                     colon_ref, file_table_));
-          if (std::holds_alternative<TypeAlias*>(member)) {
-            XLS_RETURN_IF_ERROR(SetCrossModuleTypeAnnotation(
-                node, ToAstNode(&std::get<TypeAlias*>(member)->name_def())));
-            return DefaultHandler(node);
-          }
-          XLS_RETURN_IF_ERROR(
-              SetCrossModuleTypeAnnotation(node, ToAstNode(member)));
-          return DefaultHandler(node);
+      if (expr->kind() == AstNodeKind::kColonRef) {
+        XLS_ASSIGN_OR_RETURN(
+            const NameRef* expr_variable,
+            table_.DefineInternalVariable(
+                InferenceVariableKind::kType, const_cast<Expr*>(expr),
+                absl::StrCat(GenerateInternalTypeVariableName(expr),
+                             "_colon_ref_type_param")));
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(expr, expr_variable));
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            node, module_.Make<TypeVariableTypeAnnotation>(expr_variable)));
+        XLS_RETURN_IF_ERROR(expr->Accept(this));
+
+        // The target must be a type or it's an invalid parametric to the macro.
+        std::optional<const AstNode*> colon_ref_target =
+            table_.GetColonRefTarget(down_cast<ColonRef*>(expr));
+        if (colon_ref_target.has_value() &&
+            ((*colon_ref_target)->kind() == AstNodeKind::kTypeAlias ||
+             (*colon_ref_target)->kind() == AstNodeKind::kEnumDef ||
+             (*colon_ref_target)->kind() == AstNodeKind::kTypeAnnotation)) {
+          return absl::OkStatus();
         }
       }
-      // If it's a non-import "expr", that's an error (just like in V1)
+
+      // An expr that isn't a type is not allowed.
       return TypeInferenceErrorStatus(
           *node->GetSpan(), nullptr,
           absl::Substitute("Expected a type argument in `$0`; saw `$1`.",
@@ -1722,6 +1779,8 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
 
   absl::Status HandleTypeAlias(const TypeAlias* node) override {
     VLOG(5) << "HandleTypeAlias: " << node->ToString();
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeAnnotation(node, &node->type_annotation()));
     XLS_RETURN_IF_ERROR(
         table_.SetTypeAnnotation(&node->name_def(), &node->type_annotation()));
     return DefaultHandler(node);

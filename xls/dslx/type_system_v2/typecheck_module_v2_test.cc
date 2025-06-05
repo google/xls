@@ -3591,6 +3591,89 @@ const Y = zero!<imported::X>();
               IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "uN[10]"))));
 }
 
+TEST(TypecheckV2Test, ZeroMacroImportedStructType) {
+  constexpr std::string_view kImported = R"(
+pub struct S { field: u32 }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+const Y = zero!<imported::S>();
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "S { field: uN[32] }"))));
+}
+
+TEST(TypecheckV2Test,
+     ZeroMacroImportedStructTypeWithParametricsInOwnningModule) {
+  constexpr std::string_view kImported = R"(
+pub struct S<N: u32> { field: uN[N] }
+pub type S32 = S<32>;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+const Y = zero!<imported::S32>();
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "S { field: uN[32] }"))));
+}
+
+TEST(TypecheckV2Test,
+     ZeroMacroImportedStructTypeWithInlineParametricsInConsumingModule) {
+  constexpr std::string_view kImported = R"(
+pub struct S<N: u32> { field: uN[N] }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+const Y = zero!<imported::S<32>>();
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "S { field: uN[32] }"))));
+}
+
+TEST(TypecheckV2Test,
+     ZeroMacroImportedStructTypeWithAliasParametricsInConsumingModule) {
+  constexpr std::string_view kImported = R"(
+pub struct S<N: u32> { field: uN[N] }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+type S32 = imported::S<32>;
+const Y = zero!<S32>();
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "S { field: uN[32] }"))));
+}
+
+TEST(TypecheckV2Test,
+     ZeroMacroImportedStructTypeWithParametricsInBothModulesFails) {
+  constexpr std::string_view kImported = R"(
+pub struct S<N: u32> { field: uN[N] }
+pub type S32 = S<32>;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+const Y = zero!<imported::S32<32>>();
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Parametric values defined multiple times for "
+                                 "annotation: `S<32>`")));
+}
+
 TEST(TypecheckV2Test, GlobalConstantEqualsLShiftOfLiterals) {
   EXPECT_THAT("const X = u5:5 << 4;", TopNodeHasType("uN[5]"));
 }

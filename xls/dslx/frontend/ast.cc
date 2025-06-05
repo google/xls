@@ -359,21 +359,23 @@ AstNode* TypeDefinitionToAstNode(const TypeDefinition& td) {
 }
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
-  if (auto* n = dynamic_cast<TypeAlias*>(node)) {
-    return TypeDefinition(n);
+  if (node->kind() == AstNodeKind::kTypeAlias) {
+    return down_cast<TypeAlias*>(node);
   }
-  if (auto* n = dynamic_cast<StructDef*>(node)) {
-    return TypeDefinition(n);
+  if (node->kind() == AstNodeKind::kProcDef) {
+    return down_cast<ProcDef*>(node);
   }
-  if (auto* n = dynamic_cast<EnumDef*>(node)) {
-    return TypeDefinition(n);
+  if (node->kind() == AstNodeKind::kStructDef) {
+    return down_cast<StructDef*>(node);
   }
-  if (auto* n = dynamic_cast<ColonRef*>(node)) {
-    return TypeDefinition(n);
+  if (node->kind() == AstNodeKind::kEnumDef) {
+    return down_cast<EnumDef*>(node);
+  }
+  if (node->kind() == AstNodeKind::kColonRef) {
+    return down_cast<ColonRef*>(node);
   }
   return absl::InvalidArgumentError(
-      absl::StrFormat("AST node is not a type definition: (%s) %s",
-                      node->GetNodeTypeName(), node->ToString()));
+      absl::StrCat("AST node is not a type definition: ", node->kind()));
 }
 
 const Span& FreeVariables::GetFirstNameRefSpan(

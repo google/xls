@@ -31,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -837,9 +838,38 @@ class StatefulResolver : public TypeAnnotationResolver {
     }
     while (latest.has_value() &&
            (*latest)->IsAnnotation<TypeRefTypeAnnotation>()) {
-      const auto* type_ref = (*latest)->AsAnnotation<TypeRefTypeAnnotation>();
-      latest = table_.GetTypeAnnotation(ToAstNode(
-          TypeDefinitionGetNameDef(type_ref->type_ref()->type_definition())));
+      const auto* type_ref_annotation =
+          (*latest)->AsAnnotation<TypeRefTypeAnnotation>();
+      if (std::holds_alternative<ColonRef*>(
+              type_ref_annotation->type_ref()->type_definition())) {
+        // `ColonRef` needs specific handling, because
+        // `TypeDefinitionGetNameDef` will not do what we want for that.
+        const ColonRef* colon_ref = std::get<ColonRef*>(
+            type_ref_annotation->type_ref()->type_definition());
+        std::optional<const AstNode*> target =
+            table_.GetColonRefTarget(colon_ref);
+        if (target.has_value() &&
+            (*target)->kind() == AstNodeKind::kTypeAnnotation) {
+          latest = down_cast<const TypeAnnotation*>(*target);
+        } else {
+          latest = table_.GetTypeAnnotation(colon_ref);
+        }
+
+        // If the TRTA containing the colon ref has parametrics, add them to the
+        // type that the colon ref equates to.
+        if (latest.has_value() &&
+            (*latest)->IsAnnotation<TypeRefTypeAnnotation>() &&
+            !type_ref_annotation->parametrics().empty()) {
+          latest = (*latest)->owner()->Make<TypeRefTypeAnnotation>(
+              (*latest)->span(),
+              (*latest)->AsAnnotation<TypeRefTypeAnnotation>()->type_ref(),
+              type_ref_annotation->parametrics());
+        }
+      } else {
+        latest = table_.GetTypeAnnotation(ToAstNode(TypeDefinitionGetNameDef(
+            type_ref_annotation->type_ref()->type_definition())));
+      }
+
       if (latest.has_value()) {
         node = const_cast<TypeAnnotation*>(*latest);
         replaced_anything = true;

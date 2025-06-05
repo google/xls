@@ -31,8 +31,16 @@ namespace xls::dslx {
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
     const TypeAnnotation* annotation, const ImportData& import_data);
 
-// Variant that takes a ColonRef.
+// Variant that takes a `ColonRef`. This will only yield a struct ref if the
+// `ColonRef` itself refers to an actual struct or alias of one. It will yield
+// `nullopt` for a `ColonRef` to an impl member. This makes it easier for the
+// caller to distinguish the two scenarios.
 absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
+    const ColonRef* colon_ref, const ImportData& import_data);
+
+// Variant that operates on the subject of a `ColonRef`, where the whole thing
+// refers to a struct member.
+absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRefForSubject(
     const ColonRef* colon_ref, const ImportData& import_data);
 
 // Resolves the struct base definition for the struct or proc type referred to

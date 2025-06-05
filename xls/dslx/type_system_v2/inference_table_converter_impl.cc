@@ -39,6 +39,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
@@ -811,6 +812,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       std::optional<const TypeAnnotation*> pre_unified_type = std::nullopt,
       TypeAnnotationFilter type_annotation_filter =
           TypeAnnotationFilter::None()) {
+    if (node->kind() == AstNodeKind::kModule ||
+        node->kind() == AstNodeKind::kTypeRef) {
+      return absl::OkStatus();
+    }
+
     TypeSystemTrace trace = tracer_->TraceConvertNode(node);
     VLOG(5) << "GenerateTypeInfo for node: " << node->ToString()
             << " of kind: `" << AstNodeKindToString(node->kind()) << "`"
@@ -946,7 +952,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
     }
 
-    if (node->kind() == AstNodeKind::kTypeAnnotation) {
+    if (node->kind() == AstNodeKind::kTypeAnnotation ||
+        node->kind() == AstNodeKind::kTypeAlias) {
       MetaType meta_type((*type)->CloneToUnique());
       ti->SetItem(node, meta_type);
     } else {

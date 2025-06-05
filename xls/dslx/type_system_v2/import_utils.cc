@@ -53,7 +53,9 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
                                 import_data_.file_table()));
       return ToAstNode(member)->Accept(this);
     }
-    return ToAstNode(colon_ref->subject())->Accept(this);
+    // The entire `ColonRef` is not a struct reference otherwise. We don't want
+    // to produce anything for a `ColonRef` to a member of a struct.
+    return absl::OkStatus();
   }
 
   absl::Status HandleTypeAlias(const TypeAlias* alias) override {
@@ -137,6 +139,13 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
   }
   TypeRefUnwrapper unwrapper(import_data);
   XLS_RETURN_IF_ERROR(annotation->Accept(&unwrapper));
+  return unwrapper.GetStructOrProcRef();
+}
+
+absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRefForSubject(
+    const ColonRef* ref, const ImportData& import_data) {
+  TypeRefUnwrapper unwrapper(import_data);
+  XLS_RETURN_IF_ERROR(ToAstNode(ref->subject())->Accept(&unwrapper));
   return unwrapper.GetStructOrProcRef();
 }
 

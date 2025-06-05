@@ -126,6 +126,7 @@ cc_library(
         ":unify_type_annotations",
         ":validate_concrete_type",
         "//xls/common:casts",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
@@ -481,6 +482,7 @@ cc_library(
     srcs = ["validate_concrete_type.cc"],
     hdrs = ["validate_concrete_type.h"],
     deps = [
+        ":inference_table",
         "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
@@ -669,6 +671,7 @@ cc_library(
         ":type_system_tracer",
         ":unify_type_annotations",
         "//xls/common:casts",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
         "//xls/dslx:import_data",

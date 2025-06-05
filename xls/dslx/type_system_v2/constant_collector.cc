@@ -196,8 +196,9 @@ class Visitor : public AstNodeVisitorWithDefault {
             << colon_ref->ToString()
             << " with target: " << (*target)->ToString();
     if ((*target)->kind() == AstNodeKind::kConstantDef) {
-      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc,
-                           GetStructOrProcRef(colon_ref, import_data_));
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<StructOrProcRef> struct_or_proc,
+          GetStructOrProcRefForSubject(colon_ref, import_data_));
       if (struct_or_proc.has_value() && struct_or_proc->def->IsParametric()) {
         XLS_ASSIGN_OR_RETURN(
             const ParametricContext* struct_context,
