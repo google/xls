@@ -115,7 +115,7 @@ absl::StatusOr<TypeDefinition> ToTypeDefinition(
     const TypeAnnotation* type_annotation) {
   auto* type_ref_type_annotation =
       dynamic_cast<const TypeRefTypeAnnotation*>(type_annotation);
-  XLS_RET_CHECK(type_annotation != nullptr);
+  XLS_RET_CHECK_NE(type_annotation, nullptr);
   return type_ref_type_annotation->type_ref()->type_definition();
 }
 
@@ -296,7 +296,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // Causes node "n" to accept this visitor (basic double-dispatch).
   absl::Status Visit(const AstNode* n) {
-    XLS_RET_CHECK(n != nullptr);
+    XLS_RET_CHECK_NE(n, nullptr);
     VLOG(6) << this << " visiting: `" << n->ToString() << "` ("
             << n->GetNodeTypeName() << ")" << " @ "
             << SpanToString(n->GetSpan(), converter_->file_table());
@@ -506,7 +506,7 @@ bool FunctionConverter::GetRequiresImplicitToken(dslx::Function* f) const {
 
 void FunctionConverter::SetFunctionBuilder(
     std::unique_ptr<BuilderBase> builder) {
-  CHECK(function_builder_ == nullptr);
+  CHECK_EQ(function_builder_, nullptr);
   function_proto_.reset();
   proc_proto_.reset();
   PackageInterfaceProto::FunctionBase* base;
@@ -673,8 +673,7 @@ absl::Status FunctionConverter::HandleConcat(const Binop* node, BValue lhs,
   }
 
   // Fallthrough case should be an ArrayType.
-  auto* array_output_type = dynamic_cast<ArrayType*>(output_type.get());
-  XLS_RET_CHECK(array_output_type != nullptr);
+  XLS_RET_CHECK_NE(dynamic_cast<ArrayType*>(output_type.get()), nullptr);
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->ArrayConcat(pieces, loc);
   });
@@ -925,10 +924,10 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
 
     auto walk = [&](NameDefTree* name_def_tree, int64_t level,
                     int64_t index) -> absl::Status {
+      XLS_RET_CHECK_NE(name_def_tree, nullptr);
       VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`", level,
                                     index, name_def_tree->ToString());
 
-      XLS_RET_CHECK(name_def_tree != nullptr);
       while (level > delta_at_level.size()) {
         // Make sure we have enough entries at this level
         delta_at_level.push_back(0);
@@ -1376,7 +1375,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
   return absl::visit(
       Visitor{
           [&](NameDef* name_def) -> absl::StatusOr<BValue> {
-            XLS_RET_CHECK(name_def != nullptr);
+            XLS_RET_CHECK_NE(name_def, nullptr);
             XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type,
                                  ResolveTypeToIr(name_def));
             return body_converter.AddParam(name_def->identifier(), ivar_type);
@@ -1470,7 +1469,7 @@ absl::Status FunctionConverter::HandleForLoopCarry(
                                              /*matched_type=*/*carry_type)
                               .status());
     } else {
-      XLS_RET_CHECK(dynamic_cast<WildcardPattern*>(accum) != nullptr)
+      XLS_RET_CHECK_NE(dynamic_cast<WildcardPattern*>(accum), nullptr)
           << "Expect post-typechecking loop binding to be NameDefTree or "
              "WildcardPattern";
     }
@@ -1506,11 +1505,9 @@ FunctionConverter::HandleForLexicalScope(const For* node,
     VLOG(5) << "Converting freevar name: " << freevar_name_def->ToString();
 
     std::optional<IrValue> ir_value = GetNodeToIr(freevar_name_def);
-    if (!ir_value.has_value()) {
-      return absl::InternalError(absl::StrFormat(
-          "AST node had no associated IR value: %s @ %s", node->ToString(),
-          SpanToString(node->GetSpan(), file_table())));
-    }
+    XLS_RET_CHECK(ir_value.has_value())
+        << "AST node had no associated IR value: " << node->ToString() << " @ "
+        << SpanToString(node->GetSpan(), file_table());
 
     // If free variable is a constant, create constant node inside body.
     // This preserves const-ness of loop body uses (e.g. loop bounds for
@@ -2080,7 +2077,7 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
 absl::Status FunctionConverter::HandleArray(const Array* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type, ResolveType(node));
   const ArrayType* array_type = dynamic_cast<ArrayType*>(type.get());
-  XLS_RET_CHECK(array_type != nullptr);
+  XLS_RET_CHECK_NE(array_type, nullptr);
   std::vector<BValue> members;
   for (Expr* member : node->members()) {
     XLS_RETURN_IF_ERROR(Visit(member));
@@ -2363,7 +2360,7 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
     BValue covered = function_builder_->And(control_predicate, condition);
     XLS_RET_CHECK_EQ(node->args().size(), 2);
     String* label = dynamic_cast<String*>(node->args()[0]);
-    XLS_RET_CHECK(label != nullptr)
+    XLS_RET_CHECK_NE(label, nullptr)
         << "cover!() argument 0 must be a literal string "
         << "(should have been typechecked?).";
     function_builder_->Cover(covered, label->text());
@@ -2522,11 +2519,9 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
 absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  if (builder_ptr == nullptr) {
-    return absl::InternalError(
-        "Send nodes should only be encountered during Proc conversion; "
-        "we seem to be in function conversion.");
-  }
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Send nodes should only be encountered during Proc conversion; "
+         "we seem to be in function conversion.";
 
   Expr* token = node->args()[0];
   Expr* channel = node->args()[1];
@@ -2561,11 +2556,9 @@ absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
 absl::Status FunctionConverter::HandleBuiltinSendIf(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  if (builder_ptr == nullptr) {
-    return absl::InternalError(
-        "Send nodes should only be encountered during Proc conversion; "
-        "we seem to be in function conversion.");
-  }
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Send nodes should only be encountered during Proc conversion; "
+         "we seem to be in function conversion.";
 
   Expr* token = node->args()[0];
   Expr* channel = node->args()[1];
@@ -2639,11 +2632,9 @@ absl::Status FunctionConverter::HandleRange(const Range* node) {
 absl::Status FunctionConverter::HandleBuiltinRecv(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  if (builder_ptr == nullptr) {
-    return absl::InternalError(
-        "Recv nodes should only be encountered during Proc conversion; "
-        "we seem to be in function conversion.");
-  }
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Recv nodes should only be encountered during Proc conversion; "
+         "we seem to be in function conversion.";
 
   XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
   XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
@@ -2673,11 +2664,9 @@ absl::Status FunctionConverter::HandleBuiltinRecvNonBlocking(
     const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  if (builder_ptr == nullptr) {
-    return absl::InternalError(
-        "Recv nodes should only be encountered during Proc conversion; "
-        "we seem to be in function conversion.");
-  }
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Recv nodes should only be encountered during Proc conversion; "
+         "we seem to be in function conversion.";
 
   XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
   XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
@@ -2720,11 +2709,9 @@ absl::Status FunctionConverter::HandleBuiltinRecvNonBlocking(
 absl::Status FunctionConverter::HandleBuiltinRecvIf(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  if (builder_ptr == nullptr) {
-    return absl::InternalError(
-        "Recv nodes should only be encountered during Proc conversion; "
-        "we seem to be in function conversion.");
-  }
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Recv nodes should only be encountered during Proc conversion; "
+         "we seem to be in function conversion.";
 
   XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
   XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
@@ -2770,11 +2757,9 @@ absl::Status FunctionConverter::HandleBuiltinRecvIfNonBlocking(
     const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  if (builder_ptr == nullptr) {
-    return absl::InternalError(
-        "Recv nodes should only be encountered during Proc conversion; "
-        "we seem to be in function conversion.");
-  }
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Recv nodes should only be encountered during Proc conversion; "
+         "we seem to be in function conversion.";
 
   XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
   XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
@@ -2821,11 +2806,9 @@ absl::Status FunctionConverter::HandleBuiltinRecvIfNonBlocking(
 absl::Status FunctionConverter::HandleBuiltinJoin(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  if (builder_ptr == nullptr) {
-    return absl::InternalError(
-        "Join nodes should only be encountered during Proc conversion; "
-        "we seem to be in function conversion.");
-  }
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Join nodes should only be encountered during Proc conversion; "
+         "we seem to be in function conversion.";
 
   std::vector<BValue> ir_tokens;
   ir_tokens.reserve(node->args().size());
@@ -2843,11 +2826,9 @@ absl::Status FunctionConverter::HandleBuiltinJoin(const Invocation* node) {
 absl::Status FunctionConverter::HandleBuiltinToken(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
-  if (builder_ptr == nullptr) {
-    return absl::InternalError(
-        "Token nodes should only be encountered during Proc conversion; "
-        "we seem to be in function conversion.");
-  }
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Token nodes should only be encountered during Proc conversion; "
+         "we seem to be in function conversion.";
 
   BValue value = function_builder_->Literal(Value::Token());
   node_to_ir_[node] = value;
@@ -2881,8 +2862,8 @@ absl::Status FunctionConverter::AddImplicitTokenParams() {
 
 absl::Status FunctionConverter::HandleFunction(
     Function* node, TypeInfo* type_info, const ParametricEnv* parametric_env) {
-  XLS_RET_CHECK(type_info != nullptr);
-  XLS_RET_CHECK(node != nullptr);
+  XLS_RET_CHECK_NE(type_info, nullptr);
+  XLS_RET_CHECK_NE(node, nullptr);
   Function& f = *node;
 
   VLOG(5) << "HandleFunction: " << f.ToString();
@@ -3028,7 +3009,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     Function* f, const Invocation* invocation, TypeInfo* type_info,
     ImportData* import_data, const ParametricEnv* parametric_env,
     const ProcId& proc_id, ProcConversionData* proc_data) {
-  XLS_RET_CHECK(type_info != nullptr);
+  XLS_RET_CHECK_NE(type_info, nullptr);
   VLOG(5) << "HandleProcNextFunction: " << f->ToString();
 
   if (parametric_env != nullptr) {
@@ -3534,7 +3515,7 @@ absl::Status FunctionConverter::HandleStatementBlock(
       return function_builder_->Tuple({}, loc);
     });
   } else {
-    XLS_RET_CHECK(last_expr != nullptr);
+    XLS_RET_CHECK_NE(last_expr, nullptr);
     XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(last_expr));
     SetNodeToIr(node, bvalue);
   }
@@ -4035,7 +4016,7 @@ absl::StatusOr<EnumDef*> FunctionConverter::DerefEnum(TypeDefinition node) {
 
 absl::StatusOr<std::unique_ptr<Type>> FunctionConverter::ResolveType(
     const AstNode* node) {
-  XLS_RET_CHECK(current_type_info_ != nullptr);
+  XLS_RET_CHECK_NE(current_type_info_, nullptr);
   XLS_RET_CHECK_EQ(current_type_info_->module(), node->owner());
   std::optional<const Type*> t = current_type_info_->GetItem(node);
   if (!t.has_value()) {
@@ -4055,15 +4036,11 @@ absl::StatusOr<std::unique_ptr<Type>> FunctionConverter::ResolveType(
 absl::StatusOr<Value> FunctionConverter::GetConstValue(
     const AstNode* node) const {
   std::optional<IrValue> ir_value = GetNodeToIr(node);
-  if (!ir_value.has_value()) {
-    return absl::InternalError(absl::StrFormat(
-        "AST node had no associated IR value: %s @ %s", node->ToString(),
-        SpanToString(node->GetSpan(), file_table())));
-  }
-  if (!std::holds_alternative<CValue>(*ir_value)) {
-    return absl::InternalError(absl::StrFormat(
-        "AST node had a non-const IR value: %s", node->ToString()));
-  }
+  XLS_RET_CHECK(ir_value.has_value())
+      << "AST node had no associated IR value: %s" << node->ToString() << "@"
+      << SpanToString(node->GetSpan(), file_table());
+  XLS_RET_CHECK(std::holds_alternative<CValue>(*ir_value))
+      << "AST node had a non-const IR value: " << node->ToString();
   return std::get<CValue>(*ir_value).ir_value;
 }
 
