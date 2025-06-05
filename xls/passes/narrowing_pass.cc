@@ -926,6 +926,120 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return Change(/*original=*/shift, replacment);
   }
 
+  // This is basically SHRL with a truncate. We can simplify a bit since OOB
+  // requests are always 0s anyway so just get rid of all high-bit zeros. We can
+  // futher get rid of any bits beyond max_start + width.
+  //
+  // We can also narrow the start value.
+  //
+  // Finally if the number of interesting bits is less then the slice size we
+  // can slice to a smaller size and extend.
+  absl::Status HandleDynamicBitSlice(DynamicBitSlice* slice) override {
+    int64_t leading_start_zeros = CountLeadingKnownZeros(slice->start(), slice);
+    int64_t leading_to_slice_zeros =
+        CountLeadingKnownZeros(slice->to_slice(), slice);
+    int64_t interesting_to_slice_bits =
+        slice->to_slice()->BitCountOrDie() - leading_to_slice_zeros;
+
+    // Check for known-value. Since other passes use less precise qes we can end
+    // up here.
+    const QueryEngine& slice_start_qe =
+        QueryEngineForNodeAndUser(slice->start(), slice);
+    if (auto known_slice_start =
+            slice_start_qe.KnownValueAsBits(slice->start())) {
+      XLS_ASSIGN_OR_RETURN(int64_t start, known_slice_start->ToUint64());
+      int64_t width =
+          std::min(slice->width(), slice->to_slice()->BitCountOrDie() - start);
+      Node* replaced;
+      if (width == slice->width()) {
+        XLS_ASSIGN_OR_RETURN(replaced, slice->ReplaceUsesWithNew<BitSlice>(
+                                           slice->to_slice(), start, width));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            Node * static_slice,
+            slice->function_base()->MakeNodeWithName<BitSlice>(
+                slice->loc(), slice->to_slice(), start, width,
+                slice->HasAssignedName()
+                    ? absl::StrFormat("%s_slice", slice->GetNameView())
+                    : ""));
+        XLS_ASSIGN_OR_RETURN(
+            replaced, slice->ReplaceUsesWithNew<ExtendOp>(
+                          static_slice, slice->BitCountOrDie(), Op::kZeroExt));
+      }
+      return Change(slice, replaced);
+    }
+    Bits max_start = slice_start_qe.MaxUnsignedValue(slice->start());
+
+    int64_t start_bit_width =
+        1 + std::max(max_start.bit_count(),
+                     Bits::MinBitCountUnsigned(slice->width()));
+    Bits max_sliced_start_idx =
+        bits_ops::Add(bits_ops::ZeroExtend(max_start, start_bit_width),
+                      UBits(slice->width(), start_bit_width));
+    if (max_sliced_start_idx.FitsInNBitsUnsigned(63)) {
+      XLS_ASSIGN_OR_RETURN(int64_t max_sliced_val,
+                           max_sliced_start_idx.ToUint64());
+      interesting_to_slice_bits =
+          std::min(interesting_to_slice_bits, max_sliced_val);
+    }
+    if (interesting_to_slice_bits >= slice->to_slice()->BitCountOrDie() &&
+        leading_start_zeros == 0) {
+      return NoChange();
+    }
+    Node* narrowed_start;
+    Node* narrowed_to_slice;
+    if (leading_start_zeros != 0) {
+      XLS_ASSIGN_OR_RETURN(
+          narrowed_start,
+          slice->function_base()->MakeNodeWithName<BitSlice>(
+              slice->start()->loc(), slice->start(), /*start=*/0,
+              /*width=*/slice->start()->BitCountOrDie() - leading_start_zeros,
+              slice->start()->HasAssignedName()
+                  ? absl::StrFormat("%s_narrowed",
+                                    slice->start()->GetNameView())
+                  : ""));
+    } else {
+      narrowed_start = slice->start();
+    }
+    if (interesting_to_slice_bits < slice->to_slice()->BitCountOrDie()) {
+      XLS_ASSIGN_OR_RETURN(
+          narrowed_to_slice,
+          slice->function_base()->MakeNodeWithName<BitSlice>(
+              slice->to_slice()->loc(), slice->to_slice(), /*start=*/0,
+              /*width=*/interesting_to_slice_bits,
+              slice->to_slice()->HasAssignedName()
+                  ? absl::StrFormat("%s_narrowed",
+                                    slice->to_slice()->GetNameView())
+                  : ""));
+    } else {
+      narrowed_to_slice = slice->to_slice();
+    }
+    int64_t narrow_width =
+        std::min(narrowed_to_slice->BitCountOrDie(), slice->width());
+    if (narrow_width == slice->width()) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * res, slice->ReplaceUsesWithNew<DynamicBitSlice>(
+                          narrowed_to_slice, narrowed_start, slice->width()));
+      return Change(slice, res);
+    }
+    // We can narrow to a smaller slice then extend.
+    // TODO(allight): This dyn-slice is exactly identical to a SHRL. Should we
+    // just emit that instead?
+    // TODO(allight): We probably want to investigate doing this in
+    // strength-reduction or somewhere else appropriate.
+    XLS_ASSIGN_OR_RETURN(
+        Node * dyn_slice,
+        slice->function_base()->MakeNodeWithName<DynamicBitSlice>(
+            slice->loc(), narrowed_to_slice, narrowed_start, narrow_width,
+            slice->HasAssignedName()
+                ? absl::StrFormat("%s_narrowed", slice->GetNameView())
+                : ""));
+    XLS_ASSIGN_OR_RETURN(Node * res,
+                         slice->ReplaceUsesWithNew<ExtendOp>(
+                             dyn_slice, slice->width(), Op::kZeroExt));
+    return Change(slice, res);
+  }
+
   absl::Status HandleDecode(Decode* decode) override {
     // Narrow the index operand of decode operations if the index has leading
     // zeros.

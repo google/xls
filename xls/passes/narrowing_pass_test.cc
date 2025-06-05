@@ -401,6 +401,93 @@ TEST_P(NarrowingPassTest, ShllUnknownLeadingNarrowValueAndAmount) {
                                m::Type("bits[21]"))));
 }
 
+TEST_P(NarrowingPassTest, DynamicBitSliceNarrowerThanResult) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue slice_val = fb.Param("val", p->GetBitsType(3));
+  BValue slice_start = fb.Literal(UBits(1, 12));
+  fb.DynamicBitSlice(slice_val, slice_start, /*width=*/3);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ZeroExt(m::BitSlice(m::Type("bits[3]"), 1, 2)));
+}
+
+TEST_P(NarrowingPassTest, DynamicBitSliceSmallStart) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue slice_val = fb.Literal(UBits(6, 4));
+  BValue slice_start = fb.Param("amnt", p->GetBitsType(1));
+  fb.DynamicBitSlice(slice_val, slice_start, /*width=*/3);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::DynamicBitSlice(m::Type("bits[3]"), m::Param("amnt")));
+}
+
+TEST_P(NarrowingPassTest, DynamicBitSliceStartDomain) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue slice_val = fb.Param("val", p->GetBitsType(256));
+  // Max 7
+  BValue slice_start = fb.Param("amnt", p->GetBitsType(3));
+  fb.DynamicBitSlice(slice_val, slice_start, /*width=*/2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::DynamicBitSlice(m::Type("bits[9]"), m::Param("amnt")));
+}
+
+TEST_P(NarrowingPassTest, DynamicBitSliceLeadingZeros) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue slice_val = fb.Param("val", p->GetBitsType(3));
+  BValue slice_start = fb.Param("amnt", p->GetBitsType(3));
+  // Max 6-bit unsigned value
+  BValue slice_val_big =
+      fb.Add(fb.ZeroExtend(slice_val, 256),
+             fb.ZeroExtend(fb.Param("add_val", p->GetBitsType(5)), 256));
+  // 4 bits max of 15.
+  BValue slice_start_big =
+      fb.And(fb.SignExtend(slice_start, 256), fb.Literal(UBits(0b1111, 256)));
+  // Only actually 5 bits are even possibly interesting, rest are 0s
+  fb.DynamicBitSlice(slice_val_big, slice_start_big, /*width=*/2);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::DynamicBitSlice(m::Type("bits[6]"), m::Type("bits[4]")));
+}
+
+TEST_P(NarrowingPassTest, DynamicBitSliceLeadingZerosTooBig) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue slice_val = fb.Param("val", p->GetBitsType(3));
+  BValue slice_start = fb.Param("amnt", p->GetBitsType(3));
+  // Max 6-bit unsigned value
+  BValue slice_val_big =
+      fb.Add(fb.ZeroExtend(slice_val, 256),
+             fb.ZeroExtend(fb.Param("add_val", p->GetBitsType(5)), 256));
+  // 4 bits max of 15.
+  BValue slice_start_big =
+      fb.And(fb.SignExtend(slice_start, 256), fb.Literal(UBits(0b1111, 256)));
+  // Only actually 5 bits are even possibly interesting, rest are 0s
+  fb.DynamicBitSlice(slice_val_big, slice_start_big, /*width=*/8);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::ZeroExt(m::DynamicBitSlice(
+                                     m::Type("bits[6]"), m::Type("bits[4]"))));
+}
+
 TEST_P(NarrowingPassTest, DecodeWithKnownZeroIndex) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
