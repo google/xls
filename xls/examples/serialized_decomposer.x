@@ -23,6 +23,8 @@
 // This serves as a demonstration of how we can use tokens as state to coordinate
 // across activations.
 
+#![feature(type_inference_v2)]
+
 pub proc serialized_decomposer {
   ch_in: chan<uN[128]> in;
   result1: chan<u32> out;

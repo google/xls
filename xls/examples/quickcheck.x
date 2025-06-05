@@ -14,6 +14,8 @@
 
 // Examples demonstrating quickcheck.
 
+#![feature(type_inference_v2)]
+
 // Reversing a value twice gets you the original value.
 #[quickcheck(test_count=50000)]
 fn prop_double_reverse(x: u32) -> bool {

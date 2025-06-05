@@ -14,6 +14,8 @@
 
 // Simple demonstration of string usage in DSLX.
 
+#![feature(type_inference_v2)]
+
 const LOWERCASE_A = u8:97;
 const LOWERCASE_Z = u8:122;
 

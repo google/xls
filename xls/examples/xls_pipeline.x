@@ -33,6 +33,8 @@
 //                 ii=3 next state
 //
 
+#![feature(type_inference_v2)]
+
 proc state_proc {
     // State read channel
     state_value_w: chan<u32> out;

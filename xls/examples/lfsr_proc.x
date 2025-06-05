@@ -21,6 +21,8 @@
 // 2. getting the next value from the LFSR counter
 ////////////////////////////////////////////////////////////////////////////////
 
+#![feature(type_inference_v2)]
+
 import xls.examples.lfsr;
 
 proc user_module<BIT_WIDTH: u32> {

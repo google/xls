@@ -15,6 +15,8 @@
 // Basic example of a proc with a scheduling constraint; the send and receive
 // are scheduled to be exactly 2 cycles apart in the BUILD file.
 
+#![feature(type_inference_v2)]
+
 proc main {
   req: chan<u32> out;
   resp: chan<u32> in;

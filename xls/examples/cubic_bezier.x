@@ -15,6 +15,8 @@
 // Sample a cubic polynomial f(x) with coefficients a, b, c with no constant.
 // f(x) = a * x + b * x ** 2 + c * x ** 3
 
+#![feature(type_inference_v2)]
+
 import std;
 
 // The function parameters are represented as fixed point rational numbers.

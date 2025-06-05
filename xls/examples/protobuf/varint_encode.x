@@ -17,6 +17,9 @@
 // Returns (array of encoded bytes, variable length).
 //
 // See https://developers.google.com/protocol-buffers/docs/encoding#varints
+
+#![feature(type_inference_v2)]
+
 pub fn varint_encode_u32(x: u32) -> (u8[5], u3) {
   let (varint_size, a, _): (u3, u8[5], u32) =
   for (i, (size, a, x)): (u32, (u3, u8[5], u32)) in u32:0..u32:5 {

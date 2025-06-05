@@ -16,6 +16,8 @@
 // For a more comprehensive example that also can work with SRAM codegen, have
 // a look at ram.x
 
+#![feature(type_inference_v2)]
+
 pub const MEM_SIZE = u32:256;
 
 pub type MemWord = u32;

@@ -20,6 +20,8 @@
 // in a 5-bit LFSR with taps on bits 2 and 4.
 ////////////////////////////////////////////////////////////////////////////////
 
+#![feature(type_inference_v2)]
+
 pub fn lfsr<BIT_WIDTH: u32>
     (current_value: uN[BIT_WIDTH], tap_mask: uN[BIT_WIDTH]) -> uN[BIT_WIDTH] {
     // Compute the new bit from the taps

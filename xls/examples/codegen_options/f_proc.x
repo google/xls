@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(type_inference_v2)]
+
 fn f(x: u32) -> u32 {
   x*x+x
 }

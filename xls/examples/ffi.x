@@ -36,6 +36,9 @@
 // Input: "a", "b", output is a tuple ((a / b, a % b), error_division_by_zero)
 // If b is zero, error_division_by_zero == true and tuple contains original
 // values.
+
+#![feature(type_inference_v2)]
+
 #[extern_verilog("external_divmod #(
      .dividend_width({A_WIDTH}),  // Refer to local DSLX symbols in curly braces,
      .divisor_width({B_WIDTH})    // such as template parameters
