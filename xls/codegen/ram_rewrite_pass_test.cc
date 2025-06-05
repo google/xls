@@ -26,8 +26,6 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -38,6 +36,8 @@
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -328,8 +328,8 @@ class RamRewritePassTest
 
 TEST_P(RamRewritePassTest, PortsUpdated) {
   auto& param = std::get<0>(GetParam());
-  CodegenOptions codegen_options = GetCodegenOptions();
-  CodegenPassOptions pass_options{
+  const CodegenOptions codegen_options = GetCodegenOptions();
+  const CodegenPassOptions pass_options{
       .codegen_options = codegen_options,
   };
 
@@ -463,8 +463,8 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
   }
 
   auto& param = std::get<0>(GetParam());
-  CodegenOptions codegen_options = GetCodegenOptions();
-  CodegenPassOptions pass_options{
+  const CodegenOptions codegen_options = GetCodegenOptions();
+  const CodegenPassOptions pass_options{
       .codegen_options = codegen_options,
   };
 
@@ -657,8 +657,8 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
 
 TEST_P(RamRewritePassTest, WriteCompletionRemoved) {
   auto& param = std::get<0>(GetParam());
-  CodegenOptions codegen_options = GetCodegenOptions();
-  CodegenPassOptions pass_options{
+  const CodegenOptions codegen_options = GetCodegenOptions();
+  const CodegenPassOptions pass_options{
       .codegen_options = codegen_options,
   };
 
@@ -1063,17 +1063,18 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package,
         absl::StrFormat("Unrecognized ram_kind %s.", ram_kind));
   }
 
-  CodegenOptions codegen_options;
-  codegen_options.flop_inputs(false)
-      .flop_outputs(false)
-      .clock_name("clk")
-      .reset("rst", false, false, false)
-      .streaming_channel_data_suffix("_data")
-      .streaming_channel_valid_suffix("_valid")
-      .streaming_channel_ready_suffix("_ready")
-      .module_name("pipelined_proc")
-      .ram_configurations(ram_configurations);
-  CodegenPassOptions pass_options{
+  const CodegenOptions codegen_options =
+      CodegenOptions()
+          .flop_inputs(false)
+          .flop_outputs(false)
+          .clock_name("clk")
+          .reset("rst", false, false, false)
+          .streaming_channel_data_suffix("_data")
+          .streaming_channel_valid_suffix("_valid")
+          .streaming_channel_ready_suffix("_ready")
+          .module_name("pipelined_proc")
+          .ram_configurations(ram_configurations);
+  const CodegenPassOptions pass_options{
       .codegen_options = codegen_options,
   };
 

@@ -98,7 +98,7 @@ absl::StatusOr<bool> PrioritySelectReductionPass::RunInternal(
                            sel->function_base()->MakeNode<xls::Literal>(
                                sel->loc(), Value::Token()));
       Node* one_hot_assert = nullptr;
-      if (options.add_invariant_assertions) {
+      if (options.AddInvariantAssertions()) {
         XLS_ASSIGN_OR_RETURN(
             one_hot_assert,
             sel->function_base()->MakeNode<Assert>(
@@ -124,7 +124,7 @@ absl::StatusOr<bool> PrioritySelectReductionPass::RunInternal(
         node_to_stage_map[one_hot_original_bits] = stage;
         node_to_stage_map[selector_is_one_hot] = stage;
         node_to_stage_map[tkn] = stage;
-        if (options.add_invariant_assertions && one_hot_assert != nullptr) {
+        if (options.AddInvariantAssertions() && one_hot_assert != nullptr) {
           node_to_stage_map[one_hot_assert] = stage;
         }
         node_to_stage_map[new_sel] = stage;

@@ -20,12 +20,12 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/passes_ng/stage_conversion.h"
@@ -103,11 +103,13 @@ TEST_P(SweepPipelineStagesFixture, TrivialPipelinedFunction) {
   CodegenContext context;
   context.AssociateSchedule(f, schedule);
 
-  CodegenPassOptions pass_options;
-  pass_options.codegen_options =
-      CodegenOptions().flop_inputs(false).flop_outputs(true).clock_name("clk");
-  pass_options.schedule = schedule;
-  pass_options.delay_estimator = &delay_estimator;
+  const CodegenPassOptions pass_options = {
+      .codegen_options =
+          CodegenOptions().flop_inputs(false).flop_outputs(true).clock_name(
+              "clk"),
+      .schedule = schedule,
+      .delay_estimator = &delay_estimator,
+  };
   PassResults results;
   OptimizationContext opt_context;
 

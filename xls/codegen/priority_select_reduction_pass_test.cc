@@ -56,13 +56,14 @@ TEST_P(PrioritySelectReductionPassTest, AssertEmissionMatchesFlag) {
   FunctionBase* top = package->GetTop().value();
 
   // Run the code-gen pipeline with/without invariant assertions enabled.
-  CodegenOptions cg_opts;
+  const CodegenOptions cg_opts =
+      CodegenOptions().add_invariant_assertions(enable_asserts);
   XLS_ASSERT_OK_AND_ASSIGN(CodegenContext context,
                            FunctionBaseToCombinationalBlock(top, cg_opts));
 
-  CodegenPassOptions pass_opts;
-  pass_opts.codegen_options = cg_opts;
-  pass_opts.add_invariant_assertions = enable_asserts;
+  const CodegenPassOptions pass_opts = {
+      .codegen_options = cg_opts,
+  };
 
   OptimizationContext opt_ctx;
   PassResults results;

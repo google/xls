@@ -17,10 +17,10 @@
 #include <string>
 #include <string_view>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/block_generator.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -60,8 +60,9 @@ absl::StatusOr<bool> RunLegalizationPass(Block* block,
   CodegenContext context(block);
   CodegenOptions codegen_options;
   codegen_options.use_system_verilog(use_system_verilog);
-  CodegenPassOptions options;
-  options.codegen_options = codegen_options;
+  const CodegenPassOptions options = {
+      .codegen_options = codegen_options,
+  };
   return NameLegalizationPass().Run(block->package(), options, &results,
                                     context);
 }

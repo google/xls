@@ -662,8 +662,9 @@ absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
   // Run codegen passes as appropriate
   {
     MarkChannelFifosPass mark_chans;
-    CodegenPassOptions cg_options;
-    cg_options.codegen_options = options;
+    const CodegenPassOptions cg_options = {
+        .codegen_options = options,
+    };
     PassResults results;
     XLS_RETURN_IF_ERROR(
         mark_chans.Run(package, cg_options, &results, context).status());

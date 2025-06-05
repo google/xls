@@ -16,9 +16,9 @@
 
 #include <cstdint>
 
+#include "absl/status/statusor.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -44,8 +44,10 @@ namespace m = ::xls::op_matchers;
 absl::StatusOr<bool> RunTraceVerbosityPass(Block* block,
                                            int64_t max_trace_verbosity = 0) {
   PassResults results;
-  verilog::CodegenPassOptions options;
-  options.codegen_options.set_max_trace_verbosity(max_trace_verbosity);
+  const verilog::CodegenPassOptions options = {
+      .codegen_options = verilog::CodegenOptions().set_max_trace_verbosity(
+          max_trace_verbosity),
+  };
   verilog::CodegenContext context(block);
   return verilog::TraceVerbosityPass().Run(block->package(), options, &results,
                                            context);

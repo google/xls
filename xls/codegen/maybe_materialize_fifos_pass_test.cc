@@ -21,17 +21,17 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/fifo_model_test_utils.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -84,11 +84,19 @@ class MaterializeFifosPassTestHelper {
 
     MaybeMaterializeFifosPass mfp;
     CodegenContext context(wrapper);
-    CodegenPassOptions opt;
-    opt.codegen_options.reset(reset_name, /*asynchronous=*/false,
-                              /*active_low=*/false, /*reset_data_path=*/false);
-    opt.codegen_options.set_fifo_module("");
-    opt.codegen_options.set_nodata_fifo_module("");
+    const CodegenPassOptions opt = {
+        .codegen_options = CodegenOptions()
+                               .reset(reset_name, /*asynchronous=*/false,
+                                      /*active_low=*/false,
+                                      /*reset_data_path=*/false)
+                               .set_fifo_module("")
+                               .set_nodata_fifo_module("")
+                               .reset(reset_name, /*asynchronous=*/false,
+                                      /*active_low=*/false,
+                                      /*reset_data_path=*/false)
+                               .set_fifo_module("")
+                               .set_nodata_fifo_module(""),
+    };
     PassResults res;
     XLS_ASSIGN_OR_RETURN(auto changed, mfp.Run(p, opt, &res, context));
     XLS_RET_CHECK(changed);

@@ -19,10 +19,10 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/block_evaluator.h"
@@ -87,7 +87,7 @@ TEST_F(BlockInliningPassTest, InlineBlocks) {
   BlockInliningPass bip;
   CodegenContext context(top);
   PassResults results;
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(p.get(), opt, &results, context),
               absl_testing::IsOkAndHolds(true));
 
@@ -165,7 +165,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithReg) {
   BlockInliningPass bip;
   CodegenContext context(top);
   PassResults results;
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(p.get(), opt, &results, context),
               absl_testing::IsOkAndHolds(true));
 
@@ -250,7 +250,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithFifo) {
   BlockInliningPass bip;
   CodegenContext context(top);
   PassResults results;
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(p.get(), opt, &results, context),
               absl_testing::IsOkAndHolds(true));
 
@@ -324,7 +324,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithExtern) {
   BlockInliningPass bip;
   CodegenContext context(top);
   PassResults results;
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ASSERT_THAT(bip.Run(p.get(), opt, &results, context),
               absl_testing::IsOkAndHolds(true));
 

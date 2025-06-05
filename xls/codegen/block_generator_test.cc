@@ -25,8 +25,6 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -37,6 +35,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -2356,9 +2356,9 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
   OptimizationContext opt_context;
   std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(opt_context);
   PassResults results;
-  CodegenPassOptions codegen_pass_options{.codegen_options = options,
-                                          .schedule = schedule,
-                                          .delay_estimator = estimator};
+  const CodegenPassOptions codegen_pass_options{.codegen_options = options,
+                                                .schedule = schedule,
+                                                .delay_estimator = estimator};
   XLS_ASSERT_OK(passes->Run(&package, codegen_pass_options, &results, context));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
@@ -2401,9 +2401,10 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
   OptimizationContext opt_context;
   std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(opt_context);
   PassResults results;
-  CodegenPassOptions codegen_pass_options{.codegen_options = options,
-                                          .schedule = schedule,
-                                          .delay_estimator = estimator};
+  const CodegenPassOptions codegen_pass_options = {
+      .codegen_options = options,
+      .schedule = schedule,
+      .delay_estimator = estimator};
   XLS_ASSERT_OK(passes->Run(&package, codegen_pass_options, &results, context));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
