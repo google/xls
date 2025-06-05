@@ -130,9 +130,15 @@ class Visitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleColonRef(const ColonRef* colon_ref) override {
-    // Imported Enums have been handled by their own module and will be looked
-    // up.
+    // Imported Enums have been handled by their own module. If they can be
+    // constexpr evaluated, record value.
     if (IsImport(colon_ref) && type_.IsEnum()) {
+      absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
+          &import_data_, ti_, &warning_collector_,
+          converter_.GetParametricEnv(parametric_context_), colon_ref);
+      if (value.ok()) {
+        ti_->NoteConstExpr(colon_ref, *value);
+      }
       return absl::OkStatus();
     }
 
