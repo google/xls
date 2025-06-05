@@ -589,7 +589,7 @@ static absl::StatusOr<std::vector<Callee>> GetCallees(
     Expr* node, Module* m, TypeInfo* type_info, const ParametricEnv& bindings,
     std::optional<ProcId> proc_id) {
   VLOG(5) << "Getting callees of " << node->ToString();
-  CHECK_EQ(type_info->module(), m);
+  XLS_RET_CHECK_EQ(type_info->module(), m);
   InvocationVisitor visitor(m, type_info, bindings, std::move(proc_id));
   XLS_RETURN_IF_ERROR(node->AcceptExpr(&visitor));
   return std::move(visitor.callees());
@@ -629,7 +629,7 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
                                std::vector<ConversionRecord>* ready,
                                const std::optional<ProcId>& proc_id,
                                bool is_top = false) {
-  CHECK_EQ(type_info->module(), m);
+  XLS_RET_CHECK_EQ(type_info->module(), m);
   if (IsReady(f, m, bindings, ready)) {
     return absl::OkStatus();
   }
@@ -730,7 +730,7 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
 absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
                                                        TypeInfo* type_info,
                                                        bool include_tests) {
-  CHECK_EQ(type_info->module(), module);
+  XLS_RET_CHECK_EQ(type_info->module(), module);
   std::vector<ConversionRecord> ready;
 
   auto handle_function = [&](Function* f) -> absl::Status {

@@ -195,7 +195,7 @@ struct ScopedTypeInfoSwap {
     XLS_ASSIGN_OR_RETURN(
         TypeInfo * type_info,
         converter->import_data_->GetRootTypeInfo(node->owner()));
-    CHECK_EQ(type_info->module(), node->owner());
+    XLS_RET_CHECK_EQ(type_info->module(), node->owner());
     return ScopedTypeInfoSwap(converter, type_info);
   }
 
@@ -796,8 +796,10 @@ absl::Status FunctionConverter::HandleExternNameRef(
       Visitor{
           [&](Function* f) -> absl::Status { return DefAlias(f, /*to=*/node); },
           [&](ConstantDef* c) -> absl::Status {
-            CHECK(node_to_ir_.contains(c->value())) << absl::StreamFormat(
-                "ConstantDef `%s` not found in node_to_ir_ map", c->ToString());
+            XLS_RET_CHECK(node_to_ir_.contains(c->value()))
+                << absl::StreamFormat(
+                       "ConstantDef `%s` not found in node_to_ir_ map",
+                       c->ToString());
             return DefAlias(c->value(), /*to=*/node);
           },
           [&](auto) -> absl::Status {
@@ -1855,8 +1857,8 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
     } else if (builtin_name == "ctz") {
       result = fb.Ctz(param);
     } else {
-      return absl::InternalError("Invalid builtin name for map: " +
-                                 builtin_name);
+      return absl::InternalError(
+          absl::StrCat("Invalid builtin name for map: ", builtin_name));
     }
     // Add an interface entry.
     PackageInterfaceProto::Function* fp =
@@ -1907,8 +1909,8 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
         current_type_info_->GetImported(import.value());
     lookup_module = (*info)->module;
   } else {
-    return absl::UnimplementedError("Unhandled function mapping: " +
-                                    fn_node->ToString());
+    return absl::UnimplementedError(
+        absl::StrCat("Unhandled function mapping: ", fn_node->ToString()));
   }
 
   XLS_ASSIGN_OR_RETURN(Function * mapped_fn,
@@ -2033,7 +2035,7 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
   std::optional<const Type*> lhs_type =
       current_type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
-  if (dynamic_cast<const TupleType*>(lhs_type.value()) != nullptr) {
+  if (dynamic_cast<const TupleType*>(lhs_type.value())) {
     // Tuple indexing requires a compile-time-constant RHS.
     XLS_RETURN_IF_ERROR(Visit(ToAstNode(node->rhs())));
     XLS_ASSIGN_OR_RETURN(Bits rhs, GetConstBits(ToAstNode(node->rhs())));
@@ -2961,11 +2963,12 @@ absl::Status FunctionConverter::HandleFunction(
     // function we're currently converting.
     XLS_ASSIGN_OR_RETURN(std::optional<ScopedTypeInfoSwap> stis,
                          ScopedTypeInfoSwap::ForNode(this, dep));
-    CHECK_EQ(current_type_info_->module(), dep->owner()) << absl::StreamFormat(
-        "handling ConstantDef `%s` from module `%s` but current type info is "
-        "for module `%s`",
-        dep->ToString(), dep->owner()->name(),
-        current_type_info_->module()->name());
+    XLS_RET_CHECK_EQ(current_type_info_->module(), dep->owner())
+        << absl::StreamFormat(
+               "handling ConstantDef `%s` from module `%s` but current type "
+               "info is for module `%s`",
+               dep->ToString(), dep->owner()->name(),
+               current_type_info_->module()->name());
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
@@ -3992,8 +3995,8 @@ FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
       node = type_ref_annotation->type_ref()->type_definition();
     } else {
       return absl::UnimplementedError(
-          "Unhandled typedef for resolving to struct-or-enum: " +
-          annotation.ToString());
+          absl::StrCat("Unhandled typedef for resolving to struct-or-enum: ",
+                       annotation.ToString()));
     }
   }
 
@@ -4099,8 +4102,8 @@ absl::StatusOr<Value> InterpValueToValue(const InterpValue& iv) {
       return Value::Token();
     default:
       return absl::InvalidArgumentError(
-          "Cannot convert interpreter value with tag: " +
-          TagToString(iv.tag()));
+          absl::StrCat("Cannot convert interpreter value with tag: ",
+                       TagToString(iv.tag())));
   }
 }
 

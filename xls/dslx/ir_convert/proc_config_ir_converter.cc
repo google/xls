@@ -155,10 +155,9 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
   VLOG(4) << "ProcConfigIrConverter::HandleLet : " << node->ToString();
   XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
 
-  if (ChannelDecl* decl = dynamic_cast<ChannelDecl*>(node->rhs());
-      decl != nullptr) {
+  if (ChannelDecl* decl = dynamic_cast<ChannelDecl*>(node->rhs())) {
     std::vector<NameDefTree::Leaf> leaves = node->name_def_tree()->Flatten();
-    CHECK_EQ(leaves.size(), 2);
+    XLS_RET_CHECK_EQ(leaves.size(), 2);
     for (int i = 0; i < 2; i++) {
       if (std::holds_alternative<NameDef*>(leaves[i])) {
         NameDef* name_def = std::get<NameDef*>(leaves[i]);

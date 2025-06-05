@@ -77,7 +77,7 @@ ChannelScope::ChannelScope(PackageConversionData* conversion_info,
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArray(
     const ChannelDecl* decl) {
   VLOG(4) << "ChannelScope::DefineChannelOrArray: " << decl->ToString();
-  CHECK(function_context_.has_value());
+  XLS_RET_CHECK(function_context_.has_value());
   XLS_ASSIGN_OR_RETURN(
       InterpValue name_interp_value,
       ConstexprEvaluator::EvaluateToValue(
@@ -213,7 +213,7 @@ absl::StatusOr<Channel*> ChannelScope::GetChannelForArrayIndex(
   XLS_ASSIGN_OR_RETURN(
       ChannelOrArray result,
       EvaluateIndex(proc_id, index, /*allow_subarray_reference=*/false));
-  CHECK(std::holds_alternative<Channel*>(result));
+  XLS_RET_CHECK(std::holds_alternative<Channel*>(result));
   return std::get<Channel*>(result);
 }
 
@@ -225,7 +225,7 @@ absl::StatusOr<ChannelOrArray> ChannelScope::GetChannelOrArrayForArrayIndex(
 absl::StatusOr<ChannelOrArray> ChannelScope::EvaluateIndex(
     const ProcId& proc_id, const Index* index, bool allow_subarray_reference) {
   VLOG(4) << "ChannelScope::GetChannelForArrayIndex : " << index->ToString();
-  CHECK(function_context_.has_value());
+  XLS_RET_CHECK(function_context_.has_value());
   std::string suffix;
   for (;;) {
     if (!std::holds_alternative<Expr*>(index->rhs())) {
@@ -423,7 +423,7 @@ absl::StatusOr<ChannelArray*> ChannelScope::GetOrDefineSubarray(
   // If type checking has been done right etc., there should never be a request
   // for a subarray prefix that matches zero channels, even when compiling
   // erroneous DSLX code.
-  CHECK(!subarray->flattened_names_in_order().empty());
+  XLS_RET_CHECK(!subarray->flattened_names_in_order().empty());
   VLOG(5) << "Defined subarray " << subarray_name << " with "
           << subarray->flattened_names_in_order().size() << " elements.";
   return subarray;

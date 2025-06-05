@@ -227,7 +227,7 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
                                     ChannelScope* channel_scope) {
   for (const Param* param : params) {
     TypeAnnotation* type = param->type_annotation();
-    if (dynamic_cast<ChannelTypeAnnotation*>(type) != nullptr) {
+    if (type->annotation_kind() == ChannelTypeAnnotation::kAnnotationKind) {
       XLS_ASSIGN_OR_RETURN(
           ChannelOrArray channel_or_array,
           channel_scope->DefineBoundaryChannelOrArray(param, type_info));

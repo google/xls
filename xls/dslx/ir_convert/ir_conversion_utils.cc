@@ -22,6 +22,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/interp_value.h"
@@ -112,9 +113,9 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
     }
     absl::Status HandleProc(const ProcType& t) override {
       // TODO: https://github.com/google/xls/issues/836 - Support this.
-      return absl::UnimplementedError(
-          "IR lowering for impl-style procs is not yet supported: " +
-          t.ToString());
+      return absl::UnimplementedError(absl::StrCat(
+          "IR lowering for impl-style procs is not yet supported: ",
+          t.ToString()));
     }
     absl::Status HandleTuple(const TupleType& t) override {
       std::vector<xls::Type*> members;
@@ -128,17 +129,17 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
       return absl::OkStatus();
     }
     absl::Status HandleFunction(const FunctionType& t) override {
-      return absl::UnimplementedError(
-          "Cannot convert function type to XLS IR type: " + t.ToString());
+      return absl::UnimplementedError(absl::StrCat(
+          "Cannot convert function type to XLS IR type: ", t.ToString()));
     }
     absl::Status HandleChannel(const ChannelType& t) override {
-      return absl::UnimplementedError(
-          "Cannot convert channel type to XLS IR type: " + t.ToString());
+      return absl::UnimplementedError(absl::StrCat(
+          "Cannot convert channel type to XLS IR type: ", t.ToString()));
     }
     absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
       return absl::UnimplementedError(
-          "Cannot convert bits-constructor type to XLS IR type: " +
-          t.ToString());
+          absl::StrCat("Cannot convert bits-constructor type to XLS IR type: ",
+                       t.ToString()));
     }
     // Note: this is a bit of a kluge, we just turn metatypes into their
     // corresponding (unwrapped) IR type.
@@ -148,8 +149,8 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
       return absl::OkStatus();
     }
     absl::Status HandleModule(const ModuleType& t) override {
-      return absl::UnimplementedError(
-          "Cannot convert module type to XLS IR type: " + t.ToString());
+      return absl::UnimplementedError(absl::StrCat(
+          "Cannot convert module type to XLS IR type: ", t.ToString()));
     }
 
     xls::Type* retval() const { return retval_; }
