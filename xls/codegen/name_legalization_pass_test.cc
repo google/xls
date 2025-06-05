@@ -60,8 +60,9 @@ absl::StatusOr<bool> RunLegalizationPass(Block* block,
   CodegenContext context(block);
   CodegenOptions codegen_options;
   codegen_options.use_system_verilog(use_system_verilog);
-  CodegenPassOptions options;
-  options.codegen_options = codegen_options;
+  const CodegenPassOptions options = {
+      .codegen_options = codegen_options,
+  };
   return NameLegalizationPass().Run(block->package(), options, &results,
                                     context);
 }

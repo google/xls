@@ -139,8 +139,10 @@ class SideEffectConditionPassTest
         CodegenContext context,
         FunctionBaseToPipelinedBlock(schedule, codegen_options, top));
     PassResults results;
-    CodegenPassOptions codegen_pass_options{.codegen_options = codegen_options,
-                                            .schedule = schedule};
+    const CodegenPassOptions codegen_pass_options = {
+        .codegen_options = codegen_options,
+        .schedule = schedule,
+    };
     return GetCodegenPass(GetParam(), optimization_context)
         ->Run(p, codegen_pass_options, &results, context);
   }
@@ -198,12 +200,14 @@ TEST_F(SideEffectConditionPassTest, UnchangedIfCombinationalFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * top,
                            fb.BuildWithReturnValue(fb.Tuple({assertion, sum})));
   ASSERT_NE(top, nullptr);
-  CodegenOptions codegen_options;
+  const CodegenOptions codegen_options;
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
       FunctionBaseToCombinationalBlock(top, codegen_options));
   PassResults results;
-  CodegenPassOptions codegen_pass_options{.codegen_options = codegen_options};
+  const CodegenPassOptions codegen_pass_options = {
+      .codegen_options = codegen_options,
+  };
   OptimizationContext opt_context;
   EXPECT_THAT(
       GetCodegenPass(CodegenPassType::kSideEffectConditionPassOnly, opt_context)
@@ -241,7 +245,8 @@ TEST_P(SideEffectConditionPassTest, CombinationalProc) {
       CodegenContext context,
       FunctionBaseToCombinationalBlock(top, codegen_options));
   PassResults results;
-  CodegenPassOptions codegen_pass_options{.codegen_options = codegen_options};
+  const CodegenPassOptions codegen_pass_options{.codegen_options =
+                                                    codegen_options};
   OptimizationContext opt_context;
   EXPECT_THAT(GetCodegenPass(GetParam(), opt_context)
                   ->Run(&package, codegen_pass_options, &results, context),

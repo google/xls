@@ -786,7 +786,7 @@ TEST_F(RegisterChainingAnalysisTest, BasicSelectMutexList) {
   XLS_ASSERT_OK_AND_ASSIGN((const std::array<RegisterData, kRegCnt> datas),
                            CreateStraightShot<kRegCnt>(p.get()));
 
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ConcurrentStageGroups csg(kRegCnt + 1);
   csg.MarkMutuallyExclusive(1, 2);
   csg.MarkMutuallyExclusive(1, 3);
@@ -826,7 +826,7 @@ TEST_F(RegisterChainingAnalysisTest, SplitMutexRegion) {
   EXPECT_THAT(datas, ElementsAre(Reg("reg_A"), Reg("reg_B"), Reg("reg_C"),
                                  Reg("reg_D"), Reg("reg_E"), Reg("reg_F")));
 
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ConcurrentStageGroups csg(kRegCnt + 1);
   csg.MarkMutuallyExclusive(0, 1);
   csg.MarkMutuallyExclusive(0, 2);
@@ -867,7 +867,7 @@ TEST_F(RegisterChainingAnalysisTest, MutexTouchesEnd) {
   // NB can combine registers 'D, 'E', & 'F.
   XLS_ASSERT_OK_AND_ASSIGN((const std::array<RegisterData, kRegCnt> registers),
                            CreateStraightShot<kRegCnt>(p.get()));
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ConcurrentStageGroups csg(kRegCnt + 1);
   csg.MarkMutuallyExclusive(3, 4);
   csg.MarkMutuallyExclusive(3, 5);
@@ -906,7 +906,7 @@ TEST_F(RegisterChainingAnalysisTest, LoopbackMutex) {
   // NB can combine registers 'A, 'B' & 'C
   XLS_ASSERT_OK_AND_ASSIGN((const std::array<RegisterData, kRegCnt> registers),
                            CreateLoopback<kRegCnt>(p.get()));
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ConcurrentStageGroups csg(kRegCnt + 1);
   csg.MarkMutuallyExclusive(0, 1);
   csg.MarkMutuallyExclusive(0, 2);
@@ -946,7 +946,7 @@ TEST_F(RegisterChainingAnalysisTest, MutexTouchesStart) {
   // NB can registers 'A, 'B' & 'C
   XLS_ASSERT_OK_AND_ASSIGN((const std::array<RegisterData, kRegCnt> datas),
                            CreateStraightShot<kRegCnt>(p.get()));
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ConcurrentStageGroups csg(kRegCnt + 1);
   csg.MarkMutuallyExclusive(0, 1);
   csg.MarkMutuallyExclusive(0, 2);
@@ -1009,7 +1009,7 @@ TEST_F(RegisterChainingAnalysisTest, OverlappingFullyUsedMutexRegions) {
       (const std::array<RegisterData, kRegCnt> datas_late),
       CreateStraightShot<kRegCnt>(bb, /*start_stage=*/3, /*prefix=*/"late_"));
   XLS_ASSERT_OK(bb.Build().status());
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ConcurrentStageGroups csg(kRegCnt + 3 + 1);
   MarkAllPairs(csg, 0, 6);
   MarkAllPairs(csg, 3, 9);
@@ -1080,7 +1080,7 @@ TEST_F(RegisterChainingAnalysisTest, OverlappingMutexRegions) {
       (const std::array<RegisterData, kRegCnt> datas_late),
       CreateStraightShot<kRegCnt>(bb, /*start_stage=*/3, /*prefix=*/"late_"));
   XLS_ASSERT_OK(bb.Build().status());
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ConcurrentStageGroups csg(kRegCnt + 3 + 1);
   MarkAllPairs(csg, 0, 4);
   MarkAllPairs(csg, 3, 6);
@@ -1222,7 +1222,7 @@ TEST_F(RegisterChainingAnalysisTest, MutexLoopbackContinues) {
       .write_stage = 5,
   };
 
-  CodegenPassOptions opt;
+  const CodegenPassOptions opt;
   ConcurrentStageGroups csg(7);
   MarkAllPairs(csg, 0, 4);
 

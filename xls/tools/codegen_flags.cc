@@ -166,6 +166,10 @@ ABSL_FLAG(bool, array_index_bounds_checking, true,
 ABSL_FLAG(int64_t, max_trace_verbosity, 0,
           "Maximum verbosity for traces. Traces with higher verbosity are "
           "stripped from codegen output. 0 by default.");
+ABSL_FLAG(bool, add_invariant_assertions, true,
+          "If true, codegen will insert runtime assertions which check that "
+          "certain IR-level invariants hold (e.g., one-hot selector "
+          "invariants). Disable to omit these assertions.");
 ABSL_FLAG(std::string, codegen_options_proto, "",
           "Path to a protobuf containing all codegen args.");
 ABSL_FLAG(std::optional<std::string>, codegen_options_used_textproto_file,
@@ -348,6 +352,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
   POPULATE_FLAG(streaming_channel_valid_suffix);
   POPULATE_FLAG(streaming_channel_ready_suffix);
   POPULATE_REPEATED_FLAG(ram_configurations);
+  POPULATE_FLAG(add_invariant_assertions);
 
   // Optimizations
   POPULATE_FLAG(gate_recvs);

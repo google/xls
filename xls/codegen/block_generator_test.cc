@@ -2356,9 +2356,9 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
   OptimizationContext opt_context;
   std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(opt_context);
   PassResults results;
-  CodegenPassOptions codegen_pass_options{.codegen_options = options,
-                                          .schedule = schedule,
-                                          .delay_estimator = estimator};
+  const CodegenPassOptions codegen_pass_options{.codegen_options = options,
+                                                .schedule = schedule,
+                                                .delay_estimator = estimator};
   XLS_ASSERT_OK(passes->Run(&package, codegen_pass_options, &results, context));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
@@ -2401,9 +2401,10 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
   OptimizationContext opt_context;
   std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(opt_context);
   PassResults results;
-  CodegenPassOptions codegen_pass_options{.codegen_options = options,
-                                          .schedule = schedule,
-                                          .delay_estimator = estimator};
+  const CodegenPassOptions codegen_pass_options = {
+      .codegen_options = options,
+      .schedule = schedule,
+      .delay_estimator = estimator};
   XLS_ASSERT_OK(passes->Run(&package, codegen_pass_options, &results, context));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,

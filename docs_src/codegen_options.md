@@ -497,6 +497,13 @@ response-receive are scheduled to match the RAM's latency.
     false may reduce the resource/area utilization, but may also result in
     mismatches between IR-level evaluation and Verilog simulation.
 
+-   `--add_invariant_assertions` (default: true) controls whether runtime
+    assertions are emitted in the generated RTL to check IR-level invariants
+    (such as one-hot selectors for one-hot selects). Disabling this flag omits
+    these assertions from the output, which may be desirable for production
+    builds or when such checks are not needed; e.g. auto-generated assertions
+    can sometimes interfere with coverage closure metrics.
+
 -   `--array_index_bounds_checking`: With this option set, an out of bounds
     array access returns the maximal index element in the array. If this option
     is not set, the result relies on the semantics of out-of-bounds array access

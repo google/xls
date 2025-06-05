@@ -65,6 +65,10 @@ struct CodegenPassOptions : public PassOptionsBase {
   // The config to use for loopback channels that are fabricated during codegen
   // to implement proc state members.
   ChannelConfig state_channel_config = ChannelConfig{};
+
+  bool AddInvariantAssertions() const {
+    return codegen_options.add_invariant_assertions();
+  }
 };
 
 using Stage = int64_t;

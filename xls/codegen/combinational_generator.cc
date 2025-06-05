@@ -44,9 +44,10 @@ absl::StatusOr<CodegenResult> GenerateCombinationalModule(
   XLS_ASSIGN_OR_RETURN(CodegenContext context,
                        FunctionBaseToCombinationalBlock(module, options));
 
-  CodegenPassOptions codegen_pass_options;
-  codegen_pass_options.codegen_options = options;
-  codegen_pass_options.delay_estimator = delay_estimator;
+  const CodegenPassOptions codegen_pass_options = {
+      .codegen_options = options,
+      .delay_estimator = delay_estimator,
+  };
 
   PassResults results;
   OptimizationContext opt_context;

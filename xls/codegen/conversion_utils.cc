@@ -385,7 +385,7 @@ absl::Status RemoveDeadTokenNodes(Block* block, CodegenContext& context) {
       dce_pass.RunOnFunctionBase(block, options, &results, opt_context)
           .status());
 
-  CodegenPassOptions codegen_options;
+  const CodegenPassOptions codegen_options;
   RegisterLegalizationPass reg_legalization_pass;
   XLS_RETURN_IF_ERROR(
       reg_legalization_pass

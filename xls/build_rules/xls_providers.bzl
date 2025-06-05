@@ -119,6 +119,10 @@ CODEGEN_FIELDS = {
     "max_trace_verbosity": "Maximum verbosity for traces. Traces with higher " +
                            "verbosity are stripped from codegen output. 0 by " +
                            "default.",
+    "add_invariant_assertions": "If true, codegen will insert runtime assertions " +
+                                "which check that  certain IR-level invariants hold " +
+                                "(e.g., one-hot selector invariants). Disable to " +
+                                "omit these assertions.",
     "register_merge_strategy": "The strategy to use for merging registers. Either " +
                                "'IdentityOnly' or 'None'",
     "emit_sv_types": "Whether or not to honor the #[sv_type(NAME)] annotations in the source DSLX.",

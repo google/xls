@@ -97,17 +97,20 @@ absl::StatusOr<bool> PrioritySelectReductionPass::RunInternal(
       XLS_ASSIGN_OR_RETURN(Node * tkn,
                            sel->function_base()->MakeNode<xls::Literal>(
                                sel->loc(), Value::Token()));
-      XLS_ASSIGN_OR_RETURN(
-          Node * one_hot_assert,
-          sel->function_base()->MakeNode<Assert>(
-              sel->loc(), tkn, selector_is_one_hot,
-              absl::StrFormat(
-                  "Selector %s was expected to be one-hot, and is not.",
-                  selector->GetName()),
-              /*label=*/
-              SanitizeVerilogIdentifier(
-                  absl::StrCat(sel->GetName(), "_selector_one_hot_A")),
-              /*original_label=*/std::nullopt));
+      Node* one_hot_assert = nullptr;
+      if (options.AddInvariantAssertions()) {
+        XLS_ASSIGN_OR_RETURN(
+            one_hot_assert,
+            sel->function_base()->MakeNode<Assert>(
+                sel->loc(), tkn, selector_is_one_hot,
+                absl::StrFormat(
+                    "Selector %s was expected to be one-hot, and is not.",
+                    selector->GetName()),
+                /*label=*/
+                SanitizeVerilogIdentifier(absl::StrCat(
+                    "__xls_invariant_", sel->GetName(), "_selector_one_hot_A")),
+                /*original_label=*/std::nullopt));
+      }
       XLS_ASSIGN_OR_RETURN(
           Node * new_sel,
           sel->ReplaceUsesWithNew<OneHotSelect>(selector, sel->cases()));
@@ -121,7 +124,9 @@ absl::StatusOr<bool> PrioritySelectReductionPass::RunInternal(
         node_to_stage_map[one_hot_original_bits] = stage;
         node_to_stage_map[selector_is_one_hot] = stage;
         node_to_stage_map[tkn] = stage;
-        node_to_stage_map[one_hot_assert] = stage;
+        if (options.AddInvariantAssertions() && one_hot_assert != nullptr) {
+          node_to_stage_map[one_hot_assert] = stage;
+        }
         node_to_stage_map[new_sel] = stage;
       }
       changed = true;

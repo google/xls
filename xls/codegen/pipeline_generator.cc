@@ -53,10 +53,13 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
   XLS_VLOG_LINES(2, module->DumpIr());
   XLS_VLOG_LINES(2, schedule.ToString());
 
-  CodegenPassOptions pass_options;
-  pass_options.codegen_options = options;
-  pass_options.schedule = schedule;
-  pass_options.delay_estimator = delay_estimator;
+  // Note: this is mutated below so cannot be const. It would be nice to
+  // refactor this so it could be.
+  CodegenPassOptions pass_options = {
+      .codegen_options = options,
+      .schedule = schedule,
+      .delay_estimator = delay_estimator,
+  };
 
   // Convert to block and add in pipe stages according to schedule.
   XLS_ASSIGN_OR_RETURN(CodegenContext context,
@@ -115,9 +118,12 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
     }
   }
 
-  CodegenPassOptions pass_options;
-  pass_options.codegen_options = options;
-  pass_options.delay_estimator = delay_estimator;
+  // Note: this is mutated below so cannot be const. It would be nice to
+  // refactor this so it could be.
+  CodegenPassOptions pass_options = {
+      .codegen_options = options,
+      .delay_estimator = delay_estimator,
+  };
 
   // Convert to block and add in pipe stages according to schedule.
   XLS_ASSIGN_OR_RETURN(CodegenContext context,

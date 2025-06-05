@@ -224,7 +224,7 @@ absl::StatusOr<ElaborationJitData> CloneElaborationPackage(
   XLS_ASSIGN_OR_RETURN(Block * cloned_top, jit_package->GetBlock(top_name));
   verilog::CodegenContext codegen_context(cloned_top);
   PassResults results;
-  verilog::CodegenPassOptions opts{
+  const verilog::CodegenPassOptions opts{
       .codegen_options =
           verilog::CodegenOptions()
               .reset(FifoInstantiation::kResetPortName, /*asynchronous=*/false,

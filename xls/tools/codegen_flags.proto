@@ -95,4 +95,8 @@ message CodegenFlagsProto {
   // empty, will use a default order. This can be useful for creating multiple
   // equivalent Verilog outputs to exercise the rest of the synthesis pipeline.
   repeated int32 randomize_order_seed = 38;
+
+  // If false, runtime invariant assertions (e.g. one-hot selector checks)
+  // are omitted from generated RTL.  Default is true.
+  optional bool add_invariant_assertions = 42;
 }

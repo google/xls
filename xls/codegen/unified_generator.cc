@@ -66,9 +66,12 @@ absl::StatusOr<CodegenResult> GenerateModuleText(
   XLS_ASSIGN_OR_RETURN(CodegenContext codegen_context,
                        CreateBlocksFor(schedules, options, package));
 
-  CodegenPassOptions pass_options;
-  pass_options.codegen_options = options;
-  pass_options.delay_estimator = delay_estimator;
+  // Note: this is mutated below so cannot be const. It would be nice to
+  // refactor this so it could be.
+  CodegenPassOptions pass_options = {
+      .codegen_options = options,
+      .delay_estimator = delay_estimator,
+  };
 
   PassResults results;
   OptimizationContext opt_context;

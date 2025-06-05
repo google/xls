@@ -60,11 +60,13 @@ class MarkChannelFifosPassTest : public IrTestBase {
     XLS_ASSIGN_OR_RETURN(Block * b, bb.Build());
     MarkChannelFifosPass mcfp;
     CodegenContext context(b);
-    CodegenPassOptions opt;
-    opt.codegen_options.flop_inputs(input_flops)
-        .flop_outputs(output_flops)
-        .flop_inputs_kind(input_kind)
-        .flop_outputs_kind(output_kind);
+    const CodegenPassOptions opt = {
+        .codegen_options = CodegenOptions()
+                               .flop_inputs(input_flops)
+                               .flop_outputs(output_flops)
+                               .flop_inputs_kind(input_kind)
+                               .flop_outputs_kind(output_kind),
+    };
     PassResults res;
 
     XLS_RETURN_IF_ERROR(mcfp.Run(&pkg, opt, &res, context).status());
@@ -322,11 +324,13 @@ void IgnoresManuallySet(bool input_flops, CodegenOptions::IOKind input_kind,
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
   MarkChannelFifosPass mcfp;
   CodegenContext context(b);
-  CodegenPassOptions opt;
-  opt.codegen_options.flop_inputs(input_flops)
-      .flop_outputs(output_flops)
-      .flop_inputs_kind(input_kind)
-      .flop_outputs_kind(output_kind);
+  const CodegenPassOptions opt = {
+      .codegen_options = CodegenOptions()
+                             .flop_inputs(input_flops)
+                             .flop_outputs(output_flops)
+                             .flop_inputs_kind(input_kind)
+                             .flop_outputs_kind(output_kind),
+  };
   PassResults res;
 
   EXPECT_THAT(mcfp.Run(&pkg, opt, &res, context),
@@ -350,11 +354,13 @@ void IgnoresNonStreaming(bool input_flops, CodegenOptions::IOKind input_kind,
   XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
   MarkChannelFifosPass mcfp;
   CodegenContext context(b);
-  CodegenPassOptions opt;
-  opt.codegen_options.flop_inputs(input_flops)
-      .flop_outputs(output_flops)
-      .flop_inputs_kind(input_kind)
-      .flop_outputs_kind(output_kind);
+  const CodegenPassOptions opt = {
+      .codegen_options = CodegenOptions()
+                             .flop_inputs(input_flops)
+                             .flop_outputs(output_flops)
+                             .flop_inputs_kind(input_kind)
+                             .flop_outputs_kind(output_kind),
+  };
   PassResults res;
 
   EXPECT_THAT(mcfp.Run(&pkg, opt, &res, context),

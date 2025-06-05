@@ -103,11 +103,13 @@ TEST_P(SweepPipelineStagesFixture, TrivialPipelinedFunction) {
   CodegenContext context;
   context.AssociateSchedule(f, schedule);
 
-  CodegenPassOptions pass_options;
-  pass_options.codegen_options =
-      CodegenOptions().flop_inputs(false).flop_outputs(true).clock_name("clk");
-  pass_options.schedule = schedule;
-  pass_options.delay_estimator = &delay_estimator;
+  const CodegenPassOptions pass_options = {
+      .codegen_options =
+          CodegenOptions().flop_inputs(false).flop_outputs(true).clock_name(
+              "clk"),
+      .schedule = schedule,
+      .delay_estimator = &delay_estimator,
+  };
   PassResults results;
   OptimizationContext opt_context;
 

@@ -84,11 +84,19 @@ class MaterializeFifosPassTestHelper {
 
     MaybeMaterializeFifosPass mfp;
     CodegenContext context(wrapper);
-    CodegenPassOptions opt;
-    opt.codegen_options.reset(reset_name, /*asynchronous=*/false,
-                              /*active_low=*/false, /*reset_data_path=*/false);
-    opt.codegen_options.set_fifo_module("");
-    opt.codegen_options.set_nodata_fifo_module("");
+    const CodegenPassOptions opt = {
+        .codegen_options = CodegenOptions()
+                               .reset(reset_name, /*asynchronous=*/false,
+                                      /*active_low=*/false,
+                                      /*reset_data_path=*/false)
+                               .set_fifo_module("")
+                               .set_nodata_fifo_module("")
+                               .reset(reset_name, /*asynchronous=*/false,
+                                      /*active_low=*/false,
+                                      /*reset_data_path=*/false)
+                               .set_fifo_module("")
+                               .set_nodata_fifo_module(""),
+    };
     PassResults res;
     XLS_ASSIGN_OR_RETURN(auto changed, mfp.Run(p, opt, &res, context));
     XLS_RET_CHECK(changed);
