@@ -126,9 +126,13 @@ pub fn has_fractional_part(f: HF16) -> bool { apfloat::has_fractional_part(f) }
 
 pub fn has_negative_exponent(f: HF16) -> bool { apfloat::has_negative_exponent(f) }
 
-pub fn ceil(f: HF16) -> HF16 { apfloat::ceil(f) }
+pub fn ceil_with_denorms(f: HF16) -> HF16 { apfloat::ceil_with_denorms(f) }
 
-pub fn floor(f: HF16) -> HF16 { apfloat::floor(f) }
+pub fn ceil_daz(f: HF16) -> HF16 { apfloat::ceil_daz(f) }
+
+pub fn floor_with_denorms(f: HF16) -> HF16 { apfloat::floor_with_denorms(f) }
+
+pub fn floor_daz(f: HF16) -> HF16 { apfloat::floor_daz(f) }
 
 pub fn trunc(f: HF16) -> HF16 { apfloat::trunc(f) }
 

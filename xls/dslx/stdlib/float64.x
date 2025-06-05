@@ -176,9 +176,13 @@ pub fn has_fractional_part(f: F64) -> bool { apfloat::has_fractional_part(f) }
 
 pub fn has_negative_exponent(f: F64) -> bool { apfloat::has_negative_exponent(f) }
 
-pub fn ceil(f: F64) -> F64 { apfloat::ceil(f) }
+pub fn ceil_with_denorms(f: F64) -> F64 { apfloat::ceil_with_denorms(f) }
 
-pub fn floor(f: F64) -> F64 { apfloat::floor(f) }
+pub fn ceil_daz(f: F64) -> F64 { apfloat::ceil_daz(f) }
+
+pub fn floor_with_denorms(f: F64) -> F64 { apfloat::floor_with_denorms(f) }
+
+pub fn floor_daz(f: F64) -> F64 { apfloat::floor_daz(f) }
 
 pub fn trunc(f: F64) -> F64 { apfloat::trunc(f) }
 

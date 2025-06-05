@@ -449,9 +449,13 @@ pub fn has_fractional_part(f: F32) -> bool { apfloat::has_fractional_part(f) }
 
 pub fn has_negative_exponent(f: F32) -> bool { apfloat::has_negative_exponent(f) }
 
-pub fn ceil(f: F32) -> F32 { apfloat::ceil(f) }
+pub fn ceil_with_denorms(f: F32) -> F32 { apfloat::ceil_with_denorms(f) }
 
-pub fn floor(f: F32) -> F32 { apfloat::floor(f) }
+pub fn ceil_daz(f: F32) -> F32 { apfloat::ceil_daz(f) }
+
+pub fn floor_with_denorms(f: F32) -> F32 { apfloat::floor_with_denorms(f) }
+
+pub fn floor_daz(f: F32) -> F32 { apfloat::floor_daz(f) }
 
 pub fn trunc(f: F32) -> F32 { apfloat::trunc(f) }
 

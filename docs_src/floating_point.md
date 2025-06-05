@@ -594,25 +594,55 @@ pub fn has_negative_exponent<EXP_SZ: u32, FRACTION_SZ: u32>
     (f: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
 ```
 
-### `apfloat::ceil`
+### `apfloat::ceil_with_denorms`
 
 ```dslx-snippet
-pub fn ceil<EXP_SZ: u32, FRACTION_SZ: u32>
+pub fn ceil_with_denorms<EXP_SZ: u32, FRACTION_SZ: u32>
     (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ>
 ```
 
 Returns the nearest integral `APFloat` of the same precision as `f` whose value
-is greater than or equal to `f`.
+is greater than or equal to `f` (round toward positive). Subnormal inputs are
+supported and rounded as per IEEE-754 to be no less than the infinitely precise
+result. To treat subnormals as zero, use `ceil_daz` (which is a
+convenience wrapper that calls `subnormals_to_zero` before calling this
+function).
 
-### `apfloat::floor`
+### `apfloat::ceil_daz`
 
 ```dslx-snippet
-pub fn floor<EXP_SZ: u32, FRACTION_SZ: u32>
+pub fn ceil_daz<EXP_SZ: u32, FRACTION_SZ: u32>
     (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ>
 ```
 
 Returns the nearest integral `APFloat` of the same precision as `f` whose value
-is lesser than or equal to `f`.
+is greater than or equal to `f` (round toward positive). Subnormal inputs are
+treated as zero.
+
+### `apfloat::floor_with_denorms`
+
+```dslx-snippet
+pub fn floor_with_denorms<EXP_SZ: u32, FRACTION_SZ: u32>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ>
+```
+
+Returns the nearest integral `APFloat` of the same precision as `f` whose value
+is lesser than or equal to `f` (round toward negative). Subnormal inputs are
+supported and rounded as per IEEE-754 to be no greater than the infinitely
+precise result. To treat subnormals as zero, use `floor_daz` (which is a
+convenience wrapper that calls `subnormals_to_zero` before calling this
+function).
+
+### `apfloat::floor_daz`
+
+```dslx-snippet
+pub fn floor_daz<EXP_SZ: u32, FRACTION_SZ: u32>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ>
+```
+
+Returns the nearest integral `APFloat` of the same precision as `f` whose value
+is lesser than or equal to `f` (round toward negative). Subnormal inputs are
+treated as zero.
 
 ### `apfloat::trunc`
 

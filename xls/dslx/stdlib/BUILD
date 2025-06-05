@@ -579,7 +579,7 @@ cc_xls_ir_jit_wrapper(
 
 xls_dslx_opt_ir(
     name = "float32_ceil",
-    dslx_top = "ceil",
+    dslx_top = "ceil_with_denorms",
     ir_file = "float32_ceil.ir",
     library = ":float32_dslx",
     opt_ir_file = "float32_ceil.opt.ir",
@@ -596,7 +596,7 @@ cc_xls_ir_jit_wrapper(
 
 xls_dslx_opt_ir(
     name = "float32_floor",
-    dslx_top = "floor",
+    dslx_top = "floor_with_denorms",
     ir_file = "float32_floor.ir",
     library = ":float32_dslx",
     opt_ir_file = "float32_floor.opt.ir",

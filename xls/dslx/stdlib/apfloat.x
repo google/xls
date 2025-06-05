@@ -4181,8 +4181,10 @@ fn round_down_no_sign_positive_exp<EXP_SZ: u32, FRACTION_SZ: u32>
     APFloat { sign: f.sign, bexp: f.bexp, fraction: fraction_integral }
 }
 
-// Finds the nearest integral `APFloat` greater than or equal to `f`.
-pub fn ceil<EXP_SZ: u32, FRACTION_SZ: u32>
+// Finds the nearest integral `APFloat` greater than or equal to `f` (round toward positive).
+// Subnormal inputs are supported and rounded as per IEEE-754 to be no less than the infinitely
+// precise result.
+pub fn ceil_with_denorms<EXP_SZ: u32, FRACTION_SZ: u32>
     (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
 
     match tag(f) {
@@ -4212,7 +4214,7 @@ pub fn ceil<EXP_SZ: u32, FRACTION_SZ: u32>
 }
 
 #[test]
-fn ceil_fractional_midpoint_test() {
+fn ceil_with_denorms_fractional_midpoint_test() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
@@ -4222,12 +4224,12 @@ fn ceil_fractional_midpoint_test() {
     let three_f32 = add(one_f32, two_f32);
     let two_dot_5_f32 = F32 { fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:2), ..two_f32 };
     let minus_two_dot_5_f32 = F32 { sign: u1:1, ..two_dot_5_f32 };
-    assert_eq(ceil(two_dot_5_f32), three_f32);
-    assert_eq(ceil(minus_two_dot_5_f32), minus_two_f32);
+    assert_eq(ceil_with_denorms(two_dot_5_f32), three_f32);
+    assert_eq(ceil_with_denorms(minus_two_dot_5_f32), minus_two_f32);
 }
 
 #[test]
-fn ceil_fractional_test() {
+fn ceil_with_denorms_fractional_test() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
@@ -4236,62 +4238,159 @@ fn ceil_fractional_test() {
     let minus_two_f32 = F32 { sign: u1:1, ..two_f32 };
     let three_f32 = add(one_f32, two_f32);
     let two_dot_0000002_f32 = F32 { fraction: uN[FRACTION_SZ]:1, ..two_f32 };
-    assert_eq(ceil(two_dot_0000002_f32), three_f32);
+    assert_eq(ceil_with_denorms(two_dot_0000002_f32), three_f32);
     let minus_two_dot_0000002_f32 = F32 { sign: u1:1, ..two_dot_0000002_f32 };
-    assert_eq(ceil(minus_two_dot_0000002_f32), minus_two_f32);
+    assert_eq(ceil_with_denorms(minus_two_dot_0000002_f32), minus_two_f32);
 }
 
 #[test]
-fn ceil_big_integral_test() {
+fn ceil_with_denorms_big_integral_test() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
     let big_f32 = F32 { sign: u1:0, bexp: bias(sN[EXP_SZ]:32), fraction: uN[FRACTION_SZ]:0x123 };
-    assert_eq(ceil(big_f32), big_f32);
+    assert_eq(ceil_with_denorms(big_f32), big_f32);
 }
 
 #[test]
-fn ceil_already_round_test() {
+fn ceil_with_denorms_already_round_test() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
-    assert_eq(ceil(one_f32), one_f32);
+    assert_eq(ceil_with_denorms(one_f32), one_f32);
 }
 
 #[test]
-fn ceil_special() {
+fn ceil_with_denorms_special() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
     let inf_f32 = inf<EXP_SZ, FRACTION_SZ>(u1:0);
-    assert_eq(ceil(inf_f32), inf_f32);
+    assert_eq(ceil_with_denorms(inf_f32), inf_f32);
     let minus_inf_f32 = F32 { sign: u1:1, ..inf_f32 };
-    assert_eq(ceil(minus_inf_f32), minus_inf_f32);
+    assert_eq(ceil_with_denorms(minus_inf_f32), minus_inf_f32);
     let zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:0);
-    assert_eq(ceil(zero_f32), zero_f32);
+    assert_eq(ceil_with_denorms(zero_f32), zero_f32);
     let minus_zero_f32 = F32 { sign: u1:1, ..zero_f32 };
-    assert_eq(ceil(minus_zero_f32), minus_zero_f32);
+    assert_eq(ceil_with_denorms(minus_zero_f32), minus_zero_f32);
     let qnan_f32 = qnan<EXP_SZ, FRACTION_SZ>();
-    assert_eq(ceil(qnan_f32), qnan_f32);
+    assert_eq(ceil_with_denorms(qnan_f32), qnan_f32);
 }
 
 #[test]
-fn ceil_zero_fractional_test() {
+fn ceil_with_denorms_denormal_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    let denormal_f32 = F32 {
+        sign: u1:0,
+        bexp: uN[EXP_SZ]:0,
+        fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1),
+    };
+    assert_eq(ceil_with_denorms(denormal_f32), one_f32);
+    let minus_zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:1);
+    let minus_denormal_f32 = F32 { sign: u1:1, ..denormal_f32 };
+    assert_eq(ceil_with_denorms(minus_denormal_f32), minus_zero_f32);
+}
+
+// Finds the nearest integral `APFloat` greater than or equal to `f` (round toward positive).
+// Note: denormal inputs get flushed to zero.
+pub fn ceil_daz<EXP_SZ: u32, FRACTION_SZ: u32>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+    ceil_with_denorms(subnormals_to_zero(f))
+}
+
+#[test]
+fn ceil_daz_fractional_midpoint_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    let two_f32 = add(one_f32, one_f32);
+    let minus_two_f32 = F32 { sign: u1:1, ..two_f32 };
+    let three_f32 = add(one_f32, two_f32);
+    let two_dot_5_f32 = F32 { fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:2), ..two_f32 };
+    let minus_two_dot_5_f32 = F32 { sign: u1:1, ..two_dot_5_f32 };
+    assert_eq(ceil_daz(two_dot_5_f32), three_f32);
+    assert_eq(ceil_daz(minus_two_dot_5_f32), minus_two_f32);
+}
+
+#[test]
+fn ceil_daz_fractional_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    let two_f32 = add(one_f32, one_f32);
+    let minus_two_f32 = F32 { sign: u1:1, ..two_f32 };
+    let three_f32 = add(one_f32, two_f32);
+    let two_dot_0000002_f32 = F32 { fraction: uN[FRACTION_SZ]:1, ..two_f32 };
+    assert_eq(ceil_daz(two_dot_0000002_f32), three_f32);
+    let minus_two_dot_0000002_f32 = F32 { sign: u1:1, ..two_dot_0000002_f32 };
+    assert_eq(ceil_daz(minus_two_dot_0000002_f32), minus_two_f32);
+}
+
+#[test]
+fn ceil_daz_big_integral_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let big_f32 = F32 { sign: u1:0, bexp: bias(sN[EXP_SZ]:32), fraction: uN[FRACTION_SZ]:0x123 };
+    assert_eq(ceil_daz(big_f32), big_f32);
+}
+
+#[test]
+fn ceil_daz_already_round_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    assert_eq(ceil_daz(one_f32), one_f32);
+}
+
+#[test]
+fn ceil_daz_special() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let inf_f32 = inf<EXP_SZ, FRACTION_SZ>(u1:0);
+    assert_eq(ceil_daz(inf_f32), inf_f32);
+    let minus_inf_f32 = F32 { sign: u1:1, ..inf_f32 };
+    assert_eq(ceil_daz(minus_inf_f32), minus_inf_f32);
+    let zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:0);
+    assert_eq(ceil_daz(zero_f32), zero_f32);
+    let minus_zero_f32 = F32 { sign: u1:1, ..zero_f32 };
+    assert_eq(ceil_daz(minus_zero_f32), minus_zero_f32);
+    let qnan_f32 = qnan<EXP_SZ, FRACTION_SZ>();
+    assert_eq(ceil_daz(qnan_f32), qnan_f32);
+}
+
+#[test]
+fn ceil_daz_denormal_test() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
     let zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:0);
-    let zero_dot_something_f32 =
-        F32 { fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1), ..zero_f32 };
-    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
-    assert_eq(ceil(zero_dot_something_f32), one_f32);
+    let denormal_f32 = F32 {
+        sign: u1:0,
+        bexp: uN[EXP_SZ]:0,
+        fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1),
+    };
+    assert_eq(ceil_daz(denormal_f32), zero_f32);
     let minus_zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:1);
-    let minus_zero_dot_something_f32 = F32 { sign: u1:1, ..zero_dot_something_f32 };
-    assert_eq(ceil(minus_zero_dot_something_f32), minus_zero_f32);
+    let minus_denormal_f32 = F32 { sign: u1:1, ..denormal_f32 };
+    assert_eq(ceil_daz(minus_denormal_f32), minus_zero_f32);
 }
 
-// Finds the nearest integral `APFloat` lower than or equal to `f`.
-pub fn floor<EXP_SZ: u32, FRACTION_SZ: u32>
+#[quickcheck]
+fn ceil_daz_denorms_round_to_signed_zero(f: APFloat<u32:8, u32:7>) -> bool {
+    !is_zero_or_subnormal(f) || ceil_daz(f) == zero<u32:8, u32:7>(f.sign)
+}
+
+// Finds the nearest integral `APFloat` lower than or equal to `f` (round toward negative).
+// Subnormal inputs are supported and rounded as per IEEE-754 to be no greater than the infinitely
+// precise result.
+pub fn floor_with_denorms<EXP_SZ: u32, FRACTION_SZ: u32>
     (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
 
     match tag(f) {
@@ -4321,7 +4420,7 @@ pub fn floor<EXP_SZ: u32, FRACTION_SZ: u32>
 }
 
 #[test]
-fn floor_fractional_midpoint_test() {
+fn floor_with_denorms_fractional_midpoint_test() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
@@ -4331,12 +4430,12 @@ fn floor_fractional_midpoint_test() {
     let minus_three_f32 = F32 { sign: u1:1, ..three_f32 };
     let two_dot_5_f32 = F32 { fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:2), ..two_f32 };
     let minus_two_dot_5_f32 = F32 { sign: u1:1, ..two_dot_5_f32 };
-    assert_eq(floor(two_dot_5_f32), two_f32);
-    assert_eq(floor(minus_two_dot_5_f32), minus_three_f32);
+    assert_eq(floor_with_denorms(two_dot_5_f32), two_f32);
+    assert_eq(floor_with_denorms(minus_two_dot_5_f32), minus_three_f32);
 }
 
 #[test]
-fn floor_fractional_test() {
+fn floor_with_denorms_fractional_test() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
@@ -4347,55 +4446,153 @@ fn floor_fractional_test() {
     let two_dot_5000002_f32 =
         F32 { fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:2) | uN[FRACTION_SZ]:1, ..two_f32 };
     let minus_two_dot_0000002_f32 = F32 { sign: u1:1, ..two_dot_5000002_f32 };
-    assert_eq(floor(two_dot_5000002_f32), two_f32);
-    assert_eq(floor(minus_two_dot_0000002_f32), minus_three_f32);
+    assert_eq(floor_with_denorms(two_dot_5000002_f32), two_f32);
+    assert_eq(floor_with_denorms(minus_two_dot_0000002_f32), minus_three_f32);
 }
 
 #[test]
-fn floor_big_integral_test() {
+fn floor_with_denorms_big_integral_test() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
     let big_f32 = F32 { sign: u1:0, bexp: bias(sN[EXP_SZ]:32), fraction: uN[FRACTION_SZ]:0x123 };
-    assert_eq(floor(big_f32), big_f32);
+    assert_eq(floor_with_denorms(big_f32), big_f32);
 }
 
 #[test]
-fn floor_already_round_test() {
+fn floor_with_denorms_already_round_test() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
-    assert_eq(floor(one_f32), one_f32);
+    assert_eq(floor_with_denorms(one_f32), one_f32);
 }
 
 #[test]
-fn floor_special() {
+fn floor_with_denorms_special() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
     let inf_f32 = inf<EXP_SZ, FRACTION_SZ>(u1:0);
-    assert_eq(floor(inf_f32), inf_f32);
+    assert_eq(floor_with_denorms(inf_f32), inf_f32);
     let minus_inf_f32 = F32 { sign: u1:1, ..inf_f32 };
-    assert_eq(floor(minus_inf_f32), minus_inf_f32);
+    assert_eq(floor_with_denorms(minus_inf_f32), minus_inf_f32);
     let zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:0);
-    assert_eq(floor(zero_f32), zero_f32);
+    assert_eq(floor_with_denorms(zero_f32), zero_f32);
     let minus_zero_f32 = F32 { sign: u1:1, ..zero_f32 };
-    assert_eq(floor(minus_zero_f32), minus_zero_f32);
+    assert_eq(floor_with_denorms(minus_zero_f32), minus_zero_f32);
     let qnan_f32 = qnan<EXP_SZ, FRACTION_SZ>();
-    assert_eq(floor(qnan_f32), qnan_f32);
+    assert_eq(floor_with_denorms(qnan_f32), qnan_f32);
 }
 
 #[test]
-fn floor_zero_fractional_test() {
+fn floor_with_denorms_denormal_test() {
     const EXP_SZ = u32:8;
     const FRACTION_SZ = u32:23;
     type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
     let zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:0);
-    let zero_dot_5_f32 = F32 { fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1), ..zero_f32 };
-    assert_eq(floor(zero_dot_5_f32), zero_f32);
+    let denormal_f32 = F32 {
+        sign: u1:0,
+        bexp: uN[EXP_SZ]:0,
+        fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1),
+    };
+    assert_eq(floor_with_denorms(denormal_f32), zero_f32);
     let minus_one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:1);
-    let minus_zero_dot_5_f32 = F32 { sign: u1:1, ..zero_dot_5_f32 };
-    assert_eq(floor(minus_zero_dot_5_f32), minus_one_f32);
+    let minus_denormal_f32 = F32 { sign: u1:1, ..denormal_f32 };
+    assert_eq(floor_with_denorms(minus_denormal_f32), minus_one_f32);
+}
+
+// Finds the nearest integral `APFloat` lower than or equal to `f` (round toward negative).
+// Note: denormal inputs get flushed to zero.
+pub fn floor_daz<EXP_SZ: u32, FRACTION_SZ: u32>
+    (f: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+    floor_with_denorms(subnormals_to_zero(f))
+}
+
+#[test]
+fn floor_daz_fractional_midpoint_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    let two_f32 = add(one_f32, one_f32);
+    let three_f32 = add(one_f32, two_f32);
+    let minus_three_f32 = F32 { sign: u1:1, ..three_f32 };
+    let two_dot_5_f32 = F32 { fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:2), ..two_f32 };
+    let minus_two_dot_5_f32 = F32 { sign: u1:1, ..two_dot_5_f32 };
+    assert_eq(floor_daz(two_dot_5_f32), two_f32);
+    assert_eq(floor_daz(minus_two_dot_5_f32), minus_three_f32);
+}
+
+#[test]
+fn floor_daz_fractional_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    let two_f32 = add(one_f32, one_f32);
+    let three_f32 = add(one_f32, two_f32);
+    let minus_three_f32 = F32 { sign: u1:1, ..three_f32 };
+    let two_dot_5000002_f32 =
+        F32 { fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:2) | uN[FRACTION_SZ]:1, ..two_f32 };
+    let minus_two_dot_0000002_f32 = F32 { sign: u1:1, ..two_dot_5000002_f32 };
+    assert_eq(floor_daz(two_dot_5000002_f32), two_f32);
+    assert_eq(floor_daz(minus_two_dot_0000002_f32), minus_three_f32);
+}
+
+#[test]
+fn floor_daz_big_integral_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let big_f32 = F32 { sign: u1:0, bexp: bias(sN[EXP_SZ]:32), fraction: uN[FRACTION_SZ]:0x123 };
+    assert_eq(floor_daz(big_f32), big_f32);
+}
+
+#[test]
+fn floor_daz_already_round_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    let one_f32 = one<EXP_SZ, FRACTION_SZ>(u1:0);
+    assert_eq(floor_daz(one_f32), one_f32);
+}
+
+#[test]
+fn floor_daz_special() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let inf_f32 = inf<EXP_SZ, FRACTION_SZ>(u1:0);
+    assert_eq(floor_daz(inf_f32), inf_f32);
+    let minus_inf_f32 = F32 { sign: u1:1, ..inf_f32 };
+    assert_eq(floor_daz(minus_inf_f32), minus_inf_f32);
+    let zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:0);
+    assert_eq(floor_daz(zero_f32), zero_f32);
+    let minus_zero_f32 = F32 { sign: u1:1, ..zero_f32 };
+    assert_eq(floor_daz(minus_zero_f32), minus_zero_f32);
+    let qnan_f32 = qnan<EXP_SZ, FRACTION_SZ>();
+    assert_eq(floor_daz(qnan_f32), qnan_f32);
+}
+
+#[test]
+fn floor_daz_denormal_test() {
+    const EXP_SZ = u32:8;
+    const FRACTION_SZ = u32:23;
+    type F32 = APFloat<EXP_SZ, FRACTION_SZ>;
+    let zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:0);
+    let denormal_f32 = F32 {
+        sign: u1:0,
+        bexp: uN[EXP_SZ]:0,
+        fraction: uN[FRACTION_SZ]:1 << (FRACTION_SZ - u32:1),
+    };
+    assert_eq(floor_daz(denormal_f32), zero_f32);
+    let minus_zero_f32 = zero<EXP_SZ, FRACTION_SZ>(u1:1);
+    let minus_denormal_f32 = F32 { sign: u1:1, ..denormal_f32 };
+    assert_eq(floor_daz(minus_denormal_f32), minus_zero_f32);
+}
+
+#[quickcheck]
+fn floor_daz_denorms_round_to_signed_zero(f: APFloat<u32:8, u32:7>) -> bool {
+    !is_zero_or_subnormal(f) || floor_daz(f) == zero<u32:8, u32:7>(f.sign)
 }
 
 // Returns an `APFloat` with all its `fraction` bits past the decimal point set to `0`.
