@@ -332,7 +332,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // Otherwise, consider an annotation we add to be an auto-annotation that
       // is "negotiable".
       if (node->number_kind() != NumberKind::kBool) {
-        table_.MarkAsAutoLiteral(annotation);
+        table_.SetAnnotationFlag(annotation, TypeInferenceFlag::kMinSize);
       }
     } else {
       XLS_RETURN_IF_ERROR(annotation->Accept(this));

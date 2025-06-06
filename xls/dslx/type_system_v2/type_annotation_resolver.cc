@@ -708,7 +708,8 @@ class StatefulResolver : public TypeAnnotationResolver {
     return annotations.ok() &&
            absl::c_any_of(*annotations,
                           [this](const TypeAnnotation* annotation) {
-                            return !table_.IsAutoLiteral(annotation);
+                            return table_.GetAnnotationFlag(annotation) ==
+                                   TypeInferenceFlag::kNone;
                           });
   }
 

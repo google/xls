@@ -49,6 +49,25 @@ namespace xls::dslx {
 // The kinds of variables that can be defined in an `InferenceTable`.
 enum class InferenceVariableKind : uint8_t { kInteger, kBool, kType };
 
+// Flags for specifying a non-default interpretation of a type annotation in an
+// `InferenceTable`.
+enum class TypeInferenceFlag : uint8_t {
+  kNone = 0,
+
+  // The minimum viable size of an integer. For example, a literal may have an
+  // auto generated min annotation sized to fit the literal value. This
+  // annotation can be unified with larger ones that do not take away
+  // signedness, and the result is the larger type.
+  kMinSize = 1,
+};
+
+// Returns whether the given `flag` has `value` set. For the time being, we
+// don't allow combinations of flags, but the use of this function is a best
+// practice in case we do later.
+inline bool HasInferenceFlag(TypeInferenceFlag flag, TypeInferenceFlag value) {
+  return flag == value;
+}
+
 // Forward declaration.
 class InferenceTable;
 
@@ -392,14 +411,15 @@ class InferenceTable {
   virtual std::optional<const TypeAnnotation*> GetTypeAnnotation(
       const AstNode* node) const = 0;
 
-  // Marks the given `annotation` as an auto-determined annotation for a
-  // literal. These annotations have relaxed unification semantics, so that a
-  // literal can become the type its context requires.
-  virtual void MarkAsAutoLiteral(const TypeAnnotation* annotation) = 0;
+  // Sets the given flag which modifies how to interpret the given annotation in
+  // this table. Currently we only support at most one flag per annotation.
+  virtual void SetAnnotationFlag(const TypeAnnotation* annotation,
+                                 TypeInferenceFlag flag) = 0;
 
-  // Returns whether the given `annotation` has been marked as an auto literal
-  // annotation.
-  virtual bool IsAutoLiteral(const TypeAnnotation* annotation) const = 0;
+  // Returns the flag that has been set for the given `annotation`, or `kNone`
+  // if one hasn't been set.
+  virtual TypeInferenceFlag GetAnnotationFlag(
+      const TypeAnnotation* annotation) const = 0;
 
   // Sets the target of a `ColonRef`.
   virtual void SetColonRefTarget(const ColonRef* colon_ref,

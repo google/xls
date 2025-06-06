@@ -49,7 +49,7 @@ namespace {
 // A size and signedness with a flag for whether it is automatic. Automatic
 // values have more flexible unification rules.
 struct SignednessAndSize {
-  bool is_auto;
+  TypeInferenceFlag flag;
   bool is_signed;
   int64_t size;
 };
@@ -276,11 +276,14 @@ class Unifier {
       // which warrants a possible different error message than other scenarios.
       const bool is_min_vs_explicit =
           unified_dim.has_value() &&
-          (unified_dim->is_auto ^ annotation->dim_is_min());
+          (HasInferenceFlag(unified_dim->flag, TypeInferenceFlag::kMinSize) ^
+           annotation->dim_is_min());
       absl::StatusOr<SignednessAndSize> new_unified_dim =
           UnifySignednessAndSize(
               parametric_context_, unified_dim,
-              SignednessAndSize{.is_auto = annotation->dim_is_min(),
+              SignednessAndSize{.flag = annotation->dim_is_min()
+                                            ? TypeInferenceFlag::kMinSize
+                                            : TypeInferenceFlag::kNone,
                                 .is_signed = false,
                                 .size = current_dim},
               annotations[0], annotations[i]);
@@ -299,7 +302,7 @@ class Unifier {
       }
       unified_dim = *new_unified_dim;
     }
-    if (unified_dim->is_auto) {
+    if (HasInferenceFlag(unified_dim->flag, TypeInferenceFlag::kMinSize)) {
       // This means the only type annotation for the array was fabricated
       // based on an elliptical RHS.
       return TypeInferenceErrorStatus(
@@ -493,8 +496,6 @@ class Unifier {
                                      parametric_context_, current_annotation,
                                      annotations[0]);
                                }));
-      bool current_annotation_is_auto =
-          table_.IsAutoLiteral(current_annotation);
 
       XLS_ASSIGN_OR_RETURN(
           bool current_annotation_signedness,
@@ -505,7 +506,7 @@ class Unifier {
           evaluator_.EvaluateU32OrExpr(parametric_context_,
                                        signedness_and_bit_count.bit_count));
       SignednessAndSize current_annotation_signedness_and_bit_count{
-          .is_auto = current_annotation_is_auto,
+          .flag = table_.GetAnnotationFlag(current_annotation),
           .is_signed = current_annotation_signedness,
           .size = current_annotation_raw_bit_count};
 
@@ -523,8 +524,8 @@ class Unifier {
         module_, *unified_signedness_and_bit_count, span);
     // An annotation we fabricate as a unification of a bunch of auto
     // annotations, is also considered an auto annotation itself.
-    if (unified_signedness_and_bit_count->is_auto) {
-      table_.MarkAsAutoLiteral(result);
+    if (unified_signedness_and_bit_count->flag != TypeInferenceFlag::kNone) {
+      table_.SetAnnotationFlag(result, unified_signedness_and_bit_count->flag);
     }
     return result;
   }
@@ -544,8 +545,11 @@ class Unifier {
     if (!x.has_value()) {
       return y;
     }
-    if (x->is_auto && y.is_auto) {
-      SignednessAndSize result{.is_auto = true,
+    const bool x_is_min =
+        HasInferenceFlag(x->flag, TypeInferenceFlag::kMinSize);
+    const bool y_is_min = HasInferenceFlag(y.flag, TypeInferenceFlag::kMinSize);
+    if (x_is_min && y_is_min) {
+      SignednessAndSize result{.flag = TypeInferenceFlag::kMinSize,
                                .is_signed = x->is_signed || y.is_signed,
                                .size = std::max(x->size, y.size)};
       // If we are coercing one of 2 auto annotations to signed, the one being
@@ -564,7 +568,8 @@ class Unifier {
     // `UnifySignednessAndSize`, and not necessarily the current call.
     auto update_annotation = [&](const SignednessAndSize& signedness_and_size,
                                  const TypeAnnotation* annotation) {
-      return signedness_and_size.is_auto
+      return HasInferenceFlag(signedness_and_size.flag,
+                              TypeInferenceFlag::kMinSize)
                  ? SignednessAndSizeToAnnotation(module_, signedness_and_size,
                                                  annotation->span())
                  : annotation;
@@ -579,9 +584,9 @@ class Unifier {
           parametric_context, update_annotation(y, y_annotation),
           update_annotation(*x, x_annotation));
     };
-    if (x->is_auto || y.is_auto) {
-      SignednessAndSize& auto_value = x->is_auto ? *x : y;
-      SignednessAndSize& explicit_value = x->is_auto ? y : *x;
+    if (x_is_min || y_is_min) {
+      SignednessAndSize& auto_value = x_is_min ? *x : y;
+      SignednessAndSize& explicit_value = x_is_min ? y : *x;
       if (auto_value.is_signed && !explicit_value.is_signed) {
         return signedness_mismatch_error();
       }

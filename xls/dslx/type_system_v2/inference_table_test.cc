@@ -443,7 +443,7 @@ TEST_F(InferenceTableTest, SimpleCaching) {
       table_->DefineInternalVariable(InferenceVariableKind::kType, x, "T0"));
 
   TypeAnnotation* u32_auto = CreateU32Annotation(*module_, Span::Fake());
-  table_->MarkAsAutoLiteral(u32_auto);
+  table_->SetAnnotationFlag(u32_auto, TypeInferenceFlag::kMinSize);
   TypeAnnotation* u64 =
       CreateUnOrSnAnnotation(*module_, Span::Fake(), false, 64);
   XLS_EXPECT_OK(table_->SetTypeVariable(x, t0));

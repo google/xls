@@ -38,6 +38,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
@@ -65,11 +66,21 @@ std::string_view InferenceVariableKindToString(InferenceVariableKind kind) {
   }
 }
 
+// Converts a `TypeInferenceFlag` to string for tracing purposes.
+std::string_view TypeInferenceFlagToString(TypeInferenceFlag flag) {
+  switch (flag) {
+    case TypeInferenceFlag::kNone:
+      return "none";
+    case TypeInferenceFlag::kMinSize:
+      return "min-size";
+  }
+}
+
 // Converts a `TypeAnnotation` for a parametric to an `InferenceVariableKind`.
 absl::StatusOr<InferenceVariableKind> TypeAnnotationToInferenceVariableKind(
     const TypeAnnotation* annotation) {
-  const auto* builtin = dynamic_cast<const BuiltinTypeAnnotation*>(annotation);
-  if (builtin) {
+  if (annotation->IsAnnotation<BuiltinTypeAnnotation>()) {
+    const auto* builtin = annotation->AsAnnotation<BuiltinTypeAnnotation>();
     switch (builtin->builtin_type()) {
       case BuiltinType::kBool:
         return InferenceVariableKind::kBool;
@@ -81,19 +92,20 @@ absl::StatusOr<InferenceVariableKind> TypeAnnotationToInferenceVariableKind(
         return InferenceVariableKind::kInteger;
     }
   }
-  const auto* array = dynamic_cast<const ArrayTypeAnnotation*>(annotation);
-  if (array) {
-    const auto* builtin_element_type =
-        dynamic_cast<BuiltinTypeAnnotation*>(array->element_type());
-    if (builtin_element_type != nullptr &&
-        builtin_element_type->GetBitCount() == 0) {
-      return InferenceVariableKind::kInteger;
+  if (annotation->IsAnnotation<ArrayTypeAnnotation>()) {
+    const auto* array = annotation->AsAnnotation<ArrayTypeAnnotation>();
+    if (array->element_type()->IsAnnotation<BuiltinTypeAnnotation>()) {
+      const BuiltinTypeAnnotation* element_type =
+          array->element_type()->AsAnnotation<BuiltinTypeAnnotation>();
+      if (element_type->GetBitCount() == 0) {
+        return InferenceVariableKind::kInteger;
+      }
     }
   }
-  if (dynamic_cast<const GenericTypeAnnotation*>(annotation)) {
+  if (annotation->IsAnnotation<GenericTypeAnnotation>()) {
     return InferenceVariableKind::kType;
   }
-  if (dynamic_cast<const TypeRefTypeAnnotation*>(annotation)) {
+  if (annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
     // This currently must be an enum or other integral-type alias, which is not
     // practical to verify here, but if a struct is used then it will fail in
     // the parser.
@@ -358,8 +370,7 @@ class InferenceTableImpl : public InferenceTable {
     // being, we can't canonicalize invocations that use them.
     for (const ParametricBinding* binding :
          parametric_context->parametric_bindings()) {
-      if (dynamic_cast<const GenericTypeAnnotation*>(
-              binding->type_annotation())) {
+      if (binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
         return false;
       }
     }
@@ -480,12 +491,16 @@ class InferenceTableImpl : public InferenceTable {
     return absl::OkStatus();
   }
 
-  void MarkAsAutoLiteral(const TypeAnnotation* annotation) override {
-    auto_literal_annotations_.insert(annotation);
+  void SetAnnotationFlag(const TypeAnnotation* annotation,
+                         TypeInferenceFlag flag) override {
+    annotation_flags_[annotation] = flag;
   }
 
-  bool IsAutoLiteral(const TypeAnnotation* annotation) const override {
-    return auto_literal_annotations_.contains(annotation);
+  TypeInferenceFlag GetAnnotationFlag(
+      const TypeAnnotation* annotation) const override {
+    const auto it = annotation_flags_.find(annotation);
+    return it != annotation_flags_.end() ? it->second
+                                         : TypeInferenceFlag::kNone;
   }
 
   absl::Status SetTypeVariable(const AstNode* node,
@@ -585,20 +600,21 @@ class InferenceTableImpl : public InferenceTable {
           node_data_.emplace(new_node, std::move(copy));
         }
         if (new_node->kind() == AstNodeKind::kTypeAnnotation) {
-          if (auto_literal_annotations_.contains(
-                  dynamic_cast<const TypeAnnotation*>(old_node))) {
-            const auto* new_node_as_annotation =
-                dynamic_cast<const TypeAnnotation*>(new_node);
-            auto_literal_annotations_.insert(new_node_as_annotation);
+          const auto flag_it = annotation_flags_.find(
+              down_cast<const TypeAnnotation*>(old_node));
+          if (flag_it != annotation_flags_.end()) {
+            const TypeInferenceFlag flag = flag_it->second;
+            annotation_flags_.emplace(
+                down_cast<const TypeAnnotation*>(new_node), flag);
           }
         }
         if (old_node->kind() == AstNodeKind::kColonRef) {
           const auto* old_node_as_colon_ref =
-              dynamic_cast<const ColonRef*>(old_node);
+              down_cast<const ColonRef*>(old_node);
           std::optional<const AstNode*> target =
               GetColonRefTarget(old_node_as_colon_ref);
           if (target.has_value()) {
-            SetColonRefTarget(dynamic_cast<const ColonRef*>(new_node), *target);
+            SetColonRefTarget(down_cast<const ColonRef*>(new_node), *target);
           }
         }
       }
@@ -613,9 +629,9 @@ class InferenceTableImpl : public InferenceTable {
     auto annotation_to_string = [this](std::string_view indent,
                                        const TypeAnnotation* annotation) {
       return absl::Substitute(
-          std::string(indent) + "Annotation: $0; Auto literal: $1\n",
+          std::string(indent) + "Annotation: $0; flag: $1\n",
           annotation->ToString(),
-          auto_literal_annotations_.contains(annotation));
+          TypeInferenceFlagToString(GetAnnotationFlag(annotation)));
     };
 
     for (const auto& context : parametric_contexts_) {
@@ -783,8 +799,10 @@ class InferenceTableImpl : public InferenceTable {
         node_data.type_annotation.has_value()) {
       // If a node has `X` as its variable and `TVTA(X)` as its annotation, the
       // annotation is not useful and could lead to infinite looping elsewhere.
-      if (const auto* tvta = dynamic_cast<const TypeVariableTypeAnnotation*>(
-              *node_data.type_annotation)) {
+      if ((*node_data.type_annotation)
+              ->IsAnnotation<TypeVariableTypeAnnotation>()) {
+        const auto* tvta = (*node_data.type_annotation)
+                               ->AsAnnotation<TypeVariableTypeAnnotation>();
         absl::StatusOr<InferenceVariable*> variable =
             GetVariable(tvta->type_variable());
         if (variable.ok() && *variable == *node_data.type_variable) {
@@ -844,7 +862,8 @@ class InferenceTableImpl : public InferenceTable {
   absl::flat_hash_map<std::pair<const Function*, ParametricEnv>,
                       const ParametricContext*>
       canonical_parametric_context_;
-  absl::flat_hash_set<const TypeAnnotation*> auto_literal_annotations_;
+  absl::flat_hash_map<const TypeAnnotation*, TypeInferenceFlag>
+      annotation_flags_;
   absl::flat_hash_map<const ColonRef*, const AstNode*> colon_ref_targets_;
   absl::flat_hash_map<
       const StructDefBase*,
