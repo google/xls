@@ -250,8 +250,6 @@ absl::StatusOr<ElaborationJitData> CloneElaborationPackage(
 BlockJit::InterfaceMetadata::CreateFromBlock(Block* block) {
   InterfaceMetadata metadata;
   metadata.block_name = block->name();
-  // metadata.type_manager =
-  // std::make_unique<Package>(block->package()->name());
   metadata.input_port_names.reserve(block->GetInputPorts().size());
   metadata.output_port_names.reserve(block->GetOutputPorts().size());
   metadata.register_names.reserve(block->GetRegisters().size());
@@ -455,6 +453,51 @@ std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation(
       new BlockJitContinuation(metadata_, this, function_, sample_time));
 }
 
+absl::Status BlockJit::ReconcileMultipleRegisterWrites(
+    BlockJitContinuation& continuation) {
+  // Save away active register writes and clear it for next time.
+  absl::flat_hash_map<int64_t, std::vector<int64_t>> active_register_writes =
+      std::move(continuation.callbacks_.active_register_writes);
+  continuation.callbacks_.active_register_writes.clear();
+
+  absl::Span<uint8_t* const> register_output_pointers =
+      continuation.output_arg_set().get_element_pointers().subspan(
+          metadata_.OutputPortCount(), metadata_.RegisterCount());
+  absl::Span<uint8_t* const> extra_register_write_pointers =
+      continuation.output_arg_set().get_element_pointers().subspan(
+          metadata_.OutputPortCount() + metadata_.RegisterCount());
+  if (!extra_register_write_pointers.empty()) {
+    for (int64_t reg_no = 0; reg_no < metadata_.RegisterCount(); ++reg_no) {
+      auto it = active_register_writes.find(reg_no);
+      if (it != active_register_writes.end()) {
+        const std::vector<int64_t>& activated_reg_writes = it->second;
+        XLS_RET_CHECK_GE(activated_reg_writes.size(), 1);
+        if (activated_reg_writes.size() == 1) {
+          // Only one register write activated. Ensure the activated value ends
+          // up in the register buffer (the buffer of the first register write).
+          if (activated_reg_writes.front() == 0) {
+            // The first register write (maybe only) activated. Nothing to do.
+          } else {
+            // Copy the value to the register output buffer.
+            register_output_pointers[reg_no];
+            extra_register_write_pointers[activated_reg_writes.front() - 1];
+            GetRegisterBufferMetadata()[reg_no];
+            memcpy(
+                register_output_pointers[reg_no],
+                extra_register_write_pointers[activated_reg_writes.front() - 1],
+                GetRegisterBufferMetadata()[reg_no].size);
+          }
+        } else {
+          return absl::InternalError(absl::StrFormat(
+              "Multiple writes of register `%s` activated in the same cycle",
+              metadata_.register_names[reg_no]));
+        }
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
 absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
   // Run to update the registers
   InterpreterEvents fake_events;
@@ -463,6 +506,8 @@ absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
       continuation.temp_buffer_, &continuation.GetEvents(),
       /*instance_context=*/&continuation.callbacks_, runtime_.get(),
       /*continuation_point=*/0);
+  XLS_RETURN_IF_ERROR(ReconcileMultipleRegisterWrites(continuation));
+
   // Finalize the register writes by moving them to the read side.
   continuation.SwapRegisters();
   if (continuation.sample_time() ==
@@ -507,9 +552,19 @@ BlockJitContinuation::BlockJitContinuation(
                                                /*zero=*/true),
                          AllocateAlignedBuffer(jit->GetRegisterBufferMetadata(),
                                                /*zero=*/true)}),
+      // These register writes are those writes beyond the first register write
+      // for a register.
+      extra_register_write_buffers_(
+          AllocateAlignedBuffer(jit->GetExtraRegisterWriteBufferMetadata())),
 
-      // The input register buffers of input_sets_[0] alias the output register
-      // buffers of output_sets_[1] and vice versa.
+      // The layout of the input buffers are:
+      //
+      //   {...input ports..,
+      //    ...register reads...}
+      //
+      // To enable copyfree register value reuse from output of one cycle to
+      // input of the next cycle, the input register buffers of input_sets_[0]
+      // alias the output register buffers of output_sets_[1] and vice versa.
       input_sets_(
           {JitArgumentSet(
                &jit_func,
@@ -522,15 +577,30 @@ BlockJitContinuation::BlockJitContinuation(
                /*is_inputs=*/true,
                /*is_outputs=*/false)}),
 
+      // The layout of the output buffers are:
+      //
+      //   {...output ports..,
+      //    ...first register writes...,
+      //    ...extra register writes... }
+      //
+      // The "first" register writes are the set of first elements in
+      // Block::GetRegisterWrites. The "extra" register writes are the second
+      // and further register writes from Block::GetRegisterWrites. After
+      // running the JIT-ed code, registers with multiple writes are reconciled
+      // and the next register value is written into the "first" register write
+      // buffer so these buffers can be used as input register values for the
+      // next cycle.
       output_sets_(
           {JitArgumentSet(
                &jit_func,
-               ComposeBuffers({&output_port_buffers_, &register_buffers_[1]}),
+               ComposeBuffers({&output_port_buffers_, &register_buffers_[1],
+                               &extra_register_write_buffers_}),
                /*is_inputs=*/false,
                /*is_outputs=*/true),
            JitArgumentSet(
                &jit_func,
-               ComposeBuffers({&output_port_buffers_, &register_buffers_[0]}),
+               ComposeBuffers({&output_port_buffers_, &register_buffers_[0],
+                               &extra_register_write_buffers_}),
                /*is_inputs=*/false,
                /*is_outputs=*/true)}),
 

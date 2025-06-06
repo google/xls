@@ -131,7 +131,7 @@ static absl::StatusOr<std::vector<Node*>> BubbleFlowControlStateEnables(
     XLS_RET_CHECK(valid_reg_read != nullptr);
     Register* valid_reg = valid_reg_read->GetRegister();
     XLS_ASSIGN_OR_RETURN(RegisterWrite * valid_reg_write,
-                         block->GetRegisterWrite(valid_reg));
+                         block->GetUniqueRegisterWrite(valid_reg));
     XLS_RETURN_IF_ERROR(block
                             ->MakeNode<RegisterWrite>(
                                 /*loc=*/SourceInfo(), valid_reg_write->data(),
@@ -1003,8 +1003,9 @@ static absl::StatusOr<Node*> AddSkidBufferToRDVNodes(
           /*loc=*/SourceInfo(), std::vector<Node*>{from_valid, from_skid_rdy},
           Op::kAnd, absl::StrCat(name_prefix, "_data_valid_load_en")));
 
-  XLS_ASSIGN_OR_RETURN(RegisterWrite * data_reg_write,
-                       block->GetRegisterWrite(data_reg_read->GetRegister()));
+  XLS_ASSIGN_OR_RETURN(
+      RegisterWrite * data_reg_write,
+      block->GetUniqueRegisterWrite(data_reg_read->GetRegister()));
   XLS_RETURN_IF_ERROR(
       data_reg_write->ReplaceExistingLoadEnable(input_ready_and_valid));
 
@@ -1024,7 +1025,7 @@ static absl::StatusOr<Node*> AddSkidBufferToRDVNodes(
 
   XLS_ASSIGN_OR_RETURN(
       RegisterWrite * data_valid_reg_write,
-      block->GetRegisterWrite(data_valid_reg_read->GetRegister()));
+      block->GetUniqueRegisterWrite(data_valid_reg_read->GetRegister()));
   XLS_RETURN_IF_ERROR(
       data_valid_reg_write->ReplaceExistingLoadEnable(valid_load_en));
 
@@ -1066,13 +1067,13 @@ static absl::StatusOr<Node*> AddSkidBufferToRDVNodes(
 
   XLS_ASSIGN_OR_RETURN(
       RegisterWrite * data_skid_reg_write,
-      block->GetRegisterWrite(data_skid_reg_read->GetRegister()));
+      block->GetUniqueRegisterWrite(data_skid_reg_read->GetRegister()));
   XLS_RETURN_IF_ERROR(
       data_skid_reg_write->ReplaceExistingLoadEnable(skid_data_load_en));
 
   XLS_ASSIGN_OR_RETURN(
       RegisterWrite * data_valid_skid_reg_write,
-      block->GetRegisterWrite(data_valid_skid_reg_read->GetRegister()));
+      block->GetUniqueRegisterWrite(data_valid_skid_reg_read->GetRegister()));
 
   // If the skid valid is being set
   //   - If it's being set to 1, then the input is being read,
@@ -1095,7 +1096,7 @@ static absl::StatusOr<Node*> AddSkidBufferToRDVNodes(
 static absl::Status UpdateRegisterLoadEn(Node* load_en, Register* reg,
                                          Block* block) {
   XLS_ASSIGN_OR_RETURN(RegisterWrite * old_reg_write,
-                       block->GetRegisterWrite(reg));
+                       block->GetUniqueRegisterWrite(reg));
 
   XLS_RETURN_IF_ERROR(block
                           ->MakeNodeWithName<RegisterWrite>(

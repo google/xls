@@ -107,7 +107,8 @@ class BlockJit {
         .subspan(0, metadata_.InputPortCount());
   }
 
-  // Get metadata about the buffers for the registers.
+  // Get metadata about the buffers for the registers. This metadata is used for
+  // the input and output register values.
   absl::Span<const TypeBufferMetadata> GetRegisterBufferMetadata() const {
     return absl::MakeConstSpan(function_.GetInputBufferMetadata())
         .subspan(metadata_.InputPortCount());
@@ -117,6 +118,15 @@ class BlockJit {
   absl::Span<const TypeBufferMetadata> GetOutputPortBufferMetadata() const {
     return absl::MakeConstSpan(function_.GetOutputBufferMetadata())
         .subspan(0, metadata_.OutputPortCount());
+  }
+
+  // Get metadata about the buffers for the "extra" register writes. These
+  // register writes are those writes beyond the first register write for a
+  // register.
+  absl::Span<const TypeBufferMetadata> GetExtraRegisterWriteBufferMetadata()
+      const {
+    return absl::MakeConstSpan(function_.GetOutputBufferMetadata())
+        .subspan(metadata_.OutputPortCount() + metadata_.RegisterCount());
   }
 
   bool supports_observer() const { return supports_observer_; }
@@ -130,6 +140,13 @@ class BlockJit {
         jit_(std::move(jit)),
         function_(std::move(function)),
         supports_observer_(supports_observer) {}
+
+  // A register may have multiple writes. Reconcile the potentially multiple
+  // writes and copy the value from the active register write into the write
+  // place in the output buffers. Returns an error if multiple register writes
+  // are active for a single register.
+  absl::Status ReconcileMultipleRegisterWrites(
+      BlockJitContinuation& continuation);
 
   InterfaceMetadata metadata_;
   std::unique_ptr<JitRuntime> runtime_;
@@ -239,6 +256,7 @@ class BlockJitContinuation {
   JitBuffer input_port_buffers_;
   JitBuffer output_port_buffers_;
   std::array<JitBuffer, 2> register_buffers_;
+  JitBuffer extra_register_write_buffers_;
 
   // JitArgumentSets used to pass inputs/outputs to the jitted block. These
   // argument sets do not own the buffers but rather hold pointers into the

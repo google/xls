@@ -2152,6 +2152,185 @@ void BackpressureLatencyCorrectCommon(
   }
 }
 
+TEST_P(BlockEvaluatorTest, MultipleRegisterWrites) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto r1, bb.block()->AddRegister("r1", u32, Value(UBits(1234, 32))));
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  BValue reset = bb.ResetPort(
+      "reset", ResetBehavior{.asynchronous = false, .active_low = false});
+
+  BValue x = bb.InputPort("x", p->GetBitsType(32));
+  BValue x_en = bb.InputPort("x_en", p->GetBitsType(1));
+  BValue y = bb.InputPort("y", p->GetBitsType(32));
+  BValue y_en = bb.InputPort("y_en", p->GetBitsType(1));
+  bb.RegisterRead(r1);
+  bb.RegisterWrite(r1, x, /*load_enable=*/x_en, reset);
+  bb.RegisterWrite(r1, y, /*load_enable=*/y_en, reset);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont,
+                           evaluator().NewContinuation(
+                               blk, OutputPortSampleTime::kAtLastPosEdgeClock));
+
+  XLS_ASSERT_OK(cont->SetRegisters({{"r1", Value(UBits(12, 32))}}));
+
+  // No inputs enables. Should preserve previous value.
+  XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(42, 32))},
+                                   {"x_en", Value(UBits(0, 1))},
+                                   {"y", Value(UBits(100, 32))},
+                                   {"y_en", Value(UBits(0, 1))},
+                                   {"reset", Value(UBits(0, 1))}}));
+  EXPECT_THAT(cont->registers(),
+              UnorderedElementsAre(Pair("r1", Value(UBits(12, 32)))));
+
+  // Input x is enabled.
+  XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(42, 32))},
+                                   {"x_en", Value(UBits(1, 1))},
+                                   {"y", Value(UBits(100, 32))},
+                                   {"y_en", Value(UBits(0, 1))},
+                                   {"reset", Value(UBits(0, 1))}}));
+  EXPECT_THAT(cont->registers(),
+              UnorderedElementsAre(Pair("r1", Value(UBits(42, 32)))));
+
+  // Input y is enabled.
+  XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(42, 32))},
+                                   {"x_en", Value(UBits(0, 1))},
+                                   {"y", Value(UBits(100, 32))},
+                                   {"y_en", Value(UBits(1, 1))},
+                                   {"reset", Value(UBits(0, 1))}}));
+  EXPECT_THAT(cont->registers(),
+              UnorderedElementsAre(Pair("r1", Value(UBits(100, 32)))));
+
+  // Both inputs enabled.
+  EXPECT_THAT(
+      cont->RunOneCycle({{"x", Value(UBits(42, 32))},
+                         {"x_en", Value(UBits(1, 1))},
+                         {"y", Value(UBits(100, 32))},
+                         {"y_en", Value(UBits(1, 1))},
+                         {"reset", Value(UBits(0, 1))}}),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Multiple writes of register `r1` activated")));
+
+  // Reset with both inputs enabled should be fine.
+  XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(42, 32))},
+                                   {"x_en", Value(UBits(1, 1))},
+                                   {"y", Value(UBits(100, 32))},
+                                   {"y_en", Value(UBits(1, 1))},
+                                   {"reset", Value(UBits(1, 1))}}));
+  EXPECT_THAT(cont->registers(),
+              UnorderedElementsAre(Pair("r1", Value(UBits(1234, 32)))));
+}
+
+TEST_P(BlockEvaluatorTest, HundredRegisterWrites) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto r1, bb.block()->AddRegister("r1", u32));
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+
+  BValue x = bb.InputPort("x", p->GetBitsType(32));
+  bb.RegisterRead(r1);
+  for (int64_t i = 0; i < 100; ++i) {
+    bb.RegisterWrite(r1, bb.Add(x, x),
+                     /*load_enable=*/bb.Eq(x, bb.Literal(UBits(i, 32))));
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont,
+                           evaluator().NewContinuation(
+                               blk, OutputPortSampleTime::kAtLastPosEdgeClock));
+
+  XLS_ASSERT_OK(cont->SetRegisters({{"r1", Value(UBits(0, 32))}}));
+
+  // The block has 1000 register writes. Each load enable is x == C for C in
+  // [0, 1000).
+  XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(42, 32))}}));
+  EXPECT_THAT(cont->registers(),
+              UnorderedElementsAre(Pair("r1", Value(UBits(2 * 42, 32)))));
+  XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(55, 32))}}));
+  EXPECT_THAT(cont->registers(),
+              UnorderedElementsAre(Pair("r1", Value(UBits(2 * 55, 32)))));
+  // No load-enable should fire so register values are unchanged.
+  XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(2000, 32))}}));
+  EXPECT_THAT(cont->registers(),
+              UnorderedElementsAre(Pair("r1", Value(UBits(2 * 55, 32)))));
+}
+
+TEST_P(BlockEvaluatorTest, MultipleRegistersWithMultipleWrites) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(auto r1, bb.block()->AddRegister("r1", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(auto r2, bb.block()->AddRegister("r2", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(auto r3, bb.block()->AddRegister("r3", u32));
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+
+  BValue en1 = bb.InputPort("en1", p->GetBitsType(1));
+  BValue en2 = bb.InputPort("en2", p->GetBitsType(1));
+  BValue en3 = bb.InputPort("en3", p->GetBitsType(1));
+  bb.RegisterRead(r1);
+  bb.RegisterRead(r2);
+  bb.RegisterRead(r3);
+
+  bb.RegisterWrite(r1, bb.Literal(UBits(1, 32)), en1);
+
+  bb.RegisterWrite(r2, bb.Literal(UBits(1, 32)), en1);
+  bb.RegisterWrite(r2, bb.Literal(UBits(2, 32)), en2);
+
+  bb.RegisterWrite(r3, bb.Literal(UBits(1, 32)), en1);
+  bb.RegisterWrite(r3, bb.Literal(UBits(2, 32)), en2);
+  bb.RegisterWrite(r3, bb.Literal(UBits(3, 32)), en3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont,
+                           evaluator().NewContinuation(
+                               blk, OutputPortSampleTime::kAtLastPosEdgeClock));
+
+  XLS_ASSERT_OK(cont->SetRegisters({{"r1", Value(UBits(10, 32))},
+                                    {"r2", Value(UBits(20, 32))},
+                                    {"r3", Value(UBits(30, 32))}}));
+
+  // Initially don't set any load-enables.
+  XLS_ASSERT_OK(cont->RunOneCycle({{"en1", Value(UBits(0, 1))},
+                                   {"en2", Value(UBits(0, 1))},
+                                   {"en3", Value(UBits(0, 1))}}));
+
+  XLS_ASSERT_OK(cont->SetRegisters({{"r1", Value(UBits(10, 32))},
+                                    {"r2", Value(UBits(20, 32))},
+                                    {"r3", Value(UBits(30, 32))}}));
+
+  // Set en1.
+  XLS_ASSERT_OK(cont->RunOneCycle({{"en1", Value(UBits(1, 1))},
+                                   {"en2", Value(UBits(0, 1))},
+                                   {"en3", Value(UBits(0, 1))}}));
+
+  XLS_ASSERT_OK(cont->SetRegisters({{"r1", Value(UBits(1, 32))},
+                                    {"r2", Value(UBits(1, 32))},
+                                    {"r3", Value(UBits(1, 32))}}));
+
+  // Set en2.
+  XLS_ASSERT_OK(cont->RunOneCycle({{"en1", Value(UBits(0, 1))},
+                                   {"en2", Value(UBits(1, 1))},
+                                   {"en3", Value(UBits(0, 1))}}));
+
+  XLS_ASSERT_OK(cont->SetRegisters({{"r1", Value(UBits(1, 32))},
+                                    {"r2", Value(UBits(2, 32))},
+                                    {"r3", Value(UBits(2, 32))}}));
+
+  // Set en3.
+  XLS_ASSERT_OK(cont->RunOneCycle({{"en1", Value(UBits(0, 1))},
+                                   {"en2", Value(UBits(0, 1))},
+                                   {"en3", Value(UBits(1, 1))}}));
+
+  XLS_ASSERT_OK(cont->SetRegisters({{"r1", Value(UBits(1, 32))},
+                                    {"r2", Value(UBits(2, 32))},
+                                    {"r3", Value(UBits(3, 32))}}));
+}
+
 TEST_P(FifoTest, BackpressureLatencyCorrectPostFallingEdge) {
   BackpressureLatencyCorrectCommon(
       *this, BlockEvaluator::OutputPortSampleTime::kAfterLastClock);

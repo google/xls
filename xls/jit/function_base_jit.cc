@@ -754,13 +754,23 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
     return {f->return_value()};
   }
   if (function_base->IsBlock()) {
+    // Order of block outputs is:
+    //   (1) output ports
+    //   (2) First RegisterWrite of each register.
+    //   (3) Second, and later RegisterWrites of each register (if any).
+    // Multiple RegisterWrites are reconciled at the end of each cycle.
     Block* block = function_base->AsBlockOrDie();
     std::vector<Node*> out;
     out.reserve(block->GetOutputPorts().size() + block->GetRegisters().size());
     absl::c_copy(block->GetOutputPorts(), std::back_inserter(out));
-    absl::c_transform(
-        block->GetRegisters(), std::back_inserter(out),
-        [&](Register* r) -> Node* { return *block->GetRegisterWrite(r); });
+    for (Register* reg : block->GetRegisters()) {
+      out.push_back(block->GetRegisterWrites(reg)->front());
+    }
+    for (Register* reg : block->GetRegisters()) {
+      for (RegisterWrite* rw : block->GetRegisterWrites(reg)->subspan(1)) {
+        out.push_back(rw);
+      }
+    }
     return out;
   }
   // The outputs of a proc are the next state values - which will be stored in

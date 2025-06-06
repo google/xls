@@ -88,6 +88,11 @@ void RecordNodeResult(InstanceContext* thiz, int64_t node_ptr,
   }
 }
 
+void RecordActiveRegisterWrite(InstanceContext* thiz, int64_t register_no,
+                               int64_t register_write_no) {
+  thiz->active_register_writes[register_no].push_back(register_write_no);
+}
+
 void* AllocateBuffer(InstanceContext* thiz, int64_t byte_size,
                      int64_t alignment) {
   // The c11 std §7.22.3 states that std::aligned_alloc must be called with
@@ -119,7 +124,8 @@ InstanceContextVTable::InstanceContextVTable()
       record_active_next_value(&RecordActiveNextValue),
       record_node_result(&RecordNodeResult),
       allocate_buffer(&AllocateBuffer),
-      deallocate_buffer(&DeallocateBuffer) {}
+      deallocate_buffer(&DeallocateBuffer),
+      record_active_register_write(&RecordActiveRegisterWrite) {}
 
 Type* InstanceContext::ParseTypeFromProto(absl::Span<uint8_t const> data) {
   TypeProto proto;

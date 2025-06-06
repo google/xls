@@ -87,34 +87,53 @@ class BlockInterpreter final : public IrInterpreter {
   absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override {
     std::string reg_name =
         absl::StrCat(register_prefix_, reg_write->GetRegister()->name());
-    auto get_next_reg_state = [&]() -> Value {
-      if (reg_write->reset().has_value()) {
-        bool reset_signal = ResolveAsBool(reg_write->reset().value());
-        std::optional<ResetBehavior> reset_behavior =
-            reg_write->function_base()->AsBlockOrDie()->GetResetBehavior();
-        if ((reset_signal && !reset_behavior->active_low) ||
-            (!reset_signal && reset_behavior->active_low)) {
-          // Reset is activated. Next register state is the reset value.
-          const std::optional<Value>& reset_value =
-              reg_write->GetRegister()->reset_value();
-          return *reset_value;
-        }
-      }
-      if (reg_write->load_enable().has_value() &&
-          !ResolveAsBool(reg_write->load_enable().value())) {
-        // Load enable is not activated. Next register state is the previous
-        // register value.
-        return reg_state_.at(reg_name);
-      }
+    bool is_activated = !reg_write->load_enable().has_value() ||
+                        ResolveAsBool(reg_write->load_enable().value());
+    std::optional<RegisterWrite*> previously_activated_write;
+    auto it = activated_register_writes_.find(reg_name);
+    if (it != activated_register_writes_.end()) {
+      previously_activated_write = it->second;
+    }
 
-      // Next register state is the input data value.
-      return ResolveAsValue(reg_write->data());
-    };
+    std::optional<Value> reset_value;
+    if (reg_write->reset().has_value()) {
+      bool reset_signal = ResolveAsBool(reg_write->reset().value());
+      std::optional<ResetBehavior> reset_behavior =
+          reg_write->function_base()->AsBlockOrDie()->GetResetBehavior();
+      if ((reset_signal && !reset_behavior->active_low) ||
+          (!reset_signal && reset_behavior->active_low)) {
+        // Reset is activated. Next register state is the reset value.
+        reset_value = reg_write->GetRegister()->reset_value();
+      }
+    }
 
-    next_reg_state_[reg_name] = get_next_reg_state();
-    VLOG(3) << absl::StreamFormat("Next register value for register %s: %s",
-                                  reg_name,
-                                  next_reg_state_.at(reg_name).ToString());
+    std::optional<Value> next;
+    if (reset_value.has_value()) {
+      next = reset_value;
+    } else if (is_activated) {
+      if (previously_activated_write.has_value()) {
+        return absl::InternalError(absl::StrFormat(
+            "Multiple writes of register `%s` activated in the same cycle: "
+            "%s "
+            "and %s",
+            reg_name, it->second->GetName(), reg_write->GetName()));
+      }
+      activated_register_writes_[reg_name] = reg_write;
+      next = ResolveAsValue(reg_write->data());
+    }
+
+    if (next.has_value()) {
+      next_reg_state_[reg_name] = next.value();
+      VLOG(3) << absl::StreamFormat("Next register value for register %s: %s",
+                                    reg_name,
+                                    next_reg_state_.at(reg_name).ToString());
+    } else if (!previously_activated_write.has_value()) {
+      // This register write has not activated nor has any other (yet). The
+      // register value is preserved. This ensures that the existing register
+      // value gets copied over to the next register state. This may be
+      // overwritten by a later register write operation.
+      next_reg_state_[reg_name] = reg_state_.at(reg_name);
+    }
 
     // Register writes have empty tuple types.
     return SetValueResult(reg_write, Value::Tuple({}));
@@ -131,6 +150,11 @@ class BlockInterpreter final : public IrInterpreter {
 
   // The next state for the registers.
   absl::flat_hash_map<std::string, Value>& next_reg_state_;
+
+  // A register may have multiple writes so keep a track of which RegisterWrite
+  // fired (predicated on) for each register during evaluation. It is an error
+  // if more than one fired.
+  absl::flat_hash_map<std::string, RegisterWrite*> activated_register_writes_;
 };
 
 class FifoModel {

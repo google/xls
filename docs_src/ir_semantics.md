@@ -120,9 +120,9 @@ port is represented with a `input_port` or `output_port` operation.
 #### Register
 
 A register is a representation of a hardware register (flop). Registers can be
-arbitrarily-typed. Each register must have a single `register_write` and a
-single `register_read` operation for writing and reading the register
-respectively.
+arbitrarily-typed. Each register must have a single `register_read` and one or
+more `register_write` operations for reading and writing the register
+respectively. Only a single `register_write` can fire each cycle.
 
 Each register may optionally specify a reset value. The reset signal and reset
 behavior (e.g., active low) is set as a block attribute. If specified the reset
@@ -1577,7 +1577,7 @@ The type `T` of the result of the operation is the type of the register.
 
 Writes a value to a register.
 
-The write to the register may be conditioned upon an optional load-enable and/or
+A write to the register may be conditioned upon an optional load-enable and/or
 reset signal. The register is defined on the block.
 
 If `reset` is given the `register` associated with this read **must** have a
@@ -1590,6 +1590,10 @@ If the `load_enable` argument is present the register will only be written if
 the argument evaluates to `1`, remaining unchanged otherwise (i.e. if present it
 is equivalent to `register_write.REG(sel(load_enable, {register_read.REG,
 data}))`).
+
+A register may have multiple writes. If more than one activates (load enable is
+not present or is true) in a single cycle an error is raised at software
+run-time (IR interpreter/JIT).
 
 The `reset` and `load_enable` arguments affect the value written according to
 the following table.

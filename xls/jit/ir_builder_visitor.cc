@@ -1496,9 +1496,13 @@ absl::Status IrBuilderVisitor::HandleRegisterRead(RegisterRead* read) {
 absl::Status IrBuilderVisitor::HandleRegisterWrite(RegisterWrite* write) {
   XLS_RET_CHECK(write->function_base()->IsBlock())
       << "Register-write in non-block function.";
+  Block* block = write->function_base()->AsBlockOrDie();
   XLS_ASSIGN_OR_RETURN(Node * paired_read,
-                       write->function_base()->AsBlockOrDie()->GetRegisterRead(
-                           write->GetRegister()));
+                       block->GetRegisterRead(write->GetRegister()));
+  XLS_ASSIGN_OR_RETURN(absl::Span<RegisterWrite* const> all_register_writes,
+                       block->GetRegisterWrites(write->GetRegister()));
+  bool is_multiwrite_register = all_register_writes.size() > 1;
+
   std::vector<std::string> names{"data"};
   names.reserve(write->operand_count() + 1);
   if (write->load_enable()) {
@@ -1507,18 +1511,47 @@ absl::Status IrBuilderVisitor::HandleRegisterWrite(RegisterWrite* write) {
   if (write->reset()) {
     names.push_back("reset");
   }
-  XLS_ASSIGN_OR_RETURN(
-      NodeIrContext node_context,
-      NewNodeIrContext(
-          write, names,
-          /*include_wrapper_args=*/write->load_enable().has_value()));
+  XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
+                       NewNodeIrContext(write, names,
+                                        /*include_wrapper_args=*/
+                                        is_multiwrite_register ||
+                                            write->load_enable().has_value()));
+
+  // Maybe invoke the callback which records that this operation was active
+  // (load enable is true, or no load enable). After the jitted block function
+  // done executing the register value is reconciled if there are multiple
+  // register writes.
+  auto maybe_invoke_callback = [&](llvm::IRBuilder<>* builder) {
+    if (!is_multiwrite_register) {
+      return;
+    }
+    int64_t register_index = 0;
+    for (Register* r : block->GetRegisters()) {
+      if (r == write->GetRegister()) {
+        break;
+      }
+      ++register_index;
+    }
+    int64_t register_write_index = 0;
+    for (RegisterWrite* rw : all_register_writes) {
+      if (rw == write) {
+        break;
+      }
+      ++register_write_index;
+    }
+    InvokeCallback<InstanceContext::kRecordActiveRegisterWrite>(
+        builder, llvm::Type::getVoidTy(builder->getContext()),
+        node_context.GetInstanceContextArg(),
+        {builder->getInt64(register_index),
+         builder->getInt64(register_write_index)});
+  };
+
   llvm::Function* function = node_context.llvm_function();
   llvm::Type* return_type =
       type_converter()->ConvertToLlvmType(write->data()->GetType());
 
   llvm::BasicBlock* current_step =
       node_context.entry_builder().GetInsertBlock();
-  // llvm::Value* output_buffer = node_context.GetOutputPtr(0);
   // entry:
   //   (reset present):       if reset == active { goto reset; }
   //   (load_enable present): if !load_enable { goto noload; }
@@ -1603,6 +1636,9 @@ absl::Status IrBuilderVisitor::HandleRegisterWrite(RegisterWrite* write) {
   llvm::Value* result_value;
   if (write->load_enable() || write->reset()) {
     llvm::IRBuilder<> current_step_builder(current_step);
+    if (write->load_enable()) {
+      maybe_invoke_callback(&current_step_builder);
+    }
     // need a phi.
     llvm::IRBuilder<> return_block_builder(*return_value_block);
     auto phi = return_block_builder.CreatePHI(
@@ -1626,6 +1662,7 @@ absl::Status IrBuilderVisitor::HandleRegisterWrite(RegisterWrite* write) {
     llvm::IRBuilder<> current_step_builder(current_step);
     result_value = node_context.LoadOperand(RegisterWrite::kDataOperand,
                                             &current_step_builder);
+    maybe_invoke_callback(&current_step_builder);
   }
 
   llvm::IRBuilder<> current_step_builder(current_step);

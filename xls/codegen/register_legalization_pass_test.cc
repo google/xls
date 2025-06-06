@@ -97,9 +97,9 @@ TEST_F(RegisterLegalizationPassTest, KeepsUnitListsValid) {
   auto read0 = bb.InsertRegister("reg0", bb.Tuple({}));
   XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto* reg32, blk->GetRegister("reg32"));
-  XLS_ASSERT_OK_AND_ASSIGN(auto* write32, blk->GetRegisterWrite(reg32));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* write32, blk->GetUniqueRegisterWrite(reg32));
   XLS_ASSERT_OK_AND_ASSIGN(auto* reg0, blk->GetRegister("reg0"));
-  XLS_ASSERT_OK_AND_ASSIGN(auto* write0, blk->GetRegisterWrite(reg0));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* write0, blk->GetUniqueRegisterWrite(reg0));
   CodegenContext context(blk);
   context.GetMetadataForBlock(blk)
       .streaming_io_and_pipeline.pipeline_registers.push_back(

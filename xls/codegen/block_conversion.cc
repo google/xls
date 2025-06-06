@@ -553,13 +553,13 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
 
   XLS_ASSIGN_OR_RETURN(
       RegisterWrite * data_skid_reg_write,
-      block->GetRegisterWrite(data_skid_reg_read->GetRegister()));
+      block->GetUniqueRegisterWrite(data_skid_reg_read->GetRegister()));
   XLS_RETURN_IF_ERROR(
       data_skid_reg_write->ReplaceExistingLoadEnable(skid_data_load_en));
 
   XLS_ASSIGN_OR_RETURN(
       RegisterWrite * data_valid_skid_reg_write,
-      block->GetRegisterWrite(data_valid_skid_reg_read->GetRegister()));
+      block->GetUniqueRegisterWrite(data_valid_skid_reg_read->GetRegister()));
 
   // If the skid valid is being set
   //   - If it's being set to 1, then the input is being read,
