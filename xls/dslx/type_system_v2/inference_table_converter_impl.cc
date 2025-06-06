@@ -1696,7 +1696,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       TypeAnnotationFilter filter =
           caller_type_annotation_filter
               .Chain(TypeAnnotationFilter::FilterParamTypes())
-              .Chain(TypeAnnotationFilter::FilterRefsWithMissingTypeInfo(
+              .Chain(TypeAnnotationFilter::FilterRefsToUnknownParametrics(
                   actual_arg_ti));
       XLS_RETURN_IF_ERROR(resolver_->ResolveIndirectTypeAnnotations(
           actual_arg_context, actual_arg_annotations, filter));
@@ -1766,9 +1766,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       for (const ParametricBinding* binding : implicit_parametrics) {
         binding_names.push_back(binding->identifier());
       }
-      return absl::InvalidArgumentError(
-          absl::StrCat("Could not infer parametric(s): ",
-                       absl::StrJoin(binding_names, ", ")));
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Could not infer parametric(s): ", absl::StrJoin(binding_names, ", "),
+          "; target context: ", ToString(target_context)));
     }
     return values;
   }

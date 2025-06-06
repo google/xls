@@ -47,8 +47,9 @@ class TypeAnnotationFilter {
   static TypeAnnotationFilter FilterParamTypes();
 
   // Creates a filter that excludes any annotation containing a reference (e.g.
-  // `NameRef`) with no type info in `ti`.
-  static TypeAnnotationFilter FilterRefsWithMissingTypeInfo(const TypeInfo* ti);
+  // `NameRef`) to a parametric with no type info in `ti`.
+  static TypeAnnotationFilter FilterRefsToUnknownParametrics(
+      const TypeInfo* ti);
 
   // Creates a filter that excludes any annotation containing a reference to the
   // given struct.

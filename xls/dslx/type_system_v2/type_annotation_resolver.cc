@@ -346,6 +346,8 @@ class StatefulResolver : public TypeAnnotationResolver {
     // This is purely to avoid wasting time on annotations that clearly need no
     // resolution.
     if (GetSignednessAndBitCount(annotation).ok() || IsToken(annotation)) {
+      XLS_ASSIGN_OR_RETURN(annotation, ReplaceForeignConstantRefs(annotation));
+      trace.SetResult(annotation);
       return annotation;
     }
     VLOG(4) << "Resolving variables in: " << annotation->ToString()

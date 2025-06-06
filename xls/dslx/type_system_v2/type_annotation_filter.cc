@@ -81,22 +81,23 @@ std::string KindToString(TypeAnnotationFilterKind kind) {
   }
 }
 
-// Returns true if `annotation` contains any `NameRef` whose type info has not
-// (yet) been generated. The effective `TypeInfo` is either `default_ti`; or,
-// for invocation-scoped annotations, the `TypeInfo` for the relevant
-// parametric invocation.
-bool HasAnyReferencesWithMissingTypeInfo(const TypeInfo* ti,
-                                         const TypeAnnotation* annotation) {
+// Returns true if `annotation` contains any `NameRef` to a parametric binding
+// whose type info has not (yet) been generated. The effective `TypeInfo` is
+// either `default_ti`; or, for invocation-scoped annotations, the `TypeInfo`
+// for the relevant parametric invocation.
+bool HasAnyReferencesToUnknownParametrics(const TypeInfo* ti,
+                                          const TypeAnnotation* annotation) {
   FreeVariables vars =
       GetFreeVariablesByLambda(annotation, [&](const NameRef& ref) {
         if (!std::holds_alternative<const NameDef*>(ref.name_def())) {
           return false;
         }
         const NameDef* name_def = std::get<const NameDef*>(ref.name_def());
-        bool result = name_def->parent() != nullptr &&
-                      name_def->parent()->kind() != AstNodeKind::kFunction &&
-                      !ti->GetItem(name_def).has_value() &&
-                      !ti->IsKnownConstExpr(name_def);
+        bool result =
+            name_def->parent() != nullptr &&
+            name_def->parent()->kind() == AstNodeKind::kParametricBinding &&
+            !ti->GetItem(name_def).has_value() &&
+            !ti->IsKnownConstExpr(name_def);
         if (result) {
           VLOG(6) << "Found free var " << name_def->ToString()
                   << " in annotation " << annotation->ToString();
@@ -238,13 +239,13 @@ TypeAnnotationFilter TypeAnnotationFilter::FilterParamTypes() {
                     })));
 }
 
-TypeAnnotationFilter TypeAnnotationFilter::FilterRefsWithMissingTypeInfo(
+TypeAnnotationFilter TypeAnnotationFilter::FilterRefsToUnknownParametrics(
     const TypeInfo* ti) {
-  return TypeAnnotationFilter(std::make_unique<Impl>(
-      FilterElement(TypeAnnotationFilterKind::kMissingTypeInfo,
-                    [ti](const TypeAnnotation* candidate) {
-                      return HasAnyReferencesWithMissingTypeInfo(ti, candidate);
-                    })));
+  return TypeAnnotationFilter(std::make_unique<Impl>(FilterElement(
+      TypeAnnotationFilterKind::kMissingTypeInfo,
+      [ti](const TypeAnnotation* candidate) {
+        return HasAnyReferencesToUnknownParametrics(ti, candidate);
+      })));
 }
 
 TypeAnnotationFilter TypeAnnotationFilter::FilterReferencesToStruct(

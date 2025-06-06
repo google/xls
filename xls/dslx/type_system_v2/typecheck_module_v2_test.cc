@@ -6933,6 +6933,23 @@ fn main() -> uN[32] {
                   HasNodeWithType("imported::SOME_CONSTANT", "uN[32]")))));
 }
 
+TEST(TypecheckV2Test, ImportedConstantSizeAsParametricValue) {
+  constexpr std::string_view kImported = R"(
+pub const SOME_CONSTANT = u32:8;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+
+const X = foo(uN[imported::SOME_CONSTANT]:0);
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("X", "uN[8]"))));
+}
+
 TEST(TypecheckV2Test, ChainOfImports) {
   constexpr std::string_view kFirstImport = R"(
 pub const SOME_CONSTANT = u32:1;
