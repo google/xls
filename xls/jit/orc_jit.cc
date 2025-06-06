@@ -69,9 +69,10 @@ OrcJit::OrcJit(int64_t opt_level, bool include_msan,
       context_(std::make_unique<llvm::LLVMContext>()),
       execution_session_(
           std::make_unique<llvm::orc::UnsupportedExecutorProcessControl>()),
-      object_layer_(
-          execution_session_,
-          []() { return std::make_unique<llvm::SectionMemoryManager>(); }),
+      object_layer_(execution_session_,
+                    [](const llvm::MemoryBuffer&) {
+                      return std::make_unique<llvm::SectionMemoryManager>();
+                    }),
       dylib_(execution_session_.createBareJITDylib("main")) {}
 
 OrcJit::~OrcJit() {
