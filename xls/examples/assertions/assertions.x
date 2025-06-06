@@ -14,6 +14,8 @@
 
 // Example of assertions being used in functions.
 
+#![feature(type_inference_v2)]
+
 fn func_0<N: u32>(x: bits[N]) -> bits[N] {
     const_assert!(N == u32:32);
     assert!(x < u32:5, "x_less_than_5");

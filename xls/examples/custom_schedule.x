@@ -14,6 +14,9 @@
 
 // This is just an example proc to display how io_constraints can force particular schedules if
 // needed.
+
+#![feature(type_inference_v2)]
+
 pub proc Accumulator {
     data_in: chan<uN[8]> in;
     activate: chan<uN[1]> in;

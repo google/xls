@@ -24,6 +24,8 @@
 // Source: https://en.wikipedia.org/wiki/Bitonic_sorter
 ////////////////////////////////////////////////////////////////////////////////
 
+#![feature(type_inference_v2)]
+
 import std;
 
 fn swap<B: u32, N: u32>(array: uN[B][N], i: u32, j: u32) -> uN[B][N] {

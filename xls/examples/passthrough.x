@@ -15,6 +15,8 @@
 // A simple proc that forwards the received information from
 // an input channel to an output channel.
 
+#![feature(type_inference_v2)]
+
 proc Passthrough {
     data_r: chan<u32> in;
     data_s: chan<u32> out;

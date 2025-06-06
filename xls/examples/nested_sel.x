@@ -14,6 +14,8 @@
 
 // Small nested-select microbenchmark.
 
+#![feature(type_inference_v2)]
+
 fn mysel(cond: bool, x: u8, y: u8) -> u8 {
   if cond { x } else { y }
 }

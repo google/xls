@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(type_inference_v2)]
+
 // Returns the add result, widened to reflect the carry bit.
 fn tiny_adder(x: u1, y: u1) -> u2 {
   let lhs = x as u2;
