@@ -170,7 +170,7 @@ absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
   return fb.BuildWithReturnValue(result);
 }
 
-bool GetRequiresImplicitToken(dslx::Function& f, ImportData* import_data,
+bool GetRequiresImplicitToken(const dslx::Function& f, ImportData* import_data,
                               const ConvertOptions& options) {
   std::optional<bool> requires_opt =
       import_data->GetRootTypeInfo(f.owner()).value()->GetRequiresImplicitToken(
@@ -500,7 +500,8 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
   VLOG(5) << "Constructed IR converter: " << this;
 }
 
-bool FunctionConverter::GetRequiresImplicitToken(dslx::Function* f) const {
+bool FunctionConverter::GetRequiresImplicitToken(
+    const dslx::Function* f) const {
   return xls::dslx::GetRequiresImplicitToken(*f, import_data_, options_);
 }
 
@@ -1408,7 +1409,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
 
 absl::Status FunctionConverter::HandleForLoopCarry(
     const For* node, FunctionConverter& body_converter,
-    const std::optional<RangeData>& range_data, BValue ivar_value,
+    const std::optional<RangeData>& range_data, BValue loop_index,
     NameDefTree::Leaf ivar, AstNode* carry_node) {
   // IR `counted_for` ops only support a trip count, not a set of iterables, so
   // we need to add an offset to that trip count/index to support nonzero loop
@@ -1420,11 +1421,11 @@ absl::Status FunctionConverter::HandleForLoopCarry(
     BValue offset_literal =
         body_converter.function_builder_->Literal(index_offset);
     BValue offset_sum =
-        body_converter.function_builder_->Add(ivar_value, offset_literal);
+        body_converter.function_builder_->Add(loop_index, offset_literal);
 
     body_converter.SetNodeToIr(ToAstNode(ivar), offset_sum);
   } else {
-    body_converter.SetNodeToIr(ToAstNode(ivar), ivar_value);
+    body_converter.SetNodeToIr(ToAstNode(ivar), loop_index);
   }
 
   // Add the loop carry value.
@@ -3268,10 +3269,6 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
     const Invocation* node) {
   VLOG(5) << "Getting callee identifier for invocation: " << node->ToString();
   Expr* callee = node->callee();
-  std::string callee_name;
-  Module* m;
-  std::string scope = "";
-  Function* f = nullptr;
   if (auto* name_ref = dynamic_cast<NameRef*>(callee)) {
     if (name_ref->IsBuiltin()) {
       return name_ref->identifier();
@@ -3281,9 +3278,9 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   std::optional<const InvocationData> inv_data =
       current_type_info_->GetInvocationData(node);
   XLS_RET_CHECK(inv_data.has_value() && (*inv_data).callee() != nullptr);
-  f = const_cast<Function*>((*inv_data).callee());
-  m = f->owner();
 
+  const Function* f = (*inv_data).callee();
+  std::string scope = "";
   if (f->impl().has_value()) {
     scope = (*f->impl())->struct_ref()->ToString();
   }
@@ -3292,6 +3289,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   // resolved symbol.
   absl::btree_set<std::string> free_keys = f->GetFreeParametricKeySet();
   const CallingConvention convention = GetCallingConvention(f);
+  Module* m = f->owner();
   if (!f->IsParametric()) {
     return MangleDslxName(m->name(), f->identifier(), convention, free_keys,
                           /*parametric_env=*/nullptr, scope);
@@ -4122,8 +4120,7 @@ absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(
     }
 
     AstNode* definer = name_def->definer();
-    if (auto* use_tree_entry = dynamic_cast<UseTreeEntry*>(definer);
-        use_tree_entry != nullptr) {
+    if (auto* use_tree_entry = dynamic_cast<UseTreeEntry*>(definer)) {
       XLS_ASSIGN_OR_RETURN(
           std::optional<ConstantDef*> constant_def,
           TryResolveConstantDef(identifier, use_tree_entry, type_info));
