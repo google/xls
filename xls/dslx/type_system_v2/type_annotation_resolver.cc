@@ -310,10 +310,6 @@ class StatefulResolver : public TypeAnnotationResolver {
       TypeAnnotationFilter filter) override {
     XLS_RETURN_IF_ERROR(ResolveIndirectTypeAnnotations(parametric_context,
                                                        annotations, filter));
-    for (int i = 0; i < annotations.size(); i++) {
-      XLS_ASSIGN_OR_RETURN(annotations[i],
-                           ReplaceForeignConstantRefs(annotations[i]));
-    }
     TypeSystemTrace trace = tracer_.TraceUnify(annotations);
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* result,
@@ -388,6 +384,8 @@ class StatefulResolver : public TypeAnnotationResolver {
         break;
       }
     }
+
+    XLS_ASSIGN_OR_RETURN(annotation, ReplaceForeignConstantRefs(annotation));
     trace.SetResult(annotation);
     return annotation;
   }
