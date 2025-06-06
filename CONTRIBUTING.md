@@ -127,7 +127,7 @@ documentation on the fly as you make changes.
 
 Note that the `mkvirtualenv` command assumes you're using
 [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/index.html)
-to manage your Python environment. You'll need to adjust these instrutions if
+to manage your Python environment. You'll need to adjust these instructions if
 you're doing something different. That can include explicitly adding `mkdocs` to
 your path, if locally installed Python binaries aren't available by default.
 
