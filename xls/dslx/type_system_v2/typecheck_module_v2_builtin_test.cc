@@ -12,14 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
+#include "xls/common/status/matchers.h"
+#include "xls/dslx/create_import_data.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/matchers.h"
 
 namespace xls::dslx {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 
@@ -1081,6 +1088,20 @@ TEST(TypecheckV2BuiltinTest, WideningCastImplicitDestinationFails) {
   // This (intentionally) fails the same way as v1.
   EXPECT_THAT(R"(const Y: u32 = widening_cast(u31:3);)",
               TypecheckFails(HasSubstr("Could not infer parametric(s): DEST")));
+}
+
+TEST(TypecheckV2BuiltinTest, WideningCastToImportedType) {
+  constexpr std::string_view kImported = R"(
+pub type MyInt = u10;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+const Y = widening_cast<imported::MyInt>(u8:1);
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("Y", "uN[10]"))));
 }
 
 TEST(TypecheckV2BuiltinTest, ZipExplicitSizes) {

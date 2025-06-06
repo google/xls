@@ -377,7 +377,11 @@ cc_test(
     deps = [
         ":matchers",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
         "//xls/dslx/type_system:typecheck_test_utils",
+        "@com_google_absl//absl/status:status_matchers",
         "@googletest//:gtest",
     ],
 )

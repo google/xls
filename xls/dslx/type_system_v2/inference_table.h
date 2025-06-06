@@ -497,6 +497,11 @@ absl::StatusOr<Number*> MakeTypeCheckedNumber(
     Module& module, InferenceTable& table, const Span& span, int64_t value,
     const TypeAnnotation* type_annotation);
 
+// Returns whether the given `expr` is a `ColonRef` to a type as opposed to a
+// value. The determination is based on table data for `expr`; this function
+// will not actually resolve and analyze the `ColonRef` itself.
+bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_H_

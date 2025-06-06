@@ -393,30 +393,31 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const std::vector<ExprOrType>& explicit_parametrics) {
     int i = 0;
     for (ExprOrType parametric : explicit_parametrics) {
-      if (i < formal_bindings.size()) {
-        const ParametricBinding* binding = formal_bindings.at(i);
-        bool formal_is_type_parametric =
-            binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>();
+      if (i >= formal_bindings.size()) {
+        break;
+      }
+      const ParametricBinding* binding = formal_bindings.at(i);
+      bool formal_is_type_parametric =
+          binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>();
+      if (formal_is_type_parametric) {
         if (std::holds_alternative<Expr*>(parametric) &&
-            formal_is_type_parametric) {
-          const Expr* expr = std::get<Expr*>(parametric);
+            !IsColonRefWithTypeTarget(table_, std::get<Expr*>(parametric))) {
+          const AstNode* expr = ToAstNode(parametric);
           return TypeInferenceErrorStatus(
-              expr->span(), nullptr,
+              *expr->GetSpan(), nullptr,
               absl::Substitute("Expected parametric type, saw `$0`",
                                expr->ToString()),
               file_table_);
         }
-        if (std::holds_alternative<TypeAnnotation*>(parametric) &&
-            !formal_is_type_parametric) {
-          const TypeAnnotation* type = std::get<TypeAnnotation*>(parametric);
-          return TypeInferenceErrorStatus(
-              type->span(), nullptr,
-              absl::Substitute("Expected parametric value, saw `$0`",
-                               type->ToString()),
-              file_table_);
-        }
-      } else {
-        break;
+      } else if (std::holds_alternative<TypeAnnotation*>(parametric) ||
+                 IsColonRefWithTypeTarget(table_,
+                                          std::get<Expr*>(parametric))) {
+        const AstNode* type = ToAstNode(parametric);
+        return TypeInferenceErrorStatus(
+            *type->GetSpan(), nullptr,
+            absl::Substitute("Expected parametric value, saw `$0`",
+                             type->ToString()),
+            file_table_);
       }
       i++;
     }
@@ -625,7 +626,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     for (int i = 0; i < explicit_parametrics.size(); i++) {
       ExprOrType explicit_parametric = explicit_parametrics[i];
       const ParametricBinding* formal_parametric = bindings[i];
-      if (std::holds_alternative<Expr*>(explicit_parametric)) {
+      if (std::holds_alternative<Expr*>(explicit_parametric) &&
+          !IsColonRefWithTypeTarget(table_,
+                                    std::get<Expr*>(explicit_parametric))) {
         const Expr* parametric_value_expr =
             std::get<Expr*>(explicit_parametric);
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
@@ -1516,10 +1519,20 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           binding->type_annotation()->IsAnnotation<GenericTypeAnnotation>()) {
         // This is a <T: type> reference
         ExprOrType actual_parametric_type = explicit_parametrics[i];
+        const TypeAnnotation* type;
+        if (std::holds_alternative<TypeAnnotation*>(actual_parametric_type)) {
+          type = std::get<TypeAnnotation*>(actual_parametric_type);
+        } else {
+          Expr* expr = std::get<Expr*>(actual_parametric_type);
+          XLS_RET_CHECK(expr->kind() == AstNodeKind::kColonRef);
+          std::optional<const TypeAnnotation*> colon_ref_annotation =
+              table_.GetTypeAnnotation(expr);
+          XLS_RET_CHECK(colon_ref_annotation.has_value());
+          type = *colon_ref_annotation;
+        }
         XLS_RETURN_IF_ERROR(
             table_.AddTypeAnnotationToVariableForParametricContext(
-                invocation_context, binding,
-                std::get<TypeAnnotation*>(actual_parametric_type)));
+                invocation_context, binding, type));
         continue;
       }
 

@@ -187,7 +187,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // `SomeEnum::SOME_CONSTANT` case.
       std::variant<const NameDef*, BuiltinNameDef*> any_name_def =
           std::get<NameRef*>(node->subject())->name_def();
-      if (auto* name_def = std::get_if<const NameDef*>(&any_name_def);
+      if (const NameDef** name_def = std::get_if<const NameDef*>(&any_name_def);
           name_def && (*name_def)->definer()->kind() == AstNodeKind::kEnumDef) {
         const auto* enum_def =
             down_cast<const EnumDef*>((*name_def)->definer());
@@ -198,7 +198,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                     enum_def->span(),
                     TypeDefinition(const_cast<EnumDef*>(enum_def))),
                 std::vector<ExprOrType>(), std::nullopt);
-        table_.SetColonRefTarget(node, type_ref_annotation);
+        table_.SetColonRefTarget(node, *name_def);
         return table_.SetTypeAnnotation(node, type_ref_annotation);
       }
 
@@ -1709,12 +1709,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         XLS_RETURN_IF_ERROR(expr->Accept(this));
 
         // The target must be a type or it's an invalid parametric to the macro.
-        std::optional<const AstNode*> colon_ref_target =
-            table_.GetColonRefTarget(down_cast<ColonRef*>(expr));
-        if (colon_ref_target.has_value() &&
-            ((*colon_ref_target)->kind() == AstNodeKind::kTypeAlias ||
-             (*colon_ref_target)->kind() == AstNodeKind::kEnumDef ||
-             (*colon_ref_target)->kind() == AstNodeKind::kTypeAnnotation)) {
+        if (IsColonRefWithTypeTarget(table_, expr)) {
           return absl::OkStatus();
         }
       }

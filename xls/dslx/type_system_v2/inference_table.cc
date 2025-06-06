@@ -893,12 +893,23 @@ absl::StatusOr<Number*> MakeTypeCheckedNumber(
   return number;
 }
 
-// Variant that takes a raw `int64_t` value for the number.
 absl::StatusOr<Number*> MakeTypeCheckedNumber(
     Module& module, InferenceTable& table, const Span& span, int64_t value,
     const TypeAnnotation* type_annotation) {
   return MakeTypeCheckedNumber(module, table, span, InterpValue::MakeS64(value),
                                type_annotation);
+}
+
+bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr) {
+  if (expr->kind() != AstNodeKind::kColonRef) {
+    return false;
+  }
+  std::optional<const AstNode*> colon_ref_target =
+      table.GetColonRefTarget(down_cast<const ColonRef*>(expr));
+  return colon_ref_target.has_value() &&
+         ((*colon_ref_target)->kind() == AstNodeKind::kTypeAlias ||
+          (*colon_ref_target)->kind() == AstNodeKind::kEnumDef ||
+          (*colon_ref_target)->kind() == AstNodeKind::kTypeAnnotation);
 }
 
 }  // namespace xls::dslx
