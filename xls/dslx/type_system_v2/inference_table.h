@@ -59,6 +59,12 @@ enum class TypeInferenceFlag : uint8_t {
   // annotation can be unified with larger ones that do not take away
   // signedness, and the result is the larger type.
   kMinSize = 1,
+
+  // The standard type of an integer based on its use as an index or slice
+  // bound. A type with these semantics can be unified with a mismatching
+  // integer type, provided they agree on signedness. In such a case, a standard
+  // size beats a min size, but a type with no flags beats a standard size.
+  kStandardType = 2,
 };
 
 // Returns whether the given `flag` has `value` set. For the time being, we

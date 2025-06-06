@@ -1180,37 +1180,40 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     auto* lhs_tvta = module_.Make<TypeVariableTypeAnnotation>(lhs_variable);
 
     XLS_RETURN_IF_ERROR(absl::visit(
-        Visitor{[&](Slice* slice) -> absl::Status {
-                  return table_.SetTypeAnnotation(
-                      node, module_.Make<SliceTypeAnnotation>(node->span(),
-                                                              lhs_tvta, slice));
-                },
-                [&](WidthSlice* width_slice) -> absl::Status {
-                  return table_.SetTypeAnnotation(
-                      node, module_.Make<SliceTypeAnnotation>(
-                                node->span(), lhs_tvta, width_slice));
-                },
-                [&](Expr* expr) -> absl::Status {
-                  // A node like `array[i]` is basically a binary operator with
-                  // independent
-                  // contexts on the LHS and RHS. The RHS is constrained to u32,
-                  // while the LHS must be some kind of array. The "some kind of
-                  // array" part is not capturable in the table, but readily
-                  // verifiable at the end of type inference, so we defer that.
-                  XLS_ASSIGN_OR_RETURN(
-                      const NameRef* rhs_variable,
-                      table_.DefineInternalVariable(
-                          InferenceVariableKind::kType, const_cast<Expr*>(expr),
-                          GenerateInternalTypeVariableName(expr) + "_index"));
-                  XLS_RETURN_IF_ERROR(
-                      table_.SetTypeVariable(expr, rhs_variable));
+        Visitor{
+            [&](Slice* slice) -> absl::Status {
+              return table_.SetTypeAnnotation(
+                  node, module_.Make<SliceTypeAnnotation>(node->span(),
+                                                          lhs_tvta, slice));
+            },
+            [&](WidthSlice* width_slice) -> absl::Status {
+              return table_.SetTypeAnnotation(
+                  node, module_.Make<SliceTypeAnnotation>(
+                            node->span(), lhs_tvta, width_slice));
+            },
+            [&](Expr* expr) -> absl::Status {
+              // A node like `array[i]` is basically a binary operator with
+              // independent contexts on the LHS and RHS. The RHS is constrained
+              // to u32, while the LHS must be some kind of array. The "some
+              // kind of array" part is not capturable in the table, but readily
+              // verifiable at the end of type inference, so we defer that.
+              XLS_ASSIGN_OR_RETURN(
+                  const NameRef* rhs_variable,
+                  table_.DefineInternalVariable(
+                      InferenceVariableKind::kType, const_cast<Expr*>(expr),
+                      GenerateInternalTypeVariableName(expr) + "_index"));
+              XLS_RETURN_IF_ERROR(table_.SetTypeVariable(expr, rhs_variable));
+              const TypeAnnotation* u32 =
+                  CreateU32Annotation(module_, expr->span());
+              XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(expr, u32));
+              table_.SetAnnotationFlag(u32, TypeInferenceFlag::kStandardType);
 
-                  // The type of the entire expr is then
-                  // ElementType(lhs_variable).
-                  XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-                      node, module_.Make<ElementTypeAnnotation>(lhs_tvta)));
-                  return absl::OkStatus();
-                }},
+              // The type of the entire expr is then
+              // ElementType(lhs_variable).
+              XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+                  node, module_.Make<ElementTypeAnnotation>(lhs_tvta)));
+              return absl::OkStatus();
+            }},
         node->rhs()));
 
     return DefaultHandler(node);
@@ -1233,30 +1236,31 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleSlice(const Slice* node) override {
     // A general slice uses a signed start and/or limit.
 
-    if (node->start() != nullptr) {
+    const NameRef* bound_variable = nullptr;
+    if (node->start() != nullptr || node->limit() != nullptr) {
       XLS_ASSIGN_OR_RETURN(
-          const NameRef* start_variable,
+          bound_variable,
           table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Expr*>(node->start()),
-              GenerateInternalTypeVariableName(node->start()) +
-                  "_slice_start"));
+              InferenceVariableKind::kType, const_cast<Slice*>(node),
+              GenerateInternalTypeVariableName(node)));
+    }
+
+    if (node->start() != nullptr) {
       XLS_RETURN_IF_ERROR(
-          table_.SetTypeVariable(node->start(), start_variable));
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          node->start(), CreateS32Annotation(module_, node->start()->span())));
+          table_.SetTypeVariable(node->start(), bound_variable));
+      const TypeAnnotation* s32 =
+          CreateS32Annotation(module_, node->start()->span());
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node->start(), s32));
+      table_.SetAnnotationFlag(s32, TypeInferenceFlag::kStandardType);
     }
 
     if (node->limit() != nullptr) {
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* limit_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Expr*>(node->limit()),
-              GenerateInternalTypeVariableName(node->limit()) +
-                  "_slice_limit"));
       XLS_RETURN_IF_ERROR(
-          table_.SetTypeVariable(node->limit(), limit_variable));
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          node->limit(), CreateS32Annotation(module_, node->limit()->span())));
+          table_.SetTypeVariable(node->limit(), bound_variable));
+      const TypeAnnotation* s32 =
+          CreateS32Annotation(module_, node->limit()->span());
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node->limit(), s32));
+      table_.SetAnnotationFlag(s32, TypeInferenceFlag::kStandardType);
     }
 
     return DefaultHandler(node);
@@ -1282,8 +1286,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             GenerateInternalTypeVariableName<Expr>(node->index())));
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->index(), index_type_variable));
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node->index(), CreateU32Annotation(module_, node->index()->span())));
+    const TypeAnnotation* u32 =
+        CreateU32Annotation(module_, node->index()->span());
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node->index(), u32));
+    table_.SetAnnotationFlag(u32, TypeInferenceFlag::kStandardType);
 
     // The type of the entire expr is then ElementType(tuple_type_variable,
     // index).
@@ -1913,6 +1919,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   std::string GenerateInternalTypeVariableName(const Range* node) {
     return absl::StrCat("internal_type_range_element_at_",
                         node->span().ToString(file_table_));
+  }
+  // Specialization for `Slice` nodes.
+  template <>
+  std::string GenerateInternalTypeVariableName(const Slice* node) {
+    return absl::StrCat("internal_type_slice_bound_at_",
+                        node->GetSpan()->ToString(file_table_));
   }
   // Variant for an actual struct member expr.
   std::string GenerateInternalTypeVariableName(

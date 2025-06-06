@@ -73,6 +73,8 @@ std::string_view TypeInferenceFlagToString(TypeInferenceFlag flag) {
       return "none";
     case TypeInferenceFlag::kMinSize:
       return "min-size";
+    case TypeInferenceFlag::kStandardType:
+      return "standard-type";
   }
 }
 

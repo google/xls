@@ -54,6 +54,14 @@ struct SignednessAndSize {
   int64_t size;
 };
 
+bool operator==(const SignednessAndSize& x, const SignednessAndSize& y) {
+  return x.flag == y.flag && x.is_signed == y.is_signed && x.size == y.size;
+}
+
+bool operator!=(const SignednessAndSize& x, const SignednessAndSize& y) {
+  return !(x == y);
+}
+
 const TypeAnnotation* SignednessAndSizeToAnnotation(
     Module& module, const SignednessAndSize& signedness_and_size,
     const Span& span) {
@@ -487,6 +495,7 @@ class Unifier {
   absl::StatusOr<const TypeAnnotation*> UnifyBitsLikeTypeAnnotations(
       const std::vector<const TypeAnnotation*>& annotations, const Span& span) {
     std::optional<SignednessAndSize> unified_signedness_and_bit_count;
+    const TypeAnnotation* prior_annotation = annotations[0];
     for (int i = 0; i < annotations.size(); ++i) {
       const TypeAnnotation* current_annotation = annotations[i];
       XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
@@ -510,12 +519,25 @@ class Unifier {
           .is_signed = current_annotation_signedness,
           .size = current_annotation_raw_bit_count};
 
+      std::optional<SignednessAndSize> prior_signedness_and_bit_count =
+          unified_signedness_and_bit_count;
       XLS_ASSIGN_OR_RETURN(
           unified_signedness_and_bit_count,
           UnifySignednessAndSize(parametric_context_,
                                  unified_signedness_and_bit_count,
                                  current_annotation_signedness_and_bit_count,
-                                 annotations[0], current_annotation));
+                                 prior_annotation, current_annotation));
+
+      // Update which annotation is mentioned in a possible type mismatch error
+      // in a later iteration of the loop. The heuristic here is to favor the
+      // first annotation unless it gets superseded, because the first one tends
+      // to be in user-specified form.
+      if (prior_signedness_and_bit_count.has_value() &&
+          *unified_signedness_and_bit_count !=
+              *prior_signedness_and_bit_count) {
+        prior_annotation = current_annotation;
+      }
+
       VLOG(6) << "Unified type so far has signedness: "
               << unified_signedness_and_bit_count->is_signed
               << " and bit count: " << unified_signedness_and_bit_count->size;
@@ -568,8 +590,7 @@ class Unifier {
     // `UnifySignednessAndSize`, and not necessarily the current call.
     auto update_annotation = [&](const SignednessAndSize& signedness_and_size,
                                  const TypeAnnotation* annotation) {
-      return HasInferenceFlag(signedness_and_size.flag,
-                              TypeInferenceFlag::kMinSize)
+      return signedness_and_size.flag != TypeInferenceFlag::kNone
                  ? SignednessAndSizeToAnnotation(module_, signedness_and_size,
                                                  annotation->span())
                  : annotation;
@@ -601,7 +622,19 @@ class Unifier {
       }
       return bit_count_mismatch_error();
     }
-    // They are both explicit and must match.
+
+    // A standard size loses to an explicit size, essentially serving as a
+    // default to which min-flagged sizes are expanded when used for certain
+    // purposes like array indices.
+    const bool x_is_standard =
+        HasInferenceFlag(x->flag, TypeInferenceFlag::kStandardType);
+    const bool y_is_standard =
+        HasInferenceFlag(y.flag, TypeInferenceFlag::kStandardType);
+    if ((x_is_standard ^ y_is_standard) && x->is_signed == y.is_signed) {
+      return x_is_standard ? y : *x;
+    }
+
+    // In all other cases, they must match.
     if (x->size != y.size) {
       return bit_count_mismatch_error();
     }

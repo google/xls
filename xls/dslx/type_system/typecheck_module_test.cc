@@ -2836,10 +2836,13 @@ fn f() -> Foo {
                                            "applied to bits-typed operands"))));
 }
 
-TEST(TypecheckTest, SlicesWithMismatchedTypes) {
-  EXPECT_THAT(Typecheck("fn f(x: u8) -> u8 { x[s4:0 : s5:1] }"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Slice limit type (sN[5]) did not match")));
+TEST_P(TypecheckBothVersionsTest, SlicesWithMismatchedTypes) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: u8) -> u8 { x[s4:0 : s5:1] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Slice limit type (sN[5]) did not match"),
+                     HasSizeMismatchInV2(GetParam(), "s4", "s5"))));
 }
 
 TEST(TypecheckTest, SliceWithOutOfRangeLimit) {
@@ -2860,7 +2863,7 @@ TEST_P(TypecheckBothVersionsTest, SliceWithNonS32LiteralBounds) {
                          GetParam(),
                          "Value '40000000000000000000' does not fit in the "
                          "bitwidth of a sN[32]"),
-                     HasSizeMismatchInV2(GetParam(), "s32", "sN[67]"))));
+                     HasSizeMismatchInV2(GetParam(), "sN[32]", "sN[67]"))));
   // overlarge value in limit
   EXPECT_THAT(
       Typecheck("fn f(x: uN[128]) -> uN[128] { x[:40000000000000000000] }"),
@@ -2869,7 +2872,7 @@ TEST_P(TypecheckBothVersionsTest, SliceWithNonS32LiteralBounds) {
                          GetParam(),
                          "Value '40000000000000000000' does not fit in the "
                          "bitwidth of a sN[32]"),
-                     HasSizeMismatchInV2(GetParam(), "s32", "sN[67]"))));
+                     HasSizeMismatchInV2(GetParam(), "sN[32]", "sN[67]"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, WidthSlices) {

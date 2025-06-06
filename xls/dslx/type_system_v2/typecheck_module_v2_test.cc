@@ -734,15 +734,19 @@ TEST(TypecheckV2Test, IndexWithU64IndexValue) {
               TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, AutoLiteralIndexBecomesU32) {
+  EXPECT_THAT("const X = [u32:5, 6, 7][2];",
+              TypecheckSucceeds(HasNodeWithType("2", "uN[32]")));
+}
+
 TEST(TypecheckV2Test, IndexWithSignedIndexTypeFails) {
-  EXPECT_THAT(
-      "const X = [u32:1, u32:2][s32:0];",
-      TypecheckFails(HasSubstr("sN[32] Index is not unsigned-bits typed.")));
+  EXPECT_THAT("const X = [u32:1, u32:2][s32:0];",
+              TypecheckFails(HasSignednessMismatch("s32", "uN[32]")));
 }
 
 TEST(TypecheckV2Test, IndexWithNonBitsIndexTypeFails) {
   EXPECT_THAT("const X = [u32:1, u32:2][[u32:0]];",
-              TypecheckFails(HasSubstr("uN[32][1] Index is not bits typed.")));
+              TypecheckFails(HasTypeMismatch("u32[1]", "u32")));
 }
 
 TEST(TypecheckV2Test, IndexOfConstantArray) {
@@ -5389,6 +5393,24 @@ const Z = 0b100111[X:Y];
               TypecheckSucceeds(HasNodeWithType("Z", "uN[2]")));
 }
 
+TEST(TypecheckV2Test, SliceWithNonstandardBoundType) {
+  EXPECT_THAT(R"(
+const X = s4:0;
+const Y = s4:2;
+const Z = 0b100111[X:Y];
+)",
+              TypecheckSucceeds(HasNodeWithType("Z", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, SliceWithBoundTypeMismatchFails) {
+  EXPECT_THAT(R"(
+const X = s4:0;
+const Y = s5:2;
+const Z = 0b100111[X:Y];
+)",
+              TypecheckFails(HasSizeMismatch("s4", "s5")));
+}
+
 TEST(TypecheckV2Test, SliceWithBinopInBound) {
   EXPECT_THAT(R"(
 const A = s32:4;
@@ -5605,7 +5627,7 @@ TEST(TypecheckV2Test, RangeExprSizeMismatch) {
 
 TEST(TypecheckV2Test, RangeExprTypeAnnotationMismatch) {
   EXPECT_THAT(R"(const X:u32[4] = 0..u16:4;)",
-              TypecheckFails(HasSizeMismatch("u16", "uN[0]")));
+              TypecheckFails(HasSizeMismatch("u16", "u32")));
 }
 
 TEST(TypecheckV2Test, RangeExprCheckInvalidTypePair) {
