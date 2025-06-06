@@ -153,13 +153,15 @@ Defines the reset port and reset behavior of the block.
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword        | Description                                              |
 | -------------- | -------------------------------------------------------- |
 | `port`         | Name of the reset input port.                            |
-| `asynchronous` | Boolean value (`true` or `false`) indicating whether the |
-:                : reset is asynchronous.                                   :
-| `active_low`   | Boolean value (`true` or `false`) indicating whether the |
-:                : reset signal is active-low.                              :
+| `asynchronous` | Boolean value (`true` or `false`) indicating whether the reset is asynchronous. |
+| `active_low`   | Boolean value (`true` or `false`) indicating whether the reset signal is active-low. |
+
+<!-- mdformat on -->
 
 ## Operations
 
@@ -604,17 +606,13 @@ Value     | Type
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword             | Type   | Required | Default | Description   |
 | ------------------- | ------ | -------- | ------- | ------------- |
-| `assumed_in_bounds` | `bool` | no       | False   | Are all       |
-:                     :        :          :         : indices       :
-:                     :        :          :         : assumed to be :
-:                     :        :          :         : in bounds in  :
-:                     :        :          :         : all           :
-:                     :        :          :         : circumstances :
-:                     :        :          :         : where the     :
-:                     :        :          :         : result is     :
-:                     :        :          :         : observable.   :
+| `assumed_in_bounds` | `bool` | no       | False   | Are all indices assumed to be in bounds in all circumstances where the result is observable. |
+
+<!-- mdformat on -->
 
 Returns the element of `array` indexed by the indices `idx_{0} ... idx_{N-1}`.
 The array must have at least as many dimensions as number of index elements `N`.
@@ -699,13 +697,13 @@ Value     | Type
 
 **Keyword arguments**
 
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
 | Keyword             | Type   | Required | Default | Description             |
 | ------------------- | ------ | -------- | ------- | ----------------------- |
-| `assumed_in_bounds` | `bool` | no       | False   | Are all indices assumed |
-:                     :        :          :         : to be in bounds in all  :
-:                     :        :          :         : cases where the result  :
-:                     :        :          :         : of this operation is    :
-:                     :        :          :         : observable.             :
+| `assumed_in_bounds` | `bool` | no       | False   | Are all indices assumed to be in bounds in all cases where the result of this operation is observable. |
+
+<!-- mdformat on -->
 
 Returns a copy of the input array with the element at the given indices replaced
 with the given value. If any index is out of bounds, the result is identical to
@@ -1598,23 +1596,26 @@ run-time (IR interpreter/JIT).
 The `reset` and `load_enable` arguments affect the value written according to
 the following table.
 
-| `Register` reset      | `reset` value | `load_enable` value | new value     |
-: behavior              :               :                     :               :
-| --------------------- | ------------- | ------------------- | ------------- |
-| `active_low == false` | `false` / `0` | not present         | `data`        |
-| `active_low == false` | `true` / `1`  | not present         | `reset_value` |
-| `active_low == true`  | `false` / `0` | not present         | `reset_value` |
-| `active_low == true`  | `true` / `1`  | not present         | `data`        |
-| `active_low == false` | `false` / `0` | `true` / `1`        | `data`        |
-| `active_low == false` | `true` / `1`  | `true` / `1`        | `reset_value` |
-| `active_low == true`  | `false` / `0` | `true` / `1`        | `reset_value` |
-| `active_low == true`  | `true` / `1`  | `true` / `1`        | `data`        |
-| `active_low == false` | `false` / `0` | `false` / `0`       | No change     |
-| `active_low == false` | `true` / `1`  | `false` / `0`       | `reset_value` |
-| `active_low == true`  | `false` / `0` | `false` / `0`       | `reset_value` |
-| `active_low == true`  | `true` / `1`  | `false` / `0`       | No change     |
-| not present           | not present   | `true` / `1`        | `data`        |
-| not present           | not present   | `false` / `0`       | No change     |
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+| `Register` reset behavior | `reset` value | `load_enable` value | New value     |
+| ------------------------- | ------------- | ------------------- | ------------- |
+| `active_low == false`     | `false` / `0` | Not present         | `data`        |
+| `active_low == false`     | `true` / `1`  | Not present         | `reset_value` |
+| `active_low == true`      | `false` / `0` | Not present         | `reset_value` |
+| `active_low == true`      | `true` / `1`  | Not present         | `data`        |
+| `active_low == false`     | `false` / `0` | `true` / `1`        | `data`        |
+| `active_low == false`     | `true` / `1`  | `true` / `1`        | `reset_value` |
+| `active_low == true`      | `false` / `0` | `true` / `1`        | `reset_value` |
+| `active_low == true`      | `true` / `1`  | `true` / `1`        | `data`        |
+| `active_low == false`     | `false` / `0` | `false` / `0`       | No change     |
+| `active_low == false`     | `true` / `1`  | `false` / `0`       | `reset_value` |
+| `active_low == true`      | `false` / `0` | `false` / `0`       | `reset_value` |
+| `active_low == true`      | `true` / `1`  | `false` / `0`       | No change     |
+| Not present               | Not present   | `true` / `1`        | `data`        |
+| Not present               | Not present   | `false` / `0`       | No change     |
+
+<!-- mdformat on -->
 
 **Syntax**
 
@@ -1633,13 +1634,9 @@ Value         | Type
 
 **Keyword arguments**
 
-<!-- mdformat off(multiline table cells not supported in mkdocs) -->
-
 | Keyword    | Type     | Required | Default | Description                   |
 | ---------- | -------- | -------- | ------- | ----------------------------- |
 | `register` | `string` | yes      |         | Name of the register to write |
-
-<!-- mdformat on -->
 
 The type `T` of the data operand must be the same as the type of the register.
 
