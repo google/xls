@@ -242,21 +242,24 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
 // a proc, or there is at least one new-style proc already in the package,
 // it will not be converted.
 absl::Status ConvertToNewStyleProcs(Package* package) {
-  if (package->GetTop().has_value() && package->GetTop().value()->IsProc()) {
-    // Make sure all are old style
-    for (const std::unique_ptr<xls::Proc>& proc : package->procs()) {
-      if (proc->is_new_style_proc()) {
-        VLOG(5) << "Will not convert " << package->name()
-                << " to new style procs; found a new style proc already: "
-                << proc->name();
-        return absl::OkStatus();
-      }
-    }
-    XLS_RETURN_IF_ERROR(ConvertPackageToNewStyleProcs(package));
-  } else {
-    VLOG(5) << "Will not convert " << package->name()
+  VLOG(3) << "Converting package " << package->name()
+          << " to new style procs/proc scoped channels";
+  if (!package->GetTop().has_value() || !package->GetTop().value()->IsProc()) {
+    VLOG(5) << "Will not convert package " << package->name()
             << " to new style procs; package top is not a proc";
+    return absl::OkStatus();
   }
+
+  // Make sure all are old style
+  for (const std::unique_ptr<xls::Proc>& proc : package->procs()) {
+    if (proc->is_new_style_proc()) {
+      VLOG(5) << "Will not convert package " << package->name()
+              << " to new style procs; found a new style proc already: "
+              << proc->name();
+      return absl::OkStatus();
+    }
+  }
+  XLS_RETURN_IF_ERROR(ConvertPackageToNewStyleProcs(package));
   return absl::OkStatus();
 }
 
@@ -354,7 +357,6 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   }
 
   if (options.proc_scoped_channels) {
-    VLOG(3) << "Converting package to new style procs/proc scoped channels";
     XLS_RETURN_IF_ERROR(
         ConvertToNewStyleProcs(package_data.conversion_info->package.get()));
   }
