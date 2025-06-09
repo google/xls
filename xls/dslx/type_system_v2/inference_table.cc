@@ -411,7 +411,7 @@ class InferenceTableImpl : public InferenceTable {
     return result;
   }
 
-  absl::StatusOr<const ParametricContext*> GetOrCreateParametricStructContext(
+  absl::StatusOr<StructContextResult> GetOrCreateParametricStructContext(
       const StructDefBase* struct_def, const AstNode* node,
       ParametricEnv parametric_env, const TypeAnnotation* self_type,
       absl::FunctionRef<absl::StatusOr<TypeInfo*>()> type_info_factory)
@@ -419,7 +419,7 @@ class InferenceTableImpl : public InferenceTable {
     auto& contexts = parametric_struct_contexts_[struct_def];
     const auto it = contexts.find(parametric_env);
     if (it != contexts.end()) {
-      return it->second;
+      return StructContextResult{.context = it->second, .created_new = false};
     }
     XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, type_info_factory());
     auto context = std::make_unique<ParametricContext>(
@@ -431,7 +431,8 @@ class InferenceTableImpl : public InferenceTable {
     contexts.emplace_hint(it, parametric_env, result);
     mutable_parametric_context_data_.emplace(result,
                                              MutableParametricContextData{});
-    return result;
+    converted_parametric_envs_.emplace(result, parametric_env);
+    return StructContextResult{.context = result, .created_new = true};
   }
 
   std::optional<ParametricContextScopedExpr> GetParametricValue(
@@ -746,6 +747,39 @@ class InferenceTableImpl : public InferenceTable {
         GetCanonicalContext(parametric_context), variable);
   }
 
+  void SetParametricEnv(const ParametricContext* parametric_context,
+                        ParametricEnv env) override {
+    converted_parametric_envs_[parametric_context] = std::move(env);
+  }
+
+  void SetParametricValueExprs(
+      const ParametricContext* parametric_context,
+      absl::flat_hash_map<const NameDef*, ExprOrType> value_exprs) override {
+    parametric_value_exprs_[parametric_context] = std::move(value_exprs);
+  }
+
+  ParametricEnv GetParametricEnv(
+      std::optional<const ParametricContext*> parametric_context) override {
+    if (parametric_context.has_value()) {
+      const auto it = converted_parametric_envs_.find(*parametric_context);
+      if (it != converted_parametric_envs_.end()) {
+        return it->second;
+      }
+    }
+    return ParametricEnv{};
+  }
+
+  absl::StatusOr<absl::flat_hash_map<const NameDef*, ExprOrType>>
+  GetParametricValueExprs(
+      const ParametricContext* parametric_context) override {
+    const auto it = parametric_value_exprs_.find(parametric_context);
+    if (it == parametric_value_exprs_.end()) {
+      return absl::NotFoundError(absl::StrCat("No value exprs for context: ",
+                                              parametric_context->ToString()));
+    }
+    return it->second;
+  }
+
  private:
   std::optional<const ParametricContext*> GetCanonicalContext(
       std::optional<const ParametricContext*> context) {
@@ -871,6 +905,11 @@ class InferenceTableImpl : public InferenceTable {
       const StructDefBase*,
       absl::flat_hash_map<ParametricEnv, const ParametricContext*>>
       parametric_struct_contexts_;
+  absl::flat_hash_map<const ParametricContext*, ParametricEnv>
+      converted_parametric_envs_;
+  absl::flat_hash_map<const ParametricContext*,
+                      absl::flat_hash_map<const NameDef*, ExprOrType>>
+      parametric_value_exprs_;
   UnificationCache cache_;
 };
 

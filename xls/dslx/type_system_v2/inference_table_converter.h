@@ -81,11 +81,6 @@ class InferenceTableConverter {
   virtual absl::StatusOr<TypeInfo*> GetTypeInfo(
       const Module* module,
       std::optional<const ParametricContext*> parametric_context) = 0;
-
-  // Returns the `ParametricEnv` corresponding to the given `ParametricContext`.
-  // If the context is `nullopt` then an empty env is returned.
-  virtual ParametricEnv GetParametricEnv(
-      std::optional<const ParametricContext*> parametric_context) = 0;
 };
 
 }  // namespace xls::dslx

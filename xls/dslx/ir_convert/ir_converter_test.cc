@@ -2074,6 +2074,40 @@ fn main() -> u5 {
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       TwoLevelsOfParametricCallsAcrossImportBoundary) {
+  // In this example, TIv2 will create a `ParametricEnv` for the cross-module
+  // baz->foo call, and that should be the caller env for the internal foo->bar
+  // call. If that caller env gets incorrectly siloed in state for the
+  // "imported" module that creates it, IR conversion will fail.
+
+  auto import_data = CreateImportDataForTest();
+  constexpr std::string_view kImported = R"(
+fn bar<N: u32>(a: uN[N]) -> uN[N] { a }
+
+pub fn foo<A: u32>(a: uN[A]) -> uN[A] { bar(a) }
+
+)";
+  XLS_EXPECT_OK(ParseAndTypecheck(kImported, "fake/imported/stuff.x",
+                                  "fake.imported.stuff", &import_data));
+  constexpr std::string_view kImporter = R"(
+import fake.imported.stuff as imported;
+
+fn baz<N: u32>(a: uN[N]) -> uN[N] { imported::foo(a) }
+
+fn main() {
+  baz(u32:5);
+  baz(u24:6);
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kImporter, ConvertOptions{.emit_positions = false},
+                           &import_data));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ImportConstantArray) {
   auto import_data = CreateImportDataForTest();
   const char* imported_program = R"(

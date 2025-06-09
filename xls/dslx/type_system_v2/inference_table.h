@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
@@ -362,11 +363,17 @@ class InferenceTable {
   virtual std::vector<const ParametricContext*> GetParametricInvocations()
       const = 0;
 
+  // The result of `GetOrCreateParametricStructContext()`.
+  struct StructContextResult {
+    const ParametricContext* context;
+    bool created_new;
+  };
+
   // Defines a parametric struct context with the given parametric values, or
   // returns the existing one with the same values. The idea is to tie each
   // struct parameterization to a canonicalized env to avoid unnecessary
   // aliasing. The `parametric_env` does not need values for defaulted bindings.
-  virtual absl::StatusOr<const ParametricContext*>
+  virtual absl::StatusOr<StructContextResult>
   GetOrCreateParametricStructContext(
       const StructDefBase* struct_def, const AstNode* node,
       ParametricEnv parametric_env, const TypeAnnotation* self_type,
@@ -481,6 +488,34 @@ class InferenceTable {
   virtual std::optional<const TypeAnnotation*> GetCachedUnifiedTypeForVariable(
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* variable) = 0;
+
+  // Sets the parametric env for the given context. This is only necessary to do
+  // for invocation contexts, since `GetOrCreateParametricStructContext()`
+  // captures it for struct contexts at creation time.
+  virtual void SetParametricEnv(const ParametricContext* parametric_context,
+                                ParametricEnv env) = 0;
+
+  // Retrieves the `ParametricEnv` for the given context. An empty
+  // `ParametricEnv` will be returned for a `nullopt` context or an invocation
+  // context without an env set. This allows this function to be used for an
+  // invocation context whose env is still in the process of being computed. It
+  // will deal out an empty caller env for `clog2` in a situation like
+  // `fn foo<A: u32, B: u32 = {clog2(A)}>`, which is what downstream logic
+  // expects.
+  virtual ParametricEnv GetParametricEnv(
+      std::optional<const ParametricContext*> parametric_context) = 0;
+
+  // Stores the parametric value expressions for the given context. Unlike the
+  // `ParametricEnv`, this is not set automatically at construction time for any
+  // type of parametric context.
+  virtual void SetParametricValueExprs(
+      const ParametricContext* parametric_context,
+      absl::flat_hash_map<const NameDef*, ExprOrType> value_exprs) = 0;
+
+  // Retrieves the parametric value expressions that have been set for the given
+  // context.
+  virtual absl::StatusOr<absl::flat_hash_map<const NameDef*, ExprOrType>>
+  GetParametricValueExprs(const ParametricContext* parametric_context) = 0;
 
   // Converts the table to string for debugging purposes.
   virtual std::string ToString() const = 0;

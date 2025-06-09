@@ -154,7 +154,7 @@ class EvaluatorImpl : public Evaluator {
         InterpValue result,
         ConstexprEvaluator::EvaluateToValue(
             &import_data_, type_info, &warning_collector_,
-            converter_.GetParametricEnv(parametric_context), expr));
+            table_.GetParametricEnv(parametric_context), expr));
     VLOG(7) << "Evaluation result for: " << expr->ToString()
             << " in context: " << ToString(parametric_context)
             << " value: " << result.ToString();

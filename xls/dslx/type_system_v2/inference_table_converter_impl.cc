@@ -346,8 +346,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   }
 
   // Adds the invocation type info for the given parametric invocation to the
-  // output type info. `converted_parametric_envs_` must be populated for both
-  // the caller and callee of the parametric invocation before doing this.
+  // output type info.
   absl::Status AddInvocationTypeInfo(
       const Invocation* invocation,
       const ParametricContext* parametric_context) {
@@ -356,10 +355,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     ParametricEnv parent_env;
     const auto& data =
         std::get<ParametricInvocationDetails>(parametric_context->details());
+
     if (parametric_context->parent_context().has_value() &&
         (*parametric_context->parent_context())->is_invocation()) {
-      const auto it = converted_parametric_envs_.find(
-          *parametric_context->parent_context());
       // Note that if a parametric function `g` is invoked by a default
       // parametric expr for a function `f`, there is a chicken-and-egg problem
       // where we cannot have produced the `ParametricEnv` for `f` at the time
@@ -367,12 +365,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // down to constants without being converted to IR, we don't care if we
       // properly key the `TypeInfo` for that `g` invocation for access by IR
       // conversion (and v1 does not achieve that either).
-      if (it != converted_parametric_envs_.end()) {
-        parent_env = it->second;
-      }
+
+      parent_env =
+          table_.GetParametricEnv(*parametric_context->parent_context());
     }
-    ParametricEnv callee_env =
-        converted_parametric_envs_.at(parametric_context);
+    ParametricEnv callee_env = table_.GetParametricEnv(parametric_context);
     VLOG(5) << "Parent env: " << parent_env.ToString();
     VLOG(5) << "Callee env: " << callee_env.ToString();
     CHECK_NE(invocation, nullptr);
@@ -687,11 +684,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     } else {
       // Apply the parametric-free formal types to the arguments and convert
       // them.
+      absl::flat_hash_map<const NameDef*, ExprOrType> value_exprs;
+      XLS_ASSIGN_OR_RETURN(value_exprs,
+                           table_.GetParametricValueExprs(invocation_context));
       XLS_ASSIGN_OR_RETURN(const TypeAnnotation* parametric_free_type,
                            GetParametricFreeType(
                                CreateFunctionTypeAnnotation(module_, *function),
-                               parametric_value_exprs_.at(invocation_context),
-                               invocation_context->self_type()));
+                               value_exprs, invocation_context->self_type()));
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(parametric_free_type, caller, caller_context));
 
@@ -768,25 +767,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return import_data_.GetRootTypeInfo(module);
     }
     return return_ti;
-  }
-
-  // Retrieves the `ParametricEnv` corresponding to `parametric_context` if the
-  // context is not `nullopt`, it is for an invocation, and we have converted
-  // the invocation.
-  //
-  // TODO: https://github.com/google/xls/issues/193 - we should probably stop
-  // limiting this to invocations once the bytecode interpreter is able to
-  // look up type info for parametric impls.
-  ParametricEnv GetParametricEnv(
-      std::optional<const ParametricContext*> parametric_context) override {
-    if (parametric_context.has_value() &&
-        (*parametric_context)->is_invocation()) {
-      const auto it = converted_parametric_envs_.find(*parametric_context);
-      if (it != converted_parametric_envs_.end()) {
-        return it->second;
-      }
-    }
-    return ParametricEnv{};
   }
 
   bool IsProcAtTopOfTypeInfoStack(const Proc* proc) {
@@ -993,15 +973,14 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                                 struct_base_ti);
     };
     XLS_ASSIGN_OR_RETURN(
-        const ParametricContext* struct_context,
+        InferenceTable::StructContextResult lookup_result,
         table_.GetOrCreateParametricStructContext(
             ref.def, node, parametric_env, CreateStructAnnotation(module_, ref),
             type_info_factory));
-    const auto it = converted_parametric_envs_.find(struct_context);
-    if (it != converted_parametric_envs_.end()) {
+    const ParametricContext* struct_context = lookup_result.context;
+    if (!lookup_result.created_new) {
       return struct_context;
     }
-    converted_parametric_envs_.emplace(struct_context, parametric_env);
     TypeInfo* ti = struct_context->type_info();
     absl::flat_hash_map<std::string, InterpValue> env_values =
         parametric_env.ToMap();
@@ -1035,7 +1014,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       ti->SetItem(binding->name_def(), *binding_type);
       ti->NoteConstExpr(binding->name_def(), *value);
     }
-    parametric_value_exprs_.emplace(struct_context, std::move(value_exprs));
+    table_.SetParametricValueExprs(struct_context, std::move(value_exprs));
     if (ref.def->impl().has_value()) {
       for (const ConstantDef* constant : (*ref.def->impl())->GetConstants()) {
         VLOG(6) << "Generate parametric impl constant: " << constant->ToString()
@@ -1211,7 +1190,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           if (!evaluated_value.ok()) {
             evaluated_value = ConstexprEvaluator::EvaluateToValue(
                 &import_data_, ti, &warning_collector_,
-                GetParametricEnv(parametric_context), value.value);
+                table_.GetParametricEnv(parametric_context), value.value);
             if (!evaluated_value.ok()) {
               return NotConstantErrorStatus(value.value->span(), value.value,
                                             file_table_);
@@ -1582,12 +1561,17 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                 binding->type_annotation()));
       actual_parametrics.emplace(binding->name_def(), value_expr);
     }
+
     if (callee_struct_context.has_value()) {
-      for (const auto& [name_def, expr] :
-           parametric_value_exprs_.at(*callee_struct_context)) {
+      absl::flat_hash_map<const NameDef*, ExprOrType> callee_struct_value_exprs;
+      XLS_ASSIGN_OR_RETURN(
+          callee_struct_value_exprs,
+          table_.GetParametricValueExprs(*callee_struct_context));
+      for (const auto& [name_def, expr] : callee_struct_value_exprs) {
         actual_parametrics.emplace(name_def, expr);
       }
     }
+
     const Function& callee =
         *std::get<ParametricInvocationDetails>(invocation_context->details())
              .callee;
@@ -1597,10 +1581,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             ConvertSubtree(member, std::nullopt, invocation_context));
       }
     }
-    parametric_value_exprs_.emplace(invocation_context,
-                                    std::move(actual_parametrics));
     ParametricEnv env(std::move(values));
-    converted_parametric_envs_.emplace(invocation_context, env);
+    table_.SetParametricEnv(invocation_context, env);
+    table_.SetParametricValueExprs(invocation_context,
+                                   std::move(actual_parametrics));
     return env;
   }
 
@@ -2093,11 +2077,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   std::unique_ptr<TypeAnnotationResolver> resolver_;
   std::unique_ptr<ConstantCollector> constant_collector_;
   std::unique_ptr<FastConcretizer> fast_concretizer_;
-  absl::flat_hash_map<const ParametricContext*, ParametricEnv>
-      converted_parametric_envs_;
-  absl::flat_hash_map<const ParametricContext*,
-                      absl::flat_hash_map<const NameDef*, ExprOrType>>
-      parametric_value_exprs_;
   absl::flat_hash_map<std::optional<const ParametricContext*>,
                       absl::flat_hash_set<const AstNode*>>
       converted_subtrees_;

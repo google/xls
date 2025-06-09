@@ -86,8 +86,7 @@ class Visitor : public AstNodeVisitorWithDefault {
             << " with type: " << type_.ToString();
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
         &import_data_, ti_, &warning_collector_,
-        converter_.GetParametricEnv(parametric_context_),
-        constant_def->value());
+        table_.GetParametricEnv(parametric_context_), constant_def->value());
     if (value.ok()) {
       VLOG(6) << "Constant def: " << constant_def->ToString()
               << " has value: " << value->ToString();
@@ -135,7 +134,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     if (IsImport(colon_ref) && type_.IsEnum()) {
       absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
           &import_data_, ti_, &warning_collector_,
-          converter_.GetParametricEnv(parametric_context_), colon_ref);
+          table_.GetParametricEnv(parametric_context_), colon_ref);
       if (value.ok()) {
         ti_->NoteConstExpr(colon_ref, *value);
       }
@@ -210,7 +209,7 @@ class Visitor : public AstNodeVisitorWithDefault {
       // Evaluate the value, and note it if successful.
       absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
           &import_data_, evaluation_ti, &warning_collector_,
-          converter_.GetParametricEnv(parametric_context_),
+          table_.GetParametricEnv(parametric_context_),
           down_cast<const ConstantDef*>(*target)->value());
       if (value.ok()) {
         VLOG(6) << "Noting constexpr for ColonRef: " << colon_ref->ToString()
@@ -230,7 +229,7 @@ class Visitor : public AstNodeVisitorWithDefault {
   absl::Status HandleLet(const Let* let) override {
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
         &import_data_, ti_, &warning_collector_,
-        converter_.GetParametricEnv(parametric_context_), let->rhs());
+        table_.GetParametricEnv(parametric_context_), let->rhs());
     if (let->is_const()) {
       if (!value.ok()) {
         return value.status();
@@ -279,7 +278,7 @@ class Visitor : public AstNodeVisitorWithDefault {
         evaluator_.EvaluateU32OrExpr(parametric_context_,
                                      start_and_width_exprs->width));
     ti_->AddSliceStartAndWidth(std::get<Slice*>(index->rhs()),
-                               converter_.GetParametricEnv(parametric_context_),
+                               table_.GetParametricEnv(parametric_context_),
                                start_and_width);
     return absl::OkStatus();
   }
@@ -287,7 +286,7 @@ class Visitor : public AstNodeVisitorWithDefault {
   absl::Status HandleConstAssert(const ConstAssert* node) override {
     absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
         &import_data_, ti_, &warning_collector_,
-        converter_.GetParametricEnv(parametric_context_), node->arg());
+        table_.GetParametricEnv(parametric_context_), node->arg());
     if (!value.ok()) {
       return TypeInferenceErrorStatus(
           node->span(), nullptr,
@@ -361,7 +360,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     absl::StatusOr<InterpValue> const_iterable =
         ConstexprEvaluator::EvaluateToValue(
             &import_data_, ti_, &warning_collector_,
-            converter_.GetParametricEnv(parametric_context_),
+            table_.GetParametricEnv(parametric_context_),
             unroll_for->iterable());
     const std::vector<InterpValue>* iterable_values = nullptr;
     uint64_t size = 0;
@@ -466,7 +465,7 @@ class Visitor : public AstNodeVisitorWithDefault {
       absl::StatusOr<InterpValue> const_result =
           ConstexprEvaluator::EvaluateToValue(
               &import_data_, ti_, &warning_collector_,
-              converter_.GetParametricEnv(parametric_context_),
+              table_.GetParametricEnv(parametric_context_),
               std::get<Expr*>(unrolled_statements.back()->wrapped()));
       if (const_result.ok()) {
         ti_->NoteConstExpr(unroll_for, *const_result);
@@ -474,7 +473,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     }
 
     ti_->NoteUnrolledLoop(unroll_for,
-                          converter_.GetParametricEnv(parametric_context_),
+                          table_.GetParametricEnv(parametric_context_),
                           unrolled_statement_block);
     return absl::OkStatus();
   }
