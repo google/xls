@@ -766,6 +766,9 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       return replace_with_narrowed(shift_value, narrowed_shift_amnt);
     }
     XLS_ASSIGN_OR_RETURN(int64_t max_shift, max_shift_bits.ToUint64());
+    if (max_shift >= shift_value->BitCountOrDie()) {
+      return replace_with_narrowed(shift_value, narrowed_shift_amnt);
+    }
     int64_t max_result_unknown_bits = max_shift + unknown_bits;
     XLS_RET_CHECK_GT(max_shift, 0);
     XLS_RET_CHECK_GT(max_result_unknown_bits, 0);

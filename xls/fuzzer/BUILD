@@ -423,6 +423,9 @@ generate_crasher_regression_tests(
             "optonly",
         ],
         # Tests which use iverilog and iverilog does not work with sanitizers.
+        "crashers/crasher_2025-06-06_9c04.x": [
+            "optonly",
+        ],
         "crashers/crasher_2025-05-25_eb23.x": [
             "optonly",
         ],

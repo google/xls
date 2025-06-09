@@ -1848,6 +1848,16 @@ TEST_P(NarrowingPassTest, NarrowingSliceDoesntOverflow) {
   EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 1487)));
 }
 
+TEST_P(NarrowingPassTest, ShiftNoOverflow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue amnt = fb.Param("amnt", p->GetBitsType(63));
+  BValue to_shift = fb.Param("shifter", p->GetBitsType(100));
+  fb.Shll(to_shift, amnt);
+  XLS_ASSERT_OK(fb.Build().status());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     ::testing::Values(NarrowingPass::AnalysisType::kTernary,
