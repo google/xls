@@ -1228,8 +1228,10 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             InferenceVariableKind::kType, const_cast<Expr*>(start),
             GenerateInternalTypeVariableName(start) + "_width_slice_start"));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(start, start_variable));
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        start, CreateU32Annotation(module_, start->span())));
+
+    const TypeAnnotation* u32 = CreateU32Annotation(module_, start->span());
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(start, u32));
+    table_.SetAnnotationFlag(u32, TypeInferenceFlag::kStandardType);
     return DefaultHandler(node);
   }
 

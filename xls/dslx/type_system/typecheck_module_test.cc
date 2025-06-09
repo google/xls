@@ -285,7 +285,7 @@ TEST_P(TypecheckBothVersionsTest, Let) {
       )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        AllOf(HasSizeMismatchInV1(GetParam(), "uN[4]", "uN[32]"),
-                             HasSizeMismatchInV2(GetParam(), "uN[4]", "u32"))));
+                             HasSizeMismatchInV2(GetParam(), "u4", "u32"))));
   XLS_EXPECT_OK(Typecheck(
       "fn f() -> u32 { let (x, y): (u32, bits[4]) = (u32:2, bits[4]:3); x }"));
 }
@@ -1303,11 +1303,10 @@ fn main() -> u32 {
 })"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          AllOf(
-              HasSubstrInV1(GetParam(),
-                            "Parameter 0 and argument types are different "
-                            "kinds (tuple vs array)"),
-              HasTypeMismatchInV2(GetParam(), "uN[32][2]", "(uN[N], uN[N])"))));
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Parameter 0 and argument types are different "
+                              "kinds (tuple vs array)"),
+                HasTypeMismatchInV2(GetParam(), "u32[2]", "(uN[N], uN[N])"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, ParametricBindNested) {
@@ -1322,7 +1321,7 @@ fn main() -> u32 {
           absl::StatusCode::kInvalidArgument,
           AllOf(
               HasTypeMismatchInV1(GetParam(), "(uN[32], uN[64])", "uN[32][1]"),
-              HasTypeMismatchInV2(GetParam(), "(u32, u64)", "uN[32][1]"),
+              HasTypeMismatchInV2(GetParam(), "(u32, u64)", "u32[1]"),
               HasSubstrInV1(GetParam(),
                             "expected argument kind 'array' to match parameter "
                             "kind 'tuple'"))));
@@ -2427,7 +2426,7 @@ TEST_P(TypecheckBothVersionsTest, OutOfRangeNumberInConstantArray) {
                AllOf(HasSubstrInV1(
                          GetParam(),
                          "Value '256' does not fit in the bitwidth of a uN[8]"),
-                     HasSizeMismatchInV2(GetParam(), "uN[9]", "u8"))));
+                     HasSizeMismatchInV2(GetParam(), "u9", "u8"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, BadTypeForConstantArrayOfNumbers) {
@@ -2814,7 +2813,7 @@ enum Foo : u1 {
                AllOf(HasSubstrInV1(
                          GetParam(),
                          "Value '2' does not fit in the bitwidth of a uN[1]"),
-                     HasSizeMismatchInV2(GetParam(), "u1", "uN[2]"))));
+                     HasSizeMismatchInV2(GetParam(), "u1", "u2"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, CannotAddEnums) {
@@ -2863,7 +2862,7 @@ TEST_P(TypecheckBothVersionsTest, SliceWithNonS32LiteralBounds) {
                          GetParam(),
                          "Value '40000000000000000000' does not fit in the "
                          "bitwidth of a sN[32]"),
-                     HasSizeMismatchInV2(GetParam(), "sN[32]", "sN[67]"))));
+                     HasSizeMismatchInV2(GetParam(), "s32", "sN[67]"))));
   // overlarge value in limit
   EXPECT_THAT(
       Typecheck("fn f(x: uN[128]) -> uN[128] { x[:40000000000000000000] }"),
@@ -2872,7 +2871,7 @@ TEST_P(TypecheckBothVersionsTest, SliceWithNonS32LiteralBounds) {
                          GetParam(),
                          "Value '40000000000000000000' does not fit in the "
                          "bitwidth of a sN[32]"),
-                     HasSizeMismatchInV2(GetParam(), "sN[32]", "sN[67]"))));
+                     HasSizeMismatchInV2(GetParam(), "s32", "sN[67]"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, WidthSlices) {
@@ -2899,7 +2898,7 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceNegativeStartNumberLiteral) {
           AllOf(HasSubstrInV1(
                     GetParam(),
                     "only unsigned values are permitted; got start value: -1"),
-                HasSignednessMismatchInV2(GetParam(), "sN[1]", "u32"))));
+                HasSignednessMismatchInV2(GetParam(), "s1", "u32"))));
 
   EXPECT_THAT(
       Typecheck("fn f(x: u32) -> u2 { x[-1+:u2] }"),
@@ -2908,7 +2907,7 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceNegativeStartNumberLiteral) {
           AllOf(HasSubstrInV1(
                     GetParam(),
                     "only unsigned values are permitted; got start value: -1"),
-                HasSignednessMismatchInV2(GetParam(), "sN[1]", "u32"))));
+                HasSignednessMismatchInV2(GetParam(), "s1", "u32"))));
   EXPECT_THAT(
       Typecheck("fn f(x: u32) -> u3 { x[-2+:u3] }"),
       AllOf(StatusIs(
@@ -2916,7 +2915,7 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceNegativeStartNumberLiteral) {
           AllOf(HasSubstrInV1(
                     GetParam(),
                     "only unsigned values are permitted; got start value: -2"),
-                HasSignednessMismatchInV2(GetParam(), "sN[2]", "u32")))));
+                HasSignednessMismatchInV2(GetParam(), "s2", "u32")))));
 }
 
 TEST_P(TypecheckBothVersionsTest, WidthSliceEmptyStartNumber) {
@@ -2986,7 +2985,7 @@ fn main() -> () {
                                    "Expected a struct for attribute access"),
                      HasSubstrInV2(GetParam(),
                                    "Invalid access of member `a` of non-struct "
-                                   "type: `(uN[32],)`"))));
+                                   "type: `(u32,)`"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, BadAttributeAccessOnBits) {
@@ -3012,7 +3011,7 @@ TEST_P(TypecheckBothVersionsTest, BadArrayLiteralType) {
           absl::StatusCode::kInvalidArgument,
           AllOf(HasSubstrInV1(GetParam(),
                               "Array was not annotated with an array type"),
-                HasTypeMismatchInV2(GetParam(), "s32", "sN[32][2]"))));
+                HasTypeMismatchInV2(GetParam(), "s32", "s32[2]"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, CharLiteralArray) {

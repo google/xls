@@ -96,7 +96,7 @@ TEST(TypecheckV2Test, GlobalIntegerConstantWithNegativeAutoLiteral) {
 TEST(TypecheckV2Test,
      GlobalIntegerConstantUnsignedWithNegativeAutoLiteralFails) {
   EXPECT_THAT("const X = u32:2 + -3;",
-              TypecheckFails(HasSignednessMismatch("sN[3]", "u32")));
+              TypecheckFails(HasSignednessMismatch("s3", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfConstantsAndLiterals) {
@@ -146,12 +146,12 @@ TEST(TypecheckV2Test,
   // `2` in a signed value, and verify that it breaks the limit imposed by an
   // explicit s2.
   EXPECT_THAT("const Z = 2 + -1 + s2:0;",
-              TypecheckFails(HasSizeMismatch("s2", "sN[3]")));
+              TypecheckFails(HasSizeMismatch("s2", "s3")));
 }
 
 TEST(TypecheckV2Test, ImpossibleCoercionOfAutoToSignedFails) {
   EXPECT_THAT("const Z = 3 + s2:1;",
-              TypecheckFails(HasSizeMismatch("s2", "sN[3]")));
+              TypecheckFails(HasSizeMismatch("s2", "s3")));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfConstantAndTupleFails) {
@@ -273,7 +273,7 @@ TEST(TypecheckV2Test, XnAnnotationWithMissingBitCountFails) {
 
 TEST(TypecheckV2Test, XnAnnotationWithBitCountInSignednessPositionFails) {
   EXPECT_THAT("const X = xN[32]:3;",
-              TypecheckFails(HasTypeMismatch("uN[6]", "bool")));
+              TypecheckFails(HasTypeMismatch("u6", "bool")));
 }
 
 TEST(TypecheckV2Test, UnAnnotationWithMissingBitCountFails) {
@@ -517,7 +517,7 @@ TEST(TypecheckV2Test, GlobalIntegerConstantRefWithSignednessConflictFails) {
 const X:u32 = 3;
 const Y:s32 = X;
 )",
-              TypecheckFails(HasSignednessMismatch("uN[32]", "s32")));
+              TypecheckFails(HasSignednessMismatch("u32", "s32")));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantWithTwoLevelsOfReferences) {
@@ -550,7 +550,7 @@ TEST(TypecheckV2Test, GlobalBoolConstantWithSameTypeAnnotationOnBothSides) {
 
 TEST(TypecheckV2Test, GlobalBoolConstantAssignedToIntegerFails) {
   EXPECT_THAT("const X: bool = 50;",
-              TypecheckFails(HasSizeMismatch("uN[6]", "bool")));
+              TypecheckFails(HasSizeMismatch("u6", "bool")));
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantWithSignednessConflictFails) {
@@ -627,7 +627,7 @@ TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTuple) {
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTupleAndTypeViolationFails) {
   EXPECT_THAT("const X: (u32, (u24, u32)) = (1, (-3, 2));",
-              TypecheckFails(HasSignednessMismatch("sN[3]", "u24")));
+              TypecheckFails(HasSignednessMismatch("s3", "u24")));
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTupleAndTypeConflict) {
@@ -677,17 +677,17 @@ TEST(TypecheckV2Test, ArrayDeclarationMismatchingAnnotationFails) {
 
 TEST(TypecheckV2Test, ArrayWithArrayAnnotationWithSignednessMismatchFails) {
   EXPECT_THAT("const X = u32[2]:[-1, 2];",
-              TypecheckFails(HasSignednessMismatch("u32", "sN[1]")));
+              TypecheckFails(HasSignednessMismatch("u32", "s1")));
 }
 
 TEST(TypecheckV2Test, ArrayWithArrayAnnotationWithSizeMismatchFails) {
   EXPECT_THAT("const X = u8[2]:[1, 65536];",
-              TypecheckFails(HasSizeMismatch("u8", "uN[17]")));
+              TypecheckFails(HasSizeMismatch("u8", "u17")));
 }
 
 TEST(TypecheckV2Test, ArrayWithArrayAnnotationWithCountMismatchFails) {
   EXPECT_THAT("const X = u8[2]:[u8:1, 2, 3];",
-              TypecheckFails(HasTypeMismatch("u8[2]", "uN[8][3]")));
+              TypecheckFails(HasTypeMismatch("u8[2]", "u8[3]")));
 }
 
 TEST(TypecheckV2Test, AnnotatedEmptyArray) {
@@ -741,7 +741,7 @@ TEST(TypecheckV2Test, AutoLiteralIndexBecomesU32) {
 
 TEST(TypecheckV2Test, IndexWithSignedIndexTypeFails) {
   EXPECT_THAT("const X = [u32:1, u32:2][s32:0];",
-              TypecheckFails(HasSignednessMismatch("s32", "uN[32]")));
+              TypecheckFails(HasSignednessMismatch("s32", "u32")));
 }
 
 TEST(TypecheckV2Test, IndexWithNonBitsIndexTypeFails) {
@@ -842,7 +842,7 @@ const Y = uN[X]:1;
 
 TEST(TypecheckV2Test, ArrayAnnotationWithSignedLiteralDimFails) {
   EXPECT_THAT("const Y = uN[-1]:1;",
-              TypecheckFails(HasSignednessMismatch("sN[1]", "u32")));
+              TypecheckFails(HasSignednessMismatch("s1", "u32")));
 }
 
 TEST(TypecheckV2Test, ArrayAnnotationWithSignedConstantDimFails) {
@@ -897,7 +897,7 @@ const X = [[[0, 1, 2], [2, 3, 4], [4, 5, 6]], [[6, 7, 8], [8, 9, 10], [10, 11, 1
 
 TEST(TypecheckV2Test, XnAnnotationWithNonBoolLiteralSignednessFails) {
   EXPECT_THAT("const Y = xN[2][32]:1;",
-              TypecheckFails(HasSizeMismatch("bool", "uN[2]")));
+              TypecheckFails(HasSizeMismatch("bool", "u2")));
 }
 
 TEST(TypecheckV2Test, XnAnnotationWithNonBoolConstantSignednessFails) {
@@ -1005,17 +1005,17 @@ TEST(TypecheckV2Test, GlobalArrayConstantWithTuples) {
 
 TEST(TypecheckV2Test, GlobalArrayConstantAnnotatedWithTooSmallSizeFails) {
   EXPECT_THAT("const X: u32[2] = [1, 2, 3];",
-              TypecheckFails(HasTypeMismatch("uN[32][3]", "u32[2]")));
+              TypecheckFails(HasTypeMismatch("u32[3]", "u32[2]")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithIntegerAnnotationFails) {
   EXPECT_THAT("const X: u32 = [1, 2];",
-              TypecheckFails(HasTypeMismatch("uN[2][2]", "u32")));
+              TypecheckFails(HasTypeMismatch("u2[2]", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithTypeViolation) {
   EXPECT_THAT("const X: u32[2] = [-3, -2];",
-              TypecheckFails(HasSignednessMismatch("sN[3]", "u32")));
+              TypecheckFails(HasSignednessMismatch("s3", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithTypeConflict) {
@@ -1043,7 +1043,7 @@ const Y = [X, X];
 
 TEST(TypecheckV2Test, GlobalArrayConstantCombiningArrayAndIntegerFails) {
   EXPECT_THAT("const X = [u32:3, [u32:4, u32:5]];",
-              TypecheckFails(HasTypeMismatch("uN[32][2]", "u32")));
+              TypecheckFails(HasTypeMismatch("u32[2]", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithEllipsis) {
@@ -1140,7 +1140,7 @@ TEST(TypecheckV2Test, GlobalStructConstantWithIntegerMemberTypeMismatchFails) {
 struct S { field: u32 }
 const X = S { field: [u32:1, u32:2] };
 )",
-              TypecheckFails(HasTypeMismatch("uN[32][2]", "u32")));
+              TypecheckFails(HasTypeMismatch("u32[2]", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalStructConstantWithMemberDuplicatedFails) {
@@ -1977,7 +1977,7 @@ TEST(TypecheckV2Test, FunctionReturningArrayForTupleFails) {
       R"(
 fn foo() -> (u32, u32) { [u32:1, 2] }
 )",
-      TypecheckFails(HasTypeMismatch("(u32, u32)", "uN[32][2]")));
+      TypecheckFails(HasTypeMismatch("(u32, u32)", "u32[2]")));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningFunctionCall) {
@@ -2036,7 +2036,7 @@ TEST(TypecheckV2Test, FunctionReturningMismatchingIntegerAutoTypeFails) {
 fn foo() -> u4 { 65536 }
 const Y = foo();
 )",
-              TypecheckFails(HasSizeMismatch("uN[17]", "u4")));
+              TypecheckFails(HasSizeMismatch("u17", "u4")));
 }
 
 TEST(TypecheckV2Test, FunctionReturningTooLargeExplicitTypeFails) {
@@ -2063,7 +2063,7 @@ const X = [s32:1, s32:2, s32:3];
 fn foo() -> s32 { X }
 const Y = foo();
 )",
-              TypecheckFails(HasTypeMismatch("sN[32][3]", "s32")));
+              TypecheckFails(HasTypeMismatch("s32[3]", "s32")));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningPassedInInteger) {
@@ -2173,7 +2173,7 @@ TEST(TypecheckV2Test, FunctionCallPassingInTooLargeAutoSizeFails) {
 fn foo(a: u4) -> u4 { a }
 const Y = foo(32767);
 )",
-              TypecheckFails(HasSizeMismatch("uN[15]", "u4")));
+              TypecheckFails(HasSizeMismatch("u15", "u4")));
 }
 
 TEST(TypecheckV2Test, FunctionCallPassingInTooLargeExplicitIntegerSizeFails) {
@@ -2182,7 +2182,7 @@ const X:u32 = 1;
 fn foo(a: u4) -> u4 { a }
 const Y = foo(X);
 )",
-              TypecheckFails(HasSizeMismatch("uN[32]", "u4")));
+              TypecheckFails(HasSizeMismatch("u32", "u4")));
 }
 
 TEST(TypecheckV2Test, FunctionCallPassingInWrongSignednessFails) {
@@ -2191,7 +2191,7 @@ const X:u32 = 1;
 fn foo(a: s32) -> s32 { a }
 const Y = foo(X);
 )",
-              TypecheckFails(HasSignednessMismatch("uN[32]", "s32")));
+              TypecheckFails(HasSignednessMismatch("u32", "s32")));
 }
 
 TEST(TypecheckV2Test, FunctionCallPassingInArrayForIntegerFails) {
@@ -2199,7 +2199,7 @@ TEST(TypecheckV2Test, FunctionCallPassingInArrayForIntegerFails) {
 fn foo(a: u4) -> u4 { a }
 const Y = foo([u32:1, u32:2]);
 )",
-              TypecheckFails(HasTypeMismatch("uN[32][2]", "u4")));
+              TypecheckFails(HasTypeMismatch("u32[2]", "u4")));
 }
 
 TEST(TypecheckV2Test, FunctionCallMismatchingLhsTypeFails) {
@@ -2527,7 +2527,7 @@ TEST(TypecheckV2Test, ParametricFunctionWithArrayMismatchingParameterizedSize) {
 fn foo<N: u32>(a: u32[N]) -> u32[N] { a }
 const X = foo<3>([u32:1, u32:2, u32:3, u32:4]);
 )",
-              TypecheckFails(HasTypeMismatch("uN[32][4]", "u32[3]")));
+              TypecheckFails(HasTypeMismatch("u32[4]", "u32[3]")));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionCallingAnotherParametricFunction) {
@@ -2786,7 +2786,7 @@ const X = true;
 const Y: u32 = 4;
 const Z = X && Y;
 )",
-              TypecheckFails(HasSizeMismatch("uN[32]", "bool")));
+              TypecheckFails(HasSizeMismatch("u32", "bool")));
 }
 
 TEST(TypecheckV2Test, GlobalConstantEqualsAndOfBooleanConstants) {
@@ -4594,7 +4594,7 @@ const X = u32:1;
 const Y = uN[X.area()]:0;
 )",
               TypecheckFails(HasSubstr(
-                  "Cannot invoke method `area` on non-struct type `uN[32]`")));
+                  "Cannot invoke method `area` on non-struct type `u32`")));
 }
 
 TEST(TypecheckV2Test, ImplFunctionUsingStructMembersAndArg) {
@@ -4690,7 +4690,7 @@ TEST(TypecheckV2Test, ConstAssertMismatchFails) {
       R"(
 const_assert!(4);
 )",
-      TypecheckFails(HasSizeMismatch("uN[3]", "bool")));
+      TypecheckFails(HasSizeMismatch("u3", "bool")));
 }
 
 TEST(TypecheckV2Test, ConstAssertForcesTypeBool) {
@@ -5455,9 +5455,18 @@ TEST(TypecheckV2Test, WidthSliceOfBits) {
   EXPECT_THAT("const X = 0b100111[2+:u3];", TopNodeHasType("uN[3]"));
 }
 
-TEST(TypecheckV2Test, WidthSliceOfBitsWithNegativeStart) {
+TEST(TypecheckV2Test, WidthSliceOfBitsWithSmallerThanU32Start) {
+  EXPECT_THAT("const X = 0b100111[u2:2+:u3];", TopNodeHasType("uN[3]"));
+}
+
+TEST(TypecheckV2Test, WidthSliceOfBitsWithNegativeStartFails) {
   EXPECT_THAT("const X = 0b100111[-5+:u3];",
-              TypecheckFails(HasSignednessMismatch("sN[4]", "u32")));
+              TypecheckFails(HasSignednessMismatch("s4", "u32")));
+}
+
+TEST(TypecheckV2Test, WidthSliceOfBitsWithSignedStartFails) {
+  EXPECT_THAT("const X = 0b100111[s32:2+:u3];",
+              TypecheckFails(HasSignednessMismatch("s32", "u32")));
 }
 
 TEST(TypecheckV2Test, WidthSliceWithNonBitsWidthAnnotationFails) {
@@ -5479,7 +5488,7 @@ TEST(TypecheckV2Test, WidthSliceOfSignedBitsFails) {
 
 TEST(TypecheckV2Test, WidthSliceBeforeStartFails) {
   EXPECT_THAT("const X = (u6:0b011100)[-7+:u4];",
-              TypecheckFails(HasSignednessMismatch("sN[4]", "u32")));
+              TypecheckFails(HasSignednessMismatch("s4", "u32")));
 }
 
 TEST(TypecheckV2Test, WidthSliceAfterEndFails) {
@@ -5947,7 +5956,7 @@ fn foo() {
   } (u16:0);
 }
 )",
-      TypecheckFails(HasTypeMismatch("uN[32]", "u16")));
+      TypecheckFails(HasTypeMismatch("u32", "u16")));
 }
 
 TEST(TypecheckV2Test, ForTupleTypeMismatch) {
@@ -5974,7 +5983,7 @@ fn foo() {
   } (u32:0);
 }
 )",
-      TypecheckFails(HasSizeMismatch("u32", "uN[64]")));
+      TypecheckFails(HasSizeMismatch("u32", "u64")));
 }
 
 TEST(TypecheckV2Test, SliceDestructuredAccumulator) {
@@ -6183,7 +6192,7 @@ enum MyEnum : u8 {
   B = 256,
 }
 )",
-      TypecheckFails(HasSizeMismatch("uN[9]", "u8")));
+      TypecheckFails(HasSizeMismatch("u9", "u8")));
 }
 
 TEST(TypecheckV2Test, EnumValueTypeMismatch) {
@@ -7049,7 +7058,7 @@ fn f() -> u1 {
   ImportData import_data = CreateImportDataForTest(std::move(vfs));
   EXPECT_THAT(TypecheckV2(kProgram, "fake_main_path", &import_data),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSizeMismatch("uN[30]", "u1")));
+                       HasSizeMismatch("u30", "u1")));
 }
 
 TEST(TypecheckV2Test, UseConstant) {
@@ -7441,7 +7450,7 @@ fn main() -> u32 {
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasTypeMismatch("uN[5]", "u32")));
+                       HasTypeMismatch("u5", "u32")));
 }
 
 TEST(TypecheckV2Test, ImportedImplParametric) {

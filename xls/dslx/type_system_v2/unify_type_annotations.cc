@@ -65,6 +65,15 @@ bool operator!=(const SignednessAndSize& x, const SignednessAndSize& y) {
 const TypeAnnotation* SignednessAndSizeToAnnotation(
     Module& module, const SignednessAndSize& signedness_and_size,
     const Span& span) {
+  // Favor shorthand integer types where they exist.
+  if (signedness_and_size.size > 0 && signedness_and_size.size <= 64) {
+    absl::StatusOr<BuiltinType> builtin_type =
+        GetBuiltinType(signedness_and_size.is_signed, signedness_and_size.size);
+    CHECK(builtin_type.ok());
+    return module.Make<BuiltinTypeAnnotation>(
+        span, *builtin_type, module.GetOrCreateBuiltinNameDef(*builtin_type));
+  }
+
   return CreateUnOrSnAnnotation(module, span, signedness_and_size.is_signed,
                                 signedness_and_size.size);
 }

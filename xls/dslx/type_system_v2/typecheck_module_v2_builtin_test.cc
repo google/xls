@@ -42,12 +42,12 @@ TEST(TypecheckV2BuiltinTest, ArrayRevExplicit) {
 
 TEST(TypecheckV2BuiltinTest, ArrayRevSizeMismatch) {
   EXPECT_THAT("const Y = array_rev<u6, 3>([u6:1, u6:2, u6:3, u6:4]);",
-              TypecheckFails(HasSizeMismatch("u6[3]", "uN[6][4]")));
+              TypecheckFails(HasSizeMismatch("u6[3]", "u6[4]")));
 }
 
 TEST(TypecheckV2BuiltinTest, ArrayRevElementMismatch) {
   EXPECT_THAT("const Y = array_rev<u6, 3>([1, 2, 3, 4]);",
-              TypecheckFails(HasSizeMismatch("u6[3]", "uN[3][4]")));
+              TypecheckFails(HasSizeMismatch("u6[3]", "u3[4]")));
 }
 
 TEST(TypecheckV2BuiltinTest, ArrayRevImplicitElementType) {
@@ -67,12 +67,12 @@ TEST(TypecheckV2BuiltinTest, ArraySizeExplicit) {
 
 TEST(TypecheckV2BuiltinTest, ArraySizeArraySizeMismatch) {
   EXPECT_THAT("const Y = array_size<u32, 3>([u32:1, u32:2, u32:3, u32:4]);",
-              TypecheckFails(HasSizeMismatch("u32[3]", "uN[32][4]")));
+              TypecheckFails(HasSizeMismatch("u32[3]", "u32[4]")));
 }
 
 TEST(TypecheckV2BuiltinTest, ArraySizeElementBitsMismatch) {
   EXPECT_THAT("const Y = array_size<u31, 4>([u32:1, u32:2, u32:3, u32:4]);",
-              TypecheckFails(HasSizeMismatch("u31", "uN[32]")));
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
 }
 
 TEST(TypecheckV2BuiltinTest, ArraySizeImplicit) {
@@ -633,7 +633,7 @@ TEST(TypecheckV2BuiltinTest, MapFirstArgNotArray) {
       R"(
 const X = true;
 const Y = map(X, ctz);)",
-      TypecheckFails(HasSubstr("requires a specified bit count")));
+      TypecheckFails(HasSubstr("not an array")));
 }
 
 TEST(TypecheckV2BuiltinTest, MapSecondArgConstant) {
@@ -665,7 +665,7 @@ TEST(TypecheckV2BuiltinTest, MapSizeMismatch) {
 fn to_zero_31(x: uN[32]) -> uN[31] { u31:0 }
 const Y = map([u30:2], to_zero_31);
 )",
-      TypecheckFails(HasSizeMismatch("uN[30]", "uN[32]")));
+      TypecheckFails(HasSizeMismatch("u30", "uN[32]")));
 }
 
 TEST(TypecheckV2BuiltinTest, MapArgMismatch) {
@@ -1338,7 +1338,7 @@ proc P {
   }
 }
 )",
-      TypecheckFails(HasSizeMismatch("uN[32]", "uN[64]")));
+      TypecheckFails(HasSizeMismatch("u32", "u64")));
 }
 
 TEST(TypecheckV2BuiltinTest, SendWithChannelDirectionMismatchFails) {
@@ -1356,7 +1356,7 @@ proc P {
   }
 }
 )",
-      TypecheckFails(HasTypeMismatch("chan<uN[32]> out", "chan<uN[32]> in")));
+      TypecheckFails(HasTypeMismatch("chan<u32> out", "chan<u32> in")));
 }
 
 TEST(TypecheckV2BuiltinTest, SendWithChannelDimMismatchFails) {
@@ -1374,7 +1374,7 @@ proc P {
   }
 }
 )",
-      TypecheckFails(HasTypeMismatch("chan<uN[32]>[2] out", "chan<Any> out")));
+      TypecheckFails(HasTypeMismatch("chan<u32>[2] out", "chan<Any> out")));
 }
 
 TEST(TypecheckV2BuiltinTest, SendOutsideProc) {
@@ -1456,7 +1456,7 @@ proc P {
   }
 }
 )",
-      TypecheckFails(HasSizeMismatch("uN[32]", "u64")));
+      TypecheckFails(HasSizeMismatch("u32", "u64")));
 }
 
 TEST(TypecheckV2BuiltinTest, RecvWithChannelDirectionMismatchFails) {
@@ -1473,7 +1473,7 @@ proc P {
   }
 }
 )",
-      TypecheckFails(HasTypeMismatch("chan<uN[32]> in", "chan<uN[32]> out")));
+      TypecheckFails(HasTypeMismatch("chan<u32> in", "chan<u32> out")));
 }
 
 TEST(TypecheckV2BuiltinTest, RecvWithChannelDimMismatchFails) {
@@ -1490,7 +1490,7 @@ proc P {
   }
 }
 )",
-      TypecheckFails(HasTypeMismatch("chan<uN[32]>[2] in", "chan<Any> in")));
+      TypecheckFails(HasTypeMismatch("chan<u32>[2] in", "chan<Any> in")));
 }
 
 TEST(TypecheckV2BuiltinTest, RecvOutsideProc) {
@@ -1555,7 +1555,7 @@ proc P {
   }
 }
 )",
-      TypecheckFails(HasTypeMismatch("uN[32]", "uN[64]")));
+      TypecheckFails(HasTypeMismatch("u32", "u64")));
 }
 
 TEST(TypecheckV2BuiltinTest, RecvNonBlocking) {
@@ -1592,7 +1592,7 @@ proc P {
   }
 }
 )",
-      TypecheckFails(HasTypeMismatch("uN[32]", "uN[64]")));
+      TypecheckFails(HasTypeMismatch("u32", "u64")));
 }
 
 TEST(TypecheckV2BuiltinTest, RecvIfNonBlocking) {
@@ -1649,7 +1649,7 @@ proc P {
   }
 }
 )",
-      TypecheckFails(HasTypeMismatch("uN[32]", "uN[64]")));
+      TypecheckFails(HasTypeMismatch("u32", "u64")));
 }
 
 TEST(TypecheckV2BuiltinTest, TraceFmt) {
