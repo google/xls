@@ -55,7 +55,7 @@ pub fn gf128_mul(x: Block, y: Block) -> Block {
     let r = u8:0b11100001 ++ uN[120]:0;
     // TODO(rspringer): Can't currently select an element from an array or
     // tuple resulting from a for loop.
-    let z_v = for (i, (last_z, last_v)) in range(u32:0, u32:128) {
+    let z_v = for (i, (last_z, last_v)) in u32:0..u32:128 {
         let z = if (x >> (u32:127 - i)) as u1 == u1:0 { last_z } else { last_z ^ last_v };
         let v = if last_v[0:1] == u1:0 { last_v >> 1 } else { (last_v >> 1) ^ r };
         (z, v)

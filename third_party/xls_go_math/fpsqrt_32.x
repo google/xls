@@ -118,7 +118,7 @@ pub fn fpsqrt_32(x: F32) -> F32 {
         (u32, (u32,
                u32,
                u32))
-        in range(u32:0, u32:23 + u32:2) {
+        in u32:0..(u32:23 + u32:2) {
 
     let temp = (sqrt_in_progress << u32:1) | shifting_bit_mask;
 

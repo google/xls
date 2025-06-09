@@ -20,7 +20,7 @@ const C_ARRAY = MyStruct[1]:[C];
 
 fn main() -> u32 {
     const C': MyStruct = C_ARRAY[u32:0];
-    for (i, accum) in range(u32:0, C'.x) {
+    for (i, accum) in u32:0..C'.x {
         accum + i
     }(u32:0)
 }

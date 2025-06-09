@@ -601,7 +601,7 @@ struct RamWrRespHandlerData<RAM_ADDR_WIDTH: u32> {
 
 fn create_ram_wr_data<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32, RAM_NUM_PARTITIONS: u32>
     (reqs: ram::WriteReq<RAM_ADDR_WIDTH, RAM_DATA_WIDTH, RAM_NUM_PARTITIONS>[RAM_NUM], ptr: HistoryBufferPtr) -> (bool, RamWrRespHandlerData) {
-    let do_write = for (i, do_write): (u32, bool) in range(u32:0, RAM_NUM) {
+    let do_write = for (i, do_write): (u32, bool) in u32:0..RAM_NUM {
         do_write || reqs[i].mask
     }(false);
 
@@ -671,7 +671,7 @@ struct RamRdRespHandlerData {
 
 fn create_ram_rd_data<RAM_ADDR_WIDTH: u32, RAM_DATA_WIDTH: u32, RAM_NUM_PARTITIONS: u32>
     (reqs: ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>[RAM_NUM], order: RamOrder[RAM_NUM], last: bool, next_packet_valid: bool) -> (bool, RamRdRespHandlerData) {
-    let do_read = for (i, do_read): (u32, bool) in range(u32:0, RAM_NUM) {
+    let do_read = for (i, do_read): (u32, bool) in u32:0..RAM_NUM {
         do_read || reqs[i].mask
     }(false);
 
@@ -1395,7 +1395,7 @@ proc SequenceExecutorLiteralsTest {
 
     next(state: ()) {
         let tok = join();
-        for (i, ()): (u32, ()) in range(u32:0, array_size(LITERAL_TEST_INPUT_DATA)) {
+        for (i, ()): (u32, ()) in u32:0..array_size(LITERAL_TEST_INPUT_DATA) {
             let tok = send(tok, input_s, LITERAL_TEST_INPUT_DATA[i]);
             // Don't receive when there's an empty literals packet which is not last
             if (LITERAL_TEST_INPUT_DATA[i].msg_type != SequenceExecutorMessageType::LITERAL ||
@@ -1407,8 +1407,8 @@ proc SequenceExecutorLiteralsTest {
             } else {}
         }(());
 
-        for (i, ()): (u32, ()) in range(u32:0, RAM_NUM) {
-            for (j, ()): (u32, ()) in range(u32:0, array_size(LITERAL_TEST_MEMORY_CONTENT[0])) {
+        for (i, ()): (u32, ()) in u32:0..RAM_NUM {
+            for (j, ()): (u32, ()) in u32:0..array_size(LITERAL_TEST_MEMORY_CONTENT[0]) {
                 let addr = LITERAL_TEST_MEMORY_CONTENT[i][j].0;
                 let tok = send(tok, ram_rd_req_s[i], TestReadReq { addr, mask: RAM_REQ_MASK_ALL });
                 let (tok, resp) = recv(tok, ram_rd_resp_r[i]);
@@ -1650,7 +1650,7 @@ proc SequenceExecutorSequenceTest {
 
     next(state: ()) {
         let tok = join();
-        for (i, ()): (u32, ()) in range(u32:0, array_size(LITERAL_TEST_INPUT_DATA)) {
+        for (i, ()): (u32, ()) in u32:0..array_size(LITERAL_TEST_INPUT_DATA) {
             let tok = send(tok, input_s, LITERAL_TEST_INPUT_DATA[i]);
             // Don't receive when there's an empty literal packet which is not last
             if (LITERAL_TEST_INPUT_DATA[i].msg_type != SequenceExecutorMessageType::LITERAL ||

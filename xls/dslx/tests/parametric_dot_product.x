@@ -22,8 +22,7 @@ fn func(a: u32) -> u32 { clog2<u32:32>(a) }
 
 fn dot_product<BITCOUNT: u32, LENGTH: u32, IDX_BITS: u32 = {func(LENGTH + u32:1)}>
     (a: bits[BITCOUNT][LENGTH], b: bits[BITCOUNT][LENGTH]) -> bits[BITCOUNT] {
-    for (idx, acc): (bits[IDX_BITS], bits[BITCOUNT]) in
-        range(bits[IDX_BITS]:0, LENGTH as bits[IDX_BITS]) {
+    for (idx, acc): (bits[IDX_BITS], bits[BITCOUNT]) in bits[IDX_BITS]:0..(LENGTH as bits[IDX_BITS]) {
         let partial_product = a[idx] * b[idx];
         acc + partial_product
     }(u32:0)

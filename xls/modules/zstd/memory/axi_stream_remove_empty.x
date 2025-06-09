@@ -45,7 +45,7 @@ fn remove_empty_bytes<DATA_W: u32, DATA_W_DIV8: u32, DATA_W_LOG2: u32> (
     type OffsetExt = uN[EXT_OFFSET_W];
     type Length = uN[DATA_W_LOG2];
 
-    let (data, len, _) = for (i, (data, len, offset)): (u32, (Data, Length, Offset)) in range(u32:0, DATA_W_DIV8) {
+    let (data, len, _) = for (i, (data, len, offset)): (u32, (Data, Length, Offset)) in u32:0..DATA_W_DIV8 {
         if str[i +: u1] & keep[i +: u1] {
             (
                 data | (in_data & (Data:0xFF << (u32:8 * i))) >> (OffsetExt:8 * offset as OffsetExt),

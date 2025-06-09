@@ -100,11 +100,11 @@ fn fft(real: F32[FFT_SIZE], img: F32[FFT_SIZE], real_twid: F32[FFT_HALF_SIZE],
        img_twid: F32[FFT_HALF_SIZE]) -> (F32[FFT_SIZE], F32[FFT_SIZE]) {
 
   for (log, (real, img)): (u32, (F32[FFT_SIZE], F32[FFT_SIZE]))
-    in range(u32:0, std::clog2(FFT_SIZE)) {
+    in u32:0..std::clog2(FFT_SIZE) {
     let span = FFT_SIZE >> log + u32:1;
 
     for (odd, (real, img)): (u32, (F32[FFT_SIZE], F32[FFT_SIZE]))
-      in range(u32:0, FFT_SIZE) {
+      in u32:0..FFT_SIZE {
       // We want to loop dynamically, going from span to 1023
       // while skipping half of the numbers in the range.
       // However, dslx restricts us to simply incrementing though a

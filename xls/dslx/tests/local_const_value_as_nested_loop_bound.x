@@ -14,9 +14,9 @@
 
 fn main(val: u32) -> u32 {
     const FOO = u32:2;
-    for (_, acc): (u32, u32) in range(u32:0, FOO) {
-        for (_, acc): (u32, u32) in range(u32:0, FOO) {
-            for (_, acc): (u32, u32) in range(u32:0, FOO) {
+    for (_, acc): (u32, u32) in u32:0..FOO {
+        for (_, acc): (u32, u32) in u32:0..FOO {
+            for (_, acc): (u32, u32) in u32:0..FOO {
                 acc + val
             }(acc)
         }(acc)

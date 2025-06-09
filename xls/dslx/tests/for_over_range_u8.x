@@ -13,7 +13,7 @@
 // limitations under the License.
 
 fn main() -> u8 {
-    for (value, accum): (u8, u8) in range(u8:1, u8:4) {
+    for (value, accum): (u8, u8) in u8:1..u8:4 {
         accum + value
     }(u8:0)
 }

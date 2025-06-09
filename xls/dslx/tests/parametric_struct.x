@@ -33,7 +33,7 @@ fn add_points<N: u32, M: u32>
 
 fn accum_points<N: u32, M: u32, L: u32>(points: ParametricPoint<N, M>[L]) -> ParametricPoint<N, M> {
     let start = make_point(bits[N]:0, bits[M]:0);
-    for (idx, accum): (u32, ParametricPoint<N, M>) in range(u32:0, L) {
+    for (idx, accum): (u32, ParametricPoint<N, M>) in u32:0..L {
         add_points(accum, points[idx])
     }(start)
 }

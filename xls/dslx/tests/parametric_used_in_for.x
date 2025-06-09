@@ -13,7 +13,7 @@
 // limitations under the License.
 
 fn p<N: u32>() -> u32 {
-    for (i, accum): (u32, u32) in range(u32:0, N) {
+    for (i, accum): (u32, u32) in u32:0..N {
         accum + i
     }(u32:0)
 }

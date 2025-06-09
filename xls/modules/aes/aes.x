@@ -38,7 +38,7 @@ pub fn create_key_schedule(key: u8[aes_common::MAX_KEY_BYTES], key_width: KeyWid
     let sched = u32[NUM_SCHED_WORDS]:[u32:0, ...];
 
     let key = key as uN[aes_common::MAX_KEY_BITS] as u32[aes_common::MAX_KEY_WORDS];
-    let (sched, _) = for (word_idx, (sched, last_word)) in range(u32:0, NUM_SCHED_WORDS) {
+    let (sched, _) = for (word_idx, (sched, last_word)) in u32:0..NUM_SCHED_WORDS {
         let a = word_idx < key_words;
         let b = word_idx >= key_words && std::mod_pow2(word_idx, key_words) == u32:0;
         // Condition "C" is actually:
@@ -69,7 +69,7 @@ pub fn create_key_schedule(key: u8[aes_common::MAX_KEY_BYTES], key_width: KeyWid
     // This should be a cast, not a for loop, but casting to two-dimensional
     // arrays is not yet supported.
     let final_sched = RoundKey[MAX_NUM_ROUNDS + u32:1]:[u32[4]:[u32:0, ...], ...];
-    let final_sched = for (i, final_sched) in range(u32:0, MAX_NUM_ROUNDS + u32:1) {
+    let final_sched = for (i, final_sched) in u32:0..(MAX_NUM_ROUNDS + u32:1) {
         let start_idx = i * u32:4;
         update(final_sched, i,
                [sched[start_idx], sched[start_idx + u32:1],
@@ -190,7 +190,7 @@ pub fn encrypt(key: Key, key_width: KeyWidth, block: Block) -> Block {
     let round_keys = create_key_schedule(key, key_width);
     let block = aes_common::add_round_key(block, round_keys[0]);
 
-    let block = for (round, last_block): (u32, Block) in range(u32:1, MAX_NUM_ROUNDS) {
+    let block = for (round, last_block): (u32, Block) in u32:1..MAX_NUM_ROUNDS {
         let block = aes_common::sub_bytes(last_block);
         let block = aes_common::shift_rows(block);
         let block = aes_common::mix_columns(block);
@@ -263,7 +263,7 @@ pub fn decrypt(key: Key, key_width: KeyWidth, block: Block) -> Block {
     let block = aes_common::inv_shift_rows(block);
     let block = aes_common::inv_sub_bytes(block);
 
-    let block = for (i, last_block): (u32, Block) in range(u32:1, MAX_NUM_ROUNDS) {
+    let block = for (i, last_block): (u32, Block) in u32:1..MAX_NUM_ROUNDS {
         let round = num_rounds - i;
         let block = if i < num_rounds {
             let block = aes_common::add_round_key(last_block, round_keys[round]);

@@ -20,7 +20,7 @@
 const FOO = u2:3;
 
 fn main() -> u32 {
-    for (i, accum): (u2, u32) in range(u2:0, FOO) {
+    for (i, accum): (u2, u32) in u2:0..FOO {
         accum + (i as u32)
     }(u32:0)
 }

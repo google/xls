@@ -43,7 +43,7 @@ pub proc RamPrinter<DATA_WIDTH: u32, SIZE: u32, NUM_PARTITIONS: u32, ADDR_WIDTH:
         let (tok, _) = recv_if(tok, print_r, is_idle, ());
 
         let (tok, row) = for (i, (tok, row)): (u32, (token, bits[DATA_WIDTH][NUM_MEMORIES])) in
-            range(u32:0, NUM_MEMORIES) {
+            u32:0..NUM_MEMORIES {
             let tok = send(tok, rd_req_s[i], ram::ReadWordReq<NUM_PARTITIONS>(state.addr));
             let (tok, resp) = recv(tok, rd_resp_r[i]);
             let row = update(row, i, resp.data);

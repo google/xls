@@ -20,7 +20,7 @@ import xls.dslx.tests.mod_simple_enum;
 type EnumType = mod_simple_enum::EnumType;
 
 fn main(x: EnumType) -> bool {
-    for (_, _): (u32, bool) in range(u32:0, u32:1) {
+    for (_, _): (u32, bool) in u32:0..u32:1 {
         match x {
             EnumType::FIRST => false,
             EnumType::SECOND => true,
