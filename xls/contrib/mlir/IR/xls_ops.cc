@@ -60,6 +60,18 @@ using namespace mlir;  // NOLINT
 
 namespace mlir::xls {
 namespace {
+
+void printDimensionList(AsmPrinter& printer, ArrayRef<int64_t> shape) {
+  printer.printDimensionList(shape);
+  printer.printKeywordOrString("x");
+}
+
+ParseResult parseDimensionList(AsmParser& parser,
+                               SmallVectorImpl<int64_t>& shape) {
+  return parser.parseDimensionList(shape, /*allowDynamic=*/false,
+                                   /*withTrailingX=*/true);
+}
+
 // Holds either a Shape or a "bad" value. The bad value is poison.
 class ShapeOrBad {
  public:

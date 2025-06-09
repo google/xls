@@ -369,38 +369,38 @@ func.func @counted_for(%arg0: i32, %arg1: i8, %arg2: i9) -> i32 {
 }
 
 // MLIR-LABEL: func.func @array
-func.func @array(%arg0: i32, %arg1: i32) -> !xls.array<2 x i32> {
-  // MLIR: %{{.*}} = xls.array %{{.*}}, %{{.*}} : (i32, i32) -> !xls.array<2 x i32>
-  %0 = xls.array %arg0, %arg1 : (i32, i32) -> !xls.array<2 x i32>
-  return %0 : !xls.array<2 x i32>
+func.func @array(%arg0: i32, %arg1: i32) -> !xls.array<2xi32> {
+  // MLIR: %{{.*}} = xls.array %{{.*}}, %{{.*}} : (i32, i32) -> !xls.array<2xi32>
+  %0 = xls.array %arg0, %arg1 : (i32, i32) -> !xls.array<2xi32>
+  return %0 : !xls.array<2xi32>
 }
 
 // MLIR-LABEL: func.func @array_tensor
-func.func @array_tensor(%arg0: i64, %arg1: i64) -> !xls.array<2 x i64> {
-  // MLIR: %{{.*}} = xls.array %{{.*}}, %{{.*}} : (i64, i64) -> !xls.array<2 x i64>
-  %0 = xls.array %arg0, %arg1 : (i64, i64) -> !xls.array<2 x i64>
-  return %0 : !xls.array<2 x i64>
+func.func @array_tensor(%arg0: i64, %arg1: i64) -> !xls.array<2xi64> {
+  // MLIR: %{{.*}} = xls.array %{{.*}}, %{{.*}} : (i64, i64) -> !xls.array<2xi64>
+  %0 = xls.array %arg0, %arg1 : (i64, i64) -> !xls.array<2xi64>
+  return %0 : !xls.array<2xi64>
 }
 
 // MLIR-LABEL: func.func @array_index
-func.func @array_index(%arg0: !xls.array<4 x i8>, %arg1: i32) -> i8 {
-  // MLIR: %{{.*}} = "xls.array_index"(%{{.*}}, %{{.*}}) : (!xls.array<4 x i8>, i32) -> i8
-  %0 = "xls.array_index"(%arg0, %arg1) : (!xls.array<4 x i8>, i32) -> i8
+func.func @array_index(%arg0: !xls.array<4xi8>, %arg1: i32) -> i8 {
+  // MLIR: %{{.*}} = "xls.array_index"(%{{.*}}, %{{.*}}) : (!xls.array<4xi8>, i32) -> i8
+  %0 = "xls.array_index"(%arg0, %arg1) : (!xls.array<4xi8>, i32) -> i8
   return %0 : i8
 }
 
 // MLIR-LABEL: func.func @array_slice
-func.func @array_slice(%arg0: !xls.array<4 x i8>, %arg1: i32) -> !xls.array<1 x i8> {
-  // MLIR: %{{.*}} = "xls.array_slice"(%{{.*}}, %{{.*}}) <{width = 1 : i64}> : (!xls.array<4 x i8>, i32) -> !xls.array<1 x i8>
-  %0 = "xls.array_slice"(%arg0, %arg1) { width = 1 : i64 } : (!xls.array<4 x i8>, i32) -> !xls.array<1 x i8>
-  return %0 : !xls.array<1 x i8>
+func.func @array_slice(%arg0: !xls.array<4xi8>, %arg1: i32) -> !xls.array<1xi8> {
+  // MLIR: %{{.*}} = "xls.array_slice"(%{{.*}}, %{{.*}}) <{width = 1 : i64}> : (!xls.array<4xi8>, i32) -> !xls.array<1xi8>
+  %0 = "xls.array_slice"(%arg0, %arg1) { width = 1 : i64 } : (!xls.array<4xi8>, i32) -> !xls.array<1xi8>
+  return %0 : !xls.array<1xi8>
 }
 
 // MLIR-LABEL: func.func @array_update
-func.func @array_update(%arg0: !xls.array<4 x tuple<i1, i2>>, %arg1: tuple<i1, i2>, %arg2: i32) -> !xls.array<4 x tuple<i1, i2>> {
-  // MLIR: %{{.*}} = "xls.array_update"(%{{.*}}, %{{.*}}, %{{.*}}) : (!xls.array<4 x tuple<i1, i2>>, tuple<i1, i2>, i32) -> !xls.array<4 x tuple<i1, i2>>
-  %0 = "xls.array_update"(%arg0, %arg1, %arg2) : (!xls.array<4 x tuple<i1, i2>>, tuple<i1, i2>, i32) -> !xls.array<4 x tuple<i1, i2>>
-  return %0 : !xls.array<4 x tuple<i1, i2>>
+func.func @array_update(%arg0: !xls.array<4xtuple<i1, i2>>, %arg1: tuple<i1, i2>, %arg2: i32) -> !xls.array<4xtuple<i1, i2>> {
+  // MLIR: %{{.*}} = "xls.array_update"(%{{.*}}, %{{.*}}, %{{.*}}) : (!xls.array<4xtuple<i1, i2>>, tuple<i1, i2>, i32) -> !xls.array<4xtuple<i1, i2>>
+  %0 = "xls.array_update"(%arg0, %arg1, %arg2) : (!xls.array<4xtuple<i1, i2>>, tuple<i1, i2>, i32) -> !xls.array<4xtuple<i1, i2>>
+  return %0 : !xls.array<4xtuple<i1, i2>>
 }
 
 // MLIR-LABEL: func.func @trace
@@ -440,9 +440,9 @@ func.func @constant_scalar() -> i7 {
 }
 
 // XLS-LABEL: complex_literal
-func.func @complex_literal() -> tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>> {
+func.func @complex_literal() -> tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2xi3>> {
   // XLS: ret {{.*}}: ((bits[1], bits[2], (bits[32], bits[32])), bits[3][2]) = literal(value=((1, 2, (10, 0)), [4, 5]),
-  %lit = xls.literal : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>> {
+  %lit = xls.literal : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2xi3>> {
     %0 = "xls.constant_scalar"() <{value = true}> : () -> i1
     %1 = "xls.constant_scalar"() <{value = -2 : i2}> : () -> i2
     %2 = "xls.constant_scalar"() <{value = 10 : i32}> : () -> i32
@@ -451,11 +451,11 @@ func.func @complex_literal() -> tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array
     %5 = "xls.tuple"(%0, %1, %4) : (i1, i2, tuple<i32, i32>) -> tuple<i1, i2, tuple<i32, i32>>
     %6 = "xls.constant_scalar"() <{value = -4 : i3}> : () -> i3
     %7 = "xls.constant_scalar"() <{value = -3 : i3}> : () -> i3
-    %8 = xls.array %6, %7 : (i3, i3) -> !xls.array<2 x i3>
-    %final = "xls.tuple"(%5, %8) : (tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>) -> tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>>
-    xls.yield %final : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>>
+    %8 = xls.array %6, %7 : (i3, i3) -> !xls.array<2xi3>
+    %final = "xls.tuple"(%5, %8) : (tuple<i1, i2, tuple<i32, i32>>, !xls.array<2xi3>) -> tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2xi3>>
+    xls.yield %final : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2xi3>>
   }
-  return %lit : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>>
+  return %lit : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2xi3>>
 }
 
 xls.chan @mychan : i32

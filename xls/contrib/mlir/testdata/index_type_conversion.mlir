@@ -51,9 +51,9 @@ func.func @i32_to_index(%lhs : i32, %rhs : i32) -> i32 attributes {xls = true} {
 
 // INDEX32-LABEL:   func.func @constant_index(
 // INDEX64-LABEL:   func.func @constant_index(
-// INDEX32-SAME:    %[[array:.*]]: !xls.array<2 x i32>) -> i32 attributes {xls = true} {
-// INDEX64-SAME:    %[[array:.*]]: !xls.array<2 x i32>) -> i32 attributes {xls = true} {
-func.func @constant_index(%array : !xls.array<2 x i32>) -> i32 attributes {xls = true} {
+// INDEX32-SAME:    %[[array:.*]]: !xls.array<2xi32>) -> i32 attributes {xls = true} {
+// INDEX64-SAME:    %[[array:.*]]: !xls.array<2xi32>) -> i32 attributes {xls = true} {
+func.func @constant_index(%array : !xls.array<2xi32>) -> i32 attributes {xls = true} {
   // INDEX32:           %[[index:.*]] = "xls.constant_scalar"() <{value = 1 : i32}> : () -> i32
   // INDEX64:           %[[index:.*]] = "xls.constant_scalar"() <{value = 1 : i64}> : () -> i64
   %cst = arith.constant 1 : index
@@ -61,9 +61,9 @@ func.func @constant_index(%array : !xls.array<2 x i32>) -> i32 attributes {xls =
   // INDEX64:           "xls.constant_scalar"() <{value = 21 : i64}> : () -> i64
   %2 = "xls.constant_scalar"() <{value = 21 : index}> : () -> index
 
-  // INDEX32:           %[[ret:.*]] = "xls.array_index"(%[[array]], %[[index]]) : (!xls.array<2 x i32>, i32) -> i32
-  // INDEX64:           %[[ret:.*]] = "xls.array_index"(%[[array]], %[[index]]) : (!xls.array<2 x i32>, i64) -> i32
-  %ret = "xls.array_index"(%array, %cst) : (!xls.array<2 x i32>, index) -> i32
+  // INDEX32:           %[[ret:.*]] = "xls.array_index"(%[[array]], %[[index]]) : (!xls.array<2xi32>, i32) -> i32
+  // INDEX64:           %[[ret:.*]] = "xls.array_index"(%[[array]], %[[index]]) : (!xls.array<2xi32>, i64) -> i32
+  %ret = "xls.array_index"(%array, %cst) : (!xls.array<2xi32>, index) -> i32
 
   // INDEX32:           return %[[ret]] : i32
   // INDEX64:           return %[[ret]] : i32
@@ -77,13 +77,13 @@ func.func @array() -> i32 attributes {xls = true} {
   // INDEX64:           %[[cst:.*]] = "xls.constant_scalar"() <{value = 1 : i64}> : () -> i64
   %cst = arith.constant 1 : index
 
-  // INDEX32:           %[[array:.*]] = xls.array %[[cst]], %[[cst]] : (i32, i32) -> !xls.array<2 x i32>
-  // INDEX64:           %[[array:.*]] = xls.array %[[cst]], %[[cst]] : (i64, i64) -> !xls.array<2 x i64>
-  %array = "xls.array"(%cst, %cst) : (index, index) -> !xls.array<2 x index>
+  // INDEX32:           %[[array:.*]] = xls.array %[[cst]], %[[cst]] : (i32, i32) -> !xls.array<2xi32>
+  // INDEX64:           %[[array:.*]] = xls.array %[[cst]], %[[cst]] : (i64, i64) -> !xls.array<2xi64>
+  %array = "xls.array"(%cst, %cst) : (index, index) -> !xls.array<2xindex>
 
-  // INDEX32:           %[[ele:.*]] = "xls.array_index"(%[[array]], %[[cst]]) : (!xls.array<2 x i32>, i32) -> i32
-  // INDEX64:           %[[ele:.*]] = "xls.array_index"(%[[array]], %[[cst]]) : (!xls.array<2 x i64>, i64) -> i64
-  %ret = "xls.array_index"(%array, %cst) : (!xls.array<2 x index>, index) -> index
+  // INDEX32:           %[[ele:.*]] = "xls.array_index"(%[[array]], %[[cst]]) : (!xls.array<2xi32>, i32) -> i32
+  // INDEX64:           %[[ele:.*]] = "xls.array_index"(%[[array]], %[[cst]]) : (!xls.array<2xi64>, i64) -> i64
+  %ret = "xls.array_index"(%array, %cst) : (!xls.array<2xindex>, index) -> index
 
   // INDEX64:           %[[ret:.*]] = xls.bit_slice %[[ele]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
   %ret_i32 = arith.index_cast %ret: index to i32
@@ -100,21 +100,21 @@ func.func @array_nested() -> i32 attributes {xls = true} {
   // INDEX64:           %[[cst:.*]] = "xls.constant_scalar"() <{value = 1 : i64}> : () -> i64
   %cst = arith.constant 1 : index
 
-  // INDEX32:           %[[array:.*]] = xls.array %[[cst]], %[[cst]] : (i32, i32) -> !xls.array<2 x i32>
-  // INDEX64:           %[[array:.*]] = xls.array %[[cst]], %[[cst]] : (i64, i64) -> !xls.array<2 x i64>
-  %array = "xls.array"(%cst, %cst) : (index, index) -> !xls.array<2 x index>
+  // INDEX32:           %[[array:.*]] = xls.array %[[cst]], %[[cst]] : (i32, i32) -> !xls.array<2xi32>
+  // INDEX64:           %[[array:.*]] = xls.array %[[cst]], %[[cst]] : (i64, i64) -> !xls.array<2xi64>
+  %array = "xls.array"(%cst, %cst) : (index, index) -> !xls.array<2xindex>
 
-  // INDEX32:           %[[array_2d:.*]] = xls.array %[[array]], %[[array]] : (!xls.array<2 x i32>, !xls.array<2 x i32>) -> !xls.array<2 x !xls.array<2 x i32>>
-  // INDEX64:           %[[array_2d:.*]] = xls.array %[[array]], %[[array]] : (!xls.array<2 x i64>, !xls.array<2 x i64>) -> !xls.array<2 x !xls.array<2 x i64>>
-  %array_2d= "xls.array"(%array, %array) : (!xls.array<2 x index>, !xls.array<2 x index>) -> !xls.array<2 x !xls.array<2 x index>>
+  // INDEX32:           %[[array_2d:.*]] = xls.array %[[array]], %[[array]] : (!xls.array<2xi32>, !xls.array<2xi32>) -> !xls.array<2x!xls.array<2xi32>>
+  // INDEX64:           %[[array_2d:.*]] = xls.array %[[array]], %[[array]] : (!xls.array<2xi64>, !xls.array<2xi64>) -> !xls.array<2x!xls.array<2xi64>>
+  %array_2d= "xls.array"(%array, %array) : (!xls.array<2xindex>, !xls.array<2xindex>) -> !xls.array<2x!xls.array<2xindex>>
 
-  // INDEX32:           %[[ele:.*]] = "xls.array_index"(%[[array_2d]], %[[cst]]) : (!xls.array<2 x !xls.array<2 x i32>>, i32) -> !xls.array<2 x i32>
-  // INDEX64:           %[[ele:.*]] = "xls.array_index"(%[[array_2d]], %[[cst]]) : (!xls.array<2 x !xls.array<2 x i64>>, i64) -> !xls.array<2 x i64>
-  %array_1 = "xls.array_index"(%array_2d, %cst) : (!xls.array<2 x !xls.array<2 x index>>, index) -> !xls.array<2 x index>
+  // INDEX32:           %[[ele:.*]] = "xls.array_index"(%[[array_2d]], %[[cst]]) : (!xls.array<2x!xls.array<2xi32>>, i32) -> !xls.array<2xi32>
+  // INDEX64:           %[[ele:.*]] = "xls.array_index"(%[[array_2d]], %[[cst]]) : (!xls.array<2x!xls.array<2xi64>>, i64) -> !xls.array<2xi64>
+  %array_1 = "xls.array_index"(%array_2d, %cst) : (!xls.array<2x!xls.array<2xindex>>, index) -> !xls.array<2xindex>
 
-  // INDEX32:           %[[ret:.*]] = "xls.array_index"(%[[ele]], %[[cst]]) : (!xls.array<2 x i32>, i32) -> i32
-  // INDEX64:           %[[ret:.*]] = "xls.array_index"(%[[ele]], %[[cst]]) : (!xls.array<2 x i64>, i64) -> i64
-  %ret = "xls.array_index"(%array_1, %cst) : (!xls.array<2 x index>, index) -> index
+  // INDEX32:           %[[ret:.*]] = "xls.array_index"(%[[ele]], %[[cst]]) : (!xls.array<2xi32>, i32) -> i32
+  // INDEX64:           %[[ret:.*]] = "xls.array_index"(%[[ele]], %[[cst]]) : (!xls.array<2xi64>, i64) -> i64
+  %ret = "xls.array_index"(%array_1, %cst) : (!xls.array<2xindex>, index) -> index
 
   // INDEX64:           %[[ret_i32:.*]] = xls.bit_slice %[[ret]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
   %ret_i32 = arith.index_cast %ret: index to i32

@@ -43,21 +43,18 @@ def Xls_ArrayType : Xls_Type<"Array", [ShapedTypeInterface]> {
   let summary = "array";
   let mnemonic = "array";
   let parameters = (ins
-    TypeParameter<"int", "Number of elements">:$num_elements,
+    ArrayRefParameter<"int64_t">:$shape,
     TypeParameter<"::mlir::Type", "Underlying type">:$element_type
   );
-  let assemblyFormat = "`<` $num_elements `x` $element_type `>`";
+  let assemblyFormat = "`<` custom<DimensionList>($shape) `` $element_type `>`";
   let builders = [
     TypeBuilderWithInferredContext<(ins "int":$num_elements,
                                         "::mlir::Type":$element_type), [{
-      return Base::get(element_type.getContext(), num_elements, element_type);
+      return Base::get(element_type.getContext(), ArrayRef<int64_t>{num_elements}, element_type);
     }]>
   ];
   let extraClassDeclaration = [{
-    constexpr bool hasRank() { return true; }
-    ::llvm::SmallVector<int64_t> getShape() const {
-      return ::llvm::SmallVector<int64_t>(1, getNumElements());
-    }
+    bool hasRank() const { return true; }
     ::mlir::ShapedType cloneWith(std::optional<llvm::ArrayRef<int64_t>> shape,
                                  Type elementType) {
       assert(0 && "ArrayType::cloneWith unimplemented!");
