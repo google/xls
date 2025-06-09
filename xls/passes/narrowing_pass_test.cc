@@ -1836,6 +1836,18 @@ TEST_P(NarrowingPassTest, ArrayBoundsProof) {
   EXPECT_THAT(f->return_value(), m::ArrayIndex(_, {_}, m::AssumedInBounds()));
 }
 
+TEST_P(NarrowingPassTest, NarrowingSliceDoesntOverflow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.DynamicBitSlice(fb.Literal(UBits(0, 1487)),
+                     fb.Literal(Bits::AllOnes(1975)), 1487);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 1487)));
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     ::testing::Values(NarrowingPass::AnalysisType::kTernary,

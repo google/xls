@@ -946,8 +946,19 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     const QueryEngine& slice_start_qe =
         QueryEngineForNodeAndUser(slice->start(), slice);
     if (auto known_slice_start =
-            slice_start_qe.KnownValueAsBits(slice->start())) {
-      XLS_ASSIGN_OR_RETURN(int64_t start, known_slice_start->ToUint64());
+            slice_start_qe.KnownValueAsBits(slice->start());
+        known_slice_start.has_value()) {
+      if (!known_slice_start->FitsInInt64Unsigned() ||
+          *known_slice_start->UnsignedToInt64() >=
+              slice->to_slice()->BitCountOrDie()) {
+        // The dynamic slice is guaranteed to start after the end of the
+        // `to_slice` value, so it will always be zero.
+        XLS_ASSIGN_OR_RETURN(Node * replaced,
+                             slice->ReplaceUsesWithNew<Literal>(
+                                 Value(UBits(0, slice->BitCountOrDie()))));
+        return Change(slice, replaced);
+      }
+      int64_t start = *known_slice_start->UnsignedToInt64();
       int64_t width =
           std::min(slice->width(), slice->to_slice()->BitCountOrDie() - start);
       Node* replaced;

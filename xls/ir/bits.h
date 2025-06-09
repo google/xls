@@ -198,6 +198,7 @@ class Bits {
   // uint64_t/int64_t.
   bool FitsInUint64() const;
   bool FitsInInt64() const;
+  bool FitsInInt64Unsigned() const;
 
   // Converts the value held by this "bits" object into a uint64_t (int64_t).
   // ToUint64 & UnsignedToInt64 interpret the bits as unsigned. ToInt64

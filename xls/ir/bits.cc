@@ -184,6 +184,8 @@ bool Bits::HasSingleRunOfSetBits(int64_t* leading_zero_count,
 
 bool Bits::FitsInUint64() const { return FitsInNBitsUnsigned(64); }
 
+bool Bits::FitsInInt64Unsigned() const { return FitsInNBitsUnsigned(63); }
+
 bool Bits::FitsInInt64() const { return FitsInNBitsSigned(64); }
 
 bool Bits::FitsInNBitsUnsigned(int64_t n) const {
@@ -252,7 +254,7 @@ absl::StatusOr<int64_t> Bits::UnsignedToInt64() const {
     // By convention, an empty Bits has a numeric value of zero.
     return 0;
   }
-  if (!FitsInNBitsUnsigned(63)) {
+  if (!FitsInInt64Unsigned()) {
     return absl::InvalidArgumentError(absl::StrCat(
         "Unsigned Bits value cannot be represented as a signed 64-bit value: ",
         ToDebugString()));
