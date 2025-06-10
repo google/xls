@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -25,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -47,6 +49,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"
+#include "xls/ir/type.h"
 #include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -197,10 +200,45 @@ ComputeCombinationalDelayConstraints(
   return result;
 }
 
+absl::StatusOr<std::vector<NodeVariableGroup>> ComputeNodeVariableGroups(
+    const ScheduleGraph& graph) {
+  std::vector<NodeVariableGroup> node_groups;
+  // We're going to populate group_for_node with `NodeVariableGroup*` pointers
+  // from this vector. Reserve the vector to avoid reallocations that invalidate
+  // those pointers.
+  node_groups.reserve(graph.nodes().size());
+  absl::flat_hash_map<Node*, NodeVariableGroup*> group_for_node;
+  group_for_node.reserve(graph.nodes().size());
+
+  for (const ScheduleNode& schedule_node : graph.nodes()) {
+    Node* node = schedule_node.node;
+    auto [node_group_it, inserted] = group_for_node.insert({node, nullptr});
+    if (!inserted) {
+      continue;
+    }
+    if (node->Is<Literal>() && schedule_node.successors.size() == 1) {
+      Node* successor = *schedule_node.successors.begin();
+      auto [it, inserted] = group_for_node.try_emplace(successor, nullptr);
+      if (inserted) {
+        node_groups.push_back(NodeVariableGroup{successor, {node, successor}});
+        it->second = &node_groups.back();
+      } else {
+        it->second->nodes.push_back(node);
+      }
+      node_group_it->second = it->second;
+    } else {
+      node_groups.push_back(NodeVariableGroup{node, {node}});
+      node_group_it->second = &node_groups.back();
+    }
+  }
+  return node_groups;
+}
+
 }  // namespace
 
 SDCSchedulingModel::SDCSchedulingModel(
     ScheduleGraph graph, const DelayMap& delay_map,
+    std::vector<NodeVariableGroup>&& node_groups,
     std::optional<int64_t> initiation_interval)
     : graph_(std::move(graph)),
       model_(absl::StrCat("sdc_model:", graph_.name())),
@@ -215,14 +253,25 @@ SDCSchedulingModel::SDCSchedulingModel(
     distances_to_node_ = ComputeDistancesToNodes(graph_, delay_map_);
   }
 
-  for (const ScheduleNode& schedule_node : graph_.nodes()) {
-    Node* node = schedule_node.node;
-    std::string model_node_name =
-        graph_.IsFunctionBaseScoped()
-            ? node->GetName()
-            : absl::StrCat(node->function_base()->name(),
-                           "::", node->GetName());
-    cycle_var_.emplace(
+  auto get_model_node_name = [this](Node* node) {
+    return graph_.IsFunctionBaseScoped()
+               ? node->GetName()
+               : absl::StrCat(node->function_base()->name(),
+                              "::", node->GetName());
+  };
+
+  if (node_groups.empty()) {
+    absl::c_transform(graph_.nodes(), std::back_inserter(node_groups),
+                      [](const ScheduleNode& schedule_node) {
+                        return NodeVariableGroup{schedule_node.node,
+                                                 {schedule_node.node}};
+                      });
+  }
+
+  for (const NodeVariableGroup& node_group : node_groups) {
+    Node* node = node_group.representative;
+    std::string model_node_name = get_model_node_name(node);
+    auto [cycle_it, _] = cycle_var_.emplace(
         node, model_.AddContinuousVariable(0.0, kMaxStages, model_node_name));
     model_.AddLinearConstraint(
         cycle_var_.at(node) <= last_stage_,
@@ -231,6 +280,20 @@ SDCSchedulingModel::SDCSchedulingModel(
         node,
         model_.AddContinuousVariable(
             0.0, kInfinity, absl::StrFormat("lifetime_%s", model_node_name)));
+    // Inserting to cycle_var_ will invalidate cycle_it.
+    math_opt::Variable node_cycle_var = cycle_it->second;
+    for (Node* equivalent_node : node_group.nodes) {
+      if (equivalent_node == node) {
+        continue;
+      }
+      cycle_var_.emplace(equivalent_node, node_cycle_var);
+      trivial_nodes_.insert(equivalent_node);
+    }
+  }
+
+  for (const ScheduleNode& schedule_node : graph_.nodes()) {
+    Node* node = schedule_node.node;
+    std::string model_node_name = get_model_node_name(node);
     if (node->Is<Next>()) {
       unwanted_inverse_throughput_var_.emplace(
           node, model_.AddContinuousVariable(
@@ -251,6 +314,9 @@ SDCSchedulingModel::SDCSchedulingModel(
           absl::StrCat("in_last_stage:", model_node_name));
     }
   }
+
+  VLOG(2) << "Node Groups count: " << node_groups.size() << " out of "
+          << graph_.nodes().size();
 }
 
 absl::Status SDCSchedulingModel::AddAllDefUseConstraints() {
@@ -300,6 +366,16 @@ absl::Status SDCSchedulingModel::AddCausalConstraint(
   math_opt::Variable cycle_at_user =
       user.has_value() ? cycle_var_.at(user.value()) : cycle_at_sinknode_;
 
+  std::string_view user_name = "<cycle_at_sinknode>";
+  if (user.has_value()) {
+    user_name = (*user)->GetNameView();
+  }
+  XLS_RET_CHECK_EQ(cycle_at_node.storage(), cycle_at_user.storage())
+      << *node << " " << user_name;
+  if (cycle_at_user == cycle_at_node) {
+    return absl::OkStatus();
+  }
+
   // Explicit delay nodes must lag their inputs by a certain number of cycles.
   int64_t min_delay = 0;
   if (user.has_value() && user.value()->Is<MinDelay>()) {
@@ -320,10 +396,17 @@ absl::Status SDCSchedulingModel::AddCausalConstraint(
 
 absl::Status SDCSchedulingModel::AddLifetimeConstraint(
     Node* node, std::optional<Node*> user) {
+  if (trivial_nodes_.contains(node)) {
+    return absl::OkStatus();
+  }
   math_opt::Variable cycle_at_node = cycle_var_.at(node);
   math_opt::Variable lifetime_at_node = lifetime_var_.at(node);
   math_opt::Variable cycle_at_user =
       user.has_value() ? cycle_var_.at(user.value()) : cycle_at_sinknode_;
+
+  if (cycle_at_user == cycle_at_node) {
+    return absl::OkStatus();
+  }
 
   std::string user_str = user.has_value() ? user.value()->GetName() : "«sink»";
 
@@ -669,15 +752,18 @@ void SDCSchedulingModel::SetObjective(std::optional<double> throughput_weight) {
       objective += (kObjectiveScaling * *throughput_weight / num_paths) *
                    unwanted_inverse_throughput_var_.at(node);
     }
+    // This acts as a tie-breaker for under-constrained problems, favoring ASAP
+    // schedules.
+    objective += cycle_var_.at(node);
+    if (trivial_nodes_.contains(node)) {
+      continue;
+    }
     // Minimize node lifetimes.
     // The scaling makes the tie-breaker small in comparison, and is a power
     // of two so that there's no imprecision (just add to exponent).
     objective += kObjectiveScaling *
                  static_cast<double>(node->GetType()->GetFlatBitCount()) *
                  lifetime_var_.at(node);
-    // This acts as a tie-breaker for under-constrained problems, favoring ASAP
-    // schedules.
-    objective += cycle_var_.at(node);
   }
   model_.Minimize(objective);
 }
@@ -1086,12 +1172,15 @@ absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
   ScheduleGraph graph = ScheduleGraph::Create(f, dead_after_synthesis);
   XLS_ASSIGN_OR_RETURN(DelayMap delay_map,
                        ComputeNodeDelays(graph, delay_estimator));
+  XLS_ASSIGN_OR_RETURN(std::vector<NodeVariableGroup> node_groups,
+                       ComputeNodeVariableGroups(graph));
   std::optional<int64_t> initiation_interval =
       f->IsProc() ? std::optional<int64_t>(
                         f->AsProcOrDie()->GetInitiationInterval().value_or(1))
                   : std::nullopt;
-  std::unique_ptr<SDCScheduler> scheduler(new SDCScheduler(
-      std::move(graph), initiation_interval, std::move(delay_map)));
+  std::unique_ptr<SDCScheduler> scheduler(
+      new SDCScheduler(std::move(graph), initiation_interval,
+                       std::move(delay_map), std::move(node_groups)));
   XLS_RETURN_IF_ERROR(scheduler->Initialize());
   return std::move(scheduler);
 }
@@ -1100,17 +1189,22 @@ absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
     ScheduleGraph graph, const DelayEstimator& delay_estimator) {
   XLS_ASSIGN_OR_RETURN(DelayMap delay_map,
                        ComputeNodeDelays(graph, delay_estimator));
+  XLS_ASSIGN_OR_RETURN(std::vector<NodeVariableGroup> node_groups,
+                       ComputeNodeVariableGroups(graph));
   std::unique_ptr<SDCScheduler> scheduler(
-      new SDCScheduler(std::move(graph), std::nullopt, std::move(delay_map)));
+      new SDCScheduler(std::move(graph), std::nullopt, std::move(delay_map),
+                       std::move(node_groups)));
   XLS_RETURN_IF_ERROR(scheduler->Initialize());
   return std::move(scheduler);
 }
 
 SDCScheduler::SDCScheduler(ScheduleGraph graph,
                            std::optional<int64_t> initiation_interval,
-                           DelayMap delay_map)
+                           DelayMap&& delay_map,
+                           std::vector<NodeVariableGroup>&& node_groups)
     : delay_map_(std::move(delay_map)),
-      model_(std::move(graph), delay_map_, initiation_interval) {}
+      model_(std::move(graph), delay_map_, std::move(node_groups),
+             initiation_interval) {}
 
 absl::Status SDCScheduler::Initialize() {
   XLS_ASSIGN_OR_RETURN(
