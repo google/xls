@@ -33,11 +33,11 @@ namespace {
 // Initializes the IrFuzzBuilder so that it can convert the FuzzProgramProto
 // into a valid IR object, which exists inside a Function object, which exists
 // inside a Package object.
-absl::StatusOr<std::unique_ptr<Package>> BuildPackage(
-    const FuzzProgramProto& fuzz_program) {
-  auto p = IrTestBase::CreatePackage();
+absl::StatusOr<std::shared_ptr<Package>> BuildPackage(
+    FuzzProgramProto& fuzz_program) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
   FunctionBuilder fb(IrTestBase::TestName(), p.get());
-  IrFuzzBuilder ir_fuzz_builder(p.get(), &fb, fuzz_program);
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
   BValue ir = ir_fuzz_builder.BuildIr();
   XLS_RET_CHECK_OK(fb.BuildWithReturnValue(ir));
   return std::move(p);
@@ -50,16 +50,23 @@ absl::StatusOr<std::unique_ptr<Package>> BuildPackage(
 // Arbitrary domain allows all possible values and vector sizes for fields. Some
 // fields may be unset. fuzztest::Map is used to convert the FuzzProgramProto
 // domain into a Package domain for test creation readability.
-fuzztest::Domain<std::unique_ptr<Package>> IrFuzzDomain() {
+fuzztest::Domain<std::shared_ptr<Package>> IrFuzzDomain() {
   return fuzztest::Map(
-      [](const FuzzProgramProto& fuzz_program) -> std::unique_ptr<Package> {
-        absl::StatusOr<std::unique_ptr<Package>> p = BuildPackage(fuzz_program);
+      [](FuzzProgramProto fuzz_program) {
+        absl::StatusOr<std::shared_ptr<Package>> p = BuildPackage(fuzz_program);
         CHECK_OK(p.status())
             << "Failed to build package from FuzzProgramProto: "
             << fuzz_program;
         return *std::move(p);
       },
-      fuzztest::Arbitrary<FuzzProgramProto>());
+      // Specify the range of possible values for the FuzzProgramProto protobuf.
+      fuzztest::Arbitrary<FuzzProgramProto>().WithRepeatedProtobufField(
+          "fuzz_ops",
+          fuzztest::VectorOf(fuzztest::Arbitrary<FuzzOpProto>()
+                                 // We want all FuzzOps to be defined.
+                                 .WithOneofAlwaysSet("fuzz_op"))
+              // Generate at least one FuzzOp.
+              .WithMinSize(1)));
 }
 
 }  // namespace xls
