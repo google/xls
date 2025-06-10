@@ -936,7 +936,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     }
 
     if (node->kind() == AstNodeKind::kTypeAnnotation ||
-        node->kind() == AstNodeKind::kTypeAlias) {
+        node->kind() == AstNodeKind::kTypeAlias ||
+        (node->kind() == AstNodeKind::kColonRef &&
+         IsColonRefWithTypeTarget(table_, down_cast<const ColonRef*>(node)))) {
       MetaType meta_type((*type)->CloneToUnique());
       ti->SetItem(node, meta_type);
     } else {

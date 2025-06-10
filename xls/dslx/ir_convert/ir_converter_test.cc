@@ -2002,6 +2002,40 @@ fn f() -> u32 {
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ZeroMacroImportedStructInProcInit) {
+  ImportData import_data = CreateImportDataForTest();
+
+  constexpr std::string_view kImported = R"(
+pub struct S { field: u32 }
+  )";
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+proc main {
+  init {
+    // IR converter cares whether `imported::S` has a `MetaType` here, only for
+    // macro invocations inside a proc init.
+    zero!<imported::S>()
+  }
+  config() {
+    ()
+  }
+  next(s: imported::S) {
+    s
+  }
+}
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false},
+                           &import_data));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MapImportedFunction) {
   auto import_data = CreateImportDataForTest();
   const char* imported_program = R"(
