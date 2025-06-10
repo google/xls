@@ -798,5 +798,52 @@ class InterpreterTest(test_base.TestCase):
       )
 
 
+class OutOfTreeInterpreterTest(test_base.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    # Copy the interpreter binary out of tree to a temporary directory.
+    with open(runfiles.get_path('xls/dslx/interpreter_main'), 'rb') as f:
+      self.interpreter_path = self.create_tempfile(content=f.read())
+    # We have to mark it as executable.
+    os.chmod(self.interpreter_path.full_path, 0o755)
+
+  def test_out_of_tree_interpreter_invocation(self):
+    """Tests that we can invoke the interpreter successfully from outside the tree."""
+    program = """
+    #[test] fn empty_test() {}
+    """
+    temp_file = self.create_tempfile(content=program)
+    # Note: we have to supply `env` to avoid the Python testbridge setting seeping in.
+    p = subp.run([self.interpreter_path.full_path, temp_file.full_path], stdout=subp.PIPE, stderr=subp.PIPE, encoding='utf-8', env={})
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
+
+  def test_out_of_tree_interpreter_invocation_with_tiv2_flag(self):
+    """Tests that we can invoke the interpreter successfully from outside the tree with TIv2."""
+    program = """
+    #[test] fn empty_test() {}
+    """
+    temp_file = self.create_tempfile(content=program)
+    # Note: we have to supply `env` to avoid the Python testbridge setting seeping in.
+    p = subp.run([self.interpreter_path.full_path, temp_file.full_path, "--type_inference_v2"], stdout=subp.PIPE, stderr=subp.PIPE, encoding='utf-8', env={})
+    print('p:', p)
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
+
+  def test_out_of_tree_interpreter_invocation_with_tiv2_flag(self):
+    """Tests that we can invoke the interpreter successfully from outside the tree with TIv2."""
+    program = """
+    #![feature(type_inference_v2)]
+    #[test] fn empty_test() {}
+    """
+    temp_file = self.create_tempfile(content=program)
+    # Note: we have to supply `env` to avoid the Python testbridge setting seeping in.
+    p = subp.run([self.interpreter_path.full_path, temp_file.full_path], stdout=subp.PIPE, stderr=subp.PIPE, encoding='utf-8', env={})
+    print('p:', p)
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
+
+
 if __name__ == '__main__':
   test_base.main()
