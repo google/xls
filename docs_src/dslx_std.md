@@ -364,15 +364,14 @@ If the selector is zero, the default value is returned.
 Example usage:
 [`dslx/tests/priority_sel.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/priority_sel.x).
 
-### `range`
+### ~~`range`~~
+
+**This built-in is deprecated and will be removed in the future. Use range
+expression `start..limit` instead.**
 
 Returns an array filled with the sequence from inclusive `start` to exclusive
 `limit`. Note that `start` and `limit` must be compile-time-constant values (AKA
 "constexpr"). The type system checks at compile-time that `limit >= start`.
-
-```
-pub fn range<N: u32>(start: const uN[N], limit: const uN[N]) -> uN[N][limit-start]
-```
 
 ### `signex`
 

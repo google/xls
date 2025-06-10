@@ -156,8 +156,8 @@ proc Spawner4x4 {
     let (input_producers, input_consumers) = chan<F32>[4][4]("node_input");
     let (output_producers, output_consumers) = chan<F32>[4][4]("node_output");
 
-    unroll_for! (i, _) : (u32, ()) in range(u32:0, u32:4) {
-      unroll_for! (j, _) : (u32, ()) in range(u32:0, u32:4) {
+    unroll_for! (i, _) : (u32, ()) in u32:0..u32:4 {
+      unroll_for! (j, _) : (u32, ()) in u32:0..u32:4 {
         spawn Node(input_consumers[i][j],
                    output_producers[i][j]);
       }(());
@@ -188,8 +188,8 @@ proc Parametric<N: u32, M: u32> {
     let (input_producers, input_consumers) = chan<F32>[N][M]("node_input");
     let (output_producers, output_consumers) = chan<F32>[N][M]("node_output");
 
-    for (i, _) : (u32, ()) in range(u32:0, N) {
-      for (j, _) : (u32, ()) in range(u32:0, M) {
+    for (i, _) : (u32, ()) in u32:0..N {
+      for (j, _) : (u32, ()) in u32:0..M {
         spawn Node(input_consumers[i][j],
                    output_producers[i][j]);
       }(());

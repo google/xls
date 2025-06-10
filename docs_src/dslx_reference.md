@@ -1583,8 +1583,6 @@ inclusive.
 A range expression is evaluated at compile time as a constant array containing
 the values in the range.
 
-There also exists a `range()` builtin function that performs the same operation.
-
 `enumerate` iterates over the elements of an array type and produces pairs of
 `(index, value)`, similar to enumeration constructs in languages like Python or
 Go.
