@@ -683,7 +683,7 @@ cc_library(
 cc_binary(
     name = "codegen_main",
     srcs = ["codegen_main.cc"],
-    visibility = ["//xls:xls_users"],
+    visibility = ["//visibility:public"],
     deps = [
         ":codegen",
         ":codegen_flags",

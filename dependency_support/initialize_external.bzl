@@ -36,7 +36,7 @@ def initialize_external_repositories():
     rules_closure_toolchains()
     pip_parse(
         name = "xls_pip_deps",
-        requirements_lock = "//dependency_support:pip_requirements_lock.txt",
+        requirements_lock = Label("//dependency_support:pip_requirements_lock.txt"),
         python_interpreter_target = python_interpreter_target,
         timeout = 600000,
     )

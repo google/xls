@@ -55,7 +55,7 @@ def load_external_repositories():
         urls = ["https://github.com/Z3Prover/z3/archive/z3-4.14.1.tar.gz"],
         integrity = "sha256-gaAsLGTGTWw98jP1kYa5VieZCtoMTC/JAcnCWnByZyo=",
         strip_prefix = "z3-z3-4.14.1",
-        build_file = "//dependency_support/z3:bundled.BUILD.bazel",
+        build_file = Label("//dependency_support/z3:bundled.BUILD.bazel"),
     )
 
     # Release 2024-02-23, current as of 2024-06-26
@@ -74,7 +74,7 @@ def load_external_repositories():
         sha256 = "839ed407fe0dfa5fd7dd103abfc695dee72fea2840df8d4250ad42b0e64839e8",
         strip_prefix = "linenoise-d895173d679be70bcd8b23041fff3e458e1a3506",
         urls = ["https://github.com/antirez/linenoise/archive/d895173d679be70bcd8b23041fff3e458e1a3506.tar.gz"],
-        build_file = "//dependency_support/linenoise:bundled.BUILD.bazel",
+        build_file = Label("//dependency_support/linenoise:bundled.BUILD.bazel"),
     )
 
     # Used by xlscc. Tagged 2024-02-16 (note: release is lagging tag), current as of 2024-06-26
@@ -83,7 +83,7 @@ def load_external_repositories():
         urls = ["https://github.com/hlslibs/ac_types/archive/refs/tags/4.8.0.tar.gz"],
         sha256 = "238197203f8c6254a1d6ac6884e89e6f4c060bffb7473d336df4a1fb53ba7fab",
         strip_prefix = "ac_types-4.8.0",
-        build_file = "//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel",
+        build_file = Label("//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel"),
     )
 
     # Used in C++ tests of the ZSTD Module
@@ -96,5 +96,5 @@ def load_external_repositories():
         sha256 = "9ace5a1b3c477048c6e034fe88d2abb5d1402ced199cae8e9eef32fdc32204df",
         strip_prefix = "zstd-fdfb2aff39dc498372d8c9e5f2330b692fea9794",
         urls = ["https://github.com/facebook/zstd/archive/fdfb2aff39dc498372d8c9e5f2330b692fea9794.zip"],
-        build_file = "//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel",
+        build_file = Label("//dependency_support/com_github_facebook_zstd:bundled.BUILD.bazel"),
     )
