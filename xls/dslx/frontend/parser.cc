@@ -220,16 +220,17 @@ absl::Status Parser::ParseErrorStatus(const Span& span,
 absl::StatusOr<Function*> Parser::ParseImplFunction(
     const Pos& start_pos, bool is_public, Bindings& bindings,
     TypeAnnotation* struct_ref) {
-  return ParseFunctionInternal(start_pos, is_public, /*test_only=*/false,
+  return ParseFunctionInternal(start_pos, is_public, /*is_test_utility=*/false,
                                bindings, struct_ref);
 }
 
 absl::StatusOr<Function*> Parser::ParseFunction(
-    const Pos& start_pos, bool is_public, bool test_only, Bindings& bindings,
+    const Pos& start_pos, bool is_public, bool is_test_utility,
+    Bindings& bindings,
     absl::flat_hash_map<std::string, Function*>* name_to_fn) {
   XLS_ASSIGN_OR_RETURN(
       Function * f,
-      ParseFunctionInternal(start_pos, is_public, test_only, bindings));
+      ParseFunctionInternal(start_pos, is_public, is_test_utility, bindings));
   if (name_to_fn == nullptr) {
     return f;
   }
@@ -357,17 +358,17 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_ASSIGN_OR_RETURN(
             Function * fn,
             ParseFunction(start_pos,
-                          /*is_public=*/true, /*test_only=*/false, *bindings,
-                          &name_to_fn));
+                          /*is_public=*/true, /*is_test_utility=*/false,
+                          *bindings, &name_to_fn));
         XLS_RETURN_IF_ERROR(module_->AddTop(fn, make_collision_error));
         continue;
       }
 
       if (peek->IsKeyword(Keyword::kProc)) {
-        XLS_ASSIGN_OR_RETURN(
-            ModuleMember proc,
-            ParseProc(start_pos,
-                      /*is_public=*/true, /*test_only=*/false, *bindings));
+        XLS_ASSIGN_OR_RETURN(ModuleMember proc,
+                             ParseProc(start_pos,
+                                       /*is_public=*/true,
+                                       /*is_test_utility=*/false, *bindings));
         XLS_RETURN_IF_ERROR(module_->AddTop(proc, make_collision_error));
         continue;
       }
@@ -484,16 +485,16 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_ASSIGN_OR_RETURN(
             Function * fn,
             ParseFunction(GetPos(),
-                          /*is_public=*/false, /*test_only=*/false, *bindings,
-                          &name_to_fn));
+                          /*is_public=*/false, /*is_test_utility=*/false,
+                          *bindings, &name_to_fn));
         XLS_RETURN_IF_ERROR(module_->AddTop(fn, make_collision_error));
         break;
       }
       case Keyword::kProc: {
-        XLS_ASSIGN_OR_RETURN(
-            ModuleMember proc,
-            ParseProc(GetPos(),
-                      /*is_public=*/false, /*test_only=*/false, *bindings));
+        XLS_ASSIGN_OR_RETURN(ModuleMember proc,
+                             ParseProc(GetPos(),
+                                       /*is_public=*/false,
+                                       /*is_test_utility=*/false, *bindings));
         XLS_RETURN_IF_ERROR(module_->AddTop(proc, make_collision_error));
         break;
       }
@@ -736,9 +737,9 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
   if (attribute_name == "dslx_format_disable") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     XLS_ASSIGN_OR_RETURN(bool is_public, TryDropKeyword(Keyword::kPub));
-    XLS_ASSIGN_OR_RETURN(Function * fn,
-                         ParseFunction(hash_pos, is_public, /*test_only=*/false,
-                                       bindings, name_to_fn));
+    XLS_ASSIGN_OR_RETURN(Function * fn, ParseFunction(hash_pos, is_public,
+                                                      /*is_test_utility=*/false,
+                                                      bindings, name_to_fn));
     fn->set_disable_format(true);
     return fn;
   }
@@ -761,13 +762,14 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     XLS_ASSIGN_OR_RETURN(const Token* t, PeekToken());
     if (t->IsKeyword(Keyword::kFn)) {
       XLS_ASSIGN_OR_RETURN(
-          Function * fn, ParseFunction(hash_pos, is_public, /*test_only=*/true,
-                                       bindings, name_to_fn));
+          Function * fn,
+          ParseFunction(hash_pos, is_public, /*is_test_utility=*/true, bindings,
+                        name_to_fn));
       return fn;
     } else if (t->IsKeyword(Keyword::kProc)) {
       XLS_ASSIGN_OR_RETURN(ModuleMember m,
                            ParseProc(GetPos(), /*is_public=*/false,
-                                     /*test_only=*/true, bindings));
+                                     /*is_test_utility=*/true, bindings));
       Proc* p = std::get<Proc*>(m);
       return p;
     } else {
@@ -789,8 +791,9 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     XLS_ASSIGN_OR_RETURN(bool dropped_pub, TryDropKeyword(Keyword::kPub));
     XLS_ASSIGN_OR_RETURN(
-        Function * f, ParseFunction(template_start, dropped_pub,
-                                    /*test_only=*/false, bindings, name_to_fn));
+        Function * f,
+        ParseFunction(template_start, dropped_pub,
+                      /*is_test_utility=*/false, bindings, name_to_fn));
     absl::StatusOr<ForeignFunctionData> parsed_ffi_annotation =
         ForeignFunctionDataCreateFromTemplate(ffi_annotation);
     if (!parsed_ffi_annotation.ok()) {
@@ -1977,7 +1980,7 @@ absl::StatusOr<Import*> Parser::ParseImport(Bindings& bindings) {
 }
 
 absl::StatusOr<Function*> Parser::ParseFunctionInternal(
-    const Pos& start_pos, bool is_public, bool test_only,
+    const Pos& start_pos, bool is_public, bool is_test_utility,
     Bindings& outer_bindings, TypeAnnotation* struct_ref) {
   XLS_ASSIGN_OR_RETURN(Token fn_tok, PopKeywordOrError(Keyword::kFn));
 
@@ -2022,9 +2025,10 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   } else {
     XLS_ASSIGN_OR_RETURN(body, ParseBlockExpression(bindings));
   }
-  Function* f = module_->Make<Function>(
-      Span(start_pos, GetPos()), name_def, std::move(parametric_bindings),
-      params, return_type, body, FunctionTag::kNormal, is_public, test_only);
+  Function* f = module_->Make<Function>(Span(start_pos, GetPos()), name_def,
+                                        std::move(parametric_bindings), params,
+                                        return_type, body, FunctionTag::kNormal,
+                                        is_public, is_test_utility);
   name_def->set_definer(f);
   return f;
 }
@@ -2061,8 +2065,9 @@ absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
   XLS_ASSIGN_OR_RETURN(
-      Function * fn, ParseFunction(GetPos(), /*is_public=*/false,
-                                   /*test_only=*/false, bindings, name_to_fn));
+      Function * fn,
+      ParseFunction(GetPos(), /*is_public=*/false,
+                    /*is_test_utility=*/false, bindings, name_to_fn));
   const Span quickcheck_span(hash_pos, fn->span().limit());
   return module_->Make<QuickCheck>(quickcheck_span, fn, test_cases.value());
 }
@@ -2809,7 +2814,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
     Bindings& outer_bindings,
     std::vector<ParametricBinding*> parametric_bindings,
     const std::vector<ProcMember*>& proc_members, std::string_view proc_name,
-    bool is_public, bool test_only) {
+    bool is_public, bool is_test_utility) {
   Bindings bindings(&outer_bindings);
   XLS_ASSIGN_OR_RETURN(Token config_tok,
                        PopTokenOrError(TokenKind::kIdentifier));
@@ -2858,7 +2863,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   Function* config = module_->Make<Function>(
       block->span(), name_def, std::move(parametric_bindings),
       std::move(config_params), return_type, block, FunctionTag::kProcConfig,
-      is_public, test_only);
+      is_public, is_test_utility);
   name_def->set_definer(config);
 
   return config;
@@ -2866,7 +2871,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
 
 absl::StatusOr<Function*> Parser::ParseProcNext(
     Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
-    std::string_view proc_name, bool is_public, bool test_only) {
+    std::string_view proc_name, bool is_public, bool is_test_utility) {
   Bindings inner_bindings(&bindings);
   inner_bindings.NoteFunctionScoped();
 
@@ -2914,7 +2919,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   Function* next = module_->Make<Function>(
       span, name_def, std::move(parametric_bindings),
       std::vector<Param*>({state_param}), return_type, body,
-      FunctionTag::kProcNext, is_public, test_only);
+      FunctionTag::kProcNext, is_public, is_test_utility);
   name_def->set_definer(next);
 
   return next;
@@ -2924,7 +2929,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
 // type.
 absl::StatusOr<Function*> Parser::ParseProcInit(
     Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
-    std::string_view proc_name, bool is_public, bool test_only) {
+    std::string_view proc_name, bool is_public, bool is_test_utility) {
   Bindings inner_bindings(&bindings);
   XLS_ASSIGN_OR_RETURN(Token init_identifier, PopToken());
   if (!init_identifier.IsIdentifier("init")) {
@@ -2942,7 +2947,7 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
   Function* init = module_->Make<Function>(
       span, name_def, std::move(parametric_bindings), std::vector<Param*>(),
       /*return_type=*/nullptr, body, FunctionTag::kProcInit, is_public,
-      test_only);
+      is_test_utility);
   name_def->set_definer(init);
   return init;
 }
@@ -2965,7 +2970,7 @@ std::vector<StructMemberNode*> ConvertProcMembersToStructMembers(
 template <typename T>
 absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
                                                    bool is_public,
-                                                   bool test_only,
+                                                   bool is_test_utility,
                                                    Bindings& outer_bindings,
                                                    Keyword keyword) {
   XLS_ASSIGN_OR_RETURN(Token leading_token, PopKeywordOrError(keyword));
@@ -3063,7 +3068,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
           Function * config,
           ParseProcConfig(this_bindings, parametric_bindings,
                           proc_like_body.members, name_def->identifier(),
-                          is_public, test_only),
+                          is_public, is_test_utility),
           _.With(specialize_config_name_error));
 
       proc_like_body.config = config;
@@ -3084,7 +3089,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
       XLS_ASSIGN_OR_RETURN(
           Function * next,
           ParseProcNext(member_bindings, parametric_bindings,
-                        name_def->identifier(), is_public, test_only));
+                        name_def->identifier(), is_public, is_test_utility));
       proc_like_body.next = next;
       XLS_RETURN_IF_ERROR(module_->AddTop(next, make_collision_error));
 
@@ -3100,7 +3105,7 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
       XLS_ASSIGN_OR_RETURN(
           Function * init,
           ParseProcInit(member_bindings, parametric_bindings,
-                        name_def->identifier(), is_public, test_only));
+                        name_def->identifier(), is_public, is_test_utility));
       proc_like_body.init = init;
       XLS_RETURN_IF_ERROR(module_->AddTop(init, make_collision_error));
 
@@ -3236,10 +3241,11 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
 }
 
 absl::StatusOr<ModuleMember> Parser::ParseProc(const Pos& start_pos,
-                                               bool is_public, bool test_only,
+                                               bool is_public,
+                                               bool is_test_utility,
                                                Bindings& outer_bindings) {
-  return ParseProcLike<Proc>(start_pos, is_public, test_only, outer_bindings,
-                             Keyword::kProc);
+  return ParseProcLike<Proc>(start_pos, is_public, is_test_utility,
+                             outer_bindings, Keyword::kProc);
 }
 
 absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(
@@ -4006,9 +4012,9 @@ absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(
 
 absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
     Bindings& bindings, const Span& attribute_span) {
-  XLS_ASSIGN_OR_RETURN(Function * f,
-                       ParseFunctionInternal(GetPos(), /*is_public=*/false,
-                                             /*test_only=*/false, bindings));
+  XLS_ASSIGN_OR_RETURN(
+      Function * f, ParseFunctionInternal(GetPos(), /*is_public=*/false,
+                                          /*is_test_utility=*/false, bindings));
   XLS_RET_CHECK(f != nullptr);
   if (std::optional<ModuleMember*> member =
           module_->FindMemberWithName(f->identifier())) {
@@ -4027,9 +4033,9 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
 
 absl::StatusOr<TestProc*> Parser::ParseTestProc(
     Bindings& bindings, std::optional<std::string> expected_fail_label) {
-  XLS_ASSIGN_OR_RETURN(
-      ModuleMember m,
-      ParseProc(GetPos(), /*is_public=*/false, /*test_only=*/false, bindings));
+  XLS_ASSIGN_OR_RETURN(ModuleMember m,
+                       ParseProc(GetPos(), /*is_public=*/false,
+                                 /*is_test_utility=*/false, bindings));
   if (!std::holds_alternative<Proc*>(m)) {
     // TODO: https://github.com/google/xls/issues/836 - Support `ProcDef` here.
     ProcDef* proc_def = std::get<ProcDef*>(m);

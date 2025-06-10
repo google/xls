@@ -2115,7 +2115,7 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
                    std::vector<ParametricBinding*> parametric_bindings,
                    std::vector<Param*> params, TypeAnnotation* return_type,
                    StatementBlock* body, FunctionTag tag, bool is_public,
-                   bool test_only)
+                   bool is_test_utility)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
@@ -2125,7 +2125,7 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
       body_(body),
       tag_(tag),
       is_public_(is_public),
-      test_only_(test_only) {
+      is_test_utility_(is_test_utility) {
   for (const ParametricBinding* pb : parametric_bindings_) {
     CHECK(parametric_keys_.insert(pb->identifier()).second)
         << "Duplicate parametric binding: " << pb->identifier();
@@ -2200,7 +2200,7 @@ std::string Function::ToString() const {
   std::string pub_str = is_public() ? "pub " : "";
   std::string annotation_str;
 
-  if (test_only()) {
+  if (is_test_utility()) {
     annotation_str = "#[cfg(test)]\n";
   } else if (extern_verilog_module_.has_value()) {
     annotation_str = absl::StrFormat("#[extern_verilog(\"%s\")]\n",

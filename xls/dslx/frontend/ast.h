@@ -2299,7 +2299,7 @@ class Function : public AstNode {
            std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> params, TypeAnnotation* return_type,
            StatementBlock* body, FunctionTag tag, bool is_public,
-           bool test_only);
+           bool is_test_utility);
 
   ~Function() override;
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
@@ -2331,7 +2331,7 @@ class Function : public AstNode {
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
-  bool test_only() const { return test_only_; }
+  bool is_test_utility() const { return is_test_utility_; }
   bool IsMethod() const;
 
   // Returns all of the parametric identifiers that must be bound by the caller
@@ -2405,7 +2405,7 @@ class Function : public AstNode {
   std::optional<Impl*> impl_;
 
   const bool is_public_;
-  const bool test_only_;
+  const bool is_test_utility_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
   bool disable_format_ = false;
 };

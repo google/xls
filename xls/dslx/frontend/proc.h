@@ -120,10 +120,10 @@ class ProcLike : public AstNode {
   }
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
-  bool test_only() const {
-    CHECK((body_.init->test_only() == body_.config->test_only()) &&
-          (body_.config->test_only() == body_.next->test_only()));
-    return body_.init->test_only();
+  bool is_test_utility() const {
+    CHECK((body_.init->is_test_utility() == body_.config->is_test_utility()) &&
+          (body_.config->is_test_utility() == body_.next->is_test_utility()));
+    return body_.init->is_test_utility();
   }
 
   Function& config() const { return *body_.config; }

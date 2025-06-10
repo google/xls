@@ -484,7 +484,7 @@ absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
   absl::flat_hash_set<Spawn*> spawns;
   auto collect_spawns_from_proc =
       [&spawns](Proc* proc, bool include_tests) -> absl::Status {
-    if (proc->test_only() && !include_tests) {
+    if (proc->is_test_utility() && !include_tests) {
       return absl::OkStatus();
     }
     XLS_RET_CHECK(proc != nullptr);
@@ -755,7 +755,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
     }
 
     // Skip converting functions used in tests unless requested
-    if (f->test_only() && !include_tests) {
+    if (f->is_test_utility() && !include_tests) {
       return absl::OkStatus();
     }
 
@@ -815,7 +815,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
   // Get the order for each top level proc.
   for (Proc* proc : top_level_procs) {
     // Skip converting procs used in tests unless requested
-    if (proc->test_only() && !include_tests) {
+    if (proc->is_test_utility() && !include_tests) {
       continue;
     }
 

@@ -85,17 +85,17 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       Span::Fake(), config_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      FunctionTag::kProcConfig, /*is_public=*/true, /*test_only=*/false);
+      FunctionTag::kProcConfig, /*is_public=*/true, /*is_test_utility=*/false);
   Function* next = module.Make<Function>(
       Span::Fake(), next_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      FunctionTag::kProcNext, /*is_public=*/true, /*test_only=*/false);
+      FunctionTag::kProcNext, /*is_public=*/true, /*is_test_utility=*/false);
   Function* init = module.Make<Function>(
       Span::Fake(), init_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      FunctionTag::kProcNext, /*is_public=*/true, /*test_only=*/false);
+      FunctionTag::kProcNext, /*is_public=*/true, /*is_test_utility=*/false);
   const std::vector<ParametricBinding*> bindings;
   const ProcLikeBody proc_body{
       .stmts = {},
@@ -153,17 +153,17 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
       Span::Fake(), config_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      FunctionTag::kProcConfig, /*is_public=*/true, /*test_only=*/false);
+      FunctionTag::kProcConfig, /*is_public=*/true, /*is_test_utility=*/false);
   Function* next = import_module->Make<Function>(
       Span::Fake(), next_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      FunctionTag::kProcNext, /*is_public=*/true, /*test_only=*/false);
+      FunctionTag::kProcNext, /*is_public=*/true, /*is_test_utility=*/false);
   Function* init = import_module->Make<Function>(
       Span::Fake(), init_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
-      FunctionTag::kProcInit, /*is_public=*/true, /*test_only=*/false);
+      FunctionTag::kProcInit, /*is_public=*/true, /*is_test_utility=*/false);
   std::vector<ProcMember*> members;
   std::vector<ParametricBinding*> bindings;
   ProcLikeBody proc_body = {

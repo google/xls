@@ -186,7 +186,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   }
 
   Function* f = record.f();
-  if (f->test_only() && !options.convert_tests) {
+  if (f->is_test_utility() && !options.convert_tests) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Tried to convert a %s used in tests, but test conversion is disabled",
         f->IsInProc()
@@ -512,7 +512,7 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
 
   std::optional<Function*> fn_or = module->GetFunction(entry_function_name);
   if (fn_or.has_value()) {
-    if (fn_or.value()->test_only() && !options.convert_tests) {
+    if (fn_or.value()->is_test_utility() && !options.convert_tests) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "IR conversion of tests is disabled, but conversion of a test "
           "utility function \"%s\" from module %s was requested.",
