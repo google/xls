@@ -2298,7 +2298,8 @@ class Function : public AstNode {
   Function(Module* owner, Span span, NameDef* name_def,
            std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> params, TypeAnnotation* return_type,
-           StatementBlock* body, FunctionTag tag, bool is_public);
+           StatementBlock* body, FunctionTag tag, bool is_public,
+           bool test_only);
 
   ~Function() override;
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
@@ -2330,6 +2331,7 @@ class Function : public AstNode {
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
+  bool test_only() const { return test_only_; }
   bool IsMethod() const;
 
   // Returns all of the parametric identifiers that must be bound by the caller
@@ -2373,8 +2375,6 @@ class Function : public AstNode {
     disable_format_ = disable_format;
   }
   bool disable_format() const { return disable_format_; }
-  void set_test_only(bool test_only) { test_only_ = test_only; }
-  bool test_only() const { return test_only_; }
 
   FunctionTag tag() const { return tag_; }
   std::optional<Proc*> proc() const { return proc_; }
@@ -2405,9 +2405,9 @@ class Function : public AstNode {
   std::optional<Impl*> impl_;
 
   const bool is_public_;
+  const bool test_only_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
   bool disable_format_ = false;
-  bool test_only_ = false;
 };
 
 // A lambda expression.

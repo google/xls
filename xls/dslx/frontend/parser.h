@@ -121,7 +121,7 @@ class Parser : public TokenParser {
   FileTable& file_table() { return scanner().file_table(); }
 
   absl::StatusOr<Function*> ParseFunction(
-      const Pos& start_pos, bool is_public, Bindings& bindings,
+      const Pos& start_pos, bool is_public, bool test_only, Bindings& bindings,
       absl::flat_hash_map<std::string, Function*>* name_to_fn = nullptr);
 
   absl::StatusOr<Function*> ParseImplFunction(const Pos& start_pos,
@@ -132,7 +132,7 @@ class Parser : public TokenParser {
   absl::StatusOr<Lambda*> ParseLambda(Bindings& bindings);
 
   absl::StatusOr<ModuleMember> ParseProc(const Pos& start_pos, bool is_public,
-                                         Bindings& bindings);
+                                         bool test_only, Bindings& bindings);
 
   absl::StatusOr<std::unique_ptr<Module>> ParseModule(
       Bindings* bindings = nullptr);
@@ -602,8 +602,8 @@ class Parser : public TokenParser {
 
   // Parses a function out of the token stream.
   absl::StatusOr<Function*> ParseFunctionInternal(
-      const Pos& start_pos, bool is_public, Bindings& outer_bindings,
-      TypeAnnotation* struct_ref = nullptr);
+      const Pos& start_pos, bool is_public, bool test_only,
+      Bindings& outer_bindings, TypeAnnotation* struct_ref = nullptr);
 
   // Parses an import statement into an `Import` AST node.
   absl::StatusOr<Import*> ParseImport(Bindings& bindings);
@@ -690,22 +690,22 @@ class Parser : public TokenParser {
   absl::StatusOr<Function*> ParseProcConfig(
       Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
       const std::vector<ProcMember*>& proc_members, std::string_view proc_name,
-      bool is_public);
+      bool is_public, bool test_only);
 
   absl::StatusOr<Function*> ParseProcNext(
       Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
-      std::string_view proc_name, bool is_public);
+      std::string_view proc_name, bool is_public, bool test_only);
 
   absl::StatusOr<Function*> ParseProcInit(
       Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
-      std::string_view proc_name, bool is_public);
+      std::string_view proc_name, bool is_public, bool test_only);
 
   // Parses a proc-like entity (i.e. either a Proc or a Block). This will yield
   // a node of type `T` unless the entity parsed is actually an impl-style
   // `ProcDef`.
   template <typename T>
   absl::StatusOr<ModuleMember> ParseProcLike(const Pos& start_pos,
-                                             bool is_public,
+                                             bool is_public, bool test_only,
                                              Bindings& outer_bindings,
                                              Keyword keyword);
 

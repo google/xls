@@ -397,12 +397,11 @@ class AstCloner : public AstNodeVisitor {
         CastIfNotVerbatim<StatementBlock*>(old_to_new_.at(n->body())));
     auto new_function = module_->Make<Function>(
         n->span(), new_name_def, new_parametric_bindings, new_params,
-        new_return_type, new_body, n->tag(), n->is_public());
+        new_return_type, new_body, n->tag(), n->is_public(), n->test_only());
     if (n->extern_verilog_module().has_value()) {
       new_function->set_extern_verilog_module(*n->extern_verilog_module());
     }
     new_function->set_disable_format(n->disable_format());
-    new_function->set_test_only(n->test_only());
     old_to_new_[n] = new_function;
     new_name_def->set_definer(old_to_new_.at(n));
     if (n->impl().has_value()) {

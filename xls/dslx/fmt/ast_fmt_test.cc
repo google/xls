@@ -234,7 +234,8 @@ class FunctionFmtTest : public testing::Test {
     }
 
     XLS_ASSIGN_OR_RETURN(
-        f_, parser_->ParseFunction(Pos(), /*is_public=*/false, bindings_));
+        f_, parser_->ParseFunction(Pos(), /*is_public=*/false,
+                                   /*test_only=*/false, bindings_));
     Comments comments = Comments::Create(scanner_->comments());
 
     DocRef doc = Formatter(comments, arena_).Format(*f_);
