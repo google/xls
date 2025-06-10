@@ -319,6 +319,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return converter->ConvertSubtree(node, function, parametric_context,
                                        filter_param_type_annotations);
     }
+
+    // Push the appropriate proc type info onto the stack, if any. If we do
+    // this, then this `proc_type_info_frame` variable becomes the owner of the
+    // stack frame.
+    std::unique_ptr<ProcTypeInfoFrame> proc_type_info_frame;
+    if (node->kind() == AstNodeKind::kProc ||
+        (node->kind() == AstNodeKind::kFunction &&
+         down_cast<const Function*>(node)->IsInProc())) {
+      const Proc* proc = node->kind() == AstNodeKind::kProc
+                             ? down_cast<const Proc*>(node)
+                             : *down_cast<const Function*>(node)->proc();
+      if (!IsProcAtTopOfTypeInfoStack(proc)) {
+        XLS_ASSIGN_OR_RETURN(proc_type_info_frame, PushProcTypeInfo(proc));
+      }
+    }
+
     ConversionOrderVisitor visitor(
         node,
         parametric_context.has_value() &&
@@ -332,6 +348,21 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (node->kind() == AstNodeKind::kInvocation) {
         XLS_RETURN_IF_ERROR(ConvertInvocation(
             down_cast<const Invocation*>(node), parametric_context));
+      } else if (node->kind() == AstNodeKind::kProc &&
+                 !IsProcAtTopOfTypeInfoStack(down_cast<const Proc*>(node))) {
+        // When we encounter a proc root, do a dedicated `ConvertSubtree` call
+        // for the proc, targeted to the converter for its owning module. This
+        // gets the proc's type info onto the appropriate stack. Note that
+        // `ConversionOrderVisitor` treats proc roots as a "break point" and
+        // only descends into a proc if it is the root of the subtree.
+        InferenceTableConverter* converter = this;
+        if (node->owner() != &module_) {
+          XLS_ASSIGN_OR_RETURN(
+              converter,
+              import_data_.GetInferenceTableConverter(node->owner()));
+        }
+        XLS_RETURN_IF_ERROR(
+            converter->ConvertSubtree(node, std::nullopt, parametric_context));
       } else {
         XLS_RETURN_IF_ERROR(
             GenerateTypeInfo(parametric_context, node,
@@ -736,10 +767,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // we need that proc's type info to be on the proc type info stack while
     // converting the function.
     std::unique_ptr<ProcTypeInfoFrame> proc_type_info_frame;
-    if (function->IsInProc()) {
-      XLS_ASSIGN_OR_RETURN(proc_type_info_frame,
-                           PushProcTypeInfo(*function->proc()));
-    }
     if (!canonicalized) {
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(function, function, invocation_context));
@@ -808,28 +835,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             << " in parametric context: " << ToString(parametric_context);
     if (pre_unified_type.has_value()) {
       VLOG(5) << "Using pre-unified type: " << (*pre_unified_type)->ToString();
-    }
-
-    // A proc requires its own top-level `TypeInfo`, so dealing with a proc root
-    // node has the following sequence:
-    // 1. The conversion order visitor at module level stops at the proc root
-    //    without diving in.
-    // 2. We get here with the proc root.
-    // 3. Below, we create the top-level proc type info and push it onto the
-    //    stack. This makes it so that this `TypeInfo` is treated as the
-    //    base-level `TypeInfo` until that is popped (see `GetTypeInfo()`).
-    // 4. Also below, we kick off conversion of the proc's subtree.
-    // 5. The last step in (4) is to re-enter here with the `Proc` node and the
-    //    type info for the proc still at the top of the stack. That call
-    //    will skip over the following block.
-    // 6. The original call pops the stack at the end.
-    std::unique_ptr<ProcTypeInfoFrame> proc_type_info_frame;
-    if (node->kind() == AstNodeKind::kProc) {
-      const Proc* proc = down_cast<const Proc*>(node);
-      if (!IsProcAtTopOfTypeInfoStack(proc)) {
-        XLS_ASSIGN_OR_RETURN(proc_type_info_frame, PushProcTypeInfo(proc));
-        return ConvertSubtree(proc, std::nullopt, parametric_context);
-      }
     }
 
     if (node->kind() == AstNodeKind::kImport) {

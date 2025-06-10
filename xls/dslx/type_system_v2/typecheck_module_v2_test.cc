@@ -7276,6 +7276,46 @@ fn main() -> u5 {
                                      HasNodeWithType("s", "S { x: uN[5] }")))));
 }
 
+TEST(TypecheckV2Test, SpawnImportedProc) {
+  constexpr std::string_view kImported = R"(
+pub proc Counter {
+  c: chan<u32> out;
+  max: u32;
+  init { 0 }
+  config(c: chan<u32> out, max: u32) {
+    (c, max)
+  }
+  next(i: u32) {
+    send(join(), c, i);
+    if i == max { i } else { i + 1 }
+  }
+}
+)";
+
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+proc main {
+  c: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p, c) = chan<u32>("my_chan");
+    spawn imported::Counter(p, 50);
+    (c,)
+  }
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)";
+
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  HasNodeWithType("spawn imported::Counter(p, 50)", "()"))));
+}
+
 TEST(TypecheckV2Test, ImportStructAsTypeTwoLevels) {
   constexpr std::string_view kFirst = R"(
 pub struct S { x: u5 }
