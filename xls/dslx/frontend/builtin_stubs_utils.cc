@@ -20,10 +20,8 @@
 
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
-#include "xls/common/file/filesystem.h"
-#include "xls/common/file/get_runfile_path.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/builtin_stubs.h"  // generated
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
@@ -35,17 +33,13 @@ constexpr std::string_view kBuiltinStubsPath =
     "xls/dslx/frontend/builtin_stubs.x";
 
 absl::StatusOr<std::filesystem::path> BuiltinStubsPath() {
-  return GetXlsRunfilePath(kBuiltinStubsPath);
+  return std::filesystem::path(kBuiltinStubsPath);
 }
 
 absl::StatusOr<std::unique_ptr<Module>> LoadBuiltinStubs() {
-  XLS_ASSIGN_OR_RETURN(const std::filesystem::path full_path,
-                       BuiltinStubsPath());
-  VLOG(5) << "Loading built-in stubs from: " << full_path;
-  XLS_ASSIGN_OR_RETURN(std::string text, GetFileContents(full_path));
   FileTable file_table;
   Fileno fileno = file_table.GetOrCreate(kBuiltinStubsPath);
-  Scanner s = {file_table, fileno, text};
+  Scanner s = {file_table, fileno, std::string(kBuiltinStubs)};
   Parser parser = {std::string(kBuiltinStubsModuleName), &s, true};
   return parser.ParseModule();
 }

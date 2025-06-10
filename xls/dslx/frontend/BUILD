@@ -644,8 +644,10 @@ cc_test(
 cc_library(
     name = "builtin_stubs_utils",
     srcs = ["builtin_stubs_utils.cc"],
-    hdrs = ["builtin_stubs_utils.h"],
-    data = ["builtin_stubs.x"],
+    hdrs = [
+        "builtin_stubs.h",
+        "builtin_stubs_utils.h",
+    ],
     deps = [
         ":ast",
         ":module",
@@ -653,9 +655,21 @@ cc_library(
         ":pos",
         ":scanner",
         "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
     ],
+)
+
+genrule(
+    name = "builtin_stubs_gen",
+    srcs = ["builtin_stubs.x"],
+    outs = ["builtin_stubs.h"],
+    cmd = """(
+      echo "#pragma once"
+      echo "#include <string_view>"
+      echo 'static inline constexpr std::string_view kBuiltinStubs = R"stubs('
+      cat $<
+      echo ')stubs";'
+    ) > $@""",
 )
