@@ -141,6 +141,7 @@
 namespace xls::dslx {
 
 inline constexpr int64_t kRustSpacesPerIndent = 4;
+inline constexpr std::string_view kCfgTestAttr = "cfg(test)";
 
 // Forward decls of all leaf types.
 #define FORWARD_DECL(__type) class __type;

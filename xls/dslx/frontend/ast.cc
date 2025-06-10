@@ -2201,7 +2201,7 @@ std::string Function::ToString() const {
   std::string annotation_str;
 
   if (is_test_utility()) {
-    annotation_str = "#[cfg(test)]\n";
+    annotation_str = absl::StrFormat("#[%s]\n", kCfgTestAttr);
   } else if (extern_verilog_module_.has_value()) {
     annotation_str = absl::StrFormat("#[extern_verilog(\"%s\")]\n",
                                      extern_verilog_module_->code_template());
