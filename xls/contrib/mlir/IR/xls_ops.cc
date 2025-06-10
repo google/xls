@@ -17,6 +17,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 
 // Some of these need the keep IWYU pragma as they are required by *.inc files
@@ -1051,6 +1052,36 @@ XlsDialect::XlsDialect(mlir::MLIRContext* ctx)
 Operation* XlsDialect::materializeConstant(OpBuilder& builder, Attribute value,
                                            Type type, Location loc) {
   return builder.create<ConstantScalarOp>(loc, type, value);
+}
+
+LogicalResult ArrayOp::verify() {
+  int64_t num_operands = getNumOperands();
+  if (num_operands == 0) {
+    return emitOpError("requires at least one argument");
+  }
+
+  auto arg_type = getOperandTypes().front();
+  auto result_type = cast<ArrayType>(getResult().getType());
+
+  std::function<int64_t(Type)> get_num_elements = [&](Type x) -> int64_t {
+    if (auto shape_type = dyn_cast<mlir::ShapedType>(x)) {
+      return shape_type.getNumElements() *
+             get_num_elements(shape_type.getElementType());
+    }
+    return 1;
+  };
+
+  int64_t num_elements_in_arguments =
+      get_num_elements(arg_type) * getNumOperands();
+  int64_t num_elements_in_result = get_num_elements(result_type);
+
+  if (num_elements_in_arguments != num_elements_in_result) {
+    return emitOpError("return mismatch between op element counts; got ")
+           << num_elements_in_result << " expected "
+           << num_elements_in_arguments;
+  }
+
+  return success();
 }
 
 }  // namespace mlir::xls

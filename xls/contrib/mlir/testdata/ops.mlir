@@ -328,11 +328,19 @@ func.func @array(%arg0: i32, %arg1: i32) -> !xls.array<2 x i32> {
 }
 
 // CHECK-LABEL: multidim_array
-func.func @multidim_array(%arg0: i32, %arg1: i32) -> !xls.array<2 x 3 x i32> {
+func.func @multidim_array(%arg0: tensor<3xi32>, %arg1: tensor<3xi32>) -> !xls.array<2 x tensor<3 x i32>> {
   // CHECK: xls.array
+  %0 = xls.array %arg0, %arg1 : (tensor<3xi32>, tensor<3xi32>) -> !xls.array<2 x tensor<3 x i32>>
+  return %0 : !xls.array<2 x tensor<3 x i32>>
+}
+
+// -----
+func.func @mismatch_num_elements_array(%arg0: i32, %arg1: i32) -> !xls.array<2 x 3 x i32> {
+  // expected-error@+1 {{mismatch between op element counts}}
   %0 = xls.array %arg0, %arg1 : (i32, i32) -> !xls.array<2 x 3 x i32>
   return %0 : !xls.array<2 x 3 x i32>
 }
+// -----
 
 // CHECK-LABEL: array_tensor
 func.func @array_tensor(%arg0: tensor<2xi32>, %arg1: tensor<2xi32>) -> !xls.array<2 x tensor<2xi32>> {

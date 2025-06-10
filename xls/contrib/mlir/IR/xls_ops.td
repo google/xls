@@ -787,6 +787,7 @@ def Xls_ArrayOp : Xls_NonScalarizableNaryOp<"array", [
   let results = (outs
     Xls_ArrayType:$result
   );
+  let hasVerifier = 1;
 }
 
 def Xls_ArrayZeroOp : Xls_Op<"array_zero", [Pure, TensorArrayTypeFungible]> {
