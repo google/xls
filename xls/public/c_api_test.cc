@@ -1470,6 +1470,10 @@ TEST(XlsCApiTest, FnBuilderBinops) {
       {"sle", true, xls_builder_base_add_sle},     // signed <=
       {"sgt", true, xls_builder_base_add_sgt},     // signed >
       {"sge", true, xls_builder_base_add_sge},     // signed >=
+      {"udiv", false, xls_builder_base_add_udiv},  // unsigned /
+      {"sdiv", false, xls_builder_base_add_sdiv},  // signed /
+      {"umod", false, xls_builder_base_add_umod},  // unsigned %
+      {"smod", false, xls_builder_base_add_smod},  // signed %
   };
 
   for (const TestCase& test_case : kBinops) {
@@ -2238,6 +2242,52 @@ TEST(XlsCApiTest, TypeGetFlatBitCount) {
   xls_type* nested_type =
       xls_package_get_tuple_type(package, outer_tuple_members, 2);
   EXPECT_EQ(xls_type_get_flat_bit_count(nested_type), 10);  // 5 + 5
+}
+
+TEST(XlsCApiTest, FnBuilderPartialProductOps) {
+  struct TestCase {
+    std::string_view op_name;
+    std::function<xls_bvalue*(xls_builder_base*, xls_bvalue*, xls_bvalue*,
+                              const char*)>
+        add_op;
+  };
+  const std::vector<TestCase> kCases = {
+      {"umulp", xls_builder_base_add_umulp},
+      {"smulp", xls_builder_base_add_smulp},
+  };
+
+  for (const auto& tc : kCases) {
+    xls_package* package = xls_package_create("my_package");
+    absl::Cleanup free_package([=] { xls_package_free(package); });
+
+    xls_type* u8 = xls_package_get_bits_type(package, 8);
+    xls_function_builder* fn_builder =
+        xls_function_builder_create("pp", package, /*should_verify=*/true);
+    absl::Cleanup free_fn_builder(
+        [=] { xls_function_builder_free(fn_builder); });
+    xls_builder_base* base = xls_function_builder_as_builder_base(fn_builder);
+
+    xls_bvalue* x = xls_function_builder_add_parameter(fn_builder, "x", u8);
+    absl::Cleanup free_x([=] { xls_bvalue_free(x); });
+    xls_bvalue* y = xls_function_builder_add_parameter(fn_builder, "y", u8);
+    absl::Cleanup free_y([=] { xls_bvalue_free(y); });
+
+    xls_bvalue* result = tc.add_op(base, x, y, "result");
+    absl::Cleanup free_result([=] { xls_bvalue_free(result); });
+
+    xls_function* function = nullptr;
+    char* error = nullptr;
+    ASSERT_TRUE(xls_function_builder_build_with_return_value(fn_builder, result,
+                                                             &error, &function))
+        << error;
+
+    // Check that the IR contains the operation.
+    char* pkg_str = nullptr;
+    ASSERT_TRUE(xls_package_to_string(package, &pkg_str));
+    absl::Cleanup free_pkg_str([=] { xls_c_str_free(pkg_str); });
+    std::string_view text(pkg_str);
+    EXPECT_THAT(text, HasSubstr(absl::StrFormat(" = %s(", tc.op_name)));
+  }
 }
 
 }  // namespace
