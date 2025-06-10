@@ -40,8 +40,8 @@ std::pair<Module, Proc*> CreateEmptyProc(FileTable& file_table,
   Scanner s(file_table, Fileno(0), absl::StrFormat(code_template, name));
   Parser parser{"test", &s};
   Bindings bindings;
-  absl::StatusOr<ModuleMember> proc =
-      parser.ParseProc(Pos(), /*is_public=*/false, bindings);
+  absl::StatusOr<ModuleMember> proc = parser.ParseProc(
+      Pos(), /*is_public=*/false, /*test_only=*/false, bindings);
   CHECK(proc.ok());
   CHECK(std::holds_alternative<Proc*>(*proc));
   return {std::move(parser.module()), std::get<Proc*>(*proc)};
