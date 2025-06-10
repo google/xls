@@ -109,7 +109,7 @@ std::vector<AstNode*> ProcLike::GetChildren(bool want_types) const {
 }
 
 std::string ProcLike::ToString() const {
-  std::string attr_str = test_only() ? "#[cfg(test)]\n" : "";
+  std::string attr_str = is_test_utility() ? "#[cfg(test)]\n" : "";
   std::string pub_str = is_public() ? "pub " : "";
   std::string parametric_str;
   if (!parametric_bindings().empty()) {

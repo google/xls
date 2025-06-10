@@ -2209,7 +2209,7 @@ DocRef Formatter::Format(const Function& n, bool is_test) {
                             arena_.MakeText("\")]"),
                             arena_.hard_line(),
                         }));
-  } else if (n.test_only() && !is_test) {
+  } else if (n.is_test_utility() && !is_test) {
     fn_pieces.push_back(
         ConcatN(arena_, {
                             arena_.MakeText("#"),
@@ -2248,7 +2248,7 @@ DocRef Formatter::Format(const ProcMember& n) {
 
 DocRef Formatter::Format(const Proc& n, bool is_test) {
   std::vector<DocRef> attribute_pieces;
-  if (n.test_only() && !is_test) {
+  if (n.is_test_utility() && !is_test) {
     attribute_pieces.push_back(
         ConcatN(arena_, {
                             arena_.MakeText("#"),
