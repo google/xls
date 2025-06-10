@@ -1717,12 +1717,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       absl::StatusOr<absl::flat_hash_map<const ParametricBinding*,
                                          InterpValueOrTypeAnnotation>>
           resolved = SolveForParametrics(
-              actual_arg_type, formal_types[i], implicit_parametrics,
+              import_data_, actual_arg_type, formal_types[i],
+              implicit_parametrics,
               [&](const TypeAnnotation* expected_type, const Expr* expr) {
                 return evaluator_->Evaluate(ParametricContextScopedExpr(
                     actual_arg_context, expected_type, expr));
               });
       if (!resolved.ok()) {
+        VLOG(5) << "Solution failed with " << resolved.status();
+
         // `SolveForParametrics` does not yield user-presentable errors. When it
         // errors, it means the formal and actual argument types are not
         // reconcilable.

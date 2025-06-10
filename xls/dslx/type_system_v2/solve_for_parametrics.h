@@ -23,6 +23,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
@@ -57,7 +58,8 @@ inline std::string ToString(InterpValueOrTypeAnnotation value_or_type) {
 // for a value parametric, as in the examples above, it is an `InterpValue`.
 absl::StatusOr<
     absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>>
-SolveForParametrics(const TypeAnnotation* resolvable_type,
+SolveForParametrics(ImportData& import_data,
+                    const TypeAnnotation* resolvable_type,
                     const TypeAnnotation* parametric_dependent_type,
                     absl::flat_hash_set<const ParametricBinding*> parametrics,
                     absl::AnyInvocable<absl::StatusOr<InterpValue>(

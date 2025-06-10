@@ -2504,6 +2504,17 @@ const Y = foo([4, 5, 6, 7]);
                 HasNodeWithType("7", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, ParametricFunctionInferenceOfAliasedArray) {
+  EXPECT_THAT(R"(
+struct Foo<N: u32> { a: uN[N] }
+type Foo32 = Foo<32>;
+fn f<N: u32>(a: Foo<32>[N]) -> Foo<32>[N] { a }
+const X: Foo32[2] = [Foo32 { a: 1 }, Foo32 { a: 2 }];
+const Y = f(X);
+  )",
+              TypecheckSucceeds(HasNodeWithType("Y", "Foo { a: uN[32] }[2]")));
+}
+
 TEST(TypecheckV2Test,
      ParametricFunctionWithArgumentMismatchingParameterizedSizeFails) {
   EXPECT_THAT(R"(

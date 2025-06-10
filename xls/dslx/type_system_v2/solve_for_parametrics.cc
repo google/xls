@@ -26,11 +26,14 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/zip_ast.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
@@ -47,6 +50,25 @@ bool operator==(InterpValueOrTypeAnnotation lhs,
              ? std::get<InterpValue>(lhs).Eq(std::get<InterpValue>(rhs))
              : std::get<const TypeAnnotation*>(lhs)->ToString() ==
                    std::get<const TypeAnnotation*>(rhs)->ToString();
+}
+
+// Unwraps the given type annotation if it refers to an alias to a struct;
+// otherwise returns the same annotation.
+absl::StatusOr<const TypeRefTypeAnnotation*> CanonicalizeTypeRefTypeAnnotation(
+    const TypeRefTypeAnnotation* annotation, ImportData& import_data) {
+  XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_ref,
+                       GetStructOrProcRef(annotation, import_data));
+  if (!struct_ref.has_value() ||
+      struct_ref->def == ToAstNode(annotation->type_ref()->type_definition())) {
+    return annotation;
+  }
+  XLS_ASSIGN_OR_RETURN(
+      TypeDefinition type_def,
+      ToTypeDefinition(const_cast<StructDefBase*>(struct_ref->def)));
+  return annotation->owner()->Make<TypeRefTypeAnnotation>(
+      annotation->span(),
+      annotation->owner()->Make<TypeRef>(annotation->span(), type_def),
+      struct_ref->parametrics);
 }
 
 // Used on both the resolvable and dependent annotations, to keep track of what
@@ -154,12 +176,14 @@ class Visitor : public AstNodeVisitorWithDefault {
 class Resolver {
  public:
   Resolver(
-      Visitor* resolvable_visitor, Visitor* dependent_visitor,
+      ImportData& import_data, Visitor* resolvable_visitor,
+      Visitor* dependent_visitor,
       const absl::flat_hash_set<const ParametricBinding*>& bindings_to_resolve,
       absl::AnyInvocable<absl::StatusOr<InterpValue>(
           const TypeAnnotation* expected_type, const Expr*)>
           expr_evaluator)
-      : resolvable_visitor_(resolvable_visitor),
+      : import_data_(import_data),
+        resolvable_visitor_(resolvable_visitor),
         dependent_visitor_(dependent_visitor),
         expr_evaluator_(std::move(expr_evaluator)) {
     for (const ParametricBinding* binding : bindings_to_resolve) {
@@ -171,7 +195,31 @@ class Resolver {
                               const AstNode* dependent) {
     XLS_RETURN_IF_ERROR(dependent->Accept(dependent_visitor_));
 
-    // Scenario 1: `dependent` is S or N or whatever, and `resolvable` is the
+    // Scenario 1: They are 2 differently-formulated TRTAs for the same struct.
+    if (resolvable->kind() == AstNodeKind::kTypeAnnotation &&
+        dependent->kind() == AstNodeKind::kTypeAnnotation) {
+      const auto* resolvable_annotation =
+          down_cast<const TypeAnnotation*>(resolvable);
+      const auto* dependent_annotation =
+          down_cast<const TypeAnnotation* const>(dependent);
+      if (resolvable_annotation->IsAnnotation<TypeRefTypeAnnotation>() &&
+          dependent_annotation->IsAnnotation<TypeRefTypeAnnotation>()) {
+        XLS_ASSIGN_OR_RETURN(
+            resolvable_annotation,
+            CanonicalizeTypeRefTypeAnnotation(
+                resolvable_annotation->AsAnnotation<TypeRefTypeAnnotation>(),
+                import_data_));
+        XLS_ASSIGN_OR_RETURN(
+            dependent_annotation,
+            CanonicalizeTypeRefTypeAnnotation(
+                dependent_annotation->AsAnnotation<TypeRefTypeAnnotation>(),
+                import_data_));
+        return ZipAst(resolvable_annotation, dependent_annotation,
+                      resolvable_visitor_, dependent_visitor_, options());
+      }
+    }
+
+    // Scenario 2: `dependent` is S or N or whatever, and `resolvable` is the
     // expr it equates to. Here we don't even care what kind of annotation we
     // are dealing with.
     if (dependent_visitor_->last_variable().has_value()) {
@@ -180,7 +228,7 @@ class Resolver {
 
     XLS_RETURN_IF_ERROR(resolvable->Accept(resolvable_visitor_));
 
-    // Scenario 2: `dependent` is a TVTA and `resolvable` is a direct type
+    // Scenario 3: `dependent` is a TVTA and `resolvable` is a direct type
     // annotation. This means the generic type referred to by the TVTA is the
     // resovable type.
     if (dependent_visitor_->last_tvta().has_value() &&
@@ -191,7 +239,7 @@ class Resolver {
               (*dependent_visitor_->last_tvta())->type_variable()->name_def()));
     }
 
-    // Scenario 3: The 2 annotations just aren't related.
+    // Scenario 4: The 2 annotations just aren't related.
     if (!resolvable_visitor_->last_signedness_and_bit_count().has_value() ||
         !dependent_visitor_->last_signedness_and_bit_count().has_value()) {
       return absl::InvalidArgumentError(
@@ -199,7 +247,7 @@ class Resolver {
                            dependent->ToString()));
     }
 
-    // Scenario 4: `dependent` is a more-expanded form of `resolvable` or vice
+    // Scenario 5: `dependent` is a more-expanded form of `resolvable` or vice
     // versa. The more compact one is a built-in type like `u24`, so the zipper
     // is not going to line up the 24 and the N, much less the implicit
     // signedness value.
@@ -213,6 +261,15 @@ class Resolver {
     return ResolveIntegerTypeComponent(
         resolvable_signedness_and_bit_count.signedness,
         dependent_signedness_and_bit_count.signedness);
+  }
+
+  ZipAstOptions options() {
+    return ZipAstOptions{.check_defs_for_name_refs = true,
+                         .refs_to_same_parametric_are_different = true,
+                         .accept_mismatch_callback = [&](const AstNode* lhs,
+                                                         const AstNode* rhs) {
+                           return AcceptMismatch(lhs, rhs);
+                         }};
   }
 
   absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>&
@@ -343,6 +400,7 @@ class Resolver {
     return value.GetBitValueUnsigned();
   }
 
+  ImportData& import_data_;
   Visitor* const resolvable_visitor_;
   Visitor* const dependent_visitor_;
   absl::flat_hash_map<const NameDef*, const ParametricBinding*>
@@ -358,7 +416,8 @@ class Resolver {
 
 absl::StatusOr<
     absl::flat_hash_map<const ParametricBinding*, InterpValueOrTypeAnnotation>>
-SolveForParametrics(const TypeAnnotation* resolvable_type,
+SolveForParametrics(ImportData& import_data,
+                    const TypeAnnotation* resolvable_type,
                     const TypeAnnotation* parametric_dependent_type,
                     absl::flat_hash_set<const ParametricBinding*> parametrics,
                     absl::AnyInvocable<absl::StatusOr<InterpValue>(
@@ -366,17 +425,11 @@ SolveForParametrics(const TypeAnnotation* resolvable_type,
                         expr_evaluator) {
   Visitor resolvable_visitor;
   Visitor dependent_visitor;
-  Resolver resolver(&resolvable_visitor, &dependent_visitor, parametrics,
-                    std::move(expr_evaluator));
-  XLS_RETURN_IF_ERROR(
-      ZipAst(resolvable_type, parametric_dependent_type, &resolvable_visitor,
-             &dependent_visitor,
-             ZipAstOptions{.check_defs_for_name_refs = true,
-                           .refs_to_same_parametric_are_different = true,
-                           .accept_mismatch_callback = [&](const AstNode* lhs,
-                                                           const AstNode* rhs) {
-                             return resolver.AcceptMismatch(lhs, rhs);
-                           }}));
+  Resolver resolver(import_data, &resolvable_visitor, &dependent_visitor,
+                    parametrics, std::move(expr_evaluator));
+  XLS_RETURN_IF_ERROR(ZipAst(resolvable_type, parametric_dependent_type,
+                             &resolvable_visitor, &dependent_visitor,
+                             resolver.options()));
   return std::move(resolver.results());
 }
 
