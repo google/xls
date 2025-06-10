@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for the DSLX interpreter.
 
 Note that generally we want DSLX test to be in `xls/dslx/tests`, but this can
@@ -137,9 +136,9 @@ class InterpreterTest(test_base.TestCase):
     """)
     # warnings-as-errors off because we have a useless match expression just to
     # trigger the type error.
-    stderr = self._parse_and_test(
-        program, warnings_as_errors=False, want_error=True
-    )
+    stderr = self._parse_and_test(program,
+                                  warnings_as_errors=False,
+                                  want_error=True)
     self.assertIn(
         'Match pattern is not exhaustive',
         stderr,
@@ -267,9 +266,9 @@ class InterpreterTest(test_base.TestCase):
       main()
     }
     """
-    stderr = self._parse_and_test(
-        program, want_error=False, alsologtostderr=True
-    )
+    stderr = self._parse_and_test(program,
+                                  want_error=False,
+                                  alsologtostderr=True)
     self.assertIn('Hello world!', stderr)
     self.assertIn('x is 240, 0xf0 in hex and 0b1111_0000 in binary', stderr)
 
@@ -334,9 +333,8 @@ class InterpreterTest(test_base.TestCase):
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
     print(result.stderr)
     self.assertRegex(result.stderr, r'a as hex: \[\s+MyStruct\s+{\s+x: 0x2a')
-    self.assertRegex(
-        result.stderr, r'a as bin: \[\s+MyStruct\s+{\s+x: 0b10_1010'
-    )
+    self.assertRegex(result.stderr,
+                     r'a as bin: \[\s+MyStruct\s+{\s+x: 0b10_1010')
 
   def test_trace_fmt_array_of_enum(self):
     """Tests we can trace-format an array of enum values."""
@@ -355,9 +353,9 @@ class InterpreterTest(test_base.TestCase):
       main()
     }
     """
-    stderr = self._parse_and_test(
-        program, want_error=False, alsologtostderr=True
-    )
+    stderr = self._parse_and_test(program,
+                                  want_error=False,
+                                  alsologtostderr=True)
     self.assertRegex(stderr, r'MyEnum::ONE\s+// u2:1')
     self.assertRegex(stderr, r'MyEnum::TWO\s+// u2:2')
 
@@ -374,9 +372,9 @@ class InterpreterTest(test_base.TestCase):
       main()
     }
     """
-    stderr = self._parse_and_test(
-        program, want_error=False, alsologtostderr=True
-    )
+    stderr = self._parse_and_test(program,
+                                  want_error=False,
+                                  alsologtostderr=True)
     self.assertIn(r'a: [', stderr)
     self.assertIn(r'0x1', stderr)
     self.assertIn(r'0x2', stderr)
@@ -398,9 +396,9 @@ class InterpreterTest(test_base.TestCase):
       main()
     }
     """
-    stderr = self._parse_and_test(
-        program, want_error=False, alsologtostderr=True
-    )
+    stderr = self._parse_and_test(program,
+                                  want_error=False,
+                                  alsologtostderr=True)
     self.assertIn('t: (', stderr)
     self.assertIn('MyEnum::ONE', stderr)
     self.assertIn('MyEnum::TWO', stderr)
@@ -537,9 +535,9 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(u32:20, u32:30)
     }
     """)
-    stderr = self._parse_and_test(
-        program, want_error=True, extra_flags=('--format_preference=hex',)
-    )
+    stderr = self._parse_and_test(program,
+                                  want_error=True,
+                                  extra_flags=('--format_preference=hex',))
     self.assertIn('lhs: u32:0x14', stderr)
     self.assertIn('rhs: u32:0x1e', stderr)
 
@@ -662,13 +660,11 @@ class InterpreterTest(test_base.TestCase):
       root = ET.fromstring(xml_got)
       self.assertLen(
           root.findall(
-              ".//testcase[@name='test_failing'][@result='completed']"
-          ),
+              ".//testcase[@name='test_failing'][@result='completed']"),
           1,
       )
-      self.assertLen(
-          root.findall(".//testcase[@name='test_failing']/failure"), 1
-      )
+      self.assertLen(root.findall(".//testcase[@name='test_failing']/failure"),
+                     1)
       self.assertLen(
           root.findall(".//testcase[@name='test_passing'][@result='filtered']"),
           1,
@@ -695,17 +691,15 @@ class InterpreterTest(test_base.TestCase):
       root = ET.fromstring(xml_got)
       self.assertLen(
           root.findall(
-              ".//testcase[@name='test_passing'][@result='completed']"
-          ),
+              ".//testcase[@name='test_passing'][@result='completed']"),
           1,
       )
       self.assertLen(
           root.findall(".//testcase[@name='test_failing'][@result='filtered']"),
           1,
       )
-      self.assertLen(
-          root.findall(".//testcase[@name='test_failing']/failure"), 0
-      )
+      self.assertLen(root.findall(".//testcase[@name='test_failing']/failure"),
+                     0)
       self.assertLen(root.findall('.//failure'), 0)
 
   def test_flag_based_test_filter(self):
@@ -734,11 +728,9 @@ class InterpreterTest(test_base.TestCase):
       root = ET.fromstring(xml_got)
       print('root:', root)
       self.assertLen(
-          root.findall(".//testcase[@name='test_two'][@result='completed']"), 1
-      )
+          root.findall(".//testcase[@name='test_two'][@result='completed']"), 1)
       self.assertLen(
-          root.findall(".//testcase[@name='test_one'][@result='filtered']"), 1
-      )
+          root.findall(".//testcase[@name='test_one'][@result='filtered']"), 1)
       self.assertLen(root.findall('.//failure'), 0)
 
   def test_both_test_filters_errors(self):
@@ -797,7 +789,11 @@ class OutOfTreeInterpreterTest(test_base.TestCase):
     """
     temp_file = self.create_tempfile(content=program)
     # Note: we have to supply `env` to avoid the Python testbridge setting seeping in.
-    p = subp.run([self.interpreter_path.full_path, temp_file.full_path], stdout=subp.PIPE, stderr=subp.PIPE, encoding='utf-8', env={})
+    p = subp.run([self.interpreter_path.full_path, temp_file.full_path],
+                 stdout=subp.PIPE,
+                 stderr=subp.PIPE,
+                 encoding='utf-8',
+                 env={})
     self.assertEqual(p.returncode, 0)
     self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
 
@@ -808,7 +804,14 @@ class OutOfTreeInterpreterTest(test_base.TestCase):
     """
     temp_file = self.create_tempfile(content=program)
     # Note: we have to supply `env` to avoid the Python testbridge setting seeping in.
-    p = subp.run([self.interpreter_path.full_path, temp_file.full_path, "--type_inference_v2"], stdout=subp.PIPE, stderr=subp.PIPE, encoding='utf-8', env={})
+    p = subp.run([
+        self.interpreter_path.full_path, temp_file.full_path,
+        "--type_inference_v2"
+    ],
+                 stdout=subp.PIPE,
+                 stderr=subp.PIPE,
+                 encoding='utf-8',
+                 env={})
     print('p:', p)
     self.assertEqual(p.returncode, 0)
     self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
@@ -821,7 +824,11 @@ class OutOfTreeInterpreterTest(test_base.TestCase):
     """
     temp_file = self.create_tempfile(content=program)
     # Note: we have to supply `env` to avoid the Python testbridge setting seeping in.
-    p = subp.run([self.interpreter_path.full_path, temp_file.full_path], stdout=subp.PIPE, stderr=subp.PIPE, encoding='utf-8', env={})
+    p = subp.run([self.interpreter_path.full_path, temp_file.full_path],
+                 stdout=subp.PIPE,
+                 stderr=subp.PIPE,
+                 encoding='utf-8',
+                 env={})
     print('p:', p)
     self.assertEqual(p.returncode, 0)
     self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
