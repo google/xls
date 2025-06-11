@@ -99,7 +99,7 @@ class ChannelArray {
   absl::flat_hash_map<std::string, Channel*> flattened_name_to_channel_;
 };
 
-using ChannelOrArray = std::variant<Channel*, ChannelArray*>;
+using ChannelOrArray = std::variant<Channel*, ChannelArray*, ChannelInterface*>;
 
 // An object that manages definition and access to channels used in a proc.
 class ChannelScope {

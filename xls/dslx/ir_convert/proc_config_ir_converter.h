@@ -34,7 +34,8 @@
 
 namespace xls::dslx {
 
-using ProcConfigValue = std::variant<Value, Channel*, ChannelArray*>;
+using ProcConfigValue =
+    std::variant<Value, Channel*, ChannelArray*, ChannelInterface*>;
 using MemberNameToValue = absl::flat_hash_map<std::string, ProcConfigValue>;
 
 // Converts a `ChannelOrArray` dealt out by a `ChannelScope` into a

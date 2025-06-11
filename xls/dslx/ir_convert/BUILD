@@ -284,6 +284,7 @@ cc_library(
         "//xls/dslx/type_system:type_info",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:channel",
         "//xls/ir:foreign_function",
         "//xls/ir:function_builder",
         "//xls/ir:op",

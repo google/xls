@@ -45,6 +45,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -221,7 +222,7 @@ class FunctionConverter {
   // Every AST node has an "IR value" that is either a function builder value
   // (BValue) or its IR-conversion-time-constant-decorated cousin (CValue), or
   // an inter-proc Channel.
-  using IrValue = std::variant<BValue, CValue, Channel*>;
+  using IrValue = std::variant<BValue, CValue, Channel*, ChannelInterface*>;
 
   // Helper for converting an IR value to its BValue pointer for use in
   // debugging.

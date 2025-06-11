@@ -260,11 +260,13 @@ absl::StatusOr<ChannelOrArray> ChannelScope::EvaluateIndex(
 
 std::string_view ChannelScope::GetBaseNameForChannelOrArray(
     ChannelOrArray channel_or_array) {
-  return absl::visit(Visitor{[](Channel* channel) { return channel->name(); },
-                             [](ChannelArray* array) -> std::string_view {
-                               return array->base_channel_name();
-                             }},
-                     channel_or_array);
+  return absl::visit(
+      Visitor{[](Channel* channel) { return channel->name(); },
+              [](ChannelArray* array) -> std::string_view {
+                return array->base_channel_name();
+              },
+              [](ChannelInterface* channel) { return channel->name(); }},
+      channel_or_array);
 }
 
 absl::StatusOr<std::vector<std::string>>
