@@ -26,7 +26,7 @@ int ExitStatus(const absl::Status& status, bool log_on_error) {
     return EXIT_SUCCESS;
   }
   if (log_on_error) {
-    std::cerr << "Error: " << status;
+    std::cerr << "Error: " << status << "\n";
   }
   return EXIT_FAILURE;
 }

@@ -92,25 +92,29 @@ absl::Status RunOnOneFile(std::string_view input_path, bool in_place,
   XLS_ASSIGN_OR_RETURN(std::string contents,
                        import_data.vfs().GetFileContents(path));
 
+  std::vector<CommentData> comments_vec;
+
+  // Parse the module with comment collection enabled.
+  absl::StatusOr<std::unique_ptr<Module>> module =
+      ParseModule(contents, path.c_str(), module_name, import_data.file_table(),
+                  &comments_vec);
+  if (!module.ok()) {
+    TryPrintError(module.status(), import_data.file_table(), import_data.vfs());
+    return module.status();
+  }
+
+  // Format the module.
   std::string formatted;
   switch (mode) {
     case Mode::kAutofmt: {
-      std::vector<CommentData> comments_vec;
-      XLS_ASSIGN_OR_RETURN(
-          std::unique_ptr<Module> module,
-          ParseModule(contents, path.c_str(), module_name,
-                      import_data.file_table(), &comments_vec));
       Comments comments = Comments::Create(comments_vec);
       XLS_ASSIGN_OR_RETURN(
-          formatted, AutoFmt(import_data.vfs(), *module, comments, contents));
+          formatted,
+          AutoFmt(import_data.vfs(), *module.value(), comments, contents));
       break;
     }
     case Mode::kParse: {
-      XLS_ASSIGN_OR_RETURN(
-          std::unique_ptr<Module> module,
-          ParseModule(contents, path.c_str(), module_name,
-                      import_data.file_table(), /*comments=*/nullptr));
-      formatted = module->ToString();
+      formatted = module.value()->ToString();
       break;
     }
   }

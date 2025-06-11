@@ -153,6 +153,33 @@ class DslxFmtTest(absltest.TestCase):
     p.check_returncode()
     self.assertEqual(p.stdout, 'fn f() -> u32 { u32:42 }\n')
 
+  def test_cause_scan_error(self):
+    """Tests that we flag scan error locations."""
+    program = textwrap.dedent("""\
+    fn main(x: u32) -> u32 {
+        ~x  // note: in DSLX, as in Rust, it's bang (!) not tilde (~)
+    }
+    """)
+    f = self.create_tempfile(content=program)
+    p = subp.run(
+        [_DSLX_FMT_PATH, '-i', f.full_path],
+        check=False,
+        encoding='utf-8',
+        stdout=subp.PIPE,
+        stderr=subp.PIPE,
+    )
+    self.assertEqual(p.returncode, 1)
+    stderr = p.stderr
+    self.assertIn(':2:5-2:5', stderr)
+    self.assertIn(
+        textwrap.dedent("""\
+    0002:     ~x  // note: in DSLX, as in Rust, it's bang (!) not tilde (~)
+    ~~~~~~~~~~^ ScanError: Unrecognized character: '~' (0x7e)
+    0003: }
+    """),
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   absltest.main()

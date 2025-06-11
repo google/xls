@@ -74,6 +74,24 @@ class InterpreterTest(test_base.TestCase):
       self.assertEqual(p.returncode, 0, msg=p.stderr)
     return p.stderr
 
+  def test_cause_scan_error(self):
+    """Tests that we flag scan error locations."""
+    program = textwrap.dedent("""\
+    fn main(x: u32) -> u32 {
+        ~x  // note: in DSLX, as in Rust, it's bang (!) not tilde (~)
+    }
+    """)
+    stderr = self._parse_and_test(program, want_error=True)
+    self.assertIn(':2:5-2:5', stderr)
+    self.assertIn(
+        textwrap.dedent("""\
+    0002:     ~x  // note: in DSLX, as in Rust, it's bang (!) not tilde (~)
+    ~~~~~~~~~~^ ScanError: Unrecognized character: '~' (0x7e)
+    0003: }
+    """),
+        stderr,
+    )
+
   def test_two_plus_two_fail_module_test(self):
     """Tests that we flag assertion failure locations with no highlighting."""
     program = textwrap.dedent("""\
