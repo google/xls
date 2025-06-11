@@ -7898,5 +7898,30 @@ const_assert!(PADDED_F32_W == u32:37);
                   HasNodeWithType("MXU_RESULT_F32_PADDING", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, InvocationInfersParametricForStructMemberInvocation) {
+  EXPECT_THAT(R"(
+pub struct MyStruct<SIZE: u32> { x: bits[SIZE] }
+
+pub fn one<SIZE: u32>() -> MyStruct<SIZE> {
+    MyStruct<SIZE> { x: bits[SIZE]:1 }
+}
+
+struct WrapStruct<SIZE: u32> { val: MyStruct<SIZE> }
+
+fn wrap<SIZE: u32>(a: MyStruct<SIZE>) -> WrapStruct<SIZE> {
+        WrapStruct { val: a }
+}
+
+fn test() {
+  const F32_SIZE = u32:8;
+  let o = one<F32_SIZE>();
+  assert_eq(
+      wrap(o),
+      WrapStruct { val: one<F32_SIZE>() });
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("o", "MyStruct { x: uN[8] }")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

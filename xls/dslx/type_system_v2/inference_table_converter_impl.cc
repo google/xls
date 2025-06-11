@@ -1783,7 +1783,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
       return absl::InvalidArgumentError(absl::StrCat(
           "Could not infer parametric(s): ", absl::StrJoin(binding_names, ", "),
-          "; target context: ", ToString(target_context)));
+          "; target context: ", ToString(target_context),
+          "; module: ", module_.name()));
     }
     return values;
   }
@@ -1883,7 +1884,16 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               // the struct we are processing is going to be unhelpful, so we
               // weed those out here.
               TypeAnnotationFilter::FilterReferencesToStruct(
-                  &table_, parent_context, &struct_def, &import_data_)));
+                  &table_, parent_context, &struct_def, &import_data_),
+              [&](const Expr* actual_arg) {
+                // Invocation arguments within a struct need to be converted
+                // prior to use.
+                if (actual_arg->kind() == AstNodeKind::kInvocation) {
+                  return ConvertSubtree(actual_arg, std::nullopt,
+                                        parent_context);
+                }
+                return absl::OkStatus();
+              }));
 
       implicit_parametrics.clear();
       for (const auto& [name, value] : new_values) {
