@@ -109,6 +109,13 @@ ABSL_FLAG(
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 ABSL_FLAG(bool, enable_resource_sharing, false,
           "Enable the resource sharing optimization to save area.");
+ABSL_FLAG(bool, force_resource_sharing, false,
+          "Force the resource sharing pass to apply the transformation where "
+          "it is legal to do so, overriding therefore the profitability "
+          "heuristic of such pass. This option is only used when the resource "
+          "sharing pass is enabled.");
+ABSL_FLAG(std::string, area_model, "asap7",
+          "Area model to use for optimizations.");
 ABSL_FLAG(
     std::optional<std::string>, passes, std::nullopt,
     "Explicit list of passes to run in a specific order. Passes are named "
@@ -223,6 +230,8 @@ absl::Status RealMain(std::string_view input_path) {
   bool optimize_for_best_case_throughput =
       absl::GetFlag(FLAGS_optimize_for_best_case_throughput);
   bool enable_resource_sharing = absl::GetFlag(FLAGS_enable_resource_sharing);
+  bool force_resource_sharing = absl::GetFlag(FLAGS_force_resource_sharing);
+  std::string area_model = absl::GetFlag(FLAGS_area_model);
   std::optional<std::string> pass_list = absl::GetFlag(FLAGS_passes);
   std::optional<int64_t> bisect_limit =
       absl::GetFlag(FLAGS_passes_bisect_limit);
@@ -277,6 +286,8 @@ absl::Status RealMain(std::string_view input_path) {
               .optimize_for_best_case_throughput =
                   optimize_for_best_case_throughput,
               .enable_resource_sharing = enable_resource_sharing,
+              .force_resource_sharing = force_resource_sharing,
+              .area_model = area_model,
               .pass_pipeline = pass_pipeline,
               .bisect_limit = bisect_limit,
               .debug_optimizations = debug_optimizations,

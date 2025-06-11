@@ -129,6 +129,14 @@ ABSL_FLAG(
     "but at the cost of constraining the schedule and thus increasing area.");
 ABSL_FLAG(bool, enable_resource_sharing, false,
           "Enable the resource sharing optimization to save area.");
+ABSL_FLAG(
+    bool, force_resource_sharing, false,
+    "Force the resource sharing pass to apply the transformation where "
+    "it is legal to do so, overriding therefore the profitability "
+    "heuristic of such pass. This option is only used when the resource "
+    "sharing pass is enabled. This option should be used for testing only.");
+ABSL_FLAG(std::string, area_model, "asap7",
+          "Area model to use for optimizations.");
 ABSL_FLAG(bool, run_evaluators, true,
           "Whether to run the JIT and interpreter.");
 ABSL_FLAG(bool, compare_delay_to_synthesis, false,

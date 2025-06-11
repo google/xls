@@ -39,6 +39,9 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
 
     kRandom,  // This heuristic makes this pass not deterministic when different
               // seeds of the PRVG are used.
+
+    kAlways,  // This heuristic applies resource sharing whenever possible. This
+              // is used for testing only.
   };
 
  protected:

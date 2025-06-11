@@ -182,6 +182,12 @@ struct OptimizationPassOptions : public PassOptionsBase {
 
   // Enable resource sharing to reduce area
   bool enable_resource_sharing = false;
+
+  // Force resource sharing to apply the transformation when is legal
+  bool force_resource_sharing = false;
+
+  // Area model to use
+  std::string area_model = "asap7";
 };
 
 class OptimizationContext {

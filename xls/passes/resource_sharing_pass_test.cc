@@ -21,6 +21,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "cppitertools/zip.hpp"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -52,6 +53,7 @@ class ResourceSharingPassTest : public IrTestBase {
     // Enable resource sharing
     OptimizationPassOptions opts{};
     opts.enable_resource_sharing = true;
+    opts.force_resource_sharing = true;
 
     // Run the select lifting pass.
     XLS_ASSIGN_OR_RETURN(bool changed, ResourceSharingPass().RunOnFunctionBase(
@@ -62,10 +64,10 @@ class ResourceSharingPassTest : public IrTestBase {
   }
 };
 
-uint64_t NumberOfMultiplications(Function *f) {
+uint64_t NumberOfNodes(Function* f, absl::Span<const Op> node_types) {
   uint64_t c = 0;
   for (Node *node : f->nodes()) {
-    if (node->OpIn({Op::kSMul, Op::kUMul})) {
+    if (node->OpIn(node_types)) {
       c++;
     }
   }
@@ -73,9 +75,22 @@ uint64_t NumberOfMultiplications(Function *f) {
   return c;
 }
 
-void InterpretAndCheck(Function *f, const std::vector<int32_t> &inputs,
-                       const std::vector<uint32_t> &input_bitwidths,
-                       int32_t expected_output) {
+uint64_t NumberOfAdders(Function* f) {
+  return NumberOfNodes(f, {Op::kAdd, Op::kSub});
+}
+
+uint64_t NumberOfSelects(Function* f) {
+  return NumberOfNodes(f, {Op::kPrioritySel, Op::kOneHotSel, Op::kSel});
+}
+
+uint64_t NumberOfMultiplications(Function* f) {
+  return NumberOfNodes(f, {Op::kSMul, Op::kUMul});
+}
+
+void InterpretAndCheck(Function* f, const std::vector<int32_t>& inputs,
+                       const std::vector<uint32_t>& input_bitwidths,
+                       int32_t expected_output,
+                       int32_t expected_output_bitwidth) {
   // Translate the inputs to IR values
   std::vector<Value> IR_inputs;
   for (auto [input, input_bitwidth] : iter::zip(inputs, input_bitwidths)) {
@@ -87,7 +102,7 @@ void InterpretAndCheck(Function *f, const std::vector<int32_t> &inputs,
                            InterpretFunction(f, IR_inputs));
 
   // Check the output
-  EXPECT_EQ(r.value, Value(UBits(expected_output, 32)));
+  EXPECT_EQ(r.value, Value(UBits(expected_output, expected_output_bitwidth)));
 }
 
 void InterpretAndCheck(Function *f, const std::vector<int32_t> &inputs,
@@ -96,7 +111,7 @@ void InterpretAndCheck(Function *f, const std::vector<int32_t> &inputs,
   std::vector<uint32_t> bitwidths(inputs.size(), 32);
 
   // Run the IR and check the result
-  InterpretAndCheck(f, inputs, bitwidths, expected_output);
+  InterpretAndCheck(f, inputs, bitwidths, expected_output, 32);
 }
 
 TEST_F(ResourceSharingPassTest, MergeSingleUnsignedMultiplication) {
@@ -140,6 +155,55 @@ TEST_F(ResourceSharingPassTest, MergeSingleUnsignedMultiplication) {
   // inputs/outputs pairs we know to be valid.
   InterpretAndCheck(f, {1, 0, 0, 2, 3}, 5);
   InterpretAndCheck(f, {0, 2, 3, 0, 0}, 6);
+}
+
+TEST_F(ResourceSharingPassTest, MergeSingleUnsignedMultiplication2) {
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+  BValue o = fb.Param("o", u32_type);
+  BValue l = fb.Param("l", u32_type);
+
+  // Create the IR body
+  BValue mulIJ = fb.UMul(i, j);
+  BValue mulKZ = fb.UMul(k, z);
+  BValue mulOL = fb.UMul(o, l);
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+  BValue add = fb.Add(mulKZ, kNeg1);
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue k2 = fb.Literal(UBits(2, 32));
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue isOp2 = fb.Eq(op, k2);
+  BValue sub_selector = fb.Concat({isOp1, isOp0});
+  BValue selector = fb.Concat({isOp2, sub_selector});
+  BValue select = fb.PrioritySelect(selector, {mulIJ, add, mulOL}, k0);
+
+  // Create the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  // We expect the transformation successfully completed and it returned true
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // We expect the result function has only one multiplication in its body
+  uint64_t number_of_muls = NumberOfMultiplications(f);
+  EXPECT_EQ(number_of_muls, 1);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(f, {1, 0, 0, 2, 3, 0, 0}, 5);
+  InterpretAndCheck(f, {0, 2, 3, 0, 0, 0, 0}, 6);
 }
 
 TEST_F(ResourceSharingPassTest, MergeSingleSignedMultiplication) {
@@ -545,7 +609,7 @@ TEST_F(ResourceSharingPassTest, NotPossibleFolding4) {
 
   // We expect the resource sharing optimization to have preserved the
   // inputs/outputs pairs we know to be valid.
-  InterpretAndCheck(f, {-2 /* bits = 10 */, 3}, {2, 32}, 24);
+  InterpretAndCheck(f, {-2 /* bits = 10 */, 3}, {2, 32}, 24, 32);
   InterpretAndCheck(f,
                     {
                         1,      // bits = 01
@@ -553,9 +617,9 @@ TEST_F(ResourceSharingPassTest, NotPossibleFolding4) {
                                 // and "10" for the least significant 16 bits
                     },
                     {2, 32},
-                    524288    // 2 times 4 stored in the top 16 bits
-                        + 16  // 2 times 8
-  );
+                    524288     // 2 times 4 stored in the top 16 bits
+                        + 16,  // 2 times 8
+                    32);
 }
 
 TEST_F(ResourceSharingPassTest,
@@ -665,8 +729,8 @@ TEST_F(ResourceSharingPassTest,
 
   // We expect the resource sharing optimization to have preserved the
   // inputs/outputs pairs we know to be valid.
-  InterpretAndCheck(f, {1, 0, 0, 2, 3}, {32, 32, 32, 16, 16}, 48);
-  InterpretAndCheck(f, {0, 2, 3, 0, 0}, {32, 32, 32, 16, 16}, 6);
+  InterpretAndCheck(f, {1, 0, 0, 2, 3}, {32, 32, 32, 16, 16}, 48, 32);
+  InterpretAndCheck(f, {0, 2, 3, 0, 0}, {32, 32, 32, 16, 16}, 6, 32);
 }
 
 TEST_F(ResourceSharingPassTest,
@@ -717,8 +781,366 @@ TEST_F(ResourceSharingPassTest,
 
   // We expect the resource sharing optimization to have preserved the
   // inputs/outputs pairs we know to be valid.
-  InterpretAndCheck(f, {1, 0, 0, 2, -3}, {32, 32, 32, 16, 16}, 36);
-  InterpretAndCheck(f, {0, 2, 3, 0, 0}, {32, 32, 32, 16, 16}, 6);
+  InterpretAndCheck(f, {1, 0, 0, 2, -3}, {32, 32, 32, 16, 16}, 36, 32);
+  InterpretAndCheck(f, {0, 2, 3, 0, 0}, {32, 32, 32, 16, 16}, 6, 32);
+}
+
+TEST_F(ResourceSharingPassTest, MergeAdds) {
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  uint32_t uint_bitwidth = 32;
+  Type* uint_type = p->GetBitsType(uint_bitwidth);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", uint_type);
+  BValue i = fb.Param("i", uint_type);
+  BValue j = fb.Param("j", uint_type);
+  BValue k = fb.Param("k", uint_type);
+  BValue z = fb.Param("z", uint_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, uint_bitwidth));
+  BValue k1 = fb.Literal(UBits(1, uint_bitwidth));
+  BValue k2 = fb.Literal(UBits(2, uint_bitwidth));
+
+  // Step 1: results
+  BValue addIJ = fb.Add(i, j);
+  BValue addKZ = fb.Add(k, z);
+  BValue mulKZ = fb.UMul(addKZ, k2);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {addIJ, mulKZ}, k0);
+
+  // Create the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  // We expect the transformation successfully completed and it returned true
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // We expect the result function has only one multiplication in its body
+  uint64_t number_of_adders = NumberOfAdders(f);
+  EXPECT_EQ(number_of_adders, 1);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(f, {0, 3, 4, 2, 124},
+                    {uint_bitwidth, uint_bitwidth, uint_bitwidth, uint_bitwidth,
+                     uint_bitwidth},
+                    7, uint_bitwidth);
+  InterpretAndCheck(f, {1, 3, 4, 2, 124},
+                    {uint_bitwidth, uint_bitwidth, uint_bitwidth, uint_bitwidth,
+                     uint_bitwidth},
+                    252, uint_bitwidth);
+}
+
+TEST_F(ResourceSharingPassTest, MergeAddsWithDifferentBitwidths) {
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  uint32_t uint_small_bitwidth = 31;
+  uint32_t uint_large_bitwidth = 32;
+  Type* uint_small_type = p->GetBitsType(uint_small_bitwidth);
+  Type* uint_large_type = p->GetBitsType(uint_large_bitwidth);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", uint_large_type);
+  BValue i = fb.Param("i", uint_large_type);
+  BValue j = fb.Param("j", uint_large_type);
+  BValue k = fb.Param("k", uint_small_type);
+  BValue z = fb.Param("z", uint_small_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, uint_large_bitwidth));
+  BValue k1 = fb.Literal(UBits(1, uint_large_bitwidth));
+  BValue k2 = fb.Literal(UBits(2, uint_small_bitwidth));
+
+  // Step 1: results
+  BValue addIJ = fb.Add(i, j);
+  BValue addKZ = fb.Add(k, z);
+  BValue mulKZ_30bits = fb.UMul(addKZ, k2, uint_small_bitwidth);
+  BValue mulKZ = fb.ZeroExtend(mulKZ_30bits, uint_large_bitwidth);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {addIJ, mulKZ}, k0);
+
+  // Create the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  // We expect the transformation successfully completed and it returned true
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // We expect the result function has only one multiplication in its body
+  uint64_t number_of_adders = NumberOfAdders(f);
+  EXPECT_EQ(number_of_adders, 1);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(
+      f, {0, 3, 4, 2, 124},
+      {uint_large_bitwidth, uint_large_bitwidth, uint_large_bitwidth,
+       uint_small_bitwidth, uint_small_bitwidth},
+      7, uint_large_bitwidth);
+  InterpretAndCheck(
+      f, {1, 3, 4, 2, 124},
+      {uint_large_bitwidth, uint_large_bitwidth, uint_large_bitwidth,
+       uint_small_bitwidth, uint_small_bitwidth},
+      252, uint_large_bitwidth);
+}
+
+TEST_F(ResourceSharingPassTest, MergeSubs) {
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  uint32_t int_bitwidth = 36;
+  Type* uint_type = p->GetBitsType(int_bitwidth);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", uint_type);
+  BValue i = fb.Param("i", uint_type);
+  BValue j = fb.Param("j", uint_type);
+  BValue k = fb.Param("k", uint_type);
+  BValue z = fb.Param("z", uint_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, int_bitwidth));
+  BValue k1 = fb.Literal(UBits(1, int_bitwidth));
+  BValue k2 = fb.Literal(UBits(2, int_bitwidth));
+
+  // Step 1: results
+  BValue addIJ = fb.Subtract(i, j);
+  BValue addKZ = fb.Subtract(k, z);
+  BValue mulKZ = fb.UMul(addKZ, k2);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {addIJ, mulKZ}, k0);
+
+  // Create the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  // We expect the transformation successfully completed and it returned true
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // We expect the result function has only one subtraction in its body
+  uint64_t number_of_adders = NumberOfAdders(f);
+  EXPECT_EQ(number_of_adders, 1);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(
+      f, {0, 5, 2, 2, 124},
+      {int_bitwidth, int_bitwidth, int_bitwidth, int_bitwidth, int_bitwidth}, 3,
+      int_bitwidth);
+  InterpretAndCheck(
+      f, {1, 4, 1, 124, 120},
+      {int_bitwidth, int_bitwidth, int_bitwidth, int_bitwidth, int_bitwidth}, 8,
+      int_bitwidth);
+}
+
+TEST_F(ResourceSharingPassTest, MergeSubs2) {
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  uint32_t int_bitwidth = 36;
+  Type* uint_type = p->GetBitsType(int_bitwidth);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", uint_type);
+  BValue i = fb.Param("i", uint_type);
+  BValue j = fb.Param("j", uint_type);
+  BValue k = fb.Param("k", uint_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, int_bitwidth));
+  BValue k1 = fb.Literal(UBits(1, int_bitwidth));
+
+  // Step 1: results
+  BValue addIJ = fb.Subtract(i, j);
+  BValue addIK = fb.Subtract(i, k);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {addIJ, addIK}, k0);
+
+  // Create the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  // We expect the transformation successfully completed and it returned true
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // We expect the result function has only one subtraction in its body
+  uint64_t number_of_adders = NumberOfAdders(f);
+  EXPECT_EQ(number_of_adders, 1);
+
+  // We expect the result function to have only two priority selects, one for
+  // the selection of the operation, and one for the second input (the first
+  // input is in common between the two subtractions so we don't need a select
+  // for it).
+  uint64_t number_of_selects = NumberOfSelects(f);
+  EXPECT_EQ(number_of_selects, 2);
+
+  // We expect the result function to include a single concat node and no
+  // bitslice nodes.
+  uint64_t number_of_concats = NumberOfNodes(f, {Op::kConcat});
+  EXPECT_EQ(number_of_concats, 1);
+  uint64_t number_of_bitslices = NumberOfNodes(f, {Op::kBitSlice});
+  EXPECT_EQ(number_of_bitslices, 0);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(
+      f, {0, 5, 2, 3},
+      {int_bitwidth, int_bitwidth, int_bitwidth, int_bitwidth, int_bitwidth}, 3,
+      int_bitwidth);
+  InterpretAndCheck(
+      f, {1, 5, 2, 3},
+      {int_bitwidth, int_bitwidth, int_bitwidth, int_bitwidth, int_bitwidth}, 2,
+      int_bitwidth);
+}
+
+TEST_F(ResourceSharingPassTest, MergeSubsWithDifferentBitwidths) {
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  uint32_t uint_small_bitwidth = 33;
+  uint32_t uint_large_bitwidth = 36;
+  Type* uint_small_type = p->GetBitsType(uint_small_bitwidth);
+  Type* uint_large_type = p->GetBitsType(uint_large_bitwidth);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", uint_large_type);
+  BValue i = fb.Param("i", uint_large_type);
+  BValue j = fb.Param("j", uint_large_type);
+  BValue k = fb.Param("k", uint_small_type);
+  BValue z = fb.Param("z", uint_small_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, uint_large_bitwidth));
+  BValue k1 = fb.Literal(UBits(1, uint_large_bitwidth));
+  BValue k2 = fb.Literal(UBits(2, uint_small_bitwidth));
+
+  // Step 1: results
+  BValue addIJ = fb.Subtract(i, j);
+  BValue addKZ = fb.Subtract(k, z);
+  BValue mulKZ_small_bitwidths = fb.UMul(addKZ, k2, uint_small_bitwidth);
+  BValue mulKZ = fb.ZeroExtend(mulKZ_small_bitwidths, uint_large_bitwidth);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {addIJ, mulKZ}, k0);
+
+  // Create the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  // We expect the transformation successfully completed and it returned true
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // We expect the result function has only one multiplication in its body
+  uint64_t number_of_adders = NumberOfAdders(f);
+  EXPECT_EQ(number_of_adders, 1);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(
+      f, {0, 5, 2, 2, 124},
+      {uint_large_bitwidth, uint_large_bitwidth, uint_large_bitwidth,
+       uint_small_bitwidth, uint_small_bitwidth},
+      3, uint_large_bitwidth);
+  InterpretAndCheck(
+      f, {1, 4, 1, 124, 120},
+      {uint_large_bitwidth, uint_large_bitwidth, uint_large_bitwidth,
+       uint_small_bitwidth, uint_small_bitwidth},
+      8, uint_large_bitwidth);
+}
+
+TEST_F(ResourceSharingPassTest, MergeAddsAndSubs) {
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  uint32_t uint_bitwidth = 33;
+  Type* uint_type = p->GetBitsType(uint_bitwidth);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", uint_type);
+  BValue i = fb.Param("i", uint_type);
+  BValue j = fb.Param("j", uint_type);
+  BValue k = fb.Param("k", uint_type);
+  BValue z = fb.Param("z", uint_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, uint_bitwidth));
+  BValue k1 = fb.Literal(UBits(1, uint_bitwidth));
+  BValue k2 = fb.Literal(UBits(2, uint_bitwidth));
+
+  // Step 1: results
+  BValue addIJ = fb.Add(i, j);
+  BValue negZ = fb.Negate(z);
+  BValue addKZ = fb.Subtract(k, negZ);
+  BValue mulKZ = fb.UMul(addKZ, k2);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {addIJ, mulKZ}, k0);
+
+  // Create the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  // We expect the transformation successfully completed and it returned true
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+
+  // We expect the result function has only one multiplication in its body
+  uint64_t number_of_adders = NumberOfAdders(f);
+  EXPECT_EQ(number_of_adders, 1);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(f, {0, 5, 2, 2, -124},
+                    {uint_bitwidth, uint_bitwidth, uint_bitwidth, uint_bitwidth,
+                     uint_bitwidth},
+                    7, uint_bitwidth);
+  InterpretAndCheck(f, {1, 4, 1, 124, -120},
+                    {uint_bitwidth, uint_bitwidth, uint_bitwidth, uint_bitwidth,
+                     uint_bitwidth},
+                    8, uint_bitwidth);
 }
 
 }  // namespace

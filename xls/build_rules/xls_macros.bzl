@@ -567,6 +567,8 @@ Examples:
         "use_context_narrowing_analysis",
         "optimize_for_best_case_throughput",
         "enable_resource_sharing",
+        "force_resource_sharing",
+        "area_model",
     )
     opt_ir_args = {
         k: v

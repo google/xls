@@ -201,6 +201,13 @@ purposes only.
     re-using the same hardware resources (e.g., multiplier) for multiple
     mutually-exclusive operations. This transformation might increase the
     critical path latency. Defaults to `false`.
+*   `--force_resource_sharing=true|false`: Controls whether to use the heuristic
+    to decide when it is profitable to apply the resource sharing optimization.
+    When set to true, the resource sharing optimization applies the
+    transformation assuming it is always profitable. Finally, this option is
+    only used when the resource sharing pass is enabled. Defaults to `false`.
+*   `--area_model=MODEL`: Specify the area model to use during the IR
+    optimizations. Defaults to `asap7`.
 
 ## [`print_bom`](https://github.com/google/xls/tree/main/xls/tools/print_bom.cc)
 
