@@ -523,7 +523,11 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   GenerateFSMInvocationReturn fsm_ret;
   if (generate_new_fsm_) {
-    return absl::UnimplementedError("New FSM not implemented yet");
+    NewFSMGenerator generator(*this, *this, DebugIrTraceFlags_FSMStates);
+    XLS_ASSIGN_OR_RETURN(fsm_ret,
+                         generator.GenerateNewFSMInvocation(
+                             prepared.xls_func,
+                             /*direct_in_args=*/prepared.args, pb, body_loc));
   } else {
     XLS_ASSIGN_OR_RETURN(
         fsm_ret,
@@ -936,7 +940,7 @@ absl::StatusOr<Translator::LayoutFSMStatesReturn> Translator::LayoutFSMStates(
                                .has_pipelined_loop = has_pipelined_loop};
 }
 
-absl::StatusOr<Translator::GenerateFSMInvocationReturn>
+absl::StatusOr<GenerateFSMInvocationReturn>
 Translator::GenerateOldFSMInvocation(PreparedBlock& prepared,
                                      xls::ProcBuilder& pb, int nesting_level,
                                      const xls::SourceInfo& body_loc) {
@@ -1753,9 +1757,12 @@ absl::StatusOr<TrackedBValue> Translator::GenerateIOInvoke(
       /*op_name=*/
       absl::StrFormat("%s_ret_io_value", op.final_param_name));
 
-  XLS_ASSIGN_OR_RETURN(
-      GenerateIOReturn generate_io_ret,
-      GenerateIO(op, before_token, ret_io_value, pb, invoke.extra_condition));
+  std::optional<ChannelBundle> optional_bundle =
+      GetChannelBundleForOp(op, op_loc);
+
+  XLS_ASSIGN_OR_RETURN(GenerateIOReturn generate_io_ret,
+                       GenerateIO(op, before_token, ret_io_value, pb,
+                                  optional_bundle, invoke.extra_condition));
 
   if (prepared.arg_index_for_op.contains(&op)) {
     const int64_t arg_index = prepared.arg_index_for_op.at(&op);
