@@ -150,6 +150,7 @@ cc_library(
     hdrs = ["proc_config_ir_converter.h"],
     deps = [
         ":channel_scope",
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
@@ -171,6 +172,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 

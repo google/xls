@@ -20,6 +20,8 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/types/variant.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/pos.h"
@@ -42,10 +44,13 @@ using MemberNameToValue = absl::flat_hash_map<std::string, ProcConfigValue>;
 // `ProcConfigValue` that is usable in IR conversion data structures.
 inline ProcConfigValue ChannelOrArrayToProcConfigValue(
     ChannelOrArray channel_or_array) {
-  if (std::holds_alternative<Channel*>(channel_or_array)) {
-    return std::get<Channel*>(channel_or_array);
-  }
-  return std::get<ChannelArray*>(channel_or_array);
+  return absl::visit(
+      Visitor{
+          [](Channel* chan) -> ProcConfigValue { return chan; },
+          [](ChannelArray* ca) -> ProcConfigValue { return ca; },
+          [](ChannelInterface* ci) -> ProcConfigValue { return ci; },
+      },
+      channel_or_array);
 }
 
 // ProcConversionData holds various information about individual proc instances
