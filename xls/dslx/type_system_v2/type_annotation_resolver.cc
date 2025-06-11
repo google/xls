@@ -345,7 +345,12 @@ class StatefulResolver : public TypeAnnotationResolver {
         tracer_.TraceResolve(annotation, parametric_context);
     // This is purely to avoid wasting time on annotations that clearly need no
     // resolution.
-    if (GetSignednessAndBitCount(annotation).ok() || IsToken(annotation)) {
+    if (annotation->IsAnnotation<BuiltinTypeAnnotation>() ||
+        IsToken(annotation)) {
+      trace.SetResult(annotation);
+      return annotation;
+    }
+    if (GetSignednessAndBitCount(annotation).ok()) {
       XLS_ASSIGN_OR_RETURN(annotation, ReplaceForeignConstantRefs(annotation));
       trace.SetResult(annotation);
       return annotation;

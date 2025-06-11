@@ -103,7 +103,12 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
     // caller needs to set up a new `TypeInfo` for the proc and then dive in. We
     // only dive in if the visitor's root is the proc subtree.
     if (node == root_) {
-      return DefaultHandler(node);
+      // Procs have duplicate pointers to all the statements in them, so using
+      // `DefaultHandler` would unnecessarily process each statement twice.
+      for (ProcMember* member : node->members()) {
+        XLS_RETURN_IF_ERROR(member->Accept(this));
+      }
+      return absl::OkStatus();
     }
     nodes_.push_back(node);
     return absl::OkStatus();
@@ -330,6 +335,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const Proc* proc = node->kind() == AstNodeKind::kProc
                              ? down_cast<const Proc*>(node)
                              : *down_cast<const Function*>(node)->proc();
+      if (!proc->IsParametric() && !converted_procs_.insert(proc).second) {
+        return absl::OkStatus();
+      }
       if (!IsProcAtTopOfTypeInfoStack(proc)) {
         XLS_ASSIGN_OR_RETURN(proc_type_info_frame, PushProcTypeInfo(proc));
       }
@@ -2090,6 +2098,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::flat_hash_map<std::optional<const ParametricContext*>,
                       absl::flat_hash_set<const AstNode*>>
       converted_subtrees_;
+  absl::flat_hash_set<const Proc*> converted_procs_;
 
   // The top element in this stack is the proc-level type info for the proc (or
   // child of a proc) currently being converted, if any. There are only multiple

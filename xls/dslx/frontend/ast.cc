@@ -457,7 +457,8 @@ FreeVariables GetFreeVariablesByLambda(
   FreeVariables freevars;
   while (it.HasNext()) {
     const AstNode* n = it.Next();
-    if (const auto* name_ref = dynamic_cast<const NameRef*>(n)) {
+    if (n->kind() == AstNodeKind::kNameRef) {
+      const auto* name_ref = down_cast<const NameRef*>(n);
       if (consider_free == nullptr || consider_free(*name_ref)) {
         freevars.Add(name_ref->identifier(), name_ref);
       }
