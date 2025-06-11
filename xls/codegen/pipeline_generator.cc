@@ -19,7 +19,9 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
 #include "absl/status/statusor.h"
@@ -113,8 +115,17 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
   VLOG(2) << "Generating pipelined module for module:";
   XLS_VLOG_LINES(2, package->DumpIr());
   if (VLOG_IS_ON(2)) {
-    for (const auto& [_, schedule] : schedules) {
-      XLS_VLOG_LINES(2, schedule.ToString());
+    // It's helpful when diffing logs to log the schedules in a consistent
+    // order, so we sort by function name.
+    std::vector<FunctionBase const*> fbs;
+    fbs.reserve(schedules.size());
+    for (const auto& [key, _] : schedules) {
+      fbs.push_back(key);
+    }
+    absl::c_sort(fbs, FunctionBase::NameLessThan);
+    for (FunctionBase const* fb : fbs) {
+      VLOG(2) << "Schedule for " << fb->name() << ":\n";
+      XLS_VLOG_LINES(2, schedules.at(fb).ToString());
     }
   }
 
