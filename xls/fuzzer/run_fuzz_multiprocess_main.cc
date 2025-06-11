@@ -47,6 +47,7 @@ ABSL_FLAG(
     bool, force_failure, false,
     "Forces the samples to fail. Can be used to test failure code paths.");
 ABSL_FLAG(bool, generate_proc, false, "Generate a proc sample.");
+ABSL_FLAG(bool, emit_proc_spawns, false, "Emit helper procs spawned by top proc.");
 ABSL_FLAG(int64_t, max_width_aggregate_types, 1024,
           "The maximum width of aggregate types (tuples and arrays) in the "
           "generated samples.");
@@ -97,6 +98,7 @@ struct Options {
   bool emit_loops;
   bool force_failure;
   bool generate_proc;
+  bool emit_proc_spawns;
   int64_t max_width_aggregate_types;
   int64_t max_width_bits_types;
   int64_t proc_ticks;
@@ -149,6 +151,7 @@ absl::Status RealMain(const Options& options) {
   ast_generator_options.max_width_aggregate_types =
       options.max_width_aggregate_types;
   ast_generator_options.generate_proc = options.generate_proc;
+  ast_generator_options.emit_proc_spawns = options.emit_proc_spawns;
 
   SampleOptions sample_options;
   sample_options.set_calls_per_sample(
@@ -206,6 +209,7 @@ int main(int argc, char** argv) {
       .emit_loops = absl::GetFlag(FLAGS_emit_loops),
       .force_failure = absl::GetFlag(FLAGS_force_failure),
       .generate_proc = absl::GetFlag(FLAGS_generate_proc),
+      .emit_proc_spawns = absl::GetFlag(FLAGS_emit_proc_spawns),
       .max_width_aggregate_types =
           absl::GetFlag(FLAGS_max_width_aggregate_types),
       .max_width_bits_types = absl::GetFlag(FLAGS_max_width_bits_types),
