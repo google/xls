@@ -228,6 +228,9 @@ class FunctionConverter {
   // debugging.
   static std::string IrValueToString(const IrValue& value);
 
+  // Helper that checks that the given IrValue is a Channel or ChannelInterface.
+  static absl::Status CheckValueIsChannel(const IrValue& ir_value);
+
   void SetFunctionBuilder(std::unique_ptr<BuilderBase> builder);
 
   // See `GetRequiresImplicitToken(f, import_data, options)`.

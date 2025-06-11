@@ -64,6 +64,7 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/function.h"
@@ -470,15 +471,12 @@ absl::Status FunctionConverter::Visit(const AstNode* node) {
 
 /* static */ std::string FunctionConverter::IrValueToString(
     const IrValue& value) {
-  if (std::holds_alternative<BValue>(value)) {
-    return absl::StrFormat("%p", std::get<BValue>(value).node());
-  }
-
-  if (std::holds_alternative<CValue>(value)) {
-    return absl::StrFormat("%p", std::get<CValue>(value).value.node());
-  }
-
-  return absl::StrFormat("%p", std::get<Channel*>(value));
+  return absl::visit(
+      Visitor{[](BValue b) { return absl::StrFormat("%p", b.node()); },
+              [](CValue c) { return absl::StrFormat("%p", c.value.node()); },
+              [](Channel* chan) { return absl::StrFormat("%p", chan); },
+              [](ChannelInterface* ci) { return absl::StrFormat("%p", ci); }},
+      value);
 }
 
 FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
@@ -2517,6 +2515,16 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   return (this->*f)(node);
 }
 
+/* static */ absl::Status FunctionConverter::CheckValueIsChannel(
+    const IrValue& ir_value) {
+  if (!(std::holds_alternative<Channel*>(ir_value) ||
+        std::holds_alternative<ChannelInterface*>(ir_value))) {
+    return absl::InvalidArgumentError(
+        "Expected Channel or ChannelInterface, got BValue or CValue.");
+  }
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
@@ -2532,10 +2540,7 @@ absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
   XLS_RETURN_IF_ERROR(Visit(channel));
   XLS_RETURN_IF_ERROR(Visit(payload));
   IrValue ir_value = node_to_ir_[channel];
-  if (!std::holds_alternative<Channel*>(ir_value)) {
-    return absl::InvalidArgumentError(
-        "Expected channel, got BValue or CValue.");
-  }
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
   XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
   XLS_ASSIGN_OR_RETURN(BValue data_value, Use(payload));
 
@@ -2569,10 +2574,7 @@ absl::Status FunctionConverter::HandleBuiltinSendIf(const Invocation* node) {
   XLS_RETURN_IF_ERROR(Visit(token));
   XLS_RETURN_IF_ERROR(Visit(channel));
   IrValue ir_value = node_to_ir_[channel];
-  if (!std::holds_alternative<Channel*>(ir_value)) {
-    return absl::InvalidArgumentError(
-        "Expected channel, got BValue or CValue.");
-  }
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
 
   XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
   XLS_RETURN_IF_ERROR(Visit(predicate));
@@ -2640,10 +2642,7 @@ absl::Status FunctionConverter::HandleBuiltinRecv(const Invocation* node) {
   XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
   XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
   IrValue ir_value = node_to_ir_[node->args()[1]];
-  if (!std::holds_alternative<Channel*>(ir_value)) {
-    return absl::InvalidArgumentError(
-        "Expected channel, got BValue or CValue.");
-  }
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
 
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->args()[0]));
   BValue value;
@@ -2672,10 +2671,7 @@ absl::Status FunctionConverter::HandleBuiltinRecvNonBlocking(
   XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
   XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
   IrValue ir_value = node_to_ir_[node->args()[1]];
-  if (!std::holds_alternative<Channel*>(ir_value)) {
-    return absl::InvalidArgumentError(
-        "Expected channel, got BValue or CValue.");
-  }
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
   XLS_RETURN_IF_ERROR(Visit(node->args()[2]));
 
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->args()[0]));
@@ -2717,10 +2713,7 @@ absl::Status FunctionConverter::HandleBuiltinRecvIf(const Invocation* node) {
   XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
   XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
   IrValue ir_value = node_to_ir_[node->args()[1]];
-  if (!std::holds_alternative<Channel*>(ir_value)) {
-    return absl::InvalidArgumentError(
-        "Expected channel, got BValue or CValue.");
-  }
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
 
   XLS_RETURN_IF_ERROR(Visit(node->args()[2]));
   XLS_RETURN_IF_ERROR(Visit(node->args()[3]));
@@ -2765,10 +2758,7 @@ absl::Status FunctionConverter::HandleBuiltinRecvIfNonBlocking(
   XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
   XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
   IrValue ir_value = node_to_ir_[node->args()[1]];
-  if (!std::holds_alternative<Channel*>(ir_value)) {
-    return absl::InvalidArgumentError(
-        "Expected channel, got BValue or CValue.");
-  }
+  XLS_RETURN_IF_ERROR(CheckValueIsChannel(ir_value));
 
   XLS_RETURN_IF_ERROR(Visit(node->args()[2]));
   XLS_RETURN_IF_ERROR(Visit(node->args()[3]));
