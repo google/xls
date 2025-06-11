@@ -416,6 +416,78 @@ struct xls_bvalue* xls_builder_base_add_smul(struct xls_builder_base* builder,
          std::string_view name) { return builder->SMul(lhs, rhs, loc, name); });
 }
 
+struct xls_bvalue* xls_builder_base_add_umulp(struct xls_builder_base* builder,
+                                              struct xls_bvalue* lhs,
+                                              struct xls_bvalue* rhs,
+                                              const char* name) {
+  return xls_builder_base_binop_generic(
+      builder, lhs, rhs, name,
+      [](xls::BuilderBase* cpp_builder, xls::BValue cpp_lhs,
+         xls::BValue cpp_rhs, xls::SourceInfo loc, std::string_view cpp_name) {
+        return cpp_builder->UMulp(cpp_lhs, cpp_rhs, loc, cpp_name);
+      });
+}
+
+struct xls_bvalue* xls_builder_base_add_smulp(struct xls_builder_base* builder,
+                                              struct xls_bvalue* lhs,
+                                              struct xls_bvalue* rhs,
+                                              const char* name) {
+  return xls_builder_base_binop_generic(
+      builder, lhs, rhs, name,
+      [](xls::BuilderBase* cpp_builder, xls::BValue cpp_lhs,
+         xls::BValue cpp_rhs, xls::SourceInfo loc, std::string_view cpp_name) {
+        return cpp_builder->SMulp(cpp_lhs, cpp_rhs, loc, cpp_name);
+      });
+}
+
+struct xls_bvalue* xls_builder_base_add_udiv(struct xls_builder_base* builder,
+                                             struct xls_bvalue* lhs,
+                                             struct xls_bvalue* rhs,
+                                             const char* name) {
+  return xls_builder_base_binop_generic(
+      builder, lhs, rhs, name,
+      [](xls::BuilderBase* cpp_builder, xls::BValue cpp_lhs,
+         xls::BValue cpp_rhs, xls::SourceInfo loc, std::string_view cpp_name) {
+        return cpp_builder->UDiv(cpp_lhs, cpp_rhs, loc, cpp_name);
+      });
+}
+
+struct xls_bvalue* xls_builder_base_add_sdiv(struct xls_builder_base* builder,
+                                             struct xls_bvalue* lhs,
+                                             struct xls_bvalue* rhs,
+                                             const char* name) {
+  return xls_builder_base_binop_generic(
+      builder, lhs, rhs, name,
+      [](xls::BuilderBase* cpp_builder, xls::BValue cpp_lhs,
+         xls::BValue cpp_rhs, xls::SourceInfo loc, std::string_view cpp_name) {
+        return cpp_builder->SDiv(cpp_lhs, cpp_rhs, loc, cpp_name);
+      });
+}
+
+struct xls_bvalue* xls_builder_base_add_umod(struct xls_builder_base* builder,
+                                             struct xls_bvalue* lhs,
+                                             struct xls_bvalue* rhs,
+                                             const char* name) {
+  return xls_builder_base_binop_generic(
+      builder, lhs, rhs, name,
+      [](xls::BuilderBase* cpp_builder, xls::BValue cpp_lhs,
+         xls::BValue cpp_rhs, xls::SourceInfo loc, std::string_view cpp_name) {
+        return cpp_builder->UMod(cpp_lhs, cpp_rhs, loc, cpp_name);
+      });
+}
+
+struct xls_bvalue* xls_builder_base_add_smod(struct xls_builder_base* builder,
+                                             struct xls_bvalue* lhs,
+                                             struct xls_bvalue* rhs,
+                                             const char* name) {
+  return xls_builder_base_binop_generic(
+      builder, lhs, rhs, name,
+      [](xls::BuilderBase* cpp_builder, xls::BValue cpp_lhs,
+         xls::BValue cpp_rhs, xls::SourceInfo loc, std::string_view cpp_name) {
+        return cpp_builder->SMod(cpp_lhs, cpp_rhs, loc, cpp_name);
+      });
+}
+
 struct xls_bvalue* xls_builder_base_add_xor(struct xls_builder_base* builder,
                                             struct xls_bvalue* lhs,
                                             struct xls_bvalue* rhs,
