@@ -1,3 +1,5 @@
+#![feature(type_inference_v2)]
+
 // Copyright 2020 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
