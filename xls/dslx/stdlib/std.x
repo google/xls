@@ -859,12 +859,10 @@ fn test_spow() {
 
 // Count the number of bits that are 1.
 pub fn popcount<N: u32>(x: bits[N]) -> bits[N] {
-    let (x, acc) = for (i, (x, acc)): (u32, (bits[N], bits[N])) in u32:0..N {
-        let acc = if (x & bits[N]:1) as u1 { acc + bits[N]:1 } else { acc };
-        let x = x >> 1;
-        (x, acc)
-    }((x, bits[N]:0));
-    (acc)
+    let acc = for (i, acc): (u32, bits[N]) in u32:0..N {
+        acc + (x[i+:u1] as bits[N])
+    }(bits[N]:0);
+    acc
 }
 
 #[test]
