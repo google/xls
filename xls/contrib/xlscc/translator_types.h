@@ -704,6 +704,42 @@ class ConstValue {
   std::shared_ptr<CType> type_;
 };
 
+struct ChannelBundle {
+  xls::Channel* regular = nullptr;
+
+  xls::Channel* read_request = nullptr;
+  xls::Channel* read_response = nullptr;
+  xls::Channel* write_request = nullptr;
+  xls::Channel* write_response = nullptr;
+
+  inline bool operator==(const ChannelBundle& o) const {
+    return regular == o.regular && read_request == o.read_request &&
+           read_response == o.read_response &&
+           write_request == o.write_request &&
+           write_response == o.write_response;
+  }
+
+  inline bool operator!=(const ChannelBundle& o) const { return !(*this == o); }
+
+  inline bool operator<(const ChannelBundle& o) const {
+    if (regular != o.regular) {
+      return regular < o.regular;
+    }
+    if (read_request != o.read_request) {
+      return read_request < o.read_request;
+    }
+    if (read_response != o.read_response) {
+      return read_response < o.read_response;
+    }
+    if (write_request != o.write_request) {
+      return write_request < o.write_request;
+    }
+    return write_response < o.write_response;
+  }
+};
+
+struct IOOp;
+
 // This is an interface to the Translator's type translation facilities,
 // enabling code to use them without linking in the entire Translator.
 // It should serve as a start to eventually break this functionality out
@@ -739,14 +775,43 @@ class TranslatorTypeInterface {
                                    const xls::SourceInfo& loc) = 0;
 };
 
+struct GenerateIOReturn {
+  TrackedBValue token_out;
+  // May be invalid if the op doesn't receive anything (send, trace, etc)
+  TrackedBValue received_value;
+  TrackedBValue io_condition;
+};
+
+class TranslatorIOInterface {
+ public:
+  virtual ~TranslatorIOInterface() = default;
+
+  virtual std::optional<ChannelBundle> GetChannelBundleForOp(
+      const IOOp& op, const xls::SourceInfo& loc) = 0;
+
+  virtual absl::StatusOr<TrackedBValue> GetOpCondition(
+      const IOOp& op, TrackedBValue op_out_value, xls::ProcBuilder& pb) = 0;
+
+  // Returns new token
+  virtual absl::StatusOr<TrackedBValue> GenerateTrace(
+      TrackedBValue trace_out_value, TrackedBValue before_token,
+      TrackedBValue condition, const IOOp& op, xls::ProcBuilder& pb) = 0;
+
+  virtual absl::StatusOr<GenerateIOReturn> GenerateIO(
+      const IOOp& op, TrackedBValue before_token, TrackedBValue op_out_value,
+      xls::ProcBuilder& pb,
+      const std::optional<ChannelBundle>& optional_channel_bundle,
+      std::optional<TrackedBValue> extra_condition = std::nullopt) = 0;
+};
+
 // This base class provides common functionality from the Translator class,
 // such as error handling, so that new functionality may be implemented
 // separately from the Translator monolith. For example, its methods can use
 // XLSCC_CHECK_*.
 class GeneratorBase {
  public:
-  explicit GeneratorBase(TranslatorTypeInterface& traces_source)
-      : traces_source_(traces_source) {}
+  explicit GeneratorBase(TranslatorTypeInterface& translator_types)
+      : translator_types_(translator_types) {}
   virtual ~GeneratorBase() = default;
 
   template <typename... Args>
@@ -755,13 +820,16 @@ class GeneratorBase {
                            const Args&... args) {
     std::string result = absl::StrFormat(format, args...);
 
-    traces_source_.AppendMessageTraces(&result, loc);
+    translator_types().AppendMessageTraces(&result, loc);
 
     return result;
   }
 
+ protected:
+  TranslatorTypeInterface& translator_types() { return translator_types_; }
+
  private:
-  TranslatorTypeInterface& traces_source_;
+  TranslatorTypeInterface& translator_types_;
 };
 
 void GetAllBValuesForCValue(const CValue& cval,
@@ -921,40 +989,6 @@ struct PipelinedLoopSubProc {
   std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
 };
 
-struct ChannelBundle {
-  xls::Channel* regular = nullptr;
-
-  xls::Channel* read_request = nullptr;
-  xls::Channel* read_response = nullptr;
-  xls::Channel* write_request = nullptr;
-  xls::Channel* write_response = nullptr;
-
-  inline bool operator==(const ChannelBundle& o) const {
-    return regular == o.regular && read_request == o.read_request &&
-           read_response == o.read_response &&
-           write_request == o.write_request &&
-           write_response == o.write_response;
-  }
-
-  inline bool operator!=(const ChannelBundle& o) const { return !(*this == o); }
-
-  inline bool operator<(const ChannelBundle& o) const {
-    if (regular != o.regular) {
-      return regular < o.regular;
-    }
-    if (read_request != o.read_request) {
-      return read_request < o.read_request;
-    }
-    if (read_response != o.read_response) {
-      return read_response < o.read_response;
-    }
-    if (write_request != o.write_request) {
-      return write_request < o.write_request;
-    }
-    return write_response < o.write_response;
-  }
-};
-
 // A value outputted from a function slice for potential later use.
 // One of these is generated per node that is referred to by a TrackedBValue
 // at the time the function gets "sliced" during generation.
@@ -1107,6 +1141,8 @@ enum DebugIrTraceFlags {
   DebugIrTraceFlags_OptimizationWarnings = 16,
 };
 
+// TODO: Move to generate_fsm.h
+
 struct JumpInfo {
   int64_t from_slice = -1;
   int64_t to_slice = -1;
@@ -1125,6 +1161,8 @@ struct NewFSMState {
       current_inputs_by_input_param;
 
   // Values used after this state
+
+  // TODO: Use this for FSM generation
   absl::flat_hash_set<const ContinuationValue*> values_to_save;
 };
 
@@ -1149,6 +1187,12 @@ struct NewFSMLayout {
   absl::flat_hash_map<int64_t, NewFSMActivationTransition>
       transition_by_slice_from_index;
 };
+
+int Debug_CountNodes(const xls::Node* node,
+                     std::set<const xls::Node*>& visited);
+std::string Debug_NodeToInfix(TrackedBValue bval);
+std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed);
+std::string Debug_OpName(const IOOp& op);
 
 }  // namespace xlscc
 

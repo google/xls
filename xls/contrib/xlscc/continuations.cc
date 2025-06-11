@@ -113,7 +113,7 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
     absl::flat_hash_map<const TrackedBValue*, std::string>& name_found_for_bval,
     absl::flat_hash_map<const TrackedBValue*, const clang::NamedDecl*>&
         decls_by_bval_top_context,
-    const xls::SourceInfo& loc) {
+    int64_t* total_bvals_out, const xls::SourceInfo& loc) {
   XLSCC_CHECK(!context().sf->slices.empty(), loc);
   GeneratedFunctionSlice& current_slice = context().sf->slices.back();
   std::vector<NATIVE_BVAL> ret_vals;
@@ -125,6 +125,8 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
 
     TrackedBValue::Lock lock = std::move(std::get<0>(locked_bvalues));
     std::vector<TrackedBValue*> bvalues = std::get<1>(locked_bvalues);
+
+    *total_bvals_out = bvalues.size();
 
     std::vector<xls::Node*> tracked_nodes_in_order;
     absl::flat_hash_map<xls::Node*, std::vector<TrackedBValue*>>
@@ -303,8 +305,12 @@ absl::Status Translator::AddContinuationsToNewSlice(
         name_found_for_bval,
     const absl::flat_hash_map<const TrackedBValue*, const clang::NamedDecl*>&
         decls_by_bval_top_context,
-    const xls::SourceInfo& loc) {
+    int64_t total_bvals, const xls::SourceInfo& loc) {
   // Create continuation inputs
+
+  absl::flat_hash_map<const ContinuationInput*, TrackedBValue*>
+      bvals_by_continuation_input;
+
   for (ContinuationValue& continuation_out : last_slice.continuations_out) {
     const std::vector<TrackedBValue*>& bvals =
         bvalues_by_continuation_output.at(&continuation_out);
@@ -320,6 +326,8 @@ absl::Status Translator::AddContinuationsToNewSlice(
                             .name = name_found,
                             .decls = continuation_out.decls});
 
+      bvals_by_continuation_input[&new_slice.continuations_in.back()] = bval;
+
       if (decls_by_bval_top_context.contains(bval)) {
         const clang::NamedDecl* top_context_decl =
             decls_by_bval_top_context.at(bval);
@@ -332,10 +340,13 @@ absl::Status Translator::AddContinuationsToNewSlice(
   }
 
   // Each TrackedBValue gets its own input
+  XLSCC_CHECK(bvals_by_continuation_input.size() == total_bvals, loc);
   XLSCC_CHECK_GE(new_slice.continuations_in.size(),
                  last_slice.continuations_out.size(), loc);
   XLSCC_CHECK_EQ(last_slice.continuations_out.size(),
                  bvalues_by_continuation_output.size(), loc);
+
+  absl::flat_hash_set<TrackedBValue*> bvals_set;
 
   // Update TrackedBValues
   for (const ContinuationInput& continuation_in : new_slice.continuations_in) {
@@ -366,13 +377,15 @@ absl::Status Translator::AddContinuationsToNewSlice(
     }
     XLSCC_CHECK(in_bval.valid(), loc);
 
-    const std::vector<TrackedBValue*>& bvals =
-        bvalues_by_continuation_output.at(continuation_in.continuation_out);
+    TrackedBValue* bval = bvals_by_continuation_input.at(&continuation_in);
 
-    for (TrackedBValue* bval : bvals) {
-      *bval = in_bval;
-    }
+    *bval = in_bval;
+
+    XLSCC_CHECK(!bvals_set.contains(bval), loc);
+    bvals_set.insert(bval);
   }
+
+  XLSCC_CHECK(bvals_set.size() == total_bvals, loc);
 
   return absl::OkStatus();
 }
@@ -406,11 +419,14 @@ absl::Status Translator::NewContinuation(IOOp& op) {
   absl::flat_hash_map<const TrackedBValue*, const clang::NamedDecl*>
       decls_by_bval_top_context;
 
+  int64_t total_bvals = 0;
+
   XLS_ASSIGN_OR_RETURN(
       std::vector<NATIVE_BVAL> ret_vals,
       ConvertBValuesToContinuationOutputsForCurrentSlice(
           bvalues_by_continuation_output, continuation_outputs_by_bval,
-          name_found_for_bval, decls_by_bval_top_context, loc));
+          name_found_for_bval, decls_by_bval_top_context,
+          /*total_bvals_out=*/&total_bvals, loc));
 
   // TODO(seanhaskell): Turn into a check when subroutine calls work with new
   // FSM
@@ -456,7 +472,7 @@ absl::Status Translator::NewContinuation(IOOp& op) {
   XLS_RETURN_IF_ERROR(AddContinuationsToNewSlice(
       op, last_slice, new_slice, bvalues_by_continuation_output,
       continuation_outputs_by_bval, name_found_for_bval,
-      decls_by_bval_top_context, loc));
+      decls_by_bval_top_context, total_bvals, loc));
 
   return absl::OkStatus();
 }
@@ -865,6 +881,7 @@ absl::Status RemoveDuplicateInputs(GeneratedFunction& func, bool& changed,
           continue;
         }
         slice.continuations_in.erase(input_it);
+        changed = true;
       }
     }
   }
