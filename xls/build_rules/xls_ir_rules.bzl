@@ -141,6 +141,7 @@ def _convert_to_ir(ctx, src):
         "convert_tests",
         "default_fifo_config",
         "proc_scoped_channels",
+        "lower_to_proc_scoped_channels",
     )
 
     # With runs outside a monorepo, the execution root for the workspace of
