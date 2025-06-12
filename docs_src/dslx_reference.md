@@ -795,7 +795,7 @@ fn test_main() { assert_eq("XLS rocks!", string_composed_characters()) }
 
 ### Type Aliases
 
-DLSX supports the definition of type aliases.
+DSLX supports the definition of type aliases.
 
 Type aliases can be used to provide a more human-readable name for an existing
 type. The new name is on the left, the existing name on the right:

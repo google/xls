@@ -825,7 +825,7 @@ proc ZstdDecoderTest {
             // Test ZstdDecoder memory output interface
             // Mock the output memory buffer as a DSLX array
             // It is required to handle AXI write transactions and to write the incoming data to
-            // the DSXL array.
+            // the DSLX array.
             // The number of AXI transactions is not known beforehand because it depends on the
             // length of the decoded data and the address of the output buffer. The same goes
             // with the lengths of the particular AXI burst transactions (the number of transfers).
