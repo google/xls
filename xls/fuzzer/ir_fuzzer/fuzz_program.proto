@@ -1,0 +1,53 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls;
+
+// Holds a randomly sized list of FuzzOpProtos as we need multiple instruction
+// FuzzOpProtos to generate more complex IR programs.
+message FuzzProgramProto {
+  optional CombineStackMethod combine_stack_method = 1;
+  repeated FuzzOpProto fuzz_ops = 2;
+}
+
+// Specified method used to combine the IrFuzzBuilder stack of BValues into a
+// single IR object.
+enum CombineStackMethod {
+  UNSET_METHOD = 0;
+  LAST_ELEMENT_METHOD = 1;
+  ADD_STACK_METHOD = 2;
+}
+
+// Each FuzzOpProto represents an XLS operation. A FuzzOpProto is used as a
+// randomly generated instruction to instantiate an IR operation node.
+message FuzzOpProto {
+  oneof fuzz_op {
+    FuzzLiteralProto fuzz_literal = 1;
+    FuzzParamProto fuzz_param = 2;
+    FuzzAddOpProto fuzz_add_op = 3;
+  }
+}
+
+message FuzzLiteralProto {
+  optional int64 value = 1;
+}
+
+message FuzzParamProto {}
+
+message FuzzAddOpProto {
+  optional int64 lhs_stack_idx = 1;
+  optional int64 rhs_stack_idx = 2;
+}
