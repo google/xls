@@ -1664,6 +1664,28 @@ fn caller(a: u32) -> u32{
   EXPECT_EQ(int_val, 400);
 }
 
+TEST_F(BytecodeInterpreterTest, NormalFunctionCallsTestUtility) {
+  constexpr std::string_view kProgram = R"(
+#[cfg(test)]
+fn callee(x: u32, y: u32) -> u32 {
+  x + y
+}
+
+fn caller() -> u32{
+  let a = u32:100;
+  let b = u32:200;
+  callee(a, b)
+})";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "caller");
+  EXPECT_THAT(
+      value.status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Test utility function 'callee' can only be called from tests")));
+}
+
 TEST_F(BytecodeInterpreterTest, SimpleParametric) {
   constexpr std::string_view kProgram = R"(
 fn foo<N: u32>(x: uN[N]) -> uN[N] {

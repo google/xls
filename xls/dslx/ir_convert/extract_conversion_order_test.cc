@@ -63,6 +63,134 @@ fn main() -> u32 { f() }
   EXPECT_EQ(order[2].f()->identifier(), "main");
 }
 
+TEST(ExtractConversionOrderTest, IncludeTestsWithFunctions) {
+  constexpr std::string_view kProgram = R"(
+#[cfg(test)]
+fn utility() { trace_fmt!("Test utility function"); }
+
+fn func() { trace_fmt!("Regular function"); }
+
+#[test]
+fn test_func() {
+  utility();
+  func();
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order_without_tests,
+      GetOrder(tm.module, tm.type_info, /*include_tests=*/false));
+  ASSERT_EQ(1, order_without_tests.size());
+  EXPECT_EQ(order_without_tests[0].f()->identifier(), "func");
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order_with_tests,
+      GetOrder(tm.module, tm.type_info, /*include_tests=*/true));
+
+  ASSERT_EQ(3, order_with_tests.size());
+  EXPECT_EQ(order_with_tests[0].f()->identifier(), "utility");
+  EXPECT_EQ(order_with_tests[1].f()->identifier(), "func");
+  EXPECT_EQ(order_with_tests[2].f()->identifier(), "test_func");
+}
+
+TEST(ExtractConversionOrderTest, IncludeTestsWithProcs) {
+  constexpr std::string_view kProgram = R"(
+#[cfg(test)]
+proc Tester {
+    req_r: chan<()> in;
+    resp_s: chan<()> out;
+
+    config(req_r: chan<()> in, resp_s: chan<()> out) { (req_r, resp_s) }
+
+    init {  }
+
+    next(state: ()) {
+        let (tok, _) = recv(join(), req_r);
+        trace_fmt!("Tester");
+        send(tok, resp_s, ());
+    }
+}
+
+proc User {
+    req_r: chan<()> in;
+    resp_s: chan<()> out;
+
+    config(req_r: chan<()> in, resp_s: chan<()> out) { (req_r, resp_s) }
+
+    init {  }
+
+    next(state: ()) {
+        let (tok, _) = recv(join(), req_r);
+        trace_fmt!("User");
+        send(tok, resp_s, ());
+    }
+}
+
+#[test_proc]
+proc TestProc {
+    terminator: chan<bool> out;
+    tester_req_s: chan<()> out;
+    tester_resp_r: chan<()> in;
+    user_req_s: chan<()> out;
+    user_resp_r: chan<()> in;
+
+    config(terminator: chan<bool> out) {
+        let (tester_req_s, tester_req_r) = chan<()>("tester_req");
+        let (tester_resp_s, tester_resp_r) = chan<()>("tester_resp");
+
+        spawn Tester(tester_req_r, tester_resp_s);
+
+        let (user_req_s, user_req_r) = chan<()>("user_req");
+        let (user_resp_s, user_resp_r) = chan<()>("user_resp");
+
+        spawn User(user_req_r, user_resp_s);
+
+        (terminator, tester_req_s, tester_resp_r, user_req_s, user_resp_r)
+    }
+
+    init {  }
+
+    next(state: ()) {
+        let tok = send(join(), tester_req_s, ());
+        let (tok, _) = recv(join(), tester_resp_r);
+
+        let tok = send(join(), user_req_s, ());
+        let (tok, _) = recv(join(), user_resp_r);
+
+        send(tok, terminator, true);
+    }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order_without_tests,
+      GetOrder(tm.module, tm.type_info, /*include_tests=*/false));
+
+  EXPECT_THAT(order_without_tests,
+              ElementsAre(IdentifierAndProcId("User.config", "User:0"),
+                          IdentifierAndProcId("User.next", "User:0")));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<ConversionRecord> order_with_tests,
+      GetOrder(tm.module, tm.type_info, /*include_tests=*/true));
+
+  EXPECT_THAT(
+      order_with_tests,
+      ElementsAre(IdentifierAndProcId("Tester.init", "TestProc->Tester:0"),
+                  IdentifierAndProcId("User.init", "TestProc->User:0"),
+                  IdentifierAndProcId("TestProc.config", "TestProc:0"),
+                  IdentifierAndProcId("User.config", "TestProc->User:0"),
+                  IdentifierAndProcId("Tester.config", "TestProc->Tester:0"),
+                  IdentifierAndProcId("TestProc.next", "TestProc:0"),
+                  IdentifierAndProcId("Tester.next", "TestProc->Tester:0"),
+                  IdentifierAndProcId("User.next", "TestProc->User:0")));
+}
+
 TEST(ExtractConversionOrderTest, Parametric) {
   constexpr std::string_view kProgram = R"(
 fn f<N: u32>(x: bits[N]) -> u32 { N }
