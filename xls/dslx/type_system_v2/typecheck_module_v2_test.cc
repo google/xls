@@ -7923,5 +7923,44 @@ fn test() {
               TypecheckSucceeds(HasNodeWithType("o", "MyStruct { x: uN[8] }")));
 }
 
+TEST(TypecheckV2Test, ImportedImplConstInType) {
+  constexpr std::string_view kImported = R"(
+pub struct MyStruct<SZ: u32> {
+    val: bits[SZ],
+}
+
+impl MyStruct<SZ> {
+    const SIZE = SZ;
+}
+
+pub type S3 = MyStruct<u32:3>;
+
+  )";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+type S3 = imported::S3;
+
+struct FloatFormatSpec<SZ: u32> {
+    exp_bias: sN[SZ],
+    min_normal: imported::MyStruct<SZ>,
+}
+
+const S3_FORMAT_SPEC = FloatFormatSpec<S3::SIZE> {
+    exp_bias: sN[S3::SIZE]:2,
+    min_normal: imported::MyStruct<S3::SIZE> {
+        val: u3:0b000,
+    },
+};
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(
+                  HasNodeWithType("S3_FORMAT_SPEC",
+                                  "FloatFormatSpec { exp_bias: sN[3], "
+                                  "min_normal: MyStruct { val: uN[3] } }"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx
