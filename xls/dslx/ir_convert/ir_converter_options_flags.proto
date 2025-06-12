@@ -39,4 +39,5 @@ message IrConverterOptionsFlagsProto {
   optional string enable_warnings = 14;
   optional bool proc_scoped_channels = 15;
   optional bool type_inference_v2 = 16;
+  optional bool lower_to_proc_scoped_channels = 17;
 }
