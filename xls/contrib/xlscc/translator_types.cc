@@ -40,7 +40,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
-#include "xls/contrib/xlscc/translator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
@@ -53,13 +52,24 @@ using ::std::vector;
 
 namespace xlscc {
 
+absl::StatusOr<xls::Value> TranslatorTypeInterface::GetStructFieldXLS(
+    xls::Value val, int index, const CStructType& type) {
+  CHECK_LT(index, type.fields().size());
+  if (type.no_tuple_flag()) {
+    return val;
+  }
+  XLS_ASSIGN_OR_RETURN(std::vector<xls::Value> values, val.GetElements());
+  return values.at(type.fields().size() - 1 - index);
+}
+
 CType::~CType() = default;
 
 bool CType::operator!=(const CType& o) const { return !(*this == o); }
 
 int CType::GetBitWidth() const { return 0; }
 
-absl::StatusOr<bool> CType::ContainsLValues(Translator& translator) const {
+absl::StatusOr<bool> CType::ContainsLValues(
+    TranslatorTypeInterface& translator) const {
   return false;
 }
 
@@ -73,13 +83,13 @@ xls::Type* CType::GetXLSType(xls::Package* /*package*/) const {
 bool CType::StoredAsXLSBits() const { return false; }
 
 absl::Status CType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   return absl::UnimplementedError(
       "GetMetadata unsupported in CType base class");
 }
 
-absl::Status CType::GetMetadataValue(Translator& translator,
+absl::Status CType::GetMetadataValue(TranslatorTypeInterface& translator,
                                      const ConstValue const_value,
                                      xlscc_metadata::Value* output) const {
   return absl::UnimplementedError(
@@ -94,13 +104,13 @@ int CVoidType::GetBitWidth() const {
 }
 
 absl::Status CVoidType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   (void)output->mutable_as_void();
   return absl::OkStatus();
 }
 
-absl::Status CVoidType::GetMetadataValue(Translator& translator,
+absl::Status CVoidType::GetMetadataValue(TranslatorTypeInterface& translator,
                                          const ConstValue const_value,
                                          xlscc_metadata::Value* output) const {
   return absl::OkStatus();
@@ -121,13 +131,13 @@ CBitsType::operator std::string() const {
 }
 
 absl::Status CBitsType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   output->mutable_as_bits()->set_width(width_);
   return absl::OkStatus();
 }
 
-absl::Status CBitsType::GetMetadataValue(Translator& translator,
+absl::Status CBitsType::GetMetadataValue(TranslatorTypeInterface& translator,
                                          const ConstValue const_value,
                                          xlscc_metadata::Value* output) const {
   vector<uint8_t> bytes = const_value.rvalue().bits().ToBytes();
@@ -195,7 +205,7 @@ CIntType::operator std::string() const {
 }
 
 absl::Status CIntType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   output->mutable_as_int()->set_width(width_);
   output->mutable_as_int()->set_is_signed(is_signed_);
@@ -206,7 +216,7 @@ absl::Status CIntType::GetMetadata(
   return absl::OkStatus();
 }
 
-absl::Status CIntType::GetMetadataValue(Translator& translator,
+absl::Status CIntType::GetMetadataValue(TranslatorTypeInterface& translator,
                                         const ConstValue const_value,
                                         xlscc_metadata::Value* output) const {
   auto value = const_value.rvalue();
@@ -251,13 +261,13 @@ CFloatType::operator std::string() const {
 }
 
 absl::Status CFloatType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   output->mutable_as_float()->set_is_double_precision(double_precision_);
   return absl::OkStatus();
 }
 
-absl::Status CFloatType::GetMetadataValue(Translator& translator,
+absl::Status CFloatType::GetMetadataValue(TranslatorTypeInterface& translator,
                                           const ConstValue const_value,
                                           xlscc_metadata::Value* output) const {
   std::shared_ptr<CFloatType> float_type =
@@ -313,7 +323,7 @@ CEnumType::operator std::string() const {
 }
 
 absl::Status CEnumType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   output->mutable_as_enum()->set_name(name_);
   output->mutable_as_enum()->set_width(width_);
@@ -330,7 +340,7 @@ absl::Status CEnumType::GetMetadata(
   return absl::OkStatus();
 }
 
-absl::Status CEnumType::GetMetadataValue(Translator& translator,
+absl::Status CEnumType::GetMetadataValue(TranslatorTypeInterface& translator,
                                          const ConstValue const_value,
                                          xlscc_metadata::Value* output) const {
   auto value = const_value.rvalue();
@@ -360,13 +370,13 @@ int CBoolType::GetBitWidth() const { return 1; }
 CBoolType::operator std::string() const { return "bool"; }
 
 absl::Status CBoolType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   (void)output->mutable_as_bool();
   return absl::OkStatus();
 }
 
-absl::Status CBoolType::GetMetadataValue(Translator& translator,
+absl::Status CBoolType::GetMetadataValue(TranslatorTypeInterface& translator,
                                          const ConstValue const_value,
                                          xlscc_metadata::Value* output) const {
   auto value = const_value.rvalue();
@@ -390,7 +400,7 @@ CInstantiableTypeAlias::operator std::string() const {
 }
 
 absl::Status CInstantiableTypeAlias::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   auto temp_alias = std::make_shared<CInstantiableTypeAlias>(base_);
   absl::StatusOr<xlscc_metadata::IntType> is_synthetic_int =
@@ -453,7 +463,7 @@ absl::Status CInstantiableTypeAlias::GetMetadata(
 }
 
 absl::Status CInstantiableTypeAlias::GetMetadataValue(
-    Translator& translator, const ConstValue const_value,
+    TranslatorTypeInterface& translator, const ConstValue const_value,
     xlscc_metadata::Value* output) const {
   bool write_as_bits = false;
   std::shared_ptr<CInstantiableTypeAlias> inst(
@@ -462,10 +472,9 @@ absl::Status CInstantiableTypeAlias::GetMetadataValue(
     write_as_bits = true;
   }
 
-  auto found = translator.inst_types_.find(inst);
-  CHECK(found != translator.inst_types_.end());
+  std::shared_ptr<CType> resolved_type = translator.GetCTypeForAlias(inst);
   auto struct_type =
-      std::dynamic_pointer_cast<const CStructType>(found->second);
+      std::dynamic_pointer_cast<const CStructType>(resolved_type);
 
   // Handle __xls_bits
   if (struct_type == nullptr) {
@@ -503,7 +512,7 @@ bool CInstantiableTypeAlias::operator==(const CType& o) const {
 }
 
 absl::StatusOr<bool> CInstantiableTypeAlias::ContainsLValues(
-    Translator& translator) const {
+    TranslatorTypeInterface& translator) const {
   auto temp_alias = std::make_shared<CInstantiableTypeAlias>(base_);
   XLS_ASSIGN_OR_RETURN(auto resolved,
                        translator.ResolveTypeInstance(temp_alias));
@@ -523,7 +532,7 @@ CStructType::CStructType(std::vector<std::shared_ptr<CField>> fields,
 }
 
 absl::Status CStructType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   // Synthetic int classes / structs should never be emitted
   CHECK(!synthetic_int_flag_);
@@ -551,7 +560,7 @@ absl::Status CStructType::GetMetadata(
 }
 
 absl::Status CStructType::GetMetadataValue(
-    Translator& translator, const ConstValue const_value,
+    TranslatorTypeInterface& translator, const ConstValue const_value,
     xlscc_metadata::Value* output) const {
   output->mutable_as_struct()->set_no_tuple(no_tuple_flag_);
 
@@ -569,9 +578,9 @@ absl::Status CStructType::GetMetadataValue(
     name_out->set_fully_qualified_name(field.first->getNameAsString());
     name_out->set_name(field.first->getNameAsString());
     name_out->set_id(reinterpret_cast<uint64_t>(field.first));
-    XLS_ASSIGN_OR_RETURN(
-        xls::Value elem_value,
-        Translator::GetStructFieldXLS(const_value.rvalue(), i, *this));
+    XLS_ASSIGN_OR_RETURN(xls::Value elem_value,
+                         TranslatorTypeInterface::GetStructFieldXLS(
+                             const_value.rvalue(), i, *this));
     XLS_RETURN_IF_ERROR(field.second->type()->GetMetadataValue(
         translator, ConstValue(elem_value, field.second->type()),
         struct_field_value->mutable_value()));
@@ -592,7 +601,7 @@ int CStructType::GetBitWidth() const {
 }
 
 absl::StatusOr<bool> CStructType::ContainsLValues(
-    Translator& translator) const {
+    TranslatorTypeInterface& translator) const {
   for (const std::shared_ptr<CField>& field : fields_) {
     XLS_ASSIGN_OR_RETURN(bool ret, field->type()->ContainsLValues(translator));
 
@@ -646,7 +655,7 @@ std::shared_ptr<CField> CStructType::get_field(
 }
 
 absl::StatusOr<int64_t> CStructType::count_lvalue_compounds(
-    Translator& translator) const {
+    TranslatorTypeInterface& translator) const {
   int64_t ret = 0;
   for (const auto& field : fields_) {
     XLS_ASSIGN_OR_RETURN(bool field_has_lval,
@@ -662,7 +671,7 @@ CInternalTuple::CInternalTuple(std::vector<std::shared_ptr<CType>> fields)
     : fields_(fields) {}
 
 absl::Status CInternalTuple::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   for (const auto& field : fields_) {
     XLS_RETURN_IF_ERROR(field->GetMetadata(
@@ -672,7 +681,7 @@ absl::Status CInternalTuple::GetMetadata(
 }
 
 absl::Status CInternalTuple::GetMetadataValue(
-    Translator& translator, const ConstValue const_value,
+    TranslatorTypeInterface& translator, const ConstValue const_value,
     xlscc_metadata::Value* output) const {
   for (int i = 0; i < fields_.size(); ++i) {
     auto field = fields_[i];
@@ -753,13 +762,14 @@ bool CArrayType::operator==(const CType& o) const {
 
 int CArrayType::GetBitWidth() const { return size_ * element_->GetBitWidth(); }
 
-absl::StatusOr<bool> CArrayType::ContainsLValues(Translator& translator) const {
+absl::StatusOr<bool> CArrayType::ContainsLValues(
+    TranslatorTypeInterface& translator) const {
   XLS_ASSIGN_OR_RETURN(bool ret, element_->ContainsLValues(translator));
   return ret;
 }
 
 absl::Status CField::GetMetadata(
-    Translator& translator, xlscc_metadata::StructField* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::StructField* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   output->set_name(name_->getNameAsString());
   XLS_RETURN_IF_ERROR(
@@ -777,7 +787,7 @@ CArrayType::operator std::string() const {
 }
 
 absl::Status CArrayType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   output->mutable_as_array()->set_size(size_);
   output->mutable_as_array()->set_use_tuple(use_tuple_);
@@ -787,7 +797,7 @@ absl::Status CArrayType::GetMetadata(
   return absl::OkStatus();
 }
 
-absl::Status CArrayType::GetMetadataValue(Translator& translator,
+absl::Status CArrayType::GetMetadataValue(TranslatorTypeInterface& translator,
                                           const ConstValue const_value,
                                           xlscc_metadata::Value* output) const {
   vector<xls::Value> values = const_value.rvalue().GetElements().value();
@@ -815,7 +825,7 @@ bool CPointerType::operator==(const CType& o) const {
 int CPointerType::GetBitWidth() const { return 0; }
 
 absl::StatusOr<bool> CPointerType::ContainsLValues(
-    Translator& translator) const {
+    TranslatorTypeInterface& translator) const {
   return true;
 }
 
@@ -828,14 +838,14 @@ CPointerType::operator std::string() const {
 }
 
 absl::Status CPointerType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   return absl::UnavailableError(
       "Can't generate externally useful metadata for pointers");
 }
 
 absl::Status CPointerType::GetMetadataValue(
-    Translator& translator, const ConstValue const_value,
+    TranslatorTypeInterface& translator, const ConstValue const_value,
     xlscc_metadata::Value* output) const {
   return absl::UnavailableError(
       "Can't generate externally useful metadata for pointers");
@@ -855,7 +865,7 @@ bool CReferenceType::operator==(const CType& o) const {
 int CReferenceType::GetBitWidth() const { return pointee_type_->GetBitWidth(); }
 
 absl::StatusOr<bool> CReferenceType::ContainsLValues(
-    Translator& translator) const {
+    TranslatorTypeInterface& translator) const {
   return true;
 }
 
@@ -868,14 +878,14 @@ CReferenceType::operator std::string() const {
 }
 
 absl::Status CReferenceType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   return absl::UnavailableError(
       "Can't generate externally useful metadata for references");
 }
 
 absl::Status CReferenceType::GetMetadataValue(
-    Translator& translator, const ConstValue const_value,
+    TranslatorTypeInterface& translator, const ConstValue const_value,
     xlscc_metadata::Value* output) const {
   return absl::UnavailableError(
       "Can't generate externally useful metadata for references");
@@ -916,7 +926,7 @@ CChannelType::operator std::string() const {
 }
 
 absl::Status CChannelType::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output,
+    TranslatorTypeInterface& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   XLS_RETURN_IF_ERROR(item_type_->GetMetadata(
       translator, output->mutable_as_channel()->mutable_item_type(),
@@ -928,13 +938,13 @@ absl::Status CChannelType::GetMetadata(
 }
 
 absl::Status CChannelType::GetMetadataValue(
-    Translator& translator, const ConstValue const_value,
+    TranslatorTypeInterface& translator, const ConstValue const_value,
     xlscc_metadata::Value* output) const {
   return absl::OkStatus();
 }
 
 absl::StatusOr<bool> CChannelType::ContainsLValues(
-    Translator& translator) const {
+    TranslatorTypeInterface& translator) const {
   return true;
 }
 

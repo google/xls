@@ -83,6 +83,7 @@
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/dfs_visitor.h"
@@ -153,7 +154,8 @@ Translator::Translator(bool error_on_init_interval, bool error_on_uninitialized,
                        int64_t max_unroll_iters, int64_t warn_unroll_iters,
                        int64_t z3_rlimit, IOOpOrdering op_ordering,
                        std::unique_ptr<CCParser> existing_parser)
-    : max_unroll_iters_(max_unroll_iters),
+    : GeneratorBase(static_cast<TranslatorTypeInterface&>(*this)),
+      max_unroll_iters_(max_unroll_iters),
       warn_unroll_iters_(warn_unroll_iters),
       z3_rlimit_(z3_rlimit),
       error_on_init_interval_(error_on_init_interval),
@@ -303,7 +305,47 @@ Translator::LookUpInPackage() {
 }
 
 void Translator::AddSourceInfoToPackage(xls::Package& package) {
-  parser_->AddSourceInfoToPackage(package);
+  parser_->AddSourceInfoToPackage(*package_);
+}
+
+void Translator::AppendMessageTraces(std::string* result,
+                                     const xls::SourceInfo& loc) {
+  absl::StrAppend(
+      result,
+      absl::StrJoin(loc.locations, "\n",
+                    [this](std::string* out, const xls::SourceLocation& loc) {
+                      absl::StrAppend(out, PrintCaret(LookUpInPackage(), loc));
+                    }));
+
+  const clang::FunctionDecl* current_func_decl = nullptr;
+
+  absl::StrAppend(result, "\nCall trace:");
+  for (const TranslationContext& context : context_stack_) {
+    if (context.sf == nullptr || context.sf->clang_decl == nullptr) {
+      break;
+    }
+    // Don't repeat functions in different scopes
+    if (current_func_decl == context.sf->clang_decl) {
+      continue;
+    }
+    current_func_decl = context.sf->clang_decl;
+    const xls::SourceInfo& loc_all = GetLoc(*current_func_decl);
+
+    if (loc_all.locations.empty()) {
+      absl::StrAppend(result, "\n\t <unknown>");
+      continue;
+    }
+
+    CHECK_EQ(loc_all.locations.size(), 1);
+    const xls::SourceLocation& loc = loc_all.locations.front();
+
+    std::optional<std::string> filename_found = LookUpInPackage()(loc.fileno());
+
+    absl::StrAppendFormat(result, "\n\t %s() at %s:%i:%i",
+                          current_func_decl->getQualifiedNameAsString(),
+                          filename_found.value_or("<unknown>"),
+                          loc.lineno().value(), loc.colno().value());
+  }
 }
 
 TranslationContext& Translator::context() {
@@ -483,16 +525,6 @@ TrackedBValue Translator::GetStructFieldXLS(TrackedBValue val, int64_t index,
              ? val
              : TrackedBValue(context().fb->TupleIndex(
                    val, type.fields().size() - 1 - index, loc));
-}
-
-absl::StatusOr<xls::Value> Translator::GetStructFieldXLS(
-    xls::Value val, int index, const CStructType& type) {
-  CHECK_LT(index, type.fields().size());
-  if (type.no_tuple_flag()) {
-    return val;
-  }
-  XLS_ASSIGN_OR_RETURN(std::vector<xls::Value> values, val.GetElements());
-  return values.at(type.fields().size() - 1 - index);
 }
 
 absl::StatusOr<xls::Type*> Translator::GetStructXLSType(
@@ -1349,16 +1381,17 @@ absl::Status Translator::GenerateIR_Function_Body(
   }
 
   // IO returns
-  for (const IOOp& op : sf.io_ops) {
-    XLSCC_CHECK(op.ret_value.valid(), body_loc);
-    return_bvals.push_back(op.ret_value);
+  const bool old_fsm_mode =
+      !(generate_new_fsm_ && funcdecl == currently_generating_top_function_);
+
+  if (old_fsm_mode) {
+    for (const IOOp& op : sf.io_ops) {
+      XLSCC_CHECK(op.ret_value.valid(), body_loc);
+      return_bvals.push_back(op.ret_value);
+    }
   }
 
   sf.return_value_count = return_bvals.size();
-
-  if (return_bvals.empty()) {
-    return absl::OkStatus();
-  }
 
   sf.return_lvalue = context().return_cval.lvalue();
 
@@ -1368,8 +1401,11 @@ absl::Status Translator::GenerateIR_Function_Body(
     // XLS functions return the last value added to the FunctionBuilder
     // So this makes sure the correct value is last.
     return_bval = return_bvals[0];
-  } else {
+  } else if (return_bvals.size() > 1) {
     return_bval = MakeFunctionReturn(return_bvals, body_loc);
+  } else {
+    return_bval =
+        context().fb->Tuple({}, body_loc, /*name=*/"default_return_tuple");
   }
 
   if (!sf.io_ops.empty() && funcdecl->isOverloadedOperator()) {
@@ -1377,7 +1413,7 @@ absl::Status Translator::GenerateIR_Function_Body(
         ErrorMessage(body_loc, "IO ops in operator calls are not supported"));
   }
 
-  XLS_RETURN_IF_ERROR(FinishLastSlice(return_bval));
+  XLS_RETURN_IF_ERROR(FinishLastSlice(return_bval, body_loc));
 
   // Don't generate the wrapper for the top function with the new FSM
   if (generate_new_fsm_ && funcdecl == currently_generating_top_function_) {
@@ -6739,6 +6775,11 @@ absl::StatusOr<bool> Translator::IsSubBlockDirectInParam(
   }
 
   return true;
+}
+
+std::shared_ptr<CType> Translator::GetCTypeForAlias(
+    const std::shared_ptr<CInstantiableTypeAlias>& alias) {
+  return inst_types_.at(alias);
 }
 
 }  // namespace xlscc

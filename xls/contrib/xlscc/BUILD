@@ -129,6 +129,63 @@ cc_library(
 )
 
 cc_library(
+    name = "translator_types",
+    srcs = [
+        "translator_types.cc",
+    ],
+    hdrs = [
+        "translator_types.h",
+    ],
+    deps = [
+        ":metadata_output_cc_proto",
+        ":node_manipulation",
+        ":tracked_bvalue",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:source_location",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@llvm-project//clang:ast",
+        "@llvm-project//clang:basic",
+    ],
+)
+
+cc_library(
+    name = "generate_fsm",
+    srcs = [
+        "generate_fsm.cc",
+    ],
+    hdrs = [
+        "generate_fsm.h",
+    ],
+    deps = [
+        ":tracked_bvalue",
+        ":translator_types",
+        ":xlscc_logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:source_location",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "translator",
     srcs = [
         "continuations.cc",
@@ -137,18 +194,18 @@ cc_library(
         "translate_loops.cc",
         "translate_metadata.cc",
         "translator.cc",
-        "translator_types.cc",
     ],
     hdrs = [
         "translator.h",
-        "translator_types.h",
     ],
     deps = [
         ":cc_parser",
+        ":generate_fsm",
         ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
         ":node_manipulation",
         ":tracked_bvalue",
+        ":translator_types",
         ":xlscc_logging",
         "//xls/common:math_util",
         "//xls/common:stopwatch",

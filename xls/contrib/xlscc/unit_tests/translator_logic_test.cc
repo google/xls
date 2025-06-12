@@ -3344,9 +3344,7 @@ TEST_F(TranslatorLogicTest, TopFunctionNoOutputs) {
         (void)a;
       })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                     testing::HasSubstr("no outputs")));
+  Run({{"a", xls::Value(xls::SBits(3, 32))}}, xls::Value::Tuple({}), content);
 }
 
 TEST_F(TranslatorLogicTest, DefaultArg) {

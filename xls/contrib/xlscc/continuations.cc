@@ -93,7 +93,13 @@ absl::StatusOr<std::optional<std::string>> FindContinuationNamesInThisContext(
 }
 
 std::string GraphvizEscape(std::string_view s) {
-  return absl::StrFormat("\"%s\"", absl::StrReplaceAll(s, {{"\"", "\\\""}}));
+  const int64_t max_label_length = 64;
+  std::string label(s);
+  if (label.size() > max_label_length) {
+    label = label.substr(0, max_label_length);
+  }
+  return absl::StrFormat("\"%s\"",
+                         absl::StrReplaceAll(label, {{"\"", "\\\""}}));
 };
 
 }  // namespace
@@ -381,6 +387,10 @@ absl::Status Translator::NewContinuation(IOOp& op) {
 
   const xls::SourceInfo& loc = op.op_location;
 
+  // ConvertBValuesToContinuationOutputsForCurrentSlice() will invalidate
+  // BValues
+  const NATIVE_BVAL ret_value_saved = op.ret_value;
+
   // Create only one ContinuationValue per xls::Node
   //
   // This prevents unnecessary complexity in the generated IR, such as selects
@@ -404,8 +414,8 @@ absl::Status Translator::NewContinuation(IOOp& op) {
 
   // TODO(seanhaskell): Turn into a check when subroutine calls work with new
   // FSM
-  if (op.ret_value.valid()) {
-    ret_vals.push_back(op.ret_value);
+  if (ret_value_saved.valid()) {
+    ret_vals.push_back(ret_value_saved);
   }
 
   NATIVE_BVAL ret_bval =
@@ -525,8 +535,10 @@ absl::Status Translator::AddFeedbacksForSlice(GeneratedFunctionSlice& slice,
   return absl::OkStatus();
 }
 
-absl::Status Translator::FinishSlice(TrackedBValue return_bval,
+absl::Status Translator::FinishSlice(NATIVE_BVAL return_bval,
                                      const xls::SourceInfo& loc) {
+  XLSCC_CHECK(return_bval.valid(), loc);
+
   xls::FunctionBuilder* function_builder =
       dynamic_cast<xls::FunctionBuilder*>(context().fb);
 
@@ -540,9 +552,8 @@ absl::Status Translator::FinishSlice(TrackedBValue return_bval,
   return absl::OkStatus();
 }
 
-absl::Status Translator::FinishLastSlice(TrackedBValue return_bval) {
-  const xls::SourceInfo& loc = return_bval.loc();
-
+absl::Status Translator::FinishLastSlice(TrackedBValue return_bval,
+                                         const xls::SourceInfo& loc) {
   XLS_RETURN_IF_ERROR(FinishSlice(return_bval, loc));
 
   XLS_RETURN_IF_ERROR(OptimizeContinuations(*context().sf, loc));
@@ -570,6 +581,11 @@ absl::Status RemoveUnusedContinuationOutputs(GeneratedFunction& func,
       CHECK_EQ(slice.continuations_out.size(), 0);
       continue;
     }
+    xls::Node* prev_return = slice.function->return_value();
+    CHECK(prev_return->GetType()->IsTuple());
+
+    const int64_t extra_returns =
+        prev_return->operand_count() - slice.continuations_out.size();
 
     std::vector<xls::Node*> new_output_elems;
     std::vector<xls::Node*> removed_outputs;
@@ -593,12 +609,16 @@ absl::Status RemoveUnusedContinuationOutputs(GeneratedFunction& func,
     if (!removed_outputs.empty()) {
       CHECK_EQ(new_output_elems.size(), slice.continuations_out.size());
 
-      xls::Node* prev_return = slice.function->return_value();
-      CHECK(prev_return->GetType()->IsTuple());
+      for (int64_t i = prev_return->operand_count() - extra_returns;
+           i < prev_return->operand_count(); ++i) {
+        new_output_elems.push_back(prev_return->operand(i));
+      }
 
       XLS_ASSIGN_OR_RETURN(
           xls::Node * new_return,
           slice.function->MakeNode<xls::Tuple>(loc, new_output_elems));
+      CHECK_EQ(new_return->operand_count(),
+               extra_returns + slice.continuations_out.size());
       XLS_RETURN_IF_ERROR(slice.function->set_return_value(new_return));
       XLS_RETURN_IF_ERROR(slice.function->RemoveNode(prev_return));
 
@@ -920,7 +940,10 @@ std::string GenerateSliceGraph(const GeneratedFunction& func) {
 
   std::string last_rank_name = "";
 
+  int64_t slice_index = -1;
   for (const GeneratedFunctionSlice& slice : func.slices) {
+    ++slice_index;
+
     std::string new_rank = "(first)";
     if (slice.after_op != nullptr) {
       new_rank = Debug_OpName(*slice.after_op);
@@ -938,12 +961,14 @@ std::string GenerateSliceGraph(const GeneratedFunction& func) {
           absl::StrFormat("  %s -> %s", last_rank_name, rank_input_name));
     }
 
-    node_names.push_back(absl::StrFormat(
-        "  %s [label=%s style=rounded];", rank_input_name,
-        GraphvizEscape(absl::StrFormat("after %s_inputs", new_rank))));
-    node_names.push_back(absl::StrFormat(
-        "  %s [label=%s];", rank_output_name,
-        GraphvizEscape(absl::StrFormat("after %s_outputs", new_rank))));
+    node_names.push_back(
+        absl::StrFormat("  %s [label=%s style=rounded];", rank_input_name,
+                        GraphvizEscape(absl::StrFormat(
+                            "after [%i] %s inputs", slice_index, new_rank))));
+    node_names.push_back(
+        absl::StrFormat("  %s [label=%s];", rank_output_name,
+                        GraphvizEscape(absl::StrFormat(
+                            "after [%i] %s outputs", slice_index, new_rank))));
 
     last_rank_name = rank_output_name;
 

@@ -523,8 +523,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   GenerateFSMInvocationReturn fsm_ret;
   if (generate_new_fsm_) {
-    XLS_ASSIGN_OR_RETURN(fsm_ret,
-                         GenerateNewFSMInvocation(prepared, pb, body_loc));
+    return absl::UnimplementedError("New FSM not implemented yet");
   } else {
     XLS_ASSIGN_OR_RETURN(
         fsm_ret,
@@ -592,6 +591,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
   for (const auto& [state_elem, bval] : fsm_ret.extra_next_state_values) {
     next_state_values.insert({state_elem, bval});
   }
+
+  // fprintf(stderr, "GenerateIR_Block before states:\n%s\n",
+  // pb.proc()->DumpIr().c_str());
 
   XLS_ASSIGN_OR_RETURN(
       proc, BuildWithNextStateValueMap(pb, prepared.token, next_state_values,
@@ -1540,15 +1542,6 @@ Translator::GenerateOldFSMInvocation(PreparedBlock& prepared,
       .extra_next_state_values = fsm_next_state_values};
 }
 
-absl::StatusOr<Translator::GenerateFSMInvocationReturn>
-Translator::GenerateNewFSMInvocation(PreparedBlock& prepared,
-                                     xls::ProcBuilder& pb,
-                                     const xls::SourceInfo& body_loc) {
-  XLSCC_CHECK(generate_new_fsm_, body_loc);
-
-  return absl::UnimplementedError("New FSM not implemented");
-}
-
 std::set<ChannelBundle> Translator::GetChannelsUsedByOp(
     const IOOp& op, const PipelinedLoopSubProc* sub_proc,
     const xls::SourceInfo& loc) {
@@ -1731,14 +1724,14 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
       .token_out = contents_ret.token_out};
 }
 
-TrackedBValue Translator::ConditionWithExtra(xls::BuilderBase& builder,
-                                             TrackedBValue condition,
-                                             const InvokeToGenerate& invoke,
-                                             const xls::SourceInfo& op_loc) {
+TrackedBValue Translator::ConditionWithExtra(
+    xls::BuilderBase& builder, TrackedBValue condition,
+    std::optional<TrackedBValue> extra_condition,
+    const xls::SourceInfo& op_loc) {
   TrackedBValue ret = condition;
   XLSCC_CHECK(ret.valid(), op_loc);
-  if (invoke.extra_condition.valid()) {
-    ret = builder.And(ret, invoke.extra_condition, op_loc);
+  if (extra_condition.has_value() && extra_condition.value().valid()) {
+    ret = builder.And(ret, extra_condition.value(), op_loc);
   }
   if (context().full_condition.valid()) {
     ret = builder.And(ret, context().full_condition, op_loc);
@@ -1752,6 +1745,7 @@ absl::StatusOr<TrackedBValue> Translator::GenerateIOInvoke(
     xls::ProcBuilder& pb) {
   const IOOp& op = invoke.op;
   xls::SourceInfo op_loc = op.op_location;
+
   const int64_t return_index = prepared.return_index_for_op.at(&op);
 
   TrackedBValue ret_io_value = GetFlexTupleField(
@@ -1759,160 +1753,14 @@ absl::StatusOr<TrackedBValue> Translator::GenerateIOInvoke(
       /*op_name=*/
       absl::StrFormat("%s_ret_io_value", op.final_param_name));
 
-  TrackedBValue arg_io_val;
-
-  TrackedBValue new_token;
-  const ChannelBundle* bundle_ptr = nullptr;
-
-  if (op.op != OpType::kTrace) {
-    bundle_ptr = &prepared.xls_channel_by_function_channel.at(op.channel);
-  }
-
-  if (op.op == OpType::kRecv) {
-    xls::Channel* xls_channel = bundle_ptr->regular;
-
-    unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/false});
-
-    CHECK_NE(xls_channel, nullptr);
-
-    TrackedBValue condition = ret_io_value;
-    CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
-    condition = ConditionWithExtra(pb, condition, invoke, op_loc);
-    TrackedBValue receive;
-    if (op.is_blocking) {
-      receive = pb.ReceiveIf(xls_channel, before_token, condition, op_loc,
-                             /*name=*/Debug_OpName(op));
-    } else {
-      receive = pb.ReceiveIfNonBlocking(xls_channel, before_token, condition,
-                                        op_loc, /*name=*/Debug_OpName(op));
-    }
-    new_token =
-        pb.TupleIndex(receive, 0, op_loc,
-                      /*name=*/absl::StrFormat("%s_token", Debug_OpName(op)));
-
-    TrackedBValue in_val;
-    if (op.is_blocking) {
-      in_val =
-          pb.TupleIndex(receive, 1, op_loc,
-                        /*name=*/absl::StrFormat("%s_value", Debug_OpName(op)));
-    } else {
-      in_val = pb.Tuple(
-          {pb.TupleIndex(
-               receive, 1, op_loc,
-               /*name=*/absl::StrFormat("%s_value", Debug_OpName(op))),
-           pb.TupleIndex(
-               receive, 2, op_loc,
-               /*name=*/absl::StrFormat("%s_valid", Debug_OpName(op)))});
-    }
-    arg_io_val = in_val;
-  } else if (op.op == OpType::kSend) {
-    xls::Channel* xls_channel = bundle_ptr->regular;
-
-    unused_xls_channel_ops_.remove({xls_channel, /*is_send=*/true});
-
-    CHECK_NE(xls_channel, nullptr);
-    TrackedBValue val =
-        pb.TupleIndex(ret_io_value, 0, op_loc,
-                      /*name=*/absl::StrFormat("%s_value", Debug_OpName(op)));
-    TrackedBValue condition = pb.TupleIndex(
-        ret_io_value, 1, op_loc, absl::StrFormat("%s_pred", Debug_OpName(op)));
-    CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
-    condition = ConditionWithExtra(pb, condition, invoke, op_loc);
-
-    new_token = pb.SendIf(xls_channel, before_token, condition, val, op_loc,
-                          /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
-  } else if (op.op == OpType::kRead) {
-    CHECK_EQ(bundle_ptr->regular, nullptr);
-    CHECK_NE(bundle_ptr->read_request, nullptr);
-    CHECK_NE(bundle_ptr->read_response, nullptr);
-
-    unused_xls_channel_ops_.remove(
-        {bundle_ptr->read_request, /*is_send=*/true});
-    unused_xls_channel_ops_.remove(
-        {bundle_ptr->read_response, /*is_send=*/false});
-
-    TrackedBValue addr =
-        pb.TupleIndex(ret_io_value, 0, op_loc,
-                      /*name=*/absl::StrFormat("%s_addr", Debug_OpName(op)));
-    TrackedBValue condition =
-        pb.TupleIndex(ret_io_value, 1, op_loc,
-                      /*name=*/absl::StrFormat("%s_cond", Debug_OpName(op)));
-    CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
-    condition = ConditionWithExtra(pb, condition, invoke, op_loc);
-
-    // TODO(google/xls#861): supported masked memory operations.
-    TrackedBValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
-    TrackedBValue send_tuple_with_mask = pb.Tuple({addr, mask}, op_loc);
-    new_token = pb.SendIf(bundle_ptr->read_request, before_token, condition,
-                          send_tuple_with_mask, op_loc,
-                          /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
-
-    TrackedBValue receive =
-        pb.ReceiveIf(bundle_ptr->read_response, new_token, condition, op_loc,
-                     /*name=*/Debug_OpName(op));
-
-    new_token =
-        pb.TupleIndex(receive, 0, op_loc,
-                      /*name=*/absl::StrFormat("%s_token", Debug_OpName(op)));
-    TrackedBValue response_tup = pb.TupleIndex(
-        receive, 1, op_loc,
-        /*name=*/absl::StrFormat("%s_response_tup", Debug_OpName(op)));
-    TrackedBValue response = pb.TupleIndex(
-        response_tup, 0, op_loc,
-        /*name=*/absl::StrFormat("%s_response", Debug_OpName(op)));
-
-    arg_io_val = response;
-  } else if (op.op == OpType::kWrite) {
-    CHECK_EQ(bundle_ptr->regular, nullptr);
-    CHECK_NE(bundle_ptr->write_request, nullptr);
-    CHECK_NE(bundle_ptr->write_response, nullptr);
-
-    unused_xls_channel_ops_.remove(
-        {bundle_ptr->write_request, /*is_send=*/true});
-    unused_xls_channel_ops_.remove(
-        {bundle_ptr->write_response, /*is_send=*/false});
-
-    // This has (addr, value)
-    TrackedBValue send_tuple = pb.TupleIndex(
-        ret_io_value, 0, op_loc,
-        /*name=*/absl::StrFormat("%s_send_tup", Debug_OpName(op)));
-    TrackedBValue condition = pb.TupleIndex(
-        ret_io_value, 1, op_loc, absl::StrFormat("%s_pred", Debug_OpName(op)));
-    CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
-    condition = ConditionWithExtra(pb, condition, invoke, op_loc);
-
-    // This has (addr, value, mask)
-    TrackedBValue addr =
-        pb.TupleIndex(send_tuple, 0, op_loc,
-                      /*name=*/absl::StrFormat("%s_addr", Debug_OpName(op)));
-    TrackedBValue value =
-        pb.TupleIndex(send_tuple, 1, op_loc,
-                      /*name=*/absl::StrFormat("%s_value", Debug_OpName(op)));
-    // TODO(google/xls#861): supported masked memory operations.
-    TrackedBValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
-    TrackedBValue send_tuple_with_mask = pb.Tuple({addr, value, mask}, op_loc);
-    new_token = pb.SendIf(bundle_ptr->write_request, before_token, condition,
-                          send_tuple_with_mask, op_loc,
-                          /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
-
-    TrackedBValue receive =
-        pb.ReceiveIf(bundle_ptr->write_response, new_token, condition, op_loc,
-                     /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
-    new_token =
-        pb.TupleIndex(receive, 0, op_loc,
-                      /*name=*/absl::StrFormat("%s_token", Debug_OpName(op)));
-    // Ignore received value, should be an empty tuple
-  } else if (op.op == OpType::kTrace) {
-    XLS_ASSIGN_OR_RETURN(
-        new_token, GenerateTrace(ret_io_value, before_token, op, pb, invoke));
-  } else {
-    CHECK_EQ("Unknown IOOp type", nullptr);
-  }
+  XLS_ASSIGN_OR_RETURN(
+      GenerateIOReturn generate_io_ret,
+      GenerateIO(op, before_token, ret_io_value, pb, invoke.extra_condition));
 
   if (prepared.arg_index_for_op.contains(&op)) {
     const int64_t arg_index = prepared.arg_index_for_op.at(&op);
     CHECK(arg_index >= 0 && arg_index < prepared.args.size());
-    prepared.args[arg_index] = arg_io_val;
+    prepared.args[arg_index] = generate_io_ret.received_value;
   }
 
   // The function is invoked again with the value received from the channel
@@ -1922,7 +1770,7 @@ absl::StatusOr<TrackedBValue> Translator::GenerateIOInvoke(
       ToNativeBValues(prepared.args), prepared.xls_func->xls_func, op_loc,
       /*name=*/absl::StrFormat("invoke_%s", Debug_OpName(invoke.op)));
   XLSCC_CHECK(last_ret_val.valid(), op_loc);
-  return new_token;
+  return generate_io_ret.token_out;
 }
 
 absl::StatusOr<TrackedBValue> Translator::GenerateIOInvokesWithAfterOps(
@@ -1973,52 +1821,6 @@ absl::StatusOr<TrackedBValue> Translator::GenerateIOInvokesWithAfterOps(
   }
 
   return TrackedBValue();
-}
-
-absl::StatusOr<TrackedBValue> Translator::GenerateTrace(
-    TrackedBValue trace_out_value, TrackedBValue before_token, const IOOp& op,
-    xls::ProcBuilder& pb, const InvokeToGenerate& invoke) {
-  switch (op.trace_type) {
-    case TraceType::kNull:
-      break;
-    case TraceType::kTrace: {
-      // Tuple is (condition, ... args ...)
-      const uint64_t tuple_count =
-          trace_out_value.GetType()->AsTupleOrDie()->size();
-      CHECK_GE(tuple_count, 1);
-      TrackedBValue condition =
-          pb.TupleIndex(trace_out_value, 0, op.op_location,
-                        /*name=*/absl::StrFormat("%s_cond", Debug_OpName(op)));
-      CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
-      condition = ConditionWithExtra(pb, condition, invoke, op.op_location);
-      std::vector<TrackedBValue> args;
-      for (int tuple_idx = 1; tuple_idx < tuple_count; ++tuple_idx) {
-        TrackedBValue arg = pb.TupleIndex(
-            trace_out_value, tuple_idx, op.op_location,
-            /*name=*/absl::StrFormat("%s_arg_%i", Debug_OpName(op), tuple_idx));
-        args.push_back(arg);
-      }
-
-      return pb.Trace(before_token, /*condition=*/condition,
-                      ToNativeBValues(args),
-                      /*format_string=*/op.trace_message_string,
-                      /*verbosity=*/0, op.op_location);
-    }
-    case TraceType::kAssert: {
-      TrackedBValue condition = pb.Not(trace_out_value, op.op_location);
-      condition = ConditionWithExtra(pb, condition, invoke, op.op_location);
-      // Assert condition is !fire
-      return pb.Assert(before_token,
-                       /*condition=*/condition,
-                       /*message=*/op.trace_message_string,
-                       /*label=*/op.label_string.empty()
-                           ? std::nullopt
-                           : std::optional<std::string>(op.label_string),
-                       op.op_location);
-    }
-  }
-  return absl::InternalError(
-      ErrorMessage(op.op_location, "Unknown trace type %i", op.trace_type));
 }
 
 absl::Status Translator::GenerateIRBlockCheck(
@@ -2162,6 +1964,10 @@ Translator::GenerateIRBlockPrepare(
 
   // This state and argument
   if (this_decl != nullptr) {
+    if (generate_new_fsm_) {
+      return absl::UnimplementedError(
+          "Block as class with New FSM not yet supported");
+    }
     XLS_ASSIGN_OR_RETURN(CValue this_cval, GenerateTopClassInitValue(
                                                this_type, this_decl, body_loc));
 
@@ -2181,6 +1987,9 @@ Translator::GenerateIRBlockPrepare(
 
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
+    if (generate_new_fsm_) {
+      return absl::UnimplementedError("Statics with New FSM not yet supported");
+    }
     const ConstValue& initval = prepared.xls_func->static_values.at(namedecl);
 
     // Don't need to worry about sharing for this, as it's only used when a
@@ -2264,6 +2073,10 @@ Translator::GenerateIRBlockPrepare(
   }
 
   // Params
+  if (generate_new_fsm_) {
+    return std::move(temp_sf);
+  }
+
   for (const xlscc::SideEffectingParameter& param :
        prepared.xls_func->side_effecting_parameters) {
     switch (param.type) {

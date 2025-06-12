@@ -80,294 +80,7 @@ namespace xlscc {
 
 class Translator;
 
-// Tracks information about an __xls_channel parameter to a function
-struct IOChannel {
-  // Unique within the function
-  std::string unique_name;
-  // Type of item the channel transfers
-  std::shared_ptr<CType> item_type;
-  // Memory size (if applicable)
-  int64_t memory_size = -1;
-  // The total number of IO ops on the channel within the function
-  // (IO ops are conditional, so this is the maximum in a real invocation)
-  int total_ops = 0;
-  // If not nullptr, the channel isn't explicitly present in the source
-  // For example, the channels used for pipelined for loops
-  // (can be nullptr if loop body isn't generated)
-  // (the record must be passed up)
-  std::optional<xls::Channel*> generated = std::nullopt;
-  // Declared inside of a function, so that the record must be passed up
-  bool internal_to_function = false;
-};
-
-// Tracks information about an IO op on an __xls_channel parameter to a function
-struct IOOp {
-  // --- Preserved across calls ---
-  OpType op = OpType::kNull;
-
-  bool is_blocking = true;
-
-  // Source location for messages
-  xls::SourceInfo op_location;
-
-  // For OpType::kTrace
-  // Assert just puts condition in ret_val. This is not the assertion condition
-  //  but the condition for the assertion to fire (!assert condition)
-  // Trace puts (condition, ... args ...) in ret_val
-  TraceType trace_type = TraceType::kNull;
-
-  std::string trace_message_string;
-  std::string label_string;
-
-  // If None is specified, then actions happen in parallel, except
-  // as sequenced by after_ops. If ASAP is specified, then after_ops
-  // is unused.
-  // TODO(seanhaskell): Remove with old FSM
-  IOSchedulingOption scheduling_option = IOSchedulingOption::kNone;
-
-  // Jump has a pointer to the begin, begin has a pointer to the jump
-  const IOOp* loop_op_paired = nullptr;
-
-  // --- Not preserved across calls ---
-
-  std::string final_param_name;
-
-  // Must be sequenced after these ops via tokens
-  // This is translated across calls
-  // Ops must be in GeneratedFunction::io_ops respecting this order
-  std::vector<const IOOp*> after_ops;
-
-  IOChannel* channel = nullptr;
-
-  // For calls to subroutines with IO inside
-  const IOOp* sub_op = nullptr;
-
-  // Input __xls_channel parameters take tuple types containing a value for
-  //  each read() op. This is the index of this op in the tuple.
-  int channel_op_index;
-
-  // Output value from function for IO op
-  TrackedBValue ret_value;
-
-  // For reads: input value from function parameter for Recv op
-  CValue input_value;
-};
-
-enum class SideEffectingParameterType { kNull = 0, kIOOp, kStatic };
-
-// Describes a generated parameter from IO, statics, etc
-struct SideEffectingParameter {
-  SideEffectingParameterType type = SideEffectingParameterType::kNull;
-  std::string param_name;
-  IOOp* io_op = nullptr;
-  const clang::NamedDecl* static_value = nullptr;
-  xls::Type* xls_io_param_type = nullptr;
-};
-
-struct GeneratedFunction;
-
-// Encapsulates values needed to generate procs for a pipelined loop body
-// TODO(seanhaskell): Remove with old FSM
-struct PipelinedLoopSubProc {
-  std::string name_prefix;
-
-  xls::SourceInfo loc;
-
-  GeneratedFunction* enclosing_func = nullptr;
-  absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<CType>>
-      outer_variable_types;
-
-  // These reference the enclosing GeneratedFunction
-  IOChannel* context_out_channel;
-  IOChannel* context_in_channel;
-
-  std::shared_ptr<CStructType> context_cvars_struct_ctype;
-  absl::flat_hash_map<const clang::NamedDecl*, uint64_t> context_field_indices;
-
-  std::shared_ptr<CStructType> context_in_cvars_struct_ctype;
-  absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
-      context_in_field_indices;
-
-  std::shared_ptr<CStructType> context_out_cvars_struct_ctype;
-  std::shared_ptr<CInternalTuple> context_out_lval_conds_ctype;
-  absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
-      context_out_field_indices;
-
-  uint64_t extra_return_count;
-  // Can't copy, since pointers are kept
-  std::unique_ptr<GeneratedFunction> generated_func;
-
-  std::vector<const clang::NamedDecl*> variable_fields_order;
-  std::vector<const clang::NamedDecl*> vars_changed_in_body;
-  // (Decl, access count)
-  std::vector<std::pair<const clang::NamedDecl*, int64_t>>
-      vars_accessed_in_body;
-  std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
-};
-
-struct ChannelBundle {
-  xls::Channel* regular = nullptr;
-
-  xls::Channel* read_request = nullptr;
-  xls::Channel* read_response = nullptr;
-  xls::Channel* write_request = nullptr;
-  xls::Channel* write_response = nullptr;
-
-  inline bool operator==(const ChannelBundle& o) const {
-    return regular == o.regular && read_request == o.read_request &&
-           read_response == o.read_response &&
-           write_request == o.write_request &&
-           write_response == o.write_response;
-  }
-
-  inline bool operator!=(const ChannelBundle& o) const { return !(*this == o); }
-
-  inline bool operator<(const ChannelBundle& o) const {
-    if (regular != o.regular) {
-      return regular < o.regular;
-    }
-    if (read_request != o.read_request) {
-      return read_request < o.read_request;
-    }
-    if (read_response != o.read_response) {
-      return read_response < o.read_response;
-    }
-    if (write_request != o.write_request) {
-      return write_request < o.write_request;
-    }
-    return write_response < o.write_response;
-  }
-};
-
-struct GeneratedFunctionSlice;
-
-struct ContinuationValue {
-  // TODO(seanhaskell): Output node
-  xls::Node* output_node = nullptr;
-
-  // name, decls are for test/debug only
-  std::string name;
-  absl::flat_hash_set<const clang::NamedDecl*> decls;
-
-  // Precomputed literal, used for unrolling, IO pruning, etc
-  std::optional<xls::Value> literal = std::nullopt;
-};
-
-struct ContinuationInput {
-  ContinuationValue* continuation_out = nullptr;
-  xls::Param* input_node = nullptr;
-
-  // name, decls are for test/debug only
-  std::string name;
-  absl::flat_hash_set<const clang::NamedDecl*> decls;
-};
-
-struct GeneratedFunctionSlice {
-  xls::Function* function = nullptr;
-  const IOOp* after_op = nullptr;
-  std::list<ContinuationValue> continuations_out;
-  std::list<ContinuationInput> continuations_in;
-
-  // Temporaries used during slice generation only, not optimization
-  absl::flat_hash_map<const clang::NamedDecl*, ContinuationValue*>
-      continuation_outputs_by_decl_top_context;
-  absl::flat_hash_map<const clang::NamedDecl*, ContinuationInput*>
-      continuation_inputs_by_decl_top_context;
-};
-
-// Encapsulates values produced when generating IR for a function
-struct GeneratedFunction {
-  const clang::FunctionDecl* clang_decl = nullptr;
-
-  // TODO(seanhaskell): Remove when switching to new FSM
-  xls::Function* xls_func = nullptr;
-
-  std::list<GeneratedFunctionSlice> slices;
-
-  int64_t declaration_count = 0;
-
-  int64_t return_value_count = 0;
-
-  bool in_synthetic_int = false;
-
-  bool uses_on_reset = false;
-
-  std::shared_ptr<LValue> this_lvalue;
-  std::shared_ptr<LValue> return_lvalue;
-
-  absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
-      declaration_order_by_name_;
-
-  // Ordered for determinism
-  // Use Translator::AddChannel() to add while checking uniqueness
-  std::list<IOChannel> io_channels;
-
-  // Sub procs that must be generated to use the function
-  std::list<PipelinedLoopSubProc> sub_procs;
-
-  // Sub procs may be in subroutines (owned by Translator)
-  absl::flat_hash_map<const IOChannel*, const PipelinedLoopSubProc*>
-      pipeline_loops_by_internal_channel;
-
-  // ParamDecls and FieldDecls (for block as class)
-  // Used for top channel injections
-  LValueMap<const clang::NamedDecl*> lvalues_by_param;
-
-  // All the IO Ops occurring within the function. Order matters here,
-  //  as it is assumed that write() ops will depend only on values produced
-  //  by read() ops occurring *before* them in the list.
-  // Also, The XLS token will be threaded through the IO ops (Send, Receive)
-  //  in the order specified in this list.
-  // Use list for safe pointers to values
-  std::list<IOOp> io_ops;
-
-  // Number of trace ops added
-  int trace_count = 0;
-
-  // Saved parameter order
-  std::list<SideEffectingParameter> side_effecting_parameters;
-
-  // Global values built with this FunctionBuilder
-  CValueMap<const clang::NamedDecl*> global_values;
-
-  // Static declarations with initializers
-  absl::flat_hash_map<const clang::NamedDecl*, ConstValue> static_values;
-
-  // This must be remembered from call to call so generated channels are not
-  // duplicated
-  absl::flat_hash_map<IOChannel*, IOChannel*>
-      generated_caller_channels_by_callee;
-
-  // Enables state element re-use by tracking call by reference parameters
-  // This is a multimap in order to detect cases with multiple calls
-  absl::flat_hash_map<const clang::NamedDecl*,
-                      absl::flat_hash_set<const clang::NamedDecl*>>
-      caller_decls_by_callee_param;
-
-  // XLS channel orders for all calls. Vector has an element for each
-  // channel parameter.
-  std::map<std::vector<ChannelBundle>, int64_t>
-      state_index_by_called_channel_order;
-
-  // For sub-blocks
-  xls::Channel* direct_ins_channel = nullptr;
-
-  template <typename ValueType>
-  std::vector<const clang::NamedDecl*> DeterministicKeyNames(
-      const absl::flat_hash_map<const clang::NamedDecl*, ValueType>& map)
-      const {
-    std::vector<const clang::NamedDecl*> ret;
-    for (const auto& [name, _] : map) {
-      ret.push_back(name);
-    }
-    SortNamesDeterministically(ret);
-    return ret;
-  }
-  void SortNamesDeterministically(
-      std::vector<const clang::NamedDecl*>& names) const;
-  std::vector<const clang::NamedDecl*> GetDeterministicallyOrderedStaticValues()
-      const;
-};
+class NewFSMGenerator;
 
 std::string GenerateReadableTypeName(xls::Type* type);
 std::string GenerateSliceGraph(const GeneratedFunction& func);
@@ -569,16 +282,7 @@ struct ChannelOptions {
   absl::flat_hash_map<std::string, xls::ChannelStrictness> strictness_map;
 };
 
-enum DebugIrTraceFlags {
-  DebugIrTraceFlags_None = 0,
-  DebugIrTraceFlags_LoopContext = 1,
-  DebugIrTraceFlags_LoopControl = 2,
-  DebugIrTraceFlags_FSMStates = 4,
-  DebugIrTraceFlags_PrevStateIOReferences = 8,
-  DebugIrTraceFlags_OptimizationWarnings = 16,
-};
-
-class Translator {
+class Translator : public GeneratorBase, public TranslatorTypeInterface {
   void debug_prints(const TranslationContext& context);
 
  public:
@@ -658,6 +362,7 @@ class Translator {
       const clang::FunctionDecl* func,
       xlscc_metadata::FunctionPrototype* output,
       absl::flat_hash_set<const clang::NamedDecl*>& aliases_used);
+
   void AddSourceInfoToPackage(xls::Package& package);
 
   inline void SetIOTestMode() { io_test_mode_ = true; }
@@ -676,54 +381,12 @@ class Translator {
   friend class CInstantiableTypeAlias;
   friend class CStructType;
   friend class CInternalTuple;
+  friend class NewFSMGenerator;
 
   std::function<std::optional<std::string>(xls::Fileno)> LookUpInPackage();
 
-  template <typename... Args>
-  std::string ErrorMessage(const xls::SourceInfo& loc,
-                           const absl::FormatSpec<Args...>& format,
-                           const Args&... args) {
-    std::string result = absl::StrFormat(format, args...);
-
-    absl::StrAppend(
-        &result, absl::StrJoin(
-                     loc.locations, "\n",
-                     [this](std::string* out, const xls::SourceLocation& loc) {
-                       absl::StrAppend(out, PrintCaret(LookUpInPackage(), loc));
-                     }));
-
-    const clang::FunctionDecl* current_func_decl = nullptr;
-
-    absl::StrAppend(&result, "\nCall trace:");
-    for (const TranslationContext& context : context_stack_) {
-      if (context.sf == nullptr || context.sf->clang_decl == nullptr) {
-        break;
-      }
-      // Don't repeat functions in different scopes
-      if (current_func_decl == context.sf->clang_decl) {
-        continue;
-      }
-      current_func_decl = context.sf->clang_decl;
-      const xls::SourceInfo& loc_all = GetLoc(*current_func_decl);
-
-      if (loc_all.locations.empty()) {
-        absl::StrAppend(&result, "\n\t <unknown>");
-        continue;
-      }
-
-      CHECK_EQ(loc_all.locations.size(), 1);
-      const xls::SourceLocation& loc = loc_all.locations.front();
-
-      std::optional<std::string> filename_found =
-          LookUpInPackage()(loc.fileno());
-
-      absl::StrAppendFormat(&result, "\n\t %s() at %s:%i:%i",
-                            current_func_decl->getQualifiedNameAsString(),
-                            filename_found.value_or("<unknown>"),
-                            loc.lineno().value(), loc.colno().value());
-    }
-    return result;
-  }
+  void AppendMessageTraces(std::string* result,
+                           const xls::SourceInfo& loc) override;
 
   template <typename... Args>
   std::string WarningMessage(const xls::SourceInfo& loc,
@@ -993,6 +656,9 @@ class Translator {
     std::cerr << "}" << std::endl;
   }
 
+  std::shared_ptr<CType> GetCTypeForAlias(
+      const std::shared_ptr<CInstantiableTypeAlias>& alias) override;
+
   // The translator assumes NamedDecls are unique. This set is used to
   //  generate an error if that assumption is violated.
   absl::flat_hash_set<const clang::NamedDecl*> unique_decl_ids_;
@@ -1229,24 +895,6 @@ class Translator {
                                    xls::ProcBuilder& pb,
                                    const xls::SourceInfo& loc);
 
-  struct InvokeToGenerate {
-    const IOOp& op;
-    TrackedBValue extra_condition;
-  };
-
-  TrackedBValue ConditionWithExtra(xls::BuilderBase& builder,
-                                   TrackedBValue condition,
-                                   const InvokeToGenerate& invoke,
-                                   const xls::SourceInfo& op_loc);
-
-  struct State {
-    int64_t index = -1;
-    std::list<InvokeToGenerate> invokes_to_generate;
-    const PipelinedLoopSubProc* sub_proc = nullptr;
-    TrackedBValue in_this_state;
-    std::set<ChannelBundle> channels_used;
-  };
-
   struct NextStateValue {
     // When the condition is true for multiple next state values,
     // the one with the lower priority is taken.
@@ -1266,12 +914,30 @@ class Translator {
         extra_next_state_values;
   };
 
+  std::optional<ChannelBundle> GetChannelBundleForOp(
+      const IOOp& op, const xls::SourceInfo& loc);
+
+  // ---- Old FSM ---
+  struct InvokeToGenerate {
+    const IOOp& op;
+    TrackedBValue extra_condition;
+  };
+
+  TrackedBValue ConditionWithExtra(xls::BuilderBase& builder,
+                                   TrackedBValue condition,
+                                   std::optional<TrackedBValue> extra_condition,
+                                   const xls::SourceInfo& op_loc);
+
+  struct State {
+    int64_t index = -1;
+    std::list<InvokeToGenerate> invokes_to_generate;
+    const PipelinedLoopSubProc* sub_proc = nullptr;
+    TrackedBValue in_this_state;
+    std::set<ChannelBundle> channels_used;
+  };
+
   absl::StatusOr<GenerateFSMInvocationReturn> GenerateOldFSMInvocation(
       PreparedBlock& prepared, xls::ProcBuilder& pb, int nesting_level,
-      const xls::SourceInfo& body_loc);
-
-  absl::StatusOr<GenerateFSMInvocationReturn> GenerateNewFSMInvocation(
-      PreparedBlock& prepared, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc);
 
   struct LayoutFSMStatesReturn {
@@ -1283,12 +949,9 @@ class Translator {
   absl::StatusOr<LayoutFSMStatesReturn> LayoutFSMStates(
       PreparedBlock& prepared, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc);
-
   std::set<ChannelBundle> GetChannelsUsedByOp(
       const IOOp& op, const PipelinedLoopSubProc* sub_procp,
       const xls::SourceInfo& loc);
-  std::optional<ChannelBundle> GetChannelBundleForOp(
-      const IOOp& op, const xls::SourceInfo& loc);
 
   struct SubFSMReturn {
     TrackedBValue first_iter;
@@ -1324,13 +987,30 @@ class Translator {
                                                  PreparedBlock& prepared,
                                                  TrackedBValue& last_ret_val,
                                                  xls::ProcBuilder& pb);
+  // ---- / Old FSM ---
+
+  absl::StatusOr<TrackedBValue> GetOpCondition(const IOOp& op,
+                                               TrackedBValue op_out_value,
+                                               xls::ProcBuilder& pb);
+
+  struct GenerateIOReturn {
+    TrackedBValue token_out;
+    // May be invalid if the op doesn't receive anything (send, trace, etc)
+    TrackedBValue received_value;
+    TrackedBValue io_condition;
+  };
+
+  absl::StatusOr<GenerateIOReturn> GenerateIO(
+      const IOOp& op, TrackedBValue before_token, TrackedBValue op_out_value,
+      xls::ProcBuilder& pb,
+      std::optional<TrackedBValue> extra_condition = std::nullopt);
 
   // Returns new token
   absl::StatusOr<TrackedBValue> GenerateTrace(TrackedBValue trace_out_value,
                                               TrackedBValue before_token,
+                                              TrackedBValue condition,
                                               const IOOp& op,
-                                              xls::ProcBuilder& pb,
-                                              const InvokeToGenerate& invoke);
+                                              xls::ProcBuilder& pb);
 
   struct IOOpReturn {
     bool generate_expr;
@@ -1383,9 +1063,9 @@ class Translator {
       const absl::flat_hash_map<const TrackedBValue*, const clang::NamedDecl*>&
           decls_by_bval_top_context,
       const xls::SourceInfo& loc);
-  absl::Status FinishSlice(TrackedBValue return_bval,
-                           const xls::SourceInfo& loc);
-  absl::Status FinishLastSlice(TrackedBValue return_bval);
+  absl::Status FinishSlice(NATIVE_BVAL return_bval, const xls::SourceInfo& loc);
+  absl::Status FinishLastSlice(TrackedBValue return_bval,
+                               const xls::SourceInfo& loc);
   absl::Status OptimizeContinuations(GeneratedFunction& func,
                                      const xls::SourceInfo& loc);
 
@@ -1769,11 +1449,6 @@ class Translator {
       const absl::btree_multimap<const xls::StateElement*, NextStateValue>&
           next_state_values,
       const xls::SourceInfo& loc);
-
- public:
-  // This version is public because it needs to be accessed by CStructType
-  static absl::StatusOr<xls::Value> GetStructFieldXLS(xls::Value val, int index,
-                                                      const CStructType& type);
 
  private:
   // Gets the appropriate XLS type for a struct. For example, it might be an
