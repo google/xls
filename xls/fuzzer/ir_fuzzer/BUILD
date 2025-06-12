@@ -81,6 +81,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:verifier",
+        "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
     ],
 )
