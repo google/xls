@@ -23,8 +23,10 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/proc_id.h"
@@ -43,13 +45,16 @@ namespace {
 
 std::optional<ChannelOrArray> ProcConfigValueToChannelOrArray(
     ProcConfigValue value) {
-  if (std::holds_alternative<Channel*>(value)) {
-    return std::get<Channel*>(value);
-  }
-  if (std::holds_alternative<ChannelArray*>(value)) {
-    return std::get<ChannelArray*>(value);
-  }
-  return std::nullopt;
+  return absl::visit(
+      Visitor{
+          [](Channel* chan) -> std::optional<ChannelOrArray> { return chan; },
+          [](ChannelArray* ca) -> std::optional<ChannelOrArray> { return ca; },
+          [](ChannelInterface* ci) -> std::optional<ChannelOrArray> {
+            return ci;
+          },
+          [](auto) -> std::optional<ChannelOrArray> { return std::nullopt; },
+      },
+      value);
 }
 
 }  // namespace
