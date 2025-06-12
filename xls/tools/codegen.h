@@ -42,6 +42,9 @@ absl::StatusOr<SchedulingResult> Schedule(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
     const CodegenFlagsProto& codegen_flags_proto);
+absl::StatusOr<SchedulingResult> Schedule(
+    Package* p, const SchedulingOptions& scheduling_options,
+    const DelayEstimator* delay_estimator);
 absl::StatusOr<verilog::CodegenResult> Codegen(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
