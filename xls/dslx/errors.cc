@@ -33,6 +33,8 @@
 namespace xls::dslx {
 namespace {
 
+constexpr std::string_view kLabelPayloadName = "label";
+
 template <typename TypeOrAnnotation>
 absl::Status TypeInferenceErrorStatusInternal(
     const Span& span, const TypeOrAnnotation* type_or_annotation,
@@ -61,6 +63,25 @@ absl::Status FailureErrorStatus(const Span& span, std::string_view message,
       "FailureError: %s The program being interpreted failed!%s%s",
       span.ToString(file_table),
       message.empty() || message[0] == '\n' ? "" : " ", message));
+}
+
+absl::Status FailureErrorStatusForAssertion(const Span& span,
+                                            std::string_view label,
+                                            std::string_view message,
+                                            const FileTable& file_table) {
+  absl::Status error = FailureErrorStatus(span, message, file_table);
+  error.SetPayload(kLabelPayloadName, absl::Cord(label));
+  return error;
+}
+
+std::optional<std::string> GetAssertionLabelFromError(
+    const absl::Status& status) {
+  std::optional<absl::Cord> label_opt = status.GetPayload(kLabelPayloadName);
+  if (label_opt.has_value()) {
+    return std::string(*label_opt);
+  } else {
+    return std::nullopt;
+  }
 }
 
 absl::Status ProofErrorStatus(const Span& span, std::string_view message,
