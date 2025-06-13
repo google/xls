@@ -629,6 +629,27 @@ fn f(x: bits[32] id=3) -> bits[32] {
   absl::Cleanup free_type_str([type_str] { xls_c_str_free(type_str); });
   EXPECT_EQ(std::string_view(type_str), "(bits[32]) -> bits[32]");
 
+  int64_t param_count = xls_function_type_get_param_count(f_type);
+  EXPECT_EQ(param_count, 1);
+
+  struct xls_type* param_type = nullptr;
+  ASSERT_TRUE(xls_function_type_get_param_type(f_type, /*index=*/0, &error,
+                                               &param_type));
+  ASSERT_NE(param_type, nullptr);
+  char* param_type_str = nullptr;
+  ASSERT_TRUE(xls_type_to_string(param_type, &error, &param_type_str));
+  absl::Cleanup free_param_type_str(
+      [param_type_str] { xls_c_str_free(param_type_str); });
+  EXPECT_EQ(std::string_view(param_type_str), "bits[32]");
+
+  struct xls_type* ret_type = xls_function_type_get_return_type(f_type);
+  ASSERT_NE(ret_type, nullptr);
+  char* ret_type_str = nullptr;
+  ASSERT_TRUE(xls_type_to_string(ret_type, &error, &ret_type_str));
+  absl::Cleanup free_ret_type_str(
+      [ret_type_str] { xls_c_str_free(ret_type_str); });
+  EXPECT_EQ(std::string_view(ret_type_str), "bits[32]");
+
   struct xls_value* ft = nullptr;
   ASSERT_TRUE(xls_parse_typed_value("bits[32]:0x42", &error, &ft));
   absl::Cleanup free_ft([ft] { xls_value_free(ft); });
