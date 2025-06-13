@@ -32,7 +32,6 @@
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "z3/src/api/z3_api.h"
 
 ABSL_FLAG(
     std::string, top, "",
@@ -55,11 +54,9 @@ static absl::Status RealMain(const std::filesystem::path& ir_path,
     XLS_ASSIGN_OR_RETURN(function, package->GetFunction(top.value()));
   }
 
-  XLS_ASSIGN_OR_RETURN(auto translator,
-                       solvers::z3::IrTranslator::CreateAndTranslate(function));
-  Z3_set_ast_print_mode(translator->ctx(), Z3_PRINT_SMTLIB2_COMPLIANT);
-  std::cout << Z3_ast_to_string(translator->ctx(), translator->GetReturnNode())
-            << '\n';
+  XLS_ASSIGN_OR_RETURN(std::string smtlib,
+                       solvers::z3::EmitFunctionAsSmtLib(function));
+  std::cout << smtlib << '\n';
   return absl::OkStatus();
 }
 

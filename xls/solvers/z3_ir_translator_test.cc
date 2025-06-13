@@ -2663,5 +2663,35 @@ INSTANTIATE_TEST_SUITE_P(Z3ZeroBitsPartialProductOpTest,
                          testing::ValuesIn(PartialProductOp::kOps),
                          testing::PrintToStringParamName());
 
+TEST_F(Z3IrTranslatorTest, EmitFunctionAsSmtLibTupleParamsAndReturn) {
+  const std::string kIr = R"(package p
+
+top fn foo(p: (bits[8], bits[16])) -> (bits[16], bits[8]) {
+  x: bits[8] = tuple_index(p, index=0)
+  y: bits[16] = tuple_index(p, index=1)
+  ret result: (bits[16], bits[8]) = tuple(y, x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(kIr));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetTopAsFunction());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string smtlib,
+                           solvers::z3::EmitFunctionAsSmtLib(f));
+
+  const std::string tuple_type_str =
+      package->GetTupleType({package->GetBitsType(8), package->GetBitsType(16)})
+          ->ToString();
+  // Verify the tuple type spelling in the generated string.
+  EXPECT_EQ(tuple_type_str, "(bits[8], bits[16])");
+
+  static constexpr const char kWant[] =
+      "(lambda ((p |(bits[8], bits[16])|))\n  (|(bits[16], bits[8])|\n    "
+      "(|(bits[8], bits[16])_1| p)\n    (|(bits[8], bits[16])_0| p)))";
+
+  EXPECT_EQ(std::string_view{smtlib}, std::string_view{kWant});
+}
+
 }  // namespace
 }  // namespace xls

@@ -1881,6 +1881,35 @@ absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
                              allow_unsupported);
 }
 
+absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function) {
+  XLS_RET_CHECK(function != nullptr);
+  XLS_ASSIGN_OR_RETURN(auto translator,
+                       IrTranslator::CreateAndTranslate(function));
+  Z3_context ctx = translator->ctx();
+  Z3_set_ast_print_mode(ctx, Z3_PRINT_SMTLIB2_COMPLIANT);
+
+  // Collect Z3 constants corresponding to parameters in declaration order.
+  std::vector<Z3_app> bound_params;
+  bound_params.reserve(function->params().size());
+  for (Param* p : function->params()) {
+    Z3_ast v_ast = translator->GetTranslation(p);
+    bound_params.push_back(reinterpret_cast<Z3_app>(v_ast));
+  }
+
+  Z3_ast body_ast = translator->GetReturnNode();
+
+  // Build lambda expression binding the parameters.
+  Z3_ast lambda_ast = Z3_mk_lambda_const(ctx, bound_params.size(),
+                                         bound_params.data(), body_ast);
+
+  // Z3_ast_to_string returns a pointer to memory owned by the Z3 context.
+  // It remains valid until any further Z3 pretty-printing call or until the
+  // context is destroyed.  We immediately copy it into a std::string, so the
+  // helper has no lifetime/ownership complications and does not leak.
+  const char* smt_cstr = Z3_ast_to_string(ctx, lambda_ast);
+  return std::string(smt_cstr);
+}
+
 }  // namespace z3
 }  // namespace solvers
 }  // namespace xls
