@@ -46,6 +46,7 @@ absl::StatusOr<CppSource> TranspileToCpp(Module* module,
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -60,6 +61,7 @@ $2$1$3
       R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #include <array>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "%s"

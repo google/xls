@@ -90,6 +90,23 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
     std::string width_def = absl::StrFormat("constexpr int64_t k%sWidth = %d;",
                                             cpp_type(), dslx_bit_count());
 
+    std::string_view enum_cpp_type = cpp_type();
+    std::string enum_values_list_def = absl::StrFormat(
+        "constexpr std::array<%s, %d> k%sValues = {\n%s\n};", cpp_type(),
+        enum_values_.size(), cpp_type(),
+        absl::StrJoin(enum_values_, ",\n",
+                      [enum_cpp_type](std::string* out, const EnumValue& ev) {
+                        absl::StrAppendFormat(out, "  %s::%s", enum_cpp_type,
+                                              ev.name);
+                      }));
+    std::string enum_names_list_def = absl::StrFormat(
+        "constexpr std::array<std::string_view, %d> k%sNames = {\n%s\n};",
+        enum_values_.size(), cpp_type(),
+        absl::StrJoin(enum_values_, ",\n",
+                      [](std::string* out, const EnumValue& ev) {
+                        absl::StrAppendFormat(out, "  \"%s\"", ev.dslx_name);
+                      }));
+
     CppSource to_string = ToStringFunction();
     CppSource to_dslx_string = ToDslxStringFunction();
     CppSource to_value = ToValueFunction();
@@ -99,9 +116,9 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
 
     return CppSource{
         .header = absl::StrJoin(
-            {enum_decl, num_elements_def, width_def, to_string.header,
-             to_dslx_string.header, to_value.header, from_value.header,
-             verify.header, stream.header},
+            {enum_decl, num_elements_def, width_def, enum_values_list_def,
+             enum_names_list_def, to_string.header, to_dslx_string.header,
+             to_value.header, from_value.header, verify.header, stream.header},
             "\n"),
         .source = absl::StrJoin(
             {to_string.source, to_dslx_string.source, to_value.source,
@@ -117,6 +134,7 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
   struct EnumValue {
     std::string name;
     std::string value_str;
+    std::string dslx_name;
   };
 
   // Returns the C++ cast of the given variable to the C== base type for this
@@ -150,7 +168,11 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
         XLS_ASSIGN_OR_RETURN(uint64_t int_val, value.GetBitValueUnsigned());
         val_str = absl::StrCat(int_val);
       }
-      members.push_back(EnumValue{.name = identifier, .value_str = val_str});
+      members.push_back(EnumValue{
+          .name = identifier,
+          .value_str = val_str,
+          .dslx_name = member.name_def->identifier(),
+      });
     }
     return members;
   }

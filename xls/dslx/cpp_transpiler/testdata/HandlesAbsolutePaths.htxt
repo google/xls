@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -18,6 +19,18 @@ enum class MyEnum : uint64_t {
 };
 constexpr int64_t kMyEnumNumElements = 4;
 constexpr int64_t kMyEnumWidth = 34;
+constexpr std::array<MyEnum, 4> kMyEnumValues = {
+  MyEnum::kA,
+  MyEnum::kB,
+  MyEnum::kC,
+  MyEnum::kE
+};
+constexpr std::array<std::string_view, 4> kMyEnumNames = {
+  "A",
+  "B",
+  "C",
+  "E"
+};
 std::string MyEnumToString(MyEnum value, int64_t indent = 0);
 std::string MyEnumToDslxString(MyEnum value, int64_t indent = 0);
 absl::StatusOr<::xls::Value> MyEnumToValue(MyEnum input);
