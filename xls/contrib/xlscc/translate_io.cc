@@ -869,9 +869,11 @@ absl::StatusOr<TrackedBValue> Translator::GetOpCondition(
   return io_condition;
 }
 
-absl::StatusOr<Translator::GenerateIOReturn> Translator::GenerateIO(
+absl::StatusOr<GenerateIOReturn> Translator::GenerateIO(
     const IOOp& op, TrackedBValue before_token, TrackedBValue op_out_value,
-    xls::ProcBuilder& pb, std::optional<TrackedBValue> extra_condition) {
+    xls::ProcBuilder& pb,
+    const std::optional<ChannelBundle>& optional_channel_bundle,
+    std::optional<TrackedBValue> extra_condition) {
   xls::SourceInfo op_loc = op.op_location;
 
   TrackedBValue ret_io_value = op_out_value;
@@ -881,19 +883,14 @@ absl::StatusOr<Translator::GenerateIOReturn> Translator::GenerateIO(
   TrackedBValue new_token;
   ChannelBundle channel_bundle;
 
-  const bool do_trace = false;
-
   TrackedBValue condition;
 
   XLS_ASSIGN_OR_RETURN(condition, GetOpCondition(op, op_out_value, pb));
 
   condition = ConditionWithExtra(pb, condition, extra_condition, op_loc);
 
-  std::optional<ChannelBundle> optional_bundle =
-      GetChannelBundleForOp(op, op_loc);
-
-  if (optional_bundle.has_value()) {
-    channel_bundle = optional_bundle.value();
+  if (optional_channel_bundle.has_value()) {
+    channel_bundle = optional_channel_bundle.value();
   }
 
   if (op.op == OpType::kRecv) {
@@ -930,19 +927,6 @@ absl::StatusOr<Translator::GenerateIOReturn> Translator::GenerateIO(
                /*name=*/absl::StrFormat("%s_valid", Debug_OpName(op)))});
     }
     arg_io_val = in_val;
-
-    // TODO: Make flag conditional
-    // TODO: Name/loc
-    if (do_trace) {
-      new_token =
-          pb.Trace(new_token,
-                   /*condition=*/condition,
-                   /*args=*/{},
-                   absl::StrFormat("TRACE IO recv ch %s",
-                                   op.channel ? op.channel->unique_name.c_str()
-                                              : "(null)"));
-    }
-
   } else if (op.op == OpType::kSend) {
     xls::Channel* xls_channel = channel_bundle.regular;
 
@@ -955,19 +939,6 @@ absl::StatusOr<Translator::GenerateIOReturn> Translator::GenerateIO(
 
     new_token = pb.SendIf(xls_channel, before_token, condition, val, op_loc,
                           /*name=*/absl::StrFormat("%s", Debug_OpName(op)));
-
-    // TODO: Make flag conditional
-    // TODO: Name/loc
-    if (do_trace) {
-      new_token =
-          pb.Trace(new_token,
-                   /*condition=*/condition,
-                   /*args=*/{},
-                   absl::StrFormat("TRACE IO send ch %s",
-                                   op.channel ? op.channel->unique_name.c_str()
-                                              : "(null)"));
-    }
-
   } else if (op.op == OpType::kRead) {
     CHECK_EQ(channel_bundle.regular, nullptr);
     CHECK_NE(channel_bundle.read_request, nullptr);

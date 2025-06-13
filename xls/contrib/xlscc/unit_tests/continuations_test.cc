@@ -129,6 +129,32 @@ class ContinuationsTest : public XlsccTestBase {
     return count;
   }
 
+  bool SliceInputDoesNotInputBothDecls(
+      const xlscc::GeneratedFunctionSlice& slice, std::string_view name_a,
+      std::string_view name_b) {
+    absl::flat_hash_set<const clang::NamedDecl*> decls_found;
+    bool found = false;
+    for (const xlscc::ContinuationInput& continuation_in :
+         slice.continuations_in) {
+      for (const clang::NamedDecl* decl : continuation_in.decls) {
+        if (decl->getNameAsString() == name_a) {
+          decls_found = continuation_in.decls;
+          found = true;
+          continue;
+        }
+      }
+    }
+    if (!found) {
+      return true;
+    }
+    for (const clang::NamedDecl* decl : decls_found) {
+      if (decl->getNameAsString() == name_b) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   void LogContinuations(xlscc::GeneratedFunction* func) {
     absl::flat_hash_map<const ContinuationValue*, GeneratedFunctionSlice*>
         slices_by_continuation_out;
@@ -1073,10 +1099,13 @@ TEST_F(ContinuationsTest, PipelinedLoopSameNodeOneBypass) {
 
   EXPECT_TRUE(SliceOutputsDecl(second_slice, "i"));
   EXPECT_TRUE(SliceOutputsDecl(second_slice, "a"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "r"));
 
   EXPECT_FALSE(SliceInputsDecl(third_slice, "a"));
   EXPECT_EQ(SliceInputsDeclCount(third_slice, "i"), 2);
 
+  EXPECT_TRUE(SliceInputsDecl(fourth_slice, "r"));
+  EXPECT_TRUE(SliceInputDoesNotInputBothDecls(fourth_slice, "a", "r"));
   EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "i"), 2);
   EXPECT_EQ(SliceInputsDeclCount(fourth_slice, "a"), 2);
   EXPECT_TRUE(SliceOutputsDecl(fourth_slice, "a"));
@@ -1084,6 +1113,7 @@ TEST_F(ContinuationsTest, PipelinedLoopSameNodeOneBypass) {
 
   EXPECT_TRUE(SliceInputsDecl(fifth_slice, "a"));
   EXPECT_TRUE(SliceInputsDecl(fifth_slice, "r"));
+  EXPECT_TRUE(SliceInputDoesNotInputBothDecls(fifth_slice, "a", "r"));
 }
 
 TEST_F(ContinuationsTest, PipelinedLoopNothingOutside) {
