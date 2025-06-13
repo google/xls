@@ -1443,7 +1443,7 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "zstd_dec_dslx_test",
-    size = "large",
+    size = "enormous",
     srcs = [
         "data/comp_frame.x",
         "data/comp_frame_fse_comp.x",
