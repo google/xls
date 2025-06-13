@@ -28,10 +28,11 @@ import xls.modules.zstd.parallel_rams;
 import xls.modules.zstd.literals_buffer;
 import xls.modules.zstd.fse_table_creator;
 import xls.modules.zstd.ram_mux;
-// import xls.modules.zstd.zstd_frame_testcases as comp_frame;
-// import xls.modules.zstd.data.comp_frame_huffman as comp_frame;
-// import xls.modules.zstd.data.comp_frame_fse_comp as comp_frame;
-// import xls.modules.zstd.data.comp_frame_fse_repeated as comp_frame;
+
+import xls.modules.zstd.data.comp_frame_huffman;
+import xls.modules.zstd.data.comp_frame_huffman_fse;
+import xls.modules.zstd.data.comp_frame_fse_comp;
+import xls.modules.zstd.data.comp_frame_fse_repeated;
 import xls.modules.zstd.data.comp_frame;
 
 const TEST_WINDOW_LOG_MAX = u32:30;
@@ -153,8 +154,9 @@ fn csr_addr(c: zstd_dec::Csr) -> uN[TEST_AXI_ADDR_W] {
     (c as uN[TEST_AXI_ADDR_W]) << 3
 }
 
-#[test_proc]
-proc ZstdDecoderTest {
+type TestFrames = common::DataArray<u32:64, u32:50>[1];
+
+proc ZstdDecoderTester<FRAMES: TestFrames, DECOMPRESSED_FRAMES: TestFrames> {
     type CsrAxiAr = axi::AxiAr<TEST_AXI_ADDR_W, TEST_AXI_ID_W>;
     type CsrAxiR = axi::AxiR<TEST_AXI_DATA_W, TEST_AXI_ID_W>;
     type CsrAxiAw = axi::AxiAw<TEST_AXI_ADDR_W, TEST_AXI_ID_W>;
@@ -258,7 +260,8 @@ proc ZstdDecoderTest {
     type LitBufRamWrReq = ram::WriteReq<LITERALS_BUFFER_RAM_ADDR_W, LITERALS_BUFFER_RAM_DATA_W, LITERALS_BUFFER_RAM_NUM_PARTITIONS>;
     type LitBufRamWrResp = ram::WriteResp;
 
-    terminator: chan<bool> out;
+    start_r: chan<()> in;
+    finished_s: chan<()> out;
 
     csr_axi_aw_s: chan<CsrAxiAw> out;
     csr_axi_w_s: chan<CsrAxiW> out;
@@ -318,7 +321,7 @@ proc ZstdDecoderTest {
 
     init {}
 
-    config(terminator: chan<bool> out) {
+    config(start_r: chan<()> in, finished_s: chan<()> out) {
 
         let (csr_axi_aw_s, csr_axi_aw_r) = chan<CsrAxiAw>("csr_axi_aw");
         let (csr_axi_w_s, csr_axi_w_r) = chan<CsrAxiW>("csr_axi_w");
@@ -702,7 +705,7 @@ proc ZstdDecoderTest {
         >(raw_axi_ar_r, raw_axi_r_s, raw_ram_rd_req_s, raw_ram_rd_resp_r);
 
         (
-            terminator,
+            start_r, finished_s,
             csr_axi_aw_s, csr_axi_w_s, csr_axi_b_r, csr_axi_ar_s, csr_axi_r_r,
             fh_axi_ar_r, fh_axi_r_s, fh_ram_wr_req_s, fh_ram_wr_resp_r,
             bh_axi_ar_r, bh_axi_r_s, bh_ram_wr_req_s, bh_ram_wr_resp_r,
@@ -721,10 +724,12 @@ proc ZstdDecoderTest {
     }
 
     next (state: ()) {
-        trace_fmt!("Test start");
-        let frames_count = array_size(comp_frame::FRAMES);
-
         let tok = join();
+        let (tok, _) = recv(tok, start_r);
+
+        trace_fmt!("Test start");
+        let frames_count = array_size(FRAMES);
+
 
         // FILL THE LL DEFAULT RAM
         trace_fmt!("Filling LL default FSE table");
@@ -779,7 +784,7 @@ proc ZstdDecoderTest {
 
         let tok = unroll_for! (test_i, tok): (u32, token) in u32:0..frames_count {
             trace_fmt!("Loading testcase {:x}", test_i + u32:1);
-            let frame = comp_frame::FRAMES[test_i];
+            let frame = FRAMES[test_i];
             let tok = for (i, tok): (u32, token) in u32:0..frame.array_length {
                 let req = RamWrReq {
                     addr: i as uN[TEST_RAM_ADDR_W],
@@ -839,7 +844,7 @@ proc ZstdDecoderTest {
             });
             let (tok, _) = recv(tok, csr_axi_b_r);
 
-            let decomp_frame = comp_frame::DECOMPRESSED_FRAMES[test_i];
+            let decomp_frame = DECOMPRESSED_FRAMES[test_i];
             // Test ZstdDecoder memory output interface
             // Mock the output memory buffer as a DSLX array
             // It is required to handle AXI write transactions and to write the incoming data to
@@ -858,7 +863,7 @@ proc ZstdDecoderTest {
             // The maximal number if beats in AXI burst transaction
             let MAX_AXI_TRANSFERS = u32:256;
             // Actual size of decompressed payload for current test
-            let DECOMPRESSED_BYTES = comp_frame::DECOMPRESSED_FRAMES[test_i].length;
+            let DECOMPRESSED_BYTES = DECOMPRESSED_FRAMES[test_i].length;
             trace_fmt!("ZstdDecTest: Start receiving output");
             let (tok, final_output_memory, final_output_memory_id, final_transfered_bytes) =
                 for (axi_transaction, (tok, output_memory, output_memory_id, transfered_bytes)):
@@ -913,6 +918,142 @@ proc ZstdDecoderTest {
             tok
         }(tok);
 
+        send(tok, finished_s, ());
+    }
+}
+
+#[test_proc]
+proc RawLiteralsPredefinedSequencesTest {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<()> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+        const FRAMES = comp_frame::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<()>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, _) = recv(tok, finished_r);
+        send(tok, terminator, true);
+    }
+}
+
+#[test_proc]
+proc RleLiteralsRepeatedSequencesTest {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<()> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+
+        const FRAMES = comp_frame_fse_repeated::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame_fse_repeated::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<()>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, _) = recv(tok, finished_r);
+        send(tok, terminator, true);
+    }
+}
+
+// TODO: Tests with the `_skip` suffix are disabled in CI
+// due to high memory usage. Re-enable them when the DSLX
+// interpreter becomes more memory-efficient.
+
+#[test_proc]
+proc RawHuffmanLiteralsPredefinedSequencesTest_skip {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<()> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+        const FRAMES = comp_frame_huffman::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame_huffman::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<()>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, _) = recv(tok, finished_r);
+        send(tok, terminator, true);
+    }
+}
+
+#[test_proc]
+proc FseHuffmanLiteralsPredefinedSequencesTest_skip {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<()> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+        const FRAMES = comp_frame_huffman_fse::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame_huffman_fse::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<()>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, _) = recv(tok, finished_r);
+        send(tok, terminator, true);
+    }
+}
+
+#[test_proc]
+proc RawHuffmanLiteralsCompressedSequencesTest_skip {
+    terminator: chan<bool> out;
+    start_s: chan<()> out;
+    finished_r: chan<()> in;
+
+    init {}
+
+    config (terminator: chan<bool> out,) {
+
+        const FRAMES = comp_frame_fse_comp::FRAMES;
+        const DECOMPRESSED_FRAMES = comp_frame_fse_comp::DECOMPRESSED_FRAMES;
+
+        let (start_s, start_r) = chan<()>("start");
+        let (finished_s, finished_r) = chan<()>("finished");
+
+        spawn ZstdDecoderTester<FRAMES, DECOMPRESSED_FRAMES>(start_r, finished_s);
+        (terminator, start_s, finished_r)
+    }
+
+    next(state: ()) {
+        let tok = send(join(), start_s, ());
+        let (tok, _) = recv(tok, finished_r);
         send(tok, terminator, true);
     }
 }
