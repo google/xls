@@ -1,7 +1,8 @@
+design: "find_index"
 overall {
   area_um2: 740.7104
   flops: 27
-  cells: 63
+  cells: 53
   crit_path_delay_ps: 471.97
 }
 per_stage {
@@ -17,7 +18,7 @@ per_stage {
   area_um2: 245.2352
   levels: 3
   flops: 4
-  cells: 32
+  cells: 24
   crit_path_delay_ps: 218.19
   crit_path_start: "p0_target[1]"
   crit_path_end: "p1_target__2"
@@ -26,7 +27,7 @@ per_stage {
   area_um2: 95.0912
   levels: 3
   flops: 3
-  cells: 11
+  cells: 9
   crit_path_delay_ps: 205.03
   crit_path_start: "p1_target__4"
   crit_path_end: "p2_tuple_416[0]"
