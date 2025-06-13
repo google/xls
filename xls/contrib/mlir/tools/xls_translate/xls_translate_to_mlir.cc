@@ -42,6 +42,7 @@
 #include "mlir/include/mlir/IR/ValueRange.h"
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
+#include "xls/contrib/mlir/util/conversion_utils.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
@@ -213,21 +214,7 @@ absl::StatusOr<Operation*> translateBitsLiteral(const ::xls::Bits& b,
                                                 Location loc,
                                                 OpBuilder& builder,
                                                 TranslationState& state) {
-  APInt converted_value;
-
-  if (b.bit_count() == 0) {
-    converted_value = APInt(/*numBits=*/0, /*val=*/0, /*isSigned=*/false,
-                            /*implicitTrunc=*/false);
-  } else {
-    uint64_t num_words = b.bitmap().word_count();
-    SmallVector<uint64_t> words;
-    words.reserve(num_words);
-    for (uint64_t i = 0; i < num_words; i++) {
-      words.push_back(b.bitmap().GetWord(i));
-    }
-    converted_value = APInt(b.bit_count(), words);
-  }
-
+  APInt converted_value = bitsToAPInt(b);
   auto type = builder.getIntegerType(b.bit_count());
   return builder
       .create<ConstantScalarOp>(loc, type,

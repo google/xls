@@ -497,6 +497,7 @@ cc_library(
         "stdlib/fp_ext_trunc.x",
     ],
     deps = [
+        ":conversion_utils",
         ":identifier",
         ":mlir_xls",
         "//xls/codegen:xls_metrics_cc_proto",
@@ -639,5 +640,33 @@ cc_library(
         "@llvm-project//mlir:SCFDialect",
         "@llvm-project//mlir:Support",
         "@llvm-project//mlir:TransformUtils",
+    ],
+)
+
+cc_library(
+    name = "conversion_utils",
+    srcs = ["util/conversion_utils.cc"],
+    hdrs = ["util/conversion_utils.h"],
+    deps = [
+        "//xls/common:math_util",
+        "//xls/data_structures:inline_bitmap",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/types:span",
+        "@llvm-project//llvm:Support",
+    ],
+)
+
+cc_test(
+    name = "conversion_utils_test",
+    srcs = ["util/conversion_utils_test.cc"],
+    deps = [
+        ":conversion_utils",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/data_structures:inline_bitmap",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@googletest//:gtest",
+        "@llvm-project//llvm:Support",
     ],
 )

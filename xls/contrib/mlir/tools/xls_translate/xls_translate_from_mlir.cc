@@ -67,6 +67,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
+#include "xls/contrib/mlir/util/conversion_utils.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
@@ -746,15 +747,7 @@ BValue convertOp(CountedForOp counted_for_op, TranslationState& state,
                        state.getLoc(counted_for_op));
 }
 
-::xls::Bits convertAPInt(llvm::APInt apInt) {
-  // Doing this in a simple loop, not the most efficient and could be improved
-  // if needed (was just avoiding needing to think about the endianness).
-  absl::InlinedVector<bool, 64> bits(apInt.getBitWidth());
-  for (unsigned i : llvm::seq(0u, apInt.getBitWidth())) {
-    bits[i] = apInt[i];
-  }
-  return ::xls::Bits(bits);
-}
+::xls::Bits convertAPInt(llvm::APInt apInt) { return bitsFromAPInt(apInt); }
 
 // Constant Attribute
 ::xls::Value convertConstantAttr(Attribute attr) {
