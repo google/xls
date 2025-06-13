@@ -445,6 +445,18 @@ absl::StatusOr<ProverResult> TryProve(FunctionBase* f, Node* subject,
                                       Predicate p, int64_t rlimit,
                                       bool allow_unsupported = false);
 
+// Emits a self-contained SMT-LIB2 representation of `function` consisting of:
+// Returns Z3's pretty-printed SMT-LIB2 form of a λ-expression that binds all
+// parameters of `function` (currently Bits-typed only) and yields the
+// translated return-value expression.  Example:
+//   (lambda ((x (_ BitVec 32)) (y (_ BitVec 32))) (bvadd x y))
+// If parameter/return types are not flat bit-vectors the function returns
+// an `UNIMPLEMENTED` status.
+//
+// The helper keeps Z3 headers out of call-sites by handling translation and
+// printing internally.
+absl::StatusOr<std::string> EmitFunctionAsSmtLib(Function* function);
+
 }  // namespace z3
 }  // namespace solvers
 }  // namespace xls

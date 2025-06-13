@@ -434,6 +434,21 @@ bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
 void xls_trace_messages_free(struct xls_trace_message* trace_messages,
                              size_t count);
 
+// Returns the SMTLIB2-compliant string representation of the given function
+// (expressed as a Z3 bit-vector expression of the function return value).
+//
+// The result is the Z3-printed SMT-LIB2 form of a lambda that binds every
+// function parameter and yields the function body expression (using bit-vector
+// operators).  For example, a two-parameter 32-bit adder becomes:
+//   (lambda ((x (_ BitVec 32)) (y (_ BitVec 32))) (bvadd x y))
+// The returned string is owned by the caller and must be freed with
+// `xls_c_str_free`.
+//
+// Returns `true` on success and populates `string_out`; otherwise returns
+// `false` and populates `error_out`.
+bool xls_function_to_z3_smtlib(struct xls_function* function, char** error_out,
+                               char** string_out);
+
 }  // extern "C"
 
 #endif  // XLS_PUBLIC_C_API_H_

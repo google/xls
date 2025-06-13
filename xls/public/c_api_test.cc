@@ -2290,4 +2290,30 @@ TEST(XlsCApiTest, FnBuilderPartialProductOps) {
   }
 }
 
+TEST(XlsCApiTest, FunctionToZ3Smtlib) {
+  const std::string kPackage = R"(package p
+
+top fn add(x: bits[32], y: bits[32]) -> bits[32] {
+  ret result: bits[32] = add(x, y)
+}
+)";
+
+  char* error = nullptr;
+  xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(kPackage.c_str(), "p.ir", &error, &package))
+      << "xls_parse_ir_package error: " << error;
+  absl::Cleanup free_package([package] { xls_package_free(package); });
+
+  xls_function* function = nullptr;
+  ASSERT_TRUE(xls_package_get_function(package, "add", &error, &function));
+
+  char* smtlib = nullptr;
+  ASSERT_TRUE(xls_function_to_z3_smtlib(function, &error, &smtlib))
+      << "xls_function_to_z3_smtlib error: " << error;
+  absl::Cleanup free_smtlib([smtlib] { xls_c_str_free(smtlib); });
+
+  EXPECT_EQ(std::string_view{smtlib},
+            "(lambda ((x (_ BitVec 32)) (y (_ BitVec 32))) (bvadd x y))");
+}
+
 }  // namespace

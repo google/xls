@@ -52,6 +52,7 @@
 #include "xls/public/c_api_impl_helpers.h"
 #include "xls/public/c_api_vast.h"
 #include "xls/public/runtime_build_actions.h"
+#include "xls/solvers/z3_ir_translator.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -1078,6 +1079,18 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
       new xls::Value(*std::move(result_value)));
   *error_out = nullptr;
   return true;
+}
+
+bool xls_function_to_z3_smtlib(struct xls_function* function, char** error_out,
+                               char** string_out) {
+  CHECK(function != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(string_out != nullptr);
+
+  xls::Function* cpp_function = reinterpret_cast<xls::Function*>(function);
+  absl::StatusOr<std::string> smtlib =
+      xls::solvers::z3::EmitFunctionAsSmtLib(cpp_function);
+  return xls::ReturnStringHelper(smtlib, error_out, string_out);
 }
 
 }  // extern "C"
