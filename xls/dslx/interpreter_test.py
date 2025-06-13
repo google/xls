@@ -57,13 +57,14 @@ class InterpreterTest(test_base.TestCase):
   ) -> str:
     temp_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, temp_file.full_path]
-    cmd.append('--compare=%s' % compare)
+    cmd.append(f'--compare={compare}')
     if alsologtostderr:
       cmd.append('--alsologtostderr')
     if not warnings_as_errors:
       cmd.append('--warnings_as_errors=false')
     if disable_warnings:
-      cmd.append('--disable_warnings=%s' % ','.join(disable_warnings))
+      flag_value = ','.join(disable_warnings)
+      cmd.append(f'--disable_warnings={flag_value}')
     cmd.extend(extra_flags)
     env = {} if test_filter is None else dict(TESTBRIDGE_TEST_ONLY=test_filter)
     env.update(extra_env if extra_env else {})
@@ -155,9 +156,9 @@ class InterpreterTest(test_base.TestCase):
     """)
     # warnings-as-errors off because we have a useless match expression just to
     # trigger the type error.
-    stderr = self._parse_and_test(
-        program, warnings_as_errors=False, want_error=True
-    )
+    stderr = self._parse_and_test(program,
+                                  warnings_as_errors=False,
+                                  want_error=True)
     self.assertIn(
         'Match pattern is not exhaustive',
         stderr,
@@ -285,9 +286,9 @@ class InterpreterTest(test_base.TestCase):
       main()
     }
     """
-    stderr = self._parse_and_test(
-        program, want_error=False, alsologtostderr=True
-    )
+    stderr = self._parse_and_test(program,
+                                  want_error=False,
+                                  alsologtostderr=True)
     self.assertIn('Hello world!', stderr)
     self.assertIn('x is 240, 0xf0 in hex and 0b1111_0000 in binary', stderr)
 
@@ -352,9 +353,8 @@ class InterpreterTest(test_base.TestCase):
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
     print(result.stderr)
     self.assertRegex(result.stderr, r'a as hex: \[\s+MyStruct\s+{\s+x: 0x2a')
-    self.assertRegex(
-        result.stderr, r'a as bin: \[\s+MyStruct\s+{\s+x: 0b10_1010'
-    )
+    self.assertRegex(result.stderr,
+                     r'a as bin: \[\s+MyStruct\s+{\s+x: 0b10_1010')
 
   def test_trace_fmt_array_of_enum(self):
     """Tests we can trace-format an array of enum values."""
@@ -373,9 +373,9 @@ class InterpreterTest(test_base.TestCase):
       main()
     }
     """
-    stderr = self._parse_and_test(
-        program, want_error=False, alsologtostderr=True
-    )
+    stderr = self._parse_and_test(program,
+                                  want_error=False,
+                                  alsologtostderr=True)
     self.assertRegex(stderr, r'MyEnum::ONE\s+// u2:1')
     self.assertRegex(stderr, r'MyEnum::TWO\s+// u2:2')
 
@@ -392,9 +392,9 @@ class InterpreterTest(test_base.TestCase):
       main()
     }
     """
-    stderr = self._parse_and_test(
-        program, want_error=False, alsologtostderr=True
-    )
+    stderr = self._parse_and_test(program,
+                                  want_error=False,
+                                  alsologtostderr=True)
     self.assertIn(r'a: [', stderr)
     self.assertIn(r'0x1', stderr)
     self.assertIn(r'0x2', stderr)
@@ -416,9 +416,9 @@ class InterpreterTest(test_base.TestCase):
       main()
     }
     """
-    stderr = self._parse_and_test(
-        program, want_error=False, alsologtostderr=True
-    )
+    stderr = self._parse_and_test(program,
+                                  want_error=False,
+                                  alsologtostderr=True)
     self.assertIn('t: (', stderr)
     self.assertIn('MyEnum::ONE', stderr)
     self.assertIn('MyEnum::TWO', stderr)
@@ -519,7 +519,7 @@ class InterpreterTest(test_base.TestCase):
     # This fails at 6KiStatements in opt due to deep recursion.
     # Picked this number so it passes with ASAN.
     nesting = 1024 * 1
-    rest = '\n'.join('  let x%d = x%d;' % (i, i - 1) for i in range(1, nesting))
+    rest = '\n'.join(f'  let x{i} = x{i - 1};' for i in range(1, nesting))
     program = textwrap.dedent("""\
     fn f() -> u32 {
       let x0 = u32:42;
@@ -555,9 +555,9 @@ class InterpreterTest(test_base.TestCase):
       assert_eq(u32:20, u32:30)
     }
     """)
-    stderr = self._parse_and_test(
-        program, want_error=True, extra_flags=('--format_preference=hex',)
-    )
+    stderr = self._parse_and_test(program,
+                                  want_error=True,
+                                  extra_flags=('--format_preference=hex',))
     self.assertIn('lhs: u32:0x14', stderr)
     self.assertIn('rhs: u32:0x1e', stderr)
 
@@ -645,7 +645,7 @@ class InterpreterTest(test_base.TestCase):
           stderr,
       )
 
-      with open(output_xml) as f:
+      with open(output_xml, encoding='utf-8') as f:
         xml_got = f.read()
 
       root = ET.fromstring(xml_got)
@@ -674,19 +674,17 @@ class InterpreterTest(test_base.TestCase):
           stderr,
       )
 
-      with open(output_xml) as f:
+      with open(output_xml, encoding='utf-8') as f:
         xml_got = f.read()
 
       root = ET.fromstring(xml_got)
       self.assertLen(
           root.findall(
-              ".//testcase[@name='test_failing'][@result='completed']"
-          ),
+              ".//testcase[@name='test_failing'][@result='completed']"),
           1,
       )
-      self.assertLen(
-          root.findall(".//testcase[@name='test_failing']/failure"), 1
-      )
+      self.assertLen(root.findall(".//testcase[@name='test_failing']/failure"),
+                     1)
       self.assertLen(
           root.findall(".//testcase[@name='test_passing'][@result='filtered']"),
           1,
@@ -707,23 +705,21 @@ class InterpreterTest(test_base.TestCase):
           stderr,
       )
 
-      with open(output_xml) as f:
+      with open(output_xml, encoding='utf-8') as f:
         xml_got = f.read()
 
       root = ET.fromstring(xml_got)
       self.assertLen(
           root.findall(
-              ".//testcase[@name='test_passing'][@result='completed']"
-          ),
+              ".//testcase[@name='test_passing'][@result='completed']"),
           1,
       )
       self.assertLen(
           root.findall(".//testcase[@name='test_failing'][@result='filtered']"),
           1,
       )
-      self.assertLen(
-          root.findall(".//testcase[@name='test_failing']/failure"), 0
-      )
+      self.assertLen(root.findall(".//testcase[@name='test_failing']/failure"),
+                     0)
       self.assertLen(root.findall('.//failure'), 0)
 
   def test_flag_based_test_filter(self):
@@ -745,18 +741,16 @@ class InterpreterTest(test_base.TestCase):
           stderr,
       )
 
-      with open(output_xml) as f:
+      with open(output_xml, encoding='utf-8') as f:
         xml_got = f.read()
 
       print('xml_got:', xml_got)
       root = ET.fromstring(xml_got)
       print('root:', root)
       self.assertLen(
-          root.findall(".//testcase[@name='test_two'][@result='completed']"), 1
-      )
+          root.findall(".//testcase[@name='test_two'][@result='completed']"), 1)
       self.assertLen(
-          root.findall(".//testcase[@name='test_one'][@result='filtered']"), 1
-      )
+          root.findall(".//testcase[@name='test_one'][@result='filtered']"), 1)
       self.assertLen(root.findall('.//failure'), 0)
 
   def test_both_test_filters_errors(self):
@@ -780,7 +774,8 @@ class InterpreterTest(test_base.TestCase):
   def test_alternative_stdlib_path(self):
     with tempfile.TemporaryDirectory(suffix='stdlib') as stdlib_dir:
       # Make a std.x file in our fake stdlib.
-      with open(os.path.join(stdlib_dir, 'std.x'), 'w') as fake_std:
+      std_x_path = os.path.join(stdlib_dir, 'std.x')
+      with open(std_x_path, 'w', encoding='utf-8') as fake_std:
         print('pub fn my_stdlib_func(x: u32) -> u32 { x }', file=fake_std)
 
       # Invoke the function in our fake std.x which should be appropriately
@@ -796,6 +791,74 @@ class InterpreterTest(test_base.TestCase):
           alsologtostderr=True,
           extra_flags=[f'--dslx_stdlib_path={stdlib_dir}'],
       )
+
+
+class OutOfTreeInterpreterTest(test_base.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    # Copy the interpreter binary out of tree to a temporary directory.
+    with open(runfiles.get_path('xls/dslx/interpreter_main'), 'rb') as f:
+      self.interpreter_path = self.create_tempfile(content=f.read())
+    # We have to mark it as executable.
+    os.chmod(self.interpreter_path.full_path, 0o755)
+
+  def test_out_of_tree_interpreter_invocation(self):
+    """Tests invoking interpreter successfully outside the tree."""
+    program = """
+    #[test] fn empty_test() {}
+    """
+    temp_file = self.create_tempfile(content=program)
+    # Note: we have to supply `env` to avoid the Python testbridge setting
+    # seeping in.
+    p = subp.run([self.interpreter_path.full_path, temp_file.full_path],
+                 stdout=subp.PIPE,
+                 stderr=subp.PIPE,
+                 encoding='utf-8',
+                 env={},
+                 check=True)
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
+
+  def test_out_of_tree_interpreter_invocation_with_tiv2_flag(self):
+    """Tests invoking interpreter successfully outside the tree with TIv2."""
+    program = """
+    #[test] fn empty_test() {}
+    """
+    temp_file = self.create_tempfile(content=program)
+    # Note: we have to supply `env` to avoid the Python testbridge setting
+    # seeping in.
+    p = subp.run([
+        self.interpreter_path.full_path, temp_file.full_path,
+        '--type_inference_v2'
+    ],
+                 stdout=subp.PIPE,
+                 stderr=subp.PIPE,
+                 encoding='utf-8',
+                 env={},
+                 check=True)
+    print('p:', p)
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
+
+  def test_out_of_tree_interpreter_invocation_with_tiv2_annotation(self):
+    """Tests invoking interpreter successfully outside the tree with TIv2."""
+    program = """
+    #![feature(type_inference_v2)]
+    #[test] fn empty_test() {}
+    """
+    temp_file = self.create_tempfile(content=program)
+    # Note: we have to supply `env` to avoid the Python testbridge setting
+    # seeping in.
+    p = subp.run([self.interpreter_path.full_path, temp_file.full_path],
+                 stdout=subp.PIPE,
+                 stderr=subp.PIPE,
+                 encoding='utf-8',
+                 env={},
+                 check=True)
+    print('p:', p)
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
 
 
 if __name__ == '__main__':
