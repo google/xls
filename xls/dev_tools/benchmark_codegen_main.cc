@@ -28,10 +28,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "xls/codegen/block_metrics.h"
-#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_result.h"
-#include "xls/codegen/combinational_generator.h"
-#include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
@@ -43,8 +40,8 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
-#include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
@@ -66,46 +63,30 @@ ABSL_FLAG(bool, measure_codegen_timing, true,
 namespace xls {
 namespace {
 
-absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
+absl::StatusOr<PackagePipelineSchedules> ScheduleAndPrintStats(
     Package* package, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options) {
-  std::optional<FunctionBase*> top = package->GetTop();
-  if (!top.has_value()) {
-    return absl::InternalError(absl::StrFormat(
-        "Top entity not set for package: %s.", package->name()));
-  }
   absl::Time start = absl::Now();
-  XLS_ASSIGN_OR_RETURN(
-      PipelineSchedule schedule,
-      RunPipelineSchedule(top.value(), delay_estimator, options));
+  XLS_ASSIGN_OR_RETURN(SchedulingResult scheduling_result,
+                       Schedule(package, options, &delay_estimator));
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Scheduling time: %dms\n",
                                   total_time / absl::Milliseconds(1));
 
-  return schedule;
+  return PackagePipelineSchedulesFromProto(package,
+                                           scheduling_result.schedules);
 }
 
-absl::Status PrintCombinationalCodegenInfo(
-    FunctionBase* f, const verilog::CodegenOptions& codegen_options,
-    const DelayEstimator* delay_estimator) {
-  absl::Time start = absl::Now();
-  XLS_ASSIGN_OR_RETURN(verilog::CodegenResult result,
-                       verilog::GenerateCombinationalModule(f, codegen_options,
-                                                            delay_estimator));
-  absl::Duration total_time = absl::Now() - start;
-  std::cout << absl::StreamFormat("Codegen time: %dms\n",
-                                  total_time / absl::Milliseconds(1));
-
-  return absl::OkStatus();
-}
-
-absl::Status PrintPipelinedCodegenInfo(
-    FunctionBase* f, const PipelineSchedule& schedule,
-    const verilog::CodegenOptions& codegen_options) {
+absl::Status PrintCodegenInfo(
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_options_flags_proto, bool with_delay_model,
+    const PackagePipelineSchedules* schedules) {
   absl::Time start = absl::Now();
   XLS_ASSIGN_OR_RETURN(
-      verilog::CodegenResult codegen_result,
-      verilog::ToPipelineModuleText(schedule, f, codegen_options));
+      verilog::CodegenResult result,
+      Codegen(p, scheduling_options_flags_proto, codegen_options_flags_proto,
+              with_delay_model, schedules));
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Codegen time: %dms\n",
                                   total_time / absl::Milliseconds(1));
@@ -156,40 +137,32 @@ absl::Status RealMain(std::string_view opt_ir_path,
         GetSchedulingOptionsFlagsProto());
     XLS_ASSIGN_OR_RETURN(CodegenFlagsProto codegen_flags_proto,
                          GetCodegenFlags());
-    XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions codegen_options,
-                         CodegenOptionsFromProto(codegen_flags_proto));
 
-    std::optional<FunctionBase*> top = opt_package->GetTop();
-    XLS_RET_CHECK(top.has_value());
+    XLS_ASSIGN_OR_RETURN(
+        bool with_delay_model,
+        IsDelayModelSpecifiedViaFlag(scheduling_options_flags_proto));
+    XLS_RET_CHECK(opt_package->GetTop().has_value())
+        << "Package " << opt_package->name() << " needs a top function/proc.";
 
-    if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
-      XLS_ASSIGN_OR_RETURN(
-          bool with_delay_model,
-          IsDelayModelSpecifiedViaFlag(scheduling_options_flags_proto));
-      if (with_delay_model) {
-        XLS_ASSIGN_OR_RETURN(
-            delay_estimator,
-            SetUpDelayEstimator(scheduling_options_flags_proto));
-      }
-      XLS_RETURN_IF_ERROR(PrintCombinationalCodegenInfo(*top, codegen_options,
-                                                        delay_estimator));
-    } else {
-      XLS_RET_CHECK_EQ(codegen_flags_proto.generator(),
-                       GENERATOR_KIND_PIPELINE);
+    PackagePipelineSchedules schedules;
+    if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
       XLS_ASSIGN_OR_RETURN(
           SchedulingOptions scheduling_options,
           SetUpSchedulingOptions(scheduling_options_flags_proto,
-                                 block_package.get()));
+                                 opt_package.get()));
       XLS_ASSIGN_OR_RETURN(delay_estimator,
                            SetUpDelayEstimator(scheduling_options_flags_proto));
 
       XLS_ASSIGN_OR_RETURN(
-          PipelineSchedule schedule,
-          ScheduleAndPrintStats(opt_package.get(), *delay_estimator,
-                                scheduling_options));
-      XLS_RETURN_IF_ERROR(
-          PrintPipelinedCodegenInfo(*top, schedule, codegen_options));
+          schedules, ScheduleAndPrintStats(opt_package.get(), *delay_estimator,
+                                           scheduling_options));
     }
+    // We don't use --top for codegen, instead we use it to get the top block
+    // after codegen.
+    codegen_flags_proto.clear_top();
+    XLS_RETURN_IF_ERROR(
+        PrintCodegenInfo(opt_package.get(), scheduling_options_flags_proto,
+                         codegen_flags_proto, with_delay_model, &schedules));
   }
 
   XLS_ASSIGN_OR_RETURN(Block * top, GetTopBlock(block_package.get()));
