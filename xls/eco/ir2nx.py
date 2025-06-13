@@ -41,6 +41,7 @@ class IrParser:
         "not": self._parse_solo_node,
         "neg": self._parse_solo_node,
         "or_reduce": self._parse_solo_node,
+        "xor_reduce": self._parse_solo_node,
         "and_reduce": self._parse_solo_node,
         "sub": self._parse_binary_node,
         "shll": self._parse_binary_node,
@@ -52,13 +53,17 @@ class IrParser:
         "ugt": self._parse_binary_node,
         "uge": self._parse_binary_node,
         "sge": self._parse_binary_node,
+        "sle": self._parse_binary_node,
         "sign_ext": self._parse_ext_node,
         "zero_ext": self._parse_ext_node,
         "ne": self._set_commutative(self._parse_binary_node),
         "eq": self._set_commutative(self._parse_binary_node),
+        "udiv": self._parse_binary_node,
+        "sdiv": self._parse_binary_node,
         "umul": self._set_commutative(self._parse_binary_node),
         "smul": self._set_commutative(self._parse_binary_node),
         "smulp": self._set_commutative(self._parse_binary_node),
+        "umulp": self._set_commutative(self._parse_binary_node),
         "add": self._set_commutative(self._parse_binary_node),
         "concat": self._parse_nary_node,
         "tuple": self._parse_nary_node,
@@ -72,6 +77,7 @@ class IrParser:
         "sel": self._parse_sel_node,
         "priority_sel": self._parse_sel_node,
         "bit_slice": self._parse_bit_slice,
+        "dynamic_bit_slice": self._parse_dynamic_bit_slice,
         "after_all": self._parse_after_all,
         "literal": self._parse_literal,
         "one_hot": self._parse_one_hot,
@@ -81,7 +87,10 @@ class IrParser:
         "receive": self._parse_receive,
         "send": self._parse_send,
         "next_value": self._parse_next_value,
-        "assert": self._parse_assert,
+        "assert": self._parse_dbg_node,
+        "trace": self._parse_dbg_node,
+        "state_read": self._parse_state_read,
+        "decode": self._parse_decode_node,
     }
     self._path = path
     self.graph = nx.MultiDiGraph()
@@ -99,32 +108,6 @@ class IrParser:
       return fn(*args, **kwargs)
 
     return _wrapper
-
-  def _dtype2str(self, data_type_obj):
-    """Converts a DataType object back to a string representation of the data type.
-
-    Args:
-      data_type_obj: A DataType object.
-
-    Returns:
-      A string representation of the data type.
-    """
-    if data_type_obj is not None:
-      if data_type_obj.array_size is not None:
-        return f"{self._dtype2str(data_type_obj.array_element)}[{data_type_obj.array_size}]"
-      elif data_type_obj.tuple_elements:
-        return (
-            "("
-            + ", ".join(
-                self._dtype2str(child) for child in data_type_obj.tuple_elements
-            )
-            + ")"
-        )
-      elif data_type_obj.is_token:
-        return "token"
-      else:
-        return f"bits[{data_type_obj.bit_count}]"
-    raise ValueError("Unknown data type string: {data_type_obj}")
 
   def _read_local_ir(self, path):
     """A Generator that Reads the IR file locally line by line and yields each stripped line.
@@ -255,30 +238,86 @@ class IrParser:
       self._parse_param(param)
 
   def _parse_top_proc(self, line):
+    """Parses a line representing a top proc in the IR format and adds it to the graph.
+
+    Args:
+        line (str): The line representing the top proc in the IR format.
+    """
     line = line.split("(", 1)[1]
-    if "init=" in line:
-      line, inits = line.split("init=")
-      params = self._split_params(line)
-      params = zip(params, self._split_inits(inits[1:-4]), strict=True)
-    else:
-      params = self._split_params(line)
-    for param in params:
-      self._parse_param(param)
+    line, inits = line.split("init=")
+    state_elements = self._split_params(line)
+    state_elements = zip(
+        state_elements, self._split_inits(inits[1:-4]), strict=True
+    )
+    for index, state_element in enumerate(state_elements):
+      self._parse_state_element(state_element, index)
 
   def _parse_after_all(self, line, node_name, data_type_str):
-    regex = re.compile(r"after_all\(id=\s*(?P<id>\d+)")
+    """Parses a line representing an "after_all" node in the IR format and adds it to the graph.
+
+    Args:
+        line (str): The line representing the "after_all" node in the IR format.
+        node_name (str): The name of the "after_all" node extracted from the IR
+          line.
+        data_type_str (str): The string representation of the data type for the
+          "after_all" node.
+
+    Raises:
+        ValueError: If the format of the "after_all" line is unexpected or
+        invalid (e.g., missing parentheses or invalid separators).
+    """
+    regex = re.compile(
+        r"after_all\((?P<operands>[^)]*?),?\s*id\s*=\s*(?P<id>\d+)"
+    )
     match = regex.match(line)
     details = match.groupdict() if match else None
     op = "after_all"
     data_type = xls_types.parse_data_type(data_type_str)
-    self.graph.add_node(
-        node_name,
-        op=op,
-        data_type=data_type,
-        id=int(details["id"]),
-        cost_attributes={"op": op, "dtype_str": data_type_str},
-        color=self.node_colors["OP"],
+    operands = (
+        [operand.strip() for operand in details["operands"].split(",")]
+        if details["operands"]
+        else None
     )
+    operand_data_types = (
+        [self.graph.nodes[operand]["data_type"] for operand in operands]
+        if operands
+        else None
+    )
+    if operands:
+      operand_dtype_strs = [
+          self.graph.nodes[operand]["cost_attributes"]["dtype_str"]
+          for operand in operands
+      ]
+    else:
+      operand_dtype_strs = None
+    if operands:
+      self.graph.add_node(
+          node_name,
+          op=op,
+          data_type=data_type,
+          operand_data_types=operand_data_types,
+          id=int(details["id"]),
+          color=self.node_colors["OP"],
+          cost_attributes={
+              "op": op,
+              "dtype_str": data_type_str,
+              "operand_dtype_strs": operand_dtype_strs,
+          },
+      )
+      for i, operand in enumerate(operands):
+        self._add_edge(operand, node_name, i)
+    else:
+      self.graph.add_node(
+          node_name,
+          op=op,
+          data_type=data_type,
+          id=int(details["id"]),
+          color=self.node_colors["OP"],
+          cost_attributes={
+              "op": op,
+              "dtype_str": data_type_str,
+          },
+      )
 
   def _map_bit_counts_to_value_types(self, data_type, value_type):
     """Maps bit counts from a DataType to a corresponding ValueType instance.
@@ -339,9 +378,6 @@ class IrParser:
 
   def _parse_param(self, param_str):
     """Parses a line representing a param node in the IR format and adds it to the graph."""
-    init_str = None
-    if isinstance(param_str, tuple):
-      param_str, init_str = param_str
     id_idx = param_str.find("id=")
     id_str = None
     if id_idx >= 0:
@@ -351,12 +387,6 @@ class IrParser:
     op = "param"
     data_type_str = param_str.split(":")[1].strip()
     data_type = xls_types.parse_data_type(data_type_str)
-    init = xls_values.parse_value(init_str)[1] if init_str is not None else None
-    init = (
-        self._map_bit_counts_to_value_types(data_type, init)
-        if init is not None
-        else None
-    )
     self.graph.add_node(
         node_name,
         op=op,
@@ -365,7 +395,31 @@ class IrParser:
         cost_attributes={
             "op": op,
             "dtype_str": data_type_str,
-            "init_str": init_str,
+        },
+        color=self.node_colors["P"],
+    )
+
+  def _parse_state_element(self, state_element_str, index):
+    """Parses a line representing a state element in the IR format and adds it to the graph."""
+    state_element_str, init_str = state_element_str
+    node_name = state_element_str.split(":")[0].strip()
+    op = "state_read"
+    data_type_str = state_element_str.split(":")[1].strip()
+    data_type = xls_types.parse_data_type(data_type_str)
+    init = xls_values.parse_value(init_str)[1]
+    init = self._map_bit_counts_to_value_types(data_type, init)
+    self.graph.add_node(
+        node_name,
+        op=op,
+        data_type=data_type,
+        state_element=node_name,
+        index=index,
+        cost_attributes={
+            "op": op,
+            "dtype_str": data_type_str,
+            "init": init,
+            "state_element": node_name,
+            "index": index,
         },
         color=self.node_colors["P"],
         init=init,
@@ -564,6 +618,7 @@ class IrParser:
             "op": op,
             "dtype_str": data_type_str,
             "operand_dtype_strs": operand_dtype_strs,
+            "has_default_value": default is not None,
         },
         id=int(details["id"]),
         color=self.node_colors["OP"],
@@ -642,7 +697,7 @@ class IrParser:
       ValueError: If the line format is invalid.
     """
     regex = re.compile(
-        r"array_update\((?P<array>\w+(\.\d+)?),\s*(?P<value>\w+(\.\d+)?),\s*indices=\[(?P<operands>[^)]+)\],\s*id=(?P<id>\d+)"
+        r"array_update\((?P<array>\w+(\.\d+)?)\s*,\s*(?P<value>\w+(\.\d+)?)\s*,\s*indices\s*=\s*\[(?P<operands>[^)]+)\],\s*(assumed_in_bounds\s*=\s*(?P<assumed_in_bounds>\w+)\s*,\s*)?id\s*=\s*(?P<id>\d+)"
     )
     match = regex.match(line)
     details = match.groupdict() if match else None
@@ -650,6 +705,7 @@ class IrParser:
     data_type = xls_types.parse_data_type(data_type_str)
     array = details["array"]
     value = details["value"]
+    assumed_in_bounds = self._str2bool(details["assumed_in_bounds"])
     operands = [operand.strip() for operand in details["operands"].split(",")]
     operand_dtype_strs = (
         self.graph.nodes[value]["cost_attributes"]["dtype_str"],
@@ -670,10 +726,12 @@ class IrParser:
         value=value,
         data_type=data_type,
         operand_data_types=operand_data_types,
+        assumed_in_bounds=assumed_in_bounds,
         cost_attributes={
             "op": op,
             "dtype_str": data_type_str,
             "operand_dtype_strs": operand_dtype_strs,
+            "assumed_in_bounds": assumed_in_bounds,
         },
         id=int(details["id"]),
         color=self.node_colors["OP"],
@@ -725,6 +783,47 @@ class IrParser:
         color=self.node_colors["OP"],
     )
     self._add_edge(operand, node_name, 0)
+
+  def _parse_dynamic_bit_slice(self, line, node_name, data_type_str):
+    """Parses a line representing a dynamic bit slice node and adds it to the graph.
+
+    Args:
+        line (str): The line representing the dynamic bit slice node in the IR
+          format.
+        node_name (str): The name of the node extracted from the IR line.
+        data_type_str (str): The string representation of the data type for the
+          node.
+    """
+    regex = re.compile(
+        r"dynamic_bit_slice\((?P<operand>\w+(.\d+)?)\s*,\s*(?P<start>\w+(.\d+)?)\s*,\s*width=(?P<width>\d+)\s*,\s*id=(?P<id>\d+)"
+    )
+    match = regex.match(line)
+    details = match.groupdict() if match else None
+    op = "dynamic_bit_slice"
+    data_type = xls_types.parse_data_type(data_type_str)
+    operand = details["operand"]
+    start = details["start"]
+    width = int(details["width"])
+    self.graph.add_node(
+        node_name,
+        op=op,
+        data_type=data_type,
+        operand_data_type=self.graph.nodes[operand]["data_type"],
+        start=start,
+        cost_attributes={
+            "op": op,
+            "dtype_str": data_type_str,
+            "operand_dtype_str": self.graph.nodes[operand]["cost_attributes"][
+                "dtype_str"
+            ],
+            "start": start,
+            "width": width,
+        },
+        id=int(details["id"]),
+        color=self.node_colors["OP"],
+    )
+    self._add_edge(operand, node_name, 0)
+    self._add_edge(start, node_name, 1)
 
   def _parse_tuple_index(self, line, node_name, data_type_str):
     """Parses a line representing a tuple index node and adds it to the graph.
@@ -862,32 +961,49 @@ class IrParser:
         operation.
     """
     regex = re.compile(
-        r"receive\((?P<token>\w+(\.\d+)?),\s*(predicate\s*=(?P<predicate>\w+(\.d+)?),\s*)?(blocking=(?P<blocking>\w+),\s*)?channel=\s*(?P<channel>\w+(\.d+)?),\s*id\s*=\s*(?P<id>\d+)"
+        r"receive\((?P<token>\w+(\.\d+)?),\s*(predicate\s*=(?P<predicate>\w+(\.\d+)?),\s*)?(blocking=(?P<blocking>\w+),\s*)?channel=\s*(?P<channel>\w+(\.\d+)?),\s*id\s*=\s*(?P<id>\d+)"
     )
     match = regex.match(line)
     details = match.groupdict() if match else None
-    data_type = xls_types.parse_data_type(data_type_str)
     op = "receive"
+    data_type = xls_types.parse_data_type(data_type_str)
     channel = details["channel"]
     predicate = details["predicate"] if details["predicate"] else None
     blocking = (
-        self._str2bool(details["blocking"]) if details["blocking"] else None
+        self._str2bool(details["blocking"]) if details["blocking"] else False
     )
-    self.graph.add_node(
-        node_name,
-        data_type=data_type,
-        op=op,
-        channel=channel,
-        blocking=blocking,
-        cost_attributes={
+    token_data_type = self.graph.nodes[details["token"]]["data_type"]
+    node_args = {
+        "data_type": data_type,
+        "op": op,
+        "channel": channel,
+        "blocking": blocking,
+        "cost_attributes": {
             "op": op,
             "dtype_str": data_type_str,
             "channel": channel,
             "blocking": blocking,
         },
-        id=int(details["id"]),
-        color=self.node_colors["OP"],
-    )
+        "id": int(details["id"]),
+        "color": self.node_colors["OP"],
+    }
+    if predicate:
+      predicate_data_type = self.graph.nodes[details["predicate"]]["data_type"]
+      node_args["operand_data_types"] = [token_data_type, predicate_data_type]
+      # Add operand_dtype_str for both token and predicate if predicate exists
+      node_args["cost_attributes"]["operand_dtype_str"] = (
+          self.graph.nodes[details["token"]]["cost_attributes"]["dtype_str"],
+          self.graph.nodes[details["predicate"]]["cost_attributes"][
+              "dtype_str"
+          ],
+      )
+    else:
+      node_args["operand_data_type"] = token_data_type
+      # Add operand_dtype_str for only the token if no predicate
+      node_args["cost_attributes"]["operand_dtype_str"] = self.graph.nodes[
+          details["token"]
+      ]["cost_attributes"]["dtype_str"]
+    self.graph.add_node(node_name, **node_args)
     self._add_edge(details["token"], node_name, 0)
     if predicate:
       self._add_edge(predicate, node_name, 1)
@@ -911,30 +1027,71 @@ class IrParser:
     details = match.groupdict() if match else None
     op = "send"
     data_type = xls_types.parse_data_type(data_type_str)
-    data = details["data"]
     channel = details["channel"]
+    data = details["data"]
     predicate = details["predicate"] if details["predicate"] else None
-    self.graph.add_node(
-        node_name,
-        op=op,
-        data_type=data_type,
-        operand_data_type=self.graph.nodes[data]["data_type"],
-        channel=channel,
-        cost_attributes={
+    token_data_type = self.graph.nodes[details["token"]]["data_type"]
+    node_args = {
+        "data_type": data_type,
+        "op": op,
+        "channel": channel,
+        "cost_attributes": {
             "op": op,
             "dtype_str": data_type_str,
-            "operand_dtype_str": self.graph.nodes[data]["cost_attributes"][
-                "dtype_str"
-            ],
             "channel": channel,
         },
-        id=int(details["id"]),
-        color=self.node_colors["OP"],
-    )
+        "id": int(details["id"]),
+        "color": self.node_colors["OP"],
+    }
+    if predicate:
+      predicate_data_type = self.graph.nodes[details["predicate"]]["data_type"]
+      node_args["operand_data_types"] = [token_data_type, predicate_data_type]
+      # Add operand_dtype_str for both token and predicate if predicate exists
+      node_args["cost_attributes"]["operand_dtype_str"] = (
+          self.graph.nodes[details["token"]]["cost_attributes"]["dtype_str"],
+          self.graph.nodes[details["predicate"]]["cost_attributes"][
+              "dtype_str"
+          ],
+      )
+    else:
+      node_args["operand_data_type"] = token_data_type
+      # Add operand_dtype_str for only the token if no predicate
+      node_args["cost_attributes"]["operand_dtype_str"] = self.graph.nodes[
+          details["token"]
+      ]["cost_attributes"]["dtype_str"]
+    self.graph.add_node(node_name, **node_args)
     self._add_edge(details["token"], node_name, 0)
     self._add_edge(data, node_name, 1)
     if predicate:
       self._add_edge(predicate, node_name, 2)
+
+  def _parse_state_read(self, line, node_name, data_type_str):
+    """populates the id and name field of an existing state_read node.
+
+    Args:
+      line: The string representation of the "state_read" operation to be
+        parsed.
+      node_name: The name to be assigned to the created node in the graph.
+      data_type_str: The string representing the data type of the "state_read"
+        operation.
+    """
+    regex = re.compile(
+        r"state_read\(state_element\s*=\s*(?P<state_element>\w+)\s*,\s*id\s*=\s*(?P<id>\d+)"
+    )
+    match = regex.match(line)
+    details = match.groupdict() if match else None
+    data_type = xls_types.parse_data_type(data_type_str)
+    state_element = details["state_element"]
+    assert self.graph.nodes[state_element]["op"] == "state_read"
+    assert self.graph.nodes[state_element]["data_type"] == data_type
+    assert (
+        self.graph.nodes[state_element]["cost_attributes"]["state_element"]
+        == state_element
+    )
+    self.graph.nodes[state_element]["id"] = int(details["id"])
+    if state_element != node_name:
+      mapping = {state_element: node_name}
+      nx.relabel_nodes(self.graph, mapping, copy=False)
 
   def _parse_next_value(self, line, node_name, data_type_str):
     """Parses a line representing a "next_value" operation and adds it as a node to the graph.
@@ -955,34 +1112,81 @@ class IrParser:
     data_type = xls_types.parse_data_type(data_type_str)
     param = details["param"]
     value = details["value"]
-    operand_dtype_strs = [
-        self.graph.nodes[param]["cost_attributes"]["dtype_str"],
-        self.graph.nodes[value]["cost_attributes"]["dtype_str"],
-    ]
-    operand_dtypes = [
-        self.graph.nodes[param]["data_type"],
-        self.graph.nodes[value]["data_type"],
-    ]
     predicate = details["predicate"] if details["predicate"] else None
-    self.graph.add_node(
-        node_name,
-        op=op,
-        data_type=data_type,
-        operand_dtypes=operand_dtypes,
-        cost_attributes={
+    node_args = {
+        "op": op,
+        "data_type": data_type,
+        "cost_attributes": {
             "op": op,
             "dtype_str": data_type_str,
-            "operand_dtype_strs": operand_dtype_strs,
         },
-        id=int(details["id"]),
-        color=self.node_colors["P"],
-    )
+        "id": int(details["id"]),
+        "color": self.node_colors["OP"],
+    }
+    if predicate:
+      node_args["operand_data_types"] = [
+          self.graph.nodes[param]["data_type"],
+          self.graph.nodes[value]["data_type"],
+          self.graph.nodes[predicate]["data_type"],
+      ]
+      node_args["cost_attributes"]["operand_dtype_str"] = (
+          self.graph.nodes[param]["cost_attributes"]["dtype_str"],
+          self.graph.nodes[value]["cost_attributes"]["dtype_str"],
+          self.graph.nodes[predicate]["cost_attributes"]["dtype_str"],
+      )
+    else:
+      node_args["operand_data_types"] = [
+          self.graph.nodes[param]["data_type"],
+          self.graph.nodes[value]["data_type"],
+      ]
+      node_args["cost_attributes"]["operand_dtype_str"] = [
+          self.graph.nodes[param]["cost_attributes"]["dtype_str"],
+          self.graph.nodes[value]["cost_attributes"]["dtype_str"],
+      ]
+    self.graph.add_node(node_name, **node_args)
     self._add_edge(details["param"], node_name, 0)
     self._add_edge(details["value"], node_name, 1)
     if predicate:
       self._add_edge(predicate, node_name, 2)
 
-  def _parse_assert(self, line, node_name, data_type_str):
+  def _parse_decode_node(self, line, node_name, data_type_str):
+    """Parses a line representing a decode node and adds it to the graph.
+
+    Args:
+        line (str): The line representing the decode node in the IR format.
+        node_name (str): The name of the node extracted from the IR line.
+        data_type_str (str): The string representation of the data type for the
+          node.
+    """
+    op = line.split("(", 1)[0].strip()
+    regex = re.compile(
+        rf"{op}\((?P<operand>\w+(\.\d+)?),\s*width\s*=\s*(?P<width>\w+(\.\d+)?)\s*,\s*id=(?P<id>\d+)"
+    )
+    match = regex.match(line)
+    details = match.groupdict() if match else None
+    operand = details["operand"].strip()
+    width = int(details["width"])
+    data_type = xls_types.parse_data_type(data_type_str)
+    self.graph.add_node(
+        node_name,
+        op=op,
+        width=width,
+        data_type=data_type,
+        operand_data_type=self.graph.nodes[operand]["data_type"],
+        id=int(details["id"]),
+        color=self.node_colors["OP"],
+        cost_attributes={
+            "op": op,
+            "dtype_str": data_type_str,
+            "operand_dtype_str": self.graph.nodes[operand]["cost_attributes"][
+                "dtype_str"
+            ],
+            "width": width,
+        },
+    )
+    self._add_edge(operand, node_name, 0)
+
+  def _parse_dbg_node(self, line, node_name, data_type_str):
     """This is a software-only operation and has no representation in the generated hardware.
 
     Skipping...
