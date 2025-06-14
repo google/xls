@@ -185,6 +185,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
         mnemonic = "IRJITWrapper",
         progress_message = "Building JIT wrapper for source file: %s" % (src.ir_file.path),
         toolchain = None,
+        use_default_shell_env = True,
     )
     return [
         JitWrapperInfo(
