@@ -1194,6 +1194,7 @@ def _xls_ir_cc_library_impl(ctx):
         mnemonic = "GenerateAotWrapper",
         progress_message = "AOT Wrapping %s" % src.ir_file.short_path,
         toolchain = None,
+        use_default_shell_env = True,
     )
 
     ctx.actions.run_shell(
