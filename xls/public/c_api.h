@@ -394,6 +394,11 @@ bool xls_function_get_type(struct xls_function* function, char** error_out,
 bool xls_function_get_name(struct xls_function* function, char** error_out,
                            char** string_out);
 
+// Returns the name of the parameter at the given `index` in `function` --
+// `name_out` is owned by the caller and must be freed.
+bool xls_function_get_param_name(struct xls_function* function, size_t index,
+                                 char** error_out, char** name_out);
+
 // Returns a string representation of the given `xls_function_type`.
 bool xls_function_type_to_string(struct xls_function_type* xls_function_type,
                                  char** error_out, char** string_out);

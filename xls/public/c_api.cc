@@ -993,6 +993,31 @@ struct xls_type* xls_function_type_get_return_type(
   return reinterpret_cast<xls_type*>(ft->return_type());
 }
 
+bool xls_function_get_param_name(struct xls_function* function, size_t index,
+                                 char** error_out, char** name_out) {
+  CHECK(function != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(name_out != nullptr);
+
+  xls::Function* cpp_fn = reinterpret_cast<xls::Function*>(function);
+  int64_t param_count = cpp_fn->params().size();
+  if (index >= static_cast<size_t>(param_count)) {
+    *name_out = nullptr;
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError(
+            absl::StrFormat("Parameter index %d out of range; "
+                            "parameter_count: %d",
+                            index, param_count))
+            .ToString());
+    return false;
+  }
+
+  xls::Param* param = cpp_fn->param(index);
+  *name_out = xls::ToOwnedCString(param->name());
+  *error_out = nullptr;
+  return true;
+}
+
 bool xls_make_function_jit(struct xls_function* function, char** error_out,
                            struct xls_function_jit** result_out) {
   CHECK(function != nullptr);

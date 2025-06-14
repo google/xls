@@ -167,6 +167,7 @@ xls_function_builder_build_with_return_value
 xls_function_builder_create
 xls_function_builder_free
 xls_function_get_name
+xls_function_get_param_name
 xls_function_get_type
 xls_function_jit_free
 xls_function_jit_run

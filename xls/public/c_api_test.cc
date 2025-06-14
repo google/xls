@@ -2221,6 +2221,20 @@ fn get_type_last_val(x: bits[32] id=1) -> bits[32] {
 }
 )";
   EXPECT_EQ(std::string_view{package_str}, kWant);
+
+  char* param_name = nullptr;
+  ASSERT_TRUE(
+      xls_function_get_param_name(function, /*index=*/0, &error, &param_name));
+  absl::Cleanup free_param_name([param_name] { xls_c_str_free(param_name); });
+  EXPECT_EQ(std::string_view(param_name), "x");
+
+  // Out-of-bounds param name.
+  char* bogus_param_name = nullptr;
+  ASSERT_FALSE(xls_function_get_param_name(function, /*index=*/1, &error,
+                                           &bogus_param_name));
+  EXPECT_THAT(std::string_view{error}, HasSubstr("out of range"));
+  xls_c_str_free(error);
+  error = nullptr;
 }
 
 TEST(XlsCApiTest, TypeGetFlatBitCount) {
