@@ -89,9 +89,10 @@ class CloneNodesIntoBlockHandler {
   //
   // If the block is to be a combinational block, stage_count should be
   // set to 0;
-  CloneNodesIntoBlockHandler(FunctionBase* proc_or_function,
-                             int64_t stage_count, const CodegenOptions& options,
-                             Block* block);
+  CloneNodesIntoBlockHandler(
+      FunctionBase* proc_or_function, int64_t stage_count,
+      const CodegenOptions& options, Block* block,
+      std::optional<const PackageSchedule*> schedule = std::nullopt);
 
   // Add ports to the block corresponding to the channels on the interface of
   // the proc. Should only be called for procs.
@@ -109,8 +110,7 @@ class CloneNodesIntoBlockHandler {
 
   // Add pipeline registers. A register is needed for each node which is
   // scheduled at or before this cycle and has a use after this cycle.
-  absl::Status AddNextPipelineStage(const PipelineSchedule& schedule,
-                                    int64_t stage);
+  absl::Status AddNextPipelineStage(int64_t stage);
 
   // If a function, create an output port for the function's return.
   absl::Status AddOutputPortsIfFunction(std::string_view output_port_name);
@@ -198,12 +198,18 @@ class CloneNodesIntoBlockHandler {
 
   Block* block() const { return block_; };
 
+  // Returns the schedule for the FunctionBase being lowered.
+  const PipelineSchedule& GetSchedule() const {
+    return schedule_.value()->GetSchedule(function_base_);
+  }
+
   bool is_proc_;
   FunctionBase* function_base_;
 
   const CodegenOptions& options_;
 
   Block* block_;
+  std::optional<const PackageSchedule*> schedule_;
   std::optional<ConcurrentStageGroups> concurrent_stages_;
   StreamingIOPipeline result_;
   absl::flat_hash_map<Node*, Node*> node_map_;

@@ -134,7 +134,8 @@ class SideEffectConditionPassTest
                             ->Run(p, scheduling_pass_options,
                                   &scheduling_results, scheduling_context)
                             .status());
-    const PipelineSchedule& schedule = scheduling_context.schedules().at(top);
+    const PipelineSchedule& schedule =
+        scheduling_context.package_schedule().GetSchedule(top);
     XLS_ASSIGN_OR_RETURN(
         CodegenContext context,
         FunctionBaseToPipelinedBlock(schedule, codegen_options, top));

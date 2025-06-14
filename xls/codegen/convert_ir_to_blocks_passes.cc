@@ -292,13 +292,14 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
     XLS_VLOG_LINES(3, proc->DumpIr());
 
     PipelineSchedule& schedule = context.function_base_to_schedule().at(fb);
+    PackageSchedule package_schedule(schedule);
     absl::Span<ProcInstance* const> instances;
     if (proc_elab.has_value()) {
       instances = proc_elab->GetInstances(proc);
     }
-    XLS_RETURN_IF_ERROR(
-        SingleProcToPipelinedBlock(schedule, options.codegen_options, context,
-                                   proc, instances, block, converted_blocks));
+    XLS_RETURN_IF_ERROR(SingleProcToPipelinedBlock(
+        package_schedule, options.codegen_options, context, proc, instances,
+        block, converted_blocks));
 
     converted_blocks[fb] = block;
     changed = true;

@@ -51,7 +51,8 @@ using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
 MATCHER_P(SchedulingContextWithElements, matcher, "") {
-  return ExplainMatchResult(matcher, arg.schedules(), result_listener);
+  return ExplainMatchResult(matcher, arg.package_schedule().GetSchedules(),
+                            result_listener);
 }
 
 MATCHER(VerifiedPipelineSchedule, "") { return arg.Verify().ok(); }
@@ -159,12 +160,14 @@ TEST_F(PipelineSchedulingPassTest, MultipleProcs) {
       Pair(true, AllOf(SchedulingContextWithElements(UnorderedElementsAre(
                      Pair(proc0, VerifiedPipelineSchedule()),
                      Pair(proc1, VerifiedPipelineSchedule()))))));
-  EXPECT_THAT(changed_unit.second.schedules().at(proc0).ToString(),
-              AllOf(HasSubstr("Cycle 0:"),
-                    HasSubstr("  st: bits[1] = state_read(state_element=st")));
-  EXPECT_THAT(changed_unit.second.schedules().at(proc1).ToString(),
-              AllOf(HasSubstr("Cycle 0:"),
-                    HasSubstr("  st: bits[1] = state_read(state_element=st")));
+  EXPECT_THAT(
+      changed_unit.second.package_schedule().GetSchedule(proc0).ToString(),
+      AllOf(HasSubstr("Cycle 0:"),
+            HasSubstr("  st: bits[1] = state_read(state_element=st")));
+  EXPECT_THAT(
+      changed_unit.second.package_schedule().GetSchedule(proc1).ToString(),
+      AllOf(HasSubstr("Cycle 0:"),
+            HasSubstr("  st: bits[1] = state_read(state_element=st")));
 }
 
 TEST_F(PipelineSchedulingPassTest, MixedFunctionAndProcScheduling) {

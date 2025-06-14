@@ -260,8 +260,8 @@ static absl::Status RealMain(
   std::unique_ptr<solvers::z3::Lec> lec;
   if (!schedule_path.empty()) {
     XLS_ASSIGN_OR_RETURN(
-        PackagePipelineSchedulesProto proto,
-        ParseTextProtoFile<PackagePipelineSchedulesProto>(schedule_path));
+        PackageScheduleProto proto,
+        ParseTextProtoFile<PackageScheduleProto>(schedule_path));
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
         PipelineSchedule::FromProto(lec_params.ir_function, proto));
