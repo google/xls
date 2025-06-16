@@ -772,7 +772,7 @@ pub fn from_int32(x: s32) -> F32
 Convert the `F32` struct to a 32 bit signed/unsigned integer, or from a 32 bit
 signed integer to an `F32`.
 
-# `float32::fixed_fraction`
+### `float32::fixed_fraction`
 
 ```dslx-snippet
 pub fn fixed_fraction(input_float: F32) -> u23
@@ -780,7 +780,7 @@ pub fn fixed_fraction(input_float: F32) -> u23
 
 TBD
 
-# `float32::fast_rsqrt_config_refinements`/`float32::fast_rsqrt`
+### `float32::fast_rsqrt_config_refinements`/`float32::fast_rsqrt`
 
 ```dslx-snippet
 pub fn fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = {u32:1}>(x: F32) -> F32
