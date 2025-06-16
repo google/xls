@@ -297,8 +297,8 @@ absl::Status ProcElaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
   // Create the vector of procs which appear in this elaboration.
   absl::flat_hash_set<Proc*> proc_set;
   for (ProcInstance* proc_instance : elaboration.proc_instance_ptrs_) {
-    if (!proc_set.contains(proc_instance->proc())) {
-      proc_set.insert(proc_instance->proc());
+    auto [_, inserted] = proc_set.insert(proc_instance->proc());
+    if (inserted) {
       elaboration.procs_.push_back(proc_instance->proc());
     }
   }
