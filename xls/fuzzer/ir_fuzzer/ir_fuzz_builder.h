@@ -15,7 +15,6 @@
 #ifndef XLS_FUZZER_IR_FUZZER_IR_FUZZ_BUILDER_H_
 #define XLS_FUZZER_IR_FUZZER_IR_FUZZ_BUILDER_H_
 
-#include <string>
 #include <vector>
 
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
@@ -30,27 +29,24 @@ namespace xls {
 // a stack to maintain a list of BValues, where each element represents a node
 // in the IR that was instantiated/created from a FuzzOpProto. A stack is used
 // to allow new FuzzOpProtos to retrieve previous BValues from the stack without
-// using explicit references like the IR does. We cannot use explicit references
-// because randomly generated FuzzOpProtos would lead to many invalid IR ops,
-// which adds complexity.
+// using explicit references like the IR does.
 class IrFuzzBuilder {
  public:
-  IrFuzzBuilder(Package* package, FunctionBuilder* function_builder,
-                const FuzzProgramProto& fuzz_program);
+  IrFuzzBuilder(FuzzProgramProto* fuzz_program, Package* p, FunctionBuilder* fb)
+      : fuzz_program_(fuzz_program), p_(p), fb_(fb) {}
+
+  // Main function that returns the final IR BValue.
   BValue BuildIr();
-  std::string PrintProgram();
 
  private:
-  void InstFuzzOps();
-  BValue CombineStack();
-
-  // Package and FunctionBuilder are used to create new IR BValues.
-  Package* p_;
-  FunctionBuilder* fb_;
   // FuzzProgramProto is randomly generated instructions based off a protobuf
   // structure used to instantiate IR BValues.
-  FuzzProgramProto fuzz_program_;
-  // Stack is used to maintain a list of BValues that are created from the
+  FuzzProgramProto* fuzz_program_;
+  // Package and FunctionBuilder are used to create new IR BValues. They are not
+  // owned by the IrFuzzBuilder, just referenced.
+  Package* p_;
+  FunctionBuilder* fb_;
+  // The stack is used to maintain a list of BValues that are created from the
   // FuzzProgramProto.
   std::vector<BValue> stack_;
 };
