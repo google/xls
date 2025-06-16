@@ -128,9 +128,12 @@ void TextChangeHandler(const LspUri& file_uri,
   }
 }
 
-// Attempt to canonicalize path and return that if successful; else keep as-is.
+// Attempt to canonicalize "original_path" and return that if successful.
+// If it can not be resolved as absolute path or relative to CWD, attempt
+// to resolve relative to the elements in "search_path".
+// If all fails, return as-is (don't crash to not bring down the LS).
 static std::filesystem::path FailSafeCanonicalize(
-    const std::vector<std::filesystem::path> search_path,
+    const std::vector<std::filesystem::path>& search_path,
     const std::filesystem::path& original_path) {
   std::error_code ec;
   std::filesystem::path canonicalized =
