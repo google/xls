@@ -59,11 +59,11 @@ std::string PipelineSignalName(std::string_view root, int64_t stage);
 // Upon success returns a Node* to the all_active_inputs_valid signal.
 absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
-    int64_t stage_count, std::string_view ready_suffix, Block* block);
+    int64_t stage_count, const CodegenOptions& options, Block* block);
 
 absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
-    int64_t stage_count, std::string_view valid_suffix, Block* block);
+    int64_t stage_count, const CodegenOptions& options, Block* block);
 
 // Given a node returns a node that is OR'd with the reset signal.
 // if said reset signal exists.  That node can be thought of as
@@ -117,7 +117,7 @@ absl::Status MakeOutputValidPortsForOutputChannels(
     absl::Span<Node* const> pipelined_valids,
     absl::Span<Node* const> next_stage_open,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
-    std::string_view valid_suffix, Proc* proc,
+    const CodegenOptions& options, Proc* proc,
     absl::Span<ProcInstance* const> instances, Block* block);
 
 // Make data ports (output) for each output channel.
@@ -130,7 +130,7 @@ absl::Status MakeOutputDataPortsForOutputChannels(
     absl::Span<Node* const> pipelined_valids,
     absl::Span<Node* const> next_stage_open,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
-    std::string_view data_suffix, Block* block);
+    const CodegenOptions& options, Block* block);
 
 // Make ready ports (output) for each input channel.
 //
@@ -139,7 +139,7 @@ absl::Status MakeOutputDataPortsForOutputChannels(
 absl::Status MakeOutputReadyPortsForInputChannels(
     absl::Span<Node* const> all_active_outputs_ready,
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
-    std::string_view ready_suffix, Proc* proc,
+    const CodegenOptions& options, Proc* proc,
     absl::Span<ProcInstance* const> instances, Block* block);
 }  // namespace xls::verilog
 
