@@ -629,6 +629,27 @@ fn f(x: bits[32] id=3) -> bits[32] {
   absl::Cleanup free_type_str([type_str] { xls_c_str_free(type_str); });
   EXPECT_EQ(std::string_view(type_str), "(bits[32]) -> bits[32]");
 
+  int64_t param_count = xls_function_type_get_param_count(f_type);
+  EXPECT_EQ(param_count, 1);
+
+  struct xls_type* param_type = nullptr;
+  ASSERT_TRUE(xls_function_type_get_param_type(f_type, /*index=*/0, &error,
+                                               &param_type));
+  ASSERT_NE(param_type, nullptr);
+  char* param_type_str = nullptr;
+  ASSERT_TRUE(xls_type_to_string(param_type, &error, &param_type_str));
+  absl::Cleanup free_param_type_str(
+      [param_type_str] { xls_c_str_free(param_type_str); });
+  EXPECT_EQ(std::string_view(param_type_str), "bits[32]");
+
+  struct xls_type* ret_type = xls_function_type_get_return_type(f_type);
+  ASSERT_NE(ret_type, nullptr);
+  char* ret_type_str = nullptr;
+  ASSERT_TRUE(xls_type_to_string(ret_type, &error, &ret_type_str));
+  absl::Cleanup free_ret_type_str(
+      [ret_type_str] { xls_c_str_free(ret_type_str); });
+  EXPECT_EQ(std::string_view(ret_type_str), "bits[32]");
+
   struct xls_value* ft = nullptr;
   ASSERT_TRUE(xls_parse_typed_value("bits[32]:0x42", &error, &ft));
   absl::Cleanup free_ft([ft] { xls_value_free(ft); });
@@ -2200,6 +2221,20 @@ fn get_type_last_val(x: bits[32] id=1) -> bits[32] {
 }
 )";
   EXPECT_EQ(std::string_view{package_str}, kWant);
+
+  char* param_name = nullptr;
+  ASSERT_TRUE(
+      xls_function_get_param_name(function, /*index=*/0, &error, &param_name));
+  absl::Cleanup free_param_name([param_name] { xls_c_str_free(param_name); });
+  EXPECT_EQ(std::string_view(param_name), "x");
+
+  // Out-of-bounds param name.
+  char* bogus_param_name = nullptr;
+  ASSERT_FALSE(xls_function_get_param_name(function, /*index=*/1, &error,
+                                           &bogus_param_name));
+  EXPECT_THAT(std::string_view{error}, HasSubstr("out of range"));
+  xls_c_str_free(error);
+  error = nullptr;
 }
 
 TEST(XlsCApiTest, TypeGetFlatBitCount) {

@@ -394,9 +394,28 @@ bool xls_function_get_type(struct xls_function* function, char** error_out,
 bool xls_function_get_name(struct xls_function* function, char** error_out,
                            char** string_out);
 
+// Returns the name of the parameter at the given `index` in `function` --
+// `name_out` is owned by the caller and must be freed.
+bool xls_function_get_param_name(struct xls_function* function, size_t index,
+                                 char** error_out, char** name_out);
+
 // Returns a string representation of the given `xls_function_type`.
 bool xls_function_type_to_string(struct xls_function_type* xls_function_type,
                                  char** error_out, char** string_out);
+
+// Returns the number of parameters for the given function type.
+int64_t xls_function_type_get_param_count(struct xls_function_type* type);
+
+// Returns the type of the parameter at the given index.
+// On success `param_type_out` is populated and the function returns true.
+// If the index is out of range, returns false and `error_out` is populated.
+bool xls_function_type_get_param_type(struct xls_function_type* type,
+                                      size_t index, char** error_out,
+                                      struct xls_type** param_type_out);
+
+// Returns the return type of the given function type.
+struct xls_type* xls_function_type_get_return_type(
+    struct xls_function_type* type);
 
 // Interprets the given `function` using the given `args` (an array of size
 // `argc`) -- interpretation runs to a function result placed in `result_out`,

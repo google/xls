@@ -958,6 +958,66 @@ bool xls_function_type_to_string(struct xls_function_type* type,
   return true;
 }
 
+int64_t xls_function_type_get_param_count(struct xls_function_type* type) {
+  CHECK(type != nullptr);
+  const auto* ft = reinterpret_cast<const xls::FunctionType*>(type);
+  return ft->parameter_count();
+}
+
+bool xls_function_type_get_param_type(struct xls_function_type* type,
+                                      size_t index, char** error_out,
+                                      struct xls_type** param_type_out) {
+  CHECK(type != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(param_type_out != nullptr);
+  const auto* ft = reinterpret_cast<const xls::FunctionType*>(type);
+  if (index >= static_cast<size_t>(ft->parameter_count())) {
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError(
+            absl::StrFormat("Parameter index %d out of range; "
+                            "parameter_count: %d",
+                            index, ft->parameter_count()))
+            .ToString());
+    *param_type_out = nullptr;
+    return false;
+  }
+  *error_out = nullptr;
+  *param_type_out = reinterpret_cast<xls_type*>(ft->parameter_type(index));
+  return true;
+}
+
+struct xls_type* xls_function_type_get_return_type(
+    struct xls_function_type* type) {
+  CHECK(type != nullptr);
+  const auto* ft = reinterpret_cast<const xls::FunctionType*>(type);
+  return reinterpret_cast<xls_type*>(ft->return_type());
+}
+
+bool xls_function_get_param_name(struct xls_function* function, size_t index,
+                                 char** error_out, char** name_out) {
+  CHECK(function != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(name_out != nullptr);
+
+  xls::Function* cpp_fn = reinterpret_cast<xls::Function*>(function);
+  int64_t param_count = cpp_fn->params().size();
+  if (index >= static_cast<size_t>(param_count)) {
+    *name_out = nullptr;
+    *error_out = xls::ToOwnedCString(
+        absl::InvalidArgumentError(
+            absl::StrFormat("Parameter index %d out of range; "
+                            "parameter_count: %d",
+                            index, param_count))
+            .ToString());
+    return false;
+  }
+
+  xls::Param* param = cpp_fn->param(index);
+  *name_out = xls::ToOwnedCString(param->name());
+  *error_out = nullptr;
+  return true;
+}
+
 bool xls_make_function_jit(struct xls_function* function, char** error_out,
                            struct xls_function_jit** result_out) {
   CHECK(function != nullptr);
