@@ -42,7 +42,7 @@ class GenIrNodesPass : public IrFuzzVisitor {
   void HandleParam(FuzzParamProto* param) override;
 
  private:
-  BValue GetOperand(FuzzOperandRefProto* operand_ref);
+  BValue GetOperand(FittedOperandIdxProto* operand_idx);
 
   FuzzProgramProto* fuzz_program_;
   Package* p_;
