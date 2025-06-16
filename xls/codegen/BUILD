@@ -442,6 +442,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel",
+        "//xls/ir:channel_ops",
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:proc_elaboration",
