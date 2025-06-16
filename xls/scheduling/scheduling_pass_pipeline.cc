@@ -24,7 +24,6 @@
 #include "xls/passes/literal_uncommoning_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/scheduling/mutual_exclusion_pass.h"
 #include "xls/scheduling/pipeline_scheduling_pass.h"
 #include "xls/scheduling/proc_state_legalization_pass.h"
 #include "xls/scheduling/scheduling_checker.h"
@@ -44,7 +43,6 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
   top->Add<ProcStateLegalizationPass>();
 
   bool eliminate_noop_next = false;
-  top->Add<MutualExclusionPass>();
   if (opt_level > 0) {
     top->Add<SchedulingWrapperPass>(
         std::make_unique<FixedPointSimplificationPass>(), context, opt_level,
@@ -55,10 +53,6 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
   top->Add<PipelineSchedulingPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
                                   context, opt_level, eliminate_noop_next);
-  top->Add<MutualExclusionPass>();
-  top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                                  context, opt_level, eliminate_noop_next);
-  top->Add<PipelineSchedulingPass>();
 
   return top;
 }
