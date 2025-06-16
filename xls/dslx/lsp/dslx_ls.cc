@@ -130,12 +130,23 @@ void TextChangeHandler(const LspUri& file_uri,
 
 // Attempt to canonicalize path and return that if successful; else keep as-is.
 static std::filesystem::path FailSafeCanonicalize(
+    const std::vector<std::filesystem::path> search_path,
     const std::filesystem::path& original_path) {
   std::error_code ec;
   std::filesystem::path canonicalized =
       std::filesystem::canonical(original_path, ec);
   if (!ec) {
     return canonicalized;
+  }
+  for (const std::filesystem::path& path : search_path) {
+    const std::filesystem::path possible_path = path / original_path;
+    if (std::filesystem::exists(possible_path, ec)) {
+      std::filesystem::path canonicalized =
+          std::filesystem::canonical(possible_path, ec);
+      if (!ec) {
+        return canonicalized;
+      }
+    }
   }
   LspLog() << "Error: " << original_path << ": " << ec.message() << "\n";
   return original_path;
@@ -148,7 +159,7 @@ absl::Status RealMain() {
       absl::StrSplit(dslx_path, ':');
 
   const std::filesystem::path stdlib_realpath =
-      FailSafeCanonicalize(stdlib_path);
+      FailSafeCanonicalize(dslx_paths, stdlib_path);
 
   LspLog() << "XLS testing language server" << "\n";
   LspLog() << "Path configuration:\n"
