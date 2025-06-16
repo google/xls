@@ -154,8 +154,10 @@ pub fn num_nonzero_fractional_bits(NUM_BITS: u32, BINARY_EXPONENT: s32) -> u32 {
 // Returns the bits of a fixed point number's fractional part. These bits are _not_ shifted or
 // normalized in any sense. E.g. it would be wrong to add the raw fractional parts of two different
 // fixed point numbers without first aligning their binary points.
-pub fn fractional_bits_raw<NB: u32, BE: s32, F: u32 = {num_nonzero_fractional_bits(NB, BE)}>
-    (a: FixedPoint<NB, BE>) -> uN[F] {
+pub fn fractional_bits_raw
+    <NB: u32, BE: s32, F: u32 = {num_nonzero_fractional_bits(NB, BE)},
+     EXPONENT_IS_NEGATIVE: u32 = {is_negative(BE)}>
+    (a: FixedPoint<NB, EXPONENT_IS_NEGATIVE, BE>) -> uN[F] {
     a.significand[0+:uN[F]]
 }
 
@@ -163,8 +165,10 @@ pub fn fractional_bits_raw<NB: u32, BE: s32, F: u32 = {num_nonzero_fractional_bi
 // normalized in any sense. Less-significant bits that are always zero are not included. E.g. it
 // would be wrong to add the raw integer parts of two different fixed point numbers without first
 // aligning their binary points.
-pub fn integer_bits_raw<NB: u32, BE: s32, I: u32 = {num_nonzero_integer_bits(NB, BE)}>
-    (a: FixedPoint<NB, BE>) -> uN[I] {
+pub fn integer_bits_raw
+    <NB: u32, BE: s32, I: u32 = {num_nonzero_integer_bits(NB, BE)},
+     EXPONENT_IS_NEGATIVE: u32 = {is_negative(BE)}>
+    (a: FixedPoint<NB, EXPONENT_IS_NEGATIVE, BE>) -> uN[I] {
     let F = num_nonzero_fractional_bits(NB, BE);
     a.significand[F+:uN[I]]
 }
