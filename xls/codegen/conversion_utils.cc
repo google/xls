@@ -40,6 +40,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
@@ -61,32 +62,61 @@ namespace xls::verilog {
 
 namespace {
 
+bool HasMultiplexingCycle(const FifoConfig& fifo_config) {
+  const bool push_to_pop_combo_paths =
+      fifo_config.bypass() && !fifo_config.register_pop_outputs();
+  const bool pop_to_push_combo_paths = !fifo_config.register_push_outputs();
+  return push_to_pop_combo_paths && pop_to_push_combo_paths;
+}
+
 absl::Status CheckForMultiplexingCycle(Channel* channel,
+                                       const CodegenOptions& options,
                                        std::string_view proc_name) {
   if (channel->kind() != ChannelKind::kStreaming) {
     return absl::OkStatus();
   }
   StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
+  if (streaming_channel->supported_ops() != ChannelOps::kSendReceive) {
+    // This is an external channel; any I/O flopping will break the cycle.
+    if (options.flop_inputs() || options.flop_outputs()) {
+      return absl::OkStatus();
+    }
+    // If we've been given FIFO config information, we can rely on that;
+    // otherwise, we should tell the user how to fix the issue.
+    if (streaming_channel->channel_config().fifo_config().has_value() &&
+        !HasMultiplexingCycle(
+            *streaming_channel->channel_config().fifo_config())) {
+      return absl::OkStatus();
+    }
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot allow multiple operations from proc `%s` on external streaming "
+        "channel `%s` due to a potential combinational cycle. This can be "
+        "fixed by any of the following changes:\n"
+        "\t1. flop inputs (with the `--flop_inputs` flag),\n"
+        "\t2. flop outputs (with the `--flop_outputs` flag), or\n"
+        "if channel `%s` connects to an external FIFO guaranteed to have "
+        "no combinational path between valid and ready, you can specify the "
+        "reason for this in the channel's FIFO config; it should involve at "
+        "least one of registered push outputs, registered pop outputs, or "
+        "disabled combinational bypass.",
+        proc_name, ChannelRefName(channel), ChannelRefName(channel)));
+  }
+
   if (!streaming_channel->channel_config().fifo_config().has_value()) {
     return absl::InvalidArgumentError(
         absl::StrCat("Cannot allow multiple operations from proc `", proc_name,
                      "` on streaming channel `", ChannelRefName(channel),
                      "`, which has no known FIFO configuration."));
   }
-  const FifoConfig& fifo_config =
-      *streaming_channel->channel_config().fifo_config();
-  bool push_to_pop_combo_paths =
-      fifo_config.bypass() && !fifo_config.register_pop_outputs();
-  bool pop_to_push_combo_paths = !fifo_config.register_push_outputs();
-  if (push_to_pop_combo_paths && pop_to_push_combo_paths) {
+  if (HasMultiplexingCycle(
+          *streaming_channel->channel_config().fifo_config())) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Cannot allow multiple operations from proc `%s` on streaming channel "
         "`%s` due to a combinational cycle. This can be fixed by reconfiguring "
         "channel `%s` in any of the following ways:\n"
-        "\t1. use proven-mutually-exclusive channel strictness (if possible),\n"
-        "\t2. register push outputs,\n"
-        "\t3. register pop outputs, or\n"
-        "\t4. disable combinational bypass paths.",
+        "\t1. register push outputs,\n"
+        "\t2. register pop outputs, or\n"
+        "\t3. disable combinational bypass paths.",
         proc_name, ChannelRefName(channel), ChannelRefName(channel)));
   }
   return absl::OkStatus();
@@ -138,7 +168,7 @@ std::string PipelineSignalName(std::string_view root, int64_t stage) {
 
 absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
-    int64_t stage_count, std::string_view ready_suffix, Block* block) {
+    int64_t stage_count, const CodegenOptions& options, Block* block) {
   std::vector<Node*> result;
 
   // Add a ready input port for each streaming output. Gather the ready signals
@@ -200,7 +230,7 @@ absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
 // Upon success returns a Node* to the all_active_inputs_valid signal.
 absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
-    int64_t stage_count, std::string_view valid_suffix, Block* block) {
+    int64_t stage_count, const CodegenOptions& options, Block* block) {
   std::vector<Node*> result;
 
   for (Stage stage = 0; stage < stage_count; ++stage) {
@@ -424,7 +454,7 @@ absl::Status MakeOutputValidPortsForOutputChannels(
     absl::Span<Node* const> pipelined_valids,
     absl::Span<Node* const> next_stage_open,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
-    std::string_view valid_suffix, Proc* proc,
+    const CodegenOptions& options, Proc* proc,
     absl::Span<ProcInstance* const> instances, Block* block) {
   absl::btree_map<Node*,
                   absl::btree_map<Stage, std::vector<std::optional<Node*>>>,
@@ -447,13 +477,13 @@ absl::Status MakeOutputValidPortsForOutputChannels(
       if (std::holds_alternative<Channel*>(channel)) {
         CHECK(instances.empty());
         XLS_RETURN_IF_ERROR(CheckForMultiplexingCycle(
-            std::get<Channel*>(channel), proc->name()));
+            std::get<Channel*>(channel), options, proc->name()));
       } else {
         CHECK(std::holds_alternative<ChannelInterface*>(channel));
         CHECK(!instances.empty());
         for (ProcInstance* instance : instances) {
           XLS_RETURN_IF_ERROR(CheckForMultiplexingCycle(
-              instance->GetChannelBinding(channel).instance->channel,
+              instance->GetChannelBinding(channel).instance->channel, options,
               instance->GetName()));
         }
       }
@@ -553,7 +583,7 @@ absl::Status MakeOutputDataPortsForOutputChannels(
     absl::Span<Node* const> pipelined_valids,
     absl::Span<Node* const> next_stage_open,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
-    std::string_view data_suffix, Block* block) {
+    const CodegenOptions& options, Block* block) {
   absl::btree_map<Node*, absl::btree_map<Stage, std::vector<PredicatedValue>>,
                   Node::NodeIdLessThan>
       data_values;
@@ -613,7 +643,7 @@ absl::Status MakeOutputDataPortsForOutputChannels(
 absl::Status MakeOutputReadyPortsForInputChannels(
     absl::Span<Node* const> all_active_outputs_ready,
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
-    std::string_view ready_suffix, Proc* proc,
+    const CodegenOptions& options, Proc* proc,
     absl::Span<ProcInstance* const> instances, Block* block) {
   absl::btree_map<Node*,
                   absl::btree_map<Stage, std::vector<std::optional<Node*>>>,
@@ -636,13 +666,13 @@ absl::Status MakeOutputReadyPortsForInputChannels(
       if (std::holds_alternative<Channel*>(channel)) {
         CHECK(instances.empty());
         XLS_RETURN_IF_ERROR(CheckForMultiplexingCycle(
-            std::get<Channel*>(channel), proc->name()));
+            std::get<Channel*>(channel), options, proc->name()));
       } else {
         CHECK(std::holds_alternative<ChannelInterface*>(channel));
         CHECK(!instances.empty());
         for (ProcInstance* instance : instances) {
           XLS_RETURN_IF_ERROR(CheckForMultiplexingCycle(
-              instance->GetChannelBinding(channel).instance->channel,
+              instance->GetChannelBinding(channel).instance->channel, options,
               instance->GetName()));
         }
       }
