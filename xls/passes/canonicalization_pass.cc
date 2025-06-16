@@ -32,7 +32,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
@@ -356,7 +355,5 @@ absl::StatusOr<bool> CanonicalizationPass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   return TransformNodesToFixedPoint(func, CanonicalizeNode);
 }
-
-REGISTER_OPT_PASS(CanonicalizationPass);
 
 }  // namespace xls
