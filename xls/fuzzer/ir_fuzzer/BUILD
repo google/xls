@@ -71,20 +71,11 @@ cc_library(
     hdrs = ["gen_ir_nodes_pass.h"],
     deps = [
         ":fuzz_program_cc_proto",
+        ":ir_fuzz_helpers",
         ":ir_fuzz_visitor",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
-    ],
-)
-
-cc_library(
-    name = "stringify_program_pass",
-    srcs = ["stringify_program_pass.cc"],
-    hdrs = ["stringify_program_pass.h"],
-    deps = [
-        ":fuzz_program_cc_proto",
-        ":ir_fuzz_visitor",
     ],
 )
 
@@ -94,6 +85,7 @@ cc_library(
     hdrs = ["combine_stack.h"],
     deps = [
         ":fuzz_program_cc_proto",
+        ":ir_fuzz_helpers",
         "//xls/ir:function_builder",
         "@com_google_absl//absl/types:span",
     ],
@@ -107,7 +99,6 @@ cc_library(
         ":combine_stack",
         ":fuzz_program_cc_proto",
         ":gen_ir_nodes_pass",
-        ":stringify_program_pass",
         "//xls/ir",
         "//xls/ir:function_builder",
         "@com_google_absl//absl/log",
@@ -119,6 +110,31 @@ cc_library(
     srcs = ["ir_fuzz_visitor.cc"],
     hdrs = ["ir_fuzz_visitor.h"],
     deps = [":fuzz_program_cc_proto"],
+)
+
+cc_library(
+    name = "ir_fuzz_helpers",
+    srcs = ["ir_fuzz_helpers.cc"],
+    hdrs = ["ir_fuzz_helpers.h"],
+    deps = [
+        ":fuzz_program_cc_proto",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:function_builder",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "ir_fuzz_helpers_test",
+    srcs = ["ir_fuzz_helpers_test.cc"],
+    deps = [
+        ":ir_fuzz_helpers",
+        "//xls/common:xls_gunit_main",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/strings:str_format",
+        "@googletest//:gtest",
+    ],
 )
 
 cc_test(
@@ -136,6 +152,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:verifier",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
     ],
