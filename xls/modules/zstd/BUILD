@@ -2213,6 +2213,7 @@ RAM_DEMUX_CODEGEN_ARGS = {
     "clock_period_ps": "750",
     "reset": "rst",
     "use_system_verilog": "false",
+    "streaming_channel_data_suffix": "_data",
     "materialize_internal_fifos": "true",
 }
 
@@ -2289,6 +2290,37 @@ ram_demux_naive_codegen_args = {
     "use_system_verilog": "false",
     "materialize_internal_fifos": "true",
 }
+
+py_test(
+    name = "ram_demux_cocotb_test",
+    srcs = ["ram_demux_cocotb_test.py"],
+    data = [
+        "//xls/modules/zstd:ram_demux.v",
+        "//xls/modules/zstd/rtl:ram_1r1w.v",
+        "//xls/modules/zstd/rtl:ram_demux_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {
+        "BUILD_WORKING_DIRECTORY": "sim_build",
+        "PYTHONUNBUFFERED": "1",
+    },
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        requirement("pytest"),
+        requirement("zstandard"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+    ],
+)
 
 xls_dslx_verilog(
     name = "ram_demux_naive_verilog",
@@ -3887,5 +3919,5 @@ collect_benchmark_reports(
         ":huffman_weights_dec_place_and_route",
         # ":huffman_literals_dec_place_and_route",
         # ":zstd_dec_place_and_route",
-    ]
+    ],
 )
