@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -393,6 +394,30 @@ class SchedulingOptions {
     return additional_output_delay_ps_;
   }
 
+  // Sets/gets the additional delay added to each external channel.
+  SchedulingOptions& additional_channel_delay_ps(
+      absl::flat_hash_map<std::string, int64_t> delay) {
+    additional_channel_delay_ps_ = std::move(delay);
+    return *this;
+  }
+  SchedulingOptions& add_additional_channel_delay_ps(
+      std::string_view channel_name, int64_t delay_ps) {
+    additional_channel_delay_ps_[channel_name] = delay_ps;
+    return *this;
+  }
+  const absl::flat_hash_map<std::string, int64_t>& additional_channel_delay_ps()
+      const {
+    return additional_channel_delay_ps_;
+  }
+  std::optional<int64_t> additional_channel_delay_ps(
+      std::string_view channel_name) const {
+    auto it = additional_channel_delay_ps_.find(channel_name);
+    if (it == additional_channel_delay_ps_.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
   // Set fallback estimation for ffi calls used in absence of more information.
   SchedulingOptions& ffi_fallback_delay_ps(int64_t value) {
     ffi_fallback_delay_ps_ = value;
@@ -577,6 +602,7 @@ class SchedulingOptions {
   std::optional<double> dynamic_throughput_objective_weight_;
   std::optional<int64_t> additional_input_delay_ps_;
   std::optional<int64_t> additional_output_delay_ps_;
+  absl::flat_hash_map<std::string, int64_t> additional_channel_delay_ps_;
   std::optional<int64_t> ffi_fallback_delay_ps_;
   std::vector<SchedulingConstraint> constraints_;
   std::optional<int32_t> seed_;
