@@ -593,14 +593,13 @@ absl::Status ConstexprEvaluator::HandleStructInstance(
 absl::Status ConstexprEvaluator::HandleConditional(const Conditional* expr) {
   // Simple enough that we don't need to invoke the interpreter.
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->test());
-  EVAL_AS_CONSTEXPR_OR_RETURN(expr->consequent());
-  EVAL_AS_CONSTEXPR_OR_RETURN(ToExprNode(expr->alternate()));
-
   InterpValue test = type_info_->GetConstExpr(expr->test()).value();
   if (test.IsTrue()) {
+    EVAL_AS_CONSTEXPR_OR_RETURN(expr->consequent());
     type_info_->NoteConstExpr(
         expr, type_info_->GetConstExpr(expr->consequent()).value());
   } else {
+    EVAL_AS_CONSTEXPR_OR_RETURN(ToExprNode(expr->alternate()));
     type_info_->NoteConstExpr(
         expr, type_info_->GetConstExpr(ToExprNode(expr->alternate())).value());
   }
