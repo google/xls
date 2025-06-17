@@ -30,7 +30,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -138,7 +137,5 @@ absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   return RunCse(f, context, nullptr, common_literals_);
 }
-
-REGISTER_OPT_PASS(CsePass);
 
 }  // namespace xls

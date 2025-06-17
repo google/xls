@@ -50,7 +50,6 @@
 #include "xls/ir/op.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/query_engine.h"
@@ -2880,7 +2879,5 @@ uint64_t TimingAnalysis::GetDelayIncrease(
 ResourceSharingPass::ResourceSharingPass()
     : OptimizationFunctionBasePass(kName, "Resource Sharing"),
       profitability_guard_{ProfitabilityGuard::kInDegree} {}
-
-REGISTER_OPT_PASS(ResourceSharingPass);
 
 }  // namespace xls
