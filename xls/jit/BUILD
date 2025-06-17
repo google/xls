@@ -700,6 +700,7 @@ cc_library(
         "//xls/ir:type",
         "//xls/ir:value",
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

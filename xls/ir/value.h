@@ -69,7 +69,7 @@ class Value {
     return Value(ValueKind::kTuple, elements);
   }
   static Value TupleOwned(std::vector<Value>&& elements) {
-    return Value(ValueKind::kTuple, elements);
+    return Value(ValueKind::kTuple, std::move(elements));
   }
 
   // All members of "elements" must be of the same type, or an error status will
