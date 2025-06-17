@@ -597,12 +597,13 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceShift(const Binop* node,
     const TypeDim& lhs_size = lhs_bits_like->size;
     CHECK(!lhs_size.IsParametric()) << "Shift amount type not inferred.";
     XLS_ASSIGN_OR_RETURN(int64_t lhs_bit_count, lhs_size.GetAsInt64());
-    if (lhs_bit_count < number_value.value()) {
+    int64_t value = static_cast<int64_t>(number_value.value());
+    if (lhs_bit_count < value) {
       return TypeInferenceErrorStatus(
           node->rhs()->span(), rhs.get(),
-          absl::StrFormat(
-              "Shift amount is larger than shift value bit width of %d.",
-              lhs_bit_count),
+          absl::StrFormat("Shifting a %d-bit value (`%s`) by a constexpr shift "
+                          "of %d exceeds its bit width.",
+                          lhs_bit_count, lhs->ToString(), value),
           ctx->file_table());
     }
   }

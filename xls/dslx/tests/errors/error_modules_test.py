@@ -345,7 +345,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_over_shift(self):
     stderr = self._run('xls/dslx/tests/errors/over_shift_amount.x')
     self.assertIn(
-        'Shift amount is larger than shift value bit width of', stderr
+        'Shifting a 4-bit value (`uN[4]`) by a constexpr shift of 5 exceeds its bit width.', stderr
     )
 
   def test_colon_ref_of_type_alias(self):
