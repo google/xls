@@ -15,20 +15,36 @@
 #ifndef XLS_PASSES_OPTIMIZATION_PASS_REGISTRY_H_
 #define XLS_PASSES_OPTIMIZATION_PASS_REGISTRY_H_
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <tuple>
 #include <utility>
 
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "xls/common/module_initializer.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.pb.h"
+#include "xls/passes/pass_base.h"
+#include "xls/passes/pipeline_generator.h"
 
 namespace xls {
 
+// The name of the default pipeline in the optimization pipeline proto.
+static constexpr std::string_view kDefaultPassPipelineName = "default_pipeline";
+
 // Get the singleton pass registry for optimization passes.
 OptimizationPassRegistry& GetOptimizationRegistry();
+
+// Add wrappers that check for common options (opt-level, resource sharing, etc)
+// and apply them.
+absl::StatusOr<std::unique_ptr<OptimizationPass>> WrapPassWithOptions(
+    std::unique_ptr<OptimizationPass>&& cur,
+    const BasicPipelineOptions& options);
 
 // Helpers to handle creating and configuring passes in a somewhat reasonable
 // way.
@@ -71,6 +87,9 @@ std::unique_ptr<OptimizationPassGenerator> Pass(Args... args) {
 }
 
 }  // namespace optimization_registry::internal
+
+absl::Status RegisterOptimizationPipelineProtoData(
+    absl::Span<uint8_t const> data);
 
 template <typename PassT, typename... Args>
 absl::Status RegisterOptimizationPass(std::string_view name, Args... args) {

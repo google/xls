@@ -36,7 +36,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
@@ -595,7 +594,5 @@ absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
 
   return changed;
 }
-
-REGISTER_OPT_PASS(ConcatSimplificationPass);
 
 }  // namespace xls
