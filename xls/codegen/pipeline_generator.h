@@ -50,7 +50,7 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
 // given in the signature. If a delay estimator is provided, the signature also
 // includes delay information about the pipeline stages.
 absl::StatusOr<CodegenResult> ToPipelineModuleText(
-    const PackagePipelineSchedules& schedules, Package* package,
+    const PackageSchedule& package_schedule, Package* package,
     const CodegenOptions& options = BuildPipelineOptions(),
     const DelayEstimator* delay_estimator = nullptr);
 

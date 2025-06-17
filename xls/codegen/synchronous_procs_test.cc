@@ -108,8 +108,7 @@ TEST_P(SynchronousProcsTest, NestedProc) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));
 
-  PackagePipelineSchedules schedules;
-  XLS_ASSERT_OK_AND_ASSIGN(schedules,
+  XLS_ASSERT_OK_AND_ASSIGN(PackageSchedule package_schedule,
                            RunSynchronousPipelineSchedule(
                                &package, TestDelayEstimator(),
                                SchedulingOptions().clock_period_ps(1), elab));
@@ -124,7 +123,7 @@ TEST_P(SynchronousProcsTest, NestedProc) {
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenResult result,
       ToPipelineModuleText(
-          schedules, &package,
+          package_schedule, &package,
           BuildPipelineOptions()
               .reset(reset_proto.name(), reset_proto.asynchronous(),
                      reset_proto.active_low(), reset_proto.reset_data_path())
@@ -218,8 +217,7 @@ TEST_P(SynchronousProcsTest, ChainedProc) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));
 
-  PackagePipelineSchedules schedules;
-  XLS_ASSERT_OK_AND_ASSIGN(schedules,
+  XLS_ASSERT_OK_AND_ASSIGN(PackageSchedule package_schedule,
                            RunSynchronousPipelineSchedule(
                                &package, TestDelayEstimator(),
                                SchedulingOptions().clock_period_ps(1), elab));
@@ -233,7 +231,7 @@ TEST_P(SynchronousProcsTest, ChainedProc) {
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenResult result,
       ToPipelineModuleText(
-          schedules, &package,
+          package_schedule, &package,
           BuildPipelineOptions()
               .reset(reset_proto.name(), reset_proto.asynchronous(),
                      reset_proto.active_low(), reset_proto.reset_data_path())

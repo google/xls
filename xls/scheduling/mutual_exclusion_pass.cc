@@ -1089,11 +1089,9 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const SchedulingPassOptions& options, PassResults* results,
     SchedulingContext& context) const {
   ScheduleCycleMap scm;
-  if (context.schedules().contains(f)) {
-    if (f != context.schedules().at(f).function_base()) {
-      return false;
-    }
-    scm = context.schedules().at(f).GetCycleMap();
+  if (context.package_schedule().HasSchedule(f)) {
+    CHECK_EQ(f, context.package_schedule().GetSchedule(f).function_base());
+    scm = context.package_schedule().GetSchedule(f).GetCycleMap();
   } else {
     for (Node* node : f->nodes()) {
       scm[node] = 0;
@@ -1137,7 +1135,7 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
   }
 
   if (changed) {
-    context.schedules().clear();
+    context.package_schedule().Clear();
   }
 
   return changed;

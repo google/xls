@@ -1049,7 +1049,7 @@ class BlockBuilder : public BuilderBase {
                       std::string_view name = "");
 
   // Add a register write operation. The register argument comes from a
-  // Block::AddRegister. If the register being writen has a reset value then
+  // Block::AddRegister. If the register being written has a reset value then
   // `reset` must be specified.
   BValue RegisterWrite(Register* reg, BValue data,
                        std::optional<BValue> load_enable = std::nullopt,

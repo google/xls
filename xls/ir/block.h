@@ -221,10 +221,24 @@ class Block : public FunctionBase {
       Register* reg) const;
 
   // Add an instantiation of the given block `instantiated_block` to this
-  // block. InstantiationInput and InstantiationOutput operations must be
-  // later added to connect the instantiation to the data-flow graph.
+  // block. InstantiationInput and InstantiationOutput operations must be later
+  // added to connect the instantiation to the data-flow graph.
   absl::StatusOr<BlockInstantiation*> AddBlockInstantiation(
-      std::string_view name, Block* instantiated_block);
+      std::string_view instantiation_name, Block* instantiated_block);
+
+  struct InstantiationAndConnections {
+    BlockInstantiation* instantiation;
+    absl::flat_hash_map<std::string, InstantiationInput*> inputs;
+    absl::flat_hash_map<std::string, InstantiationOutput*> outputs;
+  };
+  // Adds an instantiation of `instantiated_block` and creates the associated
+  // InstantiationConnection nodes. Reset and clock are automatically connected,
+  // if applicable. `inputs` includes the values to connect to the instantiation
+  // inputs and should contain a value for every non-reset input port on
+  // `instantiated_block`.
+  absl::StatusOr<InstantiationAndConnections> AddAndConnectBlockInstantiation(
+      std::string_view instantiation_name, Block* instantiated_block,
+      const absl::flat_hash_map<std::string, Node*>& inputs);
 
   // Add an instantiation of a FIFO to this block. InstantiationInput and
   // InstantiationOutput operations must be later added to connect the
@@ -236,10 +250,14 @@ class Block : public FunctionBase {
   absl::StatusOr<Instantiation*> AddInstantiation(
       std::string_view name, std::unique_ptr<Instantiation> instantiation);
 
-  // Removes the given instantiation from the block. InstantationInput or
+  // Removes the given instantiation from the block. InstantiationInput or
   // InstantiationOutput operations for this instantiation should be removed
   // prior to calling this method
   absl::Status RemoveInstantiation(Instantiation* instantiation);
+
+  // Removes an instantiation and all of the associated InstantiationConnection
+  // nodes. These nodes must have no users.
+  absl::Status RemoveInstantiationAndConnections(Instantiation* instantiation);
 
   // Replaces all uses of old_isnt with new_inst and removes old_inst. Both
   // must be currently owned by this block.

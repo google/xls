@@ -6175,19 +6175,20 @@ TEST_F(BlockConversionTest, NonTopBlockNamedModuleName) {
   // We set A to top, but will set module name to B.
   XLS_ASSERT_OK(p->SetTop(proc0));
 
-  PackagePipelineSchedules schedules;
+  PackageSchedule package_schedule(p.get());
   for (const std::unique_ptr<Proc>& proc : p->procs()) {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
         RunPipelineSchedule(proc.get(), TestDelayEstimator(),
                             SchedulingOptions().pipeline_stages(2)));
-    schedules.emplace(proc.get(), std::move(schedule));
+    XLS_ASSERT_OK(
+        package_schedule.AddSchedule(proc.get(), std::move(schedule)));
   }
 
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
       PackageToPipelinedBlocks(
-          schedules,
+          package_schedule,
           CodegenOptions().reset("foo", false, false, false).module_name("B"),
           p.get()));
 
@@ -6475,18 +6476,19 @@ TEST_F(ProcConversionTestFixture, TrivialProcHierarchyWithProcScopedChannels) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));
 
-  PackagePipelineSchedules schedules;
+  PackageSchedule package_schedule(p.get());
   for (const std::unique_ptr<Proc>& proc : p->procs()) {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
         RunPipelineSchedule(proc.get(), TestDelayEstimator(),
                             SchedulingOptions().pipeline_stages(2), &elab));
-    schedules.emplace(proc.get(), std::move(schedule));
+    XLS_ASSERT_OK(
+        package_schedule.AddSchedule(proc.get(), std::move(schedule)));
   }
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenContext context,
       PackageToPipelinedBlocks(
-          schedules, CodegenOptions().reset("rst", false, false, false),
+          package_schedule, CodegenOptions().reset("rst", false, false, false),
           p.get()));
 
   EXPECT_EQ(p->blocks().size(), 2);
