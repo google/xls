@@ -2238,6 +2238,74 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+RAM_MUX_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "RamMux",
+    "worst_case_throughput": "4",
+    "ram_configurations":
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ram",
+            rd_req = "ram_mux__rd_req_s",
+            rd_resp = "ram_mux__rd_resp_r",
+            wr_req = "ram_mux__wr_req_s",
+            wr_resp = "ram_mux__wr_resp_r",
+        )
+}
+
+xls_dslx_verilog(
+    name = "ram_mux_verilog",
+    codegen_args = RAM_MUX_CODEGEN_ARGS,
+    dslx_top = "RamMuxWrappedInst",
+    library = ":ram_mux_dslx",
+    tags = ["manual"],
+    verilog_file = "ram_mux.v",
+)
+
+xls_benchmark_ir(
+    name = "ram_mux_opt_ir_benchmark",
+    src = ":ram_mux_verilog.opt.ir",
+    codegen_args = RAM_MUX_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "ram_mux_verilog_lib",
+    srcs = [
+        ":ram_mux.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "ram_mux_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "RamMux",
+    deps = [
+        ":ram_mux_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "ram_mux_benchmark_synth",
+    synth_target = ":ram_mux_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "ram_mux_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    die_height_microns = 120,
+    die_width_microns = 120,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":ram_mux_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
 xls_dslx_library(
     name = "sequence_dec_dslx",
     srcs = [
