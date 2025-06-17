@@ -80,7 +80,7 @@ struct InterpreterResult {
 // any assertion has failed.
 template <typename ValueT>
 absl::StatusOr<ValueT> InterpreterResultToStatusOrValue(
-    InterpreterResult<ValueT> result) {
+    const InterpreterResult<ValueT>& result) {
   absl::Status status = InterpreterEventsToStatus(result.events);
 
   if (!status.ok()) {
@@ -94,7 +94,7 @@ absl::StatusOr<ValueT> InterpreterResultToStatusOrValue(
 // interpreter events and including assertion failures as errors.
 template <typename ValueT>
 absl::StatusOr<ValueT> DropInterpreterEvents(
-    absl::StatusOr<InterpreterResult<ValueT>> result) {
+    const absl::StatusOr<InterpreterResult<ValueT>>& result) {
   if (!result.ok()) {
     return result.status();
   }

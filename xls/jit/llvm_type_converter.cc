@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/base/casts.h"
+#include "absl/container/fixed_array.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
@@ -64,15 +65,16 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
     llvm_type = llvm::IntegerType::get(
         context_, GetLlvmBitCount(xls_type->AsBitsOrDie()));
   } else if (xls_type->IsTuple()) {
-    std::vector<llvm::Type*> tuple_types;
-
     const TupleType* tuple_type = xls_type->AsTupleOrDie();
+    absl::FixedArray<llvm::Type*> tuple_types(
+        tuple_type->element_types().size());
+    auto output_it = tuple_types.begin();
     for (Type* tuple_elem_type : tuple_type->element_types()) {
-      llvm::Type* converted_llvm_type = ConvertToLlvmType(tuple_elem_type);
-      tuple_types.push_back(converted_llvm_type);
+      *output_it++ = ConvertToLlvmType(tuple_elem_type);
     }
 
-    llvm_type = llvm::StructType::get(context_, tuple_types);
+    llvm_type = llvm::StructType::get(
+        context_, llvm::ArrayRef(tuple_types.begin(), tuple_types.size()));
   } else if (xls_type->IsArray()) {
     const ArrayType* array_type = xls_type->AsArrayOrDie();
     llvm::Type* element_type = ConvertToLlvmType(array_type->element_type());
@@ -113,12 +115,12 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
     return ToIntegralConstant(type, value);
   }
   if (type->isStructTy()) {
-    std::vector<llvm::Constant*> llvm_elements;
+    std::vector<llvm::Constant*> llvm_elements(type->getStructNumElements());
     for (int i = 0; i < type->getStructNumElements(); ++i) {
       XLS_ASSIGN_OR_RETURN(
           llvm::Constant * llvm_element,
           ToLlvmConstant(type->getStructElementType(i), value.element(i)));
-      llvm_elements.push_back(llvm_element);
+      llvm_elements[i] = llvm_element;
     }
 
     return llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(type),
