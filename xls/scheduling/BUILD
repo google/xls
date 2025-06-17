@@ -418,7 +418,6 @@ cc_library(
     srcs = ["scheduling_pass_pipeline.cc"],
     hdrs = ["scheduling_pass_pipeline.h"],
     deps = [
-        ":mutual_exclusion_pass",
         ":pipeline_scheduling_pass",
         ":proc_state_legalization_pass",
         ":scheduling_checker",
