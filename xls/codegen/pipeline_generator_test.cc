@@ -1426,17 +1426,18 @@ TEST_P(PipelineGeneratorTest, TrivialProcHierarchyWithProcScopedChannels) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));
 
-  PackagePipelineSchedules schedules;
+  PackageSchedule package_schedule(&p);
   for (const std::unique_ptr<Proc>& proc : p.procs()) {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
         RunPipelineSchedule(proc.get(), TestDelayEstimator(),
                             SchedulingOptions().pipeline_stages(2), &elab));
-    schedules.emplace(proc.get(), std::move(schedule));
+    XLS_ASSERT_OK(
+        package_schedule.AddSchedule(proc.get(), std::move(schedule)));
   }
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenResult result,
-      ToPipelineModuleText(schedules, &p,
+      ToPipelineModuleText(package_schedule, &p,
                            CodegenOptions()
                                .use_system_verilog(UseSystemVerilog())
                                .clock_name("clk")
@@ -1484,17 +1485,18 @@ TEST_P(PipelineGeneratorTest, MultiplyInstantiatedProc) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));
 
-  PackagePipelineSchedules schedules;
+  PackageSchedule package_schedule(&p);
   for (const std::unique_ptr<Proc>& proc : p.procs()) {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
         RunPipelineSchedule(proc.get(), TestDelayEstimator(),
                             SchedulingOptions().pipeline_stages(2), &elab));
-    schedules.emplace(proc.get(), std::move(schedule));
+    XLS_ASSERT_OK(
+        package_schedule.AddSchedule(proc.get(), std::move(schedule)));
   }
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenResult result,
-      ToPipelineModuleText(schedules, &p,
+      ToPipelineModuleText(package_schedule, &p,
                            CodegenOptions()
                                .use_system_verilog(UseSystemVerilog())
                                .clock_name("clk")
@@ -1547,17 +1549,18 @@ TEST_P(PipelineGeneratorTest, DeclaredChannelInProc) {
   XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
                            ProcElaboration::Elaborate(top));
 
-  PackagePipelineSchedules schedules;
+  PackageSchedule package_schedule(&p);
   for (const std::unique_ptr<Proc>& proc : p.procs()) {
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
         RunPipelineSchedule(proc.get(), TestDelayEstimator(),
                             SchedulingOptions().pipeline_stages(2), &elab));
-    schedules.emplace(proc.get(), std::move(schedule));
+    XLS_ASSERT_OK(
+        package_schedule.AddSchedule(proc.get(), std::move(schedule)));
   }
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenResult result,
-      ToPipelineModuleText(schedules, &p,
+      ToPipelineModuleText(package_schedule, &p,
                            CodegenOptions()
                                .use_system_verilog(UseSystemVerilog())
                                .clock_name("clk")

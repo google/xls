@@ -749,7 +749,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleWithFdo(
                                      &synthesizer);
 }
 
-absl::StatusOr<PackagePipelineSchedules> RunSynchronousPipelineSchedule(
+absl::StatusOr<PackageSchedule> RunSynchronousPipelineSchedule(
     Package* package, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options, const ProcElaboration& elab) {
   // TODO(https://github.com/google/xls/issues/2175): Synchronous scheduling
@@ -806,44 +806,40 @@ absl::StatusOr<PackagePipelineSchedules> RunSynchronousPipelineSchedule(
   //   in the global schedule (cycle_map[X]).
   //
   // * For all other procs, the schedule cycle for a node X is cycle_map[X]
-  //   minus the minimum cycle for any node in the proc including nodes of procs
-  //   instantiated (transitively) by the proc.
-  PackagePipelineSchedules schedules;
-  absl::flat_hash_map<Proc*, int64_t> first_proc_cycle;
+  //   minus the minimum cycle for any node in the proc.
+  //
+  // The computed adjustments for each proc are saved in `synchronous_offsets`.
+  absl::flat_hash_map<FunctionBase*, int64_t> synchronous_offsets;
   // Iterate through the proc hierarchy from the bottom up.
   for (auto it = elab.procs().crbegin(); it != elab.procs().crend(); ++it) {
     Proc* proc = *it;
-    XLS_ASSIGN_OR_RETURN(ProcInstance * proc_instance,
-                         elab.GetUniqueInstance(proc));
 
-    int64_t earliest_stage = std::numeric_limits<int64_t>::max();
-    for (const std::unique_ptr<ProcInstance>& instantiated_proc_instance :
-         proc_instance->instantiated_procs()) {
-      earliest_stage =
-          std::min(earliest_stage,
-                   first_proc_cycle.at(instantiated_proc_instance->proc()));
+    int64_t earliest_stage;
+    if (proc == elab.top()->proc() || proc->node_count() == 0) {
+      earliest_stage = 0;
+    } else {
+      earliest_stage = std::numeric_limits<int64_t>::max();
+      for (Node* node : proc->nodes()) {
+        earliest_stage = std::min(earliest_stage, cycle_map.at(node));
+      }
     }
-    for (Node* node : proc->nodes()) {
-      earliest_stage = std::min(earliest_stage, cycle_map.at(node));
-    }
-    first_proc_cycle[proc] = earliest_stage;
+    synchronous_offsets[proc] = earliest_stage;
   }
 
+  PackageSchedule::ScheduleMap schedule_map;
   for (Proc* proc : elab.procs()) {
     absl::flat_hash_map<Node*, int64_t> proc_cycle_map;
-    if (proc == elab.top()->proc()) {
-      for (Node* node : proc->nodes()) {
-        proc_cycle_map[node] = cycle_map.at(node);
-      }
-    } else {
-      for (Node* node : proc->nodes()) {
-        proc_cycle_map[node] = cycle_map.at(node) - first_proc_cycle.at(proc);
-      }
+    for (Node* node : proc->nodes()) {
+      proc_cycle_map[node] = cycle_map.at(node) - synchronous_offsets.at(proc);
     }
-    schedules.insert({proc, PipelineSchedule(proc, proc_cycle_map)});
+    PipelineSchedule schedule(proc, proc_cycle_map);
+    schedule_map[proc] = PipelineSchedule(proc, proc_cycle_map);
   }
 
-  return schedules;
+  PackageSchedule package_schedule(package, std::move(schedule_map),
+                                   std::move(synchronous_offsets));
+  VLOG(2) << package_schedule.ToString();
+  return package_schedule;
 }
 
 }  // namespace xls

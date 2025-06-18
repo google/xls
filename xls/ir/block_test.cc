@@ -58,6 +58,7 @@ using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Optional;
+using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
 class BlockTest : public IrTestBase {
@@ -695,6 +696,133 @@ TEST_F(BlockTest, BlockInstantiation) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * clone, block->Clone("cloned"));
   ExpectIr(clone->DumpIr(), TestName(), "cloned");
+}
+
+TEST_F(BlockTest, AddAndRemoveBlockInstantiation) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  ResetBehavior reset_behavior{.asynchronous = false, .active_low = true};
+
+  Block* subblock1;
+  {
+    BlockBuilder sub_bb("subblock1", p.get());
+    BValue a = sub_bb.InputPort("a", u32);
+    BValue b = sub_bb.InputPort("b", u32);
+    sub_bb.OutputPort("x", a);
+    sub_bb.OutputPort("y", b);
+    XLS_ASSERT_OK_AND_ASSIGN(subblock1, sub_bb.Build());
+  }
+
+  Block* subblock2;
+  {
+    BlockBuilder sub_bb("subblock2", p.get());
+    XLS_ASSERT_OK_AND_ASSIGN(subblock2, sub_bb.Build());
+    XLS_ASSERT_OK(subblock2->AddClockPort("clk"));
+    XLS_ASSERT_OK(subblock2->AddResetPort("rst", reset_behavior));
+  }
+
+  BlockBuilder bb("my_block", p.get());
+  bb.ResetPort("rst", reset_behavior);
+  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  BValue in1 = bb.InputPort("in1", u32);
+  BValue in2 = bb.InputPort("in2", u32);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block::InstantiationAndConnections inst1,
+      block->AddAndConnectBlockInstantiation(
+          "inst1", subblock1, {{"a", in1.node()}, {"b", in2.node()}}));
+  EXPECT_EQ(inst1.instantiation->instantiated_block()->name(), "subblock1");
+  EXPECT_THAT(inst1.inputs,
+              UnorderedElementsAre(
+                  Pair("a", m::InstantiationInput(m::InputPort("in1"))),
+                  Pair("b", m::InstantiationInput(m::InputPort("in2")))));
+  EXPECT_THAT(inst1.outputs,
+              UnorderedElementsAre(Pair("x", m::InstantiationOutput("x")),
+                                   Pair("y", m::InstantiationOutput("y"))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block::InstantiationAndConnections inst2,
+      block->AddAndConnectBlockInstantiation("inst2", subblock2, {}));
+  EXPECT_EQ(inst2.instantiation->instantiated_block()->name(), "subblock2");
+  EXPECT_THAT(inst2.inputs,
+              UnorderedElementsAre(
+                  Pair("rst", m::InstantiationInput(m::InputPort("rst")))));
+  EXPECT_THAT(inst2.outputs, UnorderedElementsAre());
+
+  EXPECT_EQ(block->GetInstantiations().size(), 2);
+
+  XLS_ASSERT_OK(block->RemoveInstantiationAndConnections(inst1.instantiation));
+  XLS_ASSERT_OK(block->RemoveInstantiationAndConnections(inst2.instantiation));
+
+  EXPECT_TRUE(block->GetInstantiations().empty());
+  for (Node* node : block->nodes()) {
+    EXPECT_FALSE(node->Is<InstantiationConnection>());
+  }
+}
+
+TEST_F(BlockTest, AddInstantiationErrorConditionMissingReset) {
+  auto p = CreatePackage();
+  ResetBehavior reset_behavior{.asynchronous = false, .active_low = true};
+
+  BlockBuilder sub_bb("subblock", p.get());
+  sub_bb.ResetPort("rst", reset_behavior);
+  XLS_ASSERT_OK(sub_bb.AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * subblock, sub_bb.Build());
+
+  BlockBuilder bb("my_block", p.get());
+  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_THAT(
+      block->AddAndConnectBlockInstantiation("inst1", subblock, {}),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr(
+              "Cannot instantiate block `subblock` in block `my_block`. Block "
+              "`subblock` has a reset port, but block `my_block` does not")));
+}
+
+TEST_F(BlockTest, AddInstantiationErrorConditionMismatchedReset) {
+  auto p = CreatePackage();
+
+  BlockBuilder sub_bb("subblock", p.get());
+  sub_bb.ResetPort("rst",
+                   ResetBehavior{.asynchronous = false, .active_low = true});
+  XLS_ASSERT_OK(sub_bb.AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * subblock, sub_bb.Build());
+
+  BlockBuilder bb("my_block", p.get());
+  bb.ResetPort("rst", ResetBehavior{.asynchronous = true, .active_low = true});
+  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_THAT(
+      block->AddAndConnectBlockInstantiation("inst1", subblock, {}),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("Cannot instantiate block `subblock` in block `my_block` "
+                    "because the blocks have different reset behavior")));
+}
+
+TEST_F(BlockTest, AddInstantiationErrorConditionMissingClock) {
+  auto p = CreatePackage();
+
+  BlockBuilder sub_bb("subblock", p.get());
+  XLS_ASSERT_OK(sub_bb.AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * subblock, sub_bb.Build());
+
+  BlockBuilder bb("my_block", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_THAT(
+      block->AddAndConnectBlockInstantiation("inst1", subblock, {}),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr(
+              "Cannot instantiate block `subblock` in block `my_block`. Block "
+              "`subblock` has a clock port, but block `my_block` does not")));
 }
 
 TEST_F(BlockTest, ReplaceInstantiation) {
