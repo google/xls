@@ -435,6 +435,25 @@ absl::StatusOr<bool> StrengthReduceNode(
     }
   }
 
+  // One-hot encode can be better represented as a priority-sel.
+  // TODO(allight): It might be worthwhile to make a light query engine which
+  // more accurately tracks one-hot-ness.
+  if (node->op() == Op::kEncode &&
+      query_engine.AtMostOneBitTrue(node->operand(0))) {
+    std::vector<Node*> cases;
+    cases.reserve(node->operand(0)->BitCountOrDie());
+    for (int64_t i = 0; i < node->operand(0)->BitCountOrDie(); ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          std::back_inserter(cases),
+          node->function_base()->MakeNode<Literal>(
+              node->loc(), Value(UBits(i, node->BitCountOrDie()))));
+    }
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<PrioritySelect>(
+                                node->operand(0), cases, cases[0])
+                            .status());
+    return true;
+  }
+
   // Transform arithmetic operation with exactly one unknown-bit in all of its
   // operands into a select on that one unknown bit.
   constexpr std::array<Op, 6> kExpensiveArithOps = {
