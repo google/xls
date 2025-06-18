@@ -858,6 +858,44 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, Conditional) {
   ExpectIr(converted);
 }
 
+// This test is only intended for TIv2.
+// It is necessary to chain conditionals in various forms to test use-def chain
+// is correct when a branch is eliminated.
+TEST(IrConverterTest, ConditionalParametricConstEval) {
+  constexpr std::string_view program = R"(
+fn f<A: u32, B: u32>(a: u32) -> u32 {
+  let b = if A == u32:1 {
+    if B == u32:2 {
+      u32:0 << 999 // To verify this branch is not being compiled.
+    } else {
+      a
+    }
+  } else {
+    u32:0 << 999
+  };
+  if A == u32:2 {
+    fail!("failure", u32:0);
+  };
+  if A != u32:1 {
+    u32:0 << 999
+  } else {
+    if B != u32:2 {
+      b + 1
+    } else {
+      u32:0 << 999
+    }
+  }
+}
+const A = f<u32:1, u32:3>(u32:1);
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false},
+                           nullptr, true));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchPackageLevelConstant) {
   const char* program =
       R"(const FOO = u8:0xff;
