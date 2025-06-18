@@ -359,9 +359,9 @@ class TypeValidator : public AstNodeVisitorWithDefault {
       if (lhs_bits_count < number_value) {
         return TypeInferenceErrorStatus(
             binop.rhs()->span(), rhs_type,
-            absl::StrFormat(
-                "Shift amount is larger than shift value bit width of %d.",
-                lhs_bits_count),
+            absl::StrFormat("Shifting a %d-bit value (`%s`) by a constexpr "
+                            "shift of %d exceeds its bit width.",
+                            lhs_bits_count, lhs_type->ToString(), number_value),
             file_table_);
       }
     }

@@ -3703,15 +3703,17 @@ TEST(TypecheckV2Test,
 }
 
 TEST(TypecheckV2Test, GlobalConstantEqualsLShiftOfLiteralsSizeTooSmall) {
-  EXPECT_THAT("const X = u2:3 << 4;",
-              TypecheckFails(HasSubstr(
-                  "Shift amount is larger than shift value bit width of 2.")));
+  EXPECT_THAT(
+      "const X = u2:3 << 4;",
+      TypecheckFails(HasSubstr("Shifting a 2-bit value (`uN[2]`) by a "
+                               "constexpr shift of 4 exceeds its bit width.")));
 }
 
 TEST(TypecheckV2Test, GlobalConstantEqualsRShiftOfLiteralsSizeTooSmall) {
-  EXPECT_THAT("const X = u1:1 >> 4;",
-              TypecheckFails(HasSubstr(
-                  "Shift amount is larger than shift value bit width of 1.")));
+  EXPECT_THAT(
+      "const X = u1:1 >> 4;",
+      TypecheckFails(HasSubstr("Shifting a 1-bit value (`uN[1]`) by a "
+                               "constexpr shift of 4 exceeds its bit width.")));
 }
 
 TEST(TypecheckV2Test, GlobalConstantEqualsLShiftOfLiteralsMismatchedType) {
