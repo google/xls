@@ -240,6 +240,11 @@ class ParametricBindings {
   absl::flat_hash_map<std::string, const ParametricBinding*> bindings_;
 };
 
+// Returns true if the subtree rooted at "node" contains any `Invocation`
+// AST node. `want_types` is forwarded to `GetChildren()` to control whether
+// type-annotation children are included in the traversal.
+bool ContainsInvocation(const AstNode* node, bool want_types = true);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

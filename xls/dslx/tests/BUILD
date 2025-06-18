@@ -1333,6 +1333,8 @@ dslx_lang_test(
     dslx_entry = "my_top",
 )
 
+dslx_lang_test(name = "match_tuple_concat_inference")
+
 exports_files(glob(include = ["*.x"]))
 
 build_test(

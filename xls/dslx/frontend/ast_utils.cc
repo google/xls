@@ -15,6 +15,7 @@
 #include "xls/dslx/frontend/ast_utils.h"
 
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <optional>
 #include <string>
@@ -594,6 +595,22 @@ std::optional<const Function*> GetContainingFunction(const AstNode* node) {
     current = current->parent();
   }
   return std::nullopt;
+}
+
+bool ContainsInvocation(const AstNode* node, bool want_types) {
+  std::deque<const AstNode*> worklist;
+  worklist.push_back(node);
+  while (!worklist.empty()) {
+    const AstNode* current = worklist.front();
+    worklist.pop_front();
+    if (current->kind() == AstNodeKind::kInvocation) {
+      return true;
+    }
+    for (const AstNode* child : current->GetChildren(want_types)) {
+      worklist.push_back(child);
+    }
+  }
+  return false;
 }
 
 }  // namespace xls::dslx
