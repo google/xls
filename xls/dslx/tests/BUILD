@@ -1333,6 +1333,8 @@ dslx_lang_test(
     dslx_entry = "my_top",
 )
 
+dslx_lang_test(name = "fixed_point_import")
+
 exports_files(glob(include = ["*.x"]))
 
 build_test(
