@@ -14,15 +14,16 @@
 
 #include "xls/dslx/import_routines.h"
 
+#include <algorithm>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -44,6 +45,9 @@
 #include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
+
+// Here we include the generated list of stdlib built-in modules.
+#include "xls/dslx/stdlib_builtins.inc"
 
 // Data structure holding a path to a DSLX source file.
 struct DslxPath {
@@ -76,13 +80,16 @@ static absl::StatusOr<DslxPath> FindExistingPath(
 
   absl::Span<std::string const> pieces = subject.pieces();
   std::optional<std::string> subject_parent_path;
-  const absl::flat_hash_set<std::string> builtins = {
-      "std",     "abs_diff", "apfloat", "float32",
-      "float64", "bfloat16", "hfloat16"};
+  // The list of built-in stdlib module names is generated at build time from
+  // the contents of xls/dslx/stdlib/*.x (see generate_stdlib_builtins.cc).
+  auto is_builtin = [&](std::string_view name) {
+    return std::find(kDslxStdlibBuiltins.begin(), kDslxStdlibBuiltins.end(),
+                     name) != kDslxStdlibBuiltins.end();
+  };
 
   // Initialize subject and parent subject path.
   std::filesystem::path subject_path;
-  if (pieces.size() == 1 && builtins.contains(pieces[0])) {
+  if (pieces.size() == 1 && is_builtin(pieces[0])) {
     subject_path = stdlib_path / absl::StrCat(pieces[0], ".x");
   } else {
     subject_path = absl::StrJoin(pieces, "/") + ".x";
