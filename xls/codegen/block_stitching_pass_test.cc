@@ -168,10 +168,11 @@ absl::StatusOr<std::pair<bool, CodegenContext>> RunBlockStitchingPass(
   XLS_ASSIGN_OR_RETURN(SchedulingResult scheduling_result,
                        Schedule(p, scheduling_options, &delay_estimator));
   XLS_ASSIGN_OR_RETURN(
-      PackagePipelineSchedules schedules,
-      PackagePipelineSchedulesFromProto(p, scheduling_result.schedules));
-  XLS_ASSIGN_OR_RETURN(CodegenContext context,
-                       PackageToPipelinedBlocks(schedules, codegen_options, p));
+      PackageSchedule package_schedule,
+      PackageSchedule::FromProto(p, scheduling_result.package_schedule));
+  XLS_ASSIGN_OR_RETURN(
+      CodegenContext context,
+      PackageToPipelinedBlocks(package_schedule, codegen_options, p));
   CodegenCompoundPass ccp("block_stitching_and_friends",
                           "Block stitching and friends.");
   // Some tests rely on the side effect condition pass to update the predicates
@@ -3792,17 +3793,11 @@ TEST_F(ProcInliningPassTest, TokenFanOut) {
       EvalAndExpect(p.get(), {{"in", {2, 5, 7}}}, {{"out", {10, 19, 25}}})
           .status());
 
-  LOG(INFO) << "================= BEFORE";
-  LOG(INFO) << p->DumpIr();
-
   XLS_ASSERT_OK_AND_ASSIGN((auto [changed, context]),
                            RunBlockStitchingPass(p.get(), /*top_name=*/"A"));
   EXPECT_TRUE(changed);
 
   EXPECT_EQ(p->blocks().size(), 4);
-
-  LOG(INFO) << "================= AFTER";
-  LOG(INFO) << p->DumpIr();
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("A"));
   EXPECT_THAT(EvalBlock(top_block, context.metadata(), {{"in", {2, 5, 7}}}),

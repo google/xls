@@ -44,14 +44,12 @@ namespace xls {
 namespace verilog {
 
 absl::StatusOr<CodegenResult> GenerateModuleText(
-    const PackagePipelineSchedules& schedules, Package* package,
+    const PackageSchedule& package_schedule, Package* package,
     const CodegenOptions& options, const DelayEstimator* delay_estimator) {
   VLOG(2) << "Generating module for package:";
   XLS_VLOG_LINES(2, package->DumpIr());
   if (VLOG_IS_ON(2)) {
-    for (const auto& [_, schedule] : schedules) {
-      XLS_VLOG_LINES(2, schedule.ToString());
-    }
+    XLS_VLOG_LINES(2, package_schedule.ToString());
   }
 
   // TODO(tedhong): 2024-11-15 - Make passes that can be done at the IR level
@@ -64,7 +62,7 @@ absl::StatusOr<CodegenResult> GenerateModuleText(
   // For now, these passes call the existing generators and go directly from IR
   // to Block IR.
   XLS_ASSIGN_OR_RETURN(CodegenContext codegen_context,
-                       CreateBlocksFor(schedules, options, package));
+                       CreateBlocksFor(package_schedule, options, package));
 
   // Note: this is mutated below so cannot be const. It would be nice to
   // refactor this so it could be.
@@ -82,7 +80,8 @@ absl::StatusOr<CodegenResult> GenerateModuleText(
 
   // Block to Block codegen passes.
   if (std::any_of(
-          schedules.begin(), schedules.end(),
+          package_schedule.GetSchedules().begin(),
+          package_schedule.GetSchedules().end(),
           [](const std::pair<FunctionBase*, PipelineSchedule>& element) {
             return element.first->IsProc();
           })) {

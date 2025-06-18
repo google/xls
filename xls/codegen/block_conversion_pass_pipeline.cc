@@ -40,7 +40,7 @@
 namespace xls::verilog {
 
 absl::StatusOr<CodegenContext> CreateBlocksFor(
-    const PackagePipelineSchedules& schedules, const CodegenOptions& options,
+    const PackageSchedule& package_schedule, const CodegenOptions& options,
     Package* package) {
   // Create the top block first.
   XLS_RET_CHECK(package->GetTop().has_value());
@@ -64,16 +64,9 @@ absl::StatusOr<CodegenContext> CreateBlocksFor(
   XLS_RET_CHECK_EQ(block_name_uniquer.GetSanitizedUniqueName(module_name),
                    module_name);
 
-  // Sort functions by name.
-  std::vector<FunctionBase*> functions;
-  for (const auto& [fb, schedule] : schedules) {
-    functions.push_back(fb);
-  }
-  std::sort(functions.begin(), functions.end(), FunctionBase::NameLessThan);
-
   // Create all sub-blocks and make associations between the function, schedule
   // and block.
-  for (FunctionBase* fb : functions) {
+  for (FunctionBase* fb : package_schedule.GetScheduledFunctionBases()) {
     std::string sub_block_name =
         (fb == top) ? module_name
                     : block_name_uniquer.GetSanitizedUniqueName(
@@ -82,7 +75,7 @@ absl::StatusOr<CodegenContext> CreateBlocksFor(
                                : package->AddBlock(std::make_unique<Block>(
                                      sub_block_name, package));
 
-    const PipelineSchedule& schedule = schedules.at(fb);
+    const PipelineSchedule& schedule = package_schedule.GetSchedule(fb);
 
     block->SetFunctionBaseProvenance(fb);
     context.AssociateSchedule(fb, schedule);

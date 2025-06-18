@@ -152,8 +152,8 @@ absl::Status RealMain(std::string_view input_path) {
     }
     std::cout << "\n";
   } else {
-    XLS_ASSIGN_OR_RETURN(PackagePipelineSchedulesProto proto,
-                         ParseTextProtoFile<PackagePipelineSchedulesProto>(
+    XLS_ASSIGN_OR_RETURN(PackageScheduleProto proto,
+                         ParseTextProtoFile<PackageScheduleProto>(
                              absl::GetFlag(FLAGS_schedule_path)));
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
                          PipelineSchedule::FromProto(top, proto));

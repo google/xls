@@ -66,7 +66,7 @@ SchedulingContext::GetSchedulableFunctions() const {
 bool SchedulingContext::IsScheduled() const {
   std::vector<FunctionBase*> schedulable_functions;
   return absl::c_all_of(schedulable_functions, [this](FunctionBase* f) {
-    return schedules_.contains(f);
+    return package_schedule_.HasSchedule(f);
   });
 }
 

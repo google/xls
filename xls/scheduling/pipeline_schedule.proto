@@ -58,6 +58,12 @@ message PipelineScheduleProto {
 }
 
 // Holds pipeline schedules for a subset of functions/procs in a package.
-message PackagePipelineSchedulesProto {
+message PackageScheduleProto {
+  // Map from FunctionBase name to pipeline schedule.
   map<string, PipelineScheduleProto> schedules = 1;
+
+  // If this is the synchronous schedule (for synchronous proc implementation)
+  // then this map holds the offset of each FunctionBase (indexed by name)
+  // within the synchronous schedule.
+  map<string, int64> synchronous_offsets = 2;
 }

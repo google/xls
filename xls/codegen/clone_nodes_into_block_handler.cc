@@ -590,11 +590,13 @@ absl::Status CloneNodesIntoBlockHandler::AddBlockInstantiations(
 
 CloneNodesIntoBlockHandler::CloneNodesIntoBlockHandler(
     FunctionBase* proc_or_function, int64_t stage_count,
-    const CodegenOptions& options, Block* block)
+    const CodegenOptions& options, Block* block,
+    std::optional<const PackageSchedule*> schedule)
     : is_proc_(proc_or_function->IsProc()),
       function_base_(proc_or_function),
       options_(options),
-      block_(block) {
+      block_(block),
+      schedule_(schedule) {
   if (is_proc_) {
     Proc* proc = function_base_->AsProcOrDie();
     result_.state_registers.resize(proc->GetStateElementCount());
@@ -647,10 +649,9 @@ absl::Status CloneNodesIntoBlockHandler::CloneNodes(
   return absl::OkStatus();
 }
 
-absl::Status CloneNodesIntoBlockHandler::AddNextPipelineStage(
-    const PipelineSchedule& schedule, int64_t stage) {
+absl::Status CloneNodesIntoBlockHandler::AddNextPipelineStage(int64_t stage) {
   for (Node* function_base_node : function_base_->nodes()) {
-    if (schedule.IsLiveOutOfCycle(function_base_node, stage)) {
+    if (GetSchedule().IsLiveOutOfCycle(function_base_node, stage)) {
       Node* node = node_map_.at(function_base_node);
 
       XLS_ASSIGN_OR_RETURN(Node * node_after_stage,

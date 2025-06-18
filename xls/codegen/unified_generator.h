@@ -31,7 +31,7 @@ namespace verilog {
 // given in the signature. If a delay estimator is provided, the signature also
 // includes delay information about the pipeline stages.
 absl::StatusOr<CodegenResult> GenerateModuleText(
-    const PackagePipelineSchedules& schedules, Package* package,
+    const PackageSchedule& package_schedule, Package* package,
     const CodegenOptions& options,
     const DelayEstimator* delay_estimator = nullptr);
 
