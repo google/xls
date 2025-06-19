@@ -6659,6 +6659,27 @@ proc P {
                                "is out of bounds of the array type.")));
 }
 
+TEST(TypecheckV2Test, ProcWithChannelArrayExpr) {
+  EXPECT_THAT(
+      R"(
+const A = u32:1;
+proc Proc {
+  inputs: chan<s32>[A + 1] in;
+  outputs: chan<s32>[A + 1] out;
+  config() {
+    let (a, b) = chan<s32>[1 + A]("c");
+    (b, a)
+  }
+  init { () }
+  next(state: ()) { () }
+}
+
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("a", "chan(sN[32], dir=out)[2]"),
+                HasNodeWithType("b", "chan(sN[32], dir=in)[2]"))));
+}
+
 TEST(TypecheckV2Test, ImportParametricFunctionWithDefaultExpression) {
   constexpr std::string_view kImported = R"(
 pub fn some_function<N: u32, M: u32 = {N + 1}>() -> uN[M] { uN[M]:0 }

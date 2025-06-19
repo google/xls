@@ -4135,10 +4135,17 @@ class ChannelDecl : public Expr {
   std::string_view GetNodeTypeName() const override { return "ChannelDecl"; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
+    std::vector<AstNode*> children;
     if (want_types) {
-      return {type_, &channel_name_expr_};
+      children.push_back(type_);
     }
-    return {&channel_name_expr_};
+    children.push_back(&channel_name_expr_);
+    if (dims_.has_value()) {
+      for (Expr* dim : dims_.value()) {
+        children.push_back(dim);
+      }
+    }
+    return children;
   }
 
   TypeAnnotation* type() const { return type_; }

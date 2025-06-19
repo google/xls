@@ -132,6 +132,17 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleChannelDecl(const ChannelDecl* node) override {
     VLOG(5) << "HandleChannelDecl: " << node->ToString()
             << " with type: " << node->type()->ToString();
+    if (node->dims()) {
+      for (Expr* dim : *node->dims()) {
+        XLS_ASSIGN_OR_RETURN(const NameRef* dim_variable,
+                             table_.DefineInternalVariable(
+                                 InferenceVariableKind::kType, dim,
+                                 GenerateInternalTypeVariableName(dim)));
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(dim, dim_variable));
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            dim, CreateU32Annotation(module_, dim->span())));
+      }
+    }
     CHECK_NE(node->type(), nullptr);
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node, module_.Make<TupleTypeAnnotation>(
@@ -873,6 +884,22 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     } else {
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           node->dim(), CreateU32Annotation(module_, node->dim()->span())));
+    }
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleChannelTypeAnnotation(
+      const ChannelTypeAnnotation* node) override {
+    if (node->dims()) {
+      for (Expr* dim : *node->dims()) {
+        XLS_ASSIGN_OR_RETURN(const NameRef* dim_variable,
+                             table_.DefineInternalVariable(
+                                 InferenceVariableKind::kType, dim,
+                                 GenerateInternalTypeVariableName(dim)));
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(dim, dim_variable));
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            dim, CreateU32Annotation(module_, dim->span())));
+      }
     }
     return DefaultHandler(node);
   }
