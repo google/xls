@@ -231,6 +231,51 @@ Examples:
     attrs = _check_sha256sum_frozen_attrs,
 )
 
+proto_data_tool_attrs = {
+    "_proto2bin_tool": attr.label(
+        doc = "Convert a proto text to a proto binary.",
+        default = Label("//xls/tools:proto2bin"),
+        allow_single_file = True,
+        executable = True,
+        cfg = "exec",
+    ),
+}
+
+def text_proto_to_binary(
+        ctx,
+        src_file,
+        output_file,
+        proto_name,
+        proto2bin_tool = None):
+    """Performs the action of transforming src file to binary proto.
+
+    Args:
+      ctx: The current rule's context object.
+      src_file: The source file.
+      output_file: The output file.
+      proto_name: The name of the proto message.
+      proto2bin_tool: The tool to use for converting the proto. If not present include
+                      'proto_data_tool_attrs' to get the default tool.
+    """
+    if proto2bin_tool == None:
+        if not ctx.attr._proto2bin_tool:
+            fail("proto2bin_tool is not set and not included in the attrs.")
+        proto2bin_tool = ctx.executable._proto2bin_tool
+    args = ctx.actions.args()
+    args.add(src_file.path)
+    args.add("--message", proto_name)
+    args.add("--output", output_file.path)
+    ctx.actions.run(
+        outputs = [output_file],
+        # The files required for generating the protobin file.
+        inputs = [src_file],
+        executable = proto2bin_tool,
+        arguments = [args],
+        mnemonic = "Proto2Bin",
+        progress_message = "Converting to binary proto: %s" % (src_file.short_path),
+        toolchain = None,
+    )
+
 def _proto_data_impl(ctx):
     """The implementation of the 'proto_data' rule.
 
@@ -241,55 +286,40 @@ def _proto_data_impl(ctx):
       DefaultInfo provider
     """
     src = ctx.file.src
-    proto2bin_tool = ctx.executable._proto2bin_tool
     protobin_filename = get_output_filename_value(
         ctx,
         "protobin_file",
         ctx.attr.name + _PROTOBIN_FILE_EXTENSION,
     )
     protobin_file = ctx.actions.declare_file(protobin_filename)
-    ctx.actions.run_shell(
-        outputs = [protobin_file],
-        # The files required for generating the protobin file.
-        inputs = [src, proto2bin_tool],
-        # The proto2bin executable is a tool needed by the action.
-        tools = [proto2bin_tool],
-        command = "{} {} --message {} --output {}".format(
-            proto2bin_tool.path,
-            src.path,
-            ctx.attr.proto_name,
-            protobin_file.path,
-        ),
-        use_default_shell_env = True,
-        mnemonic = "Proto2Bin",
-        progress_message = "Checking sha256sum on file: %s" % (src.path),
+    text_proto_to_binary(
+        ctx = ctx,
+        src_file = src,
+        output_file = protobin_file,
+        proto_name = ctx.attr.proto_name,
     )
     return [DefaultInfo(files = depset([protobin_file]))]
 
-_proto_data_attrs = {
-    "src": attr.label(
-        doc = "The source file.",
-        allow_single_file = True,
-        mandatory = True,
-    ),
-    "protobin_file": attr.output(
-        doc = "The name of the output file to write binary proto to. If not " +
-              "specified, the target name of the bazel rule followed by a " +
-              _PROTOBIN_FILE_EXTENSION + " extension is used.",
-    ),
-    "proto_name": attr.string(
-        doc = "The name of the message type in the .proto files that 'src' " +
-              "file represents.",
-        default = "xlscc.HLSBlock",
-    ),
-    "_proto2bin_tool": attr.label(
-        doc = "Convert a proto text to a proto binary.",
-        default = Label("//xls/tools:proto2bin"),
-        allow_single_file = True,
-        executable = True,
-        cfg = "exec",
-    ),
-}
+_proto_data_attrs = dicts.add(
+    {
+        "src": attr.label(
+            doc = "The source file.",
+            allow_single_file = True,
+            mandatory = True,
+        ),
+        "protobin_file": attr.output(
+            doc = "The name of the output file to write binary proto to. If not " +
+                  "specified, the target name of the bazel rule followed by a " +
+                  _PROTOBIN_FILE_EXTENSION + " extension is used.",
+        ),
+        "proto_name": attr.string(
+            doc = "The name of the message type in the .proto files that 'src' " +
+                  "file represents.",
+            default = "xlscc.HLSBlock",
+        ),
+    },
+    proto_data_tool_attrs,
+)
 
 proto_data = rule(
     doc = """Converts a proto text with a xlscc.HLSBlock message to a proto binary.
