@@ -1459,7 +1459,7 @@ pub proc ZstdDecoder<
 }
 
 const INST_AXI_DATA_W = u32:64;
-const INST_AXI_ADDR_W = u32:16;
+const INST_AXI_ADDR_W = u32:32;
 const INST_AXI_ID_W = u32:4;
 const INST_AXI_DEST_W = u32:4;
 const INST_REGS_N = u32:16;

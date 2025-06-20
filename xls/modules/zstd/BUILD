@@ -1486,6 +1486,7 @@ xls_dslx_test(
 ZSTD_DEC_INTERNAL_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "ZstdDecoderInternal",
     "pipeline_stages": "2",
+    "worst_case_throughput": "2",
 }
 
 xls_dslx_verilog(
