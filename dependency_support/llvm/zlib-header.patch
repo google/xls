@@ -1,0 +1,24 @@
+diff -u -r a/llvm/lib/Support/Compression.cpp b/llvm/lib/Support/Compression.cpp
+--- a/llvm/lib/Support/Compression.cpp	2025-06-14 00:07:14.000000000 +0200
++++ b/llvm/lib/Support/Compression.cpp	2025-06-19 12:09:14.473872092 +0200
+@@ -18,7 +18,7 @@
+ #include "llvm/Support/Error.h"
+ #include "llvm/Support/ErrorHandling.h"
+ #if LLVM_ENABLE_ZLIB
+-#include <zlib.h>
++#include "zlib.h"
+ #endif
+ #if LLVM_ENABLE_ZSTD
+ #include <zstd.h>
+diff -u -r a/llvm/lib/Support/CRC.cpp b/llvm/lib/Support/CRC.cpp
+--- a/llvm/lib/Support/CRC.cpp	2025-06-14 00:07:14.000000000 +0200
++++ b/llvm/lib/Support/CRC.cpp	2025-06-19 12:08:46.489870260 +0200
+@@ -83,7 +83,7 @@
+ 
+ #else
+ 
+-#include <zlib.h>
++#include "zlib.h"
+ uint32_t llvm::crc32(uint32_t CRC, ArrayRef<uint8_t> Data) {
+   // Zlib's crc32() only takes a 32-bit length, so we have to iterate for larger
+   // sizes. One could use crc32_z() instead, but that's a recent (2017) addition
