@@ -136,6 +136,7 @@ cc_library(
         ":optimization_pass_registry",
         ":pass_base",
         ":pass_pipeline_cc_proto",
+        ":pipeline_generator",
         ":proc_state_array_flattening_pass",
         ":proc_state_bits_shattering_pass",
         ":proc_state_narrowing_pass",
@@ -685,7 +686,6 @@ cc_library(
     hdrs = ["optimization_pass_registry.h"],
     deps = [
         ":optimization_pass",
-        ":pass_pipeline_cc_proto",
         "//xls/common:module_initializer",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -1660,7 +1660,6 @@ cc_library(
     hdrs = ["pass_registry.h"],
     deps = [
         ":pass_base",
-        ":pass_pipeline_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -1695,6 +1694,7 @@ cc_test(
         ":optimization_pass",
         ":pass_base",
         ":pass_pipeline_cc_proto",
+        ":pipeline_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",

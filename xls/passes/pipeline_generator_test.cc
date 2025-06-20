@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "xls/passes/pipeline_generator.h"
+
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -123,7 +125,7 @@ class TestPipelineGenerator : public OptimizationPipelineGenerator {
   // Pass is count_pass_<a|b>(cnt_to_stable)
   absl::Status AddPassToPipeline(
       OptimizationCompoundPass* pass, std::string_view pass_name,
-      const PassPipelineProto::PassOptions& options) const override {
+      const BasicPipelineOptions& options) const override {
     std::string idx;
     if (pass_name == "dce") {
       XLS_ASSIGN_OR_RETURN(
@@ -160,23 +162,23 @@ class TestPipelineGenerator : public OptimizationPipelineGenerator {
   }
 
   absl::StatusOr<std::unique_ptr<OptimizationPass>> FinalizeWithOptions(
-      std::unique_ptr<OptimizationCompoundPass>&& cur,
-      const PassPipelineProto::PassOptions& options) const override {
+      std::unique_ptr<OptimizationPass>&& cur,
+      const BasicPipelineOptions& options) const override {
     return WrapWithOptions(std::move(cur), options);
   }
   absl::StatusOr<std::unique_ptr<OptimizationPass>> WrapWithOptions(
       std::unique_ptr<OptimizationPass>&& cur,
-      const PassPipelineProto::PassOptions& options) const {
+      const BasicPipelineOptions& options) const {
     std::unique_ptr<OptimizationPass> src = std::move(cur);
-    if (options.has_max_opt_level()) {
+    if (options.max_opt_level.has_value()) {
       src = std::make_unique<
           xls::internal::DynamicCapOptLevel<OptimizationWrapperPass>>(
-          options.max_opt_level(), std::move(src));
+          *options.max_opt_level, std::move(src));
     }
-    if (options.has_min_opt_level()) {
+    if (options.min_opt_level.has_value()) {
       src = std::make_unique<
           xls::internal::DynamicIfOptLevelAtLeast<OptimizationWrapperPass>>(
-          options.min_opt_level(), std::move(src));
+          *options.min_opt_level, std::move(src));
     }
     return std::move(src);
   }

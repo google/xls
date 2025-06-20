@@ -24,7 +24,6 @@
 #include "absl/status/status.h"
 #include "xls/common/module_initializer.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
 
@@ -50,35 +49,15 @@ template <typename PassClass, typename... Args>
 class Adder final : public OptimizationPassGenerator {
  public:
   explicit Adder(Args... args) : args_(std::forward_as_tuple(args...)) {}
-  absl::Status AddToPipeline(
-      OptimizationCompoundPass* pass,
-      const PassPipelineProto::PassOptions& options) const final {
+  absl::StatusOr<std::unique_ptr<OptimizationPass>> Generate() const final {
     // Actually construct and insert the PassClass instance
     auto function = [&](auto... args) {
-      // LINT.IfChange(opt_pass_option)
       std::unique_ptr<OptimizationPass> base =
           std::make_unique<PassClass>(std::forward<decltype(args)>(args)...);
-      if (options.has_max_opt_level()) {
-        base = std::make_unique<
-            ::xls::internal::DynamicCapOptLevel<OptimizationWrapperPass>>(
-            options.max_opt_level(), std::move(base));
-      }
-      if (options.has_min_opt_level()) {
-        base = std::make_unique<
-            ::xls::internal::DynamicIfOptLevelAtLeast<OptimizationWrapperPass>>(
-            options.min_opt_level(), std::move(base));
-      }
-      if (options.requires_resource_sharing()) {
-        base = std::make_unique<
-            ::xls::IfResourceSharingEnabled<OptimizationWrapperPass>>(
-            std::move(base));
-      }
-      pass->AddOwned(std::move(base));
-      // LINT.ThenChange(optimization_pass_pipeline.cc:opt_pass_option)
+      return base;
     };
     // Unpack the argument tuple.
-    std::apply(function, args_);
-    return absl::OkStatus();
+    return std::apply(function, args_);
   }
 
  private:

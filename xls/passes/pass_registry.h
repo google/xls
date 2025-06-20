@@ -28,7 +28,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
 
@@ -37,10 +36,9 @@ template <typename OptionsT, typename... ContextT>
 class PassGenerator {
  public:
   virtual ~PassGenerator() = default;
-  // Create a new pass of the templated type and add it to the pipeline.
-  virtual absl::Status AddToPipeline(
-      CompoundPassBase<OptionsT, ContextT...>* pipeline,
-      const PassPipelineProto::PassOptions& options) const = 0;
+  // Create a new pass of the templated type
+  virtual absl::StatusOr<std::unique_ptr<PassBase<OptionsT, ContextT...>>>
+  Generate() const = 0;
 };
 
 // A registry for holding passes of a particular type. This allows one to

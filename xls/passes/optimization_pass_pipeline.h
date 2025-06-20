@@ -27,6 +27,7 @@
 #include "xls/passes/inlining_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_pipeline.pb.h"
+#include "xls/passes/pipeline_generator.h"
 
 namespace xls {
 
@@ -108,10 +109,10 @@ class OptimizationPassPipelineGenerator final
  protected:
   absl::Status AddPassToPipeline(
       OptimizationCompoundPass* pass, std::string_view pass_name,
-      const PassPipelineProto::PassOptions& options) const final;
+      const BasicPipelineOptions& options) const final;
   absl::StatusOr<std::unique_ptr<OptimizationPass>> FinalizeWithOptions(
-      std::unique_ptr<OptimizationCompoundPass>&& cur,
-      const PassPipelineProto::PassOptions& options) const override;
+      std::unique_ptr<OptimizationPass>&& cur,
+      const BasicPipelineOptions& options) const override;
 };
 
 inline OptimizationPassPipelineGenerator GetOptimizationPipelineGenerator() {

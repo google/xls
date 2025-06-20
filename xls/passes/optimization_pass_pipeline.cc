@@ -61,6 +61,7 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_pipeline.pb.h"
+#include "xls/passes/pipeline_generator.h"
 #include "xls/passes/proc_state_array_flattening_pass.h"
 #include "xls/passes/proc_state_bits_shattering_pass.h"
 #include "xls/passes/proc_state_narrowing_pass.h"
@@ -344,36 +345,38 @@ absl::StatusOr<bool> RunOptimizationPassPipeline(Package* package,
 
 absl::Status OptimizationPassPipelineGenerator::AddPassToPipeline(
     OptimizationCompoundPass* pass, std::string_view pass_name,
-    const PassPipelineProto::PassOptions& options) const {
+    const BasicPipelineOptions& options) const {
   XLS_ASSIGN_OR_RETURN(auto* generator,
                        GetOptimizationRegistry().Generator(pass_name));
-  return generator->AddToPipeline(pass, options);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OptimizationPass> req_pass,
+                       generator->Generate());
+  XLS_ASSIGN_OR_RETURN(req_pass,
+                       FinalizeWithOptions(std::move(req_pass), options));
+  pass->AddOwned(std::move(req_pass));
+  return absl::OkStatus();
 }
 
 absl::StatusOr<std::unique_ptr<OptimizationPass>>
 OptimizationPassPipelineGenerator::FinalizeWithOptions(
-    std::unique_ptr<OptimizationCompoundPass>&& cur,
-    const PassPipelineProto::PassOptions& options) const {
+    std::unique_ptr<OptimizationPass>&& cur,
+    const BasicPipelineOptions& options) const {
   // Make sure both places passes can be configured are updated.
-  // LINT.IfChange(opt_pass_option)
   std::unique_ptr<OptimizationPass> base = std::move(cur);
-  if (options.has_max_opt_level()) {
+  if (options.max_opt_level.has_value()) {
     base = std::make_unique<
         xls::internal::DynamicCapOptLevel<OptimizationWrapperPass>>(
-        options.max_opt_level(), std::move(base));
+        *options.max_opt_level, std::move(base));
   }
-  if (options.has_min_opt_level()) {
+  if (options.min_opt_level.has_value()) {
     base = std::make_unique<
         xls::internal::DynamicIfOptLevelAtLeast<OptimizationWrapperPass>>(
-        options.min_opt_level(), std::move(base));
+        *options.min_opt_level, std::move(base));
   }
-  if (options.has_requires_resource_sharing() &&
-      options.requires_resource_sharing()) {
+  if (options.requires_resource_sharing) {
     base = std::make_unique<
         xls::IfResourceSharingEnabled<OptimizationWrapperPass>>(
         std::move(base));
   }
-  // LINT.ThenChange(optimization_pass_registry.h:opt_pass_option)
   return std::move(base);
 }
 

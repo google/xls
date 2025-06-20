@@ -15,7 +15,9 @@
 #ifndef XLS_PASSES_PIPELINE_GENERATOR_H_
 #define XLS_PASSES_PIPELINE_GENERATOR_H_
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -32,6 +34,26 @@
 #include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
+
+// Basic common options any pass can be configured with.
+struct BasicPipelineOptions {
+  std::optional<int64_t> max_opt_level;
+  std::optional<int64_t> min_opt_level;
+  bool requires_resource_sharing = false;
+
+  static BasicPipelineOptions FromProto(
+      const PassPipelineProto::PassOptions& options) {
+    return {
+        .max_opt_level = options.has_max_opt_level()
+                             ? std::make_optional(options.max_opt_level())
+                             : std::nullopt,
+        .min_opt_level = options.has_min_opt_level()
+                             ? std::make_optional(options.min_opt_level())
+                             : std::nullopt,
+        .requires_resource_sharing = options.requires_resource_sharing(),
+    };
+  }
+};
 
 // A base class for generating pipelines based on a text program.
 //
@@ -106,20 +128,20 @@ class PipelineGeneratorBase {
   virtual absl::Status AddPassToPipeline(
       CompoundPassBase<OptionsT, ContextT...>* holder_pass,
       std::string_view pass_name,
-      const PassPipelineProto::PassOptions& options) const = 0;
+      const BasicPipelineOptions& options) const = 0;
 
   // Apply any options given to the 'cur' pipeline and return it.
   virtual absl::StatusOr<std::unique_ptr<PassBase<OptionsT, ContextT...>>>
-  FinalizeWithOptions(
-      std::unique_ptr<CompoundPassBase<OptionsT, ContextT...>>&& cur,
-      const PassPipelineProto::PassOptions& options) const = 0;
+  FinalizeWithOptions(std::unique_ptr<PassBase<OptionsT, ContextT...>>&& cur,
+                      const BasicPipelineOptions& options) const = 0;
 
   absl::Status GeneratePipelineElement(
       CompoundPassBase<OptionsT, ContextT...>* current_pipeline,
       const PassPipelineProto::Element& element) const {
     if (element.has_pass_name()) {
-      return AddPassToPipeline(current_pipeline, element.pass_name(),
-                               element.options());
+      return AddPassToPipeline(
+          current_pipeline, element.pass_name(),
+          BasicPipelineOptions::FromProto(element.options()));
     }
     if (element.has_fixedpoint()) {
       const auto& fp_proto = element.fixedpoint();
@@ -130,9 +152,10 @@ class PipelineGeneratorBase {
       for (const PassPipelineProto::Element& e : fp_proto.elements()) {
         XLS_RETURN_IF_ERROR(GeneratePipelineElement(fixedpoint.get(), e));
       }
-      XLS_ASSIGN_OR_RETURN(
-          auto finalized,
-          FinalizeWithOptions(std::move(fixedpoint), element.options()));
+      XLS_ASSIGN_OR_RETURN(auto finalized,
+                           FinalizeWithOptions(std::move(fixedpoint),
+                                               BasicPipelineOptions::FromProto(
+                                                   element.options())));
       current_pipeline->AddOwned(std::move(finalized));
       return absl::OkStatus();
     }
@@ -144,9 +167,10 @@ class PipelineGeneratorBase {
       for (const PassPipelineProto::Element& e : p_proto.elements()) {
         XLS_RETURN_IF_ERROR(GeneratePipelineElement(pipeline.get(), e));
       }
-      XLS_ASSIGN_OR_RETURN(
-          auto finalized,
-          FinalizeWithOptions(std::move(pipeline), element.options()));
+      XLS_ASSIGN_OR_RETURN(auto finalized,
+                           FinalizeWithOptions(std::move(pipeline),
+                                               BasicPipelineOptions::FromProto(
+                                                   element.options())));
       current_pipeline->AddOwned(std::move(finalized));
       return absl::OkStatus();
     }
