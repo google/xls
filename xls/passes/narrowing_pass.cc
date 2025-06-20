@@ -1015,6 +1015,12 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     } else {
       narrowed_start = slice->start();
     }
+    if (interesting_to_slice_bits == 0) {
+      // We can just return a zero of the appropriate size.
+      XLS_ASSIGN_OR_RETURN(Node * res, slice->ReplaceUsesWithNew<Literal>(
+                                           ZeroOfType(slice->GetType())));
+      return Change(slice, res);
+    }
     if (interesting_to_slice_bits < slice->to_slice()->BitCountOrDie()) {
       XLS_ASSIGN_OR_RETURN(
           narrowed_to_slice,

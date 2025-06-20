@@ -222,8 +222,12 @@ PartialInformation Truncate(const PartialInformation& p, int64_t width) {
 }
 PartialInformation BitSlice(const PartialInformation& p, int64_t start,
                             int64_t width) {
-  CHECK_LT(start, p.BitCount());
   CHECK_LE(start + width, p.BitCount());
+  if (width == 0) {
+    return PartialInformation::Unconstrained(0);
+  }
+
+  CHECK_LT(start, p.BitCount());
   const int64_t end = start + width;
 
   std::optional<TernaryVector> ternary;

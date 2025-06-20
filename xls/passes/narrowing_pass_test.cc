@@ -1858,6 +1858,23 @@ TEST_P(NarrowingPassTest, ShiftNoOverflow) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
+TEST_P(NarrowingPassTest, UninterestingBitSlice) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("param", p->GetBitsType(11));
+  BValue zero = fb.Literal(UBits(0, 258));
+  BValue bit_slice = fb.BitSlice(param, 0, 4);
+  BValue dynamic_bit_slice = fb.DynamicBitSlice(zero, bit_slice, 243);
+  fb.Tuple({dynamic_bit_slice});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Literal(Value::Tuple({Value(UBits(0, 243))})));
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     ::testing::Values(NarrowingPass::AnalysisType::kTernary,
