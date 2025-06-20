@@ -32,6 +32,7 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
+load("//xls/build_rules:xls_cc_embed_data_rules.bzl", "xls_cc_embed_data")
 load("//xls/build_rules:xls_internal_aot_rules.bzl", "xls_aot_generate")
 load(
     "//xls/build_rules:xls_rules_build_defs.bzl",
@@ -916,4 +917,21 @@ xls_dslx_cpp_type_library(
 xls_ir_cc_library(
     name = "die_if_odd_cc",
     src = ":die_if_odd",
+)
+
+# Verifies that xls_cc_embed_data works correctly
+xls_cc_embed_data(
+    name = "arbitrary_data_file",
+    data = "some_arbitrary_file.txt",
+    namespace = "xls::build_rules::test",
+)
+
+cc_test(
+    name = "embed_data_test",
+    srcs = ["embed_data_test.cc"],
+    deps = [
+        ":arbitrary_data_file",
+        "//xls/common:xls_gunit_main",
+        "@googletest//:gtest",
+    ],
 )
