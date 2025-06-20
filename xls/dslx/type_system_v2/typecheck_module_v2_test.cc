@@ -7985,5 +7985,66 @@ const S3_FORMAT_SPEC = FloatFormatSpec<S3::SIZE> {
                                   "min_normal: MyStruct { val: uN[3] } }"))));
 }
 
+// TODO: https://github.com/google/xls/issues/2428 - Enable test once fixed.
+TEST(TypecheckV2Test, DISABLED_RangeAsArgument) {
+  EXPECT_THAT(
+      R"(
+pub fn pass_back(input: u32[4]) -> u32[4] {
+    input
+}
+
+fn test() {
+    pass_back(0..4);
+}
+
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("test", "() -> ()"),
+                HasNodeWithType("pass_back(0..4)", "uN[32][4]"))));
+}
+
+// TODO: https://github.com/google/xls/issues/2414 - Enable test once fixed.
+TEST(TypecheckV2Test, DISABLED_InferParametricWithRange) {
+  EXPECT_THAT(R"(
+pub fn infer_parametric<N: u32, M: u32>(true_indices: u32[M]) -> bool[N] {
+    for (i, x): (u32, bool[N]) in true_indices {
+        update(x, i, true)
+    }(zero!<bool[N]>())
+}
+
+fn test() {
+    infer_parametric<4>([0, 1, 2, 3]);
+    let a = 0..4;
+    infer_parametric<4>(a);
+}
+
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("test", "() -> ()"),
+                        HasNodeWithType("infer_parametric<4>(a)", "uN[1][4]"),
+                        HasNodeWithType("a", "uN[32][4]"))));
+}
+
+// TODO: https://github.com/google/xls/issues/2429 - Enable test once fixed.
+TEST(TypecheckV2Test, DISABLED_InvocationAsStructParameter) {
+  EXPECT_THAT(R"(
+struct MyStruct<A: u32> {
+    x: uN[A],
+    y: u32,
+}
+
+type S = MyStruct<1>;
+
+fn zero() -> S {
+    S { x: 0, y: 0 }
+}
+
+fn test() -> S {
+    S { x: 1, ..zero() }
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("test", "() -> MyStruct")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
