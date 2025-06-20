@@ -16,6 +16,12 @@
 This module contains toolchains for XLS.
 """
 
+load(
+    "//xls/build_rules:xls_providers.bzl",
+    "XlsConfigurationToolchainInfo",
+    "XlsOptimizationPassRegistryInfo",
+)
+
 _DEFAULT_AOT_COMPILER_TARGET = "//xls/jit:aot_compiler_main"
 
 _DEFAULT_AOT_BASIC_FUNCTION_TARGET = "//xls/jit:aot_basic_function_entrypoint_main"
@@ -165,6 +171,7 @@ xls_toolchain_attrs = {
     ),
 }
 
+#TODO(allight): Investigate moving this all into a real toolchain.
 def _xls_toolchain_impl(ctx):
     targets = [
         ctx.attr._xls_aot_compiler_tool,
@@ -214,4 +221,22 @@ Examples:
     implementation = _xls_toolchain_impl,
     provides = [DefaultInfo],
     attrs = xls_toolchain_attrs,
+)
+
+def _xls_configuration_toolchain(ctx):
+    toolchain_info = platform_common.ToolchainInfo(
+        configuration = XlsConfigurationToolchainInfo(
+            pass_registry = ctx.attr.pass_registry[XlsOptimizationPassRegistryInfo],
+        ),
+    )
+    return [toolchain_info]
+
+xls_configuration_toolchain = rule(
+    implementation = _xls_configuration_toolchain,
+    attrs = {
+        "pass_registry": attr.label(
+            doc = "The pass registry to use.",
+            providers = [XlsOptimizationPassRegistryInfo],
+        ),
+    },
 )
