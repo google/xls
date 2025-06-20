@@ -8046,5 +8046,31 @@ fn test() -> S {
               TypecheckSucceeds(HasNodeWithType("test", "() -> MyStruct")));
 }
 
+TEST(TypecheckV2Test, ImportedTypeDefinedUsingStructMember) {
+  constexpr std::string_view kImported = R"(
+pub struct Params {
+    dim: u32,
+}
+
+pub const PARAMS = Params {
+    dim: 4,
+};
+
+pub struct S {
+    arr: u32[PARAMS.dim],
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+type x = imported::S;
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("x", "S { arr: uN[32][4] }"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

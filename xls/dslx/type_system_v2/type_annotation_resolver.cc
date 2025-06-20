@@ -934,6 +934,9 @@ class StatefulResolver : public TypeAnnotationResolver {
               XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
                                    import_data_.GetRootTypeInfoForNode(def));
               XLS_ASSIGN_OR_RETURN(InterpValue value, ti->GetConstExpr(def));
+              if (value.IsTuple()) {
+                return std::nullopt;
+              }
 
               // Get a type for `ref` that is owned by annotation->owner(),
               // because the end goal is to fabricate a literal in that module.
