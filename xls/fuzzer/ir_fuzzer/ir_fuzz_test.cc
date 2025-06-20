@@ -13,9 +13,11 @@
 // limitations under the License.
 
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/log/log.h"
 #include "xls/common/status/matchers.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/verifier.h"
 
@@ -24,15 +26,17 @@ namespace {
 
 // Perform tests on the Package object which contains the IR. This is a general
 // test that just verifies if the Package object is valid.
-void IrFuzzTest(std::unique_ptr<Package> p) {
+void VerifyIrFuzzPackage(std::shared_ptr<Package> p) {
   XLS_ASSERT_OK(VerifyPackage(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           p->GetFunction(IrTestBase::TestName()));
+  VLOG(3) << "3. IR:" << "\n" << f->DumpIr() << "\n";
 }
-
 // Use of gtest FUZZ_TEST to randomly generate IR while being compatible with
 // Google infrastructure. The IrFuzzTest function is called and represents the
 // main test logic. A domain is specified to define the range of possible values
 // that the FuzzProgram protobuf can have when generating random values.
-FUZZ_TEST(IrFuzzTest, IrFuzzTest).WithDomains(IrFuzzDomain());
+FUZZ_TEST(IrFuzzTest, VerifyIrFuzzPackage).WithDomains(IrFuzzDomain());
 
 }  // namespace
 }  // namespace xls

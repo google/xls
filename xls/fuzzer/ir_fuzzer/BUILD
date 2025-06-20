@@ -40,18 +40,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "ir_fuzz_builder",
-    srcs = ["ir_fuzz_builder.cc"],
-    hdrs = ["ir_fuzz_builder.h"],
-    deps = [
-        ":fuzz_program_cc_proto",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:function_builder",
-    ],
-)
-
 cc_test(
     name = "ir_fuzz_test",
     srcs = ["ir_fuzz_test.cc"],
@@ -62,8 +50,76 @@ cc_test(
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/ir",
+        "//xls/ir:ir_test_base",
         "//xls/ir:verifier",
+        "@com_google_absl//absl/log",
     ],
+)
+
+proto_library(
+    name = "fuzz_program_proto",
+    srcs = ["fuzz_program.proto"],
+)
+
+cc_proto_library(
+    name = "fuzz_program_cc_proto",
+    deps = [":fuzz_program_proto"],
+)
+
+cc_library(
+    name = "gen_ir_nodes_pass",
+    srcs = ["gen_ir_nodes_pass.cc"],
+    hdrs = ["gen_ir_nodes_pass.h"],
+    deps = [
+        ":fuzz_program_cc_proto",
+        ":ir_fuzz_visitor",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+    ],
+)
+
+cc_library(
+    name = "stringify_program_pass",
+    srcs = ["stringify_program_pass.cc"],
+    hdrs = ["stringify_program_pass.h"],
+    deps = [
+        ":fuzz_program_cc_proto",
+        ":ir_fuzz_visitor",
+    ],
+)
+
+cc_library(
+    name = "combine_stack",
+    srcs = ["combine_stack.cc"],
+    hdrs = ["combine_stack.h"],
+    deps = [
+        ":fuzz_program_cc_proto",
+        "//xls/ir:function_builder",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "ir_fuzz_builder",
+    srcs = ["ir_fuzz_builder.cc"],
+    hdrs = ["ir_fuzz_builder.h"],
+    deps = [
+        ":combine_stack",
+        ":fuzz_program_cc_proto",
+        ":gen_ir_nodes_pass",
+        ":stringify_program_pass",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "@com_google_absl//absl/log",
+    ],
+)
+
+cc_library(
+    name = "ir_fuzz_visitor",
+    srcs = ["ir_fuzz_visitor.cc"],
+    hdrs = ["ir_fuzz_visitor.h"],
+    deps = [":fuzz_program_cc_proto"],
 )
 
 cc_test(
@@ -84,14 +140,4 @@ cc_test(
         "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
     ],
-)
-
-proto_library(
-    name = "fuzz_program_proto",
-    srcs = ["fuzz_program.proto"],
-)
-
-cc_proto_library(
-    name = "fuzz_program_cc_proto",
-    deps = [":fuzz_program_proto"],
 )
