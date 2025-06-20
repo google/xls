@@ -18,6 +18,7 @@
 
 #include "absl/types/span.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/ir/function_builder.h"
 
 namespace xls {
@@ -48,6 +49,10 @@ BValue AddStack(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
                 absl::Span<const BValue> stack) {
   BValue combined_stack = stack[0];
   for (int64_t i = 1; i < stack.size(); i += 1) {
+    // Change the bit width of the combined stack to the bit width of the next
+    // element in the stack.
+    combined_stack =
+        ChangeBitWidth(fb, combined_stack, stack[i].BitCountOrDie());
     combined_stack = fb->Add(combined_stack, stack[i]);
   }
   return combined_stack;
