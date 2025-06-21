@@ -2358,26 +2358,30 @@ fn test_fp_eq_2() {
 // Always returns false if x or y is NaN.
 pub fn gt_2<EXP_SZ: u32, FRACTION_SZ: u32>
     (x: APFloat<EXP_SZ, FRACTION_SZ>, y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
-    // Flush denormals.
-    let x = subnormals_to_zero(x);
-    let y = subnormals_to_zero(y);
+    if eq_2(x, y) {
+        false
+    } else {
+        // Flush denormals.
+        let x = subnormals_to_zero(x);
+        let y = subnormals_to_zero(y);
 
-    let gt_exp = x.bexp > y.bexp;
-    let eq_exp = x.bexp == y.bexp;
-    let gt_fraction = x.fraction > y.fraction;
-    let abs_gt = gt_exp || (eq_exp && gt_fraction);
-    let result = match (x.sign, y.sign) {
-        // Both positive.
-        (u1:0, u1:0) => abs_gt,
-        // x positive, y negative.
-        (u1:0, u1:1) => u1:1,
-        // x negative, y positive.
-        (u1:1, u1:0) => u1:0,
-        // Both negative.
-        _ => !abs_gt && !eq_2(x, y),
-    };
+        let gt_exp = x.bexp > y.bexp;
+        let eq_exp = x.bexp == y.bexp;
+        let gt_fraction = x.fraction > y.fraction;
+        let abs_gt = gt_exp || (eq_exp && gt_fraction);
+        let result = match (x.sign, y.sign) {
+            // Both positive.
+            (u1:0, u1:0) => abs_gt,
+            // x positive, y negative.
+            (u1:0, u1:1) => true,
+            // x negative, y positive.
+            (u1:1, u1:0) => false,
+            // Both negative.
+            _ => !abs_gt && !eq_2(x, y),
+        };
 
-    if !(is_nan(x) || is_nan(y)) { result } else { u1:0 }
+        if !(is_nan(x) || is_nan(y)) { result } else { false }
+    }
 }
 
 #[test]
@@ -2563,7 +2567,7 @@ fn test_fp_lte_2() {
 // Always returns false if x or y is NaN.
 pub fn lt_2<EXP_SZ: u32, FRACTION_SZ: u32>
     (x: APFloat<EXP_SZ, FRACTION_SZ>, y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
-    if !(is_nan(x) || is_nan(y)) { !gte_2(x, y) } else { u1:0 }
+    if !(is_nan(x) || is_nan(y)) { !gte_2(x, y) } else { false }
 }
 
 #[test]
