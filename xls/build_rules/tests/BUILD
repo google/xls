@@ -931,7 +931,15 @@ cc_test(
     srcs = ["embed_data_test.cc"],
     deps = [
         ":arbitrary_data_file",
+        ":empty_data_file",
         "//xls/common:xls_gunit_main",
         "@googletest//:gtest",
     ],
+)
+
+xls_cc_embed_data(
+    name = "empty_data_file",
+    data = "empty_data_file.txt",
+    namespace = "xls::build_rules::test",
+    testonly = True,
 )

@@ -7,17 +7,9 @@ namespace {NAMESPACE} {
 
 absl::Span<uint8_t const> {ACCESSOR}() {
   static constexpr uint8_t data[] = {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc23-extensions"
-
-    // Technically we are using a c23 feature here but clang and gcc both
-    // support it already so not really a big deal. It's also a lot faster to
-    // compile.
-    #embed "{DATA_FILE}"
-
-#pragma clang diagnostic pop
+    {DATA_CONTENTS}
   };
-  return absl::MakeConstSpan(data);
+  return absl::Span<const uint8_t>(data, sizeof(data));
 }
 
 }  // namespace {NAMESPACE}

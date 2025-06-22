@@ -64,16 +64,26 @@ def _xls_cc_embed_data_impl(ctx):
             "{DATA_FILE}": ctx.file.data.path,
         },
     )
-    ctx.actions.expand_template(
-        output = cpp_file,
-        template = ctx.file._embedded_data_cc_template,
-        substitutions = {
-            "{WARNING}": "Generated file. Do not edit",
-            "{NAMESPACE}": ctx.attr.namespace,
-            "{ACCESSOR}": "get_%s" % ctx.attr.name,
-            "{DATA_FILE}": ctx.file.data.path,
-            "{HEADER_FILE}": hdr_file.path,
-        },
+    # xxd should be present on both Linux and macOS.
+    ctx.actions.run_shell(
+        outputs = [cpp_file],
+        inputs = depset([ctx.file._embedded_data_cc_template, ctx.file.data]),
+        command = """
+BYTES=$(xxd -p < {data_path} | tr -d '\\n' | sed -e 's/../0x&,/g' -e 's/,$//g')
+cat {template_path} | \\
+    sed -e "s/{{WARNING}}/Generated file. Do not edit/" | \\
+    sed -e "s/{{NAMESPACE}}/{namespace}/" | \\
+    sed -e "s/{{ACCESSOR}}/{accessor}/" | \\
+    sed -e "s|{{HEADER_FILE}}|{header_path}|" | \\
+    sed -e "s/{{DATA_CONTENTS}}/$BYTES/" > $1
+""".format(
+            data_path = ctx.file.data.path,
+            template_path = ctx.file._embedded_data_cc_template.path,
+            namespace = ctx.attr.namespace,
+            accessor = "get_%s" % ctx.attr.name,
+            header_path = hdr_file.path,
+        ),
+        arguments = [cpp_file.path],
     )
 
     (comp_ctx, comp_outputs) = cc_common.compile(

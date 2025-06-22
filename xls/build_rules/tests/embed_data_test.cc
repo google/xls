@@ -15,6 +15,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/build_rules/tests/arbitrary_data_file_embedded.h"
+#include "xls/build_rules/tests/empty_data_file_embedded.h"
 
 namespace xls {
 namespace {
@@ -22,6 +23,11 @@ namespace {
 TEST(EmbedDataTest, GetsExpectedData) {
   EXPECT_THAT(::xls::build_rules::test::get_arbitrary_data_file(),
               testing::ElementsAre('a', 's', 'd', 'f', '\n'));
+}
+
+TEST(EmbedDataTest, GetsEmptyData) {
+  EXPECT_THAT(::xls::build_rules::test::get_empty_data_file(),
+              testing::IsEmpty());
 }
 
 }  // namespace
