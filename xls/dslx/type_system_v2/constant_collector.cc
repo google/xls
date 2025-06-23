@@ -506,8 +506,19 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleFunction(const Function* function) override {
+    if (function->tag() == FunctionTag::kProcInit) {
+      XLS_RETURN_IF_ERROR(EvaluateAndNoteExpr(function->body()));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleInvocation(const Invocation* invocation) override {
     if (!IsBuiltinFn(invocation->callee())) {
+      absl::StatusOr<Function*> f = ResolveFunction(invocation->callee(), ti_);
+      if (f.ok() && (*f)->tag() == FunctionTag::kProcInit) {
+        XLS_RETURN_IF_ERROR(EvaluateAndNoteExpr(invocation));
+      }
       return absl::OkStatus();
     }
 
@@ -517,6 +528,16 @@ class Visitor : public AstNodeVisitorWithDefault {
       const auto& function_type = (*callee_type)->AsFunction();
       return NoteBuiltinInvocationConstExpr(callee_nameref->identifier(),
                                             invocation, function_type, ti_);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status EvaluateAndNoteExpr(const Expr* expr) {
+    absl::StatusOr<InterpValue> val = ConstexprEvaluator::EvaluateToValue(
+        &import_data_, ti_, &warning_collector_,
+        table_.GetParametricEnv(parametric_context_), expr);
+    if (val.ok()) {
+      ti_->NoteConstExpr(expr, *val);
     }
     return absl::OkStatus();
   }
