@@ -660,7 +660,6 @@ void SchanOp::print(OpAsmPrinter& printer) {
   printer << '(';
   printer.printString(getName());
   printer << ')';
-  printer << ") ";
   printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(),
                                            {"type", "name"});
 }
