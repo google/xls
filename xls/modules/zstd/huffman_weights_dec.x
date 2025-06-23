@@ -386,7 +386,7 @@ struct HuffmanFseDecoderState<WEIGHTS_RAM_DATA_W: u32> {
     padding: u4,                 // how much padding have we consumed (used for checking stream validity)
     current_iteration: u8,       // which iteration of the FSE-encoded-weights decoding loop are we in:
                                  // https://github.com/facebook/zstd/blob/fe34776c207f3f879f386ed4158a38d927ff6d10/doc/educational_decoder/zstd_decompress.c#L2081
-    stream_len: u8,              // how long is the FSE-encoded-weights stream, in bytes
+    stream_len: u16,             // how long is the FSE-encoded-weights stream, in bits
     stream_empty: bool,          // did we ask for more bits than available in the stream (i.e. caused stream underflow)?
                                  // analogous to 'offset < 0' check from educational ZSTD decoder:
                                  // https://github.com/facebook/zstd/blob/fe34776c207f3f879f386ed4158a38d927ff6d10/doc/educational_decoder/zstd_decompress.c#L2089
@@ -465,16 +465,16 @@ pub proc HuffmanFseDecoder<
 
         // receive ctrl
         let (_, ctrl, ctrl_valid) = recv_if_non_blocking(tok, ctrl_r, state.fsm == FSM::RECV_CTRL, zero!<Ctrl>());
-        if ctrl_valid {
-            trace_fmt!("ctrl: {:#x}", ctrl);
-        } else {};
         let state = if ctrl_valid {
+            trace_fmt!("[HuffmanFseDecoder] ctrl: {:#x}", ctrl);
             HuffmanFseDecoderState {
                 ctrl: ctrl,
-                stream_len: ctrl.length * u8:8,
+                stream_len: (ctrl.length as u16) * u16:8,
                 ..state
             }
-        } else { state };
+        } else {
+            state
+        };
 
         // receive ram read response
         let do_recv_table_rd_resp = state.fsm == FSM::RECV_RAM_EVEN_RD_RESP || state.fsm == FSM::RECV_RAM_ODD_RD_RESP;
@@ -510,9 +510,9 @@ pub proc HuffmanFseDecoder<
             state.fsm == FSM::UPDATE_EVEN_STATE ||
             state.fsm == FSM::UPDATE_ODD_STATE
         );
-        let do_send_buf_ctrl = do_read_bits && !state.sent_buf_ctrl && state.stream_len > u8:0;
+        let do_send_buf_ctrl = do_read_bits && !state.sent_buf_ctrl && state.stream_len > u16:0;
 
-        let read_length = if state.read_bits_needed as u8 > state.stream_len {
+        let read_length = if state.read_bits_needed as u16 > state.stream_len {
             state.stream_len as u7
         } else {
             state.read_bits_needed
@@ -520,7 +520,7 @@ pub proc HuffmanFseDecoder<
 
         let state = if state.read_bits_needed > u7:0 {
             HuffmanFseDecoderState {
-                stream_empty: state.read_bits_needed as u8 > state.stream_len,
+                stream_empty: state.read_bits_needed as u16 > state.stream_len,
                 ..state
             }
         } else { state };
@@ -547,7 +547,7 @@ pub proc HuffmanFseDecoder<
             HuffmanFseDecoderState {
                 sent_buf_ctrl: false,
                 shift_buffer_error: state.shift_buffer_error | buf_data.error,
-                stream_len: state.stream_len - buf_data.length as u8,
+                stream_len: state.stream_len - buf_data.length as u16,
                 ..state
             }
         } else { state };
@@ -733,7 +733,7 @@ pub proc HuffmanFseDecoder<
                         last_weight: u1:0,
                         ..state
                     }
-                } else if buf_data_valid || state.stream_len == u8:0 {
+                } else if buf_data_valid || state.stream_len == u16:0 {
                     trace_fmt!("[FseDecoder] Moving to UPDATE_ODD_STATE");
                     State {
                         fsm: FSM::UPDATE_ODD_STATE,
@@ -753,7 +753,7 @@ pub proc HuffmanFseDecoder<
                         last_weight: u1:1,
                         ..state
                     }
-                } else if buf_data_valid || state.stream_len == u8:0 {
+                } else if buf_data_valid || state.stream_len == u16:0 {
                     trace_fmt!("[FseDecoder] Moving to SEND_WEIGHT");
                     State {
                         fsm: FSM::SEND_WEIGHT,
