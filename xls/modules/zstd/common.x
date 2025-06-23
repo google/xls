@@ -110,7 +110,7 @@ pub struct SequenceData { bytes: bits[64], length: u32, last: bool }
 
 // FSE
 
-pub const FSE_MAX_ACCURACY_LOG = u32:9;
+pub const FSE_MAX_ACCURACY_LOG = u32:15;
 pub const FSE_MAX_SYMBOLS = u32:256;
 
 pub const FSE_ACCURACY_LOG_WIDTH = std::clog2(FSE_MAX_ACCURACY_LOG + u32:1);

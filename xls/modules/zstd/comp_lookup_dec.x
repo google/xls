@@ -1357,6 +1357,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x17, num_of_bits: u8:0x2, base: u16:0x1fc },
             FseTableRecord { symbol: u8:0x10, num_of_bits: u8:0x2, base: u16:0x1fc },
             FseTableRecord { symbol: u8:0x5, num_of_bits: u8:0x2, base: u16:0x1fc },
+            zero!<FseTableRecord>(), ...
         ],
         CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:9, consumed_bytes: ConsumedFseBytes:10 }
     ),
