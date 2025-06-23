@@ -273,6 +273,11 @@ class IndexTypeConversionPass
     target.addDynamicallyLegalOp<ChanOp>([&](ChanOp op) {
       return typeConverter.convertType(op.getType()) == op.getType();
     });
+    target.addDynamicallyLegalOp<func::FuncOp>([&](func::FuncOp op) {
+      return typeConverter.isSignatureLegal(op.getFunctionType());
+    });
+    target.addDynamicallyLegalOp<func::CallOp, func::ReturnOp>(
+        [&](auto op) { return typeConverter.isLegal(op); });
 
     RewritePatternSet patterns(&getContext());
     patterns.add<LegalizeIndexCast, LegalizeIndexCastUI, LegalizeConstantIndex,
