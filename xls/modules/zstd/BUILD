@@ -1930,28 +1930,30 @@ place_and_route(
     target_die_utilization_percentage = "5",
 )
 
+ram_demux_naive_codegen_args = {
+    "module_name": "RamDemuxNaive",
+    "generator": "pipeline",
+    "delay_model": "asap7",
+    "ram_configurations": ",".join([
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ram{}".format(num),
+            rd_req = "ram_demux__rd_req{}_s".format(num),
+            rd_resp = "ram_demux__rd_resp{}_r".format(num),
+            wr_req = "ram_demux__wr_req{}_s".format(num),
+            wr_resp = "ram_demux__wr_resp{}_r".format(num),
+        )
+        for num in range(2)
+    ]),
+    "pipeline_stages": "6",
+    "reset": "rst",
+    "use_system_verilog": "false",
+    "materialize_internal_fifos": "true",
+}
+
 xls_dslx_verilog(
     name = "ram_demux_naive_verilog",
-    codegen_args = {
-        "module_name": "RamDemuxNaive",
-        "generator": "pipeline",
-        "delay_model": "asap7",
-        "ram_configurations": ",".join([
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
-                ram_name = "ram{}".format(num),
-                rd_req = "ram_demux__rd_req{}_s".format(num),
-                rd_resp = "ram_demux__rd_resp{}_r".format(num),
-                wr_req = "ram_demux__wr_req{}_s".format(num),
-                wr_resp = "ram_demux__wr_resp{}_r".format(num),
-            )
-            for num in range(2)
-        ]),
-        "pipeline_stages": "6",
-        "reset": "rst",
-        "use_system_verilog": "false",
-        "materialize_internal_fifos": "true",
-    },
+    codegen_args = ram_demux_naive_codegen_args,
     dslx_top = "RamDemuxNaiveWrappedInst",
     library = ":ram_demux_dslx",
     tags = ["manual"],
@@ -1961,9 +1963,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "ram_demux_naive_opt_ir_benchmark",
     src = "ram_demux_naive_verilog.opt.ir",
-    codegen_args = {
-        "pipeline_stages": "10",
-    },
+    codegen_args = ram_demux_naive_codegen_args,
     tags = ["manual"],
 )
 
