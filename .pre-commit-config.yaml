@@ -21,10 +21,3 @@ repos:
         args: [
           --rcfile=.pylintrc
         ]
-  - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.22  # Pin version for reproducibility
-    hooks:
-      - id: mdformat
-        files: ^xls/modules/add_dual_path/README\.md$
-        additional_dependencies: [mdformat-tables==0.4.0]
-        args: [--wrap, "80", --extensions, tables]
