@@ -12,19 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
-#define XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
-
-#include "xls/common/fuzzing/fuzztest.h"
-#include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
-#include "xls/ir/package.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_visitor.h"
 
 namespace xls {
 
-// TODO: Implement a clone_ptr class that makes a deep copy of a
-// unique_ptr to avoid returning a shared_ptr.
-fuzztest::Domain<std::shared_ptr<Package>> IrFuzzDomain();
+// Given a FuzzOpProto, call the corresponding Handle* function based on the
+// FuzzOpProto type. This is a common visitor selection function.
+void IrFuzzVisitor::VisitFuzzOp(FuzzOpProto* fuzz_op) {
+  switch (fuzz_op->fuzz_op_case()) {
+    case FuzzOpProto::kAdd:
+      HandleAdd(fuzz_op->mutable_add());
+      break;
+    case FuzzOpProto::kLiteral:
+      HandleLiteral(fuzz_op->mutable_literal());
+      break;
+    case FuzzOpProto::kParam:
+      HandleParam(fuzz_op->mutable_param());
+      break;
+    case FuzzOpProto::FUZZ_OP_NOT_SET:
+      break;
+  }
+}
 
 }  // namespace xls
-
-#endif  // XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_

@@ -12,19 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
-#define XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
+#ifndef XLS_FUZZER_IR_FUZZER_COMBINE_STACK_H_
+#define XLS_FUZZER_IR_FUZZER_COMBINE_STACK_H_
 
-#include "xls/common/fuzzing/fuzztest.h"
+#include "absl/types/span.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
-#include "xls/ir/package.h"
+#include "xls/ir/function_builder.h"
 
 namespace xls {
 
-// TODO: Implement a clone_ptr class that makes a deep copy of a
-// unique_ptr to avoid returning a shared_ptr.
-fuzztest::Domain<std::shared_ptr<Package>> IrFuzzDomain();
+BValue CombineStack(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
+                    absl::Span<const BValue> stack);
+
+BValue LastElement(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
+                   absl::Span<const BValue> stack);
+BValue AddStack(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
+                absl::Span<const BValue> stack);
 
 }  // namespace xls
 
-#endif  // XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
+#endif  // XLS_FUZZER_IR_FUZZER_COMBINE_STACK_H_

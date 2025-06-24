@@ -16,29 +16,29 @@ syntax = "proto3";
 
 package xls;
 
-// Holds a randomly sized list of FuzzOpProtos as we need multiple instruction
-// FuzzOpProtos to generate more complex IR programs.
+// This proto is used as a template such that its fields will be randomly
+// populated with values. It contains a list of FuzzOpProtos, where each gets
+// instantiated into a corresponding IR op.
 message FuzzProgramProto {
+  // Specifies how the stack of IR ops will be combined based on the
+  // CombineStackMethod enum.
   optional CombineStackMethod combine_stack_method = 1;
   repeated FuzzOpProto fuzz_ops = 2;
-}
-
-// Specified method used to combine the IrFuzzBuilder stack of BValues into a
-// single IR object.
-enum CombineStackMethod {
-  UNSET_METHOD = 0;
-  LAST_ELEMENT_METHOD = 1;
-  ADD_STACK_METHOD = 2;
 }
 
 // Each FuzzOpProto represents an XLS operation. A FuzzOpProto is used as a
 // randomly generated instruction to instantiate an IR operation node.
 message FuzzOpProto {
   oneof fuzz_op {
-    FuzzLiteralProto fuzz_literal = 1;
-    FuzzParamProto fuzz_param = 2;
-    FuzzAddOpProto fuzz_add_op = 3;
+    FuzzAddProto add = 1;
+    FuzzLiteralProto literal = 2;
+    FuzzParamProto param = 3;
   }
+}
+
+message FuzzAddProto {
+  optional FuzzOperandRefProto lhs_ref = 1;
+  optional FuzzOperandRefProto rhs_ref = 2;
 }
 
 message FuzzLiteralProto {
@@ -47,7 +47,18 @@ message FuzzLiteralProto {
 
 message FuzzParamProto {}
 
-message FuzzAddOpProto {
-  optional int64 lhs_stack_idx = 1;
-  optional int64 rhs_stack_idx = 2;
+// References a node on the stack by its index.
+message FuzzOperandRefProto {
+  optional int64 stack_idx = 1;
+}
+
+// Specifies the method used to combine the IrFuzzBuilder stack of BValues into
+// a single IR object.
+enum CombineStackMethod {
+  // Protobuf enums require a default/unset value as a convention. Some
+  // languages prefer to distinguish a default value from a enum that is not
+  // set.
+  UNSET_COMBINE_STACK_METHOD = 0;
+  LAST_ELEMENT_METHOD = 1;
+  ADD_STACK_METHOD = 2;
 }
