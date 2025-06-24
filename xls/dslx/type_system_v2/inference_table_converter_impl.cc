@@ -15,7 +15,6 @@
 #include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
 
 #include <cstdint>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <stack>
@@ -25,7 +24,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/function_ref.h"
@@ -125,11 +123,24 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleInvocation(const Invocation* node) override {
-    // Exclude the arguments of invocations, but otherwise do the equivalent of
-    // DefaultHandler. We exclude the arguments, because when an argument should
+    // Do the equivalent `DefaultHandler`, but exclude most of the arguments.
+    // We exclude the arguments because when an argument should
     // be converted depends on whether its type is determining or determined by
     // the formal argument type (it's determining it if it's based on an
-    // implicit parametric). `ConvertInvocation` decides this.
+    // implicit parametric). `ConvertInvocation` handles this.
+    //
+    // The exception is if an argument combines a concat operation with an
+    // invocation. These must be always be converted in order to know the type,
+    // so include them here.
+    for (const Expr* arg : node->args()) {
+      if (arg->kind() == AstNodeKind::kBinop) {
+        const Binop* binop = down_cast<const Binop*>(arg);
+        if (binop->binop_kind() == BinopKind::kConcat &&
+            ContainsInvocation(arg)) {
+          XLS_RETURN_IF_ERROR(arg->Accept(this));
+        }
+      }
+    }
     for (const ExprOrType& parametric : node->explicit_parametrics()) {
       XLS_RETURN_IF_ERROR(ToAstNode(parametric)->Accept(this));
     }

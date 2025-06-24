@@ -8100,5 +8100,34 @@ fn tuple_match(input: u32, sign: bool) -> u32 {
           HasNodeWithType("tuple_match", "(uN[32], uN[1]) -> uN[32]")));
 }
 
+TEST(TypecheckV2Test, ConcatWithInvocationAsArgument) {
+  EXPECT_THAT(R"(
+fn add(vx: u6, vy: u32) -> u32 { vx as u32 + vy }
+
+fn val() -> u3 { 5 }
+
+fn test() {
+    add(val() ++ 5, 5);
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("test", "() -> ()"),
+                                      HasNodeWithType("val() ++ 5", "uN[6]"))));
+}
+
+TEST(TypecheckV2Test, ConcatWithInvocationAsArgumentInferredParametric) {
+  EXPECT_THAT(R"(
+fn add<N: u32>(vx: uN[N], vy: u32) -> u32 { vx as u32 + vy }
+
+fn val<N: u32>() -> uN[N] { 1 }
+
+fn test() {
+    add(val<3>() ++ val<3>(), 5);
+}
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("test", "() -> ()"),
+                        HasNodeWithType("val<3>() ++ val<3>()", "uN[6]"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx
