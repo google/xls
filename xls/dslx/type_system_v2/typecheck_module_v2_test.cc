@@ -8072,5 +8072,33 @@ type x = imported::S;
       IsOkAndHolds(HasTypeInfo(HasNodeWithType("x", "S { arr: uN[32][4] }"))));
 }
 
+TEST(TypecheckV2Test, MatchWithInvocationInExpression) {
+  EXPECT_THAT(
+      R"(
+enum Tag : u3 {
+    ZERO = 0,
+    POSITIVE = 1,
+}
+
+fn tag(input: u32) -> Tag {
+    match input {
+        0 => Tag::ZERO,
+        _ => Tag::POSITIVE,
+    }
+}
+
+fn tuple_match(input: u32, sign: bool) -> u32 {
+    let input_shifted = match (sign, tag(input)) {
+        (true, Tag::ZERO) => input >> 1,
+        (true, Tag::POSITIVE) => input >> 2,
+        (false, _) => input,
+    };
+    input_shifted as u32
+}
+)",
+      TypecheckSucceeds(
+          HasNodeWithType("tuple_match", "(uN[32], uN[1]) -> uN[32]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

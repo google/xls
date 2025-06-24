@@ -150,6 +150,7 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleMatch(const Match* node) override {
+    XLS_RETURN_IF_ERROR(node->matched()->Accept(this));
     // Prefer to visit arms that contain invocations first so that any type
     // information they produce is available when analyzing other arms whose
     // types unify with them.
@@ -163,7 +164,6 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
         XLS_RETURN_IF_ERROR(arm->Accept(this));
       }
     }
-    XLS_RETURN_IF_ERROR(node->matched()->Accept(this));
     nodes_.push_back(node);
     return absl::OkStatus();
   }
