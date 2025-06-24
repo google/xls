@@ -1332,6 +1332,29 @@ TEST_F(TranslatorLogicTest, ForUnrollInTemplateFunc) {
   Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
+TEST_F(TranslatorLogicTest, ForUnrollUnboundedBreakPropagation) {
+  std::string_view content = R"(
+      template<typename T>
+      T doit(T a, T b, int N) {
+        #pragma hls_unroll yes
+        for(int j=0;j<(32 >> N);++j) {
+          #pragma hls_unroll yes
+          for(int i=1;i<=(1 << N);++i) {
+            a += b;
+            a += 2*b;
+          }
+        }
+        return a;
+      }
+
+      long long my_package(long long a, long long b) {
+        return doit<long long>(a, b, /*N=*/10);
+      })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kResourceExhausted));
+}
+
 TEST_F(TranslatorLogicTest, PragmaInDefineAppliesOnlyInDefine) {
   const std::string content = R"(
     #define some_macro(x) { \
