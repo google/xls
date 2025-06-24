@@ -690,8 +690,6 @@ class Literal final : public Node {
       FunctionBase* new_function) const final;
   const Value& value() const { return value_; }
 
-  bool IsZero() const { return value().IsBits() && value().bits().IsZero(); }
-
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
  private:
