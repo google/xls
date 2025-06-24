@@ -102,28 +102,28 @@ module pipelined_proc(
   output wire in_rdy,
   output wire out_vld
 );
-  wire instantiation_output_144;
-  wire instantiation_output_150;
-  wire instantiation_output_157;
-  wire instantiation_output_162;
-  wire instantiation_output_151;
-  wire instantiation_output_156;
+  wire instantiation_output_136;
+  wire instantiation_output_142;
+  wire instantiation_output_149;
+  wire instantiation_output_154;
+  wire instantiation_output_143;
+  wire instantiation_output_148;
 
   // ===== Instantiations
   pipelined_proc__1 pipelined_proc__1_inst0 (
     .rst(rst),
     .in_vld(in_vld),
-    .internal_rdy(instantiation_output_151),
-    .in_rdy(instantiation_output_144),
-    .internal_vld(instantiation_output_150),
+    .internal_rdy(instantiation_output_143),
+    .in_rdy(instantiation_output_136),
+    .internal_vld(instantiation_output_142),
     .clk(clk)
   );
   proc_out proc_out_inst1 (
     .rst(rst),
-    .internal_vld(instantiation_output_156),
+    .internal_vld(instantiation_output_148),
     .out_rdy(out_rdy),
-    .internal_rdy(instantiation_output_157),
-    .out_vld(instantiation_output_162),
+    .internal_rdy(instantiation_output_149),
+    .out_vld(instantiation_output_154),
     .clk(clk)
   );
   xls_nodata_fifo_wrapper #(
@@ -134,11 +134,11 @@ module pipelined_proc(
   ) fifo_internal (
     .clk(clk),
     .rst(rst),
-    .push_valid(instantiation_output_150),
-    .pop_ready(instantiation_output_157),
-    .push_ready(instantiation_output_151),
-    .pop_valid(instantiation_output_156)
+    .push_valid(instantiation_output_142),
+    .pop_ready(instantiation_output_149),
+    .push_ready(instantiation_output_143),
+    .pop_valid(instantiation_output_148)
   );
-  assign in_rdy = instantiation_output_144;
-  assign out_vld = instantiation_output_162;
+  assign in_rdy = instantiation_output_136;
+  assign out_vld = instantiation_output_154;
 endmodule
