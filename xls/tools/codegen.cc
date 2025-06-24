@@ -482,7 +482,8 @@ ScheduleAndCodegen(
   XLS_ASSIGN_OR_RETURN(verilog::CodegenResult codegen_result,
                        CodegenFromMetadata(p, codegen_flags_proto.generator(),
                                            metadata, &schedules));
-  return std::make_pair(scheduling_result, codegen_result);
+  return std::make_pair(std::move(scheduling_result),
+                        std::move(codegen_result));
 }
 
 }  // namespace xls

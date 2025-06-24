@@ -178,7 +178,7 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
   // not just top.
   return CodegenResult{
       .verilog_text = verilog,
-      .verilog_line_map = verilog_line_map,
+      .verilog_line_map = std::move(verilog_line_map),
       .signature = signature,
       .block_metrics = metrics,
       .pass_pipeline_metrics = results.ToProto(),
