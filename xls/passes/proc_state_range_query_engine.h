@@ -118,6 +118,10 @@ class ProcStateRangeQueryEngine final : public QueryEngine {
     return range_->GetIntervalSetTreeView(node);
   }
 
+  bool Covers(Node* n, const Bits& value) const override {
+    return inner_.Covers(n, value);
+  }
+
   Bits MaxUnsignedValue(Node* n) const override {
     return inner_.MaxUnsignedValue(n);
   }

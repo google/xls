@@ -197,6 +197,9 @@ class QueryEngine {
   // known; otherwise returns std::nullopt.
   virtual std::optional<Value> KnownValue(Node* node) const;
 
+  // Returns whether `node` could possibly take on the given `value`.
+  virtual bool Covers(Node* node, const Bits& value) const;
+
   // Returns whether every bit in the output of the given node is definitely
   // zero (or one). Always returns false if the node includes a token.
   virtual bool IsAllZeros(Node* node) const;

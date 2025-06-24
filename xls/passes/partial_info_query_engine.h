@@ -41,6 +41,7 @@ class PartialInfoQueryEngine : public LazyQueryEngine<PartialInformation> {
                    const TreeBitLocation& b) const override;
   bool KnownNotEquals(const TreeBitLocation& a,
                       const TreeBitLocation& b) const override;
+  bool Covers(Node* node, const Bits& value) const override;
 
   // This query engine provides little information about bit implications.
   bool Implies(const TreeBitLocation& a,

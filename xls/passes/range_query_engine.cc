@@ -1437,6 +1437,23 @@ static void IntervalSetTreeToStream(const IntervalSetTree& tree, Type* type,
   }
 }
 
+bool RangeQueryEngine::Covers(Node* node, const Bits& value) const {
+  if (!node->GetType()->IsBits() ||
+      node->BitCountOrDie() != value.bit_count()) {
+    // The type doesn't match, so `node` can't possibly cover it.
+    return false;
+  }
+  if (!IsTracked(node)) {
+    return true;
+  }
+  // If modifications to the function mean we don't have a tree we just fall
+  // back to the bit-based version.
+  if (!HasExplicitIntervals(node)) {
+    return QueryEngine::Covers(node, value);
+  }
+  return GetIntervalSetTreeView(node)->Get({}).Covers(value);
+}
+
 Bits RangeQueryEngine::MaxUnsignedValue(Node* n) const {
   CHECK(n->GetType()->IsBits()) << n;
   // If modifications to the function mean we don't have a tree we just fall

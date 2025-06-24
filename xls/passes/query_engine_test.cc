@@ -128,6 +128,17 @@ class QueryEngineTest : public IrTestBase,
     return engine->ToString(f->return_value());
   }
 
+  absl::StatusOr<bool> GetCovers(std::string_view known_bits, Bits target) {
+    Package p("test_package");
+    FunctionBuilder fb("f", &p);
+    BValue n = MakeValueWithKnownBits(
+        "value", StringToTernaryVector(known_bits).value(), &fb);
+    XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
+    VLOG(3) << f->DumpIr();
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+    return engine->Covers(n.node(), target);
+  }
+
   absl::StatusOr<std::string> GetMaxUnsignedValue(std::string_view known_bits) {
     Package p("test_package");
     FunctionBuilder fb("f", &p);
@@ -685,6 +696,53 @@ TEST_P(QueryEngineTest, Reverse) {
   EXPECT_THAT(RunOnUnaryOp("0bXX10", make_reverse), IsOkAndHolds("0b01XX"));
   EXPECT_THAT(RunOnUnaryOp("0bX1X0", make_reverse), IsOkAndHolds("0b0X1X"));
   EXPECT_THAT(RunOnUnaryOp("0bX0X0", make_reverse), IsOkAndHolds("0b0X0X"));
+}
+
+TEST_P(QueryEngineTest, Covers) {
+  EXPECT_THAT(GetCovers("0b", UBits(0, 0)), IsOkAndHolds(true));
+
+  EXPECT_THAT(GetCovers("0b0", UBits(0, 1)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0b0", UBits(1, 1)), IsOkAndHolds(false));
+  EXPECT_THAT(GetCovers("0b1", UBits(0, 1)), IsOkAndHolds(false));
+  EXPECT_THAT(GetCovers("0b1", UBits(1, 1)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bX", UBits(0, 1)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bX", UBits(1, 1)), IsOkAndHolds(true));
+
+  EXPECT_THAT(GetCovers("0b0000", UBits(0b0000, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0b0000", UBits(0b0110, 4)), IsOkAndHolds(false));
+
+  EXPECT_THAT(GetCovers("0b1111", UBits(0b1111, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0b1111", UBits(0b0111, 4)), IsOkAndHolds(false));
+
+  EXPECT_THAT(GetCovers("0b0101", UBits(0b0101, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0b0101", UBits(0b1010, 4)), IsOkAndHolds(false));
+
+  EXPECT_THAT(GetCovers("0b1010", UBits(0b1010, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0b1010", UBits(0b1011, 4)), IsOkAndHolds(false));
+
+  EXPECT_THAT(GetCovers("0bXX10", UBits(0b1110, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXX10", UBits(0b1010, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXX10", UBits(0b0110, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXX10", UBits(0b0010, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXX10", UBits(0b1100, 4)), IsOkAndHolds(false));
+  EXPECT_THAT(GetCovers("0bXX10", UBits(0b1111, 4)), IsOkAndHolds(false));
+
+  EXPECT_THAT(GetCovers("0b10XX", UBits(0b1011, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0b10XX", UBits(0b1010, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0b10XX", UBits(0b1001, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0b10XX", UBits(0b1000, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0b10XX", UBits(0b0011, 4)), IsOkAndHolds(false));
+  EXPECT_THAT(GetCovers("0b10XX", UBits(0b1111, 4)), IsOkAndHolds(false));
+
+  EXPECT_THAT(GetCovers("0bXXXX", UBits(0b1111, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXXXX", UBits(0b1100, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXXXX", UBits(0b0110, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXXXX", UBits(0b0011, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXXXX", UBits(0b1000, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXXXX", UBits(0b0100, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXXXX", UBits(0b0010, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXXXX", UBits(0b0001, 4)), IsOkAndHolds(true));
+  EXPECT_THAT(GetCovers("0bXXXX", UBits(0b0000, 4)), IsOkAndHolds(true));
 }
 
 TEST_P(QueryEngineTest, MaxUnsignedValue) {

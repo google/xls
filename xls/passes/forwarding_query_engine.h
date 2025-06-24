@@ -118,6 +118,9 @@ class ForwardingQueryEngine : public QueryEngine {
   std::optional<Value> KnownValue(Node* node) const override {
     return real().KnownValue(node);
   }
+  bool Covers(Node* n, const Bits& value) const override {
+    return real().Covers(n, value);
+  }
   bool IsAllZeros(Node* n) const override { return real().IsAllZeros(n); }
   bool IsAllOnes(Node* n) const override { return real().IsAllOnes(n); }
   bool IsFullyKnown(Node* n) const override { return real().IsFullyKnown(n); }
