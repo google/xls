@@ -2448,6 +2448,24 @@ proc p_test {
 )");
 }
 
+TEST_F(ModuleFmtTest, SimpleTestProcWithExpectedFailLabelAttribute) {
+  DoFmt(
+      R"(#[test_proc(expected_fail_label="my_fail")]
+proc tester {
+    terminator: chan<bool> out;
+
+    config(terminator: chan<bool> out) { (terminator,) }
+
+    init {  }
+
+    next(_: ()) {
+        assert!(false, "my_fail");
+        send(join(), terminator, true);
+    }
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, MatchLongWildcardArmExpression) {
   DoFmt(
       R"(import float32;
