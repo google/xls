@@ -760,7 +760,7 @@ An IR conversion with a top entity defined.
     attrs = dicts.add(
         xls_dslx_ir_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_ir_converter_tool"]),
     ),
 )
 
@@ -900,7 +900,7 @@ Examples:
         xls_ir_common_attrs,
         xls_ir_opt_ir_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_opt_ir_tool"]),
     ),
 )
 
@@ -1012,7 +1012,7 @@ Examples:
         _two_ir_files_attrs,
         xls_ir_equivalence_test_attrs,
         xls_ir_top_attrs,
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_ir_equivalence_tool"]),
     ),
     test = True,
 )
@@ -1113,7 +1113,7 @@ Examples:
         xls_ir_common_attrs,
         xls_eval_ir_test_attrs,
         xls_ir_top_attrs,
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_ir_eval_tool"]),
     ),
     test = True,
 )
@@ -1213,7 +1213,7 @@ Examples:
         xls_ir_common_attrs,
         xls_benchmark_ir_attrs,
         xls_ir_top_attrs,
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_benchmark_ir_tool"]),
     ),
     executable = True,
 )
@@ -1324,7 +1324,7 @@ xls_ir_cc_library = rule(
     implementation = _xls_ir_cc_library_impl,
     attrs = dicts.add(
         xls_ir_common_attrs,
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_aot_basic_function_tool"]),
         {
             "aot_info": attr.label(
                 doc = "Rule which generated the AOT artifacts and information",

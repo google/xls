@@ -455,7 +455,7 @@ Examples:
     implementation = _xls_dslx_library_impl,
     attrs = dicts.add(
         _xls_dslx_library_attrs,
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_dslx_parse_and_typecheck_tool"]),
     ),
 )
 
@@ -627,7 +627,7 @@ Examples:
     attrs = dicts.add(
         xls_dslx_library_as_input_attrs,
         xls_dslx_test_common_attrs,
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_dslx_interpreter_tool"]),
     ),
     test = True,
 )
@@ -670,7 +670,7 @@ Examples:
     attrs = dicts.add(
         xls_dslx_library_as_input_attrs,
         xls_dslx_prove_quickcheck_test_common_attrs,
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_dslx_prove_quickcheck_tool"]),
     ),
     test = True,
 )
@@ -792,7 +792,7 @@ Example:
         xls_dslx_generate_cpp_type_files_attrs,
         xls_dslx_library_as_input_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_cpp_transpiler_tool"]),
     ),
 )
 
@@ -906,6 +906,6 @@ Example:
         xls_dslx_to_verilog_package_attrs,
         xls_dslx_library_as_input_attrs,
         CONFIG["xls_outs_attrs"],
-        xls_toolchain_attrs,
+        dicts.pick(xls_toolchain_attrs, ["_xls_dslx_to_verilog_tool"]),
     ),
 )
