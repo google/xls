@@ -2579,23 +2579,19 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, HandlesBasicProc) {
   const std::string kProgram = R"(
 proc producer {
   c: chan<u32> out;
-  init {
-    u32:0
-  }
-  config(input_c: chan<u32> out) {
-    (input_c,)
+  init { u32:1 }
+  config(output_c: chan<u32> out) {
+    (output_c,)
   }
   next(i: u32) {
     let tok = send(join(), c, i);
-    i + u32:1
+    i + u32:2
   }
 }
 
 proc consumer {
   c: chan<u32> in;
-  init {
-    u32:0
-  }
+  init { u32:3 }
   config(input_c: chan<u32> in) {
     (input_c,)
   }
