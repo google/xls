@@ -8024,8 +8024,7 @@ fn test() {
                         HasNodeWithType("a", "uN[32][4]"))));
 }
 
-// TODO: https://github.com/google/xls/issues/2429 - Enable test once fixed.
-TEST(TypecheckV2Test, DISABLED_InvocationAsStructParameter) {
+TEST(TypecheckV2Test, InvocationAsStructParameter) {
   EXPECT_THAT(R"(
 struct MyStruct<A: u32> {
     x: uN[A],

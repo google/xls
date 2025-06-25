@@ -1966,8 +1966,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // the source code.
   absl::StatusOr<Expr*> CreateInitializerForSplattedStructMember(
       const SplatStructInstance& instance, const StructMemberNode& member) {
-    Expr* expr =
-        module_.Make<Attr>(instance.span(), instance.splatted(), member.name());
+    Expr* splatted = instance.splatted();
+    if (splatted->kind() == AstNodeKind::kInvocation) {
+      // If the splatted node is an invocation, clone it to preserve the
+      // parentage of the original invocation node.
+      XLS_ASSIGN_OR_RETURN(AstNode * clone, table_.Clone(instance.splatted(),
+                                                         &NoopCloneReplacer));
+      splatted = down_cast<Expr*>(clone);
+    }
+    Expr* expr = module_.Make<Attr>(instance.span(), splatted, member.name());
     XLS_ASSIGN_OR_RETURN(
         const NameRef* type_variable,
         table_.DefineInternalVariable(
