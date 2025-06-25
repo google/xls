@@ -243,6 +243,33 @@ TEST_F(SelectLiftingPassTest, LiftSingleSelectWithNoCases) {
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
 }
 
+TEST_F(SelectLiftingPassTest, LiftBinaryOperationCases) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn func(selector: bits[1] id=10, shared: bits[32] id=11, case_a: bits[32] id=12, case_b: bits[32] id=13) -> bits[32] {
+      add.14: bits[32] = add(shared, case_a, id=14)
+      add.15: bits[32] = add(shared, case_b, id=15)
+      ret sel.16: bits[32] = sel(selector, cases=[add.14, add.15], id=16)
+    }
+  )",
+                                                       p.get()));
+
+  auto p_expect = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect, ParseFunction(R"(
+    fn func(selector: bits[1] id=10, shared: bits[32] id=11, case_a: bits[32] id=12, case_b: bits[32] id=13) -> bits[32] {
+      sel.16: bits[32] = sel(selector, cases=[case_a, case_b], id=16)
+      ret add_reduced: bits[32] = add(shared, sel.16, id=17)
+    }
+  )",
+                                                              p_expect.get()));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  VLOG(3) << "After the transformations:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 6);
+  VLOG(3) << f->DumpIr();
+  EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
+}
+
 }  // namespace
 
 }  // namespace xls
