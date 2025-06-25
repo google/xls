@@ -39,10 +39,11 @@ namespace xls::verilog {
 //  input - converted_blocks: Blocks converted so far indexed by the
 //                            proc/function the block was created from.
 absl::Status SingleProcToPipelinedBlock(
-    const PipelineSchedule& schedule, const CodegenOptions& options,
+    const PackageSchedule& package_schedule, const CodegenOptions& options,
     CodegenContext& context, Proc* proc,
     absl::Span<ProcInstance* const> instances, Block* ABSL_NONNULL block,
-    const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks);
+    const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks,
+    std::optional<const ProcElaboration*> elab = std::nullopt);
 
 }  // namespace xls::verilog
 #endif  // XLS_CODEGEN_PROC_BLOCK_CONVERSION_H_

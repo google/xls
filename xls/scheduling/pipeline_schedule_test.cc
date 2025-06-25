@@ -23,6 +23,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -68,7 +69,7 @@ MATCHER_P(AllNodesScheduled, schedules, "") {
   return true;
 }
 
-// Matcher to check that lhs and rhs PackagePipelineSchedules both have the same
+// Matcher to check that lhs and rhs PackageSchedule both have the same
 // schedule.
 MATCHER_P2(CyclesMatch, lhs, rhs, "") {
   const ::xls::PipelineSchedule& lhs_schedule = lhs.at(arg);
@@ -602,12 +603,12 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
 
   ASSERT_TRUE(schedule.min_clock_period_ps().has_value());
   PipelineScheduleProto proto = schedule.ToProto(TestDelayEstimator());
-  PackagePipelineSchedulesProto package_schedules_proto;
-  package_schedules_proto.mutable_schedules()->emplace(func->name(),
-                                                       std::move(proto));
+  PackageScheduleProto package_schedule_proto;
+  package_schedule_proto.mutable_schedules()->emplace(func->name(),
+                                                      std::move(proto));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule clone,
-      PipelineSchedule::FromProto(func, package_schedules_proto));
+      PipelineSchedule::FromProto(func, package_schedule_proto));
   for (const Node* node : func->nodes()) {
     EXPECT_EQ(schedule.cycle(node), clone.cycle(node));
   }
@@ -1922,8 +1923,7 @@ TEST_F(PipelineScheduleTest, LoopbackChannelWithConstraint) {
   }
 }
 
-TEST_F(PipelineScheduleTest,
-       PackagePipelineSchedulesProtoSerializeAndDeserialize) {
+TEST_F(PipelineScheduleTest, PackageScheduleProtoSerializeAndDeserialize) {
   auto p = CreatePackage();
   auto make_test_fn = [](Package* p, std::string_view name) {
     FunctionBuilder fb(name, p);
@@ -1945,18 +1945,61 @@ TEST_F(PipelineScheduleTest,
       RunPipelineSchedule(func1, TestDelayEstimator(),
                           SchedulingOptions().pipeline_stages(3)));
 
-  PackagePipelineSchedules schedules = {{func0, schedule0}, {func1, schedule1}};
+  PackageSchedule package_schedule(p.get(),
+                                   {{func0, schedule0}, {func1, schedule1}});
 
-  PackagePipelineSchedulesProto proto =
-      PackagePipelineSchedulesToProto(schedules, TestDelayEstimator());
-  XLS_ASSERT_OK_AND_ASSIGN(PackagePipelineSchedules clone,
-                           PackagePipelineSchedulesFromProto(p.get(), proto));
-  ASSERT_THAT(schedules,
+  PackageScheduleProto proto = package_schedule.ToProto(TestDelayEstimator());
+  XLS_ASSERT_OK_AND_ASSIGN(PackageSchedule clone,
+                           PackageSchedule::FromProto(p.get(), proto));
+  ASSERT_THAT(package_schedule.GetSchedules(),
               UnorderedPointwise(KeyEqElement(), p->GetFunctionBases()));
-  ASSERT_THAT(clone, UnorderedPointwise(KeyEqElement(), p->GetFunctionBases()));
-  ASSERT_THAT(p->GetFunctionBases(), Each(AllNodesScheduled(schedules)));
-  ASSERT_THAT(p->GetFunctionBases(), Each(AllNodesScheduled(clone)));
-  EXPECT_THAT(p->GetFunctionBases(), Each(CyclesMatch(schedules, clone)));
+  ASSERT_THAT(clone.GetSchedules(),
+              UnorderedPointwise(KeyEqElement(), p->GetFunctionBases()));
+  ASSERT_THAT(p->GetFunctionBases(),
+              Each(AllNodesScheduled(package_schedule.GetSchedules())));
+  ASSERT_THAT(p->GetFunctionBases(),
+              Each(AllNodesScheduled(clone.GetSchedules())));
+  EXPECT_THAT(
+      p->GetFunctionBases(),
+      Each(CyclesMatch(package_schedule.GetSchedules(), clone.GetSchedules())));
+}
+
+TEST_F(PipelineScheduleTest, SerializeAndDeserializeWithSynchronousSchedule) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb1("proc1", "tkn", p.get());
+  auto literal1 = pb1.Literal(UBits(1, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, pb1.Build());
+
+  TokenlessProcBuilder pb2("proc2", "tkn", p.get());
+  auto literal2 = pb2.Literal(UBits(2, 32));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc2, pb2.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule1,
+      RunPipelineSchedule(proc1, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule2,
+      RunPipelineSchedule(proc2, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(1)));
+
+  absl::flat_hash_map<FunctionBase*, int64_t> synchronous_offsets(
+      {{proc1, 0}, {proc2, 42}});
+  PackageSchedule package_schedule(
+      p.get(), {{proc1, schedule1}, {proc2, schedule2}}, synchronous_offsets);
+
+  EXPECT_TRUE(package_schedule.IsSynchronousSchedule());
+  EXPECT_EQ(package_schedule.GetSynchronousCycle(literal1.node()), 0);
+  EXPECT_EQ(package_schedule.GetSynchronousCycle(literal2.node()), 42);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PackageSchedule clone,
+      PackageSchedule::FromProto(
+          p.get(), package_schedule.ToProto(TestDelayEstimator())));
+
+  EXPECT_TRUE(clone.IsSynchronousSchedule());
+  EXPECT_EQ(clone.GetSynchronousCycle(literal1.node()), 0);
+  EXPECT_EQ(clone.GetSynchronousCycle(literal2.node()), 42);
 }
 
 }  // namespace

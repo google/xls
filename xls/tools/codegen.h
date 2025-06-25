@@ -49,7 +49,7 @@ absl::StatusOr<verilog::CodegenResult> Codegen(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
     const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model,
-    const PackagePipelineSchedules* schedules);
+    const PackageSchedule* packge_schedule);
 absl::StatusOr<std::pair<SchedulingResult, verilog::CodegenResult>>
 ScheduleAndCodegen(
     Package* p,

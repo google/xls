@@ -113,7 +113,7 @@ void PipelineSchedule::RemoveNode(Node* node) {
 
 absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
     FunctionBase* function,
-    const PackagePipelineSchedulesProto& package_schedules_proto) {
+    const PackageScheduleProto& package_schedules_proto) {
   const auto schedule_it =
       package_schedules_proto.schedules().find(function->name());
   if (schedule_it == package_schedules_proto.schedules().end()) {
@@ -224,9 +224,11 @@ std::string PipelineSchedule::ToString() const {
     pos++;
   }
 
-  std::string result;
-  for (int64_t cycle = 0; cycle <= length(); ++cycle) {
-    absl::StrAppendFormat(&result, "Cycle %d:\n", cycle);
+  std::string result =
+      absl::StrFormat("PipelineSchedule for `%s` (length=%d):\n",
+                      function_base()->name(), length());
+  for (int64_t cycle = 0; cycle < length(); ++cycle) {
+    absl::StrAppendFormat(&result, "  Cycle %d:\n", cycle);
     // Emit nodes in topo-sort order for easier reading.
     std::vector<Node*> nodes(nodes_in_cycle(cycle).begin(),
                              nodes_in_cycle(cycle).end());
@@ -234,7 +236,7 @@ std::string PipelineSchedule::ToString() const {
       return topo_pos.at(a) < topo_pos.at(b);
     });
     for (Node* node : nodes) {
-      absl::StrAppendFormat(&result, "  %s\n", node->ToString());
+      absl::StrAppendFormat(&result, "    %s\n", node->ToString());
     }
   }
   return result;
@@ -647,30 +649,78 @@ int64_t PipelineSchedule::CountFinalInteriorPipelineRegisters() const {
   return reg_count;
 }
 
-/* static */ absl::StatusOr<PackagePipelineSchedules>
-PackagePipelineSchedulesFromProto(Package* p,
-                                  const PackagePipelineSchedulesProto& proto) {
-  PackagePipelineSchedules schedules;
+/* static */ absl::StatusOr<PackageSchedule> PackageSchedule::FromProto(
+    Package* p, const PackageScheduleProto& proto) {
+  PackageSchedule package_schedule(p);
   for (const auto& [fb_name, _] : proto.schedules()) {
     VLOG(3) << absl::StreamFormat(
         "Converting proto for Functionbase with name %s", fb_name);
     XLS_ASSIGN_OR_RETURN(FunctionBase * fb, p->GetFunctionBaseByName(fb_name));
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
                          PipelineSchedule::FromProto(fb, proto));
-    schedules.insert({fb, std::move(schedule)});
+    package_schedule.schedules_.insert({fb, std::move(schedule)});
   }
-  return schedules;
+  if (!proto.synchronous_offsets().empty()) {
+    package_schedule.synchronous_offsets_ =
+        absl::flat_hash_map<FunctionBase*, int64_t>();
+    for (const auto& [fb_name, offset] : proto.synchronous_offsets()) {
+      XLS_ASSIGN_OR_RETURN(FunctionBase * fb,
+                           p->GetFunctionBaseByName(fb_name));
+      (*package_schedule.synchronous_offsets_)[fb] = offset;
+
+      // Verify the set of FunctionBases with schedules is the same as the set
+      // of FunctionBases with synchronous offsets.
+      if (!package_schedule.schedules_.contains(fb)) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("FunctionBase `%s` has a synchronous offset in the "
+                            "PackageSchedule but has no PipelineSchedule",
+                            fb->name()));
+      }
+    }
+    if (package_schedule.schedules_.size() !=
+        package_schedule.synchronous_offsets_->size()) {
+      return absl::InvalidArgumentError(
+          "PackageSchedule does not have the same number of PipelineSchedules "
+          "and synchronous offsets");
+    }
+  }
+  return package_schedule;
 }
 
-PackagePipelineSchedulesProto PackagePipelineSchedulesToProto(
-    const PackagePipelineSchedules& schedules,
-    const DelayEstimator& delay_estimator) {
-  PackagePipelineSchedulesProto proto;
-  for (const auto& [fb, schedule] : schedules) {
+PackageScheduleProto PackageSchedule::ToProto(
+    const DelayEstimator& delay_estimator) const {
+  PackageScheduleProto proto;
+  for (const auto& [fb, schedule] : schedules_) {
     proto.mutable_schedules()->insert(
         {fb->name(), schedule.ToProto(delay_estimator)});
+  }
+  if (synchronous_offsets_.has_value()) {
+    for (const auto& [fb, offset] : *synchronous_offsets_) {
+      proto.mutable_synchronous_offsets()->insert({fb->name(), offset});
+    }
   }
   return proto;
 }
 
+std::string PackageSchedule::ToString() const {
+  std::string result =
+      absl::StrFormat("PackageSchedule for `%s`:", package_->name());
+  std::vector<FunctionBase*> function_bases;
+  for (const auto& [fb, _] : schedules_) {
+    function_bases.push_back(fb);
+  }
+  std::sort(function_bases.begin(), function_bases.end(),
+            FunctionBase::NameLessThan);
+  for (FunctionBase* fb : function_bases) {
+    result += schedules_.at(fb).ToString();
+  }
+  if (synchronous_offsets_.has_value()) {
+    result += "Synchronous offsets:\n";
+    for (FunctionBase* fb : function_bases) {
+      result +=
+          absl::StrCat("  ", fb->name(), ": ", synchronous_offsets_->at(fb));
+    }
+  }
+  return result;
+}
 }  // namespace xls

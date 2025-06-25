@@ -110,23 +110,12 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
 }
 
 absl::StatusOr<CodegenResult> ToPipelineModuleText(
-    const PackagePipelineSchedules& schedules, Package* package,
+    const PackageSchedule& package_schedule, Package* package,
     const CodegenOptions& options, const DelayEstimator* delay_estimator) {
   VLOG(2) << "Generating pipelined module for module:";
   XLS_VLOG_LINES(2, package->DumpIr());
   if (VLOG_IS_ON(2)) {
-    // It's helpful when diffing logs to log the schedules in a consistent
-    // order, so we sort by function name.
-    std::vector<FunctionBase const*> fbs;
-    fbs.reserve(schedules.size());
-    for (const auto& [key, _] : schedules) {
-      fbs.push_back(key);
-    }
-    absl::c_sort(fbs, FunctionBase::NameLessThan);
-    for (FunctionBase const* fb : fbs) {
-      VLOG(2) << "Schedule for " << fb->name() << ":\n";
-      XLS_VLOG_LINES(2, schedules.at(fb).ToString());
-    }
+    XLS_VLOG_LINES(2, package_schedule.ToString());
   }
 
   // Note: this is mutated below so cannot be const. It would be nice to
@@ -137,10 +126,11 @@ absl::StatusOr<CodegenResult> ToPipelineModuleText(
   };
 
   // Convert to block and add in pipe stages according to schedule.
-  XLS_ASSIGN_OR_RETURN(CodegenContext context,
-                       PackageToPipelinedBlocks(schedules, options, package));
-  if (std::any_of(
-          schedules.begin(), schedules.end(),
+  XLS_ASSIGN_OR_RETURN(
+      CodegenContext context,
+      PackageToPipelinedBlocks(package_schedule, options, package));
+  if (absl::c_any_of(
+          package_schedule.GetSchedules(),
           [](const std::pair<FunctionBase*, PipelineSchedule>& element) {
             return element.first->IsProc();
           })) {

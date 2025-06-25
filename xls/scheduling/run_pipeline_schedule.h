@@ -44,7 +44,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleWithFdo(
 
 // Produces a pipeline schedule for the network of procs defined by `elab`. The
 // schedule is for a synchronous proc implementation.
-absl::StatusOr<PackagePipelineSchedules> RunSynchronousPipelineSchedule(
+absl::StatusOr<PackageSchedule> RunSynchronousPipelineSchedule(
     Package* package, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options, const ProcElaboration& elab);
 

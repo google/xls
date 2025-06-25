@@ -143,7 +143,7 @@ inline FifoWithConfig kDepth0Fifo{
     .config = FifoConfig(/*depth=*/0, /*bypass=*/true,
                          /*register_push_outputs=*/false,
                          /*register_pop_outputs=*/false),
-    .rtl = R"(// simple fifo depth-1 implementation
+    .rtl = R"(// simple fifo depth-0 implementation
 module xls_fifo_wrapper (
 clk, rst,
 push_ready, push_data, push_valid,

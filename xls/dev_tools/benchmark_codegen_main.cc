@@ -63,7 +63,7 @@ ABSL_FLAG(bool, measure_codegen_timing, true,
 namespace xls {
 namespace {
 
-absl::StatusOr<PackagePipelineSchedules> ScheduleAndPrintStats(
+absl::StatusOr<PackageSchedule> ScheduleAndPrintStats(
     Package* package, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options) {
   absl::Time start = absl::Now();
@@ -73,15 +73,15 @@ absl::StatusOr<PackagePipelineSchedules> ScheduleAndPrintStats(
   std::cout << absl::StreamFormat("Scheduling time: %dms\n",
                                   total_time / absl::Milliseconds(1));
 
-  return PackagePipelineSchedulesFromProto(package,
-                                           scheduling_result.schedules);
+  return PackageSchedule::FromProto(package,
+                                    scheduling_result.package_schedule);
 }
 
 absl::Status PrintCodegenInfo(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
     const CodegenFlagsProto& codegen_options_flags_proto, bool with_delay_model,
-    const PackagePipelineSchedules* schedules) {
+    const PackageSchedule* schedules) {
   absl::Time start = absl::Now();
   XLS_ASSIGN_OR_RETURN(
       verilog::CodegenResult result,
@@ -144,7 +144,7 @@ absl::Status RealMain(std::string_view opt_ir_path,
     XLS_RET_CHECK(opt_package->GetTop().has_value())
         << "Package " << opt_package->name() << " needs a top function/proc.";
 
-    PackagePipelineSchedules schedules;
+    PackageSchedule package_schedule(block_package.get());
     if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
       XLS_ASSIGN_OR_RETURN(
           SchedulingOptions scheduling_options,
@@ -154,15 +154,16 @@ absl::Status RealMain(std::string_view opt_ir_path,
                            SetUpDelayEstimator(scheduling_options_flags_proto));
 
       XLS_ASSIGN_OR_RETURN(
-          schedules, ScheduleAndPrintStats(opt_package.get(), *delay_estimator,
-                                           scheduling_options));
+          package_schedule,
+          ScheduleAndPrintStats(opt_package.get(), *delay_estimator,
+                                scheduling_options));
     }
     // We don't use --top for codegen, instead we use it to get the top block
     // after codegen.
     codegen_flags_proto.clear_top();
-    XLS_RETURN_IF_ERROR(
-        PrintCodegenInfo(opt_package.get(), scheduling_options_flags_proto,
-                         codegen_flags_proto, with_delay_model, &schedules));
+    XLS_RETURN_IF_ERROR(PrintCodegenInfo(
+        opt_package.get(), scheduling_options_flags_proto, codegen_flags_proto,
+        with_delay_model, &package_schedule));
   }
 
   XLS_ASSIGN_OR_RETURN(Block * top, GetTopBlock(block_package.get()));

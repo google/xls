@@ -452,10 +452,6 @@ class Package {
 
   std::optional<FunctionBase*> top_;
 
-  // Helper that returns a map from the names of functions inside this package
-  // to the functions themselves.
-  absl::flat_hash_map<std::string, Function*> GetFunctionByName();
-
   // Name of this package.
   std::string name_;
 

@@ -55,7 +55,7 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
                        context.GetSchedulableFunctions());
   for (FunctionBase* f : before_schedulable_functions) {
     // No need to save nodes_before for unscheduled FunctionBases.
-    if (!context.schedules().contains(f)) {
+    if (!context.package_schedule().HasSchedule(f)) {
       continue;
     }
     for (Node* node : f->nodes()) {
@@ -84,12 +84,18 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
   {
     absl::flat_hash_set<FunctionBase*> after_schedulable_functions_set(
         after_schedulable_functions.begin(), after_schedulable_functions.end());
-    absl::erase_if(
-        context.schedules(),
-        [&after_schedulable_functions_set](
-            const std::pair<FunctionBase* const, PipelineSchedule>& itr) {
-          return !after_schedulable_functions_set.contains(itr.first);
-        });
+    // Can't call GetScheduledFunctionBases because that references the
+    // FunctionBase pointers for a stable name-based sort and some of the
+    // pointers may have been free.
+    std::vector<FunctionBase*> to_delete;
+    for (const auto& [fb, _] : context.package_schedule().GetSchedules()) {
+      if (!after_schedulable_functions_set.contains(fb)) {
+        to_delete.push_back(fb);
+      }
+    }
+    for (FunctionBase* fb : to_delete) {
+      XLS_RETURN_IF_ERROR(context.package_schedule().RemoveSchedule(fb));
+    }
   }
 
   absl::btree_set<int64_t> nodeids_after;
@@ -97,7 +103,7 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
     // No need to save nodes_after for unscheduled FunctionBases, we only care
     // about removing nodes that were removed and exist only before the wrapped
     // pass is run.
-    if (!context.schedules().contains(f)) {
+    if (!context.package_schedule().HasSchedule(f)) {
       continue;
     }
     for (Node* node : f->nodes()) {
@@ -119,9 +125,10 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
       // the schedule has already been removed because a new node was added, so
       // we check if the schedule is present first.
       XLS_RET_CHECK(!nodeids_after.contains(nodeid));
-      auto itr = context.schedules().find(id_to_function.at(nodeid));
-      if (itr != context.schedules().end()) {
-        itr->second.RemoveNode(id_to_node.at(nodeid));
+      if (context.package_schedule().HasSchedule(id_to_function.at(nodeid))) {
+        context.package_schedule()
+            .GetSchedule(id_to_function.at(nodeid))
+            .RemoveNode(id_to_node.at(nodeid));
       }
       continue;
     }
@@ -130,7 +137,8 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
     if (reschedule_new_nodes_) {
       // need to reschedule, remove the current schedule if it hasn't been
       // removed already.
-      context.schedules().erase(id_to_function.at(nodeid));
+      XLS_RETURN_IF_ERROR(
+          context.package_schedule().RemoveSchedule(id_to_function.at(nodeid)));
     } else {
       return absl::InternalError(
           absl::StrFormat("SchedulingWrapperPass(%s) can't create new nodes "

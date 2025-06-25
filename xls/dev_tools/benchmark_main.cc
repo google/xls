@@ -408,18 +408,24 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
 }
 
 absl::Status PrintScheduleInfo(FunctionBase* f,
-                               const PackagePipelineSchedules& schedules,
+                               const PackageSchedule& package_schedule,
                                const BddQueryEngine& bdd_query_engine,
                                const DelayEstimator& delay_estimator,
                                std::optional<int64_t> clock_period_ps) {
-  if (schedules.size() == 1) {
-    const PipelineSchedule& schedule = schedules.begin()->second;
+  if (package_schedule.GetSchedules().size() == 1) {
+    // With multiple schedules there may be multiple minimum clock periods.
+    // However, a consumer of the output of this utility expects a single value
+    // for this metric. The core underlying problem is that we should have a
+    // single minimum clock period across multiple FunctionBases (procs) rather
+    // than minimizing on a per-FunctionBase basis.
+    const PipelineSchedule& schedule =
+        package_schedule.GetSchedules().begin()->second;
     if (schedule.min_clock_period_ps().has_value()) {
       std::cout << absl::StreamFormat("Min clock period ps: %d\n",
                                       *schedule.min_clock_period_ps());
     }
   }
-  for (auto& [function_base, schedule] : schedules) {
+  for (auto& [function_base, schedule] : package_schedule.GetSchedules()) {
     std::cout << "\n\nFunction: " << function_base->name() << "\n";
     XLS_RETURN_IF_ERROR(PrintScheduleInfo(function_base, schedule,
                                           bdd_query_engine, delay_estimator,
@@ -699,16 +705,17 @@ absl::Status RunInterpreterAndJit(FunctionBase* function_base,
 absl::Status AnalyzeAndPrintCriticalPath(
     FunctionBase* f, std::optional<int64_t> effective_clock_period_ps,
     const DelayEstimator& delay_estimator, const QueryEngine& query_engine,
-    PackagePipelineSchedules* schedules, synthesis::Synthesizer* synthesizer) {
+    PackageSchedule* package_schedule, synthesis::Synthesizer* synthesizer) {
   XLS_ASSIGN_OR_RETURN(
       std::vector<CriticalPathEntry> critical_path,
       AnalyzeCriticalPath(f, effective_clock_period_ps, delay_estimator));
   synthesis::SynthesizedDelayDiffByStage delay_diff;
   if (synthesizer) {
-    if (schedules) {
+    if (package_schedule) {
       XLS_ASSIGN_OR_RETURN(
-          delay_diff, CreateDelayDiffByStage(f, schedules->begin()->second,
-                                             delay_estimator, synthesizer));
+          delay_diff, CreateDelayDiffByStage(
+                          f, package_schedule->GetSchedules().begin()->second,
+                          delay_estimator, synthesizer));
       delay_diff.total_diff.critical_path = std::move(critical_path);
     } else {
       XLS_ASSIGN_OR_RETURN(
@@ -799,7 +806,7 @@ absl::Status RealMain(std::string_view path) {
         f, effective_clock_period_ps, delay_estimator, query_engine,
         /*schedules=*/nullptr, synthesizer.get()));
   } else if (benchmark_codegen) {
-    PackagePipelineSchedules schedules;
+    PackageSchedule package_schedule(package.get());
     if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
       XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
                            SetUpSchedulingOptions(
@@ -807,19 +814,20 @@ absl::Status RealMain(std::string_view path) {
       XLS_ASSIGN_OR_RETURN(
           SchedulingResult scheduling_result,
           Schedule(package.get(), scheduling_options, &delay_estimator));
-      XLS_ASSIGN_OR_RETURN(schedules,
-                           PackagePipelineSchedulesFromProto(
-                               package.get(), scheduling_result.schedules));
+      XLS_ASSIGN_OR_RETURN(
+          package_schedule,
+          PackageSchedule::FromProto(package.get(),
+                                     scheduling_result.package_schedule));
       std::cout << absl::StreamFormat(
           "Scheduling time: %dms\n",
           PassPipelineDuration(scheduling_result.pass_pipeline_metrics) /
               absl::Milliseconds(1));
       XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
           f, effective_clock_period_ps, delay_estimator, query_engine,
-          &schedules, synthesizer.get()));
+          &package_schedule, synthesizer.get()));
 
       XLS_RETURN_IF_ERROR(PrintScheduleInfo(
-          f, schedules, query_engine, delay_estimator,
+          f, package_schedule, query_engine, delay_estimator,
           scheduling_options_flags_proto.has_clock_period_ps()
               ? std::make_optional(
                     scheduling_options_flags_proto.clock_period_ps())
@@ -830,7 +838,7 @@ absl::Status RealMain(std::string_view path) {
         Codegen(package.get(), scheduling_options_flags_proto,
                 codegen_flags_proto, delay_model_flag_passed,
                 codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE
-                    ? &schedules
+                    ? &package_schedule
                     : nullptr));
     std::cout << absl::StreamFormat(
         "Codegen time: %dms\n",

@@ -22,7 +22,7 @@ namespace xls {
 
 // Data structure gathering together the artifacts created by scheduling.
 struct SchedulingResult {
-  PackagePipelineSchedulesProto schedules;
+  PackageScheduleProto package_schedule;
   PassPipelineMetricsProto pass_pipeline_metrics;
 };
 

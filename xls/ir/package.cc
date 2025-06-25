@@ -119,11 +119,24 @@ absl::StatusOr<Block*> Package::GetTopAsBlock() const {
 
 absl::StatusOr<FunctionBase*> Package::GetFunctionBaseByName(
     std::string_view name) const {
-  std::vector<FunctionBase*> fbs = GetFunctionBases();
-  int64_t count = std::count_if(
-      fbs.begin(), fbs.end(),
-      [name](const FunctionBase* fb) { return fb->name() == name; });
-  if (count == 0) {
+  std::vector<FunctionBase*> matches;
+  for (auto& function : functions()) {
+    if (function->name() == name) {
+      matches.push_back(function.get());
+    }
+  }
+  for (auto& proc : procs()) {
+    if (proc->name() == name) {
+      matches.push_back(proc.get());
+    }
+  }
+  for (auto& block : blocks()) {
+    if (block->name() == name) {
+      matches.push_back(block.get());
+    }
+  }
+  if (matches.empty()) {
+    std::vector<FunctionBase*> fbs = GetFunctionBases();
     std::string available =
         absl::StrJoin(fbs.begin(), fbs.end(), ", ",
                       [](std::string* out, const FunctionBase* fb) {
@@ -134,11 +147,8 @@ absl::StatusOr<FunctionBase*> Package::GetFunctionBaseByName(
                         "tried: [\"%s\"]; available: %s",
                         name, available));
   }
-  if (count == 1) {
-    auto fb_iter = std::find_if(
-        fbs.begin(), fbs.end(),
-        [name](const FunctionBase* fb) { return fb->name() == name; });
-    return *fb_iter;
+  if (matches.size() == 1) {
+    return matches.front();
   }
   return absl::NotFoundError(
       absl::StrFormat("More than one instance with name: %s", name));
@@ -615,14 +625,6 @@ std::string Package::DumpIr() const {
 std::ostream& operator<<(std::ostream& os, const Package& package) {
   os << package.DumpIr();
   return os;
-}
-
-absl::flat_hash_map<std::string, Function*> Package::GetFunctionByName() {
-  absl::flat_hash_map<std::string, Function*> name_to_function;
-  for (std::unique_ptr<Function>& function : functions_) {
-    name_to_function[function->name()] = function.get();
-  }
-  return name_to_function;
 }
 
 std::vector<std::string> Package::GetFunctionNames() const {

@@ -61,9 +61,8 @@ static absl::Status RealMain(const std::string& ir_path,
     XLS_ASSIGN_OR_RETURN(function, package->GetTopAsFunction());
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      PackagePipelineSchedulesProto proto,
-      ParseTextProtoFile<PackagePipelineSchedulesProto>(schedule_path));
+  XLS_ASSIGN_OR_RETURN(PackageScheduleProto proto,
+                       ParseTextProtoFile<PackageScheduleProto>(schedule_path));
   XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
                        PipelineSchedule::FromProto(function, proto));
   std::vector<FunctionBase*> funcs = package->GetFunctionBases();

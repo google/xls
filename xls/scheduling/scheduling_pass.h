@@ -43,13 +43,13 @@ class SchedulingContext {
 
   SchedulingContext() = delete;
 
-  const PackagePipelineSchedules& schedules() const { return schedules_; }
-  PackagePipelineSchedules& schedules() { return schedules_; }
+  const PackageSchedule& package_schedule() const { return package_schedule_; }
+  PackageSchedule& package_schedule() { return package_schedule_; }
 
   // Gets list of FunctionBases to be operated on by scheduling passes.
   absl::StatusOr<std::vector<FunctionBase*>> GetSchedulableFunctions() const;
   // Returns true if every function in `GetSchedulableFunctions()` has a
-  // schedule in `schedules()`.
+  // schedule in `package_schedule()`.
   bool IsScheduled() const;
 
   const TransformMetrics& transform_metrics() const {
@@ -58,18 +58,18 @@ class SchedulingContext {
 
  protected:
   explicit SchedulingContext(Package* p)
-      : schedulable_unit_(p), ir_(p), schedules_({}) {}
+      : schedulable_unit_(p), ir_(p), package_schedule_(p) {}
   explicit SchedulingContext(FunctionBase* fb_to_schedule)
       : schedulable_unit_(fb_to_schedule),
         ir_(fb_to_schedule->package()),
-        schedules_({}) {}
+        package_schedule_(fb_to_schedule->package()) {}
 
  private:
   // If FunctionBase, only schedule the FunctionBase, else schedule the whole
   // package.
   std::variant<Package*, FunctionBase*> schedulable_unit_;
   Package* ir_;
-  PackagePipelineSchedules schedules_;
+  PackageSchedule package_schedule_;
 };
 
 // Options passed to each scheduling pass.

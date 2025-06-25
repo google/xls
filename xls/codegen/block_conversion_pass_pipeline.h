@@ -32,7 +32,7 @@ namespace xls::verilog {
 // TODO(tedhong): 2024-11-22 - Make this a separate pass.
 //
 absl::StatusOr<CodegenContext> CreateBlocksFor(
-    const PackagePipelineSchedules& schedules, const CodegenOptions& options,
+    const PackageSchedule& package_schedule, const CodegenOptions& options,
     Package* package);
 
 // Returns the block conversion pass pipeline which runs on a package and

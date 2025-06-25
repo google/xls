@@ -49,7 +49,7 @@ absl::StatusOr<CodegenContext> FunctionBaseToPipelinedBlock(
 
 // Converts every scheduled function/proc in `package` to pipelined blocks.
 absl::StatusOr<CodegenContext> PackageToPipelinedBlocks(
-    const PackagePipelineSchedules& schedule, const CodegenOptions& options,
+    const PackageSchedule& package_schedule, const CodegenOptions& options,
     Package* package);
 
 // Converts a function into a pipelined block.
@@ -122,9 +122,10 @@ absl::StatusOr<StreamingIOPipeline> CloneProcNodesIntoBlock(
 absl::StatusOr<
     std::tuple<StreamingIOPipeline, std::optional<ConcurrentStageGroups>>>
 CloneNodesIntoPipelinedBlock(
-    const PipelineSchedule& schedule, const CodegenOptions& options,
-    Block* block,
-    const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks);
+    FunctionBase* function_base, const PackageSchedule& package_schedule,
+    const CodegenOptions& options, Block* block,
+    const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks,
+    std::optional<const ProcElaboration*> elab = std::nullopt);
 
 // Adds ready/valid ports for each of the given streaming inputs/outputs. Also,
 // adds logic which propagates ready and valid signals through the block.

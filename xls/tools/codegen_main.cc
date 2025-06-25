@@ -104,7 +104,7 @@ absl::Status RealMain(std::string_view ir_path) {
   if (!absl::GetFlag(FLAGS_output_schedule_path).empty()) {
     XLS_RETURN_IF_ERROR(
         SetTextProtoFile(absl::GetFlag(FLAGS_output_schedule_path),
-                         scheduling_result.schedules));
+                         scheduling_result.package_schedule));
   }
 
   if (!absl::GetFlag(FLAGS_output_block_ir_path).empty()) {

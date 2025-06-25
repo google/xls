@@ -13,22 +13,28 @@
 // limitations under the License.
 //
 // Abstractions for describing the binding of Nodes to cycles.
-// PackagePipelineSchedules map FunctionBases to a PipelineSchedule, and
+// PackageSchedule map FunctionBases to a PipelineSchedule, and
 // PipelineSchedule maps nodes in a FunctionBase to an integer value
 // representing a pipeline stage.
 
 #ifndef XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
 #define XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/fdo/delay_manager.h"
 #include "xls/ir/function_base.h"
@@ -41,9 +47,11 @@ namespace xls {
 // Abstraction describing the binding of Nodes to cycles for a FunctionBase.
 class PipelineSchedule {
  public:
+  PipelineSchedule() = default;
+
   // Reconstructs a PipelineSchedule object from a proto representation.
   static absl::StatusOr<PipelineSchedule> FromProto(
-      FunctionBase* function, const PackagePipelineSchedulesProto& proto);
+      FunctionBase* function, const PackageScheduleProto& proto);
 
   // Builds trivial pipeline schedule with all nodes in a single stage
   static absl::StatusOr<PipelineSchedule> SingleStage(FunctionBase* function);
@@ -120,7 +128,7 @@ class PipelineSchedule {
   const ScheduleCycleMap& GetCycleMap() const { return cycle_map_; }
 
  private:
-  FunctionBase* function_base_;
+  FunctionBase* function_base_ = nullptr;
 
   // Map from node to the cycle in which it is scheduled.
   ScheduleCycleMap cycle_map_;
@@ -132,21 +140,116 @@ class PipelineSchedule {
   std::optional<int64_t> min_clock_period_ps_;
 };
 
-// Group of PipelineSchedules for subset of FunctionBases in a package.
-using PackagePipelineSchedules =
-    absl::flat_hash_map<FunctionBase*, PipelineSchedule>;
+// A collection of FunctionBase schedules necessary to generate pipelined
+// implementation for a Package.
+class PackageSchedule {
+ public:
+  using ScheduleMap = absl::flat_hash_map<FunctionBase*, PipelineSchedule>;
 
-// Reconstructs a PackagePipelineSchedules object from a proto representation.
-// Will return an error status if the proto schedules reference nodes that don't
-// exist in the package.
-absl::StatusOr<PackagePipelineSchedules> PackagePipelineSchedulesFromProto(
-    Package* p, const PackagePipelineSchedulesProto& proto);
+  explicit PackageSchedule(Package* package) : package_(package) {}
 
-// Returns a protobuf holding the PackagePipelineSchedules object's scheduling
-// info.
-PackagePipelineSchedulesProto PackagePipelineSchedulesToProto(
-    const PackagePipelineSchedules& schedules,
-    const DelayEstimator& delay_estimator);
+  explicit PackageSchedule(PipelineSchedule schedule)
+      : package_(schedule.function_base()->package()) {
+    schedules_[schedule.function_base()] = std::move(schedule);
+  }
+  PackageSchedule(Package* package, ScheduleMap schedules,
+                  std::optional<absl::flat_hash_map<FunctionBase*, int64_t>>
+                      synchronous_offsets = std::nullopt)
+      : package_(package),
+        schedules_(std::move(schedules)),
+        synchronous_offsets_(synchronous_offsets) {}
+
+  // Reconstructs a PackageSchedule object from a proto representation.
+  // Will return an error status if the proto schedules reference nodes that
+  // don't exist in the package.
+  static absl::StatusOr<PackageSchedule> FromProto(
+      Package* p, const PackageScheduleProto& proto);
+
+  // Returns whether the given FunctionBase has a schedule.
+  bool HasSchedule(FunctionBase* fb) const { return schedules_.contains(fb); }
+
+  const ScheduleMap& GetSchedules() const { return schedules_; }
+
+  // Return the PipelineSchedule for the given FunctionBase.
+  PipelineSchedule& GetSchedule(FunctionBase* function_base) {
+    return schedules_.at(function_base);
+  }
+  const PipelineSchedule& GetSchedule(FunctionBase* function_base) const {
+    return schedules_.at(function_base);
+  }
+
+  // Adds a schedule for the given FunctionBase. Returns an error if there is
+  // already a schedule for the given FunctionBase.
+  absl::Status AddSchedule(FunctionBase* fb, PipelineSchedule&& schedule) {
+    XLS_RET_CHECK(!HasSchedule(fb))
+        << absl::StrFormat("`%s` already has a schedule", fb->name());
+    XLS_RET_CHECK_EQ(fb, schedule.function_base());
+    schedules_[fb] = schedule;
+    return absl::OkStatus();
+  }
+
+  absl::Status RemoveSchedule(FunctionBase* fb) {
+    if (!HasSchedule(fb)) {
+      return absl::NotFoundError(
+          absl::StrFormat("FunctionBase `%s` has no schedule", fb->name()));
+    }
+    schedules_.erase(fb);
+    if (synchronous_offsets_.has_value()) {
+      synchronous_offsets_->erase(fb);
+    }
+    return absl::OkStatus();
+  }
+
+  // Sets the schedule associated with `fb` to `schedule`.
+  absl::Status UpdateSchedule(FunctionBase* fb, PipelineSchedule&& schedule) {
+    if (HasSchedule(fb)) {
+      XLS_RETURN_IF_ERROR(RemoveSchedule(fb));
+    }
+    return AddSchedule(fb, std::move(schedule));
+  }
+
+  // Returns the FunctionBases with a schedule in a stable sort.
+  std::vector<FunctionBase*> GetScheduledFunctionBases() const {
+    std::vector<FunctionBase*> function_bases;
+    for (const auto& [fb, _] : schedules_) {
+      function_bases.push_back(fb);
+    }
+    std::sort(function_bases.begin(), function_bases.end(),
+              FunctionBase::NameLessThan);
+    return function_bases;
+  }
+
+  bool IsSynchronousSchedule() const {
+    return synchronous_offsets_.has_value();
+  }
+
+  // Returns the global stage the nodes is in within a synchronous schedule of
+  // the package. CHECK fails if this is PackageSchedule is not a synchronous
+  // schedule.
+  int64_t GetSynchronousCycle(Node* node) const {
+    CHECK(IsSynchronousSchedule());
+    return GetSchedule(node->function_base()).cycle(node) +
+           synchronous_offsets_->at(node->function_base());
+  }
+
+  void Clear() {
+    schedules_.clear();
+    synchronous_offsets_.reset();
+  }
+
+  PackageScheduleProto ToProto(const DelayEstimator& delay_estimator) const;
+  std::string ToString() const;
+
+ private:
+  Package* package_ = nullptr;
+  ScheduleMap schedules_;
+
+  // If this package represents a synchronous schedule of FunctionBases (procs)
+  // in the package, this map contains the stage offset of each function base in
+  // the synchronous schedule.
+  std::optional<absl::flat_hash_map<FunctionBase*, int64_t>>
+      synchronous_offsets_;
+};
 
 }  // namespace xls
 

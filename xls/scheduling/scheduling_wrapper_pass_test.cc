@@ -146,7 +146,8 @@ TEST_F(SchedulingWrapperPassTest, DCEDoesntChangeWhenRunOnSingleProc) {
   auto context = SchedulingContext::CreateForSingleFunction(add_func);
   XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
                            PipelineSchedule::SingleStage(add_func));
-  context.schedules().insert({add_func, std::move(schedule)});
+  XLS_ASSERT_OK(
+      context.package_schedule().AddSchedule(add_func, std::move(schedule)));
 
   EXPECT_THAT(
       RunSchedulingPass(p.get(), std::make_unique<DeadCodeEliminationPass>(),
@@ -164,14 +165,16 @@ TEST_F(SchedulingWrapperPassTest, DCEWorksOnUnscheduledFunction) {
   auto context = SchedulingContext::CreateForSingleFunction(add_func);
   XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
                            PipelineSchedule::SingleStage(add_func));
-  context.schedules().insert({add_func, std::move(schedule)});
+  XLS_ASSERT_OK(
+      context.package_schedule().AddSchedule(add_func, std::move(schedule)));
 
   EXPECT_THAT(
       RunSchedulingPass(p.get(), std::make_unique<DeadCodeEliminationPass>(),
                         /*reschedule_new_nodes=*/true, context),
       IsOkAndHolds(true));
 
-  EXPECT_THAT(context.schedules(), UnorderedElementsAre(Key(add_func)));
+  EXPECT_THAT(context.package_schedule().GetSchedules(),
+              UnorderedElementsAre(Key(add_func)));
 }
 
 TEST_F(SchedulingWrapperPassTest, DCEWorksWhenDCEdProcIsUnscheduled) {
@@ -184,14 +187,16 @@ TEST_F(SchedulingWrapperPassTest, DCEWorksWhenDCEdProcIsUnscheduled) {
   auto context = SchedulingContext::CreateForWholePackage(p.get());
   XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
                            PipelineSchedule::SingleStage(add_func));
-  context.schedules().insert({add_func, std::move(schedule)});
+  XLS_ASSERT_OK(
+      context.package_schedule().AddSchedule(add_func, std::move(schedule)));
 
   EXPECT_THAT(
       RunSchedulingPass(p.get(), std::make_unique<DeadCodeEliminationPass>(),
                         /*reschedule_new_nodes=*/true, context),
       IsOkAndHolds(true));
 
-  EXPECT_THAT(context.schedules(), UnorderedElementsAre(Key(add_func)));
+  EXPECT_THAT(context.package_schedule().GetSchedules(),
+              UnorderedElementsAre(Key(add_func)));
 }
 
 TEST_F(SchedulingWrapperPassTest, DCEFixesScheduleOfChangedProc) {
@@ -207,11 +212,13 @@ TEST_F(SchedulingWrapperPassTest, DCEFixesScheduleOfChangedProc) {
   auto context = SchedulingContext::CreateForWholePackage(p.get());
   XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
                            PipelineSchedule::SingleStage(add_func));
-  context.schedules().insert({add_func, std::move(schedule)});
+  XLS_ASSERT_OK(
+      context.package_schedule().AddSchedule(add_func, std::move(schedule)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       schedule, PipelineSchedule::SingleStage(add_func_with_dead_node));
-  context.schedules().insert({add_func_with_dead_node, std::move(schedule)});
+  XLS_ASSERT_OK(context.package_schedule().AddSchedule(add_func_with_dead_node,
+                                                       std::move(schedule)));
 
   EXPECT_THAT(
       RunSchedulingPass(p.get(), std::make_unique<DeadCodeEliminationPass>(),
@@ -219,10 +226,11 @@ TEST_F(SchedulingWrapperPassTest, DCEFixesScheduleOfChangedProc) {
       IsOkAndHolds(true));
 
   ASSERT_THAT(
-      context.schedules(),
+      context.package_schedule().GetSchedules(),
       UnorderedElementsAre(Key(add_func), Key(add_func_with_dead_node)));
 
-  EXPECT_FALSE(context.schedules().at(add_func).IsScheduled(dead_node));
+  EXPECT_FALSE(
+      context.package_schedule().GetSchedule(add_func).IsScheduled(dead_node));
 }
 
 TEST_F(SchedulingWrapperPassTest,
@@ -235,7 +243,8 @@ TEST_F(SchedulingWrapperPassTest,
 
   XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
                            PipelineSchedule::SingleStage(lit_func));
-  context.schedules().insert({lit_func, std::move(schedule)});
+  XLS_ASSERT_OK(
+      context.package_schedule().AddSchedule(lit_func, std::move(schedule)));
 
   EXPECT_THAT(
       RunSchedulingPass(p.get(), std::make_unique<LiteralUncommoningPass>(),
@@ -253,14 +262,15 @@ TEST_F(SchedulingWrapperPassTest,
   auto context = SchedulingContext::CreateForWholePackage(p.get());
   XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
                            PipelineSchedule::SingleStage(lit_func));
-  context.schedules().insert({lit_func, std::move(schedule)});
+  XLS_ASSERT_OK(
+      context.package_schedule().AddSchedule(lit_func, std::move(schedule)));
 
   EXPECT_THAT(
       RunSchedulingPass(p.get(), std::make_unique<LiteralUncommoningPass>(),
                         /*reschedule_new_nodes=*/true, context),
       IsOkAndHolds(true));
 
-  EXPECT_THAT(context.schedules(), IsEmpty());
+  EXPECT_THAT(context.package_schedule().GetSchedules(), IsEmpty());
 }
 
 TEST_F(SchedulingWrapperPassTest, DCEMakesLiteralUncommoningANoop) {
@@ -275,7 +285,8 @@ TEST_F(SchedulingWrapperPassTest, DCEMakesLiteralUncommoningANoop) {
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       PipelineSchedule::SingleStage(dead_common_literal_func));
-  context.schedules().insert({dead_common_literal_func, std::move(schedule)});
+  XLS_ASSERT_OK(context.package_schedule().AddSchedule(dead_common_literal_func,
+                                                       std::move(schedule)));
   SchedulingCompoundPass pass_pipeline("scheduling", "DCE + literal commoning");
   OptimizationContext opt_context;
   pass_pipeline.Add<SchedulingWrapperPass>(
@@ -287,10 +298,11 @@ TEST_F(SchedulingWrapperPassTest, DCEMakesLiteralUncommoningANoop) {
   EXPECT_THAT(RunSchedulingPass(p.get(), pass_pipeline, context),
               IsOkAndHolds(true));
 
-  ASSERT_THAT(context.schedules(),
+  ASSERT_THAT(context.package_schedule().GetSchedules(),
               UnorderedElementsAre(Key(dead_common_literal_func)));
-  EXPECT_FALSE(
-      context.schedules().at(dead_common_literal_func).IsScheduled(dead_node));
+  EXPECT_FALSE(context.package_schedule()
+                   .GetSchedule(dead_common_literal_func)
+                   .IsScheduled(dead_node));
 }
 
 TEST_F(SchedulingWrapperPassTest,
@@ -304,7 +316,8 @@ TEST_F(SchedulingWrapperPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       PipelineSchedule::SingleStage(dead_common_literal_func));
-  context.schedules().insert({dead_common_literal_func, std::move(schedule)});
+  XLS_ASSERT_OK(context.package_schedule().AddSchedule(dead_common_literal_func,
+                                                       std::move(schedule)));
   SchedulingCompoundPass pass_pipeline("scheduling", "DCE + literal commoning");
   OptimizationContext opt_context;
   pass_pipeline.Add<SchedulingWrapperPass>(
@@ -316,7 +329,7 @@ TEST_F(SchedulingWrapperPassTest,
       /*eliminate_noop_next=*/false);
   EXPECT_THAT(RunSchedulingPass(p.get(), pass_pipeline, context),
               IsOkAndHolds(true));
-  ASSERT_THAT(context.schedules(), IsEmpty());
+  ASSERT_THAT(context.package_schedule().GetSchedules(), IsEmpty());
 }
 
 TEST_F(SchedulingWrapperPassTest,
@@ -330,7 +343,8 @@ TEST_F(SchedulingWrapperPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       PipelineSchedule::SingleStage(dead_common_literal_func));
-  context.schedules().insert({dead_common_literal_func, std::move(schedule)});
+  XLS_ASSERT_OK(context.package_schedule().AddSchedule(dead_common_literal_func,
+                                                       std::move(schedule)));
   SchedulingCompoundPass pass_pipeline("scheduling", "DCE + literal commoning");
   OptimizationContext opt_context;
   pass_pipeline.Add<SchedulingWrapperPass>(
@@ -369,7 +383,8 @@ TEST_F(SchedulingWrapperPassTest, FunctionInliningScheduleDFEWorks) {
       /*eliminate_noop_next=*/false);
   EXPECT_THAT(RunSchedulingPass(p.get(), pass_pipeline, context),
               IsOkAndHolds(true));
-  ASSERT_THAT(context.schedules(), UnorderedElementsAre(Key(add_func)));
+  ASSERT_THAT(context.package_schedule().GetSchedules(),
+              UnorderedElementsAre(Key(add_func)));
 }
 
 TEST_F(SchedulingWrapperPassTest,

@@ -38,13 +38,15 @@ absl::Status SchedulingChecker::Run(Package* package,
   XLS_RET_CHECK_GT(schedulable_functions.size(), 0);
   for (FunctionBase* fb : schedulable_functions) {
     XLS_RET_CHECK_EQ(fb->package(), package);
-    auto itr = context.schedules().find(fb);
-    if (itr == context.schedules().end()) {
-      XLS_RET_CHECK(context.schedules().empty()) << absl::StreamFormat(
-          "Schedulable function %v not found in non-empty schedules map", *fb);
+    if (!context.package_schedule().HasSchedule(fb)) {
+      XLS_RET_CHECK(context.package_schedule().GetSchedules().empty())
+          << absl::StreamFormat(
+                 "Schedulable function %v not found in non-empty schedules map",
+                 *fb);
       continue;
     }
-    const PipelineSchedule& schedule = itr->second;
+    const PipelineSchedule& schedule =
+        context.package_schedule().GetSchedule(fb);
     XLS_RET_CHECK_EQ(schedule.function_base(), fb);
     XLS_RETURN_IF_ERROR(schedule.Verify());
     // TODO(meheff): Add check to ensure schedule matches the specified

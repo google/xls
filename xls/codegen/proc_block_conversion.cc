@@ -1462,13 +1462,14 @@ static absl::Status AddIdleOutput(
 
 // Public interface
 absl::Status SingleProcToPipelinedBlock(
-    const PipelineSchedule& schedule, const CodegenOptions& options,
+    const PackageSchedule& package_schedule, const CodegenOptions& options,
     CodegenContext& context, Proc* proc,
     absl::Span<ProcInstance* const> instances, Block* ABSL_NONNULL block,
-    const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks) {
+    const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks,
+    std::optional<const ProcElaboration*> elab) {
   VLOG(1) << absl::StrFormat("SingleProcToPipelinedBlock(proc=`%s`, block=`%s)",
                              proc->name(), block->name());
-  XLS_RET_CHECK_EQ(schedule.function_base(), proc);
+  XLS_RET_CHECK(package_schedule.HasSchedule(proc));
   if (std::optional<int64_t> ii = proc->GetInitiationInterval();
       ii.has_value()) {
     block->SetInitiationInterval(*ii);
@@ -1478,11 +1479,12 @@ absl::Status SingleProcToPipelinedBlock(
 
   XLS_RETURN_IF_ERROR(block->AddClockPort("clk"));
   VLOG(3) << "Schedule Used";
-  XLS_VLOG_LINES(3, schedule.ToString());
+  XLS_VLOG_LINES(3, package_schedule.ToString());
 
   XLS_ASSIGN_OR_RETURN(
       (auto [streaming_io_and_pipeline, concurrent_stages]),
-      CloneNodesIntoPipelinedBlock(schedule, options, block, converted_blocks));
+      CloneNodesIntoPipelinedBlock(proc, package_schedule, options, block,
+                                   converted_blocks));
 
   VLOG(3) << "After Pipeline";
   XLS_VLOG_LINES(3, block->DumpIr());

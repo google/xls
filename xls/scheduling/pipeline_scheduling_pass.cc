@@ -73,9 +73,9 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
     }
     absl::flat_hash_map<Node*, int64_t> schedule_cycle_map_before;
     SchedulingOptions scheduling_options = options.scheduling_options;
-    auto schedule_itr = context.schedules().find(f);
-    if (schedule_itr != context.schedules().end()) {
-      const PipelineSchedule& schedule = schedule_itr->second;
+    if (context.package_schedule().HasSchedule(f)) {
+      const PipelineSchedule& schedule =
+          context.package_schedule().GetSchedule(f);
       schedule_cycle_map_before = schedule.GetCycleMap();
       if (!scheduling_options.use_fdo()) {
         AddCycleConstraints(schedule, scheduling_options);
@@ -93,7 +93,8 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
     // Compute `changed` before moving schedule into context.schedules.
     changed = changed || (schedule_cycle_map_before != schedule.GetCycleMap());
 
-    context.schedules().insert_or_assign(schedule_itr, f, std::move(schedule));
+    XLS_RETURN_IF_ERROR(
+        context.package_schedule().UpdateSchedule(f, std::move(schedule)));
   }
   return changed;
 }
