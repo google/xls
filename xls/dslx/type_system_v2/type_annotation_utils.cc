@@ -381,6 +381,7 @@ Expr* CreateRangeElementCount(Module& module, const Range* range) {
     Expr* one = module.Make<Number>(span, "1", NumberKind::kOther, nullptr);
     result = module.Make<Binop>(span, BinopKind::kAdd, result, one, span);
   }
+  result = module.Make<Cast>(span, result, CreateU32Annotation(module, span));
   return result;
 }
 

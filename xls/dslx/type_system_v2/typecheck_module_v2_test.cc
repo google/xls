@@ -8003,8 +8003,7 @@ fn test() {
                 HasNodeWithType("pass_back(0..4)", "uN[32][4]"))));
 }
 
-// TODO: https://github.com/google/xls/issues/2414 - Enable test once fixed.
-TEST(TypecheckV2Test, DISABLED_InferParametricWithRange) {
+TEST(TypecheckV2Test, InferParametricWithRange) {
   EXPECT_THAT(R"(
 pub fn infer_parametric<N: u32, M: u32>(true_indices: u32[M]) -> bool[N] {
     for (i, x): (u32, bool[N]) in true_indices {
