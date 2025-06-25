@@ -209,5 +209,33 @@ top proc the_proc(x: bits[32], y: bits[64], init={0, 42}) {
   }
 }
 
+TEST_F(IrToProtoTest, IdentifierStartingWithRetIsNotMisparsed) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
+package test
+
+fn main(x: bits[8] id=1) -> bits[8] {
+  retained_val: bits[8] = add(x, x, id=2)
+  ret identity.3: bits[8] = identity(retained_val, id=3)
+}
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(viz::Package proto,
+                           IrToProto(p.get(), *delay_estimator,
+                                     /*schedule=*/nullptr,
+                                     /*entry_name=*/"main"));
+
+  const viz::FunctionBase& fb = proto.function_bases(0);
+  const viz::Node* add_node = nullptr;
+  for (const auto& n : fb.nodes()) {
+    if (n.opcode() == "add") {
+      add_node = &n;
+      break;
+    }
+  }
+  ASSERT_NE(add_node, nullptr);
+  EXPECT_EQ(add_node->name(), "retained_val");
+}
+
 }  // namespace
 }  // namespace xls
