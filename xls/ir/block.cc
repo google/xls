@@ -737,12 +737,72 @@ absl::Status Block::ReorderPorts(absl::Span<const std::string> port_names) {
 }
 
 absl::StatusOr<BlockInstantiation*> Block::AddBlockInstantiation(
-    std::string_view name, Block* instantiated_block) {
+    std::string_view instantiation_name, Block* instantiated_block) {
   XLS_ASSIGN_OR_RETURN(
       absl::StatusOr<Instantiation*> instantiation,
-      AddInstantiation(name, std::make_unique<BlockInstantiation>(
-                                 name, instantiated_block)));
+      AddInstantiation(instantiation_name,
+                       std::make_unique<BlockInstantiation>(
+                           instantiation_name, instantiated_block)));
   return down_cast<BlockInstantiation*>(instantiation.value());
+}
+
+absl::StatusOr<Block::InstantiationAndConnections>
+Block::AddAndConnectBlockInstantiation(
+    std::string_view instantiation_name, Block* instantiated_block,
+    const absl::flat_hash_map<std::string, Node*>& inputs) {
+  if (instantiated_block->GetResetPort().has_value() &&
+      !GetResetPort().has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Cannot instantiate block `%s` in block `%s`. Block `%s` has a "
+        "reset port, but block `%s` does not.",
+        instantiated_block->name(), name(), instantiated_block->name(),
+        name()));
+  }
+  if (instantiated_block->GetResetPort().has_value() &&
+      GetResetPort().has_value() &&
+      GetResetBehavior() != instantiated_block->GetResetBehavior()) {
+    return absl::InternalError(
+        absl::StrFormat("Cannot instantiate block `%s` in block `%s` because "
+                        "the blocks have different reset behavior.",
+                        instantiated_block->name(), name()));
+  }
+  if (instantiated_block->GetClockPort().has_value() &&
+      !GetClockPort().has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Cannot instantiate block `%s` in block `%s`. Block `%s` has a "
+        "clock port, but block `%s` does not.",
+        instantiated_block->name(), name(), instantiated_block->name(),
+        name()));
+  }
+
+  Block::InstantiationAndConnections result;
+  XLS_ASSIGN_OR_RETURN(
+      result.instantiation,
+      AddBlockInstantiation(instantiation_name, instantiated_block));
+  for (InputPort* input_port : instantiated_block->GetInputPorts()) {
+    Node* input_value;
+    if (instantiated_block->GetResetPort().has_value() &&
+        input_port == *instantiated_block->GetResetPort()) {
+      input_value = *GetResetPort();
+    } else {
+      XLS_RET_CHECK(inputs.contains(input_port->name()))
+          << "Input not specified: " << input_port->name();
+      input_value = inputs.at(input_port->name());
+    }
+    XLS_ASSIGN_OR_RETURN(
+        InstantiationInput * input,
+        MakeNode<InstantiationInput>(SourceInfo(), input_value,
+                                     result.instantiation, input_port->name()));
+    result.inputs[input_port->name()] = input;
+  }
+  for (OutputPort* output_port : instantiated_block->GetOutputPorts()) {
+    XLS_ASSIGN_OR_RETURN(
+        InstantiationOutput * output,
+        MakeNode<InstantiationOutput>(SourceInfo(), result.instantiation,
+                                      output_port->name()));
+    result.outputs[output_port->name()] = output;
+  }
+  return result;
 }
 
 absl::StatusOr<FifoInstantiation*> Block::AddFifoInstantiation(
@@ -849,6 +909,23 @@ absl::Status Block::ReplaceInstantiationWith(
     XLS_RETURN_IF_ERROR(RemoveNode(out));
   }
   return RemoveInstantiation(old_inst);
+}
+
+absl::Status Block::RemoveInstantiationAndConnections(
+    Instantiation* instantiation) {
+  std::vector<InstantiationInput*> inputs(
+      GetInstantiationInputs(instantiation).begin(),
+      GetInstantiationInputs(instantiation).end());
+  for (InstantiationInput* input : inputs) {
+    XLS_RETURN_IF_ERROR(RemoveNode(input));
+  }
+  std::vector<InstantiationOutput*> outputs(
+      GetInstantiationOutputs(instantiation).begin(),
+      GetInstantiationOutputs(instantiation).end());
+  for (InstantiationOutput* output : outputs) {
+    XLS_RETURN_IF_ERROR(RemoveNode(output));
+  }
+  return RemoveInstantiation(instantiation);
 }
 
 absl::Status Block::RemoveInstantiation(Instantiation* instantiation) {

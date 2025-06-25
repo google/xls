@@ -56,12 +56,12 @@ module a_top_proc(
   wire instantiation_output_69;
   wire [31:0] instantiation_output_70;
   wire instantiation_output_71;
-  wire instantiation_output_76;
-  wire [31:0] instantiation_output_77;
-  wire instantiation_output_78;
-  wire instantiation_output_83;
-  wire [31:0] instantiation_output_84;
-  wire instantiation_output_85;
+  wire instantiation_output_77;
+  wire [31:0] instantiation_output_78;
+  wire instantiation_output_79;
+  wire instantiation_output_84;
+  wire [31:0] instantiation_output_85;
+  wire instantiation_output_86;
   reg p0_valid;
   wire p0_stage_done;
   wire p0_enable;
@@ -85,9 +85,9 @@ module a_top_proc(
   ) fifo_middle_ch (
     .clk(clk),
     .rst(rst),
-    .push_data(instantiation_output_77),
-    .push_valid(instantiation_output_78),
-    .pop_ready(instantiation_output_83),
+    .push_data(instantiation_output_78),
+    .push_valid(instantiation_output_79),
+    .pop_ready(instantiation_output_84),
     .push_ready(instantiation_output_69),
     .pop_data(instantiation_output_70),
     .pop_valid(instantiation_output_71)
@@ -97,9 +97,9 @@ module a_top_proc(
     .accum_in(in_ch),
     .accum_in_vld(in_ch_vld),
     .accum_out_rdy(instantiation_output_69),
-    .accum_in_rdy(instantiation_output_76),
-    .accum_out(instantiation_output_77),
-    .accum_out_vld(instantiation_output_78),
+    .accum_in_rdy(instantiation_output_77),
+    .accum_out(instantiation_output_78),
+    .accum_out_vld(instantiation_output_79),
     .clk(clk)
   );
   leaf_proc inst1 (
@@ -107,12 +107,12 @@ module a_top_proc(
     .accum_in(instantiation_output_70),
     .accum_in_vld(instantiation_output_71),
     .accum_out_rdy(out_ch_rdy),
-    .accum_in_rdy(instantiation_output_83),
-    .accum_out(instantiation_output_84),
-    .accum_out_vld(instantiation_output_85),
+    .accum_in_rdy(instantiation_output_84),
+    .accum_out(instantiation_output_85),
+    .accum_out_vld(instantiation_output_86),
     .clk(clk)
   );
-  assign in_ch_rdy = instantiation_output_76;
-  assign out_ch = instantiation_output_84;
-  assign out_ch_vld = instantiation_output_85;
+  assign in_ch_rdy = instantiation_output_77;
+  assign out_ch = instantiation_output_85;
+  assign out_ch_vld = instantiation_output_86;
 endmodule

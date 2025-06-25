@@ -51,9 +51,9 @@ module a_top_proc(
   output wire [31:0] out_ch,
   output wire out_ch_vld
 );
-  wire instantiation_output_67;
-  wire [31:0] instantiation_output_68;
-  wire instantiation_output_69;
+  wire instantiation_output_68;
+  wire [31:0] instantiation_output_69;
+  wire instantiation_output_70;
   reg p0_valid;
   wire p0_stage_done;
   wire p0_enable;
@@ -73,12 +73,12 @@ module a_top_proc(
     .accum_in(in_ch),
     .accum_in_vld(in_ch_vld),
     .accum_out_rdy(out_ch_rdy),
-    .accum_in_rdy(instantiation_output_67),
-    .accum_out(instantiation_output_68),
-    .accum_out_vld(instantiation_output_69),
+    .accum_in_rdy(instantiation_output_68),
+    .accum_out(instantiation_output_69),
+    .accum_out_vld(instantiation_output_70),
     .clk(clk)
   );
-  assign in_ch_rdy = instantiation_output_67;
-  assign out_ch = instantiation_output_68;
-  assign out_ch_vld = instantiation_output_69;
+  assign in_ch_rdy = instantiation_output_68;
+  assign out_ch = instantiation_output_69;
+  assign out_ch_vld = instantiation_output_70;
 endmodule

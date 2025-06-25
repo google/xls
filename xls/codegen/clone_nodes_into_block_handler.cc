@@ -483,104 +483,70 @@ absl::Status CloneNodesIntoBlockHandler::AddBlockInstantiations(
                "No block generated for proc `%s` instantiated by proc `%s`",
                proc_instantiation->proc()->name(), proc->name());
     Block* instantiated_block = converted_blocks.at(proc_instantiation->proc());
-    XLS_ASSIGN_OR_RETURN(BlockInstantiation * block_instantiation,
-                         block()->AddBlockInstantiation(
-                             proc_instantiation->name(), instantiated_block));
 
-    if (instantiated_block->GetResetPort().has_value()) {
-      XLS_RET_CHECK(block()->GetResetPort().has_value());
-      if (block()->GetResetBehavior().value() !=
-          instantiated_block->GetResetBehavior().value()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Block `%s` is instantiated by block `%s` but the blocks have "
-            "different reset behavior: %s vs %s",
-            instantiated_block->name(), block()->name(),
-            instantiated_block->GetResetBehavior()->ToString(),
-            block()->GetResetBehavior()->ToString()));
-      }
-      XLS_RETURN_IF_ERROR(
-          block()
-              ->MakeNode<xls::InstantiationInput>(
-                  SourceInfo(), block()->GetResetPort().value(),
-                  block_instantiation,
-                  instantiated_block->GetResetPort().value()->name())
-              .status());
-    }
-
+    // Gather the names of the ports in the instantiated block to which a
+    // channel is connected.
+    struct ConnectionPorts {
+      const ChannelConnection* connection;
+      std::string data_port;
+      std::optional<std::string> ready_port;
+      std::optional<std::string> valid_port;
+    };
+    std::vector<ConnectionPorts> connection_ports;
     for (int64_t i = 0; i < proc_instantiation->channel_args().size(); ++i) {
       ChannelInterface* caller_interface =
           proc_instantiation->channel_args()[i];
+      const ChannelConnection& connection =
+          channel_connections_.at({std::string{caller_interface->name()},
+                                   caller_interface->direction()});
       ChannelInterface* callee_interface =
           proc_instantiation->proc()->interface()[i];
       XLS_ASSIGN_OR_RETURN(
           ChannelPortMetadata callee_port_metadata,
           instantiated_block->GetChannelPortMetadata(
               callee_interface->name(), callee_interface->direction()));
+      connection_ports.push_back(
+          ConnectionPorts{.connection = &connection,
+                          .data_port = callee_port_metadata.data_port.value(),
+                          .ready_port = callee_port_metadata.ready_port,
+                          .valid_port = callee_port_metadata.valid_port});
+    }
 
-      auto get_callee_data_port_name = [&]() {
-        CHECK(callee_port_metadata.data_port.has_value());
-        return callee_port_metadata.data_port.value();
-      };
-      auto get_callee_valid_port_name = [&]() {
-        CHECK(callee_port_metadata.valid_port.has_value());
-        return callee_port_metadata.valid_port.value();
-      };
-      auto get_callee_ready_port_name = [&]() {
-        CHECK(callee_port_metadata.ready_port.has_value());
-        return callee_port_metadata.ready_port.value();
-      };
-
-      ChannelConnection connection =
-          channel_connections_.at({std::string{caller_interface->name()},
-                                   caller_interface->direction()});
-      // Create inputs/outputs on the block instantiation for
-      // data/valid/ready signals and connect to the signals indicated by the
-      // ChannelConnection.
-      if (connection.direction == ChannelDirection::kReceive) {
-        XLS_RETURN_IF_ERROR(block()
-                                ->MakeNode<xls::InstantiationInput>(
-                                    SourceInfo(), connection.data,
-                                    block_instantiation,
-                                    get_callee_data_port_name())
-                                .status());
-        if (connection.valid.has_value()) {
-          XLS_RETURN_IF_ERROR(block()
-                                  ->MakeNode<xls::InstantiationInput>(
-                                      SourceInfo(), connection.valid.value(),
-                                      block_instantiation,
-                                      get_callee_valid_port_name())
-                                  .status());
-        }
-        if (connection.ready.has_value()) {
-          XLS_ASSIGN_OR_RETURN(Node * ready,
-                               block()->MakeNode<xls::InstantiationOutput>(
-                                   SourceInfo(), block_instantiation,
-                                   get_callee_ready_port_name()));
-          // The connection was created with a dummy ready signal.
-          XLS_RETURN_IF_ERROR(connection.ReplaceReadySignal(ready));
+    // Gather inputs to feed into the instantiation.
+    absl::flat_hash_map<std::string, Node*> instantiation_inputs;
+    for (const ConnectionPorts& cp : connection_ports) {
+      if (cp.connection->direction == ChannelDirection::kReceive) {
+        instantiation_inputs[cp.data_port] = cp.connection->data;
+        if (cp.valid_port.has_value()) {
+          instantiation_inputs[cp.valid_port.value()] =
+              cp.connection->valid.value();
         }
       } else {
-        XLS_ASSIGN_OR_RETURN(Node * data,
-                             block()->MakeNode<xls::InstantiationOutput>(
-                                 SourceInfo(), block_instantiation,
-                                 get_callee_data_port_name()));
-        // The connection was created with a dummy data signal.
-        XLS_RETURN_IF_ERROR(connection.ReplaceDataSignal(data));
-        if (connection.valid.has_value()) {
-          XLS_ASSIGN_OR_RETURN(Node * valid,
-                               block()->MakeNode<xls::InstantiationOutput>(
-                                   SourceInfo(), block_instantiation,
-                                   get_callee_valid_port_name()));
-          // The connection was created with a dummy valid signal.
-          XLS_RETURN_IF_ERROR(connection.ReplaceValidSignal(valid));
+        if (cp.ready_port.has_value()) {
+          instantiation_inputs[cp.ready_port.value()] =
+              cp.connection->ready.value();
         }
-        if (connection.ready.has_value()) {
-          XLS_RETURN_IF_ERROR(block()
-                                  ->MakeNode<xls::InstantiationInput>(
-                                      SourceInfo(), connection.ready.value(),
-                                      block_instantiation,
-                                      get_callee_ready_port_name())
-                                  .status());
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(Block::InstantiationAndConnections instantiation,
+                         block()->AddAndConnectBlockInstantiation(
+                             proc_instantiation->name(), instantiated_block,
+                             instantiation_inputs));
+
+    // Connect up the instantiation outputs.
+    for (const ConnectionPorts& cp : connection_ports) {
+      if (cp.connection->direction == ChannelDirection::kReceive) {
+        if (cp.ready_port.has_value()) {
+          XLS_RETURN_IF_ERROR(cp.connection->ReplaceReadySignal(
+              instantiation.outputs.at(cp.ready_port.value())));
+        }
+      } else {
+        XLS_RETURN_IF_ERROR(cp.connection->ReplaceDataSignal(
+            instantiation.outputs.at(cp.data_port)));
+        if (cp.valid_port.has_value()) {
+          XLS_RETURN_IF_ERROR(cp.connection->ReplaceValidSignal(
+              instantiation.outputs.at(cp.valid_port.value())));
         }
       }
     }

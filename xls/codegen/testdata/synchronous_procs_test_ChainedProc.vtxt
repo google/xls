@@ -147,12 +147,12 @@ module my_proc(
   wire instantiation_output_202;
   wire [31:0] instantiation_output_203;
   wire instantiation_output_204;
-  wire instantiation_output_209;
-  wire [31:0] instantiation_output_210;
-  wire instantiation_output_211;
-  wire instantiation_output_216;
-  wire [31:0] instantiation_output_217;
-  wire instantiation_output_218;
+  wire instantiation_output_210;
+  wire [31:0] instantiation_output_211;
+  wire instantiation_output_212;
+  wire instantiation_output_217;
+  wire [31:0] instantiation_output_218;
+  wire instantiation_output_219;
   reg [31:0] p0_tuple_index_223;
   reg [31:0] p1_neg_229;
   reg [31:0] p2_neg_229;
@@ -377,7 +377,7 @@ module my_proc(
     .rst(rst),
     .push_data(p1_neg_229),
     .push_valid(__fifo_tmp1_push_data_valid_and_not_has_been_sent),
-    .pop_ready(instantiation_output_209),
+    .pop_ready(instantiation_output_210),
     .push_ready(instantiation_output_184),
     .pop_data(instantiation_output_185),
     .pop_valid(instantiation_output_186)
@@ -391,9 +391,9 @@ module my_proc(
   ) fifo_tmp2 (
     .clk(clk),
     .rst(rst),
-    .push_data(instantiation_output_210),
-    .push_valid(instantiation_output_211),
-    .pop_ready(instantiation_output_216),
+    .push_data(instantiation_output_211),
+    .push_valid(instantiation_output_212),
+    .pop_ready(instantiation_output_217),
     .push_ready(instantiation_output_193),
     .pop_data(instantiation_output_194),
     .pop_valid(instantiation_output_195)
@@ -407,8 +407,8 @@ module my_proc(
   ) fifo_tmp3 (
     .clk(clk),
     .rst(rst),
-    .push_data(instantiation_output_217),
-    .push_valid(instantiation_output_218),
+    .push_data(instantiation_output_218),
+    .push_valid(instantiation_output_219),
     .pop_ready(p10_load_en),
     .push_ready(instantiation_output_202),
     .pop_data(instantiation_output_203),
@@ -419,9 +419,9 @@ module my_proc(
     .sub1_in(instantiation_output_185),
     .sub1_in_vld(instantiation_output_186),
     .sub1_out_rdy(instantiation_output_193),
-    .sub1_in_rdy(instantiation_output_209),
-    .sub1_out(instantiation_output_210),
-    .sub1_out_vld(instantiation_output_211),
+    .sub1_in_rdy(instantiation_output_210),
+    .sub1_out(instantiation_output_211),
+    .sub1_out_vld(instantiation_output_212),
     .clk(clk)
   );
   subproc2 inst2 (
@@ -429,9 +429,9 @@ module my_proc(
     .sub2_in(instantiation_output_194),
     .sub2_in_vld(instantiation_output_195),
     .sub2_out_rdy(instantiation_output_202),
-    .sub2_in_rdy(instantiation_output_216),
-    .sub2_out(instantiation_output_217),
-    .sub2_out_vld(instantiation_output_218),
+    .sub2_in_rdy(instantiation_output_217),
+    .sub2_out(instantiation_output_218),
+    .sub2_out_vld(instantiation_output_219),
     .clk(clk)
   );
   assign top_in_rdy = p0_load_en;
