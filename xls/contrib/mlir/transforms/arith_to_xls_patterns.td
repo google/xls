@@ -4,6 +4,8 @@ include "mlir/Dialect/Func/IR/FuncOps.td"
 include "mlir/Dialect/Math/IR/MathOps.td"
 include "mlir/IR/PatternBase.td"
 
+defvar NoOverflow = ConstantEnumCase<Arith_IntegerOverflowAttr, "none">;
+
 def FloatLib : NativeCodeCall<"getFloatLib($0.getType())">;
 
 // Shorthand for a constant string attribute.
@@ -199,7 +201,7 @@ multiclass FloatToIntegralPat<Op fptoi, Op itofp, Op exti, string u> {
             (Arith_TruncIOp
               (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int16">, (variadic $a),
                               PureCall, VectorCall,
-                              (returnType "$_builder.getI16Type()"))),
+                              (returnType "$_builder.getI16Type()")), NoOverflow),
             [(ScalarOrTensorOf<I8> $op)]>;
 }
 
@@ -242,24 +244,24 @@ def : Pat<(Arith_FPToUIOp:$op $a),
 // ([us]itofp x) -> ([us]itofp (trunc x)) for types with bitwidth > 32.
 def : Pat<(Arith_SIToFPOp:$op $a),
           (Arith_SIToFPOp
-            (Arith_TruncIOp $a, (returnType "$_builder.getI32Type()"))),
+            (Arith_TruncIOp $a, NoOverflow, (returnType "$_builder.getI32Type()"))),
           [(ScalarOrTensorOf<ConfinedType<AnyInteger,
                              [BitwidthGreaterThan<32>]>> $a)]>;
 def : Pat<(Arith_UIToFPOp:$op $a),
           (Arith_UIToFPOp
-            (Arith_TruncIOp $a, (returnType "$_builder.getI32Type()"))),
+            (Arith_TruncIOp $a, NoOverflow, (returnType "$_builder.getI32Type()"))),
           [(ScalarOrTensorOf<ConfinedType<AnyInteger,
                              [BitwidthGreaterThan<32>]>> $a)]>;
 
 // (fpto[us]i x) -> (trunc (fpto[us]i x:f32)) for types with bitwidth < 32.
 def : Pat<(Arith_FPToSIOp:$op $a),
           (Arith_TruncIOp
-            (Arith_FPToSIOp $a, (returnType (IntOfFloatBitwidth $a)))),
+            (Arith_FPToSIOp $a, (returnType (IntOfFloatBitwidth $a))), NoOverflow),
           [(ScalarOrTensorOf<ConfinedType<AnyInteger,
                              [BitwidthLessThan<32>]>> $op)]>;
 def : Pat<(Arith_FPToUIOp:$op $a),
           (Arith_TruncIOp
-            (Arith_FPToUIOp $a, (returnType (IntOfFloatBitwidth $a)))),
+            (Arith_FPToUIOp $a, (returnType (IntOfFloatBitwidth $a))), NoOverflow),
           [(ScalarOrTensorOf<ConfinedType<AnyInteger,
                              [BitwidthLessThan<32>]>> $op)]>;
 // ([us]itofp x) -> ([us]itofp (ext[us]i x)) for types with bitwidth < 32.
@@ -311,7 +313,7 @@ def GetBitwidthAsI64Attr : NativeCodeCall<
 >;
 
 def : Pat<
-  (Arith_TruncIOp:$op $a),
+  (Arith_TruncIOp:$op $a, NoOverflow),
   (Xls_BitSliceOp
     $a,
     (NativeCodeCall<"$_builder.getI64IntegerAttr(0)">),
