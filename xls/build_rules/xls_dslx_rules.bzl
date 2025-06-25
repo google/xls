@@ -801,7 +801,7 @@ Example:
     ),
 )
 
-def _xls_dslx_to_verilog_packge_impl(ctx):
+def _xls_dslx_to_verilog_package_impl(ctx):
     """The implementation of the 'xls_dslx_to_verilog_package' rule.
 
     Generating a .sv file corresponding to types in a DSLX source file.
@@ -821,7 +821,7 @@ def _xls_dslx_to_verilog_packge_impl(ctx):
     # the binary can be different with the execroot, requiring to change
     # the dslx stdlib search path accordingly.
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = ctx.attr._xls_cpp_transpiler_tool.label.workspace_root
+    wsroot = ctx.attr._xls_dslx_to_verilog_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
 
     # Get workspaces for the source as well.
@@ -906,7 +906,7 @@ Example:
 
     will generate some_module.sv.
     """,
-    implementation = _xls_dslx_to_verilog_packge_impl,
+    implementation = _xls_dslx_to_verilog_package_impl,
     attrs = dicts.add(
         xls_dslx_to_verilog_package_attrs,
         xls_dslx_library_as_input_attrs,

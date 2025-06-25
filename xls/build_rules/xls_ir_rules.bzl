@@ -388,7 +388,7 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
     # the binary can be different with the execroot, requiring to change
     # the dslx stdlib search path accordingly.
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = ctx.attr._xls_ir_converter_tool.label.workspace_root
+    wsroot = ctx.attr._xls_ir_eval_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
 
     # Get workspaces for the source as well.
