@@ -23,8 +23,8 @@ import xls.modules.zstd.shift_buffer;
 import xls.modules.zstd.refilling_shift_buffer;
 import xls.modules.zstd.ram_wr_handler as ram_wr;
 
-pub const FSE_MAX_SYMBOLS = u32:256;
-pub const FSE_MAX_ACCURACY_LOG = u32:9;
+pub const FSE_MAX_SYMBOLS = common::FSE_MAX_SYMBOLS;
+pub const FSE_MAX_ACCURACY_LOG = common::FSE_MAX_ACCURACY_LOG;
 
 pub const FSE_ACCURACY_LOG_WIDTH = std::clog2(FSE_MAX_ACCURACY_LOG + u32:1);
 pub const FSE_SYMBOL_COUNT_WIDTH = std::clog2(FSE_MAX_SYMBOLS + u32:1);

@@ -946,6 +946,7 @@ pub proc ZstdDecoder<
 
     HISTORY_BUFFER_SIZE_KB: u32,
     AXI_CHAN_N: u32,
+    FSE_MAX_ACCURACY_LOG: u32 = {common::FSE_MAX_ACCURACY_LOG},
 
     // calculated parameters
     AXI_DATA_W_DIV8: u32 = {AXI_DATA_W / u32:8},
@@ -1338,6 +1339,7 @@ pub proc ZstdDecoder<
             HUFFMAN_WEIGHTS_TMP_RAM_ADDR_W, HUFFMAN_WEIGHTS_TMP_RAM_DATA_W, HUFFMAN_WEIGHTS_TMP_RAM_NUM_PARTITIONS,
             HUFFMAN_WEIGHTS_TMP2_RAM_ADDR_W, HUFFMAN_WEIGHTS_TMP2_RAM_DATA_W, HUFFMAN_WEIGHTS_TMP2_RAM_NUM_PARTITIONS,
             HUFFMAN_WEIGHTS_FSE_RAM_ADDR_W, HUFFMAN_WEIGHTS_FSE_RAM_DATA_W, HUFFMAN_WEIGHTS_FSE_RAM_NUM_PARTITIONS,
+            FSE_MAX_ACCURACY_LOG,
         >(
             // MAIN IOs
 
@@ -1478,7 +1480,8 @@ const INST_DPD_RAM_NUM_PARTITIONS = ram::num_partitions(
     INST_DPD_RAM_WORD_PARTITION_SIZE, INST_DPD_RAM_DATA_W);
 
 const INST_FSE_RAM_DATA_W = u32:32;
-const INST_FSE_RAM_SIZE = u32:1 << common::FSE_MAX_ACCURACY_LOG;
+const INST_FSE_MAX_ACCURACY_LOG = common::FSE_MAX_ACCURACY_LOG;
+const INST_FSE_RAM_SIZE = u32:1 << INST_FSE_MAX_ACCURACY_LOG;
 const INST_FSE_RAM_ADDR_W = std::clog2(INST_FSE_RAM_SIZE);
 const INST_FSE_RAM_WORD_PARTITION_SIZE = INST_FSE_RAM_DATA_W;
 const INST_FSE_RAM_NUM_PARTITIONS = ram::num_partitions(
@@ -1853,6 +1856,7 @@ proc ZstdDecoderInst {
 
             INST_HISTORY_BUFFER_SIZE_KB,
             INST_AXI_CHAN_N,
+            INST_FSE_MAX_ACCURACY_LOG,
         >(
             csr_axi_aw_r, csr_axi_w_r, csr_axi_b_s, csr_axi_ar_r, csr_axi_r_s,
             fh_axi_ar_s, fh_axi_r_r,

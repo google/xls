@@ -41,6 +41,7 @@ pub proc CompLookupDecoder<
     TMP_RAM_DATA_W: u32, TMP_RAM_ADDR_W: u32, TMP_RAM_NUM_PARTITIONS: u32,
     TMP2_RAM_DATA_W: u32, TMP2_RAM_ADDR_W: u32, TMP2_RAM_NUM_PARTITIONS: u32,
     FSE_RAM_DATA_W: u32, FSE_RAM_ADDR_W: u32, FSE_RAM_NUM_PARTITIONS: u32,
+    FSE_MAX_ACCURACY_LOG: u32 = {common::FSE_MAX_ACCURACY_LOG},
     SB_LENGTH_W: u32 = {refilling_shift_buffer::length_width(AXI_DATA_W)},
 > {
     type Req = CompLookupDecoderReq;
@@ -155,6 +156,7 @@ pub proc CompLookupDecoder<
         // wait for completion from FSE probability frequency decoder
         let (tok, pf_dec_res) = recv(tok, fse_pf_dec_resp_r);
         trace_fmt!("FSE prob decoded: {:#x}", pf_dec_res);
+        assert!(pf_dec_res.accuracy_log as u32 <= FSE_MAX_ACCURACY_LOG, "unsupported_accuracy_log");
 
         let pf_dec_ok = pf_dec_res.status == FsePFDecStatus::OK;
         // run FSE Table creation conditional or previous processing succeeding
@@ -202,7 +204,8 @@ const TEST_DPD_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_DPD_RAM_WORD_PARTITION_SIZE, TEST_DPD_RAM_DATA_WIDTH);
 
 const TEST_FSE_RAM_DATA_WIDTH = u32:32;
-const TEST_FSE_RAM_SIZE = u32:1 << common::FSE_MAX_ACCURACY_LOG;
+const TEST_FSE_MAX_ACCURACY_LOG = common::TEST_FSE_MAX_ACCURACY_LOG;
+const TEST_FSE_RAM_SIZE = u32:1 << TEST_FSE_MAX_ACCURACY_LOG;
 const TEST_FSE_RAM_ADDR_WIDTH = std::clog2(TEST_FSE_RAM_SIZE);
 const TEST_FSE_RAM_WORD_PARTITION_SIZE = TEST_FSE_RAM_DATA_WIDTH;
 const TEST_FSE_RAM_NUM_PARTITIONS = ram::num_partitions(
@@ -1357,7 +1360,6 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x17, num_of_bits: u8:0x2, base: u16:0x1fc },
             FseTableRecord { symbol: u8:0x10, num_of_bits: u8:0x2, base: u16:0x1fc },
             FseTableRecord { symbol: u8:0x5, num_of_bits: u8:0x2, base: u16:0x1fc },
-            zero!<FseTableRecord>(), ...
         ],
         CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:9, consumed_bytes: ConsumedFseBytes:10 }
     ),
@@ -1720,6 +1722,7 @@ proc CompLookupDecoderTest {
             TEST_TMP_RAM_DATA_WIDTH, TEST_TMP_RAM_ADDR_WIDTH, TEST_TMP_RAM_NUM_PARTITIONS,
             TEST_TMP2_RAM_DATA_WIDTH, TEST_TMP2_RAM_ADDR_WIDTH, TEST_TMP2_RAM_NUM_PARTITIONS,
             TEST_FSE_RAM_DATA_WIDTH, TEST_FSE_RAM_ADDR_WIDTH, TEST_FSE_RAM_NUM_PARTITIONS,
+            TEST_FSE_MAX_ACCURACY_LOG,
         >(
             req_r, resp_s,
             dpd_rd_req_s, dpd_rd_resp_r, dpd_wr_req_s, dpd_wr_resp_r,
