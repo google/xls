@@ -13,6 +13,19 @@ repos:
         files: ^xls/.*\.(h|cc)$
         exclude: ^xls/contrib/
         types: [text]
+      # Automatically format staged C/C++ changes with git-clang-format.
+      - id: git-clang-format
+        name: git clang-format
+        # "git clang-format" formats only the staged changes when run without
+        # commit range arguments and with --staged. We add --quiet so that it
+        # prints output only when changes are made and pre-commit will then
+        # fail allowing the user to `git add` the re-formatted files.
+        entry: bash -c 'git clang-format --quiet --staged main'
+        language: system
+        pass_filenames: false  # git-clang-format determines files itself.
+        files: ^xls/.*\.(h|hh|hpp|c|cc|cpp)$
+        exclude: ^xls/contrib/
+        types: [text]
   - repo: https://github.com/pylint-dev/pylint
     rev: v3.3.4
     hooks:
