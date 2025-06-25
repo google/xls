@@ -40,6 +40,7 @@ pub proc FseLookupDecoder<
     TMP_RAM_DATA_W: u32, TMP_RAM_ADDR_W: u32, TMP_RAM_NUM_PARTITIONS: u32,
     TMP2_RAM_DATA_W: u32, TMP2_RAM_ADDR_W: u32, TMP2_RAM_NUM_PARTITIONS: u32,
     FSE_RAM_DATA_W: u32, FSE_RAM_ADDR_W: u32, FSE_RAM_NUM_PARTITIONS: u32,
+    FSE_MAX_ACCURACY_LOG: u32 = {common::FSE_MAX_ACCURACY_LOG},
     SB_LENGTH_W: u32 = {refilling_shift_buffer::length_width(AXI_DATA_W)},
 > {
     type Req = FseLookupDecoderReq;
@@ -177,6 +178,7 @@ pub proc FseLookupDecoder<
             TMP_RAM_DATA_W, TMP_RAM_ADDR_W, TMP_RAM_NUM_PARTITIONS,
             TMP2_RAM_DATA_W, TMP2_RAM_ADDR_W, TMP2_RAM_NUM_PARTITIONS,
             FSE_RAM_DATA_W, FSE_RAM_ADDR_W, FSE_RAM_NUM_PARTITIONS,
+            FSE_MAX_ACCURACY_LOG,
         >(
             comp_lookup_req_r, comp_lookup_resp_s,
             dpd_rd_req_s, dpd_rd_resp_r, dpd_wr_req_s, dpd_wr_resp_r,
@@ -279,7 +281,8 @@ const TEST_DPD_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_DPD_RAM_WORD_PARTITION_SIZE, TEST_DPD_RAM_DATA_WIDTH);
 
 const TEST_FSE_RAM_DATA_WIDTH = u32:32;
-const TEST_FSE_RAM_SIZE = u32:1 << common::FSE_MAX_ACCURACY_LOG;
+const TEST_FSE_MAX_ACCURACY_LOG = common::TEST_FSE_MAX_ACCURACY_LOG;
+const TEST_FSE_RAM_SIZE = u32:1 << TEST_FSE_MAX_ACCURACY_LOG;
 const TEST_FSE_RAM_ADDR_WIDTH = std::clog2(TEST_FSE_RAM_SIZE);
 const TEST_FSE_RAM_WORD_PARTITION_SIZE = TEST_FSE_RAM_DATA_WIDTH;
 const TEST_FSE_RAM_NUM_PARTITIONS = ram::num_partitions(
@@ -510,6 +513,7 @@ proc FseLookupDecoderTest {
             TEST_TMP_RAM_DATA_WIDTH, TEST_TMP_RAM_ADDR_WIDTH, TEST_TMP_RAM_NUM_PARTITIONS,
             TEST_TMP2_RAM_DATA_WIDTH, TEST_TMP2_RAM_ADDR_WIDTH, TEST_TMP2_RAM_NUM_PARTITIONS,
             TEST_FSE_RAM_DATA_WIDTH, TEST_FSE_RAM_ADDR_WIDTH, TEST_FSE_RAM_NUM_PARTITIONS,
+            TEST_FSE_MAX_ACCURACY_LOG,
         >(
             req_r, resp_s,
             dpd_rd_req_s, dpd_rd_resp_r, dpd_wr_req_s, dpd_wr_resp_r,

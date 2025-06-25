@@ -122,6 +122,10 @@ pub const FSE_PROB_DIST_WIDTH = u32:16;
 pub const FSE_MAX_PROB_DIST = u32:256;
 pub const FSE_SYMBOL_WIDTH = u32:16;
 
+// FIXME: Tests in DSLX interpreter require smaller RAMs due to the problem
+// with ram consumtopn descibed in https://github.com/google/xls/issues/1042
+pub const TEST_FSE_MAX_ACCURACY_LOG = u32:9;
+
 pub type FseRemainingProba = uN[FSE_REMAINING_PROBA_WIDTH];
 pub type FseAccuracyLog = uN[FSE_ACCURACY_LOG_WIDTH];
 pub type FseSymbolCount = uN[FSE_SYMBOL_COUNT_WIDTH];
