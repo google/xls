@@ -295,7 +295,7 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   // we need one instance to span all functions. However, most uses of it need
   // to be in the context of a function, and it needs to be aware of the current
   // function context, for e.g. index expression interpretation.
-  ChannelScope channel_scope(package_data.conversion_info, import_data,
+  ChannelScope channel_scope(package_data.conversion_info, import_data, options,
                              options.default_fifo_config);
 
   // The top-level proc's input/output channels need to come from _somewhere_.
@@ -356,7 +356,7 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
                                                    &channel_scope, options));
   }
 
-  if (options.proc_scoped_channels || options.lower_to_proc_scoped_channels) {
+  if (options.proc_scoped_channels) {
     // TODO: https://github.com/google/xls/issues/2078 - Remove this `if` after
     // lower_to_proc_scoped_channels is turned on for all tests.
 

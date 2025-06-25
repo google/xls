@@ -42,6 +42,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
@@ -63,9 +64,11 @@ constexpr std::string_view kBetweenDimsSeparator = "_";
 
 ChannelScope::ChannelScope(PackageConversionData* conversion_info,
                            ImportData* import_data,
+                           const ConvertOptions& convert_options,
                            std::optional<FifoConfig> default_fifo_config)
     : conversion_info_(conversion_info),
       import_data_(import_data),
+      convert_options_(convert_options),
       channel_name_uniquer_(kNameAndDimsSeparator),
       default_fifo_config_(default_fifo_config) {
   // Populate channel name uniquer with pre-existing channel names.
@@ -101,8 +104,15 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
     std::string_view short_name, ChannelOps ops, xls::Type* type,
     std::optional<ChannelConfig> channel_config,
     const std::optional<std::vector<Expr*>>& dims) {
-  XLS_ASSIGN_OR_RETURN(std::string base_channel_name,
-                       CreateBaseChannelName(short_name));
+  std::string base_channel_name;
+  if (convert_options_.lower_to_proc_scoped_channels) {
+    // When using proc scoped channels the channel names do not have to be
+    // mangled with the full call stack and module, just uniquified.
+    base_channel_name =
+        channel_name_uniquer_.GetSanitizedUniqueName(short_name);
+  } else {
+    XLS_ASSIGN_OR_RETURN(base_channel_name, CreateBaseChannelName(short_name));
+  }
   std::vector<std::string> channel_names;
   if (!dims.has_value()) {
     XLS_ASSIGN_OR_RETURN(
@@ -149,6 +159,16 @@ absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
   return channel_or_array;
 }
 
+std::string_view GetChannelName(ChannelOrArray channel_or_array) {
+  return absl::visit(
+      Visitor{
+          [](Channel* c) { return c->name(); },
+          [](ChannelInterface* ci) { return ci->name(); },
+          [](ChannelArray* ca) { return std::string_view("unknown"); },
+      },
+      channel_or_array);
+}
+
 absl::Status ChannelScope::DefineProtoChannelOrArray(
     ChannelOrArray channel_or_array, dslx::ChannelTypeAnnotation* type_annot,
     xls::Type* ir_type, TypeInfo* type_info) {
@@ -162,10 +182,10 @@ absl::Status ChannelScope::DefineProtoChannelOrArray(
     }
     return absl::OkStatus();
   }
-  Channel* channel = std::get<Channel*>(channel_or_array);
+  std::string_view channel_name = GetChannelName(channel_or_array);
   PackageInterfaceProto::Channel* proto_chan =
       conversion_info_->interface.add_channels();
-  *proto_chan->mutable_name() = channel->name();
+  *proto_chan->mutable_name() = channel_name;
   *proto_chan->mutable_type() = ir_type->ToProto();
   // Channels at the boundary only have one direction, with the other direction
   // being used externally to the DSLX code.

@@ -34,6 +34,7 @@ cc_library(
     hdrs = ["channel_scope.h"],
     deps = [
         ":conversion_info",
+        ":convert_options",
         ":ir_conversion_utils",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
@@ -73,6 +74,7 @@ cc_test(
     deps = [
         ":channel_scope",
         ":conversion_info",
+        ":convert_options",
         "//xls/common:proto_test_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

@@ -30,6 +30,7 @@
 #include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/channel.h"
@@ -105,6 +106,7 @@ using ChannelOrArray = std::variant<Channel*, ChannelArray*, ChannelInterface*>;
 class ChannelScope {
  public:
   ChannelScope(PackageConversionData* conversion_info, ImportData* import_data,
+               const ConvertOptions& options,
                std::optional<FifoConfig> default_fifo_config = std::nullopt);
 
   // The owner (IR converter driving the overall procedure) should invoke this
@@ -202,6 +204,7 @@ class ChannelScope {
 
   PackageConversionData* const conversion_info_;
   ImportData* const import_data_;
+  const ConvertOptions& convert_options_;
   NameUniquer channel_name_uniquer_;
 
   // Set by the caller via `EnterContext()` before the conversion of each

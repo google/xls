@@ -79,7 +79,7 @@ absl::Status ParseAndAcceptWithConverter(std::string_view module_text,
   XLS_ASSIGN_OR_RETURN(
       Function * f, tm.module->GetMemberOrError<Function>("test_proc.config"));
 
-  ChannelScope channel_scope(&conv, &import_data);
+  ChannelScope channel_scope(&conv, &import_data, ConvertOptions{});
   channel_scope.EnterFunctionContext(tm.type_info, bindings);
   ProcConfigIrConverter converter(f, tm.type_info, &import_data, &proc_data,
                                   &channel_scope, bindings, proc_id);
@@ -215,12 +215,13 @@ proc main {
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       PackageConversionData conv,
-      ConvertModuleToPackage(tm.module, &import_data, ConvertOptions{}));
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.lower_to_proc_scoped_channels = true}));
 
-  EXPECT_THAT(conv.package->channels(),
-              Contains(m::Channel("test_module__my_chan")));
+  EXPECT_THAT(conv.package->channels(), Contains(m::Channel("my_chan")));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
-                           conv.package->GetChannel("test_module__my_chan"));
+                           conv.package->GetChannel("my_chan"));
   ASSERT_EQ(channel->kind(), ChannelKind::kStreaming);
   EXPECT_EQ(down_cast<StreamingChannel*>(channel)->GetFifoDepth(), 7);
 }
@@ -260,11 +261,13 @@ proc main {
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       PackageConversionData conv,
-      ConvertModuleToPackage(tm.module, &import_data, ConvertOptions{}));
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.lower_to_proc_scoped_channels = true}));
 
   EXPECT_THAT(conv.package->channels(),
-              AllOf(Contains(m::Channel("test_module__my_chan")),
-                    Contains(m::Channel("test_module__my_chan__1"))));
+              AllOf(Contains(m::Channel("my_chan")),
+                    Contains(m::Channel("my_chan__1"))));
 }
 
 TEST(ProcConfirIrConverterTest, ChannelArrayDestructureWithWildcard) {
@@ -289,14 +292,15 @@ TEST(ProcConfirIrConverterTest, ChannelArrayDestructureWithWildcard) {
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       PackageConversionData conv,
-      ConvertModuleToPackage(tm.module, &import_data,
-                             ConvertOptions{.verify_ir = false}));
-  EXPECT_THAT(
-      conv.package->channels(),
-      UnorderedElementsAre(m::Channel("test_module__the_chan_array__0"),
-                           m::Channel("test_module__the_chan_array__1"),
-                           m::Channel("test_module__the_chan_array__2"),
-                           m::Channel("test_module__the_chan_array__3")));
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.verify_ir = false,
+                         .lower_to_proc_scoped_channels = true}));
+  EXPECT_THAT(conv.package->channels(),
+              UnorderedElementsAre(m::Channel("the_chan_array__0"),
+                                   m::Channel("the_chan_array__1"),
+                                   m::Channel("the_chan_array__2"),
+                                   m::Channel("the_chan_array__3")));
 }
 
 TEST(ProcConfirIrConverterTest, ChannelArrayDestructureWithRestOfTuple) {
@@ -321,14 +325,15 @@ TEST(ProcConfirIrConverterTest, ChannelArrayDestructureWithRestOfTuple) {
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       PackageConversionData conv,
-      ConvertModuleToPackage(tm.module, &import_data,
-                             ConvertOptions{.verify_ir = false}));
-  EXPECT_THAT(
-      conv.package->channels(),
-      UnorderedElementsAre(m::Channel("test_module__the_chan_array__0"),
-                           m::Channel("test_module__the_chan_array__1"),
-                           m::Channel("test_module__the_chan_array__2"),
-                           m::Channel("test_module__the_chan_array__3")));
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.verify_ir = false,
+                         .lower_to_proc_scoped_channels = true}));
+  EXPECT_THAT(conv.package->channels(),
+              UnorderedElementsAre(m::Channel("the_chan_array__0"),
+                                   m::Channel("the_chan_array__1"),
+                                   m::Channel("the_chan_array__2"),
+                                   m::Channel("the_chan_array__3")));
 }
 
 TEST(ProcConfigIrConverterTest, DealOutChannelArrayElementsToSpawnee) {
@@ -383,16 +388,15 @@ TEST(ProcConfigIrConverterTest, DealOutChannelArrayElementsToSpawnee) {
       ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(
       PackageConversionData conv,
-      ConvertModuleToPackage(tm.module, &import_data, ConvertOptions{}));
+      ConvertModuleToPackage(
+          tm.module, &import_data,
+          ConvertOptions{.lower_to_proc_scoped_channels = true}));
   EXPECT_THAT(conv.package->channels(),
-              UnorderedElementsAre(m::Channel("test_module__toward_a__0_0"),
-                                   m::Channel("test_module__toward_a__0_1"),
-                                   m::Channel("test_module__toward_a__1_0"),
-                                   m::Channel("test_module__toward_a__1_1"),
-                                   m::Channel("test_module__toward_b__0_0"),
-                                   m::Channel("test_module__toward_b__0_1"),
-                                   m::Channel("test_module__toward_b__1_0"),
-                                   m::Channel("test_module__toward_b__1_1")));
+              UnorderedElementsAre(
+                  m::Channel("toward_a__0_0"), m::Channel("toward_a__0_1"),
+                  m::Channel("toward_a__1_0"), m::Channel("toward_a__1_1"),
+                  m::Channel("toward_b__0_0"), m::Channel("toward_b__0_1"),
+                  m::Channel("toward_b__1_0"), m::Channel("toward_b__1_1")));
 }
 
 TEST(ProcConfigIrConverterTest, MultipleNonLeafSpawnsOfSameProc) {
