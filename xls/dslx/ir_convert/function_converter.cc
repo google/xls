@@ -1504,6 +1504,13 @@ FunctionConverter::HandleForLexicalScope(const For* node,
     VLOG(5) << "Converting freevar name: " << freevar_name_def->ToString();
 
     std::optional<IrValue> ir_value = GetNodeToIr(freevar_name_def);
+    if (!ir_value.has_value() &&
+        dynamic_cast<const ProcMember*>(freevar_name_def->definer())) {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Accessing proc member in non-unrolled loop is unsupported: %s `%s`",
+          freevar_name_def->GetSpan()->ToString(file_table()),
+          freevar_name_def->ToString()));
+    }
     XLS_RET_CHECK(ir_value.has_value())
         << "AST node had no associated IR value: " << node->ToString() << " @ "
         << SpanToString(node->GetSpan(), file_table());
