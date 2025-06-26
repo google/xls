@@ -20,6 +20,8 @@ _DEFAULT_AOT_COMPILER_TARGET = "//xls/jit:aot_compiler_main"
 
 _DEFAULT_AOT_BASIC_FUNCTION_TARGET = "//xls/jit:aot_basic_function_entrypoint_main"
 
+_DEFAULT_PARSE_AND_TYPECHECK_DSLX_TARGET = "//xls/dslx:parse_and_typecheck_dslx_main"
+
 _DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main"
 
 _DEFAULT_PROVE_QUICKCHECK_TARGET = "//xls/dslx:prove_quickcheck_main"
@@ -66,6 +68,13 @@ xls_toolchain_attrs = {
     "_xls_cpp_transpiler_tool": attr.label(
         doc = "The target of the CPP transpiler executable.",
         default = Label(_DEFAULT_CPP_TRANSPILER_TARGET),
+        allow_single_file = True,
+        executable = True,
+        cfg = "exec",
+    ),
+    "_xls_dslx_parse_and_typecheck_tool": attr.label(
+        doc = "The target of the DSLX parser/typechecker executable.",
+        default = Label(_DEFAULT_PARSE_AND_TYPECHECK_DSLX_TARGET),
         allow_single_file = True,
         executable = True,
         cfg = "exec",

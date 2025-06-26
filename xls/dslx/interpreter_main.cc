@@ -39,6 +39,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines/ir_test_runner.h"
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/run_routines/run_routines.h"
@@ -183,18 +184,23 @@ absl::StatusOr<TestResult> RealMain(
     }
     test_filter_re_ptr = &test_filter_re.value();
   }
-  ParseAndTestOptions options = {.dslx_stdlib_path = dslx_stdlib_path,
-                                 .dslx_paths = dslx_paths,
-                                 .test_filter = test_filter_re_ptr,
-                                 .format_preference = format_preference,
-                                 .run_comparator = run_comparator.get(),
-                                 .execute = execute,
-                                 .seed = seed,
-                                 .warnings_as_errors = warnings_as_errors,
-                                 .warnings = warnings,
-                                 .trace_channels = trace_channels,
-                                 .max_ticks = max_ticks,
-                                 .type_inference_v2 = type_inference_v2};
+  ParseAndTypecheckOptions parse_and_typecheck_options = {
+      .dslx_stdlib_path = dslx_stdlib_path,
+      .dslx_paths = dslx_paths,
+      .type_inference_v2 = type_inference_v2,
+      .warnings_as_errors = warnings_as_errors,
+      .warnings = warnings,
+  };
+  ParseAndTestOptions options = {
+      .parse_and_typecheck_options = parse_and_typecheck_options,
+      .test_filter = test_filter_re_ptr,
+      .format_preference = format_preference,
+      .run_comparator = run_comparator.get(),
+      .execute = execute,
+      .seed = seed,
+      .trace_channels = trace_channels,
+      .max_ticks = max_ticks,
+  };
 
   std::unique_ptr<AbstractTestRunner> test_runner = GetTestRunner(evaluator);
   XLS_ASSIGN_OR_RETURN(TestResultData test_result,

@@ -501,6 +501,7 @@ cc_library(
     deps = [
         ":import_data",
         ":warning_collector",
+        ":warning_kind",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -516,6 +517,7 @@ cc_library(
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -564,6 +566,7 @@ cc_binary(
     deps = [
         ":command_line_utils",
         ":default_dslx_stdlib_path",
+        ":parse_and_typecheck",
         ":virtualizable_file_system",
         ":warning_kind",
         "//xls/common:exit_status",
@@ -589,11 +592,35 @@ cc_binary(
 )
 
 cc_binary(
+    name = "parse_and_typecheck_dslx_main",
+    srcs = ["parse_and_typecheck_dslx_main.cc"],
+    deps = [
+        ":command_line_utils",
+        ":create_import_data",
+        ":default_dslx_stdlib_path",
+        ":parse_and_typecheck",
+        ":virtualizable_file_system",
+        ":warning_kind",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_binary(
     name = "prove_quickcheck_main",
     srcs = ["prove_quickcheck_main.cc"],
     deps = [
         ":command_line_utils",
         ":default_dslx_stdlib_path",
+        ":parse_and_typecheck",
         ":warning_kind",
         "//xls/common:exit_status",
         "//xls/common:init_xls",

@@ -15,19 +15,35 @@
 #ifndef XLS_DSLX_PARSE_AND_TYPECHECK_H_
 #define XLS_DSLX_PARSE_AND_TYPECHECK_H_
 
+#include <filesystem>  // NOLINT
 #include <memory>
 #include <string_view>
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
+
+// Options to parse and typecheck a DSLX module.
+//   dslx_stdlib_path: Path to the DSLX standard library.
+//   dslx_paths: Additional paths at which we search for imported module files.
+//   warnings_as_errors: Whether warnings should be reported as errors.
+//   warnings: Set of warnings to enable for reporting.
+struct ParseAndTypecheckOptions {
+  std::filesystem::path dslx_stdlib_path;
+  absl::Span<const std::filesystem::path> dslx_paths;
+  bool type_inference_v2 = false;
+  bool warnings_as_errors = true;
+  WarningKindSet warnings = kDefaultWarningsSet;
+};
 
 // Note: these will be owned by the import_data used in ParseAndTypecheck()
 //       or TypecheckModule

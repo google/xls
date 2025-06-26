@@ -40,6 +40,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines/test_xml.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
@@ -95,35 +96,28 @@ class AbstractRunComparator {
 //   seed: Seed for QuickCheck random input stimulus.
 //   convert_options: Options used in IR conversion, see `ConvertOptions` for
 //    details.
-//   warnings_as_errors: Whether warnings should be reported as errors (i.e.
-//    cause the run routine to report failure when a warning is encountered).
-//   warnings: Set of warnings to enable for reporting.
+//   parse_and_typecheck_options: Options used in parsing and typechecking,
+//    see `ParseAndTypecheckOptions` for details.
 struct ParseAndTestOptions {
-  std::filesystem::path dslx_stdlib_path;
-  absl::Span<const std::filesystem::path> dslx_paths;
+  ParseAndTypecheckOptions parse_and_typecheck_options;
   const RE2* test_filter = nullptr;
   FormatPreference format_preference = FormatPreference::kDefault;
   AbstractRunComparator* run_comparator = nullptr;
   bool execute = true;
   std::optional<int64_t> seed = std::nullopt;
   ConvertOptions convert_options;
-  bool warnings_as_errors = true;
-  WarningKindSet warnings = kDefaultWarningsSet;
+
   bool trace_channels = false;
   std::optional<int64_t> max_ticks;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;
-  bool type_inference_v2 = false;
 };
 
 // As above, but a subset of the options required for the ParseAndProve()
 // routine.
 struct ParseAndProveOptions {
-  std::filesystem::path dslx_stdlib_path;
-  absl::Span<const std::filesystem::path> dslx_paths;
+  ParseAndTypecheckOptions parse_and_typecheck_options;
   const RE2* test_filter = nullptr;
-  bool warnings_as_errors = true;
-  WarningKindSet warnings = kDefaultWarningsSet;
   std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
       nullptr;
 };

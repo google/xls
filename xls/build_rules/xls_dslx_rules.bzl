@@ -336,17 +336,17 @@ def _xls_dslx_library_impl(ctx):
     """
 
     # Get runfiles for task.
-    dslx_interpreter_tool_runfiles = (
-        ctx.attr._xls_dslx_interpreter_tool[DefaultInfo].default_runfiles
+    dslx_parse_and_typecheck_tool_runfiles = (
+        ctx.attr._xls_dslx_parse_and_typecheck_tool[DefaultInfo].default_runfiles
     )
     runfiles = get_runfiles_for_xls(
         ctx = ctx,
-        additional_runfiles_list = [dslx_interpreter_tool_runfiles],
+        additional_runfiles_list = [dslx_parse_and_typecheck_tool_runfiles],
         additional_files_list = [],
     )
 
     my_srcs_list = ctx.files.srcs
-    dslx_interpreter_tool = ctx.executable._xls_dslx_interpreter_tool
+    dslx_parse_and_typecheck_tool = ctx.executable._xls_dslx_parse_and_typecheck_tool
 
     # Parse and type check the DSLX source files.
     dslx_srcs_str = " ".join([s.path for s in my_srcs_list])
@@ -356,7 +356,7 @@ def _xls_dslx_library_impl(ctx):
     # the binary can be different with the execroot, requiring to change
     # the dslx stdlib search path accordingly.
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = ctx.attr._xls_dslx_interpreter_tool.label.workspace_root
+    wsroot = ctx.attr._xls_dslx_parse_and_typecheck_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
     dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in my_srcs_list] +
                                 [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in my_srcs_list])
@@ -364,21 +364,16 @@ def _xls_dslx_library_impl(ctx):
 
     ctx.actions.run_shell(
         outputs = [placeholder_file],
-        # The DSLX interpreter executable is a tool needed by the action.
-        tools = [dslx_interpreter_tool],
-        # The files required for parsing and type checking also requires the
-        # DSLX interpreter executable.
+        tools = [dslx_parse_and_typecheck_tool],
         inputs = runfiles.files,
         # Generate a placeholder file for the DSLX source file when the source file is
         # successfully parsed and type checked.
         # TODO (vmirian) 01-05-21 Enable the interpreter to take multiple files.
-        # TODO (vmirian) 01-05-21 Ideally, create a standalone tool that parses
-        # a DSLX file. (Instead of repurposing the interpreter.)
         command = "\n".join([
             "FILES=\"{}\"".format(dslx_srcs_str),
             "for file in $FILES; do",
-            "{} $file --compare=none --execute=false --dslx_path={}{}".format(
-                dslx_interpreter_tool.path,
+            "{} $file --dslx_path={}{}".format(
+                dslx_parse_and_typecheck_tool.path,
                 ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
                 dslx_srcs_wsroot_path + wsroot_dslx_path,
                 " --warnings_as_errors=false" if not ctx.attr.warnings_as_errors else "",

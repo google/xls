@@ -35,6 +35,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/run_routines/test_xml.h"
 #include "xls/dslx/warning_kind.h"
@@ -89,12 +90,16 @@ absl::StatusOr<TestResultData> RealMain(
     test_filter_re_ptr = &test_filter_re.value();
   }
 
-  const ParseAndProveOptions options = {
+  const ParseAndTypecheckOptions parse_and_typecheck_options = {
       .dslx_stdlib_path = dslx_stdlib_path,
       .dslx_paths = dslx_paths,
-      .test_filter = test_filter_re_ptr,
       .warnings_as_errors = warnings_as_errors,
       .warnings = warnings,
+  };
+
+  const ParseAndProveOptions options = {
+      .parse_and_typecheck_options = parse_and_typecheck_options,
+      .test_filter = test_filter_re_ptr,
   };
 
   XLS_ASSIGN_OR_RETURN(

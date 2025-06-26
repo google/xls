@@ -694,9 +694,13 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
   } else {
     vfs = std::make_unique<RealFilesystem>();
   }
+  const ParseAndTypecheckOptions& parse_and_typecheck_options =
+      options.parse_and_typecheck_options;
+
   auto import_data =
-      CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
-                       options.warnings, std::move(vfs));
+      CreateImportData(parse_and_typecheck_options.dslx_stdlib_path,
+                       parse_and_typecheck_options.dslx_paths,
+                       parse_and_typecheck_options.warnings, std::move(vfs));
   FileTable& file_table = import_data.file_table();
   absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(program, filename, module_name, &import_data);
@@ -713,11 +717,12 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
   // are *not* errors, just elide printing them (or e.g. we'd show warnings for
   // files that had warnings suppressed at build time, which would gunk up build
   // logs unnecessarily.).
-  if (options.warnings_as_errors) {
+  if (parse_and_typecheck_options.warnings_as_errors) {
     PrintWarnings(tm->warnings, file_table, import_data.vfs());
   }
 
-  if (options.warnings_as_errors && !tm->warnings.warnings().empty()) {
+  if (parse_and_typecheck_options.warnings_as_errors &&
+      !tm->warnings.warnings().empty()) {
     result.Finish(TestResult::kFailedWarnings,
                   absl::Now() - parse_and_prove_start);
     return ParseAndProveResult{.test_result_data = result};
@@ -887,14 +892,17 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   } else {
     vfs = std::make_unique<RealFilesystem>();
   }
+  const ParseAndTypecheckOptions& parse_and_typecheck_options =
+      options.parse_and_typecheck_options;
   auto import_data =
-      CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
-                       options.warnings, std::move(vfs));
+      CreateImportData(parse_and_typecheck_options.dslx_stdlib_path,
+                       parse_and_typecheck_options.dslx_paths,
+                       parse_and_typecheck_options.warnings, std::move(vfs));
   FileTable& file_table = import_data.file_table();
 
   absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(program, filename, module_name, &import_data, nullptr,
-                        options.type_inference_v2);
+                        parse_and_typecheck_options.type_inference_v2);
   if (!tm.ok()) {
     if (TryPrintError(tm.status(), import_data.file_table(),
                       import_data.vfs())) {
@@ -908,11 +916,12 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   // are *not* errors, just elide printing them (or e.g. we'd show warnings for
   // files that had warnings suppressed at build time, which would gunk up build
   // logs unnecessarily.).
-  if (options.execute || options.warnings_as_errors) {
+  if (options.execute || parse_and_typecheck_options.warnings_as_errors) {
     PrintWarnings(tm->warnings, import_data.file_table(), import_data.vfs());
   }
 
-  if (options.warnings_as_errors && !tm->warnings.warnings().empty()) {
+  if (parse_and_typecheck_options.warnings_as_errors &&
+      !tm->warnings.warnings().empty()) {
     result.Finish(TestResult::kFailedWarnings, absl::Now() - start);
     return result;
   }

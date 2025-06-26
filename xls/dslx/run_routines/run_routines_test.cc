@@ -237,7 +237,7 @@ fn qc(x: MyEnum) -> bool {
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
-  options.warnings =
+  options.parse_and_typecheck_options.warnings =
       DisableWarning(kAllWarningsSet, WarningKind::kAlreadyExhaustiveMatch);
   options.run_comparator = &jit_comparator;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -350,7 +350,7 @@ fn bfloat16_bits_to_float32_bits_upcast_is_zero_pad(x: bits[BF16_TOTAL_SZ]) -> b
         std::filesystem::path(kDefaultDslxStdlibPath) / filename;
     return GetFileContents(path).value();
   };
-  options.dslx_stdlib_path = root / "stdlib";
+  options.parse_and_typecheck_options.dslx_stdlib_path = root / "stdlib";
   options.seed = int64_t{431969656495450};
   options.vfs_factory = [&]() -> std::unique_ptr<VirtualizableFilesystem> {
     return std::make_unique<FakeFilesystem>(
