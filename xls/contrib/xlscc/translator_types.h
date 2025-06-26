@@ -16,6 +16,8 @@
 #define XLS_CONTRIB_XLSCC_TRANSLATOR_TYPES_H_
 
 #include <cstdint>
+#include <list>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -42,7 +44,9 @@
 #include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 

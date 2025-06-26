@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_PROC_BLOCK_CONVERSION_H_
 #define XLS_CODEGEN_PROC_BLOCK_CONVERSION_H_
 
+#include <optional>
+
 #include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"

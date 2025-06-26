@@ -42,6 +42,7 @@
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/contrib/xlscc/translator_types.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"

@@ -17,8 +17,8 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator_types.h"
+#include "xls/ir/source_location.h"
 
 namespace xlscc {
 

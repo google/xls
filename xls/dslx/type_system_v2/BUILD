@@ -98,7 +98,6 @@ cc_library(
     deps = [
         ":inference_table",
         "//xls/dslx/frontend:ast",
-        "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/status",
@@ -492,7 +491,6 @@ cc_library(
     srcs = ["validate_concrete_type.cc"],
     hdrs = ["validate_concrete_type.h"],
     deps = [
-        ":inference_table",
         "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",

@@ -14,6 +14,8 @@
 
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_visitor.h"
 
+#include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+
 namespace xls {
 
 // Given a FuzzOpProto, call the corresponding Handle* function based on the

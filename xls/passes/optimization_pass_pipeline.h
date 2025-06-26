@@ -26,7 +26,6 @@
 #include "xls/ir/package.h"
 #include "xls/passes/inlining_pass.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/pipeline_generator.h"
 
 namespace xls {

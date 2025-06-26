@@ -17,10 +17,8 @@
 
 #include "xls/codegen/block_conversion_pass_pipeline.h"
 
-#include <algorithm>
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion_dead_token_removal_pass.h"

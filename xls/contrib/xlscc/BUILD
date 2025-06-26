@@ -169,7 +169,6 @@ cc_library(
         "generate_fsm.h",
     ],
     deps = [
-        ":tracked_bvalue",
         ":translator_types",
         ":xlscc_logging",
         "//xls/common/status:status_macros",
@@ -200,7 +199,6 @@ cc_library(
     ],
     deps = [
         ":cc_parser",
-        ":generate_fsm",
         ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
         ":node_manipulation",
@@ -228,7 +226,6 @@ cc_library(
         "//xls/ir:value_utils",
         "//xls/passes:dce_pass",
         "//xls/passes:optimization_pass",
-        "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",
@@ -339,6 +336,7 @@ cc_binary(
         ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
         ":translator",
+        ":translator_types",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",

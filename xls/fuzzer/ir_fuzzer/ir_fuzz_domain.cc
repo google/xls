@@ -14,6 +14,7 @@
 
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 
+#include <memory>
 #include <utility>
 
 #include "xls/common/fuzzing/fuzztest.h"

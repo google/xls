@@ -654,9 +654,6 @@ cc_library(
         ":parser",
         ":pos",
         ":scanner",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
     ],
 )

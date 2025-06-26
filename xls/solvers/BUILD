@@ -391,6 +391,5 @@ cc_binary(
         "//xls/ir:ir_parser",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@z3//:api",
     ],
 )

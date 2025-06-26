@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
-#include <utility>
 #include <vector>
 
 #include "absl/container/btree_set.h"
