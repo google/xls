@@ -28,6 +28,7 @@ ALLOWED_INCLUDE_STARTS = frozenset([
     'gmock/',
     'gtest/',
     'benchmark/',
+    'Eigen/',
     'llvm/',
     'fuzztest/',
     'verible/',

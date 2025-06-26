@@ -468,3 +468,51 @@ cc_test(
         "@com_google_absl//absl/status",
     ],
 )
+
+# bfloat16 comparison tests
+BFLOAT16_CMP_TOPS = [
+    "eq_2",
+    "gt_2",
+    "gte_2",
+    "lt_2",
+    "lte_2",
+]
+
+[
+    xls_dslx_opt_ir(
+        name = "bfloat16_" + top,
+        srcs = ["//xls/dslx/stdlib:bfloat16.x"],
+        dslx_top = top,
+    )
+    for top in BFLOAT16_CMP_TOPS
+]
+
+[
+    cc_xls_ir_jit_wrapper(
+        name = "bfloat16_" + top + "_jit_wrapper",
+        src = ":bfloat16_" + top,
+        jit_wrapper_args = {
+            "class_name": "Bfloat16" + top.replace("_", " ").title().replace(" ", ""),
+            "function": top,
+            "namespace": "xls::dslx",
+        },
+    )
+    for top in BFLOAT16_CMP_TOPS
+]
+
+cc_test(
+    name = "bfloat16_cmp_test",
+    srcs = ["bfloat16_cmp_test.cc"],
+    deps = [
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@eigen//:eigen3",
+        "@googletest//:gtest",
+    ] + [":bfloat16_" + top + "_jit_wrapper" for top in BFLOAT16_CMP_TOPS],
+)

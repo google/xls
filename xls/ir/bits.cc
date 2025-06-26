@@ -264,6 +264,14 @@ absl::StatusOr<int64_t> Bits::UnsignedToInt64() const {
   return static_cast<int64_t>(bitmap_.GetWord(0));
 }
 
+absl::StatusOr<bool> Bits::ToBool() const {
+  if (bit_count() != 1) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot convert Bits of width %d to bool", bit_count()));
+  }
+  return Get(0);
+}
+
 Bits Bits::Slice(int64_t start, int64_t width) && {
   CHECK_GE(width, 0);
   CHECK_LE(start + width, bit_count())

@@ -651,6 +651,8 @@ filegroup(
     visibility = ["//xls:xls_users"],
 )
 
+exports_files(glob(include = ["*.x"]))
+
 filegroup(
     name = "ir_examples",
     srcs = [

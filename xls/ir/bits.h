@@ -209,6 +209,10 @@ class Bits {
   absl::StatusOr<int64_t> ToInt64() const;
   absl::StatusOr<int64_t> UnsignedToInt64() const;
 
+  // Converts the value of a single-bit Bits object to a boolean. Returns an
+  // error if the width is not 1.
+  absl::StatusOr<bool> ToBool() const;
+
   // Extracts the "word_number"th u64 from this value, as in Bitmap::GetWord.
   // (Zero-bit values get 0 by convention.)
   absl::StatusOr<uint64_t> WordToUint64(int64_t word_number) const;
