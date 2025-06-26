@@ -21,6 +21,11 @@ jobs:
     timeout-minutes: 600
     steps:
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # ensure history so 'main' ref exists for git-clang-format
+
+      - name: Fetch main branch explicitly
+        run: git fetch origin main
 
       - name: Install clang-format
         run: sudo apt-get update -y && sudo apt-get install -y clang-format
