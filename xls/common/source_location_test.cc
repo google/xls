@@ -46,7 +46,7 @@ TEST(SourceLocationTest, ExpectedUsageWorks) {
   EXPECT_THAT(location.file_name(), EndsWith("source_location_test.cc"));
 }
 
-#if ABSL_HAVE_SOURCE_LOCATION_CURRENT
+#if XABSL_HAVE_SOURCE_LOCATION_CURRENT
 
 TEST(SourceLocationTest, CurrentWorks) {
   constexpr SourceLocation location = SourceLocation::current();
