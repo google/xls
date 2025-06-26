@@ -24,7 +24,7 @@
 
 namespace xls::dslx {
 
-constexpr std::string_view kBuiltinStubsModuleName = "<builtin_stubs>";
+inline constexpr std::string_view kBuiltinStubsModuleName = "<builtin_stubs>";
 
 absl::StatusOr<std::filesystem::path> BuiltinStubsPath();
 
