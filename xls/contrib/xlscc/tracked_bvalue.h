@@ -62,7 +62,8 @@ class TrackedBValue {
       : bval_(bval.bval_), sequence_number_(sNextSequenceNumber++) {
     record();
   }
-  TrackedBValue(const xls::BValue& native_bval)
+  TrackedBValue(
+      const xls::BValue& native_bval)  // NOLINT(google-explicit-constructor)
       : bval_(native_bval), sequence_number_(sNextSequenceNumber++) {
     record();
   }
@@ -91,7 +92,9 @@ class TrackedBValue {
     unrecord();
     bval_ = xls::BValue();
   }
-  operator xls::BValue() const { return bval_; }
+  operator xls::BValue() const {  // NOLINT(google-explicit-constructor)
+    return bval_;
+  }
   bool valid() const { return bval_.valid(); }
   xls::Node* node() const { return bval_.node(); }
   std::string ToString() const { return bval_.ToString(); }
