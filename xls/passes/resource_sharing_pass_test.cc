@@ -21,6 +21,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "cppitertools/zip.hpp"
 #include "xls/common/status/matchers.h"
@@ -37,10 +38,14 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace xls {
 
 namespace {
+
+using ::absl_testing::IsOkAndHolds;
+using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 class ResourceSharingPassTest : public IrTestBase {
  protected:
@@ -85,6 +90,10 @@ uint64_t NumberOfSelects(Function* f) {
 
 uint64_t NumberOfMultiplications(Function* f) {
   return NumberOfNodes(f, {Op::kSMul, Op::kUMul});
+}
+
+uint64_t NumberOfShifts(Function* f) {
+  return NumberOfNodes(f, {Op::kShll, Op::kShra, Op::kShrl});
 }
 
 void InterpretAndCheck(Function* f, const std::vector<int32_t>& inputs,
@@ -145,7 +154,7 @@ TEST_F(ResourceSharingPassTest, MergeSingleUnsignedMultiplication) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_muls = NumberOfMultiplications(f);
@@ -194,7 +203,7 @@ TEST_F(ResourceSharingPassTest, MergeSingleUnsignedMultiplication2) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_muls = NumberOfMultiplications(f);
@@ -237,7 +246,7 @@ TEST_F(ResourceSharingPassTest, MergeSingleSignedMultiplication) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_muls = NumberOfMultiplications(f);
@@ -307,7 +316,7 @@ TEST_F(ResourceSharingPassTest, MergeMultipleUnsignedMultiplications) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_muls = NumberOfMultiplications(f);
@@ -379,7 +388,7 @@ TEST_F(ResourceSharingPassTest, MergeMultipleSignedMultiplications) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_muls = NumberOfMultiplications(f);
@@ -449,7 +458,7 @@ TEST_F(ResourceSharingPassTest, NotPossibleFolding0) {
                            fb.BuildWithReturnValue(post_select_add1));
 
   // We expect the transformation to be not applicable
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 TEST_F(ResourceSharingPassTest, NotPossibleFolding1) {
@@ -493,7 +502,7 @@ TEST_F(ResourceSharingPassTest, NotPossibleFolding1) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(add1));
 
   // We expect the transformation to be not applicable
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 TEST_F(ResourceSharingPassTest, NotPossibleFolding2) {
@@ -527,7 +536,7 @@ TEST_F(ResourceSharingPassTest, NotPossibleFolding2) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation to be not applicable
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 TEST_F(ResourceSharingPassTest, NotPossibleFolding3) {
@@ -567,7 +576,7 @@ TEST_F(ResourceSharingPassTest, NotPossibleFolding3) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation to be not applicable
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 TEST_F(ResourceSharingPassTest, NotPossibleFolding4) {
@@ -605,7 +614,7 @@ TEST_F(ResourceSharingPassTest, NotPossibleFolding4) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation to be applicable
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the resource sharing optimization to have preserved the
   // inputs/outputs pairs we know to be valid.
@@ -667,7 +676,7 @@ TEST_F(ResourceSharingPassTest,
                            fb.BuildWithReturnValue(post_select_add));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_muls = NumberOfMultiplications(f);
@@ -721,7 +730,7 @@ TEST_F(ResourceSharingPassTest,
   // We expect the transformation successfully completed and it returned true
   // Unfortunately, ScopedVerifyEquivalence timed out and therefore we did not
   // rely on it.
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_muls = NumberOfMultiplications(f);
@@ -773,7 +782,7 @@ TEST_F(ResourceSharingPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_muls = NumberOfMultiplications(f);
@@ -823,7 +832,7 @@ TEST_F(ResourceSharingPassTest, MergeAdds) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_adders = NumberOfAdders(f);
@@ -882,7 +891,7 @@ TEST_F(ResourceSharingPassTest, MergeAddsWithDifferentBitwidths) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_adders = NumberOfAdders(f);
@@ -940,7 +949,7 @@ TEST_F(ResourceSharingPassTest, MergeSubs) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one subtraction in its body
   uint64_t number_of_adders = NumberOfAdders(f);
@@ -993,7 +1002,7 @@ TEST_F(ResourceSharingPassTest, MergeSubs2) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one subtraction in its body
   uint64_t number_of_adders = NumberOfAdders(f);
@@ -1066,7 +1075,7 @@ TEST_F(ResourceSharingPassTest, MergeSubsWithDifferentBitwidths) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_adders = NumberOfAdders(f);
@@ -1125,7 +1134,7 @@ TEST_F(ResourceSharingPassTest, MergeAddsAndSubs) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
 
   // We expect the transformation successfully completed and it returned true
-  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
 
   // We expect the result function has only one multiplication in its body
   uint64_t number_of_adders = NumberOfAdders(f);
@@ -1141,6 +1150,50 @@ TEST_F(ResourceSharingPassTest, MergeAddsAndSubs) {
                     {uint_bitwidth, uint_bitwidth, uint_bitwidth, uint_bitwidth,
                      uint_bitwidth},
                     8, uint_bitwidth);
+}
+
+TEST_F(ResourceSharingPassTest, MergeShift) {
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+
+  // Create the IR body
+  BValue shiftIJ = fb.Shll(i, j);
+  BValue shiftKZ = fb.Shll(k, z);
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+  BValue add = fb.Add(shiftKZ, kNeg1);
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue k1 = fb.Literal(UBits(1, 32));
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue isOp1 = fb.Eq(op, k1);
+  BValue selector = fb.Concat({isOp1, isOp0});
+  BValue select = fb.PrioritySelect(selector, {shiftIJ, add}, k0);
+
+  // Create the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  // We expect the transformation successfully completed and it returned true
+  ScopedVerifyEquivalence check_equivalent(f, absl::Seconds(100));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  // We expect the result function has only one multiplication in its body
+  uint64_t number_of_shifts = NumberOfShifts(f);
+  EXPECT_EQ(number_of_shifts, 1);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(f, {1, 0, 0, 4, 1}, 7);
+  InterpretAndCheck(f, {0, 8, 1, 0, 0}, 16);
 }
 
 }  // namespace

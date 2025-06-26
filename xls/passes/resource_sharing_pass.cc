@@ -15,10 +15,13 @@
 #include "xls/passes/resource_sharing_pass.h"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -37,6 +40,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/area_model/area_estimator.h"
 #include "xls/estimators/area_model/area_estimators.h"
+#include "xls/estimators/delay_model/delay_estimator.h"
+#include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
@@ -201,6 +206,7 @@ class NaryFoldingAction : public FoldingAction {
 class FoldingGraph {
  public:
   FoldingGraph(
+      FunctionBase *f,
       std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
       const absl::flat_hash_map<
           Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
@@ -212,6 +218,9 @@ class FoldingGraph {
   // clique within that graph.
   absl::flat_hash_set<absl::flat_hash_set<BinaryFoldingAction *>>
   GetEdgeCliques();
+
+  // This function returns the IR function that this folding graph represents.
+  FunctionBase *function() const;
 
   // This function returns all the nodes of the folding graph.
   std::vector<Node *> GetNodes() const;
@@ -234,6 +243,7 @@ class FoldingGraph {
   using NodeIndex = int32_t;
   using EdgeIndex = int32_t;
   using Graph = ::util::ReverseArcStaticGraph<NodeIndex, EdgeIndex>;
+  FunctionBase *f_;
   std::unique_ptr<Graph> graph_;
   std::vector<Node *> nodes_;
   absl::flat_hash_map<Node *, NodeIndex> node_to_index_;
@@ -245,6 +255,21 @@ class FoldingGraph {
   void AddEdges(
       std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions);
   void IdentifyCliques();
+};
+
+class TimingAnalysis {
+ public:
+  TimingAnalysis(
+      const std::vector<std::unique_ptr<NaryFoldingAction>> &folding_actions,
+      const absl::flat_hash_map<Node *, uint64_t> &delay_to_node);
+
+  uint64_t GetDelayIncrease(NaryFoldingAction *folding_action) const;
+
+  double GetDelaySpread(NaryFoldingAction *folding_action) const;
+
+ private:
+  absl::flat_hash_map<NaryFoldingAction *, uint64_t> delay_increase_;
+  absl::flat_hash_map<NaryFoldingAction *, double> delay_spread_;
 };
 
 // This function returns true if @node stops the propagation of the value passed
@@ -489,10 +514,18 @@ std::optional<std::unique_ptr<BinaryFoldingAction>> CanMapInto(
   // be either add or sub. This is because sub can be mapped into add (and
   // viceversa) by negating the second operand.
   if (node_to_map->op() != folding_destination->op()) {
-    if (!node_to_map->OpIn({Op::kAdd, Op::kSub})) {
-      return {};
+    bool can_map_into = false;
+    constexpr std::array<Op, 2> kAddOrSub = {Op::kAdd, Op::kSub};
+    constexpr std::array<Op, 2> kRightShiftOrDynamicBitslice = {
+        Op::kShrl, Op::kDynamicBitSlice};
+    if (node_to_map->OpIn(kAddOrSub) && folding_destination->OpIn(kAddOrSub)) {
+      can_map_into = true;
     }
-    if (!folding_destination->OpIn({Op::kAdd, Op::kSub})) {
+    if (node_to_map->OpIn(kRightShiftOrDynamicBitslice) &&
+        folding_destination->OpIn(kRightShiftOrDynamicBitslice)) {
+      can_map_into = true;
+    }
+    if (!can_map_into) {
       return {};
     }
   }
@@ -575,7 +608,8 @@ std::optional<std::unique_ptr<BinaryFoldingAction>> CanMapInto(
 // input for folding.
 bool CanTarget(Node *n) {
   // We handle multipliers and adders
-  if (n->OpIn({Op::kUMul, Op::kSMul, Op::kAdd, Op::kSub})) {
+  if (n->OpIn({Op::kUMul, Op::kSMul, Op::kAdd, Op::kSub, Op::kShrl, Op::kShra,
+               Op::kShll, Op::kDynamicBitSlice})) {
     return true;
   }
 
@@ -585,11 +619,6 @@ bool CanTarget(Node *n) {
 // Check if we should consider the node given as input for folding.
 // This is part of the profitability guard of the resource sharing pass.
 bool ShouldTarget(Node *n) {
-  // Multiplications are always worth it to fold
-  if (n->OpIn({Op::kUMul, Op::kSMul})) {
-    return true;
-  }
-
   // Additions are not always worth folding
   if (n->OpIn({Op::kAdd})) {
     // They are worth folding only if their bit-width is big enough
@@ -608,7 +637,8 @@ bool ShouldTarget(Node *n) {
     return false;
   }
 
-  return false;
+  // Default: we consider folding a node potentially profitable.
+  return true;
 }
 
 // Check if we are currently capable to potentially handle the node given as
@@ -1240,6 +1270,8 @@ ListOfAllFoldingActionsWithDestination(
     }
     double area_selects_overhead =
         (area_select * number_of_inputs_that_require_select);
+    VLOG(4) << "          Area of selecting all inputs "
+            << area_selects_overhead;
 
     // Add overhead if we need to compensate for having different node types
     // (e.g., folding a sub into an add) in the folding
@@ -1666,9 +1698,11 @@ LegalizeSequenceOfFolding(
 // This function sorts the folding actions given as input in descending order
 // based on the amount of area they save.
 void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
-    std::vector<std::unique_ptr<NaryFoldingAction>> &folding_actions) {
-  auto area_comparator = [](std::unique_ptr<NaryFoldingAction> &f0,
-                            std::unique_ptr<NaryFoldingAction> &f1) -> bool {
+    std::vector<std::unique_ptr<NaryFoldingAction>> &folding_actions,
+    TimingAnalysis &ta) {
+  auto area_comparator = [&ta](std::unique_ptr<NaryFoldingAction> &f0,
+                               std::unique_ptr<NaryFoldingAction> &f1) -> bool {
+    // Prioritize folding actions that save more area
     std::optional<double> area_f0 = f0->area_saved();
     std::optional<double> area_f1 = f1->area_saved();
     if (!area_f0.has_value() || !area_f1.has_value()) {
@@ -1682,9 +1716,41 @@ void SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
     }
     CHECK_EQ(*area_f0, *area_f1);
 
-    // If the two folding save the same area, then sort by the ID of their
-    // destination nodes.
-    return f0->GetTo()->id() > f1->GetTo()->id();
+    // The two folding actions given as input save the same amount of area.
+    // Prioritize folding actions that have:
+    // - a smaller square distance between the delays of the IR nodes involved
+    // in them that have sources, and
+    // - a smaller perturbation to the destination of the folding action.
+    int64_t f0_id = f0->GetTo()->id();
+    int64_t f1_id = f1->GetTo()->id();
+    switch (f0->GetTo()->op()) {
+      case Op::kAdd:
+      case Op::kDynamicBitSlice:
+
+        // These nodes behave differently than the others. They tend to lead to
+        // better area savings even when their folding leads to higher delay
+        // spread. Because of this, we rely on the ID-based tie breaker rather
+        // than delay-based metrics.
+        return f0_id > f1_id;
+      default:
+        break;
+    }
+    uint64_t f0_delay_delta = ta.GetDelayIncrease(f0.get());
+    uint64_t f1_delay_delta = ta.GetDelayIncrease(f1.get());
+    double f0_delay_spread = ta.GetDelaySpread(f0.get());
+    double f1_delay_spread = ta.GetDelaySpread(f1.get());
+    const double kDelayDeltaWeight =
+        1.01;  // We care more about the delay
+               // increase to the destination of the
+               // folding action than the delay spread.
+    double f0_delay_total =
+        (static_cast<double>(f0_delay_delta) * kDelayDeltaWeight) +
+        f0_delay_spread;
+    double f1_delay_total =
+        (static_cast<double>(f1_delay_delta) * kDelayDeltaWeight) +
+        f1_delay_spread;
+    return std::forward_as_tuple(f0_delay_total, f0_id) <
+           std::forward_as_tuple(f1_delay_total, f1_id);
   };
   absl::c_sort(folding_actions, area_comparator);
 }
@@ -1722,6 +1788,40 @@ void SortNodesInDescendingOrderOfTheirInDegree(std::vector<Node *> &nodes,
   absl::c_sort(nodes, node_degree_comparator);
 }
 
+absl::StatusOr<absl::flat_hash_map<Node *, uint64_t>> ComputeDelayPathToNode(
+    OptimizationContext &context, FunctionBase *f, DelayEstimator &de) {
+  absl::flat_hash_map<Node *, uint64_t> delay_path_node;
+
+  // Set the critical path latency up to a node, for every node within @f.
+  for (Node *node : context.TopoSort(f)) {
+    VLOG(5) << "Node = " << node->ToString();
+
+    // Identify the critical path up to @node, excluding @node.
+    uint64_t critical_path_latency_between_operands = 0;
+    for (Node *operand : node->operands()) {
+      VLOG(5) << "  Input operand = " << operand->ToString();
+      critical_path_latency_between_operands = std::max(
+          critical_path_latency_between_operands, delay_path_node.at(operand));
+    }
+
+    // Get the latency of @node
+    XLS_ASSIGN_OR_RETURN(uint64_t node_latency, de.GetOperationDelayInPs(node));
+
+    // Define the critical path latency just after @node.
+    delay_path_node[node] =
+        critical_path_latency_between_operands + node_latency;
+    VLOG(5) << "  CP = " << delay_path_node.at(node);
+  }
+
+  return delay_path_node;
+}
+
+uint64_t GetDelayPathToNode(
+    Node *node, absl::flat_hash_map<Node *, uint64_t> &delay_path_node,
+    DelayEstimator &de) {
+  return delay_path_node.at(node);
+}
+
 // This function implements the heuristic that selects the sub-set of legal
 // folding actions to perform based on the in-degree of the nodes of the
 // folding graph.
@@ -1736,7 +1836,8 @@ void SortNodesInDescendingOrderOfTheirInDegree(std::vector<Node *> &nodes,
 // bit-widths.
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectFoldingActionsBasedOnInDegree(
-    FoldingGraph *folding_graph, AreaEstimator &ae,
+    OptimizationContext &context, FoldingGraph *folding_graph,
+    AreaEstimator &ae, DelayEstimator &de,
     absl::flat_hash_map<
         Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
         &mutual_exclusivity_relation) {
@@ -1774,25 +1875,54 @@ SelectFoldingActionsBasedOnInDegree(
       potential_folding_actions_to_perform.push_back(std::move(folding));
     }
   }
-  if (VLOG_IS_ON(5)) {
-    VLOG(3) << "  List of all possible n-ary folding actions";
-    for (const std::unique_ptr<NaryFoldingAction> &folding :
-         potential_folding_actions_to_perform) {
-      VLOG(5) << "";
-      VLOG(5) << "    To [case number=" << folding->GetToCaseNumber() << "] "
-              << folding->GetTo()->ToString();
-      for (auto [from_node, from_node_case_number] : folding->GetFrom()) {
-        VLOG(5) << "      From [case number=" << from_node_case_number << "] "
-                << from_node->ToString();
-      }
-      VLOG(5) << "      Area savings = " << *folding->area_saved();
+
+  // Perform timing analysis, which will be used to decide which folding actions
+  // to perform to maximize area while minimizing the risk of making the
+  // overall critical path unacceptably worst.
+  absl::flat_hash_map<Node *, uint64_t> delay_to_node;
+  XLS_ASSIGN_OR_RETURN(
+      delay_to_node,
+      ComputeDelayPathToNode(context, folding_graph->function(), de));
+  TimingAnalysis ta{potential_folding_actions_to_perform, delay_to_node};
+
+  // Filter out folding actions that are likely to generate timing problems
+  std::vector<std::unique_ptr<NaryFoldingAction>>
+      potential_folding_actions_to_perform_without_timing_problems;
+  potential_folding_actions_to_perform_without_timing_problems.reserve(
+      potential_folding_actions_to_perform.size());
+  const double kMaxDelaySpread = 190.0;
+  for (std::unique_ptr<NaryFoldingAction> &folding :
+       potential_folding_actions_to_perform) {
+    if (ta.GetDelaySpread(folding.get()) <= kMaxDelaySpread) {
+      potential_folding_actions_to_perform_without_timing_problems.push_back(
+          std::move(folding));
     }
   }
 
   // Sort the list of n-ary folding actions to give priority to those that will
   // save more area
   SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
-      potential_folding_actions_to_perform);
+      potential_folding_actions_to_perform_without_timing_problems, ta);
+  if (VLOG_IS_ON(5)) {
+    VLOG(3) << "  List of all possible n-ary folding actions";
+    for (const std::unique_ptr<NaryFoldingAction> &folding :
+         potential_folding_actions_to_perform_without_timing_problems) {
+      VLOG(5) << "";
+      VLOG(5) << "    To [case number=" << folding->GetToCaseNumber()
+              << ", delay="
+              << GetDelayPathToNode(folding->GetTo(), delay_to_node, de) << "] "
+              << folding->GetTo()->ToString();
+      for (auto [from_node, from_node_case_number] : folding->GetFrom()) {
+        VLOG(5) << "      From [case number=" << from_node_case_number
+                << ", delay="
+                << GetDelayPathToNode(from_node, delay_to_node, de) << "] "
+                << from_node->ToString();
+      }
+      VLOG(5) << "      Area savings = " << *folding->area_saved();
+      VLOG(5) << "      Time analysis = " << ta.GetDelaySpread(folding.get())
+              << "," << ta.GetDelayIncrease(folding.get());
+    }
+  }
 
   // Make the current sequence of n-ary folding legal.
   //
@@ -1803,8 +1933,10 @@ SelectFoldingActionsBasedOnInDegree(
   XLS_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<NaryFoldingAction>>
           folding_actions_to_perform,
-      LegalizeSequenceOfFolding(std::move(potential_folding_actions_to_perform),
-                                mutual_exclusivity_relation, ae));
+      LegalizeSequenceOfFolding(
+          std::move(
+              potential_folding_actions_to_perform_without_timing_problems),
+          mutual_exclusivity_relation, ae));
 
   return folding_actions_to_perform;
 }
@@ -1822,7 +1954,8 @@ SelectFoldingActionsBasedOnInDegree(
 // sequence returned by this function.
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectAllFoldingActions(
-    FoldingGraph *folding_graph, AreaEstimator &ae,
+    OptimizationContext &context, FoldingGraph *folding_graph,
+    AreaEstimator &ae, DelayEstimator &de,
     absl::flat_hash_map<
         Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
         &mutual_exclusivity_relation) {
@@ -1877,8 +2010,13 @@ SelectAllFoldingActions(
 
   // Sort the list of n-ary folding actions to give priority to those that will
   // save more area
+  absl::flat_hash_map<Node *, uint64_t> delay_to_node;
+  XLS_ASSIGN_OR_RETURN(
+      delay_to_node,
+      ComputeDelayPathToNode(context, folding_graph->function(), de));
+  TimingAnalysis ta{potential_folding_actions_to_perform, delay_to_node};
   SortFoldingActionsInDescendingOrderOfTheirAreaSavings(
-      potential_folding_actions_to_perform);
+      potential_folding_actions_to_perform, ta);
 
   // Make the current sequence of n-ary folding legal.
   //
@@ -1970,8 +2108,9 @@ SelectRandomlyFoldingActions(FoldingGraph *folding_graph) {
 // This is part of the profitability guard of the resource sharing pass.
 absl::StatusOr<std::vector<std::unique_ptr<NaryFoldingAction>>>
 SelectFoldingActions(
-    FoldingGraph *folding_graph,
+    OptimizationContext &context, FoldingGraph *folding_graph,
     ResourceSharingPass::ProfitabilityGuard heuristics, AreaEstimator &ae,
+    DelayEstimator &de,
     absl::flat_hash_map<
         Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
         &mutual_exclusivity_relation) {
@@ -1981,9 +2120,10 @@ SelectFoldingActions(
   // Decide the sub-set of legal folding actions to perform
   switch (heuristics) {
     case ResourceSharingPass::ProfitabilityGuard::kInDegree: {
-      XLS_ASSIGN_OR_RETURN(folding_actions_to_perform,
-                           SelectFoldingActionsBasedOnInDegree(
-                               folding_graph, ae, mutual_exclusivity_relation));
+      XLS_ASSIGN_OR_RETURN(
+          folding_actions_to_perform,
+          SelectFoldingActionsBasedOnInDegree(context, folding_graph, ae, de,
+                                              mutual_exclusivity_relation));
       break;
     }
 
@@ -2000,9 +2140,10 @@ SelectFoldingActions(
     }
 
     case ResourceSharingPass::ProfitabilityGuard::kAlways: {
-      XLS_ASSIGN_OR_RETURN(folding_actions_to_perform,
-                           SelectAllFoldingActions(
-                               folding_graph, ae, mutual_exclusivity_relation));
+      XLS_ASSIGN_OR_RETURN(
+          folding_actions_to_perform,
+          SelectAllFoldingActions(context, folding_graph, ae, de,
+                                  mutual_exclusivity_relation));
       break;
     }
   }
@@ -2337,6 +2478,9 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(AreaEstimator * ae,
                        GetAreaEstimator(options.area_model));
 
+  // Get the delay model
+  XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_model, GetDelayEstimator("unit"));
+
   // Perform the reachability analysis.
   absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>> reachability_result =
       ComputeReachabilityAnalysis(f, context);
@@ -2354,17 +2498,18 @@ absl::StatusOr<bool> ResourceSharingPass::RunOnFunctionBaseInternal(
       ComputeFoldableActions(mutual_exclusivity_relation, reachability_result);
 
   // Organize the folding actions into a graph
-  FoldingGraph folding_graph{std::move(foldable_actions),
+  FoldingGraph folding_graph{f, std::move(foldable_actions),
                              mutual_exclusivity_relation};
 
   // Select the folding actions to perform
   ResourceSharingPass::ProfitabilityGuard selection_heuristic =
       options.force_resource_sharing ? ProfitabilityGuard::kAlways
                                      : profitability_guard_;
-  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<NaryFoldingAction>>
-                           folding_actions_to_perform,
-                       SelectFoldingActions(&folding_graph, selection_heuristic,
-                                            *ae, mutual_exclusivity_relation));
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<std::unique_ptr<NaryFoldingAction>>
+          folding_actions_to_perform,
+      SelectFoldingActions(context, &folding_graph, selection_heuristic, *ae,
+                           *delay_model, mutual_exclusivity_relation));
 
   // Perform the folding
   XLS_ASSIGN_OR_RETURN(modified,
@@ -2451,10 +2596,12 @@ std::vector<std::pair<Node *, uint32_t>> NaryFoldingAction::GetFrom(
 uint64_t NaryFoldingAction::GetNumberOfFroms() const { return from_.size(); }
 
 FoldingGraph::FoldingGraph(
+    FunctionBase *f,
     std::vector<std::unique_ptr<BinaryFoldingAction>> foldable_actions,
     const absl::flat_hash_map<
         Node *, absl::flat_hash_map<Node *, absl::flat_hash_set<Node *>>>
-        &mutual_exclusivity_relation) {
+        &mutual_exclusivity_relation)
+    : f_{f} {
   // Allocate the graph
   graph_ = std::make_unique<Graph>();
 
@@ -2510,6 +2657,8 @@ FoldingGraph::FoldingGraph(
     }
   }
 }
+
+FunctionBase *FoldingGraph::function() const { return f_; }
 
 void FoldingGraph::AddNodes(
     absl::Span<const std::unique_ptr<BinaryFoldingAction>> foldable_actions) {
@@ -2671,6 +2820,62 @@ std::vector<BinaryFoldingAction *> FoldingGraph::GetEdgesTo(Node *n) const {
   }
 
   return edges_to_n;
+}
+
+TimingAnalysis::TimingAnalysis(
+    const std::vector<std::unique_ptr<NaryFoldingAction>> &folding_actions,
+    const absl::flat_hash_map<Node *, uint64_t> &delay_to_node) {
+  for (const std::unique_ptr<NaryFoldingAction> &folding : folding_actions) {
+    // Get the information about the destination of the folding
+    Node *to = folding->GetTo();
+    uint64_t to_delay = delay_to_node.at(to);
+
+    // Compute the spread of the delays between the sources and the destination
+    //
+    // We use the square distance rather than the distance because we prefer the
+    // following folding action over the next one:
+    // Preferred folding action:
+    //   Destination at delay 1
+    //   Two sources both at delay 3
+    //   Total distance = (3 - 1) + (3 - 1) = 4
+    //   Total square distance = (3 - 1)^2 + (3 - 1)^2 = 8
+    //
+    // Less preferred folding action:
+    //   Destination at delay 1
+    //   Two sources at delay 2 and 4
+    //   Total distance = (2 - 1) + (4 - 1) = 4
+    //   Total square distance = (2 - 1)^2 + (4 - 1)^2 = 10
+    //
+    // This is because the last folding action (the less preferred one) often
+    // creates a less beneficial folding due to the higher furthest-away source
+    // (4 in the above example).
+    double delta_spread = 0.0;
+    for (auto [from, from_number] : folding->GetFrom()) {
+      uint64_t from_delay = delay_to_node.at(from);
+      int64_t delta_delay = to_delay - from_delay;
+      double from_distance = std::pow(static_cast<double>(delta_delay), 2);
+      delta_spread += from_distance;
+    }
+    delay_spread_[folding.get()] = delta_spread;
+
+    // Estimate the delay increase for the destination of the folding
+    uint64_t min_from_delay = to_delay;
+    for (auto [from, from_number] : folding->GetFrom()) {
+      min_from_delay = std::min(min_from_delay, delay_to_node.at(from));
+    }
+    uint64_t delta =
+        (min_from_delay < to_delay) ? (to_delay - min_from_delay) : 0;
+    delay_increase_[folding.get()] = delta;
+  }
+}
+
+double TimingAnalysis::GetDelaySpread(NaryFoldingAction *folding_action) const {
+  return delay_spread_.at(folding_action);
+}
+
+uint64_t TimingAnalysis::GetDelayIncrease(
+    NaryFoldingAction *folding_action) const {
+  return delay_increase_.at(folding_action);
 }
 
 ResourceSharingPass::ResourceSharingPass()
