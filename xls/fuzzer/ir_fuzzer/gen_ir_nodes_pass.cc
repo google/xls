@@ -14,12 +14,17 @@
 
 #include "xls/fuzzer/ir_fuzzer/gen_ir_nodes_pass.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
+#include "google/protobuf/repeated_field.h"
+#include "google/protobuf/repeated_ptr_field.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/lsb_or_msb.h"
 
 namespace xls {
 
@@ -33,33 +38,535 @@ void GenIrNodesPass::GenIrNodes() {
   }
 }
 
+void GenIrNodesPass::HandleParam(FuzzParamProto* param) {
+  param->set_bit_width(BoundedWidth(param->bit_width()));
+  // Params are named as "p" followed by the stack index of the param.
+  stack_.push_back(fb_->Param("p" + std::to_string(stack_.size()),
+                              p_->GetBitsType(param->bit_width())));
+}
+
+void GenIrNodesPass::HandleShra(FuzzShraProto* shra) {
+  BValue operand = GetOperand(shra->operand_idx());
+  BValue amount = GetOperand(shra->amount_idx());
+  stack_.push_back(fb_->Shra(operand, amount));
+}
+
+void GenIrNodesPass::HandleShrl(FuzzShrlProto* shrl) {
+  BValue operand = GetOperand(shrl->operand_idx());
+  BValue amount = GetOperand(shrl->amount_idx());
+  stack_.push_back(fb_->Shrl(operand, amount));
+}
+
+void GenIrNodesPass::HandleShll(FuzzShllProto* shll) {
+  BValue operand = GetOperand(shll->operand_idx());
+  BValue amount = GetOperand(shll->amount_idx());
+  stack_.push_back(fb_->Shll(operand, amount));
+}
+
+void GenIrNodesPass::HandleOr(FuzzOrProto* or_op) {
+  or_op->set_bit_width(BoundedWidth(or_op->bit_width()));
+  // Requires at least one operand.
+  std::vector<BValue> operands = GetWidthFittedOperands(
+      or_op->mutable_operand_idxs(), or_op->bit_width(), 1);
+  stack_.push_back(fb_->Or(operands));
+}
+
+void GenIrNodesPass::HandleNor(FuzzNorProto* nor) {
+  nor->set_bit_width(BoundedWidth(nor->bit_width()));
+  std::vector<BValue> operands =
+      GetWidthFittedOperands(nor->mutable_operand_idxs(), nor->bit_width(), 1);
+  stack_.push_back(fb_->Nor(operands));
+}
+
+void GenIrNodesPass::HandleXor(FuzzXorProto* xor_op) {
+  xor_op->set_bit_width(BoundedWidth(xor_op->bit_width()));
+  std::vector<BValue> operands = GetWidthFittedOperands(
+      xor_op->mutable_operand_idxs(), xor_op->bit_width(), 1);
+  stack_.push_back(fb_->Xor(operands));
+}
+
+void GenIrNodesPass::HandleAnd(FuzzAndProto* and_op) {
+  and_op->set_bit_width(BoundedWidth(and_op->bit_width()));
+  std::vector<BValue> operands = GetWidthFittedOperands(
+      and_op->mutable_operand_idxs(), and_op->bit_width(), 1);
+  stack_.push_back(fb_->And(operands));
+}
+
+void GenIrNodesPass::HandleNand(FuzzNandProto* nand) {
+  nand->set_bit_width(BoundedWidth(nand->bit_width()));
+  std::vector<BValue> operands = GetWidthFittedOperands(
+      nand->mutable_operand_idxs(), nand->bit_width(), 1);
+  stack_.push_back(fb_->Nand(operands));
+}
+
+void GenIrNodesPass::HandleAndReduce(FuzzAndReduceProto* and_reduce) {
+  BValue operand = GetOperand(and_reduce->operand_idx());
+  stack_.push_back(fb_->AndReduce(operand));
+}
+
+void GenIrNodesPass::HandleOrReduce(FuzzOrReduceProto* or_reduce) {
+  BValue operand = GetOperand(or_reduce->operand_idx());
+  stack_.push_back(fb_->OrReduce(operand));
+}
+
+void GenIrNodesPass::HandleXorReduce(FuzzXorReduceProto* xor_reduce) {
+  BValue operand = GetOperand(xor_reduce->operand_idx());
+  stack_.push_back(fb_->XorReduce(operand));
+}
+
+void GenIrNodesPass::HandleUMul(FuzzUMulProto* umul) {
+  umul->set_bit_width(BoundedWidth(umul->bit_width()));
+  BValue lhs = GetOperand(umul->lhs_idx());
+  BValue rhs = GetOperand(umul->rhs_idx());
+  // If the bit width is set, use it. Otherwise, don't use it.
+  if (umul->has_bit_width()) {
+    stack_.push_back(fb_->UMul(lhs, rhs, umul->bit_width()));
+  } else {
+    stack_.push_back(fb_->UMul(lhs, rhs));
+  }
+}
+
+void GenIrNodesPass::HandleSMul(FuzzSMulProto* smul) {
+  smul->set_bit_width(BoundedWidth(smul->bit_width()));
+  BValue lhs = GetOperand(smul->lhs_idx());
+  BValue rhs = GetOperand(smul->rhs_idx());
+  if (smul->has_bit_width()) {
+    stack_.push_back(fb_->SMul(lhs, rhs, smul->bit_width()));
+  } else {
+    stack_.push_back(fb_->SMul(lhs, rhs));
+  }
+}
+
+void GenIrNodesPass::HandleUDiv(FuzzUDivProto* udiv) {
+  udiv->set_bit_width(BoundedWidth(udiv->bit_width()));
+  BValue lhs =
+      GetWidthFittedOperand(udiv->mutable_lhs_idx(), udiv->bit_width());
+  BValue rhs =
+      GetWidthFittedOperand(udiv->mutable_rhs_idx(), udiv->bit_width());
+  stack_.push_back(fb_->UDiv(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleSDiv(FuzzSDivProto* sdiv) {
+  sdiv->set_bit_width(BoundedWidth(sdiv->bit_width()));
+  BValue lhs =
+      GetWidthFittedOperand(sdiv->mutable_lhs_idx(), sdiv->bit_width());
+  BValue rhs =
+      GetWidthFittedOperand(sdiv->mutable_rhs_idx(), sdiv->bit_width());
+  stack_.push_back(fb_->SDiv(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleUMod(FuzzUModProto* umod) {
+  umod->set_bit_width(BoundedWidth(umod->bit_width()));
+  BValue lhs =
+      GetWidthFittedOperand(umod->mutable_lhs_idx(), umod->bit_width());
+  BValue rhs =
+      GetWidthFittedOperand(umod->mutable_rhs_idx(), umod->bit_width());
+  stack_.push_back(fb_->UMod(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleSMod(FuzzSModProto* smod) {
+  smod->set_bit_width(BoundedWidth(smod->bit_width()));
+  BValue lhs =
+      GetWidthFittedOperand(smod->mutable_lhs_idx(), smod->bit_width());
+  BValue rhs =
+      GetWidthFittedOperand(smod->mutable_rhs_idx(), smod->bit_width());
+  stack_.push_back(fb_->SMod(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleSubtract(FuzzSubtractProto* subtract) {
+  subtract->set_bit_width(BoundedWidth(subtract->bit_width()));
+  BValue lhs =
+      GetWidthFittedOperand(subtract->mutable_lhs_idx(), subtract->bit_width());
+  BValue rhs =
+      GetWidthFittedOperand(subtract->mutable_rhs_idx(), subtract->bit_width());
+  stack_.push_back(fb_->Subtract(lhs, rhs));
+}
+
 void GenIrNodesPass::HandleAdd(FuzzAddProto* add) {
-  BValue lhs = GetOperand(add->mutable_lhs_ref());
-  BValue rhs = GetOperand(add->mutable_rhs_ref());
+  add->set_bit_width(BoundedWidth(add->bit_width()));
+  BValue lhs = GetWidthFittedOperand(add->mutable_lhs_idx(), add->bit_width());
+  BValue rhs = GetWidthFittedOperand(add->mutable_rhs_idx(), add->bit_width());
   stack_.push_back(fb_->Add(lhs, rhs));
 }
 
+void GenIrNodesPass::HandleConcat(FuzzConcatProto* concat) {
+  // Requires at least one operand.
+  std::vector<BValue> operands = GetOperands(concat->mutable_operand_idxs(), 1);
+  stack_.push_back(fb_->Concat(operands));
+}
+
+void GenIrNodesPass::HandleULe(FuzzULeProto* ule) {
+  ule->set_bit_width(BoundedWidth(ule->bit_width()));
+  BValue lhs = GetWidthFittedOperand(ule->mutable_lhs_idx(), ule->bit_width());
+  BValue rhs = GetWidthFittedOperand(ule->mutable_rhs_idx(), ule->bit_width());
+  stack_.push_back(fb_->ULe(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleULt(FuzzULtProto* ult) {
+  ult->set_bit_width(BoundedWidth(ult->bit_width()));
+  BValue lhs = GetWidthFittedOperand(ult->mutable_lhs_idx(), ult->bit_width());
+  BValue rhs = GetWidthFittedOperand(ult->mutable_rhs_idx(), ult->bit_width());
+  stack_.push_back(fb_->ULt(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleUGe(FuzzUGeProto* uge) {
+  uge->set_bit_width(BoundedWidth(uge->bit_width()));
+  BValue lhs = GetWidthFittedOperand(uge->mutable_lhs_idx(), uge->bit_width());
+  BValue rhs = GetWidthFittedOperand(uge->mutable_rhs_idx(), uge->bit_width());
+  stack_.push_back(fb_->UGe(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleUGt(FuzzUGtProto* ugt) {
+  ugt->set_bit_width(BoundedWidth(ugt->bit_width()));
+  BValue lhs = GetWidthFittedOperand(ugt->mutable_lhs_idx(), ugt->bit_width());
+  BValue rhs = GetWidthFittedOperand(ugt->mutable_rhs_idx(), ugt->bit_width());
+  stack_.push_back(fb_->UGt(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleSLe(FuzzSLeProto* sle) {
+  sle->set_bit_width(BoundedWidth(sle->bit_width()));
+  BValue lhs = GetWidthFittedOperand(sle->mutable_lhs_idx(), sle->bit_width());
+  BValue rhs = GetWidthFittedOperand(sle->mutable_rhs_idx(), sle->bit_width());
+  stack_.push_back(fb_->SLe(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleSLt(FuzzSLtProto* slt) {
+  slt->set_bit_width(BoundedWidth(slt->bit_width()));
+  BValue lhs = GetWidthFittedOperand(slt->mutable_lhs_idx(), slt->bit_width());
+  BValue rhs = GetWidthFittedOperand(slt->mutable_rhs_idx(), slt->bit_width());
+  stack_.push_back(fb_->SLt(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleSGe(FuzzSGeProto* sge) {
+  sge->set_bit_width(BoundedWidth(sge->bit_width()));
+  BValue lhs = GetWidthFittedOperand(sge->mutable_lhs_idx(), sge->bit_width());
+  BValue rhs = GetWidthFittedOperand(sge->mutable_rhs_idx(), sge->bit_width());
+  stack_.push_back(fb_->SGe(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleSGt(FuzzSGtProto* sgt) {
+  sgt->set_bit_width(BoundedWidth(sgt->bit_width()));
+  BValue lhs = GetWidthFittedOperand(sgt->mutable_lhs_idx(), sgt->bit_width());
+  BValue rhs = GetWidthFittedOperand(sgt->mutable_rhs_idx(), sgt->bit_width());
+  stack_.push_back(fb_->SGt(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleEq(FuzzEqProto* eq) {
+  eq->set_bit_width(BoundedWidth(eq->bit_width()));
+  BValue lhs = GetWidthFittedOperand(eq->mutable_lhs_idx(), eq->bit_width());
+  BValue rhs = GetWidthFittedOperand(eq->mutable_rhs_idx(), eq->bit_width());
+  stack_.push_back(fb_->Eq(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleNe(FuzzNeProto* ne) {
+  ne->set_bit_width(BoundedWidth(ne->bit_width()));
+  BValue lhs = GetWidthFittedOperand(ne->mutable_lhs_idx(), ne->bit_width());
+  BValue rhs = GetWidthFittedOperand(ne->mutable_rhs_idx(), ne->bit_width());
+  stack_.push_back(fb_->Ne(lhs, rhs));
+}
+
+void GenIrNodesPass::HandleNegate(FuzzNegateProto* negate) {
+  BValue operand = GetOperand(negate->operand_idx());
+  stack_.push_back(fb_->Negate(operand));
+}
+
+void GenIrNodesPass::HandleNot(FuzzNotProto* not_op) {
+  BValue operand = GetOperand(not_op->operand_idx());
+  stack_.push_back(fb_->Not(operand));
+}
+
 void GenIrNodesPass::HandleLiteral(FuzzLiteralProto* literal) {
-  stack_.push_back(fb_->Literal(UBits(literal->value(), 64)));
+  literal->set_bit_width(BoundedWidth(literal->bit_width()));
+  // Take the bytes protobuf datatype and convert it to a Bits object by making
+  // a const uint8_t span. Any bytes that exceed the bit width of the literal
+  // will be dropped.
+  Bits value_bits =
+      ChangeBytesBitWidth(literal->value_bytes(), literal->bit_width());
+  stack_.push_back(fb_->Literal(value_bits));
 }
 
-void GenIrNodesPass::HandleParam(FuzzParamProto* param) {
-  // Params are named as "p" followed by the stack index of the param.
+void GenIrNodesPass::HandleSelect(FuzzSelectProto* select) {
+  select->set_bit_width(BoundedWidth(select->bit_width()));
+  BValue selector = GetOperand(select->selector_idx());
+  int64_t max_case_count = select->case_idxs_size();
+  bool use_default_value = false;
+  if (select->case_idxs_size() < selector.BitCountOrDie() ||
+      select->case_idxs_size() < 1ULL << selector.BitCountOrDie()) {
+    // If the number of cases is less than 2 ** selector_width, we must use a
+    // default value otherwise there are not enough cases to cover all possible
+    // selector values.
+    use_default_value = true;
+  } else if (select->case_idxs_size() > 1ULL << selector.BitCountOrDie()) {
+    // If the number of cases is greater than 2 ** selector_width, we must
+    // reduce the amount of cases to 2 ** selector_width.
+    max_case_count = 1ULL << selector.BitCountOrDie();
+  }
+  // If the number of cases is equal to 2 ** selector_width, we cannot use a
+  // default value because it is useless.
+  std::vector<BValue> cases = GetWidthFittedOperands(
+      select->mutable_case_idxs(), select->bit_width(), 0, max_case_count);
+  if (use_default_value) {
+    BValue default_value = GetWidthFittedOperand(
+        select->mutable_default_value_idx(), select->bit_width());
+    stack_.push_back(fb_->Select(selector, cases, default_value));
+  } else {
+    stack_.push_back(fb_->Select(selector, cases));
+  }
+}
+
+void GenIrNodesPass::HandleOneHot(FuzzOneHotProto* one_hot) {
+  BValue input = GetOperand(one_hot->input_idx());
+  // Convert the LsbOrMsb proto enum to the C++ enum.
+  LsbOrMsb priority;
+  switch (one_hot->priority()) {
+    case FuzzOneHotProto::MSB_PRIORITY:
+      priority = LsbOrMsb::kMsb;
+      break;
+    case FuzzOneHotProto::LSB_PRIORITY:
+    default:
+      priority = LsbOrMsb::kLsb;
+      break;
+  }
+  stack_.push_back(fb_->OneHot(input, priority));
+}
+
+// Same as Select, but each selector_width bit corresponds to a case and there
+// is no default value.
+void GenIrNodesPass::HandleOneHotSelect(FuzzOneHotSelectProto* one_hot_select) {
+  one_hot_select->set_bit_width(BoundedWidth(one_hot_select->bit_width()));
+  BValue selector = GetOperand(one_hot_select->selector_idx());
+  // If the selector bit width is not in the range [1, 50], use a default value
+  // for the selector with a smaller bit width to avoid a long list of cases.
+  // The number of cases should equal the selector_width.
+  if (selector.BitCountOrDie() < 1 || selector.BitCountOrDie() > 50) {
+    selector = fb_->Literal(UBits(0, 5));
+  }
+  // Use of GetWidthFittedOperands's min_operand_count and max_operand_count
+  // arguments is to ensure that the number of cases is equal to the selector
+  // bit width.
+  std::vector<BValue> cases = GetWidthFittedOperands(
+      one_hot_select->mutable_case_idxs(), one_hot_select->bit_width(),
+      selector.BitCountOrDie(), selector.BitCountOrDie());
+  stack_.push_back(fb_->OneHotSelect(selector, cases));
+}
+
+// Same as OneHotSelect, but with a default value.
+void GenIrNodesPass::HandlePrioritySelect(
+    FuzzPrioritySelectProto* priority_select) {
+  priority_select->set_bit_width(BoundedWidth(priority_select->bit_width()));
+  BValue selector = GetOperand(priority_select->selector_idx());
+  // If the selector bit width is not in the range [1, 50], use a default value
+  // for the selector with a smaller bit width to avoid a long list of cases.
+  // The number of cases should equal the selector_width.
+  if (selector.BitCountOrDie() < 1 || selector.BitCountOrDie() > 50) {
+    selector = fb_->Literal(UBits(0, 5));
+  }
+  // Use of GetWidthFittedOperands's min_operand_count and max_operand_count
+  // arguments is to ensure that the number of cases is equal to the selector
+  // bit width.
+  std::vector<BValue> cases = GetWidthFittedOperands(
+      priority_select->mutable_case_idxs(), priority_select->bit_width(),
+      selector.BitCountOrDie(), selector.BitCountOrDie());
+  BValue default_value =
+      GetWidthFittedOperand(priority_select->mutable_default_value_idx(),
+                            priority_select->bit_width());
+  stack_.push_back(fb_->PrioritySelect(selector, cases, default_value));
+}
+
+void GenIrNodesPass::HandleClz(FuzzClzProto* clz) {
+  BValue operand = GetOperand(clz->operand_idx());
+  stack_.push_back(fb_->Clz(operand));
+}
+
+void GenIrNodesPass::HandleCtz(FuzzCtzProto* ctz) {
+  BValue operand = GetOperand(ctz->operand_idx());
+  stack_.push_back(fb_->Ctz(operand));
+}
+
+// Retrieves a vector of Case objects based off of CaseProtos.
+std::vector<FunctionBuilder::Case> GenIrNodesPass::GetCases(
+    google::protobuf::RepeatedPtrField<CaseProto>* case_protos, int64_t bit_width) {
+  std::vector<FunctionBuilder::Case> cases;
+  for (CaseProto& case_proto : *case_protos) {
+    cases.push_back(FunctionBuilder::Case{
+        GetWidthFittedOperand(case_proto.mutable_clause_idx(), bit_width),
+        GetWidthFittedOperand(case_proto.mutable_value_idx(), bit_width)});
+  }
+  // If there are no cases, add a default case, otherwise the interpreter
+  // breaks.
+  if (cases.empty()) {
+    cases.push_back(FunctionBuilder::Case{fb_->Literal(UBits(0, bit_width)),
+                                          fb_->Literal(UBits(0, bit_width))});
+  }
+  return cases;
+}
+
+void GenIrNodesPass::HandleMatch(FuzzMatchProto* match) {
+  BValue condition = GetOperand(match->condition_idx());
+  std::vector<FunctionBuilder::Case> cases =
+      GetCases(match->mutable_case_protos(), condition.BitCountOrDie());
+  BValue default_value = GetOperand(match->default_value_idx());
+  stack_.push_back(fb_->Match(condition, cases, default_value));
+}
+
+void GenIrNodesPass::HandleMatchTrue(FuzzMatchTrueProto* match_true) {
+  // MatchTrue only supports bit widths of 1.
+  std::vector<FunctionBuilder::Case> cases =
+      GetCases(match_true->mutable_case_protos(), 1);
+  BValue default_value = GetOperand(match_true->default_value_idx());
+  stack_.push_back(fb_->MatchTrue(cases, default_value));
+}
+
+void GenIrNodesPass::HandleReverse(FuzzReverseProto* reverse) {
+  BValue operand = GetOperand(reverse->operand_idx());
+  stack_.push_back(fb_->Reverse(operand));
+}
+
+void GenIrNodesPass::HandleIdentity(FuzzIdentityProto* identity) {
+  BValue operand = GetOperand(identity->operand_idx());
+  stack_.push_back(fb_->Identity(operand));
+}
+
+void GenIrNodesPass::HandleSignExtend(FuzzSignExtendProto* sign_extend) {
+  BValue operand = GetOperand(sign_extend->operand_idx());
+  // The bit width cannot be less than the operand bit width because that is an
+  // invalid extension.
+  sign_extend->set_bit_width(
+      BoundedWidth(sign_extend->bit_width(), operand.BitCountOrDie()));
+  stack_.push_back(fb_->SignExtend(operand, sign_extend->bit_width()));
+}
+
+void GenIrNodesPass::HandleZeroExtend(FuzzZeroExtendProto* zero_extend) {
+  BValue operand = GetOperand(zero_extend->operand_idx());
+  // The bit width cannot be less than the operand bit width because that is an
+  // invalid extension.
+  zero_extend->set_bit_width(
+      BoundedWidth(zero_extend->bit_width(), operand.BitCountOrDie()));
+  stack_.push_back(fb_->ZeroExtend(operand, zero_extend->bit_width()));
+}
+
+void GenIrNodesPass::HandleBitSlice(FuzzBitSliceProto* bit_slice) {
+  bit_slice->set_bit_width(BoundedWidth(bit_slice->bit_width()));
+  BValue operand = GetOperand(bit_slice->operand_idx());
+  // The start value must be in the range [0, operand_width - bit_width]
+  // otherwise you would be slicing past the end of the operand.
+  bit_slice->set_start(Bounded(
+      bit_slice->start(), 0, operand.BitCountOrDie() - bit_slice->bit_width()));
   stack_.push_back(
-      fb_->Param("p" + std::to_string(stack_.size()), p_->GetBitsType(64)));
+      fb_->BitSlice(operand, bit_slice->start(), bit_slice->bit_width()));
 }
 
-// Takes in a FuzzOperandRefProto and returns a BValue that is either a default
-// value or a BValue from the stack based off of the stack index.
-BValue GenIrNodesPass::GetOperand(FuzzOperandRefProto* operand_ref) {
+void GenIrNodesPass::HandleBitSliceUpdate(
+    FuzzBitSliceUpdateProto* bit_slice_update) {
+  BValue operand = GetOperand(bit_slice_update->operand_idx());
+  BValue start = GetOperand(bit_slice_update->start_idx());
+  BValue update_value = GetOperand(bit_slice_update->update_value_idx());
+  stack_.push_back(fb_->BitSliceUpdate(operand, start, update_value));
+}
+
+void GenIrNodesPass::HandleDynamicBitSlice(
+    FuzzDynamicBitSliceProto* dynamic_bit_slice) {
+  dynamic_bit_slice->set_bit_width(
+      BoundedWidth(dynamic_bit_slice->bit_width()));
+  BValue operand = GetWidthFittedOperand(
+      dynamic_bit_slice->mutable_operand_idx(), dynamic_bit_slice->bit_width());
+  BValue start = GetOperand(dynamic_bit_slice->start_idx());
+  stack_.push_back(
+      fb_->DynamicBitSlice(operand, start, dynamic_bit_slice->bit_width()));
+}
+
+void GenIrNodesPass::HandleEncode(FuzzEncodeProto* encode) {
+  BValue operand = GetOperand(encode->operand_idx());
+  BValue encode_bvalue = fb_->Encode(operand);
+  // Encode may result in a 0-bit value. If so, change the bit width to 1.
+  if (encode_bvalue.BitCountOrDie() == 0) {
+    encode_bvalue = ChangeBitWidth(fb_, encode_bvalue, 1);
+  }
+  stack_.push_back(encode_bvalue);
+}
+
+void GenIrNodesPass::HandleDecode(FuzzDecodeProto* decode) {
+  decode->set_bit_width(BoundedWidth(decode->bit_width()));
+  BValue operand = GetOperand(decode->operand_idx());
+  stack_.push_back(fb_->Decode(operand, decode->bit_width()));
+}
+
+void GenIrNodesPass::HandleGate(FuzzGateProto* gate) {
+  // The Gate condition only supports bit widths of 1.
+  BValue condition = GetWidthFittedOperand(gate->mutable_condition_idx(), 1);
+  BValue data = GetOperand(gate->data_idx());
+  stack_.push_back(fb_->Gate(condition, data));
+}
+
+// Retrieves an operand from the stack based off of a stack index.
+BValue GenIrNodesPass::GetOperand(int64_t stack_idx) {
   if (stack_.empty()) {
-    // If the stack is empty, initialize the lhs and rhs with default values.
+    // If the stack is empty, return a default value.
     return fb_->Literal(UBits(0, 64));
   } else {
-    // Retrieve the lhs and rhs operands from the stack based off of the
-    // randomly generated stack indices.
-    return stack_[operand_ref->stack_idx() % stack_.size()];
+    // Retrieve the operand from the stack based off of the
+    // randomly generated stack index.
+    return stack_[stack_idx % stack_.size()];
   }
+}
+
+// Retrieves multiple operands from the stack based off of stack indices. If
+// min_operand_count and max_operand_count are specified, the number of returned
+// operands will be of the specified minimum or maximum constraint.
+std::vector<BValue> GenIrNodesPass::GetOperands(
+    google::protobuf::RepeatedField<int64_t>* operand_idxs, int64_t min_operand_count,
+    int64_t max_operand_count) {
+  // If the max operand count is less than the min operand count, assume invalid
+  // or default inputs, so just ignore max_operand_count.
+  if (max_operand_count < min_operand_count) {
+    max_operand_count = operand_idxs->size();
+  }
+  std::vector<BValue> operands;
+  // Add operands up to the max operand count or up to the end of the vector.
+  for (int64_t i = 0; i < operand_idxs->size() && i < max_operand_count;
+       i += 1) {
+    operands.push_back(GetOperand(operand_idxs->at(i)));
+  }
+  // Fill in any remaining operands with default values.
+  while (operands.size() < min_operand_count) {
+    operands.push_back(fb_->Literal(UBits(0, 64)));
+  }
+  return operands;
+}
+
+// Retrieves an operand from the stack based off of a FittedOperandIdxProto. The
+// width of the operand will be changed to match the specified bit width.
+BValue GenIrNodesPass::GetWidthFittedOperand(FittedOperandIdxProto* operand_idx,
+                                             int64_t bit_width) {
+  BValue operand = GetOperand(operand_idx->stack_idx());
+  // Change the width using the specified increase/decrease methods.
+  return ChangeBitWidth(fb_, operand, bit_width,
+                        operand_idx->mutable_width_fitting_method());
+}
+
+// Retrieves multiple operands from the stack based off of
+// FittedOperandIdxProtos. If min_operand_count and max_operand_count are
+// specified, the number of returned operands will be of the specified minimum
+// or maximum constraint.
+std::vector<BValue> GenIrNodesPass::GetWidthFittedOperands(
+    google::protobuf::RepeatedPtrField<FittedOperandIdxProto>* operand_idxs,
+    int64_t bit_width, int64_t min_operand_count, int64_t max_operand_count) {
+  // If the max operand count is less than the min operand count, assume invalid
+  // or default inputs, so just ignore max_operand_count.
+  if (max_operand_count < min_operand_count) {
+    max_operand_count = operand_idxs->size();
+  }
+  std::vector<BValue> operands;
+  // Add operands up to the max operand count or up to the end of the vector.
+  for (int64_t i = 0; i < operand_idxs->size() && i < max_operand_count;
+       i += 1) {
+    operands.push_back(GetWidthFittedOperand(&operand_idxs->at(i), bit_width));
+  }
+  // Fill in any remaining operands with default values of the same bit width.
+  while (operands.size() < min_operand_count) {
+    operands.push_back(fb_->Literal(UBits(0, bit_width)));
+  }
+  return operands;
 }
 
 }  // namespace xls
