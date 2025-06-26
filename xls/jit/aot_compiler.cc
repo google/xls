@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -42,6 +43,8 @@
 #include "llvm/include/llvm/Support/Error.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
+#include "llvm/include/llvm/TargetParser/AArch64TargetParser.h"
+#include "llvm/include/llvm/TargetParser/Host.h"
 #include "llvm/include/llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/include/llvm/TargetParser/Triple.h"
 #include "llvm/include/llvm/TargetParser/X86TargetParser.h"
@@ -51,9 +54,14 @@
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"
 
+ABSL_FLAG(std::string, aot_target, "native",
+          "CodeGen target. Supported values are \"native\", \"aarch64\", and "
+          "\"x86_64\"");
+
 namespace xls {
 
-/* static */ absl::StatusOr<std::unique_ptr<AotCompiler>> AotCompiler::Create(
+// static
+absl::StatusOr<std::unique_ptr<AotCompiler>> AotCompiler::Create(
     bool include_msan, int64_t opt_level, JitObserver* observer) {
   LlvmCompiler::InitializeLlvm();
   auto compiler = std::unique_ptr<AotCompiler>(
@@ -64,13 +72,26 @@ namespace xls {
 
 absl::StatusOr<std::unique_ptr<llvm::TargetMachine>>
 AotCompiler::CreateTargetMachine() {
+  const std::string aot_target = absl::GetFlag(FLAGS_aot_target);
+  if (aot_target != "native" && aot_target != "aarch64" &&
+      aot_target != "x86_64") {
+    return absl::InternalError(
+        absl::StrCat("Unsupported value for aot_target: ", aot_target));
+  }
+  llvm::Triple target_triple;
+  if (aot_target != "native") {
+    target_triple = llvm::Triple(llvm::sys::getProcessTriple());
+    target_triple.setArchName(aot_target);
+  }
   auto error_or_target_builder =
-      llvm::orc::JITTargetMachineBuilder::detectHost();
+      aot_target == "native"
+          ? llvm::orc::JITTargetMachineBuilder::detectHost()
+          : llvm::orc::JITTargetMachineBuilder(target_triple);
   if (!error_or_target_builder) {
     return absl::InternalError(
-        absl::StrCat("Unable to detect host: ",
+        absl::StrCat("Unable to construct machine builder: ",
                      llvm::toString(error_or_target_builder.takeError())));
-  }
+  };
 
   error_or_target_builder->setRelocationModel(llvm::Reloc::Model::PIC_);
   // In ahead-of-time compilation we're compiling on machines we are not
@@ -79,7 +100,7 @@ AotCompiler::CreateTargetMachine() {
   // baseline level of compatibility for all machines XLS compilations might
   // run on.
   //
-  // TODO(allight): Ideally we should allow the user to select what target we
+  // TODO(allight): Ideally we should allow the user to select what CPU we
   // want instead of just hard-coding a haswell.
   switch (error_or_target_builder->getTargetTriple().getArch()) {
     case llvm::Triple::x86_64: {
@@ -107,6 +128,7 @@ AotCompiler::CreateTargetMachine() {
           std::string{
               error_or_target_builder->getTargetTriple().getArchName()});
   }
+
   // NB We don't need to do anything special to force emutls because we get the
   // same base target as the orc jit which doesn't support it.
   auto error_or_target_machine = error_or_target_builder->createTargetMachine();
@@ -115,6 +137,7 @@ AotCompiler::CreateTargetMachine() {
         absl::StrCat("Unable to create target machine: ",
                      llvm::toString(error_or_target_machine.takeError())));
   }
+
   return std::move(error_or_target_machine.get());
 }
 

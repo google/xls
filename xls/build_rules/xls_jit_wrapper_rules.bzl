@@ -388,7 +388,6 @@ def cc_xls_ir_jit_wrapper(
 
     source_filename = name + _CC_FILE_EXTENSION
     header_filename = name + _H_FILE_EXTENSION
-
     extra_lib_deps = []
     xls_aot_generate(
         name = name + "_aot_code_for_wrapper",
@@ -396,7 +395,11 @@ def cc_xls_ir_jit_wrapper(
         top = top,
         with_msan = XLS_IS_MSAN_BUILD,
         llvm_opt_level = llvm_opt_level,
-        # The XLS AOT compiler does not currently support cross-compilation.
+        aot_target = select({
+            "@platforms//cpu:aarch64": "aarch64",
+            "@platforms//cpu:x86_64": "x86_64",
+            "//conditions:default": "native",
+        }),
     )
     aot_info_target = ":" + name + "_aot_code_for_wrapper"
     extra_lib_deps.append(aot_info_target)

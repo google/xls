@@ -59,6 +59,11 @@ _xls_aot_files_attrs = {
         default = 3,
         mandatory = False,
     ),
+    "aot_target": attr.string(
+        doc = "What target to generate aot obj files for",
+        default = "native",
+        mandatory = False,
+    ),
     "_save_temps_is_requested": attr.label(
         doc = "save_temps config",
         default = "//xls/common/config:save_temps_is_requested",
@@ -96,6 +101,7 @@ def _xls_aot_generate_impl(ctx):
     args.add("-output_object", obj_file.path)
     args.add("-output_proto", proto_file.path)
     args.add("-llvm_opt_level", ctx.attr.llvm_opt_level)
+    args.add("--aot_target", ctx.attr.aot_target)
     extra_files = []
     aot_direct_request = ctx.attr._emit_aot_intermediates[BuildSettingInfo].value
     save_temps_reqest = ctx.attr._save_temps_is_requested[BoolConfigSettingInfo].value
