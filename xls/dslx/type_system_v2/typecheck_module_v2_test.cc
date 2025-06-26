@@ -7985,11 +7985,58 @@ const S3_FORMAT_SPEC = FloatFormatSpec<S3::SIZE> {
                                   "min_normal: MyStruct { val: uN[3] } }"))));
 }
 
-// TODO: https://github.com/google/xls/issues/2428 - Enable test once fixed.
-TEST(TypecheckV2Test, DISABLED_RangeAsArgument) {
+TEST(TypecheckV2Test, RangeAsArgument) {
+  EXPECT_THAT(
+      R"(
+pub fn pass_back(input: s32[4]) -> s32[4] {
+    input
+}
+
+fn test() {
+    pass_back(-4..0);
+}
+
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("test", "() -> ()"),
+                HasNodeWithType("pass_back(-4..0)", "sN[32][4]"))));
+}
+
+TEST(TypecheckV2Test, RangeAsArgumentTypeMismatch) {
   EXPECT_THAT(
       R"(
 pub fn pass_back(input: u32[4]) -> u32[4] {
+    input
+}
+
+fn test() {
+    pass_back(-4..0);
+}
+
+)",
+      TypecheckFails(HasSignednessMismatch("u32", "s3")));
+}
+
+TEST(TypecheckV2Test, RangeAsArgumentArraySizeMismatch) {
+  EXPECT_THAT(
+      R"(
+pub fn pass_back(input: u32[5]) -> u32[5] {
+    input
+}
+
+fn test() {
+    pass_back(0..4);
+}
+
+)",
+      TypecheckFails(
+          HasTypeMismatch("u32[5]", "u3[(4 as s32 - 0 as s32) as u32]")));
+}
+
+TEST(TypecheckV2Test, RangeAsArgumentParametric) {
+  EXPECT_THAT(
+      R"(
+pub fn pass_back<N: u32>(input: u32[N]) -> u32[N] {
     input
 }
 

@@ -1181,7 +1181,11 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     for (Expr* endpoint : {node->start(), node->end()}) {
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(endpoint, endpoint_type_variable));
-      if (range_annotation.has_value()) {
+      // If the declaration annotation is a `ParamTypeAnnotation`, don't apply
+      // it here since it indirectly references this type variable and will
+      // create a loop.
+      if (range_annotation.has_value() &&
+          !(*range_annotation)->IsAnnotation<ParamTypeAnnotation>()) {
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
             endpoint, module_.Make<ElementTypeAnnotation>(*range_annotation)));
       }
