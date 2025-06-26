@@ -205,7 +205,7 @@ TypeAnnotationFilter& TypeAnnotationFilter::operator=(
 TypeAnnotationFilter& TypeAnnotationFilter::operator=(TypeAnnotationFilter&&) =
     default;
 
-TypeAnnotationFilter::~TypeAnnotationFilter() {}
+TypeAnnotationFilter::~TypeAnnotationFilter() = default; 
 
 TypeAnnotationFilter TypeAnnotationFilter::None() {
   return TypeAnnotationFilter(std::make_unique<Impl>(

@@ -437,7 +437,7 @@ TEST_P(RamRewritePassTest, PortsUpdated) {
       old_channel_names.push_back(
           ram1r1w_config.w_port_configuration().request_channel_name);
     }
-    for (auto old_channel_name : old_channel_names) {
+    for (const auto& old_channel_name : old_channel_names) {
       EXPECT_THAT(
           context.top_block()->GetPorts(),
           Not(AnyOf(
