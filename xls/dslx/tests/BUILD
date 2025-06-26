@@ -1335,6 +1335,8 @@ dslx_lang_test(
 
 dslx_lang_test(name = "match_tuple_concat_inference")
 
+dslx_lang_test(name = "fixed_point_import")
+
 exports_files(glob(include = ["*.x"]))
 
 build_test(

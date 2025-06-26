@@ -359,7 +359,10 @@ cc_library(
 cc_library(
     name = "import_routines",
     srcs = ["import_routines.cc"],
-    hdrs = ["import_routines.h"],
+    hdrs = [
+        "import_routines.h",
+        ":stdlib_builtins.inc",
+    ],
     data = ["//xls/dslx/stdlib:x_files"],
     deps = [
         ":import_data",
@@ -374,7 +377,6 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
         "@com_google_absl//absl/cleanup",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -880,4 +882,24 @@ py_test(
         "//xls/common:runfiles",
         "@abseil-py//absl/testing:absltest",
     ],
+)
+
+# -- Generated stdlib built-ins
+
+cc_binary(
+    name = "generate_stdlib_builtins_main",
+    srcs = ["generate_stdlib_builtins_main.cc"],
+    deps = [
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+genrule(
+    name = "stdlib_builtins_inc",
+    srcs = ["//xls/dslx/stdlib:x_files"],
+    outs = ["stdlib_builtins.inc"],
+    cmd = "$(location :generate_stdlib_builtins_main) $(location stdlib_builtins.inc) $(SRCS)",
+    tools = [":generate_stdlib_builtins_main"],
 )
