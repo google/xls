@@ -14,6 +14,8 @@
 
 #include "xls/dslx/type_system_v2/inference_table_converter_impl.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <memory>
@@ -204,6 +206,21 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleConditional(const Conditional* node) override {
+    XLS_RETURN_IF_ERROR(node->test()->Accept(this));
+    XLS_RETURN_IF_ERROR(node->consequent()->Accept(this));
+    size_t true_branch_end = nodes_.size();
+    if (node->HasElse()) {
+      XLS_RETURN_IF_ERROR(ToAstNode(node->alternate())->Accept(this));
+    }
+    size_t false_branch_end = nodes_.size();
+    conditional_branch_end_indices_.emplace(
+        node->test(), std::make_pair(true_branch_end, false_branch_end));
+
+    nodes_.push_back(node);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleUnrollFor(const UnrollFor* node) override {
     // node->body() will not be handled because unroll_for generates new
     // unrolled body statements.
@@ -247,13 +264,24 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  const std::vector<const AstNode*>& nodes() const { return nodes_; }
+  std::vector<const AstNode*>& nodes() { return nodes_; }
+
+  const absl::flat_hash_map<const AstNode*, std::pair<size_t, size_t>>&
+  conditional_branch_end_indices() const {
+    return conditional_branch_end_indices_;
+  }
 
  private:
   const AstNode* const root_;
   const bool handle_parametric_entities_;
   const ImportData& import_data_;
   std::vector<const AstNode*> nodes_;
+
+  // This maps a conditional expr to two indices, the first one indicates the
+  // position past the last node added to `nodes_` when visiting the true
+  // branch, and the second one for the false branch.
+  absl::flat_hash_map<const AstNode*, std::pair<size_t, size_t>>
+      conditional_branch_end_indices_;
 };
 
 // RAII guard for a frame on the proc type info stack.
@@ -374,7 +402,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               node->parent()->kind() == AstNodeKind::kImpl)),
         import_data_);
     XLS_RETURN_IF_ERROR(node->Accept(&visitor));
-    for (const AstNode* node : visitor.nodes()) {
+    for (auto it = visitor.nodes().begin(); it != visitor.nodes().end(); ++it) {
+      const AstNode* node = *it;
+      if (!node) {
+        continue;
+      }
       VLOG(5) << "Next node: " << node->ToString();
       if (node->kind() == AstNodeKind::kInvocation) {
         XLS_RETURN_IF_ERROR(ConvertInvocation(
@@ -402,6 +434,40 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                              filter_param_type_annotations
                                  ? TypeAnnotationFilter::FilterParamTypes()
                                  : TypeAnnotationFilter::None()));
+        // For a conditional in a parametric function, if the condition is known
+        // constexpr, nodes in the untaken branch will not be visited at all as
+        // if the branch is non-existent.
+        if (parametric_context && node->parent() &&
+            node->parent()->kind() == AstNodeKind::kConditional &&
+            node == dynamic_cast<Conditional*>(node->parent())->test()) {
+          XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                               GetTypeInfo(node->owner(), parametric_context));
+          absl::StatusOr<InterpValue> cond_value =
+              ConstexprEvaluator::EvaluateToValue(
+                  &import_data_, ti, &warning_collector_,
+                  table_.GetParametricEnv(parametric_context),
+                  down_cast<const Expr*>(node));
+          if (cond_value.ok()) {
+            ti->NoteConstExpr(node, *cond_value);
+            auto find_result =
+                visitor.conditional_branch_end_indices().find(node);
+            CHECK(find_result !=
+                  visitor.conditional_branch_end_indices().end());
+            if (cond_value->IsTrue()) {
+              // Since there are arbitrary amount of nodes in the true branch
+              // before we are getting to the false branch, we nullify the nodes
+              // in the false branch here now.
+              std::fill(visitor.nodes().begin() + find_result->second.first,
+                        visitor.nodes().begin() + find_result->second.second,
+                        nullptr);
+            } else {
+              CHECK(cond_value->IsFalse());
+              // The nodes in the true branch immediately follow, so we just
+              // need to skip over them if the branch is not taken.
+              it = visitor.nodes().begin() + find_result->second.first - 1;
+            }
+          }
+        }
       }
     }
     return absl::OkStatus();

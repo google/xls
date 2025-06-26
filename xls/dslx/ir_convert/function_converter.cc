@@ -3552,6 +3552,21 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
 }
 
 absl::Status FunctionConverter::HandleConditional(const Conditional* node) {
+  if (std::optional<InterpValue> conditional =
+          current_type_info_->GetConstExprOption(node->test())) {
+    BValue arg0;
+    if (conditional->IsTrue()) {
+      XLS_RETURN_IF_ERROR(Visit(node->consequent()));
+      XLS_ASSIGN_OR_RETURN(arg0, Use(node->consequent()));
+    } else {
+      CHECK(conditional->IsFalse());
+      XLS_RETURN_IF_ERROR(Visit(ToExprNode(node->alternate())));
+      XLS_ASSIGN_OR_RETURN(arg0, Use(ToExprNode(node->alternate())));
+    }
+    SetNodeToIr(node, arg0);
+    return absl::OkStatus();
+  }
+
   XLS_RETURN_IF_ERROR(Visit(node->test()));
   XLS_ASSIGN_OR_RETURN(BValue arg0, Use(node->test()));
 
