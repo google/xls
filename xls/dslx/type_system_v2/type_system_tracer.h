@@ -31,7 +31,7 @@
 namespace xls::dslx {
 
 class TypeSystemTracerImpl;
-class TypeSystemTraceImpl;
+struct TypeSystemTraceImpl;
 class NoopTracer;
 
 // An object that represents the scope of a trace record. These objects are
