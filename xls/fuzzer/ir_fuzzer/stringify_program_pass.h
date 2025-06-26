@@ -29,7 +29,7 @@ namespace xls {
 // as effective for debugging.
 class StringifyProgramPass : public IrFuzzVisitor {
  public:
-  StringifyProgramPass(FuzzProgramProto* fuzz_program)
+  explicit StringifyProgramPass(FuzzProgramProto* fuzz_program)
       : fuzz_program_(fuzz_program) {}
 
   std::string StringifyProgram();
