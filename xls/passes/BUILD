@@ -2475,6 +2475,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",

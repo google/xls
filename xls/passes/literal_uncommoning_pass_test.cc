@@ -20,6 +20,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -30,6 +31,9 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::Contains;
+
+namespace m = ::xls::op_matchers;
 
 class LiteralUncommoningPassTest : public IrTestBase {
  protected:
@@ -111,7 +115,7 @@ TEST_F(LiteralUncommoningPassTest, LiteralDuplicatedInOperands) {
             UBits(123, 42));
 }
 
-TEST_F(LiteralUncommoningPassTest, DoNotUncommonArrays) {
+TEST_F(LiteralUncommoningPassTest, UncommonArrays) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn single_literal(x: bits[32], y: bits[32]) -> bits[32] {
@@ -123,11 +127,13 @@ TEST_F(LiteralUncommoningPassTest, DoNotUncommonArrays) {
   )",
                                                        p.get()));
   EXPECT_EQ(f->node_count(), 6);
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_EQ(f->node_count(), 6);
+  EXPECT_THAT(f->nodes(), Contains(m::Literal()).Times(1));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(f->node_count(), 7);
+  EXPECT_THAT(f->nodes(), Contains(m::Literal()).Times(2));
 }
 
-TEST_F(LiteralUncommoningPassTest, DoNotUncommonTuples) {
+TEST_F(LiteralUncommoningPassTest, UncommonTuples) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn single_literal() -> bits[32] {
@@ -139,8 +145,10 @@ TEST_F(LiteralUncommoningPassTest, DoNotUncommonTuples) {
   )",
                                                        p.get()));
   EXPECT_EQ(f->node_count(), 4);
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_EQ(f->node_count(), 4);
+  EXPECT_THAT(f->nodes(), Contains(m::Literal()).Times(1));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(f->node_count(), 5);
+  EXPECT_THAT(f->nodes(), Contains(m::Literal()).Times(2));
 }
 
 }  // namespace

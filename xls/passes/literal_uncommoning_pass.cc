@@ -36,7 +36,7 @@ absl::StatusOr<bool> LiteralUncommoningPass::RunOnFunctionBaseInternal(
   // the transformation.
   std::vector<Literal*> literals;
   for (const auto& node : f->nodes()) {
-    if (node->Is<Literal>() && node->GetType()->IsBits()) {
+    if (node->Is<Literal>()) {
       literals.push_back(node->As<Literal>());
     }
   }
