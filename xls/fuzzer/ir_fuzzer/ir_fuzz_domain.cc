@@ -14,7 +14,7 @@
 
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 
-#include <memory>
+#include <cstdint>
 #include <utility>
 
 #include "xls/common/fuzzing/fuzztest.h"
@@ -63,9 +63,28 @@ fuzztest::Domain<std::shared_ptr<Package>> IrFuzzDomain() {
       // Specify the range of possible values for the FuzzProgramProto protobuf.
       fuzztest::Arbitrary<FuzzProgramProto>().WithRepeatedProtobufField(
           "fuzz_ops",
-          fuzztest::VectorOf(fuzztest::Arbitrary<FuzzOpProto>()
-                                 // We want all FuzzOps to be defined.
-                                 .WithOneofAlwaysSet("fuzz_op"))
+          fuzztest::VectorOf(
+              fuzztest::Arbitrary<FuzzOpProto>()
+                  // We want all FuzzOps to be defined.
+                  .WithOneofAlwaysSet("fuzz_op")
+                  .WithProtobufField(
+                      "add",
+                      fuzztest::Arbitrary<FuzzAddProto>()
+                          // Bit width cannot be negative, cannot be 0,
+                          // and cannot be too large otherwise the test
+                          // will run out of memory or take too long.
+                          .WithInt64FieldAlwaysSet(
+                              "bit_width", fuzztest::InRange<int64_t>(1, 1000)))
+                  .WithProtobufField(
+                      "literal",
+                      fuzztest::Arbitrary<FuzzLiteralProto>()
+                          .WithInt64FieldAlwaysSet(
+                              "bit_width", fuzztest::InRange<int64_t>(1, 1000)))
+                  .WithProtobufField(
+                      "param", fuzztest::Arbitrary<FuzzParamProto>()
+                                   .WithInt64FieldAlwaysSet(
+                                       "bit_width",
+                                       fuzztest::InRange<int64_t>(1, 1000))))
               // Generate at least one FuzzOp.
               .WithMinSize(1)));
 }

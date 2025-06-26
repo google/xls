@@ -37,19 +37,32 @@ message FuzzOpProto {
 }
 
 message FuzzAddProto {
-  optional FuzzOperandRefProto lhs_ref = 1;
-  optional FuzzOperandRefProto rhs_ref = 2;
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
 }
 
+// TODO: Use the ValueProto::Bits proto for bit_width and value_bytes.
 message FuzzLiteralProto {
-  optional int64 value = 1;
+  optional int64 bit_width = 1;
+  optional bytes value_bytes = 2;
 }
 
-message FuzzParamProto {}
+// TODO: Consider using the TypeProto to define the type of param generated.
+message FuzzParamProto {
+  optional int64 bit_width = 1;
+}
 
 // References a node on the stack by its index.
-message FuzzOperandRefProto {
+message FittedOperandIdxProto {
   optional int64 stack_idx = 1;
+  optional WidthFittingMethodProto width_fitting_method = 2;
+}
+
+message WidthFittingMethodProto {
+  // Methods used to decrease or increase the bit width of the operand.
+  optional DecreaseWidthMethod decrease_width_method = 1;
+  optional IncreaseWidthMethod increase_width_method = 2;
 }
 
 // Specifies the method used to combine the IrFuzzBuilder stack of BValues into
@@ -61,4 +74,17 @@ enum CombineStackMethod {
   UNSET_COMBINE_STACK_METHOD = 0;
   LAST_ELEMENT_METHOD = 1;
   ADD_STACK_METHOD = 2;
+}
+
+// Specifies the method used to decrease the bit width of an IR op.
+enum DecreaseWidthMethod {
+  UNSET_DECREASE_WIDTH_METHOD = 0;
+  BIT_SLICE_METHOD = 1;
+}
+
+// Specifies the method used to increase the bit width of an IR op.
+enum IncreaseWidthMethod {
+  UNSET_INCREASE_WIDTH_METHOD = 0;
+  ZERO_EXTEND_METHOD = 1;
+  SIGN_EXTEND_METHOD = 2;
 }
