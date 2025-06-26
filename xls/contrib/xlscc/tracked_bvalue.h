@@ -62,8 +62,8 @@ class TrackedBValue {
       : bval_(bval.bval_), sequence_number_(sNextSequenceNumber++) {
     record();
   }
-  TrackedBValue(
-      const xls::BValue& native_bval)  // NOLINT(google-explicit-constructor)
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  TrackedBValue(const xls::BValue& native_bval)
       : bval_(native_bval), sequence_number_(sNextSequenceNumber++) {
     record();
   }
