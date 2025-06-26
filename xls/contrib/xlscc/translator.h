@@ -279,7 +279,7 @@ struct ChannelOptions {
   absl::flat_hash_map<std::string, xls::ChannelStrictness> strictness_map;
 };
 
-class Translator : public GeneratorBase, public TranslatorTypeInterface {
+class Translator final : public GeneratorBase, public TranslatorTypeInterface {
   void debug_prints(const TranslationContext& context);
 
  public:
@@ -292,7 +292,7 @@ class Translator : public GeneratorBase, public TranslatorTypeInterface {
       int64_t max_unroll_iters = 1000, int64_t warn_unroll_iters = 100,
       int64_t z3_rlimit = -1, IOOpOrdering op_ordering = IOOpOrdering::kNone,
       std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>());
-  ~Translator();
+  ~Translator() final;
 
   // This function uses Clang to parse a source file and then walks its
   //  AST to discover global constructs. It will also scan the file
@@ -1319,11 +1319,11 @@ class Translator : public GeneratorBase, public TranslatorTypeInterface {
 
   absl::StatusOr<std::shared_ptr<CType>> TranslateTypeFromClang(
       clang::QualType t, const xls::SourceInfo& loc,
-      bool array_as_tuple = false);
+      bool array_as_tuple = false) final;
   absl::StatusOr<xls::Type*> TranslateTypeToXLS(std::shared_ptr<CType> t,
                                                 const xls::SourceInfo& loc);
   absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstance(
-      std::shared_ptr<CType> t);
+      std::shared_ptr<CType> t) final;
   absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstanceDeeply(
       std::shared_ptr<CType> t);
   absl::StatusOr<bool> FunctionIsInSyntheticInt(
@@ -1392,7 +1392,7 @@ class Translator : public GeneratorBase, public TranslatorTypeInterface {
       absl::flat_hash_set<const clang::NamedDecl*>& aliases_used);
 
   absl::StatusOr<xlscc_metadata::IntType> GenerateSyntheticInt(
-      std::shared_ptr<CType> ctype);
+      std::shared_ptr<CType> ctype) final;
 
   // StructUpdate builds and returns a new CValue for a struct with the
   // value of one field changed. The other fields, if any, take their values
@@ -1419,7 +1419,7 @@ class Translator : public GeneratorBase, public TranslatorTypeInterface {
   //  FunctionBuilder from the context
   TrackedBValue GetStructFieldXLS(TrackedBValue val, int64_t index,
                                   const CStructType& type,
-                                  const xls::SourceInfo& loc);
+                                  const xls::SourceInfo& loc) final;
 
   // Returns a BValue for a copy of array_to_update with slice_to_write replaced
   // at start_index.
@@ -1497,8 +1497,8 @@ class Translator : public GeneratorBase, public TranslatorTypeInterface {
   std::unique_ptr<CCParser> parser_;
 
   std::string LocString(const xls::SourceInfo& loc);
-  xls::SourceInfo GetLoc(const clang::Stmt& stmt);
-  xls::SourceInfo GetLoc(const clang::Decl& decl);
+  xls::SourceInfo GetLoc(const clang::Stmt& stmt) final;
+  xls::SourceInfo GetLoc(const clang::Decl& decl) final;
   absl::StatusOr<xls::ChannelStrictness> GetChannelStrictness(
       const clang::NamedDecl& decl, const ChannelOptions& channel_options,
       absl::flat_hash_map<std::string, xls::ChannelStrictness>&
