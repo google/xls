@@ -23,7 +23,6 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
-#include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/translator_types.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 #include "xls/ir/bits.h"

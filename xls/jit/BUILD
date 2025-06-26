@@ -595,7 +595,7 @@ xls_dslx_library(
                 "//xls/ir",
                 "//xls/ir:bits",
                 "//xls/ir:events",
-                "//xls/ir:proc_elaboration",
+                "//xls/ir:proc_elaboration", # build_cleaner: keep (for psc)
                 "//xls/ir:type_manager",
                 "//xls/ir:value",
                 "//xls/ir:value_builder",

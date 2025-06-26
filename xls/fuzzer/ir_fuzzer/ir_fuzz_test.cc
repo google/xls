@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/log.h"
 #include "xls/common/status/matchers.h"
-#include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"

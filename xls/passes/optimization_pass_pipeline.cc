@@ -60,7 +60,6 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/pipeline_generator.h"
 #include "xls/passes/proc_state_array_flattening_pass.h"
 #include "xls/passes/proc_state_bits_shattering_pass.h"

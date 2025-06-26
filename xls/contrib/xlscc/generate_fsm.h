@@ -16,8 +16,8 @@
 #define XLS_CONTRIB_XLSCC_GENERATE_FSM_H_
 
 #include "absl/status/status.h"
+#include "xls/ir/source_location.h"
 #include "absl/status/statusor.h"
-#include "xls/contrib/xlscc/tracked_bvalue.h"
 #include "xls/contrib/xlscc/translator_types.h"
 
 namespace xlscc {

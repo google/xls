@@ -18,7 +18,6 @@
 #include <string>
 #include <string_view>
 
-#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/builtin_stubs.h"  // generated

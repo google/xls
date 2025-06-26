@@ -18,6 +18,7 @@
 #include <utility>
 
 #include "gmock/gmock.h"
+#include "xls/contrib/xlscc/translator_types.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"

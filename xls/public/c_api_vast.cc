@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/strings/str_format.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"

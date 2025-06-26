@@ -15,8 +15,8 @@
 #ifndef XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
 #define XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
 
+#include <memory>
 #include "xls/common/fuzzing/fuzztest.h"
-#include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/ir/package.h"
 
 namespace xls {

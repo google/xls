@@ -44,7 +44,6 @@ cc_test(
     name = "ir_fuzz_test",
     srcs = ["ir_fuzz_test.cc"],
     deps = [
-        ":fuzz_program_cc_proto",
         ":ir_fuzz_domain",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",

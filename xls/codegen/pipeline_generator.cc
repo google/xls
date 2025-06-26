@@ -14,12 +14,10 @@
 
 #include "xls/codegen/pipeline_generator.h"
 
-#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/log/log.h"

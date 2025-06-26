@@ -135,7 +135,6 @@ cc_library(
         ":optimization_pass",
         ":optimization_pass_registry",
         ":pass_base",
-        ":pass_pipeline_cc_proto",
         ":pipeline_generator",
         ":proc_state_array_flattening_pass",
         ":proc_state_bits_shattering_pass",

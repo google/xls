@@ -15,6 +15,8 @@
 #ifndef XLS_CONTRIB_XLSCC_TRANSLATOR_TYPES_H_
 #define XLS_CONTRIB_XLSCC_TRANSLATOR_TYPES_H_
 
+#include <map>
+#include <list>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -23,6 +25,8 @@
 #include <vector>
 
 #include "absl/container/btree_map.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/source_location.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
