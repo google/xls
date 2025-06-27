@@ -14,7 +14,7 @@
 
 #include "xls/dslx/lsp/lsp_type_utils.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string_view>
 
 #include "verible/common/lsp/lsp-file-utils.h"

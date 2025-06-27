@@ -27,7 +27,7 @@
 #include <cerrno>
 #include <cstring>
 #include <ctime>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <ostream>
 #include <string>

@@ -15,7 +15,7 @@
 #include "xls/fuzzer/run_fuzz_multiprocess.h"
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <random>

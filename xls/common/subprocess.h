@@ -15,7 +15,7 @@
 #ifndef XLS_COMMON_SUBPROCESS_H_
 #define XLS_COMMON_SUBPROCESS_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <iostream>
 #include <optional>
 #include <string>

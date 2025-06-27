@@ -22,7 +22,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT

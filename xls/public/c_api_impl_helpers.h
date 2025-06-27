@@ -20,7 +20,7 @@
 #define XLS_PUBLIC_C_API_IMPL_HELPERS_H_
 
 #include <cstddef>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>

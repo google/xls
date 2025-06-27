@@ -15,7 +15,7 @@
 #ifndef XLS_SYNTHESIS_YOSYS_YOSYS_SYNTHESIS_SERVICE_H_
 #define XLS_SYNTHESIS_YOSYS_YOSYS_SYNTHESIS_SERVICE_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <utility>

@@ -15,7 +15,7 @@
 #include "xls/common/file/named_pipe.h"
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <utility>
 

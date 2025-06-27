@@ -16,7 +16,7 @@
 #define XLS_TOOLS_BOM_H_
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <ostream>
 #include <string>
 

@@ -14,7 +14,7 @@
 
 #include "xls/dslx/lsp/lsp_uri.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 #include <utility>
 

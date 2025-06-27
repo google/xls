@@ -15,7 +15,7 @@
 #include "xls/dslx/import_routines.h"
 
 #include <algorithm>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>

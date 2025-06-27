@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <optional>

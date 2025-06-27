@@ -14,7 +14,7 @@
 
 #include "xls/visualization/ir_viz/ir_to_proto.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string_view>
 
 #include "gmock/gmock.h"

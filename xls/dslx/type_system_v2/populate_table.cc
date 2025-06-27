@@ -14,7 +14,7 @@
 
 #include "xls/dslx/type_system_v2/populate_table.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string_view>
 #include <utility>

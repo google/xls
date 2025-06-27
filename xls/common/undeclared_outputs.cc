@@ -15,7 +15,7 @@
 #include "xls/common/undeclared_outputs.h"
 
 #include <cstdlib>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 namespace xls {
 

@@ -17,7 +17,7 @@
 #include <string.h>
 
 #include <cstddef>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>

@@ -14,7 +14,7 @@
 
 #include "xls/dslx/translators/dslx_to_verilog.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>

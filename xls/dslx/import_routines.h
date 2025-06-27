@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_IMPORT_ROUTINES_H_
 #define XLS_DSLX_IMPORT_ROUTINES_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <functional>
 #include <memory>
 

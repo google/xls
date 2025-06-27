@@ -16,7 +16,7 @@
 
 #include <unistd.h>
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <fstream>
 #include <ios>
 #include <string>

@@ -14,7 +14,7 @@
 
 #include "xls/dslx/create_import_data.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <utility>
 

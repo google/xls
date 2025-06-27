@@ -15,7 +15,7 @@
 #ifndef XLS_COMMON_FILE_NAMED_PIPE_H_
 #define XLS_COMMON_FILE_NAMED_PIPE_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>

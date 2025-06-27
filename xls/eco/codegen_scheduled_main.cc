@@ -14,7 +14,7 @@
 #include <stdbool.h>
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <optional>

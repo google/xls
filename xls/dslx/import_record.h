@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_IMPORT_RECORD_H_
 #define XLS_DSLX_IMPORT_RECORD_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 
 #include "xls/dslx/frontend/pos.h"
 

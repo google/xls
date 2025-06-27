@@ -19,7 +19,7 @@
 
 #include <cstdint>
 #include <cstring>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <string>

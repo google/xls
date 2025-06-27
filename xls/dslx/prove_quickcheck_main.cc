@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <cstdlib>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>

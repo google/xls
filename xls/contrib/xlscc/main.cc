@@ -16,7 +16,7 @@
 // front-end. It accepts as input a C/C++ file and produces as textual output
 // the equivalent XLS intermediate representation (IR).
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>

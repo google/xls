@@ -18,7 +18,7 @@
 // issues between InterpData and BytecodeEmitter, we need an interstitial
 // library here.
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 
 #include "absl/types/span.h"

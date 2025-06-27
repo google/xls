@@ -16,7 +16,7 @@
 
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <random>
 #include <utility>

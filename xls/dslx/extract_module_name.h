@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_EXTRACT_MODULE_NAME_H_
 #define XLS_DSLX_EXTRACT_MODULE_NAME_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 
 #include "absl/status/statusor.h"

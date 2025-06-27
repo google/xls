@@ -18,7 +18,7 @@
 #ifndef XLS_COMMON_FILE_FILESYSTEM_H_
 #define XLS_COMMON_FILE_FILESYSTEM_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>

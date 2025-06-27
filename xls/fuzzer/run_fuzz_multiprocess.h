@@ -16,7 +16,7 @@
 #define XLS_FUZZER_RUN_FUZZ_MULTIPROCESS_H_
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 
 #include "absl/status/status.h"

@@ -14,7 +14,7 @@
 
 #include "xls/dslx/lsp/language_server_adapter.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>

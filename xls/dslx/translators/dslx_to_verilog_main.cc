@@ -14,7 +14,7 @@
 //
 // DSLX-to-SystemVerilog type and constant converter.
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>

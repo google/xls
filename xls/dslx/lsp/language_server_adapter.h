@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_LSP_LANGUAGE_SERVER_ADAPTER_H_
 #define XLS_DSLX_LSP_LANGUAGE_SERVER_ADAPTER_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <optional>

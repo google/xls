@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_IR_CONVERT_IR_CONVERTER_H_
 #define XLS_DSLX_IR_CONVERT_IR_CONVERTER_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>

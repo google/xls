@@ -19,7 +19,7 @@
 #include <unistd.h>
 
 #include <cerrno>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT

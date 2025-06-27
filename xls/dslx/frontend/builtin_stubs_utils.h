@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_FRONTEND_BUILTIN_STUBS_UTILS_H_
 #define XLS_DSLX_FRONTEND_BUILTIN_STUBS_UTILS_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string_view>
 

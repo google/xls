@@ -32,7 +32,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include <cstdio>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <iostream>
 
 #include "absl/base/casts.h"

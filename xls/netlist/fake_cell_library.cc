@@ -14,7 +14,7 @@
 
 #include "xls/netlist/fake_cell_library.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 
 #include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"

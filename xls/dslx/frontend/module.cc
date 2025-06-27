@@ -14,7 +14,7 @@
 
 #include "xls/dslx/frontend/module.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>

@@ -14,7 +14,7 @@
 
 #include "xls/tools/opt.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>

@@ -14,7 +14,7 @@
 
 #include "xls/fuzzer/cpp_run_fuzz.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <vector>

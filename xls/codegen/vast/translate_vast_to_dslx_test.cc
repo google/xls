@@ -15,7 +15,7 @@
 #include "xls/codegen/vast/translate_vast_to_dslx.h"
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>

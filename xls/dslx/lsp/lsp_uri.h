@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_LSP_LSP_URI_H_
 #define XLS_DSLX_LSP_LSP_URI_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <ostream>
 #include <string>
 #include <string_view>

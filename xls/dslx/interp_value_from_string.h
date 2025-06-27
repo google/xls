@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_INTERP_VALUE_FROM_STRING_H_
 #define XLS_DSLX_INTERP_VALUE_FROM_STRING_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string_view>
 
 #include "absl/status/statusor.h"

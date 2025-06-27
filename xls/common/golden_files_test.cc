@@ -14,7 +14,7 @@
 
 #include "xls/common/golden_files.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 
 #include "gtest/gtest-spi.h"

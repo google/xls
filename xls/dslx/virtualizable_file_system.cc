@@ -14,7 +14,7 @@
 
 #include "xls/dslx/virtualizable_file_system.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 #include <utility>
 

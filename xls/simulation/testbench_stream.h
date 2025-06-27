@@ -16,7 +16,7 @@
 #define XLS_SIMULATION_TESTBENCH_STREAM_H_
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>

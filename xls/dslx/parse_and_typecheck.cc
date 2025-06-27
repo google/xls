@@ -14,7 +14,7 @@
 
 #include "xls/dslx/parse_and_typecheck.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>

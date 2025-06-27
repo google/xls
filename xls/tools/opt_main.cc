@@ -16,7 +16,7 @@
 // standard optimization pipeline.
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <optional>

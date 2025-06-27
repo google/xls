@@ -14,7 +14,7 @@
 
 #include "xls/dslx/ir_convert/ir_converter_options_flags.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <string>
 

@@ -15,7 +15,7 @@
 #include "xls/synthesis/yosys/yosys_synthesis_service.h"
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>

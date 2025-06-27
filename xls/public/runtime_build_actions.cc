@@ -14,7 +14,7 @@
 
 #include "xls/public/runtime_build_actions.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>

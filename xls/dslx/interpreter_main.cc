@@ -14,7 +14,7 @@
 
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <optional>

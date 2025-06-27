@@ -15,7 +15,7 @@
 #include "xls/codegen/vast/dslx_builder.h"
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>

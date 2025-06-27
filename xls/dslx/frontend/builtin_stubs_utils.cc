@@ -13,7 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/frontend/builtin_stubs_utils.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>

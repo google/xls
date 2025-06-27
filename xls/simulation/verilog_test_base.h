@@ -16,7 +16,7 @@
 #define XLS_SIMULATION_VERILOG_TEST_BASE_H_
 
 #include <cctype>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <ostream>
 #include <string>

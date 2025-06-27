@@ -14,7 +14,7 @@
 
 #include "xls/dslx/type_system/type_info_to_proto.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>

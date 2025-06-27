@@ -14,7 +14,7 @@
 
 #include "xls/interpreter/serial_proc_runtime.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <utility>

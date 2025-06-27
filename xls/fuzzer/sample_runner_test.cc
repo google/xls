@@ -15,7 +15,7 @@
 #include "xls/fuzzer/sample_runner.h"
 
 #include <cstdlib>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>

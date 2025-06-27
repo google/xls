@@ -14,7 +14,7 @@
 
 #include "xls/dev_tools/extract_state_element.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string_view>
 
 #include "gtest/gtest.h"

@@ -23,7 +23,7 @@
 #include <unistd.h>
 
 #include <cstdlib>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <iostream>
 #include <optional>
 #include <ostream>

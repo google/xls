@@ -14,7 +14,7 @@
 
 #include <array>
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <type_traits>

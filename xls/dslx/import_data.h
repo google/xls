@@ -16,7 +16,7 @@
 #define XLS_DSLX_IMPORT_DATA_H_
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <string>

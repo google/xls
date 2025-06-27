@@ -15,7 +15,7 @@
 #include "xls/fdo/synthesizer.h"
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 #include <string_view>
 

@@ -15,7 +15,7 @@
 #ifndef XLS_COMMON_UNDECLARED_OUTPUTS_H_
 #define XLS_COMMON_UNDECLARED_OUTPUTS_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 
 namespace xls {

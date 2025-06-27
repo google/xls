@@ -15,7 +15,7 @@
 #include "xls/dslx/import_data.h"
 
 #include <cstddef>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>

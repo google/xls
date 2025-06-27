@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_TYPECHECK_MODULE_V2_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_TYPECHECK_MODULE_V2_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 
 #include "absl/status/statusor.h"

@@ -15,7 +15,7 @@
 #ifndef XLS_CODEGEN_VAST_TRANSLATE_VAST_TO_DSLX_H_
 #define XLS_CODEGEN_VAST_TRANSLATE_VAST_TO_DSLX_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>

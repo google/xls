@@ -16,7 +16,7 @@
 
 #include <cassert>
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <optional>

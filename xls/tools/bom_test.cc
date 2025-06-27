@@ -15,7 +15,7 @@
 #include "xls/tools/bom.h"
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <sstream>
 #include <string>
 

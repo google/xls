@@ -14,7 +14,7 @@
 
 #include "xls/dslx/extract_module_name.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 
 #include "absl/status/status.h"

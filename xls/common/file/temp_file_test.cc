@@ -17,7 +17,7 @@
 #include <stdlib.h>  // NOLINT (needed for mkdtemp())
 #include <unistd.h>
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 #include <system_error>
 #include <utility>

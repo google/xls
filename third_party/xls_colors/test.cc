@@ -21,7 +21,7 @@
 // IN THE SOFTWARE.
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string>
 
 #include "gtest/gtest.h"

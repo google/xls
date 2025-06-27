@@ -18,7 +18,7 @@
 
 // TODO(rspringer): No array support yet. Should be pretty trivial to add.
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <iostream>
 #include <optional>
 #include <string>

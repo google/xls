@@ -14,7 +14,7 @@
 
 #include "xls/scheduling/pipeline_scheduling_pass.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string_view>
 #include <utility>
 

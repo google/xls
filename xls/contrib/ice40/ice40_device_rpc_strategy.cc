@@ -20,7 +20,7 @@
 
 #include <cerrno>
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <ios>
 #include <optional>
 #include <string>

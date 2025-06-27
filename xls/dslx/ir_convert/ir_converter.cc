@@ -24,7 +24,7 @@
 
 #include "xls/dslx/ir_convert/ir_converter.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>

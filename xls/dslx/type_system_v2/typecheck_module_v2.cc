@@ -14,7 +14,7 @@
 
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string_view>

@@ -14,7 +14,7 @@
 
 #include "xls/visualization/ir_viz/ir_to_json.h"
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>

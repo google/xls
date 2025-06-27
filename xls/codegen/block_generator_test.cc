@@ -15,7 +15,7 @@
 #include "xls/codegen/block_generator.h"
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <initializer_list>
 #include <memory>
 #include <optional>

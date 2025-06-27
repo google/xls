@@ -15,7 +15,7 @@
 #include "xls/contrib/xlscc/cc_parser.h"
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <optional>

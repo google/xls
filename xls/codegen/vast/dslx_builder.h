@@ -15,7 +15,7 @@
 #ifndef XLS_CODEGEN_VAST_DSLX_BUILDER_H_
 #define XLS_CODEGEN_VAST_DSLX_BUILDER_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>

@@ -18,7 +18,7 @@
 #ifndef XLS_COMMON_GOLDEN_FILES_H_
 #define XLS_COMMON_GOLDEN_FILES_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <string_view>
 
 #include "xls/common/source_location.h"

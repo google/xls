@@ -15,7 +15,7 @@
 #ifndef XLS_COMMON_FILE_PATH_H_
 #define XLS_COMMON_FILE_PATH_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 
 #include "absl/status/statusor.h"
 

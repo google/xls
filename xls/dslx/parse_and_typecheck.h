@@ -15,7 +15,7 @@
 #ifndef XLS_DSLX_PARSE_AND_TYPECHECK_H_
 #define XLS_DSLX_PARSE_AND_TYPECHECK_H_
 
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <memory>
 #include <string_view>
 #include <vector>

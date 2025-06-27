@@ -18,7 +18,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <iterator>
 #include <memory>
 #include <optional>

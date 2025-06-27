@@ -37,7 +37,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>  // NOLINT
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iostream>
