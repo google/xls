@@ -114,7 +114,6 @@ absl::Status AddInterfaceChannel(Proc* proc, Channel* channel,
     strictness = streaming_channel->GetStrictness();
     flow_control = streaming_channel->GetFlowControl();
   }
-  std::unique_ptr<ChannelInterface> channel_interface;
   if (direction == ChannelDirection::kSend) {
     return proc
         ->AddOutputChannel(channel->name(), channel->type(), channel->kind(),
