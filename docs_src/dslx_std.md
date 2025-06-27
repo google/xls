@@ -801,7 +801,7 @@ begin.
 !!! NOTE
     this routine can only be used in the body of a `proc`.
 
-### `send`: send a value on a channel
+### `send`: send a value on a channel {#send}
 
 The `send` built-in sends a value on a channel, taking an I/O sequencing token
 and producing a new I/O sequencing token (which can be used to order
@@ -817,10 +817,10 @@ fn send<T: type>(tok: token, chan<T> out, value: T) -> token
 fn send_if<T: type>(tok: token, chan<T> out, predicate: bool, value: T) -> token
 ```
 
-The `send_if` built-in does a send on a channel as described in [`send`][#send],
+The `send_if` built-in does a send on a channel as described in [`send`](#send),
 but only attempts to do so if the given predicate is true.
 
-### `recv`: (blocking) receive of a value from a channel
+### `recv`: (blocking) receive of a value from a channel {#recv}
 
 The `recv` built-in does a "blocking" `recv` of a value from a channel -- it is
 blocking in the sense that the current activation of the `proc` cannot complete
@@ -833,7 +833,7 @@ fn recv<T: type>(tok: token, c: chan<T> in) -> (token, T)
 
 ### `recv_if`: conditional (blocking) receive of a value from a channel
 
-The `recv_if` built-in does a blocking receive as described in [`recv`][#recv],
+The `recv_if` built-in does a blocking receive as described in [`recv`](#recv),
 but only attempts to do so if the given predicate is true.
 
 ```

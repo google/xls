@@ -197,7 +197,6 @@ Of course, at that point, XLS can't guarantee anymore that wire identifiers are
 unique. Handle this rope with care :)
 
 [tuples]: ./dslx_reference.md#tuple-type
-[delay model]: ./delay_estimation.md
 [codegen parameter]: ./codegen_options.md#pipelining-and-scheduling-options
 [parametric function]: ./dslx_reference.md#parametric-functions
 [Sequential FFI]: https://github.com/google/xls/issues/1301

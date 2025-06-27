@@ -787,12 +787,12 @@ pub fn fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = {u32:1}>(x: F32) -> 
 pub fn fast_rsqrt(x: F32) -> F32
 ```
 
-Floating point (fast (approximate) inverse square root)[
-https://en.wikipedia.org/wiki/Fast_inverse_square_root]. This should be able to
-compute `1.0 / sqrt(x)` using fewer hardware resources than using a `sqrt` and
-division module, although this hasn't been benchmarked yet. Latency is expected
-to be lower as well. The tradeoff is that this offers slighlty less precision
-(error is < 0.2% in worst case). Note that:
+Floating point
+[fast (approximate) inverse square root](https://en.wikipedia.org/wiki/Fast_inverse_square_root).
+This should be able to compute `1.0 / sqrt(x)` using fewer hardware resources
+than using a `sqrt` and division module, although this hasn't been benchmarked
+yet. Latency is expected to be lower as well. The tradeoff is that this offers
+slightly less precision (error is < 0.2% in worst case). Note that:
 
 -   Input denormals are treated as/flushed to 0. (denormals-are-zero / DAZ).
 -   Only round-to-nearest mode is supported.
