@@ -180,6 +180,8 @@ TranslationContext& Translator::PushContext() {
   context_stack_.push_front(context());
   context().full_condition_on_enter_block = ocond;
   context().relative_condition = TrackedBValue();
+  context().relative_break_condition = TrackedBValue();
+  context().relative_continue_condition = TrackedBValue();
   context().propagate_up = true;
   context().propagate_break_up = true;
   context().propagate_continue_up = true;
