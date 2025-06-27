@@ -1,0 +1,32 @@
+#include "{{embed.header_file}}"
+
+#include "absl/types/span.h"
+
+namespace {{embed.namespace}} {
+
+absl::Span<uint8_t const> {{embed.accessor}}() {
+  static constexpr uint8_t data[] = {
+    // TODO(allight): Also allow gcc to use this?
+#if (defined(__clang_major__) && __clang_major__ >= 19) && !defined(XLS_TEST_FORCE_DISABLE_HASH_EMBED)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc23-extensions"
+
+    // Technically we are using a c23 feature here but clang and gcc both
+    // support it already so not really a big deal. It's also a lot faster to
+    // compile.
+    #embed "{{embed.data_file}}"
+
+#pragma clang diagnostic pop
+#else
+#pragma clang diagnostic push
+#pragma clang diagnostic warning "-W#warnings"
+#warning "Unable to use #embed. Maybe update to a clang >= 19."
+    // Just in case the compiler can't handle embed.
+    {{ embed.data_file_contents }}
+#pragma clang diagnostic pop
+#endif
+  };
+  return absl::MakeConstSpan(data);
+}
+
+}  // namespace {{embed.namespace}}
