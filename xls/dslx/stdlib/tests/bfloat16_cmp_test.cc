@@ -15,14 +15,16 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <string>
 #include <variant>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
-#include "Eigen/Core"
+#include "Eigen/Core"  // NOLINT(misc-include-cleaner) exports some symbols
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/stdlib/tests/bfloat16_eq_2_jit_wrapper.h"
 #include "xls/dslx/stdlib/tests/bfloat16_gt_2_jit_wrapper.h"
