@@ -35,14 +35,18 @@ BAZEL_OPTS="-c opt --remote_download_outputs=all"
 # the needed files to avoid triggering an unnecessarily large build.
 "${BAZEL}" build ${BAZEL_OPTS} \
   @linenoise @nlohmann_json//:singleheader-json \
-  @zstd @at_clifford_yosys//:json11 \
+  @zstd @eigen//:all @at_clifford_yosys//:json11 @com_github_hlslibs_ac_types//:ac_int \
   @verible//verible/common/lsp:lsp-protocol.h \
+  @llvm-project//mlir:{{ControlFlow,Function,Cast,Vector}Interfaces,InferTypeOpInterface,{Arith,Func,SCF,Math,Shape}Dialect} \
+  @llvm-project//clang:ast @llvm-project//clang:include/clang/StaticAnalyzer/Checkers/Checkers.inc \
   //xls/common:xls_gunit_main \
   //xls/solvers:z3_ir_translator \
   //xls/dslx/tests/trace_fmt_issue_651:trace_{u16,u21,s32,enum,u16_hex,u21_hex}_wrapper \
+  //xls/dslx/stdlib/tests:bfloat16_{eq,gt,gte,lt,lte}_2_jit_wrapper.h \
+  //xls/contrib/mlir:{math,arith}_to_xls \
   $("${BANT}" list-targets @com_google_ortools//... | awk '/cc_proto_library/ {print $3}') \
   $("${BANT}" list-targets | \
-    awk '/cc_proto_library|xls_dslx_cpp_type_library|cc_xls_ir_jit_wrapper|xls_ir_cc_library|gentbl_cc_library|cc_grpc_library/ {print $3}')
+    awk '/cc_proto_library|genrule|xls_dslx_cpp_type_library|cc_xls_ir_jit_wrapper|xls_ir_cc_library|gentbl_cc_library|cc_grpc_library/ {print $3}')
 
 # Create compilation DB. Command 'compilation-db' creates a huge *.json file,
 # but compile_flags.txt is perfectly sufficient and easier for tools to use.
