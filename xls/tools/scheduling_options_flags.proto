@@ -39,6 +39,7 @@ message SchedulingOptionsFlagsProto {
   optional int64 worst_case_throughput = 6;
   optional int64 additional_input_delay_ps = 7;
   optional int64 additional_output_delay_ps = 31;
+  map<string, int64> additional_channel_delay_ps = 33;
   optional int64 ffi_fallback_delay_ps = 8;
   repeated string io_constraints = 9;
   optional bool receives_first_sends_last = 10;

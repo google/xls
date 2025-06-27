@@ -17,9 +17,11 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
@@ -76,6 +78,13 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   if (proto.additional_output_delay_ps() != 0) {
     scheduling_options.additional_output_delay_ps(
         proto.additional_output_delay_ps());
+  }
+  if (!proto.additional_channel_delay_ps().empty()) {
+    absl::flat_hash_map<std::string, int64_t> additional_channel_delay_ps(
+        proto.additional_channel_delay_ps().begin(),
+        proto.additional_channel_delay_ps().end());
+    scheduling_options.additional_channel_delay_ps(
+        std::move(additional_channel_delay_ps));
   }
   if (proto.ffi_fallback_delay_ps() != 0) {
     scheduling_options.ffi_fallback_delay_ps(proto.ffi_fallback_delay_ps());
