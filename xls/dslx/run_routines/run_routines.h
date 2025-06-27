@@ -46,7 +46,6 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/virtualizable_file_system.h"
-#include "xls/dslx/warning_kind.h"
 #include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"

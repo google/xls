@@ -41,7 +41,6 @@ cc_library(
         "//xls/dslx:mangle",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:virtualizable_file_system",
-        "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode",
         "//xls/dslx/bytecode:bytecode_cache",
         "//xls/dslx/bytecode:bytecode_emitter",
