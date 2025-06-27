@@ -59,7 +59,7 @@ pub fn add_far_path_with_diff<EXP_SZ: u32, FRACTION_SZ: u32>
     let (carry, sum): (bool, uN[FRACTION_SZ_P4]) = common::split_msbs<u32:1>(wide_sum);
 
     let (frac, exp, guard, sticky): (uN[FRACTION_SZ], uN[EXP_SZ], bool, bool) = if carry {
-        let exp = x.bexp + u8:1;
+        let exp = x.bexp + uN[EXP_SZ]:1;
 
         // the carry bit is the hidden bit, so the msbs of the sum are the fraction
         let (frac, rest) = common::split_msbs<FRACTION_SZ>(sum);
@@ -70,7 +70,7 @@ pub fn add_far_path_with_diff<EXP_SZ: u32, FRACTION_SZ: u32>
         (frac, x.bexp, std::msb(rest), or_reduce(rest[:-1]))
     } else {
         let (frac, rest) = common::split_msbs<FRACTION_SZ>(sum[:-2]);
-        (frac, x.bexp - u8:1, std::msb(rest), or_reduce(rest[:-1]))
+        (frac, x.bexp - uN[EXP_SZ]:1, std::msb(rest), or_reduce(rest[:-1]))
     };
 
     let is_frac_odd = std::lsb(frac) == true;
@@ -82,7 +82,7 @@ pub fn add_far_path_with_diff<EXP_SZ: u32, FRACTION_SZ: u32>
 
     let (frac_out, bexp_out): (uN[FRACTION_SZ], uN[EXP_SZ]) = if round_up {
         let frac = frac + uN[FRACTION_SZ]:1;
-        let bexp = if frac == uN[FRACTION_SZ]:0 { exp + u8:1 } else { exp };
+        let bexp = if frac == uN[FRACTION_SZ]:0 { exp + uN[EXP_SZ]:1 } else { exp };
         // For overflow to infinity, we need to set the fraction to 0.
         (frac, bexp)
     } else {

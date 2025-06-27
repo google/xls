@@ -54,7 +54,7 @@ pub fn add_near_path_with_diff<USE_CLZT: bool, EXP_SZ: u32, FRACTION_SZ: u32>
         apfloat::zero<EXP_SZ, FRACTION_SZ>(both_signed_zero)
     } else {
         if carry {
-            let exp_out = x.bexp + u8:1;
+            let exp_out = x.bexp + uN[EXP_SZ]:1;
             // No shifting needed just selection of the high fraction bits and associated rounding.
             let (frac_out, lsbs): (uN[FRACTION_SZ], u2) = common::split_msbs<FRACTION_SZ>(result);
             let up_is_even = std::lsb(frac_out) == true;

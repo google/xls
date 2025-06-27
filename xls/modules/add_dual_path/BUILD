@@ -91,33 +91,30 @@ xls_dslx_test(
 
 # -- we only want to prove quickcheck for the bf16 target so we break it out here
 
-xls_dslx_library(
-    name = "quickcheck_add_dual_path_bf16",
-    srcs = ["quickcheck_add_dual_path_bf16.x"],
-    deps = [":dual_path"],
-)
-
-xls_dslx_test(
-    name = "quickcheck_add_dual_path_bf16_test",
-    library = ":quickcheck_add_dual_path_bf16",
-)
-
 # This proves in a reasonable amount of time, ~10 seconds on my desktop as of 2025-02-24.
 xls_dslx_prove_quickcheck_test(
     name = "quickcheck_add_dual_path_bf16_proof_test",
     library = ":quickcheck_add_dual_path_bf16",
 )
 
-xls_dslx_library(
-    name = "quickcheck_add_dual_path_f32",
-    srcs = ["quickcheck_add_dual_path_f32.x"],
-    deps = [":dual_path"],
-)
-
-xls_dslx_test(
-    name = "quickcheck_add_dual_path_f32_test",
-    library = ":quickcheck_add_dual_path_f32",
-)
+[
+    (
+        xls_dslx_library(
+            name = "quickcheck_add_dual_path_{}".format(fp_size),
+            srcs = ["quickcheck_add_dual_path_{}.x".format(fp_size)],
+            deps = [":dual_path"],
+        ),
+        xls_dslx_test(
+            name = "quickcheck_add_dual_path_{}_test".format(fp_size),
+            library = ":quickcheck_add_dual_path_{}".format(fp_size),
+        ),
+    )
+    for fp_size in [
+        "bf16",
+        "f32",
+        "f64",
+    ]
+]
 
 [xls_dslx_fmt_test(
     name = file.replace(".x", "_fmt_test"),
