@@ -109,7 +109,7 @@ class LazyQueryEngine : public QueryEngine {
 
  public:
   LazyQueryEngine<Info>() : info_(this) {}
-  ~LazyQueryEngine() override {}
+  ~LazyQueryEngine() override = default;
 
   LazyQueryEngine(const LazyQueryEngine<Info>& other)
       : info_(other.info_.WithOwner(this)) {}

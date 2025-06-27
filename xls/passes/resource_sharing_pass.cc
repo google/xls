@@ -2588,8 +2588,7 @@ NaryFoldingAction::NaryFoldingAction(
   }
 }
 
-std::vector<std::pair<Node *, uint32_t>> NaryFoldingAction::GetFrom(
-    void) const {
+std::vector<std::pair<Node *, uint32_t>> NaryFoldingAction::GetFrom() const {
   return from_;
 }
 

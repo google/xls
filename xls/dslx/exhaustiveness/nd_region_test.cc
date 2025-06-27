@@ -260,6 +260,7 @@ TEST(NdRegionTest, Rectangle2DSubtractCentralRectangle) {
   std::vector<std::string> expected = {"[[0, 0], [0, 3]]", "[[1, 0], [2, 0]]",
                                        "[[1, 3], [2, 3]]", "[[3, 0], [3, 3]]"};
   std::vector<std::string> actual;
+  actual.reserve(pieces.size());
   for (const NdInterval& interval : pieces) {
     actual.push_back(interval.ToString(false));
   }
@@ -284,6 +285,7 @@ TEST(NdRegionTest, OneDimensionalSubtractMiddle) {
   EXPECT_EQ(pieces.size(), 2);
   std::vector<std::string> expected = {"[[0], [2]]", "[[7], [9]]"};
   std::vector<std::string> actual;
+  actual.reserve(pieces.size());
   for (const NdInterval& piece : pieces) {
     actual.push_back(piece.ToString(/*show_types=*/false));
   }

@@ -449,14 +449,14 @@ absl::StatusOr<verilog::CodegenResult> Codegen(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
     const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model,
-    const PackageSchedule* schedules) {
+    const PackageSchedule* package_schedule) {
   XLS_RETURN_IF_ERROR(MaybeSetTop(p, codegen_flags_proto));
   XLS_ASSIGN_OR_RETURN(
       CodegenMetadata metadata,
       CodegenMetadata::Create(p, scheduling_options_flags_proto,
                               codegen_flags_proto, with_delay_model));
   return CodegenFromMetadata(p, codegen_flags_proto.generator(), metadata,
-                             schedules);
+                             package_schedule);
 }
 
 absl::StatusOr<std::pair<SchedulingResult, verilog::CodegenResult>>
