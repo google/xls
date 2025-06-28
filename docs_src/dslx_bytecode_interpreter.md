@@ -3,9 +3,9 @@
 DSLX provides a [bytecode interpreter](https://en.wikipedia.org/wiki/Bytecode)
 for expression evaluation. This style of interpreter can be started, stopped,
 and resumed more easily than an AST-walking native interpreter, as its full
-state can be captured as `{PC, stack}` instead of some traversal state
-in native execution, which makes it very suitable for modeling independent
-processes, such as `Proc`s.
+state can be captured as `{PC, stack}` instead of some traversal state in native
+execution, which makes it very suitable for modeling independent processes, such
+as `Proc`s.
 
 !!! NOTE
     The bytecode interpreter system is under active construction and does not

@@ -604,9 +604,8 @@ pub fn ceil_with_denorms<EXP_SZ: u32, FRACTION_SZ: u32>
 Returns the nearest integral `APFloat` of the same precision as `f` whose value
 is greater than or equal to `f` (round toward positive). Subnormal inputs are
 supported and rounded as per IEEE-754 to be no less than the infinitely precise
-result. To treat subnormals as zero, use `ceil_daz` (which is a
-convenience wrapper that calls `subnormals_to_zero` before calling this
-function).
+result. To treat subnormals as zero, use `ceil_daz` (which is a convenience
+wrapper that calls `subnormals_to_zero` before calling this function).
 
 ### `apfloat::ceil_daz`
 

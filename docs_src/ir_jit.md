@@ -134,5 +134,5 @@ IRBuilder provides three means of extracting values from an aggregate type:
 Unfortunately, #2 doesn't apply, as arrays aren't LLVM vectors, and #3 doesn't
 apply, as an array index isn't necessarily a constant value. Uniformly managing
 arrays as allocas doesn't scale well (consider the case of arrays of arrays of
-tuples...), so for `ArrayIndex` nodes, we lazily create allocas for _only the
-array of interest_ and load the requested index from there.
+tuples...), so for `ArrayIndex` nodes, we lazily create allocas for *only the
+array of interest* and load the requested index from there.

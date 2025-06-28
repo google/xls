@@ -25,9 +25,9 @@ again.
 ## Code style
 
 When writing code contributions to the project, please make sure to follow the
-style guides:
-The [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
-and the
+style guides: The
+[Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) and
+the
 [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
 There are a few small
 [XLS clarifications](https://google.github.io/xls/xls_style/) for local style on
@@ -51,9 +51,9 @@ commits,[^why-add] please be sure to squash them into one again once the PR is
 approved (though squashing continuously is also acceptable).
 
 [^why-add]: Adding commits preserves the GitHub code review history and makes it
-  easier to review incremental changes, but causes an additional "round trip"
-  with the reviewer for the final squash after approval, so there is a small
-  procedural tradeoff.
+    easier to review incremental changes, but causes an additional
+    "round trip" with the reviewer for the final squash after approval,
+    so there is a small procedural tradeoff.
 
 Generally, squashing to a single commit can be accomplished by:
 
@@ -69,8 +69,8 @@ proj/xls$ git rebase origin/main
 
 Rebased branches can be pushed to their corresponding PRs with `--force`.
 
-See also [this Stack Overflow
-question](https://stackoverflow.com/questions/17354353/git-squash-all-commits-in-branch-without-conflicting).
+See also
+[this Stack Overflow question](https://stackoverflow.com/questions/17354353/git-squash-all-commits-in-branch-without-conflicting).
 
 ### Documenting PPA Impact
 
@@ -133,18 +133,18 @@ your path, if locally installed Python binaries aren't available by default.
 
 ### DSL snippets in documentation
 
-There are a few different language annotations we use in different
-circumstances in the Markdown docs:
+There are a few different language annotations we use in different circumstances
+in the Markdown docs:
 
-* `dslx`: A full code block that should be parsed/typechecked/tested.
-* `dslx-snippet`: A fragment that should be syntax highlighted, but not
-  parsed/typechecked/tested.
-* `dslx-bad`: An example of something that we expect to produce an error
-  when parsing/typechecking/testing.
+*   `dslx`: A full code block that should be parsed/typechecked/tested.
+*   `dslx-snippet`: A fragment that should be syntax highlighted, but not
+    parsed/typechecked/tested.
+*   `dslx-bad`: An example of something that we expect to produce an error when
+    parsing/typechecking/testing.
 
-GitHub issue [google/xls#378](https://github.com/google/xls/issues/378) tracks
-a script that does the parse/typecheck/test that ensures our documentation is
-up to date and correct.
+GitHub issue [google/xls#378](https://github.com/google/xls/issues/378) tracks a
+script that does the parse/typecheck/test that ensures our documentation is up
+to date and correct.
 
 ### GitHub Issue "T-Shirt Size" Estimate Labels
 
@@ -155,20 +155,19 @@ longer than we expected, why and can we do things to mitigate the surprising
 amount of time required going forward.
 
 There's a practice of marking issues with "t-shirt sizes" for development tasks.
-An issue can be XS, S, M, L, XL, these are given in the ["estimate"
-labels](https://github.com/google/xls/labels?q=estimate):
+An issue can be XS, S, M, L, XL, these are given in the
+["estimate" labels](https://github.com/google/xls/labels?q=estimate):
 
-| Name        | Abbreviation | Time Scale  |
-| :---------: | :----------: | :---------: |
-| eXtra Small | XS           | ~few hours  |
-| Small       | S            | ~a day      |
-| Medium      | M            | ~1-3 days   |
-| Large       | L            | ~a week     |
-| eXtra Large | XL           | ~multi-week |
+Name        | Abbreviation | Time Scale
+:---------: | :----------: | :---------:
+eXtra Small | XS           | ~few hours
+Small       | S            | ~a day
+Medium      | M            | ~1-3 days
+Large       | L            | ~a week
+eXtra Large | XL           | ~multi-week
 
-These are not "load bearing", just to note expectation. Generally the
-assumption is "time expected for a person familiar with this matter / part of
-the code base", so developers that would ramp on an issue would require more
-time than is indicated by the label. Feel free to change the label at will,
-ideally by providing a helpful explanation for why/how the estimate came to
-change.
+These are not "load bearing", just to note expectation. Generally the assumption
+is "time expected for a person familiar with this matter / part of the code
+base", so developers that would ramp on an issue would require more time than is
+indicated by the label. Feel free to change the label at will, ideally by
+providing a helpful explanation for why/how the estimate came to change.

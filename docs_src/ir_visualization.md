@@ -48,15 +48,15 @@ The right-hand side of the UI shows the IR in graphical form. Clicking on the
 **View Graph** button is enabled only if the IR is parsed successfully. The
 graph view may be manipulated as follows:
 
-*   **_Zoom_** The mouse scroll wheel zooms the view of the IR graph.
+*   ***Zoom*** The mouse scroll wheel zooms the view of the IR graph.
 
-*   **_Pan_** Clicking and holding the left mouse button down in the graph panel
+*   ***Pan*** Clicking and holding the left mouse button down in the graph panel
     (while not on a graph element) and moving the mouse pans the graph.
 
-*   **_Moving nodes_** Nodes in the graph are moved by clicking and holding on
+*   ***Moving nodes*** Nodes in the graph are moved by clicking and holding on
     the node and moving the mouse.
 
-*   **_Focusing on nodes_** Clicking on a node in the graph while holding down
+*   ***Focusing on nodes*** Clicking on a node in the graph while holding down
     the control key scrolls the respective definition of the node in the text IR
     into view in the text box. Similarly, control clicking on an identifier in
     the text IR zooms and centers the graph view on the respective node.
@@ -93,7 +93,7 @@ Nodes in the graph may be in a selected or deselected state. Clicking on a node
 in the graph or identifier in the text IR toggles the selection state. A
 selected node (identifier in IR text) is shown with a blue border. Nodes and
 edges which are neighbors of selected nodes (the selection frontier) are shown
-in orange.  Clicking on an empty area of the graph deselects all nodes.
+in orange. Clicking on an empty area of the graph deselects all nodes.
 
 #### Showing only selected nodes
 
@@ -113,5 +113,5 @@ deselecting nodes.
 The button **Critical Path** selects exactly those nodes which are on the
 critical path as determined by XLS's timing model. This may be used with the
 **Show only selected nodes** toggle to show a graph containing only critical
-path elements and neighbors. In the screenshot above, the selected critical
-path is shown in blue.
+path elements and neighbors. In the screenshot above, the selected critical path
+is shown in blue.

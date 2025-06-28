@@ -37,8 +37,8 @@ $ bazel run -c opt //xls/dslx:interpreter_main -- /tmp/simple_add.x
 The DSL interpreter is the execution engine running the test shown.
 
 In lieu of using bazel run for the subsequent commands, this document will
-assume `bazel build -c opt //xls/...` has been completed so the binaries in
-`./bazel-bin` can be used directly:
+assume `bazel build -c opt //xls/...` has been completed so the
+binaries in `./bazel-bin` can be used directly:
 
 ```
 $ ./bazel-bin/xls/dslx/interpreter_main /tmp/simple_add.x
@@ -81,5 +81,5 @@ To get a graphical view of the IR files, use the IR visualization tool:
 $ ./bazel-bin/xls/visualization/ir_viz/app --delay_model=unit --preload_ir_path=/tmp/simple_add.ir
 ```
 
-This starts a server on localhost port 5000 by default, so you can access
-it from your machine as `http://localhost:5000` in a web browser.
+This starts a server on localhost port 5000 by default, so you can access it
+from your machine as `http://localhost:5000` in a web browser.

@@ -379,8 +379,8 @@ fn test_parametric_signedness() {
 }
 ```
 
-The above example shows that `xN[false][u32:32]` is an equivalent type to
-`u32`, and `xN[true][u32:64]` is an equivalent type to `s64`.
+The above example shows that `xN[false][u32:32]` is an equivalent type to `u32`,
+and `xN[true][u32:64]` is an equivalent type to `s64`.
 
 The name `xN` indicates that it can be either `uN` or `sN` based on the first
 "signedness" given to the type constructor, which should be a `bool`. After the
@@ -1521,8 +1521,8 @@ This corresponds to the C/C++ ternary `?:` operator:
 condition ? consequent : alternate
 ```
 
-In DSLX, the `else` branch is optional. If it is not provided, it is treated
-as though there is an `else` branch that returns the unit type `()`:
+In DSLX, the `else` branch is optional. If it is not provided, it is treated as
+though there is an `else` branch that returns the unit type `()`:
 
 ```
 if condition { consequent }
@@ -1531,12 +1531,12 @@ if condition { consequent } else { () }
 ```
 
 This implies that if the `else` branch is omitted, the `consequent` must also
-return the unit type `()` to ensure the whole if expression produces
-a consistent result.
+return the unit type `()` to ensure the whole if expression produces a
+consistent result.
 
 !!! NOTE
-    Unlike a C++ `if` statement or a ternary operator `?:`, DSLX `if` is
-    an *expression* that must always produce a result value, not just a *statement*
+    Unlike a C++ `if` statement or a ternary operator `?:`, DSLX `if` is an
+    *expression* that must always produce a result value, not just a *statement*
     that causes a mutating effect.
 
 Furthermore, you can have multiple branches via `else if`:
@@ -2063,7 +2063,8 @@ For determinism, the DSLX interpreter should be run with the `seed` flag:
 
 #### Exhaustive QuickCheck
 
-For small domains the quickcheck attribute can also be placed in exhaustive mode via the `exhaustive` attribute:
+For small domains the quickcheck attribute can also be placed in exhaustive mode
+via the `exhaustive` attribute:
 
 ```dslx
 // `u8` space is small enough to check exhaustively.
@@ -2174,9 +2175,9 @@ e.g.,
     
     This means that 'spawner-procs' - procs which exist only to `spawn` a network
     of other procs with no channels of their own - have somewhat strange
-    interactions with optimization. This most often causes spawned procs
-    to be removed from opt-ir outputs. This can be worked around by manually
-    setting top to a spawned procs. See below for more information.
+    interactions with optimization. This most often causes spawned procs to be
+    removed from opt-ir outputs. This can be worked around by manually setting top
+    to a spawned procs. See below for more information.
 
 !!! NOTE
     If one wishes to spawn `proc`s one may use an empty `proc` with only

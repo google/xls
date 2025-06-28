@@ -1,9 +1,9 @@
 # Cytoscape IR Export
 
 For IRs which are too large to render using the
-[ir_viz web app](ir_visualization.md) one may use [cytoscape](https://cytoscape.org) as
-a graph viewer. This is a much more manual experience than the web app but can
-handle IRs of arbitrary size.
+[ir_viz web app](ir_visualization.md) one may use
+[cytoscape](https://cytoscape.org) as a graph viewer. This is a much more manual
+experience than the web app but can handle IRs of arbitrary size.
 
 Consult the
 [Cytoscape user manual](https://manual.cytoscape.org/en/stable/Introduction.html)

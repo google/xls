@@ -28,8 +28,8 @@ which may be disabled/enabled via flags (run with `--help` for more details):
 *   Interprets the pre-optimized and optimized IR with the batch of arguments
 *   Generates the Verilog from the IR with randomly selected codegen options
     (with `--codegen`)
-*   Simulates the generated Verilog using the batch of arguments
-    (with `--simulate`)
+*   Simulates the generated Verilog using the batch of arguments (with
+    `--simulate`)
 *   Performs a multi-way comparison of the DSLX interpreter results, the
     pre-optimized IR interpreter results, post-optimized IR interpreter results,
     and the simulator results
@@ -78,7 +78,7 @@ include:
 *   `sample.ir` : Unoptimized IR generated from the DSLX sample.
 *   `sample.opt.ir` : IR after optimizations.
 *   `sample.v` : Generated Verilog (or `sample.sv` with
-     `--use_system_verilog=true` on fuzz runner)
+    `--use_system_verilog=true` on fuzz runner)
 *   `*.results` : The results (numeric values) produced by interpreting or
     simulating the respective input (DSLX, IR, or Verilog).
 *   `exception.txt` : The exception raised when running the sample. Typically

@@ -81,7 +81,7 @@ network has to produce its output value with a delay that meets the timing
 constraint of the clock frequency. The RTL designer typically has to iterate
 their design until:
 
-  timing path delay <= target clock period - clock uncertainty
+timing path delay <= target clock period - clock uncertainty
 
 For all timing paths in their design, where clock uncertainty includes
 setup/hold time constraints, and slop that's built in as margin for later
@@ -91,16 +91,16 @@ the clock signal observed by different flops).
 In a reasonable model, gate delay is affected by a small handful of properties,
 as reflected in the "(Method of) Logical Effort" book:
 
-* The transistor network used to implement a logic function (AKA logical
-  effort): on an input pin change, the gate of each transistor must be driven to
-  a point it recognizes whether a 0 or 1 voltage is being presented. More gates
-  to drive, or larger gates, means more work for the driver.
-* The load being driven by the logic function (AKA electrical effort): fanning
-  out to more gates generally means more work to drive them all to their
-  threshold voltages. Being loaded down by bigger gates means more work to drive
-  it to its threshold voltage.
-* Parasitic delays: RC elements in the system that leech useful work, typically
-  in a smaller way compared to the efforts listed above.
+*   The transistor network used to implement a logic function (AKA logical
+    effort): on an input pin change, the gate of each transistor must be driven
+    to a point it recognizes whether a 0 or 1 voltage is being presented. More
+    gates to drive, or larger gates, means more work for the driver.
+*   The load being driven by the logic function (AKA electrical effort): fanning
+    out to more gates generally means more work to drive them all to their
+    threshold voltages. Being loaded down by bigger gates means more work to
+    drive it to its threshold voltage.
+*   Parasitic delays: RC elements in the system that leech useful work,
+    typically in a smaller way compared to the efforts listed above.
 
 The logical effort book describes a way to analyze the delays through a network
 of gates to find the minimal delay, and size transistors in a way that can
@@ -109,17 +109,18 @@ gate to drive capacitance).
 
 Confounding factors include:
 
-* Medium/large wires: sizing transistors to smooth capacitance becomes difficult
-  as fixed-capacitance elements (wires) are introduced. It seems that small
-  wires have low enough capacitance they can generally be treated as parasitic.
-* Divergence/reconvergence in the functional logic network (as a DAG). Different
-  numbers of logic levels and different drive currents may be presented from
-  different branches of a fork/join the logic graph, which forces delay analysis
-  into a system of equations to attempt to minimize the overall delay, as
-  observed by the critical path, with transistor sizing and gate choices. (Some
-  simplifications are possible, like buffering non-critical paths until they
-  have the same number of logic levels so they also have plenty of current to
-  supply at join points.)
+*   Medium/large wires: sizing transistors to smooth capacitance becomes
+    difficult as fixed-capacitance elements (wires) are introduced. It seems
+    that small wires have low enough capacitance they can generally be treated
+    as parasitic.
+*   Divergence/reconvergence in the functional logic network (as a DAG).
+    Different numbers of logic levels and different drive currents may be
+    presented from different branches of a fork/join the logic graph, which
+    forces delay analysis into a system of equations to attempt to minimize the
+    overall delay, as observed by the critical path, with transistor sizing and
+    gate choices. (Some simplifications are possible, like buffering
+    non-critical paths until they have the same number of logic levels so they
+    also have plenty of current to supply at join points.)
 
 Somewhat orthogonal to the analytical modeling problem, there are also several
 industry standards for supplying process information to Static Timing Analysis
@@ -137,16 +138,16 @@ Currently, XLS delay estimation follows a conceptually simple procedure:
 
 *   For every operation in XLS (e.g. binary addition):
 
-  *   For some relevant-seeming set of bitwidths; e.g. `{2, 4, 8, 16, ...,
-      2048}`
-  *   Find the maximum frequency at which that operation closes timing at that
-      bitwidth, in 100MHz units as determined by the synthesis tool.
-      <sup>[2](#footnote2)</sup> Call the clock period for this frequency
-      `t_best`. (Note that we currently just use a single process corner /
-      voltage for this sweep.)
-  *   Subtract the clock uncertainty from `t_best`.
-  *   Record that value in a table (with the keys of the table being operation
-      / bitwidth).
+    *   For some relevant-seeming set of bitwidths; e.g. `{2, 4, 8, 16, ...,
+        2048}`
+    *   Find the maximum frequency at which that operation closes timing at that
+        bitwidth, in 100MHz units as determined by the synthesis tool.
+        <sup>[2](#footnote2)</sup> Call the clock period for this frequency
+        `t_best`. (Note that we currently just use a single process corner /
+        voltage for this sweep.)
+    *   Subtract the clock uncertainty from `t_best`.
+    *   Record that value in a table (with the keys of the table being operation
+        / bitwidth).
 
 <a name='footnote2'>2</a>: The timing report can provide the delay through a
 path at any clock frequency, but a wrinkle is that synthesis tools potentially

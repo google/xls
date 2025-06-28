@@ -55,8 +55,8 @@ of the assignment.
 ### Operator Precedence
 
 To avoid ambiguity, operators in Verilog follow precedence rules. For example,
-multiplication is higher precedence than addition so the expression `2 + 4 *
-10` evaluates to `42` (i.e., `2 + (4 * 10)`) not `60` (i.e., `(2 + 4) * 10`). In
+multiplication is higher precedence than addition so the expression `2 + 4 * 10`
+evaluates to `42` (i.e., `2 + (4 * 10)`) not `60` (i.e., `(2 + 4) * 10`). In
 VAST, expressions are built as a trees which is evaluated from the leaves to the
 root. To ensure that the operations are evaluated in the correct order when
 emitted as Verilog text, VAST automatically adds parentheses where appropriate.

@@ -5,17 +5,17 @@ This could be for various reasons; sometimes there is an existing code-base with
 specific optimizations one wants to use.
 
 The concept of calling an external implementation from some language is
-typically referred to as Foreign Function Interface or short FFI, used below
-for brevity.
+typically referred to as Foreign Function Interface or short FFI, used below for
+brevity.
 
 DSLX can interface with combinational Verilog modules; [sequential FFI] is
 planned.
 
 ## Foreign Function Interface in DSLX
 
-Every external module to interface will need to have a DSLX implementation
-as a function with an annotation that tells DSLX the module instantiation
-at code-generation time. The DSLX implementation will be used in the interpreter
+Every external module to interface will need to have a DSLX implementation as a
+function with an annotation that tells DSLX the module instantiation at
+code-generation time. The DSLX implementation will be used in the interpreter
 and JIT, for instance in tests.
 
 ### Simple Example

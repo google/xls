@@ -44,37 +44,38 @@ out, running through [some tutorials](https://google.github.io/xls/tutorials/),
 
 We are early stage and this has some practical effects:
 
-* We welcome your issues and PRs.
-    * Please try to lead with an issue. Engage us in conversation if you wish to
-      upstream changes. Sending a PR without back and forth with us in an issue
-      may be a longer road to success. If you believe your PR is ready and has
-      not received a response within two business days, please ping the issue
-      with what you think are next steps.
-* At the current point in its evolution, we regularly improve DSLX without
-      considering backward compatibility.
-    * If you are building a corpus of hardware with XLS, please be thoughtful
-      about your process for bringing in new versions of the compiler.
+*   We welcome your issues and PRs.
+    *   Please try to lead with an issue. Engage us in conversation if you wish
+        to upstream changes. Sending a PR without back and forth with us in an
+        issue may be a longer road to success. If you believe your PR is ready
+        and has not received a response within two business days, please ping
+        the issue with what you think are next steps.
+*   At the current point in its evolution, we regularly improve DSLX without
+    considering backward compatibility.
+    *   If you are building a corpus of hardware with XLS, please be thoughtful
+        about your process for bringing in new versions of the compiler.
 
 ## Colab Notebooks
 
 For a more setup-free and environment-independent way of trying out XLS, see our
 colab notebooks:
 
-* [bit.ly/learn-xls](https://bit.ly/learn-xls): a "learn XLS in Y minutes"
-  style walkthrough in DSLX, our Rust-inspired domain specific language (DSL).
-* [bit.ly/xls-playground](https://bit.ly/xls-playground): an XLS evaluation
-  environment that can run the following interactively:
+*   [bit.ly/learn-xls](https://bit.ly/learn-xls): a "learn XLS in Y minutes"
+    style walkthrough in DSLX, our Rust-inspired domain specific language (DSL).
+*   [bit.ly/xls-playground](https://bit.ly/xls-playground): an XLS evaluation
+    environment that can run the following interactively:
 
-  * XLS tests
-  * XLS→IR conversion
-  * IR→Verilog codegen
-  * Verilog synthesis via Yosys (using open PDKs ASAP7 and SKY130)
-  * Place-and-Route (P&R) via OpenROAD
-  * Power/Performance/Area (PPA) metric collection
+    *   XLS tests
+    *   XLS→IR conversion
+    *   IR→Verilog codegen
+    *   Verilog synthesis via Yosys (using open PDKs ASAP7 and SKY130)
+    *   Place-and-Route (P&R) via OpenROAD
+    *   Power/Performance/Area (PPA) metric collection
 
 ## Install Latest Release
 
-The following downloads the latest github repo release binaries for an x64 Linux machine:
+The following downloads the latest github repo release binaries for an x64 Linux
+machine:
 
 ```bash
 # Determine the url of the latest release tarball.
@@ -147,8 +148,8 @@ your environment:
 ### Adding Additional Build Caching
 
 Many programmers are used to using programs like `ccache` to improve caching for
-a build, but Bazel actually ships with very-high quality caching layers.
-In particular, incremental builds are more safe.
+a build, but Bazel actually ships with very-high quality caching layers. In
+particular, incremental builds are more safe.
 
 However, there are circumstances where Bazel might decide to recompile files
 where the results could have been cached locally - or where it might be safe to
@@ -196,104 +197,104 @@ purpose, and correspond to the components in this XLS stack diagram:
     [mkdocs](https://google.github.io/xls/contributing/#rendering-documentation).
 *   [`xls`](https://github.com/google/xls/tree/main/xls): Project-named
     subdirectory within the repository, in common Bazel-project style.
-  *   [`build`](https://github.com/google/xls/tree/main/xls/BUILD): Build
-      macros that create XLS artifacts; e.g. convert DSL to IR, create test
-      targets for DSL code, etc.
-  *   [`codegen`](https://github.com/google/xls/tree/main/xls/codegen):
-      Verilog AST (VAST) support to generate Verilog/SystemVerilog operations
-      and FSMs. VAST is built up by components we call *generators* (e.g.
-      PipelineGenerator, SequentialGenerator for FSMs) in the translation from
-      XLS IR.
-  *   [`common`](https://github.com/google/xls/tree/main/xls/common): "base"
-      functionality that layers on top of standard library usage. Generally we
-      use [Abseil](https://abseil.io) versions of base constructs wherever
-      possible.
-  *   [`contrib/xlscc`](https://github.com/google/xls/tree/main/xls/contrib/xlscc):
-      Experimental C++ syntax support that targets XLS IR (alternative path to
-      DSLX) developed by a sister team at Google, sharing the same open source
-      / testing flow as the rest of the XLS project. May be of particular
-      interest for teams with existing C++ HLS code bases.
-  *   [`data_structures`](https://github.com/google/xls/tree/main/xls/data_structures):
-      Generic data structures used in XLS that augment standard libraries;
-      e.g. BDDs, union find, min cut, etc.
-  *   [`delay_model`](https://github.com/google/xls/tree/main/xls/estimators/delay_model):
-      Functionality to characterize, describe, and interpolate data delay for
-      XLS IR operations on a target backend process. Already-characterized
-      descriptions are placed in `xls/estimators/delay_model/models` and can
-      be referred to via command line flags.
-  *   [`dslx`](https://github.com/google/xls/tree/main/xls/dslx): A DSL
-      (called "DSLX") that mimics Rust, while being an immutable
-      expression-language dataflow DSL with hardware-oriented features; e.g.
-      arbitrary bitwidths, entirely fixed size objects, fully analyzeable call
-      graph. XLS team has found dataflow DSLs are a good fit to describe
-      hardware as compared to languages designed assume von Neumann style
-      computation.
-  *   [`fuzzer`](https://github.com/google/xls/tree/main/xls/fuzzer): A
-      whole-stack multiprocess fuzzer that generates programs at the DSL level
-      and cross-compares different execution engines (DSL interpreter, IR
-      interpreter, IR JIT, code-generated-Verilog simulator). Designed so that
-      it can easily be run on different nodes in a cluster simultaneously and
-      accumulate shared findings.
-  *   [`examples`](https://github.com/google/xls/tree/main/xls/examples):
-      Example computations that are tested and executable through the XLS
-      stack.
-  *   [`experimental`](https://github.com/google/xls/tree/main/xls/experimental):
-      Artifacts captured from experimental explorations.
-  *   [`interpreter`](https://github.com/google/xls/tree/main/xls/interpreter):
-      Interpreter for XLS IR - useful for debugging and exploration. For cases
-      needing throughput, consider using the JIT (below).
-  *   [`ir`](https://github.com/google/xls/tree/main/xls/ir): XLS IR
-      definition, text parser/formatter, and facilities for abstract
-      evaluation.
-  *   [`jit`](https://github.com/google/xls/tree/main/xls/jit): LLVM-based JIT
-      for XLS IR. Enables native-speed execution of DSLX and XLS IR programs.
-  *   [`modules`](https://github.com/google/xls/tree/main/xls/modules):
-      Hardware building block DSLX "libraries" (outside the DSLX standard
-      library) that may be easily reused or instantiated in a broader design.
-  *   [`netlist`](https://github.com/google/xls/tree/main/xls/netlist):
-      Libraries that parse/analyze/interpret netlist-level descriptions, as
-      are generally given in simple structural Verilog with an associated cell
-      library.
-  *   [`passes`](https://github.com/google/xls/tree/main/xls/passes): Passes
-      that run on the XLS IR as part of optimization, before scheduling / code
-      generation.
-  *   [`scheduling`](https://github.com/google/xls/tree/main/xls/scheduling):
-      Scheduling algorithms, determine when operations execute (e.g. which
-      pipeline stage) in a clocked design.
-  *   [`simulation`](https://github.com/google/xls/tree/main/xls/simulation):
-      Code that wraps Verilog simulators and generates Verilog testbenches for
-      XLS computations. [iverilog](https://github.com/steveicarus/iverilog) is
-      currently used to simulate as it supports non-synthesizable testbench
-      constructs.
-  *   [`solvers`](https://github.com/google/xls/tree/main/xls/solvers):
-      Converters from XLS IR into SMT solver input, such that formal proofs
-      can be run on XLS computations; e.g. Logical Equalence Checks between
-      XLS IR and a netlist description. [Z3](https://github.com/Z3Prover/z3)
-      is used as the solver engine.
-  *   [`synthesis`](https://github.com/google/xls/tree/main/xls/synthesis):
-      Interface that wraps backend synthesis flows, such that tools can be
-      retargeted e.g. between ASIC and FPGA flows.
-  *   [`tests`](https://github.com/google/xls/tree/main/xls/tests):
-      Integration tests that span various top-level components of the XLS
-      project.
-  *   [`tools`](https://github.com/google/xls/tree/main/xls/tools):
-      [Many tools](https://google.github.io/xls/tools/) that work with the XLS
-      system and its libraries in a decomposed way via command line
-      interfaces.
-  *   [`visualization`](https://github.com/google/xls/tree/main/xls/visualization):
-      Visualization tools to inspect the XLS compiler/system interactively.
-      See [IR visualization](https://google.github.io/xls/ir_visualization/).
+    *   [`build`](https://github.com/google/xls/tree/main/xls/BUILD): Build
+        macros that create XLS artifacts; e.g. convert DSL to IR, create test
+        targets for DSL code, etc.
+    *   [`codegen`](https://github.com/google/xls/tree/main/xls/codegen):
+        Verilog AST (VAST) support to generate Verilog/SystemVerilog operations
+        and FSMs. VAST is built up by components we call *generators* (e.g.
+        PipelineGenerator, SequentialGenerator for FSMs) in the translation from
+        XLS IR.
+    *   [`common`](https://github.com/google/xls/tree/main/xls/common): "base"
+        functionality that layers on top of standard library usage. Generally we
+        use [Abseil](https://abseil.io) versions of base constructs wherever
+        possible.
+    *   [`contrib/xlscc`](https://github.com/google/xls/tree/main/xls/contrib/xlscc):
+        Experimental C++ syntax support that targets XLS IR (alternative path to
+        DSLX) developed by a sister team at Google, sharing the same open source
+        / testing flow as the rest of the XLS project. May be of particular
+        interest for teams with existing C++ HLS code bases.
+    *   [`data_structures`](https://github.com/google/xls/tree/main/xls/data_structures):
+        Generic data structures used in XLS that augment standard libraries;
+        e.g. BDDs, union find, min cut, etc.
+    *   [`delay_model`](https://github.com/google/xls/tree/main/xls/estimators/delay_model):
+        Functionality to characterize, describe, and interpolate data delay for
+        XLS IR operations on a target backend process. Already-characterized
+        descriptions are placed in `xls/estimators/delay_model/models` and can
+        be referred to via command line flags.
+    *   [`dslx`](https://github.com/google/xls/tree/main/xls/dslx): A DSL
+        (called "DSLX") that mimics Rust, while being an immutable
+        expression-language dataflow DSL with hardware-oriented features; e.g.
+        arbitrary bitwidths, entirely fixed size objects, fully analyzeable call
+        graph. XLS team has found dataflow DSLs are a good fit to describe
+        hardware as compared to languages designed assume von Neumann style
+        computation.
+    *   [`fuzzer`](https://github.com/google/xls/tree/main/xls/fuzzer): A
+        whole-stack multiprocess fuzzer that generates programs at the DSL level
+        and cross-compares different execution engines (DSL interpreter, IR
+        interpreter, IR JIT, code-generated-Verilog simulator). Designed so that
+        it can easily be run on different nodes in a cluster simultaneously and
+        accumulate shared findings.
+    *   [`examples`](https://github.com/google/xls/tree/main/xls/examples):
+        Example computations that are tested and executable through the XLS
+        stack.
+    *   [`experimental`](https://github.com/google/xls/tree/main/xls/experimental):
+        Artifacts captured from experimental explorations.
+    *   [`interpreter`](https://github.com/google/xls/tree/main/xls/interpreter):
+        Interpreter for XLS IR - useful for debugging and exploration. For cases
+        needing throughput, consider using the JIT (below).
+    *   [`ir`](https://github.com/google/xls/tree/main/xls/ir): XLS IR
+        definition, text parser/formatter, and facilities for abstract
+        evaluation.
+    *   [`jit`](https://github.com/google/xls/tree/main/xls/jit): LLVM-based JIT
+        for XLS IR. Enables native-speed execution of DSLX and XLS IR programs.
+    *   [`modules`](https://github.com/google/xls/tree/main/xls/modules):
+        Hardware building block DSLX "libraries" (outside the DSLX standard
+        library) that may be easily reused or instantiated in a broader design.
+    *   [`netlist`](https://github.com/google/xls/tree/main/xls/netlist):
+        Libraries that parse/analyze/interpret netlist-level descriptions, as
+        are generally given in simple structural Verilog with an associated cell
+        library.
+    *   [`passes`](https://github.com/google/xls/tree/main/xls/passes): Passes
+        that run on the XLS IR as part of optimization, before scheduling / code
+        generation.
+    *   [`scheduling`](https://github.com/google/xls/tree/main/xls/scheduling):
+        Scheduling algorithms, determine when operations execute (e.g. which
+        pipeline stage) in a clocked design.
+    *   [`simulation`](https://github.com/google/xls/tree/main/xls/simulation):
+        Code that wraps Verilog simulators and generates Verilog testbenches for
+        XLS computations. [iverilog](https://github.com/steveicarus/iverilog) is
+        currently used to simulate as it supports non-synthesizable testbench
+        constructs.
+    *   [`solvers`](https://github.com/google/xls/tree/main/xls/solvers):
+        Converters from XLS IR into SMT solver input, such that formal proofs
+        can be run on XLS computations; e.g. Logical Equalence Checks between
+        XLS IR and a netlist description. [Z3](https://github.com/Z3Prover/z3)
+        is used as the solver engine.
+    *   [`synthesis`](https://github.com/google/xls/tree/main/xls/synthesis):
+        Interface that wraps backend synthesis flows, such that tools can be
+        retargeted e.g. between ASIC and FPGA flows.
+    *   [`tests`](https://github.com/google/xls/tree/main/xls/tests):
+        Integration tests that span various top-level components of the XLS
+        project.
+    *   [`tools`](https://github.com/google/xls/tree/main/xls/tools):
+        [Many tools](https://google.github.io/xls/tools/) that work with the XLS
+        system and its libraries in a decomposed way via command line
+        interfaces.
+    *   [`visualization`](https://github.com/google/xls/tree/main/xls/visualization):
+        Visualization tools to inspect the XLS compiler/system interactively.
+        See [IR visualization](https://google.github.io/xls/ir_visualization/).
 
 ## Community
 
 Discussions about XLS - development, debugging, usage, etc:
 
-* Ideally happen in the [XLS repo GitHub
-  discussions](https://github.com/google/xls/discussions)
-* But, if you feel email is a better venue for the discussion, there is also an
-  [xls-dev mailing list](https://groups.google.com/g/xls-dev) -- please prefer
-  GitHub discussions if possible as they are searchable and can be
-  easily cross-referenced and converted to the issue tracker
+*   Ideally happen in the
+    [XLS repo GitHub discussions](https://github.com/google/xls/discussions)
+*   But, if you feel email is a better venue for the discussion, there is also
+    an [xls-dev mailing list](https://groups.google.com/g/xls-dev) -- please
+    prefer GitHub discussions if possible as they are searchable and can be
+    easily cross-referenced and converted to the issue tracker
 
 ## Contributors
 
@@ -301,10 +302,9 @@ The following are
 [contributors](https://github.com/google/xls/graphs/contributors) to the XLS
 project, see our
 [contributing documentation](https://google.github.io/xls/contributing/) and
-[good first
-issues](https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
-if you're interested in contributing, or reach out via [GitHub
-discussions](https://github.com/google/xls/discussions)!
+[good first issues](https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+if you're interested in contributing, or reach out via
+[GitHub discussions](https://github.com/google/xls/discussions)!
 
 *   [Aidan Kirk](https://github.com/aidankirk12)
 *   [Albert Magyar](https://github.com/albert-magyar)

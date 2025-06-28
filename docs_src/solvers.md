@@ -35,8 +35,8 @@ unique stimulus.
 The full input space for a 32-bit adder is a whopping 64 bits - far more than is
 possible to exhaustively test for correctness. Proving correctness via Z3,
 however, is relatively straightforward: at a high level, one simply compares the
-output from the DSLX (translated into Z3) to the same operation performed
-solely in Z3.
+output from the DSLX (translated into Z3) to the same operation performed solely
+in Z3.
 
 In detail, the steps are:
 
@@ -54,7 +54,7 @@ In detail, the steps are:
     could be greater than that bound.
 
 If the solver can not satisfy that criterion, then that means the error is
-_never_ greater than that bound, i.e., that the implementations are equivalent
+*never* greater than that bound, i.e., that the implementations are equivalent
 (with our 0.0f bound).
 
 ### IR Transform validity
@@ -107,7 +107,7 @@ These lines describe, in order:
     wires `p0_i2` and `p0_i2`, respectively, and one output, .Z, which will be
     assigned to the wire `p1_and_2_comb.
 
-Note that the _values_ computed by the cells wasn't mentioned - that's because
+Note that the *values* computed by the cells wasn't mentioned - that's because
 `FOO` and `BAR` are defined in the "cell library", the list of standard cells
 used to generate the netlist. Thus, to be able to model these gates in a solver,
 we need to take that cell library as input to the LEC tool. The netlist
@@ -159,7 +159,7 @@ Z3 doesn't intrinsically have support for subroutines, or as they're called in
 Z3, "macros", instead requiring that
 [all function calls be inlined](https://stackoverflow.com/questions/7740556/equivalent-of-define-fun-in-z3-api).
 
-There is an extension that adds support for _recursive_ function decls and defs,
+There is an extension that adds support for *recursive* function decls and defs,
 but in our experience, it doesn't behave the way we'd expect.
 
 Consider the following example:

@@ -213,8 +213,8 @@ Operation  | Opcode          | Semantics
 ### Variadic bitwise operations
 
 Performs a bit-wise operation on one-or-more identically-typed bits operands. If
-only a single argument is provided, the operations `and`, `or`, and `xor` are a no-op,
-while `nand` and `nor` act as a bit-wise not.
+only a single argument is provided, the operations `and`, `or`, and `xor` are a
+no-op, while `nand` and `nor` act as a bit-wise not.
 
 **Syntax**
 
@@ -236,7 +236,7 @@ Value         | Type
 **Operations**
 
 Operation | Opcode      | Semantics
---------- | ----------- | ------------------------------
+--------- | ----------- | -------------------------------
 `and`     | `Op::kAnd`  | `result = lhs & rhs & ...`
 `nand`    | `Op::kNand` | `result = ~(lhs & rhs & ...)`
 `or`      | `Op::kOr`   | `result = lhs \| rhs \| ...`
@@ -247,7 +247,6 @@ Operation | Opcode      | Semantics
 
 Performs a bit-wise reduction operation on all bits of a single bits-typed
 operand, producing a single bit. For an operand of width 1, they act as no-ops.
-
 
 **Syntax**
 
@@ -263,7 +262,6 @@ Value     | Type
 --------- | ---------
 `operand` | `bits[N]`
 `result`  | `bits[1]`
-
 
 **Operations**
 
@@ -381,10 +379,10 @@ Value    | Type
 
 **Operations**
 
-Operation | Opcode     | Semantics
---------- | ---------- | ---------------------
-`eq`      | `Op::kEq`  | `result = lhs == rhs`
-`ne`      | `Op::kNe`  | `result = lhs != rhs`
+Operation | Opcode    | Semantics
+--------- | --------- | ---------------------
+`eq`      | `Op::kEq` | `result = lhs == rhs`
+`ne`      | `Op::kNe` | `result = lhs != rhs`
 
 ### Numeric comparison operations
 
@@ -1634,9 +1632,9 @@ Value         | Type
 
 **Keyword arguments**
 
-| Keyword    | Type     | Required | Default | Description                   |
-| ---------- | -------- | -------- | ------- | ----------------------------- |
-| `register` | `string` | yes      |         | Name of the register to write |
+Keyword    | Type     | Required | Default | Description
+---------- | -------- | -------- | ------- | -----------------------------
+`register` | `string` | yes      |         | Name of the register to write
 
 The type `T` of the data operand must be the same as the type of the register.
 

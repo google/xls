@@ -39,21 +39,22 @@ will need to be byte-swapped before ingestion.
 
 For Value or unpacked view input, this swapping is handled automatically, in
 `LlvmIrRuntime::PackArgs()` (via `LlvmIrRuntime::BlitValueToBuffer()`) - and the
-__un__swapping is also automatically performed in `LlvmIrRuntime::UnpackBuffer()`.
-Thus, for these uses, no special action is required of the user.
+**un**swapping is also automatically performed in
+`LlvmIrRuntime::UnpackBuffer()`. Thus, for these uses, no special action is
+required of the user.
 
 ## Packed views
 
 *However*, this is not the case for use of packed views. The motivating use case
 for packed views is to allow users to map native types directly into JIT-usable
-values - for example, to use an IEEE float32 (e.g., a C `float`) _directly_,
+values - for example, to use an IEEE float32 (e.g., a C `float`) *directly*,
 without needing to be exploded into a `bits[1]` for the sign, a `bits[8]` for
 the exponent, and a `bits[23]` for the fractional part.
 
 When creating a packed view from a C `float`, no special action is needed - that
 `float` is in native host layout, which is the layout used by the JIT. If,
 however, data is coming from XLS (perhaps a `float` converted into a Value,
-manipulated in some way, then passed into the JIT), then the _user_ must un-swap
+manipulated in some way, then passed into the JIT), then the *user* must un-swap
 the bits back to native layout. This is because the JIT has no way of knowing
 the provenance of that data (if it's from a native type or XLS), so it's up to
 the provider of that data to ensure proper layout.

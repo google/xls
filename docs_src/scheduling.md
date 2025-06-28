@@ -26,8 +26,8 @@ Pipeline scheduling occurs in two phases:
     operation whose value which is used in a later stage.
 
 The schedule process is controlled via several options defined
-[here](https://github.com/google/xls/tree/main/xls/scheduling/pipeline_schedule.h).
-These options are typically passed in as flags to the
+[here](https://github.com/google/xls/tree/main/xls/scheduling/pipeline_schedule.h). These
+options are typically passed in as flags to the
 [`codegen_main` binary](https://github.com/google/xls/tree/main/xls/tools/codegen_main.cc)
 but maybe set programmatically. Each is optional though at least one of **clock
 period** or **pipeline stages** must be specified. Different combinations of

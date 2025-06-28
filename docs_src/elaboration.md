@@ -2,8 +2,8 @@
 
 [TOC]
 
-XLS IR has a notion of instantiation and elaboration similar to RTL.[^1]
-A hierarchy is a directed acyclic graph of elements connected via instantiation.
+XLS IR has a notion of instantiation and elaboration similar to RTL.[^1] A
+hierarchy is a directed acyclic graph of elements connected via instantiation.
 An elaboration flattens the hierarchy into a tree by walking all paths in the
 hierarchy starting at a `top` proc/block where a path is a chain of
 instantiations. The elaboration creates an "instance" object for each path
