@@ -126,7 +126,21 @@ to manage your Python environment. You'll need to adjust these instructions if
 you're doing something different. That can include explicitly adding `mkdocs` to
 your path, if locally installed Python binaries aren't available by default.
 
-### DSL snippets in documentation
+### Formatting documentation
+
+Markdown files should be formatted using
+[mdformat](https://github.com/hukkin/mdformat). Install mdformat with the
+appropriate extensions as follows:
+
+```console
+proj/xls$ mkvirtualenv xls-mdformat-env
+proj/xls$ pip install mdformat mdformat-tables mdformat-footnote
+```
+
+The file `.mdformat.toml` in the top source directory contains the mdformat
+configuration settings.
+
+### DSLX snippets in documentation
 
 There are a few different language annotations we use in different circumstances
 in the Markdown docs:

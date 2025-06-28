@@ -1,0 +1,5 @@
+wrap = 80
+extensions = [
+     "tables",
+     "footnote",
+]
