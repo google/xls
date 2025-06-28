@@ -11,7 +11,7 @@ property, but is specialized for generating circuitry. It started out as a
 purely functional IR but over time more and more side-effecting operations had
 to be introduced. Specifically:
 
-*   XLS has a single IR representation which is used from the front-end down to
+-   XLS has a single IR representation which is used from the front-end down to
     the RTL-level. A single representation throughout the compiler enables
     maximal reuse of analysis and transformation components. Often compilers
     have different specialized IRs (or "dialects") for different levels of
@@ -20,7 +20,7 @@ to be introduced. Specifically:
     because we start with a dataflow representation in the front end and can
     smoothly lower the IR down to the RTL-level which is itself dataflow.
 
-*   XLS IR is *not* control-flow graph (CFG) based, as many other compiler
+-   XLS IR is *not* control-flow graph (CFG) based, as many other compiler
     infrastructures. The insight is that the CFG abstraction was developed to
     model serial execution on a CPU. In hardware, however, everything happens at
     all times and in parallel. A *sea-of-nodes* (SoN) representation much more

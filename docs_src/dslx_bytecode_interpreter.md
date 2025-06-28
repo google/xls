@@ -41,24 +41,24 @@ either `int64`- or `InterpValue`-typed, depending on the specific opcode.
 
 The below opcodes are supported by the interpreter:
 
-*   `ADD`: Adds the two values at the top of the stack.
-*   `CALL`: Invokes the function given as the optional data argument, consuming
+-   `ADD`: Adds the two values at the top of the stack.
+-   `CALL`: Invokes the function given as the optional data argument, consuming
     a number of arguments from the stack as described by the function signature.
     The N'th parameter will be present as the N'th value down the stack (such
     that the last parameter will be the value initially on top of the stack.
-*   `CREATE_TUPLE`: Groups together N items on the stack (given by the optional
+-   `CREATE_TUPLE`: Groups together N items on the stack (given by the optional
     data argument into a single `InterpValue`.
-*   `EXPAND_TUPLE`: Expands the N-tuple at stack top by one level, placing
+-   `EXPAND_TUPLE`: Expands the N-tuple at stack top by one level, placing
     leading elements at stack top. In other words, expanding the tuple `(a, (b,
     c))` will result in a stack of `(b, c), a`, where `a` is on top of the
     stack.
-*   `EQ`: Compares the two values on top of the stack for equality. Emits a
+-   `EQ`: Compares the two values on top of the stack for equality. Emits a
     single-bit value.
-*   `LOAD`: Loads the value from locals slot `n`, where `n` is given by the
+-   `LOAD`: Loads the value from locals slot `n`, where `n` is given by the
     optional data argument.
-*   `LITERAL`: Places a literal value (given in the optional data argument) on
+-   `LITERAL`: Places a literal value (given in the optional data argument) on
     top of the stack.
-*   `STORE`: Stores the value at stack top into slot `n` in locals storage.
+-   `STORE`: Stores the value at stack top into slot `n` in locals storage.
 
 ## Bytecode generation
 

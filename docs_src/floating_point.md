@@ -487,22 +487,22 @@ we'll take extra care to explain floating-point addition:
 
 <!-- mdformat off(nested lists are rendered differently in mkdocs) -->
 
-1. **Expand fractions:** Floating-point operations are computed with bits
-   beyond that in their normal representations for increased precision. For
-   IEEE 754 numbers, there are three extra, called the guard, rounding and
-   sticky bits. The first two behave normally, but the last, the "sticky" bit,
-   is special. During shift operations (below), if a "1" value is ever shifted
-   into the sticky bit, it "sticks" - the bit will remain "1" through any
-   further shift operations. In this step, the fractions are expanded by these
-   three bits.
+1. **Expand fractions:** Floating-point operations are computed with bits beyond
+   that in their normal representations for increased precision. For IEEE 754
+   numbers, there are three extra, called the guard, rounding and sticky bits.
+   The first two behave normally, but the last, the "sticky" bit, is special.
+   During shift operations (below), if a "1" value is ever shifted into the
+   sticky bit, it "sticks" - the bit will remain "1" through any further shift
+   operations. In this step, the fractions are expanded by these three bits.
+
 1. **Align fractions:** To ensure that fractions are added with appropriate
    magnitudes, they must be aligned according to their exponents. To do so, the
    smaller significant needs to be shifted to the right (each right shift is
    equivalent to increasing the exponent by one).
 
-   * The extra precision bits are populated in this shift.
-   * As part of this step, the leading 1 bit... and a sign bit Note: The
-     sticky bit is calculated and applied in this step.
+   - The extra precision bits are populated in this shift.
+   - As part of this step, the leading 1 bit... and a sign bit Note: The sticky
+     bit is calculated and applied in this step.
 
 1. **Sign-adjustment:** if the fractions differ in sign, then the fraction with
    the smaller initial exponent needs to be (two's complement) negated.
@@ -515,29 +515,33 @@ we'll take extra care to explain floating-point addition:
    result set the carry bit, and to the left some number of places if high bits
    were cleared.
 
-   * The sticky bit must be preserved in any of these shifts!
+   - The sticky bit must be preserved in any of these shifts!
 
-1. **Rounding:** Here, the extra precision bits are examined to determine if
-   the result fraction's last bit should be rounded up. IEEE 754 supports five
+1. **Rounding:** Here, the extra precision bits are examined to determine if the
+   result fraction's last bit should be rounded up. IEEE 754 supports five
    rounding modes:
 
-   * Round towards 0: just chop off the extra precision bits.
-   * Round towards +infinity: round up if any extra precision bits are set.
-   * Round towards -infinity: round down if any extra precision bits are set.
-   * Round to nearest, ties away from zero: Rounds to the nearest value. In
+   - Round towards 0: just chop off the extra precision bits.
+
+   - Round towards +infinity: round up if any extra precision bits are set.
+
+   - Round towards -infinity: round down if any extra precision bits are set.
+
+   - Round to nearest, ties away from zero: Rounds to the nearest value. In
      cases where the extra precision bits are halfway between values, i.e.,
      0b100, then the result is rounded up for positive numbers and down for
      negative ones.
-   * Round to nearest, ties to even: Rounds to the nearest value. In cases
-     where the extra precision bits are halfway between values, then the
-     result is rounded in whichever direction causes the LSB of the result
-     significant to be 0.
 
-     * This is the most commonly-used rounding mode.
-     * This is [currently] the only supported mode by the DSLX implementation.
+   - Round to nearest, ties to even: Rounds to the nearest value. In cases where
+     the extra precision bits are halfway between values, then the result is
+     rounded in whichever direction causes the LSB of the result significant to
+     be 0.
 
-1. **Special case handling:** The results are examined for special cases such
-   as NaNs, infinities, or (optionally) subnormals.
+     - This is the most commonly-used rounding mode.
+     - This is [currently] the only supported mode by the DSLX implementation.
+
+1. **Special case handling:** The results are examined for special cases such as
+   NaNs, infinities, or (optionally) subnormals.
 
 <!-- mdformat on -->
 
@@ -873,8 +877,6 @@ implementations will give the same results for the same inputs. [^2] In
 addition, POSIX has the same result-precision language. It's worth noting that
 -ffast-math doesn't currently affect FMA emission/fusion/fission/etc.
 
-[^2]: There are operations for which this is not true. Transcendental ops may
-
 differ between implementations due to the
 [*table maker's dilemma*](https://en.wikipedia.org/wiki/Rounding).
 
@@ -909,3 +911,5 @@ This sort of testing utilizes our formal solver infrastructure to prove
 correctness with the solver's internal FP implementation. This is fully
 described in the
 [solvers documentation](./solvers.md).
+
+[^2]: There are operations for which this is not true. Transcendental ops may

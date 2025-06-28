@@ -8,20 +8,20 @@ in the XLS project, with the relevant Google style guides
 
 ## C++
 
-*   Align the pointer or reference modifier token with the type; e.g. `Foo&
+-   Align the pointer or reference modifier token with the type; e.g. `Foo&
     foo = ...` instead of `Foo &foo = ...`, and `Foo* foo = ...` instead of `Foo
     *foo= ...`.
 
-*   Use `/*parameter_name=*/value` style comments if you choose to annotate
+-   Use `/*parameter_name=*/value` style comments if you choose to annotate
     arguments in a function invocation. `clang-tidy` recognizes this form, and
     provides a Tricorder notification if `parameter_name` is mismatched against
     the parameter name of the callee.
 
-*   Prefer `int64_t` over `int` to avoid any possibility of overflow.
+-   Prefer `int64_t` over `int` to avoid any possibility of overflow.
 
-*   Always use `Status` or `StatusOr` for any error that a user could encounter.
+-   Always use `Status` or `StatusOr` for any error that a user could encounter.
 
-*   Other than user-facing errors, use `Status` only in exceptional situations.
+-   Other than user-facing errors, use `Status` only in exceptional situations.
     For example, `Status` is good to signal that a required file does not exist
     but not for signaling that constant folding did not constant fold an
     expression.
@@ -29,16 +29,16 @@ in the XLS project, with the relevant Google style guides
     See [how heavyweight is StatusOr](#how-heavyweight-is-statusor) for more
     details on thinking about the costs involved.
 
-*   Internal errors for conditions that should never be false can use `CHECK`,
+-   Internal errors for conditions that should never be false can use `CHECK`,
     but may also use `Status` or `StatusOr`.
 
-*   Prefer to brace single-statement blocks. Because the `XLS_ASSIGN_OR_RETURN`
+-   Prefer to brace single-statement blocks. Because the `XLS_ASSIGN_OR_RETURN`
     macro expands into multiple statements, this can cause problems when using
     unbraced single-statement blocks. Instead of XLS developers needing to think
     about individual cases of single statement blocks, we brace all single
     statement blocks.
 
-*   Prefer using `XLS_ASSIGN_OR_RETURN` / `XLS_RETURN_IF_ERROR` when
+-   Prefer using `XLS_ASSIGN_OR_RETURN` / `XLS_RETURN_IF_ERROR` when
     appropriate. When binding a `StatusOr` wrapped value, prefer to name the
     variable after its underlying value (just as we do with pointers). Avoid
     names like `maybe_foo` or `foo_or`, which can lead to multiple variables
@@ -52,21 +52,21 @@ in the XLS project, with the relevant Google style guides
     }
     ```
 
-*   Prefer `CHECK` to `DCHECK`, except that `DCHECK` can be used to verify
+-   Prefer `CHECK` to `DCHECK`, except that `DCHECK` can be used to verify
     conditions that it would be too expensive to verify in production, but that
     are fast enough to include outside of production.
 
-*   Use `QCHECK` and `LOG(QFATAL)` during program startup when verifying startup
+-   Use `QCHECK` and `LOG(QFATAL)` during program startup when verifying startup
     parameters (i.e., flags); prefer `CHECK` and `LOG(FATAL)` in all other
     circumstances, as the `Q` variants suppress `atexit` handling (including
     `--cpu_profile`).
 
-*   Follow the C++ style guide for capitalization guidelines; however, in the
+-   Follow the C++ style guide for capitalization guidelines; however, in the
     somewhat ambiguous case of I/O (short for Input/Output, which we use often),
     the slash counts as internal spacing and therefore the capitalization we use
     is `IO`, as in `WrapIO` or `StreamingIOReader`.
 
-*   Prefer to use the `XLS_FRIEND_TEST` macro vs friending manually-mangled test
+-   Prefer to use the `XLS_FRIEND_TEST` macro vs friending manually-mangled test
     names.
 
     At times it can be useful to test unit test a private/protected member of a
@@ -74,7 +74,7 @@ in the XLS project, with the relevant Google style guides
     test case must live outside an unnamed namespace in the test file for the
     "friending" to work properly.
 
-*   For simple const accessors, for the sake of consistency in the code base,
+-   For simple const accessors, for the sake of consistency in the code base,
     and a weak preference towards the benefits of information hiding, prefer to
     return view types over the apparent type of the member; e.g.
 
@@ -89,7 +89,7 @@ in the XLS project, with the relevant Google style guides
     };
     ```
 
-*   Follow the
+-   Follow the
     [style guide's](https://google.github.io/styleguide/cppguide.html#Run-Time_Type_Information__RTTI_)
     decision to avoid RTTI. In practice, this means `down_cast<>` should be used
     instead of `dynamic_cast<>`. However, the style guide says to avoid
@@ -99,20 +99,20 @@ in the XLS project, with the relevant Google style guides
     those parts of the codebase. Elsewhere, especially with IR `Node` types,
     `down_cast<>` should be used instead.
 
-*   Prefer `std::string_view` to `absl::string_view`. `absl::string_view` mainly
+-   Prefer `std::string_view` to `absl::string_view`. `absl::string_view` mainly
     differs from `std::string_view` in construction from nullptr, which our
     usage/callers do not depend upon. This decision lets us switch over to the
     more consistent end-state sooner. Although the style guide recommends we
     prefer `absl::string_view` for now, the rationale for why does not really
     apply to us and their target end state is clear.
 
-*   XLS code is often written in a functional (i.e. separating functions from
+-   XLS code is often written in a functional (i.e. separating functions from
     the [ideally immutable] structs they operate on) and layered style, which
     leads to `_utils.h` style translation units that layer on and compose
     functionality. Prefer the suffix `_utils.h` for these, vs `_helpers.h` or
     other alternatives.
 
-*   Static member functions should be used sparingly, generally only for
+-   Static member functions should be used sparingly, generally only for
     factories that call a private constructor. We prefer to document
     implementations with a `/* static */` comment as a reminder to readers (and
     writers that there is no `this` available). Comments are not an ideal way to
@@ -120,12 +120,12 @@ in the XLS project, with the relevant Google style guides
     functions and as factories it is unlikely the static qualifier will be
     dropped in the future to put the comments out of sync.
 
-*   We use C++ standard-library filesystem functions and data structures, in the
+-   We use C++ standard-library filesystem functions and data structures, in the
     absence of an accepted open-source alternative other than Boost.
 
 ### Functions
 
-*   Short or easily-explained argument lists (as defined by the developer) can
+-   Short or easily-explained argument lists (as defined by the developer) can
     be explained inline with the rest of the function comment. For more complex
     argument lists, the following pattern should be used:
 
@@ -178,9 +178,9 @@ reasonable ideas include:
 
 1.  A `virtual std::optional<int64_t> Node::channel_id()` (or
     `absl::StatusOr<int64_t>`) implementation.
-2.  A subclass or mixin trait like `ChannelNode` that extends `Node` for `Send`
+1.  A subclass or mixin trait like `ChannelNode` that extends `Node` for `Send`
     to derive.
-3.  A visitor that implements similar functionality outside of the class
+1.  A visitor that implements similar functionality outside of the class
     hierarchy.
 
 These ideas are generally not a good fit for IR nodes. The first idea's main
@@ -223,7 +223,7 @@ further support the decision.
 
 #### Passing Node Types
 
-*   Unlike most data, IR elements should be passed as non-const pointers, even
+-   Unlike most data, IR elements should be passed as non-const pointers, even
     when expected to be const (which would usually indicate passing them as
     const references). Experience has shown that IR elements often develop
     non-const usages over time. Consider the case of IR analysis passes - those
@@ -236,7 +236,7 @@ further support the decision.
     could *actually* be appropriate become odd outliers, so our guidance is that
     IR elements should uniformly be passed as non-const pointers.
 
-*   A corollary to the above is that `nullptr` is generally not a valid input to
+-   A corollary to the above is that `nullptr` is generally not a valid input to
     functions taking IR elements. When an IR element is optional, we recommend
     explicitly using `std::optional<T*>`. We deviate from the style guide here
     because for IR elements `T*` sometimes means `const T&`, `T&`, or just `T`
@@ -246,13 +246,13 @@ further support the decision.
 
 ## Protocol buffers
 
-*   Prefer to use
+-   Prefer to use
     [proto3](https://developers.google.com/protocol-buffers/docs/proto3#simple)
     specifications in all new protocol buffer files.
 
 ## Tests
 
-*   If possible, avoid exact text comparisons of the output of XLS IR text
+-   If possible, avoid exact text comparisons of the output of XLS IR text
     serialization (i.e., `ToString` or `DumpIR`). Such tests are sensitive to
     the order and details of IR serialization and make it difficult to change
     the serialization. If text comparison is needed, then use a separate golden

@@ -129,18 +129,18 @@ _                 // valid
 However, we suggest the following **DSLX style rules**, which mirror the
 [Rust naming conventions](https://doc.rust-lang.org/1.0.0/style/style/naming/README.html).
 
-*   Functions are `written_like_this`
+-   Functions are `written_like_this`
 
-*   User-defined data types are `NamesLikeThis`
+-   User-defined data types are `NamesLikeThis`
 
-*   Constant bindings are `NAMES_LIKE_THIS`
+-   Constant bindings are `NAMES_LIKE_THIS`
 
-*   `_` is the "black hole" identifier -- a name that you can bind to but should
+-   `_` is the "black hole" identifier -- a name that you can bind to but should
     never read from, akin to Rust's wildcard pattern match or Python's "unused
     identifier" convention. It should never be referred to in an expression
     except as a "sink".
 
-*   `..` is the "rest of tuple" operator -- a name that you can bind to but
+-   `..` is the "rest of tuple" operator -- a name that you can bind to but
     should never read from, akin to Rust's wildcard pattern match. It should
     never be referred to in an expression except as a "sink".
 
@@ -779,8 +779,8 @@ fn test_main() { assert_eq("bcdef", add_one("abcde")) }
 ```
 
 DSLX string constants support the
-[full Rust set of escape sequences](https://doc.rust-lang.org/reference/tokens.html) -
-note that unicode escapes get encoded to their UTF-8 byte sequence. In other
+[full Rust set of escape sequences](https://doc.rust-lang.org/reference/tokens.html)
+\- note that unicode escapes get encoded to their UTF-8 byte sequence. In other
 words, the sequence `\u{10CB2F}` will result in an array with hexadecimal values
 `F4 8C AC AF`.
 
@@ -915,8 +915,6 @@ inference rule. The types must be known for inputs to an
 operator/function[^usebeforedef] and every expression has a way to determine its
 type from its operand expressions.
 
-[^usebeforedef]: Otherwise there'd be a use-before-definition error.
-
 DSLX uses deductive type inference to check the types present in the program.
 Deductive type inference is a set of (typically straightforward) deduction
 rules: Hindley-Milner style deductive type inference determines the result type
@@ -965,12 +963,12 @@ the point the add is performed):
 
 To resolve the `?` the following procedure is being used:
 
-*   Pattern match the rule given above `(T, T) -> T` to determine the type `T`:
+-   Pattern match the rule given above `(T, T) -> T` to determine the type `T`:
     the left hand side operand is `bits[2]`, called `T`.
-*   Check that the right hand side operand is also that same `T`, which it is:
+-   Check that the right hand side operand is also that same `T`, which it is:
     another `bits[2]`.
-*   Deduce that the result type is that same type `T`: `bits[2]`.
-*   That becomes the return type of the body of the function. Check that it is
+-   Deduce that the result type is that same type `T`: `bits[2]`.
+-   That becomes the return type of the body of the function. Check that it is
     the same type as the annotated return type for the function, and it is!
 
 The function is annotated to return `bits[2]`, and the deduced type of the body
@@ -1222,8 +1220,8 @@ to `u32:9`: `(u32:1 + u32:2) * u32:3`.
 DSLX supports two types of unary expressions with type signature `(xN[N]) ->
 xN[N]`:
 
-*   bit-wise not (the `!` operator)
-*   negate (the `-` operator, which computes two's complement negation)
+-   bit-wise not (the `!` operator)
+-   negate (the `-` operator, which computes two's complement negation)
 
 ### Binary Expressions
 
@@ -1236,12 +1234,12 @@ operands can be of arbitrary bit types (i.e., shift expressions).
 
 The following expressions have type signature `(xN[N], xN[N]) -> xN[N]`.
 
-*   bit-wise or (`|`)
-*   bit-wise and (`&`)
-*   bit-wise xor (`^`)
-*   add (`+`)
-*   subtract (`-`)
-*   multiply (`*`)
+-   bit-wise or (`|`)
+-   bit-wise and (`&`)
+-   bit-wise xor (`^`)
+-   add (`+`)
+-   subtract (`-`)
+-   multiply (`*`)
 
 Functions like
 [`std::smul`](https://github.com/search?q=repo%3Agoogle%2Fxls+path%3Axls%2Fdslx/stdlib/std.x%20%22fn+smul%22)
@@ -1255,8 +1253,8 @@ especially with trivial zero-/sign-extended operands like `std::smul` and
 
 #### Logical Expressions
 
-*   logical or (`||`)
-*   logical and (`&&`)
+-   logical or (`||`)
+-   logical and (`&&`)
 
 These are binary operations that are of the type `(bool, bool) -> bool`. (Note
 that `bool` is equivalent to `u1`.)
@@ -1265,8 +1263,8 @@ that `bool` is equivalent to `u1`.)
 
 Shift expressions include:
 
-*   shift-right logical (`>>`)
-*   shift-left (`<<`)
+-   shift-right logical (`>>`)
+-   shift-left (`<<`)
 
 These are binary operations that don't require the same type on the left and
 right hand side. The right hand side must be unsigned, but it does not need to
@@ -1289,12 +1287,12 @@ shift-right (logical).
 For comparison expressions, the types of both operands must match. However these
 operations return a result of type `bits[1]`, aka `bool`.
 
-*   equal (`==`)
-*   not-equal (`!=`)
-*   greater-equal (`>=`)
-*   greater (`>`)
-*   less-equal (`<=`)
-*   less (`<`)
+-   equal (`==`)
+-   not-equal (`!=`)
+-   greater-equal (`>=`)
+-   greater (`>`)
+-   less-equal (`<=`)
+-   less (`<`)
 
 ### Concat Expression
 
@@ -1343,9 +1341,9 @@ Since DSLX does not currently have the concept of lifetimes, and since names can
 be rebound (i.e., this is valid: `let a = u32:0; let a = u32:1;`), blocks have
 the following uses:
 
-*   to syntactically form the body of functions and loops
-*   to limit the scope of variables
-*   to increase readability
+-   to syntactically form the body of functions and loops
+-   to limit the scope of variables
+-   to increase readability
 
 ### `match` Expression
 
@@ -1690,13 +1688,13 @@ DSLX adopts the
 [Rust rules](https://doc.rust-lang.org/1.30.0/book/first-edition/casting-between-types.html)
 for semantics of numeric casts:
 
-*   Casting from **larger bit-widths to smaller bit-widths** will truncate (to
+-   Casting from **larger bit-widths to smaller bit-widths** will truncate (to
     the LSbs).
-    *   This means that **truncating signed values does not preserve the
+    -   This means that **truncating signed values does not preserve the
         previous value of the sign bit**.
-*   Casting from a smaller bit-width to a larger bit-width will zero-extend if
+-   Casting from a smaller bit-width to a larger bit-width will zero-extend if
     the source is unsigned, or sign-extend if the source is signed.
-*   Casting from a bit-width to its own bit-width, between signed/unsigned, is a
+-   Casting from a bit-width to its own bit-width, between signed/unsigned, is a
     no-op.
 
 ```dslx
@@ -2081,8 +2079,6 @@ exhaustive concrete-stimulus-based testing becomes implausible, and users should
 consider attempting to prove the QuickCheck formally via the
 `prove_quickcheck_main` tool.
 
-[hughes-paper]: https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf
-
 ## Communicating Sequential Processes (AKA procs)
 
 Functions conceptually exist independent of "time". They describe a "feed
@@ -2217,3 +2213,6 @@ proc Top {
     }
 }
 ```
+
+[^usebeforedef]: Otherwise there'd be a use-before-definition error.
+[hughes-paper]: https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf

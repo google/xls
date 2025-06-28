@@ -30,11 +30,11 @@ the through the graph.
 The left hand side of the UI shows the IR in text form in an editable text box.
 The IR may be entered or loaded in several ways:
 
-*   Upload from a file on the local file system via the **Upload** button.
+-   Upload from a file on the local file system via the **Upload** button.
 
-*   Enter directly by typing in the text box or cut and pasting.
+-   Enter directly by typing in the text box or cut and pasting.
 
-*   Load a pre-compiled benchmark via the **Benchmarks** button. The IR is from
+-   Load a pre-compiled benchmark via the **Benchmarks** button. The IR is from
     the benchmark after optimizations.
 
 The text IR is parsed as you type. The result of the parse (**OK** or an error)
@@ -48,15 +48,15 @@ The right-hand side of the UI shows the IR in graphical form. Clicking on the
 **View Graph** button is enabled only if the IR is parsed successfully. The
 graph view may be manipulated as follows:
 
-*   ***Zoom*** The mouse scroll wheel zooms the view of the IR graph.
+-   ***Zoom*** The mouse scroll wheel zooms the view of the IR graph.
 
-*   ***Pan*** Clicking and holding the left mouse button down in the graph panel
+-   ***Pan*** Clicking and holding the left mouse button down in the graph panel
     (while not on a graph element) and moving the mouse pans the graph.
 
-*   ***Moving nodes*** Nodes in the graph are moved by clicking and holding on
+-   ***Moving nodes*** Nodes in the graph are moved by clicking and holding on
     the node and moving the mouse.
 
-*   ***Focusing on nodes*** Clicking on a node in the graph while holding down
+-   ***Focusing on nodes*** Clicking on a node in the graph while holding down
     the control key scrolls the respective definition of the node in the text IR
     into view in the text box. Similarly, control clicking on an identifier in
     the text IR zooms and centers the graph view on the respective node.
@@ -79,12 +79,12 @@ IR.
 Information about a highlighted node (identifier in text IR) is displayed in a
 box above the IR graph. This information includes:
 
-*   The definition of the IR value in text form.
+-   The definition of the IR value in text form.
 
-*   Estimate of the delay in picoseconds of the corresponding operation. The
+-   Estimate of the delay in picoseconds of the corresponding operation. The
     delay estimation methodology is described [here](delay_estimation.md).
 
-*   Any known bits of the value as determined by the query engine
+-   Any known bits of the value as determined by the query engine
     (https://github.com/google/xls/tree/main/xls/passes/query_engine.h).
 
 ### Selecting nodes

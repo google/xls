@@ -20,7 +20,7 @@ Pipeline scheduling occurs in two phases:
     any pipeline stage and limits how many IR operations might be placed in each
     stage.
 
-2.  Given the constraints of the effective clock period and, optionally, a
+1.  Given the constraints of the effective clock period and, optionally, a
     user-defined number of pipeline stages, find the schedule which minimizes
     the number of pipeline registers. Pipeline registers are required for any IR
     operation whose value which is used in a later stage.
@@ -33,21 +33,18 @@ but maybe set programmatically. Each is optional though at least one of **clock
 period** or **pipeline stages** must be specified. Different combinations of
 options result in different strategies as described [below](#common-options).
 
-Clock period
-:   The target clock period.
+Clock period : The target clock period.
 
-Pipeline stages
-:   The number of stages in the pipeline.
+Pipeline stages : The number of stages in the pipeline.
 
-Clock margin percent
-:   The percentage to reduce the target clock period before scheduling. May only
-    be specified with **clock period**. This option is equivalent to specifying
-    a reduced value for **clock period**.
+Clock margin percent : The percentage to reduce the target clock period before
+scheduling. May only be specified with **clock period**. This option is
+equivalent to specifying a reduced value for **clock period**.
 
-Clock period relaxation percent
-:   This is the percentage that the computed minimum clock period, as determined
-    by the number of pipeline stages, is increased (relaxed) prior to
-    scheduling. May not be specified with **clock period**.
+Clock period relaxation percent : This is the percentage that the computed
+minimum clock period, as determined by the number of pipeline stages, is
+increased (relaxed) prior to scheduling. May not be specified with **clock
+period**.
 
 ### Step 1: determine the effective clock period
 
@@ -62,7 +59,7 @@ depending upon whether the **clock period** option is specified.
     reduced by the given percentage. Example: if **clock period** is 800ps and
     **clock margin percent** is 20% then the effective clock period is 640ps.
 
-2.  **clock period** not specified
+1.  **clock period** not specified
 
     In this case, **pipeline stages** must be specified. The effective clock
     period is computed as the minimum clock period in which a schedule may be
@@ -102,26 +99,26 @@ should be set to enable them.
     constraints. The option **clock margin percent** can be swept to search the
     local design space (or equivalently, sweep **clock period**)
 
-2.  Minimize the clock period for a given number of pipeline stages
+1.  Minimize the clock period for a given number of pipeline stages
 
     Specify only **pipeline stages**. XLS will find a schedule with minimum
     clock period with a secondary objective of minimizing the number of pipeline
     registers. Sweeping **clock period relaxation percent** explores relaxing
     the timing constraint which may result in fewer pipeline registers.
 
-3.  Minimize the number of pipeline stages for a given clock period
+1.  Minimize the number of pipeline stages for a given clock period
 
     Specify only **clock period**. XLS will find a schedule of the minimum
     number of stages with a secondary objective of minimizing the number of
     pipeline registers. The option **clock margin percent** can be swept to
     search the local design space (or equivalently, sweep **clock period**)
 
-4.  Minimize the number of pipeline registers for a given clock period
+1.  Minimize the number of pipeline registers for a given clock period
 
     Specify only **clock period** and sweep **pipeline stages**. Pick the
     schedule which produces the minimum number of pipeline registers.
 
-5.  Sweep the entire scheduling space
+1.  Sweep the entire scheduling space
 
     The various options directly or indirectly control the two degrees of
     freedom within the scheduler: pipeline stages and clock period. Sweeping
@@ -155,10 +152,6 @@ assigns nodes to cycles such that the required register bits are minimized. We
 found that switching from the min-cut algorithm to SDC resulted in marginal
 improvements to benchmarks and increased compile times by an small and
 acceptable amount.
-
-[^lifetime]: The lifetime of a node is the interval starting at the cycle number
-    assigned to the node and ending at the maximum cycle number of the
-    users of the node.
 
 ### Constraints
 
@@ -202,3 +195,7 @@ In the SDC scheduler, we use `x - y ≤ k` constraints to express causality and
 timing constraints, whereas `x - y - z ≤ k` constraints are used to constrain
 the lifetime variables to be equal to the difference between the max user cycle
 and the cycle of a given node.
+
+[^lifetime]: The lifetime of a node is the interval starting at the cycle number
+    assigned to the node and ending at the maximum cycle number of the
+    users of the node.

@@ -40,15 +40,15 @@ out, running through [some tutorials](https://google.github.io/xls/tutorials/),
 
 We are early stage and this has some practical effects:
 
-*   We welcome your issues and PRs.
-    *   Please try to lead with an issue. Engage us in conversation if you wish
+-   We welcome your issues and PRs.
+    -   Please try to lead with an issue. Engage us in conversation if you wish
         to upstream changes. Sending a PR without back and forth with us in an
         issue may be a longer road to success. If you believe your PR is ready
         and has not received a response within two business days, please ping
         the issue with what you think are next steps.
-*   At the current point in its evolution, we regularly improve DSLX without
+-   At the current point in its evolution, we regularly improve DSLX without
     considering backward compatibility.
-    *   If you are building a corpus of hardware with XLS, please be thoughtful
+    -   If you are building a corpus of hardware with XLS, please be thoughtful
         about your process for bringing in new versions of the compiler.
 
 ## Colab Notebooks
@@ -56,17 +56,18 @@ We are early stage and this has some practical effects:
 For a more setup-free and environment-independent way of trying out XLS, see our
 colab notebooks:
 
-*   [bit.ly/learn-xls](https://bit.ly/learn-xls): a "learn XLS in Y minutes"
+-   [bit.ly/learn-xls](https://bit.ly/learn-xls): a "learn XLS in Y minutes"
     style walkthrough in DSLX, our Rust-inspired domain specific language (DSL).
-*   [bit.ly/xls-playground](https://bit.ly/xls-playground): an XLS evaluation
+
+-   [bit.ly/xls-playground](https://bit.ly/xls-playground): an XLS evaluation
     environment that can run the following interactively:
 
-    *   XLS tests
-    *   XLS→IR conversion
-    *   IR→Verilog codegen
-    *   Verilog synthesis via Yosys (using open PDKs ASAP7 and SKY130)
-    *   Place-and-Route (P&R) via OpenROAD
-    *   Power/Performance/Area (PPA) metric collection
+    -   XLS tests
+    -   XLS→IR conversion
+    -   IR→Verilog codegen
+    -   Verilog synthesis via Yosys (using open PDKs ASAP7 and SKY130)
+    -   Place-and-Route (P&R) via OpenROAD
+    -   Power/Performance/Area (PPA) metric collection
 
 ## Install Latest Release
 
@@ -103,9 +104,9 @@ distribution.
 
 On an average 8-core VM:
 
-*   A full initial build **without the C++ front-end (e.g. "DSLX only") may take
+-   A full initial build **without the C++ front-end (e.g. "DSLX only") may take
     about 2 hours**,
-*   **Including the C++ front-end may take up to 6 hours.**
+-   **Including the C++ front-end may take up to 6 hours.**
 
 Please see the two corresponding command lines below -- we start by assuming
 [Bazel has been installed](https://bazel.build/install/ubuntu):
@@ -185,99 +186,99 @@ purpose, and correspond to the components in this XLS stack diagram:
 <img src='https://google.github.io/xls/images/xls_stack_diagram.png' alt='XLS Stack Diagram'>
 </div>
 
-*   [`dependency_support`](https://github.com/google/xls/tree/main/dependency_support):
+-   [`dependency_support`](https://github.com/google/xls/tree/main/dependency_support):
     Configuration files that load, build, and expose Bazel targets for
     *external* dependencies of XLS.
-*   [`docs_src`](https://github.com/google/xls/tree/main/docs_src): Markdown
+-   [`docs_src`](https://github.com/google/xls/tree/main/docs_src): Markdown
     file sources, rendered to `docs` via
     [mkdocs](https://google.github.io/xls/contributing/#rendering-documentation).
-*   [`xls`](https://github.com/google/xls/tree/main/xls): Project-named
+-   [`xls`](https://github.com/google/xls/tree/main/xls): Project-named
     subdirectory within the repository, in common Bazel-project style.
-    *   [`build`](https://github.com/google/xls/tree/main/xls/BUILD): Build
+    -   [`build`](https://github.com/google/xls/tree/main/xls/BUILD): Build
         macros that create XLS artifacts; e.g. convert DSL to IR, create test
         targets for DSL code, etc.
-    *   [`codegen`](https://github.com/google/xls/tree/main/xls/codegen):
+    -   [`codegen`](https://github.com/google/xls/tree/main/xls/codegen):
         Verilog AST (VAST) support to generate Verilog/SystemVerilog operations
         and FSMs. VAST is built up by components we call *generators* (e.g.
         PipelineGenerator, SequentialGenerator for FSMs) in the translation from
         XLS IR.
-    *   [`common`](https://github.com/google/xls/tree/main/xls/common): "base"
+    -   [`common`](https://github.com/google/xls/tree/main/xls/common): "base"
         functionality that layers on top of standard library usage. Generally we
         use [Abseil](https://abseil.io) versions of base constructs wherever
         possible.
-    *   [`contrib/xlscc`](https://github.com/google/xls/tree/main/xls/contrib/xlscc):
+    -   [`contrib/xlscc`](https://github.com/google/xls/tree/main/xls/contrib/xlscc):
         Experimental C++ syntax support that targets XLS IR (alternative path to
         DSLX) developed by a sister team at Google, sharing the same open source
         / testing flow as the rest of the XLS project. May be of particular
         interest for teams with existing C++ HLS code bases.
-    *   [`data_structures`](https://github.com/google/xls/tree/main/xls/data_structures):
+    -   [`data_structures`](https://github.com/google/xls/tree/main/xls/data_structures):
         Generic data structures used in XLS that augment standard libraries;
         e.g. BDDs, union find, min cut, etc.
-    *   [`delay_model`](https://github.com/google/xls/tree/main/xls/estimators/delay_model):
+    -   [`delay_model`](https://github.com/google/xls/tree/main/xls/estimators/delay_model):
         Functionality to characterize, describe, and interpolate data delay for
         XLS IR operations on a target backend process. Already-characterized
         descriptions are placed in `xls/estimators/delay_model/models` and can
         be referred to via command line flags.
-    *   [`dslx`](https://github.com/google/xls/tree/main/xls/dslx): A DSL
+    -   [`dslx`](https://github.com/google/xls/tree/main/xls/dslx): A DSL
         (called "DSLX") that mimics Rust, while being an immutable
         expression-language dataflow DSL with hardware-oriented features; e.g.
         arbitrary bitwidths, entirely fixed size objects, fully analyzeable call
         graph. XLS team has found dataflow DSLs are a good fit to describe
         hardware as compared to languages designed assume von Neumann style
         computation.
-    *   [`fuzzer`](https://github.com/google/xls/tree/main/xls/fuzzer): A
+    -   [`fuzzer`](https://github.com/google/xls/tree/main/xls/fuzzer): A
         whole-stack multiprocess fuzzer that generates programs at the DSL level
         and cross-compares different execution engines (DSL interpreter, IR
         interpreter, IR JIT, code-generated-Verilog simulator). Designed so that
         it can easily be run on different nodes in a cluster simultaneously and
         accumulate shared findings.
-    *   [`examples`](https://github.com/google/xls/tree/main/xls/examples):
+    -   [`examples`](https://github.com/google/xls/tree/main/xls/examples):
         Example computations that are tested and executable through the XLS
         stack.
-    *   [`experimental`](https://github.com/google/xls/tree/main/xls/experimental):
+    -   [`experimental`](https://github.com/google/xls/tree/main/xls/experimental):
         Artifacts captured from experimental explorations.
-    *   [`interpreter`](https://github.com/google/xls/tree/main/xls/interpreter):
+    -   [`interpreter`](https://github.com/google/xls/tree/main/xls/interpreter):
         Interpreter for XLS IR - useful for debugging and exploration. For cases
         needing throughput, consider using the JIT (below).
-    *   [`ir`](https://github.com/google/xls/tree/main/xls/ir): XLS IR
+    -   [`ir`](https://github.com/google/xls/tree/main/xls/ir): XLS IR
         definition, text parser/formatter, and facilities for abstract
         evaluation.
-    *   [`jit`](https://github.com/google/xls/tree/main/xls/jit): LLVM-based JIT
+    -   [`jit`](https://github.com/google/xls/tree/main/xls/jit): LLVM-based JIT
         for XLS IR. Enables native-speed execution of DSLX and XLS IR programs.
-    *   [`modules`](https://github.com/google/xls/tree/main/xls/modules):
+    -   [`modules`](https://github.com/google/xls/tree/main/xls/modules):
         Hardware building block DSLX "libraries" (outside the DSLX standard
         library) that may be easily reused or instantiated in a broader design.
-    *   [`netlist`](https://github.com/google/xls/tree/main/xls/netlist):
+    -   [`netlist`](https://github.com/google/xls/tree/main/xls/netlist):
         Libraries that parse/analyze/interpret netlist-level descriptions, as
         are generally given in simple structural Verilog with an associated cell
         library.
-    *   [`passes`](https://github.com/google/xls/tree/main/xls/passes): Passes
+    -   [`passes`](https://github.com/google/xls/tree/main/xls/passes): Passes
         that run on the XLS IR as part of optimization, before scheduling / code
         generation.
-    *   [`scheduling`](https://github.com/google/xls/tree/main/xls/scheduling):
+    -   [`scheduling`](https://github.com/google/xls/tree/main/xls/scheduling):
         Scheduling algorithms, determine when operations execute (e.g. which
         pipeline stage) in a clocked design.
-    *   [`simulation`](https://github.com/google/xls/tree/main/xls/simulation):
+    -   [`simulation`](https://github.com/google/xls/tree/main/xls/simulation):
         Code that wraps Verilog simulators and generates Verilog testbenches for
         XLS computations. [iverilog](https://github.com/steveicarus/iverilog) is
         currently used to simulate as it supports non-synthesizable testbench
         constructs.
-    *   [`solvers`](https://github.com/google/xls/tree/main/xls/solvers):
+    -   [`solvers`](https://github.com/google/xls/tree/main/xls/solvers):
         Converters from XLS IR into SMT solver input, such that formal proofs
         can be run on XLS computations; e.g. Logical Equalence Checks between
         XLS IR and a netlist description. [Z3](https://github.com/Z3Prover/z3)
         is used as the solver engine.
-    *   [`synthesis`](https://github.com/google/xls/tree/main/xls/synthesis):
+    -   [`synthesis`](https://github.com/google/xls/tree/main/xls/synthesis):
         Interface that wraps backend synthesis flows, such that tools can be
         retargeted e.g. between ASIC and FPGA flows.
-    *   [`tests`](https://github.com/google/xls/tree/main/xls/tests):
+    -   [`tests`](https://github.com/google/xls/tree/main/xls/tests):
         Integration tests that span various top-level components of the XLS
         project.
-    *   [`tools`](https://github.com/google/xls/tree/main/xls/tools):
+    -   [`tools`](https://github.com/google/xls/tree/main/xls/tools):
         [Many tools](https://google.github.io/xls/tools/) that work with the XLS
         system and its libraries in a decomposed way via command line
         interfaces.
-    *   [`visualization`](https://github.com/google/xls/tree/main/xls/visualization):
+    -   [`visualization`](https://github.com/google/xls/tree/main/xls/visualization):
         Visualization tools to inspect the XLS compiler/system interactively.
         See [IR visualization](https://google.github.io/xls/ir_visualization/).
 
@@ -285,9 +286,9 @@ purpose, and correspond to the components in this XLS stack diagram:
 
 Discussions about XLS - development, debugging, usage, etc:
 
-*   Ideally happen in the
+-   Ideally happen in the
     [XLS repo GitHub discussions](https://github.com/google/xls/discussions)
-*   But, if you feel email is a better venue for the discussion, there is also
+-   But, if you feel email is a better venue for the discussion, there is also
     an [xls-dev mailing list](https://groups.google.com/g/xls-dev) -- please
     prefer GitHub discussions if possible as they are searchable and can be
     easily cross-referenced and converted to the issue tracker
@@ -302,47 +303,47 @@ project, see our
 if you're interested in contributing, or reach out via
 [GitHub discussions](https://github.com/google/xls/discussions)!
 
-*   [Aidan Kirk](https://github.com/aidankirk12)
-*   [Albert Magyar](https://github.com/albert-magyar)
-*   [Alex Light](https://github.com/allight)
-*   [Amin Kalantar](https://github.com/aminiok1)
-*   [Balint Christian](https://github.com/cbalint13)
-*   [Blaok](https://github.com/Blaok)
-*   [Brandon Jiang](https://github.com/brajiang)
-*   [Brian Searls](https://github.com/briansrls)
-*   [Chen-hao Chang](https://github.com/cchao)
-*   [Chris Drake](https://github.com/cjdrake)
-*   [Chris Leary](https://github.com/cdleary)
-*   [Conor McCullough](https://github.com/crmymh)
-*   [Dan Killebrew](https://github.com/dkillebrew-g)
-*   [Derek Lockhart](https://github.com/dmlockhart)
-*   [Eric Astor](https://github.com/ericastor)
-*   [Ethan Mahintorabi](https://github.com/QuantamHD)
-*   [Felix Zhu](https://github.com/felixzhuologist)
-*   [Georges Rotival](https://github.com/grotival)
-*   [Hanchen Ye](https://github.com/hanchenye)
-*   [Hans Montero](https://github.com/hmontero1205)
-*   [Henner Zeller](https://github.com/hzeller)
-*   [Iliyan Malchev](https://github.com/malchev)
-*   [Johan Euphrosine](https://github.com/proppy)
-*   [Jonathan Bailey](https://github.com/jbaileyhandle)
-*   [Josh Varga](https://github.com/JoshVarga)
-*   [Julian Viera](https://github.com/julianviera99)
-*   [Kevin Harlley](https://github.com/kevineharlley)
-*   [Leonardo Romor](https://github.com/lromor)
-*   [Manav Kohli](https://github.com/manav-kohli)
-*   [Mark Heffernan](https://github.com/meheff)
-*   [Paul Rigge](https://github.com/grebe)
-*   [Per Grön](https://github.com/per-gron)
-*   [Philipp Schilk](https://github.com/schilkp)
-*   [Ravi Nanavati](https://github.com/nanavati)
-*   [Rebecca Chen (Pytype)](https://github.com/rchen152)
-*   [Remy Goldschmidt](https://github.com/taktoa)
-*   [Robert Hundt](https://github.com/rhundt)
-*   [Rob Springer](https://github.com/RobSpringer)
-*   [Sameer Agarwal](https://github.com/sandwichmaker)
-*   [Sean Purser-Haskell](https://github.com/spurserh)
-*   [Ted Hong](https://github.com/hongted)
-*   [Ted Xie](https://github.com/ted-xie)
-*   [Tim Callahan](https://github.com/tcal-x)
-*   [Vincent Mirian](https://github.com/vincent-mirian-google)
+-   [Aidan Kirk](https://github.com/aidankirk12)
+-   [Albert Magyar](https://github.com/albert-magyar)
+-   [Alex Light](https://github.com/allight)
+-   [Amin Kalantar](https://github.com/aminiok1)
+-   [Balint Christian](https://github.com/cbalint13)
+-   [Blaok](https://github.com/Blaok)
+-   [Brandon Jiang](https://github.com/brajiang)
+-   [Brian Searls](https://github.com/briansrls)
+-   [Chen-hao Chang](https://github.com/cchao)
+-   [Chris Drake](https://github.com/cjdrake)
+-   [Chris Leary](https://github.com/cdleary)
+-   [Conor McCullough](https://github.com/crmymh)
+-   [Dan Killebrew](https://github.com/dkillebrew-g)
+-   [Derek Lockhart](https://github.com/dmlockhart)
+-   [Eric Astor](https://github.com/ericastor)
+-   [Ethan Mahintorabi](https://github.com/QuantamHD)
+-   [Felix Zhu](https://github.com/felixzhuologist)
+-   [Georges Rotival](https://github.com/grotival)
+-   [Hanchen Ye](https://github.com/hanchenye)
+-   [Hans Montero](https://github.com/hmontero1205)
+-   [Henner Zeller](https://github.com/hzeller)
+-   [Iliyan Malchev](https://github.com/malchev)
+-   [Johan Euphrosine](https://github.com/proppy)
+-   [Jonathan Bailey](https://github.com/jbaileyhandle)
+-   [Josh Varga](https://github.com/JoshVarga)
+-   [Julian Viera](https://github.com/julianviera99)
+-   [Kevin Harlley](https://github.com/kevineharlley)
+-   [Leonardo Romor](https://github.com/lromor)
+-   [Manav Kohli](https://github.com/manav-kohli)
+-   [Mark Heffernan](https://github.com/meheff)
+-   [Paul Rigge](https://github.com/grebe)
+-   [Per Grön](https://github.com/per-gron)
+-   [Philipp Schilk](https://github.com/schilkp)
+-   [Ravi Nanavati](https://github.com/nanavati)
+-   [Rebecca Chen (Pytype)](https://github.com/rchen152)
+-   [Remy Goldschmidt](https://github.com/taktoa)
+-   [Robert Hundt](https://github.com/rhundt)
+-   [Rob Springer](https://github.com/RobSpringer)
+-   [Sameer Agarwal](https://github.com/sandwichmaker)
+-   [Sean Purser-Haskell](https://github.com/spurserh)
+-   [Ted Hong](https://github.com/hongted)
+-   [Ted Xie](https://github.com/ted-xie)
+-   [Tim Callahan](https://github.com/tcal-x)
+-   [Vincent Mirian](https://github.com/vincent-mirian-google)

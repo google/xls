@@ -69,9 +69,9 @@ to `leaf_proc` in the proc hierarchy.
 
 Blocks can instantiate:
 
-*   Other blocks
-*   FIFOs
-*   External modules
+-   Other blocks
+-   FIFOs
+-   External modules
 
 Blocks interact with their instantiations via `InstantiationInput` and
 `InstantiationOutput` operations, which bind a value to a named port on the

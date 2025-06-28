@@ -27,8 +27,8 @@ $ bazel build -c opt //xls/tools:opt_main
 The `-c opt` flag is requesting we produce an optimized build. Other options for
 development are:
 
-*   `-c fastbuild`: fewer optimizations, quicker turn around time on builds, and
-*   `-c dbg`: debug binaries, minimal optimization level and debug information
+-   `-c fastbuild`: fewer optimizations, quicker turn around time on builds, and
+-   `-c dbg`: debug binaries, minimal optimization level and debug information
     produced, e.g. for using binaries under `gdb`
 
 Targets are referenced with `//` as the root of the current repository -- it is

@@ -24,9 +24,9 @@ A vector of bits with a fixed width.
 
 **Value syntax:**
 
-*   A literal decimal number. Example: `42`.
-*   A binary number prefixed with `0b`. Example: `0b10101`
-*   A hexadecimal number: `0x`. Example: `0xdeadbeef`
+-   A literal decimal number. Example: `42`.
+-   A binary number prefixed with `0b`. Example: `0b10101`
+-   A hexadecimal number: `0x`. Example: `0xdeadbeef`
 
 The representation may optionally include the bit width in which case the type
 is prefixed before the literal: `bits[N]:$literal`. Example: `bits[8]:0xab`.
@@ -41,16 +41,16 @@ elements. An array can contain bits, arrays, or tuples as elements. Empty
 
 `$type[N]`: an array containing `N` elements of type `$type`. Examples:
 
-*   Two-element array of 8-bit bits type: `bits[8][2]`
-*   Three-element array of tuple type: `(bits[32], bits[2])[3]`
+-   Two-element array of 8-bit bits type: `bits[8][2]`
+-   Three-element array of tuple type: `(bits[32], bits[2])[3]`
 
 **Value syntax:**
 
 `[$value_1, ... , $value_N]` where `$value_n` is the value of the `n`-th
 element. Examples:
 
-*   Array of bits elements with explicit bit count: `[bits[8]:10, bits[8]:30]`
-*   Three-element array consisting of two-element arrays of bits elements: `[[1,
+-   Array of bits elements with explicit bit count: `[bits[8]:10, bits[8]:30]`
+-   Three-element array consisting of two-element arrays of bits elements: `[[1,
     2], [3, 4], [5, 6]]]`
 
 ### Tuple
@@ -68,8 +68,8 @@ types. tuples can contain bits, arrays, or tuples as elements. May be empty.
 `($value_{0}, ..., $value_{N-1})` where `$value_n` is the value of the `n`-th
 element. Examples:
 
-*   Tuple containing two bits elements: `(0b100, 0b101)`
-*   A nested tuple containing various element types: `((1, 2), 42, [5, 6])`
+-   Tuple containing two bits elements: `(0b100, 0b101)`
+-   A nested tuple containing various element types: `((1, 2), 42, [5, 6])`
 
 ### Token
 
@@ -155,10 +155,10 @@ Defines the reset port and reset behavior of the block.
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword        | Description                                              |
-| -------------- | -------------------------------------------------------- |
-| `port`         | Name of the reset input port.                            |
-| `asynchronous` | Boolean value (`true` or `false`) indicating whether the reset is asynchronous. |
+| Keyword        | Description                                                                          |
+| -------------- | ------------------------------------------------------------------------------------ |
+| `port`         | Name of the reset input port.                                                        |
+| `asynchronous` | Boolean value (`true` or `false`) indicating whether the reset is asynchronous.      |
 | `active_low`   | Boolean value (`true` or `false`) indicating whether the reset signal is active-low. |
 
 <!-- mdformat on -->
@@ -179,8 +179,8 @@ result = operation(pos_arg_0, ..., pos_arg_N, keyword_0=value0, ..., keyword_M=v
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword | Type             | Required | Default | Description           |
-| ------- | ---------------- | -------- | ------- | --------------------- |
+| Keyword | Type             | Required | Default | Description                                                                                                                          |
+| ------- | ---------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `pos`   | `SourceLocation` | no       |         | The source location associated with this operation. The syntax is a triplet of comma-separated integer values: `Fileno,Lineno,Colno` |
 
 <!-- mdformat on -->
@@ -325,18 +325,18 @@ that all arithmetic operations will eventually support arbitrary widths.
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Operation | Opcode       | Semantics                                    |
-| --------- | ------------ | -------------------------------------------- |
-| `add`     | `Op::kAdd`   | `result = lhs + rhs`                         |
-| `sdiv`    | `Op::kSDiv`  | `result = $signed(lhs) / $signed(rhs)` * **  |
-| `smod`    | `Op::kSMod`  | `result = $signed(lhs) % $signed(rhs)` * *** |
-| `smul`    | `Op::kSMul`  | `result = $signed(lhs) * $signed(rhs)`       |
+| Operation | Opcode       | Semantics                                                      |
+| --------- | ------------ | -------------------------------------------------------------- |
+| `add`     | `Op::kAdd`   | `result = lhs + rhs`                                           |
+| `sdiv`    | `Op::kSDiv`  | `result = $signed(lhs) / $signed(rhs)` * \*\*                  |
+| `smod`    | `Op::kSMod`  | `result = $signed(lhs) % $signed(rhs)` * \*\*\*                |
+| `smul`    | `Op::kSMul`  | `result = $signed(lhs) * $signed(rhs)`                         |
 | `smulp`   | `Op::kSMulp` | `result[0] + result[1] = $signed(lhs) * $signed(rhs)` \*\*\*\* |
-| `sub`     | `Op::kSub`   | `result = lhs - rhs`                         |
-| `udiv`    | `Op::kUDiv`  | `result = lhs / rhs` * **                    |
-| `umod`    | `Op::kUMod`  | `result = lhs % rhs` *                       |
-| `umul`    | `Op::kUMul`  | `result = lhs * rhs`                         |
-| `umulp`   | `Op::kUMulp` | `result[0] + result[1] = lhs * rhs` \*\*\*\* |
+| `sub`     | `Op::kSub`   | `result = lhs - rhs`                                           |
+| `udiv`    | `Op::kUDiv`  | `result = lhs / rhs` * \*\*                                    |
+| `umod`    | `Op::kUMod`  | `result = lhs % rhs` \*                                        |
+| `umul`    | `Op::kUMul`  | `result = lhs * rhs`                                           |
+| `umulp`   | `Op::kUMulp` | `result[0] + result[1] = lhs * rhs` \*\*\*\*                   |
 
 <!-- mdformat on -->
 
@@ -344,14 +344,14 @@ that all arithmetic operations will eventually support arbitrary widths.
 problems with timing closure. It is usually best not to rely on this Verilog
 operator in practice, but instead explicitly instantiate a divider of choice.
 
-\** Division rounds toward zero. For unsigned division this is the same as
+\*\* Division rounds toward zero. For unsigned division this is the same as
 truncation. If the divisor is zero, unsigned division produces a maximal
 positive value. For signed division, if the divisor is zero the result is the
 maximal positive value if the dividend is non-negative or the maximal negative
 value if the dividend is negative.
 
-\*** The sign of the result of modulus matches the sign of the left operand. If
-the right operand is zero the result is zero.
+\*\*\* The sign of the result of modulus matches the sign of the left operand.
+If the right operand is zero the result is zero.
 
 \*\*\*\* The partial product multiply variants return a two-element tuple with
 both elements having the same type. The outputs are not fully constrained; the
@@ -445,16 +445,17 @@ the shift amount may be arbitrary.
 **Operations**
 
 Operation | Opcode      | Semantics
---------- | ----------- | --------------------------------------------------
-`shll`    | `Op::kShll` | `result = lhs << rhs` *
-`shra`    | `Op::kShra` | `result = lhs >>> rhs` (arithmetic shift right) **
-`shrl`    | `Op::kShrl` | `result = lhs >> rhs` *
+--------- | ----------- | ----------------------------------------------------
+`shll`    | `Op::kShll` | `result = lhs << rhs` \*
+`shra`    | `Op::kShra` | `result = lhs >>> rhs` (arithmetic shift right) \*\*
+`shrl`    | `Op::kShrl` | `result = lhs >> rhs` \*
 
 \* Logically shifting greater than or equal to the number of bits in the `lhs`
 produces a result of zero.
 
-** Arithmetic right shifting greater than or equal to the number of bits in the
-`lhs` produces a result equal to all of the bits set to the sign of the `lhs`.
+\*\* Arithmetic right shifting greater than or equal to the number of bits in
+the `lhs` produces a result equal to all of the bits set to the sign of the
+`lhs`.
 
 ### Extension operations
 
@@ -487,8 +488,8 @@ filling zeroes in the most significant bits.
 Sign-extends a value: turns its bit-length into the new target bit-length by
 filling in the most significant bits (MSbs) with the following policy:
 
-*   ones in the MSbs if the MSb of the original value was set, or
-*   zeros in the MSbs if the MSb of the original value was unset.
+-   ones in the MSbs if the MSb of the original value was set, or
+-   zeros in the MSbs if the MSb of the original value was unset.
 
 ### Channel operations
 
@@ -522,8 +523,8 @@ Value    | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword      | Type      | Required | Default | Description              |
-| ------------ | --------- | -------- | ------- | ------------------------ |
+| Keyword      | Type      | Required | Default | Description                                 |
+| ------------ | --------- | -------- | ------- | ------------------------------------------- |
 | `predicate`  | `bits[1]` | no       |         | A value is received iff `predicate` is true |
 | `blocking`   | `bool`    | no       | `true`  | Whether the receive is blocking             |
 | `channel_id` | `int64_t` | yes      |         | The ID of the channel to receive data from  |
@@ -557,10 +558,10 @@ The type of `data` must match the type supported by the channel.
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword      | Type    | Required | Default | Description                   |
-| ------------ | ------- | -------- | ------- | ----------------------------- |
+| Keyword      | Type      | Required | Default | Description                             |
+| ------------ | --------- | -------- | ------- | --------------------------------------- |
 | `predicate`  | `bits[1]` | no       |         | A value is sent iff `predicate` is true |
-| `channel_id` | `int64_t` | yes      |         | The ID of the channel to send data to. |
+| `channel_id` | `int64_t` | yes      |         | The ID of the channel to send data to.  |
 
 <!-- mdformat on -->
 
@@ -606,8 +607,8 @@ Value     | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword             | Type   | Required | Default | Description   |
-| ------------------- | ------ | -------- | ------- | ------------- |
+| Keyword             | Type   | Required | Default | Description                                                                                  |
+| ------------------- | ------ | -------- | ------- | -------------------------------------------------------------------------------------------- |
 | `assumed_in_bounds` | `bool` | no       | False   | Are all indices assumed to be in bounds in all circumstances where the result is observable. |
 
 <!-- mdformat on -->
@@ -627,13 +628,13 @@ assuming input array operand `A`.
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Indices   | Array type      | result type `T` | Result expression            |
-| --------- | --------------- | --------------- | ---------------------------- |
-| `{1, 2}`  | `bits[3][4][5]` | `bits[3]`       | `A[1][2]`                    |
+| Indices   | Array type      | result type `T` | Result expression                                                         |
+| --------- | --------------- | --------------- | ------------------------------------------------------------------------- |
+| `{1, 2}`  | `bits[3][4][5]` | `bits[3]`       | `A[1][2]`                                                                 |
 | `{10, 2}` | `bits[3][4][5]` | `bits[3]`       | `A[4][2]` (first index is out-of-bounds and clamped at the maximum index) |
-| `{1}`     | `bits[3][4][5]` | `bits[3][4]`    | `A[1]`                       |
-| `{}`      | `bits[3][4][5]` | `bits[3][4][5]` | `A`                          |
-| `{}`      | `bits[32]`      | `bits[32]`      | `A`                          |
+| `{1}`     | `bits[3][4][5]` | `bits[3][4]`    | `A[1]`                                                                    |
+| `{}`      | `bits[3][4][5]` | `bits[3][4][5]` | `A`                                                                       |
+| `{}`      | `bits[32]`      | `bits[32]`      | `A`                                                                       |
 
 <!-- mdformat on -->
 
@@ -697,8 +698,8 @@ Value     | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword             | Type   | Required | Default | Description             |
-| ------------------- | ------ | -------- | ------- | ----------------------- |
+| Keyword             | Type   | Required | Default | Description                                                                                            |
+| ------------------- | ------ | -------- | ------- | ------------------------------------------------------------------------------------------------------ |
 | `assumed_in_bounds` | `bool` | no       | False   | Are all indices assumed to be in bounds in all cases where the result of this operation is observable. |
 
 <!-- mdformat on -->
@@ -781,10 +782,10 @@ Value     | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword | Type    | Required | Default | Description       |
-| ------- | ------- | -------- | ------- | ----------------- |
+| Keyword | Type      | Required | Default | Description                                                                                                       |
+| ------- | --------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
 | `start` | `int64_t` | yes      |         | The starting bit of the slice. `start` is is zero-indexed where zero is the least-significant bit of the operand. |
-| `width` | `int64_t` | yes      |         | The width of the slice. |
+| `width` | `int64_t` | yes      |         | The width of the slice.                                                                                           |
 
 <!-- mdformat on -->
 
@@ -849,8 +850,8 @@ integer.
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword | Type    | Required | Default | Description       |
-| ------- | ------- | -------- | ------- | ----------------- |
+| Keyword | Type      | Required | Default | Description             |
+| ------- | --------- | -------- | ------- | ----------------------- |
 | `width` | `int64_t` | yes      |         | The width of the slice. |
 
 <!-- mdformat on -->
@@ -902,7 +903,7 @@ Value     | Type
 `operand` | `bits[N]`
 `result`  | `bits[M]`
 
-The result width `M` must be less than or equal to 2**`N` where `N` is the
+The result width `M` must be less than or equal to 2\*\*`N` where `N` is the
 operand width.
 
 **Keyword arguments**
@@ -914,7 +915,7 @@ Keyword | Type      | Required | Default | Description
 `decode` converts the binary-encoded operand value into a one-hot result. For an
 operand value of `n` interpreted as an unsigned number the `n`-th result bit and
 only the `n`-th result bit is set. The width of the `decode` operation may be
-less than the maximum value expressible by the input (2**`N` - 1). If the
+less than the maximum value expressible by the input (2\*\*`N` - 1). If the
 encoded operand value is larger than the number of bits of the result the result
 is zero.
 
@@ -933,7 +934,7 @@ Value     | Type
 `operand` | `bits[N]`
 `result`  | `bits[M]`
 
-The result width `M` must be equal to $$\lceil \log_{2} N \rceil$$.
+The result width `M` must be equal to $$\\lceil \\log\_{2} N \\rceil$$.
 
 `encode` converts the one-hot operand value into a binary-encoded value of the
 "hot" bit of the input. If the `n`-th bit and only the `n`-th bit of the operand
@@ -979,9 +980,9 @@ Value    | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword    | Type     | Required | Default | Description                    |
-| ---------- | -------- | -------- | ------- | ------------------------------ |
-| `lsb_prio` | `bool`   | yes      |         | Whether the least significant bit (LSb) has priority. |
+| Keyword    | Type   | Required | Default | Description                                           |
+| ---------- | ------ | -------- | ------- | ----------------------------------------------------- |
+| `lsb_prio` | `bool` | yes      |         | Whether the least significant bit (LSb) has priority. |
 
 <!-- mdformat on -->
 
@@ -998,11 +999,11 @@ significant bit in the output) is only set if no bits in the input are set.
 
 Examples:
 
-*   `one_hot(0b0011, lsb_prio=true)` => `0b00001` -- note that an extra MSb has
+-   `one_hot(0b0011, lsb_prio=true)` => `0b00001` -- note that an extra MSb has
     been appended to the output to potentially represent the "all zeros" case.
-*   `one_hot(0b0111, lsb_prio=false)` => `0b00100`.
-*   `one_hot(0b00, lsb_prio=false)` => `0b100`.
-*   `one_hot(0b00, lsb_prio=true)` => `0b100` -- note the output for `one_hot`
+-   `one_hot(0b0111, lsb_prio=false)` => `0b00100`.
+-   `one_hot(0b00, lsb_prio=false)` => `0b100`.
+-   `one_hot(0b00, lsb_prio=true)` => `0b100` -- note the output for `one_hot`
     is the same for the all-zeros case regardless of whether `lsb_prio` is true
     or false.
 
@@ -1166,8 +1167,8 @@ Value    | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword    | Type     | Required | Default | Description                    |
-| ---------- | -------- | -------- | ------- | ------------------------------ |
+| Keyword    | Type     | Required | Default | Description                                  |
+| ---------- | -------- | -------- | ------- | -------------------------------------------- |
 | `to_apply` | `string` | yes      |         | Name of the function to use as the loop body |
 
 <!-- mdformat on -->
@@ -1194,8 +1195,8 @@ Value     | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword    | Type     | Required | Default | Description                    |
-| ---------- | -------- | -------- | ------- | ------------------------------ |
+| Keyword    | Type     | Required | Default | Description                                                  |
+| ---------- | -------- | -------- | ------- | ------------------------------------------------------------ |
 | `to_apply` | `string` | yes      |         | Name of the function to apply to each element of the operand |
 
 <!-- mdformat on -->
@@ -1223,10 +1224,10 @@ Value        | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword          | Type     | Required | Default | Description               |
-| ---------------- | -------- | -------- | ------- | ------------------------- |
+| Keyword          | Type     | Required | Default | Description                                      |
+| ---------------- | -------- | -------- | ------- | ------------------------------------------------ |
 | `invariant_args` | array of | yes      |         | Names of the invariant operands as the loop body |
-| `body`           | `string` | yes      |         | Name of the function to use as the loop body |
+| `body`           | `string` | yes      |         | Name of the function to use as the loop body     |
 
 <!-- mdformat on -->
 
@@ -1234,14 +1235,14 @@ Value        | Type
 loop-carried data that starts with value `init`. The induction variable is
 incremented by `stride` after each iteration.
 
-*   The first argument passed to `body` is the induction variable -- presently,
+-   The first argument passed to `body` is the induction variable -- presently,
     the induction variable always starts at zero and increments by `stride`
     after every trip.
-*   The second argument passed to `body` is the loop-carry data. The return type
+-   The second argument passed to `body` is the loop-carry data. The return type
     of `body` must be the same as the type of the `init` loop carry data. The
     value returned from the last trip is the result of the `counted_for`
     expression.
-*   All subsequent arguments passed to `body` are passed from `invariant_args`;
+-   All subsequent arguments passed to `body` are passed from `invariant_args`;
     e.g. if there are two members in `invariant_args` those values are passed as
     the third and fourth arguments.
 
@@ -1280,26 +1281,26 @@ Value    | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword          | Type     | Required | Default | Description               |
-| ---------------- | -------- | -------- | ------- | ------------------------- |
-| `trip_count`     | `int64_t`  | yes      |         | Trip count of the loop (number of times that the loop body will be executed) |
-| `stride`         | `int64_t`  | no       | 1       | Stride of the induction variable |
-| `invariant_args` | array of | yes      |         | Names of the invariant operands as the loop body |
-| `body`           | `string` | yes      |         | Name of the function to use as the loop body |
+| Keyword          | Type      | Required | Default | Description                                                                  |
+| ---------------- | --------- | -------- | ------- | ---------------------------------------------------------------------------- |
+| `trip_count`     | `int64_t` | yes      |         | Trip count of the loop (number of times that the loop body will be executed) |
+| `stride`         | `int64_t` | no       | 1       | Stride of the induction variable                                             |
+| `invariant_args` | array of  | yes      |         | Names of the invariant operands as the loop body                             |
+| `body`           | `string`  | yes      |         | Name of the function to use as the loop body                                 |
 
 <!-- mdformat on -->
 
 `counted_for` invokes the function `body` `trip_count` times, passing
 loop-carried data that starts with value `init`.
 
-*   The first argument passed to `body` is the induction variable -- presently,
+-   The first argument passed to `body` is the induction variable -- presently,
     the induction variable always starts at zero and increments by `stride`
     after every trip.
-*   The second argument passed to `body` is the loop-carry data. The return type
+-   The second argument passed to `body` is the loop-carry data. The return type
     of `body` must be the same as the type of the `init` loop carry data. The
     value returned from the last trip is the result of the `counted_for`
     expression.
-*   All subsequent arguments passed to `body` are passed from `invariant_args`;
+-   All subsequent arguments passed to `body` are passed from `invariant_args`;
     e.g. if there are two members in `invariant_args` those values are passed as
     the third and fourth arguments.
 
@@ -1362,9 +1363,9 @@ Value    | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword         | Type              | Required | Default | Description                       |
-| --------------- | ----------------- | -------- | ------- | --------------------------------- |
-| `state_element` | `string`          | yes      |         | Name of the state element to read |
+| Keyword         | Type     | Required | Default | Description                       |
+| --------------- | -------- | -------- | ------- | --------------------------------- |
+| `state_element` | `string` | yes      |         | Name of the state element to read |
 
 <!-- mdformat on -->
 
@@ -1432,9 +1433,9 @@ Value       | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword   | Type              | Required | Default | Description     |
-| --------- | ----------------- | -------- | ------- | --------------- |
-| `message` | `string`          | yes      |         | Message to include in raised error |
+| Keyword   | Type              | Required | Default | Description                                                                   |
+| --------- | ----------------- | -------- | ------- | ----------------------------------------------------------------------------- |
+| `message` | `string`          | yes      |         | Message to include in raised error                                            |
 | `label`   | `optional string` | yes      |         | Label to associate with the assert statement in the generated (System)Verilog |
 
 <!-- mdformat on -->
@@ -1665,9 +1666,9 @@ Value    | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword         | Type     | Required | Default | Description                 |
-| --------------- | -------- | -------- | ------- | --------------------------- |
-| `instantiation` | `string` | yes      |         | Name of the instantiation.  |
+| Keyword         | Type     | Required | Default | Description                                       |
+| --------------- | -------- | -------- | ------- | ------------------------------------------------- |
+| `instantiation` | `string` | yes      |         | Name of the instantiation.                        |
 | `port_name`     | `string` | yes      |         | Name of the associated port of the instantiation. |
 
 <!-- mdformat on -->
@@ -1701,9 +1702,9 @@ Value    | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword         | Type     | Required | Default | Description                 |
-| --------------- | -------- | -------- | ------- | --------------------------- |
-| `instantiation` | `string` | yes      |         | Name of the instantiation.  |
+| Keyword         | Type     | Required | Default | Description                                       |
+| --------------- | -------- | -------- | ------- | ------------------------------------------------- |
+| `instantiation` | `string` | yes      |         | Name of the instantiation.                        |
 | `port_name`     | `string` | yes      |         | Name of the associated port of the instantiation. |
 
 <!-- mdformat on -->

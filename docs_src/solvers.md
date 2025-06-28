@@ -102,10 +102,10 @@ These lines describe, in order:
 
 -   One cell, called `FOO`, that takes two inputs, .A and .B, provided by the
     wires `p0_i0` and `p0_i1`, respectively, and one output, .Z, which will be
-    assigned to the wire `p1_and_1_comb.
+    assigned to the wire \`p1_and_1_comb.
 -   One cell, called `BAR`, that takes two inputs, .A and .B, provided by the
     wires `p0_i2` and `p0_i2`, respectively, and one output, .Z, which will be
-    assigned to the wire `p1_and_2_comb.
+    assigned to the wire \`p1_and_2_comb.
 
 Note that the *values* computed by the cells wasn't mentioned - that's because
 `FOO` and `BAR` are defined in the "cell library", the list of standard cells

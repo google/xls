@@ -21,19 +21,19 @@ set of random inputs to each function often with interesting bit patterns.
 Given that stimulus, the fuzz driver performs the following actions some of
 which may be disabled/enabled via flags (run with `--help` for more details):
 
-*   Runs the DSLX program through the DSLX interpreter with the batch of
+-   Runs the DSLX program through the DSLX interpreter with the batch of
     arguments
-*   Converts the DSLX program to IR
-*   Optimizes the converted IR
-*   Interprets the pre-optimized and optimized IR with the batch of arguments
-*   Generates the Verilog from the IR with randomly selected codegen options
+-   Converts the DSLX program to IR
+-   Optimizes the converted IR
+-   Interprets the pre-optimized and optimized IR with the batch of arguments
+-   Generates the Verilog from the IR with randomly selected codegen options
     (with `--codegen`)
-*   Simulates the generated Verilog using the batch of arguments (with
+-   Simulates the generated Verilog using the batch of arguments (with
     `--simulate`)
-*   Performs a multi-way comparison of the DSLX interpreter results, the
+-   Performs a multi-way comparison of the DSLX interpreter results, the
     pre-optimized IR interpreter results, post-optimized IR interpreter results,
     and the simulator results
-*   If an issue is observed, the fuzz driver attempts to minimize the IR that
+-   If an issue is observed, the fuzz driver attempts to minimize the IR that
     causes an issue to occur.
 
 The above actions are coordinated and run by the
@@ -74,19 +74,19 @@ arguments (`args.txt`) as well as all artifacts generated and stderr output
 emitted by the various utilities invoked to test the sample. Notable files
 include:
 
-*   `options.pbtxt` : Options used to run the sample (text protobuffer).
-*   `sample.ir` : Unoptimized IR generated from the DSLX sample.
-*   `sample.opt.ir` : IR after optimizations.
-*   `sample.v` : Generated Verilog (or `sample.sv` with
+-   `options.pbtxt` : Options used to run the sample (text protobuffer).
+-   `sample.ir` : Unoptimized IR generated from the DSLX sample.
+-   `sample.opt.ir` : IR after optimizations.
+-   `sample.v` : Generated Verilog (or `sample.sv` with
     `--use_system_verilog=true` on fuzz runner)
-*   `*.results` : The results (numeric values) produced by interpreting or
+-   `*.results` : The results (numeric values) produced by interpreting or
     simulating the respective input (DSLX, IR, or Verilog).
-*   `exception.txt` : The exception raised when running the sample. Typically
+-   `exception.txt` : The exception raised when running the sample. Typically
     this will indicate either a result miscomparison or a tool return non-zero
     status (for example, the IR optimizer crashed).
-*   `crasher_*.x`: A single file reproducer which includes the DSLX code,
+-   `crasher_*.x`: A single file reproducer which includes the DSLX code,
     arguments, and options. See [below](#reproducers) for details.
-*   `run.sh`: a script to re-run this example.
+-   `run.sh`: a script to re-run this example.
 
 Typically the exact nature of the failure can be identified by reading the file
 `exception.txt` and possibly the stderr outputs of the various tools.

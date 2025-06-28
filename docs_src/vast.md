@@ -33,18 +33,16 @@ In VAST, this is represented with an object of the `BinaryInfix` class which is
 derived from the `Expression` class representing arbitrary Verilog expressions.
 A `BinaryInfix` object has three relevant data members:
 
-`std::string op_;`
-:   The string representation of the operation to perform (e.g., `+`).
+`std::string op_;` : The string representation of the operation to perform
+(e.g., `+`).
 
-`Expression* lhs_;`
-:   The left-hand-side of the expression. In this example, this points to a
-    `LogicRef` object (derived from `Expression` class) referring to a Verilog
-    `reg` or `wire` variable.
+`Expression* lhs_;` : The left-hand-side of the expression. In this example,
+this points to a `LogicRef` object (derived from `Expression` class) referring
+to a Verilog `reg` or `wire` variable.
 
-`Expression* rhs_;`
-:   The left-hand-side of the expression. In this example, this points to a
-    `Literal` object (derived from `Expression` class) containing the number 8
-    with unspecified bit width.
+`Expression* rhs_;` : The left-hand-side of the expression. In this example,
+this points to a `Literal` object (derived from `Expression` class) containing
+the number 8 with unspecified bit width.
 
 The `BinaryInfix` object representing `foo + 8` might be used within other
 expressions or statements by referring to the object by pointer. For example,
@@ -87,13 +85,13 @@ XLS can emit either Verilog or SystemVerilog so VAST supports both languages.
 SystemVerilog constructs are included alongside Verilog constructs in VAST.
 Examples of SystemVerilog features supported by VAST include:
 
-*   `always_ff` procedure for modeling sequential logic (VAST `AlwaysFlop`
+-   `always_ff` procedure for modeling sequential logic (VAST `AlwaysFlop`
     class).
 
-*   Array assignment pattern (VAST `ArrayAssignmentPattern` class). Example:
+-   Array assignment pattern (VAST `ArrayAssignmentPattern` class). Example:
     `'{foo, bar, baz}`
 
-*   Array declaration using sizes. Example: `reg [7:0] foo[42];`
+-   Array declaration using sizes. Example: `reg [7:0] foo[42];`
 
 Within VAST, there is no distinction between the two languages and it is up to
 the user of VAST to only use the supported features for the target language

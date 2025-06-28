@@ -10,7 +10,7 @@ XLS is the concept of "exactly what verilog should be produced?") There are
 currently options for controlling queueing behavior at the inputs or outputs of
 the block, but not internal to the pipeline, ability to stall with queueing that
 is embedded in the generated pipeline is tracked in
-[issue \#255](https://github.com/google/xls/issues/255).
+[issue #255](https://github.com/google/xls/issues/255).
 
 ## Q: What is the granularity of ready/valid signaling?
 
@@ -31,8 +31,8 @@ See the `--streaming_channel_*` options within the
 The steps are:
 
 1.  Wrap up your XLS so it can be called from C++ (using a utility).
-2.  Include the created header.
-3.  Call the "Run" API with XLS-understood values.
+1.  Include the created header.
+1.  Call the "Run" API with XLS-understood values.
 
 The
 [`cc_xls_ir_jit_wrapper` rule](https://google.github.io/xls/bazel_rules_macros/#cc_xls_ir_jit_wrapper)

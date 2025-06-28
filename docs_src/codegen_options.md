@@ -50,33 +50,42 @@ control the scheduler.
 -   `--generator=...` controls which generator to use. The options are
     `pipeline` and `combinational`. The `pipeline` generator runs a scheduler
     that partitions the IR ops into pipeline stages.
+
 -   `--opt_level=...` controls the optimization level to apply when using the
     `pipeline` generator, to take advantage of any discovered optimization
     opportunities.
+
 -   `--delay_model=...` selects the delay model to use when scheduling. See the
     [page here](delay_estimation.md) for more detail.
+
 -   `--clock_period_ps=...` sets the target clock period. See
     [scheduling](scheduling.md) for more details on how scheduling works. Note
     that this option is optional, without specifying clock period XLS will
     estimate what the clock period should be.
+
 -   `--pipeline_stages=...` sets the number of pipeline stages to use when
     `--generator=pipeline`.
+
 -   `--clock_margin_percent=...` sets the percentage to reduce the target clock
     period before scheduling. See [scheduling](scheduling.md) for more details.
+
 -   `--period_relaxation_percent=...` sets the percentage that the computed
     minimum clock period is increased. May not be specified with
     `--clock_period_ps`.
+
 -   `--minimize_clock_on_failure` is enabled by default. If enabled, when
     `--clock_period_ps` is given with an infeasible clock (in the sense that XLS
     cannot pipeline this input for this clock, even with other constraints
     relaxed), XLS will find and report the minimum feasible clock period if one
     exists. If disabled, XLS will report only that the clock period was
     infeasible, potentially saving time.
+
 -   `--recover_after_minimizing_clock` is disabled by default. If both this and
     `--minimize_clock_on_failure` are enabled, when `--clock_period_ps` is given
     with an infeasible clock, XLS will print a warning, find and report the
     minimum feasible clock period (if one exists), and then continue generating
     Verilog as if this had been the specified clock period.
+
 -   `--minimize_worst_case_throughput` is disabled by default. If enabled, when
     `--worst_case_throughput` is not specified (or disabled by setting it to 0
     or a negative value), XLS will find & report the best possible worst-case
@@ -180,7 +189,7 @@ estimation refinements in XLS. For now, FDO is disabled by default
 -   `--fdo_refinement_stochastic_ratio=...` \*path_number over
     refinement_stochastic_ratio paths are extracted and \*path_number paths are
     randomly selected from them for synthesis in each FDO iteration. Must be a
-    positive float <= 1.0.
+    positive float \<= 1.0.
 -   `--fdo_path_evaluate_strategy=...` Path evaluation strategy for FDO.
     Supports path, cone, and window.
 -   `--fdo_synthesizer_name=...` Name of synthesis backend for FDO. Only
@@ -377,9 +386,9 @@ string. These format strings use placeholders to fill in relevant information.
 
     1.  Pipeline registers storing the valid bit for each pipeline stage.
 
-    2.  All valid registers stored for the input/output buffers.
+    1.  All valid registers stored for the input/output buffers.
 
-    3.  All valid signals for the input channels.
+    1.  All valid signals for the input channels.
 
 -   For functions, when `--generator` is set to `pipeline`, optional 'valid'
     logic can be added by using `--input_valid_signal=...` and

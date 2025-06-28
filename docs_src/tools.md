@@ -139,28 +139,28 @@ Runs XLS IR through the optimization pipeline.
 
 Standard flags include:
 
-*   `--top=NAME`: Override/set the top function/proc. This is required if a
+-   `--top=NAME`: Override/set the top function/proc. This is required if a
     function/proc is not already marked as `top` in the IR.
-*   `--opt_level=NUMBER`: Change the optimization level. This should be used
+-   `--opt_level=NUMBER`: Change the optimization level. This should be used
     with care as the differences between optimization levels are less defined
     for xls than they are in tools such as `clang`. Defaults to `3`.
 
 Several flags which control the behavior of individual optimizations are also
 available. Care should be used when modifying the values of these flags.
 
-*   `--rm_rewrites_pb=FILE`: Used to pass a proto describing the ram rewrites to
+-   `--rm_rewrites_pb=FILE`: Used to pass a proto describing the ram rewrites to
     be performed.
-*   `--inline_procs=true|false`: Whether to enable or disable inlining all procs
+-   `--inline_procs=true|false`: Whether to enable or disable inlining all procs
     into a single mega-proc. Defaults to `false`.
-*   `--convert_array_index_to_select=NUMBER`: Controls the maximum number of
+-   `--convert_array_index_to_select=NUMBER`: Controls the maximum number of
     dimensions an array can have to allow xls to convert accesses to the array
     into select chains. This can have complicated impacts on the area and delay
     of the generated code.
-*   `--use_context_narrowing_analysis=true|false`: Controls whether to use
+-   `--use_context_narrowing_analysis=true|false`: Controls whether to use
     contextual information to optimize range calculations. This can in some
     circumstances reveal additional optimization opportunities but it can be
     quite slow. Defaults to `false`.
-*   `--optimize_for_best_case_throughput=true|false`: Controls whether to
+-   `--optimize_for_best_case_throughput=true|false`: Controls whether to
     optimize aggressively for best case throughput, even at the cost of area.
     This will aggressively optimize to create opportunities for improved
     throughput, but at the cost of constraining the schedule and thus increasing
@@ -173,7 +173,7 @@ behavior of the standard optimization pipeline itself and the passes which make
 up the pipeline. These flags should mostly be used for testing and debugging
 purposes only.
 
-*   `--passes=PIPELINE_SPEC`: Allows one to specify an explicit optimization
+-   `--passes=PIPELINE_SPEC`: Allows one to specify an explicit optimization
     pipeline to use instead of the standard one. The pipeline is specified by
     listing passes using their short-names. Different passes are space
     separated. Fixed-point combinations of passes are specified by surrounding
@@ -182,31 +182,31 @@ purposes only.
     final 'dce' the flag would be set to `inlining [ arith_simp dce ] narrowing
     dce`. This can be used to test odd interactions between specific or single
     passes.
-*   `--passes_bisect_limit=NUMBER`: Tells `opt_main` to cease pipeline execution
+-   `--passes_bisect_limit=NUMBER`: Tells `opt_main` to cease pipeline execution
     after running `NUMBER` passes. This can be used to narrow down misbehaving
     passes. This flag works with both custom `--passes` pipelines and the
     standard pipeline.
-*   `--ir_dump_path=FOLDER`: Tells `opt_main` to dump files containing all the
+-   `--ir_dump_path=FOLDER`: Tells `opt_main` to dump files containing all the
     intermediate states of the optimizations IRs into files in that particular
     directory. Each file is named so they sort lexicographically in the order
     they were created. The names include the pass-number, the pass run and
     whether the pass made any changes to the output.
-*   `--skip_passes=NAME1,NAME2,...`: Tells `opt_main` to skip execution of
+-   `--skip_passes=NAME1,NAME2,...`: Tells `opt_main` to skip execution of
     specific named passes (specified using the short-name of the pass). This
     does not otherwise modify the pipeline being used and the pass is considered
     to have finished successfully without making any changes. Multiple passes
     may be passed at once separated by commas.
-*   `--enable_resource_sharing=true|false`: Controls whether to enable automatic
+-   `--enable_resource_sharing=true|false`: Controls whether to enable automatic
     resource sharing optimization to save area. This optimization saves area by
     re-using the same hardware resources (e.g., multiplier) for multiple
     mutually-exclusive operations. This transformation might increase the
     critical path latency. Defaults to `false`.
-*   `--force_resource_sharing=true|false`: Controls whether to use the heuristic
+-   `--force_resource_sharing=true|false`: Controls whether to use the heuristic
     to decide when it is profitable to apply the resource sharing optimization.
     When set to true, the resource sharing optimization applies the
     transformation assuming it is always profitable. Finally, this option is
     only used when the resource sharing pass is enabled. Defaults to `false`.
-*   `--area_model=MODEL`: Specify the area model to use during the IR
+-   `--area_model=MODEL`: Specify the area model to use during the IR
     optimizations. Defaults to `asap7`.
 
 ## [`print_bom`](https://github.com/google/xls/tree/main/xls/tools/print_bom.cc)
@@ -217,11 +217,11 @@ from `ModuleSignatureProto` protobuf files produced using the
 
 Features include;
 
-*   Combining the data from multiple protobuf files.
-*   Output in fancy human readable table.
-*   Output machine readable CSV (common separate values) file for loading into
+-   Combining the data from multiple protobuf files.
+-   Output in fancy human readable table.
+-   Output machine readable CSV (common separate values) file for loading into
     other tools (like Google Sheets).
-*   Filtering output to a single value type like `BOM_KIND_ADDER`.
+-   Filtering output to a single value type like `BOM_KIND_ADDER`.
 
 Running the following commands;
 
@@ -399,8 +399,10 @@ or other behaviors requiring explanation:
 
 1.  Only scalar and repeated fields are supported (i.e., no maps or oneofs,
     etc.).
+
 1.  Only recursively-integral messages are supported, that is to say, a message
     may contain submessages, as long as all non-Message fields are integral.
+
 1.  Since DSLX doesn't support variable arrays and Protocol Buffers don't
     support fixed-length repeated fields. To unify this, all instances of
     repeated-field-containing Messages must have the same size of their repeated

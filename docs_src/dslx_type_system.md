@@ -3,9 +3,9 @@
 The DSL (frontend) performs a few primary tasks:
 
 1.  Parsing text files to an AST representation.
-2.  Typechecking the AST representation.
-3.  Conversion of the AST to bytecode that can be interpreted.
-4.  Conversion of the AST to XLS IR (from which it can be interpreted or
+1.  Typechecking the AST representation.
+1.  Conversion of the AST to bytecode that can be interpreted.
+1.  Conversion of the AST to XLS IR (from which it can be interpreted or
     optimized or scheduled or code generated, etc.)
 
 Note that step #2 is an essential component for steps #3 and #4 -- the type
@@ -48,9 +48,9 @@ across cycles.
 With parametric instantiation as a feature, several questions around the nature
 of the parameterized definition are raised; e.g.
 
-*   When `p` is defined with a parametric `N`, should we check that the
+-   When `p` is defined with a parametric `N`, should we check that the
     definition has no type errors "for all N"? (Note: we do not.)
-*   If `p` is not instantiated anywhere, do we check that `p` has no type errors
+-   If `p` is not instantiated anywhere, do we check that `p` has no type errors
     for "there exists some N"? (Note: we do not.)
 
 These relate to the "laziness" of parametric instantiation. As a historical
@@ -96,9 +96,9 @@ the assignment of a value to each named parameter.)
 
 1.  Binding explicit values (given in angle brackets, i.e. `<>`) given in the
     caller
-2.  Binding actual arguments (passed by the caller) against the parametric
+1.  Binding actual arguments (passed by the caller) against the parametric
     bindings
-3.  Filling in any "remaining holes" in the parametric bindings using *default
+1.  Filling in any "remaining holes" in the parametric bindings using *default
     expressions* in the parametric bindings
 
 The three components are performed in that order.

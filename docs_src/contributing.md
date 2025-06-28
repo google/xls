@@ -50,11 +50,6 @@ commit. **If** you'd like to address review comments by *adding*
 commits,[^why-add] please be sure to squash them into one again once the PR is
 approved (though squashing continuously is also acceptable).
 
-[^why-add]: Adding commits preserves the GitHub code review history and makes it
-    easier to review incremental changes, but causes an additional
-    "round trip" with the reviewer for the final squash after approval,
-    so there is a small procedural tradeoff.
-
 Generally, squashing to a single commit can be accomplished by:
 
 ```console
@@ -89,7 +84,7 @@ issue about PPA, please:
     -   If you are using `bazel_rules_hdl`, you may pass these values using the
         `"autoidx_seed"` and `"hash_seed"` parameters on the `synthesize_rtl`
         build rule.
-2.  Report the **best** area of the 50 different values both before & after your
+1.  Report the **best** area of the 50 different values both before & after your
     change.
 
 If the difference is less than 2% in area or less than 10% in delay, please be
@@ -136,10 +131,10 @@ your path, if locally installed Python binaries aren't available by default.
 There are a few different language annotations we use in different circumstances
 in the Markdown docs:
 
-*   `dslx`: A full code block that should be parsed/typechecked/tested.
-*   `dslx-snippet`: A fragment that should be syntax highlighted, but not
+-   `dslx`: A full code block that should be parsed/typechecked/tested.
+-   `dslx-snippet`: A fragment that should be syntax highlighted, but not
     parsed/typechecked/tested.
-*   `dslx-bad`: An example of something that we expect to produce an error when
+-   `dslx-bad`: An example of something that we expect to produce an error when
     parsing/typechecking/testing.
 
 GitHub issue [google/xls#378](https://github.com/google/xls/issues/378) tracks a
@@ -171,3 +166,8 @@ is "time expected for a person familiar with this matter / part of the code
 base", so developers that would ramp on an issue would require more time than is
 indicated by the label. Feel free to change the label at will, ideally by
 providing a helpful explanation for why/how the estimate came to change.
+
+[^why-add]: Adding commits preserves the GitHub code review history and makes it
+    easier to review incremental changes, but causes an additional
+    "round trip" with the reviewer for the final squash after approval,
+    so there is a small procedural tradeoff.

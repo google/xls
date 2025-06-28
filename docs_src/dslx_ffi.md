@@ -61,17 +61,17 @@ fn foo(a: u32) -> u32 {
 
 Let's look at this in detail
 
-*   Inside the `extern_verilog("...")`, you add the code that will be the
+-   Inside the `extern_verilog("...")`, you add the code that will be the
     Verilog instantiation of the particular module: this is just a regular
     module instantiation of the module `myfoo` that you'd like to interface
     with.
-*   The `{fn}` placeholder is needed and will be expanded to the actual
+-   The `{fn}` placeholder is needed and will be expanded to the actual
     instantiation name decided at code-generation time.
-*   The `{a}` placeholder references a value in the function prototype, in this
+-   The `{a}` placeholder references a value in the function prototype, in this
     case the parameter `a`.
-*   The output parameter of the `myfoo` function is wired to the special value
+-   The output parameter of the `myfoo` function is wired to the special value
     `{return}` which represents the return value of the function.
-*   The types the module will receive are based on the type mentioned in the
+-   The types the module will receive are based on the type mentioned in the
     function prototype. Parameter `a` and the return value are both u32, so
     `.x()` and `.out()` will be connected to `wire [31:0]`'s at code generation
     time.
@@ -196,9 +196,9 @@ fn quux<RESULT_BITS: u32>(a: u32) -> uN[RESULT_BITS] {
 Of course, at that point, XLS can't guarantee anymore that wire identifiers are
 unique. Handle this rope with care :)
 
-[tuples]: ./dslx_reference.md#tuple-type
 [codegen parameter]: ./codegen_options.md#pipelining-and-scheduling-options
-[parametric function]: ./dslx_reference.md#parametric-functions
-[Sequential FFI]: https://github.com/google/xls/issues/1301
 [ffi delay estimate]: https://github.com/google/xls/issues/1399
 [ffi example]: https://github.com/google/xls/tree/main/xls/examples/ffi.x
+[parametric function]: ./dslx_reference.md#parametric-functions
+[sequential ffi]: https://github.com/google/xls/issues/1301
+[tuples]: ./dslx_reference.md#tuple-type

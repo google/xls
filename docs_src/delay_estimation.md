@@ -81,7 +81,7 @@ network has to produce its output value with a delay that meets the timing
 constraint of the clock frequency. The RTL designer typically has to iterate
 their design until:
 
-timing path delay <= target clock period - clock uncertainty
+timing path delay \<= target clock period - clock uncertainty
 
 For all timing paths in their design, where clock uncertainty includes
 setup/hold time constraints, and slop that's built in as margin for later
@@ -91,15 +91,15 @@ the clock signal observed by different flops).
 In a reasonable model, gate delay is affected by a small handful of properties,
 as reflected in the "(Method of) Logical Effort" book:
 
-*   The transistor network used to implement a logic function (AKA logical
+-   The transistor network used to implement a logic function (AKA logical
     effort): on an input pin change, the gate of each transistor must be driven
     to a point it recognizes whether a 0 or 1 voltage is being presented. More
     gates to drive, or larger gates, means more work for the driver.
-*   The load being driven by the logic function (AKA electrical effort): fanning
+-   The load being driven by the logic function (AKA electrical effort): fanning
     out to more gates generally means more work to drive them all to their
     threshold voltages. Being loaded down by bigger gates means more work to
     drive it to its threshold voltage.
-*   Parasitic delays: RC elements in the system that leech useful work,
+-   Parasitic delays: RC elements in the system that leech useful work,
     typically in a smaller way compared to the efforts listed above.
 
 The logical effort book describes a way to analyze the delays through a network
@@ -109,11 +109,11 @@ gate to drive capacitance).
 
 Confounding factors include:
 
-*   Medium/large wires: sizing transistors to smooth capacitance becomes
+-   Medium/large wires: sizing transistors to smooth capacitance becomes
     difficult as fixed-capacitance elements (wires) are introduced. It seems
     that small wires have low enough capacitance they can generally be treated
     as parasitic.
-*   Divergence/reconvergence in the functional logic network (as a DAG).
+-   Divergence/reconvergence in the functional logic network (as a DAG).
     Different numbers of logic levels and different drive currents may be
     presented from different branches of a fork/join the logic graph, which
     forces delay analysis into a system of equations to attempt to minimize the
@@ -136,17 +136,17 @@ contrast, as we now ignore it all and do something very simple.
 
 Currently, XLS delay estimation follows a conceptually simple procedure:
 
-*   For every operation in XLS (e.g. binary addition):
+-   For every operation in XLS (e.g. binary addition):
 
-    *   For some relevant-seeming set of bitwidths; e.g. `{2, 4, 8, 16, ...,
+    -   For some relevant-seeming set of bitwidths; e.g. `{2, 4, 8, 16, ...,
         2048}`
-    *   Find the maximum frequency at which that operation closes timing at that
+    -   Find the maximum frequency at which that operation closes timing at that
         bitwidth, in 100MHz units as determined by the synthesis tool.
         <sup>[2](#footnote2)</sup> Call the clock period for this frequency
         `t_best`. (Note that we currently just use a single process corner /
         voltage for this sweep.)
-    *   Subtract the clock uncertainty from `t_best`.
-    *   Record that value in a table (with the keys of the table being operation
+    -   Subtract the clock uncertainty from `t_best`.
+    -   Record that value in a table (with the keys of the table being operation
         / bitwidth).
 
 <a name='footnote2'>2</a>: The timing report can provide the delay through a
@@ -159,12 +159,12 @@ to cajole it in that way.
 Inspecting the data acquired in this way we observe all of the plots consist of
 one or more the following delay components:
 
-*   Constant as a function of bitwidth for a given op (e.g. binary-or just
+-   Constant as a function of bitwidth for a given op (e.g. binary-or just
     requires a single gate for each bit regardless of the width of the inputs).
-*   Logarithmic as a function of bitwidth (e.g. adders may end up using
+-   Logarithmic as a function of bitwidth (e.g. adders may end up using
     tree-like structures to minimize delay, single-selector muxes end up using a
     tree to fan out the selector to the muxes, etc.).
-*   Linear as a function of bitwidth (e.g., ripple-carry adders and some
+-   Linear as a function of bitwidth (e.g., ripple-carry adders and some
     components of multipliers).
 
 So given this observation we fit a curve of the form:
@@ -207,21 +207,21 @@ percent) with a single HLS iteration.
 
 Sources of pessimism (estimate is conservative):
 
-*   The operation sweeps mentioned are not bisecting to the picosecond, so there
+-   The operation sweeps mentioned are not bisecting to the picosecond, so there
     is inherent slop in the measurement on account of sweep granularity.
-*   We expect, in cycles where multiple dependent operations are present, there
+-   We expect, in cycles where multiple dependent operations are present, there
     would be "K-map style" logic reductions with adjacent operations. For
     example, because we don't do cell library mapping in XLS delay estimation,
     something a user wrote that mapped to an AOI21 cell would be the sum of
     (and+or+invert) delays.
-*   [Unsure] May there be additional logic branch splitting options and
+-   [Unsure] May there be additional logic branch splitting options and
     earlier-produced results available to the synthesis tool when there are more
     operations in the graph (vs a lone critical path measured for a single
     operation)?
 
 Sources of optimism (estimate is overeager):
 
-*   For purposes of the sweep the outputs of an operation are only loaded by a
+-   For purposes of the sweep the outputs of an operation are only loaded by a
     single capture flop flop -- when operations have fanout the delay will
     increase.
 
@@ -244,7 +244,7 @@ Sources of optimism (estimate is overeager):
     delay sweep with a high-capacitive fanout (e.g. four flops of load) and then
     ensure the IR has a maximum fanout of four for our delay estimation.
 
-*   Wiring delay / load / congestion / length are not estimated. This will need
+-   Wiring delay / load / congestion / length are not estimated. This will need
     additional analysis / refinement as we run XLS through synthesis tools with
     advanced timing analysis, as it is certainly not viable for arbitrary
     designs (tight pipelines may be ok for now, though).

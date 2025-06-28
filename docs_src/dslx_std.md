@@ -69,9 +69,9 @@ fn test_bit_count_size() {
 
 `element_count` returns the number of elements in the given type.
 
-*   For an array, it is the same as `array_size` for a value of the type.
-*   For a tuple or struct, it is the number of top-level members.
-*   For all other types, it is the same as `bit_count`.
+-   For an array, it is the same as `array_size` for a value of the type.
+-   For a tuple or struct, it is the number of top-level members.
+-   For all other types, it is the same as `bit_count`.
 
 ```
 fn element_count<T: type>() -> u32
@@ -456,11 +456,11 @@ Example usage:
 
 These are unary reduction operations applied to a bits-typed value:
 
-*   `and_reduce`: evaluates to bool:1 if all bits of the input are set, and 0
+-   `and_reduce`: evaluates to bool:1 if all bits of the input are set, and 0
     otherwise.
-*   `or_reduce`: evaluates to bool:1 if any bit of the input is set, and 0
+-   `or_reduce`: evaluates to bool:1 if any bit of the input is set, and 0
     otherwise.
-*   `xor_reduce`: evaluates to bool:1 if there is an odd number of bits set in
+-   `xor_reduce`: evaluates to bool:1 if there is an odd number of bits set in
     the input, and 0 otherwise.
 
 These functions return the identity element of the respective operation for
@@ -1001,8 +1001,8 @@ fn convert_to_bits_test() {
 
 There's always a source of confusion in these orderings:
 
-*   Mathematically we often indicate the least significant digit as "digit 0"
-*   *But*, in a number as we write the digits from left-to-right on a piece of
+-   Mathematically we often indicate the least significant digit as "digit 0"
+-   *But*, in a number as we write the digits from left-to-right on a piece of
     paper, if you made an array from the written characters, the digit at "array
     index 0" would be the most significant bit.
 

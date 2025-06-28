@@ -13,9 +13,9 @@ Language server feedback in the editor is useful to folks who are learning DSLX
 as well as those developing in it on a regular basis! The language server
 currently offers functionality such as:
 
-*   Go-to-definition
-*   Errors/warnings as you type
-*   An "overview" of the symbols defined in a module
+-   Go-to-definition
+-   Errors/warnings as you type
+-   An "overview" of the symbols defined in a module
 
 For more background on what the language server protocol can do, see
 [the Language Server Protocol documentation and specification](https://microsoft.github.io/language-server-protocol/).
@@ -143,9 +143,9 @@ Additional details on Emacs enablement may be available in the
 
 Go to `Tools > Developer > New Syntax`, then replace values in the template:
 
-*   Change the `file_extensions` value to be `x`
-*   Change scope to be `source.dslx`
-*   Replace all `example-c` in the file with `dslx`
+-   Change the `file_extensions` value to be `x`
+-   Change scope to be `source.dslx`
+-   Replace all `example-c` in the file with `dslx`
 
 Now when you open a `.x` file it should show the syntax in the lower right-hand
 corner as `dslx`.
