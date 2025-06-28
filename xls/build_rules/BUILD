@@ -282,6 +282,17 @@ bzl_library(
     name = "xls_cc_embed_data_rules_bzl",
     srcs = ["xls_cc_embed_data_rules.bzl"],
     visibility = ["//visibility:private"],
+    deps = ["@bazel_skylib//lib:dicts"],
+)
+
+bzl_library(
+    name = "xls_pass_rules_bzl",
+    srcs = ["xls_pass_rules.bzl"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":xls_providers_bzl",
+        "@bazel_skylib//lib:dicts",
+    ],
 )
 
 xls_toolchain(
