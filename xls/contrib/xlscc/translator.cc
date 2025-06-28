@@ -269,7 +269,7 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
   return absl::OkStatus();
 }
 
-absl::Status Translator::PropagateVariables(const TranslationContext& from,
+absl::Status Translator::PropagateVariables(TranslationContext& from,
                                             TranslationContext& to,
                                             const xls::SourceInfo& loc) {
   if (from.sf == nullptr) {
@@ -286,6 +286,9 @@ absl::Status Translator::PropagateVariables(const TranslationContext& from,
 
         // Don't use Assign(), it uses context()
         to.variables.at(name) = prepared;
+
+        // Prevent extra selects from being generated in future propagations
+        from.variables.at(name) = prepared;
       }
     } else if (to.sf->static_values.contains(name) ||
                from.propagate_declarations) {
