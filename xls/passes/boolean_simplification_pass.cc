@@ -42,7 +42,6 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -509,7 +508,5 @@ absl::StatusOr<bool> BooleanSimplificationPass::RunOnFunctionBaseInternal(
   }
   return !visitor.node_replacements().empty();
 }
-
-REGISTER_OPT_PASS(BooleanSimplificationPass);
 
 }  // namespace xls

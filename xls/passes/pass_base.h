@@ -303,10 +303,11 @@ class CompoundPassBase : public PassBase<OptionsT, ContextT...> {
   // Returns a pointer to the newly constructed pass.
   template <typename T, typename... Args>
   T* AddInvariantChecker(Args&&... args) {
-    auto* checker = new T(std::forward<Args>(args)...);
-    invariant_checkers_.emplace_back(checker);
-    invariant_checker_ptrs_.push_back(checker);
-    return checker;
+    auto checker = std::make_unique<T>(std::forward<Args>(args)...);
+    T* out = checker.get();
+    invariant_checker_ptrs_.push_back(checker.get());
+    invariant_checkers_.emplace_back(std::move(checker));
+    return out;
   }
 
   // Adds a weak invariant checker to the compound pass. The invariant checker
@@ -319,10 +320,11 @@ class CompoundPassBase : public PassBase<OptionsT, ContextT...> {
   // Returns a pointer to the newly constructed pass.
   template <typename T, typename... Args>
   T* AddWeakInvariantChecker(Args&&... args) {
-    auto* checker = new T(std::forward<Args>(args)...);
-    weak_invariant_checkers_.emplace_back(checker);
-    weak_invariant_checker_ptrs_.push_back(checker);
-    return checker;
+    auto checker = std::make_unique<T>(std::forward<Args>(args)...);
+    T* out = checker.get();
+    weak_invariant_checker_ptrs_.push_back(checker.get());
+    weak_invariant_checkers_.emplace_back(std::move(checker));
+    return out;
   }
 
   absl::StatusOr<bool> RunInternal(Package* ir, const OptionsT& options,
