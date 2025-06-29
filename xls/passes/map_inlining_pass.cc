@@ -25,7 +25,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -85,7 +84,5 @@ absl::Status MapInliningPass::ReplaceMap(Map* map) const {
           .status());
   return function->RemoveNode(map);
 }
-
-REGISTER_OPT_PASS(MapInliningPass);
 
 }  // namespace xls
