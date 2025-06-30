@@ -1206,19 +1206,22 @@ proc CompressBlockDecoderTest {
     axi_ram_wr_req_s: chan<TestcaseRamWrReq>[AXI_CHAN_N] out;
     axi_ram_wr_resp_r: chan<TestcaseRamWrResp>[AXI_CHAN_N] in;
 
-    ll_sel_test_s: chan<u1> out;
+    ll_sel_test_req_s: chan<u1> out;
+    ll_sel_test_resp_r: chan<()> in;
     ll_def_test_rd_req_s: chan<SeqFseRamRdReq> out;
     ll_def_test_rd_resp_r: chan<SeqFseRamRdResp> in;
     ll_def_test_wr_req_s: chan<SeqFseRamWrReq> out;
     ll_def_test_wr_resp_r: chan<SeqFseRamWrResp> in;
 
-    ml_sel_test_s: chan<u1> out;
+    ml_sel_test_req_s: chan<u1> out;
+    ml_sel_test_resp_r: chan<()> in;
     ml_def_test_rd_req_s: chan<SeqFseRamRdReq> out;
     ml_def_test_rd_resp_r: chan<SeqFseRamRdResp> in;
     ml_def_test_wr_req_s: chan<SeqFseRamWrReq> out;
     ml_def_test_wr_resp_r: chan<SeqFseRamWrResp> in;
 
-    of_sel_test_s: chan<u1> out;
+    of_sel_test_req_s: chan<u1> out;
+    of_sel_test_resp_r: chan<()> in;
     of_def_test_rd_req_s: chan<SeqFseRamRdReq> out;
     of_def_test_rd_resp_r: chan<SeqFseRamRdResp> in;
     of_def_test_wr_req_s: chan<SeqFseRamWrReq> out;
@@ -1399,7 +1402,8 @@ proc CompressBlockDecoderTest {
 
         // Default LL
 
-        let (ll_sel_test_s, ll_sel_test_r) = chan<u1>("ll_sel_test");
+        let (ll_sel_test_req_s, ll_sel_test_req_r) = chan<u1>("ll_sel_test_req");
+        let (ll_sel_test_resp_s, ll_sel_test_resp_r) = chan<()>("ll_sel_test_resp");
 
         let (ll_def_test_rd_req_s, ll_def_test_rd_req_r) = chan<SeqFseRamRdReq>("ll_def_test_rd_req");
         let (ll_def_test_rd_resp_s, ll_def_test_rd_resp_r) = chan<SeqFseRamRdResp>("ll_def_test_rd_resp");
@@ -1414,7 +1418,7 @@ proc CompressBlockDecoderTest {
         spawn ram_mux::RamMux<
             TEST_SEQ_FSE_RAM_ADDR_W, TEST_SEQ_FSE_RAM_DATA_W, TEST_SEQ_FSE_RAM_NUM_PARTITIONS,
         >(
-            ll_sel_test_r,
+            ll_sel_test_req_r, ll_sel_test_resp_s,
             ll_def_test_rd_req_r, ll_def_test_rd_resp_s, ll_def_test_wr_req_r, ll_def_test_wr_resp_s,
             ll_def_fse_rd_req_r, ll_def_fse_rd_resp_s, ll_def_fse_wr_req_r, ll_def_fse_wr_resp_s,
             fse_rd_req_s[0], fse_rd_resp_r[0], fse_wr_req_s[0], fse_wr_resp_r[0],
@@ -1422,7 +1426,8 @@ proc CompressBlockDecoderTest {
 
         // Default ML
 
-        let (ml_sel_test_s, ml_sel_test_r) = chan<u1>("ml_sel_test");
+        let (ml_sel_test_req_s, ml_sel_test_req_r) = chan<u1>("ml_sel_test_req");
+        let (ml_sel_test_resp_s, ml_sel_test_resp_r) = chan<()>("ml_sel_test_resp");
 
         let (ml_def_test_rd_req_s, ml_def_test_rd_req_r) = chan<SeqFseRamRdReq>("ml_def_test_rd_req");
         let (ml_def_test_rd_resp_s, ml_def_test_rd_resp_r) = chan<SeqFseRamRdResp>("ml_def_test_rd_resp");
@@ -1437,7 +1442,7 @@ proc CompressBlockDecoderTest {
         spawn ram_mux::RamMux<
             TEST_SEQ_FSE_RAM_ADDR_W, TEST_SEQ_FSE_RAM_DATA_W, TEST_SEQ_FSE_RAM_NUM_PARTITIONS,
         >(
-            ml_sel_test_r,
+            ml_sel_test_req_r, ml_sel_test_resp_s,
             ml_def_test_rd_req_r, ml_def_test_rd_resp_s, ml_def_test_wr_req_r, ml_def_test_wr_resp_s,
             ml_def_fse_rd_req_r, ml_def_fse_rd_resp_s, ml_def_fse_wr_req_r, ml_def_fse_wr_resp_s,
             fse_rd_req_s[2], fse_rd_resp_r[2], fse_wr_req_s[2], fse_wr_resp_r[2],
@@ -1445,7 +1450,8 @@ proc CompressBlockDecoderTest {
 
         // Default OF
 
-        let (of_sel_test_s, of_sel_test_r) = chan<u1>("of_sel_test");
+        let (of_sel_test_req_s, of_sel_test_req_r) = chan<u1>("of_sel_test_req");
+        let (of_sel_test_resp_s, of_sel_test_resp_r) = chan<()>("of_sel_test_resp");
 
         let (of_def_test_rd_req_s, of_def_test_rd_req_r) = chan<SeqFseRamRdReq>("of_def_test_rd_req");
         let (of_def_test_rd_resp_s, of_def_test_rd_resp_r) = chan<SeqFseRamRdResp>("of_def_test_rd_resp");
@@ -1460,7 +1466,7 @@ proc CompressBlockDecoderTest {
         spawn ram_mux::RamMux<
             TEST_SEQ_FSE_RAM_ADDR_W, TEST_SEQ_FSE_RAM_DATA_W, TEST_SEQ_FSE_RAM_NUM_PARTITIONS,
         >(
-            of_sel_test_r,
+            of_sel_test_req_r, of_sel_test_resp_s,
             of_def_test_rd_req_r, of_def_test_rd_resp_s, of_def_test_wr_req_r, of_def_test_wr_resp_s,
             of_def_fse_rd_req_r, of_def_fse_rd_resp_s, of_def_fse_wr_req_r, of_def_fse_wr_resp_s,
             fse_rd_req_s[4], fse_rd_resp_r[4], fse_wr_req_s[4], fse_wr_resp_r[4],
@@ -1529,13 +1535,13 @@ proc CompressBlockDecoderTest {
             cmd_constr_out_r,
             axi_ram_wr_req_s, axi_ram_wr_resp_r,
 
-            ll_sel_test_s,
+            ll_sel_test_req_s, ll_sel_test_resp_r,
             ll_def_test_rd_req_s, ll_def_test_rd_resp_r, ll_def_test_wr_req_s, ll_def_test_wr_resp_r,
 
-            ml_sel_test_s,
+            ml_sel_test_req_s, ml_sel_test_resp_r,
             ml_def_test_rd_req_s, ml_def_test_rd_resp_r, ml_def_test_wr_req_s, ml_def_test_wr_resp_r,
 
-            of_sel_test_s,
+            of_sel_test_req_s, of_sel_test_resp_r,
             of_def_test_rd_req_s, of_def_test_rd_resp_r, of_def_test_wr_req_s, of_def_test_wr_resp_r,
         )
     }
@@ -1545,7 +1551,8 @@ proc CompressBlockDecoderTest {
 
         // FILL THE LL DEFAULT RAM
         trace_fmt!("Filling LL default FSE table");
-        let tok = send(tok, ll_sel_test_s, u1:0);
+        let tok = send(tok, ll_sel_test_req_s, u1:0);
+        let (tok, _) = recv(tok, ll_sel_test_resp_r);
         let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_LL_TABLE)) {
             let req = SeqFseRamWrReq {
                 addr: i as uN[TEST_SEQ_FSE_RAM_ADDR_W],
@@ -1556,11 +1563,13 @@ proc CompressBlockDecoderTest {
             let (tok, _) = recv(tok, ll_def_test_wr_resp_r);
             tok
         }(tok);
-        let tok = send(tok, ll_sel_test_s, u1:1);
+        let tok = send(tok, ll_sel_test_req_s, u1:1);
+        let (tok, _) = recv(tok, ll_sel_test_resp_r);
 
         // FILL THE OF DEFAULT RAM
         trace_fmt!("Filling OF default FSE table");
-        let tok = send(tok, of_sel_test_s, u1:0);
+        let tok = send(tok, of_sel_test_req_s, u1:0);
+        let (tok, _) = recv(tok, of_sel_test_resp_r);
         let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_OF_TABLE)) {
             let req = SeqFseRamWrReq {
                 addr: i as uN[TEST_SEQ_FSE_RAM_ADDR_W],
@@ -1571,11 +1580,13 @@ proc CompressBlockDecoderTest {
             let (tok, _) = recv(tok, of_def_test_wr_resp_r);
             tok
         }(tok);
-        let tok = send(tok, of_sel_test_s, u1:1);
+        let tok = send(tok, of_sel_test_req_s, u1:1);
+        let (tok, _) = recv(tok, of_sel_test_resp_r);
 
         // FILL THE ML DEFAULT RAM
         trace_fmt!("Filling ML default FSE table");
-        let tok = send(tok, ml_sel_test_s, u1:0);
+        let tok = send(tok, ml_sel_test_req_s, u1:0);
+        let (tok, _) = recv(tok, ml_sel_test_resp_r);
         let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_ML_TABLE)) {
             let req = SeqFseRamWrReq {
                 addr: i as uN[TEST_SEQ_FSE_RAM_ADDR_W],
@@ -1586,7 +1597,8 @@ proc CompressBlockDecoderTest {
             let (tok, _) = recv(tok, ml_def_test_wr_resp_r);
             tok
         }(tok);
-        let tok = send(tok, ml_sel_test_s, u1:1);
+        let tok = send(tok, ml_sel_test_req_s, u1:1);
+        let (tok, _) = recv(tok, ml_sel_test_resp_r);
 
         // TODO: Enable more test cases when posssible. Currently their number is limited to lower the RAM consumption
         let tok = unroll_for!(test_i, tok): (u32, token) in u32[2]:[u32:0, u32:4] {

@@ -89,6 +89,7 @@ pub proc FseLookupDecoder<
     shift_buffer_sel_resp_r: chan<()> in;
 
     fse_ram_sel_req_s: chan<u1> out;
+    fse_ram_sel_resp_r: chan<()> in;
 
     fse_rd_req0_s: chan<FseRamRdReq> out;
     fse_rd_resp0_r: chan<FseRamRdResp> in;
@@ -143,6 +144,7 @@ pub proc FseLookupDecoder<
         );
 
         let (fse_ram_sel_req_s, fse_ram_sel_req_r) = chan<u1, CHANNEL_DEPTH>("fse_ram_sel_req");
+        let (fse_ram_sel_resp_s, fse_ram_sel_resp_r) = chan<(), CHANNEL_DEPTH>("fse_ram_sel_resp");
 
         let (fse_rd_req_s, fse_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("fse_rd_req");
         let (fse_rd_resp_s, fse_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("fse_rd_resp");
@@ -160,7 +162,7 @@ pub proc FseLookupDecoder<
         spawn ram_mux::RamMux<
             FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS,
         >(
-            fse_ram_sel_req_r,
+            fse_ram_sel_req_r, fse_ram_sel_resp_s,
             fse_rd_req0_r, fse_rd_resp0_s, fse_wr_req0_r, fse_wr_resp0_s,
             fse_rd_req1_r, fse_rd_resp1_s, fse_wr_req1_r, fse_wr_resp1_s,
             fse_rd_req_s, fse_rd_resp_r, fse_wr_req_s, fse_wr_resp_r,
@@ -202,7 +204,7 @@ pub proc FseLookupDecoder<
             rle_lookup_req_s, rle_lookup_resp_r,
 
             shift_buffer_sel_req_s, shift_buffer_sel_resp_r,
-            fse_ram_sel_req_s,
+            fse_ram_sel_req_s,fse_ram_sel_resp_r,
 
             fse_rd_req0_s, fse_rd_resp0_r,
             fse_rd_req1_s, fse_rd_resp1_r,
@@ -221,9 +223,10 @@ pub proc FseLookupDecoder<
         let (tok3_0, _) = recv(tok2_0, shift_buffer_sel_resp_r);
 
         let tok2_1 = send(tok1, fse_ram_sel_req_s, sel);
-        // let (tok, _) = recv(tok, fse_ram_sel_resp_r);
+        trace_fmt!("[FseLookupDecoder]: Send RAM sel req");
+        let (tok3_1, _) = recv(tok2_1, fse_ram_sel_resp_r);
 
-        let tok3 = join(tok2_1, tok3_0);
+        let tok3 = join(tok3_1, tok3_0);
 
         let tok4_0 = send_if(tok3, rle_lookup_req_s, req.is_rle, LookupDecoderReq {});
         let (tok5_0, rle_lookup_resp) = recv_if(tok4_0, rle_lookup_resp_r, req.is_rle, zero!<LookupDecoderResp>());

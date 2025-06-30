@@ -1184,7 +1184,8 @@ pub proc HuffmanWeightsDecoder<
     header_mem_rd_resp_r: chan<MemReaderResp> in;
 
     // Select for RamMux
-    decoded_weights_sel_s: chan<u1> out;
+    decoded_weights_sel_req_s: chan<u1> out;
+    decoded_weights_sel_resp_r: chan<()> in;
 
     // Raw Huffman Tree Description Decoder control
     raw_weights_req_s: chan<RawWeightsReq> out;
@@ -1251,7 +1252,8 @@ pub proc HuffmanWeightsDecoder<
         fse_wr_resp_r: chan<FseRamWrResp> in,
     ) {
         // Decoded Weights select for RamMux
-        let (decoded_weights_sel_s, decoded_weights_sel_r) = chan<u1, u32:1>("decoded_weights_sel");
+        let (decoded_weights_sel_req_s, decoded_weights_sel_req_r) = chan<u1, u32:1>("decoded_weights_sel_req");
+        let (decoded_weights_sel_resp_s, decoded_weights_sel_resp_r) = chan<(), u32:1>("decoded_weights_sel_resp");
 
         // Raw Huffman Tree Description control
         let (raw_weights_req_s, raw_weights_req_r) = chan<RawWeightsReq, u32:1>("raw_weights_req");
@@ -1307,7 +1309,7 @@ pub proc HuffmanWeightsDecoder<
         );
 
         spawn ram_mux::RamMux<WEIGHTS_RAM_ADDR_W, WEIGHTS_RAM_DATA_W, WEIGHTS_RAM_NUM_PARTITIONS>(
-            decoded_weights_sel_r,
+            decoded_weights_sel_req_r, decoded_weights_sel_resp_s,
             raw_weights_ram_rd_req_r, raw_weights_ram_rd_resp_s, // We don't care about read side
             raw_weights_ram_wr_req_r, raw_weights_ram_wr_resp_s,
             fse_weights_ram_rd_req_r, fse_weights_ram_rd_resp_s, // We don't care about read side
@@ -1319,7 +1321,7 @@ pub proc HuffmanWeightsDecoder<
         (
             req_r, resp_s,
             header_mem_rd_req_s, header_mem_rd_resp_r,
-            decoded_weights_sel_s,
+            decoded_weights_sel_req_s, decoded_weights_sel_resp_r,
             raw_weights_req_s, raw_weights_resp_r,
             fse_weights_req_s, fse_weights_resp_r,
             raw_weights_ram_rd_req_s, raw_weights_ram_rd_resp_r, // We don't care about read side
@@ -1356,7 +1358,8 @@ pub proc HuffmanWeightsDecoder<
             WeightsType::RAW
         };
 
-        let tok = send(tok, decoded_weights_sel_s, weights_type == WeightsType::FSE);
+        let tok = send(tok, decoded_weights_sel_req_s, weights_type == WeightsType::FSE);
+        let (tok, _) = recv(tok, decoded_weights_sel_resp_r);
 
         // FSE
         if weights_type == WeightsType::FSE {
