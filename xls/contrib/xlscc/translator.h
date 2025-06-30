@@ -674,7 +674,7 @@ class Translator final : public GeneratorBase, public TranslatorTypeInterface {
 
   TranslationContext& PushContext();
   absl::Status PopContext(const xls::SourceInfo& loc);
-  absl::Status PropagateVariables(const TranslationContext& from,
+  absl::Status PropagateVariables(TranslationContext& from,
                                   TranslationContext& to,
                                   const xls::SourceInfo& loc);
 

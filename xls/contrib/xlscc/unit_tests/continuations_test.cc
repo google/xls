@@ -1127,7 +1127,7 @@ TEST_F(ContinuationsTest, PipelinedLoopNothingOutside) {
   EXPECT_TRUE(SliceOutputsDecl(third_slice, "a"));
 
   EXPECT_TRUE(SliceInputsDecl(fourth_slice, "i"));
-  EXPECT_FALSE(SliceInputsDecl(fourth_slice, "a"));
+  EXPECT_TRUE(SliceInputsDecl(fourth_slice, "a"));
 }
 
 TEST_F(ContinuationsTest, PipelinedLoopInIf) {
@@ -1174,9 +1174,9 @@ TEST_F(ContinuationsTest, PipelinedLoopInIf) {
   EXPECT_TRUE(SliceOutputsDecl(fourth_slice, "a"));
   EXPECT_FALSE(SliceOutputsDecl(fourth_slice, "i"));
 
-  EXPECT_FALSE(SliceInputsDecl(fifth_slice, "a"));
+  EXPECT_TRUE(SliceInputsDecl(fifth_slice, "a"));
   EXPECT_EQ(SliceInputsDeclCount(fifth_slice, "i"), 2);
-  EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "a"));
+  EXPECT_TRUE(SliceOutputsDecl(fifth_slice, "a"));
   EXPECT_TRUE(SliceOutputsDecl(fifth_slice, "i"));
 }
 
