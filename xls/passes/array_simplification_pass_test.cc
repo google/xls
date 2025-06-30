@@ -1648,5 +1648,84 @@ TEST_F(ArraySimplificationPassTest, ArrayUpdateIndexInBounds) {
   EXPECT_THAT(f->return_value(), m::Param("val"));
 }
 
+TEST_F(ArraySimplificationPassTest, ArraySliceChain) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  fn array_slice(array: bits[32][8], start1: bits[32], start2: bits[32], start3: bits[32]) -> bits[32][4] {
+    temp0: bits[32][4] = array_slice(array, start1, width=4)
+    temp1: bits[32][4] = array_slice(temp0, start2, width=4)
+    ret result: bits[32][4] = array_slice(temp1, start3, width=4)
+  }
+  )",
+                                                       p));
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArraySlice(m::Param("array"),
+                    m::Add(m::Add(m::Param("start3"), m::Param("start2")),
+                           m::Param("start1"))));
+}
+
+TEST_F(ArraySimplificationPassTest, ArraySliceIdentityChain) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  fn array_slice_identity_chain(array: bits[32][8]) -> bits[32][8] {
+    zero: bits[32] = literal(value=0)
+    temp: bits[32][8] = array_slice(array, zero, width=8)
+    ret result: bits[32][8] = array_slice(temp, zero, width=8)
+  }
+  )",
+                                                       p));
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("array"));
+}
+
+TEST_F(ArraySimplificationPassTest, ArraySliceIdentityConcat) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  fn array_slice_identity_chain(array: bits[32][4]) -> bits[32][8] {
+    zero: bits[32] = literal(value=0)
+    concat: bits[32][8] = array_concat(array, array)
+    ret result: bits[32][8] = array_slice(concat, zero, width=8)
+  }
+  )",
+                                                       p));
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::ArrayConcat());
+}
+
+TEST_F(ArraySimplificationPassTest, ArraySubSlice) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  fn array_sub_slice(x: bits[32], y: bits[32], w: bits[32], z: bits[32]) -> bits[32][2] {
+    zero: bits[32] = literal(value=2)
+    temp: bits[32][4] = array(x, y, z, w)
+    ret result: bits[32][2] = array_slice(temp, zero, width=2)
+  }
+  )",
+                                                       p));
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Array(m::Param("z"), m::Param("w")));
+}
+
+TEST_F(ArraySimplificationPassTest, ArraySliceSelect) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  fn array_slice_select(array1: bits[32][8], array2: bits[32][8], p: bits[1], start: bits[32]) -> bits[32][8] {
+    sel_result: bits[32][8] = sel(p, cases=[array1, array2])
+    ret result: bits[32][8] = array_slice(sel_result, start, width=8)
+  }
+  )",
+                                                       p));
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("p"), {m::ArraySlice(), m::ArraySlice()}));
+}
+
 }  // namespace
 }  // namespace xls
