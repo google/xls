@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 
@@ -34,31 +35,45 @@ void GenIrNodesPass::GenIrNodes() {
 }
 
 void GenIrNodesPass::HandleAdd(FuzzAddProto* add) {
-  BValue lhs = GetOperand(add->mutable_lhs_ref());
-  BValue rhs = GetOperand(add->mutable_rhs_ref());
+  FittedOperandIdxProto* lhs_idx = add->mutable_lhs_idx();
+  FittedOperandIdxProto* rhs_idx = add->mutable_rhs_idx();
+  BValue lhs = GetOperand(lhs_idx);
+  BValue rhs = GetOperand(rhs_idx);
+  // The operands need to be have the sane bit width in order to be added, so
+  // update the lhs and rhs to be of the specified bit width of the
+  // FuzzAddProto.
+  lhs = ChangeBitWidth(fb_, lhs, add->bit_width(),
+                       lhs_idx->mutable_width_fitting_method());
+  rhs = ChangeBitWidth(fb_, rhs, add->bit_width(),
+                       rhs_idx->mutable_width_fitting_method());
   stack_.push_back(fb_->Add(lhs, rhs));
 }
 
 void GenIrNodesPass::HandleLiteral(FuzzLiteralProto* literal) {
-  stack_.push_back(fb_->Literal(UBits(literal->value(), 64)));
+  // Take the bytes protobuf datatype and convert it to a Bits object by making
+  // a const uint8_t span. Any bytes that exceed the bit width of the literal
+  // will be dropped.
+  Bits value_bits =
+      ChangeBytesBitWidth(literal->value_bytes(), literal->bit_width());
+  stack_.push_back(fb_->Literal(value_bits));
 }
 
 void GenIrNodesPass::HandleParam(FuzzParamProto* param) {
   // Params are named as "p" followed by the stack index of the param.
-  stack_.push_back(
-      fb_->Param("p" + std::to_string(stack_.size()), p_->GetBitsType(64)));
+  stack_.push_back(fb_->Param("p" + std::to_string(stack_.size()),
+                              p_->GetBitsType(param->bit_width())));
 }
 
-// Takes in a FuzzOperandRefProto and returns a BValue that is either a default
-// value or a BValue from the stack based off of the stack index.
-BValue GenIrNodesPass::GetOperand(FuzzOperandRefProto* operand_ref) {
+// Takes in a FittedOperandIdxProto and returns a BValue that is either a
+// default value or a BValue from the stack based off of the stack index.
+BValue GenIrNodesPass::GetOperand(FittedOperandIdxProto* operand_idx) {
   if (stack_.empty()) {
     // If the stack is empty, initialize the lhs and rhs with default values.
     return fb_->Literal(UBits(0, 64));
   } else {
     // Retrieve the lhs and rhs operands from the stack based off of the
     // randomly generated stack indices.
-    return stack_[operand_ref->stack_idx() % stack_.size()];
+    return stack_[operand_idx->stack_idx() % stack_.size()];
   }
 }
 
