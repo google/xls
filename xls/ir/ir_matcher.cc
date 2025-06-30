@@ -24,14 +24,14 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
@@ -317,6 +317,22 @@ bool ArrayUpdateMatcher::MatchAndExplain(
           node->As<::xls::ArrayUpdate>()->assumed_in_bounds(), listener)) {
     *listener << "Unexpected value of assumed_in_bounds for " << node;
     return false;
+  }
+  return true;
+}
+
+bool ArraySliceMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+
+  if (width_.has_value()) {
+    const auto* slice = node->As<::xls::ArraySlice>();
+    if (slice->width() != *width_) {
+      *listener << "width is " << slice->width() << ", expected " << *width_;
+      return false;
+    }
   }
   return true;
 }
