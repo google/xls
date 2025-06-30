@@ -123,6 +123,16 @@ control the scheduler.
     with other RTL. Note that flow-controlled channel operations all have inputs
     and outputs, so this adds delay to both sends and receives.
 
+-   `--additional_channel_delay_ps=...` adds additional delay to operations on
+    specific external channels. The flag takes a comma-separated list of
+    `channel=delay` pairs, which means that the operations on `channel` will be
+    modeled as having an additional `delay` picoseconds of delay. This can be
+    helpful to meet timing when integrating XLS designs with other RTL. Note
+    that since all flow-controlled channel operations have both inputs &
+    outputs, the actual delay applied will be the sum of this value and the
+    greater of `additional_input_delay_ps` or `additional_output_delay_ps`, if
+    provided.
+
 -   `--ffi_fallback_delay_ps=...` Delay of foreign function calls if not
     otherwise specified. If there is no measurement or configuration for the
     delay of an invoked modules, this is the value used in the scheduler.

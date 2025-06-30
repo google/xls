@@ -17,16 +17,53 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
+
+struct ChannelDelayMap {
+  absl::flat_hash_map<std::string, int64_t> delay;
+};
+
+bool AbslParseFlag(std::string_view text, ChannelDelayMap* map,
+                   std::string* error) {
+  if (text.empty()) {
+    return true;
+  }
+  for (const auto& entry : absl::StrSplit(text, ',')) {
+    std::vector<std::string_view> elements = absl::StrSplit(entry, '=');
+    if (elements.size() != 2) {
+      *error =
+          absl::StrCat("Expected 'channel=delay' pair, but found: ", entry);
+      return false;
+    }
+    std::string_view channel = elements[0];
+    int64_t delay;
+    if (!absl::SimpleAtoi(elements[1], &delay)) {
+      *error = absl::StrCat("Invalid delay: ", elements[1]);
+      return false;
+    }
+    map->delay[channel] = delay;
+  }
+  return true;
+}
+
+std::string AbslUnparseFlag(const ChannelDelayMap& map) {
+  return absl::StrJoin(map.delay, ",", absl::PairFormatter("="));
+}
 
 // LINT.IfChange
 ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel, []() -> const std::string& {
@@ -96,6 +133,11 @@ ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
           "The additional delay added to each input.");
 ABSL_FLAG(int64_t, additional_output_delay_ps, 0,
           "The additional delay added to each output.");
+ABSL_FLAG(ChannelDelayMap, additional_channel_delay_ps, {},
+          "The additional delay added for operations on each external channel; "
+          "specified as a comma-separated list of 'channel=delay' pairs. Note "
+          "that the actual delay added will be the sum of this and the largest "
+          "of the additional_(input|output)_delay_ps parameters, if provided.");
 ABSL_FLAG(int64_t, ffi_fallback_delay_ps, 0,
           "Delay of foreign function calls if not otherwise specified.");
 ABSL_FLAG(std::vector<std::string>, io_constraints, {},
@@ -224,6 +266,14 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   }
   POPULATE_FLAG(additional_input_delay_ps);
   POPULATE_FLAG(additional_output_delay_ps);
+  {
+    if (FLAGS_additional_channel_delay_ps.IsSpecifiedOnCommandLine()) {
+      any_flags_set |= true;
+      proto.mutable_additional_channel_delay_ps()->insert(
+          absl::GetFlag(FLAGS_additional_channel_delay_ps).delay.begin(),
+          absl::GetFlag(FLAGS_additional_channel_delay_ps).delay.end());
+    }
+  }
   POPULATE_FLAG(ffi_fallback_delay_ps);
   POPULATE_REPEATED_FLAG(io_constraints);
   POPULATE_FLAG(receives_first_sends_last);

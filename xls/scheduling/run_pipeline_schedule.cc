@@ -15,6 +15,7 @@
 #include "xls/scheduling/run_pipeline_schedule.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -34,6 +35,7 @@
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -405,7 +407,12 @@ absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
       "io_delay_added", delay_estimator, [&](Node* node, int64_t base_delay) {
         if (node->Is<ChannelNode>()) {
           if (IsExternalIoNode(node->As<ChannelNode>(), elab)) {
-            return base_delay + max_io_delay;
+            const int64_t channel_delay =
+                options
+                    .additional_channel_delay_ps(
+                        node->As<ChannelNode>()->channel_name())
+                    .value_or(0);
+            return base_delay + max_io_delay + channel_delay;
           }
           return base_delay;
         }

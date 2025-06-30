@@ -1820,6 +1820,72 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithInputAndOutputDelay) {
   EXPECT_THAT(schedule.nodes_in_cycle(1), IsSupersetOf({send.node()}));
 }
 
+TEST_F(PipelineScheduleTest, ProcScheduleWithChannelSpecificDelay) {
+  Package p("p");
+
+  Type* u16 = p.GetBitsType(16);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in1_ch,
+      p.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in2_ch,
+      p.CreateStreamingChannel("in2", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
+
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+
+  BValue rcv1 = pb.Receive(in1_ch);
+  BValue neg_rcv1 = pb.Negate(rcv1);
+  BValue rcv2 = pb.Receive(in2_ch);
+  BValue neg_rcv2 = pb.Negate(rcv2);
+  BValue sum = pb.Add(neg_rcv1, neg_rcv2);
+  BValue send = pb.Send(out_ch, sum);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  // No input delay, we get [{rcv1, neg_rcv1, rcv2, neg_rcv2, sum, send}]
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(2)));
+  ASSERT_EQ(schedule.length(), 1);
+  EXPECT_THAT(
+      schedule.nodes_in_cycle(0),
+      IsSupersetOf({rcv1.node(), rcv2.node(), sum.node(), send.node()}));
+
+  // Small ch2 delay bumps just the sum to stage 1, we get:
+  // [{rcv1, neg_rcv1, rcv2, neg_rcv2}, {sum, send}]
+  XLS_ASSERT_OK_AND_ASSIGN(
+      schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions()
+                              .clock_period_ps(2)
+                              .add_additional_channel_delay_ps("in2", 1)));
+  ASSERT_EQ(schedule.length(), 2);
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              IsSupersetOf({rcv1.node(), neg_rcv1.node(), rcv2.node(),
+                            neg_rcv2.node()}));
+  EXPECT_THAT(schedule.nodes_in_cycle(1),
+              IsSupersetOf({sum.node(), send.node()}));
+
+  // Larger ch2 delay bumps neg_rcv2 to stage 1, we get:
+  // [{rcv1, neg_rcv1, rcv2}, {neg_rcv2, sum, send}]
+  XLS_ASSERT_OK_AND_ASSIGN(
+      schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions()
+                              .clock_period_ps(2)
+                              .add_additional_channel_delay_ps("in2", 2)));
+  ASSERT_EQ(schedule.length(), 2);
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              IsSupersetOf({rcv1.node(), neg_rcv1.node(), rcv2.node()}));
+  EXPECT_THAT(schedule.nodes_in_cycle(1),
+              IsSupersetOf({neg_rcv2.node(), sum.node(), send.node()}));
+}
+
 TEST_F(PipelineScheduleTest, ProcScheduleWithConstraints) {
   Package p("p");
   Type* u16 = p.GetBitsType(16);
