@@ -18,7 +18,6 @@
 #include "xls/fuzzer/ir_fuzzer/combine_stack.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/gen_ir_nodes_pass.h"
-#include "xls/fuzzer/ir_fuzzer/stringify_program_pass.h"
 #include "xls/ir/function_builder.h"
 
 namespace xls {
@@ -26,11 +25,8 @@ namespace xls {
 // High level function that processes the randomly generated FuzzProgramProto
 // and returns a valid IR object/BValue.
 BValue IrFuzzBuilder::BuildIr() {
-  // Logs the FuzzProgramProto in a human readable format for debugging.
-  StringifyProgramPass stringify_program_pass(fuzz_program_);
-  VLOG(3) << "1. Fuzz Program:" << "\n"
-          << stringify_program_pass.StringifyProgram() << "\n";
-  VLOG(3) << "2. Fuzz Program Proto:" << "\n"
+  // Logs the FuzzProgramProto for debugging.
+  VLOG(3) << "1. Fuzz Program Proto:" << "\n"
           << fuzz_program_->DebugString() << "\n";
   // Converts the FuzzProgramProto instructions into a stack of BValues IR
   // nodes.
