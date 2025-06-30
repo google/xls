@@ -198,7 +198,7 @@ pub proc FseLookupCtrl {
                 mode: CompressionMode[3]:[req.ll_mode, req.of_mode, req.ml_mode],
                 mode_valid: true,
                 cnt: u2:0,
-                ..zero!<State>()
+                accuracy_logs: state.accuracy_logs // keep the accuracy logs from the previous block for "repeated" blocks
             }
         } else {
             let is_rle = (state.mode[state.cnt] == CompressionMode::RLE);
