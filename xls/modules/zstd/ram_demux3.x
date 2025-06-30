@@ -79,7 +79,7 @@ pub proc RamDemux3<
         let (tmp_wr_req_s, tmp_wr_req_r) = chan<WriteReq, CHANNEL_DEPTH>("tmp_wr_req");
         let (tmp_wr_resp_s, tmp_wr_resp_r) = chan<WriteResp, CHANNEL_DEPTH>("tmp_wr_resp");
 
-        spawn ram_demux::RamDemux<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS, u32:0xFF, D1_INIT_SEL, QUEUE_LEN>(
+        spawn ram_demux::RamDemuxWrapped<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS, u32:0xFF, D1_INIT_SEL, QUEUE_LEN>(
             d1_sel_req_r, d1_sel_resp_s,
             rd_req_r, rd_resp_s, wr_req_r, wr_resp_s,
             rd_req0_s, rd_resp0_r, wr_req0_s, wr_resp0_r,
@@ -89,7 +89,7 @@ pub proc RamDemux3<
         let (d2_sel_req_s, d2_sel_req_r) = chan<u1, CHANNEL_DEPTH>("d2_sel_req");
         let (d2_sel_resp_s, d2_sel_resp_r) = chan<(), CHANNEL_DEPTH>("d2_sel_resp");
 
-        spawn ram_demux::RamDemux<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS, u32:0xFE, D2_INIT_SEL, QUEUE_LEN>(
+        spawn ram_demux::RamDemuxWrapped<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS, u32:0xFE, D2_INIT_SEL, QUEUE_LEN>(
             d2_sel_req_r, d2_sel_resp_s,
             tmp_rd_req_r, tmp_rd_resp_s, tmp_wr_req_r, tmp_wr_resp_s,
             rd_req1_s, rd_resp1_r, wr_req1_s, wr_resp1_r,

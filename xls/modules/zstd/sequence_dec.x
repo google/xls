@@ -1023,7 +1023,7 @@ pub proc SequenceDecoder<
         let (dummy_ll_wr_req_s, dummy_ll_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_ll_wr_req");
         let (dummy_ll_wr_resp_s, dummy_ll_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_ll_wr_resp");
 
-        spawn ram_demux::RamDemux<
+        spawn ram_demux::RamDemuxWrapped<
             FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS, u32:1
         > (
             ll_demux_req_r, ll_demux_resp_s,
@@ -1040,7 +1040,7 @@ pub proc SequenceDecoder<
         let (dummy_ml_wr_req_s, dummy_ml_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_ml_wr_req");
         let (dummy_ml_wr_resp_s, dummy_ml_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_ml_wr_resp");
 
-        spawn ram_demux::RamDemux<
+        spawn ram_demux::RamDemuxWrapped<
             FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS, u32:2
         > (
             ml_demux_req_r, ml_demux_resp_s,
@@ -1057,7 +1057,7 @@ pub proc SequenceDecoder<
         let (dummy_of_wr_req_s, dummy_of_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_of_wr_req");
         let (dummy_of_wr_resp_s, dummy_of_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_of_wr_resp");
 
-        spawn ram_demux::RamDemux<
+        spawn ram_demux::RamDemuxWrapped<
             FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS, u32:3
         > (
             of_demux_req_r, of_demux_resp_s,
@@ -2033,19 +2033,22 @@ proc SequenceDecoderTest {
     input2_wr_req_s: chan<InputRamWrReq> out;
     input2_wr_resp_r: chan<InputRamWrResp> in;
 
-    ll_sel_test_s: chan<u1> out;
+    ll_sel_test_req_s: chan<u1> out;
+    ll_sel_test_resp_r: chan<()> in;
     ll_def_test_rd_req_s: chan<FseRamRdReq> out;
     ll_def_test_rd_resp_r: chan<FseRamRdResp> in;
     ll_def_test_wr_req_s: chan<FseRamWrReq> out;
     ll_def_test_wr_resp_r: chan<FseRamWrResp> in;
 
-    ml_sel_test_s: chan<u1> out;
+    ml_sel_test_req_s: chan<u1> out;
+    ml_sel_test_resp_r: chan<()> in;
     ml_def_test_rd_req_s: chan<FseRamRdReq> out;
     ml_def_test_rd_resp_r: chan<FseRamRdResp> in;
     ml_def_test_wr_req_s: chan<FseRamWrReq> out;
     ml_def_test_wr_resp_r: chan<FseRamWrResp> in;
 
-    of_sel_test_s: chan<u1> out;
+    of_sel_test_req_s: chan<u1> out;
+    of_sel_test_resp_r: chan<()> in;
     of_def_test_rd_req_s: chan<FseRamRdReq> out;
     of_def_test_rd_resp_r: chan<FseRamRdResp> in;
     of_def_test_wr_req_s: chan<FseRamWrReq> out;
@@ -2093,7 +2096,8 @@ proc SequenceDecoderTest {
 
         // RAM with default FSE lookup for Literal Lengths
 
-        let (ll_sel_test_s, ll_sel_test_r) = chan<u1>("ll_test_sel");
+        let (ll_sel_test_req_s, ll_sel_test_req_r) = chan<u1>("ll_test_sel_req");
+        let (ll_sel_test_resp_s, ll_sel_test_resp_r) = chan<()>("ll_test_sel_resp");
 
         let (ll_def_test_rd_req_s, ll_def_test_rd_req_r) = chan<FseRamRdReq>("ll_def_test_rd_req");
         let (ll_def_test_rd_resp_s, ll_def_test_rd_resp_r) = chan<FseRamRdResp>("ll_def_test_rd_resp");
@@ -2115,7 +2119,7 @@ proc SequenceDecoderTest {
             TEST_FSE_RAM_DATA_W,
             TEST_FSE_RAM_NUM_PARTITIONS,
         >(
-            ll_sel_test_r,
+            ll_sel_test_req_r, ll_sel_test_resp_s,
             ll_def_test_rd_req_r, ll_def_test_rd_resp_s, ll_def_test_wr_req_r, ll_def_test_wr_resp_s,
             ll_def_fse_rd_req_r, ll_def_fse_rd_resp_s, ll_def_fse_wr_req_r, ll_def_fse_wr_resp_s,
             ll_def_rd_req_s, ll_def_rd_resp_r, ll_def_wr_req_s, ll_def_wr_resp_r,
@@ -2141,7 +2145,8 @@ proc SequenceDecoderTest {
 
         // RAM with default FSE lookup for Match Lengths
 
-        let (ml_sel_test_s, ml_sel_test_r) = chan<u1>("ml_sel_test");
+        let (ml_sel_test_req_s, ml_sel_test_req_r) = chan<u1>("ml_sel_test_req");
+        let (ml_sel_test_resp_s, ml_sel_test_resp_r) = chan<()>("ml_sel_test_resp");
 
         let (ml_def_test_rd_req_s, ml_def_test_rd_req_r) = chan<FseRamRdReq>("ml_def_test_rd_req");
         let (ml_def_test_rd_resp_s, ml_def_test_rd_resp_r) = chan<FseRamRdResp>("ml_def_test_rd_resp");
@@ -2163,7 +2168,7 @@ proc SequenceDecoderTest {
             TEST_FSE_RAM_DATA_W,
             TEST_FSE_RAM_NUM_PARTITIONS,
         >(
-            ml_sel_test_r,
+            ml_sel_test_req_r, ml_sel_test_resp_s,
             ml_def_test_rd_req_r, ml_def_test_rd_resp_s, ml_def_test_wr_req_r, ml_def_test_wr_resp_s,
             ml_def_fse_rd_req_r, ml_def_fse_rd_resp_s, ml_def_fse_wr_req_r, ml_def_fse_wr_resp_s,
             ml_def_rd_req_s, ml_def_rd_resp_r, ml_def_wr_req_s, ml_def_wr_resp_r,
@@ -2189,7 +2194,8 @@ proc SequenceDecoderTest {
 
         // RAM with default FSE lookup for Offsets
 
-        let (of_sel_test_s, of_sel_test_r) = chan<u1>("of_sel_test");
+        let (of_sel_test_req_s, of_sel_test_req_r) = chan<u1>("of_sel_test_req");
+        let (of_sel_test_resp_s, of_sel_test_resp_r) = chan<()>("of_sel_test_resp");
 
         let (of_def_test_rd_req_s, of_def_test_rd_req_r) = chan<FseRamRdReq>("of_def_test_rd_req");
         let (of_def_test_rd_resp_s, of_def_test_rd_resp_r) = chan<FseRamRdResp>("of_def_test_rd_resp");
@@ -2211,7 +2217,7 @@ proc SequenceDecoderTest {
             TEST_FSE_RAM_DATA_W,
             TEST_FSE_RAM_NUM_PARTITIONS,
         >(
-            of_sel_test_r,
+            of_sel_test_req_r, of_sel_test_resp_s,
             of_def_test_rd_req_r, of_def_test_rd_resp_s, of_def_test_wr_req_r, of_def_test_wr_resp_s,
             of_def_fse_rd_req_r, of_def_fse_rd_resp_s, of_def_fse_wr_req_r, of_def_fse_wr_resp_s,
             of_def_rd_req_s, of_def_rd_resp_r, of_def_wr_req_s, of_def_wr_resp_r,
@@ -2363,13 +2369,13 @@ proc SequenceDecoderTest {
            input1_rd_req_s, input1_rd_resp_r, input1_wr_req_s, input1_wr_resp_r,
            input2_rd_req_s, input2_rd_resp_r, input2_wr_req_s, input2_wr_resp_r,
 
-           ll_sel_test_s,
+           ll_sel_test_req_s, ll_sel_test_resp_r,
            ll_def_test_rd_req_s, ll_def_test_rd_resp_r, ll_def_test_wr_req_s, ll_def_test_wr_resp_r,
 
-           ml_sel_test_s,
+           ml_sel_test_req_s, ml_sel_test_resp_r,
            ml_def_test_rd_req_s, ml_def_test_rd_resp_r, ml_def_test_wr_req_s, ml_def_test_wr_resp_r,
 
-           of_sel_test_s,
+           of_sel_test_req_s, of_sel_test_resp_r,
            of_def_test_rd_req_s, of_def_test_rd_resp_r, of_def_test_wr_req_s, of_def_test_wr_resp_r,
        )
    }
@@ -2378,7 +2384,8 @@ proc SequenceDecoderTest {
         let tok = join();
 
         // FILL THE LL DEFAULT RAM
-        let tok = send(tok, ll_sel_test_s, u1:0);
+        let tok = send(tok, ll_sel_test_req_s, u1:0);
+        let (tok, _) = recv(tok, ll_sel_test_resp_r);
         let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(DEFAULT_LL_TABLE)) {
             let req = FseRamWrReq {
                 addr: i as FseAddr,
@@ -2389,10 +2396,12 @@ proc SequenceDecoderTest {
             let (tok, _) = recv(tok, ll_def_test_wr_resp_r);
             tok
         }(tok);
-        let tok = send(tok, ll_sel_test_s, u1:1);
+        let tok = send(tok, ll_sel_test_req_s, u1:1);
+        let (tok, _) = recv(tok, ll_sel_test_resp_r);
 
         // FILL THE OF DEFAULT RAM
-        let tok = send(tok, of_sel_test_s, u1:0);
+        let tok = send(tok, of_sel_test_req_s, u1:0);
+        let (tok, _) = recv(tok, of_sel_test_resp_r);
         let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(DEFAULT_OF_TABLE)) {
             let req = FseRamWrReq {
                 addr: i as FseAddr,
@@ -2403,10 +2412,12 @@ proc SequenceDecoderTest {
             let (tok, _) = recv(tok, of_def_test_wr_resp_r);
             tok
         }(tok);
-        let tok = send(tok, of_sel_test_s, u1:1);
+        let tok = send(tok, of_sel_test_req_s, u1:1);
+        let (tok, _) = recv(tok, of_sel_test_resp_r);
 
         // FILL THE ML DEFAULT RAM
-        let tok = send(tok, ml_sel_test_s, u1:0);
+        let tok = send(tok, ml_sel_test_req_s, u1:0);
+        let (tok, _) = recv(tok, ml_sel_test_resp_r);
         let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(DEFAULT_ML_TABLE)) {
             let req = FseRamWrReq {
                 addr: i as FseAddr,
@@ -2417,7 +2428,8 @@ proc SequenceDecoderTest {
             let (tok, _) = recv(tok, ml_def_test_wr_resp_r);
             tok
         }(tok);
-        let tok = send(tok, ml_sel_test_s, u1:1);
+        let tok = send(tok, ml_sel_test_req_s, u1:1);
+        let (tok, _) = recv(tok, ml_sel_test_resp_r);
 
         // LOAD TESTCASES
         let tok = unroll_for! (test_i, tok): (u32, token) in range(u32:0, array_size(SEQ_DEC_TESTCASES)) {

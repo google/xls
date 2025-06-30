@@ -1851,6 +1851,7 @@ xls_dslx_library(
     srcs = ["ram_demux.x"],
     deps = [
         "//xls/examples:ram_dslx",
+        ":ram_passthrough_dslx"
     ],
 )
 
@@ -1877,7 +1878,7 @@ ram_demux_codegen_args = {
         )
         for num in range(2)
     ]),
-    "pipeline_stages": "6",
+    "clock_period_ps": "750",
     "reset": "rst",
     "use_system_verilog": "false",
     "materialize_internal_fifos": "true",
@@ -1886,7 +1887,7 @@ ram_demux_codegen_args = {
 xls_dslx_verilog(
     name = "ram_demux_verilog",
     codegen_args = ram_demux_codegen_args,
-    dslx_top = "RamDemuxInst",
+    dslx_top = "RamDemuxWrappedInst",
     library = ":ram_demux_dslx",
     tags = ["manual"],
     verilog_file = "ram_demux.v",
@@ -1895,9 +1896,6 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "ram_demux_opt_ir_benchmark",
     src = "ram_demux_verilog.opt.ir",
-    benchmark_ir_args = {
-        "top": "__ram_demux__RamDemuxInst__RamDemux_0__5_8_0_0_8_5_next",
-    },
     codegen_args = ram_demux_codegen_args,
     tags = ["manual"],
 )
@@ -1960,11 +1958,8 @@ xls_dslx_verilog(
         "use_system_verilog": "false",
         "materialize_internal_fifos": "true",
     },
-    dslx_top = "RamDemuxNaiveInst",
+    dslx_top = "RamDemuxNaiveWrappedInst",
     library = ":ram_demux_dslx",
-    opt_ir_args = {
-        "top": "__ram_demux__RamDemuxNaiveInst__RamDemuxNaive_0__5_8_0_8_next",
-    },
     tags = ["manual"],
     verilog_file = "ram_demux_naive.v",
 )
@@ -1972,9 +1967,6 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "ram_demux_naive_opt_ir_benchmark",
     src = "ram_demux_naive_verilog.opt.ir",
-    benchmark_ir_args = {
-        "top": "__ram_demux__RamDemuxNaiveInst__RamDemuxNaive_0__5_8_0_8_next",
-    },
     codegen_args = {
         "pipeline_stages": "10",
     },
@@ -2015,6 +2007,48 @@ place_and_route(
     synthesized_rtl = ":ram_demux_naive_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "5",
+)
+
+
+xls_dslx_library(
+    name = "ram_passthrough_dslx",
+    srcs = ["ram_passthrough.x"],
+    deps = [
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "ram_passthrough_dslx_test",
+    dslx_test_args = {"compare": "none"},
+    library = ":ram_passthrough_dslx",
+    tags = ["manual"],
+)
+
+xls_dslx_verilog(
+    name = "ram_passthrough_verilog",
+    codegen_args = {
+        "module_name": "RamPassthrough",
+        "generator": "pipeline",
+        "delay_model": "asap7",
+        "ram_configurations":
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 1,
+                ram_name = "ram",
+                rd_req = "ram_passthrough__rd_req_s",
+                rd_resp = "ram_passthrough__rd_resp_r",
+                wr_req = "ram_passthrough__wr_req_s",
+                wr_resp = "ram_passthrough__wr_resp_r",
+            ),
+        "reset": "rst",
+        "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
+        "clock_period_ps": "750",
+    },
+    dslx_top = "RamPassthroughInst",
+    library = ":ram_passthrough_dslx",
+    tags = ["manual"],
+    verilog_file = "ram_passthrough.v",
 )
 
 xls_dslx_library(
@@ -2202,6 +2236,7 @@ xls_dslx_library(
     ],
     deps = [
         "//xls/examples:ram_dslx",
+        ":ram_passthrough_dslx"
     ],
 )
 
