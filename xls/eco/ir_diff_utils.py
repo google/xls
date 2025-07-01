@@ -132,11 +132,68 @@ def get_graph_stats(graph: nx.DiGraph) -> dict[str, Any]:
   stats = {
       "number_of_nodes": graph.number_of_nodes(),
       "number_of_edges": graph.number_of_edges(),
-      "in_degree_distribution": dict(graph.in_degree()),
-      "out_degree_distribution": dict(graph.out_degree()),
-      "longest_path_length": nx.dag_longest_path_length(graph),
+      "depth": get_max_depth_dfs(graph),
   }
   return stats
+
+
+def get_max_depth_dfs(
+    graph: nx.DiGraph,
+    source: Optional[str] = None,
+    depth_limit: Optional[int] = None,
+) -> int:
+  """Returns the maximum depth of a graph using a depth-first search.
+
+  Args:
+    graph: A NetworkX directed graph object.
+    source: The source node to start the search from. If None, the search starts
+      from all nodes in the graph.
+    depth_limit: The maximum depth to search. If None, the search is performed
+      on the entire graph.
+
+  Returns:
+    The maximum depth of the graph.
+  """
+  max_d_local = []
+
+  if source is None:
+    nodes = list(graph)
+  else:
+    nodes = [source]
+  visited = set()
+  if depth_limit is None:
+    depth_limit = len(graph)
+
+  for start in nodes:
+    if start in visited:
+      continue
+    max_depth = 0
+    visited.add(start)
+    stack = [(
+        start,
+        depth_limit,
+        iter(graph[start]),
+    )]
+    while stack:
+      _, depth_now, children = stack[-1]
+      try:
+        child = next(children)
+        if child not in visited:
+          visited.add(child)
+          if depth_now > 1:
+            current_depth = depth_limit - depth_now + 1
+            if current_depth > max_depth:
+              max_depth = current_depth
+            stack.append((
+                child,
+                depth_now - 1,
+                iter(graph[child]),
+            ))
+      except StopIteration:
+        stack.pop()
+    max_d_local.append(max_depth)
+
+  return (max(max_d_local) + 1) if max_d_local else 0
 
 
 def interpret_edit_paths(
