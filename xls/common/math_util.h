@@ -103,7 +103,7 @@ T RoundUpToNearest(T value, T divisor) {
 
 template <typename T>
 T RoundDownToNearest(T value, T divisor) {
-  return value / divisor * divisor;
+  return (value / divisor) * divisor;
 }
 
 template <typename T>
@@ -148,11 +148,32 @@ std::tuple<T, int> FactorizePowerOfTwo(T x) {
   return std::make_tuple(x, power);
 }
 
-// Returns ceil(log2(value)). Returns zero for the value zero.
-int64_t CeilOfLog2(uint64_t value);
+// Returns the number of leading zeros in the given value.
+inline uint64_t Clz(uint64_t value) {
+#if __has_builtin(__builtin_clzl)
+  return value == 0 ? 64 : __builtin_clzl(value);
+#else
+  for (int i = 0; i < 64; ++i) {
+    if ((value >> (64 - i - 1)) & 1) {
+      return static_cast<uint64_t>(i);
+    }
+  }
+  return 64;
+#endif
+}
 
-// Returns floor(log2(value)). Returns zero for the value zero.
-int64_t FloorOfLog2(uint64_t value);
+inline uint64_t FloorOfLog2(uint64_t value) {
+  return (value == 0) ? 0 : 63 - Clz(value);
+}
+
+// Returns ceil(log2(value)). Returns zero for the value zero.
+inline uint64_t CeilOfLog2(uint64_t value) {
+  if (value == 0) {
+    return 0;
+  }
+  uint64_t floor = FloorOfLog2(value);
+  return IsPowerOfTwo(value) ? floor : floor + 1;
+}
 
 // Returns true if the given floating-point value is 0 or subnormal.
 template <typename T>

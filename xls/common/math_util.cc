@@ -21,32 +21,6 @@
 #include "absl/types/span.h"
 
 namespace xls {
-namespace {
-
-// Returns the number of leading zeros in the given value.
-int64_t Clz(uint64_t value) {
-  for (int64_t i = 0; i < 64; ++i) {
-    if ((value >> (64 - i - 1)) & 1) {
-      return i;
-    }
-  }
-  return 64;
-}
-
-}  // namespace
-
-int64_t CeilOfLog2(uint64_t value) {
-  if (value == 0) {
-    return 0;
-  }
-  int64_t floor = FloorOfLog2(value);
-  return ((value & (value - 1)) == 0) ? floor  // power of two
-                                      : floor + 1;
-}
-
-int64_t FloorOfLog2(uint64_t value) {
-  return (value == 0) ? 0 : 63 - Clz(value);
-}
 
 bool MixedRadixIterate(absl::Span<const int64_t> radix,
                        std::function<bool(const std::vector<int64_t>&)> f) {

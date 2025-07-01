@@ -478,5 +478,13 @@ FUZZ_TEST(MathUtil, SaturatingAddFuzz);
 FUZZ_TEST(MathUtil, SaturatingSubFuzz);
 FUZZ_TEST(MathUtil, SaturatingMulFuzz);
 
+TEST(MathUtil, Clz) {
+  uint64_t x = ~0ll;
+  for (int i = 0; i < 64; ++i) {
+    EXPECT_EQ(Clz(x), i);
+    x >>= 1;
+  }
+}
+
 }  // namespace
 }  // namespace xls
