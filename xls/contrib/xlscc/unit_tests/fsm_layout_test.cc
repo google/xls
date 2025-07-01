@@ -58,7 +58,8 @@ class FSMLayoutTest : public XlsccTestBase {
                          translator_->GenerateIR_Top_Function(
                              package_.get(), top_channel_injections));
 
-    NewFSMGenerator generator(*translator_, DebugIrTraceFlags_FSMStates);
+    NewFSMGenerator generator(*translator_, *translator_,
+                              DebugIrTraceFlags_FSMStates);
 
     return generator.LayoutNewFSM(*func, xls::SourceInfo());
   }

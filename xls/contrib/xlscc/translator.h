@@ -53,6 +53,7 @@
 #include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "xls/contrib/xlscc/cc_parser.h"
+#include "xls/contrib/xlscc/generate_fsm.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
@@ -92,12 +93,6 @@ struct FunctionInProgress {
   std::unique_ptr<TranslationContext> translation_context;
   std::unique_ptr<GeneratedFunction> generated_function;
 };
-
-int Debug_CountNodes(const xls::Node* node,
-                     std::set<const xls::Node*>& visited);
-std::string Debug_NodeToInfix(TrackedBValue bval);
-std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed);
-std::string Debug_OpName(const IOOp& op);
 
 // Encapsulates a context for translating Clang AST to XLS IR.
 // This is roughly equivalent to a "scope" in C++. There will typically
@@ -279,7 +274,9 @@ struct ChannelOptions {
   absl::flat_hash_map<std::string, xls::ChannelStrictness> strictness_map;
 };
 
-class Translator final : public GeneratorBase, public TranslatorTypeInterface {
+class Translator : public GeneratorBase,
+                   public TranslatorTypeInterface,
+                   public TranslatorIOInterface {
   void debug_prints(const TranslationContext& context);
 
  public:
@@ -892,27 +889,8 @@ class Translator final : public GeneratorBase, public TranslatorTypeInterface {
                                    xls::ProcBuilder& pb,
                                    const xls::SourceInfo& loc);
 
-  struct NextStateValue {
-    // When the condition is true for multiple next state values,
-    // the one with the lower priority is taken.
-    // Whenever more than one next value is specified,
-    // a priority must be specified, and all conditions must be valid.
-    int64_t priority = -1L;
-    std::string extra_label = "";
-    TrackedBValue value;
-    // condition being invalid indicates unconditional update (literal 1)
-    TrackedBValue condition;
-  };
-
-  struct GenerateFSMInvocationReturn {
-    TrackedBValue return_value;
-    TrackedBValue returns_this_activation;
-    absl::btree_multimap<const xls::StateElement*, NextStateValue>
-        extra_next_state_values;
-  };
-
   std::optional<ChannelBundle> GetChannelBundleForOp(
-      const IOOp& op, const xls::SourceInfo& loc);
+      const IOOp& op, const xls::SourceInfo& loc) override;
 
   // ---- Old FSM ---
   struct InvokeToGenerate {
@@ -990,24 +968,18 @@ class Translator final : public GeneratorBase, public TranslatorTypeInterface {
                                                TrackedBValue op_out_value,
                                                xls::ProcBuilder& pb);
 
-  struct GenerateIOReturn {
-    TrackedBValue token_out;
-    // May be invalid if the op doesn't receive anything (send, trace, etc)
-    TrackedBValue received_value;
-    TrackedBValue io_condition;
-  };
-
-  absl::StatusOr<GenerateIOReturn> GenerateIO(
-      const IOOp& op, TrackedBValue before_token, TrackedBValue op_out_value,
-      xls::ProcBuilder& pb,
-      std::optional<TrackedBValue> extra_condition = std::nullopt);
-
   // Returns new token
   absl::StatusOr<TrackedBValue> GenerateTrace(TrackedBValue trace_out_value,
                                               TrackedBValue before_token,
                                               TrackedBValue condition,
                                               const IOOp& op,
                                               xls::ProcBuilder& pb);
+
+  absl::StatusOr<GenerateIOReturn> GenerateIO(
+      const IOOp& op, TrackedBValue before_token, TrackedBValue op_out_value,
+      xls::ProcBuilder& pb,
+      const std::optional<ChannelBundle>& optional_channel_bundle,
+      std::optional<TrackedBValue> extra_condition = std::nullopt);
 
   struct IOOpReturn {
     bool generate_expr;
@@ -1046,7 +1018,7 @@ class Translator final : public GeneratorBase, public TranslatorTypeInterface {
           name_found_for_bval,
       absl::flat_hash_map<const TrackedBValue*, const clang::NamedDecl*>&
           decls_by_bval_top_context,
-      const xls::SourceInfo& loc);
+      int64_t* total_bvals_out, const xls::SourceInfo& loc);
   absl::Status AddContinuationsToNewSlice(
       const IOOp& after_op, GeneratedFunctionSlice& last_slice,
       GeneratedFunctionSlice& new_slice,
@@ -1059,7 +1031,7 @@ class Translator final : public GeneratorBase, public TranslatorTypeInterface {
           name_found_for_bval,
       const absl::flat_hash_map<const TrackedBValue*, const clang::NamedDecl*>&
           decls_by_bval_top_context,
-      const xls::SourceInfo& loc);
+      int64_t total_bvals, const xls::SourceInfo& loc);
   absl::Status FinishSlice(NATIVE_BVAL return_bval, const xls::SourceInfo& loc);
   absl::Status FinishLastSlice(TrackedBValue return_bval,
                                const xls::SourceInfo& loc);
