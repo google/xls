@@ -59,7 +59,10 @@ int64_t LlvmTypeConverter::GetLlvmBitCount(int64_t xls_bit_count) const {
   return int64_t{1} << CeilOfLog2(xls_bit_count);
 }
 
-llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
+llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) {
+  if (auto it = type_cache_.find(xls_type); it != type_cache_.end()) {
+    return it->second;
+  }
   llvm::Type* llvm_type;
   if (xls_type->IsBits()) {
     llvm_type = llvm::IntegerType::get(
@@ -88,6 +91,7 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
     LOG(FATAL) << absl::StrCat("Type not supported for LLVM conversion: %s",
                                xls_type->ToString());
   }
+  type_cache_.emplace(xls_type, llvm_type);
   return llvm_type;
 }
 
@@ -105,7 +109,7 @@ int64_t LlvmTypeConverter::GetPackedTypeByteSize(const Type* type) const {
 }
 
 absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
-    const Type* type, const Value& value) const {
+    const Type* type, const Value& value) {
   return ToLlvmConstant(ConvertToLlvmType(type), value);
 }
 
@@ -182,19 +186,18 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
   return llvm::ConstantInt::get(type, bits);
 }
 
-int64_t LlvmTypeConverter::GetTypeByteSize(const Type* type) const {
+int64_t LlvmTypeConverter::GetTypeByteSize(const Type* type) {
   return data_layout_.getTypeAllocSize(ConvertToLlvmType(type)).getFixedValue();
 }
 
-int64_t LlvmTypeConverter::GetTypeAbiAlignment(const Type* type) const {
+int64_t LlvmTypeConverter::GetTypeAbiAlignment(const Type* type) {
   return data_layout_.getABITypeAlign(ConvertToLlvmType(type)).value();
 }
-int64_t LlvmTypeConverter::GetTypePreferredAlignment(const Type* type) const {
+int64_t LlvmTypeConverter::GetTypePreferredAlignment(const Type* type) {
   return data_layout_.getPrefTypeAlign(ConvertToLlvmType(type)).value();
 }
 
-TypeBufferMetadata LlvmTypeConverter::GetTypeBufferMetadata(
-    const Type* type) const {
+TypeBufferMetadata LlvmTypeConverter::GetTypeBufferMetadata(const Type* type) {
   return TypeBufferMetadata{
       .size = GetTypeByteSize(type),
       .preferred_alignment = GetTypePreferredAlignment(type),
@@ -202,7 +205,7 @@ TypeBufferMetadata LlvmTypeConverter::GetTypeBufferMetadata(
       .packed_size = GetPackedTypeByteSize(type)};
 }
 
-int64_t LlvmTypeConverter::AlignFor(const Type* type, int64_t offset) const {
+int64_t LlvmTypeConverter::AlignFor(const Type* type, int64_t offset) {
   llvm::Align alignment =
       data_layout_.getPrefTypeAlign(ConvertToLlvmType(type));
   return llvm::alignTo(offset, alignment);
@@ -220,7 +223,7 @@ llvm::Value* LlvmTypeConverter::GetToken() const {
 
 llvm::Value* LlvmTypeConverter::AsSignedValue(
     llvm::Value* value, Type* xls_type, llvm::IRBuilder<>& builder,
-    std::optional<llvm::Type*> dest_type) const {
+    std::optional<llvm::Type*> dest_type) {
   CHECK(xls_type->IsBits());
   int64_t xls_bit_count = xls_type->AsBitsOrDie()->bit_count();
   int64_t llvm_bit_count = GetLlvmBitCount(xls_bit_count);
@@ -246,7 +249,7 @@ llvm::Value* LlvmTypeConverter::AsSignedValue(
 }
 
 llvm::Value* LlvmTypeConverter::PaddingMask(Type* xls_type,
-                                            llvm::IRBuilder<>& builder) const {
+                                            llvm::IRBuilder<>& builder) {
   CHECK(xls_type->IsBits());
   int64_t xls_bit_count = xls_type->AsBitsOrDie()->bit_count();
   int64_t llvm_bit_count = GetLlvmBitCount(xls_type->AsBitsOrDie());
@@ -261,12 +264,13 @@ llvm::Value* LlvmTypeConverter::PaddingMask(Type* xls_type,
 }
 
 llvm::Value* LlvmTypeConverter::InvertedPaddingMask(
-    Type* xls_type, llvm::IRBuilder<>& builder) const {
+    Type* xls_type, llvm::IRBuilder<>& builder) {
   return builder.CreateNot(PaddingMask(xls_type, builder));
 }
 
-llvm::Value* LlvmTypeConverter::ClearPaddingBits(
-    llvm::Value* value, Type* xls_type, llvm::IRBuilder<>& builder) const {
+llvm::Value* LlvmTypeConverter::ClearPaddingBits(llvm::Value* value,
+                                                 Type* xls_type,
+                                                 llvm::IRBuilder<>& builder) {
   if (!xls_type->IsBits()) {
     // TODO(meheff): Handle non-bits types.
     return value;

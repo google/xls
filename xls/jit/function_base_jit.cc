@@ -305,7 +305,7 @@ enum class AllocationKind : uint8_t {
 // functions.
 class BufferAllocator {
  public:
-  explicit BufferAllocator(const LlvmTypeConverter* type_converter)
+  explicit BufferAllocator(LlvmTypeConverter* type_converter)
       : type_converter_(type_converter) {}
 
   void SetAllocationKind(Node* node, AllocationKind kind) {
@@ -349,7 +349,7 @@ class BufferAllocator {
         offset, node_size, current_offset_);
   }
 
-  const LlvmTypeConverter* type_converter_;
+  LlvmTypeConverter* type_converter_;
   absl::flat_hash_map<Node*, int64_t> temp_block_offsets_;
   int64_t current_offset_ = 0;
   int64_t alignment_ = 1;
@@ -965,8 +965,7 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
 // bytes when unpacking values.
 absl::Status UnpackValue(llvm::Value* packed_buffer,
                          llvm::Value* unpacked_buffer, Type* xls_type,
-                         int64_t bit_offset,
-                         const LlvmTypeConverter& type_converter,
+                         int64_t bit_offset, LlvmTypeConverter& type_converter,
                          llvm::IRBuilder<>* builder) {
   switch (xls_type->kind()) {
     case TypeKind::kBits: {
@@ -1056,7 +1055,7 @@ absl::Status UnpackValue(llvm::Value* packed_buffer,
 // value.
 absl::Status PackValue(llvm::Value* unpacked_buffer, llvm::Value* packed_buffer,
                        Type* xls_type, int64_t bit_offset,
-                       const LlvmTypeConverter& type_converter,
+                       LlvmTypeConverter& type_converter,
                        llvm::IRBuilder<>* builder) {
   if (xls_type->GetFlatBitCount() == 0) {
     return absl::OkStatus();

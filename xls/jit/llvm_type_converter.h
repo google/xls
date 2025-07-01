@@ -42,8 +42,8 @@ class LlvmTypeConverter {
   LlvmTypeConverter(llvm::LLVMContext* context,
                     const llvm::DataLayout& data_layout);
 
-  llvm::Type* ConvertToLlvmType(const Type* type) const;
-  llvm::Type* ConvertToPointerToLlvmType(const Type* type) const {
+  llvm::Type* ConvertToLlvmType(const Type* type);
+  llvm::Type* ConvertToPointerToLlvmType(const Type* type) {
     return llvm::PointerType::get(ConvertToLlvmType(type), 0);
   }
 
@@ -61,7 +61,7 @@ class LlvmTypeConverter {
   absl::StatusOr<llvm::Constant*> ToLlvmConstant(llvm::Type* type,
                                                  const Value& value) const;
   absl::StatusOr<llvm::Constant*> ToLlvmConstant(const Type* type,
-                                                 const Value& value) const;
+                                                 const Value& value);
 
   // Returns a constant zero of the given type.
   static llvm::Constant* ZeroOfType(llvm::Type* type);
@@ -72,22 +72,22 @@ class LlvmTypeConverter {
   // instead of the three that the flat bit count would suggest. The type width
   // rules aren't necessarily immediately obvious, but fortunately the
   // DataLayout object can handle ~all of the work for us.
-  int64_t GetTypeByteSize(const Type* type) const;
+  int64_t GetTypeByteSize(const Type* type);
 
   // Returns the preferred alignment for the given type.
-  int64_t GetTypePreferredAlignment(const Type* type) const;
+  int64_t GetTypePreferredAlignment(const Type* type);
 
   // Returns the alignment requirement for the given type.
-  int64_t GetTypeAbiAlignment(const Type* type) const;
+  int64_t GetTypeAbiAlignment(const Type* type);
 
-  TypeBufferMetadata GetTypeBufferMetadata(const Type* type) const;
+  TypeBufferMetadata GetTypeBufferMetadata(const Type* type);
 
   // Returns the next position (starting from offset) where LLVM would consider
   // an object of the given type to have ended; specifically, the next position
   // that matches the greater of the stack alignment and the type's preferred
   // alignment. As above, the rules aren't immediately obvious, but the
   // DataLayout object takes care of the details.
-  int64_t AlignFor(const Type* type, int64_t offset) const;
+  int64_t AlignFor(const Type* type, int64_t offset);
 
   // Returns a new Value representing the LLVM form of a Token.
   llvm::Value* GetToken() const;
@@ -117,7 +117,7 @@ class LlvmTypeConverter {
   // Zeros the padding bits of the given LLVM value representing an XLS value of
   // the given XLS type. Bits-typed XLS values are padded out to powers of two.
   llvm::Value* ClearPaddingBits(llvm::Value* value, Type* xls_type,
-                                llvm::IRBuilder<>& builder) const;
+                                llvm::IRBuilder<>& builder);
 
   // Returns a mask which is 0 in padded bit positions and 1 in non-padding bit
   // positions for the LLVM representation of the given XLS type. For example,
@@ -125,11 +125,10 @@ class LlvmTypeConverter {
   // would return:
   //
   //   i8:0b0000_0111
-  llvm::Value* PaddingMask(Type* xls_type, llvm::IRBuilder<>& builder) const;
+  llvm::Value* PaddingMask(Type* xls_type, llvm::IRBuilder<>& builder);
 
   // Returns the bitwise NOT of padding mask, e.g., 0b1111_1000.
-  llvm::Value* InvertedPaddingMask(Type* xls_type,
-                                   llvm::IRBuilder<>& builder) const;
+  llvm::Value* InvertedPaddingMask(Type* xls_type, llvm::IRBuilder<>& builder);
 
   // Converts the given LLVM value representing and XLS value of the given type
   // into a signed representation. This involves extending the sign-bit of the
@@ -145,7 +144,7 @@ class LlvmTypeConverter {
   // returning.
   llvm::Value* AsSignedValue(
       llvm::Value* value, Type* xls_type, llvm::IRBuilder<>& builder,
-      std::optional<llvm::Type*> dest_type = std::nullopt) const;
+      std::optional<llvm::Type*> dest_type = std::nullopt);
 
   // Creates a TypeLayout object describing the native layout of given xls type.
   TypeLayout CreateTypeLayout(Type* xls_type);
@@ -165,6 +164,7 @@ class LlvmTypeConverter {
 
   llvm::LLVMContext& context_;
   llvm::DataLayout data_layout_;
+  TypeCache type_cache_;
 };
 
 }  // namespace xls
