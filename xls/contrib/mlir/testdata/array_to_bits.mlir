@@ -109,16 +109,18 @@ func.func @tensor_extract_element(%arg0: !xls.array<21 x i32>, %arg1: i32) -> i3
 }
 
 // CHECK-LABEL:   func.func @tensor_extract_single_slice_1d_unit(
-// CHECK-SAME:                                                   %[[VAL_0:.*]]: i96,
-// CHECK-SAME:                                                   %[[VAL_1:.*]]: index) -> i32 attributes {xls = true} {
-// CHECK:           %[[C5:.*]] = "xls.constant_scalar"() <{value = 5 : index}> : () -> index
-// CHECK:           %[[VAL_2:.*]] = arith.constant 0 : index
-// CHECK:           %[[VAL_3:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_4:.*]] = xls.umul %[[VAL_1]], %[[VAL_3]] : index
-// CHECK:           %[[VAL_5:.*]] = xls.add %[[VAL_2]], %[[VAL_4]] : index
-// CHECK:           %[[VAL_S:.*]] = xls.shll %[[VAL_5]], %[[C5]] : index
-// CHECK:           %[[VAL_6:.*]] = "xls.dynamic_bit_slice"(%[[VAL_0]], %[[VAL_S]]) <{width = 32 : i64}> : (i96, index) -> i32
-// CHECK:           return %[[VAL_6]] : i32
+// CHECK-SAME:                                                   %[[ARG0:.*]]: i96,
+// CHECK-SAME:                                                   %[[ARG1:.*]]: index) -> i32 attributes {xls = true} {
+// CHECK:           %[[V0:.*]] = "xls.constant_scalar"() <{value = 5 : index}> : () -> index
+// CHECK:           %[[V1:.*]] = arith.constant 64 : index
+// CHECK:           %[[V2:.*]] = arith.constant 0 : index
+// CHECK:           %[[V3:.*]] = arith.constant 1 : index
+// CHECK:           %[[V4:.*]] = xls.umul %[[ARG1]], %[[V3]] : index
+// CHECK:           %[[V5:.*]] = xls.add %[[V2]], %[[V4]] : index
+// CHECK:           %[[V6:.*]] = xls.shll %[[V5]], %[[V0]] : index
+// CHECK:           %[[V7:.*]] = xls.sub %[[V1]], %[[V6]] : index
+// CHECK:           %[[V8:.*]] = "xls.dynamic_bit_slice"(%[[ARG0]], %[[V7]]) <{width = 32 : i64}> : (i96, index) -> i32
+// CHECK:           return %[[V8]] : i32
 // CHECK:         }
 func.func @tensor_extract_single_slice_1d_unit(%arg0: !xls.array<3 x i32>, %arg1: index) -> !xls.array<1 x i32> attributes {xls = true} {
   %c0 = arith.constant 0 : index
@@ -130,16 +132,18 @@ func.func @tensor_extract_single_slice_1d_unit(%arg0: !xls.array<3 x i32>, %arg1
 }
 
 // CHECK-LABEL:   func.func @tensor_extract_single_slice_1d_subset(
-// CHECK-SAME:                                                     %[[VAL_0:.*]]: i96,
-// CHECK-SAME:                                                     %[[VAL_1:.*]]: index) -> i64 attributes {xls = true} {
-// CHECK:           %[[C5:.*]] = "xls.constant_scalar"() <{value = 5 : index}> : () -> index
-// CHECK:           %[[VAL_2:.*]] = arith.constant 0 : index
-// CHECK:           %[[VAL_3:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_4:.*]] = xls.umul %[[VAL_1]], %[[VAL_3]] : index
-// CHECK:           %[[VAL_5:.*]] = xls.add %[[VAL_2]], %[[VAL_4]] : index
-// CHECK:           %[[VAL_S:.*]] = xls.shll %[[VAL_5]], %[[C5]] : index
-// CHECK:           %[[VAL_6:.*]] = "xls.dynamic_bit_slice"(%[[VAL_0]], %[[VAL_S]]) <{width = 64 : i64}> : (i96, index) -> i64
-// CHECK:           return %[[VAL_6]] : i64
+// CHECK-SAME:                                                     %[[ARG0:.*]]: i96,
+// CHECK-SAME:                                                     %[[ARG1:.*]]: index) -> i64 attributes {xls = true} {
+// CHECK:           %[[V0:.*]] = "xls.constant_scalar"() <{value = 5 : index}> : () -> index
+// CHECK:           %[[V1:.*]] = arith.constant 32 : index
+// CHECK:           %[[V2:.*]] = arith.constant 0 : index
+// CHECK:           %[[V3:.*]] = arith.constant 1 : index
+// CHECK:           %[[V4:.*]] = xls.umul %[[ARG1]], %[[V3]] : index
+// CHECK:           %[[V5:.*]] = xls.add %[[V2]], %[[V4]] : index
+// CHECK:           %[[V6:.*]] = xls.shll %[[V5]], %[[V0]] : index
+// CHECK:           %[[V7:.*]] = xls.sub %[[V1]], %[[V6]] : index
+// CHECK:           %[[V8:.*]] = "xls.dynamic_bit_slice"(%[[ARG0]], %[[V7]]) <{width = 64 : i64}> : (i96, index) -> i64
+// CHECK:           return %[[V8]] : i64
 // CHECK:         }
 func.func @tensor_extract_single_slice_1d_subset(%arg0: !xls.array<3 x i32>, %arg1: index) -> !xls.array<2 x i32> attributes {xls = true} {
   %c0 = arith.constant 0 : index
@@ -151,16 +155,17 @@ func.func @tensor_extract_single_slice_1d_subset(%arg0: !xls.array<3 x i32>, %ar
 }
 
 // CHECK-LABEL:   func.func @tensor_extract_single_slice_1d_all(
-// CHECK-SAME:                                                  %[[VAL_0:.*]]: i96,
-// CHECK-SAME:                                                  %[[VAL_1:.*]]: index) -> i96 attributes {xls = true} {
-// CHECK:           %[[C5:.*]] = "xls.constant_scalar"() <{value = 5 : index}> : () -> index
-// CHECK:           %[[VAL_2:.*]] = arith.constant 0 : index
-// CHECK:           %[[VAL_3:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_4:.*]] = xls.umul %[[VAL_1]], %[[VAL_3]] : index
-// CHECK:           %[[VAL_5:.*]] = xls.add %[[VAL_2]], %[[VAL_4]] : index
-// CHECK:           %[[VAL_S:.*]] = xls.shll %[[VAL_5]], %[[C5]] : index
-// CHECK:           %[[VAL_6:.*]] = "xls.dynamic_bit_slice"(%[[VAL_0]], %[[VAL_S]]) <{width = 96 : i64}> : (i96, index) -> i96
-// CHECK:           return %[[VAL_6]] : i96
+// CHECK-SAME:                                                  %[[ARG0:.*]]: i96,
+// CHECK-SAME:                                                  %[[ARG1:.*]]: index) -> i96 attributes {xls = true} {
+// CHECK:           %[[V0:.*]] = "xls.constant_scalar"() <{value = 5 : index}> : () -> index
+// CHECK:           %[[V1:.*]] = arith.constant 0 : index
+// CHECK:           %[[V2:.*]] = arith.constant 1 : index
+// CHECK:           %[[V3:.*]] = xls.umul %[[ARG1]], %[[V2]] : index
+// CHECK:           %[[V4:.*]] = xls.add %[[V1]], %[[V3]] : index
+// CHECK:           %[[V5:.*]] = xls.shll %[[V4]], %[[V0]] : index
+// CHECK:           %[[V6:.*]] = xls.sub %[[V1]], %[[V5]] : index
+// CHECK:           %[[V7:.*]] = "xls.dynamic_bit_slice"(%[[ARG0]], %[[V6]]) <{width = 96 : i64}> : (i96, index) -> i96
+// CHECK:           return %[[V7]] : i96
 // CHECK:         }
 func.func @tensor_extract_single_slice_1d_all(%arg0: !xls.array<3 x i32>, %arg1: index) -> !xls.array<3 x i32> attributes {xls = true} {
   %c0 = arith.constant 0 : index

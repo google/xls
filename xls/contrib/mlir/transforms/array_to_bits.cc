@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cassert>
 #include <cstdint>
 #include <optional>
 #include <utility>
@@ -241,17 +242,56 @@ class LegalizeArraySlicePattern : public OpConversionPattern<ArraySliceOp> {
   LogicalResult matchAndRewrite(
       ArraySliceOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    (void)adaptor;
-    int64_t elementWidth =
-        cast<ArrayType>(op.getType()).getElementTypeBitWidth();
-    Value start = MultiplyByBitwidth(adaptor.getStart(),
-                                     cast<ArrayType>(op.getType()), rewriter);
+    Location loc = op.getLoc();
+    Type idxType = rewriter.getIndexType();
 
+    // Compute the `width` of `dynamic_bit_slice`, which is in given bits.
+    int64_t elementBitWidth =
+        cast<ArrayType>(op.getType()).getElementTypeBitWidth();
+    int64_t widthInBits = adaptor.getWidth() * elementBitWidth;
+
+    // Convert the `start` value of the `xls.array_slice` op, which is the
+    // number of array elements from the left, to the `start` value of the
+    // `dynamic_bit_slice` op, which is given in bits from the *right*.
+    //
+    // We use the following equation to do the computation:
+    //
+    //    array_width = left + slice_width + right
+    //
+    // and do all computations in number of bits, not number of elements.
+    //
+    //                 array_width
+    //        .----------------------------.
+    //        |                            |
+    //        |        slice_width         |
+    //        v         .-------.          v
+    // array: __________XXXXXXXXX___________
+    //        ^        ^         ^         ^
+    //        `--------´         `---------'
+    //           left               right
+
+    // Do the static part of the computation: from the equation above, we have
+    // `left + right = array_width - slice_width`, where both terms on the right
+    // side are known statically.
+    auto arrayBitType = cast<IntegerType>(adaptor.getArray().getType());
+    int64_t arrayBitWidth = arrayBitType.getIntOrFloatBitWidth();
+    int64_t leftPlusRight = arrayBitWidth - widthInBits;
+    Value leftPlusRightVal =
+        rewriter.create<arith::ConstantIndexOp>(loc, leftPlusRight);
+
+    // Now, we compute `right = (left + right) - left`, where the `left` term is
+    // dynamic and needs to be converted to bits first.
+    Value leftVal =
+        MultiplyByBitwidth(adaptor.getStart(), elementBitWidth, rewriter);
+    Value rightVal =
+        rewriter.create<xls::SubOp>(loc, idxType, leftPlusRightVal, leftVal);
+
+    // Create the `dynamic_bit_slice` op from the arguments computed above.
     Operation* bitslice = rewriter.create<DynamicBitSliceOp>(
-        op->getLoc(), BitcastTypeToInt(op.getType()), adaptor.getArray(), start,
-        adaptor.getWidth() * elementWidth);
+        loc, BitcastTypeToInt(op.getType()), adaptor.getArray(), rightVal,
+        widthInBits);
     if (bitslice->getResult(0).getType() != op.getType()) {
-      bitslice = rewriter.create<arith::BitcastOp>(op->getLoc(), op.getType(),
+      bitslice = rewriter.create<arith::BitcastOp>(loc, op.getType(),
                                                    bitslice->getResult(0));
     }
     rewriter.replaceOp(op, bitslice->getResults());

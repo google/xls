@@ -116,6 +116,7 @@ def ArrayToBitsPass : Pass<"array-to-bits", "mlir::ModuleOp"> {
   }];
   let dependentDialects = [
     "mlir::xls::XlsDialect",
+    "mlir::arith::ArithDialect",
   ];
 }
 

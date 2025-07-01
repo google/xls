@@ -297,7 +297,7 @@ bool isSingleContiguousSlice(ArrayRef<int64_t> sizes,
 // value and `N`, `M`, ... are the sizes of the corresponding dimensions in the
 // input. This pattern is preferred over (and, thus, has a higher benefit than)
 // `RankReduceTensorExtractSlicePattern` since it terminates the recursion
-// chain
+// chain.
 class LegalizeTensorExtractSingleSlicePattern
     : public OpConversionPattern<mlir::tensor::ExtractSliceOp> {
  public:
