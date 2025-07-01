@@ -198,7 +198,7 @@ pub proc LiteralsHeaderDecoder<AXI_DATA_W: u32, AXI_ADDR_W: u32> {
         let tok = join();
 
         let (tok, decode_request) = recv(tok, req_r);
-        send(tok, mem_rd_req_s, MemReaderReq {
+        let tok = send(tok, mem_rd_req_s, MemReaderReq {
             addr: decode_request.addr,
             // max number of bytes that the header can have, see RFC8878 Section 3.1.1.3.1.1.
             length: uN[AXI_ADDR_W]:5,
