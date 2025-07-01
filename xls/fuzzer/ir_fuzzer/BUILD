@@ -82,6 +82,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
+        "@com_google_protobuf//:protobuf_lite",
     ],
 )
 
@@ -126,6 +127,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:verifier",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
@@ -148,6 +150,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
     ],
 )
