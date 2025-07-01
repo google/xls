@@ -1,0 +1,35 @@
+# Copyright 2025 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Loads the Boost C++ libraries."""
+
+# TODO(allight): Remove once module.bzl spreads to dependencies.
+bazel_dep(name = "rules_boost", repo_name = "com_github_nelhage_rules_boost")
+
+# Retrieved 01-07-2025.
+archive_override(
+    module_name = "rules_boost",
+    integrity = "sha256-roPpIRSZEX9xD2OrqkAlsr+4K7mcLMsABlv7bfP410s=",
+    strip_prefix = "rules_boost-55ce31a56186af1a1f9135ee27e11ec020d50e93",
+    urls = ["https://github.com/nelhage/rules_boost/archive/55ce31a56186af1a1f9135ee27e11ec020d50e93.tar.gz"],
+    patches = [
+        Label("//dependency_support/boost:backtrace_from_rule.patch"),
+    ],
+)
+
+non_module_boost_repositories = use_extension("@com_github_nelhage_rules_boost//:boost/repositories.bzl", "non_module_dependencies")
+use_repo(
+    non_module_boost_repositories,
+    "boost",
+)

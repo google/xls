@@ -49,5 +49,9 @@ bazel_dep(name = "rules_flex", version = "0.3")
 bazel_dep(name = "rules_java", version = "8.7.2")
 bazel_dep(name = "protoc-gen-validate", version = "1.2.1.bcr.1")
 
+# Boost
+# This is purely for bazel_rules_hdl. Actually load and setup the rules_boost library
+include("//dependency_support/boost:boost.MODULE.bazel")
+
 # compilation DB; build_cleaner
 bazel_dep(name = "bant", version = "0.2.0", dev_dependency = True)
