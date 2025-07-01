@@ -426,6 +426,9 @@ class FunctionConverter {
   absl::Status HandleConditional(const Conditional* node);
   absl::Status HandleTupleIndex(const TupleIndex* node);
 
+  // Handles a conditional chain (where the alternate is another conditional).
+  absl::Status HandleConditionalChain(const Conditional* node);
+
   // Handles invocation of a user-defined function (UDF).
   absl::Status HandleUdfInvocation(const Invocation* node, xls::Function* f,
                                    std::vector<BValue> args);

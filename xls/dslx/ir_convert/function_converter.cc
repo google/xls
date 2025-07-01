@@ -26,6 +26,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
@@ -4129,7 +4130,79 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleConditionalChain(
+    const Conditional* node) {
+  XLS_RET_CHECK(std::holds_alternative<Conditional*>(node->alternate()));
+
+  std::vector<BValue> tests;
+  std::vector<BValue> results;
+  const Conditional* cond = node;
+  std::optional<BValue> higher_priority_true = std::nullopt;
+  while (true) {
+    XLS_RETURN_IF_ERROR(Visit(cond->test()));
+    XLS_ASSIGN_OR_RETURN(BValue test, Use(cond->test()));
+    {
+      ScopedControlPredicate scp(
+          this, [&](const PredicateFun& orig_control_predicate) {
+            BValue activated = orig_control_predicate();
+            CHECK_EQ(activated.GetType()->AsBitsOrDie()->bit_count(), 1);
+            if (higher_priority_true.has_value()) {
+              return function_builder_->And(
+                  {activated, test,
+                   function_builder_->Not(*higher_priority_true)});
+            } else {
+              return function_builder_->And(activated, test);
+            }
+          });
+      XLS_RETURN_IF_ERROR(Visit(cond->consequent()));
+    }
+    XLS_ASSIGN_OR_RETURN(BValue result, Use(cond->consequent()));
+    tests.push_back(test);
+    results.push_back(result);
+
+    if (higher_priority_true.has_value()) {
+      higher_priority_true = function_builder_->Or(*higher_priority_true, test);
+    } else {
+      higher_priority_true = test;
+    }
+
+    if (!std::holds_alternative<Conditional*>(cond->alternate())) {
+      break;
+    }
+    cond = std::get<Conditional*>(cond->alternate());
+  };
+
+  // We finished the final conditional in the chain, so what's left in the
+  // alternate is what we return if none of the tests are true.
+  {
+    ScopedControlPredicate scp(
+        this, [&](const PredicateFun& orig_control_predicate) {
+          BValue activated = orig_control_predicate();
+          CHECK_EQ(activated.GetType()->AsBitsOrDie()->bit_count(), 1);
+          return function_builder_->And(
+              activated, function_builder_->Not(*higher_priority_true));
+        });
+    XLS_RETURN_IF_ERROR(Visit(ToExprNode(cond->alternate())));
+  }
+  XLS_ASSIGN_OR_RETURN(BValue default_result,
+                       Use(ToExprNode(cond->alternate())));
+
+  // Reverse the tests, since priority-select goes in LSB-first order.
+  absl::c_reverse(tests);
+  Def(node, [&](const SourceInfo& loc) -> BValue {
+    BValue selector = function_builder_->Concat(tests, loc);
+    return function_builder_->PrioritySelect(
+        selector, /*cases=*/results, /*default_value=*/default_result, loc);
+  });
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleConditional(const Conditional* node) {
+  if (std::holds_alternative<Conditional*>(node->alternate())) {
+    // This is a chained conditional.
+    return HandleConditionalChain(node);
+  }
+
   XLS_RETURN_IF_ERROR(Visit(node->test()));
   XLS_ASSIGN_OR_RETURN(BValue arg0, Use(node->test()));
 
