@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/ADT/APFloat.h"
 #include "llvm/include/llvm/ADT/APInt.h"
@@ -1817,6 +1818,7 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
 absl::StatusOr<std::shared_ptr<const Package>> DslxPackageCache::import(
     const std::string& fileName,
     absl::Span<const std::filesystem::path> additional_search_paths) {
+  absl::MutexLock lock(&mutex);
   auto it = cache.find(fileName);
   if (it != cache.end()) {
     return it->second;

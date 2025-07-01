@@ -19,9 +19,11 @@
 #include <memory>
 #include <string>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
@@ -51,6 +53,8 @@ namespace mlir::xls {
 // Caches DSLX translation results. DSLX translation is expensive, so this
 // avoids re-translating the same file multiple times across calls to
 // MlirXlsToXlsTranslate.
+//
+// Thread-safe.
 class DslxPackageCache {
  public:
   // Imports `fileName` as a DSLX file.
@@ -59,7 +63,9 @@ class DslxPackageCache {
       absl::Span<const std::filesystem::path> additional_search_paths = {});
 
  private:
-  absl::flat_hash_map<std::string, std::shared_ptr<const ::xls::Package>> cache;
+  absl::Mutex mutex;
+  absl::flat_hash_map<std::string, std::shared_ptr<const ::xls::Package>> cache
+      ABSL_GUARDED_BY(mutex);
 };
 
 template <typename T>
