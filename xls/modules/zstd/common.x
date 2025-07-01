@@ -312,3 +312,9 @@ pub struct LookupDecoderResp {
     status: LookupDecoderStatus,
     accuracy_log: FseAccuracyLog,
 }
+
+pub struct DataArray<BITS_PER_WORD: u32, LENGTH: u32>{
+  data: uN[BITS_PER_WORD][LENGTH],
+  length: u32,
+  array_length: u32
+}
