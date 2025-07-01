@@ -3411,6 +3411,134 @@ pub fn mul<EXP_SZ: u32, FRACTION_SZ: u32>
     APFloat<EXP_SZ, FRACTION_SZ> { sign: result_sign, bexp: result_exp, fraction: result_fraction }
 }
 
+// Simple utility struct for holding the full result of a floating-point multiplication; bexp may be
+// negative (representing a subnormal result), and fraction still contains the leading 1.
+//
+// If `is_nan` is true, then we make no guarantee about the value of any other members.
+struct RawProduct<SIGNED_EXP: u32, WIDE_FRACTION: u32> {
+    is_nan: u1,
+    sign: u1,
+    bexp: sN[SIGNED_EXP],
+    fraction: uN[WIDE_FRACTION],
+}
+
+// Returns the full result of a floating-point multiplication, without any rounding or truncation.
+// The only exception is that input denormals are flushed to/treated as 0.
+fn raw_mul
+    <EXP_SZ: u32, FRACTION_SZ_X: u32, FRACTION_SZ_Y: u32, SIGNED_EXP: u32 = {EXP_SZ + u32:2},
+     WIDE_FRACTION: u32 = {FRACTION_SZ_X + FRACTION_SZ_Y + u32:2}>
+    (x: APFloat<EXP_SZ, FRACTION_SZ_X>, y: APFloat<EXP_SZ, FRACTION_SZ_Y>)
+    -> RawProduct<SIGNED_EXP, WIDE_FRACTION> {
+    // 0. Check if either operand is 0 (flushing subnorms to 0).
+    let has_0_arg = is_zero_or_subnormal(x) || is_zero_or_subnormal(y);
+
+    // 1. Get and expand significands.
+    let x_significand = u1:1 ++ x.fraction;
+    let y_significand = u1:1 ++ y.fraction;
+
+    // 2. Multiply integer significands, flushing input subnormals to 0.
+    let full_product =
+        if has_0_arg { uN[WIDE_FRACTION]:0 } else { std::umul(x_significand, y_significand) };
+
+    // 3. Add non-biased exponents.
+    //  - Remove the bias from the exponents, add them, then restore the bias.
+    //  - Simplifies from
+    //      (A - 127) + (B - 127) + 127 = exp
+    //    to
+    //      A + B - 127 = exp
+    let bias = std::mask_bits<EXP_SZ>() as sN[SIGNED_EXP] >> uN[SIGNED_EXP]:1;
+    let exp = (x.bexp as sN[SIGNED_EXP]) + (y.bexp as sN[SIGNED_EXP]) - bias;
+
+    // Here is where we'd handle subnormals if we cared to.
+    // If the exponent remains < 0, even after reapplying the bias,
+    // then we'd calculate the extra exponent needed to get back to 0.
+    // We'd set the result exponent to 0 and shift the fraction to the right
+    // to capture that "extra" exponent.
+    // Since we just flush subnormals, we don't have to do any of that.
+    // Instead, if we're multiplying by 0, the result is 0.
+    let exp = if has_0_arg { sN[SIGNED_EXP]:0 } else { exp };
+
+    // 4. Normalize.
+    // The result is either in the lower binade [1.0, 2.0) or the upper binade [2.0, 4.0), and the
+    // MSB tells us which one. This tells us where the leading 1 is (either the MSB or the next
+    // bit), and how much to shift to get the real significand.
+    let in_upper_binade = std::msb(full_product);
+    let product_significand = if in_upper_binade { full_product } else { (full_product << 1) };
+
+    // Update the exponent if we're in the upper binade (and thus didn't have to shift the
+    // significand); we gained a new significant bit.
+    let exp = exp + (in_upper_binade as sN[SIGNED_EXP]);
+
+    // We're done - except for special cases...
+    let result_sign = x.sign != y.sign;
+    let result_exp = exp;
+    let result_fraction = product_significand;
+
+    // 5. Special cases!
+    // We don't flush subnormals to zero here; users can handle that later.
+    // The exponent can't be saturated at this point, so we can leave that to users as well.
+    // We just need to handle infinite args and NaNs.
+
+    // - Arg infinites. Any arg is infinite == result is infinite.
+    let is_operand_inf = is_inf(x) || is_inf(y);
+    let result_exp = if is_operand_inf { std::signed_max_value<SIGNED_EXP>() } else { result_exp };
+    let result_fraction = if is_operand_inf { uN[WIDE_FRACTION]:0 } else { result_fraction };
+
+    // - NaNs. NaN trumps infinities, so we handle it last.
+    //   inf * 0 = NaN, and so on.
+    let has_nan_arg = is_nan(x) || is_nan(y);
+    let has_inf_arg = is_inf(x) || is_inf(y);
+    let is_result_nan = has_nan_arg || (has_0_arg && has_inf_arg);
+
+    RawProduct<SIGNED_EXP, WIDE_FRACTION> {
+        is_nan: is_result_nan,
+        sign: result_sign,
+        bexp: result_exp,
+        fraction: result_fraction,
+    }
+}
+
+// Returns the full-precision product of `x` and `y`, without rounding. The only exception is that
+// both input and output denormals are treated as/flushed to 0.
+pub fn full_precision_mul
+    <EXP_SZ: u32, FRACTION_SZ_X: u32, FRACTION_SZ_Y: u32,
+     FRACTION_SZ: u32 = {FRACTION_SZ_X + FRACTION_SZ_Y + u32:1}>
+    (x: APFloat<EXP_SZ, FRACTION_SZ_X>, y: APFloat<EXP_SZ, FRACTION_SZ_Y>)
+    -> APFloat<EXP_SZ, FRACTION_SZ> {
+    // Prevent users from overriding the (calculated) return type.
+    const_assert!(FRACTION_SZ == FRACTION_SZ_X + FRACTION_SZ_Y + u32:1);
+
+    // SIGNED_EXP: the size of the exponent, along with one sign bit and one carry bit
+    const SIGNED_EXP = EXP_SZ + u32:2;
+
+    // Start with the "raw" product - this is the full result of the multiplication, with
+    // potentially-negative oversized exponent and an untruncated fraction.
+    let raw_product = raw_mul(x, y);
+
+    // There's only a little work left to do - standardize NaNs, overflow/saturate infinites, flush
+    // subnormals to 0, and drop the leading 1 from the fraction for normals,
+
+    let special_exp = std::unsigned_max_value<EXP_SZ>();
+    if raw_product.is_nan {
+        // - NaNs: standardize on quiet NaN
+        qnan<EXP_SZ, FRACTION_SZ>()
+    } else if raw_product.bexp >= (special_exp as sN[SIGNED_EXP]) {
+        // - Overflow infinites: saturate exp and clear fraction
+        inf<EXP_SZ, FRACTION_SZ>(raw_product.sign)
+    } else if raw_product.bexp <= sN[SIGNED_EXP]:0 {
+        // - Subnormals: flush to 0
+        zero<EXP_SZ, FRACTION_SZ>(raw_product.sign)
+    } else {
+        // - Normals: just drop the leading 1 from the fraction (taken care of by narrowing),
+        //            while narrowing the exponent (which already fits).
+        APFloat<EXP_SZ, FRACTION_SZ> {
+            sign: raw_product.sign,
+            bexp: raw_product.bexp as uN[EXP_SZ],
+            fraction: raw_product.fraction as uN[FRACTION_SZ],
+        }
+    }
+}
+
 // Simple utility struct for holding the result of the multiplication step.
 struct Product<EXP_CARRY: u32, WIDE_FRACTION: u32> {
     sign: u1,
@@ -3445,63 +3573,30 @@ fn mul_no_round
      EXP_CARRY: u32 = {EXP_SZ + u32:1}, EXP_SIGN_CARRY: u32 = {EXP_SZ + u32:2}>
     (a: APFloat<EXP_SZ, FRACTION_SZ>, b: APFloat<EXP_SZ, FRACTION_SZ>)
     -> Product<EXP_CARRY, WIDE_FRACTION> {
-    // These steps are taken from apfloat_mul_2.x; look there for full comments.
-    // Widen the fraction to full size and prepend the formerly-implicit "1".
-    let a_fraction = (a.fraction as uN[WIDE_FRACTION]) | (uN[WIDE_FRACTION]:1 << FRACTION_SZ);
-    let b_fraction = (b.fraction as uN[WIDE_FRACTION]) | (uN[WIDE_FRACTION]:1 << FRACTION_SZ);
-
-    let has_0_arg = a.bexp == uN[EXP_SZ]:0 || b.bexp == uN[EXP_SZ]:0;
-
-    // Flush subnorms, and multiply.
-    let fraction = if has_0_arg { uN[WIDE_FRACTION]:0 } else { a_fraction * b_fraction };
-
-    // Normalize - shift left one place if the top bit is 0.
-    let fraction_shift = fraction[-1:] as uN[WIDE_FRACTION];
-    let fraction = if fraction_shift == uN[WIDE_FRACTION]:0 { fraction << 1 } else { fraction };
-
-    // e.g., for floats, 0xff -> 0x7f, A.K.A. 127, the exponent bias.
-    let bias = std::signed_max_value<EXP_SZ>() as sN[EXP_SIGN_CARRY];
-    let bexp = (a.bexp as sN[EXP_SIGN_CARRY]) + (b.bexp as sN[EXP_SIGN_CARRY]) - bias +
-               (fraction_shift as sN[EXP_SIGN_CARRY]);
-    let bexp = if a.bexp == bits[EXP_SZ]:0 || b.bexp == bits[EXP_SZ]:0 {
-        sN[EXP_SIGN_CARRY]:0
-    } else {
-        bexp
-    };
+    let raw_product = raw_mul(a, b);
 
     // Note that we usually flush subnormals. Here, we preserve what we can for
     // compatability with reference implementations.
     // We only do this for the internal product - we otherwise don't handle
     // subnormal values (we flush them to 0).
-    let is_subnormal = bexp <= sN[EXP_SIGN_CARRY]:0;
-    let result_exp = if is_subnormal { uN[EXP_CARRY]:0 } else { bexp as uN[EXP_CARRY] };
-    let sub_exp = std::abs(bexp) as uN[EXP_CARRY];
-    let result_fraction = if is_subnormal { fraction >> sub_exp } else { fraction };
+    let is_subnormal = raw_product.bexp <= sN[EXP_SIGN_CARRY]:0;
+    let result_exp = if is_subnormal { uN[EXP_CARRY]:0 } else { raw_product.bexp as uN[EXP_CARRY] };
+    let result_fraction = if is_subnormal {
+        raw_product.fraction >> (-raw_product.bexp as uN[EXP_CARRY])
+    } else {
+        raw_product.fraction
+    };
 
-    // - Overflow infinites - saturate exp, clear fraction.
-    let high_exp = std::mask_bits<EXP_CARRY>();
-    let result_fraction = if result_exp < high_exp { result_fraction } else { uN[WIDE_FRACTION]:0 };
-    let result_exp = if result_exp < high_exp { result_exp as uN[EXP_CARRY] } else { high_exp };
-
-    // - Arg infinites. Any arg is infinite == result is infinite.
-    let is_operand_inf = is_inf(a) || is_inf(b);
-    let result_exp = if is_operand_inf { high_exp } else { result_exp };
-    let result_fraction =
-        if is_operand_inf { uN[WIDE_FRACTION]:0 } else { result_fraction as uN[WIDE_FRACTION] };
-
-    // - NaNs. NaN trumps infinities, so we handle it last.
-    //   inf * 0 = NaN, i.e.,
-    let has_nan_arg = is_nan(a) || is_nan(b);
-    let has_inf_arg = is_inf(a) || is_inf(b);
-    let is_result_nan = has_nan_arg || (has_0_arg && has_inf_arg);
-    let result_exp = if is_result_nan { high_exp } else { result_exp };
-    let nan_fraction = uN[WIDE_FRACTION]:1 << (uN[WIDE_FRACTION]:1 - uN[WIDE_FRACTION]:1);
-    let result_fraction = if is_result_nan { nan_fraction } else { result_fraction };
-
-    let result_sign = a.sign != b.sign;
-    let result_sign = if is_result_nan { u1:0 } else { result_sign };
-
-    Product { sign: result_sign, bexp: result_exp, fraction: result_fraction }
+    if raw_product.is_nan {
+        // If the result is NaN, force it to our standard quiet NaN. (Don't forget the leading 1!)
+        Product {
+            sign: u1:0,
+            bexp: std::mask_bits<EXP_CARRY>(),
+            fraction: u2:3 ++ uN[WIDE_FRACTION - u32:2]:0,
+        }
+    } else {
+        Product { sign: raw_product.sign, bexp: result_exp, fraction: result_fraction }
+    }
 }
 
 // Fused multiply-add for any given APFloat configuration.

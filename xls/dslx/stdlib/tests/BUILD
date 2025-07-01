@@ -479,24 +479,22 @@ BFLOAT16_CMP_TOPS = [
 ]
 
 [
-    xls_dslx_opt_ir(
-        name = "bfloat16_" + top,
-        srcs = ["//xls/dslx/stdlib:bfloat16.x"],
-        dslx_top = top,
-    )
-    for top in BFLOAT16_CMP_TOPS
-]
-
-[
-    cc_xls_ir_jit_wrapper(
-        name = "bfloat16_" + top + "_jit_wrapper",
-        src = ":bfloat16_" + top,
-        jit_wrapper_args = {
-            "class_name": "Bfloat16" + top.replace("_", " ").title().replace(" ", ""),
-            "function": top,
-            "namespace": "xls::dslx",
-        },
-    )
+    [
+        xls_dslx_opt_ir(
+            name = "bfloat16_" + top,
+            srcs = ["//xls/dslx/stdlib:bfloat16.x"],
+            dslx_top = top,
+        ),
+        cc_xls_ir_jit_wrapper(
+            name = "bfloat16_" + top + "_jit_wrapper",
+            src = ":bfloat16_" + top,
+            jit_wrapper_args = {
+                "class_name": "Bfloat16" + top.replace("_", " ").title().replace(" ", ""),
+                "function": top,
+                "namespace": "xls::dslx",
+            },
+        ),
+    ]
     for top in BFLOAT16_CMP_TOPS
 ]
 
@@ -514,4 +512,39 @@ cc_test(
         "@eigen//:eigen3",
         "@googletest//:gtest",
     ] + [":bfloat16_" + top + "_jit_wrapper" for top in BFLOAT16_CMP_TOPS],
+)
+
+xls_dslx_opt_ir(
+    name = "bfloat16_full_precision_mul",
+    srcs = ["//xls/dslx/stdlib:bfloat16.x"],
+    dslx_top = "full_precision_mul",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "bfloat16_full_precision_mul_jit_wrapper",
+    src = ":bfloat16_full_precision_mul",
+    jit_wrapper_args = {
+        "class_name": "Bfloat16FullPrecisionMul",
+        "function": "full_precision_mul",
+        "namespace": "xls::dslx",
+    },
+)
+
+cc_test(
+    name = "bfloat16_full_precision_mul_test",
+    srcs = ["bfloat16_full_precision_mul_test.cc"],
+    deps = [
+        ":bfloat16_full_precision_mul_jit_wrapper",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:value",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status:statusor",
+        "@eigen//:eigen3",
+        "@googletest//:gtest",
+    ],
 )

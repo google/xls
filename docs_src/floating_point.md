@@ -690,6 +690,25 @@ Returns the product of `x` and `y`, with the following exceptions:
 In all other cases, results should be identical to other conforming
 implementations (modulo exact fraction values in the NaN case).
 
+### `apfloat::full_precision_mul`
+
+```dslx-snippet
+pub fn full_precision_mul
+    <EXP_SZ: u32, FRACTION_SZ_X: u32, FRACTION_SZ_Y: u32,
+     FRACTION_SZ: u32 = {FRACTION_SZ_X + FRACTION_SZ_Y + u32:1}>
+    (x: APFloat<EXP_SZ, FRACTION_SZ_X>, y: APFloat<EXP_SZ, FRACTION_SZ_Y>)
+    -> APFloat<EXP_SZ, FRACTION_SZ>
+```
+
+Returns the full-precision product (without rounding) of `x` and `y`, with the
+following exceptions:
+
+-   Both input and output denormals are treated as/flushed to 0.
+-   No exception flags are raised/reported.
+
+Note that `x` and `y` must have matching exponent size, and that the result's
+fraction is 1 bit wider than the sum of the fraction widths of `x` and `y`.
+
 ### `apfloat::fma`
 
 ```dslx-snippet
