@@ -388,6 +388,7 @@ class StageConversionMetadata {
                 pipeline, orig, parent, GetStateLoopbackChannelNames(orig)))
             .get();
     orig_to_metadata_map_[orig].push_back(metadata);
+    proc_to_metadata_map_[pipeline] = metadata;
     return metadata;
   }
 
@@ -405,6 +406,7 @@ class StageConversionMetadata {
                 stage, orig, parent, GetStateLoopbackChannelNames(orig)))
             .get();
     orig_to_metadata_map_[orig].push_back(metadata);
+    proc_to_metadata_map_[stage] = metadata;
     return metadata;
   }
 
@@ -418,8 +420,20 @@ class StageConversionMetadata {
 
   // Adds a state loopback channel created during state-to-channel conversion
   // for the given proc.
-  void AddStateLoopbackChannelName(Proc* proc, std::string_view channel_name) {
+  void AddStateLoopbackChannelName(const Proc* proc,
+                                   std::string_view channel_name) {
     state_loopback_channel_names_[proc].insert(std::string(channel_name));
+  }
+
+  // Get associated ProcMetadata object for the given proc.
+  absl::StatusOr<ProcMetadata*> GetProcMetadata(const Proc* proc) const {
+    auto it = proc_to_metadata_map_.find(proc);
+    if (it == proc_to_metadata_map_.end()) {
+      return absl::NotFoundError(absl::StrFormat(
+          "Proc %s not found in stage conversion metadata.", proc->name()));
+    }
+
+    return it->second;
   }
 
  private:
@@ -442,8 +456,11 @@ class StageConversionMetadata {
 
   // Stores the names of loopback channels created during state-to-channel
   // conversion for each original proc.
-  absl::flat_hash_map<Proc*, absl::flat_hash_set<std::string>>
+  absl::flat_hash_map<const Proc*, absl::flat_hash_set<std::string>>
       state_loopback_channel_names_;
+
+  // Associates the source proc with its metadata.
+  absl::flat_hash_map<const Proc*, ProcMetadata*> proc_to_metadata_map_;
 };
 
 // Converts a func/proc into a pipelined series of stages.

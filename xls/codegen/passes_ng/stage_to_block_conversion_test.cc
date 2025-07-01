@@ -19,13 +19,18 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "xls/codegen/block_conversion_test_fixture.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/passes_ng/block_channel_adapter.h"
 #include "xls/codegen/passes_ng/block_channel_slot.h"
@@ -34,9 +39,8 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/interpreter/evaluator_options.h"
-#include "xls/interpreter/interpreter_proc_runtime.h"
-#include "xls/interpreter/proc_runtime.h"
+#include "xls/interpreter/block_evaluator.h"
+#include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
@@ -58,26 +62,18 @@ namespace {
 
 namespace m = ::xls::op_matchers;
 using ::absl_testing::IsOkAndHolds;
+using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::Optional;
 
-class BlockConversionTestBase : public IrTestBase {
- protected:
-  // Creates a runtime for the given proc and the proc hierarchy beneath it.
-  std::unique_ptr<ProcRuntime> CreateRuntime(
-      Proc* top, const EvaluatorOptions& options = EvaluatorOptions()) const {
-    return CreateInterpreterSerialProcRuntime(top, options).value();
-  }
-
+// Fixture to sweep pipeline stages.
+class SweepPipelineStagesFixture : public BlockConversionTestFixture,
+                                   public testing::WithParamInterface<int64_t> {
+ public:
   virtual CodegenOptions codegen_options() {
     return CodegenOptions().module_name(TestName());
   }
-};
 
-// Fixture to sweep pipeline stages.
-class SweepPipelineStagesFixture : public BlockConversionTestBase,
-                                   public testing::WithParamInterface<int64_t> {
- public:
   static std::string PrintToStringParamName(
       const testing::TestParamInfo<ParamType>& info) {
     return absl::StrFormat("stage_count_%d", info.param);
@@ -106,8 +102,8 @@ class SweepTrivialPipelinedFunctionFixture : public SweepPipelineStagesFixture {
     BValue y = fb.Param("y", package_->GetBitsType(32));
 
     XLS_ASSIGN_OR_RETURN(
-        Function * f,
-        fb.BuildWithReturnValue(fb.Add(fb.Negate(fb.Not(fb.Add(x, y))), x)));
+        Function * f, fb.BuildWithReturnValue(fb.Identity(
+                          fb.Add(fb.Add(fb.Identity(x), fb.Identity(y)), x))));
     XLS_RETURN_IF_ERROR(package_->SetTop(f));
 
     XLS_ASSIGN_OR_RETURN(
@@ -170,11 +166,6 @@ TEST_P(SweepTrivialPipelinedFunctionFixture, TestBlockAndClocksCreation) {
     EXPECT_EQ(block_metadata, block_metadata_from_conversion_metadata);
   }
 }
-
-INSTANTIATE_TEST_SUITE_P(
-    TestBlockAndClocksCreation, SweepTrivialPipelinedFunctionFixture,
-    testing::Values(1, 2, 3, 4),
-    SweepTrivialPipelinedFunctionFixture::PrintToStringParamName);
 
 TEST_P(SweepTrivialPipelinedFunctionFixture, TestBlockChannelMetadata) {
   XLS_ASSERT_OK(CreateStageProcInPackage());
@@ -304,9 +295,91 @@ TEST_P(SweepTrivialPipelinedFunctionFixture, TestBlockChannelMetadata) {
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TestBlockChannelMetadata, SweepTrivialPipelinedFunctionFixture,
+    TestBlockClocksAndMetadataCreation, SweepTrivialPipelinedFunctionFixture,
     testing::Values(1, 2, 3, 4),
     SweepTrivialPipelinedFunctionFixture::PrintToStringParamName);
+
+// Test the conversion to stage blocks by creating a single-stage pipeline,
+// and sensitizing the block and testing the I/O behavior.
+class SingleStageTrivialPipelinedFunctionFixture
+    : public SweepTrivialPipelinedFunctionFixture {};
+
+TEST_P(SingleStageTrivialPipelinedFunctionFixture,
+       TestConvertProcHierarchyCreation) {
+  // Test only works with a single stage.
+  ASSERT_EQ(GetStageCount(), 1);
+
+  XLS_ASSERT_OK(CreateStageProcInPackage());
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcMetadata * top_metadata,
+                           stage_conversion_metadata_.GetTopProcMetadata(
+                               package_->GetTop().value()));
+
+  XLS_ASSERT_OK(CreateBlocksForProcHierarchy(codegen_options(), *top_metadata,
+                                             stage_conversion_metadata_,
+                                             block_conversion_metadata_)
+                    .status());
+
+  XLS_ASSERT_OK(AddResetAndClockPortsToBlockHierarchy(
+                    codegen_options(), *top_metadata,
+                    stage_conversion_metadata_, block_conversion_metadata_)
+                    .status());
+
+  XLS_ASSERT_OK(ConvertProcHierarchyToBlocks(codegen_options(), *top_metadata,
+                                             stage_conversion_metadata_,
+                                             block_conversion_metadata_)
+                    .status());
+
+  XLS_VLOG_LINES(2, package_->DumpIr());
+
+  // Interpret the stage block itself.
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package_->GetBlock("top_stage_0_"));
+
+  std::vector<ChannelSource> sources{
+      ChannelSource("x", "x_vld", "x_rdy", 1.0, block),
+      ChannelSource("y", "y_vld", "y_rdy", 1.0, block)};
+
+  XLS_ASSERT_OK(sources[0].SetDataSequence({0x1, 0x10, 0x30}));
+  XLS_ASSERT_OK(sources[1].SetDataSequence({0x2, 0x20, 0x30}));
+
+  std::vector<ChannelSink> sinks{
+      ChannelSink("out", "out_vld", "out_rdy", 0.5, block),
+  };
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(10,
+                                                                 {{"rst", 0}});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, results.outputs.size() - 1,
+                                                "cycle", 0, results.outputs));
+
+  VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"x", SignalType::kInput},
+                              {"x_vld", SignalType::kInput},
+                              {"x_rdy", SignalType::kOutput},
+                              {"y", SignalType::kInput},
+                              {"y_vld", SignalType::kInput},
+                              {"y_rdy", SignalType::kOutput},
+                              {"out", SignalType::kOutput},
+                              {"out_vld", SignalType::kOutput},
+                              {"out_rdy", SignalType::kInput}},
+      /*column_width=*/10, results.inputs, results.outputs));
+
+  // out = 2*x + y
+  EXPECT_THAT(sinks[0].GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(0x4, 0x40, 0x90)));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TestConvertProcHierarchyCreation,
+    SingleStageTrivialPipelinedFunctionFixture, testing::Values(1),
+    SingleStageTrivialPipelinedFunctionFixture::PrintToStringParamName);
 
 }  // namespace
 }  // namespace xls::verilog

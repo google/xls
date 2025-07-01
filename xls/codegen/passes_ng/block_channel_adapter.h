@@ -51,7 +51,7 @@ namespace xls::verilog {
 class RDVAdapter {
  public:
   // Used to map IR nodes to Block IR nodes.
-  using IrToBlockIrMap = absl::flat_hash_map<Node*, Node*>;
+  using IrToBlockIrMap = absl::flat_hash_map<const Node*, Node*>;
 
   enum class AdapterType {
     kSend,

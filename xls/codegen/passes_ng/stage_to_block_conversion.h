@@ -250,6 +250,19 @@ absl::StatusOr<Block*> AddResetAndClockPortsToBlockHierarchy(
     StageConversionMetadata& stage_conversion_metadata,
     BlockConversionMetadata& block_conversion_metadata);
 
+// Converts the proc hierarchy beneath the given top-level proc to blocks owned
+// by the same package as the proc.
+//
+// The top-level proc must be a proc created by stage conversion.
+//
+// Metadata associated with the procs should be present in top_metadata and
+// stage_conversion_metadata, and metadata associated with the newly created
+// blocks will be created in block_conversion_metadata.
+absl::StatusOr<Block*> ConvertProcHierarchyToBlocks(
+    const CodegenOptions& options, ProcMetadata& top_metadata,
+    StageConversionMetadata& stage_conversion_metadata,
+    BlockConversionMetadata& block_conversion_metadata);
+
 }  // namespace xls::verilog
 
 #endif  // XLS_CODEGEN_PASSES_NG_STAGE_TO_BLOCK_CONVERSION_H_

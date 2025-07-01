@@ -50,7 +50,7 @@ namespace xls::verilog {
 class SlotTestBase : public BlockConversionTestFixture {
  protected:
   // Used to map IR nodes to Block IR nodes.
-  using IrToBlockIrMap = absl::flat_hash_map<Node*, Node*>;
+  using IrToBlockIrMap = absl::flat_hash_map<const Node*, Node*>;
 
   SlotTestBase() : package_(CreatePackage()) {}
 
@@ -204,7 +204,7 @@ class SlotTestBase : public BlockConversionTestFixture {
 class PredicatedSlotTestBase : public BlockConversionTestFixture {
  protected:
   // Used to map IR nodes to Block IR nodes.
-  using IrToBlockIrMap = absl::flat_hash_map<Node*, Node*>;
+  using IrToBlockIrMap = absl::flat_hash_map<const Node*, Node*>;
 
   PredicatedSlotTestBase() : package_(CreatePackage()) {}
 
