@@ -228,16 +228,6 @@ pub proc CompressBlockDecoder<
         ll_fse_wr_req_s: chan<SeqFseRamWrReq> out,
         ll_fse_wr_resp_r: chan<SeqFseRamWrResp> in,
 
-        ml_def_fse_rd_req_s: chan<SeqFseRamRdReq> out,
-        ml_def_fse_rd_resp_r: chan<SeqFseRamRdResp> in,
-        ml_def_fse_wr_req_s: chan<SeqFseRamWrReq> out,
-        ml_def_fse_wr_resp_r: chan<SeqFseRamWrResp> in,
-
-        ml_fse_rd_req_s: chan<SeqFseRamRdReq> out,
-        ml_fse_rd_resp_r: chan<SeqFseRamRdResp> in,
-        ml_fse_wr_req_s: chan<SeqFseRamWrReq> out,
-        ml_fse_wr_resp_r: chan<SeqFseRamWrResp> in,
-
         of_def_fse_rd_req_s: chan<SeqFseRamRdReq> out,
         of_def_fse_rd_resp_r: chan<SeqFseRamRdResp> in,
         of_def_fse_wr_req_s: chan<SeqFseRamWrReq> out,
@@ -247,6 +237,16 @@ pub proc CompressBlockDecoder<
         of_fse_rd_resp_r: chan<SeqFseRamRdResp> in,
         of_fse_wr_req_s: chan<SeqFseRamWrReq> out,
         of_fse_wr_resp_r: chan<SeqFseRamWrResp> in,
+
+        ml_def_fse_rd_req_s: chan<SeqFseRamRdReq> out,
+        ml_def_fse_rd_resp_r: chan<SeqFseRamRdResp> in,
+        ml_def_fse_wr_req_s: chan<SeqFseRamWrReq> out,
+        ml_def_fse_wr_resp_r: chan<SeqFseRamWrResp> in,
+
+        ml_fse_rd_req_s: chan<SeqFseRamRdReq> out,
+        ml_fse_rd_resp_r: chan<SeqFseRamRdResp> in,
+        ml_fse_wr_req_s: chan<SeqFseRamWrReq> out,
+        ml_fse_wr_resp_r: chan<SeqFseRamWrResp> in,
 
         // Literals decoder channels
 
@@ -424,10 +424,10 @@ pub proc CompressBlockDecoder<
             tmp2_rd_req_s, tmp2_rd_resp_r, tmp2_wr_req_s, tmp2_wr_resp_r,
             ll_def_fse_rd_req_s, ll_def_fse_rd_resp_r, ll_def_fse_wr_req_s, ll_def_fse_wr_resp_r,
             ll_fse_rd_req_s, ll_fse_rd_resp_r, ll_fse_wr_req_s, ll_fse_wr_resp_r,
-            ml_def_fse_rd_req_s, ml_def_fse_rd_resp_r, ml_def_fse_wr_req_s, ml_def_fse_wr_resp_r,
-            ml_fse_rd_req_s, ml_fse_rd_resp_r, ml_fse_wr_req_s, ml_fse_wr_resp_r,
             of_def_fse_rd_req_s, of_def_fse_rd_resp_r, of_def_fse_wr_req_s, of_def_fse_wr_resp_r,
             of_fse_rd_req_s, of_fse_rd_resp_r, of_fse_wr_req_s, of_fse_wr_resp_r,
+            ml_def_fse_rd_req_s, ml_def_fse_rd_resp_r, ml_def_fse_wr_req_s, ml_def_fse_wr_resp_r,
+            ml_fse_rd_req_s, ml_fse_rd_resp_r, ml_fse_wr_req_s, ml_fse_wr_resp_r,
         );
 
         spawn command_constructor::CommandConstructor(
@@ -1216,6 +1216,13 @@ proc CompressBlockDecoderTest {
     ll_def_test_wr_req_s: chan<SeqFseRamWrReq> out;
     ll_def_test_wr_resp_r: chan<SeqFseRamWrResp> in;
 
+    of_sel_test_req_s: chan<u1> out;
+    of_sel_test_resp_r: chan<()> in;
+    of_def_test_rd_req_s: chan<SeqFseRamRdReq> out;
+    of_def_test_rd_resp_r: chan<SeqFseRamRdResp> in;
+    of_def_test_wr_req_s: chan<SeqFseRamWrReq> out;
+    of_def_test_wr_resp_r: chan<SeqFseRamWrResp> in;
+
     ml_sel_test_req_s: chan<u1> out;
     ml_sel_test_resp_r: chan<()> in;
     ml_def_test_rd_req_s: chan<SeqFseRamRdReq> out;
@@ -1223,12 +1230,6 @@ proc CompressBlockDecoderTest {
     ml_def_test_wr_req_s: chan<SeqFseRamWrReq> out;
     ml_def_test_wr_resp_r: chan<SeqFseRamWrResp> in;
 
-    of_sel_test_req_s: chan<u1> out;
-    of_sel_test_resp_r: chan<()> in;
-    of_def_test_rd_req_s: chan<SeqFseRamRdReq> out;
-    of_def_test_rd_resp_r: chan<SeqFseRamRdResp> in;
-    of_def_test_wr_req_s: chan<SeqFseRamWrReq> out;
-    of_def_test_wr_resp_r: chan<SeqFseRamWrResp> in;
 
     init {}
     config(terminator: chan<bool> out) {
@@ -1427,30 +1428,6 @@ proc CompressBlockDecoderTest {
             fse_rd_req_s[0], fse_rd_resp_r[0], fse_wr_req_s[0], fse_wr_resp_r[0],
         );
 
-        // Default ML
-
-        let (ml_sel_test_req_s, ml_sel_test_req_r) = chan<u1>("ml_sel_test_req");
-        let (ml_sel_test_resp_s, ml_sel_test_resp_r) = chan<()>("ml_sel_test_resp");
-
-        let (ml_def_test_rd_req_s, ml_def_test_rd_req_r) = chan<SeqFseRamRdReq>("ml_def_test_rd_req");
-        let (ml_def_test_rd_resp_s, ml_def_test_rd_resp_r) = chan<SeqFseRamRdResp>("ml_def_test_rd_resp");
-        let (ml_def_test_wr_req_s, ml_def_test_wr_req_r) = chan<SeqFseRamWrReq>("ml_def_test_wr_req");
-        let (ml_def_test_wr_resp_s, ml_def_test_wr_resp_r) = chan<SeqFseRamWrResp>("ml_def_test_wr_resp");
-
-        let (ml_def_fse_rd_req_s, ml_def_fse_rd_req_r) = chan<SeqFseRamRdReq>("ml_def_fse_rd_req");
-        let (ml_def_fse_rd_resp_s, ml_def_fse_rd_resp_r) = chan<SeqFseRamRdResp>("ml_def_fse_rd_resp");
-        let (ml_def_fse_wr_req_s, ml_def_fse_wr_req_r) = chan<SeqFseRamWrReq>("ml_def_fse_wr_req");
-        let (ml_def_fse_wr_resp_s, ml_def_fse_wr_resp_r) = chan<SeqFseRamWrResp>("ml_def_fse_wr_resp");
-
-        spawn ram_mux::RamMux<
-            TEST_SEQ_FSE_RAM_ADDR_W, TEST_SEQ_FSE_RAM_DATA_W, TEST_SEQ_FSE_RAM_NUM_PARTITIONS,
-        >(
-            ml_sel_test_req_r, ml_sel_test_resp_s,
-            ml_def_test_rd_req_r, ml_def_test_rd_resp_s, ml_def_test_wr_req_r, ml_def_test_wr_resp_s,
-            ml_def_fse_rd_req_r, ml_def_fse_rd_resp_s, ml_def_fse_wr_req_r, ml_def_fse_wr_resp_s,
-            fse_rd_req_s[2], fse_rd_resp_r[2], fse_wr_req_s[2], fse_wr_resp_r[2],
-        );
-
         // Default OF
 
         let (of_sel_test_req_s, of_sel_test_req_r) = chan<u1>("of_sel_test_req");
@@ -1472,8 +1449,33 @@ proc CompressBlockDecoderTest {
             of_sel_test_req_r, of_sel_test_resp_s,
             of_def_test_rd_req_r, of_def_test_rd_resp_s, of_def_test_wr_req_r, of_def_test_wr_resp_s,
             of_def_fse_rd_req_r, of_def_fse_rd_resp_s, of_def_fse_wr_req_r, of_def_fse_wr_resp_s,
+            fse_rd_req_s[2], fse_rd_resp_r[2], fse_wr_req_s[2], fse_wr_resp_r[2],
+        );
+
+        // Default ML
+
+        let (ml_sel_test_req_s, ml_sel_test_req_r) = chan<u1>("ml_sel_test_req");
+        let (ml_sel_test_resp_s, ml_sel_test_resp_r) = chan<()>("ml_sel_test_resp");
+
+        let (ml_def_test_rd_req_s, ml_def_test_rd_req_r) = chan<SeqFseRamRdReq>("ml_def_test_rd_req");
+        let (ml_def_test_rd_resp_s, ml_def_test_rd_resp_r) = chan<SeqFseRamRdResp>("ml_def_test_rd_resp");
+        let (ml_def_test_wr_req_s, ml_def_test_wr_req_r) = chan<SeqFseRamWrReq>("ml_def_test_wr_req");
+        let (ml_def_test_wr_resp_s, ml_def_test_wr_resp_r) = chan<SeqFseRamWrResp>("ml_def_test_wr_resp");
+
+        let (ml_def_fse_rd_req_s, ml_def_fse_rd_req_r) = chan<SeqFseRamRdReq>("ml_def_fse_rd_req");
+        let (ml_def_fse_rd_resp_s, ml_def_fse_rd_resp_r) = chan<SeqFseRamRdResp>("ml_def_fse_rd_resp");
+        let (ml_def_fse_wr_req_s, ml_def_fse_wr_req_r) = chan<SeqFseRamWrReq>("ml_def_fse_wr_req");
+        let (ml_def_fse_wr_resp_s, ml_def_fse_wr_resp_r) = chan<SeqFseRamWrResp>("ml_def_fse_wr_resp");
+
+        spawn ram_mux::RamMux<
+            TEST_SEQ_FSE_RAM_ADDR_W, TEST_SEQ_FSE_RAM_DATA_W, TEST_SEQ_FSE_RAM_NUM_PARTITIONS,
+        >(
+            ml_sel_test_req_r, ml_sel_test_resp_s,
+            ml_def_test_rd_req_r, ml_def_test_rd_resp_s, ml_def_test_wr_req_r, ml_def_test_wr_resp_s,
+            ml_def_fse_rd_req_r, ml_def_fse_rd_resp_s, ml_def_fse_wr_req_r, ml_def_fse_wr_resp_s,
             fse_rd_req_s[4], fse_rd_resp_r[4], fse_wr_req_s[4], fse_wr_resp_r[4],
         );
+
 
         spawn CompressBlockDecoder<
             TEST_AXI_DATA_W, TEST_AXI_ADDR_W, TEST_AXI_ID_W, TEST_AXI_DEST_W,
@@ -1499,9 +1501,9 @@ proc CompressBlockDecoderTest {
             tmp2_rd_req_s, tmp2_rd_resp_r, tmp2_wr_req_s, tmp2_wr_resp_r,
             ll_def_fse_rd_req_s, ll_def_fse_rd_resp_r, ll_def_fse_wr_req_s, ll_def_fse_wr_resp_r,
             fse_rd_req_s[1], fse_rd_resp_r[1], fse_wr_req_s[1], fse_wr_resp_r[1],
-            ml_def_fse_rd_req_s, ml_def_fse_rd_resp_r, ml_def_fse_wr_req_s, ml_def_fse_wr_resp_r,
-            fse_rd_req_s[3], fse_rd_resp_r[3], fse_wr_req_s[3], fse_wr_resp_r[3],
             of_def_fse_rd_req_s, of_def_fse_rd_resp_r, of_def_fse_wr_req_s, of_def_fse_wr_resp_r,
+            fse_rd_req_s[3], fse_rd_resp_r[3], fse_wr_req_s[3], fse_wr_resp_r[3],
+            ml_def_fse_rd_req_s, ml_def_fse_rd_resp_r, ml_def_fse_wr_req_s, ml_def_fse_wr_resp_r,
             fse_rd_req_s[5], fse_rd_resp_r[5], fse_wr_req_s[5], fse_wr_resp_r[5],
             axi_ram_ar_s[3], axi_ram_r_r[3],
             axi_ram_ar_s[4], axi_ram_r_r[4],
@@ -1538,15 +1540,12 @@ proc CompressBlockDecoderTest {
             req_s, resp_r,
             cmd_constr_out_r,
             axi_ram_wr_req_s, axi_ram_wr_resp_r,
-
             ll_sel_test_req_s, ll_sel_test_resp_r,
             ll_def_test_rd_req_s, ll_def_test_rd_resp_r, ll_def_test_wr_req_s, ll_def_test_wr_resp_r,
-
-            ml_sel_test_req_s, ml_sel_test_resp_r,
-            ml_def_test_rd_req_s, ml_def_test_rd_resp_r, ml_def_test_wr_req_s, ml_def_test_wr_resp_r,
-
             of_sel_test_req_s, of_sel_test_resp_r,
             of_def_test_rd_req_s, of_def_test_rd_resp_r, of_def_test_wr_req_s, of_def_test_wr_resp_r,
+            ml_sel_test_req_s, ml_sel_test_resp_r,
+            ml_def_test_rd_req_s, ml_def_test_rd_resp_r, ml_def_test_wr_req_s, ml_def_test_wr_resp_r,
         )
     }
 
