@@ -113,3 +113,57 @@ xls.sproc @main() top {
     xls.yield %state : i32
   }
 }
+
+
+// -----
+
+module {
+  xls.sproc @"x['y']"(%arg0: !xls.schan<tensor<i32>, in>, %arg1: !xls.schan<tensor<i32>, out>, %arg2: !xls.schan<tensor<i32>, out>) {
+    spawns {
+      xls.yield %arg0, %arg1, %arg2 : !xls.schan<tensor<i32>, in>, !xls.schan<tensor<i32>, out>, !xls.schan<tensor<i32>, out>
+    }
+    next (%arg0: !xls.schan<tensor<i32>, in>, %arg1: !xls.schan<tensor<i32>, out>, %arg2: !xls.schan<tensor<i32>, out>, %arg3: index) zeroinitializer {
+      %c1 = arith.constant 1 : index
+      %0 = scf.index_switch %arg3 -> index
+      case 1 {
+        %1 = xls.after_all  : !xls.token
+        %tkn_out, %result = xls.sblocking_receive %1, %arg0 : (!xls.token, !xls.schan<tensor<i32>, in>) -> (!xls.token, tensor<i32>)
+        %2 = xls.after_all  : !xls.token
+        %3 = xls.ssend %2, %result, %arg1 : (!xls.token, tensor<i32>, !xls.schan<tensor<i32>, out>) -> !xls.token
+        %4 = xls.ssend %2, %result, %arg2 : (!xls.token, tensor<i32>, !xls.schan<tensor<i32>, out>) -> !xls.token
+        scf.yield %c1 : index
+      }
+      default {
+        %1 = xls.after_all  : !xls.token
+        %tkn_out, %result = xls.sblocking_receive %1, %arg0 : (!xls.token, !xls.schan<tensor<i32>, in>) -> (!xls.token, tensor<i32>)
+        %2 = xls.after_all  : !xls.token
+        %3 = xls.ssend %2, %result, %arg1 : (!xls.token, tensor<i32>, !xls.schan<tensor<i32>, out>) -> !xls.token
+        %4 = xls.ssend %2, %result, %arg2 : (!xls.token, tensor<i32>, !xls.schan<tensor<i32>, out>) -> !xls.token
+        scf.yield %c1 : index
+      }
+      xls.yield %0 : index
+    }
+  }
+  xls.sproc @some_wrapped_machine(%arg0: !xls.schan<tensor<i32>, in>, %arg1: !xls.schan<tensor<i32>, out>, %arg2: !xls.schan<tensor<i32>, out>) top attributes {boundary_channel_names = ["x['y']", "x['y']1", "x['y']2"]} {
+    spawns {
+      %out, %in = xls.schan<tensor<i32>>("x['y']")
+      %out_0, %in_1 = xls.schan<tensor<i32>>("x['y']")
+      %out_2, %in_3 = xls.schan<tensor<i32>>("x['y']")
+      xls.spawn @"x['y']"(%in, %out_0, %out_2) : !xls.schan<tensor<i32>, in>, !xls.schan<tensor<i32>, out>, !xls.schan<tensor<i32>, out>
+      xls.yield %arg0, %arg1, %arg2, %out, %in_1, %in_3 : !xls.schan<tensor<i32>, in>, !xls.schan<tensor<i32>, out>, !xls.schan<tensor<i32>, out>, !xls.schan<tensor<i32>, out>, !xls.schan<tensor<i32>, in>, !xls.schan<tensor<i32>, in>
+    }
+    next (%arg0: !xls.schan<tensor<i32>, in>, %arg1: !xls.schan<tensor<i32>, out>, %arg2: !xls.schan<tensor<i32>, out>, %arg3: !xls.schan<tensor<i32>, out>, %arg4: !xls.schan<tensor<i32>, in>, %arg5: !xls.schan<tensor<i32>, in>) zeroinitializer {
+      %0 = xls.after_all  : !xls.token
+      %tkn_out, %result = xls.sblocking_receive %0, %arg0 : (!xls.token, !xls.schan<tensor<i32>, in>) -> (!xls.token, tensor<i32>)
+      %1 = xls.after_all  : !xls.token
+      %2 = xls.ssend %1, %result, %arg3 : (!xls.token, tensor<i32>, !xls.schan<tensor<i32>, out>) -> !xls.token
+      %3 = xls.after_all  : !xls.token
+      %tkn_out_0, %result_1 = xls.sblocking_receive %3, %arg4 : (!xls.token, !xls.schan<tensor<i32>, in>) -> (!xls.token, tensor<i32>)
+      %tkn_out_2, %result_3 = xls.sblocking_receive %3, %arg5 : (!xls.token, !xls.schan<tensor<i32>, in>) -> (!xls.token, tensor<i32>)
+      %4 = xls.after_all  : !xls.token
+      %5 = xls.ssend %4, %result_1, %arg1 : (!xls.token, tensor<i32>, !xls.schan<tensor<i32>, out>) -> !xls.token
+      %6 = xls.ssend %4, %result_3, %arg2 : (!xls.token, tensor<i32>, !xls.schan<tensor<i32>, out>) -> !xls.token
+      xls.yield
+    }
+  }
+}

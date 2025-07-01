@@ -27,6 +27,7 @@
 #include "llvm/include/llvm/ADT/SmallVectorExtras.h"
 #include "llvm/include/llvm/ADT/StringMap.h"
 #include "llvm/include/llvm/ADT/StringRef.h"  // IWYU pragma: keep
+#include "llvm/include/llvm/Support/ErrorHandling.h"
 #include "llvm/include/llvm/Support/FormatVariadic.h"
 #include "mlir/include/mlir/IR/Attributes.h"
 #include "mlir/include/mlir/IR/Builders.h"
@@ -142,7 +143,8 @@ class ElaborationContext
       // TODO(jpienaar): Remove unnecessary default args once they are generated
       // automatically.
       auto chan = builder.create<ChanOp>(
-          sproc.getLoc(), absl::StrFormat("%s_arg%d", originalName.str(), i),
+          sproc.getLoc(),
+          absl::StrFormat("%s_arg%d", eproc.getSymName().str(), i),
           cast<SchanType>(arg.getType()).getElementType(),
           /*fifo_config=*/nullptr,
           /*input_flop_kind=*/nullptr,
@@ -331,6 +333,14 @@ void ProcElaborationPass::runOnOperation() {
                                             /*fifo_config=*/nullptr,
                                             /*input_flop_kind=*/nullptr,
                                             /*output_flop_kind=*/nullptr);
+        // We insert the channel in the symbol table, since there might be
+        // a clash with an *eproc* name later, so we need to know. Alternatively
+        // we could have done something similar in the constructor of the
+        // ElaborationInterpreter, so this is just one way of achieving the
+        // desired result. We expect no renamings of boundary channels though!
+        if (symbolTable.insert(echan) != nameAttr) {
+          llvm_unreachable("Boundary channels were not unique to start with");
+        }
 
         if (schan.getIsInput()) {
           echan.setSendSupported(false);
