@@ -566,7 +566,8 @@ absl::StatusOr<Proc*> Proc::Clone(
         auto remapped_call = call_remapping.find(src->to_apply());
         if (remapped_call == call_remapping.end()) {
           return absl::InvalidArgumentError(absl::StrFormat(
-              "Could not find mapping for Invoke target %s.", src->GetName()));
+              "Could not find mapping for Invoke %s's target %s.",
+              src->GetName(), src->to_apply()->name()));
         }
         Function* to_apply = dynamic_cast<Function*>(remapped_call->second);
         if (to_apply == nullptr) {
