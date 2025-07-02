@@ -294,21 +294,9 @@ TEST_P(SweepTrivialPipelinedFunctionFixture, TestBlockChannelMetadata) {
               IsOkAndHolds(top_block_metadata->outputs()[0].get()));
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    TestBlockClocksAndMetadataCreation, SweepTrivialPipelinedFunctionFixture,
-    testing::Values(1, 2, 3, 4),
-    SweepTrivialPipelinedFunctionFixture::PrintToStringParamName);
-
-// Test the conversion to stage blocks by creating a single-stage pipeline,
-// and sensitizing the block and testing the I/O behavior.
-class SingleStageTrivialPipelinedFunctionFixture
-    : public SweepTrivialPipelinedFunctionFixture {};
-
-TEST_P(SingleStageTrivialPipelinedFunctionFixture,
-       TestConvertProcHierarchyCreation) {
-  // Test only works with a single stage.
-  ASSERT_EQ(GetStageCount(), 1);
-
+// Test the conversion to stage blocks by creating a multi-stage combinational
+// pipeline, sensitizing the block and testing the I/O behavior.
+TEST_P(SweepTrivialPipelinedFunctionFixture, TestConvertProcHierarchyCreation) {
   XLS_ASSERT_OK(CreateStageProcInPackage());
 
   XLS_ASSERT_OK_AND_ASSIGN(ProcMetadata * top_metadata,
@@ -333,7 +321,8 @@ TEST_P(SingleStageTrivialPipelinedFunctionFixture,
   XLS_VLOG_LINES(2, package_->DumpIr());
 
   // Interpret the stage block itself.
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package_->GetBlock("top_stage_0_"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           package_->GetBlock(top_metadata->proc()->name()));
 
   std::vector<ChannelSource> sources{
       ChannelSource("x", "x_vld", "x_rdy", 1.0, block),
@@ -377,9 +366,9 @@ TEST_P(SingleStageTrivialPipelinedFunctionFixture,
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TestConvertProcHierarchyCreation,
-    SingleStageTrivialPipelinedFunctionFixture, testing::Values(1),
-    SingleStageTrivialPipelinedFunctionFixture::PrintToStringParamName);
+    TestProcHierarchyCreationAndSimulation,
+    SweepTrivialPipelinedFunctionFixture, testing::Values(1, 2, 3, 4, 5),
+    SweepTrivialPipelinedFunctionFixture::PrintToStringParamName);
 
 }  // namespace
 }  // namespace xls::verilog

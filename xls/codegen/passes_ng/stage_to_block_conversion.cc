@@ -14,7 +14,9 @@
 
 #include "xls/codegen/passes_ng/stage_to_block_conversion.h"
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -26,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/conversion_utils.h"
 #include "xls/codegen/passes_ng/block_channel_adapter.h"
@@ -83,49 +86,52 @@ RDVNodeGroupName CreatePortNamesForChannel(
                           .valid = port_valid_name};
 }
 
-class StageToBlockCloner {
- public:
-  // Initializes this object with the metadata for the stage to be cloned,
+// Base class for conversion of stage or top-level procs to their corresponding
+// block.
+class ProcToBlockClonerBase {
+ protected:
+  // Initialize this object with the metadata for the stage to be cloned,
   // and the metadata for the block to be populated.
-  StageToBlockCloner(const CodegenOptions& options,
-                     const ProcMetadata& proc_metadata,
-                     BlockMetadata& block_metadata)
+  ProcToBlockClonerBase(const CodegenOptions& options,
+                        const ProcMetadata& proc_metadata,
+                        BlockMetadata& block_metadata)
       : options_(options),
         proc_metadata_(proc_metadata),
         block_metadata_(block_metadata) {}
 
-  // For a given set of sorted nodes, process and clone them into the
-  // block.  Also perform basic hookup of valid and ready signals.
-  //
-  // Channel op nodes are delegated to HandlReceive() and HandleSend().
-  absl::Status RunForStage() {
+  absl::Status CreateInterfaceChannelRefsForBlock() {
+    Block* block = block_metadata_.block();
     Proc* proc = proc_metadata_.proc();
 
-    XLS_RETURN_IF_ERROR(CreateInterfaceChannelRefsForBlock());
+    for (const ChannelInterface* chan_interface : proc->interface()) {
+      if (chan_interface->direction() == ChannelDirection::kSend) {
+        auto send_chan_interface =
+            down_cast<const SendChannelInterface*>(chan_interface);
 
-    for (const Node* node : TopoSort(proc)) {
-      Node* block_node = nullptr;
+        XLS_ASSIGN_OR_RETURN(
+            BlockRDVSlot slot,
+            CreateSendPortsForChannelRef(send_chan_interface, block));
 
-      if (node->Is<ChannelNode>()) {
-        if (node->Is<Receive>()) {
-          XLS_ASSIGN_OR_RETURN(block_node, HandleReceiveNode(node));
-        } else {
-          XLS_ASSIGN_OR_RETURN(block_node, HandleSendNode(node));
-        }
+        block_metadata_.AddChannelMetadata(
+            BlockChannelMetadata(send_chan_interface).AddSlot(std::move(slot)));
+
       } else {
-        XLS_ASSIGN_OR_RETURN(block_node, HandleGeneralNode(node));
+        auto receive_chan_interface =
+            down_cast<const ReceiveChannelInterface*>(chan_interface);
+
+        XLS_ASSIGN_OR_RETURN(
+            BlockRDVSlot slot,
+            CreateReceivePortsForChannelRef(receive_chan_interface, block));
+
+        block_metadata_.AddChannelMetadata(
+            BlockChannelMetadata(receive_chan_interface)
+                .AddSlot(std::move(slot)));
       }
-
-      proc_ir_to_block_ir_node_map_[node] = block_node;
     }
-
-    XLS_RETURN_IF_ERROR(WireValidSignals());
-    XLS_RETURN_IF_ERROR(WireReadySignals());
 
     return absl::OkStatus();
   }
 
- private:
   absl::StatusOr<BlockRDVSlot> CreateSendPortsForChannelRef(
       const SendChannelInterface* chan_interface, Block* block) {
     RDVNodeGroupName port_names =
@@ -182,39 +188,53 @@ class StageToBlockCloner {
         block);
   }
 
-  absl::Status CreateInterfaceChannelRefsForBlock() {
-    Block* block = block_metadata_.block();
+  const CodegenOptions& options_;
+  const ProcMetadata& proc_metadata_;
+  BlockMetadata& block_metadata_;
+};
+
+// Class to convert the nodes in a stage proc to its block implementation.
+class StageToBlockCloner : public ProcToBlockClonerBase {
+ public:
+  // Initialize this object with the metadata for the stage to be cloned,
+  // and the metadata for the block to be populated.
+  StageToBlockCloner(const CodegenOptions& options,
+                     const ProcMetadata& proc_metadata,
+                     BlockMetadata& block_metadata)
+      : ProcToBlockClonerBase(options, proc_metadata, block_metadata) {}
+
+  // For a given set of sorted nodes, process and clone them into the
+  // block.  Also perform basic hookup of valid and ready signals.
+  //
+  // Channel op nodes are delegated to HandlReceive() and HandleSend().
+  absl::Status Run() {
     Proc* proc = proc_metadata_.proc();
 
-    for (const ChannelInterface* chan_interface : proc->interface()) {
-      if (chan_interface->direction() == ChannelDirection::kSend) {
-        auto send_chan_interface =
-            down_cast<const SendChannelInterface*>(chan_interface);
+    XLS_RETURN_IF_ERROR(CreateInterfaceChannelRefsForBlock());
 
-        XLS_ASSIGN_OR_RETURN(
-            BlockRDVSlot slot,
-            CreateSendPortsForChannelRef(send_chan_interface, block));
+    for (const Node* node : TopoSort(proc)) {
+      Node* block_node = nullptr;
 
-        block_metadata_.AddChannelMetadata(
-            BlockChannelMetadata(send_chan_interface).AddSlot(std::move(slot)));
-
+      if (node->Is<ChannelNode>()) {
+        if (node->Is<Receive>()) {
+          XLS_ASSIGN_OR_RETURN(block_node, HandleReceiveNode(node));
+        } else {
+          XLS_ASSIGN_OR_RETURN(block_node, HandleSendNode(node));
+        }
       } else {
-        auto receive_chan_interface =
-            down_cast<const ReceiveChannelInterface*>(chan_interface);
-
-        XLS_ASSIGN_OR_RETURN(
-            BlockRDVSlot slot,
-            CreateReceivePortsForChannelRef(receive_chan_interface, block));
-
-        block_metadata_.AddChannelMetadata(
-            BlockChannelMetadata(receive_chan_interface)
-                .AddSlot(std::move(slot)));
+        XLS_ASSIGN_OR_RETURN(block_node, HandleGeneralNode(node));
       }
+
+      proc_ir_to_block_ir_node_map_[node] = block_node;
     }
+
+    XLS_RETURN_IF_ERROR(WireValidSignals());
+    XLS_RETURN_IF_ERROR(WireReadySignals());
 
     return absl::OkStatus();
   }
 
+ private:
   // Wires the valid signals for the block.
   //
   // And all input channel valids and attach to all output channel valids.
@@ -466,13 +486,266 @@ class StageToBlockCloner {
     return node->CloneInNewFunction(new_operands, block_metadata_.block());
   }
 
-  const CodegenOptions& options_;
-  const ProcMetadata& proc_metadata_;
-  BlockMetadata& block_metadata_;
-
   // Map from node in the stage proc to node in the block.
   absl::flat_hash_map<const Node*, Node*> proc_ir_to_block_ir_node_map_;
 };
+
+// Class to convert the nodes in a top-level proc of stage-procs
+// to its block implementation.
+class TopProcToBlockCloner : public ProcToBlockClonerBase {
+ public:
+  // Initialize this object with the metadata for the proc and block
+  // hierarchy to be stitched.
+  TopProcToBlockCloner(const CodegenOptions& options,
+                       const ProcMetadata& top_proc_metadata,
+                       const StageConversionMetadata& stage_conversion_metadata,
+                       BlockMetadata& top_block_metadata,
+                       BlockConversionMetadata& block_conversion_metadata)
+      : ProcToBlockClonerBase(options, top_proc_metadata, top_block_metadata),
+        stage_conversion_metadata_(stage_conversion_metadata),
+        block_conversion_metadata_(block_conversion_metadata) {}
+
+  // For a the top level proc create its block implementation by
+  // instantiating all channels/sub-blocks and wireing them together.
+  absl::Status Run() {
+    XLS_RETURN_IF_ERROR(CreateInterfaceChannelRefsForBlock());
+    XLS_RETURN_IF_ERROR(CreateInternalChannelsForBlock());
+    XLS_RETURN_IF_ERROR(InstantiateAndConnectSubBlocks());
+
+    return absl::OkStatus();
+  }
+
+ private:
+  // Create wires and a slot for an internal channel.
+  absl::Status CreateWiresForChannel(const Channel* chan, Block* block) {
+    Proc* proc = proc_metadata_.proc();
+
+    // Retrieve the suffix for the ports associated with the channel.
+    std::string_view data_suffix =
+        (chan->kind() == ChannelKind::kStreaming)
+            ? options_.streaming_channel_data_suffix()
+            : "";
+    std::string_view valid_suffix = options_.streaming_channel_valid_suffix();
+    std::string_view ready_suffix = options_.streaming_channel_ready_suffix();
+
+    // Construct names for the ports.
+    std::string data_name = absl::StrCat(chan->name(), data_suffix);
+    std::string valid_name = absl::StrCat(chan->name(), valid_suffix);
+    std::string ready_name = absl::StrCat(chan->name(), ready_suffix);
+
+    // Creat dummy connections, literal 1 for ready/valid, and literal 0 for
+    // data.
+    XLS_ASSIGN_OR_RETURN(
+        Node * literal_1,
+        block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
+    XLS_ASSIGN_OR_RETURN(
+        Node * literal_data_0,
+        block->MakeNode<xls::Literal>(SourceInfo(), ZeroOfType(chan->type())));
+
+    // Create attach points for the slots.
+    XLS_ASSIGN_OR_RETURN(Node * ready_buf, block->MakeNodeWithName<UnOp>(
+                                               SourceInfo(), literal_1,
+                                               Op::kIdentity, ready_name));
+    XLS_ASSIGN_OR_RETURN(Node * data_buf, block->MakeNodeWithName<UnOp>(
+                                              SourceInfo(), literal_data_0,
+                                              Op::kIdentity, data_name));
+    XLS_ASSIGN_OR_RETURN(Node * valid_buf, block->MakeNodeWithName<UnOp>(
+                                               SourceInfo(), literal_1,
+                                               Op::kIdentity, valid_name));
+
+    XLS_ASSIGN_OR_RETURN(ReceiveChannelInterface * recv_chan_interface,
+                         proc->GetReceiveChannelInterface(chan->name()));
+    XLS_ASSIGN_OR_RETURN(
+        BlockRDVSlot recv_slot,
+        BlockRDVSlot::CreateReceiveSlot(
+            "receive", RDVNodeGroup{ready_buf, data_buf, valid_buf}, block));
+
+    XLS_ASSIGN_OR_RETURN(SendChannelInterface * send_chan_interface,
+                         proc->GetSendChannelInterface(chan->name()));
+    XLS_ASSIGN_OR_RETURN(
+        BlockRDVSlot send_slot,
+        BlockRDVSlot::CreateSendSlot(
+            "send", RDVNodeGroup{ready_buf, data_buf, valid_buf}, block));
+
+    block_metadata_.AddChannelMetadata(BlockChannelMetadata(recv_chan_interface)
+                                           .AddSlot(std::move(recv_slot))
+                                           .SetChannel(chan));
+
+    block_metadata_.AddChannelMetadata(BlockChannelMetadata(send_chan_interface)
+                                           .AddSlot(std::move(send_slot))
+                                           .SetChannel(chan));
+
+    return absl::OkStatus();
+  }
+
+  // Create internal channel references for the interface of the block.
+  absl::Status CreateInternalChannelsForBlock() {
+    Proc* proc = proc_metadata_.proc();
+    Block* block = block_metadata_.block();
+
+    // Channels are double-ended and internal to the proc.
+    for (const Channel* chan : proc->channels()) {
+      // Create channel and slots for the two ends.
+      XLS_RETURN_IF_ERROR(CreateWiresForChannel(chan, block));
+    }
+
+    return absl::OkStatus();
+  }
+
+  // Instantiate sub-blocks and connect to previously created slots.
+  absl::Status InstantiateAndConnectSubBlocks() {
+    Block* block = block_metadata_.block();
+    Proc* proc = proc_metadata_.proc();
+
+    for (const std::unique_ptr<ProcInstantiation>& proc_instantiation :
+         proc->proc_instantiations()) {
+      std::string_view sub_proc_name = proc_instantiation->name();
+      Proc* sub_proc = proc_instantiation->proc();
+
+      // Obtain metadata objects for the sub-proc.
+      XLS_ASSIGN_OR_RETURN(
+          ProcMetadata * sub_proc_metadata,
+          stage_conversion_metadata_.GetProcMetadata(sub_proc));
+      XLS_ASSIGN_OR_RETURN(
+          BlockMetadata * sub_block_metadata,
+          block_conversion_metadata_.GetBlockMetadata(sub_proc_metadata));
+
+      // Instantiate the sub-block.
+      XLS_ASSIGN_OR_RETURN(BlockInstantiation * sub_block,
+                           block->AddBlockInstantiation(
+                               sub_proc_name, sub_block_metadata->block()));
+
+      // Connect the sub-block to the slots.
+      absl::Span<ChannelInterface* const> channel_args =
+          proc_instantiation->channel_args();
+      absl::Span<ChannelInterface* const> channel_interface =
+          sub_proc->interface();
+      XLS_RET_CHECK_EQ(channel_args.size(), channel_interface.size());
+
+      for (int64_t i = 0; i < channel_args.size(); ++i) {
+        const ChannelInterface* chan_interface = channel_args[i];
+        const ChannelInterface* interface_chan_interface = channel_interface[i];
+
+        XLS_ASSIGN_OR_RETURN(
+            BlockChannelMetadata * chan_metadata,
+            block_metadata_.GetChannelMetadata(chan_interface));
+        XLS_ASSIGN_OR_RETURN(
+            BlockChannelMetadata * interface_metadata,
+            sub_block_metadata->GetChannelMetadata(interface_chan_interface));
+
+        RDVNodeGroup ports = chan_metadata->slots()[0].GetPorts();
+        RDVNodeGroup sub_block_ports =
+            interface_metadata->slots()[0].GetPorts();
+
+        if (chan_interface->direction() == ChannelDirection::kSend) {
+          XLS_ASSIGN_OR_RETURN(RDVAdapter adapter,
+                               RDVAdapter::CreateInterfaceSendAdapter(
+                                   chan_metadata->slots()[0], block));
+
+          XLS_RETURN_IF_ERROR(block
+                                  ->MakeNodeWithName<InstantiationInput>(
+                                      ports.ready->loc(), adapter.ready(),
+                                      sub_block,
+                                      sub_block_ports.ready->GetNameView(),
+                                      ports.ready->GetNameView())
+                                  .status());
+          XLS_ASSIGN_OR_RETURN(Node * data,
+                               block->MakeNodeWithName<InstantiationOutput>(
+                                   ports.data->loc(), sub_block,
+                                   sub_block_ports.data->GetNameView(),
+                                   ports.data->GetNameView()));
+          XLS_ASSIGN_OR_RETURN(Node * valid,
+                               block->MakeNodeWithName<InstantiationOutput>(
+                                   ports.valid->loc(), sub_block,
+                                   sub_block_ports.valid->GetNameView(),
+                                   ports.valid->GetNameView()));
+
+          XLS_RETURN_IF_ERROR(adapter.SetData(data));
+          XLS_RETURN_IF_ERROR(adapter.SetValid(valid));
+
+          XLS_RETURN_IF_ERROR(chan_metadata->AddAdapter(std::move(adapter)));
+        } else {
+          XLS_ASSIGN_OR_RETURN(RDVAdapter adapter,
+                               RDVAdapter::CreateInterfaceReceiveAdapter(
+                                   chan_metadata->slots()[0], block));
+
+          XLS_ASSIGN_OR_RETURN(Node * ready,
+                               block->MakeNodeWithName<InstantiationOutput>(
+                                   ports.ready->loc(), sub_block,
+                                   sub_block_ports.ready->GetNameView(),
+                                   ports.ready->GetNameView()));
+          XLS_RETURN_IF_ERROR(block
+                                  ->MakeNodeWithName<InstantiationInput>(
+                                      ports.data->loc(), adapter.data(),
+                                      sub_block,
+                                      sub_block_ports.data->GetNameView(),
+                                      ports.data->GetNameView())
+                                  .status());
+          XLS_RETURN_IF_ERROR(block
+                                  ->MakeNodeWithName<InstantiationInput>(
+                                      ports.valid->loc(), adapter.valid(),
+                                      sub_block,
+                                      sub_block_ports.valid->GetNameView(),
+                                      ports.valid->GetNameView())
+                                  .status());
+
+          XLS_RETURN_IF_ERROR(adapter.SetReady(ready));
+
+          XLS_RETURN_IF_ERROR(chan_metadata->AddAdapter(std::move(adapter)));
+        }
+      }
+    }
+
+    return absl::OkStatus();
+  };
+
+  const StageConversionMetadata& stage_conversion_metadata_;
+  BlockConversionMetadata& block_conversion_metadata_;
+};
+
+// If present, connect the reset ports the top_block down to its instantiations.
+absl::Status MaybeConnectResetPorts(Block* top_block) {
+  std::optional<InputPort*> opt_top_reset_port = top_block->GetResetPort();
+
+  if (!opt_top_reset_port.has_value()) {
+    return absl::OkStatus();
+  }
+
+  InputPort* top_reset_port = opt_top_reset_port.value();
+
+  for (Instantiation* inst : top_block->GetInstantiations()) {
+    XLS_RETURN_IF_ERROR(top_block
+                            ->MakeNodeWithName<InstantiationInput>(
+                                top_reset_port->loc(), top_reset_port, inst,
+                                top_reset_port->name(), top_reset_port->name())
+                            .status());
+  }
+
+  return absl::OkStatus();
+}
+
+// Sitches together the top level block from the stage blocks.
+//
+// Each stage block is instantiated, and channels are connected between the
+// stage blocks with wires.
+absl::Status StitchTopBlock(const CodegenOptions& options,
+                            ProcMetadata& top_metadata,
+                            StageConversionMetadata& stage_conversion_metadata,
+                            BlockConversionMetadata& block_conversion_metadata,
+                            Block* top_block) {
+  XLS_ASSIGN_OR_RETURN(
+      BlockMetadata * top_block_metadata,
+      block_conversion_metadata.GetBlockMetadata(&top_metadata));
+
+  XLS_RETURN_IF_ERROR(
+      TopProcToBlockCloner(options, top_metadata, stage_conversion_metadata,
+                           *top_block_metadata, block_conversion_metadata)
+          .Run());
+
+  XLS_RETURN_IF_ERROR(MaybeConnectResetPorts(top_block_metadata->block()));
+
+  return absl::OkStatus();
+}
 
 }  // namespace
 
@@ -503,7 +776,7 @@ absl::StatusOr<Block*> CreateBlocksForProcHierarchy(
     block_conversion_metadata.AssociateWithNewBlock(proc_metadata, block);
   }
 
-  // Create and stitch together top level block.
+  // Create top level block.
   Proc* top_proc = top_metadata.proc();
   Block* top_block = top_proc->package()->AddBlock(
       std::make_unique<Block>(top_metadata.proc()->name(), package));
@@ -526,14 +799,17 @@ absl::StatusOr<Block*> ConvertProcHierarchyToBlocks(
         block_conversion_metadata.GetBlockMetadata(proc_metadata));
 
     XLS_RETURN_IF_ERROR(
-        StageToBlockCloner(options, *proc_metadata, *block_metadata)
-            .RunForStage());
+        StageToBlockCloner(options, *proc_metadata, *block_metadata).Run());
   }
 
-  // TODO(tedhong): 2025-04-08 - Stitch together top level block.
+  // Stitch together top level block.
   XLS_ASSIGN_OR_RETURN(
       BlockMetadata * top_block_metadata,
       block_conversion_metadata.GetBlockMetadata(&top_metadata));
+
+  XLS_RETURN_IF_ERROR(
+      StitchTopBlock(options, top_metadata, stage_conversion_metadata,
+                     block_conversion_metadata, top_block_metadata->block()));
 
   return top_block_metadata->block();
 }
