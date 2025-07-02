@@ -282,6 +282,7 @@ bzl_library(
     name = "xls_cc_embed_data_rules_bzl",
     srcs = ["xls_cc_embed_data_rules.bzl"],
     visibility = ["//visibility:private"],
+    deps = ["@bazel_skylib//lib:dicts"],
 )
 
 bzl_library(
