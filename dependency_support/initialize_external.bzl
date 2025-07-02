@@ -24,7 +24,6 @@ load("@rules_hdl//:init.bzl", rules_hdl_init = "init")
 load("@rules_hdl//dependency_support:dependency_support.bzl", rules_hdl_dependency_support = "dependency_support")
 load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
 load("@rules_python//python:pip.bzl", "pip_parse")
-load("//dependency_support/boost:initialize.bzl", initialize_boost = "initialize")
 load("//dependency_support/llvm:initialize.bzl", initialize_llvm = "initialize")
 
 def initialize_external_repositories():
@@ -40,6 +39,5 @@ def initialize_external_repositories():
         python_interpreter_target = python_interpreter_target,
         timeout = 600000,
     )
-    initialize_boost()
     initialize_llvm()
     rules_pkg_dependencies()
