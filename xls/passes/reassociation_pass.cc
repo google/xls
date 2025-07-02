@@ -59,7 +59,6 @@
 #include "xls/passes/lazy_node_info.h"
 #include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
@@ -1379,7 +1378,5 @@ absl::StatusOr<bool> ReassociationPass::RunOnFunctionBaseInternal(
   Reassociation reassoc(f, query_engine, context);
   return reassoc.Reassociate();
 }
-
-REGISTER_OPT_PASS(ReassociationPass);
 
 }  // namespace xls

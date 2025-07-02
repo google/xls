@@ -274,3 +274,18 @@ AotCompileInfo = provider(
         "proto_file": "File: The protobuf AotEntrypointProto message.",
     },
 )
+
+XlsOptimizationPassInfo = provider(
+    doc = "A provider containing the implementation of a optimization-pass and its registration code",
+    fields = {
+        "pass_impl": "CcInfo: The cc info for the actual pass code",
+        "pass_registration": "CcInfo: The cc info for the library which registers the pass with the injection system.",
+    },
+)
+
+XlsOptimizationPassRegistryInfo = provider(
+    doc = "A provider containing a set of passes to add to a registry",
+    fields = {
+        "passes": "List of CcInfo: The cc info for the library which registers each pass with the injection system.",
+    },
+)

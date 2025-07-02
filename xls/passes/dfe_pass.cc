@@ -17,7 +17,6 @@
 #include <deque>
 #include <memory>
 #include <optional>
-#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -38,7 +37,6 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -208,7 +206,5 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
   }
   return changed;
 }
-
-REGISTER_OPT_PASS(DeadFunctionEliminationPass);
 
 }  // namespace xls

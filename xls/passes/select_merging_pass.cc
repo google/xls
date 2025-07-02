@@ -36,7 +36,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -266,6 +265,5 @@ absl::StatusOr<bool> SelectMergingPass::RunOnFunctionBaseInternal(
   return changed;
 }
 
-REGISTER_OPT_PASS(SelectMergingPass);
 
 }  // namespace xls

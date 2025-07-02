@@ -16,10 +16,11 @@
 
 # pytype binary only
 load("@rules_python//python:proto.bzl", "py_proto_library")
-# Load proto_library
-# cc_proto_library is used in this file
-
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+
+# Load proto_library
+load("//xls/build_rules:xls_pass_rules.bzl", "xls_pass", "xls_pass_registry")
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -29,6 +30,56 @@ package(
         "parse_headers",
     ],
     licenses = ["notice"],  # Apache 2.0
+)
+
+xls_pass_registry(
+    name = "passes",
+    passes = [
+        ":arith_simplification_pass",
+        ":array_simplification_pass",
+        ":array_untuple_pass",
+        ":basic_simplification_pass",
+        ":bdd_cse_pass",
+        ":bit_slice_simplification_pass",
+        ":boolean_simplification_pass",
+        ":canonicalization_pass",
+        ":channel_legalization_pass",
+        ":comparison_simplification_pass",
+        ":concat_simplification_pass",
+        ":conditional_specialization_pass",
+        ":constant_folding_pass",
+        ":cse_pass",
+        ":dataflow_simplification_pass",
+        ":dce_pass",
+        ":dfe_pass",
+        ":identity_removal_pass",
+        ":label_recovery_pass",
+        ":literal_uncommoning_pass",
+        ":lut_conversion_pass",
+        ":map_inlining_pass",
+        ":next_value_optimization_pass",
+        ":proc_state_array_flattening_pass",
+        ":proc_state_bits_shattering_pass",
+        ":proc_state_narrowing_pass",
+        ":proc_state_optimization_pass",
+        ":proc_state_provenance_narrowing_pass",
+        ":proc_state_tuple_flattening_pass",
+        ":ram_rewrite_pass",
+        ":reassociation_pass",
+        ":receive_default_value_simplification_pass",
+        ":resource_sharing_pass",
+        ":select_lifting_pass",
+        ":select_merging_pass",
+        ":sparsify_select_pass",
+        ":strength_reduction_pass",
+        ":table_switch_pass",
+        ":token_dependency_pass",
+        ":token_simplification_pass",
+        ":unroll_pass",
+        ":useless_assert_removal_pass",
+        ":useless_io_removal_pass",
+    ],
+    tags = ["keep_dep"],
 )
 
 proto_library(
@@ -135,6 +186,7 @@ cc_library(
         ":optimization_pass",
         ":optimization_pass_registry",
         ":pass_base",
+        ":passes",
         ":pipeline_generator",
         ":proc_state_array_flattening_pass",
         ":proc_state_bits_shattering_pass",
@@ -326,13 +378,13 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "unroll_pass",
     srcs = ["unroll_pass.cc"],
     hdrs = ["unroll_pass.h"],
+    pass_class = "UnrollPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -360,6 +412,7 @@ cc_test(
     ],
 )
 
+# TODO(allight): Multiple configurations prevents xls_pass
 cc_library(
     name = "inlining_pass",
     srcs = ["inlining_pass.cc"],
@@ -385,13 +438,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "literal_uncommoning_pass",
     srcs = ["literal_uncommoning_pass.cc"],
     hdrs = ["literal_uncommoning_pass.h"],
+    pass_class = "LiteralUncommoningPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -399,13 +452,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "map_inlining_pass",
     srcs = ["map_inlining_pass.cc"],
     hdrs = ["map_inlining_pass.h"],
+    pass_class = "MapInliningPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -436,13 +489,13 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "cse_pass",
     srcs = ["cse_pass.cc"],
     hdrs = ["cse_pass.h"],
+    pass_class = "CsePass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -458,13 +511,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "constant_folding_pass",
     srcs = ["constant_folding_pass.cc"],
     hdrs = ["constant_folding_pass.h"],
+    pass_class = "ConstantFoldingPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -480,14 +533,14 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "bit_slice_simplification_pass",
     srcs = ["bit_slice_simplification_pass.cc"],
     hdrs = ["bit_slice_simplification_pass.h"],
+    pass_class = "BitSliceSimplificationPass",
     deps = [
         ":lazy_ternary_query_engine",
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":partial_info_query_engine",
         ":pass_base",
         ":query_engine",
@@ -517,13 +570,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "concat_simplification_pass",
     srcs = ["concat_simplification_pass.cc"],
     hdrs = ["concat_simplification_pass.h"],
+    pass_class = "ConcatSimplificationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -541,13 +594,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "boolean_simplification_pass",
     srcs = ["boolean_simplification_pass.cc"],
     hdrs = ["boolean_simplification_pass.h"],
+    pass_class = "BooleanSimplificationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -569,13 +622,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "arith_simplification_pass",
     srcs = ["arith_simplification_pass.cc"],
     hdrs = ["arith_simplification_pass.h"],
+    pass_class = "ArithSimplificationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -603,13 +656,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "dfe_pass",
     srcs = ["dfe_pass.cc"],
     hdrs = ["dfe_pass.h"],
+    pass_class = "DeadFunctionEliminationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -625,13 +678,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "canonicalization_pass",
     srcs = ["canonicalization_pass.cc"],
     hdrs = ["canonicalization_pass.h"],
+    pass_class = "CanonicalizationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -691,13 +744,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "identity_removal_pass",
     srcs = ["identity_removal_pass.cc"],
     hdrs = ["identity_removal_pass.h"],
+    pass_class = "IdentityRemovalPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -706,13 +759,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "dce_pass",
     srcs = ["dce_pass.cc"],
     hdrs = ["dce_pass.h"],
+    pass_class = "DeadCodeEliminationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -724,13 +777,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "token_dependency_pass",
     srcs = ["token_dependency_pass.cc"],
     hdrs = ["token_dependency_pass.h"],
+    pass_class = "TokenDependencyPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":token_provenance_analysis",
         "//xls/common/logging:log_lines",
@@ -751,13 +804,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "token_simplification_pass",
     srcs = ["token_simplification_pass.cc"],
     hdrs = ["token_simplification_pass.h"],
+    pass_class = "TokenSimplificationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -769,16 +822,14 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "strength_reduction_pass",
     srcs = ["strength_reduction_pass.cc"],
-    hdrs = [
-        "strength_reduction_pass.h",
-    ],
+    hdrs = ["strength_reduction_pass.h"],
+    pass_class = "StrengthReductionPass",
     deps = [
         ":lazy_ternary_query_engine",
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -970,14 +1021,14 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "resource_sharing_pass",
     srcs = ["resource_sharing_pass.cc"],
     hdrs = ["resource_sharing_pass.h"],
+    pass_class = "ResourceSharingPass",
     deps = [
         ":bdd_query_engine",
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":post_dominator_analysis",
         ":query_engine",
@@ -1005,13 +1056,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "select_lifting_pass",
     srcs = ["select_lifting_pass.cc"],
     hdrs = ["select_lifting_pass.h"],
+    pass_class = "SelectLiftingPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -1029,13 +1080,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "select_merging_pass",
     srcs = ["select_merging_pass.cc"],
     hdrs = ["select_merging_pass.h"],
+    pass_class = "SelectMergingPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -1053,6 +1104,7 @@ cc_library(
     ],
 )
 
+# TODO(allight): 2 different passes in single library.
 cc_library(
     name = "select_simplification_pass",
     srcs = ["select_simplification_pass.cc"],
@@ -1099,13 +1151,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "sparsify_select_pass",
     srcs = ["sparsify_select_pass.cc"],
     hdrs = ["sparsify_select_pass.h"],
+    pass_class = "SparsifySelectPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":partial_info_query_engine",
         ":pass_base",
         ":query_engine",
@@ -1568,6 +1620,7 @@ cc_test(
     ],
 )
 
+# TODO(allight): Multiple configurations prevent xls_pass
 cc_library(
     name = "bdd_simplification_pass",
     srcs = ["bdd_simplification_pass.cc"],
@@ -1732,6 +1785,7 @@ cc_test(
     ],
 )
 
+# TODO(allight): Multiple configurations prevent xls_pass
 cc_library(
     name = "narrowing_pass",
     srcs = ["narrowing_pass.cc"],
@@ -1785,14 +1839,14 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "bdd_cse_pass",
     srcs = ["bdd_cse_pass.cc"],
     hdrs = ["bdd_cse_pass.h"],
+    pass_class = "BddCsePass",
     deps = [
         ":bdd_query_engine",
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         "//xls/common/status:ret_check",
@@ -1808,13 +1862,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "label_recovery_pass",
     srcs = ["label_recovery_pass.cc"],
     hdrs = ["label_recovery_pass.h"],
+    pass_class = "LabelRecoveryPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common:visitor",
         "//xls/ir",
@@ -1847,16 +1901,16 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "reassociation_pass",
     srcs = ["reassociation_pass.cc"],
     hdrs = ["reassociation_pass.h"],
+    pass_class = "ReassociationPass",
     deps = [
         ":bit_count_query_engine",
         ":lazy_node_info",
         ":lazy_ternary_query_engine",
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -1886,13 +1940,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "table_switch_pass",
     srcs = ["table_switch_pass.cc"],
     hdrs = ["table_switch_pass.h"],
+    pass_class = "TableSwitchPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -1914,14 +1968,14 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "array_simplification_pass",
     srcs = ["array_simplification_pass.cc"],
     hdrs = ["array_simplification_pass.h"],
+    pass_class = "ArraySimplificationPass",
     deps = [
         ":lazy_ternary_query_engine",
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -1947,13 +2001,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "useless_assert_removal_pass",
     srcs = ["useless_assert_removal_pass.cc"],
     hdrs = ["useless_assert_removal_pass.h"],
+    pass_class = "UselessAssertRemovalPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":stateless_query_engine",
         "//xls/common/status:status_macros",
@@ -1964,13 +2018,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "useless_io_removal_pass",
     srcs = ["useless_io_removal_pass.cc"],
     hdrs = ["useless_io_removal_pass.h"],
+    pass_class = "UselessIORemovalPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":stateless_query_engine",
         "//xls/common/status:status_macros",
@@ -1985,13 +2039,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "comparison_simplification_pass",
     srcs = ["comparison_simplification_pass.cc"],
     hdrs = ["comparison_simplification_pass.h"],
+    pass_class = "ComparisonSimplificationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -2013,6 +2067,7 @@ cc_library(
     ],
 )
 
+# TODO(allight): Multiple configurations prevent xls_pass
 cc_library(
     name = "conditional_specialization_pass",
     srcs = ["conditional_specialization_pass.cc"],
@@ -2062,13 +2117,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "proc_state_narrowing_pass",
     srcs = ["proc_state_narrowing_pass.cc"],
     hdrs = ["proc_state_narrowing_pass.h"],
+    pass_class = "ProcStateNarrowingPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":proc_state_range_query_engine",
         "//xls/common/status:ret_check",
@@ -2115,15 +2170,15 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "proc_state_optimization_pass",
     srcs = ["proc_state_optimization_pass.cc"],
     hdrs = ["proc_state_optimization_pass.h"],
+    pass_class = "ProcStateOptimizationPass",
     deps = [
         ":dataflow_visitor",
         ":lazy_ternary_query_engine",
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -2157,13 +2212,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "proc_state_tuple_flattening_pass",
     srcs = ["proc_state_tuple_flattening_pass.cc"],
     hdrs = ["proc_state_tuple_flattening_pass.h"],
+    pass_class = "ProcStateTupleFlatteningPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -2182,13 +2237,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "proc_state_array_flattening_pass",
     srcs = ["proc_state_array_flattening_pass.cc"],
     hdrs = ["proc_state_array_flattening_pass.h"],
+    pass_class = "ProcStateArrayFlatteningPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common:math_util",
         "//xls/common/status:ret_check",
@@ -2203,13 +2258,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "proc_state_bits_shattering_pass",
     srcs = ["proc_state_bits_shattering_pass.cc"],
     hdrs = ["proc_state_bits_shattering_pass.h"],
+    pass_class = "ProcStateBitsShatteringPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -2226,13 +2281,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "ram_rewrite_pass",
     srcs = ["ram_rewrite_pass.cc"],
     hdrs = ["ram_rewrite_pass.h"],
+    pass_class = "RamRewritePass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -2303,13 +2358,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "receive_default_value_simplification_pass",
     srcs = ["receive_default_value_simplification_pass.cc"],
     hdrs = ["receive_default_value_simplification_pass.h"],
+    pass_class = "ReceiveDefaultValueSimplificationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -3353,13 +3408,13 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "channel_legalization_pass",
     srcs = ["channel_legalization_pass.cc"],
     hdrs = ["channel_legalization_pass.h"],
+    pass_class = "ChannelLegalizationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":token_provenance_analysis",
         "//xls/codegen/vast",
@@ -3390,13 +3445,13 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "basic_simplification_pass",
     srcs = ["basic_simplification_pass.cc"],
     hdrs = ["basic_simplification_pass.h"],
+    pass_class = "BasicSimplificationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":stateless_query_engine",
         "//xls/common/status:ret_check",
@@ -3492,14 +3547,14 @@ cc_library(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "dataflow_simplification_pass",
     srcs = ["dataflow_simplification_pass.cc"],
     hdrs = ["dataflow_simplification_pass.h"],
+    pass_class = "DataflowSimplificationPass",
     deps = [
         ":dataflow_visitor",
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
@@ -3563,13 +3618,13 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "next_value_optimization_pass",
     srcs = ["next_value_optimization_pass.cc"],
     hdrs = ["next_value_optimization_pass.h"],
+    pass_class = "NextValueOptimizationPass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -3654,15 +3709,15 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "proc_state_provenance_narrowing_pass",
     srcs = ["proc_state_provenance_narrowing_pass.cc"],
     hdrs = ["proc_state_provenance_narrowing_pass.h"],
+    pass_class = "ProcStateProvenanceNarrowingPass",
     deps = [
         ":bit_provenance_analysis",
         ":lazy_ternary_query_engine",
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         "//xls/common/status:ret_check",
@@ -3711,15 +3766,15 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "lut_conversion_pass",
     srcs = ["lut_conversion_pass.cc"],
     hdrs = ["lut_conversion_pass.h"],
+    pass_class = "LutConversionPass",
     deps = [
         ":dataflow_graph_analysis",
         ":lazy_ternary_query_engine",
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         ":query_engine",
         ":stateless_query_engine",
@@ -3767,13 +3822,13 @@ cc_test(
     ],
 )
 
-cc_library(
+xls_pass(
     name = "array_untuple_pass",
     srcs = ["array_untuple_pass.cc"],
     hdrs = ["array_untuple_pass.h"],
+    pass_class = "ArrayUntuplePass",
     deps = [
         ":optimization_pass",
-        ":optimization_pass_registry",
         ":pass_base",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

@@ -30,7 +30,6 @@
 #include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -165,7 +164,5 @@ absl::StatusOr<bool> ProcStateArrayFlatteningPass::RunOnProcInternal(
 
   return changed;
 }
-
-REGISTER_OPT_PASS(ProcStateArrayFlatteningPass);
 
 }  // namespace xls

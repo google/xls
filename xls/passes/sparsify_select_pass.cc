@@ -32,7 +32,6 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
@@ -180,7 +179,5 @@ absl::StatusOr<bool> SparsifySelectPass::RunOnFunctionBaseInternal(
 
   return changed;
 }
-
-REGISTER_OPT_PASS(SparsifySelectPass);
 
 }  // namespace xls

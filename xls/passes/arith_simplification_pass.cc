@@ -47,7 +47,6 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
@@ -1944,7 +1943,5 @@ absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
   } while (pass_changed);
   return changed;
 }
-
-REGISTER_OPT_PASS(ArithSimplificationPass);
 
 }  // namespace xls

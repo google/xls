@@ -37,7 +37,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -320,7 +319,5 @@ absl::StatusOr<bool> ProcStateTupleFlatteningPass::RunOnProcInternal(
   XLS_RETURN_IF_ERROR(FlattenState(proc));
   return true;
 }
-
-REGISTER_OPT_PASS(ProcStateTupleFlatteningPass);
 
 }  // namespace xls

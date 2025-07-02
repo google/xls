@@ -31,7 +31,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 
@@ -165,7 +164,5 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
 
   return changed;
 }
-
-REGISTER_OPT_PASS(BddCsePass);
 
 }  // namespace xls

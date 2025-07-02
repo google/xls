@@ -284,6 +284,16 @@ bzl_library(
     visibility = ["//visibility:private"],
 )
 
+bzl_library(
+    name = "xls_pass_rules_bzl",
+    srcs = ["xls_pass_rules.bzl"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":xls_providers_bzl",
+        "@bazel_skylib//lib:dicts",
+    ],
+)
+
 xls_toolchain(
     name = "default_xls_toolchain",
     visibility = ["//xls:xls_public"],

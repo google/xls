@@ -34,7 +34,6 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/stateless_query_engine.h"
 
@@ -494,7 +493,5 @@ absl::StatusOr<bool> BasicSimplificationPass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   return TransformNodesToFixedPoint(f, MatchPatterns);
 }
-
-REGISTER_OPT_PASS(BasicSimplificationPass);
 
 }  // namespace xls
