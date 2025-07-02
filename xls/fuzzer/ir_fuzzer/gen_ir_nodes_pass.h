@@ -21,6 +21,7 @@
 #include "google/protobuf/repeated_ptr_field.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_visitor.h"
+#include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
 
@@ -28,14 +29,17 @@ namespace xls {
 
 // Pass that iterates over the FuzzOpProtos within the FuzzProgramProto. Each
 // FuzzOpProto gets instantiated into an IR node/BValue. This value is placed on
-// the stack. BValues on the stack may be used as operands by future
-// instantiated FuzzOps. We use a stack because it is a simple way to reference
-// previous FuzzOps through indices.
+// the context list. BValues on the context list may be used as operands by
+// future instantiated FuzzOps. We use a context list because it is a simple way
+// to reference previous FuzzOps through indices.
 class GenIrNodesPass : public IrFuzzVisitor {
  public:
   GenIrNodesPass(FuzzProgramProto* fuzz_program, Package* p,
-                 FunctionBuilder* fb, std::vector<BValue>& stack)
-      : fuzz_program_(fuzz_program), p_(p), fb_(fb), stack_(stack) {}
+                 FunctionBuilder* fb, IrNodeContextList& context_list)
+      : fuzz_program_(fuzz_program),
+        p_(p),
+        fb_(fb),
+        context_list_(context_list) {}
 
   void GenIrNodes();
 
@@ -111,7 +115,7 @@ class GenIrNodesPass : public IrFuzzVisitor {
   FuzzProgramProto* fuzz_program_;
   Package* p_;
   FunctionBuilder* fb_;
-  std::vector<BValue>& stack_;
+  IrNodeContextList& context_list_;
 };
 
 }  // namespace xls
