@@ -36,7 +36,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -209,7 +208,5 @@ absl::StatusOr<bool> ProcStateBitsShatteringPass::RunOnProcInternal(
                        MaybeSplitStateElements(proc, options));
   return split_state_elements;
 }
-
-REGISTER_OPT_PASS(ProcStateBitsShatteringPass);
 
 }  // namespace xls
