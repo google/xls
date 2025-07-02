@@ -386,20 +386,6 @@ cc_library(
 )
 
 cc_library(
-    name = "literal_uncommoning_pass",
-    srcs = ["literal_uncommoning_pass.cc"],
-    hdrs = ["literal_uncommoning_pass.h"],
-    deps = [
-        ":optimization_pass",
-        ":optimization_pass_registry",
-        ":pass_base",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "@com_google_absl//absl/status:statusor",
-    ],
-)
-
-cc_library(
     name = "map_inlining_pass",
     srcs = ["map_inlining_pass.cc"],
     hdrs = ["map_inlining_pass.h"],
@@ -2461,24 +2447,6 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_absl//absl/status:statusor",
-        "@googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "literal_uncommoning_pass_test",
-    srcs = ["literal_uncommoning_pass_test.cc"],
-    deps = [
-        ":literal_uncommoning_pass",
-        ":optimization_pass",
-        ":pass_base",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:ir_matcher",
-        "//xls/ir:ir_test_base",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],

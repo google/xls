@@ -47,6 +47,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
+#include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
 
@@ -244,10 +245,14 @@ std::string PipelineSchedule::ToString() const {
 
 absl::Status PipelineSchedule::Verify() const {
   for (Node* node : function_base()->nodes()) {
+    if (IsUntimed(node)) {
+      continue;
+    }
     XLS_RET_CHECK(IsScheduled(node));
-  }
-  for (Node* node : function_base()->nodes()) {
     for (Node* operand : node->operands()) {
+      if (IsUntimed(operand)) {
+        continue;
+      }
       XLS_RET_CHECK_LE(cycle(operand), cycle(node));
 
       if (node->Is<MinDelay>()) {
@@ -298,6 +303,9 @@ absl::Status PipelineSchedule::VerifyTiming(
     int64_t cp_to_node_start = 0;
     cp_pred[node] = nullptr;
     for (Node* operand : node->operands()) {
+      if (IsUntimed(operand)) {
+        continue;
+      }
       if (dead_after_synthesis.contains(operand)) {
         continue;
       }
@@ -380,7 +388,9 @@ absl::Status PipelineSchedule::VerifyConstraints(
     if (node->Is<Receive>() || node->Is<Send>()) {
       channel_to_nodes[node->As<ChannelNode>()->channel_name()].push_back(node);
     }
-    last_cycle = std::max(last_cycle, cycle_map_.at(node));
+    if (!IsUntimed(node)) {
+      last_cycle = std::max(last_cycle, cycle_map_.at(node));
+    }
 
     for (Node* operand : node->operands()) {
       if (operand->Is<ChannelNode>()) {
@@ -452,6 +462,11 @@ absl::Status PipelineSchedule::VerifyConstraints(
     } else if (std::holds_alternative<NodeInCycleConstraint>(constraint)) {
       NodeInCycleConstraint nic_constr =
           std::get<NodeInCycleConstraint>(constraint);
+      if (IsUntimed(nic_constr.GetNode())) {
+        return absl::InternalError(absl::StrFormat(
+            "Scheduling constraint violated: node %s is untimed.",
+            nic_constr.GetNode()->ToString()));
+      }
       const int64_t cycle = cycle_map_.at(nic_constr.GetNode());
       if (cycle != nic_constr.GetCycle()) {
         return absl::ResourceExhaustedError(absl::StrFormat(
@@ -464,6 +479,11 @@ absl::Status PipelineSchedule::VerifyConstraints(
       DifferenceConstraint diff_constr =
           std::get<DifferenceConstraint>(constraint);
       // a - b <= max_difference
+      if (IsUntimed(diff_constr.GetA()) || IsUntimed(diff_constr.GetB())) {
+        return absl::InternalError(absl::StrFormat(
+            "Scheduling constraint violated: node %s or node %s is untimed.",
+            diff_constr.GetA()->ToString(), diff_constr.GetB()->ToString()));
+      }
       const int64_t cycle_a = cycle_map_.at(diff_constr.GetA());
       const int64_t cycle_b = cycle_map_.at(diff_constr.GetB());
       if (cycle_a - cycle_b > diff_constr.GetMaxDifference()) {
@@ -596,8 +616,14 @@ PipelineScheduleProto PipelineSchedule::ToProto(
   node_delays.reserve(function_base_->node_count());
   node_path_delays.reserve(function_base_->node_count());
   for (Node* node : TopoSort(function_base_)) {
+    if (IsUntimed(node)) {
+      continue;
+    }
     int64_t delay_to_node_start = 0;
     for (Node* operand : node->operands()) {
+      if (IsUntimed(operand)) {
+        continue;
+      }
       if (cycle(operand) == cycle(node)) {
         delay_to_node_start =
             std::max(delay_to_node_start, node_path_delays.at(operand));

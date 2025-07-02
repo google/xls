@@ -40,7 +40,7 @@ class IterativeSDCSchedulingModel : public SDCSchedulingModel {
   // handled by the delay manager.
   IterativeSDCSchedulingModel(ScheduleGraph graph,
                               const DelayManager& delay_manager)
-      : SDCSchedulingModel(std::move(graph), DelayMap(), /*node_groups=*/{},
+      : SDCSchedulingModel(std::move(graph), DelayMap(),
                            /*initiation_interval=*/std::nullopt),
         delay_manager_(delay_manager) {}
 

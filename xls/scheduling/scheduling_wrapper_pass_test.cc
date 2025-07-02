@@ -32,10 +32,10 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/dfe_pass.h"
 #include "xls/passes/inlining_pass.h"
-#include "xls/passes/literal_uncommoning_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -48,6 +48,7 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::Contains;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Key;
@@ -100,29 +101,29 @@ absl::StatusOr<Function*> AddFunctionWithDeadNode(Package* p,
   return fb.Build();
 }
 
-// Makes a function that shares a literal between two ops. The literal
-// uncommoning pass will add new nodes if run on this function.
-absl::StatusOr<Function*> CommonLiteralFunction(Package* p,
-                                                std::string_view name) {
+// Makes a function that adds parameters to itself. The fixed-point
+// simplification pass will rewrite them as shift/concats.
+absl::StatusOr<Function*> MulBy2Function(Package* p, std::string_view name) {
   FunctionBuilder fb(name, p);
   BValue x = fb.Param("x", p->GetBitsType(32));
   BValue y = fb.Param("y", p->GetBitsType(32));
-  BValue literal = fb.Literal(UBits(0, 32));
-  fb.Add(fb.Add(x, literal), fb.Add(y, literal));
+  fb.Add(fb.UMul(x, fb.Literal(UBits(2, 32))),
+         fb.UMul(y, fb.Literal(UBits(2, 32))));
   return fb.Build();
 }
 
-// Makes a function that shares a literal between two dead ops. The literal
-// uncommoning pass will add new nodes if run on this function. DCE will
+// Makes a function that has an add between two dead ops. The arith
+// simplification pass will add new nodes if run on this function. DCE will
 // remove the common literals if run on this function.
-absl::StatusOr<Function*> DeadCommonLiteralFunction(Package* p,
-                                                    std::string_view name) {
+absl::StatusOr<Function*> DeadMulBy2Function(Package* p,
+                                             std::string_view name) {
   FunctionBuilder fb(name, p);
   BValue x = fb.Param("x", p->GetBitsType(32));
   BValue y = fb.Param("y", p->GetBitsType(32));
-  BValue literal = fb.Literal(UBits(0, 32), SourceInfo(), "dead_node");
-  fb.Identity(literal);
-  fb.Identity(literal);
+  BValue dead_node =
+      fb.UMul(x, fb.Literal(UBits(2, 32)), SourceInfo(), "dead_node");
+  fb.Identity(dead_node);
+  fb.Identity(dead_node);
   fb.Add(x, y);
   return fb.Build();
 }
@@ -234,10 +235,10 @@ TEST_F(SchedulingWrapperPassTest, DCEFixesScheduleOfChangedProc) {
 }
 
 TEST_F(SchedulingWrapperPassTest,
-       LiteralUncommoningReturnsErrorWhenReschedulingDisabled) {
+       SimplificationReturnsErrorWhenReschedulingDisabled) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * lit_func,
-                           CommonLiteralFunction(p.get(), "lit_func"));
+                           MulBy2Function(p.get(), "lit_func"));
 
   auto context = SchedulingContext::CreateForWholePackage(p.get());
 
@@ -247,37 +248,40 @@ TEST_F(SchedulingWrapperPassTest,
       context.package_schedule().AddSchedule(lit_func, std::move(schedule)));
 
   EXPECT_THAT(
-      RunSchedulingPass(p.get(), std::make_unique<LiteralUncommoningPass>(),
+      RunSchedulingPass(p.get(), std::make_unique<ArithSimplificationPass>(),
                         /*reschedule_new_nodes=*/false, context),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("can't create new nodes")));
 }
 
 TEST_F(SchedulingWrapperPassTest,
-       LiteralUncommoningClearsScheduleWhenReschedulingEnabled) {
+       SimplificationClearsScheduleWhenReschedulingEnabled) {
   auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * lit_func,
-                           CommonLiteralFunction(p.get(), "add_func"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * add_func,
+                           MulBy2Function(p.get(), "add_func"));
 
   auto context = SchedulingContext::CreateForWholePackage(p.get());
   XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule schedule,
-                           PipelineSchedule::SingleStage(lit_func));
+                           PipelineSchedule::SingleStage(add_func));
   XLS_ASSERT_OK(
-      context.package_schedule().AddSchedule(lit_func, std::move(schedule)));
+      context.package_schedule().AddSchedule(add_func, std::move(schedule)));
+
+  EXPECT_THAT(context.package_schedule().GetSchedules(),
+              Contains(Key(add_func)));
 
   EXPECT_THAT(
-      RunSchedulingPass(p.get(), std::make_unique<LiteralUncommoningPass>(),
+      RunSchedulingPass(p.get(), std::make_unique<ArithSimplificationPass>(),
                         /*reschedule_new_nodes=*/true, context),
       IsOkAndHolds(true));
 
   EXPECT_THAT(context.package_schedule().GetSchedules(), IsEmpty());
 }
 
-TEST_F(SchedulingWrapperPassTest, DCEMakesLiteralUncommoningANoop) {
+TEST_F(SchedulingWrapperPassTest, DCEMakesSimplificationANoop) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * dead_common_literal_func,
-      DeadCommonLiteralFunction(p.get(), "dead_common_literal_func"));
+      DeadMulBy2Function(p.get(), "dead_common_literal_func"));
   XLS_ASSERT_OK_AND_ASSIGN(Node * dead_node,
                            dead_common_literal_func->GetNode("dead_node"));
 
@@ -293,7 +297,7 @@ TEST_F(SchedulingWrapperPassTest, DCEMakesLiteralUncommoningANoop) {
       std::make_unique<DeadCodeEliminationPass>(), opt_context, kMaxOptLevel,
       /*eliminate_noop_next=*/false);
   pass_pipeline.Add<SchedulingWrapperPass>(
-      std::make_unique<LiteralUncommoningPass>(), opt_context, kMaxOptLevel,
+      std::make_unique<ArithSimplificationPass>(), opt_context, kMaxOptLevel,
       /*eliminate_noop_next=*/false);
   EXPECT_THAT(RunSchedulingPass(p.get(), pass_pipeline, context),
               IsOkAndHolds(true));
@@ -306,11 +310,11 @@ TEST_F(SchedulingWrapperPassTest, DCEMakesLiteralUncommoningANoop) {
 }
 
 TEST_F(SchedulingWrapperPassTest,
-       LiteralUncommoningBeforeDCEClearsTheScheduleWhenReschedulingEnabled) {
+       SimplificationBeforeDCEClearsTheScheduleWhenReschedulingEnabled) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * dead_common_literal_func,
-      DeadCommonLiteralFunction(p.get(), "dead_common_literal_func"));
+      DeadMulBy2Function(p.get(), "dead_common_literal_func"));
 
   auto context = SchedulingContext::CreateForWholePackage(p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -321,7 +325,7 @@ TEST_F(SchedulingWrapperPassTest,
   SchedulingCompoundPass pass_pipeline("scheduling", "DCE + literal commoning");
   OptimizationContext opt_context;
   pass_pipeline.Add<SchedulingWrapperPass>(
-      std::make_unique<LiteralUncommoningPass>(), opt_context, kMaxOptLevel,
+      std::make_unique<ArithSimplificationPass>(), opt_context, kMaxOptLevel,
       /*eliminate_noop_next=*/false,
       /*reschedule_new_nodes=*/true);
   pass_pipeline.Add<SchedulingWrapperPass>(
@@ -333,11 +337,11 @@ TEST_F(SchedulingWrapperPassTest,
 }
 
 TEST_F(SchedulingWrapperPassTest,
-       LiteralUncommoningBeforeDCEResultsInErrorWhenReschedulingDisabled) {
+       SimplificationBeforeDCEResultsInErrorWhenReschedulingDisabled) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * dead_common_literal_func,
-      DeadCommonLiteralFunction(p.get(), "dead_common_literal_func"));
+      DeadMulBy2Function(p.get(), "dead_common_literal_func"));
 
   auto context = SchedulingContext::CreateForWholePackage(p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -348,7 +352,7 @@ TEST_F(SchedulingWrapperPassTest,
   SchedulingCompoundPass pass_pipeline("scheduling", "DCE + literal commoning");
   OptimizationContext opt_context;
   pass_pipeline.Add<SchedulingWrapperPass>(
-      std::make_unique<LiteralUncommoningPass>(), opt_context, kMaxOptLevel,
+      std::make_unique<ArithSimplificationPass>(), opt_context, kMaxOptLevel,
       /*eliminate_noop_next=*/false,
       /*reschedule_new_nodes=*/false);
   pass_pipeline.Add<SchedulingWrapperPass>(

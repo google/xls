@@ -145,7 +145,7 @@ TEST_P(PipelineGeneratorTest, ReturnLiteral) {
                                .use_system_verilog(UseSystemVerilog())));
 
   EXPECT_EQ(result.signature.proto().pipeline().initiation_interval(), 1);
-  EXPECT_EQ(result.signature.proto().pipeline().latency(), 4);
+  EXPECT_EQ(result.signature.proto().pipeline().latency(), 0);
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);

@@ -247,41 +247,41 @@ TEST(BlockMetricsGeneratorTest, BillOfMaterials) {
                            GenerateBlockMetrics(context.top_block()));
 
   EXPECT_EQ(proto.bill_of_materials_size(), 6);
-  EXPECT_EQ(proto.bill_of_materials(0).op(), ToOpProto(Op::kInputPort));
-  EXPECT_EQ(proto.bill_of_materials(0).kind(), BOM_KIND_MISC);
-  EXPECT_EQ(proto.bill_of_materials(0).output_width(), 24);
+  EXPECT_EQ(proto.bill_of_materials(0).op(), ToOpProto(Op::kLiteral));
+  EXPECT_EQ(proto.bill_of_materials(0).kind(), BOM_KIND_INSIGNIFICANT);
+  EXPECT_EQ(proto.bill_of_materials(0).output_width(), 32);
   EXPECT_EQ(proto.bill_of_materials(0).maximum_input_width(), 0);
   EXPECT_EQ(proto.bill_of_materials(0).number_of_arguments(), 0);
-  EXPECT_EQ(proto.bill_of_materials(0).location_size(), 0);
+  EXPECT_EQ(proto.bill_of_materials(0).location_size(), 1);
+  EXPECT_FALSE(proto.bill_of_materials(0).location(0).has_file());
+  EXPECT_TRUE(proto.bill_of_materials(0).location(0).has_line());
+  EXPECT_TRUE(proto.bill_of_materials(0).location(0).has_col());
+  EXPECT_EQ(proto.bill_of_materials(0).location(0).line(), 60);
+  EXPECT_EQ(proto.bill_of_materials(0).location(0).col(), 4);
 
   EXPECT_EQ(proto.bill_of_materials(1).op(), ToOpProto(Op::kInputPort));
   EXPECT_EQ(proto.bill_of_materials(1).kind(), BOM_KIND_MISC);
-  EXPECT_EQ(proto.bill_of_materials(1).output_width(), 16);
+  EXPECT_EQ(proto.bill_of_materials(1).output_width(), 24);
   EXPECT_EQ(proto.bill_of_materials(1).maximum_input_width(), 0);
   EXPECT_EQ(proto.bill_of_materials(1).number_of_arguments(), 0);
   EXPECT_EQ(proto.bill_of_materials(1).location_size(), 0);
 
-  EXPECT_EQ(proto.bill_of_materials(2).op(), ToOpProto(Op::kUMul));
-  EXPECT_EQ(proto.bill_of_materials(2).kind(), BOM_KIND_MULTIPLIER);
-  EXPECT_EQ(proto.bill_of_materials(2).output_width(), 32);
-  EXPECT_EQ(proto.bill_of_materials(2).maximum_input_width(), 24);
-  EXPECT_EQ(proto.bill_of_materials(2).number_of_arguments(), 2);
-  EXPECT_EQ(proto.bill_of_materials(2).location_size(), 1);
-  EXPECT_EQ(proto.bill_of_materials(2).location(0).file(), "foo");
-  EXPECT_EQ(proto.bill_of_materials(2).location(0).line(), 20);
-  EXPECT_EQ(proto.bill_of_materials(2).location(0).col(), 8);
+  EXPECT_EQ(proto.bill_of_materials(2).op(), ToOpProto(Op::kInputPort));
+  EXPECT_EQ(proto.bill_of_materials(2).kind(), BOM_KIND_MISC);
+  EXPECT_EQ(proto.bill_of_materials(2).output_width(), 16);
+  EXPECT_EQ(proto.bill_of_materials(2).maximum_input_width(), 0);
+  EXPECT_EQ(proto.bill_of_materials(2).number_of_arguments(), 0);
+  EXPECT_EQ(proto.bill_of_materials(2).location_size(), 0);
 
-  EXPECT_EQ(proto.bill_of_materials(3).op(), ToOpProto(Op::kLiteral));
-  EXPECT_EQ(proto.bill_of_materials(3).kind(), BOM_KIND_INSIGNIFICANT);
+  EXPECT_EQ(proto.bill_of_materials(3).op(), ToOpProto(Op::kUMul));
+  EXPECT_EQ(proto.bill_of_materials(3).kind(), BOM_KIND_MULTIPLIER);
   EXPECT_EQ(proto.bill_of_materials(3).output_width(), 32);
-  EXPECT_EQ(proto.bill_of_materials(3).maximum_input_width(), 0);
-  EXPECT_EQ(proto.bill_of_materials(3).number_of_arguments(), 0);
+  EXPECT_EQ(proto.bill_of_materials(3).maximum_input_width(), 24);
+  EXPECT_EQ(proto.bill_of_materials(3).number_of_arguments(), 2);
   EXPECT_EQ(proto.bill_of_materials(3).location_size(), 1);
-  EXPECT_FALSE(proto.bill_of_materials(3).location(0).has_file());
-  EXPECT_TRUE(proto.bill_of_materials(3).location(0).has_line());
-  EXPECT_TRUE(proto.bill_of_materials(3).location(0).has_col());
-  EXPECT_EQ(proto.bill_of_materials(3).location(0).line(), 60);
-  EXPECT_EQ(proto.bill_of_materials(3).location(0).col(), 4);
+  EXPECT_EQ(proto.bill_of_materials(3).location(0).file(), "foo");
+  EXPECT_EQ(proto.bill_of_materials(3).location(0).line(), 20);
+  EXPECT_EQ(proto.bill_of_materials(3).location(0).col(), 8);
 
   EXPECT_EQ(proto.bill_of_materials(4).op(), ToOpProto(Op::kAdd));
   EXPECT_EQ(proto.bill_of_materials(4).kind(), BOM_KIND_ADDER);

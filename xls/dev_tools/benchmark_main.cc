@@ -83,6 +83,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_result.h"
@@ -301,8 +302,15 @@ absl::StatusOr<std::vector<int64_t>> GetDelayPerStageInPs(
   // The delay from the beginning of the stage at which each node completes.
   absl::flat_hash_map<Node*, int64_t> completion_time;
   for (Node* node : TopoSort(f)) {
+    if (IsUntimed(node)) {
+      completion_time[node] = 0;
+      continue;
+    }
     int64_t start_time = 0;
     for (Node* operand : node->operands()) {
+      if (IsUntimed(operand)) {
+        continue;
+      }
       if (schedule.cycle(operand) == schedule.cycle(node)) {
         start_time = std::max(start_time, completion_time[operand]);
       }
@@ -804,7 +812,7 @@ absl::Status RealMain(std::string_view path) {
   if (!f->IsProc() && !benchmark_codegen) {
     XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
         f, effective_clock_period_ps, delay_estimator, query_engine,
-        /*schedules=*/nullptr, synthesizer.get()));
+        /*package_schedule=*/nullptr, synthesizer.get()));
   } else if (benchmark_codegen) {
     PackageSchedule package_schedule(package.get());
     if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {

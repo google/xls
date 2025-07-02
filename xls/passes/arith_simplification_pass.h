@@ -24,7 +24,7 @@
 
 namespace xls {
 
-// This pass performes various arithmetic optimizations such as replacement of
+// This pass performs various arithmetic optimizations such as replacement of
 // divide by a constant with non-divide operations.
 class ArithSimplificationPass : public OptimizationFunctionBasePass {
  public:

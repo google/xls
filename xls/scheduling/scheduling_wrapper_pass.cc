@@ -136,8 +136,10 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
     if (reschedule_new_nodes_) {
       // need to reschedule, remove the current schedule if it hasn't been
       // removed already.
-      XLS_RETURN_IF_ERROR(
-          context.package_schedule().RemoveSchedule(id_to_function.at(nodeid)));
+      if (context.package_schedule().HasSchedule(id_to_function.at(nodeid))) {
+        XLS_RETURN_IF_ERROR(context.package_schedule().RemoveSchedule(
+            id_to_function.at(nodeid)));
+      }
     } else {
       return absl::InternalError(
           absl::StrFormat("SchedulingWrapperPass(%s) can't create new nodes "
