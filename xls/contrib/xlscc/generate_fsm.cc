@@ -574,22 +574,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
           .condition = slice_active,
       };
 
-      // Enable narrowing by including the loop jump condition in the next value
-      // condition.
-      //
-      // This is safe to do because after the loop, values are fed forward.
-      // Any feedback via state elements is from the iteration before, via the
-      // loop body logic.
-      //
-      // TODO(seanhaskell): Either use values_to_save with next values from
-      // jump state, or apply loop condition to all slices in the loop body.
-      //
-      // This doesn't work for a non-trivial loop body, as there may be
-      // feedbacks that are not from the last state in the body.
-      if (layout.transition_by_slice_from_index.contains(slice_index)) {
-        next_value.condition = pb.And(next_value.condition, last_op_out_value);
-      }
-
       // Generate next values
       extra_next_state_values.insert(
           {state_element_by_continuation_value.at(&continuation_out)
