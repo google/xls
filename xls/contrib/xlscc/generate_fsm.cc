@@ -235,23 +235,58 @@ absl::Status NewFSMGenerator::LayoutValuesToSaveForNewFSMStates(
     const xls::SourceInfo& body_loc) {
   // Fill in values to save after each state, in case of an activation
   // transition.
+  //
   // States are now flattened and linear, so this can be handled as if
   // phis / jumps / loops don't exist, with a simple reference count for each
   // continuation value, initialized when the value is produced to the total
   // number of references in the graph.
+  //
+  // One caveat exists to the above: ContinuationValue* pointers are now no
+  // longer sufficient to identify a given value. Using them alone will produce
+  // a lot of false positives for values to save due to aliasing in later
+  // loop iteration states.
 
-  absl::flat_hash_map<const ContinuationValue*, int64_t>
-      total_input_count_by_value;
+  struct ValueKey {
+    const ContinuationValue* value = nullptr;
+    const NewFSMState* state_produced = nullptr;
+
+    bool operator<(const ValueKey& other) const {
+      if (value != other.value) {
+        return value < other.value;
+      }
+      return state_produced < other.state_produced;
+    }
+  };
+
+  absl::btree_map<ValueKey, int64_t> total_input_count_by_value;
+
+  absl::flat_hash_map<const ContinuationValue*, const NewFSMState*>
+      last_state_produced_value;
 
   for (const NewFSMState& state : layout.states) {
     for (const auto& [input_param, continuation_out] :
          state.current_inputs_by_input_param) {
-      ++total_input_count_by_value[continuation_out];
+      ++total_input_count_by_value[ValueKey{
+          .value = continuation_out,
+          .state_produced = last_state_produced_value.at(continuation_out),
+      }];
+    }
+
+    const GeneratedFunctionSlice* slice =
+        layout.slice_by_index.at(state.slice_index);
+
+    for (const ContinuationValue& continuation_out : slice->continuations_out) {
+      last_state_produced_value[&continuation_out] = &state;
+      total_input_count_by_value[ValueKey{
+          .value = &continuation_out,
+          .state_produced = &state,
+      }] = 0;
     }
   }
 
-  absl::flat_hash_map<const ContinuationValue*, int64_t>
-      remaining_input_count_by_value;
+  last_state_produced_value.clear();
+
+  absl::btree_map<ValueKey, int64_t> remaining_input_count_by_value;
 
   for (NewFSMState& state : layout.states) {
     const GeneratedFunctionSlice* slice =
@@ -259,27 +294,35 @@ absl::Status NewFSMGenerator::LayoutValuesToSaveForNewFSMStates(
     // Decrement input counts
     for (const auto& [input_param, continuation_out] :
          state.current_inputs_by_input_param) {
-      XLSCC_CHECK(remaining_input_count_by_value.contains(continuation_out),
-                  body_loc);
-      --remaining_input_count_by_value[continuation_out];
+      const ValueKey key = {
+          .value = continuation_out,
+          .state_produced = last_state_produced_value.at(continuation_out),
+      };
+      XLSCC_CHECK(remaining_input_count_by_value.contains(key), body_loc);
+      --remaining_input_count_by_value[key];
     }
 
     // Record output counts, including all future uses
     for (const ContinuationValue& continuation_out : slice->continuations_out) {
       // Due to virtual unrolling, continuation values may be produced
       // multiple times
-      if (remaining_input_count_by_value.contains(&continuation_out)) {
-        continue;
-      }
-      remaining_input_count_by_value[&continuation_out] =
-          total_input_count_by_value.at(&continuation_out);
+      const ValueKey key = {
+          .value = &continuation_out,
+          .state_produced = &state,
+      };
+      XLSCC_CHECK(!remaining_input_count_by_value.contains(key), body_loc);
+      XLSCC_CHECK(total_input_count_by_value.contains(key), body_loc);
+      // Don't do [] = .at()
+      const auto total_count = total_input_count_by_value.at(key);
+      remaining_input_count_by_value[key] = total_count;
+      last_state_produced_value[&continuation_out] = &state;
     }
 
     for (const auto& [value, count] : remaining_input_count_by_value) {
       if (count == 0) {
         continue;
       }
-      state.values_to_save.insert(value);
+      state.values_to_save.insert(value.value);
     }
   }
 
@@ -573,22 +616,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
           .value = value_out,
           .condition = slice_active,
       };
-
-      // Enable narrowing by including the loop jump condition in the next value
-      // condition.
-      //
-      // This is safe to do because after the loop, values are fed forward.
-      // Any feedback via state elements is from the iteration before, via the
-      // loop body logic.
-      //
-      // TODO(seanhaskell): Either use values_to_save with next values from
-      // jump state, or apply loop condition to all slices in the loop body.
-      //
-      // This doesn't work for a non-trivial loop body, as there may be
-      // feedbacks that are not from the last state in the body.
-      if (layout.transition_by_slice_from_index.contains(slice_index)) {
-        next_value.condition = pb.And(next_value.condition, last_op_out_value);
-      }
 
       // Generate next values
       extra_next_state_values.insert(
