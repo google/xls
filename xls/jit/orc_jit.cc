@@ -37,6 +37,7 @@
 #include "llvm/include/llvm/ExecutionEngine/Orc/ExecutorProcessControl.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/IRCompileLayer.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/IRTransformLayer.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/InProcessMemoryAccess.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/Layer.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
@@ -63,12 +64,51 @@
 
 namespace xls {
 
+namespace {
+// TODO: move to ExecutorProcessControl-based APIs.
+class UnsupportedExecutorProcessControl
+    : public llvm::orc::ExecutorProcessControl,
+      private llvm::orc::InProcessMemoryAccess {
+ public:
+  UnsupportedExecutorProcessControl()
+      : ExecutorProcessControl(
+            std::make_shared<llvm::orc::SymbolStringPool>(),
+            std::make_unique<llvm::orc::InPlaceTaskDispatcher>()),
+        InProcessMemoryAccess(llvm::Triple("").isArch64Bit()) {
+    this->TargetTriple = llvm::Triple("");
+    this->MemAccess = this;
+  }
+
+  llvm::Expected<int32_t> runAsMain(llvm::orc::ExecutorAddr MainFnAddr,
+                                    llvm::ArrayRef<std::string> Args) override {
+    llvm_unreachable("Unsupported");
+  }
+
+  llvm::Expected<int32_t> runAsVoidFunction(
+      llvm::orc::ExecutorAddr VoidFnAddr) override {
+    llvm_unreachable("Unsupported");
+  }
+
+  llvm::Expected<int32_t> runAsIntFunction(llvm::orc::ExecutorAddr IntFnAddr,
+                                           int Arg) override {
+    llvm_unreachable("Unsupported");
+  }
+
+  void callWrapperAsync(llvm::orc::ExecutorAddr WrapperFnAddr,
+                        IncomingWFRHandler OnComplete,
+                        llvm::ArrayRef<char> ArgBuffer) override {
+    llvm_unreachable("Unsupported");
+  }
+
+  llvm::Error disconnect() override { return llvm::Error::success(); }
+};
+}  // namespace
+
 OrcJit::OrcJit(int64_t opt_level, bool include_msan,
                bool include_observer_callbacks)
     : LlvmCompiler(opt_level, include_msan, include_observer_callbacks),
       context_(std::make_unique<llvm::LLVMContext>()),
-      execution_session_(
-          std::make_unique<llvm::orc::UnsupportedExecutorProcessControl>()),
+      execution_session_(std::make_unique<UnsupportedExecutorProcessControl>()),
       object_layer_(execution_session_,
                     [](const llvm::MemoryBuffer&) {
                       return std::make_unique<llvm::SectionMemoryManager>();
