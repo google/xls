@@ -291,9 +291,32 @@ func.func @call_dslx_with_splat(%arg0: tensor<4xi32>, %arg1: i32) -> tensor<4xf3
 }
 
 // CHECK-LABEL: @select
-// CHECK-NEXT: xls.sel
-// CHECK-NEXT: return
 func.func @select(%arg0: tensor<2xi32>, %arg1: tensor<2xi32>, %arg2: tensor<2xi1>) -> tensor<2xi32> attributes {xls = true} {
+// CHECK-DAG: %[[ARG2_0:.*]] = "xls.array_index_static"(%arg2) <{index = 0 : i64}> : (!xls.array<2xi1>) -> i1
+// CHECK-DAG: %[[ARG0_0:.*]] = "xls.array_index_static"(%arg0) <{index = 0 : i64}> : (!xls.array<2xi32>) -> i32
+// CHECK-DAG: %[[ARG1_0:.*]] = "xls.array_index_static"(%arg1) <{index = 0 : i64}> : (!xls.array<2xi32>) -> i32
+// CHECK-DAG: %[[SELECT_0:.*]] = xls.sel %[[ARG2_0]] in [%[[ARG1_0]]] else %[[ARG0_0]] : (i1, [i32], i32) -> i32
+// CHECK-DAG: %[[ARG2_1:.*]] = "xls.array_index_static"(%arg2) <{index = 1 : i64}> : (!xls.array<2xi1>) -> i1
+// CHECK-DAG: %[[ARG0_1:.*]] = "xls.array_index_static"(%arg0) <{index = 1 : i64}> : (!xls.array<2xi32>) -> i32
+// CHECK-DAG: %[[ARG1_1:.*]] = "xls.array_index_static"(%arg1) <{index = 1 : i64}> : (!xls.array<2xi32>) -> i32
+// CHECK-DAG: %[[SELECT_1:.*]] = xls.sel %[[ARG2_1]] in [%[[ARG1_1]]] else %[[ARG0_1]] : (i1, [i32], i32) -> i32
+// CHECK-DAG: xls.array %[[SELECT_0]], %[[SELECT_1]] : (i32, i32) -> !xls.array<2xi32>
   %0 = xls.sel %arg2 in [%arg1] else %arg0 : (tensor<2xi1>, [tensor<2xi32>], tensor<2xi32>) -> tensor<2xi32>
+  return %0 : tensor<2xi32>
+}
+
+// CHECK-LABEL: @priority_select
+func.func @priority_select(%arg0: tensor<2xi16>, %arg1: tensor<2xi32>, %arg2: tensor<2xi32>) -> tensor<2xi32> attributes {xls = true} {
+  // CHECK: xls.priority_sel
+  // CHECK: xls.priority_sel
+  %0 = "xls.priority_sel"(%arg0, %arg1, %arg2) : (tensor<2xi16>, tensor<2xi32>, tensor<2xi32>) -> tensor<2xi32>
+  return %0 : tensor<2xi32>
+}
+
+// CHECK-LABEL: @one_hot_select
+func.func @one_hot_select(%arg0: tensor<2xi16>, %arg1: tensor<2xi32>, %arg2: tensor<2xi32>) -> tensor<2xi32> attributes {xls = true} {
+  // CHECK: xls.one_hot_sel
+  // CHECK: xls.one_hot_sel
+  %0 = "xls.one_hot_sel"(%arg0, %arg1, %arg2) : (tensor<2xi16>, tensor<2xi32>, tensor<2xi32>) -> tensor<2xi32>
   return %0 : tensor<2xi32>
 }

@@ -1143,8 +1143,7 @@ def Xls_SelOp : Xls_Op<"sel", [
     ShapesAreConsistent<["cases", "otherwise", "result"]>,
     AttrSizedOperandSegments,
     Elementwise,
-    Scalarizable,
-    TensorArrayTypeFungible]> {
+    Scalarizable]> {
   let summary = "Select";
   let description = [{
     Selects between operands based on a selector value.
@@ -1190,8 +1189,7 @@ def Xls_OneHotSelOp : Xls_Op<"one_hot_sel", [
   Pure,
   ShapesAreConsistent<["cases", "result"]>,
   Elementwise,
-  Scalarizable,
-  TensorArrayTypeFungible]> {
+  Scalarizable]> {
   let summary = "One-hot select";
   let description = [{
     Selects between operands based on a one-hot selector, OR-ing all selected
@@ -1217,8 +1215,7 @@ def Xls_PrioritySelOp : Xls_Op<"priority_sel", [
   Pure,
   ShapesAreConsistent<["cases", "default_value", "result"]>,
   Elementwise,
-  Scalarizable,
-  TensorArrayTypeFungible]> {
+  Scalarizable]> {
   let summary = "Priority select";
   let description = [{
     Selects between operands based on a selector, choosing the highest-priority
