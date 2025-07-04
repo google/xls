@@ -82,10 +82,10 @@ pub proc RawLiteralsDecoder<DATA_W: u32, ADDR_W: u32> {
     }
 
     next(state: State) {
-        let tok0 = join();
+        let tok = join();
 
         // receive request
-        let (tok1_0, req, req_valid) = recv_non_blocking(tok0, req_r, zero!<Req>());
+        let (tok, req, req_valid) = recv_non_blocking(tok, req_r, zero!<Req>());
 
         // update ID and last in state
         let state = if req_valid {
@@ -94,10 +94,10 @@ pub proc RawLiteralsDecoder<DATA_W: u32, ADDR_W: u32> {
 
         // send memory read request
         let req = MemReaderReq { addr: req.addr, length: req.length };
-        let tok2_0 = send_if(tok1_0, mem_req_s, req_valid, req);
+        let tok = send_if(tok, mem_req_s, req_valid, req);
 
         // receive memory read response
-        let (tok1_1, mem_resp, mem_resp_valid) = recv_non_blocking(tok0, mem_resp_r, zero!<MemReaderResp>());
+        let (tok, mem_resp, mem_resp_valid) = recv_non_blocking(tok, mem_resp_r, zero!<MemReaderResp>());
         let mem_resp_error = (mem_resp.status != MemReaderStatus::OKAY);
 
         // prepare output data, decoded RAW block is always a literal
@@ -111,7 +111,7 @@ pub proc RawLiteralsDecoder<DATA_W: u32, ADDR_W: u32> {
 
         // send output data
         let mem_resp_correct = mem_resp_valid && !mem_resp_error;
-        let tok2_1 = send_if(tok1_1, output_s, mem_resp_correct, output_data);
+        let tok = send_if(tok, output_s, mem_resp_correct, output_data);
 
         // send response after block end
         let resp = if mem_resp_correct {
@@ -121,7 +121,7 @@ pub proc RawLiteralsDecoder<DATA_W: u32, ADDR_W: u32> {
         };
 
         let do_send_resp = mem_resp_valid && mem_resp.last;
-        let tok2_2 = send_if(tok1_1, resp_s, do_send_resp, resp);
+        let tok = send_if(tok, resp_s, do_send_resp, resp);
 
         state
     }

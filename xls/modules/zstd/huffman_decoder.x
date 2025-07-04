@@ -320,7 +320,7 @@ pub proc HuffmanDecoder {
             id: state.id,
             literals_last: state.literals_last,
         };
-        send_if(tok, decoded_literals_s, do_send_literals, decoded_literals);
+        let tok = send_if(tok, decoded_literals_s, do_send_literals, decoded_literals);
         if (do_send_literals) {
            trace_fmt!("Sent decoded literals: {:#x}", decoded_literals);
         } else {};
@@ -349,7 +349,7 @@ pub proc HuffmanDecoder {
             state
         };
 
-        send_if(tok, done_s, done, ());
+        let tok = send_if(tok, done_s, done, ());
 
         state
     }
