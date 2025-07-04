@@ -485,6 +485,10 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
     is_args_valid(benchmark_ir_args, BENCHMARK_IR_FLAGS)
     if ctx.attr.top:
         benchmark_ir_args.setdefault("top", ctx.attr.top)
+    if ctx.attr.scheduling_options_proto:
+        benchmark_ir_args["scheduling_options_proto"] = ctx.attr.scheduling_options_proto
+    if ctx.attr.codegen_options_proto:
+        benchmark_ir_args["codegen_options_proto"] = ctx.attr.codegen_options_proto
     my_args = args_to_string(benchmark_ir_args)
 
     # Note: The user, or a higher level script, may pass ad hoc arguments through this script to
@@ -1102,6 +1106,13 @@ xls_benchmark_ir_attrs = {
         allow_single_file = True,
         default = None,
         doc = "Protobuf filename of scheduling arguments to the benchmark IR tool. " +
+              "For details on the arguments, refer to the benchmark_main application at " +
+              "//xls/dev_tools/benchmark_main.cc.",
+    ),
+    "codegen_options_proto": attr.label(
+        allow_single_file = True,
+        default = None,
+        doc = "Protobuf filename of codegen arguments to the benchmark IR tool. " +
               "For details on the arguments, refer to the benchmark_main application at " +
               "//xls/dev_tools/benchmark_main.cc.",
     ),
