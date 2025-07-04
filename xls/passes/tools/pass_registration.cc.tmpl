@@ -10,6 +10,9 @@ namespace xls::pass_registration {
 
 XLS_REGISTER_MODULE_INITIALIZER({REGISTRATION_NAME}, {
   CHECK_OK(RegisterOptimizationPass<{NAME}>({SHORT_NAME}));
+  RegisterOptimizationPassInfo({SHORT_NAME},
+                               "{NAME}",
+                               "{FIRST_HEADER_FILE}");
 });
 
 }  // namespace xls::pass_registration

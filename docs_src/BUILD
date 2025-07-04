@@ -29,7 +29,10 @@ package(
 )
 
 exports_files(
-    ["bazel_rules_macros.md"],
+    [
+        "bazel_rules_macros.md",
+        "passes_list.md",
+    ],
     visibility = ["//xls:xls_internal"],
 )
 

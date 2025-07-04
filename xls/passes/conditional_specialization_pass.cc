@@ -1433,6 +1433,9 @@ XLS_REGISTER_MODULE_INITIALIZER(cond_spec, {
       "cond_spec(false)", false));
   CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(
       "cond_spec(noBdd)", false));
+  RegisterOptimizationPassInfoFor({"cond_spec(true)", "cond_spec(Bdd)",
+                                   "cond_spec(false)", "cond_spec(noBdd)"},
+                                  "ConditionalSpecializationPass");
 });
 
 }  // namespace xls
