@@ -1026,16 +1026,54 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
   return SimplifyResult::Unchanged();
 }
 
-// Tries to flatten a chain of consecutive array update operations into a single
-// kArray op which gathers the elements written into the array. Returns a vector
-// of the optimized away update operations or nullopt is no optimization was
-// performed.
+absl::StatusOr<SimplifyResult> SimplifyArraySlice(
+    ArraySlice* array_slice, const QueryEngine& query_engine) {
+  // Combine nested array slices by adding start indices:
+  //   array_slice(array_slice(A, start1, width1), start2, width2)
+  //   → array_slice(A, start1 + start2, width2)
+  //
+  // Example: array_slice(array_slice([a,b,c,d], start=1, width=2), start=1,
+  // width=1)
+  //          → array_slice([a,b,c,d], start=2, width=1)
+  //          Both produce [c]
+  //
+  // Preserves XLS clamping behavior where out-of-bounds access returns the last
+  // element.
+  //
+  // Example: array_slice(array_slice([a,b,c,d], start=2, width=3), start=1,
+  // width=2)
+  //          First slice: [c, d, d] (last element clamped)
+  //          Second slice: [d, d]
+  //          -> array_slice([a,b,c,d], 3, 2)
+  if (array_slice->array()->Is<ArraySlice>()) {
+    auto* inner_slice = array_slice->array()->As<ArraySlice>();
+
+    // start1 + start2
+    XLS_ASSIGN_OR_RETURN(Node * new_start,
+                         array_slice->function_base()->MakeNode<BinOp>(
+                             SourceInfo(), inner_slice->start(),
+                             array_slice->start(), Op::kAdd));
+    XLS_RETURN_IF_ERROR(
+        array_slice
+            ->ReplaceUsesWithNew<ArraySlice>(inner_slice->array(), new_start,
+                                             array_slice->width())
+            .status());
+    // TODO(psivaraj): What should actually be considered to change here?
+    return SimplifyResult::Changed({array_slice});
+  }
+  return SimplifyResult::Unchanged();
+}
+
+// Tries to flatten a chain of consecutive array update operations into a
+// single kArray op which gathers the elements written into the array. Returns
+// a vector of the optimized away update operations or nullopt is no
+// optimization was performed.
 absl::StatusOr<std::optional<std::vector<ArrayUpdate*>>>
 FlattenArrayUpdateChain(ArrayUpdate* array_update,
                         const QueryEngine& query_engine, int64_t opt_level) {
-  // Identify cases where an array is manipulated via a sequence of array update
-  // operations, and replace with a flattened kArray operation gathering the
-  // updated values of each element.
+  // Identify cases where an array is manipulated via a sequence of array
+  // update operations, and replace with a flattened kArray operation
+  // gathering the updated values of each element.
 
   if (array_update->indices().empty()) {
     return std::nullopt;
@@ -1097,16 +1135,17 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
     }
     if (has_unknown_indices && has_intermediates_with_multiple_uses) {
       // We don't want to flatten an intermediate update with multiple uses...
-      // unless all the index values so far are statically known, in which case
-      // it's worth it regardless, since we can compose the intermediate array
-      // at no cost. This is the first point where this condition obtains, so we
-      // stop the chain here.
+      // unless all the index values so far are statically known, in which
+      // case it's worth it regardless, since we can compose the intermediate
+      // array at no cost. This is the first point where this condition
+      // obtains, so we stop the chain here.
       break;
     }
     if (updated_index.has_value()) {
-      // If this is the first time we've seen this index, then we record it and
-      // the value written to this position. If not, then it has already been
-      // set by a later array update, so the current update can be ignored.
+      // If this is the first time we've seen this index, then we record it
+      // and the value written to this position. If not, then it has already
+      // been set by a later array update, so the current update can be
+      // ignored.
       if (auto [it, inserted] = seen_indices.insert(*updated_index); inserted) {
         updates.push_back(
             {.index = *updated_index, .value = current->update_value()});
@@ -1130,9 +1169,9 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
   XLS_RET_CHECK(!update_chain.empty());
 
   // If splitting is not enabled, skip if the number of updates is less than
-  // half the size of the subarray. This is a heuristic to avoid the case where
-  // the subarray is mostly untouched and the transformation would just add
-  // clutter.
+  // half the size of the subarray. This is a heuristic to avoid the case
+  // where the subarray is mostly untouched and the transformation would just
+  // add clutter.
   //
   // Once splitting is enabled, we perform this optimization any time we can
   // merge at least two array update operations, or at least half the size of
@@ -1145,8 +1184,8 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
     return std::nullopt;
   }
 
-  // Don't bother splitting a single array_update with an unknown index, even if
-  // the subarray size is 2; it saves nothing, and obstructs later
+  // Don't bother splitting a single array_update with an unknown index, even
+  // if the subarray size is 2; it saves nothing, and obstructs later
   // optimizations.
   if (updates.size() == 1 && has_unknown_indices) {
     return std::nullopt;
@@ -1256,17 +1295,17 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
   return update_chain;
 }
 
-// Walk the function and replace chains of sequential array updates with kArray
-// operations with gather the update values.
+// Walk the function and replace chains of sequential array updates with
+// kArray operations with gather the update values.
 absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func,
                                               OptimizationContext& context,
                                               const QueryEngine& query_engine,
                                               int64_t opt_level) {
   absl::flat_hash_set<ArrayUpdate*> flattened_updates;
   bool changed = false;
-  // Perform this optimization in reverse topo sort order because we are looking
-  // for a sequence of array update operations and the search progress upwards
-  // (toward parameters).
+  // Perform this optimization in reverse topo sort order because we are
+  // looking for a sequence of array update operations and the search progress
+  // upwards (toward parameters).
   for (Node* node : context.ReverseTopoSort(func)) {
     if (!node->Is<ArrayUpdate>()) {
       continue;
@@ -1289,8 +1328,8 @@ absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func,
 // Try to simplify the given array operation.
 absl::StatusOr<SimplifyResult> SimplifyArray(Array* array,
                                              const QueryEngine& query_engine) {
-  // Simplify a subgraph which simply decomposes an array into it's elements and
-  // recomposes them into the same array. For example, the following
+  // Simplify a subgraph which simply decomposes an array into it's elements
+  // and recomposes them into the same array. For example, the following
   // transformation can be performed if A has N elements:
   //
   //   Array(ArrayIndex(A, {i, j, 0}),
@@ -1328,7 +1367,8 @@ absl::StatusOr<SimplifyResult> SimplifyArray(Array* array,
     }
     uint64_t last_index = last_index_bits.ToUint64().value();
 
-    // The final index element (0 .. N in the example above) must be sequential.
+    // The final index element (0 .. N in the example above) must be
+    // sequential.
     if (last_index != i) {
       return SimplifyResult::Unchanged();
     }
@@ -1383,7 +1423,8 @@ absl::StatusOr<SimplifyResult> SimplifyArray(Array* array,
   return SimplifyResult::Unchanged();
 }
 
-// Simplify the conditional updating of an array element of the following form:
+// Simplify the conditional updating of an array element of the following
+// form:
 //
 //   Select(p, cases=[A, array_update(A, v, {idx})])
 //
@@ -1427,7 +1468,8 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(
 
     ArrayUpdate* update = sel_case->As<ArrayUpdate>();
     if (!HasSingleUse(update)) {
-      // Multiple uses for the array update; we don't want to replace just one.
+      // Multiple uses for the array update; we don't want to replace just
+      // one.
       return std::nullopt;
     }
     if (array_to_update == nullptr) {
@@ -1485,8 +1527,8 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(
       XLS_ASSIGN_OR_RETURN(
           shared_original_value,
           // This is a strange case since the update means that the value is
-          // only used if the index was in bounds. So we can assume the index is
-          // in-bounds in this context.
+          // only used if the index was in bounds. So we can assume the index
+          // is in-bounds in this context.
           select->function_base()->MakeNode<ArrayIndex>(
               select->loc(), array_to_update, *idx,
               /*assumed_in_bounds=*/true));
@@ -1693,14 +1735,14 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
     return n;
   };
 
-  // Seed the worklist with all Array, ArrayIndex, ArrayUpdate, Select, and
-  // PrioritySelect operations. By favoring reverse-topo-sort order, we give
-  // ourselves the best chance of collapsing (e.g.) array updates written as
-  // separate updates for each dimension.
+  // Seed the worklist with all Array, ArrayIndex, ArrayUpdate, ArraySlice,
+  // Select, and PrioritySelect operations. By favoring reverse-topo-sort order,
+  // we give ourselves the best chance of collapsing (e.g.) array updates
+  // written as separate updates for each dimension.
   for (Node* node : context.ReverseTopoSort(func)) {
     if (!node->IsDead() &&
-        node->OpIn({Op::kArray, Op::kArrayIndex, Op::kArrayUpdate, Op::kSel,
-                    Op::kPrioritySel})) {
+        node->OpIn({Op::kArray, Op::kArrayIndex, Op::kArrayUpdate,
+                    Op::kArraySlice, Op::kSel, Op::kPrioritySel})) {
       add_to_worklist(node, false);
     }
   }
@@ -1728,6 +1770,9 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
                            SimplifyArray(node->As<Array>(), query_engine));
     } else if (node->Is<Select>() || node->Is<PrioritySelect>()) {
       XLS_ASSIGN_OR_RETURN(result, SimplifySelect(node, query_engine));
+    } else if (node->Is<ArraySlice>()) {
+      XLS_ASSIGN_OR_RETURN(
+          result, SimplifyArraySlice(node->As<ArraySlice>(), query_engine));
     }
 
     // Add newly changed nodes to the worklist.

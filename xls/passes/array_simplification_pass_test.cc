@@ -16,10 +16,10 @@
 
 #include <memory>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -1646,6 +1646,22 @@ TEST_F(ArraySimplificationPassTest, ArrayUpdateIndexInBounds) {
   ScopedRecordIr sri(p);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("val"));
+}
+
+TEST_F(ArraySimplificationPassTest, ArraySliceChain) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  fn array_slice(array: bits[32][8], start1: bits[32], start2: bits[32]) -> bits[32][4] {
+    interim: bits[32][4] = array_slice(array, start1, width=4)
+    ret result: bits[32][4] = array_slice(interim, start2, width=4)
+  }
+  )",
+                                                       p));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArraySlice(m::Param("array"),
+                            m::Add(m::Param("start1"), m::Param("start2"))));
 }
 
 }  // namespace
