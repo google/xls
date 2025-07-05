@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <stack>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -275,13 +276,23 @@ class TimingAnalysis {
 // as the select case @case_number, false otherwise.
 bool DoesErase(Node *node, uint32_t case_number,
                absl::Span<const TreeBitLocation> selector_bits,
-               const BddQueryEngine &bdd_engine) {
-  // We currently only handle erasing when performed by an n-ary operation
-  // (e.g., and, nand).
-  if (!node->Is<NaryOp>()) {
-    return false;
+               const BddQueryEngine &bdd_engine,
+               absl::flat_hash_map<Node *, bool> &nodes_with_side_effects,
+               absl::flat_hash_map<Node *, absl::flat_hash_map<uint32_t, bool>>
+                   &nodes_with_side_effects_at_case) {
+  // Check if @node stops the propagation knowing we do not select @case_number
+  // of the select being targeted.
+  std::vector<std::pair<TreeBitLocation, bool>> assumed_values;
+  assumed_values.push_back(std::make_pair(selector_bits[case_number], false));
+  std::optional<Bits> node_value_when_case_not_selected =
+      bdd_engine.ImpliedNodeValue(assumed_values, node);
+  if (node_value_when_case_not_selected &&
+      node_value_when_case_not_selected->IsZero()) {
+    // Memoize the result of the analysis
+    nodes_with_side_effects[node] = false;
+
+    return true;
   }
-  VLOG(5) << "Catcher:   Found a potential eraser";
 
   // Check if @node erases @source
   // To do it, we check if @node is guaranteed to be "0" (and therefore erase
@@ -301,16 +312,19 @@ bool DoesErase(Node *node, uint32_t case_number,
     // Check if the current def-use chain gets erased.
     std::optional<Bits> node_value_when_case_not_selected =
         bdd_engine.ImpliedNodeValue(assumed_values, node);
-    if (node_value_when_case_not_selected &&
-        node_value_when_case_not_selected->IsZero()) {
-      VLOG(5) << "Catcher:     It is an eraser";
-      return true;
+    if (!node_value_when_case_not_selected ||
+        !node_value_when_case_not_selected->IsZero()) {
+      // We cannot guarantee @node erases @source.
+      return false;
     }
   }
-  VLOG(5) << "Catcher:     It is not an eraser";
 
-  // We cannot guarantee @node erases @source.
-  return false;
+  // @node erases @source
+  //
+  // Memoize this result
+  nodes_with_side_effects_at_case[node][case_number] = false;
+
+  return true;
 }
 
 // This function returns true if it exists a def-use chain from @node that can
@@ -323,7 +337,10 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
     Node *source, Node *node, Node *select, uint32_t case_number,
     absl::Span<const TreeBitLocation> selector_bits,
     const BddQueryEngine &bdd_engine,
-    const absl::flat_hash_map<Node *, bool> &nodes_with_side_effects) {
+    absl::flat_hash_map<Node *, bool> &nodes_with_side_effects,
+    absl::flat_hash_map<Node *, absl::flat_hash_map<uint32_t, bool>>
+        &nodes_with_side_effects_at_case,
+    std::stack<Node *> &def_use_chain) {
   // Check if we have already analyzed the current node
   auto it = nodes_with_side_effects.find(node);
   if (it != nodes_with_side_effects.end()) {
@@ -332,22 +349,47 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
     bool analysis_result = it->second;
     return analysis_result;
   }
+  auto it_case = nodes_with_side_effects_at_case.find(node);
+  if (it_case != nodes_with_side_effects_at_case.end()) {
+    absl::flat_hash_map<uint32_t, bool> &analysis_results_for_node =
+        it_case->second;
+    auto it_case_for_node = analysis_results_for_node.find(case_number);
+    if (it_case_for_node != analysis_results_for_node.end()) {
+      bool analysis_result = it_case_for_node->second;
+      return analysis_result;
+    }
+  }
+  VLOG(5) << "  Check if the following node has side effects: "
+          << node->ToString();
 
   // The node given as input has not been analyzed yet.
   // Let's analyze @node.
-  VLOG(5) << "Catcher: Analyze " << node->ToString();
-
+  //
   // Check if we reached @select.
   // If we did, then we can return false for this def-use chain.
   if (node == select) {
-    VLOG(5) << "Catcher:   Found select";
+    nodes_with_side_effects[node] = false;
     return false;
+  }
+
+  // Check if we reached a next node that has no effects when the select case is
+  // taken.
+  if (node->Is<Next>()) {
+    Next *next_node = node->As<Next>();
+    std::optional<Node *> predicate = next_node->predicate();
+    if (predicate.has_value()) {
+      if (DoesErase(*predicate, case_number, selector_bits, bdd_engine,
+                    nodes_with_side_effects, nodes_with_side_effects_at_case)) {
+        return false;
+      }
+    }
   }
 
   // Check if the current node of the current def-use chain erases the
   // computation specified by @source
   if ((source != nullptr) &&
-      DoesErase(node, case_number, selector_bits, bdd_engine)) {
+      DoesErase(node, case_number, selector_bits, bdd_engine,
+                nodes_with_side_effects, nodes_with_side_effects_at_case)) {
     return false;
   }
 
@@ -363,8 +405,18 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
     //
     // Hence, we found an effect of @node that reaches the end of the function
     // without going through @select.
-    VLOG(5) << "Catcher:     Found a def-use chain without reaching the select "
-               "or an eraser";
+    VLOG(5) << "     Found a problematic def-use chain";
+    VLOG(5) << node->ToString();
+    while (!def_use_chain.empty()) {
+      Node *tmp_node = def_use_chain.top();
+      VLOG(5) << tmp_node->ToString();
+      def_use_chain.pop();
+    }
+    VLOG(5) << "       End chain";
+
+    // Memoize the result of the analysis
+    nodes_with_side_effects_at_case[node][case_number] = true;
+
     return true;
   }
 
@@ -373,18 +425,27 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   // going through all users of @node, one by one.
   for (Node *user : node->users()) {
     // Check all def-use chains that go from @node through @user.
+    def_use_chain.push(node);
     XLS_ASSIGN_OR_RETURN(bool has_side_effects,
                          HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
                              node, user, select, case_number, selector_bits,
-                             bdd_engine, nodes_with_side_effects));
+                             bdd_engine, nodes_with_side_effects,
+                             nodes_with_side_effects_at_case, def_use_chain));
     if (has_side_effects) {
       // We found a def-use chain through @user that reaches the end without
       // having @select or an eraser.
+      //
+      // Memoize the result of the analysis and return.
+      nodes_with_side_effects_at_case[node][case_number] = true;
       return true;
     }
+    def_use_chain.pop();
   }
 
-  // All def-use chains from @node have @select or they have an eraser.
+  // Memoize the result of the analysis
+  nodes_with_side_effects_at_case[node][case_number] = false;
+
+  // All def-use chains from @node are safe
   return false;
 }
 
@@ -725,7 +786,9 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
     absl::Span<const TreeBitLocation> selector_bits,
     const BddQueryEngine &bdd_engine, FunctionBase *f,
     PostDominatorAnalysis &post_dominators,
-    absl::flat_hash_map<Node *, bool> &nodes_with_side_effects) {
+    absl::flat_hash_map<Node *, bool> &nodes_with_side_effects,
+    absl::flat_hash_map<Node *, absl::flat_hash_map<uint32_t, bool>>
+        &nodes_with_side_effects_at_case) {
   // If @n is post-dominated by @select, then all def-use chains that
   // go through @n are guaranteed to reach @select.
   // Hence, we can return false without exploring all def-use chains.
@@ -743,13 +806,12 @@ absl::StatusOr<bool> HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
   // Run the more expensive analysis to understand whether @n can be used
   // directly or indirectly on nodes after @select without going through
   // @select.
+  std::stack<Node *> def_use_chain;
   XLS_ASSIGN_OR_RETURN(bool has_side_effects,
                        HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
                            nullptr, n, select, case_number, selector_bits,
-                           bdd_engine, nodes_with_side_effects));
-
-  // Memoize the result of the analysis
-  nodes_with_side_effects[n] = has_side_effects;
+                           bdd_engine, nodes_with_side_effects,
+                           nodes_with_side_effects_at_case, def_use_chain));
 
   return has_side_effects;
 }
@@ -823,6 +885,8 @@ ComputeMutualExclusionAnalysis(
 
     // Identify the mutually-exclusive instructions created by the select @n
     absl::flat_hash_map<Node *, bool> nodes_with_side_effects;
+    absl::flat_hash_map<Node *, absl::flat_hash_map<uint32_t, bool>>
+        nodes_with_side_effects_at_case;
     for (uint32_t case_number = 0; case_number < cases.length();
          case_number++) {
       Node *current_case = cases[case_number];
@@ -854,10 +918,12 @@ ComputeMutualExclusionAnalysis(
             bool has_side_effects,
             HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
                 current_case_reaching_node, n, case_number, selector_bits,
-                *bdd_engine, f, *post_dominators, nodes_with_side_effects));
+                *bdd_engine, f, *post_dominators, nodes_with_side_effects,
+                nodes_with_side_effects_at_case));
         if (has_side_effects) {
           VLOG(4) << "      Its def-use chains force us to be conservative and "
-                     "skip this node";
+                     "skip the node "
+                  << current_case_reaching_node->ToString();
           continue;
         }
         VLOG(4) << "      Identify the nodes that are mutually exclusive with "
@@ -869,6 +935,9 @@ ComputeMutualExclusionAnalysis(
           Node *current_case_2 = cases[case_number_2];
           if (DoesReach(reachability_result, current_case_2,
                         current_case_reaching_node)) {
+            VLOG(5)
+                << "      The following node reaches the other's select case = "
+                << current_case_2->ToString();
             continue;
           }
 
@@ -903,6 +972,9 @@ ComputeMutualExclusionAnalysis(
             // cannot be mutually exclusive with @current_case_reaching_node
             if (DoesReach(reachability_result, current_case,
                           other_case_reaching_node)) {
+              VLOG(5) << "      The following node reaches the other's select "
+                         "case = "
+                      << other_case_reaching_node->ToString();
               continue;
             }
 
@@ -914,10 +986,12 @@ ComputeMutualExclusionAnalysis(
                 bool has_side_effects,
                 HasADefUseChainThatDoesNotIncludeSelectOrGetErased(
                     other_case_reaching_node, n, case_number_2, selector_bits,
-                    *bdd_engine, f, *post_dominators, nodes_with_side_effects));
+                    *bdd_engine, f, *post_dominators, nodes_with_side_effects,
+                    nodes_with_side_effects_at_case));
             if (has_side_effects) {
               VLOG(4) << "            Its def-use chains force us to be "
-                         "conservative and skip this node";
+                         "conservative and skip the node "
+                      << other_case_reaching_node->ToString();
               continue;
             }
             VLOG(4) << "            It is mutually exclusive";
