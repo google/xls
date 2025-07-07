@@ -8,7 +8,7 @@ module subproc(
   output wire [31:0] sub_out,
   output wire sub_out_vld
 );
-  reg [31:0] p0_tuple_index_22;
+  reg [31:0] p0_tuple_index_23;
   reg [31:0] p1_add_29;
   reg p0_valid;
   reg p1_valid;
@@ -31,9 +31,9 @@ module subproc(
   assign p0_enable = p1_load_en | p1_not_valid;
   assign p0_data_enable = p0_enable & sub_in_vld;
   assign p0_load_en = p0_data_enable | rst;
-  assign add_29 = p0_tuple_index_22 + 32'h0000_0001;
+  assign add_29 = p0_tuple_index_23 + 32'h0000_0001;
   always @ (posedge clk) begin
-    p0_tuple_index_22 <= p0_load_en ? sub_in : p0_tuple_index_22;
+    p0_tuple_index_23 <= p0_load_en ? sub_in : p0_tuple_index_23;
     p1_add_29 <= p1_load_en ? add_29 : p1_add_29;
   end
   always @ (posedge clk) begin
@@ -61,9 +61,9 @@ module my_proc(
   output wire [31:0] top_out,
   output wire top_out_vld
 );
-  wire instantiation_output_84;
-  wire [31:0] instantiation_output_85;
-  wire instantiation_output_86;
+  wire instantiation_output_85;
+  wire [31:0] instantiation_output_86;
+  wire instantiation_output_87;
 
   // ===== Instantiations
   subproc inst1 (
@@ -71,12 +71,12 @@ module my_proc(
     .sub_in(top_in),
     .sub_in_vld(top_in_vld),
     .sub_out_rdy(top_out_rdy),
-    .sub_in_rdy(instantiation_output_84),
-    .sub_out(instantiation_output_85),
-    .sub_out_vld(instantiation_output_86),
+    .sub_in_rdy(instantiation_output_85),
+    .sub_out(instantiation_output_86),
+    .sub_out_vld(instantiation_output_87),
     .clk(clk)
   );
-  assign top_in_rdy = instantiation_output_84;
-  assign top_out = instantiation_output_85;
-  assign top_out_vld = instantiation_output_86;
+  assign top_in_rdy = instantiation_output_85;
+  assign top_out = instantiation_output_86;
+  assign top_out_vld = instantiation_output_87;
 endmodule

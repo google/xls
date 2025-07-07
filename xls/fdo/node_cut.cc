@@ -29,6 +29,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
@@ -116,6 +117,9 @@ absl::StatusOr<NodeCutsMap> EnumerateCutsInSchedule(
   std::vector<std::vector<Node *>> cycle_to_sorted_nodes;
   cycle_to_sorted_nodes.resize(pipeline_length);
   for (Node *node : TopoSort(f)) {
+    if (IsUntimed(node)) {
+      continue;
+    }
     cycle_to_sorted_nodes[cycle_map.at(node)].emplace_back(node);
   }
 
@@ -159,7 +163,10 @@ absl::StatusOr<NodeCutsMap> EnumerateCutsInSchedule(
         }
 
         // The operand cycle should not be larger than the current cycle.
-        int64_t operand_cycle = cycle_map.at(*operand);
+        // If untimed, choose a negative number to make sure it's always smaller
+        // than the current cycle (there's no value in cycle_map).
+        int64_t operand_cycle =
+            IsUntimed(*operand) ? -1 : cycle_map.at(*operand);
         XLS_RET_CHECK_LE(operand_cycle, cycle);
         if (operand_cycle < cycle || (*operand)->Is<Param>()) {
           // If the operand cycle is smaller than the current cycle, the operand

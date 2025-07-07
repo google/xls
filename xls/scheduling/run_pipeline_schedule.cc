@@ -35,7 +35,6 @@
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -827,6 +826,9 @@ absl::StatusOr<PackageSchedule> RunSynchronousPipelineSchedule(
     } else {
       earliest_stage = std::numeric_limits<int64_t>::max();
       for (Node* node : proc->nodes()) {
+        if (IsUntimed(node)) {
+          continue;
+        }
         earliest_stage = std::min(earliest_stage, cycle_map.at(node));
       }
     }
@@ -837,6 +839,9 @@ absl::StatusOr<PackageSchedule> RunSynchronousPipelineSchedule(
   for (Proc* proc : elab.procs()) {
     absl::flat_hash_map<Node*, int64_t> proc_cycle_map;
     for (Node* node : proc->nodes()) {
+      if (IsUntimed(node)) {
+        continue;
+      }
       proc_cycle_map[node] = cycle_map.at(node) - synchronous_offsets.at(proc);
     }
     PipelineSchedule schedule(proc, proc_cycle_map);

@@ -28,6 +28,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/schedule_graph.h"
 
 namespace xls {
 
@@ -42,6 +43,9 @@ absl::StatusOr<Function*> ExtractStage(FunctionBase* src,
   absl::flat_hash_map<Node*, Node*> node_map;
   std::vector<Node*> live_out;
   for (Node* node : TopoSort(src)) {
+    if (IsUntimed(node)) {
+      continue;
+    }
     if (schedule.cycle(node) == stage) {
       std::vector<Node*> new_operands;
       for (Node* operand : node->operands()) {
