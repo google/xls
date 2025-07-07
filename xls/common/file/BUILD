@@ -120,7 +120,10 @@ cc_library(
 cc_test(
     name = "get_runfile_path_test",
     srcs = ["get_runfile_path_test.cc"],
-    data = ["get_runfile_path_test.cc"],
+    data = [
+        "get_runfile_path_test.cc",
+        "@llvm-project//clang:builtin_headers_gen",
+    ],
     deps = [
         ":filesystem",
         ":get_runfile_path",

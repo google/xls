@@ -28,7 +28,20 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::AllOf;
 using ::testing::HasSubstr;
+
+TEST(GetRunfilePathTest, GetXlsRunfilePathInLlvmReturnsTheRightPath) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::filesystem::path runfile_path,
+                           GetXlsRunfilePath("clang/staging/include/stddef.h",
+                                             /*package=*/"llvm-project"));
+  absl::StatusOr<std::string> test_h_file_contents =
+      GetFileContents(runfile_path);
+
+  EXPECT_THAT(test_h_file_contents,
+              IsOkAndHolds(AllOf(HasSubstr("stddef.h"),
+                                 HasSubstr("Part of the LLVM Project"))));
+}
 
 TEST(GetRunfilePathTest, GetXlsRunfilePathReturnsTheRightPath) {
   XLS_ASSERT_OK_AND_ASSIGN(

@@ -30,7 +30,7 @@ namespace xls {
 // If the file does not exist as a runfile, this method may return an empty
 // path.
 absl::StatusOr<std::filesystem::path> GetXlsRunfilePath(
-    const std::filesystem::path& path);
+    const std::filesystem::path& path, std::string package = "com_google_xls");
 
 // Called by InitXls; don't call this directly. Sets up global state for the
 // other functions in this file.

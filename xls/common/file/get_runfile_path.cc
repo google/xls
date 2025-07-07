@@ -82,9 +82,9 @@ absl::StatusOr<Runfiles*> GetRunfiles(
 }  // namespace
 
 absl::StatusOr<std::filesystem::path> GetXlsRunfilePath(
-    const std::filesystem::path& path) {
+    const std::filesystem::path& path, std::string package) {
   XLS_ASSIGN_OR_RETURN(Runfiles * runfiles, GetRunfiles());
-  return runfiles->Rlocation("com_google_xls" / path);
+  return runfiles->Rlocation(package / path);
 }
 
 absl::Status InitRunfilesDir(const std::string& argv0) {
