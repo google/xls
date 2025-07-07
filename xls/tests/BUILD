@@ -75,6 +75,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/passes",
         "//xls/passes:optimization_pass_pipeline",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",

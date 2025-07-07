@@ -1,0 +1,57 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls;
+
+// A set of compound passes and the default pass pipeline using them.
+//
+// TODO(allight): Consider getting rid of the PassPipelineProto that implements
+// this with a full tree.
+message OptimizationPipelineProto {
+  // Set of options which are applicable to compound passes or individual
+  // passes.
+  // TODO(allight): Support applying these to individual passes.
+  message GlobalOptions {
+    // The minimum opt level for which this compound pass will be run.
+    optional int64 min_opt_level = 1;
+    // The opt level cap which defines the largest opt-level the pass will run
+    // with. If the opt level is higher than the cap the opt level will be
+    // lowered to the cap for the passes in this compound pass.
+    optional int64 cap_opt_level = 2;
+    // The optimization pipeline requires resource sharing to be enabled.
+    optional bool resource_sharing_required = 3;
+  }
+  message CompoundPass {
+    // Just for logging
+    optional string long_name = 1;
+    // Key for 'default_pipeline' and '--passes'
+    optional string short_name = 2;
+    // All the passes in this compound pass
+    repeated string passes = 3;
+    // Is this a fixedpoint compound pass. Defaults to 'False' if not present.
+    optional bool fixedpoint = 4;
+    // Opt level options for the compound pass
+    optional GlobalOptions options = 5;
+  }
+
+  // Compound passes to add to the environment of possible passes in the default
+  // pipeline.
+  repeated CompoundPass compound_passes = 1;
+
+  // The default pipeline to use. This is a list of compound or leaf pass
+  // short_names.
+  repeated string default_pipeline = 2;
+}

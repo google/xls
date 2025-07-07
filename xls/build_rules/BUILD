@@ -290,7 +290,9 @@ bzl_library(
     srcs = ["xls_pass_rules.bzl"],
     visibility = ["//visibility:private"],
     deps = [
+        ":xls_cc_embed_data_rules_bzl",
         ":xls_providers_bzl",
+        ":xls_utilities_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )

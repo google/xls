@@ -14,11 +14,22 @@
 
 """This module contains the rules for defining xls passes."""
 
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_cpp_toolchain")
+load(
+    "//xls/build_rules:xls_cc_embed_data_rules.bzl",
+    _embed_data_attrs = "embed_data_attrs",
+    _get_embedded_data = "get_embedded_data",
+)
 load(
     "//xls/build_rules:xls_providers.bzl",
     "XlsOptimizationPassInfo",
     "XlsOptimizationPassRegistryInfo",
+)
+load(
+    "//xls/build_rules:xls_utilities.bzl",
+    _proto_data_tool_attrs = "proto_data_tool_attrs",
+    _textproto_to_binary = "text_proto_to_binary",
 )
 
 # Load build tooling macros
@@ -180,19 +191,106 @@ register_extension_info(
 )
 
 def _xls_pass_registry_impl(ctx):
+    out_files = []
+    if ctx.file.pipeline_binpb and ctx.file.pipeline:
+        fail("At most one of pipeline and pipeline_binpb may be present.")
+    cc_toolchain = find_cpp_toolchain(ctx)
+    cc_features = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cc_toolchain,
+        requested_features = ctx.features,
+        unsupported_features = ctx.disabled_features,
+    )
+    if ctx.file.pipeline_binpb:
+        pipeline_binpb = ctx.file.pipeline_binpb
+    elif ctx.file.pipeline:
+        pipeline_binpb = ctx.actions.declare_file(
+            ctx.file.pipeline.basename + "_" + ctx.attr.name + ".binpb",
+        )
+        out_files.append(pipeline_binpb)
+        _textproto_to_binary(
+            ctx = ctx,
+            src_file = ctx.file.pipeline,
+            output_file = pipeline_binpb,
+            proto_name = "xls.OptimizationPipelineProto",
+        )
+    else:
+        pipeline_binpb = None
+
+    files_out = []
     inputs = []
     passes = []
+
+    linking_ctxs = []
+    if pipeline_binpb:
+        mangled_label = str(abs(hash("@@{}//{}:{}".format(
+            ctx.label.workspace_name,
+            ctx.label.package,
+            ctx.label.name,
+        ))))
+        accessor = "get_%s_pipeline" % mangled_label
+        proto_data_fn = "xls::pass_registry::%s" % accessor
+        emb_header = ctx.actions.declare_file("%s_embedded_pipeline.h" % ctx.attr.name)
+        emb_cc = ctx.actions.declare_file("%s_embedded_pipeline.cc" % ctx.attr.name)
+        files_out.append(emb_header)
+        files_out.append(emb_cc)
+        embedded_binproto_data = _get_embedded_data(
+            ctx = ctx,
+            name = ctx.attr.name + "_embedded_pipeline_binpb",
+            hdr_file = emb_header,
+            cpp_file = emb_cc,
+            namespace = "xls::pass_registry",
+            accessor = accessor,
+            data_file = pipeline_binpb,
+        )
+        reg_pipeline_cc = ctx.actions.declare_file("%s_declare_pipeline.cc" % ctx.attr.name)
+        files_out.append(reg_pipeline_cc)
+        ctx.actions.expand_template(
+            template = ctx.file._register_pipeline_template,
+            output = reg_pipeline_cc,
+            substitutions = {
+                "{WARNING}": "Generated file. Do not edit",
+                "{HEADER}": emb_header.path,
+                "{ACCESS_FN}": proto_data_fn,
+                "{MANGLED_LABEL}": accessor,
+            },
+        )
+        deps = [embedded_binproto_data.compilation_context]
+        link_deps = [embedded_binproto_data.linking_context]
+        for lib in ctx.attr._register_pipeline_deps:
+            deps.append(lib[CcInfo].compilation_context)
+            link_deps.append(lib[CcInfo].linking_context)
+        (comp_ctx, comp_out) = cc_common.compile(
+            name = ctx.label.name + "_pipeline",
+            actions = ctx.actions,
+            feature_configuration = cc_features,
+            cc_toolchain = cc_toolchain,
+            srcs = [reg_pipeline_cc],
+            compilation_contexts = deps,
+        )
+        (link_ctx, _link_out) = cc_common.create_linking_context_from_compilation_outputs(
+            name = ctx.label.name + "_pipeline",
+            actions = ctx.actions,
+            feature_configuration = cc_features,
+            cc_toolchain = cc_toolchain,
+            compilation_outputs = comp_out,
+            linking_contexts = link_deps,
+            alwayslink = True,
+        )
+        linking_ctxs.append(link_ctx)
+
     for c in ctx.attr.passes:
         if XlsOptimizationPassInfo in c:
             inputs.append(c[XlsOptimizationPassInfo].pass_registration[CcInfo].linking_context)
-            passes.append(c[XlsOptimizationPassInfo].pass_registration)
+            passes.append(c[XlsOptimizationPassInfo].pass_registration[CcInfo])
         elif XlsOptimizationPassRegistryInfo in c:
             for x in c[XlsOptimizationPassRegistryInfo].passes:
-                inputs.append(x[CcInfo].linking_context)
+                inputs.append(x.linking_context)
             passes.extend(c[XlsOptimizationPassRegistryInfo].passes)
         else:
             inputs.append(c[CcInfo].linking_context)
             passes.append(c[CcInfo])
+    linking_ctxs.extend(inputs)
 
     # For now we don't compile anything.
     comp_out = cc_common.create_compilation_outputs()
@@ -200,38 +298,69 @@ def _xls_pass_registry_impl(ctx):
     (link, out) = cc_common.create_linking_context_from_compilation_outputs(
         name = ctx.label.name,
         actions = ctx.actions,
-        feature_configuration = cc_common.configure_features(
-            ctx = ctx,
-            cc_toolchain = find_cpp_toolchain(ctx),
-            requested_features = ctx.features,
-            unsupported_features = ctx.disabled_features,
-        ),
-        cc_toolchain = find_cpp_toolchain(ctx),
+        feature_configuration = cc_features,
+        cc_toolchain = cc_toolchain,
         compilation_outputs = comp_out,
-        linking_contexts = inputs,
+        linking_contexts = linking_ctxs,
         # This target links in all the passes.
         alwayslink = True,
     )
+    files_out.extend(out.library_to_link.pic_objects)
     return [
         CcInfo(compilation_context = comp_ctx, linking_context = link),
-        XlsOptimizationPassRegistryInfo(passes = inputs),
+        XlsOptimizationPassRegistryInfo(passes = passes, pipeline_binpb = pipeline_binpb),
         DefaultInfo(files = depset(
             # Ensure just building the registry does force all the passes to build.
-            direct = out.library_to_link.pic_objects,
+            direct = files_out,
             transitive = [c[DefaultInfo].files for c in ctx.attr.passes],
         )),
     ]
 
 xls_pass_registry = rule(
     implementation = _xls_pass_registry_impl,
-    doc = "Registry library that registers the given passes.",
+    doc = """Registry library that registers the given passes.
+    
+    NB Pass-registry dependencies do not add the compound passes etc to the namespace.
+    
+    TODO(allight): This would be a nice thing to do. Ensuring that overrides
+    work reasonably would be required however.
+    """,
     provides = [CcInfo, XlsOptimizationPassRegistryInfo],
     fragments = ["cpp"],
     toolchains = use_cpp_toolchain(),
-    attrs = {
-        "passes": attr.label_list(
-            doc = "List of pass infos, libraries or other pass_registry rules to register.",
-            providers = [[XlsOptimizationPassRegistryInfo], [XlsOptimizationPassInfo], [CcInfo]],
-        ),
-    },
+    attrs = dicts.add(
+        {
+            "passes": attr.label_list(
+                doc = "List of pass infos, libraries or other pass_registry rules to register.",
+                providers = [[XlsOptimizationPassRegistryInfo], [XlsOptimizationPassInfo], [CcInfo]],
+            ),
+            "pipeline": attr.label(
+                doc = """Text proto OptimizationPipeline defining any compound passes and the default pipeline.
+
+            At most one of this and pipeline_binpb may be present.""",
+                allow_single_file = True,
+                mandatory = False,
+            ),
+            "pipeline_binpb": attr.label(
+                doc = """Binary proto OptimizationPipeline defining any compound passes and the default pipeline.
+
+            At most one of this and pipeline may be present.""",
+                allow_single_file = True,
+                mandatory = False,
+            ),
+            "_register_pipeline_template": attr.label(
+                default = Label("//xls/passes/tools:pipeline_registration.cc.tmpl"),
+                allow_single_file = True,
+            ),
+            "_register_pipeline_deps": attr.label_list(
+                default = [
+                    Label("//xls/passes:optimization_pass_registry"),
+                    Label("//xls/common:module_initializer"),
+                    Label("@com_google_absl//absl/log:check"),
+                ],
+            ),
+        },
+        _proto_data_tool_attrs,
+        _embed_data_attrs,
+    ),
 )

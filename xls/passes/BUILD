@@ -32,9 +32,30 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+proto_library(
+    name = "optimization_pass_pipeline_proto",
+    srcs = ["optimization_pass_pipeline.proto"],
+    visibility = ["//xls:xls_users"],
+)
+
+cc_proto_library(
+    name = "optimization_pass_pipeline_cc_proto",
+    visibility = ["//xls:xls_users"],
+    deps = [":optimization_pass_pipeline_proto"],
+)
+
 xls_pass_registry(
     name = "passes",
     passes = [
+        # TODO(allight): Passes with explicit always-link. Once more explicit
+        # configuration is supported these should become xls_pass targets.
+        ":bdd_simplification_pass",
+        ":conditional_specialization_pass",
+        ":inlining_pass",
+        ":narrowing_pass",
+        ":select_simplification_pass",
+
+        # Normal passes
         ":arith_simplification_pass",
         ":array_simplification_pass",
         ":array_untuple_pass",
@@ -46,7 +67,6 @@ xls_pass_registry(
         ":channel_legalization_pass",
         ":comparison_simplification_pass",
         ":concat_simplification_pass",
-        ":conditional_specialization_pass",
         ":constant_folding_pass",
         ":cse_pass",
         ":dataflow_simplification_pass",
@@ -79,6 +99,7 @@ xls_pass_registry(
         ":useless_assert_removal_pass",
         ":useless_io_removal_pass",
     ],
+    pipeline = "optimization_pass_pipeline.txtpb",
     tags = ["keep_dep"],
 )
 
@@ -108,6 +129,7 @@ cc_binary(
         ":optimization_pass",
         ":optimization_pass_pipeline",
         ":pass_pipeline_cc_proto",
+        ":passes",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -158,60 +180,12 @@ cc_library(
     srcs = ["optimization_pass_pipeline.cc"],
     hdrs = ["optimization_pass_pipeline.h"],
     deps = [
-        ":arith_simplification_pass",
-        ":array_simplification_pass",
-        ":array_untuple_pass",
-        ":basic_simplification_pass",
-        ":bdd_cse_pass",
-        ":bdd_simplification_pass",
-        ":bit_slice_simplification_pass",
-        ":boolean_simplification_pass",
-        ":canonicalization_pass",
-        ":channel_legalization_pass",
-        ":comparison_simplification_pass",
-        ":concat_simplification_pass",
-        ":conditional_specialization_pass",
-        ":constant_folding_pass",
-        ":cse_pass",
-        ":dataflow_simplification_pass",
-        ":dce_pass",
-        ":dfe_pass",
-        ":identity_removal_pass",
-        ":inlining_pass",
-        ":label_recovery_pass",
-        ":lut_conversion_pass",
-        ":map_inlining_pass",
-        ":narrowing_pass",
-        ":next_value_optimization_pass",
         ":optimization_pass",
         ":optimization_pass_registry",
         ":pass_base",
-        ":passes",
         ":pipeline_generator",
-        ":proc_state_array_flattening_pass",
-        ":proc_state_bits_shattering_pass",
-        ":proc_state_narrowing_pass",
-        ":proc_state_optimization_pass",
-        ":proc_state_provenance_narrowing_pass",
-        ":proc_state_tuple_flattening_pass",
         ":query_engine_checker",
-        ":ram_rewrite_pass",
-        ":reassociation_pass",
-        ":receive_default_value_simplification_pass",
-        ":resource_sharing_pass",
-        ":select_lifting_pass",
-        ":select_merging_pass",
-        ":select_simplification_pass",
-        ":sparsify_select_pass",
-        ":strength_reduction_pass",
-        ":table_switch_pass",
-        ":token_dependency_pass",
-        ":token_simplification_pass",
-        ":unroll_pass",
-        ":useless_assert_removal_pass",
-        ":useless_io_removal_pass",
         ":verifier_checker",
-        "//xls/common:module_initializer",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "@com_google_absl//absl/algorithm:container",
@@ -335,6 +309,7 @@ cc_test(
     deps = [
         ":optimization_pass",
         ":optimization_pass_pipeline",
+        ":passes",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/examples:sample_packages",
@@ -413,6 +388,7 @@ cc_test(
 )
 
 # TODO(allight): Multiple configurations prevents xls_pass
+# buildozer: disable=alwayslink-with-hdrs
 cc_library(
     name = "inlining_pass",
     srcs = ["inlining_pass.cc"],
@@ -436,6 +412,8 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
     ],
+    # Temporary until pipeline changes are further along.
+    alwayslink = 1,
 )
 
 xls_pass(
@@ -738,9 +716,15 @@ cc_library(
     hdrs = ["optimization_pass_registry.h"],
     deps = [
         ":optimization_pass",
+        ":optimization_pass_pipeline_cc_proto",
+        ":pass_base",
+        ":pipeline_generator",
         "//xls/common:module_initializer",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -1105,6 +1089,7 @@ xls_pass(
 )
 
 # TODO(allight): 2 different passes in single library.
+# buildozer: disable=alwayslink-with-hdrs
 cc_library(
     name = "select_simplification_pass",
     srcs = ["select_simplification_pass.cc"],
@@ -1149,6 +1134,8 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
     ],
+    # Temporary until pipeline changes are further along.
+    alwayslink = 1,
 )
 
 xls_pass(
@@ -1621,6 +1608,7 @@ cc_test(
 )
 
 # TODO(allight): Multiple configurations prevent xls_pass
+# buildozer: disable=alwayslink-with-hdrs
 cc_library(
     name = "bdd_simplification_pass",
     srcs = ["bdd_simplification_pass.cc"],
@@ -1652,6 +1640,8 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
+    # Temporary until pipeline changes are further along.
+    alwayslink = 1,
 )
 
 cc_library(
@@ -1786,6 +1776,7 @@ cc_test(
 )
 
 # TODO(allight): Multiple configurations prevent xls_pass
+# buildozer: disable=alwayslink-with-hdrs
 cc_library(
     name = "narrowing_pass",
     srcs = ["narrowing_pass.cc"],
@@ -1837,6 +1828,8 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
+    # Temporary until pipeline changes are further along.
+    alwayslink = 1,
 )
 
 xls_pass(
@@ -2068,6 +2061,7 @@ xls_pass(
 )
 
 # TODO(allight): Multiple configurations prevent xls_pass
+# buildozer: disable=alwayslink-with-hdrs
 cc_library(
     name = "conditional_specialization_pass",
     srcs = ["conditional_specialization_pass.cc"],
@@ -2115,6 +2109,8 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
+    # Temporary until pipeline changes are further along.
+    alwayslink = 1,
 )
 
 xls_pass(
@@ -2316,6 +2312,7 @@ cc_test(
         ":optimization_pass",
         ":optimization_pass_pipeline",
         ":pass_base",
+        ":passes",
         ":ram_rewrite_pass",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

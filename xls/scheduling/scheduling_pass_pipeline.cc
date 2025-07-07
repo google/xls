@@ -19,7 +19,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 
+#include "absl/log/check.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/literal_uncommoning_pass.h"
 #include "xls/passes/optimization_pass.h"
@@ -46,9 +48,12 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
   bool eliminate_noop_next = false;
   top->Add<MutualExclusionPass>();
   if (opt_level > 0) {
-    top->Add<SchedulingWrapperPass>(
-        std::make_unique<FixedPointSimplificationPass>(), context, opt_level,
-        eliminate_noop_next);
+    auto fixedpoint =
+        GetOptimizationPipelineGenerator().GeneratePipeline("fixedpoint_simp");
+    CHECK_OK(fixedpoint.status())
+        << "Unable to create fixedpoint-simplification pass. This is a bug.";
+    top->Add<SchedulingWrapperPass>(*std::move(fixedpoint), context, opt_level,
+                                    eliminate_noop_next);
   }
   top->Add<SchedulingWrapperPass>(std::make_unique<LiteralUncommoningPass>(),
                                   context, opt_level, eliminate_noop_next);

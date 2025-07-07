@@ -236,6 +236,7 @@ cc_library(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",
+        "//xls/passes",
         "//xls/passes:dce_pass",
         "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",

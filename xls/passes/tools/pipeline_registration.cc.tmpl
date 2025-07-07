@@ -1,0 +1,14 @@
+// {WARNING}
+
+#include "{HEADER}"
+#include "absl/log/check.h"
+#include "xls/common/module_initializer.h"
+#include "xls/passes/optimization_pass_registry.h"
+
+namespace xls::pass_registration {
+
+XLS_REGISTER_MODULE_INITIALIZER(RegisterPipeline_{MANGLED_LABEL}, {
+  CHECK_OK(RegisterOptimizationPipelineProtoData({ACCESS_FN}()));
+});
+
+}  // namespace xls::pass_registration

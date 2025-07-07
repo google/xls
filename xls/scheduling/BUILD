@@ -428,10 +428,12 @@ cc_library(
         ":scheduling_checker",
         ":scheduling_pass",
         ":scheduling_wrapper_pass",
+        "//xls/passes",
         "//xls/passes:dce_pass",
         "//xls/passes:literal_uncommoning_pass",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
+        "@com_google_absl//absl/log:check",
     ],
 )
 

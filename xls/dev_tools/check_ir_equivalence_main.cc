@@ -51,6 +51,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/proc_state_legalization_pass.h"
 #include "xls/scheduling/scheduling_pass.h"
@@ -142,9 +143,9 @@ absl::StatusOr<std::vector<std::string>> CounterexampleParams(
 
 class LiteralizeZeroBits final : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "literalize_zero_bits";
   LiteralizeZeroBits()
-      : OptimizationFunctionBasePass("literalize_zero_bits",
-                                     "Literalize zero bits") {}
+      : OptimizationFunctionBasePass(kName, "Literalize zero bits") {}
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
@@ -168,9 +169,9 @@ class LiteralizeZeroBits final : public OptimizationFunctionBasePass {
 // the optimization pass pipeline for modernizing procs.
 class ProcStateLegalizationPassShim : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "proc_state_legalization_shim";
   ProcStateLegalizationPassShim()
-      : OptimizationFunctionBasePass("Proc State Legalization Pass",
-                                     "proc_state_legalization_shim") {}
+      : OptimizationFunctionBasePass(kName, "Proc State Legalization Pass") {}
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
@@ -197,9 +198,9 @@ class ProcStateLegalizationPassShim : public OptimizationFunctionBasePass {
 
 class AssertAndCoverRemovalPass : public OptimizationFunctionBasePass {
  public:
+  static constexpr std::string_view kName = "assert_and_cover_removal";
   AssertAndCoverRemovalPass()
-      : OptimizationFunctionBasePass("Assert and cover removal",
-                                     "assert_and_cover_removal") {}
+      : OptimizationFunctionBasePass(kName, "Assert and cover removal") {}
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
@@ -222,6 +223,12 @@ class AssertAndCoverRemovalPass : public OptimizationFunctionBasePass {
   }
 };
 
+// TODO(allight): Use a copied registry instead of adding to the default one or
+// maybe make a wrapper that pulls its implementation out of the registry.
+REGISTER_OPT_PASS(LiteralizeZeroBits);
+REGISTER_OPT_PASS(ProcStateLegalizationPassShim);
+REGISTER_OPT_PASS(AssertAndCoverRemovalPass);
+
 absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
                               const std::string& entry,
                               std::optional<int64_t> activation_count) {
@@ -242,27 +249,18 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
   //
   // To work around this, we have to inline such calls.
   // Fortunately, inlining is pretty simple and unlikely to change semantics.
-  // TODO(b/154025625): Replace this with a new InliningPass.
-  OptimizationCompoundPass inlining_passes(
-      "inlining_passes", "All inlining and next-value passes.");
-  inlining_passes.Add<UnrollingAndInliningPassGroup>();
-  inlining_passes.Add<ProcStateLegalizationPassShim>();
-  inlining_passes.Add<DeadCodeEliminationPass>();
-  // Zero-len bits are hard for z3 to handle. Just turn them all into zero-bit
-  // literals.
-  inlining_passes.Add<LiteralizeZeroBits>();
-  inlining_passes.Add<DeadCodeEliminationPass>();
-  // Asserts/cover isn't supported by our z3.
-  // TODO(allight): We could try to assert that the two IRs assert-fail at the
-  // same points or something.
-  inlining_passes.Add<AssertAndCoverRemovalPass>();
-  inlining_passes.Add<DeadCodeEliminationPass>();
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<OptimizationPass> inlining_passes,
+      // NB All except full-inlining and dce are defined in this file.
+      GetOptimizationPipelineGenerator().GeneratePipeline(
+          "full-inlining proc_state_legalization_shim dce literalize_zero_bits "
+          "dce assert_and_cover_removal dce"));
   OptimizationPassOptions options;
   PassResults results;
   OptimizationContext context;
   for (const auto& package : packages) {
     XLS_RETURN_IF_ERROR(
-        inlining_passes.Run(package.get(), options, &results, context)
+        inlining_passes->Run(package.get(), options, &results, context)
             .status());
   }
 

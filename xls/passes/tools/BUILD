@@ -20,4 +20,7 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-exports_files(["pass_registration.cc.tmpl"])
+exports_files([
+    "pass_registration.cc.tmpl",
+    "pipeline_registration.cc.tmpl",
+])

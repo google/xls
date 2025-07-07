@@ -17,7 +17,9 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -67,7 +69,8 @@ class PassRegistry final {
     absl::MutexLock mu(&registry_lock_);
     if (!generators_.contains(name)) {
       return absl::NotFoundError(
-          absl::StrFormat("%s is not registered.", name));
+          absl::StrFormat("%s is not registered. Have [%s]", name,
+                          absl::StrJoin(GetRegisteredNames(), ", ")));
     }
     return generators_.at(name).get();
   }
@@ -85,7 +88,7 @@ class PassRegistry final {
 
  private:
   mutable absl::Mutex registry_lock_;
-  absl::flat_hash_map<std::string_view, GeneratorPtr> generators_
+  absl::flat_hash_map<std::string, GeneratorPtr> generators_
       ABSL_GUARDED_BY(registry_lock_);
 };
 

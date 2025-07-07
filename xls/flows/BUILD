@@ -47,6 +47,7 @@ cc_library(
         "//xls/jit:jit_channel_queue",
         "//xls/jit:jit_proc_runtime",
         "//xls/jit:jit_runtime",
+        "//xls/passes",
         "//xls/passes:optimization_pass_pipeline",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
