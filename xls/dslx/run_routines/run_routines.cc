@@ -89,6 +89,10 @@
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "re2/re2.h"
+#include "xls/dslx/frontend/ast.h"              // For dslx::Function, AstNode, etc.
+#include "xls/dslx/parse_and_typecheck.h"    // For lookup helpers, if not already included
+#include "absl/strings/str_format.h"         // For StrFormat
+
 
 namespace xls::dslx {
 namespace {
@@ -164,7 +168,7 @@ void HandleError(TestResultData& result, const absl::Status& status,
 };
 
 absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
-                                 const Module* module, TestFunction* tf,
+                                 Module* module, TestFunction* tf,
                                  const BytecodeInterpreterOptions& options) {
   auto cache = std::make_unique<BytecodeCache>();
   import_data->SetBytecodeCache(std::move(cache));
@@ -181,7 +185,7 @@ absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
 }
 
 absl::Status RunDslxTestProc(ImportData* import_data, TypeInfo* type_info,
-                             const Module* module, TestProc* tp,
+                             Module* module, TestProc* tp,
                              const BytecodeInterpreterOptions& options) {
   auto cache = std::make_unique<BytecodeCache>();
   import_data->SetBytecodeCache(std::move(cache));
@@ -224,7 +228,7 @@ class QuickCheckProveAssertsNotFiredPass final
   QuickCheckProveAssertsNotFiredPass()
       : OptimizationFunctionBasePass("quickcheck-assert-suplement",
                                      "add asserts to quickcheck goal") {}
-  ~QuickCheckProveAssertsNotFiredPass() final = default;
+  ~QuickCheckProveAssertsNotFiredPass() = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
@@ -395,105 +399,105 @@ static bool ValuesAreValid(absl::Span<const Value> values,
 }
 
 absl::StatusOr<QuickCheckResults> DoQuickCheck(
-    bool requires_implicit_token, dslx::FunctionType* dslx_fn_type,
-    xls::Function* ir_function, std::string_view ir_name,
-    AbstractRunComparator* run_comparator, int64_t seed,
-    QuickCheckTestCases test_cases) {
-  QuickCheckResults results;
-  std::minstd_rand rng_engine(seed);
-  xls::TupleType* ir_param_tuple = ir_function->package()->GetTupleType(
-      ir_function->GetType()->parameters());
+  bool requires_implicit_token,
+  dslx::FunctionType* dslx_fn_type,
+  xls::Function* ir_function,
+  std::string_view ir_name,
+  AbstractRunComparator* run_comparator,
+  int64_t seed,
+  QuickCheckTestCases test_cases) {
+QuickCheckResults results;
+std::minstd_rand rng_engine(seed);
+xls::TupleType* ir_param_tuple = ir_function->package()->GetTupleType(
+    ir_function->GetType()->parameters());
 
-  int64_t num_tests;
-  std::function<std::vector<Value>(int64_t)> make_arg_set;
-  switch (test_cases.tag()) {
-    case QuickCheckTestCasesTag::kExhaustive: {
-      int64_t parameter_bit_count = ir_param_tuple->GetFlatBitCount();
-      if (parameter_bit_count > 48) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Cannot run an exhaustive quickcheck for `%s` "
-                            "because it has too large a parameter bit count; "
-                            "got: %d",
-                            ir_function->name(), parameter_bit_count));
-      }
-      num_tests = int64_t{1} << parameter_bit_count;
-      make_arg_set = [&](int64_t i) {
-        return MakeFromUint64(ir_param_tuple, i);
-      };
-      break;
+int64_t num_tests;
+std::function<std::vector<Value>(int64_t)> make_arg_set;
+switch (test_cases.tag()) {
+  case QuickCheckTestCasesTag::kExhaustive: {
+    int64_t bit_count = ir_param_tuple->GetFlatBitCount();
+    if (bit_count > 48) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat(
+              "Cannot run exhaustive quickcheck for `%s`: bit count %d too large",
+              ir_function->name(), bit_count));
     }
-    case QuickCheckTestCasesTag::kCounted:
-      num_tests =
-          test_cases.count().value_or(QuickCheckTestCases::kDefaultTestCount);
-      make_arg_set = [&](int64_t) {
-        return RandomFunctionArguments(ir_function, rng_engine);
-      };
-      break;
+    num_tests = int64_t{1} << bit_count;
+    make_arg_set = [&](int64_t i) {
+      return MakeFromUint64(ir_param_tuple, i);
+    };
+    break;
   }
-
-  std::unique_ptr<dslx::TokenType> token_type;
-  std::unique_ptr<dslx::BitsType> bool_type;
-  std::vector<const dslx::Type*> dslx_param_types;
-  if (requires_implicit_token) {
-    token_type = std::make_unique<dslx::TokenType>();
-    bool_type = std::make_unique<dslx::BitsType>(false, 1);
-    dslx_param_types.push_back(token_type.get());
-    dslx_param_types.push_back(bool_type.get());
-  }
-  for (const std::unique_ptr<dslx::Type>& type : dslx_fn_type->params()) {
-    dslx_param_types.push_back(type.get());
-  }
-
-  // Check that, after we've accounted for the potential implicit-token calling
-  // convention, the number of IR function parameters and DSLX parameters line
-  // up.
-  XLS_RET_CHECK_EQ(ir_param_tuple->size(), dslx_param_types.size())
-      << "IR param tuple size should match DSLX param types size";
-
-  for (int i = 0; i < num_tests; i++) {
-    {
-      std::vector<Value> arg_set = make_arg_set(i);
-      if (!ValuesAreValid(arg_set, dslx_param_types)) {
-        // Note: if we reject an argument set, it counts as a test case -- this
-        // makes sense for exhaustive mode but less sense for randomized mode,
-        // we may want those to operate slightly differently.
-        continue;
-      }
-      results.arg_sets.push_back(std::move(arg_set));
-    }
-
-    // TODO(https://github.com/google/xls/issues/506): 2021-10-15
-    // Assertion failures should work out, but we should consciously decide
-    // if/how we want to dump traces when running QuickChecks (always, for
-    // failures, flag-controlled, ...).
-    absl::Span<const Value> this_arg_set = results.arg_sets.back();
-    XLS_ASSIGN_OR_RETURN(xls::Value result,
-                         DropInterpreterEvents(run_comparator->RunIrFunction(
-                             ir_name, ir_function, this_arg_set)));
-
-    // In the case of an implicit token signature we get (token, bool) as the
-    // result of the quickcheck'd function, so we unbox the boolean here.
-    if (result.IsTuple()) {
-      result = result.elements()[1];
-      XLS_RET_CHECK(result.IsBits());
-    }
-
-    XLS_RET_CHECK(result.IsBits())
-        << "quickcheck properties must return `bool`, should be validated by "
-           "type checking; got: "
-        << result;
-
-    results.results.push_back(result);
-
-    if (result.IsAllZeros()) {
-      // We were able to falsify the xls_function (predicate), bail out early
-      // and present this evidence.
-      break;
-    }
-  }
-
-  return results;
+  case QuickCheckTestCasesTag::kCounted:
+    num_tests = test_cases.count().value_or(
+        QuickCheckTestCases::kDefaultTestCount);
+    make_arg_set = [&](int64_t) {
+      return RandomFunctionArguments(ir_function, rng_engine);
+    };
+    break;
 }
+
+std::unique_ptr<dslx::TokenType> token_type;
+std::unique_ptr<dslx::BitsType> bool_type;
+std::vector<const dslx::Type*> dslx_param_types;
+if (requires_implicit_token) {
+  token_type = std::make_unique<dslx::TokenType>();
+  bool_type  = std::make_unique<dslx::BitsType>(false, 1);
+  dslx_param_types.push_back(token_type.get());
+  dslx_param_types.push_back(bool_type.get());
+}
+for (const auto& ty : dslx_fn_type->params()) {
+  dslx_param_types.push_back(ty.get());
+}
+XLS_RET_CHECK_EQ(ir_param_tuple->size(), dslx_param_types.size());
+
+// ——— QuickCheck Loop ———
+for (int64_t i = 0; i < num_tests; ++i) {
+  std::vector<Value> arg_set = make_arg_set(i);
+  if (!ValuesAreValid(arg_set, dslx_param_types)) {
+    continue;
+  }
+  results.arg_sets.push_back(std::move(arg_set));
+  absl::Span<const Value> this_args = results.arg_sets.back();
+
+  XLS_ASSIGN_OR_RETURN(xls::Value result,
+      DropInterpreterEvents(
+          run_comparator->RunIrFunction(ir_name, ir_function, this_args)));
+
+  if (result.IsTuple()) {
+    result = result.elements()[1];
+    XLS_RET_CHECK(result.IsBits());
+  }
+  XLS_RET_CHECK(result.IsBits());
+
+  results.results.push_back(result);
+
+  if (result.IsAllZeros()) {
+    //////On failure 
+    const auto& inputs = results.arg_sets.back();  
+
+    //////Defining the variables 
+    std::string bindings;
+    for (int idx = 0; idx < static_cast<int>(inputs.size()); ++idx) {
+      bindings += absl::StrFormat(
+          "  let x%d = %s;\n", idx, inputs[idx].ToString());
+    }
+
+    ///// Logging a test‐case
+    std::string test_fn = absl::StrFormat("%s_test_case", ir_name);
+    std::string snippet = absl::StrFormat(
+        "fn %s() {\n%s  assert_eq!(<YOUR_EXPR>, true);\n}\n",
+        test_fn, bindings);
+    LOG(INFO) << "Generated DSLX test case for `" << ir_name << "`:\n"
+              << snippet;  
+
+    break;
+  }
+}
+
+return results;
+}
+
 
 struct QuickcheckIrFn {
   std::string ir_name;
@@ -694,13 +698,9 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
   } else {
     vfs = std::make_unique<RealFilesystem>();
   }
-  const ParseAndTypecheckOptions& parse_and_typecheck_options =
-      options.parse_and_typecheck_options;
-
   auto import_data =
-      CreateImportData(parse_and_typecheck_options.dslx_stdlib_path,
-                       parse_and_typecheck_options.dslx_paths,
-                       parse_and_typecheck_options.warnings, std::move(vfs));
+      CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
+                       options.warnings, std::move(vfs));
   FileTable& file_table = import_data.file_table();
   absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(program, filename, module_name, &import_data);
@@ -717,12 +717,11 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
   // are *not* errors, just elide printing them (or e.g. we'd show warnings for
   // files that had warnings suppressed at build time, which would gunk up build
   // logs unnecessarily.).
-  if (parse_and_typecheck_options.warnings_as_errors) {
+  if (options.warnings_as_errors) {
     PrintWarnings(tm->warnings, file_table, import_data.vfs());
   }
 
-  if (parse_and_typecheck_options.warnings_as_errors &&
-      !tm->warnings.warnings().empty()) {
+  if (options.warnings_as_errors && !tm->warnings.warnings().empty()) {
     result.Finish(TestResult::kFailedWarnings,
                   absl::Now() - parse_and_prove_start);
     return ParseAndProveResult{.test_result_data = result};
@@ -777,7 +776,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     };
 
     const absl::Status convert_status = ConvertOneFunctionIntoPackage(
-        f, &import_data,
+        entry_module, f, &import_data,
         /*parametric_env=*/nullptr, ConvertOptions{}, &conv);
     if (handle_if_error(convert_status)) {
       continue;
@@ -865,6 +864,48 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     }
   }
 
+    ///////////////////////////////LOGGING THE COUNTEREXAMPLE MAP
+  for (auto& [test_name, inputs] : counterexamples) {
+    QuickCheck* qc = qcs.at(test_name);
+    dslx::Function* fn_ast = qc->fn();
+
+    std::string sig = absl::StrFormat("fn %s_test_case(", test_name);
+    for (int i = 0; i < fn_ast->params().size(); ++i) {
+      auto* p = fn_ast->params()[i];
+      sig += absl::StrFormat("%s: %s",
+            p->identifier(),
+            p->type_annotation()->ToString());
+      if (i + 1 < fn_ast->params().size()) sig += ", ";
+    }
+    sig += ") {\n";
+
+    std::string bindings;
+    for (int i = 0; i < inputs.size(); ++i) {
+      auto* p = fn_ast->params()[i];
+      bindings += absl::StrFormat(
+          "  let %s: %s = %s\n",
+          p->identifier(),
+          p->type_annotation()->ToString(),
+          inputs[i].ToString());
+    }
+
+    std::string expr = fn_ast->body()->ToString();
+    if (!expr.empty() && expr.front() == '{' && expr.back() == '}') {
+      expr = expr.substr(1, expr.size() - 2);
+      absl::StripAsciiWhitespace(&expr);
+    }
+
+
+    std::string snippet = sig
+        + bindings
+        + "  assert_eq!(" + expr + ", true)\n"
+        + "}";
+
+    LOG(INFO) << "Generated DSLX test-case for `" << test_name << "`:\n"
+              << snippet;
+  }
+    ///////////////////////////////LOGGING THE COUNTEREXAMPLE MAP
+
   result.Finish(TestResult::kSomeFailed, absl::Now() - parse_and_prove_start);
   std::cerr
       << absl::StreamFormat(
@@ -892,17 +933,13 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   } else {
     vfs = std::make_unique<RealFilesystem>();
   }
-  const ParseAndTypecheckOptions& parse_and_typecheck_options =
-      options.parse_and_typecheck_options;
   auto import_data =
-      CreateImportData(parse_and_typecheck_options.dslx_stdlib_path,
-                       parse_and_typecheck_options.dslx_paths,
-                       parse_and_typecheck_options.warnings, std::move(vfs));
+      CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
+                       options.warnings, std::move(vfs));
   FileTable& file_table = import_data.file_table();
 
   absl::StatusOr<TypecheckedModule> tm =
-      ParseAndTypecheck(program, filename, module_name, &import_data, nullptr,
-                        parse_and_typecheck_options.type_inference_v2);
+      ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm.ok()) {
     if (TryPrintError(tm.status(), import_data.file_table(),
                       import_data.vfs())) {
@@ -916,12 +953,11 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   // are *not* errors, just elide printing them (or e.g. we'd show warnings for
   // files that had warnings suppressed at build time, which would gunk up build
   // logs unnecessarily.).
-  if (options.execute || parse_and_typecheck_options.warnings_as_errors) {
+  if (options.execute || options.warnings_as_errors) {
     PrintWarnings(tm->warnings, import_data.file_table(), import_data.vfs());
   }
 
-  if (parse_and_typecheck_options.warnings_as_errors &&
-      !tm->warnings.warnings().empty()) {
+  if (options.warnings_as_errors && !tm->warnings.warnings().empty()) {
     result.Finish(TestResult::kFailedWarnings, absl::Now() - start);
     return result;
   }
@@ -1044,6 +1080,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   result.Finish(
       result.DidAnyFail() ? TestResult::kSomeFailed : TestResult::kAllPassed,
       absl::Now() - start);
+  
   return result;
 }
 
