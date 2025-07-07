@@ -44,6 +44,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc_id.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -727,9 +728,8 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
   return final_order;
 }
 
-absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
-                                                       TypeInfo* type_info,
-                                                       bool include_tests) {
+absl::StatusOr<std::vector<ConversionRecord>> GetOrder(
+    Module* module, TypeInfo* type_info, const ConvertOptions& options) {
   XLS_RET_CHECK_EQ(type_info->module(), module);
   std::vector<ConversionRecord> ready;
 
@@ -767,7 +767,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
             [](TestProc*) { return absl::OkStatus(); },
 
             [&](TestFunction* test) {
-              if (!include_tests) {
+              if (!options.convert_tests) {
                 // Nothing to do.
                 return absl::OkStatus();
               }

@@ -382,8 +382,7 @@ absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
   XLS_ASSIGN_OR_RETURN(TypeInfo * root_type_info,
                        import_data->GetRootTypeInfo(module));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
-                       GetOrder(module, root_type_info,
-                                /*include_tests=*/options.convert_tests));
+                       GetOrder(module, root_type_info, options));
   PackageData package_data{.conversion_info = package};
   XLS_RETURN_IF_ERROR(
       ConvertCallGraph(order, import_data, options, package_data));
