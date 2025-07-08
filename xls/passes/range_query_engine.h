@@ -235,6 +235,8 @@ class RangeQueryEngine : public QueryEngine {
   // This must be called before `SetIntervalSetTree`.
   void InitializeNode(Node* node);
 
+  bool Covers(Node* node, const Bits& value) const override;
+
   Bits MaxUnsignedValue(Node* n) const override;
   Bits MinUnsignedValue(Node* n) const override;
 

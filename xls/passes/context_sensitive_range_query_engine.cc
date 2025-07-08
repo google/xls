@@ -474,6 +474,10 @@ class ProxyContextQueryEngine final : public QueryEngine {
     return a_value != b_value;
   }
 
+  bool Covers(Node* node, const Bits& value) const override {
+    return MostSpecific(node).Covers(node, value);
+  }
+
   Bits MaxUnsignedValue(Node* node) const override {
     return MostSpecific(node).MaxUnsignedValue(node);
   }
@@ -646,6 +650,13 @@ ContextSensitiveRangeQueryEngine::GetTernary(Node* node) const {
   return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
              node->GetType(), *select_ranges_.at(node).ternary)
       .AsShared();
+}
+bool ContextSensitiveRangeQueryEngine::Covers(Node* node,
+                                              const Bits& value) const {
+  if (!node->OpIn({Op::kSel}) || !select_ranges_.contains(node)) {
+    return base_case_ranges_.Covers(node, value);
+  }
+  return select_ranges_.at(node).interval_set.Get({}).Covers(value);
 }
 Bits ContextSensitiveRangeQueryEngine::MaxUnsignedValue(Node* node) const {
   if (!node->OpIn({Op::kSel}) || !select_ranges_.contains(node)) {

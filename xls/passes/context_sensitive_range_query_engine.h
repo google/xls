@@ -115,6 +115,8 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
       const absl::btree_set<PredicateState>& state) const override;
 
+  bool Covers(Node* node, const Bits& value) const override;
+
   Bits MaxUnsignedValue(Node* node) const override;
   Bits MinUnsignedValue(Node* node) const override;
 

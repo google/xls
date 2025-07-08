@@ -834,4 +834,21 @@ bool PartialInfoQueryEngine::KnownNotEquals(const TreeBitLocation& a,
   return IsKnown(a) && IsKnown(b) && IsOne(a) != IsOne(b);
 }
 
+bool PartialInfoQueryEngine::Covers(Node* node, const Bits& value) const {
+  if (!node->GetType()->IsBits() ||
+      node->BitCountOrDie() != value.bit_count()) {
+    // The type doesn't match, so `node` can't possibly cover it.
+    return false;
+  }
+  if (!IsTracked(node)) {
+    return true;
+  }
+  std::optional<SharedLeafTypeTree<PartialInformation>> info_tree =
+      GetInfo(node);
+  if (!info_tree.has_value()) {
+    return true;
+  }
+  return info_tree->Get({}).IsCompatibleWith(value);
+}
+
 }  // namespace xls

@@ -193,6 +193,23 @@ std::optional<Value> QueryEngine::KnownValue(Node* node) const {
   return *result;
 }
 
+bool QueryEngine::Covers(Node* node, const Bits& value) const {
+  if (!node->GetType()->IsBits() ||
+      node->BitCountOrDie() != value.bit_count()) {
+    // The type doesn't match, so `node` can't possibly cover it.
+    return false;
+  }
+  if (!IsTracked(node)) {
+    return true;
+  }
+
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary = GetTernary(node);
+  if (!ternary.has_value()) {
+    return false;
+  }
+  return ternary_ops::IsCompatible(ternary->Get({}), value);
+}
+
 std::optional<Bits> QueryEngine::KnownValueAsBits(Node* node) const {
   CHECK(node->GetType()->IsBits());
   if (!IsTracked(node)) {
