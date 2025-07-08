@@ -2382,6 +2382,77 @@ TEST(XlsCApiTest, TypeGetFlatBitCount) {
   EXPECT_EQ(xls_type_get_flat_bit_count(nested_type), 10);  // 5 + 5
 }
 
+
+TEST(XlsCApiTest, BitsRopeCreateFree) {
+  xls_bits_rope* rope = xls_create_bits_rope(10);
+  ASSERT_NE(rope, nullptr);
+  xls_bits_rope_free(rope);
+}
+
+TEST(XlsCApiTest, BitsRopePushBack) {
+  char* error_out = nullptr;
+  xls_bits_rope* rope = xls_create_bits_rope(10);
+  ASSERT_NE(rope, nullptr);
+  absl::Cleanup free_rope([rope] { xls_bits_rope_free(rope); });
+
+  xls_bits* bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(3, 0b101, &error_out, &bits));
+  absl::Cleanup free_bits([bits] { xls_bits_free(bits); });
+
+  xls_bits_rope_append_bits(rope, bits);
+  ASSERT_EQ(error_out, nullptr);
+}
+
+TEST(XlsCApiTest, BitsRopeBuild) {
+  char* error_out = nullptr;
+  xls_bits_rope* rope = xls_create_bits_rope(3);
+  ASSERT_NE(rope, nullptr);
+  absl::Cleanup free_rope([rope] { xls_bits_rope_free(rope); });
+
+  xls_bits* bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(3, 0b101, &error_out, &bits));
+  absl::Cleanup free_bits([bits] { xls_bits_free(bits); });
+
+  xls_bits_rope_append_bits(rope, bits);
+  ASSERT_EQ(error_out, nullptr);
+
+  xls_bits* result = xls_bits_rope_get_bits(rope);
+  ASSERT_NE(result, nullptr);
+  absl::Cleanup free_result([result] { xls_bits_free(result); });
+
+  char* result_str = xls_bits_to_debug_string(result);
+  absl::Cleanup free_result_str([result_str] { xls_c_str_free(result_str); });
+  EXPECT_EQ(std::string(result_str), "0b101");
+}
+
+TEST(XlsCApiTest, BitsRopePushMultipleAndBuild) {
+    char* error_out = nullptr;
+    xls_bits_rope* rope = xls_create_bits_rope(5);
+    ASSERT_NE(rope, nullptr);
+    absl::Cleanup free_rope([rope] { xls_bits_rope_free(rope); });
+
+    xls_bits* bits1 = nullptr;
+    ASSERT_TRUE(xls_bits_make_ubits(3, 0b101, &error_out, &bits1));
+    absl::Cleanup free_bits1([bits1] { xls_bits_free(bits1); });
+
+    xls_bits* bits2 = nullptr;
+    ASSERT_TRUE(xls_bits_make_ubits(2, 0b10, &error_out, &bits2));
+    absl::Cleanup free_bits2([bits2] { xls_bits_free(bits2); });
+
+    xls_bits_rope_append_bits(rope, bits1);
+    ASSERT_EQ(error_out, nullptr);
+    xls_bits_rope_append_bits(rope, bits2);
+    ASSERT_EQ(error_out, nullptr);
+
+    xls_bits* result = xls_bits_rope_get_bits(rope);
+    ASSERT_NE(result, nullptr);
+    absl::Cleanup free_result([result] { xls_bits_free(result); });
+
+    char* result_str = xls_bits_to_debug_string(result);
+    absl::Cleanup free_result_str([result_str] { xls_c_str_free(result_str); });
+    EXPECT_EQ(std::string(result_str), "0b10101");
+}
+
 TEST(XlsCApiTest, FnBuilderPartialProductOps) {
   struct TestCase {
     std::string_view op_name;

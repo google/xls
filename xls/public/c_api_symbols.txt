@@ -10,6 +10,9 @@ xls_bits_make_ubits
 xls_bits_negate
 xls_bits_not
 xls_bits_or
+xls_bits_rope_append_bits
+xls_bits_rope_free
+xls_bits_rope_get_bits
 xls_bits_shift_left_logical
 xls_bits_shift_right_arithmetic
 xls_bits_shift_right_logical
@@ -91,6 +94,7 @@ xls_convert_dslx_path_to_ir
 xls_convert_dslx_path_to_ir_with_warnings
 xls_convert_dslx_to_ir
 xls_convert_dslx_to_ir_with_warnings
+xls_create_bits_rope
 xls_dslx_colon_ref_get_attr
 xls_dslx_colon_ref_resolve_import_subject
 xls_dslx_constant_def_get_name

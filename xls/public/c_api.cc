@@ -421,6 +421,26 @@ struct xls_value* xls_value_make_false() {
   return reinterpret_cast<xls_value*>(value);
 }
 
+struct xls_bits_rope* xls_create_bits_rope(int64_t bit_count) {
+  return reinterpret_cast<xls_bits_rope*>(new xls::BitsRope(bit_count));
+}
+
+void xls_bits_rope_append_bits(struct xls_bits_rope* bits_rope,
+                          const struct xls_bits* bits) {
+  CHECK(bits_rope != nullptr);
+  CHECK(bits != nullptr);
+  auto* cpp_bits_rope = reinterpret_cast<xls::BitsRope*>(bits_rope);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  cpp_bits_rope->push_back(*cpp_bits);
+}
+
+struct xls_bits* xls_bits_rope_get_bits(struct xls_bits_rope* bits_rope) {
+  CHECK(bits_rope != nullptr);
+  auto* cpp_bits_rope = reinterpret_cast<xls::BitsRope*>(bits_rope);
+  xls::Bits bits = cpp_bits_rope->Build();
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(bits)));
+}
+
 bool xls_bits_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
                          struct xls_bits** bits_out) {
   CHECK(error_out != nullptr);
@@ -688,6 +708,10 @@ int64_t xls_bits_get_bit_count(const struct xls_bits* bits) {
 }
 
 void xls_bits_free(xls_bits* b) { delete reinterpret_cast<xls::Bits*>(b); }
+
+void xls_bits_rope_free(xls_bits_rope* b) {
+  delete reinterpret_cast<xls::BitsRope*>(b);
+}
 
 void xls_value_free(xls_value* v) { delete reinterpret_cast<xls::Value*>(v); }
 

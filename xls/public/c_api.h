@@ -54,6 +54,7 @@ enum {
 
 // Opaque structs.
 struct xls_bits;
+struct xls_bits_rope;
 struct xls_function;
 struct xls_function_base;
 struct xls_function_jit;
@@ -139,6 +140,21 @@ bool xls_parse_typed_value(const char* input, char** error_out,
 bool xls_value_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
                           struct xls_value** xls_value_out);
 
+// Returns a new bits rope with the given bit count. The caller must free the
+// returned `bits_rope` via `xls_bits_rope_free` if it is non-null.
+struct xls_bits_rope*  xls_create_bits_rope(int64_t bit_count);
+
+// Appends the given bits to the given bits rope.
+// Note the bits rope must have enough space to hold the bits.
+void xls_bits_rope_append_bits(struct xls_bits_rope* bits_rope,
+                          const struct xls_bits* bits);
+
+// Returns the bits in the given bits rope. The returned bits are owned by
+// the caller and must be freed via `xls_bits_free`. This API must be called
+// after all bits have been appended to the bits rope, i.e. the bits rope must
+// be "full".
+struct xls_bits* xls_bits_rope_get_bits(struct xls_bits_rope* bits_rope);
+
 // Returns the kind of the given value. The caller must free the returned
 // `error_out` string via `xls_c_str_free` if an error is returned.
 bool xls_value_get_kind(const struct xls_value* value, char** error_out,
@@ -204,6 +220,7 @@ bool xls_bits_make_sbits(int64_t bit_count, int64_t value, char** error_out,
                          struct xls_bits** bits_out);
 
 void xls_bits_free(struct xls_bits* bits);
+void xls_bits_rope_free(xls_bits_rope* b);
 
 bool xls_bits_eq(const struct xls_bits* a, const struct xls_bits* b);
 
