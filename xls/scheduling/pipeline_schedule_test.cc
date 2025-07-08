@@ -104,14 +104,11 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
-using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::Each;
 using ::testing::Gt;
 using ::testing::HasSubstr;
 using ::testing::IsSupersetOf;
-using ::testing::Key;
-using ::testing::Not;
 using ::testing::UnorderedElementsAre;
 using ::testing::UnorderedPointwise;
 
@@ -753,8 +750,7 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceive) {
   EXPECT_EQ(schedule.length(), 3);
 
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);
-  // Literals are "untimed" and not in the schedule.
-  EXPECT_FALSE(schedule.IsScheduled(cond.node()));
+  EXPECT_EQ(schedule.cycle(cond.node()), 0);
   EXPECT_EQ(schedule.cycle(send.node()), 2);
 }
 
@@ -2038,12 +2034,10 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserializeWithSynchronousSchedule) {
   auto p = CreatePackage();
   TokenlessProcBuilder pb1("proc1", "tkn", p.get());
   auto literal1 = pb1.Literal(UBits(1, 32));
-  auto add1 = pb1.Add(literal1, literal1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc1, pb1.Build());
 
   TokenlessProcBuilder pb2("proc2", "tkn", p.get());
   auto literal2 = pb2.Literal(UBits(2, 32));
-  auto add2 = pb2.Add(literal2, literal2);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc2, pb2.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2061,12 +2055,8 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserializeWithSynchronousSchedule) {
       p.get(), {{proc1, schedule1}, {proc2, schedule2}}, synchronous_offsets);
 
   EXPECT_TRUE(package_schedule.IsSynchronousSchedule());
-  EXPECT_THAT(package_schedule.GetSchedules().at(proc1).GetCycleMap(),
-              Not(Contains(Key(literal1.node()))));
-  EXPECT_THAT(package_schedule.GetSchedules().at(proc2).GetCycleMap(),
-              Not(Contains(Key(literal2.node()))));
-  EXPECT_EQ(package_schedule.GetSynchronousCycle(add1.node()), 0);
-  EXPECT_EQ(package_schedule.GetSynchronousCycle(add2.node()), 42);
+  EXPECT_EQ(package_schedule.GetSynchronousCycle(literal1.node()), 0);
+  EXPECT_EQ(package_schedule.GetSynchronousCycle(literal2.node()), 42);
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PackageSchedule clone,
@@ -2074,12 +2064,8 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserializeWithSynchronousSchedule) {
           p.get(), package_schedule.ToProto(TestDelayEstimator())));
 
   EXPECT_TRUE(clone.IsSynchronousSchedule());
-  EXPECT_THAT(clone.GetSchedules().at(proc1).GetCycleMap(),
-              Not(Contains(Key(literal1.node()))));
-  EXPECT_THAT(clone.GetSchedules().at(proc2).GetCycleMap(),
-              Not(Contains(Key(literal2.node()))));
-  EXPECT_EQ(clone.GetSynchronousCycle(add1.node()), 0);
-  EXPECT_EQ(clone.GetSynchronousCycle(add2.node()), 42);
+  EXPECT_EQ(clone.GetSynchronousCycle(literal1.node()), 0);
+  EXPECT_EQ(clone.GetSynchronousCycle(literal2.node()), 42);
 }
 
 }  // namespace

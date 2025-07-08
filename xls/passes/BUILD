@@ -74,6 +74,7 @@ xls_pass_registry(
         ":dfe_pass",
         ":identity_removal_pass",
         ":label_recovery_pass",
+        ":literal_uncommoning_pass",
         ":lut_conversion_pass",
         ":map_inlining_pass",
         ":next_value_optimization_pass",
@@ -413,6 +414,20 @@ cc_library(
     ],
     # Temporary until pipeline changes are further along.
     alwayslink = 1,
+)
+
+xls_pass(
+    name = "literal_uncommoning_pass",
+    srcs = ["literal_uncommoning_pass.cc"],
+    hdrs = ["literal_uncommoning_pass.h"],
+    pass_class = "LiteralUncommoningPass",
+    deps = [
+        ":optimization_pass",
+        ":pass_base",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@com_google_absl//absl/status:statusor",
+    ],
 )
 
 xls_pass(
@@ -2498,6 +2513,24 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "literal_uncommoning_pass_test",
+    srcs = ["literal_uncommoning_pass_test.cc"],
+    deps = [
+        ":literal_uncommoning_pass",
+        ":optimization_pass",
+        ":pass_base",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
     ],

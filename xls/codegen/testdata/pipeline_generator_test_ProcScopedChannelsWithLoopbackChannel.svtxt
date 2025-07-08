@@ -5,10 +5,10 @@ module myproc(
   output wire [31:0] out,
   output wire out_vld
 );
-  wire instantiation_output_22;
-  wire [31:0] instantiation_output_23;
+  wire instantiation_output_20;
+  wire [31:0] instantiation_output_21;
   wire p0_stage_done;
-  reg [31:0] p0_tuple_index_28;
+  reg [31:0] p0_tuple_index_27;
   reg [31:0] p1_add_34;
   reg p0_valid;
   reg p1_valid;
@@ -44,7 +44,7 @@ module myproc(
   assign __out_has_sent_or_is_ready = out_rdy | __out_has_been_sent_reg;
   assign p2_stage_done = p1_valid & __out_has_sent_or_is_ready;
   assign p2_not_valid = ~p1_valid;
-  assign __fifo_loopback_push_data_has_sent_or_is_ready = instantiation_output_22 | __fifo_loopback_push_data_has_been_sent_reg;
+  assign __fifo_loopback_push_data_has_sent_or_is_ready = instantiation_output_20 | __fifo_loopback_push_data_has_been_sent_reg;
   assign p1_enable = p2_stage_done | p2_not_valid;
   assign p1_stage_done = p0_valid & __fifo_loopback_push_data_has_sent_or_is_ready;
   assign p1_data_enable = p1_enable & p1_stage_done;
@@ -57,18 +57,18 @@ module myproc(
   assign __fifo_loopback_push_data_valid_and_not_has_been_sent = __fifo_loopback_push_valid_buf & __fifo_loopback_push_data_not_has_been_sent;
   assign __out_valid_and_not_has_been_sent = p1_valid & __out_not_has_been_sent;
   assign p0_data_enable = p0_enable & p0_stage_done;
-  assign __fifo_loopback_push_data_valid_and_all_active_outputs_ready = __fifo_loopback_push_valid_buf & instantiation_output_22;
-  assign __fifo_loopback_push_data_valid_and_ready_txfr = __fifo_loopback_push_data_valid_and_not_has_been_sent & instantiation_output_22;
+  assign __fifo_loopback_push_data_valid_and_all_active_outputs_ready = __fifo_loopback_push_valid_buf & instantiation_output_20;
+  assign __fifo_loopback_push_data_valid_and_ready_txfr = __fifo_loopback_push_data_valid_and_not_has_been_sent & instantiation_output_20;
   assign __out_valid_and_all_active_outputs_ready = p1_valid & out_rdy;
   assign __out_valid_and_ready_txfr = __out_valid_and_not_has_been_sent & out_rdy;
-  assign add_34 = p0_tuple_index_28 + 32'h0000_0001;
+  assign add_34 = p0_tuple_index_27 + 32'h0000_0001;
   assign p0_load_en = p0_data_enable | rst;
   assign __fifo_loopback_push_data_not_stage_load = ~__fifo_loopback_push_data_valid_and_all_active_outputs_ready;
   assign __fifo_loopback_push_data_has_been_sent_reg_load_en = __fifo_loopback_push_data_valid_and_ready_txfr | __fifo_loopback_push_data_valid_and_all_active_outputs_ready;
   assign __out_not_stage_load = ~__out_valid_and_all_active_outputs_ready;
   assign __out_has_been_sent_reg_load_en = __out_valid_and_ready_txfr | __out_valid_and_all_active_outputs_ready;
   always_ff @ (posedge clk) begin
-    p0_tuple_index_28 <= p0_load_en ? instantiation_output_23 : p0_tuple_index_28;
+    p0_tuple_index_27 <= p0_load_en ? instantiation_output_21 : p0_tuple_index_27;
     p1_add_34 <= p1_load_en ? add_34 : p1_add_34;
   end
   always_ff @ (posedge clk) begin
@@ -97,8 +97,8 @@ module myproc(
     .push_data(add_34),
     .push_valid(__fifo_loopback_push_data_valid_and_not_has_been_sent),
     .pop_ready(p0_load_en),
-    .push_ready(instantiation_output_22),
-    .pop_data(instantiation_output_23),
+    .push_ready(instantiation_output_20),
+    .pop_data(instantiation_output_21),
     .pop_valid(p0_stage_done)
   );
   assign out = p1_add_34;

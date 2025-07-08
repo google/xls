@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_PASSES_ARITH_SIMPLIFICATION_PASS_H_
-#define XLS_PASSES_ARITH_SIMPLIFICATION_PASS_H_
+#ifndef XLS_PASSES_LITERAL_UNCOMMONING_PASS_H_
+#define XLS_PASSES_LITERAL_UNCOMMONING_PASS_H_
 
 #include <string_view>
 
@@ -24,14 +24,15 @@
 
 namespace xls {
 
-// This pass performes various arithmetic optimizations such as replacement of
-// divide by a constant with non-divide operations.
-class ArithSimplificationPass : public OptimizationFunctionBasePass {
+// Pass which clones Literals such that each literal has only a single use
+// (inverse of CSE). The motivation is that Literals are trivially and freely
+// materialized so no need to share an instance.
+class LiteralUncommoningPass : public OptimizationFunctionBasePass {
  public:
-  static constexpr std::string_view kName = "arith_simp";
-  explicit ArithSimplificationPass()
-      : OptimizationFunctionBasePass(kName, "Arithmetic Simplifications") {}
-  ~ArithSimplificationPass() override = default;
+  static constexpr std::string_view kName = "literal_uncommon";
+  LiteralUncommoningPass()
+      : OptimizationFunctionBasePass(kName, "Literal uncommoning") {}
+  ~LiteralUncommoningPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
@@ -41,4 +42,4 @@ class ArithSimplificationPass : public OptimizationFunctionBasePass {
 
 }  // namespace xls
 
-#endif  // XLS_PASSES_ARITH_SIMPLIFICATION_PASS_H_
+#endif  // XLS_PASSES_LITERAL_UNCOMMONING_PASS_H_
