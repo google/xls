@@ -21,10 +21,10 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function.h"  // IWYU pragma: keep
 #include "xls/ir/function_base.h"
 #include "xls/ir/package.h"
-#include "xls/ir/proc.h"
+#include "xls/ir/proc.h"  // IWYU pragma: keep
 
 namespace xls {
 
