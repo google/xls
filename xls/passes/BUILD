@@ -44,6 +44,12 @@ cc_proto_library(
     deps = [":optimization_pass_pipeline_proto"],
 )
 
+py_proto_library(
+    name = "optimization_pass_pipeline_py_pb2",
+    visibility = ["//xls:xls_users"],
+    deps = [":optimization_pass_pipeline_proto"],
+)
+
 xls_pass_registry(
     name = "passes",
     passes = [
@@ -702,13 +708,14 @@ cc_library(
     deps = [
         ":optimization_pass",
         ":optimization_pass_pipeline_cc_proto",
-        ":pass_base",
         ":pipeline_generator",
         "//xls/common:module_initializer",
+        "//xls/common:source_location",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )

@@ -304,6 +304,7 @@ REGISTER_OPT_PASS(InliningPass, InliningPass::InlineDepth::kFull);
 XLS_REGISTER_MODULE_INITIALIZER(inlining_pass, {
   CHECK_OK(RegisterOptimizationPass<InliningPass>(
       "leaf-inlining", InliningPass::InlineDepth::kLeafOnly));
+  RegisterOptimizationPassInfoFor({"leaf-inlining"}, "InliningPass");
 });
 
 }  // namespace xls

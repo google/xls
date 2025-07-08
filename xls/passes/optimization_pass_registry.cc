@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <utility>
 
 #include "absl/status/status.h"
@@ -106,7 +107,7 @@ class CompoundPassAdder final : public OptimizationPassGenerator {
 }  // namespace
 
 absl::Status RegisterOptimizationPipelineProtoData(
-    absl::Span<uint8_t const> data) {
+    absl::Span<uint8_t const> data, std::string_view file) {
   OptimizationPipelineProto pipeline;
   if (!pipeline.ParseFromArray(data.data(), data.size())) {
     return absl::InvalidArgumentError("Failed to parse pipeline proto data");
@@ -115,6 +116,8 @@ absl::Status RegisterOptimizationPipelineProtoData(
     XLS_RETURN_IF_ERROR(GetOptimizationRegistry().Register(
         compound.short_name(), std::make_unique<CompoundPassAdder>(compound)))
         << "Failed to register compound pass " << compound.short_name();
+    GetOptimizationRegistry().AddRegistrationInfo(
+        compound.short_name(), "OptimizationPipelineProto.CompoundPass", file);
   }
   // Now add the default pipeline.
   OptimizationPipelineProto::CompoundPass compound;
@@ -123,6 +126,8 @@ absl::Status RegisterOptimizationPipelineProtoData(
   for (const auto& pass : pipeline.default_pipeline()) {
     compound.add_passes(pass);
   }
+  GetOptimizationRegistry().AddRegistrationInfo(
+      compound.short_name(), "OptimizationPipelineProto", file);
   XLS_RETURN_IF_ERROR(GetOptimizationRegistry().Register(
       compound.short_name(), std::make_unique<CompoundPassAdder>(compound)))
       << "Failed to register compound pass " << compound.short_name();

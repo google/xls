@@ -72,12 +72,20 @@ compound_passes: [
       "token_simp",
       "dce"
     ]
+    comment:
+      "Standard simplification pipeline.\n"
+      "\n"
+      "This is run a large number of times and avoids many time-consuming analyses."
   },
   {
     long_name: "Fixed-point Simplification"
     short_name: "fixedpoint_simp"
     passes: ["simp"]
     fixedpoint: true
+    comment:
+      "Standard simplification pipeline.\n"
+      "\n"
+      "This is run to a fixedpoint and avoids many time-consuming analyses."
   },
   {
     long_name: "Max-3 Simplification"
@@ -86,6 +94,10 @@ compound_passes: [
     options: {
       cap_opt_level: 3
     }
+    comment:
+      "Standard simplification pipeline.\n"
+      "\n"
+      "Opt level is capped at 3"
   },
   {
     long_name: "Max-2 Simplification"
@@ -94,6 +106,10 @@ compound_passes: [
     options: {
       cap_opt_level: 2
     }
+    comment:
+      "Standard simplification pipeline.\n"
+      "\n"
+      "Opt level is capped at 2"
   },
   {
     long_name: "Max-3 Fixed-point Simplification"
@@ -103,6 +119,10 @@ compound_passes: [
     options: {
       cap_opt_level: 3
     }
+    comment:
+      "Standard simplification pipeline.\n"
+      "\n"
+      "Opt level is capped at 3"
   },
   {
     long_name: "Max-2 Fixed-point Simplification"
@@ -112,6 +132,10 @@ compound_passes: [
     options: {
       cap_opt_level: 2
     }
+    comment:
+      "Standard simplification pipeline.\n"
+      "\n"
+      "Opt level is capped at 2"
   },
   {
     long_name: "Min-1 Max-2 Fixedpoint Simplification"
@@ -122,6 +146,10 @@ compound_passes: [
       min_opt_level: 1
       cap_opt_level: 2
     }
+    comment:
+      "Standard simplification pipeline.\n"
+      "\n"
+      "Opt level is capped at 2 and skipped if less than 1"
   },
   {
     long_name: "Min-1 Max-2 Simplification"
@@ -131,27 +159,35 @@ compound_passes: [
       min_opt_level: 1
       cap_opt_level: 2
     }
+    comment:
+      "Standard simplification pipeline.\n"
+      "\n"
+      "Opt level is capped at 2 and skipped if less than 1"
   },
   {
     long_name: "pre-inlinng passes"
     short_name: "pre-inlining"
     passes: ["dfe", "dce", "simp(>=1,<=2)"]
+    comment: "Passes performed before each inlining."
   },
   {
     long_name: "full function inlining passes"
     short_name: "full-inlining"
     passes: ["loop_unroll", "map_inlining", "inlining", "dfe"]
+    comment: "Fully inline all functions in a single step."
   },
   {
     long_name: "leaf function inlining passes"
     short_name: "one-leaf-inlining"
     passes: ["loop_unroll", "map_inlining", "leaf-inlining", "dfe"]
+    comment: "inline one level of functions."
   },
   {
     long_name: "Proc State Flattening"
     short_name: "fixedpoint_proc_state_flattening"
     passes: ["proc_state_array_flat", "proc_state_tuple_flat"]
     fixedpoint: true
+    comment: "Prepare proc state for further analysis by removing arrays and tuples."
   },
   {
     # TODO(allight): We shouldn't need to make a compound pass for just this.
@@ -161,6 +197,7 @@ compound_passes: [
     options: {
       cap_opt_level: 3
     }
+    comment: "Next value opt capped at 3"
   },
   {
     long_name: "post-inlining optimization passes"
@@ -265,6 +302,7 @@ compound_passes: [
       "dce",
       "fixedpoint_simp(3)"
     ]
+    comment: "Passes performed after inlining"
   },
   # TODO(allight): Remove once we can configure individual passes.
   {
@@ -274,17 +312,23 @@ compound_passes: [
     options: {
       min_opt_level: 1
     }
+    comment: "Passes performed after inlining"
   },
   {
     long_name: "Post-inlining passes"
     short_name: "post-inlining"
     passes: ["post-inlining-opt(>=1)", "dce", "label-recovery", "resource_sharing"]
+    comment: "Passes performed after inlining"
   },
   {
     long_name: "Iteratively inline and simplify"
     short_name: "simplify-and-inline"
     passes: ["pre-inlining", "one-leaf-inlining"]
     fixedpoint: true
+    comment:
+      "Inlining segment of the pipeline\n"
+      "\n"
+      "This is performed to fixedpoint and each run a single layer of the function hierarchy is inlined away."
   }
 ]
 default_pipeline: [

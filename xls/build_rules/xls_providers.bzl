@@ -288,5 +288,6 @@ XlsOptimizationPassRegistryInfo = provider(
     fields = {
         "passes": "List of CcInfo: The cc info for the library which registers each pass with the injection system.",
         "pipeline_binpb": "File: binary proto of the pass pipeline used for this registry.",
+        "pass_infos": "List of XlsOptimizationPassInfo: The pass-info for each pass.",
     },
 )

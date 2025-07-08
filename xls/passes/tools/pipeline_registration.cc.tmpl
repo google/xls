@@ -8,7 +8,7 @@
 namespace xls::pass_registration {
 
 XLS_REGISTER_MODULE_INITIALIZER(RegisterPipeline_{MANGLED_LABEL}, {
-  CHECK_OK(RegisterOptimizationPipelineProtoData({ACCESS_FN}()));
+  CHECK_OK(RegisterOptimizationPipelineProtoData({ACCESS_FN}(), "{FILE}"));
 });
 
 }  // namespace xls::pass_registration

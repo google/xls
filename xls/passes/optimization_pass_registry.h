@@ -17,19 +17,19 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
 
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/module_initializer.h"
-#include "xls/common/status/status_macros.h"
+#include "xls/common/source_location.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.pb.h"
-#include "xls/passes/pass_base.h"
 #include "xls/passes/pipeline_generator.h"
 
 namespace xls {
@@ -86,10 +86,14 @@ std::unique_ptr<OptimizationPassGenerator> Pass(Args... args) {
       std::forward<Args>(args)...);
 }
 
-}  // namespace optimization_registry::internal
+inline std::string ToHeader(std::string_view file_name) {
+  if (file_name.ends_with(".cc")) {
+    return absl::StrFormat("%s.h", file_name.substr(0, file_name.size() - 3));
+  }
+  return std::string(file_name);
+}
 
-absl::Status RegisterOptimizationPipelineProtoData(
-    absl::Span<uint8_t const> data);
+}  // namespace optimization_registry::internal
 
 template <typename PassT, typename... Args>
 absl::Status RegisterOptimizationPass(std::string_view name, Args... args) {
@@ -98,14 +102,40 @@ absl::Status RegisterOptimizationPass(std::string_view name, Args... args) {
       name, Pass<PassT>(std::forward<Args>(args)...));
 }
 
-template <typename PassT>
-absl::Status RegisterOptimizationPass() {
-  return RegisterOptimizationPass<PassT>(PassT::kName);
+inline void RegisterOptimizationPassInfo(std::string_view name,
+                                         std::string_view class_name,
+                                         std::string_view header_file) {
+  return GetOptimizationRegistry().AddRegistrationInfo(name, class_name,
+                                                       header_file);
 }
 
-#define REGISTER_OPT_PASS(ty, ...)                                    \
-  XLS_REGISTER_MODULE_INITIALIZER(initializer_##ty##_register, {      \
-    CHECK_OK(RegisterOptimizationPass<ty>(ty::kName, ##__VA_ARGS__)); \
+// Add source info for this name. This is for documentation generation.
+inline void RegisterOptimizationPassInfoFor(
+    absl::Span<std::string_view const> names,
+    std::string_view class_name = "UNKNOWN",
+    xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
+  for (auto name : names) {
+    RegisterOptimizationPassInfo(
+        name, class_name,
+        optimization_registry::internal::ToHeader(loc.file_name()));
+  }
+}
+
+absl::Status RegisterOptimizationPipelineProtoData(
+    absl::Span<uint8_t const> data, std::string_view file);
+
+#define REGISTER_OPT_PASS(ty, ...)                                            \
+  XLS_REGISTER_MODULE_INITIALIZER(initializer_##ty##_register, {              \
+    CHECK_OK(RegisterOptimizationPass<ty>(ty::kName, ##__VA_ARGS__));         \
+    RegisterOptimizationPassInfo(                                             \
+        ty::kName, #ty, optimization_registry::internal::ToHeader(__FILE__)); \
+  })
+
+#define REGISTER_NAMED_OPT_PASS(name, ty, ...)                            \
+  XLS_REGISTER_MODULE_INITIALIZER(initializer_##name##_##ty##_register, { \
+    CHECK_OK(RegisterOptimizationPass<ty>(name, ##__VA_ARGS__));          \
+    RegisterOptimizationPassInfo(                                         \
+        name, #ty, optimization_registry::internal::ToHeader(__FILE__));  \
   })
 
 }  // namespace xls

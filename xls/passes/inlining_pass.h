@@ -27,6 +27,12 @@
 
 namespace xls {
 
+// Inlines a package toward the `top` function/proc.
+//
+// If `full` then all functions are inlined into the `top`.
+//
+// If `leaf` then only leaf functions are inlined into their caller. This allows
+// other passes to optimize on smaller graphs.
 class InliningPass : public OptimizationPass {
  public:
   enum class InlineDepth {

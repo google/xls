@@ -1,0 +1,50 @@
+# Optimization Passes List
+
+<!-- Don't bother formatting this. -->
+<!-- mdformat global-off -->
+
+This is an automatically generated list of all optimization passes available
+with the default `opt_main`. This is generated automatically based on comments
+in the header files.
+
+If the opt level is set below 'Min opt level' the pass will act as a no-op.
+
+If the opt level is set above 'Cap opt level' the pass (or passes within the
+compound pass) will be executed with the opt level capped to the specified
+value.
+
+[TOC]
+
+{% for opt in passes %}
+## {{opt.short_name}} - {{opt.long_name}} {{"{"}}#{{header_linkify(opt.short_name)}}{{"}"}}
+
+{% if opt.description %}
+{{opt.description}}
+{% endif %}
+
+[{{opt.header_link_text}}]({{opt.header_link}})
+
+{% if opt.fixedpoint or opt.has_min_opt_level or opt.has_max_opt_level %}
+### Options Set
+
+{% if opt.fixedpoint %}
+Run to a fixedpoint.
+{% endif %}
+
+{% if opt.has_min_opt_level %}
+Min opt level: {{opt.min_opt_level}}
+{% endif %}
+
+{% if opt.has_max_opt_level %}
+Cap opt level: {{opt.max_opt_level}}
+{% endif %}
+{% endif %}
+
+{% if opt.compound %}
+### Invoked Passes
+
+{% for p in opt.compound %}
+- [{{p}}](#{{header_linkify(p)}}){% endfor %}
+{% endif %}
+
+{% endfor %}

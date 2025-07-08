@@ -30,6 +30,7 @@ ALLOWED_INCLUDE_STARTS = frozenset([
     'benchmark/',
     'Eigen/',
     'llvm/',
+    'clang/',
     'fuzztest/',
     'verible/',
     're2/',

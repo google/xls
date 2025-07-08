@@ -475,6 +475,8 @@ XLS_REGISTER_MODULE_INITIALIZER(bdd_simp, {
       "bdd_simp(2)")));
   CHECK_OK((RegisterOptimizationPass<CapOptLevel<3, BddSimplificationPass>>(
       "bdd_simp(3)")));
+  RegisterOptimizationPassInfoFor({"bdd_simp", "bdd_simp(2)", "bdd_simp(3)"},
+                                  "BddSimplificationPass");
 });
 
 }  // namespace xls

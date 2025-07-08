@@ -51,6 +51,7 @@ def _generate_registration_impl(ctx):
             "{NAME}": ctx.attr.pass_class,
             "{WARNING}": "Generated file. Do not edit.",
             "{HEADERS}": headers,
+            "{FIRST_HEADER_FILE}": ctx.attr.lib[CcInfo].compilation_context.direct_public_headers[0].path,
         },
     )
 
@@ -203,7 +204,9 @@ def _xls_pass_registry_impl(ctx):
     )
     if ctx.file.pipeline_binpb:
         pipeline_binpb = ctx.file.pipeline_binpb
+        pipeline_filename = pipeline_binpb.path
     elif ctx.file.pipeline:
+        pipeline_filename = ctx.file.pipeline.path
         pipeline_binpb = ctx.actions.declare_file(
             ctx.file.pipeline.basename + "_" + ctx.attr.name + ".binpb",
         )
@@ -216,10 +219,12 @@ def _xls_pass_registry_impl(ctx):
         )
     else:
         pipeline_binpb = None
+        pipeline_filename = None
 
     files_out = []
     inputs = []
     passes = []
+    pass_infos = []
 
     linking_ctxs = []
     if pipeline_binpb:
@@ -253,6 +258,7 @@ def _xls_pass_registry_impl(ctx):
                 "{HEADER}": emb_header.path,
                 "{ACCESS_FN}": proto_data_fn,
                 "{MANGLED_LABEL}": accessor,
+                "{FILE}": pipeline_filename,
             },
         )
         deps = [embedded_binproto_data.compilation_context]
@@ -283,13 +289,22 @@ def _xls_pass_registry_impl(ctx):
         if XlsOptimizationPassInfo in c:
             inputs.append(c[XlsOptimizationPassInfo].pass_registration[CcInfo].linking_context)
             passes.append(c[XlsOptimizationPassInfo].pass_registration[CcInfo])
+            pass_infos.append(XlsOptimizationPassInfo(
+                pass_impl = c[XlsOptimizationPassInfo].pass_impl[CcInfo],
+                pass_registration = c[XlsOptimizationPassInfo].pass_registration[CcInfo],
+            ))
         elif XlsOptimizationPassRegistryInfo in c:
             for x in c[XlsOptimizationPassRegistryInfo].passes:
                 inputs.append(x.linking_context)
             passes.extend(c[XlsOptimizationPassRegistryInfo].passes)
+            pass_infos.append(c[XlsOptimizationPassRegistryInfo].pass_infos)
         else:
             inputs.append(c[CcInfo].linking_context)
             passes.append(c[CcInfo])
+            pass_infos.append(XlsOptimizationPassInfo(
+                pass_impl = c[CcInfo],
+                pass_registration = c[CcInfo],
+            ))
     linking_ctxs.extend(inputs)
 
     # For now we don't compile anything.
@@ -308,7 +323,11 @@ def _xls_pass_registry_impl(ctx):
     files_out.extend(out.library_to_link.pic_objects)
     return [
         CcInfo(compilation_context = comp_ctx, linking_context = link),
-        XlsOptimizationPassRegistryInfo(passes = passes, pipeline_binpb = pipeline_binpb),
+        XlsOptimizationPassRegistryInfo(
+            passes = passes,
+            pipeline_binpb = pipeline_binpb,
+            pass_infos = pass_infos,
+        ),
         DefaultInfo(files = depset(
             # Ensure just building the registry does force all the passes to build.
             direct = files_out,

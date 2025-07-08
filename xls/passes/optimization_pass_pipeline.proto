@@ -45,6 +45,8 @@ message OptimizationPipelineProto {
     optional bool fixedpoint = 4;
     // Opt level options for the compound pass
     optional GlobalOptions options = 5;
+    // Documentation comment.
+    optional string comment = 6;
   }
 
   // Compound passes to add to the environment of possible passes in the default

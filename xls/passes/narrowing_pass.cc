@@ -2244,6 +2244,10 @@ XLS_REGISTER_MODULE_INITIALIZER(narrowing_pass, {
   CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
       "narrow(OptionalContext)",
       NarrowingPass::AnalysisType::kRangeWithOptionalContext));
+  RegisterOptimizationPassInfoFor(
+      {"narrow", "narrow(Ternary)", "narrow(Range)", "narrow(Context)",
+       "narrow(OptionalContext)"},
+      "NarrowingPass");
 });
 
 }  // namespace xls

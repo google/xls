@@ -3,7 +3,7 @@ repos:
     rev: v5.0.0
     hooks:
       - id: end-of-file-fixer
-        exclude: '^(xls/contrib/.*|\.pre-commit-config.yaml|docs_src/bazel_rules_macros.md|.*\.(sh|ir|txt|patch|csv))$'
+        exclude: '^(xls/contrib/.*|\.pre-commit-config.yaml|docs_src/passes_list.md|docs_src/bazel_rules_macros.md|.*\.(sh|ir|txt|patch|csv))$'
   - repo: local
     hooks:
       - id: check-cpp-absolute-includes

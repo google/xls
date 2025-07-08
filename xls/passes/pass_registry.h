@@ -48,6 +48,12 @@ class PassGenerator {
 template <typename OptionsT, typename... ContextT>
 class PassRegistry final {
  public:
+  struct RegistrationInfo {
+    std::string short_name;
+    std::string class_name;
+    std::string header_file;
+    std::optional<std::string> comments;
+  };
   using GeneratorPtr = std::unique_ptr<PassGenerator<OptionsT, ContextT...>>;
   constexpr PassRegistry() = default;
   constexpr ~PassRegistry() = default;
@@ -86,9 +92,43 @@ class PassRegistry final {
     return res;
   }
 
+  std::vector<RegistrationInfo> GetRegisteredInfos() const {
+    absl::MutexLock mu(&registry_lock_);
+    std::vector<RegistrationInfo> res;
+    res.reserve(registration_info_.size());
+    for (const auto& [_, v] : registration_info_) {
+      res.push_back(v);
+    }
+    for (const auto& [k, _] : generators_) {
+      if (!registration_info_.contains(k)) {
+        res.push_back({
+            .short_name = std::string(k),
+            .class_name = "UNKNOWN",
+            .header_file = "UNKNOWN",
+        });
+      }
+    }
+    absl::c_sort(res, [](const RegistrationInfo& a, const RegistrationInfo& b) {
+      return a.short_name < b.short_name;
+    });
+    return res;
+  }
+
+  void AddRegistrationInfo(std::string_view name, std::string_view class_name,
+                           std::string_view header_file) {
+    absl::MutexLock mu(&registry_lock_);
+    registration_info_[name] = {
+        .short_name = std::string(name),
+        .class_name = std::string(class_name),
+        .header_file = std::string(header_file),
+    };
+  }
+
  private:
   mutable absl::Mutex registry_lock_;
   absl::flat_hash_map<std::string, GeneratorPtr> generators_
+      ABSL_GUARDED_BY(registry_lock_);
+  absl::flat_hash_map<std::string, RegistrationInfo> registration_info_
       ABSL_GUARDED_BY(registry_lock_);
 };
 

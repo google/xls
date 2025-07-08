@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype binary and test
+# pytype binary, test, library
 load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_equivalence_test")
 
 package(
@@ -919,4 +919,9 @@ filegroup(
     name = "type_inference_v2_ir_diff_sh",
     srcs = ["type_inference_v2_ir_diff.sh"],
     visibility = ["//xls:xls_users"],
+)
+
+py_library(
+    name = "check_cpp_includes",
+    srcs = ["check_cpp_includes.py"],
 )
