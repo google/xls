@@ -330,7 +330,7 @@ def get_ir_equivalence_test_cmd(
         ir_equivalence_args.setdefault("top", ctx.attr.top)
     my_args = args_to_string(ir_equivalence_args)
 
-    cmd = "{} {} {} {} --match_exit_code={} --mismatch_exit_code={}\n".format(
+    cmd = "{} {} {} {} --match_exit_code={} --mismatch_exit_code={} ".format(
         ir_equivalence_tool.short_path,
         src_0.ir_file.short_path,
         src_1.ir_file.short_path,
@@ -342,6 +342,7 @@ def get_ir_equivalence_test_cmd(
     # Append command-line arguments.
     if append_cmd_line_args:
         cmd = append_cmd_line_args_to(cmd)
+    cmd += "\n"
 
     # Get runfiles
     ir_equivalence_tool_runfiles = ctx.attr._xls_ir_equivalence_tool[DefaultInfo].default_runfiles
