@@ -391,6 +391,7 @@ cc_library(
     srcs = ["extract_conversion_order.cc"],
     hdrs = ["extract_conversion_order.h"],
     deps = [
+        ":convert_options",
         "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
@@ -423,6 +424,7 @@ cc_test(
     name = "extract_conversion_order_test",
     srcs = ["extract_conversion_order_test.cc"],
     deps = [
+        ":convert_options",
         ":extract_conversion_order",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

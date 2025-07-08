@@ -27,6 +27,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/frontend/proc_id.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -141,9 +142,9 @@ class ConversionRecord {
 // Args:
 //  module: Module to convert the (non-parametric) functions for.
 //  type_info: Mapping from node to type.
-//  include_tests: should test-functions be included.
+//  options: e.g., should test-functions be included.
 absl::StatusOr<std::vector<ConversionRecord>> GetOrder(
-    Module* module, TypeInfo* type_info, bool include_tests = false);
+    Module* module, TypeInfo* type_info, const ConvertOptions& options);
 
 // Returns a reverse topological order for functions to be converted to IR given
 // "f" as the entry function.
@@ -155,7 +156,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(
 //  f: The top level function.
 //  type_info: Mapping from node to type.
 absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
-    std::variant<Function*, Proc*> entry, TypeInfo* type_info);
+    std::variant<Function*, Proc*> entry, TypeInfo* type_info,
+    const ConvertOptions& options);
 
 // Top level procs are procs where their config or next function is not invoked
 // within the module.

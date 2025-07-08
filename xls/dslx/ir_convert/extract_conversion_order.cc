@@ -44,6 +44,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc_id.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -683,7 +684,8 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
 }
 
 static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
-    std::variant<Proc*, TestProc*> entry, TypeInfo* type_info, bool is_top) {
+    std::variant<Proc*, TestProc*> entry, TypeInfo* type_info, bool is_top,
+    const ConvertOptions& options) {
   std::vector<ConversionRecord> ready;
   Proc* p;
   if (std::holds_alternative<TestProc*>(entry)) {
@@ -712,9 +714,16 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
   std::vector<ConversionRecord> next_fns;
   for (const auto& record : ready) {
     if (record.f()->tag() == FunctionTag::kProcConfig) {
-      config_fns.push_back(record);
+      if (!options.lower_to_proc_scoped_channels) {
+        // Only convert "config" as a function if not lowering to proc-scoped
+        // channels
+        config_fns.push_back(record);
+      }
     } else if (record.f()->tag() == FunctionTag::kProcNext) {
       next_fns.push_back(record);
+    } else if (record.f()->tag() == FunctionTag::kProcInit &&
+               options.lower_to_proc_scoped_channels) {
+      // If lowering to proc-scoped channels, skip processing 'init' here.
     } else {
       // Regular functions can go wherever.
       final_order.push_back(record);
@@ -727,9 +736,8 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
   return final_order;
 }
 
-absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
-                                                       TypeInfo* type_info,
-                                                       bool include_tests) {
+absl::StatusOr<std::vector<ConversionRecord>> GetOrder(
+    Module* module, TypeInfo* type_info, const ConvertOptions& options) {
   XLS_RET_CHECK_EQ(type_info->module(), module);
   std::vector<ConversionRecord> ready;
 
@@ -767,7 +775,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
             [](TestProc*) { return absl::OkStatus(); },
 
             [&](TestFunction* test) {
-              if (!include_tests) {
+              if (!options.convert_tests) {
                 // Nothing to do.
                 return absl::OkStatus();
               }
@@ -799,8 +807,9 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
     XLS_ASSIGN_OR_RETURN(TypeInfo * proc_ti,
                          type_info->GetTopLevelProcTypeInfo(proc));
 
-    XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> proc_ready,
-                         GetOrderForProc(proc, proc_ti, /*is_top=*/false));
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<ConversionRecord> proc_ready,
+        GetOrderForProc(proc, proc_ti, /*is_top=*/false, options));
     ready.insert(ready.end(), proc_ready.begin(), proc_ready.end());
   }
 
@@ -816,7 +825,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
 }
 
 absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
-    std::variant<Function*, Proc*> entry, TypeInfo* type_info) {
+    std::variant<Function*, Proc*> entry, TypeInfo* type_info,
+    const ConvertOptions& options) {
   std::vector<ConversionRecord> ready;
   if (std::holds_alternative<Function*>(entry)) {
     Function* f = std::get<Function*>(entry);
@@ -835,7 +845,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
   Proc* p = std::get<Proc*>(entry);
   XLS_ASSIGN_OR_RETURN(TypeInfo * new_ti,
                        type_info->GetTopLevelProcTypeInfo(p));
-  XLS_ASSIGN_OR_RETURN(ready, GetOrderForProc(p, new_ti, /*is_top=*/true));
+  XLS_ASSIGN_OR_RETURN(ready,
+                       GetOrderForProc(p, new_ti, /*is_top=*/true, options));
   RemoveFunctionDuplicates(&ready);
   return ready;
 }

@@ -27,6 +27,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
 
@@ -56,7 +57,7 @@ fn main() -> u32 { f() }
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module, tm.type_info));
+                           GetOrder(tm.module, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(3, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "g");
   EXPECT_EQ(order[1].f()->identifier(), "f");
@@ -73,7 +74,7 @@ fn main() -> u32 { f(u2:0) }
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module, tm.type_info));
+                           GetOrder(tm.module, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "f");
   EXPECT_EQ(order[0].parametric_env(),
@@ -94,7 +95,7 @@ fn main() -> u32 { f(u2:0) }
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module, tm.type_info));
+                           GetOrder(tm.module, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(3, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "g");
   order[0].parametric_env(),
@@ -119,7 +120,7 @@ fn main() -> bool { f(u2:3) }
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module, tm.type_info));
+                           GetOrder(tm.module, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(3, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "is_pow2");
   EXPECT_EQ(order[0].parametric_env(),
@@ -142,7 +143,7 @@ fn main() -> u32 { fail!("failure", u32:0) }
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module, tm.type_info));
+                           GetOrder(tm.module, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(1, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "main");
   EXPECT_EQ(order[0].parametric_env(), ParametricEnv());
@@ -161,7 +162,7 @@ fn main() -> u32 { f() }
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrderForEntry(f, tm.type_info));
+                           GetOrderForEntry(f, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(3, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "g");
   EXPECT_FALSE(order[0].IsTop());
@@ -170,7 +171,8 @@ fn main() -> u32 { f() }
   EXPECT_EQ(order[2].f()->identifier(), "main");
   EXPECT_TRUE(order[2].IsTop());
   XLS_ASSERT_OK_AND_ASSIGN(f, tm.module->GetMemberOrError<Function>("f"));
-  XLS_ASSERT_OK_AND_ASSIGN(order, GetOrderForEntry(f, tm.type_info));
+  XLS_ASSERT_OK_AND_ASSIGN(order,
+                           GetOrderForEntry(f, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "g");
   EXPECT_FALSE(order[0].IsTop());
@@ -193,7 +195,7 @@ fn entry() -> u32 { MY_VALUE }
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("entry"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrderForEntry(f, tm.type_info));
+                           GetOrderForEntry(f, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(1, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "entry");
   EXPECT_TRUE(order[0].IsTop());
@@ -210,7 +212,7 @@ fn main() -> u32 { u32:42 }
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrderForEntry(f, tm.type_info));
+                           GetOrderForEntry(f, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(1, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "main");
   EXPECT_TRUE(order[0].IsTop());
@@ -231,7 +233,7 @@ fn main() -> u32 { f() }
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrderForEntry(f, tm.type_info));
+                           GetOrderForEntry(f, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(4, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "h");
   EXPECT_FALSE(order[0].IsTop());
@@ -258,7 +260,7 @@ fn main() -> u32 { f() }
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrderForEntry(f, tm.type_info));
+                           GetOrderForEntry(f, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(5, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "i");
   EXPECT_FALSE(order[0].IsTop());
@@ -272,8 +274,6 @@ fn main() -> u32 { f() }
   EXPECT_TRUE(order[4].IsTop());
 }
 
-// TODO(vmirian) 2-2-2022 Consider creating a struct containing the program,
-// the golden result to verify for proc order tests.
 TEST(ExtractConversionOrderTest, BasicProcWithEntry) {
   constexpr std::string_view kProgram = R"(
 proc foo {
@@ -298,7 +298,8 @@ proc main {
   std::vector<ConversionRecord> order;
   XLS_ASSERT_OK_AND_ASSIGN(Proc * main,
                            tm.module->GetMemberOrError<Proc>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(order, GetOrderForEntry(main, tm.type_info));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      order, GetOrderForEntry(main, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(5, order.size());
   ASSERT_TRUE(order[0].proc_id().has_value());
   ASSERT_TRUE(order[1].proc_id().has_value());
@@ -319,6 +320,45 @@ proc main {
   EXPECT_EQ(order[4].f()->identifier(), "foo.next");
   EXPECT_EQ(order[4].proc_id().value().ToString(), "main->foo:0");
   EXPECT_FALSE(order[4].IsTop());
+}
+
+TEST(ExtractConversionOrderTest, BasicProcWithEntryProcScopedChannels) {
+  constexpr std::string_view kProgram = R"(
+proc foo {
+  init { () }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc main {
+  init { () }
+  config() {
+    spawn foo();
+    ()
+  }
+  next(state: ()) { () }
+}
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  std::vector<ConversionRecord> order;
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * main,
+                           tm.module->GetMemberOrError<Proc>("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      order,
+      GetOrderForEntry(main, tm.type_info,
+                       ConvertOptions{.lower_to_proc_scoped_channels = true}));
+  ASSERT_EQ(2, order.size());
+  ASSERT_TRUE(order[0].proc_id().has_value());
+  ASSERT_TRUE(order[1].proc_id().has_value());
+  EXPECT_EQ(order[0].f()->identifier(), "main.next");
+  EXPECT_EQ(order[0].proc_id().value().ToString(), "main:0");
+  EXPECT_TRUE(order[0].IsTop());
+  EXPECT_EQ(order[1].f()->identifier(), "foo.next");
+  EXPECT_EQ(order[1].proc_id().value().ToString(), "main->foo:0");
+  EXPECT_FALSE(order[1].IsTop());
 }
 
 TEST(ExtractConversionOrderTest, BasicProc) {
@@ -343,7 +383,7 @@ proc main {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module, tm.type_info));
+                           GetOrder(tm.module, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(5, order.size());
   ASSERT_TRUE(order[0].proc_id().has_value());
   ASSERT_TRUE(order[1].proc_id().has_value());
@@ -423,7 +463,8 @@ proc main {
   std::vector<ConversionRecord> order;
   XLS_ASSERT_OK_AND_ASSIGN(Proc * main,
                            tm.module->GetMemberOrError<Proc>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(order, GetOrderForEntry(main, tm.type_info));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      order, GetOrderForEntry(main, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(21, order.size());
   ASSERT_TRUE(order[0].proc_id().has_value());
   ASSERT_FALSE(order[1].proc_id().has_value());
@@ -559,7 +600,7 @@ proc main {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module, tm.type_info));
+                           GetOrder(tm.module, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(21, order.size());
   ASSERT_FALSE(order[0].proc_id().has_value());
   ASSERT_FALSE(order[1].proc_id().has_value());
@@ -664,7 +705,7 @@ proc main {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module, tm.type_info));
+                           GetOrder(tm.module, tm.type_info, ConvertOptions{}));
   ASSERT_EQ(14, order.size());
   ASSERT_TRUE(order[0].proc_id().has_value());
   ASSERT_TRUE(order[1].proc_id().has_value());
@@ -763,7 +804,7 @@ proc A {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module, tm.type_info));
+                           GetOrder(tm.module, tm.type_info, ConvertOptions{}));
   EXPECT_THAT(order,
               ElementsAre(IdentifierAndProcId("C.init", "A->D:0->B:0->C:0"),
                           IdentifierAndProcId("B.init", "A->D:0->B:0"),
