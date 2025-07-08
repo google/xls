@@ -16,7 +16,7 @@
 
 #include <string>
 
-#include "llvm/include/llvm/ADT/StringRef.h"
+#include "llvm/include/llvm/ADT/StringRef.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "xls/codegen/vast/vast.h"
 
