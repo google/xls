@@ -824,7 +824,7 @@ pub proc HuffmanFseDecoder<
                 } else { state }
             },
             FSM::FILL_ZEROS => {
-                if state.current_iteration == u8:0x7F {
+                if state.current_iteration >= u8:0x7F {
                     State {
                         fsm: FSM::SEND_FINISH,
                         ..state
