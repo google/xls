@@ -936,6 +936,41 @@ bool xls_package_get_type_for_value(struct xls_package* package,
   return true;
 }
 
+bool xls_type_get_kind(struct xls_type* type, char** error_out,
+                       xls_value_kind* kind_out) {
+  CHECK(type != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(kind_out != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  *error_out = nullptr;
+  switch (xls_type->kind()) {
+    case xls::TypeKind::kBits:
+      *kind_out = xls_value_kind_bits;
+      break;
+    case xls::TypeKind::kTuple:
+      *kind_out = xls_value_kind_tuple;
+      break;
+    case xls::TypeKind::kArray:
+      *kind_out = xls_value_kind_array;
+      break;
+    case xls::TypeKind::kToken:
+      *kind_out = xls_value_kind_token;
+      break;
+    default:
+      *error_out = xls::ToOwnedCString(
+          absl::StrFormat("Unknown type kind: %d", xls_type->kind()));
+      *kind_out = xls_value_kind_invalid;
+      return false;
+  }
+  return true;
+}
+
+int64_t xls_type_get_leaf_count(struct xls_type* type) {
+  CHECK(type != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  return xls_type->leaf_count();
+}
+
 bool xls_type_to_string(struct xls_type* type, char** error_out,
                         char** result_out) {
   CHECK(type != nullptr);

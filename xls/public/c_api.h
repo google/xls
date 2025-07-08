@@ -390,12 +390,19 @@ bool xls_package_get_type_for_value(struct xls_package* package,
                                     struct xls_value* value, char** error_out,
                                     struct xls_type** result_out);
 
+// Returns the kind of the given type.
+bool xls_type_get_kind(struct xls_type* type, char** error_out,
+                       xls_value_kind* kind_out);
+
 // Returns the string representation of the type.
 bool xls_type_to_string(struct xls_type* type, char** error_out,
                         char** result_out);
 
 // Returns the count of bits required to represent the type.
 int64_t xls_type_get_flat_bit_count(struct xls_type* type);
+
+// Returns the number of Bits types contained in the type.
+int64_t xls_type_get_leaf_count(struct xls_type* type);
 
 // Returns the type of the given function.
 //

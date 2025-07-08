@@ -724,6 +724,21 @@ fn f(x: bits[32] id=3) -> bits[32] {
   ASSERT_TRUE(xls_function_type_get_param_type(f_type, /*index=*/0, &error,
                                                &param_type));
   ASSERT_NE(param_type, nullptr);
+
+  xls_value_kind kind;
+  char* kind_error = nullptr;
+  ASSERT_TRUE(xls_type_get_kind(param_type, &kind_error, &kind));
+  absl::Cleanup free_kind_error([kind_error] { xls_c_str_free(kind_error); });
+  EXPECT_EQ(kind_error, nullptr);
+  ASSERT_EQ(kind, xls_value_kind_bits);
+
+  int64_t bit_count = xls_type_get_flat_bit_count(param_type);
+  EXPECT_EQ(bit_count, 32);
+
+  int64_t leaf_count = xls_type_get_leaf_count(param_type);
+  EXPECT_EQ(leaf_count, 1);
+
+  EXPECT_EQ(kind, xls_value_kind_bits);
   char* param_type_str = nullptr;
   ASSERT_TRUE(xls_type_to_string(param_type, &error, &param_type_str));
   absl::Cleanup free_param_type_str(

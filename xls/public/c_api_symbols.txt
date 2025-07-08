@@ -201,6 +201,8 @@ xls_schedule_and_codegen_result_free
 xls_schedule_and_codegen_result_get_verilog_text
 xls_trace_messages_free
 xls_type_get_flat_bit_count
+xls_type_get_kind
+xls_type_get_leaf_count
 xls_type_to_string
 xls_value_clone
 xls_value_eq
