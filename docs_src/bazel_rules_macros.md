@@ -263,9 +263,9 @@ Examples:
 <pre>
 load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_opt_ir_test")
 
-xls_dslx_opt_ir_test(<a href="#xls_dslx_opt_ir_test-name">name</a>, <a href="#xls_dslx_opt_ir_test-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_dslx_opt_ir_test-dep">dep</a>, <a href="#xls_dslx_opt_ir_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_opt_ir_test-evaluator">evaluator</a>, <a href="#xls_dslx_opt_ir_test-expect_equivalent">expect_equivalent</a>,
-                     <a href="#xls_dslx_opt_ir_test-input_validator">input_validator</a>, <a href="#xls_dslx_opt_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_dslx_opt_ir_test-ir_equivalence_args">ir_equivalence_args</a>, <a href="#xls_dslx_opt_ir_test-ir_eval_args">ir_eval_args</a>,
-                     <a href="#xls_dslx_opt_ir_test-scheduling_options_proto">scheduling_options_proto</a>, <a href="#xls_dslx_opt_ir_test-top">top</a>)
+xls_dslx_opt_ir_test(<a href="#xls_dslx_opt_ir_test-name">name</a>, <a href="#xls_dslx_opt_ir_test-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_dslx_opt_ir_test-codegen_options_proto">codegen_options_proto</a>, <a href="#xls_dslx_opt_ir_test-dep">dep</a>, <a href="#xls_dslx_opt_ir_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_opt_ir_test-evaluator">evaluator</a>,
+                     <a href="#xls_dslx_opt_ir_test-expect_equivalent">expect_equivalent</a>, <a href="#xls_dslx_opt_ir_test-input_validator">input_validator</a>, <a href="#xls_dslx_opt_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_dslx_opt_ir_test-ir_equivalence_args">ir_equivalence_args</a>,
+                     <a href="#xls_dslx_opt_ir_test-ir_eval_args">ir_eval_args</a>, <a href="#xls_dslx_opt_ir_test-scheduling_options_proto">scheduling_options_proto</a>, <a href="#xls_dslx_opt_ir_test-top">top</a>)
 </pre>
 
 A build rule that tests a xls_dslx_opt_ir target.
@@ -301,6 +301,7 @@ Examples:
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_opt_ir_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="xls_dslx_opt_ir_test-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/dev_tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
+| <a id="xls_dslx_opt_ir_test-codegen_options_proto"></a>codegen_options_proto |  Protobuf filename of codegen arguments to the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/dev_tools/benchmark_main.cc.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 | <a id="xls_dslx_opt_ir_test-dep"></a>dep |  The xls_dslx_opt_ir target to test.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 | <a id="xls_dslx_opt_ir_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
 | <a id="xls_dslx_opt_ir_test-evaluator"></a>evaluator |  What type of evaluator to use. 'ir-jit' will execute the tests faster but has higher startup time and less helpful failure messages. Options: ["dslx-interpreter" (default), "ir-jit", "ir-interpreter"]. Note: The 'compare' dslx_test_arg is only available with the default 'dslx-interpreter' evaluator.   | String | optional |  `"dslx-interpreter"`  |
