@@ -433,17 +433,6 @@ CloneNodesIntoBlockHandler::AddChannelPortsAndFifoInstantiations() {
   return absl::OkStatus();
 }
 
-absl::Status CloneNodesIntoBlockHandler::AddLiterals() {
-  for (Node* node : function_base_->nodes()) {
-    if (!node->Is<Literal>()) {
-      continue;
-    }
-    XLS_ASSIGN_OR_RETURN(node_map_[node],
-                         node->CloneInNewFunction({}, block()));
-  }
-  return absl::OkStatus();
-}
-
 absl::Status CloneNodesIntoBlockHandler::ChannelConnection::ReplaceDataSignal(
     Node* value) const {
   XLS_RET_CHECK_EQ(direction, ChannelDirection::kSend);
@@ -628,9 +617,6 @@ absl::Status CloneNodesIntoBlockHandler::CloneNodes(
 
 absl::Status CloneNodesIntoBlockHandler::AddNextPipelineStage(int64_t stage) {
   for (Node* function_base_node : function_base_->nodes()) {
-    if (function_base_node->Is<Literal>()) {
-      continue;
-    }
     if (GetSchedule().IsLiveOutOfCycle(function_base_node, stage)) {
       Node* node = node_map_.at(function_base_node);
 

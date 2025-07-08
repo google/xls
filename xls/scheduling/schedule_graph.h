@@ -35,12 +35,6 @@
 
 namespace xls {
 
-// Returns true if `node` is untimed, i.e., it should not be a subject of the
-// scheduling problem and exists outside the scope of the schedule. For now,
-// it's just literals, but it could be other notions of "constant" or
-// "time-invariant" nodes, like a runtime constant.
-bool IsUntimed(Node* node);
-
 // The ScheduleGraph abstracts the information required by the scheduler from
 // the IR.
 

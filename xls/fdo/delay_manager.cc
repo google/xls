@@ -35,7 +35,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/topo_sort.h"
-#include "xls/scheduling/schedule_graph.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
@@ -223,14 +222,8 @@ absl::StatusOr<std::vector<PathInfo>> DelayManager::GetTopNPaths(
   std::vector<std::tuple<float, int64_t, Node *, Node *>> worklist;
   for (int64_t i = 0; i < function_->node_count(); ++i) {
     Node *from = index_to_node_[i];
-    if (IsUntimed(from)) {
-      continue;
-    }
     for (int64_t j = 0; j < function_->node_count(); ++j) {
       Node *to = index_to_node_[j];
-      if (IsUntimed(to)) {
-        continue;
-      }
       int64_t delay = indices_to_delay_[i][j];
 
       if (delay < 0) {

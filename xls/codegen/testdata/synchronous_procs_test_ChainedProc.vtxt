@@ -10,7 +10,7 @@ module subproc1(
   output wire [31:0] sub1_out,
   output wire sub1_out_vld
 );
-  reg [31:0] p0_tuple_index_102;
+  reg [31:0] p0_tuple_index_101;
   reg [31:0] p1_add_108;
   reg [31:0] p2_neg_113;
   reg p0_valid;
@@ -45,9 +45,9 @@ module subproc1(
   assign p0_data_enable = p0_enable & sub1_in_vld;
   assign p0_load_en = p0_data_enable | rst;
   assign neg_113 = -p1_add_108;
-  assign add_108 = p0_tuple_index_102 + 32'h0000_0001;
+  assign add_108 = p0_tuple_index_101 + 32'h0000_0001;
   always @ (posedge clk) begin
-    p0_tuple_index_102 <= p0_load_en ? sub1_in : p0_tuple_index_102;
+    p0_tuple_index_101 <= p0_load_en ? sub1_in : p0_tuple_index_101;
     p1_add_108 <= p1_load_en ? add_108 : p1_add_108;
     p2_neg_113 <= p2_load_en ? neg_113 : p2_neg_113;
   end
@@ -85,7 +85,7 @@ module subproc2(
     end
   endfunction
   // lint_on MULTIPLY
-  reg [31:0] p0_tuple_index_41;
+  reg [31:0] p0_tuple_index_40;
   reg [31:0] p1_umul_47;
   reg p0_valid;
   reg p1_valid;
@@ -108,9 +108,9 @@ module subproc2(
   assign p0_enable = p1_load_en | p1_not_valid;
   assign p0_data_enable = p0_enable & sub2_in_vld;
   assign p0_load_en = p0_data_enable | rst;
-  assign umul_47 = umul32b_32b_x_32b(p0_tuple_index_41, 32'h0000_0002);
+  assign umul_47 = umul32b_32b_x_32b(p0_tuple_index_40, 32'h0000_0002);
   always @ (posedge clk) begin
-    p0_tuple_index_41 <= p0_load_en ? sub2_in : p0_tuple_index_41;
+    p0_tuple_index_40 <= p0_load_en ? sub2_in : p0_tuple_index_40;
     p1_umul_47 <= p1_load_en ? umul_47 : p1_umul_47;
   end
   always @ (posedge clk) begin
@@ -138,21 +138,21 @@ module my_proc(
   output wire [31:0] top_out,
   output wire top_out_vld
 );
-  wire instantiation_output_185;
-  wire [31:0] instantiation_output_186;
-  wire instantiation_output_187;
-  wire instantiation_output_194;
-  wire [31:0] instantiation_output_195;
-  wire instantiation_output_196;
-  wire instantiation_output_203;
-  wire [31:0] instantiation_output_204;
-  wire instantiation_output_205;
-  wire instantiation_output_211;
-  wire [31:0] instantiation_output_212;
-  wire instantiation_output_213;
-  wire instantiation_output_218;
-  wire [31:0] instantiation_output_219;
-  wire instantiation_output_220;
+  wire instantiation_output_184;
+  wire [31:0] instantiation_output_185;
+  wire instantiation_output_186;
+  wire instantiation_output_193;
+  wire [31:0] instantiation_output_194;
+  wire instantiation_output_195;
+  wire instantiation_output_202;
+  wire [31:0] instantiation_output_203;
+  wire instantiation_output_204;
+  wire instantiation_output_210;
+  wire [31:0] instantiation_output_211;
+  wire instantiation_output_212;
+  wire instantiation_output_217;
+  wire [31:0] instantiation_output_218;
+  wire instantiation_output_219;
   reg [31:0] p0_tuple_index_223;
   reg [31:0] p1_neg_229;
   reg [31:0] p2_neg_229;
@@ -257,7 +257,7 @@ module my_proc(
   assign p11_load_en = p11_data_enable | rst;
   assign p11_not_valid = ~p10_valid;
   assign p10_enable = p11_load_en | p11_not_valid;
-  assign p10_stage_done = p9_valid & instantiation_output_205;
+  assign p10_stage_done = p9_valid & instantiation_output_204;
   assign p10_data_enable = p10_enable & p10_stage_done;
   assign p10_load_en = p10_data_enable | rst;
   assign p10_not_valid = ~p9_valid;
@@ -289,7 +289,7 @@ module my_proc(
   assign p3_data_enable = p3_enable & p2_valid;
   assign p3_load_en = p3_data_enable | rst;
   assign p3_not_valid = ~p2_valid;
-  assign __fifo_tmp1_push_data_has_sent_or_is_ready = instantiation_output_185 | __fifo_tmp1_push_data_has_been_sent_reg;
+  assign __fifo_tmp1_push_data_has_sent_or_is_ready = instantiation_output_184 | __fifo_tmp1_push_data_has_been_sent_reg;
   assign p2_enable = p3_load_en | p3_not_valid;
   assign p2_stage_done = p1_valid & __fifo_tmp1_push_data_has_sent_or_is_ready;
   assign p2_data_enable = p2_enable & p2_stage_done;
@@ -306,8 +306,8 @@ module my_proc(
   assign __fifo_tmp1_push_data_valid_and_not_has_been_sent = __fifo_tmp1_push_valid_buf & __fifo_tmp1_push_data_not_has_been_sent;
   assign __top_out_valid_and_not_has_been_sent = p11_valid & __top_out_not_has_been_sent;
   assign p0_data_enable = p0_enable & top_in_vld;
-  assign __fifo_tmp1_push_data_valid_and_all_active_outputs_ready = __fifo_tmp1_push_valid_buf & instantiation_output_185;
-  assign __fifo_tmp1_push_data_valid_and_ready_txfr = __fifo_tmp1_push_data_valid_and_not_has_been_sent & instantiation_output_185;
+  assign __fifo_tmp1_push_data_valid_and_all_active_outputs_ready = __fifo_tmp1_push_valid_buf & instantiation_output_184;
+  assign __fifo_tmp1_push_data_valid_and_ready_txfr = __fifo_tmp1_push_data_valid_and_not_has_been_sent & instantiation_output_184;
   assign __top_out_valid_and_all_active_outputs_ready = p11_valid & top_out_rdy;
   assign __top_out_valid_and_ready_txfr = __top_out_valid_and_not_has_been_sent & top_out_rdy;
   assign p0_load_en = p0_data_enable | rst;
@@ -329,7 +329,7 @@ module my_proc(
     p8_neg_229 <= p8_load_en ? p7_neg_229 : p8_neg_229;
     p9_neg_229 <= p9_load_en ? p8_neg_229 : p9_neg_229;
     p10_neg_229 <= p10_load_en ? p9_neg_229 : p10_neg_229;
-    p10_tuple_index_269 <= p10_load_en ? instantiation_output_204 : p10_tuple_index_269;
+    p10_tuple_index_269 <= p10_load_en ? instantiation_output_203 : p10_tuple_index_269;
     p11_add_277 <= p11_load_en ? add_277 : p11_add_277;
   end
   always @ (posedge clk) begin
@@ -377,10 +377,10 @@ module my_proc(
     .rst(rst),
     .push_data(p1_neg_229),
     .push_valid(__fifo_tmp1_push_data_valid_and_not_has_been_sent),
-    .pop_ready(instantiation_output_211),
-    .push_ready(instantiation_output_185),
-    .pop_data(instantiation_output_186),
-    .pop_valid(instantiation_output_187)
+    .pop_ready(instantiation_output_210),
+    .push_ready(instantiation_output_184),
+    .pop_data(instantiation_output_185),
+    .pop_valid(instantiation_output_186)
   );
   xls_fifo_wrapper #(
     .Width(32'd32),
@@ -391,12 +391,12 @@ module my_proc(
   ) fifo_tmp2 (
     .clk(clk),
     .rst(rst),
-    .push_data(instantiation_output_212),
-    .push_valid(instantiation_output_213),
-    .pop_ready(instantiation_output_218),
-    .push_ready(instantiation_output_194),
-    .pop_data(instantiation_output_195),
-    .pop_valid(instantiation_output_196)
+    .push_data(instantiation_output_211),
+    .push_valid(instantiation_output_212),
+    .pop_ready(instantiation_output_217),
+    .push_ready(instantiation_output_193),
+    .pop_data(instantiation_output_194),
+    .pop_valid(instantiation_output_195)
   );
   xls_fifo_wrapper #(
     .Width(32'd32),
@@ -407,31 +407,31 @@ module my_proc(
   ) fifo_tmp3 (
     .clk(clk),
     .rst(rst),
-    .push_data(instantiation_output_219),
-    .push_valid(instantiation_output_220),
+    .push_data(instantiation_output_218),
+    .push_valid(instantiation_output_219),
     .pop_ready(p10_load_en),
-    .push_ready(instantiation_output_203),
-    .pop_data(instantiation_output_204),
-    .pop_valid(instantiation_output_205)
+    .push_ready(instantiation_output_202),
+    .pop_data(instantiation_output_203),
+    .pop_valid(instantiation_output_204)
   );
   subproc1 inst1 (
     .rst(rst),
-    .sub1_in(instantiation_output_186),
-    .sub1_in_vld(instantiation_output_187),
-    .sub1_out_rdy(instantiation_output_194),
-    .sub1_in_rdy(instantiation_output_211),
-    .sub1_out(instantiation_output_212),
-    .sub1_out_vld(instantiation_output_213),
+    .sub1_in(instantiation_output_185),
+    .sub1_in_vld(instantiation_output_186),
+    .sub1_out_rdy(instantiation_output_193),
+    .sub1_in_rdy(instantiation_output_210),
+    .sub1_out(instantiation_output_211),
+    .sub1_out_vld(instantiation_output_212),
     .clk(clk)
   );
   subproc2 inst2 (
     .rst(rst),
-    .sub2_in(instantiation_output_195),
-    .sub2_in_vld(instantiation_output_196),
-    .sub2_out_rdy(instantiation_output_203),
-    .sub2_in_rdy(instantiation_output_218),
-    .sub2_out(instantiation_output_219),
-    .sub2_out_vld(instantiation_output_220),
+    .sub2_in(instantiation_output_194),
+    .sub2_in_vld(instantiation_output_195),
+    .sub2_out_rdy(instantiation_output_202),
+    .sub2_in_rdy(instantiation_output_217),
+    .sub2_out(instantiation_output_218),
+    .sub2_out_vld(instantiation_output_219),
     .clk(clk)
   );
   assign top_in_rdy = p0_load_en;

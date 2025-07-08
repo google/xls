@@ -93,8 +93,6 @@ GetSendReceivePairs(const ProcElaboration& elab) {
 
 }  // namespace
 
-bool IsUntimed(Node* node) { return node->Is<Literal>(); }
-
 std::string ScheduleGraph::ToString() const {
   std::vector<std::string> lines;
   lines.push_back(absl::StrCat(
