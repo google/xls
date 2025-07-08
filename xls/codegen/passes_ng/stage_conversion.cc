@@ -44,7 +44,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/scheduling/pipeline_schedule.h"
-#include "xls/scheduling/schedule_graph.h"
 
 namespace xls::verilog {
 namespace {
@@ -478,13 +477,6 @@ class StageConversionHandler {
       Node* stage_operand;
       if (proc_metadata->HasFromOrigMapping(operand)) {
         stage_operand = proc_metadata->GetFromOrigMapping(operand);
-      } else if (IsUntimed(operand)) {
-        // Untimed nodes are cloned (possibly duplicated) in whichever stages
-        // use them.
-        XLS_RET_CHECK_EQ(operand->operand_count(), 0);
-        XLS_ASSIGN_OR_RETURN(Node * cloned_operand,
-                             operand->CloneInNewFunction({}, pb.proc()));
-        stage_operand = cloned_operand;
       } else {
         // No prior mapping exists, so this must be a datapath input.
         XLS_ASSIGN_OR_RETURN(stage_operand,

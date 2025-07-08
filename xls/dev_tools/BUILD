@@ -653,7 +653,6 @@ cc_binary(
         "//xls/passes:pass_base",
         "//xls/passes:query_engine",
         "//xls/scheduling:pipeline_schedule",
-        "//xls/scheduling:schedule_graph",
         "//xls/scheduling:schedule_util",
         "//xls/scheduling:scheduling_options",
         "//xls/scheduling:scheduling_result",

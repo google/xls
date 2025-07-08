@@ -312,13 +312,7 @@ absl::Status IterativeSDCSchedulingModel::AddTimingConstraints(
   int64_t number_constraints = 0;
   for (const auto &p : delay_constraints) {
     Node *source = p.first;
-    if (IsUntimed(p.first)) {
-      continue;
-    }
     for (Node *target : p.second) {
-      if (IsUntimed(target)) {
-        continue;
-      }
       number_constraints++;
       DiffAtLeastConstraint(target, source, 1, "timing");
       VLOG(2) << "Setting timing constraint: "
