@@ -24,8 +24,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
-#include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -39,22 +37,6 @@
 
 namespace xls {
 
-// A group of nodes that are scheduled into the same cycle.
-// The idea is to reduce the scale of the scheduling problem by grouping
-// together nodes that we know or want to force to be scheduled into the same
-// cycle.
-// The canonical example is literals; they have no inputs, no delay, and we
-// replicate them to ensure they are single-user. As a result, literals should
-// trivially be scheduled in the same cycle as their users, have no lifetime and
-// contribute nothing to the scheduler's objective function except some ASAP
-// tie-breaking term. Rather than adding variables and constraints for each
-// literal, we can put them into this group and extract the cycle from the
-// literal's user.
-struct NodeVariableGroup {
-  Node* representative;
-  absl::InlinedVector<Node*, 1> nodes;
-};
-
 // A class used to build linear programming (LP) model for SDC scheduling. This
 // class uses the LP solver from OR tools for problem solving. It provides
 // methods to add scheduling constraints, set objectives, and extract solving
@@ -67,7 +49,6 @@ class SDCSchedulingModel {
 
  public:
   SDCSchedulingModel(ScheduleGraph graph, const DelayMap& delay_map,
-                     std::vector<NodeVariableGroup>&& node_groups,
                      std::optional<int64_t> initiation_interval);
 
   absl::Status AddAllDefUseConstraints();
@@ -243,13 +224,6 @@ class SDCSchedulingModel {
     operations_research::math_opt::Variable max;
   };
   absl::flat_hash_map<IOConstraint, SlackPair> io_slack_;
-
-  // Set of nodes whose cycle_var is simply another node's cycle_var_. These
-  // nodes have been found to be trivially in the same cycle as another node. As
-  // a result, these nodes have no entry in lifetime_var_ (their lifetime is
-  // zero, or their operand's lifetime is zero and the operand's lifetime
-  // variable is actually this node's lifetime).
-  absl::flat_hash_set<Node*> trivial_nodes_;
 };
 
 class SDCScheduler {
@@ -297,8 +271,7 @@ class SDCScheduler {
 
  private:
   SDCScheduler(ScheduleGraph graph, std::optional<int64_t> initiation_interval,
-               DelayMap&& delay_map,
-               std::vector<NodeVariableGroup>&& node_groups);
+               DelayMap&& delay_map);
   absl::Status Initialize();
 
   absl::Status BuildError(

@@ -261,6 +261,7 @@ CloneNodesIntoPipelinedBlock(
       package_schedule.GetSchedule(function_base);
   CloneNodesIntoBlockHandler cloner(function_base, pipeline_schedule.length(),
                                     options, block, &package_schedule);
+  XLS_RETURN_IF_ERROR(cloner.AddLiterals());
   if (function_base->IsProc()) {
     XLS_RETURN_IF_ERROR(cloner.AddChannelPortsAndFifoInstantiations());
     XLS_RETURN_IF_ERROR(cloner.AddBlockInstantiations(converted_blocks));

@@ -98,6 +98,9 @@ class CloneNodesIntoBlockHandler {
   // the proc. Should only be called for procs.
   absl::Status AddChannelPortsAndFifoInstantiations();
 
+  // Literals are special because they exist outside of the pipeline/schedule.
+  absl::Status AddLiterals();
+
   // Adds the block instantiations corresponding to the proc instantiations
   // within the proc being converted.  Should only be called for procs. This is
   // a noop if channels are not proc-scoped.

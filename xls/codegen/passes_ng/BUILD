@@ -39,6 +39,7 @@ cc_library(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:schedule_graph",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

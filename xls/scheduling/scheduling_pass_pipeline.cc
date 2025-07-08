@@ -23,7 +23,6 @@
 
 #include "absl/log/check.h"
 #include "xls/passes/dce_pass.h"
-#include "xls/passes/literal_uncommoning_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/scheduling/mutual_exclusion_pass.h"
@@ -55,11 +54,9 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
     top->Add<SchedulingWrapperPass>(*std::move(fixedpoint), context, opt_level,
                                     eliminate_noop_next);
   }
-  top->Add<SchedulingWrapperPass>(std::make_unique<LiteralUncommoningPass>(),
-                                  context, opt_level, eliminate_noop_next);
-  top->Add<PipelineSchedulingPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
                                   context, opt_level, eliminate_noop_next);
+  top->Add<PipelineSchedulingPass>();
   top->Add<MutualExclusionPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
                                   context, opt_level, eliminate_noop_next);

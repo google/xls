@@ -10,9 +10,9 @@ module running_sum(
   output wire [31:0] out_data,
   output wire out_valid
 );
-  wire instantiation_output_1036;
-  wire [31:0] instantiation_output_1037;
-  wire instantiation_output_1038;
+  wire instantiation_output_1039;
+  wire [31:0] instantiation_output_1040;
+  wire instantiation_output_1041;
   reg __first_cycle;
   reg p0_not_first_cycle;
   reg [31:0] p1_sum;
@@ -33,7 +33,7 @@ module running_sum(
   wire p1_stage_valid;
   wire p1_all_active_inputs_valid;
   wire p1_all_active_outputs_ready;
-  wire literal_1098;
+  wire literal_1096;
   wire p1_enable;
   wire p1_stage_done;
   wire __out_valid_buf;
@@ -65,23 +65,23 @@ module running_sum(
 
   assign p2_all_active_states_valid = 1'h1;
   assign __out_data_has_sent_or_is_ready = out_ready | __out_data_has_been_sent_reg;
-  assign __fifo_loopback_push_data_has_sent_or_is_ready = instantiation_output_1036 | __fifo_loopback_push_data_has_been_sent_reg;
+  assign __fifo_loopback_push_data_has_sent_or_is_ready = instantiation_output_1039 | __fifo_loopback_push_data_has_been_sent_reg;
   assign p2_stage_valid = p2_all_active_states_valid & p1_valid;
   assign p2_all_active_inputs_valid = 1'h1;
   assign p2_all_active_outputs_ready = __out_data_has_sent_or_is_ready & __fifo_loopback_push_data_has_sent_or_is_ready;
   assign p1_all_active_states_valid = 1'h1;
-  assign loopback_active_valid = ~p0_not_first_cycle | instantiation_output_1038;
+  assign loopback_active_valid = ~p0_not_first_cycle | instantiation_output_1041;
   assign p2_stage_done = p2_stage_valid & p2_all_active_inputs_valid & p2_all_active_outputs_ready;
   assign p2_not_valid = ~p1_valid;
   assign p1_stage_valid = p1_all_active_states_valid & p0_valid;
   assign p1_all_active_inputs_valid = in_valid & loopback_active_valid;
   assign p1_all_active_outputs_ready = 1'h1;
-  assign literal_1098 = 1'h1;
+  assign literal_1096 = 1'h1;
   assign p1_enable = p2_stage_done | p2_not_valid;
   assign p1_stage_done = p1_stage_valid & p1_all_active_inputs_valid & p1_all_active_outputs_ready;
-  assign __out_valid_buf = p2_all_active_inputs_valid & p2_stage_valid & literal_1098;
+  assign __out_valid_buf = p2_all_active_inputs_valid & p2_stage_valid & literal_1096;
   assign __out_data_not_has_been_sent = ~__out_data_has_been_sent_reg;
-  assign __fifo_loopback_push_valid_buf = p2_all_active_inputs_valid & p2_stage_valid & literal_1098;
+  assign __fifo_loopback_push_valid_buf = p2_all_active_inputs_valid & p2_stage_valid & literal_1096;
   assign __fifo_loopback_push_data_not_has_been_sent = ~__fifo_loopback_push_data_has_been_sent_reg;
   assign p1_data_enable = p1_enable & p1_stage_done;
   assign p1_not_valid = ~p0_valid;
@@ -90,13 +90,13 @@ module running_sum(
   assign p0_all_active_outputs_ready = 1'h1;
   assign __out_data_valid_and_not_has_been_sent = __out_valid_buf & __out_data_not_has_been_sent;
   assign __fifo_loopback_push_data_valid_and_not_has_been_sent = __fifo_loopback_push_valid_buf & __fifo_loopback_push_data_not_has_been_sent;
-  assign loopback_select = p0_not_first_cycle ? instantiation_output_1037 : 32'h0000_0000;
+  assign loopback_select = p0_not_first_cycle ? instantiation_output_1040 : 32'h0000_0000;
   assign p0_enable = p1_data_enable | p1_not_valid;
   assign p0_stage_done = p0_all_active_states_valid & p0_all_active_inputs_valid & p0_all_active_outputs_ready;
   assign __out_data_valid_and_all_active_outputs_ready = __out_valid_buf & p2_all_active_outputs_ready;
   assign __out_data_valid_and_ready_txfr = __out_data_valid_and_not_has_been_sent & out_ready;
   assign __fifo_loopback_push_data_valid_and_all_active_outputs_ready = __fifo_loopback_push_valid_buf & p2_all_active_outputs_ready;
-  assign __fifo_loopback_push_data_valid_and_ready_txfr = __fifo_loopback_push_data_valid_and_not_has_been_sent & instantiation_output_1036;
+  assign __fifo_loopback_push_data_valid_and_ready_txfr = __fifo_loopback_push_data_valid_and_not_has_been_sent & instantiation_output_1039;
   assign sum = loopback_select + in_data;
   assign not_first_cycle = ~__first_cycle;
   assign p0_data_enable = p0_enable & p0_stage_done;
@@ -137,9 +137,9 @@ module running_sum(
     .push_data(p1_sum),
     .push_valid(__fifo_loopback_push_data_valid_and_not_has_been_sent),
     .pop_ready(p1_data_enable & p0_not_first_cycle),
-    .push_ready(instantiation_output_1036),
-    .pop_data(instantiation_output_1037),
-    .pop_valid(instantiation_output_1038)
+    .push_ready(instantiation_output_1039),
+    .pop_data(instantiation_output_1040),
+    .pop_valid(instantiation_output_1041)
   );
   assign in_ready = p1_data_enable;
   assign out_data = p1_sum;
