@@ -281,19 +281,15 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
                    absl::StrAppend(out, record.ToString());
                  })
           << "]";
-  // We need to convert Functions before procs: Channels are declared inside
-  // Functions, but exist as "global" entities in the IR. By processing
-  // Functions first, we can collect the declarations of these global data so
-  // we can resolve them when processing Procs. GetOrder() (in
-  // extract_conversion_order.h) handles evaluation ordering. In addition, for
-  // procs, the config block must be evaluated before the next block, as
-  // config sets channels and constants needed by next. This is handled inside
-  // ConvertOneFunctionInternal().
+  // GetOrder() (in extract_conversion_order.h) handles evaluation ordering.
+  // For procs, the config block must be evaluated before the next
+  // block, as config sets channels and constants needed by next. This is
+  // handled inside ConvertOneFunctionInternal().
   ProcConversionData proc_data;
 
   // The `ChannelScope` owns all `ChannelArray` objects in the call graph, so
   // we need one instance to span all functions. However, most uses of it need
-  // to be in the context of a function, and it needs to be aware of the current
+  // to be in the context of a proc, and it needs to be aware of the current
   // function context, for e.g. index expression interpretation.
   ChannelScope channel_scope(package_data.conversion_info, import_data, options,
                              options.default_fifo_config);
