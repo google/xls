@@ -64,6 +64,7 @@
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/function_converter.h"
+#include "xls/dslx/ir_convert/get_conversion_records.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -354,7 +355,7 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
 
   if (options.proc_scoped_channels) {
     // TODO: https://github.com/google/xls/issues/2078 - Remove this `if` after
-    // lower_to_proc_scoped_channels is turned on for all tests.
+    // lower_to_proc_scoped_channels is turned on everywhere.
 
     // If all channels are already proc-scoped (because
     // lower_to_proc_scoped_channels is fully implemented), this will have no
@@ -370,6 +371,18 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   return absl::OkStatus();
 }
 
+absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
+    Module* module, TypeInfo* type_info, const ConvertOptions& options) {
+  // TODO: https://github.com/google/xls/issues/2078 - Remove this `if` after
+  // lower_to_proc_scoped_channels is turned on everywhere.
+  if (options.lower_to_proc_scoped_channels) {
+    return GetConversionRecords(module, type_info,
+                                /*include_tests=*/options.convert_tests);
+  }
+  return GetOrder(module, type_info,
+                  /* include_tests=*/options.convert_tests);
+}
+
 }  // namespace
 
 absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
@@ -378,8 +391,7 @@ absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
   XLS_ASSIGN_OR_RETURN(TypeInfo * root_type_info,
                        import_data->GetRootTypeInfo(module));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
-                       GetOrder(module, root_type_info,
-                                /*include_tests=*/options.convert_tests));
+                       GetConversionRecords(module, root_type_info, options));
   PackageData package_data{.conversion_info = package};
   XLS_RETURN_IF_ERROR(
       ConvertCallGraph(order, import_data, options, package_data));

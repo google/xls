@@ -638,6 +638,7 @@ cc_test(
     deps = [
         ":parametric_env",
         ":type_info",
+        ":typecheck_test_utils",
         "//xls/common:casts",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

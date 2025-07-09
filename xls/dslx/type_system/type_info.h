@@ -366,6 +366,11 @@ class TypeInfo {
   std::optional<const InvocationData> GetInvocationData(
       const Invocation* invocation) const;
 
+  // Returns a vector of InvocationData for the given function, if present in
+  // this TypeInfo's root. If there are no invocations, an empty vector is
+  // returned.
+  std::vector<InvocationData> GetInvocationData(const Function* f) const;
+
   const absl::flat_hash_map<ImportSubject, ImportedInfo>& GetRootImports()
       const {
     return GetRoot()->imports();
@@ -414,7 +419,7 @@ class TypeInfo {
   }
 
   // Returns whether this is the root type information for the module (vs. a
-  // dervied type info for e.g. a parametric instantiation context).
+  // derived type info for e.g. a parametric instantiation context).
   bool IsRoot() const { return this == GetRoot(); }
 
   const absl::flat_hash_map<ImportSubject, ImportedInfo>& imports() const {

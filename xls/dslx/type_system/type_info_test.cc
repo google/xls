@@ -16,6 +16,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -32,6 +33,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/typecheck_test_utils.h"
 
 namespace xls::dslx {
 namespace {
@@ -88,6 +90,55 @@ fn main() -> u32 {
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("caller `main` given env with key `A` not "
                                  "present in parametric keys: {}")));
+}
+
+TEST(TypeInfoTest, GetInvocationData) {
+  const std::string kInvocation = R"(
+fn f() -> u32 { u32:42 }
+fn main() -> u32 { f() }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+  std::optional<Function*> f = result.tm.module->GetFunction("f");
+  ASSERT_TRUE(f.has_value());
+  std::vector<InvocationData> f_invocations =
+      result.tm.type_info->GetInvocationData(*f);
+  EXPECT_EQ(f_invocations.size(), 1);
+
+  std::optional<Function*> main = result.tm.module->GetFunction("main");
+  ASSERT_TRUE(main.has_value());
+  std::vector<InvocationData> main_invocations =
+      result.tm.type_info->GetInvocationData(*main);
+  // There should be zero invocations of the main method
+  EXPECT_EQ(main_invocations.size(), 0);
+}
+
+TEST(TypeInfoTest, GetInvocationDataParametric) {
+  const std::string kInvocation = R"(
+fn f<N: u32>() -> u32 { u32:42 }
+fn main() -> u32 { f<u32:0>() }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+  std::optional<Function*> f = result.tm.module->GetFunction("f");
+  ASSERT_TRUE(f.has_value());
+  std::vector<InvocationData> invocations =
+      result.tm.type_info->GetInvocationData(*f);
+  EXPECT_EQ(invocations.size(), 1);
+}
+
+TEST(TypeInfoTest, GetInvocationDataParametrics) {
+  const std::string kInvocation = R"(
+fn f<N: u32>() -> u32 { u32:42 }
+fn main() -> u32 { f<u32:0>() + f<u32:0>() + f<u32:1>() }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+  std::optional<Function*> f = result.tm.module->GetFunction("f");
+  ASSERT_TRUE(f.has_value());
+  std::vector<InvocationData> invocations =
+      result.tm.type_info->GetInvocationData(*f);
+
+  // There are three invocations of f, even though the first two have the same
+  // explicit parametric.
+  EXPECT_EQ(invocations.size(), 3);
 }
 
 }  // namespace

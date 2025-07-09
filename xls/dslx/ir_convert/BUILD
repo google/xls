@@ -344,6 +344,7 @@ cc_library(
         ":convert_options",
         ":extract_conversion_order",
         ":function_converter",
+        ":get_conversion_records",
         ":proc_config_ir_converter",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -431,6 +432,44 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:proc",
+        "//xls/dslx/type_system:parametric_env",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "get_conversion_records",
+    srcs = ["get_conversion_records.cc"],
+    hdrs = ["get_conversion_records.h"],
+    deps = [
+        ":extract_conversion_order",
+        "//xls/common:visitor",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
+        "//xls/public:status_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_test(
+    name = "get_conversion_records_test",
+    srcs = ["get_conversion_records_test.cc"],
+    deps = [
+        ":extract_conversion_order",
+        ":get_conversion_records",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:interp_value",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:parametric_env",
         "@com_google_absl//absl/container:flat_hash_map",
         "@googletest//:gtest",
