@@ -2591,6 +2591,19 @@ TEST_F(ParserTest, TernaryConditional) {
                 {"really_long_identifier_so_that_this_is_too_many_chars"});
 }
 
+TEST_F(ParserTest, ConditionalInBinopChain) {
+  RoundTrip("const X = if true { u32:42 } else { u32:24 } + u32:1;");
+  RoundTrip("const X = u32:1 + if true { u32:42 } else { u32:24 };");
+  RoundTrip("const X = u32:1 + if true { u32:42 } else { u32:24 } + u32:1;");
+  RoundTrip("const X = if true { true } else { false } && true;");
+  RoundTrip("const X = true && if true { true } else { false };");
+  RoundTrip("const X = if true { true } else { false } && u32:2 == u32:2;");
+  RoundTrip("const X = u32:1..if true { u32:2 } else { u32:3 };");
+  RoundTrip(
+      "const X = u32:1 + if true { u32:42 } else { u32:24 } + if true { u32:42 "
+      "} else { u32:24 };");
+}
+
 TEST_F(ParserTest, LadderedConditional) {
   Expr* e = RoundTripExpr(
       "if true { u32:42 } else if false { u32:33 } else { u32:24 }");

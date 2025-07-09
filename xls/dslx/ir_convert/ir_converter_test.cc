@@ -858,6 +858,36 @@ TEST_P(IrConverterWithBothTypecheckVersionsTest, Conditional) {
   ExpectIr(converted);
 }
 
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ConditionalsPlusStuff) {
+  const char* program =
+      R"(
+fn foo(a: bool) -> u8 {
+  let x = if a { u8:42 } else { u8:24 } + u8:1;
+  let y = u8:1 + if a { u8:42 } else { u8:24 };
+  let z = if a { u8:42 } else { u8:24 } + if a { u8:42 } else { u8:24 };
+  x + y + z
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ConstantsWithConditionalsPlusStuff) {
+  const char* program =
+      R"(
+const A = true;
+const X = if A { u8:42 } else { u8:24 } + u8:1;
+const Y = u8:1 + if A { u8:42 } else { u8:24 };
+const Z = if A { u8:42 } else { u8:24 } + if A { u8:42 } else { u8:24 };
+fn main(x: bool) -> u8 { X + Y + Z }
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(program));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, MatchPackageLevelConstant) {
   const char* program =
       R"(const FOO = u8:0xff;

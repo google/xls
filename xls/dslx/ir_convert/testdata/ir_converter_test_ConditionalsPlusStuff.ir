@@ -1,0 +1,25 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__foo(a: bits[1] id=1) -> bits[8] {
+  literal.3: bits[8] = literal(value=24, id=3, pos=[(0,2,32)])
+  literal.2: bits[8] = literal(value=42, id=2, pos=[(0,2,17)])
+  literal.9: bits[8] = literal(value=24, id=9, pos=[(0,3,39)])
+  literal.8: bits[8] = literal(value=42, id=8, pos=[(0,3,24)])
+  sel.4: bits[8] = sel(a, cases=[literal.3, literal.2], id=4, pos=[(0,2,10)])
+  literal.5: bits[8] = literal(value=1, id=5, pos=[(0,2,42)])
+  literal.7: bits[8] = literal(value=1, id=7, pos=[(0,3,10)])
+  sel.10: bits[8] = sel(a, cases=[literal.9, literal.8], id=10, pos=[(0,3,17)])
+  literal.13: bits[8] = literal(value=24, id=13, pos=[(0,4,32)])
+  literal.12: bits[8] = literal(value=42, id=12, pos=[(0,4,17)])
+  literal.16: bits[8] = literal(value=24, id=16, pos=[(0,4,64)])
+  literal.15: bits[8] = literal(value=42, id=15, pos=[(0,4,49)])
+  x: bits[8] = add(sel.4, literal.5, id=6, pos=[(0,2,10)])
+  y: bits[8] = add(literal.7, sel.10, id=11, pos=[(0,3,10)])
+  sel.14: bits[8] = sel(a, cases=[literal.13, literal.12], id=14, pos=[(0,4,10)])
+  sel.17: bits[8] = sel(a, cases=[literal.16, literal.15], id=17, pos=[(0,4,42)])
+  add.19: bits[8] = add(x, y, id=19, pos=[(0,5,2)])
+  z: bits[8] = add(sel.14, sel.17, id=18, pos=[(0,4,10)])
+  ret add.20: bits[8] = add(add.19, z, id=20, pos=[(0,5,2)])
+}

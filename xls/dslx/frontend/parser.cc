@@ -873,7 +873,7 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
       peek->kind() == TokenKind::kDoubleBar) {
     return ParseLambda(bindings);
   }
-  return ParseConditionalExpression(bindings, restrictions);
+  return ParseRangeExpression(bindings, restrictions);
 }
 
 absl::StatusOr<Expr*> Parser::ParseRangeExpression(
@@ -930,19 +930,6 @@ absl::StatusOr<Conditional*> Parser::ParseConditionalNode(
     block->SetEnclosing(outer_conditional);
   }
   return outer_conditional;
-}
-
-absl::StatusOr<Expr*> Parser::ParseConditionalExpression(
-    Bindings& bindings, ExprRestrictions restrictions) {
-  VLOG(5) << "ParseConditionalExpression @ " << GetPos()
-          << " restrictions: " << ExprRestrictionsToString(restrictions);
-  XLS_ASSIGN_OR_RETURN(bool peek_is_if, PeekTokenIs(Keyword::kIf));
-  if (peek_is_if) {
-    return ParseConditionalNode(bindings, restrictions);
-  }
-
-  // No leading 'if' keyword -- we fall back to the RangeExpression production.
-  return ParseRangeExpression(bindings, restrictions);
 }
 
 absl::StatusOr<ConstAssert*> Parser::ParseConstAssert(
@@ -1576,7 +1563,11 @@ absl::StatusOr<Expr*> Parser::ParseLogicalOrExpression(
 
 absl::StatusOr<Expr*> Parser::ParseStrongArithmeticExpression(
     Bindings& bindings, ExprRestrictions restrictions) {
-  auto sub_production = [&] {
+  auto sub_production = [&]() -> absl::StatusOr<Expr*> {
+    XLS_ASSIGN_OR_RETURN(bool peek_is_if, PeekTokenIs(Keyword::kIf));
+    if (peek_is_if) {
+      return ParseConditionalNode(bindings, restrictions);
+    }
     return ParseCastAsExpression(bindings, restrictions);
   };
   return ParseBinopChain(sub_production, kStrongArithmeticKinds);
@@ -2208,8 +2199,8 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
   } else if (peek->kind() == TokenKind::kOBrack) {  // Array expression.
     XLS_ASSIGN_OR_RETURN(lhs, ParseArray(outer_bindings));
   } else if (peek->IsKeyword(Keyword::kIf)) {  // Conditional expression.
-    XLS_ASSIGN_OR_RETURN(
-        lhs, ParseConditionalExpression(outer_bindings, kNoRestrictions));
+    XLS_ASSIGN_OR_RETURN(lhs,
+                         ParseRangeExpression(outer_bindings, kNoRestrictions));
   } else {
     return ParseErrorStatus(
         peek->span(),
@@ -3267,7 +3258,7 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings& bindings,
   }
 
   XLS_ASSIGN_OR_RETURN(Expr * first_dim,
-                       ParseConditionalExpression(bindings, kNoRestrictions));
+                       ParseRangeExpression(bindings, kNoRestrictions));
 
   std::vector<Expr*> dims = {first_dim};
   const char* const kContext = "at end of type dimensions";
@@ -3280,7 +3271,7 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings& bindings,
       break;
     }
     XLS_ASSIGN_OR_RETURN(Expr * dim,
-                         ParseConditionalExpression(bindings, kNoRestrictions));
+                         ParseRangeExpression(bindings, kNoRestrictions));
     dims.push_back(dim);
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack, /*start=*/&obrack,
                                          /*context=*/kContext,
@@ -3853,7 +3844,7 @@ absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
     // Conditional expressions are the first below the let/for/while set.
     XLS_ASSIGN_OR_RETURN(Expr * expr,
-                         ParseConditionalExpression(bindings, kNoRestrictions));
+                         ParseRangeExpression(bindings, kNoRestrictions));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
 
     return expr;
