@@ -33,7 +33,8 @@
 namespace m = ::xls::op_matchers;
 
 // Performs tests on the IrFuzzBuilder by manually creating a FuzzProgramProto,
-// instantiating into its IR version, and manually verifying the IR is correct.
+// instantiating it into its IR version, and manually verifying the IR is
+// correct.
 
 namespace xls {
 namespace {

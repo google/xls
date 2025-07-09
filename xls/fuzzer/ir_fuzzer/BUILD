@@ -23,20 +23,25 @@ package(
 
 cc_library(
     name = "ir_fuzz_domain",
-    testonly = 1,
+    testonly = True,
     srcs = ["ir_fuzz_domain.cc"],
     hdrs = ["ir_fuzz_domain.h"],
     deps = [
         ":fuzz_program_cc_proto",
         ":ir_fuzz_builder",
+        ":ir_fuzz_helpers",
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:ret_check",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
         "//xls/ir:verifier",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -49,6 +54,7 @@ cc_test(
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/ir",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:verifier",
         "@com_google_absl//absl/log",
@@ -105,6 +111,27 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "ir_fuzz_builder_test",
+    srcs = ["ir_fuzz_builder_test.cc"],
+    deps = [
+        ":fuzz_program_cc_proto",
+        ":ir_fuzz_builder",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:verifier",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "ir_fuzz_visitor",
     srcs = ["ir_fuzz_visitor.cc"],
@@ -137,23 +164,29 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "ir_fuzz_builder_test",
-    srcs = ["ir_fuzz_builder_test.cc"],
+cc_library(
+    name = "ir_fuzz_test_library",
+    testonly = True,
+    srcs = ["ir_fuzz_test_library.cc"],
+    hdrs = ["ir_fuzz_test_library.h"],
     deps = [
         ":fuzz_program_cc_proto",
-        ":ir_fuzz_builder",
-        "//xls/common:xls_gunit_main",
+        ":ir_fuzz_domain",
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:ir_interpreter",
         "//xls/ir",
-        "//xls/ir:bits",
+        "//xls/ir:events",
         "//xls/ir:function_builder",
-        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
         "//xls/ir:verifier",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_protobuf//:protobuf",
-        "@googletest//:gtest",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )

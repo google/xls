@@ -19,8 +19,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -28,6 +30,9 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -40,6 +45,7 @@
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/verifier.h"
 #include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/basic_simplification_pass.h"
 #include "xls/passes/bit_slice_simplification_pass.h"
@@ -1333,6 +1339,20 @@ TEST_F(ReassociationPassTest, MulOverflow2) {
             m::UMul(AllOf(m::UMul(), m::Type("bits[4]")), m::Literal())));
   EXPECT_EQ(MaxOpDepth({Op::kUMul}, f), 4);
 }
+
+// Generates random IR, runs the ReassociationPass over it, plugs in parameters
+// into the non-reassociated IR and the reassociated IR, and verifies that the
+// results are the same.
+void IrFuzzReassociationPassTest(
+    const PackageAndTestParams& paramaterized_package) {
+  ReassociationPass pass;
+  OptimizationPassChangesOutputs(paramaterized_package, pass);
+}
+// Use the IrFuzzDomainWithParams domain to generate random integer parameters
+// that can be plugged into the IR function. This test generates 10 different
+// sets of parameters.
+FUZZ_TEST(IrFuzzTest, IrFuzzReassociationPassTest)
+    .WithDomains(IrFuzzDomainWithParams(10));
 
 }  // namespace
 }  // namespace xls
