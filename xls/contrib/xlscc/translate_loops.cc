@@ -299,6 +299,9 @@ absl::Status Translator::GenerateIR_LoopImpl(
     // Generate increment
     // Outside of body guard because continue would skip.
     if (inc != nullptr) {
+      // Need to generate selects for increment within the loop body in the case
+      // that there is a break in the loop body.
+      PushContextGuard for_inc_guard(*this, loc);
       XLS_RETURN_IF_ERROR(GenerateIR_Stmt(inc, ctx));
     }
 
