@@ -19,6 +19,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
+#include "xls/passes/dataflow_visitor.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 

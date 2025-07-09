@@ -3518,6 +3518,26 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "node_source_analysis",
+    hdrs = ["node_source_analysis.h"],
+    deps = [
+        ":dataflow_visitor",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:type",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
 xls_pass(
     name = "dataflow_simplification_pass",
     srcs = ["dataflow_simplification_pass.cc"],
@@ -3525,6 +3545,7 @@ xls_pass(
     pass_class = "DataflowSimplificationPass",
     deps = [
         ":dataflow_visitor",
+        ":node_source_analysis",
         ":optimization_pass",
         ":pass_base",
         "//xls/common/status:status_macros",

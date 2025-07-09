@@ -175,6 +175,20 @@ absl::Status Translator::GenerateIR_LoopImpl(
   };
   auto deref_solver_guard = absl::MakeCleanup(deref_solver);
 
+  auto refresh_z3 = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(xls::solvers::z3::IrTranslator * z3_translator,
+                         GetZ3Translator(context().fb->function()));
+
+    if (z3_translator != current_z3_translator) {
+      deref_solver();
+      current_z3_translator = z3_translator;
+      current_solver =
+          xls::solvers::z3::CreateSolver(current_z3_translator->ctx(), 1);
+    };
+
+    return absl::OkStatus();
+  };
+
   // Generate the declaration within a private context
   PushContextGuard for_init_guard(*this, loc);
   context().propagate_break_up = propagate_break_up;
@@ -186,6 +200,10 @@ absl::Status Translator::GenerateIR_LoopImpl(
     XLS_RETURN_IF_ERROR(GenerateIR_Stmt(init, ctx));
   }
 
+  bool first_iter_cond_must_be_true = false;
+  // Partially unrolled loops can also omit the condition from the first
+  // iteration within the activation, as it'll be guarded by the jump condition.
+
   const int64_t io_ops_before = context().sf->io_ops.size();
 
   // Loop unrolling causes duplicate NamedDecls which fail the soundness
@@ -193,6 +211,23 @@ absl::Status Translator::GenerateIR_LoopImpl(
   auto saved_check_ids = unique_decl_ids_;
 
   absl::Duration slowest_iter = absl::ZeroDuration();
+
+  // Literals won't be propagated through the begin op slice boundary,
+  // as this must be preserved for the phis to be created. Therefore this must
+  // be checked before that boundary.
+  if (cond_expr != nullptr && !always_first_iter) {
+    XLS_ASSIGN_OR_RETURN(CValue cond_expr_cval,
+                         GenerateIR_Expr(cond_expr, loc));
+    CHECK(cond_expr_cval.type()->Is<CBoolType>());
+
+    XLS_RETURN_IF_ERROR(refresh_z3());
+    TrackedBValue cond_bval = cond_expr_cval.rvalue();
+    XLS_ASSIGN_OR_RETURN(
+        bool condition_must_be_true,
+        BitMustBe(true, cond_bval, current_solver, current_z3_translator, loc));
+
+    first_iter_cond_must_be_true = condition_must_be_true;
+  }
 
   IOOp* begin_op = nullptr;
 
@@ -231,23 +266,16 @@ absl::Status Translator::GenerateIR_LoopImpl(
                            GenerateIR_Expr(cond_expr, loc));
       CHECK(cond_expr_cval.type()->Is<CBoolType>());
 
-      context().or_condition_util(
-          context().fb->Not(cond_expr_cval.rvalue(), loc),
-          context().relative_break_condition, loc);
-      XLS_RETURN_IF_ERROR(and_condition(cond_expr_cval.rvalue(), loc));
+      if (!(first_iter && first_iter_cond_must_be_true)) {
+        context().or_condition_util(
+            context().fb->Not(cond_expr_cval.rvalue(), loc),
+            context().relative_break_condition, loc);
+        XLS_RETURN_IF_ERROR(and_condition(cond_expr_cval.rvalue(), loc));
+      }
     }
 
     if (!add_loop_jump) {
-      // We use the relative condition so that returns also stop unrolling
-      XLS_ASSIGN_OR_RETURN(xls::solvers::z3::IrTranslator * z3_translator,
-                           GetZ3Translator(context().fb->function()));
-
-      if (z3_translator != current_z3_translator) {
-        deref_solver();
-        current_z3_translator = z3_translator;
-        current_solver =
-            xls::solvers::z3::CreateSolver(current_z3_translator->ctx(), 1);
-      };
+      XLS_RETURN_IF_ERROR(refresh_z3());
 
       XLS_ASSIGN_OR_RETURN(
           bool condition_must_be_false,
