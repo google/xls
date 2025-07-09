@@ -3236,6 +3236,15 @@ const x)";
                "shadowing an existing definition from <no-file>:1:1-1:10"));
 }
 
+TEST_F(ParserTest, ConstParseErrorIncludesContext) {
+  constexpr std::string_view kProgram = R"(const x = 1)";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("after constant definition of `x`")));
+}
+
 TEST_F(ParserTest, ZeroLengthStringAtEof) {
   constexpr std::string_view kProgram = "const A=\"\"";
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};

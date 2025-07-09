@@ -747,7 +747,9 @@ absl::StatusOr<std::string> DslxBuilder::FormatModule() {
   dslx::Parser parser(module_.name(), &scanner);
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule parsed_module,
-      ParseAndTypecheck(text, file_name, module_.name(), &import_data));
+      ParseAndTypecheck(text, file_name, module_.name(), &import_data),
+      _ << "Failed to parse and typecheck module:\n"
+        << text);
   std::vector<dslx::CommentData> comment_data;
   for (const auto& [type_name, comment] : type_def_comments_) {
     absl::StatusOr<dslx::TypeDefinition> type_def =

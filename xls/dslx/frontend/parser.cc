@@ -2729,9 +2729,11 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(const Pos& start_pos,
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
   XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(bindings));
   Pos limit_pos;
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi, /*start=*/nullptr,
-                                       "after constant definition",
-                                       &limit_pos));
+  XLS_RETURN_IF_ERROR(
+      DropTokenOrError(TokenKind::kSemi, /*start=*/nullptr,
+                       absl::StrFormat("after constant definition of `%s`",
+                                       name_def->identifier()),
+                       &limit_pos));
   Span span(start_pos, limit_pos);
   auto* result = module_->Make<ConstantDef>(span, name_def, annotated_type,
                                             expr, is_public);
