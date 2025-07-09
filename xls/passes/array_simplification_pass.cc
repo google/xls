@@ -1076,7 +1076,7 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
 
     // Helper: zero-extend a node to bit-width w.
     auto zext = [&](Node* n, int64_t w) -> absl::StatusOr<Node*> {
-      if (n->BitCountOrDie() == w) {
+      if (n->BitCountOrDie() >= w) {
         return n;
       }
       return array_slice->function_base()->MakeNode<ExtendOp>(SourceInfo(), n,
@@ -1092,8 +1092,13 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
     // The running, maximal possible value of the cumulative start index. If
     // this grows beyond the base array's last index, the optimization is
     // skipped because the OOB clamping has become non-trivial.
-    uint64_t max_start =
-        query_engine.MaxUnsignedValue(start).ToUint64().value();
+    absl::StatusOr<uint64_t> maybe_max_start =
+        query_engine.MaxUnsignedValue(start).ToUint64();
+    if (!maybe_max_start.ok()) {
+      return SimplifyResult::Unchanged();
+    }
+    uint64_t max_start = maybe_max_start.value();
+
     for (ArraySlice* slice : chain) {
       // Choose a width large enough for any legal index of the base array.
       int64_t width =
@@ -1108,8 +1113,13 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
                                       SourceInfo(), lhs, rhs, Op::kAdd));
 
       // Update worst-case start; bail early if we already overflow.
-      max_start +=
-          query_engine.MaxUnsignedValue(slice->start()).ToUint64().value();
+      absl::StatusOr<uint64_t> maybe_slice_start =
+          query_engine.MaxUnsignedValue(slice->start()).ToUint64();
+      if (!maybe_slice_start.ok()) {
+        return SimplifyResult::Unchanged();
+      }
+
+      max_start += maybe_slice_start.value();
       if (max_start + array_slice->width() - 1 >=
           static_cast<uint64_t>(array_size)) {
         return SimplifyResult::Unchanged();
