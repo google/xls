@@ -34,7 +34,7 @@ package(
 
 CLOCK_PERIOD_PS = "750"
 
-common_codegen_args = {
+COMMON_CODEGEN_ARGS = {
     "delay_model": "asap7",
     "reset": "rst",
     "worst_case_throughput": "1",
@@ -87,14 +87,14 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-window_buffer_codegen_args = common_codegen_args | {
+WINDOW_BUFFER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "WindowBuffer64",
     "worst_case_throughput": "2",
 }
 
 xls_dslx_verilog(
     name = "window_buffer_verilog",
-    codegen_args = window_buffer_codegen_args,
+    codegen_args = WINDOW_BUFFER_CODEGEN_ARGS,
     dslx_top = "WindowBuffer64",
     library = ":window_buffer_dslx",
     tags = ["manual"],
@@ -104,7 +104,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "window_buffer_opt_ir_benchmark",
     src = ":window_buffer_verilog.opt.ir",
-    benchmark_ir_args = window_buffer_codegen_args,
+    benchmark_ir_args = WINDOW_BUFFER_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -160,7 +160,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "shift_buffer_aligner_verilog",
-    codegen_args = common_codegen_args | {"module_name": "ShiftBufferAligner"},
+    codegen_args = COMMON_CODEGEN_ARGS | {"module_name": "ShiftBufferAligner"},
     dslx_top = "ShiftBufferAlignerInst",
     library = ":shift_buffer_dslx",
     tags = ["manual"],
@@ -170,7 +170,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "shift_buffer_aligner_opt_ir_benchmark",
     src = ":shift_buffer_aligner_verilog.opt.ir",
-    benchmark_ir_args = common_codegen_args,
+    benchmark_ir_args = COMMON_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -216,7 +216,7 @@ xls_benchmark_verilog(
     verilog_target = "shift_buffer_aligner_verilog",
 )
 
-shift_buffer_storage_codegen_args = common_codegen_args | {
+SHIFT_BUFFER_STORAGE_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "clock_period_ps": "0",
     "pipeline_stages": "2",
     "module_name": "ShiftBufferStorage",
@@ -224,7 +224,7 @@ shift_buffer_storage_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "shift_buffer_storage_verilog",
-    codegen_args = shift_buffer_storage_codegen_args,
+    codegen_args = SHIFT_BUFFER_STORAGE_CODEGEN_ARGS,
     dslx_top = "ShiftBufferStorageInst",
     library = ":shift_buffer_dslx",
     tags = ["manual"],
@@ -234,7 +234,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "shift_buffer_storage_opt_ir_benchmark",
     src = ":shift_buffer_storage_verilog.opt.ir",
-    benchmark_ir_args = shift_buffer_storage_codegen_args,
+    benchmark_ir_args = SHIFT_BUFFER_STORAGE_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -283,14 +283,14 @@ xls_benchmark_verilog(
 # FIXME: Improve the proc to achieve CLOCK_PERIOD_PS
 SHIFT_BUFFER_CLOCK_PERIOD_PS = "1000"
 
-shift_buffer_codegen_args = common_codegen_args | {
+SHIFT_BUFFER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "clock_period_ps": SHIFT_BUFFER_CLOCK_PERIOD_PS,
     "module_name": "ShiftBuffer",
 }
 
 xls_dslx_verilog(
     name = "shift_buffer_verilog",
-    codegen_args = shift_buffer_codegen_args,
+    codegen_args = SHIFT_BUFFER_CODEGEN_ARGS,
     dslx_top = "ShiftBufferInst",
     library = ":shift_buffer_dslx",
     tags = ["manual"],
@@ -300,7 +300,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "shift_buffer_opt_ir_benchmark",
     src = ":shift_buffer_verilog.opt.ir",
-    benchmark_ir_args = shift_buffer_codegen_args,
+    benchmark_ir_args = SHIFT_BUFFER_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -374,7 +374,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-frame_header_dec_codegen_args = common_codegen_args | {
+FRAME_HEADER_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "FrameHeaderDecoder",
     "clock_period_ps": "0",
     "pipeline_stages": "6",
@@ -382,7 +382,7 @@ frame_header_dec_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "frame_header_dec_verilog",
-    codegen_args = frame_header_dec_codegen_args,
+    codegen_args = FRAME_HEADER_DEC_CODEGEN_ARGS,
     dslx_top = "FrameHeaderDecoderInst",
     library = ":frame_header_dec_dslx",
     tags = ["manual"],
@@ -392,7 +392,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "frame_header_dec_opt_ir_benchmark",
     src = ":frame_header_dec_verilog.opt.ir",
-    benchmark_ir_args = frame_header_dec_codegen_args | {
+    benchmark_ir_args = FRAME_HEADER_DEC_CODEGEN_ARGS | {
         "top": "__frame_header_dec__FrameHeaderDecoderInst__FrameHeaderDecoder_0__16_32_30_5_next",
         "pipeline_stages": "10",
     },
@@ -471,14 +471,14 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-block_header_dec_codegen_args = common_codegen_args | {
+BLOCK_HEADER_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "BlockHeaderDec",
     "pipeline_stages": "1",
 }
 
 xls_dslx_verilog(
     name = "block_header_dec_verilog",
-    codegen_args = block_header_dec_codegen_args,
+    codegen_args = BLOCK_HEADER_DEC_CODEGEN_ARGS,
     dslx_top = "BlockHeaderDecoderInst",
     library = ":block_header_dec_dslx",
     tags = ["manual"],
@@ -488,7 +488,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "block_header_dec_opt_ir_benchmark",
     src = ":block_header_dec_verilog.opt.ir",
-    benchmark_ir_args = block_header_dec_codegen_args | {
+    benchmark_ir_args = BLOCK_HEADER_DEC_CODEGEN_ARGS | {
         "pipeline_stages": "10",
         "top": "__block_header_dec__BlockHeaderDecoderInst__BlockHeaderDecoder_0__16_64_next",
     },
@@ -550,14 +550,14 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-raw_block_dec_codegen_args = common_codegen_args | {
+RAW_BLOCK_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "RawBlockDecoder",
     "pipeline_stages": "1",
 }
 
 xls_dslx_verilog(
     name = "raw_block_dec_verilog",
-    codegen_args = raw_block_dec_codegen_args,
+    codegen_args = RAW_BLOCK_DEC_CODEGEN_ARGS,
     dslx_top = "RawBlockDecoderInst",
     library = ":raw_block_dec_dslx",
     tags = ["manual"],
@@ -567,7 +567,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "raw_block_dec_opt_ir_benchmark",
     src = ":raw_block_dec_verilog.opt.ir",
-    benchmark_ir_args = raw_block_dec_codegen_args | {
+    benchmark_ir_args = RAW_BLOCK_DEC_CODEGEN_ARGS | {
         "pipeline_stages": "10",
         "top": "__raw_block_dec__RawBlockDecoderInst__RawBlockDecoder_0__32_32_next",
     },
@@ -628,14 +628,14 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-rle_block_dec_codegen_args = common_codegen_args | {
+RLE_BLOCK_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "RleBlockDecoder",
     "pipeline_stages": "1",
 }
 
 xls_dslx_verilog(
     name = "rle_block_dec_verilog",
-    codegen_args = rle_block_dec_codegen_args,
+    codegen_args = RLE_BLOCK_DEC_CODEGEN_ARGS,
     dslx_top = "RleBlockDecoderInst",
     library = ":rle_block_dec_dslx",
     tags = ["manual"],
@@ -645,7 +645,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "rle_block_dec_opt_ir_benchmark",
     src = ":rle_block_dec_verilog.opt.ir",
-    benchmark_ir_args = rle_block_dec_codegen_args | {
+    benchmark_ir_args = RLE_BLOCK_DEC_CODEGEN_ARGS | {
         "pipeline_stages": "10",
         "top": "__rle_block_dec__RleBlockDecoderInst__RleBlockDecoder_0__64_next",
     },
@@ -706,7 +706,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-dec_mux_codegen_args = common_codegen_args | {
+DEC_MUX_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "DecoderMux",
     "clock_period_ps": "0",
     "pipeline_stages": "3",
@@ -714,7 +714,7 @@ dec_mux_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "dec_mux_verilog",
-    codegen_args = dec_mux_codegen_args,
+    codegen_args = DEC_MUX_CODEGEN_ARGS,
     dslx_top = "DecoderMux",
     library = ":dec_mux_dslx",
     tags = ["manual"],
@@ -724,7 +724,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "dec_mux_opt_ir_benchmark",
     src = ":dec_mux_verilog.opt.ir",
-    benchmark_ir_args = dec_mux_codegen_args | {
+    benchmark_ir_args = DEC_MUX_CODEGEN_ARGS | {
         "pipeline_stages": "10",
     },
     tags = ["manual"],
@@ -820,7 +820,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-sequence_executor_codegen_args = common_codegen_args | {
+SEQUENCE_EXECUTOR_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "sequence_executor",
     "clock_period_ps": "0",
     "generator": "pipeline",
@@ -848,7 +848,7 @@ sequence_executor_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "sequence_executor_verilog",
-    codegen_args = sequence_executor_codegen_args,
+    codegen_args = SEQUENCE_EXECUTOR_CODEGEN_ARGS,
     dslx_top = "SequenceExecutorZstd",
     library = ":sequence_executor_dslx",
     tags = ["manual"],
@@ -858,7 +858,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "sequence_executor_opt_ir_benchmark",
     src = ":sequence_executor_verilog.opt.ir",
-    benchmark_ir_args = sequence_executor_codegen_args | {
+    benchmark_ir_args = SEQUENCE_EXECUTOR_CODEGEN_ARGS | {
         "pipeline_stages": "10",
     },
     tags = ["manual"],
@@ -926,14 +926,14 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-axi_csr_accessor_codegen_args = common_codegen_args | {
+AXI_CSR_ACCESSOR_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "AxiCsrAccessor",
     "pipeline_stages": "1",
 }
 
 xls_dslx_verilog(
     name = "axi_csr_accessor_verilog",
-    codegen_args = axi_csr_accessor_codegen_args,
+    codegen_args = AXI_CSR_ACCESSOR_CODEGEN_ARGS,
     dslx_top = "AxiCsrAccessorInst",
     library = ":axi_csr_accessor_dslx",
     tags = ["manual"],
@@ -943,7 +943,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "axi_csr_accessor_opt_ir_benchmark",
     src = ":axi_csr_accessor_verilog.opt.ir",
-    benchmark_ir_args = axi_csr_accessor_codegen_args | {
+    benchmark_ir_args = AXI_CSR_ACCESSOR_CODEGEN_ARGS | {
         "pipeline_stages": "10",
         "top": "__axi_csr_accessor__AxiCsrAccessorInst__AxiCsrAccessor_0__16_32_4_4_2_4_16_next",
     },
@@ -1003,14 +1003,14 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-csr_config_codegen_args = common_codegen_args | {
+CSR_CONFIG_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "CsrConfig",
     "pipeline_stages": "3",
 }
 
 xls_dslx_verilog(
     name = "csr_config_verilog",
-    codegen_args = csr_config_codegen_args,
+    codegen_args = CSR_CONFIG_CODEGEN_ARGS,
     dslx_top = "CsrConfigInst",
     library = ":csr_config_dslx",
     tags = ["manual"],
@@ -1020,7 +1020,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "csr_config_opt_ir_benchmark",
     src = ":csr_config_verilog.opt.ir",
-    benchmark_ir_args = csr_config_codegen_args | {
+    benchmark_ir_args = CSR_CONFIG_CODEGEN_ARGS | {
         "pipeline_stages": "10",
         "top": "__csr_config__CsrConfigInst__CsrConfig_0__2_32_4_32_2_4_next",
     },
@@ -1266,7 +1266,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "literals_block_header_dec_verilog",
-    codegen_args = common_codegen_args | {
+    codegen_args = COMMON_CODEGEN_ARGS | {
         "module_name": "LiteralsBlockHeaderDecoder",
     },
     dslx_top = "LiteralsHeaderDecoderInst",
@@ -1303,7 +1303,7 @@ xls_dslx_test(
 
 xls_dslx_verilog(
     name = "sequence_conf_dec_verilog",
-    codegen_args = common_codegen_args | {
+    codegen_args = COMMON_CODEGEN_ARGS | {
         "module_name": "SequenceConfDecoder",
     },
     dslx_top = "SequenceConfDecoderInst",
@@ -1338,14 +1338,14 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-refilling_shift_buffer_codegen_args = common_codegen_args | {
+REFILLING_SHIFT_BUFFER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
         "module_name": "RefillingShiftBufferInternalInst",
         "worst_case_throughput" : "3",
 }
 
 xls_dslx_verilog(
     name = "refilling_shift_buffer_internal_verilog",
-    codegen_args = refilling_shift_buffer_codegen_args,
+    codegen_args = REFILLING_SHIFT_BUFFER_CODEGEN_ARGS,
     dslx_top = "RefillingShiftBufferInternalInst",
     library = ":refilling_shift_buffer_dslx",
     tags = ["manual"],
@@ -1358,7 +1358,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "10",
     },
-    codegen_args = refilling_shift_buffer_codegen_args,
+    codegen_args = REFILLING_SHIFT_BUFFER_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -1483,14 +1483,14 @@ xls_dslx_test(
     deps = zstd_dec_deps,
 )
 
-zstd_dec_internal_codegen_args = common_codegen_args | {
+ZSTD_DEC_INTERNAL_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "ZstdDecoderInternal",
     "pipeline_stages": "2",
 }
 
 xls_dslx_verilog(
     name = "zstd_dec_internal_verilog",
-    codegen_args = zstd_dec_internal_codegen_args,
+    codegen_args = ZSTD_DEC_INTERNAL_CODEGEN_ARGS,
     dslx_top = "ZstdDecoderInternalInst",
     library = ":zstd_dec_dslx",
     tags = ["manual"],
@@ -1500,7 +1500,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "zstd_dec_internal_opt_ir_benchmark",
     src = ":zstd_dec_internal_verilog.opt.ir",
-    benchmark_ir_args = zstd_dec_internal_codegen_args,
+    benchmark_ir_args = ZSTD_DEC_INTERNAL_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -1862,7 +1862,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-ram_demux_codegen_args = {
+RAM_DEMUX_CODEGEN_ARGS = {
     "module_name": "RamDemux",
     "generator": "pipeline",
     "delay_model": "asap7",
@@ -1886,7 +1886,7 @@ ram_demux_codegen_args = {
 
 xls_dslx_verilog(
     name = "ram_demux_verilog",
-    codegen_args = ram_demux_codegen_args,
+    codegen_args = RAM_DEMUX_CODEGEN_ARGS,
     dslx_top = "RamDemuxWrappedInst",
     library = ":ram_demux_dslx",
     tags = ["manual"],
@@ -1896,7 +1896,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "ram_demux_opt_ir_benchmark",
     src = "ram_demux_verilog.opt.ir",
-    codegen_args = ram_demux_codegen_args,
+    codegen_args = RAM_DEMUX_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -2600,14 +2600,14 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-literals_decoder_ctrl_codegen_args = common_codegen_args | {
+LITERALS_DECODER_CTRL_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "LiteralsDecoderCtrl",
     "pipeline_stages": "10",
 }
 
 xls_dslx_verilog(
     name = "literals_decoder_ctrl_verilog",
-    codegen_args = literals_decoder_ctrl_codegen_args,
+    codegen_args = LITERALS_DECODER_CTRL_CODEGEN_ARGS,
     dslx_top = "LiteralsDecoderCtrlInst",
     library = ":literals_decoder_dslx",
     tags = ["manual"],
@@ -2617,7 +2617,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "literals_decoder_ctrl_opt_ir_benchmark",
     src = ":literals_decoder_ctrl_verilog.opt.ir",
-    benchmark_ir_args = literals_decoder_ctrl_codegen_args | {
+    benchmark_ir_args = LITERALS_DECODER_CTRL_CODEGEN_ARGS | {
         "multi_proc": "true",
     },
     tags = ["manual"],
@@ -2659,7 +2659,7 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
-literals_decoder_codegen_args = {
+LITERALS_DECODER_CODEGEN_ARGS = {
     "module_name": "LiteralsDecoder",
     "delay_model": "asap7",
     "ram_configurations": ",".join([
@@ -2682,7 +2682,7 @@ literals_decoder_codegen_args = {
 
 xls_dslx_verilog(
     name = "literals_decoder_verilog",
-    codegen_args = literals_decoder_codegen_args,
+    codegen_args = LITERALS_DECODER_CODEGEN_ARGS,
     dslx_top = "LiteralsDecoderInst",
     library = ":literals_decoder_dslx",
     tags = ["manual"],
@@ -2695,7 +2695,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "10",
     },
-    codegen_args = literals_decoder_codegen_args,
+    codegen_args = LITERALS_DECODER_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -2770,7 +2770,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-prescan_codegen_args = common_codegen_args | {
+PRESCAN_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanPrescan",
     "pipeline_stages": "16",
     "clock_period_ps": "750",
@@ -2786,7 +2786,7 @@ prescan_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "huffman_prescan_verilog",
-    codegen_args = prescan_codegen_args,
+    codegen_args = PRESCAN_CODEGEN_ARGS,
     dslx_top = "WeightPreScan",
     library = ":huffman_prescan_dslx",
     tags = ["manual"],
@@ -2796,7 +2796,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "huffman_prescan_opt_ir_benchmark",
     src = ":huffman_prescan_verilog.opt.ir",
-    benchmark_ir_args = prescan_codegen_args,
+    benchmark_ir_args = PRESCAN_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -2861,7 +2861,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-huffman_code_builder_codegen_args = common_codegen_args | {
+HUFFMAN_CODE_BUILDER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanCodeBuilder",
     "pipeline_stages": "8",
     "clock_period_ps": "750",
@@ -2870,7 +2870,7 @@ huffman_code_builder_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "huffman_code_builder_verilog",
-    codegen_args = huffman_code_builder_codegen_args,
+    codegen_args = HUFFMAN_CODE_BUILDER_CODEGEN_ARGS,
     dslx_top = "WeightCodeBuilder",
     library = ":huffman_code_builder_dslx",
     tags = ["manual"],
@@ -2880,7 +2880,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "huffman_code_builder_opt_ir_benchmark",
     src = ":huffman_code_builder_verilog.opt.ir",
-    benchmark_ir_args = huffman_code_builder_codegen_args,
+    benchmark_ir_args = HUFFMAN_CODE_BUILDER_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -2942,7 +2942,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-huffman_axi_reader_codegen_args = common_codegen_args | {
+HUFFMAN_AXI_READER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanAxiReader",
     "clock_period_ps": "750",
     "worst_case_throughput": "4",
@@ -2950,7 +2950,7 @@ huffman_axi_reader_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "huffman_axi_reader_verilog",
-    codegen_args = huffman_axi_reader_codegen_args,
+    codegen_args = HUFFMAN_AXI_READER_CODEGEN_ARGS,
     dslx_top = "HuffmanAxiReaderInst",
     library = ":huffman_axi_reader_dslx",
     tags = ["manual"],
@@ -2960,7 +2960,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "huffman_axi_reader_opt_ir_benchmark",
     src = ":huffman_axi_reader_verilog.opt.ir",
-    benchmark_ir_args = huffman_axi_reader_codegen_args,
+    benchmark_ir_args = HUFFMAN_AXI_READER_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -3018,7 +3018,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-huffman_data_preprocessor_codegen_args = common_codegen_args | {
+HUFFMAN_DATA_PREPROCESSOR_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanDataPreprocessor",
     "pipeline_stages": "36",
     "clock_period_ps": "810",
@@ -3028,7 +3028,7 @@ huffman_data_preprocessor_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "huffman_data_preprocessor_verilog",
-    codegen_args = huffman_data_preprocessor_codegen_args,
+    codegen_args = HUFFMAN_DATA_PREPROCESSOR_CODEGEN_ARGS,
     dslx_top = "HuffmanDataPreprocessor",
     library = ":huffman_data_preprocessor_dslx",
     tags = ["manual"],
@@ -3038,7 +3038,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "huffman_data_preprocessor_opt_ir_benchmark",
     src = ":huffman_data_preprocessor_verilog.opt.ir",
-    benchmark_ir_args = huffman_data_preprocessor_codegen_args,
+    benchmark_ir_args = HUFFMAN_DATA_PREPROCESSOR_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -3097,7 +3097,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-huffman_decoder_codegen_args = common_codegen_args | {
+HUFFMAN_DECODER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanDecoder",
     "pipeline_stages": "8",
     "clock_period_ps": "0",
@@ -3106,7 +3106,7 @@ huffman_decoder_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "huffman_decoder_verilog",
-    codegen_args = huffman_decoder_codegen_args,
+    codegen_args = HUFFMAN_DECODER_CODEGEN_ARGS,
     dslx_top = "HuffmanDecoder",
     library = ":huffman_decoder_dslx",
     tags = ["manual"],
@@ -3116,7 +3116,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "huffman_decoder_opt_ir_benchmark",
     src = ":huffman_decoder_verilog.opt.ir",
-    benchmark_ir_args = huffman_decoder_codegen_args,
+    benchmark_ir_args = HUFFMAN_DECODER_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -3180,7 +3180,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-huffman_ctrl_codegen_args = common_codegen_args | {
+HUFFMAN_CTRL_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanCtrl",
     "pipeline_stages": "8",
     "clock_period_ps": "750",
@@ -3189,7 +3189,7 @@ huffman_ctrl_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "huffman_ctrl_verilog",
-    codegen_args = huffman_ctrl_codegen_args,
+    codegen_args = HUFFMAN_CTRL_CODEGEN_ARGS,
     dslx_top = "HuffmanControlAndSequenceInst",
     library = ":huffman_ctrl_dslx",
     tags = ["manual"],
@@ -3199,7 +3199,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "huffman_ctrl_opt_ir_benchmark",
     src = ":huffman_ctrl_verilog.opt.ir",
-    benchmark_ir_args = huffman_ctrl_codegen_args,
+    benchmark_ir_args = HUFFMAN_CTRL_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -3267,7 +3267,7 @@ xls_dslx_test(
     ],
 )
 
-huffman_weights_dec_codegen_args = common_codegen_args | {
+HUFFMAN_WEIGHTS_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanWeightsDecoder",
     "pipeline_stages": "25",
     "clock_period_ps": "750",
@@ -3277,7 +3277,7 @@ huffman_weights_dec_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "huffman_weights_dec_verilog",
-    codegen_args = huffman_weights_dec_codegen_args,
+    codegen_args = HUFFMAN_WEIGHTS_DEC_CODEGEN_ARGS,
     dslx_top = "HuffmanWeightsDecoderInst",
     library = ":huffman_weights_dec_dslx",
     opt_ir_args = {
@@ -3290,7 +3290,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "huffman_weights_dec_opt_ir_benchmark",
     src = ":huffman_weights_dec_verilog.opt.ir",
-    benchmark_ir_args = huffman_weights_dec_codegen_args,
+    benchmark_ir_args = HUFFMAN_WEIGHTS_DEC_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
@@ -3354,7 +3354,7 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
-huffman_literals_dec_codegen_args = common_codegen_args | {
+HUFFMAN_LITERALS_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanLiteralsDecoder",
     "pipeline_stages": "64",
     "clock_period_ps": "0",
@@ -3365,7 +3365,7 @@ huffman_literals_dec_codegen_args = common_codegen_args | {
 
 xls_dslx_verilog(
     name = "huffman_literals_dec_verilog",
-    codegen_args = huffman_literals_dec_codegen_args,
+    codegen_args = HUFFMAN_LITERALS_DEC_CODEGEN_ARGS,
     dslx_top = "HuffmanLiteralsDecoderInst",
     library = ":huffman_literals_dec_dslx",
     tags = ["manual"],
@@ -3375,7 +3375,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "huffman_literals_dec_opt_ir_benchmark",
     src = ":huffman_literals_dec_verilog.opt.ir",
-    benchmark_ir_args = huffman_literals_dec_codegen_args,
+    benchmark_ir_args = HUFFMAN_LITERALS_DEC_CODEGEN_ARGS,
     tags = ["manual"],
 )
 
