@@ -263,34 +263,28 @@ pub proc HuffmanDecoder {
             state.data_len > uN[BUFF_W_LOG2]:0 &&
             state.data_len >= state.code_length[0] as uN[BUFF_W_LOG2]
         ) {
-            let data_mask = (!uN[hcommon::MAX_WEIGHT]:0) >> (hcommon::MAX_WEIGHT - state.code_length[0] as u32);
-            let data_masked = state.data as uN[hcommon::MAX_WEIGHT] & data_mask;
-
-            trace_fmt!("[HuffmanDecoder] Data to be decoded: {:#b} (len: {})", data_masked, state.code_length[0]);
-
-            let literals = for (i, literals):(u32, uN[common::SYMBOL_WIDTH][SYMBOLS_N]) in range(u32:0, SYMBOLS_N){
+            // greedily take longest match, won't skip anything since no symbol is a prefix of another (Huffman property)
+            let literal = for(i, literal) : (u32, uN[common::SYMBOL_WIDTH]) in range(u32:0, SYMBOLS_N) {
+                let test_length = state.symbol_code_len[i];
+                let data_mask = (!uN[hcommon::MAX_WEIGHT]:0) >> (hcommon::MAX_WEIGHT - test_length as u32);
+                let data_masked = state.data as uN[hcommon::MAX_WEIGHT] & data_mask;
                 if (
-                    state.symbol_valid[i] &&
-                    (data_masked == state.symbol_code[i]) &&
-                    (state.code_length[0] == state.symbol_code_len[i] as CodeLen)
+                    state.symbol_valid[i] && (data_masked == state.symbol_code[i])
                 ) {
-                    update(literals, i, i as uN[common::SYMBOL_WIDTH])
+                    trace_fmt!("decoded {:#b} as {:#x} (length={})", data_masked, i, test_length);
+                    i as uN[common::SYMBOL_WIDTH]
                 } else {
-                    literals
+                    literal
                 }
-            }(zero!<uN[common::SYMBOL_WIDTH][SYMBOLS_N]>());
-
-            // assuming only one code was valid, we can compute 'or' of all array elements
-            let literal = for (i, literal):(u32, uN[common::SYMBOL_WIDTH]) in range(u32:0, SYMBOLS_N) {
-                literal | literals[i]
             }(uN[common::SYMBOL_WIDTH]:0);
+            let length = state.symbol_code_len[literal];
 
             // shift buffer
             State {
                 decoded_literals: update(state.decoded_literals, state.decoded_literals_len, literal),
                 decoded_literals_len: state.decoded_literals_len + u4:1,
-                data_len: state.data_len - state.code_length[0] as uN[BUFF_W_LOG2],
-                data: state.data >> state.code_length[0],
+                data_len: state.data_len - length as uN[BUFF_W_LOG2],
+                data: state.data >> length,
                 code_length: shift_buff_array(state.code_length, state.code_length[0] as u32),
                 ..state
             }
