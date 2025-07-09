@@ -404,6 +404,20 @@ std::optional<const InvocationData> TypeInfo::GetInvocationData(
   return it->second;
 }
 
+std::vector<InvocationData> TypeInfo::GetInvocationData(
+    const Function* f) const {
+  auto invocations = GetRoot()->invocations_;
+  std::vector<InvocationData> result;
+  for (auto it = invocations.begin(); it != invocations.end(); ++it) {
+    // Note, InvocationData's callee is a Function (unlike Invocation's callee)
+    if (it->second.callee() == f) {
+      result.push_back(it->second);
+    }
+  }
+
+  return result;
+}
+
 std::optional<Type*> TypeInfo::GetItem(const AstNode* key) const {
   CHECK_EQ(key->owner(), module_) << absl::StreamFormat(
       "attempted to get type information for AST node: `%s`; but it is from "
