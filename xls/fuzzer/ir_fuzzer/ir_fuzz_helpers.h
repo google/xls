@@ -22,7 +22,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 
-// Generic helper functions used in the Ir Fuzzer.
+// Generic helper functions used in the IR Fuzzer.
 
 namespace xls {
 
@@ -35,6 +35,10 @@ BValue IncreaseBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width,
                         IncreaseWidthMethod increase_width_method);
 
 Bits ChangeBytesBitWidth(std::string bytes, int64_t bit_width);
+
+int64_t Bounded(int64_t value, int64_t left_bound, int64_t right_bound);
+int64_t BoundedWidth(int64_t bit_width, int64_t left_bound = 1,
+                     int64_t right_bound = 1000);
 
 }  // namespace xls
 

@@ -15,8 +15,10 @@
 #ifndef XLS_FUZZER_IR_FUZZER_GEN_IR_NODES_PASS_H_
 #define XLS_FUZZER_IR_FUZZER_GEN_IR_NODES_PASS_H_
 
+#include <cstdint>
 #include <vector>
 
+#include "google/protobuf/repeated_ptr_field.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_visitor.h"
 #include "xls/ir/function_builder.h"
@@ -37,12 +39,52 @@ class GenIrNodesPass : public IrFuzzVisitor {
 
   void GenIrNodes();
 
-  void HandleAdd(FuzzAddProto* add) override;
-  void HandleLiteral(FuzzLiteralProto* literal) override;
   void HandleParam(FuzzParamProto* param) override;
+  void HandleShra(FuzzShraProto* shra) override;
+  void HandleShrl(FuzzShrlProto* shrl) override;
+  void HandleShll(FuzzShllProto* shll) override;
+  void HandleOr(FuzzOrProto* or_op) override;
+  void HandleNor(FuzzNorProto* nor) override;
+  void HandleXor(FuzzXorProto* xor_op) override;
+  void HandleAnd(FuzzAndProto* and_op) override;
+  void HandleNand(FuzzNandProto* nand) override;
+  void HandleAndReduce(FuzzAndReduceProto* and_reduce) override;
+  void HandleOrReduce(FuzzOrReduceProto* or_reduce) override;
+  void HandleXorReduce(FuzzXorReduceProto* xor_reduce) override;
+  void HandleUMul(FuzzUMulProto* umul) override;
+  void HandleSMul(FuzzSMulProto* smul) override;
+  void HandleUDiv(FuzzUDivProto* udiv) override;
+  void HandleSDiv(FuzzSDivProto* sdiv) override;
+  void HandleUMod(FuzzUModProto* umod) override;
+  void HandleSMod(FuzzSModProto* smod) override;
+  void HandleSubtract(FuzzSubtractProto* subtract) override;
+  void HandleAdd(FuzzAddProto* add) override;
+  void HandleConcat(FuzzConcatProto* concat) override;
+  void HandleULe(FuzzULeProto* ule) override;
+  void HandleULt(FuzzULtProto* ult) override;
+  void HandleUGe(FuzzUGeProto* uge) override;
+  void HandleUGt(FuzzUGtProto* ugt) override;
+  void HandleSLe(FuzzSLeProto* sle) override;
+  void HandleSLt(FuzzSLtProto* slt) override;
+  void HandleSGe(FuzzSGeProto* sge) override;
+  void HandleSGt(FuzzSGtProto* sgt) override;
+  void HandleEq(FuzzEqProto* eq) override;
+  void HandleNe(FuzzNeProto* ne) override;
+  void HandleNegate(FuzzNegateProto* negate) override;
+  void HandleNot(FuzzNotProto* not_op) override;
+  void HandleLiteral(FuzzLiteralProto* literal) override;
 
  private:
-  BValue GetOperand(FittedOperandIdxProto* operand_idx);
+  BValue GetOperand(int64_t idx);
+  std::vector<BValue> GetOperands(google::protobuf::RepeatedField<int64_t>* operand_idxs,
+                                  int64_t min_operand_count = 0,
+                                  int64_t max_operand_count = -1);
+  BValue GetWidthFittedOperand(FittedOperandIdxProto* operand_idx,
+                               int64_t bit_width);
+  std::vector<BValue> GetWidthFittedOperands(
+      google::protobuf::RepeatedPtrField<FittedOperandIdxProto>* operand_idxs,
+      int64_t bit_width, int64_t min_operand_count = 0,
+      int64_t max_operand_count = -1);
 
   FuzzProgramProto* fuzz_program_;
   Package* p_;

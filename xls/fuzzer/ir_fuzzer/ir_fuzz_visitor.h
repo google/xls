@@ -27,9 +27,40 @@ class IrFuzzVisitor {
   virtual ~IrFuzzVisitor() = default;
 
   // These functions correlate to an IR Node.
-  virtual void HandleAdd(FuzzAddProto* add) = 0;
-  virtual void HandleLiteral(FuzzLiteralProto* literal) = 0;
   virtual void HandleParam(FuzzParamProto* param) = 0;
+  virtual void HandleShra(FuzzShraProto* shra) = 0;
+  virtual void HandleShrl(FuzzShrlProto* shrl) = 0;
+  virtual void HandleShll(FuzzShllProto* shll) = 0;
+  virtual void HandleOr(FuzzOrProto* or_op) = 0;
+  virtual void HandleNor(FuzzNorProto* nor) = 0;
+  virtual void HandleXor(FuzzXorProto* xor_op) = 0;
+  virtual void HandleAnd(FuzzAndProto* and_op) = 0;
+  virtual void HandleNand(FuzzNandProto* nand) = 0;
+  virtual void HandleAndReduce(FuzzAndReduceProto* and_reduce) = 0;
+  virtual void HandleOrReduce(FuzzOrReduceProto* or_reduce) = 0;
+  virtual void HandleXorReduce(FuzzXorReduceProto* xor_reduce) = 0;
+  virtual void HandleUMul(FuzzUMulProto* umul) = 0;
+  virtual void HandleSMul(FuzzSMulProto* smul) = 0;
+  virtual void HandleUDiv(FuzzUDivProto* udiv) = 0;
+  virtual void HandleSDiv(FuzzSDivProto* sdiv) = 0;
+  virtual void HandleUMod(FuzzUModProto* umod) = 0;
+  virtual void HandleSMod(FuzzSModProto* smod) = 0;
+  virtual void HandleSubtract(FuzzSubtractProto* subtract) = 0;
+  virtual void HandleAdd(FuzzAddProto* add) = 0;
+  virtual void HandleConcat(FuzzConcatProto* concat) = 0;
+  virtual void HandleULe(FuzzULeProto* ule) = 0;
+  virtual void HandleULt(FuzzULtProto* ult) = 0;
+  virtual void HandleUGe(FuzzUGeProto* uge) = 0;
+  virtual void HandleUGt(FuzzUGtProto* ugt) = 0;
+  virtual void HandleSLe(FuzzSLeProto* sle) = 0;
+  virtual void HandleSLt(FuzzSLtProto* slt) = 0;
+  virtual void HandleSGe(FuzzSGeProto* sge) = 0;
+  virtual void HandleSGt(FuzzSGtProto* sgt) = 0;
+  virtual void HandleEq(FuzzEqProto* eq) = 0;
+  virtual void HandleNe(FuzzNeProto* ne) = 0;
+  virtual void HandleNegate(FuzzNegateProto* negate) = 0;
+  virtual void HandleNot(FuzzNotProto* not_op) = 0;
+  virtual void HandleLiteral(FuzzLiteralProto* literal) = 0;
 
   void VisitFuzzOp(FuzzOpProto* fuzz_op);
 };

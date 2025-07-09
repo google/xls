@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <string>
 
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/ir/bits.h"
@@ -90,6 +91,24 @@ Bits ChangeBytesBitWidth(std::string bytes, int64_t bit_width) {
     bits = bits_ops::ZeroExtend(bits, bit_width);
   }
   return bits;
+}
+
+// Returns a default integer if the integer is not in bounds.
+int64_t Bounded(int64_t value, int64_t left_bound, int64_t right_bound) {
+  CHECK_LE(left_bound, right_bound);
+  if (left_bound <= value && value <= right_bound) {
+    return value;
+  } else {
+    return left_bound;
+  }
+}
+
+// Returns a default bit width if it is not in range. Bit width cannot be
+// negative, cannot be 0, and cannot be too large otherwise the test will run
+// out of memory or take too long.
+int64_t BoundedWidth(int64_t bit_width, int64_t left_bound,
+                     int64_t right_bound) {
+  return Bounded(bit_width, left_bound, right_bound);
 }
 
 }  // namespace xls

@@ -26,45 +26,6 @@ message FuzzProgramProto {
   repeated FuzzOpProto fuzz_ops = 2;
 }
 
-// Each FuzzOpProto represents an XLS operation. A FuzzOpProto is used as a
-// randomly generated instruction to instantiate an IR operation node.
-message FuzzOpProto {
-  oneof fuzz_op {
-    FuzzAddProto add = 1;
-    FuzzLiteralProto literal = 2;
-    FuzzParamProto param = 3;
-  }
-}
-
-message FuzzAddProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
-}
-
-// TODO: Use the ValueProto::Bits proto for bit_width and value_bytes.
-message FuzzLiteralProto {
-  optional int64 bit_width = 1;
-  optional bytes value_bytes = 2;
-}
-
-// TODO: Consider using the TypeProto to define the type of param generated.
-message FuzzParamProto {
-  optional int64 bit_width = 1;
-}
-
-// References a node on the stack by its index.
-message FittedOperandIdxProto {
-  optional int64 stack_idx = 1;
-  optional WidthFittingMethodProto width_fitting_method = 2;
-}
-
-message WidthFittingMethodProto {
-  // Methods used to decrease or increase the bit width of the operand.
-  optional DecreaseWidthMethod decrease_width_method = 1;
-  optional IncreaseWidthMethod increase_width_method = 2;
-}
-
 // Specifies the method used to combine the IrFuzzBuilder stack of BValues into
 // a single IR object.
 enum CombineStackMethod {
@@ -74,6 +35,21 @@ enum CombineStackMethod {
   UNSET_COMBINE_STACK_METHOD = 0;
   LAST_ELEMENT_METHOD = 1;
   ADD_STACK_METHOD = 2;
+}
+
+// References a node on the stack by its index. Contains methods to increase and
+// decrease the reference operand's bit width in case the operand must be of a
+// specific bit width.
+message FittedOperandIdxProto {
+  optional int64 stack_idx = 1;
+  optional WidthFittingMethodProto width_fitting_method = 2;
+}
+
+// Specifies the methods used to increase and decrease the bit width of an IR
+// node.
+message WidthFittingMethodProto {
+  optional DecreaseWidthMethod decrease_width_method = 1;
+  optional IncreaseWidthMethod increase_width_method = 2;
 }
 
 // Specifies the method used to decrease the bit width of an IR op.
@@ -87,4 +63,238 @@ enum IncreaseWidthMethod {
   UNSET_INCREASE_WIDTH_METHOD = 0;
   ZERO_EXTEND_METHOD = 1;
   SIGN_EXTEND_METHOD = 2;
+}
+
+// Each FuzzOpProto represents an IR node. A FuzzOpProto is used as a
+// randomly generated instruction to instantiate an IR operation node.
+message FuzzOpProto {
+  oneof fuzz_op {
+    FuzzParamProto param = 1;
+    FuzzShraProto shra = 2;
+    FuzzShllProto shll = 3;
+    FuzzShrlProto shrl = 4;
+    // Has an "_op" suffix to avoid the "or" keyword in some programming
+    // languages.
+    FuzzOrProto or_op = 5;
+    FuzzNorProto nor = 6;
+    FuzzXorProto xor_op = 7;
+    FuzzAndProto and_op = 8;
+    FuzzNandProto nand = 9;
+    FuzzAndReduceProto and_reduce = 10;
+    FuzzOrReduceProto or_reduce = 11;
+    FuzzXorReduceProto xor_reduce = 12;
+    FuzzUMulProto umul = 13;
+    FuzzSMulProto smul = 14;
+    FuzzUDivProto udiv = 15;
+    FuzzSDivProto sdiv = 16;
+    FuzzUModProto umod = 17;
+    FuzzSModProto smod = 18;
+    FuzzSubtractProto subtract = 19;
+    FuzzAddProto add = 20;
+    FuzzConcatProto concat = 21;
+    FuzzULeProto ule = 22;
+    FuzzULtProto ult = 23;
+    FuzzUGeProto uge = 24;
+    FuzzUGtProto ugt = 25;
+    FuzzSLeProto sle = 26;
+    FuzzSLtProto slt = 27;
+    FuzzSGeProto sge = 28;
+    FuzzSGtProto sgt = 29;
+    FuzzEqProto eq = 30;
+    FuzzNeProto ne = 31;
+    FuzzNegateProto negate = 32;
+    FuzzNotProto not_op = 33;
+    FuzzLiteralProto literal = 34;
+  }
+}
+
+// Places a parameter of a specific bit width on the stack.
+// TODO: Consider using the TypeProto to define the type of param generated.
+message FuzzParamProto {
+  optional int64 bit_width = 1;
+}
+
+message FuzzShraProto {
+  // Use of idxs which represent an index on the stack. These idx fields
+  // suggest that the FuzzOp uses a node on the stack as an operand.
+  optional int64 operand_idx = 1;
+  optional int64 amount_idx = 2;
+}
+
+message FuzzShrlProto {
+  optional int64 operand_idx = 1;
+  optional int64 amount_idx = 2;
+}
+
+message FuzzShllProto {
+  optional int64 operand_idx = 1;
+  optional int64 amount_idx = 2;
+}
+
+message FuzzOrProto {
+  // This FuzzOp requires that the operands are all the same bit width. So this
+  // bit_width field is used to specify the bit width that the operands need to
+  // be changed to.
+  optional int64 bit_width = 1;
+  // FittedOperandIdxProto is just like a normal stack index but takes a node
+  // from the stack and fits it to a specified bit width.
+  repeated FittedOperandIdxProto operand_idxs = 2;
+}
+
+message FuzzNorProto {
+  optional int64 bit_width = 1;
+  repeated FittedOperandIdxProto operand_idxs = 2;
+}
+
+message FuzzXorProto {
+  optional int64 bit_width = 1;
+  repeated FittedOperandIdxProto operand_idxs = 2;
+}
+
+message FuzzAndProto {
+  optional int64 bit_width = 1;
+  repeated FittedOperandIdxProto operand_idxs = 2;
+}
+
+message FuzzNandProto {
+  optional int64 bit_width = 1;
+  repeated FittedOperandIdxProto operand_idxs = 2;
+}
+
+message FuzzAndReduceProto {
+  optional int64 operand_idx = 1;
+}
+
+message FuzzOrReduceProto {
+  optional int64 operand_idx = 1;
+}
+
+message FuzzXorReduceProto {
+  optional int64 operand_idx = 1;
+}
+
+message FuzzUMulProto {
+  optional int64 bit_width = 1;
+  optional int64 lhs_idx = 2;
+  optional int64 rhs_idx = 3;
+}
+
+message FuzzSMulProto {
+  optional int64 bit_width = 1;
+  optional int64 lhs_idx = 2;
+  optional int64 rhs_idx = 3;
+}
+
+message FuzzUDivProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzSDivProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzUModProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzSModProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzSubtractProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzAddProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzConcatProto {
+  repeated int64 operand_idxs = 1;
+}
+
+message FuzzULeProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzULtProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzUGeProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzUGtProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzSLeProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzSLtProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzSGeProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzSGtProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzEqProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzNeProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto lhs_idx = 2;
+  optional FittedOperandIdxProto rhs_idx = 3;
+}
+
+message FuzzNegateProto {
+  optional int64 operand_idx = 1;
+}
+
+message FuzzNotProto {
+  optional int64 operand_idx = 1;
+}
+
+// TODO: Use the ValueProto::Bits proto for bit_width and value_bytes.
+message FuzzLiteralProto {
+  optional int64 bit_width = 1;
+  optional bytes value_bytes = 2;
 }

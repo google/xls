@@ -460,5 +460,719 @@ TEST(IrFuzzBuilderTest, AddWithLargeWidths) {
               m::Add(m::ZeroExt(m::Param("p0")), m::ZeroExt(m::Param("p1"))));
 }
 
+TEST(IrFuzzBuilderTest, ConcatOp) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  FuzzProgramProto fuzz_program;
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_stack_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            bit_width: 10
+          }
+        }
+        fuzz_ops {
+          param {
+            bit_width: 20
+          }
+        }
+        fuzz_ops {
+          param {
+            bit_width: 30
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs: 0
+            operand_idxs: 1
+            operand_idxs: 2
+          }
+        }
+      )");
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  BValue ir = ir_fuzz_builder.BuildIr();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ir));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Param("p0"), m::Param("p1"), m::Param("p2")));
+}
+
+TEST(IrFuzzBuilderTest, EmptyConcat) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  FuzzProgramProto fuzz_program;
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_stack_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          concat {
+          }
+        }
+        fuzz_ops {
+          add {
+            bit_width: 100
+            lhs_idx {
+              stack_idx: 0
+              width_fitting_method {
+                increase_width_method: ZERO_EXTEND_METHOD
+              }
+            }
+            rhs_idx {
+              stack_idx: 0
+              width_fitting_method {
+                increase_width_method: SIGN_EXTEND_METHOD
+              }
+            }
+          }
+        }
+      )");
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  BValue ir = ir_fuzz_builder.BuildIr();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ir));
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::ZeroExt(m::Concat(m::Literal(UBits(0, 64)))),
+                     m::SignExt(m::Concat(m::Literal(UBits(0, 64))))));
+}
+
+TEST(IrFuzzBuilderTest, ShiftOps) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  FuzzProgramProto fuzz_program;
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_stack_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            bit_width: 10
+          }
+        }
+        fuzz_ops {
+          param {
+            bit_width: 20
+          }
+        }
+        fuzz_ops {
+          shra {
+            operand_idx: 0
+            amount_idx: 1
+          }
+        }
+        fuzz_ops {
+          shrl {
+            operand_idx: 0
+            amount_idx: 1
+          }
+        }
+        fuzz_ops {
+          shll {
+            operand_idx: 0
+            amount_idx: 1
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs: 2
+            operand_idxs: 3
+            operand_idxs: 4
+          }
+        }
+      )");
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  BValue ir = ir_fuzz_builder.BuildIr();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ir));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Shra(m::Param("p0"), m::Param("p1")),
+                        m::Shrl(m::Param("p0"), m::Param("p1")),
+                        m::Shll(m::Param("p0"), m::Param("p1"))));
+}
+
+TEST(IrFuzzBuilderTest, NaryOps) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  FuzzProgramProto fuzz_program;
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_stack_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            bit_width: 10
+          }
+        }
+        fuzz_ops {
+          param {
+            bit_width: 30
+          }
+        }
+        fuzz_ops {
+          or_op {
+            bit_width: 20
+            operand_idxs {
+              stack_idx: 0
+              width_fitting_method {
+                increase_width_method: ZERO_EXTEND_METHOD
+              }
+            }
+            operand_idxs {
+              stack_idx: 0
+              width_fitting_method {
+                increase_width_method: SIGN_EXTEND_METHOD
+              }
+            }
+            operand_idxs {
+              stack_idx: 1
+              width_fitting_method {
+                decrease_width_method: BIT_SLICE_METHOD
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          nor {
+          }
+        }
+        fuzz_ops {
+          xor_op {
+            bit_width: 10
+            operand_idxs {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          and_op {
+            bit_width: 10
+            operand_idxs {
+              stack_idx: 0
+            }
+            operand_idxs {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          nand {
+            bit_width: 10
+            operand_idxs {
+              stack_idx: 0
+            }
+            operand_idxs {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs: 2
+            operand_idxs: 3
+            operand_idxs: 4
+            operand_idxs: 5
+            operand_idxs: 6
+          }
+        }
+      )");
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  BValue ir = ir_fuzz_builder.BuildIr();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ir));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Concat(m::Or(m::ZeroExt(m::Param("p0")), m::SignExt(m::Param("p0")),
+                      m::BitSlice(m::Param("p1"), 0, 20)),
+                m::Nor(m::Literal(UBits(0, 1))), m::Xor(m::Param("p0")),
+                m::And(m::Param("p0"), m::Param("p0")),
+                m::Nand(m::Param("p0"), m::Param("p0"))));
+}
+
+TEST(IrFuzzBuilderTest, ReduceOps) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  FuzzProgramProto fuzz_program;
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_stack_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            bit_width: 10
+          }
+        }
+        fuzz_ops {
+          and_reduce {
+            operand_idx: 0
+          }
+        }
+        fuzz_ops {
+          or_reduce {
+            operand_idx: 0
+          }
+        }
+        fuzz_ops {
+          xor_reduce {
+            operand_idx: 0
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs: 1
+            operand_idxs: 2
+            operand_idxs: 3
+          }
+        }
+      )");
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  BValue ir = ir_fuzz_builder.BuildIr();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ir));
+  EXPECT_THAT(f->return_value(), m::Concat(m::AndReduce(m::Param("p0")),
+                                           m::OrReduce(m::Param("p0")),
+                                           m::XorReduce(m::Param("p0"))));
+}
+
+TEST(IrFuzzBuilderTest, MulOps) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  FuzzProgramProto fuzz_program;
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_stack_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            bit_width: 10
+          }
+        }
+        fuzz_ops {
+          param {
+            bit_width: 20
+          }
+        }
+        fuzz_ops {
+          umul {
+            lhs_idx: 0
+            rhs_idx: 1
+          }
+        }
+        fuzz_ops {
+          umul {
+            bit_width: 500
+            lhs_idx: 0
+            rhs_idx: 1
+          }
+        }
+        fuzz_ops {
+          smul {
+            bit_width: 10
+            lhs_idx: 0
+            rhs_idx: 1
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs: 2
+            operand_idxs: 3
+            operand_idxs: 4
+          }
+        }
+      )");
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  BValue ir = ir_fuzz_builder.BuildIr();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ir));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::UMul(m::Param("p0"), m::Param("p1")),
+                        m::UMul(m::Param("p0"), m::Param("p1")),
+                        m::SMul(m::Param("p0"), m::Param("p1"))));
+}
+
+TEST(IrFuzzBuilderTest, DivOps) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  FuzzProgramProto fuzz_program;
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_stack_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            bit_width: 10
+          }
+        }
+        fuzz_ops {
+          param {
+            bit_width: 30
+          }
+        }
+        fuzz_ops {
+          udiv {
+            bit_width: 20
+            lhs_idx {
+              stack_idx: 0
+              width_fitting_method {
+                increase_width_method: SIGN_EXTEND_METHOD
+              }
+            }
+            rhs_idx {
+              stack_idx: 1
+              width_fitting_method {
+                decrease_width_method: BIT_SLICE_METHOD
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          sdiv {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs: 2
+            operand_idxs: 3
+          }
+        }
+      )");
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  BValue ir = ir_fuzz_builder.BuildIr();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ir));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::UDiv(m::SignExt(m::Param("p0")),
+                                m::BitSlice(m::Param("p1"), 0, 20)),
+                        m::SDiv(m::Param("p0"), m::Param("p0"))));
+}
+
+TEST(IrFuzzBuilderTest, ModOps) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  FuzzProgramProto fuzz_program;
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_stack_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            bit_width: 10
+          }
+        }
+        fuzz_ops {
+          param {
+            bit_width: 30
+          }
+        }
+        fuzz_ops {
+          umod {
+            bit_width: 20
+            lhs_idx {
+              stack_idx: 0
+              width_fitting_method {
+                increase_width_method: SIGN_EXTEND_METHOD
+              }
+            }
+            rhs_idx {
+              stack_idx: 1
+              width_fitting_method {
+                decrease_width_method: BIT_SLICE_METHOD
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          smod {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs: 2
+            operand_idxs: 3
+          }
+        }
+      )");
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  BValue ir = ir_fuzz_builder.BuildIr();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ir));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::UMod(m::SignExt(m::Param("p0")),
+                                m::BitSlice(m::Param("p1"), 0, 20)),
+                        m::SMod(m::Param("p0"), m::Param("p0"))));
+}
+
+TEST(IrFuzzBuilderTest, AssociativeOps) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  FuzzProgramProto fuzz_program;
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_stack_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            bit_width: 10
+          }
+        }
+        fuzz_ops {
+          param {
+            bit_width: 30
+          }
+        }
+        fuzz_ops {
+          add {
+            bit_width: 20
+            lhs_idx {
+              stack_idx: 0
+              width_fitting_method {
+                increase_width_method: SIGN_EXTEND_METHOD
+              }
+            }
+            rhs_idx {
+              stack_idx: 1
+              width_fitting_method {
+                decrease_width_method: BIT_SLICE_METHOD
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          subtract {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs: 2
+            operand_idxs: 3
+          }
+        }
+      )");
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  BValue ir = ir_fuzz_builder.BuildIr();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ir));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Add(m::SignExt(m::Param("p0")),
+                               m::BitSlice(m::Param("p1"), 0, 20)),
+                        m::Sub(m::Param("p0"), m::Param("p0"))));
+}
+
+TEST(IrFuzzBuilderTest, ComparisonOps) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  FuzzProgramProto fuzz_program;
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_stack_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            bit_width: 10
+          }
+        }
+        fuzz_ops {
+          param {
+            bit_width: 30
+          }
+        }
+        fuzz_ops {
+          ule {
+            bit_width: 20
+            lhs_idx {
+              stack_idx: 0
+              width_fitting_method {
+                increase_width_method: SIGN_EXTEND_METHOD
+              }
+            }
+            rhs_idx {
+              stack_idx: 1
+              width_fitting_method {
+                decrease_width_method: BIT_SLICE_METHOD
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          ult {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          uge {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          ugt {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          sle {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          slt {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          sge {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          sgt {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          eq {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          ne {
+            bit_width: 10
+            lhs_idx {
+              stack_idx: 0
+            }
+            rhs_idx {
+              stack_idx: 0
+            }
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs: 2
+            operand_idxs: 3
+            operand_idxs: 4
+            operand_idxs: 5
+            operand_idxs: 6
+            operand_idxs: 7
+            operand_idxs: 8
+            operand_idxs: 9
+            operand_idxs: 10
+            operand_idxs: 11
+          }
+        }
+      )");
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  BValue ir = ir_fuzz_builder.BuildIr();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ir));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::ULe(m::SignExt(m::Param("p0")),
+                               m::BitSlice(m::Param("p1"), 0, 20)),
+                        m::ULt(m::Param("p0"), m::Param("p0")),
+                        m::UGe(m::Param("p0"), m::Param("p0")),
+                        m::UGt(m::Param("p0"), m::Param("p0")),
+                        m::SLe(m::Param("p0"), m::Param("p0")),
+                        m::SLt(m::Param("p0"), m::Param("p0")),
+                        m::SGe(m::Param("p0"), m::Param("p0")),
+                        m::SGt(m::Param("p0"), m::Param("p0")),
+                        m::Eq(m::Param("p0"), m::Param("p0")),
+                        m::Ne(m::Param("p0"), m::Param("p0"))));
+}
+
+TEST(IrFuzzBuilderTest, InvertOps) {
+  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  FuzzProgramProto fuzz_program;
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_stack_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            bit_width: 10
+          }
+        }
+        fuzz_ops {
+          negate {
+            operand_idx: 0
+          }
+        }
+        fuzz_ops {
+          not_op {
+            operand_idx: 0
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs: 1
+            operand_idxs: 2
+          }
+        }
+      )");
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
+  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  BValue ir = ir_fuzz_builder.BuildIr();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ir));
+  EXPECT_THAT(f->return_value(),
+              m::Concat(m::Neg(m::Param("p0")), m::Not(m::Param("p0"))));
+}
+
 }  // namespace
 }  // namespace xls
