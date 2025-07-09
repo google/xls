@@ -1339,8 +1339,8 @@ xls_dslx_test(
 )
 
 REFILLING_SHIFT_BUFFER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
-        "module_name": "RefillingShiftBufferInternalInst",
-        "worst_case_throughput" : "3",
+    "module_name": "RefillingShiftBufferInternalInst",
+    "worst_case_throughput": "3",
 }
 
 xls_dslx_verilog(
@@ -1850,8 +1850,8 @@ xls_dslx_library(
     name = "ram_demux_dslx",
     srcs = ["ram_demux.x"],
     deps = [
+        ":ram_passthrough_dslx",
         "//xls/examples:ram_dslx",
-        ":ram_passthrough_dslx"
     ],
 )
 
@@ -2009,7 +2009,6 @@ place_and_route(
     target_die_utilization_percentage = "5",
 )
 
-
 xls_dslx_library(
     name = "ram_passthrough_dslx",
     srcs = ["ram_passthrough.x"],
@@ -2031,15 +2030,14 @@ xls_dslx_verilog(
         "module_name": "RamPassthrough",
         "generator": "pipeline",
         "delay_model": "asap7",
-        "ram_configurations":
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 1,
-                ram_name = "ram",
-                rd_req = "ram_passthrough__rd_req_s",
-                rd_resp = "ram_passthrough__rd_resp_r",
-                wr_req = "ram_passthrough__wr_req_s",
-                wr_resp = "ram_passthrough__wr_resp_r",
-            ),
+        "ram_configurations": "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ram",
+            rd_req = "ram_passthrough__rd_req_s",
+            rd_resp = "ram_passthrough__rd_resp_r",
+            wr_req = "ram_passthrough__wr_req_s",
+            wr_resp = "ram_passthrough__wr_resp_r",
+        ),
         "reset": "rst",
         "use_system_verilog": "false",
         "materialize_internal_fifos": "true",
@@ -2235,8 +2233,8 @@ xls_dslx_library(
         "ram_mux.x",
     ],
     deps = [
+        ":ram_passthrough_dslx",
         "//xls/examples:ram_dslx",
-        ":ram_passthrough_dslx"
     ],
 )
 
