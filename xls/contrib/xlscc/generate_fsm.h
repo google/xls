@@ -89,8 +89,12 @@ class NewFSMGenerator : public GeneratorBase {
   // Generate the XLS IR implementation of the FSM for a translated function.
   absl::StatusOr<GenerateFSMInvocationReturn> GenerateNewFSMInvocation(
       const GeneratedFunction* xls_func,
-      const std::vector<TrackedBValue>& direct_in_args, xls::ProcBuilder& pb,
-      const xls::SourceInfo& body_loc);
+      const std::vector<TrackedBValue>& direct_in_args,
+      const absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>&
+          state_element_for_static,
+      const absl::flat_hash_map<const clang::NamedDecl*, int64_t>&
+          return_index_for_static,
+      xls::ProcBuilder& pb, const xls::SourceInfo& body_loc);
 
  protected:
   absl::Status LayoutNewFSMStates(NewFSMLayout& layout,

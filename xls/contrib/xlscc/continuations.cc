@@ -519,12 +519,15 @@ absl::Status Translator::AddFeedbacksForSlice(GeneratedFunctionSlice& slice,
   std::list<GeneratedFunctionSlice>::iterator slice_after_jump_it =
       slice_iters_by_after_op.at(jump_op);
   XLSCC_CHECK(slice_after_jump_it != context().sf->slices.begin(), loc);
-  --slice_after_jump_it;
-  GeneratedFunctionSlice& slice_before_jump = *slice_after_jump_it;
+  auto slice_before_jump_it = slice_after_jump_it;
+  --slice_before_jump_it;
+  GeneratedFunctionSlice& slice_before_jump = *slice_before_jump_it;
+
   const IOOp* begin_op = jump_op->loop_op_paired;
   XLSCC_CHECK_NE(begin_op, nullptr, loc);
-  GeneratedFunctionSlice& slice_after_begin =
-      *slice_iters_by_after_op.at(begin_op);
+  std::list<GeneratedFunctionSlice>::iterator slice_after_begin_it =
+      slice_iters_by_after_op.at(begin_op);
+  GeneratedFunctionSlice& slice_after_begin = *slice_after_begin_it;
 
   std::vector<const clang::NamedDecl*>
       slice_after_begin_decls_top_context_ordered;
@@ -544,6 +547,16 @@ absl::Status Translator::AddFeedbacksForSlice(GeneratedFunctionSlice& slice,
   context().sf->SortNamesDeterministically(
       slice_before_jump_decls_top_context_ordered);
 
+  for (auto slice_it = slice_after_begin_it; slice_it != slice_after_jump_it;
+       ++slice_it) {
+    GeneratedFunctionSlice& slice = *slice_it;
+    if (!slice.static_values.empty()) {
+      return absl::UnimplementedError(
+          ErrorMessage(GetLoc(*slice.static_values.front()),
+                       "Static values in loop body with new FSM"));
+    }
+  }
+
   CHECK(slice_after_begin_decls_top_context_ordered ==
         slice_before_jump_decls_top_context_ordered);
 
@@ -559,6 +572,7 @@ absl::Status Translator::AddFeedbacksForSlice(GeneratedFunctionSlice& slice,
     new_input.continuation_out = feedback_out;
     slice_after_begin.continuations_in.push_back(new_input);
   }
+
   return absl::OkStatus();
 }
 

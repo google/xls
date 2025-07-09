@@ -1032,6 +1032,7 @@ struct ContinuationInput {
 struct GeneratedFunctionSlice {
   xls::Function* function = nullptr;
   const IOOp* after_op = nullptr;
+  std::vector<const clang::NamedDecl*> static_values;
   std::list<ContinuationValue> continuations_out;
   std::list<ContinuationInput> continuations_in;
 

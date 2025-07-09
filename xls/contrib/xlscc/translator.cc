@@ -2467,8 +2467,13 @@ absl::Status Translator::DeclareStatic(
                        TranslateTypeToXLS(init.type(), loc));
 
   const TrackedBValue bval = context().fb->Param(xls_name, xls_type, loc);
-
   XLSCC_CHECK(bval.valid(), loc);
+
+  if (generate_new_fsm_) {
+    XLSCC_CHECK(!context().sf->slices.empty(), loc);
+    GeneratedFunctionSlice& current_slice = context().sf->slices.back();
+    current_slice.static_values.push_back(lvalue);
+  }
 
   SideEffectingParameter side_effecting_param;
   side_effecting_param.type = SideEffectingParameterType::kStatic;

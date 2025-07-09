@@ -32,6 +32,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "clang/include/clang/AST/Decl.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
@@ -376,8 +377,12 @@ void NewFSMGenerator::PrintNewFSMStates(const NewFSMLayout& layout) {
 absl::StatusOr<GenerateFSMInvocationReturn>
 NewFSMGenerator::GenerateNewFSMInvocation(
     const GeneratedFunction* xls_func,
-    const std::vector<TrackedBValue>& direct_in_args, xls::ProcBuilder& pb,
-    const xls::SourceInfo& body_loc) {
+    const std::vector<TrackedBValue>& direct_in_args,
+    const absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>&
+        state_element_for_static,
+    const absl::flat_hash_map<const clang::NamedDecl*, int64_t>&
+        return_index_for_static,
+    xls::ProcBuilder& pb, const xls::SourceInfo& body_loc) {
   XLSCC_CHECK_NE(xls_func, nullptr, body_loc);
   const GeneratedFunction& func = *xls_func;
 
@@ -394,6 +399,22 @@ NewFSMGenerator::GenerateNewFSMInvocation(
 
   const int64_t num_slice_index_bits =
       xls::CeilOfLog2(1 + layout.states.size());
+
+  // TODO(seanhaskell): Clean this up once the old FSM is removed
+  xls::Type* top_return_type =
+      xls_func->slices.back().function->return_value()->GetType();
+
+  std::vector<TrackedBValue> return_values;
+  if (return_index_for_static.size() > 1) {
+    for (int64_t i = 0; i < top_return_type->AsTupleOrDie()->size(); ++i) {
+      return_values.push_back(pb.Literal(
+          xls::ZeroOfType(top_return_type->AsTupleOrDie()->element_type(i)),
+          body_loc));
+    }
+  } else {
+    return_values.push_back(
+        pb.Literal(xls::ZeroOfType(top_return_type), body_loc));
+  }
 
   TrackedBValue next_activation_slice_index = pb.StateElement(
       "__next_activation_slice",
@@ -491,6 +512,8 @@ NewFSMGenerator::GenerateNewFSMInvocation(
 
   for (int64_t slice_index = 0; slice_index < func.slices.size();
        ++slice_index) {
+    const bool is_last_slice = (slice_index == func.slices.size() - 1);
+
     TrackedBValue slice_active = pb.Eq(
         current_slice_index,
         pb.Literal(xls::UBits(slice_index, num_slice_index_bits)), body_loc,
@@ -515,7 +538,7 @@ NewFSMGenerator::GenerateNewFSMInvocation(
     std::vector<TrackedBValue> invoke_params;
     invoke_params.reserve(slice.continuations_in.size() + 1);
 
-    // Add direct-ins to first slice params
+    // Add direct-ins (and top class input) to first slice params
     if (slice_index == 0) {
       invoke_params.insert(invoke_params.end(), direct_in_args.begin(),
                            direct_in_args.end());
@@ -561,6 +584,14 @@ NewFSMGenerator::GenerateNewFSMInvocation(
       if (io_return.received_value.valid()) {
         invoke_params.push_back(io_return.received_value);
       }
+    }
+
+    // Add statics
+    for (const clang::NamedDecl* decl : slice.static_values) {
+      xls::StateElement* state_element = state_element_for_static.at(decl);
+      xls::StateRead* state_read = pb.proc()->GetStateRead(state_element);
+      TrackedBValue prev_val(state_read, &pb);
+      invoke_params.push_back(prev_val);
     }
 
     XLSCC_CHECK_NE(slice.function, nullptr, body_loc);
@@ -623,6 +654,53 @@ NewFSMGenerator::GenerateNewFSMInvocation(
                ->As<xls::StateRead>()
                ->state_element(),
            next_value});
+    }
+
+    if (is_last_slice) {
+      struct DeclAndReturnIndex {
+        const clang::NamedDecl* decl;
+        int64_t return_index = -1;
+
+        bool operator<(const DeclAndReturnIndex& other) const {
+          CHECK_NE(return_index, other.return_index);
+          return return_index < other.return_index;
+        }
+      };
+
+      std::vector<DeclAndReturnIndex> all_static_values;
+
+      for (const auto& [name, _] : return_index_for_static) {
+        all_static_values.push_back(
+            {.decl = name, .return_index = return_index_for_static.at(name)});
+      }
+
+      // Determinism
+      std::sort(all_static_values.begin(), all_static_values.end());
+
+      for (int64_t static_index = 0; static_index < all_static_values.size();
+           ++static_index) {
+        const DeclAndReturnIndex& static_decl_and_return_index =
+            all_static_values.at(static_index);
+        const clang::NamedDecl* static_decl = static_decl_and_return_index.decl;
+        const int64_t return_index = static_decl_and_return_index.return_index;
+
+        TrackedBValue output_value;
+        // TODO(seanhaskell): Normalize last slice return
+        if (all_static_values.size() == 1) {
+          output_value = ret_tup;
+        } else {
+          output_value = pb.TupleIndex(
+              ret_tup, static_index, body_loc,
+              /*name=*/
+              absl::StrFormat("return__%s", static_decl->getNameAsString()));
+        }
+
+        XLSCC_CHECK(output_value.GetType()->IsEqualTo(
+                        return_values.at(return_index).GetType()),
+                    body_loc);
+
+        return_values.at(return_index) = output_value;
+      }
     }
 
     if (layout.transition_by_slice_from_index.contains(slice_index)) {
@@ -705,11 +783,16 @@ NewFSMGenerator::GenerateNewFSMInvocation(
            .condition = after_last_slice,
        }});
 
+  TrackedBValue return_value;
+
+  if (return_index_for_static.size() > 1) {
+    return_value = pb.Tuple(ToNativeBValues(return_values), body_loc);
+  } else {
+    return_value = return_values.at(0);
+  }
+
   return GenerateFSMInvocationReturn{
-      .return_value = pb.Literal(
-          xls::ZeroOfType(
-              xls_func->slices.back().function->return_value()->GetType()),
-          body_loc),
+      .return_value = return_value,
       .returns_this_activation = after_last_slice,
       .extra_next_state_values = extra_next_state_values};
 }

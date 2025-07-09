@@ -524,10 +524,13 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
   GenerateFSMInvocationReturn fsm_ret;
   if (generate_new_fsm_) {
     NewFSMGenerator generator(*this, *this, DebugIrTraceFlags_FSMStates);
-    XLS_ASSIGN_OR_RETURN(fsm_ret,
-                         generator.GenerateNewFSMInvocation(
-                             prepared.xls_func,
-                             /*direct_in_args=*/prepared.args, pb, body_loc));
+    XLS_ASSIGN_OR_RETURN(
+        fsm_ret,
+        generator.GenerateNewFSMInvocation(
+            prepared.xls_func,
+            /*direct_in_args=*/prepared.args,
+            /*state_element_for_static=*/prepared.state_element_for_variable,
+            prepared.return_index_for_static, pb, body_loc));
   } else {
     XLS_ASSIGN_OR_RETURN(
         fsm_ret,
@@ -1971,10 +1974,6 @@ Translator::GenerateIRBlockPrepare(
 
   // This state and argument
   if (this_decl != nullptr) {
-    if (generate_new_fsm_) {
-      return absl::UnimplementedError(
-          "Block as class with New FSM not yet supported");
-    }
     XLS_ASSIGN_OR_RETURN(CValue this_cval, GenerateTopClassInitValue(
                                                this_type, this_decl, body_loc));
 
@@ -1994,9 +1993,6 @@ Translator::GenerateIRBlockPrepare(
 
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
-    if (generate_new_fsm_) {
-      return absl::UnimplementedError("Statics with New FSM not yet supported");
-    }
     const ConstValue& initval = prepared.xls_func->static_values.at(namedecl);
 
     // Don't need to worry about sharing for this, as it's only used when a
