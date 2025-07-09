@@ -130,6 +130,23 @@ class FSMLayoutTest : public XlsccTestBase {
 
     return false;
   }
+
+  int64_t StateSavesDeclCount(const NewFSMState& state, std::string_view name) {
+    int64_t count = 0;
+    for (const ContinuationValue* value : state.values_to_save) {
+      bool count_value = false;
+      for (const auto& decl : value->decls) {
+        if (decl->getNameAsString() == name) {
+          count_value = true;
+        }
+      }
+      if (count_value) {
+        ++count;
+      }
+    }
+
+    return count;
+  }
 };
 
 namespace {
@@ -285,6 +302,32 @@ TEST_F(FSMLayoutTest, PipelinedLoopBypass) {
 
   EXPECT_FALSE(StateSavesDecl(layout, /*slice_index=*/3,
                               /*jumped_from_slice_indices=*/{}, "r"));
+}
+
+TEST_F(FSMLayoutTest, PipelinedLoopNested) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int r = in.read();
+      int a = 0;
+      #pragma hls_pipeline_init_interval 1
+      for (int i=0;i<10;++i) {
+        #pragma hls_pipeline_init_interval 1
+        for (int j=0;j<10;++j) {
+          a += r;
+        }
+      }
+      out.write(a);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  for (const NewFSMState& state : layout.states) {
+    EXPECT_LE(StateSavesDeclCount(state, "j"), 1);
+    EXPECT_LE(StateSavesDeclCount(state, "i"), 1);
+    EXPECT_LE(StateSavesDeclCount(state, "a"), 1);
+  }
 }
 
 }  // namespace
