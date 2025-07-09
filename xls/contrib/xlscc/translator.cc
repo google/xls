@@ -3811,6 +3811,13 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
   }
 
+  if (func->slices.size() > 1 && generate_new_fsm_) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc,
+                     "New FSM not implemented for functions with multiple "
+                     "slices (IOs / pipelined loops)"));
+  }
+
   // Propagate generated and internal channels up
   for (IOChannel& callee_channel : func->io_channels) {
     IOChannel* callee_channel_ptr = &callee_channel;

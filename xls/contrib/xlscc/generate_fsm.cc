@@ -662,7 +662,6 @@ NewFSMGenerator::GenerateNewFSMInvocation(
         int64_t return_index = -1;
 
         bool operator<(const DeclAndReturnIndex& other) const {
-          CHECK_NE(return_index, other.return_index);
           return return_index < other.return_index;
         }
       };

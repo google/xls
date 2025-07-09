@@ -1250,9 +1250,6 @@ absl::Status Translator::GenerateFunctionSliceWrapper(
   for (GeneratedFunctionSlice& slice : func.slices) {
     std::vector<TrackedBValue> args;
 
-    XLSCC_CHECK_GE(slice.function->params().size(),
-                   slice.continuations_in.size(), loc);
-
     // Continuation params come first
     absl::flat_hash_map<const xls::Param*, int64_t>
         continuation_in_count_by_param;
@@ -1266,9 +1263,14 @@ absl::Status Translator::GenerateFunctionSliceWrapper(
          ++i, ++continuation_in_it) {
       XLSCC_CHECK_EQ(slice.function->params().at(i),
                      continuation_in_it->input_node, loc);
-      XLSCC_CHECK_EQ(
-          continuation_in_count_by_param.at(continuation_in_it->input_node), 1,
-          loc);
+
+      if (continuation_in_count_by_param.at(continuation_in_it->input_node) !=
+          1) {
+        return absl::UnimplementedError(
+            "Cannot generate function slice wrapper for phis. Subroutines with "
+            "multiple slices (IO, pipelined loops) are not yet implemented in "
+            "the new FSM.");
+      }
 
       TrackedBValue prev_slice_val =
           prev_slice_ret.at(continuation_in_it->continuation_out);
