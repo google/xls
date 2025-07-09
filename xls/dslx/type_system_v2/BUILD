@@ -113,6 +113,7 @@ cc_library(
         ":constant_collector",
         ":evaluator",
         ":fast_concretizer",
+        ":flatten_in_type_order",
         ":import_utils",
         ":inference_table",
         ":inference_table_converter",
@@ -136,7 +137,6 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node",
-        "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtin_stubs_utils",
         "//xls/dslx/frontend:module",
@@ -715,5 +715,24 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "flatten_in_type_order",
+    srcs = ["flatten_in_type_order.cc"],
+    hdrs = ["flatten_in_type_order.h"],
+    deps = [
+        ":import_utils",
+        "//xls/common:casts",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:import_data",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/frontend:ast_node_visitor_with_default",
+        "//xls/dslx/frontend:ast_utils",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
