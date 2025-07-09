@@ -39,10 +39,12 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_format.h"  // For StrFormat
 #include "absl/strings/str_join.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -57,6 +59,7 @@
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast.h"  // For dslx::Function, AstNode, etc.
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -68,6 +71,7 @@
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/parse_and_typecheck.h"  // For lookup helpers, if not already included
 #include "xls/dslx/run_routines/test_xml.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
@@ -88,11 +92,6 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "re2/re2.h"
-#include "xls/dslx/frontend/ast.h"              // For dslx::Function, AstNode, etc.
-#include "xls/dslx/parse_and_typecheck.h"    // For lookup helpers, if not already included
-#include "absl/strings/str_format.h"         // For StrFormat
-
 
 namespace xls::dslx {
 namespace {
@@ -399,105 +398,100 @@ static bool ValuesAreValid(absl::Span<const Value> values,
 }
 
 absl::StatusOr<QuickCheckResults> DoQuickCheck(
-  bool requires_implicit_token,
-  dslx::FunctionType* dslx_fn_type,
-  xls::Function* ir_function,
-  std::string_view ir_name,
-  AbstractRunComparator* run_comparator,
-  int64_t seed,
-  QuickCheckTestCases test_cases) {
-QuickCheckResults results;
-std::minstd_rand rng_engine(seed);
-xls::TupleType* ir_param_tuple = ir_function->package()->GetTupleType(
-    ir_function->GetType()->parameters());
+    bool requires_implicit_token, dslx::FunctionType* dslx_fn_type,
+    xls::Function* ir_function, std::string_view ir_name,
+    AbstractRunComparator* run_comparator, int64_t seed,
+    QuickCheckTestCases test_cases) {
+  QuickCheckResults results;
+  std::minstd_rand rng_engine(seed);
+  xls::TupleType* ir_param_tuple = ir_function->package()->GetTupleType(
+      ir_function->GetType()->parameters());
 
-int64_t num_tests;
-std::function<std::vector<Value>(int64_t)> make_arg_set;
-switch (test_cases.tag()) {
-  case QuickCheckTestCasesTag::kExhaustive: {
-    int64_t bit_count = ir_param_tuple->GetFlatBitCount();
-    if (bit_count > 48) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat(
-              "Cannot run exhaustive quickcheck for `%s`: bit count %d too large",
-              ir_function->name(), bit_count));
+  int64_t num_tests;
+  std::function<std::vector<Value>(int64_t)> make_arg_set;
+  switch (test_cases.tag()) {
+    case QuickCheckTestCasesTag::kExhaustive: {
+      int64_t bit_count = ir_param_tuple->GetFlatBitCount();
+      if (bit_count > 48) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Cannot run exhaustive quickcheck for `%s`: bit count %d too large",
+            ir_function->name(), bit_count));
+      }
+      num_tests = int64_t{1} << bit_count;
+      make_arg_set = [&](int64_t i) {
+        return MakeFromUint64(ir_param_tuple, i);
+      };
+      break;
     }
-    num_tests = int64_t{1} << bit_count;
-    make_arg_set = [&](int64_t i) {
-      return MakeFromUint64(ir_param_tuple, i);
-    };
-    break;
+    case QuickCheckTestCasesTag::kCounted:
+      num_tests =
+          test_cases.count().value_or(QuickCheckTestCases::kDefaultTestCount);
+      make_arg_set = [&](int64_t) {
+        return RandomFunctionArguments(ir_function, rng_engine);
+      };
+      break;
   }
-  case QuickCheckTestCasesTag::kCounted:
-    num_tests = test_cases.count().value_or(
-        QuickCheckTestCases::kDefaultTestCount);
-    make_arg_set = [&](int64_t) {
-      return RandomFunctionArguments(ir_function, rng_engine);
-    };
-    break;
-}
 
-std::unique_ptr<dslx::TokenType> token_type;
-std::unique_ptr<dslx::BitsType> bool_type;
-std::vector<const dslx::Type*> dslx_param_types;
-if (requires_implicit_token) {
-  token_type = std::make_unique<dslx::TokenType>();
-  bool_type  = std::make_unique<dslx::BitsType>(false, 1);
-  dslx_param_types.push_back(token_type.get());
-  dslx_param_types.push_back(bool_type.get());
-}
-for (const auto& ty : dslx_fn_type->params()) {
-  dslx_param_types.push_back(ty.get());
-}
-XLS_RET_CHECK_EQ(ir_param_tuple->size(), dslx_param_types.size());
-
-// ——— QuickCheck Loop ———
-for (int64_t i = 0; i < num_tests; ++i) {
-  std::vector<Value> arg_set = make_arg_set(i);
-  if (!ValuesAreValid(arg_set, dslx_param_types)) {
-    continue;
+  std::unique_ptr<dslx::TokenType> token_type;
+  std::unique_ptr<dslx::BitsType> bool_type;
+  std::vector<const dslx::Type*> dslx_param_types;
+  if (requires_implicit_token) {
+    token_type = std::make_unique<dslx::TokenType>();
+    bool_type = std::make_unique<dslx::BitsType>(false, 1);
+    dslx_param_types.push_back(token_type.get());
+    dslx_param_types.push_back(bool_type.get());
   }
-  results.arg_sets.push_back(std::move(arg_set));
-  absl::Span<const Value> this_args = results.arg_sets.back();
+  for (const auto& ty : dslx_fn_type->params()) {
+    dslx_param_types.push_back(ty.get());
+  }
+  XLS_RET_CHECK_EQ(ir_param_tuple->size(), dslx_param_types.size());
 
-  XLS_ASSIGN_OR_RETURN(xls::Value result,
-      DropInterpreterEvents(
-          run_comparator->RunIrFunction(ir_name, ir_function, this_args)));
+  // ——— QuickCheck Loop ———
+  for (int64_t i = 0; i < num_tests; ++i) {
+    std::vector<Value> arg_set = make_arg_set(i);
+    if (!ValuesAreValid(arg_set, dslx_param_types)) {
+      continue;
+    }
+    results.arg_sets.push_back(std::move(arg_set));
+    absl::Span<const Value> this_args = results.arg_sets.back();
 
-  if (result.IsTuple()) {
-    result = result.elements()[1];
+    XLS_ASSIGN_OR_RETURN(xls::Value result,
+                         DropInterpreterEvents(run_comparator->RunIrFunction(
+                             ir_name, ir_function, this_args)));
+
+    if (result.IsTuple()) {
+      result = result.elements()[1];
+      XLS_RET_CHECK(result.IsBits());
+    }
     XLS_RET_CHECK(result.IsBits());
-  }
-  XLS_RET_CHECK(result.IsBits());
 
-  results.results.push_back(result);
+    results.results.push_back(result);
 
-  if (result.IsAllZeros()) {
-    //////On failure 
-    const auto& inputs = results.arg_sets.back();  
+    if (result.IsAllZeros()) {
+      //////On failure
+      const auto& inputs = results.arg_sets.back();
 
-    //////Defining the variables 
-    std::string bindings;
-    for (int idx = 0; idx < static_cast<int>(inputs.size()); ++idx) {
-      bindings += absl::StrFormat(
-          "  let x%d = %s;\n", idx, inputs[idx].ToString());
+      //////Defining the variables
+      std::string bindings;
+      for (int idx = 0; idx < static_cast<int>(inputs.size()); ++idx) {
+        bindings +=
+            absl::StrFormat("  let x%d = %s;\n", idx, inputs[idx].ToString());
+      }
+
+      ///// Logging a test‐case
+      std::string test_fn = absl::StrFormat("%s_test_case", ir_name);
+      std::string snippet =
+          absl::StrFormat("fn %s() {\n%s  assert_eq!(<YOUR_EXPR>, true);\n}\n",
+                          test_fn, bindings);
+      LOG(INFO) << "Generated DSLX test case for `" << ir_name << "`:\n"
+                << snippet;
+
+      break;
     }
-
-    ///// Logging a test‐case
-    std::string test_fn = absl::StrFormat("%s_test_case", ir_name);
-    std::string snippet = absl::StrFormat(
-        "fn %s() {\n%s  assert_eq!(<YOUR_EXPR>, true);\n}\n",
-        test_fn, bindings);
-    LOG(INFO) << "Generated DSLX test case for `" << ir_name << "`:\n"
-              << snippet;  
-
-    break;
   }
-}
 
-return results;
+  return results;
 }
-
 
 struct QuickcheckIrFn {
   std::string ir_name;
@@ -864,7 +858,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     }
   }
 
-    ///////////////////////////////LOGGING THE COUNTEREXAMPLE MAP
+  ///////////////////////////////LOGGING THE COUNTEREXAMPLE MAP
   for (auto& [test_name, inputs] : counterexamples) {
     QuickCheck* qc = qcs.at(test_name);
     dslx::Function* fn_ast = qc->fn();
@@ -872,9 +866,8 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     std::string sig = absl::StrFormat("fn %s_test_case(", test_name);
     for (int i = 0; i < fn_ast->params().size(); ++i) {
       auto* p = fn_ast->params()[i];
-      sig += absl::StrFormat("%s: %s",
-            p->identifier(),
-            p->type_annotation()->ToString());
+      sig += absl::StrFormat("%s: %s", p->identifier(),
+                             p->type_annotation()->ToString());
       if (i + 1 < fn_ast->params().size()) sig += ", ";
     }
     sig += ") {\n";
@@ -882,11 +875,9 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     std::string bindings;
     for (int i = 0; i < inputs.size(); ++i) {
       auto* p = fn_ast->params()[i];
-      bindings += absl::StrFormat(
-          "  let %s: %s = %s\n",
-          p->identifier(),
-          p->type_annotation()->ToString(),
-          inputs[i].ToString());
+      bindings += absl::StrFormat("  let %s: %s = %s\n", p->identifier(),
+                                  p->type_annotation()->ToString(),
+                                  inputs[i].ToString());
     }
 
     std::string expr = fn_ast->body()->ToString();
@@ -895,16 +886,13 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
       absl::StripAsciiWhitespace(&expr);
     }
 
-
-    std::string snippet = sig
-        + bindings
-        + "  assert_eq!(" + expr + ", true)\n"
-        + "}";
+    std::string snippet =
+        sig + bindings + "  assert_eq!(" + expr + ", true)\n" + "}";
 
     LOG(INFO) << "Generated DSLX test-case for `" << test_name << "`:\n"
               << snippet;
   }
-    ///////////////////////////////LOGGING THE COUNTEREXAMPLE MAP
+  ///////////////////////////////LOGGING THE COUNTEREXAMPLE MAP
 
   result.Finish(TestResult::kSomeFailed, absl::Now() - parse_and_prove_start);
   std::cerr
@@ -1080,7 +1068,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   result.Finish(
       result.DidAnyFail() ? TestResult::kSomeFailed : TestResult::kAllPassed,
       absl::Now() - start);
-  
+
   return result;
 }
 
