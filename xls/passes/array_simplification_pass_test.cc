@@ -16,10 +16,10 @@
 
 #include <memory>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -1651,20 +1651,18 @@ TEST_F(ArraySimplificationPassTest, ArrayUpdateIndexInBounds) {
 TEST_F(ArraySimplificationPassTest, ArraySliceChain) {
   Package* p = GetPackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-  fn array_slice(array: bits[32][8], start1: bits[32], start2: bits[32], start3: bits[32]) -> bits[32][4] {
-    temp0: bits[32][4] = array_slice(array, start1, width=4)
-    temp1: bits[32][4] = array_slice(temp0, start2, width=4)
-    ret result: bits[32][4] = array_slice(temp1, start3, width=4)
+  // 16-element array.  Each start is narrow enough that
+  // start₁+start₂+start₃+width-1 ≤ 15, so the pass may flatten.
+  fn array_slice_chain(arr: bits[32][16], start1: bits[3],  start2: bits[2], start3: bits[1]) -> bits[32][2] {
+    t0: bits[32][8] = array_slice(arr, start1, width=8)
+    t1: bits[32][4] = array_slice(t0, start2,  width=4)
+    ret result: bits[32][2] = array_slice(t1, start3, width=2)
   }
   )",
                                                        p));
-
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(
-      f->return_value(),
-      m::ArraySlice(m::Param("array"),
-                    m::Add(m::Add(m::Param("start3"), m::Param("start2")),
-                           m::Param("start1"))));
+  EXPECT_THAT(f->return_value(), m::ArraySlice(m::Param("arr"), m::Add()));
 }
 
 TEST_F(ArraySimplificationPassTest, ArraySliceIdentityChain) {
@@ -1678,6 +1676,7 @@ TEST_F(ArraySimplificationPassTest, ArraySliceIdentityChain) {
   )",
                                                        p));
 
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("array"));
 }
@@ -1693,6 +1692,7 @@ TEST_F(ArraySimplificationPassTest, ArraySliceIdentityConcat) {
   )",
                                                        p));
 
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::ArrayConcat());
 }
@@ -1708,6 +1708,7 @@ TEST_F(ArraySimplificationPassTest, ArraySubSlice) {
   )",
                                                        p));
 
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Array(m::Param("z"), m::Param("w")));
 }
@@ -1722,6 +1723,7 @@ TEST_F(ArraySimplificationPassTest, ArraySliceSelect) {
   )",
                                                        p));
 
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Param("p"), {m::ArraySlice(), m::ArraySlice()}));

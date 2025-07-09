@@ -1061,23 +1061,65 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
   // width=2)
   //          First slice: [c, d, d] (last element clamped)
   //          Second slice: [d, d]
-  //          -> array_slice([a,b,c,d], 3, 2))) {
+  //          -> array_slice([a,b,c,d], 3, 2)))
+  //
+  // The optimization is skipped if the pass cannot prove that every element
+  // accessed by the flattened slice is in-bounds.
   if (array_slice->array()->Is<ArraySlice>()) {
-    auto* start = array_slice->start();
-    auto width = array_slice->width();
-    auto* inner_array = array_slice->array();
-    while (inner_array->Is<ArraySlice>()) {
-      auto* inner_slice = inner_array->As<ArraySlice>();
-      XLS_ASSIGN_OR_RETURN(
-          start, array_slice->function_base()->MakeNode<BinOp>(
-                     SourceInfo(), start, inner_slice->start(), Op::kAdd));
-
-      inner_array = inner_slice->array();
+    // Collect inner slices and the ultimate base array.
+    std::vector<ArraySlice*> chain;
+    Node* base = array_slice->array();
+    while (base->Is<ArraySlice>()) {
+      chain.push_back(base->As<ArraySlice>());
+      base = base->As<ArraySlice>()->array();
     }
-    XLS_ASSIGN_OR_RETURN(
-        ArraySlice * new_array_slice,
-        array_slice->ReplaceUsesWithNew<ArraySlice>(inner_array, start, width));
-    return SimplifyResult::Changed({new_array_slice});
+
+    // Helper: zero-extend a node to bit-width w.
+    auto zext = [&](Node* n, int64_t w) -> absl::StatusOr<Node*> {
+      if (n->BitCountOrDie() == w) {
+        return n;
+      }
+      return array_slice->function_base()->MakeNode<ExtendOp>(SourceInfo(), n,
+                                                              w, Op::kZeroExt);
+    };
+
+    // The start index of the outermost slice.
+    Node* start = array_slice->start();
+
+    // The actual underlying array's size.
+    int64_t array_size = base->GetType()->AsArrayOrDie()->size();
+
+    // The running, maximal possible value of the cumulative start index. If
+    // this grows beyond the base array's last index, the optimization is
+    // skipped because the OOB clamping has become non-trivial.
+    uint64_t max_start =
+        query_engine.MaxUnsignedValue(start).ToUint64().value();
+    for (ArraySlice* slice : chain) {
+      // Choose a width large enough for any legal index of the base array.
+      int64_t width =
+          std::max({start->BitCountOrDie(), slice->start()->BitCountOrDie(),
+                    Bits::MinBitCountUnsigned(array_size - 1)});
+
+      // Add the start index of the current slice to the running start index,
+      // with proper zero-extension.
+      XLS_ASSIGN_OR_RETURN(Node * lhs, zext(start, width));
+      XLS_ASSIGN_OR_RETURN(Node * rhs, zext(slice->start(), width));
+      XLS_ASSIGN_OR_RETURN(start, array_slice->function_base()->MakeNode<BinOp>(
+                                      SourceInfo(), lhs, rhs, Op::kAdd));
+
+      // Update worst-case start; bail early if we already overflow.
+      max_start +=
+          query_engine.MaxUnsignedValue(slice->start()).ToUint64().value();
+      if (max_start + array_slice->width() - 1 >=
+          static_cast<uint64_t>(array_size)) {
+        return SimplifyResult::Unchanged();
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(ArraySlice * repl,
+                         array_slice->ReplaceUsesWithNew<ArraySlice>(
+                             base, start, array_slice->width()));
+    return SimplifyResult::Changed({repl});
   }
 
   // Replace a slice that covers the entire array with the array itself.
