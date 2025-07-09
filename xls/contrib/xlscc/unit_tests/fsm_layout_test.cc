@@ -190,6 +190,25 @@ TEST_F(FSMLayoutTest, Basic) {
                               /*jumped_from_slice_indices=*/{}, "x"));
 }
 
+TEST_F(FSMLayoutTest, DirectIn) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(int&direct_in,
+                    __xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      const int y = in.read();
+      out.write(y);
+      out.write(x + direct_in);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  for (const NewFSMState& state : layout.states) {
+    EXPECT_EQ(StateSavesDeclCount(state, "direct_in"), 0);
+  }
+}
+
 TEST_F(FSMLayoutTest, PipelinedLoop) {
   const std::string content = R"(
     #pragma hls_top

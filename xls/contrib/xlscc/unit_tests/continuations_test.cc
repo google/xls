@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -70,17 +71,21 @@ class ContinuationsTest : public XlsccTestBase {
     LOG(INFO) << "Package IR: ";
     LOG(INFO) << package_->DumpIr();
 
-    LogContinuations(func);
+    LogContinuations(*func);
+    testing::Test::RecordProperty("GraphViz file", GenerateSliceGraph(*func));
 
     return func;
   }
 
   bool SliceOutputsDecl(const xlscc::GeneratedFunctionSlice& slice,
-                        std::string_view name) {
+                        std::string_view name,
+                        std::optional<bool> direct_in = std::nullopt) {
     for (const xlscc::ContinuationValue& continuation_out :
          slice.continuations_out) {
       for (const clang::NamedDecl* decl : continuation_out.decls) {
-        if (decl->getNameAsString() == name) {
+        if (decl->getNameAsString() == name &&
+            (!direct_in.has_value() ||
+             direct_in.value() == continuation_out.direct_in)) {
           return true;
         }
       }
@@ -103,11 +108,15 @@ class ContinuationsTest : public XlsccTestBase {
   };
 
   bool SliceInputsDecl(const xlscc::GeneratedFunctionSlice& slice,
-                       std::string_view name) {
+                       std::string_view name,
+                       std::optional<bool> direct_in = std::nullopt) {
     for (const xlscc::ContinuationInput& continuation_in :
          slice.continuations_in) {
       for (const clang::NamedDecl* decl : continuation_in.decls) {
-        if (decl->getNameAsString() == name) {
+        if (decl->getNameAsString() == name &&
+            (!direct_in.has_value() ||
+             direct_in.value() ==
+                 continuation_in.continuation_out->direct_in)) {
           return true;
         }
       }
@@ -153,58 +162,6 @@ class ContinuationsTest : public XlsccTestBase {
       }
     }
     return true;
-  }
-
-  void LogContinuations(xlscc::GeneratedFunction* func) {
-    absl::flat_hash_map<const ContinuationValue*, GeneratedFunctionSlice*>
-        slices_by_continuation_out;
-    for (GeneratedFunctionSlice& slice : func->slices) {
-      for (ContinuationValue& continuation_out : slice.continuations_out) {
-        slices_by_continuation_out[&continuation_out] = &slice;
-      }
-    }
-    auto decl_names_string =
-        [](const absl::flat_hash_set<const clang::NamedDecl*>& decls) {
-          std::vector<std::string> decl_names;
-          for (const clang::NamedDecl* decl : decls) {
-            decl_names.push_back(decl->getNameAsString());
-          }
-          return absl::StrJoin(decl_names, ",");
-        };
-    for (GeneratedFunctionSlice& slice : func->slices) {
-      LOG(INFO) << "";
-      LOG(INFO) << absl::StrFormat("Slice %p after %s:", &slice,
-                                   slice.after_op == nullptr
-                                       ? "(first)"
-                                       : Debug_OpName(*slice.after_op).c_str());
-      for (const ContinuationInput& continuation_in : slice.continuations_in) {
-        LOG(INFO) << absl::StrFormat(
-            "  in: %p.%s on param %s/%p top decls %s has %li users",
-            slices_by_continuation_out.at(continuation_in.continuation_out),
-            continuation_in.name.c_str(),
-            continuation_in.input_node->name().data(),
-            continuation_in.input_node,
-            decl_names_string(continuation_in.decls),
-            continuation_in.input_node->users().size());
-      }
-      LOG(INFO) << "";
-      for (ContinuationValue& continuation_out : slice.continuations_out) {
-        EXPECT_EQ(continuation_out.output_node->op(), xls::Op::kIdentity);
-
-        const std::string type_str =
-            GenerateReadableTypeName(continuation_out.output_node->GetType());
-
-        LOG(INFO) << absl::StrFormat(
-            "  out: %s top decls %s has %li users, type = %s, literal = %s",
-            continuation_out.name.c_str(),
-            decl_names_string(continuation_out.decls),
-            continuation_out.output_node->users().size(), type_str.c_str(),
-            continuation_out.literal.has_value()
-                ? continuation_out.literal.value().ToString().c_str()
-                : "(none)");
-      }
-    }
-    testing::Test::RecordProperty("GraphViz file", GenerateSliceGraph(*func));
   }
 };
 
@@ -275,6 +232,45 @@ TEST_F(ContinuationsTest, PassthroughsRemoved) {
       out.write(x);
       out.write(x);
       out.write(y);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 5);
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fifth_slice = *slice_it;
+
+  EXPECT_FALSE(SliceOutputsDecl(first_slice, "x"));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "x"));
+  EXPECT_FALSE(SliceOutputsDecl(third_slice, "x"));
+  EXPECT_FALSE(SliceOutputsDecl(fourth_slice, "x"));
+  EXPECT_FALSE(SliceOutputsDecl(fifth_slice, "x"));
+}
+
+TEST_F(ContinuationsTest, PassthroughsRemovedTuple) {
+  const std::string content = R"(
+    struct Something {
+      int x;
+      int y;
+    };
+
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      Something x = {.x = in.read()};
+      out.write(x.x);
+      out.write(x.x);
+      out.write(x.x);
     })";
 
   XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
@@ -1421,6 +1417,44 @@ TEST_F(ContinuationsTest, EmptyTupleRemovedWithLoop) {
       EXPECT_GT(continuation_out.output_node->GetType()->GetFlatBitCount(), 0);
     }
   }
+}
+
+TEST_F(ContinuationsTest, DirectInMarked) {
+  const std::string content = R"(
+    struct DirectIn {
+      int x;
+      int y;
+    };
+
+    #pragma hls_top
+    void my_package(const DirectIn&direct_in,
+                    __xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      const int dval = direct_in.x;
+      out.write(x);
+      out.write(x * dval);
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+
+  ASSERT_EQ(func->slices.size(), 4);
+
+  EXPECT_TRUE(SliceOutputsDecl(first_slice, "direct_in", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "x", /*direct_in=*/false));
+  EXPECT_TRUE(SliceInputsDecl(second_slice, "direct_in", /*direct_in=*/true));
+  EXPECT_TRUE(SliceOutputsDecl(second_slice, "dval", /*direct_in=*/true));
+
+  EXPECT_TRUE(SliceInputsDecl(third_slice, "dval", /*direct_in=*/true));
 }
 
 }  // namespace

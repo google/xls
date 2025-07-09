@@ -121,6 +121,35 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
   GeneratedFunctionSlice& current_slice = context().sf->slices.back();
   std::vector<NATIVE_BVAL> ret_vals;
 
+  // For analyzing data flow to output from param, seeing through selects.
+  xls::NodeSourceDataflowVisitor visitor;
+  XLS_RETURN_IF_ERROR(context().fb->function()->Accept(&visitor));
+
+  absl::flat_hash_map<const xls::Param*, const ContinuationInput*>
+      continuation_inputs_by_param;
+
+  for (const ContinuationInput& continuation_in :
+       current_slice.continuations_in) {
+    continuation_inputs_by_param[continuation_in.input_node] = &continuation_in;
+  }
+
+  absl::flat_hash_set<const xls::Node*> direct_in_sources;
+  for (const xls::Param* param : context().fb->function()->params()) {
+    // Skip IO input
+    if (current_slice.after_op != nullptr &&
+        current_slice.after_op->input_value.rvalue().node() == param) {
+      continue;
+    }
+
+    // Skip non-direct-in continuation inputs
+    if (continuation_inputs_by_param.contains(param) &&
+        !continuation_inputs_by_param.at(param)->continuation_out->direct_in) {
+      continue;
+    }
+
+    direct_in_sources.insert(param);
+  }
+
   // Locked TrackedBValues scope
   {
     std::tuple<TrackedBValue::Lock, std::vector<TrackedBValue*>>
@@ -159,6 +188,22 @@ Translator::ConvertBValuesToContinuationOutputsForCurrentSlice(
 
       // Filled in for name search, identity is inserted later
       continuation_out.output_node = node;
+
+      xls::LeafTypeTreeView<xls::NodeSource> output_source =
+          visitor.GetValue(continuation_out.output_node);
+
+      // Mark direct in if applicable
+      bool is_direct_in = true;
+
+      for (const xls::NodeSource& output_source_elem :
+           output_source.elements()) {
+        if (!direct_in_sources.contains(output_source_elem.node())) {
+          is_direct_in = false;
+          break;
+        }
+      }
+
+      continuation_out.direct_in = is_direct_in;
 
       absl::StatusOr<xls::Value> result =
           EvaluateNode(node, loc, /*do_check=*/false);
@@ -1097,15 +1142,6 @@ absl::Status Translator::OptimizeContinuations(GeneratedFunction& func,
   } while (changed);
 
   return absl::OkStatus();
-}
-
-std::string GenerateReadableTypeName(xls::Type* type) {
-  constexpr int64_t max_type_len = 64;
-  std::string type_str = type->ToString();
-  if (type_str.size() > max_type_len) {
-    type_str = type_str.substr(0, max_type_len);
-  }
-  return type_str;
 }
 
 std::string GenerateSliceGraph(const GeneratedFunction& func) {

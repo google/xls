@@ -322,6 +322,9 @@ absl::Status NewFSMGenerator::LayoutValuesToSaveForNewFSMStates(
       if (count == 0) {
         continue;
       }
+      if (key.value->direct_in) {
+        continue;
+      }
       state.values_to_save.insert(key.value);
     }
   }
@@ -894,6 +897,8 @@ NewFSMGenerator::GenerateInputValueInContext(
   phi_values.reserve(phi_elements.size());
   for (const PhiElement& phi_element : phi_elements) {
     phi_conditions.push_back(phi_element.condition);
+    XLSCC_CHECK(value_by_continuation_value.contains(phi_element.value),
+                phi_element.value->output_node->loc());
     phi_values.push_back(value_by_continuation_value.at(phi_element.value));
   }
 

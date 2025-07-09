@@ -1193,6 +1193,70 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
                          typeid(*node).name());
 }
 
+std::string GenerateReadableTypeName(xls::Type* type) {
+  constexpr int64_t max_type_len = 64;
+  std::string type_str = type->ToString();
+  if (type_str.size() > max_type_len) {
+    type_str = type_str.substr(0, max_type_len);
+  }
+  return type_str;
+}
+
+void LogContinuations(const xlscc::GeneratedFunction& func) {
+  absl::flat_hash_map<const ContinuationValue*, const GeneratedFunctionSlice*>
+      slices_by_continuation_out;
+  for (const GeneratedFunctionSlice& slice : func.slices) {
+    for (const ContinuationValue& continuation_out : slice.continuations_out) {
+      slices_by_continuation_out[&continuation_out] = &slice;
+    }
+  }
+  auto decl_names_string =
+      [](const absl::flat_hash_set<const clang::NamedDecl*>& decls) {
+        std::vector<std::string> decl_names;
+        for (const clang::NamedDecl* decl : decls) {
+          decl_names.push_back(decl->getNameAsString());
+        }
+        return absl::StrJoin(decl_names, ",");
+      };
+  int64_t slice_index = 0;
+  for (const GeneratedFunctionSlice& slice : func.slices) {
+    LOG(INFO) << "";
+    LOG(INFO) << absl::StrFormat("Slice[%li]: %s %p after %s:", slice_index,
+                                 slice.function->name().c_str(), &slice,
+                                 slice.after_op == nullptr
+                                     ? "(first)"
+                                     : Debug_OpName(*slice.after_op).c_str());
+    for (const ContinuationInput& continuation_in : slice.continuations_in) {
+      LOG(INFO) << absl::StrFormat(
+          "  in: %p.%s on param %s/%p top decls %s has %li users, direct-in? "
+          "%i",
+          slices_by_continuation_out.at(continuation_in.continuation_out),
+          continuation_in.name.c_str(),
+          continuation_in.input_node->name().data(), continuation_in.input_node,
+          decl_names_string(continuation_in.decls),
+          continuation_in.input_node->users().size(),
+          (int)continuation_in.continuation_out->direct_in);
+    }
+    LOG(INFO) << "";
+    for (const ContinuationValue& continuation_out : slice.continuations_out) {
+      const std::string type_str =
+          GenerateReadableTypeName(continuation_out.output_node->GetType());
+
+      LOG(INFO) << absl::StrFormat(
+          "  out: %s top decls %s has %li users, type = %s, literal = %s, "
+          "direct-in? %i",
+          continuation_out.name.c_str(),
+          decl_names_string(continuation_out.decls),
+          continuation_out.output_node->users().size(), type_str.c_str(),
+          continuation_out.literal.has_value()
+              ? continuation_out.literal.value().ToString().c_str()
+              : "(none)",
+          (int)continuation_out.direct_in);
+    }
+    ++slice_index;
+  }
+}
+
 std::string Debug_OpName(const IOOp& op) {
   if (op.op == OpType::kTrace) {
     return "trace";

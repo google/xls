@@ -930,6 +930,45 @@ TEST_P(TranslatorProcTest, ForPipelined) {
   ExpectStateBitsForProc("foo", loop_body_bits);
 }
 
+TEST_P(TranslatorProcTest, ForPipelinedDirectIn) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(int& swreg,
+             __xls_channel<int>& out) {
+      int a = swreg;
+      #pragma hls_pipeline_init_interval 1
+      for(long i=1;i<=4;++i) {
+        a += i;
+      }
+      out.write(a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_swreg = block_spec.add_channels();
+    ch_swreg->set_name("swreg");
+    ch_swreg->set_is_input(true);
+    ch_swreg->set_type(CHANNEL_TYPE_DIRECT_IN);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["swreg"] = {xls::Value(xls::SBits(2, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(2 + 10, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
 TEST_P(TranslatorProcTest, ForPipelinedOneBypass) {
   const std::string content = R"(
     #pragma hls_top

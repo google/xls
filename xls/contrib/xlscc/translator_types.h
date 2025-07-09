@@ -1008,6 +1008,10 @@ struct ContinuationValue {
 
   // Precomputed literal, used for unrolling, IO pruning, etc
   std::optional<xls::Value> literal = std::nullopt;
+
+  // If this is true, then the value doesn't need to be stored in a state
+  // element, as it is assumed to be always available externally.
+  bool direct_in = false;
 };
 
 // A value inputted to a function slice, continuing a TrackedBValue from
@@ -1170,6 +1174,8 @@ int Debug_CountNodes(const xls::Node* node,
 std::string Debug_NodeToInfix(TrackedBValue bval);
 std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed);
 std::string Debug_OpName(const IOOp& op);
+
+void LogContinuations(const xlscc::GeneratedFunction& func);
 
 }  // namespace xlscc
 
