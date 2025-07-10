@@ -260,8 +260,7 @@ pub proc HuffmanDecoder {
         // decode data
         let state = if (
             state.fsm == FSM::DECODE &&
-            state.data_len > uN[BUFF_W_LOG2]:0 &&
-            state.data_len >= state.code_length[0] as uN[BUFF_W_LOG2]
+            state.data_len > uN[BUFF_W_LOG2]:0
         ) {
             // greedily take longest match, won't skip anything since no symbol is a prefix of another (Huffman property)
             let literal = for(i, literal) : (u32, uN[common::SYMBOL_WIDTH]) in range(u32:0, SYMBOLS_N) {
@@ -269,9 +268,9 @@ pub proc HuffmanDecoder {
                 let data_mask = (!uN[hcommon::MAX_WEIGHT]:0) >> (hcommon::MAX_WEIGHT - test_length as u32);
                 let data_masked = state.data as uN[hcommon::MAX_WEIGHT] & data_mask;
                 if (
-                    state.symbol_valid[i] && (data_masked == state.symbol_code[i])
+                    state.symbol_valid[i] && (data_masked == state.symbol_code[i]) && state.data_len >= state.symbol_code_len[i] as uN[BUFF_W_LOG2]
                 ) {
-                    trace_fmt!("decoded {:#b} as {:#x} (length={})", data_masked, i, test_length);
+                    trace_fmt!("decoded {:#b} as {:#x} (length={}, data_length={})", data_masked, i, test_length, state.data_len);
                     i as uN[common::SYMBOL_WIDTH]
                 } else {
                     literal
