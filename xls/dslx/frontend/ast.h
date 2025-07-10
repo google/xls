@@ -1450,6 +1450,10 @@ class Number : public Expr {
     return Precedence::kStrongest;
   }
 
+  bool HasPrefix() const {
+    return text_.starts_with("0x") || text_.starts_with("0b");
+  }
+
  private:
   std::string ToStringInternal() const final;
 

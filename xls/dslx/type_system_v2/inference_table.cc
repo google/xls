@@ -52,6 +52,12 @@
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
+
+const TypeInferenceFlag TypeInferenceFlag::kNone(0);
+const TypeInferenceFlag TypeInferenceFlag::kMinSize(1);
+const TypeInferenceFlag TypeInferenceFlag::kStandardType(1 << 1);
+const TypeInferenceFlag TypeInferenceFlag::kHasPrefix(1 << 2);
+
 namespace {
 
 // Converts an `InferenceVariableKind` to string for tracing purposes.
@@ -68,14 +74,23 @@ std::string_view InferenceVariableKindToString(InferenceVariableKind kind) {
 
 // Converts a `TypeInferenceFlag` to string for tracing purposes.
 std::string_view TypeInferenceFlagToString(TypeInferenceFlag flag) {
-  switch (flag) {
-    case TypeInferenceFlag::kNone:
-      return "none";
-    case TypeInferenceFlag::kMinSize:
-      return "min-size";
-    case TypeInferenceFlag::kStandardType:
-      return "standard-type";
+  if (flag.HasFlag(TypeInferenceFlag::kNone)) {
+    return "none";
   }
+  if (flag.HasFlag(TypeInferenceFlag::kMinSize)) {
+    if (flag.HasFlag(TypeInferenceFlag::kHasPrefix)) {
+      return "min-size,has-prefix";
+    }
+    return "min-size";
+  }
+  if (flag.HasFlag(TypeInferenceFlag::kStandardType)) {
+    return "standard-type";
+  }
+  if (flag.HasFlag(TypeInferenceFlag::kHasPrefix)) {
+    return "has-prefix";
+  }
+  CHECK(0);  // unreachable
+  return "";
 }
 
 // Converts a `TypeAnnotation` for a parametric to an `InferenceVariableKind`.
@@ -496,7 +511,7 @@ class InferenceTableImpl : public InferenceTable {
 
   void SetAnnotationFlag(const TypeAnnotation* annotation,
                          TypeInferenceFlag flag) override {
-    annotation_flags_[annotation] = flag;
+    annotation_flags_[annotation].SetFlag(flag);
   }
 
   TypeInferenceFlag GetAnnotationFlag(

@@ -344,6 +344,9 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
       // is "negotiable".
       if (node->number_kind() != NumberKind::kBool) {
         table_.SetAnnotationFlag(annotation, TypeInferenceFlag::kMinSize);
+        if (node->HasPrefix()) {
+          table_.SetAnnotationFlag(annotation, TypeInferenceFlag::kHasPrefix);
+        }
       }
     } else {
       XLS_RETURN_IF_ERROR(annotation->Accept(this));

@@ -293,7 +293,7 @@ class Unifier {
       // which warrants a possible different error message than other scenarios.
       const bool is_min_vs_explicit =
           unified_dim.has_value() &&
-          (HasInferenceFlag(unified_dim->flag, TypeInferenceFlag::kMinSize) ^
+          (unified_dim->flag.HasFlag(TypeInferenceFlag::kMinSize) ^
            annotation->dim_is_min());
       absl::StatusOr<SignednessAndSize> new_unified_dim =
           UnifySignednessAndSize(
@@ -319,7 +319,7 @@ class Unifier {
       }
       unified_dim = *new_unified_dim;
     }
-    if (HasInferenceFlag(unified_dim->flag, TypeInferenceFlag::kMinSize)) {
+    if (unified_dim->flag.HasFlag(TypeInferenceFlag::kMinSize)) {
       // This means the only type annotation for the array was fabricated
       // based on an elliptical RHS.
       return TypeInferenceErrorStatus(
@@ -555,7 +555,8 @@ class Unifier {
         module_, *unified_signedness_and_bit_count, span);
     // An annotation we fabricate as a unification of a bunch of auto
     // annotations, is also considered an auto annotation itself.
-    if (unified_signedness_and_bit_count->flag != TypeInferenceFlag::kNone) {
+    if (!unified_signedness_and_bit_count->flag.HasFlag(
+            TypeInferenceFlag::kNone)) {
       table_.SetAnnotationFlag(result, unified_signedness_and_bit_count->flag);
     }
     return result;
@@ -576,17 +577,19 @@ class Unifier {
     if (!x.has_value()) {
       return y;
     }
-    const bool x_is_min =
-        HasInferenceFlag(x->flag, TypeInferenceFlag::kMinSize);
-    const bool y_is_min = HasInferenceFlag(y.flag, TypeInferenceFlag::kMinSize);
+    const bool x_is_min = x->flag.HasFlag(TypeInferenceFlag::kMinSize);
+    const bool y_is_min = y.flag.HasFlag(TypeInferenceFlag::kMinSize);
+    const bool x_has_prefix = x->flag.HasFlag(TypeInferenceFlag::kHasPrefix);
+    const bool y_has_prefix = y.flag.HasFlag(TypeInferenceFlag::kHasPrefix);
     if (x_is_min && y_is_min) {
       SignednessAndSize result{.flag = TypeInferenceFlag::kMinSize,
                                .is_signed = x->is_signed || y.is_signed,
                                .size = std::max(x->size, y.size)};
       // If we are coercing one of 2 auto annotations to signed, the one being
       // coerced needs an extra bit to keep fitting the value it was sized to.
-      if (result.is_signed && ((!x->is_signed && result.size == x->size) ||
-                               (!y.is_signed && result.size == y.size))) {
+      if (result.is_signed &&
+          ((!x->is_signed && result.size == x->size && !x_has_prefix) ||
+           (!y.is_signed && result.size == y.size && !y_has_prefix))) {
         ++result.size;
       }
       return result;
@@ -599,10 +602,10 @@ class Unifier {
     // `UnifySignednessAndSize`, and not necessarily the current call.
     auto update_annotation = [&](const SignednessAndSize& signedness_and_size,
                                  const TypeAnnotation* annotation) {
-      return signedness_and_size.flag != TypeInferenceFlag::kNone
-                 ? SignednessAndSizeToAnnotation(module_, signedness_and_size,
-                                                 annotation->span())
-                 : annotation;
+      return signedness_and_size.flag.HasFlag(TypeInferenceFlag::kNone)
+                 ? annotation
+                 : SignednessAndSizeToAnnotation(module_, signedness_and_size,
+                                                 annotation->span());
     };
     auto signedness_mismatch_error = [&] {
       return error_generator_.SignednessMismatchError(
@@ -620,7 +623,8 @@ class Unifier {
       if (auto_value.is_signed && !explicit_value.is_signed) {
         return signedness_mismatch_error();
       }
-      if (!auto_value.is_signed && explicit_value.is_signed) {
+      if (!auto_value.is_signed && explicit_value.is_signed &&
+          (x_is_min ? !x_has_prefix : !y_has_prefix)) {
         // An auto value being coerced to be signed needs to be extended for the
         // same reason as above.
         auto_value.is_signed = true;
@@ -636,9 +640,8 @@ class Unifier {
     // default to which min-flagged sizes are expanded when used for certain
     // purposes like array indices.
     const bool x_is_standard =
-        HasInferenceFlag(x->flag, TypeInferenceFlag::kStandardType);
-    const bool y_is_standard =
-        HasInferenceFlag(y.flag, TypeInferenceFlag::kStandardType);
+        x->flag.HasFlag(TypeInferenceFlag::kStandardType);
+    const bool y_is_standard = y.flag.HasFlag(TypeInferenceFlag::kStandardType);
     if ((x_is_standard ^ y_is_standard) && x->is_signed == y.is_signed) {
       return x_is_standard ? y : *x;
     }

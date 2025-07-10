@@ -51,29 +51,59 @@ namespace xls::dslx {
 enum class InferenceVariableKind : uint8_t { kInteger, kBool, kType };
 
 // Flags for specifying a non-default interpretation of a type annotation in an
-// `InferenceTable`.
-enum class TypeInferenceFlag : uint8_t {
-  kNone = 0,
+// `InferenceTable`. Certain flags may be combined.
+class TypeInferenceFlag {
+ public:
+  TypeInferenceFlag() : flags_(0) {}
+
+  static const TypeInferenceFlag kNone;
 
   // The minimum viable size of an integer. For example, a literal may have an
   // auto generated min annotation sized to fit the literal value. This
   // annotation can be unified with larger ones that do not take away
   // signedness, and the result is the larger type.
-  kMinSize = 1,
+  static const TypeInferenceFlag kMinSize;
 
   // The standard type of an integer based on its use as an index or slice
   // bound. A type with these semantics can be unified with a mismatching
   // integer type, provided they agree on signedness. In such a case, a standard
   // size beats a min size, but a type with no flags beats a standard size.
-  kStandardType = 2,
-};
+  static const TypeInferenceFlag kStandardType;
 
-// Returns whether the given `flag` has `value` set. For the time being, we
-// don't allow combinations of flags, but the use of this function is a best
-// practice in case we do later.
-inline bool HasInferenceFlag(TypeInferenceFlag flag, TypeInferenceFlag value) {
-  return flag == value;
-}
+  // For a literal without explicit type annotation, if it has a hexadecimal or
+  // binary prefix, it can be interpreted as a negative number even if it does
+  // not contain a negative sign when its unified type is sized and its most
+  // significant bit is set for this literal. This is to be consistent with the
+  // expectation that a hexadecimal or binary literal emphasizes the bit pattern
+  // rather than the quantity of a number.
+  static const TypeInferenceFlag kHasPrefix;
+
+  bool HasFlag(const TypeInferenceFlag& value) const {
+    if (value.flags_ == kNone.flags_) {
+      return flags_ == kNone.flags_;
+    }
+    return flags_ & value.flags_;
+  }
+
+  void SetFlag(const TypeInferenceFlag& value) {
+    flags_ |= value.flags_;
+    // Only certain combinations of flags are allowed, all others result in an
+    // internal error.
+    // 1. Zero or one flag is set.
+    // 2. Both kMinSize and kHasPrefix are set.
+    CHECK((flags_ & (flags_ - 1)) == 0 ||
+          flags_ == (kMinSize.flags_ | kHasPrefix.flags_));
+  }
+
+  bool operator==(const TypeInferenceFlag& other) const = default;
+
+ private:
+  // Only the named static const TypeInferenceFlag values are allowed to be used
+  // externally.
+  constexpr TypeInferenceFlag(uint8_t flags) : flags_(flags) {}
+
+  uint8_t flags_;
+};
 
 // Forward declaration.
 class InferenceTable;

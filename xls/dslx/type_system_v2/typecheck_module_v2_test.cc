@@ -69,6 +69,20 @@ TEST(TypecheckV2Test, GlobalIntegerConstantWithSignednessConflictFails) {
               TypecheckFails(HasSignednessMismatch("u24", "s24")));
 }
 
+TEST(TypecheckV2Test, GlobalSignedIntegerConstantFromHexadecimalWithMSBSet) {
+  EXPECT_THAT("const X: s32 = 0x80000000;", TopNodeHasType("sN[32]"));
+}
+
+TEST(TypecheckV2Test, GlobalSignedIntegerConstantFromBinaryWithMSBSet) {
+  EXPECT_THAT("const X: s32 = 0b10000000000000000000000000000000;",
+              TopNodeHasType("sN[32]"));
+}
+
+TEST(TypecheckV2Test, GlobalSignedIntegerConstantFromDecimalOverflow) {
+  EXPECT_THAT("const X: s32 = 2147483648;",
+              TypecheckFails(HasSizeMismatch("s33", "s32")));
+}
+
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsAnotherConstant) {
   EXPECT_THAT(
       R"(
@@ -663,6 +677,12 @@ TEST(TypecheckV2Test, GlobalArrayConstantWithAnnotatedIntegerLiterals) {
               TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32][2]"),
                                       HasNodeWithType("u32:1", "uN[32]"),
                                       HasNodeWithType("u32:2", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, SignedArrayFromHexadecimalWithMSBSet) {
+  EXPECT_THAT("const X: s8[2] = [1, 0xFF];",
+              TypecheckSucceeds(AllOf(HasNodeWithType("1", "sN[8]"),
+                                      HasNodeWithType("0xFF", "sN[8]"))));
 }
 
 TEST(TypecheckV2Test, ArrayWithArrayAnnotation) {
