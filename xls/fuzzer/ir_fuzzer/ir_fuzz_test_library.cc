@@ -80,7 +80,7 @@ void OptimizationPassChangesOutputs(
   XLS_ASSERT_OK(VerifyPackage(paramaterized_package.p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, paramaterized_package.p->GetFunction(
                                              IrTestBase::TestName()));
-  VLOG(3) << "3. Before Pass IR:" << "\n" << f->DumpIr() << "\n";
+  VLOG(3) << "IR Fuzzer-3: Before Pass IR:" << "\n" << f->DumpIr() << "\n";
   // Interpret the IR function with the parameters before reassociation.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<InterpreterResult<Value>> before_pass_results,
@@ -91,16 +91,17 @@ void OptimizationPassChangesOutputs(
   XLS_ASSERT_OK_AND_ASSIGN(
       bool ir_changed, pass.Run(paramaterized_package.p.get(),
                                 OptimizationPassOptions(), &results, context));
-  VLOG(3) << "4. After Pass IR:" << "\n" << f->DumpIr() << "\n";
+  VLOG(3) << "IR Fuzzer-4: After Pass IR:" << "\n" << f->DumpIr() << "\n";
   // Interpret the IR function with the parameters after reassociation.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<InterpreterResult<Value>> after_pass_results,
       EvaluateParamSets(f, paramaterized_package.param_sets));
-  VLOG(3) << "5. IR Changed: " << (ir_changed ? "TRUE" : "FALSE") << "\n";
-  VLOG(3) << "6. Before Pass Results: " << StringifyResults(before_pass_results)
+  VLOG(3) << "IR Fuzzer-5: IR Changed: " << (ir_changed ? "TRUE" : "FALSE")
           << "\n";
-  VLOG(3) << "7. After Pass Results: " << StringifyResults(after_pass_results)
-          << "\n";
+  VLOG(3) << "IR Fuzzer-6: Before Pass Results: "
+          << StringifyResults(before_pass_results) << "\n";
+  VLOG(3) << "IR Fuzzer-7: After Pass Results: "
+          << StringifyResults(after_pass_results) << "\n";
   // Check if the results are the same before and after reassociation.
   bool results_changed = false;
   for (int64_t i = 0; i < before_pass_results.size(); i += 1) {
@@ -109,8 +110,8 @@ void OptimizationPassChangesOutputs(
       break;
     }
   }
-  VLOG(3) << "8. Results Changed: " << (results_changed ? "TRUE" : "FALSE")
-          << "\n";
+  VLOG(3) << "IR Fuzzer-8: Results Changed: "
+          << (results_changed ? "TRUE" : "FALSE") << "\n";
   CHECK_EQ(results_changed, false)
       << "\n"
       << "Expected: " << StringifyResults(before_pass_results) << "\n"
