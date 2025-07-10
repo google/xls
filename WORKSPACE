@@ -32,7 +32,7 @@ py_repositories()
 
 python_register_toolchains(
     name = "project_python",
-    python_version = "3.11",
+    python_version = "3.12",
 )
 
 load("//dependency_support:initialize_external.bzl", "initialize_external_repositories")
