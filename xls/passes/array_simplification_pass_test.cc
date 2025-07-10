@@ -1665,6 +1665,26 @@ TEST_F(ArraySimplificationPassTest, ArraySliceChain) {
   EXPECT_THAT(f->return_value(), m::ArraySlice(m::Param("arr"), m::Add()));
 }
 
+TEST_F(ArraySimplificationPassTest, ArraySliceChainLargeLiterals) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  // 64-element array. All starts are large, but named literals, so sum is statically in-bounds.
+  fn array_slice_chain_large_literals(arr: bits[32][64]) -> bits[32][8] {
+    s1: bits[32] = literal(value=16)
+    s2: bits[32] = literal(value=8)
+    s3: bits[32] = literal(value=4)
+    t0: bits[32][32] = array_slice(arr, s1, width=32)
+    t1: bits[32][16] = array_slice(t0, s2, width=16)
+    ret result: bits[32][8] = array_slice(t1, s3, width=8)
+  }
+  )",
+                                                       p));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArraySlice(m::Param("arr"), m::Literal(28)));
+}
+
 TEST_F(ArraySimplificationPassTest, ArraySliceIdentityChain) {
   Package* p = GetPackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

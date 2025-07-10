@@ -1045,26 +1045,24 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
 absl::StatusOr<SimplifyResult> SimplifyArraySlice(
     ArraySlice* array_slice, const QueryEngine& query_engine,
     int64_t opt_level) {
-  // Flatten nested array slices by adding start indices:
-  //   array_slice(array_slice(A, start1, width1), start2, width2)
-  //   → array_slice(A, start1 + start2, width2)
+  // Flatten nested array slices by summing start indices.
+  //   array_slice(array_slice(A, s1, w1), s2, w2)
+  //     → array_slice(A, s1 + s2, w2)
   //
-  // Example: array_slice(array_slice([a,b,c,d], start=1, width=2), start=1,
-  // width=1)
-  //          → array_slice([a,b,c,d], start=2, width=1)
-  //          Both produce [c]
+  // For array slice i, we assign max_start_i as:
+  //  - its exact constant if fully known, or
+  //  - the maximal unsigned value of the start node type.
+  // We apply the transform only when
+  //     Σ(max_start_i) + (array_slice.width − 1) < size(A)
+  // meaning every accessed element is provably in-bounds.
   //
-  // Preserves XLS clamping behavior where out-of-bounds access returns the
-  // last element.
+  // Example when applied:
+  //   array_slice(array_slice([a,b,c,d], start=1, width=2), start=1, width=1)
+  //     → array_slice([a,b,c,d], start=2, width=1)   // [c]
   //
-  // Example: array_slice(array_slice([a,b,c,d], start=2, width=3), start=1,
-  // width=2)
-  //          First slice: [c, d, d] (last element clamped)
-  //          Second slice: [d, d]
-  //          -> array_slice([a,b,c,d], 3, 2)))
-  //
-  // The optimization is skipped if the pass cannot prove that every element
-  // accessed by the flattened slice is in-bounds.
+  // Example when skipped:
+  //   array_slice(array_slice([a,b,c,d], start=2, width=3), start=1, width=2)
+  //   // would access index 4, so transform is not done.
   if (array_slice->array()->Is<ArraySlice>()) {
     // Collect inner slices and the ultimate base array.
     std::vector<ArraySlice*> chain;
@@ -1072,6 +1070,38 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
     while (base->Is<ArraySlice>()) {
       chain.push_back(base->As<ArraySlice>());
       base = base->As<ArraySlice>()->array();
+    }
+
+    // Returns the exact constant if known, else the max unsigned value. Fails
+    // if the value does not fit in a uint64_t.
+    auto get_max_start = [&](Node* n) -> absl::StatusOr<uint64_t> {
+      if (query_engine.IsFullyKnown(n)) {
+        std::optional<Bits> known = query_engine.KnownValueAsBits(n);
+        if (!known.has_value() || !known->FitsInUint64()) {
+          return absl::InvalidArgumentError("Known value does not fit");
+        }
+        return known->ToUint64();
+      }
+      return query_engine.MaxUnsignedValue(n).ToUint64();
+    };
+
+    // The start index of the outermost slice.
+    Node* start_node = array_slice->start();
+
+    // The actual underlying array's size.
+    int64_t array_size = base->GetType()->AsArrayOrDie()->size();
+
+    // Calculate the running maximum start index of all inner slices, and abort
+    // the transform if the sum would cause an out-of-bounds access.
+    XLS_ASSIGN_OR_RETURN(uint64_t running_max_start, get_max_start(start_node));
+    for (ArraySlice* slice : chain) {
+      XLS_ASSIGN_OR_RETURN(uint64_t slice_start_max,
+                           get_max_start(slice->start()));
+      running_max_start += slice_start_max;
+      if (running_max_start + array_slice->width() - 1 >=
+          static_cast<uint64_t>(array_size)) {
+        return SimplifyResult::Unchanged();
+      }
     }
 
     // Helper: zero-extend a node to bit-width w.
@@ -1082,31 +1112,6 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
       return array_slice->function_base()->MakeNode<ExtendOp>(SourceInfo(), n,
                                                               w, Op::kZeroExt);
     };
-
-    // The start index of the outermost slice.
-    Node* start_node = array_slice->start();
-
-    // The actual underlying array's size.
-    int64_t array_size = base->GetType()->AsArrayOrDie()->size();
-
-    absl::StatusOr<uint64_t> maybe_max_start =
-        query_engine.MaxUnsignedValue(start_node).ToUint64();
-    if (!maybe_max_start.ok()) {
-      return SimplifyResult::Unchanged();
-    }
-    uint64_t running_max_start = maybe_max_start.value();
-    for (ArraySlice* slice : chain) {
-      absl::StatusOr<uint64_t> maybe_slice_start =
-          query_engine.MaxUnsignedValue(slice->start()).ToUint64();
-      if (!maybe_slice_start.ok()) {
-        return SimplifyResult::Unchanged();
-      }
-      running_max_start += maybe_slice_start.value();
-      if (running_max_start + array_slice->width() - 1 >=
-          static_cast<uint64_t>(array_size)) {
-        return SimplifyResult::Unchanged();
-      }
-    }
 
     Node* new_start = start_node;
     for (ArraySlice* slice : chain) {
