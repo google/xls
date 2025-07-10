@@ -63,7 +63,6 @@
   X(Index)                         \
   X(Invocation)                    \
   X(Lambda)                        \
-  X(Let)                           \
   X(Match)                         \
   X(NameRef)                       \
   X(Number)                        \
@@ -73,7 +72,6 @@
   X(String)                        \
   X(StructInstance)                \
   X(Conditional)                   \
-  X(ConstAssert)                   \
   X(TupleIndex)                    \
   X(Unop)                          \
   X(UnrollFor)                     \
@@ -89,11 +87,13 @@
 #define XLS_DSLX_AST_NODE_EACH(X) \
   /* keep-sorted start */         \
   X(BuiltinNameDef)               \
+  X(ConstAssert)                  \
   X(ConstantDef)                  \
   X(EnumDef)                      \
   X(Function)                     \
   X(Import)                       \
   X(Impl)                         \
+  X(Let)                          \
   X(MatchArm)                     \
   X(Module)                       \
   X(NameDef)                      \
@@ -988,20 +988,6 @@ class ExprVisitor {
 
 #define DECLARE_HANDLER(__type) \
   virtual absl::Status Handle##__type(const __type* expr) = 0;
-  XLS_DSLX_EXPR_NODE_EACH(DECLARE_HANDLER)
-#undef DECLARE_HANDLER
-};
-
-// Subtype of abstract ExprVisitor that returns ok status (does nothing) for
-// every node type.
-class ExprVisitorWithDefault : public ExprVisitor {
- public:
-  ~ExprVisitorWithDefault() override = default;
-
-#define DECLARE_HANDLER(__type)                              \
-  absl::Status Handle##__type(const __type* expr) override { \
-    return absl::OkStatus();                                 \
-  }
   XLS_DSLX_EXPR_NODE_EACH(DECLARE_HANDLER)
 #undef DECLARE_HANDLER
 };

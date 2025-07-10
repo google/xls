@@ -355,18 +355,6 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
       subject);
 }
 
-absl::Status ConstexprEvaluator::HandleConstAssert(
-    const ConstAssert* const_assert) {
-  const FileTable& file_table = *const_assert->owner()->file_table();
-  GET_CONSTEXPR_OR_RETURN(InterpValue predicate, const_assert->arg());
-  if (predicate.IsTrue()) {
-    return absl::OkStatus();
-  }
-  return TypeInferenceErrorStatus(const_assert->span(), nullptr,
-                                  "const_assert! expression was false",
-                                  file_table);
-}
-
 absl::Status ConstexprEvaluator::HandleFor(const For* expr) {
   return absl::OkStatus();
 }

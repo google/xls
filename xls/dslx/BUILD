@@ -215,6 +215,7 @@ cc_library(
     deps = [
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node_visitor_with_default",
         "@com_google_absl//absl/status",
     ],
 )

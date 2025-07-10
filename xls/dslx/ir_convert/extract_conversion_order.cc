@@ -232,12 +232,6 @@ class InvocationVisitor : public ExprVisitor {
     return expr->expr()->AcceptExpr(this);
   }
 
-  absl::Status HandleConstAssert(const ConstAssert* n) override {
-    // Constant assertions don't need to be IR converted, so we don't consider
-    // invocations inside of them.
-    return absl::OkStatus();
-  }
-
   absl::Status HandleFor(const For* expr) override {
     XLS_RETURN_IF_ERROR(expr->init()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->iterable()->AcceptExpr(this));
@@ -377,7 +371,7 @@ class InvocationVisitor : public ExprVisitor {
     return absl::UnimplementedError("lambdas not yet supported");
   }
 
-  absl::Status HandleLet(const Let* expr) override {
+  absl::Status HandleLet(const Let* expr) {
     XLS_RETURN_IF_ERROR(expr->rhs()->AcceptExpr(this));
     return absl::OkStatus();
   }

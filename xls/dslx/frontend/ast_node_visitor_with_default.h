@@ -44,6 +44,25 @@ class AstNodeVisitorWithDefault : public AstNodeVisitor {
 #undef DECLARE_HANDLER
 };
 
+// Subtype of abstract ExprVisitor that returns ok status (does nothing) for
+// every subclass of Expr.
+//
+// Users can override the default behavior by overriding the DefaultHandler()
+// method.
+class ExprVisitorWithDefault : public ExprVisitor {
+ public:
+  ~ExprVisitorWithDefault() override = default;
+
+  virtual absl::Status DefaultHandler(const Expr*) { return absl::OkStatus(); }
+
+#define DECLARE_HANDLER(__type)                              \
+  absl::Status Handle##__type(const __type* expr) override { \
+    return DefaultHandler(expr);                             \
+  }
+  XLS_DSLX_EXPR_NODE_EACH(DECLARE_HANDLER)
+#undef DECLARE_HANDLER
+};
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_NODE_VISITOR_WITH_DEFAULT_H_

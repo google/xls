@@ -849,12 +849,6 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
       resolved_subject);
 }
 
-absl::Status BytecodeEmitter::HandleConstAssert(const ConstAssert* node) {
-  // Since static assertions are checked to hold at typechecking time, we do not
-  // need to check them dynamically via the bytecode execution.
-  return absl::OkStatus();
-}
-
 absl::Status BytecodeEmitter::HandleFor(const For* node) {
   // Here's how a `for` loop is implemented, in some sort of pseudocode:
   //  - Initialize iterable & index

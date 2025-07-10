@@ -107,7 +107,6 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleChannelDecl(const ChannelDecl* node) override;
   absl::Status HandleColonRef(const ColonRef* node) override;
   absl::StatusOr<InterpValue> HandleColonRefInternal(const ColonRef* node);
-  absl::Status HandleConstAssert(const ConstAssert* node) override;
   absl::Status HandleFor(const For* node) override;
   absl::Status HandleFormatMacro(const FormatMacro* node) override;
   absl::Status HandleFunctionRef(const FunctionRef* node) override;
@@ -120,7 +119,7 @@ class BytecodeEmitter : public ExprVisitor {
 
   absl::Status HandleInvocation(const Invocation* node) override;
   absl::Status HandleLambda(const Lambda* node) override;
-  absl::Status HandleLet(const Let* node) override;
+  absl::Status HandleLet(const Let* node);
   absl::Status HandleMatch(const Match* node) override;
   absl::Status HandleNameRef(const NameRef* node) override;
 

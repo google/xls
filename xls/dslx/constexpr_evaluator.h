@@ -74,7 +74,6 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleChannelDecl(const ChannelDecl* expr) override;
   absl::Status HandleColonRef(const ColonRef* expr) override;
   absl::Status HandleConditional(const Conditional* expr) override;
-  absl::Status HandleConstAssert(const ConstAssert* const_assert) override;
   absl::Status HandleFor(const For* expr) override;
   absl::Status HandleFormatMacro(const FormatMacro* expr) override {
     return absl::OkStatus();
@@ -83,7 +82,6 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleIndex(const Index* expr) override;
   absl::Status HandleInvocation(const Invocation* expr) override;
   absl::Status HandleLambda(const Lambda* expr) override;
-  absl::Status HandleLet(const Let* expr) override { return absl::OkStatus(); }
   absl::Status HandleMatch(const Match* expr) override;
   absl::Status HandleNameRef(const NameRef* expr) override;
   absl::Status HandleNumber(const Number* expr) override;
