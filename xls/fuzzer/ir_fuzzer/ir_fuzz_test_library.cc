@@ -19,6 +19,7 @@
 #include <sstream>
 #include <vector>
 
+#include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -77,6 +78,8 @@ void OptimizationPassChangesOutputs(
     const PackageAndTestParams& paramaterized_package,
     const OptimizationPass& pass) {
   // Verify that valid IR was generated.
+  ScopedMaybeRecord<std::string> pre("original",
+                                     paramaterized_package.p->DumpIr());
   XLS_ASSERT_OK(VerifyPackage(paramaterized_package.p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, paramaterized_package.p->GetFunction(
                                              IrTestBase::TestName()));
@@ -92,6 +95,8 @@ void OptimizationPassChangesOutputs(
       bool ir_changed, pass.Run(paramaterized_package.p.get(),
                                 OptimizationPassOptions(), &results, context));
   VLOG(3) << "4. After Pass IR:" << "\n" << f->DumpIr() << "\n";
+  ScopedMaybeRecord<std::string> post("after_pass",
+                                      paramaterized_package.p->DumpIr());
   // Interpret the IR function with the parameters after reassociation.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<InterpreterResult<Value>> after_pass_results,
@@ -111,7 +116,7 @@ void OptimizationPassChangesOutputs(
   }
   VLOG(3) << "8. Results Changed: " << (results_changed ? "TRUE" : "FALSE")
           << "\n";
-  CHECK_EQ(results_changed, false)
+  ASSERT_FALSE(results_changed)
       << "\n"
       << "Expected: " << StringifyResults(before_pass_results) << "\n"
       << "Actual:   " << StringifyResults(after_pass_results);

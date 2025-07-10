@@ -190,5 +190,6 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+        "@google_benchmark//:benchmark",
     ],
 )
