@@ -234,8 +234,8 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
             )
         );
         let send_prescan_start = start_decoding & (!state.prescan_start_sent);
-        send_if(tok, prescan_start_s, send_prescan_start, true);
-        send_if(tok, code_builder_start_s, send_prescan_start, true);
+        let tok = send_if(tok, prescan_start_s, send_prescan_start, true);
+        let tok = send_if(tok, code_builder_start_s, send_prescan_start, true);
         if (send_prescan_start) { trace_fmt!("[HuffmanControlAndSequence] Sent START to prescan and code builder"); } else {};
 
         let state = if send_prescan_start {
@@ -270,7 +270,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
             base_addr: huffman_stream_addr,
             len: huffman_stream_len,
         };
-        send_if(tok, axi_reader_ctrl_s, start_decoding, axi_reader_ctrl);
+        let tok = send_if(tok, axi_reader_ctrl_s, start_decoding, axi_reader_ctrl);
         if (start_decoding) { trace_fmt!("[HuffmanControlAndSequence] Sent request to AXI reader: {:#x}", axi_reader_ctrl); } else {};
 
         // send reconfigure/keep to data preprocessor and decoder
@@ -282,7 +282,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
         let preprocessor_start = DataPreprocessorStart {
             new_config: config,
         };
-        send_if(tok, data_preprocess_start_s, start_decoding, preprocessor_start);
+        let tok = send_if(tok, data_preprocess_start_s, start_decoding, preprocessor_start);
         if start_decoding { trace_fmt!("[HuffmanControlAndSequence] Sent preprocessor start: {:#x}", preprocessor_start); } else {};
         let decoder_start = DecoderStart {
             new_config: config,
@@ -290,7 +290,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
             literals_last: state.ctrl.literals_last,
             last_stream: !state.ctrl.multi_stream || (state.ctrl.multi_stream && state.multi_stream_decodings_finished == u3:3),
         };
-        send_if(tok, decoder_start_s, start_decoding, decoder_start);
+        let tok = send_if(tok, decoder_start_s, start_decoding, decoder_start);
         if start_decoding { trace_fmt!("[HuffmanControlAndSequence] Sent decoder start: {:#x}", decoder_start); } else {};
         let state = if start_decoding {
             State {
@@ -333,7 +333,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
 
         let resp = Resp { status: Status::OKAY };
         let do_send_resp = decoder_done_valid && !state.multi_stream_dec_pending && state.multi_stream_decodings_finished == u3:0;
-        send_if(tok, resp_s, do_send_resp, resp);
+        let tok = send_if(tok, resp_s, do_send_resp, resp);
         if (do_send_resp) { trace_fmt!("[HuffmanControlAndSequence] Sent Ctrl response: {:#x}", resp); } else {};
 
         if do_send_resp {
