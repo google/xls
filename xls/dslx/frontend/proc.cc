@@ -154,6 +154,10 @@ std::string ProcLike::ToString() const {
 TestProc::~TestProc() = default;
 
 std::string TestProc::ToString() const {
+  if (expected_fail_label_.has_value()) {
+    return absl::StrFormat("#[test_proc(expected_fail_label=\"%s\")]\n%s",
+                           *expected_fail_label_, proc_->ToString());
+  }
   return absl::StrFormat("#[test_proc]\n%s", proc_->ToString());
 }
 
