@@ -137,7 +137,7 @@ fuzztest::Domain<PackageAndTestParams> IrFuzzDomainWithParams(
              bytes_paramaterized_package) {
         auto [p, bytes_param_sets] = bytes_paramaterized_package;
         Function* f = p->GetFunction(IrTestBase::TestName()).value();
-        std::vector<std::vector<Value>> param_sets(bytes_param_sets.size());
+        std::vector<std::vector<Value>> param_sets;
         // Iterate over the number of param sets.
         for (int64_t i = 0; i < bytes_param_sets.size(); i += 1) {
           // Iterate over the actual function parameters.
