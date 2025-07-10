@@ -403,6 +403,66 @@ fn msbs_test() {
     assert_eq(msbs<u32:3>(u5:30), u3:7);
 }
 
+// Splits bits into (N most significant bits, the remaining least significant
+// bits).
+//
+// This function ensures that all bits of the argument are used.
+pub fn split_msbs<N: u32, X: u32, Z: u32 = {X - N}, FROM_START: s32 = {Z as s32}>
+    (x: bits[X]) -> (bits[N], bits[Z]) {
+    // Can't split more bits than exist
+    const_assert!(N <= X);
+
+    let msbs = x[FROM_START:];
+    let lsbs = x[0:FROM_START];
+    (msbs, lsbs)
+}
+
+#[test]
+fn test_split_msbs() {
+    assert_eq(split_msbs<u32:0>(u5:0b10101), (uN[0]:0, u5:0b10101));
+    assert_eq(split_msbs<u32:1>(u5:0b10101), (u1:0b1, u4:0b0101));
+    assert_eq(split_msbs<u32:2>(u5:0b10101), (u2:0b10, u3:0b101));
+    assert_eq(split_msbs<u32:3>(u5:0b10101), (u3:0b101, u2:0b01));
+    assert_eq(split_msbs<u32:4>(u5:0b10101), (u4:0b1010, u1:0b1));
+    assert_eq(split_msbs<u32:5>(u5:0b10101), (u5:0b10101, uN[0]:0));
+}
+
+#[quickcheck(exhaustive)]
+fn prop_split_msbs(n: uN[4], o: uN[3]) -> bool {
+    let (n2, o2) = split_msbs<4>(n ++ o);
+    n == n2 && o == o2
+}
+
+// Splits bits into (the remaining most significant bits, N least significant
+// bits).
+//
+// This function ensures that all bits of the argument are used.
+pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}, FROM_START: s32 = {N as s32}>
+    (x: bits[X]) -> (bits[Y], bits[N]) {
+    // Can't split more bits than exist
+    const_assert!(N <= X);
+
+    let msbs = x[FROM_START:];
+    let lsbs = x[0:FROM_START];
+    (msbs, lsbs)
+}
+
+#[test]
+fn test_split_lsbs() {
+    assert_eq(split_lsbs<u32:5>(u5:0b10101), (uN[0]:0, u5:0b10101));
+    assert_eq(split_lsbs<u32:4>(u5:0b10101), (u1:0b1, u4:0b0101));
+    assert_eq(split_lsbs<u32:3>(u5:0b10101), (u2:0b10, u3:0b101));
+    assert_eq(split_lsbs<u32:2>(u5:0b10101), (u3:0b101, u2:0b01));
+    assert_eq(split_lsbs<u32:1>(u5:0b10101), (u4:0b1010, u1:0b1));
+    assert_eq(split_lsbs<u32:0>(u5:0b10101), (u5:0b10101, uN[0]:0));
+}
+
+#[quickcheck(exhaustive)]
+fn prop_split_lsbs(n: uN[4], o: uN[3]) -> bool {
+    let (n2, o2) = split_lsbs<3>(n ++ o);
+    n == n2 && o == o2
+}
+
 // Returns the absolute value of x as a signed number.
 pub fn abs<BITS: u32>(x: sN[BITS]) -> sN[BITS] { if x < sN[BITS]:0 { -x } else { x } }
 
@@ -1280,66 +1340,6 @@ fn test_vslice() {
     assert_eq(vslice<u32:3, u32:0>(u8:0xab), u4:0xb);
     assert_eq(vslice<u32:7, u32:4>(u8:0xab), u4:0xa);
     assert_eq(vslice<u32:0, u32:0>(u8:0xab), u1:1);
-}
-
-// Splits bits into (N most significant bits, the remaining least significant
-// bits).
-//
-// This function ensures that all bits of the argument are used.
-pub fn split_msbs<N: u32, X: u32, Z: u32 = {X - N}, FROM_START: s32 = {Z as s32}>
-    (x: bits[X]) -> (bits[N], bits[Z]) {
-    // Can't split more bits than exist
-    const_assert!(N <= X);
-
-    let msbs = x[FROM_START:];
-    let lsbs = x[0:FROM_START];
-    (msbs, lsbs)
-}
-
-#[test]
-fn test_split_msbs() {
-    assert_eq(split_msbs<u32:0>(u5:0b10101), (uN[0]:0, u5:0b10101));
-    assert_eq(split_msbs<u32:1>(u5:0b10101), (u1:0b1, u4:0b0101));
-    assert_eq(split_msbs<u32:2>(u5:0b10101), (u2:0b10, u3:0b101));
-    assert_eq(split_msbs<u32:3>(u5:0b10101), (u3:0b101, u2:0b01));
-    assert_eq(split_msbs<u32:4>(u5:0b10101), (u4:0b1010, u1:0b1));
-    assert_eq(split_msbs<u32:5>(u5:0b10101), (u5:0b10101, uN[0]:0));
-}
-
-#[quickcheck(exhaustive)]
-fn prop_split_msbs(n: uN[4], o: uN[3]) -> bool {
-    let (n2, o2) = split_msbs<4>(n ++ o);
-    n == n2 && o == o2
-}
-
-// Splits bits into (the remaining most significant bits, N least significant
-// bits).
-//
-// This function ensures that all bits of the argument are used.
-pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}, FROM_START: s32 = {N as s32}>
-    (x: bits[X]) -> (bits[Y], bits[N]) {
-    // Can't split more bits than exist
-    const_assert!(N <= X);
-
-    let msbs = x[FROM_START:];
-    let lsbs = x[0:FROM_START];
-    (msbs, lsbs)
-}
-
-#[test]
-fn test_split_lsbs() {
-    assert_eq(split_lsbs<u32:5>(u5:0b10101), (uN[0]:0, u5:0b10101));
-    assert_eq(split_lsbs<u32:4>(u5:0b10101), (u1:0b1, u4:0b0101));
-    assert_eq(split_lsbs<u32:3>(u5:0b10101), (u2:0b10, u3:0b101));
-    assert_eq(split_lsbs<u32:2>(u5:0b10101), (u3:0b101, u2:0b01));
-    assert_eq(split_lsbs<u32:1>(u5:0b10101), (u4:0b1010, u1:0b1));
-    assert_eq(split_lsbs<u32:0>(u5:0b10101), (u5:0b10101, uN[0]:0));
-}
-
-#[quickcheck(exhaustive)]
-fn prop_split_lsbs(n: uN[4], o: uN[3]) -> bool {
-    let (n2, o2) = split_lsbs<3>(n ++ o);
-    n == n2 && o == o2
 }
 
 // Deprecated functions, to be removed in favor of sizeof() which is
