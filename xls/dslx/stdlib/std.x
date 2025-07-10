@@ -429,7 +429,7 @@ fn test_split_lsbs() {
 
 #[quickcheck(exhaustive)]
 fn prop_split_lsbs(n: uN[4], o: uN[3]) -> bool {
-    let (n2, o2) = split_lsbs<3>(n ++ o);
+    let (n2, o2) = split_lsbs<u32:3>(n ++ o);
     n == n2 && o == o2
 }
 
@@ -459,7 +459,7 @@ fn test_split_msbs() {
 
 #[quickcheck(exhaustive)]
 fn prop_split_msbs(n: uN[4], o: uN[3]) -> bool {
-    let (n2, o2) = split_msbs<4>(n ++ o);
+    let (n2, o2) = split_msbs<u32:4>(n ++ o);
     n == n2 && o == o2
 }
 
