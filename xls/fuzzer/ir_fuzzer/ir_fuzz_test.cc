@@ -35,7 +35,7 @@ void VerifyIrFuzzPackage(std::shared_ptr<Package> p) {
   XLS_ASSERT_OK(VerifyPackage(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            p->GetFunction(IrTestBase::TestName()));
-  VLOG(3) << "2. IR:" << "\n" << f->DumpIr() << "\n";
+  VLOG(3) << "IR Fuzzer-2: IR:" << "\n" << f->DumpIr() << "\n";
 }
 // Use of gtest FUZZ_TEST to randomly generate IR while being compatible with
 // Google infrastructure. The IrFuzzTest function is called and represents the

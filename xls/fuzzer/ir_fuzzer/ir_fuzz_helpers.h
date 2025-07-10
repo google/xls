@@ -26,6 +26,11 @@
 
 namespace xls {
 
+enum TypeCase {
+  UNSET = 0,
+  BITS = 1,
+};
+
 BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width,
                       WidthFittingMethodProto* width_fitting_method);
 BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width);

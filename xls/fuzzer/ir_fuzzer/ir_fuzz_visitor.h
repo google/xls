@@ -61,6 +61,27 @@ class IrFuzzVisitor {
   virtual void HandleNegate(FuzzNegateProto* negate) = 0;
   virtual void HandleNot(FuzzNotProto* not_op) = 0;
   virtual void HandleLiteral(FuzzLiteralProto* literal) = 0;
+  virtual void HandleSelect(FuzzSelectProto* select) = 0;
+  virtual void HandleOneHot(FuzzOneHotProto* one_hot) = 0;
+  virtual void HandleOneHotSelect(FuzzOneHotSelectProto* one_hot_select) = 0;
+  virtual void HandlePrioritySelect(
+      FuzzPrioritySelectProto* priority_select) = 0;
+  virtual void HandleClz(FuzzClzProto* clz) = 0;
+  virtual void HandleCtz(FuzzCtzProto* ctz) = 0;
+  virtual void HandleMatch(FuzzMatchProto* match) = 0;
+  virtual void HandleMatchTrue(FuzzMatchTrueProto* match_true) = 0;
+  virtual void HandleReverse(FuzzReverseProto* reverse) = 0;
+  virtual void HandleIdentity(FuzzIdentityProto* identity) = 0;
+  virtual void HandleSignExtend(FuzzSignExtendProto* sign_extend) = 0;
+  virtual void HandleZeroExtend(FuzzZeroExtendProto* zero_extend) = 0;
+  virtual void HandleBitSlice(FuzzBitSliceProto* bit_slice) = 0;
+  virtual void HandleBitSliceUpdate(
+      FuzzBitSliceUpdateProto* bit_slice_update) = 0;
+  virtual void HandleDynamicBitSlice(
+      FuzzDynamicBitSliceProto* dynamic_bit_slice) = 0;
+  virtual void HandleEncode(FuzzEncodeProto* encode) = 0;
+  virtual void HandleDecode(FuzzDecodeProto* decode) = 0;
+  virtual void HandleGate(FuzzGateProto* gate) = 0;
 
   void VisitFuzzOp(FuzzOpProto* fuzz_op);
 };

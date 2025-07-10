@@ -21,6 +21,7 @@
 #include "google/protobuf/repeated_ptr_field.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_visitor.h"
+#include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
 
@@ -28,14 +29,17 @@ namespace xls {
 
 // Pass that iterates over the FuzzOpProtos within the FuzzProgramProto. Each
 // FuzzOpProto gets instantiated into an IR node/BValue. This value is placed on
-// the stack. BValues on the stack may be used as operands by future
-// instantiated FuzzOps. We use a stack because it is a simple way to reference
-// previous FuzzOps through indices.
+// the context list. BValues on the context list may be used as operands by
+// future instantiated FuzzOps. We use a context list because it is a simple way
+// to reference previous FuzzOps through indices.
 class GenIrNodesPass : public IrFuzzVisitor {
  public:
   GenIrNodesPass(FuzzProgramProto* fuzz_program, Package* p,
-                 FunctionBuilder* fb, std::vector<BValue>& stack)
-      : fuzz_program_(fuzz_program), p_(p), fb_(fb), stack_(stack) {}
+                 FunctionBuilder* fb, IrNodeContextList& context_list)
+      : fuzz_program_(fuzz_program),
+        p_(p),
+        fb_(fb),
+        context_list_(context_list) {}
 
   void GenIrNodes();
 
@@ -73,8 +77,30 @@ class GenIrNodesPass : public IrFuzzVisitor {
   void HandleNegate(FuzzNegateProto* negate) override;
   void HandleNot(FuzzNotProto* not_op) override;
   void HandleLiteral(FuzzLiteralProto* literal) override;
+  void HandleSelect(FuzzSelectProto* select) override;
+  void HandleOneHot(FuzzOneHotProto* one_hot) override;
+  void HandleOneHotSelect(FuzzOneHotSelectProto* one_hot_select) override;
+  void HandlePrioritySelect(FuzzPrioritySelectProto* priority_select) override;
+  void HandleClz(FuzzClzProto* clz) override;
+  void HandleCtz(FuzzCtzProto* ctz) override;
+  void HandleMatch(FuzzMatchProto* match) override;
+  void HandleMatchTrue(FuzzMatchTrueProto* match_true) override;
+  void HandleReverse(FuzzReverseProto* reverse) override;
+  void HandleIdentity(FuzzIdentityProto* identity) override;
+  void HandleSignExtend(FuzzSignExtendProto* sign_extend) override;
+  void HandleZeroExtend(FuzzZeroExtendProto* zero_extend) override;
+  void HandleBitSlice(FuzzBitSliceProto* bit_slice) override;
+  void HandleBitSliceUpdate(FuzzBitSliceUpdateProto* bit_slice_update) override;
+  void HandleDynamicBitSlice(
+      FuzzDynamicBitSliceProto* dynamic_bit_slice) override;
+  void HandleEncode(FuzzEncodeProto* encode) override;
+  void HandleDecode(FuzzDecodeProto* decode) override;
+  void HandleGate(FuzzGateProto* gate) override;
 
  private:
+  std::vector<FunctionBuilder::Case> GetCases(
+      google::protobuf::RepeatedPtrField<CaseProto>* case_protos, int64_t bit_width);
+
   BValue GetOperand(int64_t idx);
   std::vector<BValue> GetOperands(google::protobuf::RepeatedField<int64_t>* operand_idxs,
                                   int64_t min_operand_count = 0,
@@ -89,7 +115,7 @@ class GenIrNodesPass : public IrFuzzVisitor {
   FuzzProgramProto* fuzz_program_;
   Package* p_;
   FunctionBuilder* fb_;
-  std::vector<BValue>& stack_;
+  IrNodeContextList& context_list_;
 };
 
 }  // namespace xls
