@@ -294,6 +294,14 @@ pub proc HuffmanDecoder {
                 code_length: shift_buff_array(state.code_length, state.code_length[0] as u32),
                 ..state
             }
+        } else if (state.fsm == FSM::DECODE && state.data_len > uN[BUFF_W_LOG2]:0) {
+            trace_fmt!(
+                "[HuffmanDecoder] ERROR: data_len is {} which is shorter than the code length {}",
+                state.data_len,
+                state.code_length[0]
+            );
+            assert!(state.data_len >= state.code_length[0] as uN[BUFF_W_LOG2], "invalid_data_or_code_length");
+            state
         } else {
             state
         };

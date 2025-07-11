@@ -180,6 +180,12 @@ pub proc WeightCodeBuilder
         let sum_of_weights_powers = state.sum_of_weights_powers + sum_of_weights_powers;
         let loopback_counter = if sum_of_weights_powers_valid {
             trace_fmt!("[WeightCodeBuilder] Sum of weights powers: {}", sum_of_weights_powers);
+
+            if (state.loopback_counter == std::unsigned_max_value<RECV_COUNT_W>()) {
+                trace_fmt!("[WeightCodeBuilder] ERROR: loopback_counter overflows, state: {}", state);
+                fail!("loopback_counter_overflows", state);
+            } else {};
+
             state.loopback_counter + uN[RECV_COUNT_W]:1
         } else {
             state.loopback_counter
@@ -216,6 +222,10 @@ pub proc WeightCodeBuilder
             },
             (FSM::GATHER_WEIGHTS_RUN) => {
                 let recv_counter = if prescan_data_valid {
+                    if (state.recv_counter == std::unsigned_max_value<RECV_COUNT_W>()) {
+                        trace_fmt!("[WeightCodeBuilder] ERROR: recv_counter overflows in GATHER_WEIGHTS_RUN, state: {}", state);
+                        fail!("recv_counter_overflows", state);
+                    } else {};
                     state.recv_counter + uN[RECV_COUNT_W]:1
                 } else {
                     state.recv_counter
@@ -239,6 +249,10 @@ pub proc WeightCodeBuilder
             },
             (FSM::GENERATE_CODES_RUN) => {
                 let recv_counter = if prescan_data_valid {
+                    if (state.recv_counter == std::unsigned_max_value<RECV_COUNT_W>()) {
+                        trace_fmt!("[WeightCodeBuilder] ERROR: recv_counter overflows in GENERATE_CODES_RUN, state: {}", state);
+                        fail!("recv_counter_overflows2", state);
+                    } else {};
                     state.recv_counter + uN[RECV_COUNT_W]:1
                 } else {
                     state.recv_counter
