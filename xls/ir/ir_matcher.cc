@@ -321,6 +321,22 @@ bool ArrayUpdateMatcher::MatchAndExplain(
   return true;
 }
 
+bool ArraySliceMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+
+  if (width_.has_value()) {
+    const auto* slice = node->As<::xls::ArraySlice>();
+    if (slice->width() != *width_) {
+      *listener << "width is " << slice->width() << ", expected " << *width_;
+      return false;
+    }
+  }
+  return true;
+}
+
 bool BitSliceMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
   if (!NodeMatcher::MatchAndExplain(node, listener)) {

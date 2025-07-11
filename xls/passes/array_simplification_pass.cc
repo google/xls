@@ -215,6 +215,66 @@ bool IsSmallArray(Node* node) {
          node->GetType()->AsArrayOrDie()->size() <= kSmallArrayLimit;
 }
 
+// Simplify select operations over array operations into select over array
+// operations (e.g. array_index, array_slice) by creating the appropriate
+// array operation for each case and then creating a new select over
+// those results.
+//
+// Example transformation:
+//   select(p, array_index(A0, {idx}), array_index(A1, {idx}))
+//     => array_index(select(p, A0, A1), {idx})
+template <typename NewOpT>
+absl::StatusOr<SimplifyResult> SimplifySelectOfArrayOperation(
+    Node* array_op, Node* select_node,
+    const std::function<absl::StatusOr<NewOpT*>(Node*)>& create_new_op) {
+  absl::Span<Node* const> original_cases;
+  std::optional<Node*> original_default_value;
+
+  if (select_node->Is<Select>()) {
+    Select* select = select_node->As<Select>();
+    original_cases = select->cases();
+    original_default_value = select->default_value();
+  } else {
+    XLS_RET_CHECK(select_node->Is<PrioritySelect>());
+    PrioritySelect* select = select_node->As<PrioritySelect>();
+    original_cases = select->cases();
+    original_default_value = select->default_value();
+  }
+
+  std::vector<Node*> cases;
+  cases.reserve(original_cases.size());
+  for (Node* case_value : original_cases) {
+    XLS_ASSIGN_OR_RETURN(NewOpT * new_case_op, create_new_op(case_value));
+    cases.push_back(new_case_op);
+  }
+
+  std::optional<Node*> default_value;
+  if (original_default_value.has_value()) {
+    XLS_ASSIGN_OR_RETURN(default_value, create_new_op(*original_default_value));
+  }
+
+  Node* new_select;
+  if (select_node->Is<Select>()) {
+    XLS_ASSIGN_OR_RETURN(new_select, array_op->ReplaceUsesWithNew<Select>(
+                                         select_node->As<Select>()->selector(),
+                                         cases, default_value));
+  } else {
+    XLS_RET_CHECK(select_node->Is<PrioritySelect>());
+    XLS_RET_CHECK(default_value.has_value());
+    XLS_ASSIGN_OR_RETURN(
+        new_select, array_op->ReplaceUsesWithNew<PrioritySelect>(
+                        select_node->As<PrioritySelect>()->selector(), cases,
+                        *default_value));
+  }
+
+  std::vector<Node*> changed = std::move(cases);
+  if (default_value.has_value()) {
+    changed.push_back(*default_value);
+  }
+  changed.push_back(new_select);
+  return SimplifyResult::Changed(changed);
+}
+
 // Try to simplify the given array index operation.
 absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
     ArrayIndex* array_index, const QueryEngine& query_engine,
@@ -486,61 +546,16 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
     VLOG(2) << absl::StrFormat(
         "Replacing array-index of select with select of array-indexes: %s",
         array_index->ToString());
-    absl::Span<Node* const> original_cases;
-    std::optional<Node*> original_default_value;
-    if (array_index->array()->Is<Select>()) {
-      Select* select = array_index->array()->As<Select>();
-      original_cases = select->cases();
-      original_default_value = select->default_value();
-    } else {
-      XLS_RET_CHECK(array_index->array()->Is<PrioritySelect>());
-      PrioritySelect* select = array_index->array()->As<PrioritySelect>();
-      original_cases = select->cases();
-      original_default_value = select->default_value();
-    }
 
-    std::vector<Node*> cases;
-    cases.reserve(original_cases.size());
-    for (Node* case_value : original_cases) {
-      XLS_ASSIGN_OR_RETURN(
-          ArrayIndex * case_array_index,
-          array_index->function_base()->MakeNode<ArrayIndex>(
-              array_index->loc(), case_value, array_index->indices(),
-              array_index->assumed_in_bounds()));
-      cases.push_back(case_array_index);
-    }
+    auto create_array_index =
+        [&](Node* case_value) -> absl::StatusOr<ArrayIndex*> {
+      return array_index->function_base()->MakeNode<ArrayIndex>(
+          array_index->loc(), case_value, array_index->indices(),
+          array_index->assumed_in_bounds());
+    };
 
-    std::optional<Node*> default_value;
-    if (original_default_value.has_value()) {
-      XLS_ASSIGN_OR_RETURN(
-          default_value,
-          array_index->function_base()->MakeNode<ArrayIndex>(
-              array_index->loc(), *original_default_value,
-              array_index->indices(), array_index->assumed_in_bounds()));
-    }
-
-    Node* new_select;
-    if (array_index->array()->Is<Select>()) {
-      XLS_ASSIGN_OR_RETURN(
-          new_select, array_index->ReplaceUsesWithNew<Select>(
-                          array_index->array()->As<Select>()->selector(), cases,
-                          default_value));
-    } else {
-      XLS_RET_CHECK(array_index->array()->Is<PrioritySelect>());
-      XLS_RET_CHECK(default_value.has_value());
-      XLS_ASSIGN_OR_RETURN(
-          new_select,
-          array_index->ReplaceUsesWithNew<PrioritySelect>(
-              array_index->array()->As<PrioritySelect>()->selector(), cases,
-              *default_value));
-    }
-
-    std::vector<Node*> changed = std::move(cases);
-    if (default_value.has_value()) {
-      changed.push_back(*default_value);
-    }
-    changed.push_back(new_select);
-    return SimplifyResult::Changed(changed);
+    return SimplifySelectOfArrayOperation<ArrayIndex>(
+        array_index, array_index->array(), create_array_index);
   }
 
   // If this array index operation indexes into the output of an array update
@@ -1026,10 +1041,184 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
   return SimplifyResult::Unchanged();
 }
 
-// Tries to flatten a chain of consecutive array update operations into a single
-// kArray op which gathers the elements written into the array. Returns a vector
-// of the optimized away update operations or nullopt is no optimization was
-// performed.
+// Try to simplify the given array slice operation.
+absl::StatusOr<SimplifyResult> SimplifyArraySlice(
+    ArraySlice* array_slice, const QueryEngine& query_engine,
+    int64_t opt_level) {
+  // Flatten nested array slices by summing start indices.
+  //   array_slice(array_slice(A, s1, w1), s2, w2)
+  //     → array_slice(A, s1 + s2, w2)
+  //
+  // For array slice i, we assign max_start_i as:
+  //  - its exact constant if fully known, or
+  //  - the maximal unsigned value of the start node type.
+  // We apply the transform only when
+  //     Σ(max_start_i) + (array_slice.width − 1) < size(A)
+  // meaning every accessed element is provably in-bounds.
+  //
+  // Example when applied:
+  //   array_slice(array_slice([a,b,c,d], start=1, width=2), start=1, width=1)
+  //     → array_slice([a,b,c,d], start=2, width=1)   // [c]
+  //
+  // Example when skipped:
+  //   array_slice(array_slice([a,b,c,d], start=2, width=3), start=1, width=2)
+  //   // would access index 4, so transform is not done.
+  if (array_slice->array()->Is<ArraySlice>()) {
+    // Collect inner slices and the ultimate base array.
+    std::vector<ArraySlice*> chain;
+    Node* base = array_slice->array();
+    while (base->Is<ArraySlice>()) {
+      chain.push_back(base->As<ArraySlice>());
+      base = base->As<ArraySlice>()->array();
+    }
+
+    // Helper: Returns the exact constant if known, else the max possible
+    // unsigned value it can take.
+    auto get_max_start = [&](Node* n) -> absl::StatusOr<uint64_t> {
+      if (query_engine.IsFullyKnown(n)) {
+        std::optional<Bits> known = query_engine.KnownValueAsBits(n);
+        if (!known.has_value() || !known->FitsInUint64()) {
+          return absl::InvalidArgumentError("Known value does not fit");
+        }
+        return known->ToUint64();
+      }
+      return query_engine.MaxUnsignedValue(n).ToUint64();
+    };
+
+    // We must double-walk: first check bounds using only query-engine and
+    // constants, then, if safe, build the new start expression. This avoids
+    // creating IR nodes unless we know the transform will be applied.
+    Node* start = array_slice->start();
+    int64_t array_size = base->GetType()->AsArrayOrDie()->size();
+    absl::StatusOr<uint64_t> running_max_start = get_max_start(start);
+    if (!running_max_start.ok()) {
+      return SimplifyResult::Unchanged();
+    }
+    for (ArraySlice* slice : chain) {
+      absl::StatusOr<uint64_t> slice_start_max = get_max_start(slice->start());
+      if (!slice_start_max.ok()) {
+        return SimplifyResult::Unchanged();
+      }
+      running_max_start.value() += slice_start_max.value();
+      if (running_max_start.value() + array_slice->width() - 1 >=
+          static_cast<uint64_t>(array_size)) {
+        return SimplifyResult::Unchanged();
+      }
+    }
+
+    // Helper: zero-extend a node to bit-width w.
+    auto zext = [&](Node* n, int64_t w) -> absl::StatusOr<Node*> {
+      if (n->BitCountOrDie() >= w) {
+        return n;
+      }
+      return array_slice->function_base()->MakeNode<ExtendOp>(SourceInfo(), n,
+                                                              w, Op::kZeroExt);
+    };
+
+    for (ArraySlice* slice : chain) {
+      int64_t width =
+          std::max({start->BitCountOrDie(), slice->start()->BitCountOrDie(),
+                    Bits::MinBitCountUnsigned(array_size - 1)});
+
+      XLS_ASSIGN_OR_RETURN(Node * lhs, zext(start, width));
+      XLS_ASSIGN_OR_RETURN(Node * rhs, zext(slice->start(), width));
+      XLS_ASSIGN_OR_RETURN(start, array_slice->function_base()->MakeNode<BinOp>(
+                                      SourceInfo(), lhs, rhs, Op::kAdd));
+    }
+
+    XLS_ASSIGN_OR_RETURN(ArraySlice * repl,
+                         array_slice->ReplaceUsesWithNew<ArraySlice>(
+                             base, start, array_slice->width()));
+    return SimplifyResult::Changed({repl});
+  }
+
+  // Replace a slice that covers the entire array with the array itself.
+  // This works with any array-typed node since we only need type information.
+  // Examples:
+  //   array_slice(array(a, b, c, d), start=0, width=4) → array(a, b, c, d)
+  //   array_slice(array_concat(A, B), start=0, width=8) → array_concat(A, B)
+  //     (assuming array_concat(A, B) has total size 8)
+  //   array_slice(param, start=0, width=4) → param (where param: bits[32][4])
+  std::optional<Bits> start_bits =
+      query_engine.KnownValueAsBits(array_slice->start());
+  if (start_bits.has_value() && array_slice->array()->GetType()->IsArray()) {
+    auto* inner_array = array_slice->array()->GetType()->AsArrayOrDie();
+    if (bits_ops::UEqual(start_bits.value(), 0) &&
+        array_slice->width() == inner_array->size()) {
+      XLS_RETURN_IF_ERROR(array_slice->ReplaceUsesWith(array_slice->array()));
+      return SimplifyResult::Changed({array_slice->array()});
+    }
+  }
+
+  // Replace a slice with a known start with the operands. This optimization
+  // is more restrictive than the identity case above beause it requires the
+  // actual node to be a kArray, whereas the identity optimization only requires
+  // the type to be an array.
+  //
+  // Out-of-bounds access returns the last element.
+  //
+  // Examples:
+  //   array_slice(array(a, b, c, d), start=1, width=2) → array(b, c)
+  //   array_slice(array(a, b, c, d), start=2, width=3) → array(c, d, d)
+  if (array_slice->width() > 0 && array_slice->array()->Is<Array>() &&
+      start_bits.has_value() && start_bits->FitsInUint64()) {
+    uint64_t start = start_bits->ToUint64().value();
+    auto* inner_array = array_slice->array()->As<Array>();
+
+    std::vector<Node*> new_ops;
+    new_ops.reserve(array_slice->width());
+    for (uint64_t i = 0; i < array_slice->width(); i++) {
+      uint64_t index = start + i;
+      // XLS clamps if past end with the last element
+      if (index >= inner_array->size()) {
+        index = inner_array->size() - 1;
+      }
+      new_ops.push_back(inner_array->operand(index));
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_array,
+        array_slice->function_base()->MakeNode<Array>(
+            array_slice->loc(), new_ops, new_ops.front()->GetType()));
+    XLS_RETURN_IF_ERROR(array_slice->ReplaceUsesWith(new_array));
+    return SimplifyResult::Changed({new_array});
+  }
+
+  // Convert an array slice of a select into a select of array slices:
+  //  array_slice(select(p, cases=[A0, A1]), start, width)
+  //    => select(p, array_slice(A0, start, width), array_slice(A1, start,
+  //    width))
+  // This reduces the width of the resulting mux.
+  //
+  // Only perform this optimization if the array_slice is the only user.
+  // Otherwise the array slice(es) are duplicated which can outweigh the
+  // benefit of selecting the smaller element.
+  //
+  // For very small arrays (when narrowing is enabled) we will perform this
+  // unconditionally since we totally remove the array in these circumstances.
+  // TODO(psivaraj): Consider cases where selects with multiple users are
+  // still advantageous to transform.
+  if ((array_slice->array()->Is<Select>() ||
+       array_slice->array()->Is<PrioritySelect>()) &&
+      (HasSingleUse(array_slice->array()) ||
+       (IsSmallArray(array_slice->array()) && SplitsEnabled(opt_level)))) {
+    auto create_array_slice =
+        [&](Node* case_value) -> absl::StatusOr<ArraySlice*> {
+      return array_slice->function_base()->MakeNode<ArraySlice>(
+          array_slice->loc(), case_value, array_slice->start(),
+          array_slice->width());
+    };
+
+    return SimplifySelectOfArrayOperation<ArraySlice>(
+        array_slice, array_slice->array(), create_array_slice);
+  }
+  return SimplifyResult::Unchanged();
+}
+
+// Tries to flatten a chain of consecutive array update operations into a
+// single kArray op which gathers the elements written into the array. Returns
+// a vector of the optimized away update operations or nullopt is no
+// optimization was performed.
 absl::StatusOr<std::optional<std::vector<ArrayUpdate*>>>
 FlattenArrayUpdateChain(ArrayUpdate* array_update,
                         const QueryEngine& query_engine, int64_t opt_level) {
@@ -1693,14 +1882,14 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
     return n;
   };
 
-  // Seed the worklist with all Array, ArrayIndex, ArrayUpdate, Select, and
-  // PrioritySelect operations. By favoring reverse-topo-sort order, we give
-  // ourselves the best chance of collapsing (e.g.) array updates written as
-  // separate updates for each dimension.
+  // Seed the worklist with all Array, ArrayIndex, ArrayUpdate, ArraySlice,
+  // Select, and PrioritySelect operations. By favoring reverse-topo-sort order,
+  // we give ourselves the best chance of collapsing (e.g.) array updates
+  // written as separate updates for each dimension.
   for (Node* node : context.ReverseTopoSort(func)) {
     if (!node->IsDead() &&
-        node->OpIn({Op::kArray, Op::kArrayIndex, Op::kArrayUpdate, Op::kSel,
-                    Op::kPrioritySel})) {
+        node->OpIn({Op::kArray, Op::kArrayIndex, Op::kArrayUpdate,
+                    Op::kArraySlice, Op::kSel, Op::kPrioritySel})) {
       add_to_worklist(node, false);
     }
   }
@@ -1728,6 +1917,10 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
                            SimplifyArray(node->As<Array>(), query_engine));
     } else if (node->Is<Select>() || node->Is<PrioritySelect>()) {
       XLS_ASSIGN_OR_RETURN(result, SimplifySelect(node, query_engine));
+    } else if (node->Is<ArraySlice>()) {
+      XLS_ASSIGN_OR_RETURN(
+          result, SimplifyArraySlice(node->As<ArraySlice>(), query_engine,
+                                     options.opt_level));
     }
 
     // Add newly changed nodes to the worklist.
