@@ -91,7 +91,7 @@ fn main() -> u32 {
                                  "present in parametric keys: {}")));
 }
 
-TEST(TypeInfoTest, GetUniqueParametricEnvsNonParametric) {
+TEST(TypeInfoTest, GetUniqueInvocationCalleeDataNonParametric) {
   const std::string kInvocation = R"(
 fn f() -> u32 { u32:42 }
 fn main() -> u32 { f() }
@@ -100,17 +100,18 @@ fn main() -> u32 { f() }
 
   std::optional<Function*> f = result.tm.module->GetFunction("f");
   ASSERT_TRUE(f.has_value());
-  auto f_invocations = result.tm.type_info->GetUniqueParametricEnvs(*f);
+  auto f_invocations = result.tm.type_info->GetUniqueInvocationCalleeData(*f);
   // No parametric envs
   EXPECT_TRUE(f_invocations.empty());
 
   std::optional<Function*> main = result.tm.module->GetFunction("main");
   ASSERT_TRUE(main.has_value());
-  auto main_invocations = result.tm.type_info->GetUniqueParametricEnvs(*main);
+  auto main_invocations =
+      result.tm.type_info->GetUniqueInvocationCalleeData(*main);
   EXPECT_TRUE(main_invocations.empty());
 }
 
-TEST(TypeInfoTest, GetUniqueParametricEnvsOneParametricCall) {
+TEST(TypeInfoTest, GetUniqueInvocationCalleeDataOneParametricCall) {
   const std::string kInvocation = R"(
 fn f<N: u32>() -> u32 { u32:42 }
 fn main() -> u32 { f<u32:0>() }
@@ -120,11 +121,11 @@ fn main() -> u32 { f<u32:0>() }
   std::optional<Function*> f = result.tm.module->GetFunction("f");
   ASSERT_TRUE(f.has_value());
 
-  auto invocations = result.tm.type_info->GetUniqueParametricEnvs(*f);
+  auto invocations = result.tm.type_info->GetUniqueInvocationCalleeData(*f);
   EXPECT_EQ(invocations.size(), 1);
 }
 
-TEST(TypeInfoTest, GetUniqueParametricEnvsMultipleParametricCalls) {
+TEST(TypeInfoTest, GetUniqueInvocationCalleeDataMultipleParametricCalls) {
   const std::string kInvocation = R"(
 fn f<N: u32>() -> u32 { u32:42 }
 fn main() -> u32 { f<u32:0>() + f<u32:0>() + f<u32:1>() }
@@ -134,19 +135,20 @@ fn main() -> u32 { f<u32:0>() + f<u32:0>() + f<u32:1>() }
   std::optional<Function*> f = result.tm.module->GetFunction("f");
   ASSERT_TRUE(f.has_value());
 
-  auto invocations = result.tm.type_info->GetUniqueParametricEnvs(*f);
+  auto invocations = result.tm.type_info->GetUniqueInvocationCalleeData(*f);
   // There are two unique invocations of f.
   EXPECT_EQ(invocations.size(), 2);
   // They should be in original-call order.
   for (int i = 0; i < 2; ++i) {
-    EXPECT_EQ(invocations[i],
+    EXPECT_EQ(invocations[i].callee_bindings,
               ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                   {"N", InterpValue::MakeU32(i)},
               }));
   }
 }
 
-TEST(TypeInfoTest, GetUniqueParametricEnvsMultipleAndRepeatedParametricCalls) {
+TEST(TypeInfoTest,
+     GetUniqueInvocationCalleeDataMultipleAndRepeatedParametricCalls) {
   const std::string kInvocation = R"(
 fn f<N: u32>() -> u32 { u32:42 }
 fn main() -> u32 { f<u32:0>() + f<u32:1>() }
@@ -157,10 +159,10 @@ fn main2() -> u32 { f<u32:1>() + f<u32:0>() + f<u32:2>() }
   std::optional<Function*> f = result.tm.module->GetFunction("f");
   ASSERT_TRUE(f.has_value());
 
-  auto invocations = result.tm.type_info->GetUniqueParametricEnvs(*f);
+  auto invocations = result.tm.type_info->GetUniqueInvocationCalleeData(*f);
   EXPECT_EQ(invocations.size(), 3);
   for (int i = 0; i < 3; ++i) {
-    EXPECT_EQ(invocations[i],
+    EXPECT_EQ(invocations[i].callee_bindings,
               ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                   {"N", InterpValue::MakeU32(i)},
               }));
