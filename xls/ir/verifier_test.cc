@@ -78,6 +78,18 @@ fn f(s: bits[2], a: bits[2], b: bits[3]) -> bits[3] {
           HasSubstr("All cases in priority select must have the same type")));
 }
 
+TEST_F(VerifierTest, PrioritySelectWithDifferentDefaultType) {
+  auto p = IrTestBase::CreatePackage();
+  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  BValue selector = fb.Param("p0", p->GetBitsType(2));
+  BValue case1 = fb.Param("p1", p->GetBitsType(10));
+  BValue default_value = fb.Param("p2", p->GetBitsType(20));
+  fb.PrioritySelect(selector, {case1, case1}, default_value);
+  ASSERT_THAT(fb.Build(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Default value must have the same type")));
+}
+
 TEST_F(VerifierTest, OneHotSelectWithDifferentCaseTypes) {
   std::string input = R"(
 package p
