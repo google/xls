@@ -3161,7 +3161,6 @@ cc_test(
 cc_test(
     name = "reassociation_pass_test",
     srcs = ["reassociation_pass_test.cc"],
-    shard_count = 4,
     tags = ["noasan"],  # This test has Z3-related timeouts when built with asan.
     deps = [
         ":arith_simplification_pass",

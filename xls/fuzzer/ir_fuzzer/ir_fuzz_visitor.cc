@@ -124,6 +124,60 @@ void IrFuzzVisitor::VisitFuzzOp(FuzzOpProto* fuzz_op) {
     case FuzzOpProto::kLiteral:
       HandleLiteral(fuzz_op->mutable_literal());
       break;
+    case FuzzOpProto::kSelect:
+      HandleSelect(fuzz_op->mutable_select());
+      break;
+    case FuzzOpProto::kOneHot:
+      HandleOneHot(fuzz_op->mutable_one_hot());
+      break;
+    case FuzzOpProto::kOneHotSelect:
+      HandleOneHotSelect(fuzz_op->mutable_one_hot_select());
+      break;
+    case FuzzOpProto::kPrioritySelect:
+      HandlePrioritySelect(fuzz_op->mutable_priority_select());
+      break;
+    case FuzzOpProto::kClz:
+      HandleClz(fuzz_op->mutable_clz());
+      break;
+    case FuzzOpProto::kCtz:
+      HandleCtz(fuzz_op->mutable_ctz());
+      break;
+    case FuzzOpProto::kMatch:
+      HandleMatch(fuzz_op->mutable_match());
+      break;
+    case FuzzOpProto::kMatchTrue:
+      HandleMatchTrue(fuzz_op->mutable_match_true());
+      break;
+    case FuzzOpProto::kReverse:
+      HandleReverse(fuzz_op->mutable_reverse());
+      break;
+    case FuzzOpProto::kIdentity:
+      HandleIdentity(fuzz_op->mutable_identity());
+      break;
+    case FuzzOpProto::kSignExtend:
+      HandleSignExtend(fuzz_op->mutable_sign_extend());
+      break;
+    case FuzzOpProto::kZeroExtend:
+      HandleZeroExtend(fuzz_op->mutable_zero_extend());
+      break;
+    case FuzzOpProto::kBitSlice:
+      HandleBitSlice(fuzz_op->mutable_bit_slice());
+      break;
+    case FuzzOpProto::kBitSliceUpdate:
+      HandleBitSliceUpdate(fuzz_op->mutable_bit_slice_update());
+      break;
+    case FuzzOpProto::kDynamicBitSlice:
+      HandleDynamicBitSlice(fuzz_op->mutable_dynamic_bit_slice());
+      break;
+    case FuzzOpProto::kEncode:
+      HandleEncode(fuzz_op->mutable_encode());
+      break;
+    case FuzzOpProto::kDecode:
+      HandleDecode(fuzz_op->mutable_decode());
+      break;
+    case FuzzOpProto::kGate:
+      HandleGate(fuzz_op->mutable_gate());
+      break;
     case FuzzOpProto::FUZZ_OP_NOT_SET:
       break;
   }

@@ -25,6 +25,7 @@
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/lsb_or_msb.h"
 
 namespace xls {
 
@@ -282,6 +283,228 @@ void GenIrNodesPass::HandleLiteral(FuzzLiteralProto* literal) {
   Bits value_bits =
       ChangeBytesBitWidth(literal->value_bytes(), literal->bit_width());
   stack_.push_back(fb_->Literal(value_bits));
+}
+
+void GenIrNodesPass::HandleSelect(FuzzSelectProto* select) {
+  select->set_bit_width(BoundedWidth(select->bit_width()));
+  BValue selector = GetOperand(select->selector_idx());
+  int64_t max_case_count = select->case_idxs_size();
+  bool use_default_value = false;
+  if (select->case_idxs_size() < selector.BitCountOrDie() ||
+      select->case_idxs_size() < 1ULL << selector.BitCountOrDie()) {
+    // If the number of cases is less than 2 ** selector_width, we must use a
+    // default value otherwise there are not enough cases to cover all possible
+    // selector values.
+    use_default_value = true;
+  } else if (select->case_idxs_size() > 1ULL << selector.BitCountOrDie()) {
+    // If the number of cases is greater than 2 ** selector_width, we must
+    // reduce the amount of cases to 2 ** selector_width.
+    max_case_count = 1ULL << selector.BitCountOrDie();
+  }
+  // If the number of cases is equal to 2 ** selector_width, we cannot use a
+  // default value because it is useless.
+  // We need at least one case.
+  std::vector<BValue> cases = GetWidthFittedOperands(
+      select->mutable_case_idxs(), select->bit_width(), 1, max_case_count);
+  if (use_default_value) {
+    BValue default_value = GetWidthFittedOperand(
+        select->mutable_default_value_idx(), select->bit_width());
+    stack_.push_back(fb_->Select(selector, cases, default_value));
+  } else {
+    stack_.push_back(fb_->Select(selector, cases));
+  }
+}
+
+void GenIrNodesPass::HandleOneHot(FuzzOneHotProto* one_hot) {
+  BValue input = GetOperand(one_hot->input_idx());
+  // Convert the LsbOrMsb proto enum to the C++ enum.
+  LsbOrMsb priority;
+  switch (one_hot->priority()) {
+    case FuzzOneHotProto::MSB_PRIORITY:
+      priority = LsbOrMsb::kMsb;
+      break;
+    case FuzzOneHotProto::LSB_PRIORITY:
+    default:
+      priority = LsbOrMsb::kLsb;
+      break;
+  }
+  stack_.push_back(fb_->OneHot(input, priority));
+}
+
+// Same as Select, but each selector_width bit corresponds to a case and there
+// is no default value.
+void GenIrNodesPass::HandleOneHotSelect(FuzzOneHotSelectProto* one_hot_select) {
+  one_hot_select->set_bit_width(BoundedWidth(one_hot_select->bit_width()));
+  BValue selector = GetOperand(one_hot_select->selector_idx());
+  // Use a default value for the selector if there are no cases or if there are
+  // less cases than the selector bit width.
+  if (one_hot_select->case_idxs_size() == 0) {
+    if (selector.BitCountOrDie() != 1) {
+      selector = fb_->Literal(UBits(0, 1));
+    }
+  } else if (selector.BitCountOrDie() > one_hot_select->case_idxs_size()) {
+    selector = fb_->Literal(UBits(0, one_hot_select->case_idxs_size()));
+  }
+  // Use of GetWidthFittedOperands's min_operand_count and max_operand_count
+  // arguments is to ensure that the number of cases is equal to the selector
+  // bit width.
+  std::vector<BValue> cases = GetWidthFittedOperands(
+      one_hot_select->mutable_case_idxs(), one_hot_select->bit_width(),
+      selector.BitCountOrDie(), selector.BitCountOrDie());
+  stack_.push_back(fb_->OneHotSelect(selector, cases));
+}
+
+// Same as OneHotSelect, but with a default value.
+void GenIrNodesPass::HandlePrioritySelect(
+    FuzzPrioritySelectProto* priority_select) {
+  priority_select->set_bit_width(BoundedWidth(priority_select->bit_width()));
+  BValue selector = GetOperand(priority_select->selector_idx());
+  // Use a default value for the selector if there are no cases or if there are
+  // less cases than the selector bit width.
+  if (priority_select->case_idxs_size() == 0) {
+    if (selector.BitCountOrDie() != 1) {
+      selector = fb_->Literal(UBits(0, 1));
+    }
+  } else if (selector.BitCountOrDie() > priority_select->case_idxs_size()) {
+    selector = fb_->Literal(UBits(0, priority_select->case_idxs_size()));
+  }
+  // Use of GetWidthFittedOperands's min_operand_count and max_operand_count
+  // arguments is to ensure that the number of cases is equal to the selector
+  // bit width.
+  std::vector<BValue> cases = GetWidthFittedOperands(
+      priority_select->mutable_case_idxs(), priority_select->bit_width(),
+      selector.BitCountOrDie(), selector.BitCountOrDie());
+  BValue default_value =
+      GetWidthFittedOperand(priority_select->mutable_default_value_idx(),
+                            priority_select->bit_width());
+  stack_.push_back(fb_->PrioritySelect(selector, cases, default_value));
+}
+
+void GenIrNodesPass::HandleClz(FuzzClzProto* clz) {
+  BValue operand = GetOperand(clz->operand_idx());
+  stack_.push_back(fb_->Clz(operand));
+}
+
+void GenIrNodesPass::HandleCtz(FuzzCtzProto* ctz) {
+  BValue operand = GetOperand(ctz->operand_idx());
+  stack_.push_back(fb_->Ctz(operand));
+}
+
+// Retrieves a vector of Case objects based off of CaseProtos.
+std::vector<FunctionBuilder::Case> GenIrNodesPass::GetCases(
+    google::protobuf::RepeatedPtrField<CaseProto>* case_protos, int64_t bit_width) {
+  std::vector<FunctionBuilder::Case> cases;
+  for (CaseProto& case_proto : *case_protos) {
+    cases.push_back(FunctionBuilder::Case{
+        GetWidthFittedOperand(case_proto.mutable_clause_idx(), bit_width),
+        GetWidthFittedOperand(case_proto.mutable_value_idx(), bit_width)});
+  }
+  // If there are no cases, add a default case, otherwise the interpreter
+  // breaks.
+  if (cases.empty()) {
+    cases.push_back(FunctionBuilder::Case{fb_->Literal(UBits(0, bit_width)),
+                                          fb_->Literal(UBits(0, bit_width))});
+  }
+  return cases;
+}
+
+void GenIrNodesPass::HandleMatch(FuzzMatchProto* match) {
+  BValue condition = GetOperand(match->condition_idx());
+  std::vector<FunctionBuilder::Case> cases =
+      GetCases(match->mutable_case_protos(), condition.BitCountOrDie());
+  BValue default_value = GetWidthFittedOperand(
+      match->mutable_default_value_idx(), condition.BitCountOrDie());
+  stack_.push_back(fb_->Match(condition, cases, default_value));
+}
+
+void GenIrNodesPass::HandleMatchTrue(FuzzMatchTrueProto* match_true) {
+  // MatchTrue only supports bit widths of 1.
+  std::vector<FunctionBuilder::Case> cases =
+      GetCases(match_true->mutable_case_protos(), 1);
+  BValue default_value =
+      GetWidthFittedOperand(match_true->mutable_default_value_idx(), 1);
+  stack_.push_back(fb_->MatchTrue(cases, default_value));
+}
+
+void GenIrNodesPass::HandleReverse(FuzzReverseProto* reverse) {
+  BValue operand = GetOperand(reverse->operand_idx());
+  stack_.push_back(fb_->Reverse(operand));
+}
+
+void GenIrNodesPass::HandleIdentity(FuzzIdentityProto* identity) {
+  BValue operand = GetOperand(identity->operand_idx());
+  stack_.push_back(fb_->Identity(operand));
+}
+
+void GenIrNodesPass::HandleSignExtend(FuzzSignExtendProto* sign_extend) {
+  BValue operand = GetOperand(sign_extend->operand_idx());
+  // The bit width cannot be less than the operand bit width because that is an
+  // invalid extension.
+  sign_extend->set_bit_width(
+      BoundedWidth(sign_extend->bit_width(), operand.BitCountOrDie()));
+  stack_.push_back(fb_->SignExtend(operand, sign_extend->bit_width()));
+}
+
+void GenIrNodesPass::HandleZeroExtend(FuzzZeroExtendProto* zero_extend) {
+  BValue operand = GetOperand(zero_extend->operand_idx());
+  // The bit width cannot be less than the operand bit width because that is an
+  // invalid extension.
+  zero_extend->set_bit_width(
+      BoundedWidth(zero_extend->bit_width(), operand.BitCountOrDie()));
+  stack_.push_back(fb_->ZeroExtend(operand, zero_extend->bit_width()));
+}
+
+void GenIrNodesPass::HandleBitSlice(FuzzBitSliceProto* bit_slice) {
+  bit_slice->set_bit_width(BoundedWidth(bit_slice->bit_width()));
+  BValue operand = GetOperand(bit_slice->operand_idx());
+  // The start value must be in the range [0, operand_width - bit_width]
+  // otherwise you would be slicing past the end of the operand.
+  bit_slice->set_start(Bounded(
+      bit_slice->start(), 0, operand.BitCountOrDie() - bit_slice->bit_width()));
+  stack_.push_back(
+      fb_->BitSlice(operand, bit_slice->start(), bit_slice->bit_width()));
+}
+
+void GenIrNodesPass::HandleBitSliceUpdate(
+    FuzzBitSliceUpdateProto* bit_slice_update) {
+  BValue operand = GetOperand(bit_slice_update->operand_idx());
+  BValue start = GetOperand(bit_slice_update->start_idx());
+  BValue update_value = GetOperand(bit_slice_update->update_value_idx());
+  stack_.push_back(fb_->BitSliceUpdate(operand, start, update_value));
+}
+
+void GenIrNodesPass::HandleDynamicBitSlice(
+    FuzzDynamicBitSliceProto* dynamic_bit_slice) {
+  dynamic_bit_slice->set_bit_width(
+      BoundedWidth(dynamic_bit_slice->bit_width()));
+  BValue operand = GetWidthFittedOperand(
+      dynamic_bit_slice->mutable_operand_idx(), dynamic_bit_slice->bit_width());
+  BValue start = GetOperand(dynamic_bit_slice->start_idx());
+  stack_.push_back(
+      fb_->DynamicBitSlice(operand, start, dynamic_bit_slice->bit_width()));
+}
+
+void GenIrNodesPass::HandleEncode(FuzzEncodeProto* encode) {
+  BValue operand = GetOperand(encode->operand_idx());
+  BValue encode_bvalue = fb_->Encode(operand);
+  // Encode may result in a 0-bit value. If so, change the bit width to 1.
+  if (encode_bvalue.BitCountOrDie() == 0) {
+    encode_bvalue = ChangeBitWidth(fb_, encode_bvalue, 1);
+  }
+  stack_.push_back(encode_bvalue);
+}
+
+void GenIrNodesPass::HandleDecode(FuzzDecodeProto* decode) {
+  decode->set_bit_width(BoundedWidth(decode->bit_width()));
+  BValue operand = GetOperand(decode->operand_idx());
+  stack_.push_back(fb_->Decode(operand, decode->bit_width()));
+}
+
+void GenIrNodesPass::HandleGate(FuzzGateProto* gate) {
+  // The Gate condition only supports bit widths of 1.
+  BValue condition = GetWidthFittedOperand(gate->mutable_condition_idx(), 1);
+  BValue data = GetOperand(gate->data_idx());
+  stack_.push_back(fb_->Gate(condition, data));
 }
 
 // Retrieves an operand from the stack based off of a stack index.

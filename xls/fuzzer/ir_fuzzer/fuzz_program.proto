@@ -105,6 +105,24 @@ message FuzzOpProto {
     FuzzNegateProto negate = 32;
     FuzzNotProto not_op = 33;
     FuzzLiteralProto literal = 34;
+    FuzzSelectProto select = 35;
+    FuzzOneHotProto one_hot = 36;
+    FuzzOneHotSelectProto one_hot_select = 37;
+    FuzzPrioritySelectProto priority_select = 38;
+    FuzzClzProto clz = 39;
+    FuzzCtzProto ctz = 40;
+    FuzzMatchProto match = 41;
+    FuzzMatchTrueProto match_true = 42;
+    FuzzReverseProto reverse = 43;
+    FuzzIdentityProto identity = 44;
+    FuzzSignExtendProto sign_extend = 45;
+    FuzzZeroExtendProto zero_extend = 46;
+    FuzzBitSliceProto bit_slice = 47;
+    FuzzBitSliceUpdateProto bit_slice_update = 48;
+    FuzzDynamicBitSliceProto dynamic_bit_slice = 49;
+    FuzzEncodeProto encode = 50;
+    FuzzDecodeProto decode = 51;
+    FuzzGateProto gate = 52;
   }
 }
 
@@ -297,4 +315,109 @@ message FuzzNotProto {
 message FuzzLiteralProto {
   optional int64 bit_width = 1;
   optional bytes value_bytes = 2;
+}
+
+message FuzzSelectProto {
+  optional int64 bit_width = 1;
+  optional int64 selector_idx = 2;
+  repeated FittedOperandIdxProto case_idxs = 3;
+  optional FittedOperandIdxProto default_value_idx = 4;
+}
+
+message FuzzOneHotProto {
+  optional int64 input_idx = 1;
+  enum OneHotPriority {
+    UNSET_ONE_HOT_PRIORITY = 0;
+    LSB_PRIORITY = 1;
+    MSB_PRIORITY = 2;
+  }
+  optional OneHotPriority priority = 2;
+}
+
+message FuzzOneHotSelectProto {
+  optional int64 bit_width = 1;
+  optional int64 selector_idx = 2;
+  repeated FittedOperandIdxProto case_idxs = 3;
+}
+
+message FuzzPrioritySelectProto {
+  optional int64 bit_width = 1;
+  optional int64 selector_idx = 2;
+  repeated FittedOperandIdxProto case_idxs = 3;
+  optional FittedOperandIdxProto default_value_idx = 4;
+}
+
+message FuzzClzProto {
+  optional int64 operand_idx = 1;
+}
+
+message FuzzCtzProto {
+  optional int64 operand_idx = 1;
+}
+
+// Corresponds to the Case object in the FunctionBuilder.
+message CaseProto {
+  optional FittedOperandIdxProto clause_idx = 1;
+  optional FittedOperandIdxProto value_idx = 2;
+}
+
+message FuzzMatchProto {
+  optional int64 condition_idx = 1;
+  repeated CaseProto case_protos = 2;
+  optional FittedOperandIdxProto default_value_idx = 3;
+}
+
+message FuzzMatchTrueProto {
+  repeated CaseProto case_protos = 1;
+  optional FittedOperandIdxProto default_value_idx = 2;
+}
+
+message FuzzReverseProto {
+  optional int64 operand_idx = 1;
+}
+
+message FuzzIdentityProto {
+  optional int64 operand_idx = 1;
+}
+
+message FuzzSignExtendProto {
+  optional int64 bit_width = 1;
+  optional int64 operand_idx = 2;
+}
+
+message FuzzZeroExtendProto {
+  optional int64 bit_width = 1;
+  optional int64 operand_idx = 2;
+}
+
+message FuzzBitSliceProto {
+  optional int64 bit_width = 1;
+  optional int64 operand_idx = 2;
+  optional int64 start = 3;
+}
+
+message FuzzBitSliceUpdateProto {
+  optional int64 operand_idx = 1;
+  optional int64 start_idx = 2;
+  optional int64 update_value_idx = 3;
+}
+
+message FuzzDynamicBitSliceProto {
+  optional int64 bit_width = 1;
+  optional FittedOperandIdxProto operand_idx = 2;
+  optional int64 start_idx = 3;
+}
+
+message FuzzEncodeProto {
+  optional int64 operand_idx = 1;
+}
+
+message FuzzDecodeProto {
+  optional int64 bit_width = 1;
+  optional int64 operand_idx = 2;
+}
+
+message FuzzGateProto {
+  optional FittedOperandIdxProto condition_idx = 1;
+  optional int64 data_idx = 2;
 }

@@ -73,8 +73,30 @@ class GenIrNodesPass : public IrFuzzVisitor {
   void HandleNegate(FuzzNegateProto* negate) override;
   void HandleNot(FuzzNotProto* not_op) override;
   void HandleLiteral(FuzzLiteralProto* literal) override;
+  void HandleSelect(FuzzSelectProto* select) override;
+  void HandleOneHot(FuzzOneHotProto* one_hot) override;
+  void HandleOneHotSelect(FuzzOneHotSelectProto* one_hot_select) override;
+  void HandlePrioritySelect(FuzzPrioritySelectProto* priority_select) override;
+  void HandleClz(FuzzClzProto* clz) override;
+  void HandleCtz(FuzzCtzProto* ctz) override;
+  void HandleMatch(FuzzMatchProto* match) override;
+  void HandleMatchTrue(FuzzMatchTrueProto* match_true) override;
+  void HandleReverse(FuzzReverseProto* reverse) override;
+  void HandleIdentity(FuzzIdentityProto* identity) override;
+  void HandleSignExtend(FuzzSignExtendProto* sign_extend) override;
+  void HandleZeroExtend(FuzzZeroExtendProto* zero_extend) override;
+  void HandleBitSlice(FuzzBitSliceProto* bit_slice) override;
+  void HandleBitSliceUpdate(FuzzBitSliceUpdateProto* bit_slice_update) override;
+  void HandleDynamicBitSlice(
+      FuzzDynamicBitSliceProto* dynamic_bit_slice) override;
+  void HandleEncode(FuzzEncodeProto* encode) override;
+  void HandleDecode(FuzzDecodeProto* decode) override;
+  void HandleGate(FuzzGateProto* gate) override;
 
  private:
+  std::vector<FunctionBuilder::Case> GetCases(
+      google::protobuf::RepeatedPtrField<CaseProto>* case_protos, int64_t bit_width);
+
   BValue GetOperand(int64_t idx);
   std::vector<BValue> GetOperands(google::protobuf::RepeatedField<int64_t>* operand_idxs,
                                   int64_t min_operand_count = 0,
