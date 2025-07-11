@@ -297,7 +297,7 @@ def _xls_pass_registry_impl(ctx):
             for x in c[XlsOptimizationPassRegistryInfo].passes:
                 inputs.append(x.linking_context)
             passes.extend(c[XlsOptimizationPassRegistryInfo].passes)
-            pass_infos.append(c[XlsOptimizationPassRegistryInfo].pass_infos)
+            pass_infos.extend(c[XlsOptimizationPassRegistryInfo].pass_infos)
         else:
             inputs.append(c[CcInfo].linking_context)
             passes.append(c[CcInfo])
