@@ -54,6 +54,7 @@ enum {
 
 // Opaque structs.
 struct xls_bits;
+struct xls_bits_rope;
 struct xls_function;
 struct xls_function_base;
 struct xls_function_jit;
@@ -139,6 +140,21 @@ bool xls_parse_typed_value(const char* input, char** error_out,
 bool xls_value_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
                           struct xls_value** xls_value_out);
 
+// Returns a new bits rope with the given bit count. The caller must free the
+// returned `bits_rope` via `xls_bits_rope_free` if it is non-null.
+struct xls_bits_rope* xls_create_bits_rope(int64_t bit_count);
+
+// Appends the given bits to the given bits rope.
+// Note the bits rope must have enough space to hold the bits.
+void xls_bits_rope_append_bits(struct xls_bits_rope* bits_rope,
+                               const struct xls_bits* bits);
+
+// Returns the bits in the given bits rope. The returned bits are owned by
+// the caller and must be freed via `xls_bits_free`. This API must be called
+// after all bits have been appended to the bits rope, i.e. the bits rope must
+// be "full".
+struct xls_bits* xls_bits_rope_get_bits(struct xls_bits_rope* bits_rope);
+
 // Returns the kind of the given value. The caller must free the returned
 // `error_out` string via `xls_c_str_free` if an error is returned.
 bool xls_value_get_kind(const struct xls_value* value, char** error_out,
@@ -204,6 +220,7 @@ bool xls_bits_make_sbits(int64_t bit_count, int64_t value, char** error_out,
                          struct xls_bits** bits_out);
 
 void xls_bits_free(struct xls_bits* bits);
+void xls_bits_rope_free(xls_bits_rope* b);
 
 bool xls_bits_eq(const struct xls_bits* a, const struct xls_bits* b);
 
@@ -367,6 +384,20 @@ bool xls_package_get_function(struct xls_package* package,
                               const char* function_name, char** error_out,
                               struct xls_function** result_out);
 
+// Returns all the functions contained within the given `package`.
+//
+// If successful, true us returned and the contained function pointers are
+// saved in the array `result_out` which is owned by the caller and must be
+// freed with `xls_function_ptr_array_free`. The length of the array is saved in
+// `count_out`.
+// If an error occurs, false is returned and `error_out` is populated with an
+// error message, which must be freed with `xls_c_str_free`.
+// Note: the returned functions do not need to be freed, they are tied to the
+// package's lifetime.
+bool xls_package_get_functions(struct xls_package* package, char** error_out,
+                               struct xls_function*** result_out,
+                               size_t* count_out);
+
 // Returns the type of the given value, as owned by the given package.
 //
 // Note: the returned type does not need to be freed, it is tied to the
@@ -375,12 +406,19 @@ bool xls_package_get_type_for_value(struct xls_package* package,
                                     struct xls_value* value, char** error_out,
                                     struct xls_type** result_out);
 
+// Returns the kind of the given type.
+bool xls_type_get_kind(struct xls_type* type, char** error_out,
+                       xls_value_kind* kind_out);
+
 // Returns the string representation of the type.
 bool xls_type_to_string(struct xls_type* type, char** error_out,
                         char** result_out);
 
 // Returns the count of bits required to represent the type.
 int64_t xls_type_get_flat_bit_count(struct xls_type* type);
+
+// Returns the number of Bits types contained in the type.
+int64_t xls_type_get_leaf_count(struct xls_type* type);
 
 // Returns the type of the given function.
 //
@@ -449,6 +487,10 @@ bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
                           char*** assert_messages_out,
                           size_t* assert_messages_count_out,
                           struct xls_value** result_out);
+
+// frees the array of  `xls_function` pointers -- the function should have been
+// allocated by the XLS library where ownership was passed back to the caller.
+void xls_function_ptr_array_free(struct xls_function** functions);
 
 void xls_trace_messages_free(struct xls_trace_message* trace_messages,
                              size_t count);

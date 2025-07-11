@@ -421,6 +421,26 @@ struct xls_value* xls_value_make_false() {
   return reinterpret_cast<xls_value*>(value);
 }
 
+struct xls_bits_rope* xls_create_bits_rope(int64_t bit_count) {
+  return reinterpret_cast<xls_bits_rope*>(new xls::BitsRope(bit_count));
+}
+
+void xls_bits_rope_append_bits(struct xls_bits_rope* bits_rope,
+                               const struct xls_bits* bits) {
+  CHECK(bits_rope != nullptr);
+  CHECK(bits != nullptr);
+  auto* cpp_bits_rope = reinterpret_cast<xls::BitsRope*>(bits_rope);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  cpp_bits_rope->push_back(*cpp_bits);
+}
+
+struct xls_bits* xls_bits_rope_get_bits(struct xls_bits_rope* bits_rope) {
+  CHECK(bits_rope != nullptr);
+  auto* cpp_bits_rope = reinterpret_cast<xls::BitsRope*>(bits_rope);
+  xls::Bits bits = cpp_bits_rope->Build();
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(bits)));
+}
+
 bool xls_bits_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
                          struct xls_bits** bits_out) {
   CHECK(error_out != nullptr);
@@ -689,6 +709,10 @@ int64_t xls_bits_get_bit_count(const struct xls_bits* bits) {
 
 void xls_bits_free(xls_bits* b) { delete reinterpret_cast<xls::Bits*>(b); }
 
+void xls_bits_rope_free(xls_bits_rope* b) {
+  delete reinterpret_cast<xls::BitsRope*>(b);
+}
+
 void xls_value_free(xls_value* v) { delete reinterpret_cast<xls::Value*>(v); }
 
 struct xls_value* xls_value_from_bits(const struct xls_bits* bits) {
@@ -892,6 +916,35 @@ bool xls_package_get_function(struct xls_package* package,
   return false;
 }
 
+bool xls_package_get_functions(struct xls_package* package, char** error_out,
+                               struct xls_function*** result_out,
+                               size_t* count_out) {
+  CHECK(package != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  CHECK(count_out != nullptr);
+  xls::Package* xls_package = reinterpret_cast<xls::Package*>(package);
+  absl::Span<const std::unique_ptr<xls::Function>> functions =
+      xls_package->functions();
+  *count_out = functions.size();
+
+  *error_out = nullptr;
+
+  if (*count_out == 0) {
+    *result_out = nullptr;
+    return true;
+  }
+
+  *result_out = new struct xls_function*[*count_out];
+
+  for (size_t i = 0; i < *count_out; ++i) {
+    (*result_out)[i] = reinterpret_cast<struct xls_function*>(
+        const_cast<xls::Function*>(functions[i].get()));
+  }
+
+  return true;
+}
+
 bool xls_package_get_type_for_value(struct xls_package* package,
                                     struct xls_value* value, char** error_out,
                                     struct xls_type** result_out) {
@@ -904,6 +957,41 @@ bool xls_package_get_type_for_value(struct xls_package* package,
   xls::Type* type = xls_package->GetTypeForValue(*xls_value);
   *result_out = reinterpret_cast<struct xls_type*>(type);
   return true;
+}
+
+bool xls_type_get_kind(struct xls_type* type, char** error_out,
+                       xls_value_kind* kind_out) {
+  CHECK(type != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(kind_out != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  *error_out = nullptr;
+  switch (xls_type->kind()) {
+    case xls::TypeKind::kBits:
+      *kind_out = xls_value_kind_bits;
+      break;
+    case xls::TypeKind::kTuple:
+      *kind_out = xls_value_kind_tuple;
+      break;
+    case xls::TypeKind::kArray:
+      *kind_out = xls_value_kind_array;
+      break;
+    case xls::TypeKind::kToken:
+      *kind_out = xls_value_kind_token;
+      break;
+    default:
+      *error_out = xls::ToOwnedCString(
+          absl::StrFormat("Unknown type kind: %d", xls_type->kind()));
+      *kind_out = xls_value_kind_invalid;
+      return false;
+  }
+  return true;
+}
+
+int64_t xls_type_get_leaf_count(struct xls_type* type) {
+  CHECK(type != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  return xls_type->leaf_count();
 }
 
 bool xls_type_to_string(struct xls_type* type, char** error_out,
@@ -1039,6 +1127,10 @@ bool xls_make_function_jit(struct xls_function* function, char** error_out,
 
 void xls_function_jit_free(struct xls_function_jit* jit) {
   delete reinterpret_cast<xls::FunctionJit*>(jit);
+}
+
+void xls_function_ptr_array_free(struct xls_function** function_pointer_array) {
+  delete[] function_pointer_array;
 }
 
 bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
