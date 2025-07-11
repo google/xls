@@ -26,7 +26,17 @@ from xls.passes import optimization_pass_pipeline_pb2
 from xls.passes.tools import pass_documentation_pb2
 
 # TODO(allight): This should be configurable.
-_PIPELINE_TXTPB = "/xls/passes/optimization_pass_pipeline.txtpb"
+_DEFAULT_PIPELINE_TXTPB = "/xls/passes/optimization_pass_pipeline.txtpb"
+_PIPELINE_TXTPB = flags.DEFINE_string(
+    name="pipeline_txtpb_file",
+    default=_DEFAULT_PIPELINE_TXTPB,
+    help="File path to pipeline txtpb",
+)
+_STRIP_PREFIX = flags.DEFINE_string(
+    name="strip_prefix",
+    default="",
+    help="String to strip from the prefix for pass files",
+)
 _PASSES = flags.DEFINE_multi_string(
     name="passes",
     default=None,
@@ -48,6 +58,12 @@ _LINK_FORMAT = flags.DEFINE_string(
 _OUTPUT = flags.DEFINE_string(
     "output", default=None, required=True, help="result markdown file."
 )
+
+
+def _strip_prefix(s: str) -> str:
+  if s.startswith(_STRIP_PREFIX.value):
+    return s[len(_STRIP_PREFIX.value) :]
+  return s
 
 
 @dataclasses.dataclass
@@ -94,7 +110,7 @@ def main(argv: Sequence[str]) -> None:
             header_link_text="Header",
             # TODO(allight): We could probably collect the line numbers easily
             # enough to make this link better.
-            header_link=_LINK_FORMAT.value % p.file,
+            header_link=_LINK_FORMAT.value % _strip_prefix(p.file),
             has_min_opt_level=False,
             min_opt_level=0,
             has_max_opt_level=False,
@@ -112,7 +128,8 @@ def main(argv: Sequence[str]) -> None:
             header_link_text="Text-proto",
             # TODO(allight): We could probably collect the line numbers easily
             # enough to make this link better.
-            header_link=_LINK_FORMAT.value % _PIPELINE_TXTPB,
+            header_link=_LINK_FORMAT.value
+            % _strip_prefix(_PIPELINE_TXTPB.value),
             has_min_opt_level=comp.options.HasField("min_opt_level"),
             min_opt_level=comp.options.min_opt_level,
             has_max_opt_level=comp.options.HasField("cap_opt_level"),
@@ -131,7 +148,7 @@ def main(argv: Sequence[str]) -> None:
           header_link_text="Text-proto",
           # TODO(allight): We could probably collect the line numbers easily
           # enough to make this link better.
-          header_link=_LINK_FORMAT.value % _PIPELINE_TXTPB,
+          header_link=_LINK_FORMAT.value % _strip_prefix(_PIPELINE_TXTPB.value),
           has_min_opt_level=False,
           min_opt_level=0,
           has_max_opt_level=False,

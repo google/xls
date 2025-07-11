@@ -338,6 +338,7 @@ def _xls_pass_registry_impl(ctx):
             pipeline_binpb = pipeline_binpb,
             pass_infos = pass_infos,
             default_info = default_info,
+            pipeline_src = ctx.file.pipeline,
         ),
     ]
 

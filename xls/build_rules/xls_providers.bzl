@@ -291,6 +291,7 @@ XlsOptimizationPassRegistryInfo = provider(
         "pipeline_binpb": "File: binary proto of the pass pipeline used for this registry.",
         "pass_infos": "List of XlsOptimizationPassInfo: The pass-info for each pass.",
         "default_info": "DefaultInfo: The default info for the registry.",
+        "pipeline_src": "File: The source file for the pipeline used",
     },
 )
 

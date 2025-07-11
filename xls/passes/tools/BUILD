@@ -21,7 +21,10 @@ load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # Load proto_library
-load("//xls/passes/tools:generate_documentation_rule.bzl", "xls_generate_documentation")
+load(
+    "//xls/passes/tools:generate_documentation_rule.bzl",
+    "xls_generate_documentation",
+)
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -49,71 +52,6 @@ exports_files([
     "pipeline_registration.cc.tmpl",
 ])
 
-cc_binary(
-    name = "generate_documentation_proto_main",
-    srcs = ["generate_documentation_proto_main.cc"],
-    deps = [
-        ":generate_documentation_proto",
-        ":pass_documentation_cc_proto",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/status:status_macros",
-        "//xls/passes",
-        "//xls/passes:optimization_pass_registry",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-# TODO(https://github.com/google/xls/issues/2556) This has complicated
-# requirements on libcxx being from the same version of llvm as the clang
-# depenedencies. Internally at google this works automatically but in OSS this
-# doesn't work. If we could add libcxx headers to data like the clang
-# builtin_headers this would be simple enough to implement.
-cc_library(
-    name = "generate_documentation_proto",
-    srcs = ["generate_documentation_proto.cc"],
-    hdrs = ["generate_documentation_proto.h"],
-    data = ["@llvm-project//clang:builtin_headers_gen"],
-    deps = [
-        ":pass_documentation_cc_proto",
-        "//xls/common:iterator_range",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/passes:optimization_pass",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-        "@llvm-project//clang:ast",
-        "@llvm-project//clang:ast_matchers",
-        "@llvm-project//clang:basic",
-        "@llvm-project//clang:frontend",
-        "@llvm-project//clang:tooling",
-        "@llvm-project//llvm:Support",
-    ],
-)
-
-py_binary(
-    name = "generate_documentation_md",
-    srcs = ["generate_documentation_md.py"],
-    data = [":passes.md.tmpl"],
-    deps = [
-        ":pass_documentation_py_pb2",
-        requirement("Jinja2"),
-        requirement("MarkupSafe"),
-        "//xls/common:runfiles",
-        "//xls/passes:optimization_pass_pipeline_py_pb2",
-        "@abseil-py//absl:app",
-        "@abseil-py//absl/flags",
-    ],
-)
-
 # This generates the passes_list.md file.
 #
 # TODO(https://github.com/google/xls/issues/2556) This has complicated
@@ -123,18 +61,13 @@ py_binary(
 xls_generate_documentation(
     name = "rebuild_documentation",
     codelink_format = "http://github.com/google/xls/tree/main%s",
+    # Specifically generate for the oss passes regardless of what the default passes are.
+    passes = "//xls/passes:oss_optimization_passes",
     tags = [
         "manual",
         "noasan",
         "nomsan",
     ],  # Requirements on libcxx being explicit in include path.
-)
-
-bzl_library(
-    name = "generate_documentation_rule_bzl",
-    srcs = ["generate_documentation_rule.bzl"],
-    visibility = ["//visibility:private"],
-    deps = ["//xls/build_rules:xls_providers_bzl"],
 )
 
 _DOC_PREFIX = ""
@@ -181,4 +114,87 @@ diff_test(
         "noasan",
         "nomsan",
     ],  # Requirements on libcxx being explicit in include path.
+)
+
+####################################################
+# Implementation tools for 'rebuild_documentation' #
+####################################################
+
+bzl_library(
+    name = "generate_documentation_rule_bzl",
+    srcs = ["generate_documentation_rule.bzl"],
+    visibility = ["//xls:xls_internal"],
+    deps = ["//xls/build_rules:xls_providers_bzl"],
+)
+
+# NB This is intentionally a library with a 'main' etc since we want to link in
+# the passes later.
+# DO NOT CHANGE TO A CC_BINARY!
+cc_library(
+    name = "generate_documentation_proto_main",
+    srcs = ["generate_documentation_proto_main.cc"],
+    deps = [
+        ":generate_documentation_proto",
+        ":pass_documentation_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        # NB The pass registry is intentionally not included. The regenerate
+        # documentation rule will link the appropriate pass registry to ensure
+        # we get the expected documentation list out.
+        # "//xls/passes",
+        "//xls/passes:optimization_pass_registry",
+    ],
+    alwayslink = True,
+)
+
+# TODO(https://github.com/google/xls/issues/2556) This has complicated
+# requirements on libcxx being from the same version of llvm as the clang
+# depenedencies. Internally at google this works automatically but in OSS this
+# doesn't work. If we could add libcxx headers to data like the clang
+# builtin_headers this would be simple enough to implement.
+cc_library(
+    name = "generate_documentation_proto",
+    srcs = ["generate_documentation_proto.cc"],
+    hdrs = ["generate_documentation_proto.h"],
+    data = ["@llvm-project//clang:builtin_headers_gen"],
+    deps = [
+        ":pass_documentation_cc_proto",
+        "//xls/common:iterator_range",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/passes:optimization_pass",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@llvm-project//clang:ast",
+        "@llvm-project//clang:ast_matchers",
+        "@llvm-project//clang:basic",
+        "@llvm-project//clang:frontend",
+        "@llvm-project//clang:tooling",
+        "@llvm-project//llvm:Support",
+    ],
+)
+
+py_binary(
+    name = "generate_documentation_md",
+    srcs = ["generate_documentation_md.py"],
+    data = [":passes.md.tmpl"],
+    deps = [
+        ":pass_documentation_py_pb2",
+        requirement("Jinja2"),
+        requirement("MarkupSafe"),
+        "//xls/common:runfiles",
+        "//xls/passes:optimization_pass_pipeline_py_pb2",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+    ],
 )

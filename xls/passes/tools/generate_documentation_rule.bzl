@@ -57,7 +57,7 @@ def _cflags_for_info(comp_ctx, cc_toolchain, cc_feature):
     return copts, cenv
 
 def _generate_documentation_impl(ctx):
-    passes = ctx.attr._passes[XlsOptimizationPassRegistryInfo].pass_infos
+    passes = ctx.attr.passes[XlsOptimizationPassRegistryInfo].pass_infos
     protos = []
     cc_toolchain = find_cpp_toolchain(ctx)
     cc_feature = cc_common.configure_features(
@@ -92,26 +92,30 @@ def _generate_documentation_impl(ctx):
 
         ctx.actions.run(
             outputs = [out],
-            executable = ctx.executable._generate_documentation_proto,
+            executable = ctx.executable.generate_documentation_proto,
             inputs = depset(transitive = [ccinfo.compilation_context.headers, cc_toolchain.all_files]),
             arguments = [args],
             env = cenv,
             mnemonic = "ExtractPassComments",
             progress_message = "Parsing pass comment for %s" % ccinfo.compilation_context.direct_public_headers[0].path,
+            toolchain = None,
         )
         protos.append(out)
 
     mdfile = ctx.actions.declare_file("passes_documentation." + ctx.attr.name + ".md")
     args = ctx.actions.args()
-    args.add("-pipeline", ctx.attr._passes[XlsOptimizationPassRegistryInfo].pipeline_binpb.path)
+    args.add("-pipeline", ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_binpb.path)
+    args.add("-pipeline_txtpb_file", ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_src.path)
     args.add("-output", mdfile.path)
+    if ctx.attr.strip_prefix:
+        args.add("-strip_prefix", ctx.attr.strip_prefix)
     args.add("-link_format", ctx.attr.codelink_format)
     for p in protos:
         args.add("-passes", p.path)
     ctx.actions.run(
         outputs = [mdfile],
         executable = ctx.executable._generate_documentation_md,
-        inputs = protos + [ctx.attr._passes[XlsOptimizationPassRegistryInfo].pipeline_binpb],
+        inputs = protos + [ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_binpb],
         arguments = [args],
         mnemonic = "GenerateMarkdownPasses",
         progress_message = "Generating pass list markdown",
@@ -126,22 +130,20 @@ def _generate_documentation_impl(ctx):
         ),
     ]
 
-xls_generate_documentation = rule(
+_internal_xls_generate_documentation = rule(
     implementation = _generate_documentation_impl,
     attrs = {
-        "_generate_documentation_proto": attr.label(
-            default = "//xls/passes/tools:generate_documentation_proto_main",
-            executable = True,
-            cfg = "exec",
-            allow_files = True,
-        ),
         "_generate_documentation_md": attr.label(
             default = "//xls/passes/tools:generate_documentation_md",
             executable = True,
             cfg = "exec",
         ),
-        "_passes": attr.label(
-            default = "//xls/passes:oss_optimization_passes",
+        "generate_documentation_proto": attr.label(
+            executable = True,
+            cfg = "exec",
+        ),
+        "passes": attr.label(
+            cfg = "exec",
             providers = [[XlsOptimizationPassRegistryInfo]],
         ),
         "strip_prefix": attr.string(
@@ -157,3 +159,84 @@ xls_generate_documentation = rule(
     fragments = ["cpp"],
     toolchains = use_cpp_toolchain(),
 )
+
+def _create_generate_documentation_proto_bin_impl(ctx):
+    cc_toolchain = find_cpp_toolchain(ctx)
+    cc_feature = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cc_toolchain,
+        requested_features = ctx.features,
+        unsupported_features = ctx.disabled_features,
+    )
+
+    # Link the binary for extracting the passes.
+    generate_documentation_proto_linked = cc_common.link(
+        actions = ctx.actions,
+        name = ctx.attr.name,
+        cc_toolchain = cc_toolchain,
+        feature_configuration = cc_feature,
+        linking_contexts = [
+            ctx.attr._generate_documentation_proto[CcInfo].linking_context,
+            ctx.attr.passes[XlsOptimizationPassRegistryInfo].cc_library.linking_context,
+        ],
+    )
+    return DefaultInfo(
+        files = depset(direct = [generate_documentation_proto_linked.executable]),
+        data_runfiles = ctx.attr._generate_documentation_proto[DefaultInfo].data_runfiles,
+        default_runfiles = ctx.attr._generate_documentation_proto[DefaultInfo].default_runfiles,
+        executable = generate_documentation_proto_linked.executable,
+    )
+
+_create_generate_documentation_proto_bin = rule(
+    implementation = _create_generate_documentation_proto_bin_impl,
+    attrs = {
+        "_generate_documentation_proto": attr.label(
+            default = "//xls/passes/tools:generate_documentation_proto_main",
+            cfg = "exec",
+            providers = [[CcInfo]],
+        ),
+        "passes": attr.label(
+            cfg = "exec",
+            providers = [[XlsOptimizationPassRegistryInfo]],
+            doc = "The pass registry to pull passes and compound passes from.",
+        ),
+    },
+    fragments = ["cpp"],
+    toolchains = use_cpp_toolchain(),
+    doc = "Helper rule to link in the passes given by the attr.",
+)
+
+def xls_generate_documentation(
+        name,
+        passes,
+        codelink_format,
+        strip_prefix = "",
+        tags = [],
+        **kwargs):
+    """Generates documentation for the given passes.
+
+    Args:
+      name: Name of the rule.
+      passes: Target containing the passes to generate documentation for.
+      codelink_format: String with '%s' where the (stripped) filename should be inserted to create a link to that file's source code.
+      strip_prefix: String to strip from the beginning of file names.
+      tags: Tags to apply to the rule.
+      **kwargs: Additional arguments to pass to the underlying rule.
+    """
+
+    # TODO(allight): It's unfortunate we use a macro here. I wasn't able to
+    # figure out how to make 'link'/actions.run correctly set up runfiles.
+    _create_generate_documentation_proto_bin(
+        name = "generate_documentation_proto_bin_for_%s" % name,
+        passes = passes,
+        tags = tags,
+    )
+    _internal_xls_generate_documentation(
+        name = name,
+        passes = passes,
+        codelink_format = codelink_format,
+        strip_prefix = strip_prefix,
+        generate_documentation_proto = ":generate_documentation_proto_bin_for_%s" % name,
+        tags = tags,
+        **kwargs
+    )
