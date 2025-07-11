@@ -378,13 +378,13 @@ std::string TypeInfo::GetTypeInfoTreeString() const {
   std::vector<std::string> pieces = {absl::StrFormat("root %p:", top)};
   for (const auto& [invocation, invocation_data] : top->invocations_) {
     CHECK(invocation != nullptr);
-    CHECK_EQ(invocation, invocation_data.node());
+    CHECK_EQ(invocation, invocation_data->node());
 
     pieces.push_back(absl::StrFormat(
-        "  `%s` @ %s", invocation_data.node()->ToString(),
-        SpanToString(invocation_data.node()->span(), file_table())));
+        "  `%s` @ %s", invocation_data->node()->ToString(),
+        SpanToString(invocation_data->node()->span(), file_table())));
     for (const auto& [env, callee_data] :
-         invocation_data.env_to_callee_data()) {
+         invocation_data->env_to_callee_data()) {
       pieces.push_back(absl::StrFormat(
           "    caller: %s => callee: %s type_info: %p", env.ToString(),
           callee_data.callee_bindings.ToString(),
@@ -394,14 +394,14 @@ std::string TypeInfo::GetTypeInfoTreeString() const {
   return absl::StrJoin(pieces, "\n");
 }
 
-std::optional<const InvocationData> TypeInfo::GetInvocationData(
+std::optional<const InvocationData*> TypeInfo::GetRootInvocationData(
     const Invocation* invocation) const {
   const TypeInfo* top = GetRoot();
   auto it = top->invocations_.find(invocation);
   if (it == top->invocations_.end()) {
     return std::nullopt;
   }
-  return it->second;
+  return it->second.get();
 }
 
 std::optional<Type*> TypeInfo::GetItem(const AstNode* key) const {
@@ -440,11 +440,14 @@ absl::Status TypeInfo::AddInvocation(const Invocation& invocation,
   TypeInfo* top = GetRoot();
   auto it = top->invocations_.find(&invocation);
   if (it != top->invocations_.end()) {
-    XLS_RET_CHECK(it->second.callee() == callee);
+    XLS_RET_CHECK(it->second->callee() == callee);
     return absl::OkStatus();
   }
-  top->invocations_.emplace(&invocation,
-                            InvocationData(&invocation, callee, caller, {}));
+  top->invocations_.emplace(
+      &invocation,
+      std::make_unique<InvocationData>(
+          &invocation, callee, caller,
+          absl::flat_hash_map<ParametricEnv, InvocationCalleeData>{}));
   return absl::OkStatus();
 }
 
@@ -474,14 +477,14 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
     env_to_callee_data[caller_env] =
         InvocationCalleeData{callee_env, derived_type_info};
 
-    top->invocations_.emplace(&invocation,
-                              InvocationData(&invocation, callee, caller,
-                                             std::move(env_to_callee_data)));
+    top->invocations_.emplace(&invocation, std::make_unique<InvocationData>(
+                                               &invocation, callee, caller,
+                                               std::move(env_to_callee_data)));
     return absl::OkStatus();
   }
   VLOG(3) << "Adding to existing invocation data.";
-  InvocationData& invocation_data = it->second;
-  return invocation_data.Add(
+  InvocationData* invocation_data = it->second.get();
+  return invocation_data->Add(
       caller_env, InvocationCalleeData{callee_env, derived_type_info});
 }
 
@@ -526,7 +529,7 @@ std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
   }
 
   // Find the callee data given the caller's parametric environment.
-  const InvocationData& invocation_data = it->second;
+  const InvocationData& invocation_data = *it->second;
   VLOG(5) << "Invocation " << invocation->ToString()
           << " caller bindings: " << caller
           << " invocation data: " << invocation_data.ToString();
@@ -588,7 +591,7 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
             << " in top-level type info: " << top;
     return std::nullopt;
   }
-  const InvocationData& invocation_data = it->second;
+  const InvocationData& invocation_data = *it->second;
   auto it2 = invocation_data.env_to_callee_data().find(caller);
   if (it2 == invocation_data.env_to_callee_data().end()) {
     VLOG(3) << "Could not find caller symbolic bindings in instantiation data: "

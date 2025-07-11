@@ -3272,11 +3272,11 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
     }
   }
 
-  std::optional<const InvocationData> inv_data =
-      current_type_info_->GetInvocationData(node);
-  XLS_RET_CHECK(inv_data.has_value() && (*inv_data).callee() != nullptr);
+  std::optional<const InvocationData*> inv_data =
+      current_type_info_->GetRootInvocationData(node);
+  XLS_RET_CHECK(inv_data.has_value() && (*inv_data)->callee() != nullptr);
 
-  const Function* f = (*inv_data).callee();
+  const Function* f = (*inv_data)->callee();
   std::string scope = "";
   if (f->impl().has_value()) {
     scope = (*f->impl())->struct_ref()->ToString();

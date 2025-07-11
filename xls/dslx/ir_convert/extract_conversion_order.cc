@@ -282,30 +282,29 @@ class InvocationVisitor : public ExprVisitor {
       XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
     }
 
-    std::optional<const InvocationData> inv_data =
-        type_info_->GetInvocationData(node);
+    std::optional<const InvocationData*> inv_data =
+        type_info_->GetRootInvocationData(node);
 
     // TODO: erinzmoore - Once v1 is removed, delete if/else clause here and
     // require that `inv_data` is present and complete.
-    if (inv_data.has_value() && (*inv_data).callee() != nullptr) {
-      if (IsBuiltin((*inv_data).callee())) {
+    if (inv_data.has_value() && (*inv_data)->callee() != nullptr) {
+      const Function* callee = (*inv_data)->callee();
+      if (IsBuiltin(callee)) {
         return absl::OkStatus();
       }
 
-      bool is_parametric = (*inv_data).callee()->IsParametric();
+      bool is_parametric = callee->IsParametric();
       // Temporarily store null type_info for parametric functions. Parametric
       // bindings will be resolved below and used to look up the invocation type
       // info.
       // TODO: erinzmoore - Once v1 is removed, provide way to look up all
       // CalleeInfo directly from `TypeInfo` for an {invocation, bindings} pair.
       TypeInfo* invocation_ti = is_parametric ? nullptr : type_info_;
-      if (!is_parametric && (*inv_data).callee()->owner() != module_) {
-        invocation_ti =
-            *type_info_->GetImportedTypeInfo((*inv_data).callee()->owner());
+      if (!is_parametric && callee->owner() != module_) {
+        invocation_ti = *type_info_->GetImportedTypeInfo(callee->owner());
       }
 
-      callee_info = CalleeInfo{(*inv_data).callee()->owner(),
-                               const_cast<Function*>((*inv_data).callee()),
+      callee_info = CalleeInfo{callee->owner(), const_cast<Function*>(callee),
                                invocation_ti};
     } else {
       XLS_RET_CHECK(IsBuiltinFn(node->callee()));

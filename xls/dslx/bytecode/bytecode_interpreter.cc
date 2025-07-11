@@ -550,7 +550,9 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
 
   TypeInfo* callee_type_info = nullptr;
   if (f.IsParametric() || f.tag() == FunctionTag::kProcInit) {
-    if (!caller_type_info->GetRootInvocations().contains(invocation)) {
+    std::optional<const InvocationData*> invocation_data_opt =
+        caller_type_info->GetRootInvocationData(invocation);
+    if (!invocation_data_opt.has_value()) {
       return absl::InternalError(absl::StrFormat(
           "BytecodeInterpreter::GetBytecodeFn; could not find information for "
           "invocation `%s` "
@@ -559,27 +561,27 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
           caller_bindings.ToString(),
           invocation->span().ToString(file_table())));
     }
+    const InvocationData* invocation_data = *invocation_data_opt;
 
-    const InvocationData& invocation_data =
-        caller_type_info->GetRootInvocations().at(invocation);
     // If the invocation data doesn't contain these bindings, it may be a set of
     // outer bindings that were resolved before adding the invocation to type
     // info. Check to see if callee data is available for default bindings.
     XLS_RET_CHECK(
-        (invocation_data.env_to_callee_data().contains(caller_bindings)) ||
-        invocation_data.env_to_callee_data().contains(ParametricEnv()))
-        << "invocation: `" << invocation_data.node()->ToString() << "` @ "
-        << invocation_data.node()->span().ToString(file_table()) << " caller: `"
-        << (invocation_data.caller() == nullptr
+        invocation_data->env_to_callee_data().contains(caller_bindings) ||
+        invocation_data->env_to_callee_data().contains(ParametricEnv()))
+        << "invocation: `" << invocation_data->node()->ToString() << "` @ "
+        << invocation_data->node()->span().ToString(file_table())
+        << " caller: `"
+        << (invocation_data->caller() == nullptr
                 ? "nullptr"
-                : invocation_data.caller()->identifier())
+                : invocation_data->caller()->identifier())
         << "`"
         << " caller_bindings: " << caller_bindings;
 
     const InvocationCalleeData& callee_data =
-        invocation_data.env_to_callee_data().contains(caller_bindings)
-            ? invocation_data.env_to_callee_data().at(caller_bindings)
-            : invocation_data.env_to_callee_data().at(ParametricEnv());
+        invocation_data->env_to_callee_data().contains(caller_bindings)
+            ? invocation_data->env_to_callee_data().at(caller_bindings)
+            : invocation_data->env_to_callee_data().at(ParametricEnv());
     callee_type_info = callee_data.derived_type_info;
     callee_bindings = callee_data.callee_bindings;
   } else {

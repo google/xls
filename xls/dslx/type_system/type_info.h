@@ -351,19 +351,9 @@ class TypeInfo {
   // are) suitable for debugging.
   std::string GetTypeInfoTreeString() const;
 
-  // Returns the invocation-to-instantiation-data mapping that present on the
-  // root type information for this type information tree.
-  //
-  // Implementation note: all instantiation information is only held on the root
-  // type information, which is why `invocations()` is not exposed publicly.
-  const absl::flat_hash_map<const Invocation*, InvocationData>&
-  GetRootInvocations() const {
-    return GetRoot()->invocations();
-  }
-
   // Returns the InvocationData for the given invocation, if present in this
   // TypeInfo's root.
-  std::optional<const InvocationData> GetInvocationData(
+  std::optional<const InvocationData*> GetRootInvocationData(
       const Invocation* invocation) const;
 
   const absl::flat_hash_map<ImportSubject, ImportedInfo>& GetRootImports()
@@ -384,8 +374,8 @@ class TypeInfo {
  private:
   friend class TypeInfoOwner;
 
-  const absl::flat_hash_map<const Invocation*, InvocationData>& invocations()
-      const {
+  const absl::flat_hash_map<const Invocation*, std::unique_ptr<InvocationData>>&
+  invocations() const {
     CHECK(IsRoot());
     return invocations_;
   }
@@ -414,7 +404,7 @@ class TypeInfo {
   }
 
   // Returns whether this is the root type information for the module (vs. a
-  // dervied type info for e.g. a parametric instantiation context).
+  // derived type info for e.g. a parametric instantiation context).
   bool IsRoot() const { return this == GetRoot(); }
 
   const absl::flat_hash_map<ImportSubject, ImportedInfo>& imports() const {
@@ -440,7 +430,8 @@ class TypeInfo {
 
   // The following are only present on the root type info.
   absl::flat_hash_map<ImportSubject, ImportedInfo> imports_;
-  absl::flat_hash_map<const Invocation*, InvocationData> invocations_;
+  absl::flat_hash_map<const Invocation*, std::unique_ptr<InvocationData>>
+      invocations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<const Function*, bool> requires_implicit_token_;
 
