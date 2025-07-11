@@ -407,10 +407,12 @@ fn msbs_test() {
 // bits).
 //
 // This function ensures that all bits of the argument are used.
-pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}, FROM_START: s32 = {N as s32}>
+pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}>
     (x: bits[X]) -> (bits[Y], bits[N]) {
     // Can't split more bits than exist
     const_assert!(N <= X);
+
+    const FROM_START: s32 = N as s32;
 
     let msbs = x[FROM_START:];
     let lsbs = x[0:FROM_START];
@@ -437,10 +439,12 @@ fn prop_split_lsbs(n: uN[4], o: uN[3]) -> bool {
 // bits).
 //
 // This function ensures that all bits of the argument are used.
-pub fn split_msbs<N: u32, X: u32, Z: u32 = {X - N}, FROM_START: s32 = {Z as s32}>
+pub fn split_msbs<N: u32, X: u32, Z: u32 = {X - N}>
     (x: bits[X]) -> (bits[N], bits[Z]) {
     // Can't split more bits than exist
     const_assert!(N <= X);
+
+    const FROM_START: s32 = {Z as s32};
 
     let msbs = x[FROM_START:];
     let lsbs = x[0:FROM_START];
