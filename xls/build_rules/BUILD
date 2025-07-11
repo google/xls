@@ -260,6 +260,7 @@ bzl_library(
 bzl_library(
     name = "xls_toolchains_bzl",
     srcs = ["xls_toolchains.bzl"],
+    deps = [":xls_providers_bzl"],
 )
 
 bzl_library(

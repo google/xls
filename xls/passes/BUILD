@@ -19,7 +19,12 @@ load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # Load proto_library
-load("//xls/build_rules:xls_pass_rules.bzl", "xls_pass", "xls_pass_registry")
+load(
+    "//xls/build_rules:xls_pass_rules.bzl",
+    "xls_default_pass_registry",
+    "xls_pass",
+    "xls_pass_registry",
+)
 # cc_proto_library is used in this file
 
 package(
@@ -50,8 +55,14 @@ py_proto_library(
     deps = [":optimization_pass_pipeline_proto"],
 )
 
-xls_pass_registry(
+# Pulls the default pass pipeline out of the toolchain.
+xls_default_pass_registry(
     name = "passes",
+    tags = ["keep_dep"],
+)
+
+xls_pass_registry(
+    name = "oss_optimization_passes",
     passes = [
         # TODO(allight): Passes with explicit always-link. Once more explicit
         # configuration is supported these should become xls_pass targets.

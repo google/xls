@@ -141,7 +141,7 @@ xls_generate_documentation = rule(
             cfg = "exec",
         ),
         "_passes": attr.label(
-            default = "//xls/passes:passes",
+            default = "//xls/passes:oss_optimization_passes",
             providers = [[XlsOptimizationPassRegistryInfo]],
         ),
         "strip_prefix": attr.string(

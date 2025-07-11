@@ -17,6 +17,7 @@
 # proto-file: xls/passes/optimization_pass_pipeline.proto
 # proto-message: OptimizationPipelineProto
 
+# LINT.Start
 compound_passes: [
   {
     long_name: "Simplification"
@@ -335,3 +336,5 @@ default_pipeline: [
   "simplify-and-inline",
   "post-inlining"
 ]
+
+# LINT.End

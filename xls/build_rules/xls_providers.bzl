@@ -286,8 +286,17 @@ XlsOptimizationPassInfo = provider(
 XlsOptimizationPassRegistryInfo = provider(
     doc = "A provider containing a set of passes to add to a registry",
     fields = {
+        "cc_library": "CcInfo: The CcInfo for the full registry library.",
         "passes": "List of CcInfo: The cc info for the library which registers each pass with the injection system.",
         "pipeline_binpb": "File: binary proto of the pass pipeline used for this registry.",
         "pass_infos": "List of XlsOptimizationPassInfo: The pass-info for each pass.",
+        "default_info": "DefaultInfo: The default info for the registry.",
+    },
+)
+
+XlsConfigurationToolchainInfo = provider(
+    doc = "A provider containing the toolchain for an XLS configuration.",
+    fields = {
+        "pass_registry": "XlsOptimizationPassRegistryInfo: The pass registry to use.",
     },
 )

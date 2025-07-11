@@ -21,9 +21,9 @@ load("//dependency_support:load_external.bzl", "load_external_repositories")
 load_external_repositories()
 
 load(
-  "@rules_python//python:repositories.bzl",
-  "py_repositories",
-  "python_register_toolchains",
+    "@rules_python//python:repositories.bzl",
+    "py_repositories",
+    "python_register_toolchains",
 )
 
 # Must be called before using anything from rules_python.
@@ -42,3 +42,5 @@ initialize_external_repositories()
 load("@xls_pip_deps//:requirements.bzl", xls_pip_install_deps = "install_deps")
 
 xls_pip_install_deps()
+
+register_toolchains("//xls/common/toolchains:all")

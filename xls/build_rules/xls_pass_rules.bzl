@@ -321,18 +321,24 @@ def _xls_pass_registry_impl(ctx):
         alwayslink = True,
     )
     files_out.extend(out.library_to_link.pic_objects)
+    cc_info = CcInfo(compilation_context = comp_ctx, linking_context = link)
+
+    # TODO(allight): We don't want to include the generated files in sub-registry rules
+    default_info = DefaultInfo(files = depset(
+        # Ensure just building the registry does force all the passes to build.
+        direct = files_out,
+        transitive = [c[DefaultInfo].files for c in ctx.attr.passes],
+    ))
     return [
-        CcInfo(compilation_context = comp_ctx, linking_context = link),
+        cc_info,
+        default_info,
         XlsOptimizationPassRegistryInfo(
+            cc_library = cc_info,
             passes = passes,
             pipeline_binpb = pipeline_binpb,
             pass_infos = pass_infos,
+            default_info = default_info,
         ),
-        DefaultInfo(files = depset(
-            # Ensure just building the registry does force all the passes to build.
-            direct = files_out,
-            transitive = [c[DefaultInfo].files for c in ctx.attr.passes],
-        )),
     ]
 
 xls_pass_registry = rule(
@@ -382,4 +388,19 @@ xls_pass_registry = rule(
         _proto_data_tool_attrs,
         _embed_data_attrs,
     ),
+)
+
+def _xls_default_pass_registry(ctx):
+    config = ctx.toolchains["//xls/common/toolchains:toolchain_type"].configuration
+    return [
+        config.pass_registry,
+        config.pass_registry.cc_library,
+        config.pass_registry.default_info,
+    ]
+
+xls_default_pass_registry = rule(
+    implementation = _xls_default_pass_registry,
+    doc = """A pass registry with the default pipeline.""",
+    provides = [XlsOptimizationPassRegistryInfo, CcInfo],
+    toolchains = ["//xls/common/toolchains:toolchain_type"],
 )
