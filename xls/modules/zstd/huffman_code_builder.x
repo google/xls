@@ -29,7 +29,11 @@ const PARALLEL_ACCESS_WIDTH = hcommon::PARALLEL_ACCESS_WIDTH;
 const COUNTER_WIDTH = hcommon::COUNTER_WIDTH;
 
 const RECV_COUNT = MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH;
-const RECV_COUNT_W = std::clog2(RECV_COUNT + u32:1);
+// recv_counter is used to iterate:
+//   0...MAX_RECV
+//   (MAX_RECV+1)...MAX_RECV*2
+// so the counter type must be wide enough to store (MAX_RECV*2)
+const RECV_COUNT_W = std::clog2((RECV_COUNT * u32:2) + u32:1);
 const MAX_RECV   = RECV_COUNT as uN[RECV_COUNT_W];
 
 type WeightPreScanMetaData = hcommon::WeightPreScanMetaData;
