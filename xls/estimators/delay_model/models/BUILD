@@ -14,6 +14,7 @@
 
 # Delay models.
 
+# @rules_cc//cc:cc_library.bzl
 load("//xls/estimators/delay_model:build_defs.bzl", "delay_model")
 
 package(

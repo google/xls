@@ -14,6 +14,9 @@
 
 # Integration tests for the generated JIT wrapper being invoked from C++ code.
 
+# @rules_cc//cc:cc_binary.bzl
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",

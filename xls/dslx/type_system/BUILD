@@ -15,6 +15,9 @@
 # Frontend type-system and associated data structures.
 
 # pytype tests are present in this file
+# @rules_cc//cc:cc_binary.bzl
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
 # Load proto_library
 # cc_proto_library is used in this file
 

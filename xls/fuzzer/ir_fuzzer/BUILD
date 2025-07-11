@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
 # Load proto_library
 # cc_proto_library is used in this file
 

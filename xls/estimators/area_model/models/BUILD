@@ -14,6 +14,7 @@
 
 # Delay models.
 
+# @rules_cc//cc:cc_library.bzl
 load("//xls/estimators/area_model:build_defs.bzl", "area_model")
 
 package(

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_hdl//static_timing:build_defs.bzl", "run_opensta")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
