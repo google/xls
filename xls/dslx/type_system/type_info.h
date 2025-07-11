@@ -356,6 +356,11 @@ class TypeInfo {
   std::optional<const InvocationData*> GetRootInvocationData(
       const Invocation* invocation) const;
 
+  // Returns unique parametric envs for the given function, if present in this
+  // TypeInfo's root. If there are no parametric invocations, an empty container
+  // is returned.
+  std::vector<ParametricEnv> GetUniqueParametricEnvs(const Function*) const;
+
   const absl::flat_hash_map<ImportSubject, ImportedInfo>& GetRootImports()
       const {
     return GetRoot()->imports();
@@ -432,6 +437,9 @@ class TypeInfo {
   absl::flat_hash_map<ImportSubject, ImportedInfo> imports_;
   absl::flat_hash_map<const Invocation*, std::unique_ptr<InvocationData>>
       invocations_;
+  // Non-unique parametric envs for this function
+  absl::flat_hash_map<const Function*, std::vector<ParametricEnv>>
+      parametric_envs_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<const Function*, bool> requires_implicit_token_;
 

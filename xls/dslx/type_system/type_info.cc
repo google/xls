@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
@@ -404,6 +405,24 @@ std::optional<const InvocationData*> TypeInfo::GetRootInvocationData(
   return it->second.get();
 }
 
+std::vector<ParametricEnv> TypeInfo::GetUniqueParametricEnvs(
+    const Function* f) const {
+  const TypeInfo* top = GetRoot();
+  auto entry = top->parametric_envs_.find(f);
+  if (entry == top->parametric_envs_.end()) {
+    // No envs
+    return {};
+  }
+  absl::flat_hash_set<ParametricEnv> unique_envs;
+  std::vector<ParametricEnv> result;
+  for (auto& env : entry->second) {
+    if (unique_envs.insert(env).second) {
+      result.push_back(env);
+    }
+  }
+  return result;
+}
+
 std::optional<Type*> TypeInfo::GetItem(const AstNode* key) const {
   CHECK_EQ(key->owner(), module_) << absl::StreamFormat(
       "attempted to get type information for AST node: `%s`; but it is from "
@@ -480,6 +499,9 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
     top->invocations_.emplace(&invocation, std::make_unique<InvocationData>(
                                                &invocation, callee, caller,
                                                std::move(env_to_callee_data)));
+    // Add the parametric env to the vector for this function
+    top->parametric_envs_[callee].push_back(std::move(callee_env));
+
     return absl::OkStatus();
   }
   VLOG(3) << "Adding to existing invocation data.";
