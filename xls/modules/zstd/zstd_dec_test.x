@@ -72,8 +72,9 @@ const TEST_DPD_RAM_WORD_PARTITION_SIZE = TEST_DPD_RAM_DATA_W;
 const TEST_DPD_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_DPD_RAM_WORD_PARTITION_SIZE, TEST_DPD_RAM_DATA_W);
 
+const TEST_FSE_MAX_ACCURACY_LOG = u32:9;
 const TEST_FSE_RAM_DATA_W = u32:32;
-const TEST_FSE_RAM_SIZE = u32:1 << common::FSE_MAX_ACCURACY_LOG;
+const TEST_FSE_RAM_SIZE = u32:1 << TEST_FSE_MAX_ACCURACY_LOG;
 const TEST_FSE_RAM_ADDR_W = std::clog2(TEST_FSE_RAM_SIZE);
 const TEST_FSE_RAM_WORD_PARTITION_SIZE = TEST_FSE_RAM_DATA_W;
 const TEST_FSE_RAM_NUM_PARTITIONS = ram::num_partitions(
@@ -292,23 +293,26 @@ proc ZstdDecoderTest {
     hb_ram_wr_req_r: chan<RamWrReqHB>[8] in;
     hb_ram_wr_resp_s: chan<RamWrRespHB>[8] out;
 
-    ll_sel_test_s: chan<u1> out;
+    ll_sel_test_req_s: chan<u1> out;
+    ll_sel_test_resp_r: chan<()> in;
     ll_def_test_rd_req_s: chan<FseRamRdReq> out;
     ll_def_test_rd_resp_r: chan<FseRamRdResp> in;
     ll_def_test_wr_req_s: chan<FseRamWrReq> out;
     ll_def_test_wr_resp_r: chan<FseRamWrResp> in;
 
-    ml_sel_test_s: chan<u1> out;
-    ml_def_test_rd_req_s: chan<FseRamRdReq> out;
-    ml_def_test_rd_resp_r: chan<FseRamRdResp> in;
-    ml_def_test_wr_req_s: chan<FseRamWrReq> out;
-    ml_def_test_wr_resp_r: chan<FseRamWrResp> in;
-
-    of_sel_test_s: chan<u1> out;
+    of_sel_test_req_s: chan<u1> out;
+    of_sel_test_resp_r: chan<()> in;
     of_def_test_rd_req_s: chan<FseRamRdReq> out;
     of_def_test_rd_resp_r: chan<FseRamRdResp> in;
     of_def_test_wr_req_s: chan<FseRamWrReq> out;
     of_def_test_wr_resp_r: chan<FseRamWrResp> in;
+
+    ml_sel_test_req_s: chan<u1> out;
+    ml_sel_test_resp_r: chan<()> in;
+    ml_def_test_rd_req_s: chan<FseRamRdReq> out;
+    ml_def_test_rd_resp_r: chan<FseRamRdResp> in;
+    ml_def_test_wr_req_s: chan<FseRamWrReq> out;
+    ml_def_test_wr_resp_r: chan<FseRamWrResp> in;
 
     notify_r: chan<()> in;
 
@@ -521,7 +525,8 @@ proc ZstdDecoderTest {
 
         // Default LL
 
-        let (ll_sel_test_s, ll_sel_test_r) = chan<u1>("ll_sel_test");
+        let (ll_sel_test_req_s, ll_sel_test_req_r) = chan<u1>("ll_sel_test_req");
+        let (ll_sel_test_resp_s, ll_sel_test_resp_r) = chan<()>("ll_sel_test_resp");
 
         let (ll_def_test_rd_req_s, ll_def_test_rd_req_r) = chan<FseRamRdReq>("ll_def_test_rd_req");
         let (ll_def_test_rd_resp_s, ll_def_test_rd_resp_r) = chan<FseRamRdResp>("ll_def_test_rd_resp");
@@ -536,38 +541,16 @@ proc ZstdDecoderTest {
         spawn ram_mux::RamMux<
             TEST_FSE_RAM_ADDR_W, TEST_FSE_RAM_DATA_W, TEST_FSE_RAM_NUM_PARTITIONS,
         >(
-            ll_sel_test_r,
+            ll_sel_test_req_r, ll_sel_test_resp_s,
             ll_def_test_rd_req_r, ll_def_test_rd_resp_s, ll_def_test_wr_req_r, ll_def_test_wr_resp_s,
             ll_def_fse_rd_req_r, ll_def_fse_rd_resp_s, ll_def_fse_wr_req_r, ll_def_fse_wr_resp_s,
             fse_rd_req_s[0], fse_rd_resp_r[0], fse_wr_req_s[0], fse_wr_resp_r[0],
         );
 
-        // Default ML
-
-        let (ml_sel_test_s, ml_sel_test_r) = chan<u1>("ml_sel_test");
-
-        let (ml_def_test_rd_req_s, ml_def_test_rd_req_r) = chan<FseRamRdReq>("ml_def_test_rd_req");
-        let (ml_def_test_rd_resp_s, ml_def_test_rd_resp_r) = chan<FseRamRdResp>("ml_def_test_rd_resp");
-        let (ml_def_test_wr_req_s, ml_def_test_wr_req_r) = chan<FseRamWrReq>("ml_def_test_wr_req");
-        let (ml_def_test_wr_resp_s, ml_def_test_wr_resp_r) = chan<FseRamWrResp>("ml_def_test_wr_resp");
-
-        let (ml_def_fse_rd_req_s, ml_def_fse_rd_req_r) = chan<FseRamRdReq>("ml_def_fse_rd_req");
-        let (ml_def_fse_rd_resp_s, ml_def_fse_rd_resp_r) = chan<FseRamRdResp>("ml_def_fse_rd_resp");
-        let (ml_def_fse_wr_req_s, ml_def_fse_wr_req_r) = chan<FseRamWrReq>("ml_def_fse_wr_req");
-        let (ml_def_fse_wr_resp_s, ml_def_fse_wr_resp_r) = chan<FseRamWrResp>("ml_def_fse_wr_resp");
-
-        spawn ram_mux::RamMux<
-            TEST_FSE_RAM_ADDR_W, TEST_FSE_RAM_DATA_W, TEST_FSE_RAM_NUM_PARTITIONS,
-        >(
-            ml_sel_test_r,
-            ml_def_test_rd_req_r, ml_def_test_rd_resp_s, ml_def_test_wr_req_r, ml_def_test_wr_resp_s,
-            ml_def_fse_rd_req_r, ml_def_fse_rd_resp_s, ml_def_fse_wr_req_r, ml_def_fse_wr_resp_s,
-            fse_rd_req_s[2], fse_rd_resp_r[2], fse_wr_req_s[2], fse_wr_resp_r[2],
-        );
-
         // Default OF
 
-        let (of_sel_test_s, of_sel_test_r) = chan<u1>("of_sel_test");
+        let (of_sel_test_req_s, of_sel_test_req_r) = chan<u1>("of_sel_test_req");
+        let (of_sel_test_resp_s, of_sel_test_resp_r) = chan<()>("of_sel_test_resp");
 
         let (of_def_test_rd_req_s, of_def_test_rd_req_r) = chan<FseRamRdReq>("of_def_test_rd_req");
         let (of_def_test_rd_resp_s, of_def_test_rd_resp_r) = chan<FseRamRdResp>("of_def_test_rd_resp");
@@ -582,9 +565,33 @@ proc ZstdDecoderTest {
         spawn ram_mux::RamMux<
             TEST_FSE_RAM_ADDR_W, TEST_FSE_RAM_DATA_W, TEST_FSE_RAM_NUM_PARTITIONS,
         >(
-            of_sel_test_r,
+            of_sel_test_req_r, of_sel_test_resp_s,
             of_def_test_rd_req_r, of_def_test_rd_resp_s, of_def_test_wr_req_r, of_def_test_wr_resp_s,
             of_def_fse_rd_req_r, of_def_fse_rd_resp_s, of_def_fse_wr_req_r, of_def_fse_wr_resp_s,
+            fse_rd_req_s[2], fse_rd_resp_r[2], fse_wr_req_s[2], fse_wr_resp_r[2],
+        );
+
+        // Default ML
+
+        let (ml_sel_test_req_s, ml_sel_test_req_r) = chan<u1>("ml_sel_test_req");
+        let (ml_sel_test_resp_s, ml_sel_test_resp_r) = chan<()>("ml_sel_test_resp");
+
+        let (ml_def_test_rd_req_s, ml_def_test_rd_req_r) = chan<FseRamRdReq>("ml_def_test_rd_req");
+        let (ml_def_test_rd_resp_s, ml_def_test_rd_resp_r) = chan<FseRamRdResp>("ml_def_test_rd_resp");
+        let (ml_def_test_wr_req_s, ml_def_test_wr_req_r) = chan<FseRamWrReq>("ml_def_test_wr_req");
+        let (ml_def_test_wr_resp_s, ml_def_test_wr_resp_r) = chan<FseRamWrResp>("ml_def_test_wr_resp");
+
+        let (ml_def_fse_rd_req_s, ml_def_fse_rd_req_r) = chan<FseRamRdReq>("ml_def_fse_rd_req");
+        let (ml_def_fse_rd_resp_s, ml_def_fse_rd_resp_r) = chan<FseRamRdResp>("ml_def_fse_rd_resp");
+        let (ml_def_fse_wr_req_s, ml_def_fse_wr_req_r) = chan<FseRamWrReq>("ml_def_fse_wr_req");
+        let (ml_def_fse_wr_resp_s, ml_def_fse_wr_resp_r) = chan<FseRamWrResp>("ml_def_fse_wr_resp");
+
+        spawn ram_mux::RamMux<
+            TEST_FSE_RAM_ADDR_W, TEST_FSE_RAM_DATA_W, TEST_FSE_RAM_NUM_PARTITIONS,
+        >(
+            ml_sel_test_req_r, ml_sel_test_resp_s,
+            ml_def_test_rd_req_r, ml_def_test_rd_resp_s, ml_def_test_wr_req_r, ml_def_test_wr_resp_s,
+            ml_def_fse_rd_req_r, ml_def_fse_rd_resp_s, ml_def_fse_wr_req_r, ml_def_fse_wr_resp_s,
             fse_rd_req_s[4], fse_rd_resp_r[4], fse_wr_req_s[4], fse_wr_resp_r[4],
         );
 
@@ -603,7 +610,7 @@ proc ZstdDecoderTest {
             TEST_HUFFMAN_WEIGHTS_TMP2_RAM_ADDR_W, TEST_HUFFMAN_WEIGHTS_TMP2_RAM_DATA_W, TEST_HUFFMAN_WEIGHTS_TMP2_RAM_NUM_PARTITIONS,
             TEST_HUFFMAN_WEIGHTS_FSE_RAM_ADDR_W, TEST_HUFFMAN_WEIGHTS_FSE_RAM_DATA_W, TEST_HUFFMAN_WEIGHTS_FSE_RAM_NUM_PARTITIONS,
 
-            HISTORY_BUFFER_SIZE_KB, AXI_CHAN_N,
+            HISTORY_BUFFER_SIZE_KB, AXI_CHAN_N, TEST_FSE_MAX_ACCURACY_LOG,
         >(
             csr_axi_aw_r, csr_axi_w_r, csr_axi_b_s, csr_axi_ar_r, csr_axi_r_s,
             fh_axi_ar_s, fh_axi_r_r,
@@ -618,10 +625,12 @@ proc ZstdDecoderTest {
             tmp2_wr_req_s, tmp2_wr_resp_r,
 
             // Channels for accessing FSE tables with muxed default FSE tables
-            ll_def_fse_rd_req_s, fse_rd_req_s[1], ml_def_fse_rd_req_s, fse_rd_req_s[3], of_def_fse_rd_req_s, fse_rd_req_s[5],
-            ll_def_fse_rd_resp_r, fse_rd_resp_r[1], ml_def_fse_rd_resp_r, fse_rd_resp_r[3], of_def_fse_rd_resp_r, fse_rd_resp_r[5],
-            ll_def_fse_wr_req_s, fse_wr_req_s[1], ml_def_fse_wr_req_s, fse_wr_req_s[3], of_def_fse_wr_req_s, fse_wr_req_s[5],
-            ll_def_fse_wr_resp_r, fse_wr_resp_r[1], ml_def_fse_wr_resp_r, fse_wr_resp_r[3], of_def_fse_wr_resp_r, fse_wr_resp_r[5],
+            ll_def_fse_rd_req_s, ll_def_fse_rd_resp_r, ll_def_fse_wr_req_s, ll_def_fse_wr_resp_r,
+            fse_rd_req_s[1], fse_rd_resp_r[1], fse_wr_req_s[1], fse_wr_resp_r[1],
+            of_def_fse_rd_req_s, of_def_fse_rd_resp_r, of_def_fse_wr_req_s, of_def_fse_wr_resp_r,
+            fse_rd_req_s[3], fse_rd_resp_r[3], fse_wr_req_s[3], fse_wr_resp_r[3],
+            ml_def_fse_rd_req_s, ml_def_fse_rd_resp_r, ml_def_fse_wr_req_s, ml_def_fse_wr_resp_r,
+            fse_rd_req_s[5], fse_rd_resp_r[5], fse_wr_req_s[5], fse_wr_resp_r[5],
 
             litbuf_rd_req_s, litbuf_rd_resp_r,
             litbuf_wr_req_s, litbuf_wr_resp_r,
@@ -701,9 +710,12 @@ proc ZstdDecoderTest {
             comp_ram_wr_req_s, comp_ram_wr_resp_r,
             output_axi_aw_r, output_axi_w_r, output_axi_b_s,
             hb_ram_rd_req_r, hb_ram_rd_resp_s, hb_ram_wr_req_r, hb_ram_wr_resp_s,
-            ll_sel_test_s, ll_def_test_rd_req_s, ll_def_test_rd_resp_r, ll_def_test_wr_req_s, ll_def_test_wr_resp_r,
-            ml_sel_test_s, ml_def_test_rd_req_s, ml_def_test_rd_resp_r, ml_def_test_wr_req_s, ml_def_test_wr_resp_r,
-            of_sel_test_s, of_def_test_rd_req_s, of_def_test_rd_resp_r, of_def_test_wr_req_s, of_def_test_wr_resp_r,
+            ll_sel_test_req_s, ll_sel_test_resp_r,
+            ll_def_test_rd_req_s, ll_def_test_rd_resp_r, ll_def_test_wr_req_s, ll_def_test_wr_resp_r,
+            of_sel_test_req_s, of_sel_test_resp_r,
+            of_def_test_rd_req_s, of_def_test_rd_resp_r, of_def_test_wr_req_s, of_def_test_wr_resp_r,
+            ml_sel_test_req_s, ml_sel_test_resp_r,
+            ml_def_test_rd_req_s, ml_def_test_rd_resp_r, ml_def_test_wr_req_s, ml_def_test_wr_resp_r,
             notify_r,
         )
     }
@@ -716,7 +728,8 @@ proc ZstdDecoderTest {
 
         // FILL THE LL DEFAULT RAM
         trace_fmt!("Filling LL default FSE table");
-        let tok = send(tok, ll_sel_test_s, u1:0);
+        let tok = send(tok, ll_sel_test_req_s, u1:0);
+        let (tok, _) = recv(tok, ll_sel_test_resp_r);
         let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_LL_TABLE)) {
             let req = FseRamWrReq {
                 addr: i as uN[TEST_FSE_RAM_ADDR_W],
@@ -727,11 +740,13 @@ proc ZstdDecoderTest {
             let (tok, _) = recv(tok, ll_def_test_wr_resp_r);
             tok
         }(tok);
-        let tok = send(tok, ll_sel_test_s, u1:1);
+        let tok = send(tok, ll_sel_test_req_s, u1:1);
+        let (tok, _) = recv(tok, ll_sel_test_resp_r);
 
         // FILL THE OF DEFAULT RAM
         trace_fmt!("Filling OF default FSE table");
-        let tok = send(tok, of_sel_test_s, u1:0);
+        let tok = send(tok, of_sel_test_req_s, u1:0);
+        let (tok, _) = recv(tok, of_sel_test_resp_r);
         let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_OF_TABLE)) {
             let req = FseRamWrReq {
                 addr: i as uN[TEST_FSE_RAM_ADDR_W],
@@ -742,11 +757,13 @@ proc ZstdDecoderTest {
             let (tok, _) = recv(tok, of_def_test_wr_resp_r);
             tok
         }(tok);
-        let tok = send(tok, of_sel_test_s, u1:1);
+        let tok = send(tok, of_sel_test_req_s, u1:1);
+        let (tok, _) = recv(tok, of_sel_test_resp_r);
 
         // FILL THE ML DEFAULT RAM
         trace_fmt!("Filling ML default FSE table");
-        let tok = send(tok, ml_sel_test_s, u1:0);
+        let tok = send(tok, ml_sel_test_req_s, u1:0);
+        let (tok, _) = recv(tok, ml_sel_test_resp_r);
         let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(sequence_dec::DEFAULT_ML_TABLE)) {
             let req = FseRamWrReq {
                 addr: i as uN[TEST_FSE_RAM_ADDR_W],
@@ -757,7 +774,8 @@ proc ZstdDecoderTest {
             let (tok, _) = recv(tok, ml_def_test_wr_resp_r);
             tok
         }(tok);
-        let tok = send(tok, ml_sel_test_s, u1:1);
+        let tok = send(tok, ml_sel_test_req_s, u1:1);
+        let (tok, _) = recv(tok, ml_sel_test_resp_r);
 
         let tok = unroll_for! (test_i, tok): (u32, token) in range(u32:0, frames_count) {
             trace_fmt!("Loading testcase {:x}", test_i + u32:1);

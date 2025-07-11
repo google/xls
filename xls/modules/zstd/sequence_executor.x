@@ -91,6 +91,7 @@ struct SequenceExecutorState<RAM_ADDR_WIDTH: u32> {
     repeat_offsets: Offset[3],
     repeat_req: bool,
     seq_cnt: bool,
+    seq_pending: bool
 }
 
 fn decode_literal_packet<ADDR_W: u32, DATA_W: u32>(packet: SequenceExecutorPacket) -> mem_writer::MemWriterDataPacket<DATA_W, ADDR_W> {
@@ -284,7 +285,8 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
             hb_len: INIT_HB_LENGTH as uN[RAM_ADDR_WIDTH + RAM_NUM_CLOG2],
             repeat_offsets: Offset[3]:[Offset:1, Offset:4, Offset:8],
             repeat_req: false,
-            seq_cnt: false
+            seq_cnt: false,
+            seq_pending: false
         }
     }
 
@@ -382,7 +384,8 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
                         repeat_offsets: state.repeat_offsets,
                         repeat_req: new_repeat_req,
                         hb_len: new_hb_len,
-                        seq_cnt: false
+                        seq_cnt: false,
+                        seq_pending: false
                     },
                 )
             },
@@ -418,7 +421,8 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
                         repeat_offsets: new_repeat_offsets,
                         repeat_req: false,
                         hb_len: state.hb_len,
-                        seq_cnt: packet_valid
+                        seq_cnt: packet_valid,
+                        seq_pending: true
                     },
                 )
             },
@@ -445,12 +449,15 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
                         repeat_offsets: state.repeat_offsets,
                         repeat_req: state.repeat_req,
                         hb_len: new_hb_len,
-                        seq_cnt: state.seq_cnt
+                        seq_cnt: state.seq_cnt,
+                        seq_pending: false
                     },
                 )
             },
             (Status::SEQUENCE_WRITE, _, _) => {
-                let status = if real_ptr == state.hyp_ptr {
+                let status = if state.seq_pending {
+                    Status::SEQUENCE_WRITE
+                } else if real_ptr == state.hyp_ptr {
                     Status::IDLE
                 } else if state.seq_cnt {
                     Status::SEQUENCE_READ

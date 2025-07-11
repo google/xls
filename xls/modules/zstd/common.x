@@ -110,7 +110,7 @@ pub struct SequenceData { bytes: bits[64], length: u32, last: bool }
 
 // FSE
 
-pub const FSE_MAX_ACCURACY_LOG = u32:9;
+pub const FSE_MAX_ACCURACY_LOG = u32:15;
 pub const FSE_MAX_SYMBOLS = u32:256;
 
 pub const FSE_ACCURACY_LOG_WIDTH = std::clog2(FSE_MAX_ACCURACY_LOG + u32:1);
@@ -121,6 +121,10 @@ pub const FSE_TABLE_INDEX_WIDTH = std::clog2(u32:1 << FSE_MAX_ACCURACY_LOG);
 pub const FSE_PROB_DIST_WIDTH = u32:16;
 pub const FSE_MAX_PROB_DIST = u32:256;
 pub const FSE_SYMBOL_WIDTH = u32:16;
+
+// FIXME: Tests in DSLX interpreter require smaller RAMs due to the problem
+// with ram consumtopn descibed in https://github.com/google/xls/issues/1042
+pub const TEST_FSE_MAX_ACCURACY_LOG = u32:9;
 
 pub type FseRemainingProba = uN[FSE_REMAINING_PROBA_WIDTH];
 pub type FseAccuracyLog = uN[FSE_ACCURACY_LOG_WIDTH];
@@ -307,4 +311,10 @@ pub struct LookupDecoderReq {}
 pub struct LookupDecoderResp {
     status: LookupDecoderStatus,
     accuracy_log: FseAccuracyLog,
+}
+
+pub struct DataArray<BITS_PER_WORD: u32, LENGTH: u32>{
+  data: uN[BITS_PER_WORD][LENGTH],
+  length: u32,
+  array_length: u32
 }

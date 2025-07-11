@@ -145,7 +145,9 @@ pub proc SequenceConfDecoder<AXI_DATA_W: u32, AXI_ADDR_W: u32> {
         let tok = join();
 
         let (tok, decode_request) = recv(tok, req_r);
-        send(tok, mem_rd_req_s, MemReaderReq {
+        trace_fmt!("[SequenceConfDecoder] received {}", decode_request);
+
+        let tok = send(tok, mem_rd_req_s, MemReaderReq {
             addr: decode_request.addr,
             // max number of bytes that the header can have, see RFC8878 Section 3.1.1.3.2.1.
             length: uN[AXI_ADDR_W]:4,
@@ -154,7 +156,7 @@ pub proc SequenceConfDecoder<AXI_DATA_W: u32, AXI_ADDR_W: u32> {
         const_assert!(AXI_DATA_W >= u32:32);
         let (tok, raw) = recv(tok, mem_rd_resp_r);
         let (header, length) = parse_sequence_conf(raw.data[:32]);
-        send(tok, resp_s, Resp {
+        let tok = send(tok, resp_s, Resp {
             header: header,
             length: length,
             status: match (raw.status) {
@@ -208,7 +210,7 @@ proc SequenceConfDecoderTest {
 
     next(state: ()) {
         let tok = join();
-        
+
         // test data format: raw header, expected size in bytes, expected parsed header
         let tests: (u32, u3, SequenceConf)[8] = [
             (u32:0x00_00, u3:2, SequenceConf {
@@ -260,8 +262,8 @@ proc SequenceConfDecoderTest {
                 match_mode: CompressionMode::COMPRESSED,
             }),
         ];
-        const ADDR = uN[TEST_AXI_ADDR_W]:0xDEAD;        
-        
+        const ADDR = uN[TEST_AXI_ADDR_W]:0xDEAD;
+
         // positive cases
         let tok = for ((_, (test_vec, expected_length, expected_header)), tok): ((u32, (u32, u3, SequenceConf)), token) in enumerate(tests) {
             send(tok, req_s, Req {
@@ -297,7 +299,7 @@ proc SequenceConfDecoderTest {
             length: uN[TEST_AXI_ADDR_W]:4
         });
         let tok = send(tok, mem_rd_resp_s, MemReaderResp {
-            status: MemReaderStatus::ERROR, 
+            status: MemReaderStatus::ERROR,
             data: uN[TEST_AXI_DATA_W]:0,
             length: uN[TEST_AXI_ADDR_W]:0,
             last: true,
