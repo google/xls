@@ -25,6 +25,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -32,6 +33,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 #include "xls/solvers/z3_ir_translator.h"
 
 namespace m = ::xls::op_matchers;
@@ -45,6 +47,8 @@ using ::testing::_;
 using ::testing::Each;
 using ::testing::UnorderedElementsAre;
 using ::testing::VariantWith;
+
+using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 class StrengthReductionPassTest : public IrTestBase {
  protected:
@@ -422,6 +426,21 @@ TEST_F(StrengthReductionPassTest, ArithToSelect) {
   // Actual verification of result is done by semantics test.
   EXPECT_THAT(f->return_value()->operands(),
               Each(m::Select(m::Eq(), {m::Literal(), m::Literal()})));
+}
+
+TEST_F(StrengthReductionPassTest, OneHotToPrioritySelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Encode(fb.OneHot(fb.Param("selector", p->GetBitsType(8)), LsbOrMsb::kLsb));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::OneHot(m::Param("selector")),
+                                {m::Literal(0), m::Literal(1), m::Literal(2),
+                                 m::Literal(3), m::Literal(4), m::Literal(5),
+                                 m::Literal(6), m::Literal(7), m::Literal(8)},
+                                m::Literal(0)));
 }
 
 TEST_F(StrengthReductionPassTest, ArithToSelectOnlyWithOneBit) {
