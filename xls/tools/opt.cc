@@ -36,6 +36,7 @@
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
@@ -63,6 +64,15 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
   }
   VLOG(3) << "Top entity: '" << top.value()->name() << "'";
 
+  std::optional<OptimizationPassRegistry> registry;
+  if (options.custom_registry) {
+    registry.emplace(GetOptimizationRegistry().OverridableClone());
+    XLS_RETURN_IF_ERROR(registry->RegisterPipelineProto(
+        *options.custom_registry, "custom-registry"));
+  }
+  const OptimizationPassRegistry& chosen_registry =
+      registry.value_or(GetOptimizationRegistry());
+
   using PipelineResult = absl::StatusOr<std::unique_ptr<OptimizationPass>>;
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<OptimizationPass> pipeline,
@@ -70,7 +80,7 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
           Visitor{
               [&](std::nullopt_t) -> PipelineResult {
                 return CreateOptimizationPassPipeline(
-                    options.debug_optimizations);
+                    options.debug_optimizations, chosen_registry);
               },
               [&](std::string_view list) -> PipelineResult {
                 XLS_RET_CHECK(options.skip_passes.empty())
@@ -78,7 +88,8 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
                        "pipeline is probably not something you want to do.";
                 XLS_ASSIGN_OR_RETURN(
                     std::unique_ptr<OptimizationCompoundPass> res,
-                    GetOptimizationPipelineGenerator().GeneratePipeline(list));
+                    GetOptimizationPipelineGenerator(chosen_registry)
+                        .GeneratePipeline(list));
                 if (options.debug_optimizations) {
                   res->AddInvariantChecker<VerifierChecker>();
                   res->AddInvariantChecker<QueryEngineChecker>();
@@ -93,7 +104,8 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
                        "pipeline is probably not something you want to do.";
                 XLS_ASSIGN_OR_RETURN(
                     std::unique_ptr<OptimizationCompoundPass> res,
-                    GetOptimizationPipelineGenerator().GeneratePipeline(list));
+                    GetOptimizationPipelineGenerator(chosen_registry)
+                        .GeneratePipeline(list));
                 if (options.debug_optimizations) {
                   res->AddInvariantChecker<VerifierChecker>();
                   res->AddInvariantChecker<QueryEngineChecker>();

@@ -25,6 +25,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.pb.h"
 #include "xls/passes/pipeline_generator.h"
 
 namespace xls {
@@ -106,15 +107,18 @@ class CompoundPassAdder final : public OptimizationPassGenerator {
 };
 }  // namespace
 
-absl::Status RegisterOptimizationPipelineProtoData(
-    absl::Span<uint8_t const> data, std::string_view file) {
-  OptimizationPipelineProto pipeline;
-  if (!pipeline.ParseFromArray(data.data(), data.size())) {
-    return absl::InvalidArgumentError("Failed to parse pipeline proto data");
-  }
+OptimizationPassRegistry OptimizationPassRegistry::OverridableClone() const {
+  // Just copy then call the protected overwrite function.
+  OptimizationPassRegistry cpy = *this;
+  cpy.set_allow_overwrite(true);
+  return cpy;
+}
+
+absl::Status OptimizationPassRegistry::RegisterPipelineProto(
+    const OptimizationPipelineProto& pipeline, std::string_view file) {
   for (const auto& compound : pipeline.compound_passes()) {
-    XLS_RETURN_IF_ERROR(GetOptimizationRegistry().Register(
-        compound.short_name(), std::make_unique<CompoundPassAdder>(compound)))
+    XLS_RETURN_IF_ERROR(Register(compound.short_name(),
+                                 std::make_unique<CompoundPassAdder>(compound)))
         << "Failed to register compound pass " << compound.short_name();
     GetOptimizationRegistry().AddRegistrationInfo(
         compound.short_name(), "OptimizationPipelineProto.CompoundPass", file);
@@ -126,12 +130,20 @@ absl::Status RegisterOptimizationPipelineProtoData(
   for (const auto& pass : pipeline.default_pipeline()) {
     compound.add_passes(pass);
   }
-  GetOptimizationRegistry().AddRegistrationInfo(
-      compound.short_name(), "OptimizationPipelineProto", file);
+  AddRegistrationInfo(compound.short_name(), "OptimizationPipelineProto", file);
   XLS_RETURN_IF_ERROR(GetOptimizationRegistry().Register(
       compound.short_name(), std::make_unique<CompoundPassAdder>(compound)))
       << "Failed to register compound pass " << compound.short_name();
   return absl::OkStatus();
+}
+
+absl::Status RegisterOptimizationPipelineProtoData(
+    absl::Span<uint8_t const> data, std::string_view file) {
+  OptimizationPipelineProto pipeline;
+  if (!pipeline.ParseFromArray(data.data(), data.size())) {
+    return absl::InvalidArgumentError("Failed to parse pipeline proto data");
+  }
+  return GetOptimizationRegistry().RegisterPipelineProto(pipeline, file);
 }
 
 }  // namespace xls

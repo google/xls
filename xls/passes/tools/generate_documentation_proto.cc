@@ -215,9 +215,9 @@ absl::StatusOr<std::string> ParseCppComments(
 
 }  // namespace
 absl::StatusOr<PassDocumentationProto> GenerateDocumentationProto(
-    const OptimizationPassRegistry& registry, std::string_view header,
+    const OptimizationPassRegistryBase& registry, std::string_view header,
     absl::Span<std::string const> copts) {
-  std::vector<OptimizationPassRegistry::RegistrationInfo> infos =
+  std::vector<OptimizationPassRegistryBase::RegistrationInfo> infos =
       registry.GetRegisteredInfos();
   xls::PassDocumentationProto res;
   bool found = false;

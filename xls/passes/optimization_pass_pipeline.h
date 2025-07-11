@@ -27,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pipeline_generator.h"
 
 namespace xls {
@@ -37,7 +38,9 @@ namespace xls {
 //
 // By default this is found in `optimization_pass_pipeline.txtpb`.
 absl::StatusOr<std::unique_ptr<OptimizationCompoundPass>>
-TryCreateOptimizationPassPipeline(bool debug_optimizations = false);
+TryCreateOptimizationPassPipeline(
+    bool debug_optimizations = false,
+    const OptimizationPassRegistry& registry = GetOptimizationRegistry());
 
 // CreateOptimizationPassPipeline connects together the various optimization
 // and analysis passes in the order of execution. The actual passes executed is
@@ -45,9 +48,10 @@ TryCreateOptimizationPassPipeline(bool debug_optimizations = false);
 //
 // By default this is found in `optimization_pass_pipeline.txtpb`.
 inline std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
-    bool debug_optimizations = false) {
+    bool debug_optimizations = false,
+    const OptimizationPassRegistry& registry = GetOptimizationRegistry()) {
   absl::StatusOr<std::unique_ptr<OptimizationCompoundPass>> res =
-      TryCreateOptimizationPassPipeline(debug_optimizations);
+      TryCreateOptimizationPassPipeline(debug_optimizations, registry);
   CHECK_OK(res);
   return *std::move(res);
 }
@@ -61,12 +65,13 @@ absl::StatusOr<bool> RunOptimizationPassPipeline(
     Package* package, int64_t opt_level = kMaxOptLevel,
     bool debug_optimizations = false);
 
-class OptimizationPassPipelineGenerator final
-    : public OptimizationPipelineGenerator {
+class OptimizationPassPipelineGenerator : public OptimizationPipelineGenerator {
  public:
-  OptimizationPassPipelineGenerator(std::string_view short_name,
-                                    std::string_view long_name)
-      : OptimizationPipelineGenerator(short_name, long_name) {}
+  OptimizationPassPipelineGenerator(
+      std::string_view short_name, std::string_view long_name,
+      const OptimizationPassRegistry& registry = GetOptimizationRegistry())
+      : OptimizationPipelineGenerator(short_name, long_name),
+        registry_(registry) {}
 
   std::vector<std::string_view> GetAvailablePasses() const;
   std::string GetAvailablePassesStr() const;
@@ -79,11 +84,15 @@ class OptimizationPassPipelineGenerator final
   absl::Status AddPassToPipeline(
       OptimizationCompoundPass* pass, std::string_view pass_name,
       const BasicPipelineOptions& options) const final;
+
+ private:
+  const OptimizationPassRegistry& registry_;
 };
 
-inline OptimizationPassPipelineGenerator GetOptimizationPipelineGenerator() {
+inline OptimizationPassPipelineGenerator GetOptimizationPipelineGenerator(
+    const OptimizationPassRegistry& registry = GetOptimizationRegistry()) {
   return OptimizationPassPipelineGenerator(
-      "opt_pipeline", "optimization_pass_pipeline_generator");
+      "opt_pipeline", "optimization_pass_pipeline_generator", registry);
 }
 
 }  // namespace xls

@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.pb.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
 
@@ -49,6 +50,8 @@ struct OptOptions {
   bool enable_resource_sharing = false;
   bool force_resource_sharing = false;
   std::string area_model = "v";
+  // Custom registry to use to get default pipeline and compound passes.
+  std::optional<OptimizationPipelineProto> custom_registry = std::nullopt;
   std::variant<std::nullopt_t, std::string_view, PassPipelineProto>
       pass_pipeline = std::nullopt;
   std::optional<int64_t> bisect_limit;

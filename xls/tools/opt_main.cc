@@ -49,6 +49,8 @@
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.pb.h"
+#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/tools/opt.h"
@@ -129,12 +131,22 @@ ABSL_FLAG(
     "given pipeline will run in reasonable amount of time. See the map in "
     "passes/optimization_pass_pipeline.cc for pass mappings. Available "
     "passes shown by running with --list_passes");
+// TODO(allight): Remove this flag, and the old passes proto.
 ABSL_FLAG(std::optional<std::string>, passes_proto, std::nullopt,
           "A file containing binary PipelinePassList proto defining a pipeline "
-          "of passes to run");
+          "of passes to run. The pipeline_proto should be preferred instead.");
+// TODO(allight): Remove this flag, and the old passes proto.
 ABSL_FLAG(std::optional<std::string>, passes_textproto, std::nullopt,
           "A file containing textproto PipelinePassList proto defining a "
+          "pipeline of passes to run. The pipeline_textproto should be "
+          "preferred instead.");
+ABSL_FLAG(std::optional<std::string>, pipeline_proto, std::nullopt,
+          "A file containing binary OptimizationPipelineProto proto defining a "
           "pipeline of passes to run");
+ABSL_FLAG(
+    std::optional<std::string>, pipeline_textproto, std::nullopt,
+    "A file containing textproto OptimizationPipelineProto proto defining a "
+    "pipeline of passes to run");
 ABSL_FLAG(std::optional<int64_t>, passes_bisect_limit, std::nullopt,
           "Number of passes to allow to execute. This can be used as compiler "
           "fuel to ensure the compiler finishes at a particular point.");
@@ -236,29 +248,49 @@ absl::Status RealMain(std::string_view input_path) {
   std::optional<int64_t> bisect_limit =
       absl::GetFlag(FLAGS_passes_bisect_limit);
   XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
-  std::optional<std::string> pipeline_textproto =
+  std::optional<std::string> passes_textproto =
       absl::GetFlag(FLAGS_passes_textproto);
-  std::optional<std::string> pipeline_binproto =
+  std::optional<std::string> passes_binproto =
       absl::GetFlag(FLAGS_passes_proto);
+  std::optional<std::string> pipeline_textproto =
+      absl::GetFlag(FLAGS_pipeline_textproto);
+  std::optional<std::string> pipeline_binproto =
+      absl::GetFlag(FLAGS_pipeline_proto);
   std::variant<std::nullopt_t, std::string_view, PassPipelineProto>
       pass_pipeline = std::nullopt;
+  std::optional<OptimizationPipelineProto> custom_registry = std::nullopt;
+  if (pipeline_textproto && pipeline_binproto) {
+    return absl::InvalidArgumentError(
+        "At most one of --pipeline_proto, --pipeline_textproto is allowed.");
+  }
+  if (passes_textproto) {
+    XLS_ASSIGN_OR_RETURN(std::string data, GetFileContents(*passes_textproto));
+    OptimizationPipelineProto res;
+    XLS_RET_CHECK(google::protobuf::TextFormat::ParseFromString(data, &res));
+    custom_registry = std::move(res);
+  }
+  if (pipeline_binproto) {
+    XLS_ASSIGN_OR_RETURN(std::string data, GetFileContents(*passes_binproto));
+    OptimizationPipelineProto res;
+    XLS_RET_CHECK(res.ParseFromString(data));
+    custom_registry = std::move(res);
+  }
   if (absl::c_count_if(
           absl::Span<std::optional<std::string> const>{
-              pass_list, pipeline_textproto, pipeline_binproto},
+              pass_list, passes_textproto, passes_binproto},
           [](const auto& v) -> bool { return v.has_value(); }) > 1) {
     return absl::InvalidArgumentError(
-        "At most one of --pipeline_proto, --pipeline_textproto or --passes is "
+        "At most one of --passes_proto, --passes_textproto, or --passes is "
         "allowed.");
   }
-  if (pipeline_textproto) {
-    XLS_ASSIGN_OR_RETURN(std::string data,
-                         GetFileContents(*pipeline_textproto));
+  if (passes_textproto) {
+    XLS_ASSIGN_OR_RETURN(std::string data, GetFileContents(*passes_textproto));
     PassPipelineProto res;
     XLS_RET_CHECK(google::protobuf::TextFormat::ParseFromString(data, &res));
     pass_pipeline = std::move(res);
   }
-  if (pipeline_binproto) {
-    XLS_ASSIGN_OR_RETURN(std::string data, GetFileContents(*pipeline_binproto));
+  if (passes_binproto) {
+    XLS_ASSIGN_OR_RETURN(std::string data, GetFileContents(*passes_binproto));
     PassPipelineProto res;
     XLS_RET_CHECK(res.ParseFromString(data));
     pass_pipeline = std::move(res);
@@ -288,6 +320,7 @@ absl::Status RealMain(std::string_view input_path) {
               .enable_resource_sharing = enable_resource_sharing,
               .force_resource_sharing = force_resource_sharing,
               .area_model = area_model,
+              .custom_registry = std::move(custom_registry),
               .pass_pipeline = pass_pipeline,
               .bisect_limit = bisect_limit,
               .debug_optimizations = debug_optimizations,
@@ -313,6 +346,26 @@ absl::Status RealMain(std::string_view input_path) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<OptimizationPassPipelineGenerator> GetGeneratorForList() {
+  OptimizationPassRegistry reg = GetOptimizationRegistry().OverridableClone();
+  if (absl::GetFlag(FLAGS_pipeline_proto)) {
+    OptimizationPipelineProto proto;
+    XLS_ASSIGN_OR_RETURN(std::string data,
+                         GetFileContents(*absl::GetFlag(FLAGS_pipeline_proto)));
+    XLS_RET_CHECK(proto.ParseFromString(data));
+    XLS_RETURN_IF_ERROR(
+        reg.RegisterPipelineProto(proto, *absl::GetFlag(FLAGS_pipeline_proto)));
+  } else if (absl::GetFlag(FLAGS_pipeline_textproto)) {
+    OptimizationPipelineProto proto;
+    XLS_ASSIGN_OR_RETURN(
+        std::string data,
+        GetFileContents(*absl::GetFlag(FLAGS_pipeline_textproto)));
+    XLS_RET_CHECK(google::protobuf::TextFormat::ParseFromString(data, &proto));
+    XLS_RETURN_IF_ERROR(reg.RegisterPipelineProto(
+        proto, *absl::GetFlag(FLAGS_pipeline_textproto)));
+  }
+  return GetOptimizationPipelineGenerator(reg);
+}
 }  // namespace
 }  // namespace xls::tools
 
@@ -321,8 +374,12 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (absl::GetFlag(FLAGS_list_passes)) {
-    std::cout
-        << xls::GetOptimizationPipelineGenerator().GetAvailablePassesStr();
+    absl::StatusOr<xls::OptimizationPassPipelineGenerator> generator =
+        xls::tools::GetGeneratorForList();
+    if (!generator.ok()) {
+      return xls::ExitStatus(generator.status());
+    }
+    std::cout << generator->GetAvailablePassesStr();
     return 0;
   }
   if (positional_arguments.empty()) {

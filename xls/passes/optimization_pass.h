@@ -329,7 +329,7 @@ using OptimizationPipelineGenerator =
 using OptimizationWrapperPass =
     WrapperPassBase<OptimizationPassOptions, OptimizationContext>;
 
-using OptimizationPassRegistry =
+using OptimizationPassRegistryBase =
     PassRegistry<OptimizationPassOptions, OptimizationContext>;
 using OptimizationPassGenerator =
     PassGenerator<OptimizationPassOptions, OptimizationContext>;

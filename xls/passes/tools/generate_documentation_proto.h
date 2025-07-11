@@ -25,7 +25,7 @@
 namespace xls {
 
 absl::StatusOr<PassDocumentationProto> GenerateDocumentationProto(
-    const OptimizationPassRegistry& registry, std::string_view headers,
+    const OptimizationPassRegistryBase& registry, std::string_view headers,
     absl::Span<std::string const> copts);
 
 }  // namespace xls

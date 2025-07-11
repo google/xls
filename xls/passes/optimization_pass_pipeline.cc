@@ -41,9 +41,10 @@
 namespace xls {
 
 absl::StatusOr<std::unique_ptr<OptimizationCompoundPass>>
-TryCreateOptimizationPassPipeline(bool debug_optimizations) {
-  XLS_ASSIGN_OR_RETURN(auto generator, GetOptimizationRegistry().Generator(
-                                           kDefaultPassPipelineName));
+TryCreateOptimizationPassPipeline(bool debug_optimizations,
+                                  const OptimizationPassRegistry& registry) {
+  XLS_ASSIGN_OR_RETURN(auto generator,
+                       registry.Generator(kDefaultPassPipelineName));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<OptimizationPass> pipeline,
                        generator->Generate());
   auto top = std::make_unique<OptimizationCompoundPass>(
@@ -74,8 +75,7 @@ absl::StatusOr<bool> RunOptimizationPassPipeline(Package* package,
 absl::Status OptimizationPassPipelineGenerator::AddPassToPipeline(
     OptimizationCompoundPass* pass, std::string_view pass_name,
     const BasicPipelineOptions& options) const {
-  XLS_ASSIGN_OR_RETURN(auto* generator,
-                       GetOptimizationRegistry().Generator(pass_name));
+  XLS_ASSIGN_OR_RETURN(auto* generator, registry_.Generator(pass_name));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<OptimizationPass> req_pass,
                        generator->Generate());
   XLS_ASSIGN_OR_RETURN(req_pass,
@@ -110,7 +110,7 @@ std::string OptimizationPassPipelineGenerator::GetAvailablePassesStr() const {
 
 std::vector<std::string_view>
 OptimizationPassPipelineGenerator::GetAvailablePasses() const {
-  return GetOptimizationRegistry().GetRegisteredNames();
+  return registry_.GetRegisteredNames();
 }
 
 }  // namespace xls

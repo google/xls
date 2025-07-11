@@ -17,12 +17,14 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/attributes.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -46,7 +48,7 @@ class PassGenerator {
 // A registry for holding passes of a particular type. This allows one to
 // request builders by name.
 template <typename OptionsT, typename... ContextT>
-class PassRegistry final {
+class PassRegistry {
  public:
   struct RegistrationInfo {
     std::string short_name;
@@ -54,18 +56,47 @@ class PassRegistry final {
     std::string header_file;
     std::optional<std::string> comments;
   };
-  using GeneratorPtr = std::unique_ptr<PassGenerator<OptionsT, ContextT...>>;
+  using GeneratorUniquePtr =
+      std::unique_ptr<PassGenerator<OptionsT, ContextT...>>;
+  using GeneratorPtr = PassGenerator<OptionsT, ContextT...>*;
   constexpr PassRegistry() = default;
   constexpr ~PassRegistry() = default;
+  PassRegistry(PassRegistry&&) = default;
+  PassRegistry& operator=(PassRegistry&&) = default;
+  // Clone without copying the generators. This has a lifetime dependency on
+  // the original registry.
+  PassRegistry& operator=(const PassRegistry& o ABSL_ATTRIBUTE_LIFETIME_BOUND) {
+    absl::MutexLock mu_this(&registry_lock_);
+    absl::MutexLock mu_o(&o.registry_lock_);
+    generators_ = o.generators_;
+    registration_info_ = o.registration_info_;
+    return *this;
+  }
+  // NB can't use field constructors to maintain thread safety.
+  PassRegistry(const PassRegistry& o ABSL_ATTRIBUTE_LIFETIME_BOUND) {
+    *this = o;
+  }
 
   // Register a generator with a given name.
   absl::Status Register(std::string_view name, GeneratorPtr gen) {
     absl::MutexLock mu(&registry_lock_);
-    if (generators_.contains(name)) {
+    if (!allow_overwrite_ && generators_.contains(name)) {
       return absl::AlreadyExistsError(
           absl::StrFormat("pass %s registered more than once", name));
     }
     generators_[name] = std::move(gen);
+    return absl::OkStatus();
+  }
+
+  // Register a generator with a given name.
+  absl::Status Register(std::string_view name, GeneratorUniquePtr gen) {
+    absl::MutexLock mu(&registry_lock_);
+    if (!allow_overwrite_ && generators_.contains(name)) {
+      return absl::AlreadyExistsError(
+          absl::StrFormat("pass %s registered more than once", name));
+    }
+    generators_[name] = std::move(gen.get());
+    generators_owned_.push_back(std::move(gen));
     return absl::OkStatus();
   }
 
@@ -78,7 +109,7 @@ class PassRegistry final {
           absl::StrFormat("%s is not registered. Have [%s]", name,
                           absl::StrJoin(GetRegisteredNames(), ", ")));
     }
-    return generators_.at(name).get();
+    return generators_.at(name);
   }
 
   std::vector<std::string_view> GetRegisteredNames() const {
@@ -124,9 +155,23 @@ class PassRegistry final {
     };
   }
 
+  bool allow_overwrite() const { return allow_overwrite_; }
+
+ protected:
+  // Force this registry to allow overwriting of passes.
+  void set_allow_overwrite(bool allow_overwrite) {
+    allow_overwrite_ = allow_overwrite;
+  }
+
  private:
+  bool allow_overwrite_ = false;
   mutable absl::Mutex registry_lock_;
   absl::flat_hash_map<std::string, GeneratorPtr> generators_
+      ABSL_GUARDED_BY(registry_lock_);
+
+  // List of all the unique-ptrs ever registered. This is never cleared to
+  // avoid issues with dangling references.
+  std::vector<GeneratorUniquePtr> generators_owned_
       ABSL_GUARDED_BY(registry_lock_);
   absl::flat_hash_map<std::string, RegistrationInfo> registration_info_
       ABSL_GUARDED_BY(registry_lock_);

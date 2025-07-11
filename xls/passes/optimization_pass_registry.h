@@ -37,6 +37,19 @@ namespace xls {
 // The name of the default pipeline in the optimization pipeline proto.
 static constexpr std::string_view kDefaultPassPipelineName = "default_pipeline";
 
+// Helper for pass_registry which allows one to create a copy that can be
+// overridden and to register the pipeline proto.
+class OptimizationPassRegistry : public OptimizationPassRegistryBase {
+ public:
+  using OptimizationPassRegistryBase::OptimizationPassRegistryBase;
+  // Register the compound passes described in the pipeline.
+  absl::Status RegisterPipelineProto(const OptimizationPipelineProto& pipeline,
+                                     std::string_view file);
+  // Create a copy of this registry where existing pass names can be overwritten
+  // without errors. Lifetime is the same as the source registry.
+  OptimizationPassRegistry OverridableClone() const;
+};
+
 // Get the singleton pass registry for optimization passes.
 OptimizationPassRegistry& GetOptimizationRegistry();
 
