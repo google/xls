@@ -15,8 +15,6 @@ If the opt level is set above 'Cap opt level' the pass (or passes within the
 compound pass) will be executed with the opt level capped to the specified
 value.
 
-[TOC]
-
 
 ## default_pipeline - The default pipeline. {#default_pipeline}
 

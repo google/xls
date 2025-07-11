@@ -21,10 +21,15 @@ from absl import app
 from absl import flags
 import jinja2
 
-from xls.common import runfiles
 from xls.passes import optimization_pass_pipeline_pb2
 from xls.passes.tools import pass_documentation_pb2
 
+_MD_JINJA_TEMPLATE = flags.DEFINE_string(
+    name="jinja_template",
+    default=None,
+    help="Template to execute for the md file.",
+    required=True,
+)
 # TODO(allight): This should be configurable.
 _DEFAULT_PIPELINE_TXTPB = "/xls/passes/optimization_pass_pipeline.txtpb"
 _PIPELINE_TXTPB = flags.DEFINE_string(
@@ -169,11 +174,8 @@ def main(argv: Sequence[str]) -> None:
         "<!-- To regenerate build `xls/passes/tools:rebuild_documentation`"
         " -->\n"
     )
-    md_file.write(
-        env.from_string(
-            runfiles.get_contents_as_text("xls/passes/tools/passes.md.tmpl")
-        ).render(bindings)
-    )
+    with open(_MD_JINJA_TEMPLATE.value, "rt") as jinja_file:
+      md_file.write(env.from_string(jinja_file.read()).render(bindings))
 
 
 if __name__ == "__main__":

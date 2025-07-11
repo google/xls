@@ -110,12 +110,13 @@ def _generate_documentation_impl(ctx):
     if ctx.attr.strip_prefix:
         args.add("-strip_prefix", ctx.attr.strip_prefix)
     args.add("-link_format", ctx.attr.codelink_format)
+    args.add("-jinja_template", ctx.file.template.path)
     for p in protos:
         args.add("-passes", p.path)
     ctx.actions.run(
         outputs = [mdfile],
         executable = ctx.executable._generate_documentation_md,
-        inputs = protos + [ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_binpb],
+        inputs = protos + [ctx.attr.passes[XlsOptimizationPassRegistryInfo].pipeline_binpb, ctx.file.template],
         arguments = [args],
         mnemonic = "GenerateMarkdownPasses",
         progress_message = "Generating pass list markdown",
@@ -154,6 +155,10 @@ _internal_xls_generate_documentation = rule(
         "codelink_format": attr.string(
             doc = "String with '%s' where the (stripped) filename should be inserted to create a link to that file's source code.",
             mandatory = True,
+        ),
+        "template": attr.label(
+            allow_single_file = True,
+            doc = "Jinja template for the passes_list.md file.",
         ),
     },
     fragments = ["cpp"],
@@ -210,6 +215,7 @@ def xls_generate_documentation(
         name,
         passes,
         codelink_format,
+        template,
         strip_prefix = "",
         tags = [],
         **kwargs):
@@ -219,6 +225,7 @@ def xls_generate_documentation(
       name: Name of the rule.
       passes: Target containing the passes to generate documentation for.
       codelink_format: String with '%s' where the (stripped) filename should be inserted to create a link to that file's source code.
+      template: The file to use as the jinja template for the generated list.
       strip_prefix: String to strip from the beginning of file names.
       tags: Tags to apply to the rule.
       **kwargs: Additional arguments to pass to the underlying rule.
@@ -237,6 +244,7 @@ def xls_generate_documentation(
         codelink_format = codelink_format,
         strip_prefix = strip_prefix,
         generate_documentation_proto = ":generate_documentation_proto_bin_for_%s" % name,
+        template = template,
         tags = tags,
         **kwargs
     )

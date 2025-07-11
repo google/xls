@@ -68,6 +68,7 @@ xls_generate_documentation(
         "noasan",
         "nomsan",
     ],  # Requirements on libcxx being explicit in include path.
+    template = "passes.md.tmpl",
 )
 
 _DOC_PREFIX = ""
@@ -187,12 +188,10 @@ cc_library(
 py_binary(
     name = "generate_documentation_md",
     srcs = ["generate_documentation_md.py"],
-    data = [":passes.md.tmpl"],
     deps = [
         ":pass_documentation_py_pb2",
         requirement("Jinja2"),
         requirement("MarkupSafe"),
-        "//xls/common:runfiles",
         "//xls/passes:optimization_pass_pipeline_py_pb2",
         "@abseil-py//absl:app",
         "@abseil-py//absl/flags",
