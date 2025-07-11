@@ -374,12 +374,13 @@ fn msb_test() {
     assert_eq(u1:1, msb(s2:0b11));
 }
 
-
 // Returns the R LSbs of x.
 // `x` must be at least R bits wide.
-pub fn lsbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> xN[S][R] {
-  const_assert!(N >= R);
-  (x as uN[N])[0 +: xN[S][R]] as xN[S][R]
+// A signed value is returned as an unsigned value, as the sign bit has (presumably) been
+// discarded.
+pub fn lsbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> uN[R] {
+    const_assert!(N >= R);
+    (x as uN[N])[0+:uN[R]]
 }
 
 #[test]
@@ -388,16 +389,16 @@ fn lsbs_test() {
     assert_eq(lsbs<u32:2>(u3:5), u2:1);
     assert_eq(lsbs<u32:3>(u5:30), u3:6);
 
-    assert_eq(lsbs<u32:1>(s2:1), s1:-1);
-    assert_eq(lsbs<u32:2>(s3:-3), s2:1);
-    assert_eq(lsbs<u32:3>(s5:-2), s3:-2);
+    assert_eq(lsbs<u32:1>(s2:1), u1:1);
+    assert_eq(lsbs<u32:2>(s3:-3), u2:1);
+    assert_eq(lsbs<u32:3>(s5:-2), u3:6);
 }
 
 // Returns the R MSbs of x.
 // `x` must be at least R bits wide.
 pub fn msbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> xN[S][R] {
-  const_assert!(N >= R);
-  (x as uN[N])[(N - R) +: xN[S][R]] as xN[S][R]
+    const_assert!(N >= R);
+    (x as uN[N])[(N - R)+:xN[S][R]] as xN[S][R]
 }
 
 #[test]
@@ -415,8 +416,7 @@ fn msbs_test() {
 // bits).
 //
 // This function ensures that all bits of the argument are used.
-pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}>
-    (x: bits[X]) -> (bits[Y], bits[N]) {
+pub fn split_lsbs<N: u32, X: u32, Y: u32 = {X - N}>(x: bits[X]) -> (bits[Y], bits[N]) {
     // Can't split more bits than exist
     const_assert!(N <= X);
 
@@ -447,12 +447,11 @@ fn prop_split_lsbs(n: uN[4], o: uN[3]) -> bool {
 // bits).
 //
 // This function ensures that all bits of the argument are used.
-pub fn split_msbs<N: u32, X: u32, Z: u32 = {X - N}>
-    (x: bits[X]) -> (bits[N], bits[Z]) {
+pub fn split_msbs<N: u32, X: u32, Z: u32 = {X - N}>(x: bits[X]) -> (bits[N], bits[Z]) {
     // Can't split more bits than exist
     const_assert!(N <= X);
 
-    const FROM_START: s32 = {Z as s32};
+    const FROM_START: s32 = { Z as s32 };
 
     let msbs = x[FROM_START:];
     let lsbs = x[0:FROM_START];

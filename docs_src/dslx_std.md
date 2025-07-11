@@ -935,15 +935,18 @@ Extracts the MSb (Most Significant bit) from the value `x` and returns it.
 #### `std::lsbs`
 
 ```dslx-snippet
-pub fn lsbs<R: u32, N: u32>(x: uN[N]) -> uN[R]
+pub fn lsbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> uN[R]
 ```
 
-Returns the R LSbs of x. `x` must be at least R bits wide.
+Returns the R LSbs of x.
+`x` must be at least R bits wide.
+A signed value is returned as an unsigned value, as the sign bit has (presumably) been
+discarded.
 
 #### `std::msbs`
 
 ```dslx-snippet
-pub fn msbs<R: u32, N: u32>(x: uN[N]) -> uN[R]
+pub fn msbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> xN[S][R]
 ```
 
 Returns the R MSbs of x. `x` must be at least R bits wide.
