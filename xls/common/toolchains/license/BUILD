@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This is to avoid pulling in extra bzl libraries when setting up the toolchain.
+
+load("@rules_license//rules:license.bzl", "license")
+
 package(
-    # Avoid base BUILD file since it pulls in extra things.
-    default_applicable_licenses = ["//xls/common/toolchains/license:license"],
+    default_applicable_licenses = [":license"],
     default_visibility = ["//visibility:public"],
     licenses = ["notice"],  # Apache 2.0
 )
 
-toolchain_type(name = "toolchain_type")
-
-toolchain(
-    name = "xls_default_configuration_toolchain",
-    toolchain = "//xls/common/toolchains/config:default_configuration",
-    toolchain_type = ":toolchain_type",
+license(
+    name = "license",
+    package_name = "xls",
 )
