@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# @rules_cc//cc:cc_binary.bzl
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("//xls/build_rules:xls_dslx_rules.bzl", "xls_dslx_to_verilog_package")
 
