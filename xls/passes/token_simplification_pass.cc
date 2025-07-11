@@ -16,11 +16,18 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
@@ -33,34 +40,6 @@
 namespace xls {
 
 namespace {
-
-// Find all token-containing nodes that the given node transitively depends on.
-absl::flat_hash_set<Node*> DependenciesOf(Node* root) {
-  std::vector<Node*> stack;
-  stack.push_back(root);
-  absl::flat_hash_set<Node*> discovered;
-  while (!stack.empty()) {
-    Node* popped = stack.back();
-    stack.pop_back();
-    if (!TypeHasToken(popped->GetType())) {
-      continue;
-    }
-    if (!discovered.contains(popped)) {
-      discovered.insert(popped);
-
-      if (popped->Is<Invoke>()) {
-        // Disregard any dependencies that pass through Invoke nodes; we can't
-        // tell whether the function invocation necessarily establishes a
-        // dependency chain from all of its inputs to all of its outputs.
-        continue;
-      }
-      for (Node* child : popped->operands()) {
-        stack.push_back(child);
-      }
-    }
-  }
-  return discovered;
-}
 
 absl::StatusOr<bool> SimplifyTrivialMinDelay(MinDelay* node) {
   // MinDelay(x, delay=0) = x
@@ -223,37 +202,94 @@ absl::StatusOr<bool> CollapseAfterAll(AfterAll* node) {
   return changed;
 }
 
-absl::StatusOr<bool> ReplaceOverlappingAfterAll(AfterAll* node) {
-  // If x depends on y, AfterAll([…, x, …, y, …]) = AfterAll([…, x, …, x, …])
-
+// If x depends on y, AfterAll([…, x, …, y, …]) = AfterAll([…, x, …, x, …])
+//
+// This function is invoked on x to transform the AfterAll() nodes for which it
+// is an operand.
+//
+// NOTE: We do not find transitive dependencies through Invoke nodes, since it
+// can't tell which outputs have dependency chains to which inputs. By skipping
+// those, this is a more conservative optimization, and is safe to run even
+// before function inlining; it just may miss some optimization opportunities.
+// Rerunning the pass after function inlining will clean up any of these
+// opportunities that remain.
+//
+// In particular, if we assumed Invoke nodes created dependencies from all of
+// their inputs to their output, we would accidentally treat the Invoke node's
+// output as overlapping with all of its input tokens, which could cause us to
+// remove the only path from a side-effecting op's token to the sink... but IR
+// verification couldn't catch the mistake until after function inlining, since
+// the verification logic also treats functions as opaque. (See the CL that
+// introduced this comment for how this could cause important problems.)
+//
+// Perhaps surprisingly, we've observed this transformation as being a
+// significant contributor to runtime for large designs. As a performance
+// optimization, we take a mapping of nodes to their index in a topo sort. This
+// gives us a cheap test to determine if the node we're considering could
+// possibly be an intermediate node to a relevant after_all. In practice, this
+// seems to be more performant than e.g. computing the transitive closure on
+// token-typed nodes' dependencies. If you see this function in a profile, file
+// an issue as it might be worth revisiting this in the future.
+absl::StatusOr<bool> ReplaceOverlappingAfterAll(
+    Node* node, const absl::flat_hash_map<Node*, int32_t>& topo_sort_index) {
   bool changed = false;
-  for (int64_t i = 0; i < node->operand_count(); ++i) {
-    Node* operand = node->operand(i);
 
-    // NOTE: `DependenciesOf` does not find transitive dependencies through
-    // Invoke nodes, since it can't tell which outputs have dependency chains to
-    // which inputs. By skipping those, this is a more conservative
-    // optimization, and is safe to run even before function inlining; it just
-    // may miss some optimization opportunities. Rerunning the pass after
-    // function inlining will clean up any of these opportunities that remain.
-    //
-    // In particular, if we assumed Invoke nodes created dependencies from all
-    // of their inputs to their output, we would accidentally treat the Invoke
-    // node's output as overlapping with all of its input tokens, which could
-    // cause us to remove the only path from a side-effecting op's token to the
-    // sink... but IR verification couldn't catch the mistake until after
-    // function inlining, since the verification logic also treats functions as
-    // opaque. (See the CL that introduced this comment for how this could
-    // cause important problems.)
-    absl::flat_hash_set<Node*> deps = DependenciesOf(operand);
-    for (int64_t j = 0; j < node->operand_count(); ++j) {
-      Node* other_operand = node->operand(j);
-      if (deps.contains(other_operand) && operand != other_operand) {
-        XLS_RETURN_IF_ERROR(node->ReplaceOperandNumber(j, operand));
-        changed = true;
-      }
+  auto can_analyze = [](Node* n) {
+    return !n->Is<Invoke>() && TypeHasToken(n->GetType());
+  };
+
+  // These should only contain nodes for which can_analyze is true.
+  std::vector<Node*> worklist;
+  absl::flat_hash_set<Node*> visited;
+
+  bool saw_after_all = false;
+  // We only consider updating users of node that are after_all nodes.
+  // We record the last topo sort index of node's after_all users so that we can
+  // avoid looking at other transitive users later in the topo sort.
+  int32_t last_topo_sort_index = -1;
+  for (Node* child : node->users()) {
+    if (child->Is<AfterAll>()) {
+      saw_after_all = true;
+      last_topo_sort_index =
+          std::max(last_topo_sort_index, topo_sort_index.at(child));
+    }
+    if (can_analyze(child)) {
+      absl::c_copy_if(child->users(), std::back_inserter(worklist),
+                      can_analyze);
     }
   }
+  if (!saw_after_all) {
+    return false;
+  }
+
+  while (!worklist.empty()) {
+    Node* user = worklist.back();
+    worklist.pop_back();
+    DCHECK(can_analyze(user));
+    if (topo_sort_index.at(user) > last_topo_sort_index) {
+      // user can't possibly be a transitive operand of one of node's after_all
+      // users, so we can skip it.
+      continue;
+    }
+    auto [_, inserted] = visited.insert(user);
+    if (!inserted) {
+      continue;
+    }
+    if (user->Is<AfterAll>() && node->HasUser(user)) {
+      absl::Span<Node* const> operands = user->operands();
+      // It doesn't matter which operand we replace node with, so just pick one.
+      auto iter = absl::c_find_if(
+          operands, [node](Node* const operand) { return operand != node; });
+      XLS_RET_CHECK(iter != operands.end());
+      VLOG(5) << "Replacing " << node->ToString() << " with "
+              << (*iter)->ToString() << " in " << user->ToString();
+      XLS_RET_CHECK(user->ReplaceOperand(node, *iter));
+      changed = true;
+    } else {
+      absl::c_copy_if(user->users(), std::back_inserter(worklist), can_analyze);
+    }
+  }
+
   return changed;
 }
 
@@ -344,13 +380,21 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     changed = changed || subpass_changed;
   }
 
-  for (Node* node : context.TopoSort(f)) {
-    if (!node->Is<AfterAll>()) {
-      continue;
+  {
+    std::vector<Node*> topo_sort = context.TopoSort(f);
+    absl::flat_hash_map<Node*, int32_t> topo_sort_index;
+    topo_sort_index.reserve(topo_sort.size());
+    for (int32_t i = 0; i < topo_sort.size(); ++i) {
+      topo_sort_index[topo_sort[i]] = i;
     }
-    XLS_ASSIGN_OR_RETURN(bool subpass_changed,
-                         ReplaceOverlappingAfterAll(node->As<AfterAll>()));
-    changed = changed || subpass_changed;
+    for (Node* node : topo_sort) {
+      if (node->Is<Invoke>() || !TypeHasToken(node->GetType())) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(bool subpass_changed,
+                           ReplaceOverlappingAfterAll(node, topo_sort_index));
+      changed = changed || subpass_changed;
+    }
   }
 
   for (Node* node : context.TopoSort(f)) {
