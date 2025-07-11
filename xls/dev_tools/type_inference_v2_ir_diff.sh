@@ -19,17 +19,19 @@
 bazel build -c opt //xls/dslx/ir_convert:ir_converter_main
 bazel build -c opt //xls/dev_tools:remove_identifiers_main
 WORKSPACE_ROOT=$(p4 g4d)
-for i in $(find $1 -name "*.x" | sort);
+dir=$1
+shift 1
+for dslx_file in $(find $dir -name "*.x" | sort);
 do
   fail=0
   echo "Checking" $i
-  a=$($WORKSPACE_ROOT/bazel-bin/xls/dslx/ir_convert/ir_converter_main $i 2> >(head -n 5))
+  a=$($WORKSPACE_ROOT/bazel-bin/xls/dslx/ir_convert/ir_converter_main $dslx_file $@ 2> >(head -n 5))
   if (( $? )); then
     echo "$a"
     echo "File failed to compile under type system v1"
     fail=1
   fi
-  b=$($WORKSPACE_ROOT/bazel-bin/xls/dslx/ir_convert/ir_converter_main $i --type_inference_v2 2> >(head -n 5))
+  b=$($WORKSPACE_ROOT/bazel-bin/xls/dslx/ir_convert/ir_converter_main $dslx_file $@ --type_inference_v2=true 2> >(head -n 5))
   if (( $? )); then
     echo "$b"
     echo "File failed to compile under type system v2"
