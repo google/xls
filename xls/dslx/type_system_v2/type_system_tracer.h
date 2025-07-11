@@ -25,6 +25,7 @@
 #include "absl/functional/any_invocable.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 
@@ -60,6 +61,7 @@ class TypeSystemTrace {
   TypeSystemTrace& operator=(TypeSystemTrace&) = delete;
 
   void SetResult(const TypeAnnotation* annotation);
+  void SetResult(const InterpValue& value);
   void SetUsedCache(bool value);
   void SetPopulatedCache(bool value);
 
@@ -105,6 +107,8 @@ class TypeSystemTracer {
       const absl::flat_hash_set<const ParametricBinding*>& bindings) = 0;
   virtual TypeSystemTrace TraceEvaluate(
       std::optional<const ParametricContext*> context, const Expr* expr) = 0;
+  virtual TypeSystemTrace TraceCollectConstants(
+      std::optional<const ParametricContext*> context, const AstNode* node) = 0;
   virtual TypeSystemTrace TraceConcretize(const TypeAnnotation* annotation) = 0;
   virtual TypeSystemTrace TraceUnroll(const AstNode* node) = 0;
 

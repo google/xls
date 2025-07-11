@@ -38,6 +38,7 @@
 #include "xls/common/indent.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_filter.h"
 
@@ -53,6 +54,7 @@ enum class TraceKind : uint8_t {
   kConvertInvocation,
   kInferImplicitParametrics,
   kEvaluate,
+  kCollectConstants,
   kConcretize,
   kUnroll,
   kFilter
@@ -71,6 +73,7 @@ struct TypeSystemTraceImpl {
   std::optional<std::vector<const TypeAnnotation*>> annotations;
   std::optional<absl::flat_hash_set<const ParametricBinding*>> bindings;
   std::optional<const TypeAnnotation*> result_annotation;
+  std::optional<InterpValue> result_value;
   std::optional<bool> used_cache;
   std::optional<bool> populated_cache;
 };
@@ -93,6 +96,8 @@ std::string TraceKindToString(TraceKind kind) {
       return "InferImplicitParametrics";
     case TraceKind::kEvaluate:
       return "Evaluate";
+    case TraceKind::kCollectConstants:
+      return "CollectConstants";
     case TraceKind::kConcretize:
       return "Concretize";
     case TraceKind::kUnroll:
@@ -146,6 +151,9 @@ std::string TraceImplToString(const TypeSystemTraceImpl& impl) {
   if (impl.result_annotation.has_value()) {
     pieces.push_back(
         absl::StrCat("result: ", (*impl.result_annotation)->ToString()));
+  }
+  if (impl.result_value.has_value()) {
+    pieces.push_back(absl::StrCat("value: ", (*impl.result_value).ToString()));
   }
   if (impl.used_cache.has_value()) {
     pieces.push_back(absl::StrCat("used_global_cache: ", *impl.used_cache));
@@ -236,6 +244,15 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kEvaluate,
                                      .node = expr,
+                                     .parametric_context = parametric_context});
+  }
+
+  TypeSystemTrace TraceCollectConstants(
+      std::optional<const ParametricContext*> parametric_context,
+      const AstNode* node) override {
+    return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
+                                     .kind = TraceKind::kCollectConstants,
+                                     .node = node,
                                      .parametric_context = parametric_context});
   }
 
@@ -411,6 +428,11 @@ class NoopTracer final : public TypeSystemTracer {
     return Noop();
   }
 
+  TypeSystemTrace TraceCollectConstants(
+      std::optional<const ParametricContext*> context, const AstNode*) final {
+    return Noop();
+  }
+
   TypeSystemTrace TraceConcretize(const TypeAnnotation* annotation) final {
     return Noop();
   }
@@ -437,6 +459,10 @@ std::unique_ptr<TypeSystemTracer> TypeSystemTracer::Create(bool active) {
 
 void TypeSystemTrace::SetResult(const TypeAnnotation* annotation) {
   impl_->result_annotation = annotation;
+}
+
+void TypeSystemTrace::SetResult(const InterpValue& value) {
+  impl_->result_value = value;
 }
 
 void TypeSystemTrace::SetUsedCache(bool value) { impl_->used_cache = value; }

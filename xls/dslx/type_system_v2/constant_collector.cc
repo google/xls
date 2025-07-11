@@ -67,7 +67,7 @@ class Visitor : public AstNodeVisitorWithDefault {
           ParametricStructInstantiator& parametric_struct_instantiator,
           TypeSystemTracer& tracer,
           std::optional<const ParametricContext*> parametric_context,
-          const Type& type, TypeInfo* ti)
+          const Type& type, TypeInfo* ti, TypeSystemTrace trace)
       : table_(table),
         module_(module),
         import_data_(import_data),
@@ -79,7 +79,8 @@ class Visitor : public AstNodeVisitorWithDefault {
         tracer_(tracer),
         parametric_context_(parametric_context),
         type_(type),
-        ti_(ti) {}
+        ti_(ti),
+        trace_(std::move(trace)) {}
 
   absl::Status HandleConstantDef(const ConstantDef* constant_def) override {
     VLOG(6) << "Checking constant def value: " << constant_def->ToString()
@@ -90,6 +91,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     if (value.ok()) {
       VLOG(6) << "Constant def: " << constant_def->ToString()
               << " has value: " << value->ToString();
+      trace_.SetResult(*value);
       ti_->NoteConstExpr(constant_def, *value);
       ti_->NoteConstExpr(constant_def->value(), *value);
       ti_->NoteConstExpr(constant_def->name_def(), *value);
@@ -103,6 +105,7 @@ class Visitor : public AstNodeVisitorWithDefault {
 
     XLS_ASSIGN_OR_RETURN(InterpValue value, MakeZeroValue(type_, import_data_,
                                                           zero_macro->span()));
+    trace_.SetResult(value);
     ti_->NoteConstExpr(zero_macro, value);
     return absl::OkStatus();
   }
@@ -114,6 +117,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         MakeAllOnesValue(type_, import_data_, all_ones_macro->span()));
+    trace_.SetResult(value);
     ti_->NoteConstExpr(all_ones_macro, value);
     return absl::OkStatus();
   }
@@ -122,7 +126,9 @@ class Visitor : public AstNodeVisitorWithDefault {
     if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
       const NameDef* name_def = std::get<const NameDef*>(name_ref->name_def());
       if (ti_->IsKnownConstExpr(name_def)) {
-        ti_->NoteConstExpr(name_ref, *ti_->GetConstExprOption(name_def));
+        InterpValue value = *ti_->GetConstExprOption(name_def);
+        trace_.SetResult(value);
+        ti_->NoteConstExpr(name_ref, value);
       }
     }
     return absl::OkStatus();
@@ -136,6 +142,7 @@ class Visitor : public AstNodeVisitorWithDefault {
           &import_data_, ti_, &warning_collector_,
           table_.GetParametricEnv(parametric_context_), colon_ref);
       if (value.ok()) {
+        trace_.SetResult(*value);
         ti_->NoteConstExpr(colon_ref, *value);
       }
       return absl::OkStatus();
@@ -156,6 +163,7 @@ class Visitor : public AstNodeVisitorWithDefault {
           converter_.GetTypeInfo((*enum_value)->owner(), parametric_context_));
       XLS_ASSIGN_OR_RETURN(InterpValue value,
                            eval_ti->GetConstExpr(*enum_value));
+      trace_.SetResult(value);
       ti_->NoteConstExpr(colon_ref, value);
       return absl::OkStatus();
     }
@@ -175,6 +183,7 @@ class Visitor : public AstNodeVisitorWithDefault {
             InterpValueWithTypeAnnotation member,
             GetBuiltinMember(module_, is_signed, bit_count, colon_ref->attr(),
                              colon_ref->span(), type_.ToString(), file_table_));
+        trace_.SetResult(member.value);
         ti_->NoteConstExpr(colon_ref, std::move(member.value));
       } else {
         VLOG(6) << "ColonRef has no constexpr value: " << colon_ref->ToString();
@@ -214,6 +223,7 @@ class Visitor : public AstNodeVisitorWithDefault {
       if (value.ok()) {
         VLOG(6) << "Noting constexpr for ColonRef: " << colon_ref->ToString()
                 << ", value: " << value->ToString();
+        trace_.SetResult(*value);
         ti_->NoteConstExpr(colon_ref, *value);
       }
     }
@@ -222,6 +232,7 @@ class Visitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleNumber(const Number* number) override {
     XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(*number, type_));
+    trace_.SetResult(value);
     ti_->NoteConstExpr(number, value);
     return absl::OkStatus();
   }
@@ -243,6 +254,7 @@ class Visitor : public AstNodeVisitorWithDefault {
     } else if (!value.ok()) {
       return absl::OkStatus();
     }
+    trace_.SetResult(*value);
     ti_->NoteConstExpr(let, *value);
     ti_->NoteConstExpr(let->rhs(), *value);
     const auto note_members =
@@ -468,6 +480,7 @@ class Visitor : public AstNodeVisitorWithDefault {
               table_.GetParametricEnv(parametric_context_),
               std::get<Expr*>(unrolled_statements.back()->wrapped()));
       if (const_result.ok()) {
+        trace_.SetResult(*const_result);
         ti_->NoteConstExpr(unroll_for, *const_result);
       }
     }
@@ -526,8 +539,12 @@ class Visitor : public AstNodeVisitorWithDefault {
     std::optional<const Type*> callee_type = ti_->GetItem(invocation->callee());
     if (callee_type.has_value()) {
       const auto& function_type = (*callee_type)->AsFunction();
-      return NoteBuiltinInvocationConstExpr(callee_nameref->identifier(),
-                                            invocation, function_type, ti_);
+      XLS_RETURN_IF_ERROR(NoteBuiltinInvocationConstExpr(
+          callee_nameref->identifier(), invocation, function_type, ti_));
+      std::optional<InterpValue> value = ti_->GetConstExprOption(invocation);
+      if (value.has_value()) {
+        trace_.SetResult(*value);
+      }
     }
     return absl::OkStatus();
   }
@@ -537,6 +554,7 @@ class Visitor : public AstNodeVisitorWithDefault {
         &import_data_, ti_, &warning_collector_,
         table_.GetParametricEnv(parametric_context_), expr);
     if (val.ok()) {
+      trace_.SetResult(*val);
       ti_->NoteConstExpr(expr, *val);
     }
     return absl::OkStatus();
@@ -555,6 +573,7 @@ class Visitor : public AstNodeVisitorWithDefault {
   std::optional<const ParametricContext*> parametric_context_;
   const Type& type_;
   TypeInfo* ti_;
+  TypeSystemTrace trace_;
 };
 
 class ConstantCollectorImpl : public ConstantCollector {
@@ -578,10 +597,12 @@ class ConstantCollectorImpl : public ConstantCollector {
   absl::Status CollectConstants(
       std::optional<const ParametricContext*> parametric_context,
       const AstNode* node, const Type& type, TypeInfo* ti) override {
+    TypeSystemTrace trace =
+        tracer_.TraceCollectConstants(parametric_context, node);
     Visitor visitor(table_, module_, import_data_, warning_collector_,
                     file_table_, converter_, evaluator_,
                     parametric_struct_instantiator_, tracer_,
-                    parametric_context, type, ti);
+                    parametric_context, type, ti, std::move(trace));
     return node->Accept(&visitor);
   }
 

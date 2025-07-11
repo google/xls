@@ -621,6 +621,7 @@ cc_library(
         ":inference_table",
         ":type_annotation_filter",
         "//xls/common:indent",
+        "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "@com_google_absl//absl/algorithm:container",
