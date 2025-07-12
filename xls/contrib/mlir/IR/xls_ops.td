@@ -98,6 +98,8 @@ defvar Xls_ScalarBit = I1;
 defvar Xls_Bit = AnyTypeOf<[Xls_ScalarBit,
                             StaticShapeTensorOf<[Xls_ScalarBit]>]>;
 defvar Xls_BitsOrTuple = AnyTypeOf<[Xls_Bits, NestedTupleOf<[Xls_Bits]>]>;
+defvar Xls_BitsOrTupleOrToken = AnyTypeOf<[
+  Xls_Bits, NestedTupleOf<[Xls_Bits]>, Xls_TokenType]>;
 
 // Base class for XLS dialect attributes.
 class Xls_Attr<string name, list<Trait> traits = []>
@@ -1794,10 +1796,10 @@ def Xls_NextValueOp : Xls_Op<"next_value", [Pure, SameVariadicOperandSize]> {
   }];
   let arguments = (ins
     Variadic<I1>:$predicates,
-    Variadic<Xls_BitsOrTuple>:$values
+    Variadic<Xls_BitsOrTupleOrToken>:$values
   );
   let results = (outs
-    Xls_BitsOrTuple:$result
+    Xls_BitsOrTupleOrToken:$result
   );
   let hasVerifier = true;
   let assemblyFormat = [{
