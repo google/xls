@@ -1,0 +1,27 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./fsm.x"
+
+chan arg0(bits[8], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+
+proc hw0_state_machine(implicit_token__receive_8: token, state_machine_state_machine_hw0_state_machine: bits[1], init={token, 0}) {
+ implicit_token__receive_8: token = state_read(state_element=implicit_token__receive_8, id=25)
+ state_machine_state_machine_hw0_state_machine: bits[1] = state_read(state_element=state_machine_state_machine_hw0_state_machine, id=80)
+ receive.8: (token, bits[8]) = receive(implicit_token__receive_8, predicate=state_machine_state_machine_hw0_state_machine, channel=arg0, id=8, pos=[(0,11,8)])
+ tuple_index.39: token = tuple_index(receive.8, index=0, id=39)
+ next_value.27: () = next_value(param=implicit_token__receive_8, value=tuple_index.39, predicate=state_machine_state_machine_hw0_state_machine, id=27, pos=[(0,11,8)])
+ literal.107: bits[1] = literal(value=1, id=107)
+ next_value.86: () = next_value(param=state_machine_state_machine_hw0_state_machine, value=literal.107, id=86)
+}
+
+// CHECK:      xls.chan @arg0 {send_supported = false} : i8
+// CHECK-NEXT: xls.eproc @hw0_state_machine(%[[ARG0:.*]]: !xls.token, %[[ARG1:.*]]: i1) zeroinitializer {
+// CHECK-NEXT:   %[[TKN_OUT:.*]], %[[RESULT:.*]] = xls.blocking_receive %[[ARG0]], %[[ARG1]], @arg0 : i8
+// CHECK-NEXT:   %[[TUPLE:.*]] = "xls.tuple"(%[[TKN_OUT]], %[[RESULT]]) : (!xls.token, i8) -> tuple<!xls.token, i8>
+// CHECK-NEXT:   %[[TUPLE_INDEX:.*]] = "xls.tuple_index"(%[[TUPLE]]) <{index = 0 : i64}> : (tuple<!xls.token, i8>) -> !xls.token
+// CHECK-NEXT:   %[[CONST:.*]] = "xls.constant_scalar"() <{value = true}> : () -> i1
+// CHECK-NEXT:   %[[NEXT:.*]] = xls.next_value [%[[ARG1]], %[[TUPLE_INDEX]]] : (!xls.token) -> !xls.token
+// CHECK-NEXT:   xls.yield %[[NEXT]], %[[CONST]] : !xls.token, i1
+// CHECK-NEXT: }
