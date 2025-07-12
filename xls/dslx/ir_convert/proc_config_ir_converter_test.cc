@@ -162,8 +162,10 @@ proc main {
                        HasSubstr("not found in arg mapping")));
 }
 
+// TODO: https://github.com/google/xls/issues/2078 - Re-enable this test after
+// proc-scoped channels can be natively generated.
 TEST(ProcConfigIrConverterTest,
-     ConvertsParametricExpressionForInternalChannelFifoDepth) {
+     DISABLED_ConvertsParametricExpressionForInternalChannelFifoDepth) {
   constexpr std::string_view kModule = R"(
 proc passthrough {
   c_in: chan<u32> in;
@@ -226,8 +228,10 @@ proc main {
   EXPECT_EQ(down_cast<StreamingChannel*>(channel)->GetFifoDepth(), 7);
 }
 
+// TODO: https://github.com/google/xls/issues/2078 - Re-enable this test after
+// proc-scoped channels can be natively generated.
 TEST(ProcConfigIrConverterTest,
-     ConvertMultipleInternalChannelsWithSameNameInSameProc) {
+     DISABLED_ConvertMultipleInternalChannelsWithSameNameInSameProc) {
   constexpr std::string_view kModule = R"(
 proc main {
   c_in: chan<u32> in;
@@ -270,7 +274,9 @@ proc main {
                     Contains(m::Channel("my_chan__1"))));
 }
 
-TEST(ProcConfirIrConverterTest, ChannelArrayDestructureWithWildcard) {
+// TODO: https://github.com/google/xls/issues/2078 - Re-enable this test after
+// proc-scoped channels can be natively generated.
+TEST(ProcConfigIrConverterTest, DISABLED_ChannelArrayDestructureWithWildcard) {
   constexpr std::string_view kModule = R"(
   proc SomeProc {
       some_chan_array: chan<u32>[4] in;
@@ -303,7 +309,10 @@ TEST(ProcConfirIrConverterTest, ChannelArrayDestructureWithWildcard) {
                                    m::Channel("the_chan_array__3")));
 }
 
-TEST(ProcConfirIrConverterTest, ChannelArrayDestructureWithRestOfTuple) {
+// TODO: https://github.com/google/xls/issues/2078 - Re-enable this test after
+// proc-scoped channels can be natively generated.
+TEST(ProcConfigIrConverterTest,
+     DISABLED_ChannelArrayDestructureWithRestOfTuple) {
   constexpr std::string_view kModule = R"(
   proc SomeProc {
       some_chan_array: chan<u32>[4] in;
@@ -336,7 +345,9 @@ TEST(ProcConfirIrConverterTest, ChannelArrayDestructureWithRestOfTuple) {
                                    m::Channel("the_chan_array__3")));
 }
 
-TEST(ProcConfigIrConverterTest, DealOutChannelArrayElementsToSpawnee) {
+// TODO: https://github.com/google/xls/issues/2078 - Re-enable this test after
+// proc-scoped channels can be natively generated.
+TEST(ProcConfigIrConverterTest, DISABLED_DealOutChannelArrayElementsToSpawnee) {
   constexpr std::string_view kModule = R"(
   proc B {
     input: chan<u32> in;
