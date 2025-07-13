@@ -214,6 +214,24 @@ struct xls_dslx_type_alias* xls_dslx_module_member_get_type_alias(
   return reinterpret_cast<xls_dslx_type_alias*>(cpp_type_alias);
 }
 
+struct xls_dslx_function* xls_dslx_module_member_get_function(
+    struct xls_dslx_module_member* member) {
+  auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
+  auto* cpp_function = std::get<xls::dslx::Function*>(*cpp_member);
+  return reinterpret_cast<xls_dslx_function*>(cpp_function);
+}
+
+bool xls_dslx_function_is_parametric(struct xls_dslx_function* fn) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  return cpp_function->IsParametric();
+}
+
+char* xls_dslx_function_get_identifier(struct xls_dslx_function* fn) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  const std::string& result = cpp_function->identifier();
+  return xls::ToOwnedCString(result);
+}
+
 int64_t xls_dslx_module_get_type_definition_count(
     struct xls_dslx_module* module) {
   auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);

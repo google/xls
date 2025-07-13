@@ -72,6 +72,7 @@ struct xls_dslx_type_info;
 struct xls_dslx_type;
 struct xls_dslx_type_annotation;
 struct xls_dslx_constant_def;
+struct xls_dslx_function;
 
 struct xls_dslx_import_data* xls_dslx_import_data_create(
     const char* dslx_stdlib_path, const char* additional_search_paths[],
@@ -107,6 +108,15 @@ struct xls_dslx_enum_def* xls_dslx_module_member_get_enum_def(
 
 struct xls_dslx_type_alias* xls_dslx_module_member_get_type_alias(
     struct xls_dslx_module_member*);
+
+struct xls_dslx_function* xls_dslx_module_member_get_function(
+    struct xls_dslx_module_member*);
+
+// Returns whether the given DSLX function is parametric.
+bool xls_dslx_function_is_parametric(struct xls_dslx_function*);
+
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_function_get_identifier(struct xls_dslx_function*);
 
 int64_t xls_dslx_module_get_type_definition_count(
     struct xls_dslx_module* module);
