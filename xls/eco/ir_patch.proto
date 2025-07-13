@@ -22,6 +22,9 @@ message ArgumentProto {
     bool blocking = 6;
     string channel = 7;
     bool has_default_value = 8;
+    string state_element = 9;
+    xls.ValueProto init = 10;
+    bool assumed_in_bounds = 11;
   }
 }
 message NodeProto {
