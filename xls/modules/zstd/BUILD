@@ -1640,7 +1640,11 @@ ZSTD_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
 
 xls_dslx_verilog(
     name = "zstd_dec_verilog",
-    codegen_args = ZSTD_DEC_CODEGEN_ARGS,
+    codegen_args = ZSTD_DEC_CODEGEN_ARGS | {
+        # enable asserts without turning whole SystemVerilog codegen on (as it causes issues with yosys and iverilog)
+        # NOTE: to avoid duplicated labels, we use them in errmsg rather than as actual verilog labels
+        "assert_format": "'assert property (@(posedge {clk}) disable iff ({rst}) {condition}) else $fatal(0, \"{message} (label: {label})\");'",
+    },
     dslx_top = "ZstdDecoderInst",
     library = ":zstd_dec_dslx",
     tags = ["manual"],
