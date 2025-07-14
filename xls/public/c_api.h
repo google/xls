@@ -207,6 +207,15 @@ int64_t xls_bits_get_bit_count(const struct xls_bits* bits);
 // `xls_c_str_free`.
 char* xls_bits_to_debug_string(const struct xls_bits* bits);
 
+// Returns a new bits value from the given bytes array. On success,
+// the result is saved in `bits_out` and the caller must free the
+// returned `bits_out` via `xls_bits_free`. If the conversion fails,
+// `error_out` is populated with an error message and the caller must free the
+// `error_out` pointer with `xls_c_str_free`.
+bool xls_bits_make_bits_from_bytes(size_t bit_count, const uint8_t* bytes,
+                                   size_t byte_count, char** error_out,
+                                   struct xls_bits** bits_out);
+
 // Helper routine for making an unsigned bits value using a value that fits in a
 // 64-bit word.
 //

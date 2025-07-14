@@ -441,6 +441,48 @@ struct xls_bits* xls_bits_rope_get_bits(struct xls_bits_rope* bits_rope) {
   return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(bits)));
 }
 
+bool xls_bits_make_bits_from_bytes(size_t bit_count, const uint8_t* bytes,
+                                   size_t byte_count, char** error_out,
+                                   struct xls_bits** bits_out) {
+  CHECK(bits_out != nullptr);
+  CHECK(error_out != nullptr);
+
+  *bits_out = nullptr;
+
+  if (bytes == nullptr) {
+    *error_out = xls::ToOwnedCString("bytes is null");
+    return false;
+  }
+
+  if (byte_count == 0) {
+    *error_out = xls::ToOwnedCString("byte_count is 0");
+    return false;
+  }
+
+  if (bit_count == 0) {
+    *error_out = xls::ToOwnedCString("bit_count is 0");
+    return false;
+  }
+
+  if (byte_count * 8 < byte_count) {
+    // detect int overflow
+    *error_out = xls::ToOwnedCString("byte_count is too large");
+    return false;
+  }
+
+  if (byte_count * 8 < bit_count) {
+    *error_out = xls::ToOwnedCString("byte_count*8 < bit_count");
+    return false;
+  }
+
+  xls::Bits* cpp_bits = new xls::Bits(
+      xls::Bits::FromBytes(absl::MakeSpan(bytes, byte_count), bit_count));
+
+  *bits_out = reinterpret_cast<struct xls_bits*>(cpp_bits);
+
+  return true;
+}
+
 bool xls_bits_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
                          struct xls_bits** bits_out) {
   CHECK(error_out != nullptr);

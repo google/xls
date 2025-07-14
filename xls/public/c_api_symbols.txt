@@ -5,6 +5,7 @@ xls_bits_eq
 xls_bits_free
 xls_bits_get_bit
 xls_bits_get_bit_count
+xls_bits_make_bits_from_bytes
 xls_bits_make_sbits
 xls_bits_make_ubits
 xls_bits_negate
