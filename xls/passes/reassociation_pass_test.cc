@@ -1340,6 +1340,21 @@ TEST_F(ReassociationPassTest, MulOverflow2) {
   EXPECT_EQ(MaxOpDepth({Op::kUMul}, f), 4);
 }
 
+TEST_F(ReassociationPassTest, SignExtendOfNegationOverflows) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x1 = fb.Param("x1", p->GetBitsType(4));
+  BValue x2 = fb.Param("x2", p->GetBitsType(8));
+  BValue neg_x1 = fb.Negate(x1);
+  BValue neg_x2 = fb.Negate(x2);
+  BValue extended_neg_x1 = fb.SignExtend(neg_x1, 8);
+  BValue should_be_zero = fb.Add(neg_x2, x2);
+  fb.Add(extended_neg_x1, should_be_zero);
+
+  XLS_ASSERT_OK(fb.Build().status());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 // Generates random IR, runs the ReassociationPass over it, plugs in parameters
 // into the non-reassociated IR and the reassociated IR, and verifies that the
 // results are the same.

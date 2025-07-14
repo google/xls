@@ -605,6 +605,13 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
       signed_result_ = AssociativeElements::MakeLeaf(op);
     } else {
       signed_result_ = base_signed.Negative().WithOwner(op);
+      // The negation of the min signed value overflows & ends up back at the
+      // min signed value; it no longer commutes with (e.g.) sign extension.
+      Node* operand = op->operand(0);
+      if (query_engine_.Covers(operand,
+                               Bits::MinSigned(operand->BitCountOrDie()))) {
+        signed_result_->SetOverflow();
+      }
     }
     const AssociativeElements& base_unsigned =
         GetOperandInfo(0, /*is_signed=*/false);
