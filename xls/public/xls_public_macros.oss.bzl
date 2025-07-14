@@ -19,6 +19,7 @@ This module is intended to be loaded by the xls/public/BUILD file.
 """
 
 # pytype tests are present in this file
+# @rules_cc//cc:cc_binary.bzl
 
 def libxls_dylib_binary(name = "libxls.dylib"):
     # Create a variant of the c_api_symbols.txt file that has leading
@@ -29,7 +30,6 @@ def libxls_dylib_binary(name = "libxls.dylib"):
         outs = ["c_api_symbols_underscores.txt"],
         cmd = "sed 's/^/_/' < $(location :c_api_symbols.txt) > $@",
     )
-
     native.cc_binary(
         name = name,
         additional_linker_inputs = [

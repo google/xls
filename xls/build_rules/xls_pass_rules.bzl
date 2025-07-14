@@ -14,6 +14,7 @@
 
 """This module contains the rules for defining xls passes."""
 
+# @rules_cc//cc:cc_library.bzl
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_cpp_toolchain")
 load(

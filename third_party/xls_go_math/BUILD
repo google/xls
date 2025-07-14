@@ -1,6 +1,8 @@
 # XLS libraries ported from Go math library.
 
 load("@rules_license//rules:license.bzl", "license")
+
+# @rules_cc//cc:cc_test.bzl
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",

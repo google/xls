@@ -13,6 +13,8 @@
 # limitations under the License.
 
 # pytype binary, test, library
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
 load("@rules_hdl//dependency_support/com_google_skywater_pdk:cells_info.bzl", "for_each_sky130_cells")
 load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells_info.bzl", "for_each_asap7_cells")
 load("@xls_pip_deps//:requirements.bzl", "requirement")

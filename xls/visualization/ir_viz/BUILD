@@ -15,6 +15,9 @@
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 # pytype binary and test
+# @rules_cc//cc:cc_binary.bzl
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
 load("@io_bazel_rules_closure//closure:defs.bzl", "closure_js_binary", "closure_js_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
