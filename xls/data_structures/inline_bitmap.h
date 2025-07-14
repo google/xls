@@ -69,7 +69,7 @@ class InlineBitmap {
                                 absl::Span<const uint8_t> bytes) {
     InlineBitmap result(bit_count, false);
     int64_t byte_count = CeilOfRatio(bit_count, int64_t{8});
-    CHECK_EQ(bytes.size(), byte_count) << "bit_count: " << bit_count;
+    CHECK_GE(bytes.size(), byte_count) << "bit_count: " << bit_count;
     // memcpy() requires valid pointers even when the number of bytes copied is
     // zero, and an empty absl::Span's data() pointer may not be valid. Guard
     // the memcpy with a check that the span is not empty.
