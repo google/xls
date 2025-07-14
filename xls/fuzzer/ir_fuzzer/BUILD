@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# @rules_cc//cc:cc_library.bzl
-# @rules_cc//cc:cc_test.bzl
 # Load proto_library
 # cc_proto_library is used in this file
 
@@ -123,12 +121,16 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:verifier",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",

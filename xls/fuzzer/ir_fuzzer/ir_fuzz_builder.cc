@@ -26,7 +26,7 @@ namespace xls {
 // and returns a valid IR object/BValue.
 BValue IrFuzzBuilder::BuildIr() {
   // Logs the FuzzProgramProto for debugging.
-  VLOG(3) << "1. Fuzz Program Proto:" << "\n"
+  VLOG(3) << "IR Fuzzer-1: Fuzz Program Proto:" << "\n"
           << fuzz_program_->DebugString() << "\n";
   // Converts the FuzzProgramProto instructions into a stack of BValues IR
   // nodes.
