@@ -59,5 +59,6 @@ if __name__ == "__main__":
       "--trace-fst", # trace in more space-efficient format than vcd
       "--trace-threads", "2", # 2 is maximum
       "-O3",
-      "--threads", str(cpu_count() - 2)
+      "--threads", str(cpu_count() - 2),
+      "--assert",
     ], sim="verilator")
