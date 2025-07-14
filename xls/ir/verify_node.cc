@@ -891,7 +891,7 @@ class NodeChecker : public DfsVisitor {
   absl::Status HandlePrioritySel(PrioritySelect* sel) override {
     if (sel->operand_count() < 2) {
       return absl::InternalError(absl::StrFormat(
-          "Expected %s to have at least 2 operands", sel->GetName()));
+          "Expected %s to have at least 3 operands", sel->GetName()));
     }
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(sel, /*operand_no=*/0));
     int64_t selector_width = sel->selector()->BitCountOrDie();
@@ -916,7 +916,8 @@ class NodeChecker : public DfsVisitor {
     // The default value should have the same type as the cases.
     if (Node* default_value = sel->default_value(); default_value != nullptr) {
       Type* default_value_type = default_value->GetType();
-      if (default_value_type != sel->GetType()) {
+      if (!sel->cases().empty() &&
+          default_value_type != sel->get_case(0)->GetType()) {
         return absl::InternalError(absl::StrFormat(
             "Default value must have the same type as the cases: %s != %s",
             sel->GetType()->ToString(), default_value_type->ToString()));
