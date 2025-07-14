@@ -39,9 +39,11 @@
 #include "llvm/include/llvm/ADT/StringExtras.h"
 #include "llvm/include/llvm/ADT/StringMap.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
+#include "llvm/include/llvm/ADT/StringSet.h"
 #include "llvm/include/llvm/ADT/Twine.h"
 #include "llvm/include/llvm/ADT/TypeSwitch.h"
 #include "llvm/include/llvm/Support/Casting.h"  // IWYU pragma: keep
+#include "llvm/include/llvm/Support/Debug.h"
 #include "llvm/include/llvm/Support/LogicalResult.h"
 #include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
@@ -68,6 +70,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
+#include "xls/contrib/mlir/tools/xls_translate/xls_translate_to_mlir.h"
 #include "xls/contrib/mlir/util/conversion_utils.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -83,6 +86,8 @@
 #include "xls/public/ir_parser.h"
 #include "xls/public/runtime_build_actions.h"
 #include "xls/tools/opt.h"
+
+#define DEBUG_TYPE "xls-translate-from-mlir"
 
 namespace mlir::xls {
 namespace {
@@ -484,6 +489,16 @@ BValue convertOp(TraceOp op, const TranslationState& state, BuilderBase& fb) {
   }
   return fb.Trace(state.getXlsValue(op.getTkn()), cond, args, op.getFormat(),
                   op.getVerbosity(), state.getLoc(op));
+}
+
+BValue convertOp(AssertOp op, const TranslationState& state, BuilderBase& fb) {
+  std::optional<std::string> label;
+  if (op.getLabel()) {
+    label = op.getLabel()->str();
+  }
+  return fb.Assert(state.getXlsValue(op.getTkn()),
+                   state.getXlsValue(op.getCondition()), op.getMessage(), label,
+                   state.getLoc(op));
 }
 
 // Tuple operations
@@ -1195,7 +1210,8 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
             // Debugging ops
             TraceOp,
             // Misc. side-effecting ops
-            GateOp>([&](auto t) { return convertOp(t, translation_state, fb); })
+            AssertOp, GateOp>(
+            [&](auto t) { return convertOp(t, translation_state, fb); })
         .Case<func::ReturnOp, YieldOp>([&](auto ret) {
           if (ret.getNumOperands() == 1) {
             return out = value_map[ret.getOperand(0)];
@@ -1781,6 +1797,27 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
         ::xls::tools::OptimizeIrForTop(package->get(), opt_options);
     if (!status.ok()) {
       llvm::errs() << "Failed to optimize IR: " << status.ToString() << "\n";
+      return failure();
+    }
+  }
+
+  // Verify that one can import the package back to MLIR.
+  {
+    std::string error;
+    llvm::raw_string_ostream diag_stream(error);
+    StringSet<> seen_errors;
+    mlir::ScopedDiagnosticHandler diag_handler(
+        op->getContext(), [&](::mlir::Diagnostic& diag) {
+          std::string diag_str = diag.str();
+          if (seen_errors.contains(diag_str)) {
+            return;
+          }
+          seen_errors.insert(diag_str);
+          diag_stream << diag << "\n";
+        });
+    auto reimported = XlsToMlirXlsTranslate(**package, op->getContext());
+    if (!reimported) {
+      llvm::errs() << "Failed to reimport: " << error << "\n";
       return failure();
     }
   }

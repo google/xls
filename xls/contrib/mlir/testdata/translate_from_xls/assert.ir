@@ -1,0 +1,11 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./assert.x"
+
+fn test_arithop(__token: token id=2504, or.2553: bits[1] id=1, b: bits[32] id=2) -> bits[32] {
+  // CHECK: xls.assert %arg0, %arg1, "Assertion failure", "some_label"
+  assert.2557: token = assert(__token, or.2553, message="Assertion failure", label="some_label", id=2557)
+  ret not.3: bits[32] = not(b, id=3)
+}

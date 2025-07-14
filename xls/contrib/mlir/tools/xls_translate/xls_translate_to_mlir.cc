@@ -33,6 +33,7 @@
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "mlir/include/mlir/IR/BuiltinTypes.h"
+#include "mlir/include/mlir/IR/Diagnostics.h"
 #include "mlir/include/mlir/IR/Location.h"
 #include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/OwningOpRef.h"
@@ -55,6 +56,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/public/ir_parser.h"
@@ -285,7 +287,12 @@ absl::StatusOr<Location> translateLoc(const ::xls::SourceInfo& xls_loc,
   for (auto loc : xls_loc.locations) {
     auto filename = state.getFileName(loc.fileno());
     if (!filename.ok()) {
-      return filename.status();
+      // Be tolerant of missing locations: there is currently missing file
+      // information markers when ran in pipelined manner.
+      mlir::emitWarning(builder.getUnknownLoc(),
+                        "failed to translate location: ")
+          << filename.status().message();
+      return builder.getUnknownLoc();
     }
     locs.push_back(FileLineColLoc::get(*filename, loc.fileno().value(),
                                        loc.colno().value()));
@@ -1268,6 +1275,31 @@ absl::StatusOr<Operation*> translateOp(::xls::Trace& node, OpBuilder& builder,
       builder.getI64IntegerAttr(node.verbosity()));
 }
 
+absl::StatusOr<Operation*> translateOp(::xls::Assert& node, OpBuilder& builder,
+                                       TranslationState& state) {
+  auto token = state.getMlirValue(node.token()->id());
+  if (!token.ok()) {
+    return token.status();
+  }
+
+  auto condition = state.getMlirValue(node.condition()->id());
+  if (!condition.ok()) {
+    return condition.status();
+  }
+
+  auto result_type = translateType(node.GetType(), builder);
+  auto loc = translateLoc(node.loc(), builder, state);
+  if (!loc.ok()) {
+    return loc.status();
+  }
+
+  return builder.create<xls::AssertOp>(
+      *loc, result_type, *token, *condition,
+      builder.getStringAttr(node.message()),
+      node.label().has_value() ? builder.getStringAttr(*node.label())
+                               : nullptr);
+}
+
 absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
                                           OpBuilder& builder,
                                           TranslationState& state) {
@@ -1340,6 +1372,8 @@ absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
     op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Trace*>(&xls_node)) {
     op = translateOp(*xls_op, builder, state);
+  } else if (auto* xls_op = dynamic_cast<::xls::Assert*>(&xls_node)) {
+    op = translateOp(*xls_op, builder, state);
   } else if (dynamic_cast<::xls::Param*>(&xls_node)) {
     return absl::InternalError(
         "Param not handeled during function translation.");
@@ -1349,7 +1383,6 @@ absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
   } else if (dynamic_cast<::xls::Next*>(&xls_node)) {
     return absl::InternalError("Next not handeled during proc translation.");
   } else if (dynamic_cast<::xls::Cover*>(&xls_node) ||
-             dynamic_cast<::xls::Assert*>(&xls_node) ||
              dynamic_cast<::xls::MinDelay*>(&xls_node) ||
              dynamic_cast<::xls::RegisterRead*>(&xls_node) ||
              dynamic_cast<::xls::RegisterWrite*>(&xls_node)) {
@@ -1425,7 +1458,7 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
 
   // Function body:
   Value return_value;
-  for (auto* n : xls_func.nodes()) {
+  for (auto* n : TopoSort(&xls_func)) {
     builder.setInsertionPointToEnd(body);
     if (n->Is<::xls::Param>()) {
       // Params have already been converted and added to func context.
@@ -1503,7 +1536,7 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
   absl::flat_hash_map<std::string, std::vector<::xls::Next*>> next_value_ops{};
 
   // Proc next:
-  for (auto n : xls_proc.nodes()) {
+  for (auto n : ::xls::TopoSort(&xls_proc)) {
     builder.setInsertionPointToEnd(body);
 
     // StateRead nodes give state elements an SSA identifier:
@@ -1663,7 +1696,7 @@ absl::Status translateChannel(::xls::Channel& xls_chn, OpBuilder& builder,
 // Package Translation
 //===----------------------------------------------------------------------===//
 
-absl::Status translatePackage(::xls::Package& xls_pkg, OpBuilder& builder,
+absl::Status translatePackage(const ::xls::Package& xls_pkg, OpBuilder& builder,
                               ModuleOp module) {
   TranslationState state;
 
@@ -1703,6 +1736,26 @@ absl::Status translatePackage(::xls::Package& xls_pkg, OpBuilder& builder,
   }
 
   return absl::OkStatus();
+}
+
+OwningOpRef<Operation*> XlsToMlirXlsTranslate(const ::xls::Package& package,
+                                              MLIRContext* ctx) {
+  OpBuilder builder(ctx);
+  Location loc = builder.getUnknownLoc();
+  // Employ simple heuristic of using the first file as the location of the
+  // module (if it exists).
+  if (auto name = package.GetFilename(::xls::Fileno(0)); name.has_value()) {
+    loc = FileLineColLoc::get(StringAttr::get(ctx, name.value()), /*line=*/0,
+                              /*column=*/0);
+  }
+  OwningOpRef<ModuleOp> module(ModuleOp::create(loc));
+  // Translate package from XLS IR to MLIR:
+  if (auto err = translatePackage(package, builder, module.get()); !err.ok()) {
+    mlir::emitError(loc, err.message());
+    return {};
+  }
+
+  return module;
 }
 
 OwningOpRef<Operation*> XlsToMlirXlsTranslate(llvm::SourceMgr& mgr,

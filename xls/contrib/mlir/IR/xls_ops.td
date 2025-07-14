@@ -2264,6 +2264,28 @@ def Xls_TraceOp : Xls_Op<"trace", [TensorArrayTypeFungible,
 // Other side-effecting operations
 //===----------------------------------------------------------------------===//
 
+def Xls_AssertOp : Xls_Op<"assert"> {
+  let summary = "assert";
+  let description = [{
+    Emits an assert event.
+
+    It takes a token, a condition, a message, and an optional label.
+    The assert triggers if the condition is false.
+  }];
+  let arguments = (ins
+    Xls_TokenType:$tkn,
+    I1:$condition,
+    StrAttr:$message,
+    OptionalAttr<StrAttr>:$label
+  );
+  let results = (outs
+    Xls_TokenType:$tkn_out
+  );
+  let assemblyFormat = [{
+    $tkn `,` $condition `,` $message (`,` $label^)? attr-dict
+  }];
+}
+
 def Xls_GateOp :
   Xls_Op<"gate", [
     ShapesAreConsistent<["data", "result"]>,
