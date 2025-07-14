@@ -14,6 +14,9 @@
 
 # Bytecode interpreter.
 
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
+
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],

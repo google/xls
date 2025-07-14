@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# @rules_cc//cc:cc_library.bzl
 load("//xls/build_rules:iverilog_test.bzl", "iverilog_test")
 
 package(

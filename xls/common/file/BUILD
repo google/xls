@@ -14,6 +14,8 @@
 
 # Common utilities for filesystem interaction shared among XLA subfolders.
 
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
 # Load proto_library
 # cc_proto_library is used in this file
 

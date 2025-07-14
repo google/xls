@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# @rules_cc//cc:cc_binary.bzl
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
 load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_library")
 load(
     "//xls/build_rules:xls_macros.bzl",

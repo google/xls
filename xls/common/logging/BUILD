@@ -15,6 +15,9 @@
 # Logging library that provides logging and assertion helpers and macros.
 
 # pytype tests are present in this file
+# @rules_cc//cc:cc_binary.bzl
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
 
 package(
     default_applicable_licenses = ["//:license"],

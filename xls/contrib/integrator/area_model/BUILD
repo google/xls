@@ -15,6 +15,8 @@
 # Delay models.
 
 # pytype binary only
+# @rules_cc//cc:cc_library.bzl
+# @rules_cc//cc:cc_test.bzl
 load("//xls/estimators/delay_model:build_defs.bzl", "delay_model")
 
 package(
