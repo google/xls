@@ -102,5 +102,7 @@ fn umulp<N: u32>(x: uN[N], y: uN[N]) -> (uN[N], uN[N]);
 
 fn widening_cast<DEST: type, SRC: type>(x: SRC) -> DEST;
 
+fn xor_reduce<N: u32>(x: uN[N]) -> u1;
+
 fn zip<LHS_TYPE: type, N: u32, RHS_TYPE: type>(lhs: LHS_TYPE[N], rhs: RHS_TYPE[N]) ->
     (LHS_TYPE, RHS_TYPE)[N];
