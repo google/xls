@@ -15,7 +15,7 @@
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_builder.h"
 
 #include "absl/log/log.h"
-#include "xls/fuzzer/ir_fuzzer/combine_stack.h"
+#include "xls/fuzzer/ir_fuzzer/combine_context_list.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/gen_ir_nodes_pass.h"
 #include "xls/ir/function_builder.h"
@@ -28,13 +28,13 @@ BValue IrFuzzBuilder::BuildIr() {
   // Logs the FuzzProgramProto for debugging.
   VLOG(3) << "IR Fuzzer-1: Fuzz Program Proto:" << "\n"
           << fuzz_program_->DebugString() << "\n";
-  // Converts the FuzzProgramProto instructions into a stack of BValues IR
-  // nodes.
-  GenIrNodesPass gen_ir_nodes_pass(fuzz_program_, p_, fb_, stack_);
+  // Converts the FuzzProgramProto instructions into a context list of BValues.
+  GenIrNodesPass gen_ir_nodes_pass(fuzz_program_, p_, fb_, context_list_);
   gen_ir_nodes_pass.GenIrNodes();
-  // Combines the stack of BValues into a single BValue.
-  BValue combined_stack = CombineStack(fuzz_program_, fb_, stack_);
-  return combined_stack;
+  // Combines the context list of BValues into a single BValue.
+  BValue combined_context_list =
+      CombineContextList(fuzz_program_, fb_, context_list_);
+  return combined_context_list;
 }
 
 }  // namespace xls
