@@ -72,6 +72,8 @@ struct xls_dslx_type_info;
 struct xls_dslx_type;
 struct xls_dslx_type_annotation;
 struct xls_dslx_constant_def;
+struct xls_dslx_quickcheck;
+struct xls_dslx_function;
 
 struct xls_dslx_import_data* xls_dslx_import_data_create(
     const char* dslx_stdlib_path, const char* additional_search_paths[],
@@ -107,6 +109,26 @@ struct xls_dslx_enum_def* xls_dslx_module_member_get_enum_def(
 
 struct xls_dslx_type_alias* xls_dslx_module_member_get_type_alias(
     struct xls_dslx_module_member*);
+
+// Returns the QuickCheck AST node from the given module member. The caller
+// should ensure the module member kind is
+// `xls_dslx_module_member_kind_quick_check`.
+struct xls_dslx_quickcheck* xls_dslx_module_member_get_quickcheck(
+    struct xls_dslx_module_member*);
+
+// Retrieves the underlying function associated with the given QuickCheck.
+struct xls_dslx_function* xls_dslx_quickcheck_get_function(
+    struct xls_dslx_quickcheck*);
+
+// Returns true iff the QuickCheck has the `exhaustive` test-cases specifier.
+bool xls_dslx_quickcheck_is_exhaustive(struct xls_dslx_quickcheck*);
+
+// Retrieves the test-case count for the QuickCheck. Returns true and sets
+// `*result_out` when the QuickCheck has a counted test-case specifier; returns
+// false when the QuickCheck is marked exhaustive (in which case
+// `*result_out` is not modified).
+bool xls_dslx_quickcheck_get_count(struct xls_dslx_quickcheck*,
+                                   int64_t* result_out);
 
 int64_t xls_dslx_module_get_type_definition_count(
     struct xls_dslx_module* module);

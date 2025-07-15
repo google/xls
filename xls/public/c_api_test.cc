@@ -2525,4 +2525,54 @@ top fn add(x: bits[32], y: bits[32]) -> bits[32] {
             "(lambda ((x (_ BitVec 32)) (y (_ BitVec 32))) (bvadd x y))");
 }
 
+// Tests that QuickCheck module members can be accessed and their properties
+// inspected via the C API.
+TEST(XlsCApiTest, DslxQuickCheckIntrospection) {
+  // A simple property test with an explicit test_count.
+  const std::string_view kProgram = R"(
+#[quickcheck(test_count=123)]
+fn prop(x: u8) -> bool {
+  x == x
+}
+)";
+
+  const char* additional_search_paths[] = {};
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [&] { xls_dslx_import_data_free(import_data); });
+
+  char* error = nullptr;
+  xls_dslx_typechecked_module* tm = nullptr;
+  bool ok = xls_dslx_parse_and_typecheck(kProgram.data(), "<test>", "top",
+                                         import_data, &error, &tm);
+  ASSERT_TRUE(ok) << "error: " << error;
+  absl::Cleanup free_tm([&] { xls_dslx_typechecked_module_free(tm); });
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  ASSERT_NE(module, nullptr);
+
+  int64_t member_count = xls_dslx_module_get_member_count(module);
+  ASSERT_EQ(member_count, 1);  // Only the QuickCheck member is present.
+
+  xls_dslx_module_member* member = xls_dslx_module_get_member(module, 0);
+  ASSERT_NE(member, nullptr);
+
+  // Retrieve the QuickCheck node.
+  xls_dslx_quickcheck* qc = xls_dslx_module_member_get_quickcheck(member);
+  ASSERT_NE(qc, nullptr);
+
+  // Inspect the associated function.
+  xls_dslx_function* fn = xls_dslx_quickcheck_get_function(qc);
+  EXPECT_NE(fn, nullptr);
+
+  // Inspect the test-cases specifier.
+  EXPECT_FALSE(xls_dslx_quickcheck_is_exhaustive(qc));
+  int64_t count = 0;
+  ASSERT_TRUE(xls_dslx_quickcheck_get_count(qc, &count));
+  EXPECT_EQ(count, 123);
+}
+
 }  // namespace
