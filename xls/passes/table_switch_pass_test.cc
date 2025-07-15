@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -1140,12 +1141,12 @@ fn main(x0: bits[2]) -> bits[2] {
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
 }
 
-void IrFuzzTableSwitch(const PackageAndTestParams& package_and_test_params) {
+void IrFuzzTableSwitch(PackageAndFuzzProgram package_and_fuzz_program) {
   TableSwitchPass pass;
-  OptimizationPassChangesOutputs(package_and_test_params, pass);
+  OptimizationPassChangesOutputs(std::move(package_and_fuzz_program),
+                                 /*arg_set_count=*/10, pass);
 }
-FUZZ_TEST(IrFuzzTest, IrFuzzTableSwitch)
-    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+FUZZ_TEST(IrFuzzTest, IrFuzzTableSwitch).WithDomains(IrFuzzDomain());
 
 }  // namespace
 }  // namespace xls

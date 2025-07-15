@@ -17,32 +17,111 @@
 
 #include <cstdint>
 #include <string>
-#include <string_view>
+#include <vector>
 
+#include "absl/random/random.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 // Generic helper functions used in the IR Fuzzer.
 
 namespace xls {
 
-// Used as a test name for Functions and Packages in GoogleTests.
-inline constexpr std::string_view kFuzzTestName = "FuzzTest";
+// A simple type enum. Used for specifying kinds of default values. Also used in
+// the context list to specify which list to use.
+enum TypeCase {
+  UNSET_CASE = 0,
+  BITS_CASE = 1,
+  TUPLE_CASE = 2,
+  ARRAY_CASE = 3,
+};
 
-BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width,
-                      WidthFittingMethodProto* width_fitting_method);
-BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width);
-BValue DecreaseBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width,
-                        DecreaseWidthMethod decrease_width_method);
-BValue IncreaseBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width,
-                        IncreaseWidthMethod increase_width_method);
+BValue Coerced(Package* p, FunctionBuilder* fb, BValue bvalue,
+               const CoercedTypeProto& coerced_type, Type* target_type);
+BValue CoercedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
+                   const BitsCoercedTypeProto& coerced_type, Type* target_type);
+BValue CoercedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
+                    const TupleCoercedTypeProto& coerced_type,
+                    Type* target_type);
+BValue CoercedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
+                    const ArrayCoercedTypeProto& coerced_type,
+                    Type* target_type);
 
-Bits ChangeBytesBitWidth(std::string bytes, int64_t bit_width);
+BValue Fitted(Package* p, FunctionBuilder* fb, BValue bvalue,
+              const CoercionMethodProto& coercion_method, Type* type);
+BValue FittedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
+                  const BitsCoercionMethodProto& coercion_method,
+                  Type* target_type);
+BValue FittedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
+                   const CoercionMethodProto& coercion_method,
+                   Type* target_type);
+BValue FittedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
+                   const CoercionMethodProto& coercion_method,
+                   Type* target_type);
+
+BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t new_bit_width,
+                      const ChangeBitWidthMethodProto& change_bit_width_method);
+BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue,
+                      int64_t new_bit_width);
+BValue DecreaseBitWidth(FunctionBuilder* fb, BValue bvalue,
+                        int64_t new_bit_width,
+                        const DecreaseWidthMethod& decrease_width_method);
+BValue IncreaseBitWidth(FunctionBuilder* fb, BValue bvalue,
+                        int64_t new_bit_width,
+                        const IncreaseWidthMethod& increase_width_method);
+
+BValue ChangeTupleSize(
+    FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+    const ChangeListSizeMethodProto& change_list_size_method);
+BValue DecreaseTupleSize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+                         const DecreaseSizeMethod& decrease_size_method);
+BValue IncreaseTupleSize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+                         const IncreaseSizeMethod& increase_size_method);
+
+BValue ChangeArraySize(
+    FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+    const ChangeListSizeMethodProto& change_list_size_method);
+BValue DecreaseArraySize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+                         const DecreaseSizeMethod& decrease_size_method);
+BValue IncreaseArraySize(FunctionBuilder* fb, BValue bvalue, int64_t new_size,
+                         const IncreaseSizeMethod& increase_size_method);
 
 int64_t Bounded(int64_t value, int64_t left_bound, int64_t right_bound);
 int64_t BoundedWidth(int64_t bit_width, int64_t left_bound = 1,
                      int64_t right_bound = 1000);
+int64_t BoundedTupleSize(int64_t tuple_size, int64_t left_bound = 0,
+                         int64_t right_bound = 100);
+int64_t BoundedArraySize(int64_t array_size, int64_t left_bound = 1,
+                         int64_t right_bound = 100);
+
+BValue DefaultValue(Package* p, FunctionBuilder* fb,
+                    TypeCase type_case = UNSET_CASE);
+BValue DefaultBitsValue(FunctionBuilder* fb);
+
+BValue DefaultValueOfType(Package* p, FunctionBuilder* fb, Type* type);
+BValue DefaultValueOfBitsType(Package* p, FunctionBuilder* fb, Type* type);
+BValue DefaultValueOfTupleType(Package* p, FunctionBuilder* fb, Type* type);
+BValue DefaultValueOfArrayType(Package* p, FunctionBuilder* fb, Type* type);
+
+template <typename TypeProto>
+Type* ConvertTypeProtoToType(Package* p, const TypeProto& type_proto);
+template <typename BitsTypeProto>
+Type* ConvertBitsTypeProtoToType(Package* p, const BitsTypeProto& bits_type);
+template <typename TupleTypeProto>
+Type* ConvertTupleTypeProtoToType(Package* p, const TupleTypeProto& tuple_type);
+template <typename ArrayTypeProto>
+Type* ConvertArrayTypeProtoToType(Package* p, const ArrayTypeProto& array_type);
+
+BValue ValueFromValueTypeProto(Package* p, FunctionBuilder* fb,
+                               const ValueTypeProto& value_type);
+
+std::vector<Value> GenRandomArgs(int64_t arg_count, Type* type,
+                                 absl::BitGen& bit_gen);
+std::string GenRandomBytes(int64_t byte_count, absl::BitGen& bit_gen);
+Bits ChangeBytesBitWidth(std::string bytes, int64_t bit_width);
 
 }  // namespace xls
 
