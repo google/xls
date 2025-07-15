@@ -1488,10 +1488,14 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kFail: {
       XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
       std::string message{value.ToString()};
+      XLS_ASSIGN_OR_RETURN(InterpValue label, Pop());
+      XLS_ASSIGN_OR_RETURN(std::string label_as_string,
+                           InterpValueAsString(label));
       if (proc_id().has_value()) {
         message += absl::StrFormat(" (called from %s)", proc_id()->ToString());
       }
-      return FailureErrorStatus(bytecode.source_span(), message, file_table());
+      return FailureErrorStatusForAssertion(
+          bytecode.source_span(), label_as_string, message, file_table());
     }
     case Builtin::kAssert: {
       XLS_ASSIGN_OR_RETURN(InterpValue label, Pop());
@@ -1505,8 +1509,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
           message +=
               absl::StrFormat(" (called from %s)", proc_id()->ToString());
         }
-        return FailureErrorStatus(bytecode.source_span(), message,
-                                  file_table());
+        return FailureErrorStatusForAssertion(
+            bytecode.source_span(), label_as_string, message, file_table());
       }
 
       stack_.Push(InterpValue::MakeUnit());

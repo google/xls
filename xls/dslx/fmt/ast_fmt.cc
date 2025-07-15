@@ -2445,7 +2445,13 @@ DocRef Formatter::Format(const TestFunction& n) {
 
 DocRef Formatter::Format(const TestProc& n) {
   std::vector<DocRef> pieces;
-  pieces.push_back(arena_.MakeText("#[test_proc]"));
+  if (n.expected_fail_label().has_value()) {
+    pieces.push_back(arena_.MakeText(
+        absl::StrFormat("#[test_proc(expected_fail_label=\"%s\")]",
+                        n.expected_fail_label().value())));
+  } else {
+    pieces.push_back(arena_.MakeText("#[test_proc]"));
+  }
   pieces.push_back(arena_.hard_line());
   pieces.push_back(Format(*n.proc()));
   return ConcatN(arena_, pieces);
