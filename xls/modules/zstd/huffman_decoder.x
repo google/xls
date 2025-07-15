@@ -263,30 +263,39 @@ pub proc HuffmanDecoder {
             state.data_len > uN[BUFF_W_LOG2]:0
         ) {
             // greedily take longest match, won't skip anything since no symbol is a prefix of another (Huffman property)
-            let literal = for(i, literal) : (u32, uN[common::SYMBOL_WIDTH]) in range(u32:0, SYMBOLS_N) {
+            let (literal, matched) = for(i, (literal, matched)) : (u32, (uN[common::SYMBOL_WIDTH], bool)) in range(u32:0, SYMBOLS_N) {
                 let test_length = state.symbol_code_len[i];
                 let data_mask = (!uN[hcommon::MAX_WEIGHT]:0) >> (hcommon::MAX_WEIGHT - test_length as u32);
                 let data_masked = state.data as uN[hcommon::MAX_WEIGHT] & data_mask;
                 if (
-                    state.symbol_valid[i] && (data_masked == state.symbol_code[i]) && state.data_len >= state.symbol_code_len[i] as uN[BUFF_W_LOG2]
+                    state.symbol_valid[i] && (data_masked == state.symbol_code[i]) && state.data_len >= test_length as uN[BUFF_W_LOG2]
                 ) {
                     trace_fmt!("decoded {:#b} as {:#x} (length={}, data_length={})", data_masked, i, test_length, state.data_len);
-                    i as uN[common::SYMBOL_WIDTH]
+                    (i as uN[common::SYMBOL_WIDTH], true)
                 } else {
-                    literal
+                    (literal, matched)
                 }
-            }(uN[common::SYMBOL_WIDTH]:0);
+            }((uN[common::SYMBOL_WIDTH]:0, false));
             let length = state.symbol_code_len[literal];
 
             // shift buffer
-            State {
-                decoded_literals: update(state.decoded_literals, state.decoded_literals_len, literal),
-                decoded_literals_len: state.decoded_literals_len + u4:1,
-                data_len: state.data_len - length as uN[BUFF_W_LOG2],
-                data: state.data >> length,
-                code_length: shift_buff_array(state.code_length, state.code_length[0] as u32),
-                ..state
+            if matched {
+                State {
+                    decoded_literals: update(state.decoded_literals, state.decoded_literals_len, literal),
+                    decoded_literals_len: state.decoded_literals_len + u4:1,
+                    data_len: state.data_len - length as uN[BUFF_W_LOG2],
+                    data: state.data >> length,
+                    code_length: shift_buff_array(state.code_length, state.code_length[0] as u32),
+                    ..state
+                }
+            } else {
+                // means we've got dangling bits from the next package
+                State {
+                    fsm: FSM::READ_DATA,
+                    ..state
+                }
             }
+
         } else if (state.fsm == FSM::DECODE && state.data_len > uN[BUFF_W_LOG2]:0) {
             trace_fmt!(
                 "[HuffmanDecoder] ERROR: data_len is {} which is shorter than the code length {}",

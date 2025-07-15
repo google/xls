@@ -68,53 +68,55 @@ struct HuffmanControlAndSequenceMultiStreamHandlerState<AXI_ADDR_W: u32> {
 }
 
 struct HuffmanControlAndSequenceInternalRequest<AXI_ADDR_W: u32> {
-
+    decoder_start: decoder::HuffmanDecoderStart,
+    axi_reader_ctrl: axi_reader::HuffmanAxiReaderCtrl<AXI_ADDR_W>,
+    preprocessor_start: data_preprocessor::HuffmanDataPreprocessorStart
 }
 
-// pub proc HuffmanControlAndSequenceInternal<AXI_ADDR_W: u32> {
-//     type State = HuffmanControlAndSequenceMultiStreamHandlerState<AXI_ADDR_W>;
-//     type DecoderStart = decoder::HuffmanDecoderStart;
-//     type Config = HuffmanControlAndSequenceMultiStreamHandlerConfig<AXI_ADDR_W>;
-//     type AxiReaderCtrl = axi_reader::HuffmanAxiReaderCtrl<AXI_ADDR_W>;
-//     type DataPreprocessorStart = data_preprocessor::HuffmanDataPreprocessorStart;
+pub proc HuffmanControlAndSequenceInternal<AXI_ADDR_W: u32> {
+    type Req = HuffmanControlAndSequenceInternalRequest<AXI_ADDR_W>;
+    type DecoderStart = decoder::HuffmanDecoderStart;
+    type AxiReaderCtrl = axi_reader::HuffmanAxiReaderCtrl<AXI_ADDR_W>;
+    type DataPreprocessorStart = data_preprocessor::HuffmanDataPreprocessorStart;
 
-//     config_r: chan<Config> in;
-//     done_s: chan<()> out;
-//     decoder_start_s: chan<DecoderStart> out;
-//     decoder_done_r: chan<()> in;
-//     axi_reader_ctrl_s: chan<AxiReaderCtrl> out;
-//     data_preprocess_start_s: chan<DataPreprocessorStart> out;
+    req_r: chan<Req> in;
+    resp_s: chan<bool> out;
+    decoder_start_s: chan<DecoderStart> out;
+    decoder_done_r: chan<()> in;
+    axi_reader_ctrl_s: chan<AxiReaderCtrl> out;
+    data_preprocess_start_s: chan<DataPreprocessorStart> out;
 
-//     config(
+    config(
+        req_r: chan<Req> in,
+        resp_s: chan<bool> out,
+        decoder_start_s: chan<DecoderStart> out,
+        decoder_done_r: chan<()> in,
+        axi_reader_ctrl_s: chan<AxiReaderCtrl> out,
+        data_preprocess_start_s: chan<DataPreprocessorStart> out,
+    ) {
+        (
+            req_r, resp_s,
+            decoder_start_s, decoder_done_r,
+            axi_reader_ctrl_s, data_preprocess_start_s
+        )
+    }
 
-//         decoder_start_s: chan<DecoderStart> out,
-//         decoder_done_r: chan<()> in,
-//         axi_reader_ctrl_s: chan<AxiReaderCtrl> out,
-//         data_preprocess_start_s: chan<DataPreprocessorStart> out,
-//     ) {
-//         (
-//             config_r, done_s,
-//             decoder_start_s, decoder_done_r,
-//             axi_reader_ctrl_s, data_preprocess_start_s
-//         )
-//     }
+    init { }
 
-//     init { }
-
-//     next(state: ()) {
-//         let tok = join();
-//         let (tok, req) = recv(tok, )
-//         let tok = send(tok, axi_reader_ctrl_s, req.axi_reader_ctrl);
-//         trace_fmt!("[HuffmanControlAndSequence] Sent request to AXI reader: {:#x}", axi_reader_ctrl);
-//         let tok = send(tok, data_preprocess_start_s, req.preprocessor_start);
-//         trace_fmt!("[HuffmanControlAndSequence] Sent preprocessor start: {:#x}", preprocessor_start);
-//         let tok = send(tok, decoder_start_s, req.decoder_start);
-//         trace_fmt!("[HuffmanControlAndSequence] Sent decoder start: {:#x}", decoder_start);
-//         let (tok, done) = recv(tok, decoder_done_r);
-//         trace_fmt!("[HuffmanControlAndSequence] Received Decoder Done {}", done);
-
-//     }
-// }
+    next(state: ()) {
+        let tok = join();
+        let (tok, req) = recv(tok, req_r);
+        let tok = send(tok, axi_reader_ctrl_s, req.axi_reader_ctrl);
+        trace_fmt!("[HuffmanControlAndSequence] Sent request to AXI reader: {:#x}", req.axi_reader_ctrl);
+        let tok = send(tok, data_preprocess_start_s, req.preprocessor_start);
+        trace_fmt!("[HuffmanControlAndSequence] Sent preprocessor start: {:#x}", req.preprocessor_start);
+        let tok = send(tok, decoder_start_s, req.decoder_start);
+        trace_fmt!("[HuffmanControlAndSequence] Sent decoder start: {:#x}", req.decoder_start);
+        let (tok, _) = recv(tok, decoder_done_r);
+        trace_fmt!("[HuffmanControlAndSequence] Received Decoder Done");
+        let tok = send(tok, resp_s, true);
+    }
+}
 
 pub proc HuffmanControlAndSequenceMultiStreamHandler<AXI_ADDR_W: u32> {
     type State = HuffmanControlAndSequenceMultiStreamHandlerState<AXI_ADDR_W>;
@@ -122,15 +124,14 @@ pub proc HuffmanControlAndSequenceMultiStreamHandler<AXI_ADDR_W: u32> {
     type Config = HuffmanControlAndSequenceMultiStreamHandlerConfig<AXI_ADDR_W>;
     type AxiReaderCtrl = axi_reader::HuffmanAxiReaderCtrl<AXI_ADDR_W>;
     type DataPreprocessorStart = data_preprocessor::HuffmanDataPreprocessorStart;
+    type Req = HuffmanControlAndSequenceInternalRequest<AXI_ADDR_W>;
 
     const MAX_STREAM_NO = u2:3;
 
     config_r: chan<Config> in;
     done_s: chan<()> out;
-    decoder_start_s: chan<DecoderStart> out;
-    decoder_done_r: chan<()> in;
-    axi_reader_ctrl_s: chan<AxiReaderCtrl> out;
-    data_preprocess_start_s: chan<DataPreprocessorStart> out;
+    req_s: chan<Req> out;
+    resp_r: chan<bool> in;
 
     config(
         config_r: chan<Config> in,
@@ -140,10 +141,19 @@ pub proc HuffmanControlAndSequenceMultiStreamHandler<AXI_ADDR_W: u32> {
         axi_reader_ctrl_s: chan<AxiReaderCtrl> out,
         data_preprocess_start_s: chan<DataPreprocessorStart> out,
     ) {
+        let (req_s, req_r) = chan<Req, u32:1>("hcs_internal_req");
+        let (resp_s, resp_r) = chan<bool, u32:1>("hcs_internal_resp");
+
+        spawn HuffmanControlAndSequenceInternal<AXI_ADDR_W>
         (
-            config_r, done_s,
+            req_r, resp_s,
             decoder_start_s, decoder_done_r,
             axi_reader_ctrl_s, data_preprocess_start_s
+        );
+
+        (
+            config_r, done_s,
+            req_s, resp_r
         )
     }
 
@@ -173,17 +183,6 @@ pub proc HuffmanControlAndSequenceMultiStreamHandler<AXI_ADDR_W: u32> {
             (true, true, u2:2) => ((base_addr + td_size + JUMP_TABLE_SIZE as uN[AXI_ADDR_W] + stream_sizes[0] + stream_sizes[1]), (stream_sizes[2] as uN[AXI_ADDR_W])),
             (true, true, u2:3) => ((base_addr + td_size + JUMP_TABLE_SIZE as uN[AXI_ADDR_W] + stream_sizes[0] + stream_sizes[1] + stream_sizes[2]), (stream_sizes[3] as uN[AXI_ADDR_W])),
         };
-        let preprocessor_start = DataPreprocessorStart { new_config: new_config && stream_no == u2:0 };
-        let axi_reader_ctrl = AxiReaderCtrl {
-            base_addr: huffman_stream_addr,
-            len: huffman_stream_len,
-        };
-        let decoder_start = DecoderStart {
-            new_config: new_config && stream_no == u2:0,
-            id: config.id,
-            literals_last: config.literals_last,
-            last_stream: !multi_stream || stream_no == MAX_STREAM_NO,
-        };
 
         if !state.active {
             let (tok, config) = recv(join(), config_r);
@@ -200,20 +199,29 @@ pub proc HuffmanControlAndSequenceMultiStreamHandler<AXI_ADDR_W: u32> {
             } else {
                 trace_fmt!("[HuffmanControlAndSequence] Processing single stream");
             };
-            let tok = send(join(), axi_reader_ctrl_s, axi_reader_ctrl);
-            trace_fmt!("[HuffmanControlAndSequence] Sent request to AXI reader: {:#x}", axi_reader_ctrl);
-            let tok = send(tok, data_preprocess_start_s, preprocessor_start);
-            trace_fmt!("[HuffmanControlAndSequence] Sent preprocessor start: {:#x}", preprocessor_start);
-            let tok = send(tok, decoder_start_s, decoder_start);
-            trace_fmt!("[HuffmanControlAndSequence] Sent decoder start: {:#x}", decoder_start);
-            let (tok, done) = recv(tok, decoder_done_r);
-            trace_fmt!("[HuffmanControlAndSequence] Received Decoder Done {}", done);
-            let last_iter = (!multi_stream || stream_no == MAX_STREAM_NO) && done == ();
-            let tok = send_if(tok, done_s, last_iter, ());
+            let tok = send_if(join(), req_s, state.active, Req {
+                preprocessor_start: DataPreprocessorStart { new_config: new_config && stream_no == u2:0 },
+                axi_reader_ctrl: AxiReaderCtrl { base_addr: huffman_stream_addr, len: huffman_stream_len },
+                decoder_start: DecoderStart {
+                    new_config: new_config && stream_no == u2:0,
+                    id: config.id,
+                    literals_last: config.literals_last,
+                    last_stream: !multi_stream || stream_no == MAX_STREAM_NO,
+                }
+            });
+            let (tok, success) = recv_if(tok, resp_r, state.active, false);
+            let last_iter = !multi_stream || stream_no == MAX_STREAM_NO;
+            let tok = send_if(tok, done_s, state.active && last_iter && success, ());
+
+            let next_streamno = if last_iter || !success {
+                u2:0
+            } else {
+                stream_no + u2:1
+            };
 
             State {
-                active: !last_iter,
-                stream_no: stream_no + u2:1,
+                active: !last_iter && success,
+                stream_no: next_streamno,
                 config: config
             }
         }

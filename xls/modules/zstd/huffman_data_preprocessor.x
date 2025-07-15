@@ -51,7 +51,10 @@ pub struct HuffmanDataPreprocessorData {
 }
 
 struct HuffmanDataPreprocessorState {
-    lookahead_config: Config
+    active: bool,
+    lookahead_config: Config,
+    first: bool,
+
 }
 
 struct HuffmanDataPreprocessorRxState {
@@ -103,8 +106,14 @@ pub proc HuffmanDataPreprocessorRx {
                 last: data.last
             });
 
+            let (next_in_buff, next_in_len)= if last_iter {
+                (zero!<Data>(), CodeLen:0)
+            } else {
+                (next_in_buff, next_in_len)
+            };
+
             State {
-                active: !last_iter,
+                active: !data.last,
                 in_buff: next_in_buff,
                 in_len: next_in_len
             }
@@ -151,48 +160,62 @@ pub proc HuffmanDataPreprocessor {
 
     next (state: State) {
         let tok = join();
-        let (tok, start) = recv(tok, start_r);
-        let (tok, lookahead_config) = recv_if(tok, lookahead_config_r, start.new_config, state.lookahead_config);
-        if start.new_config {
-            trace_fmt!("[HuffmanDataPreprocessor] Received config {:#x}", lookahead_config);
-        } else {};
+        let lookahead_config = state.lookahead_config;
 
-        let tok = send(tok, rx_req_s, ());
-        let (tok, data) = recv(tok, rx_resp_r);
-        trace_fmt!("[HuffmanDataPreprocessor] RX data {:#b}", data);
+        if !state.active {
+            let (tok, start) = recv(tok, start_r);
+            let (tok, lookahead_config) = recv_if(tok, lookahead_config_r, start.new_config, state.lookahead_config);
+            if start.new_config {
+                trace_fmt!("[HuffmanDataPreprocessor] Received config {:#x}", lookahead_config);
+            } else {};
+            let tok = send(tok, rx_req_s, ());
 
-        // remove prefix
-        let data_bits = data.data;
-        let (prefix_len, _) = for (i, (prefix_len, stop)): (u32, (u4, bool)) in range(u32:0, MAX_PREFIX_LEN as u32) {
-            if stop || (data_bits >> i) as u1 {
-                (
-                    prefix_len,
-                    true,
-                )
-            } else {
-                (
-                    prefix_len + u4:1,
-                    stop,
-                )
+            State {
+                active: true,
+                first: true,
+                lookahead_config: lookahead_config
             }
-        }((u4:1, false));
-        trace_fmt!("[HuffmanDataPreprocessor] Prefix len: {}", prefix_len);
+        } else {
+            let (tok, data) = recv(tok, rx_resp_r);
+            trace_fmt!("[HuffmanDataPreprocessor] RX data {:#b}", data);
 
+            // remove prefix
+            let (data_bits, data_bits_len) = if state.first {
+                let data_bits = data.data;
 
-        let data_bits = data_bits >> prefix_len;
-        let data_bits_len = data.data_len - prefix_len as CodeLen;
+                let (prefix_len, _) = for (i, (prefix_len, stop)): (u32, (u4, bool)) in range(u32:0, MAX_PREFIX_LEN as u32) {
+                    if stop || (data_bits >> i) as u1 {
+                        (
+                            prefix_len,
+                            true,
+                        )
+                    } else {
+                        (
+                            prefix_len + u4:1,
+                            stop,
+                        )
+                    }
+                }((u4:1, false));
+                trace_fmt!("[HuffmanDataPreprocessor] Prefix len: {}", prefix_len);
 
-        let tok = send(tok, preprocessed_data_s, PreprocessedData {
-            data: data_bits,
-            data_len: data_bits_len,
-            last: data.last,
-            code_length: zero!<CodeLen[H_DATA_W]>(), // unused, kept not to break proc interface (for now)
-        });
+                (data_bits >> prefix_len, data.data_len - prefix_len as CodeLen)
+            } else {
+               (data.data, data.data_len)
+            };
 
-        trace_fmt!("[HuffmanDataPreprocessor] Sent preprocessed data {:#x} (length {})", data_bits, data_bits_len);
+            let tok = send(tok, preprocessed_data_s, PreprocessedData {
+                data: data_bits,
+                data_len: data_bits_len,
+                last: data.last,
+                code_length: zero!<CodeLen[H_DATA_W]>(),
+            });
 
-        State {
-            lookahead_config: lookahead_config
+            trace_fmt!("[HuffmanDataPreprocessor] Sent preprocessed data {:#x} (length {})", data_bits, data_bits_len);
+            State {
+                active: !data.last,
+                first: false,
+                lookahead_config: lookahead_config
+            }
         }
     }
 }
