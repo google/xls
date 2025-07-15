@@ -15,7 +15,13 @@
 #ifndef XLS_FUZZER_IR_FUZZER_IR_FUZZ_TEST_LIBRARY_H_
 #define XLS_FUZZER_IR_FUZZER_IR_FUZZ_TEST_LIBRARY_H_
 
+#include <cstdint>
+#include <string>
+
+#include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/ir/node.h"
 #include "xls/passes/optimization_pass.h"
 
 // Contains functions that are used in IR fuzz tests.
@@ -23,8 +29,13 @@
 namespace xls {
 
 void OptimizationPassChangesOutputs(
-    const PackageAndTestParams& paramaterized_package,
-    const OptimizationPass& pass);
+    PackageAndFuzzProgram package_and_fuzz_program, int64_t arg_set_count,
+    OptimizationPass& pass);
+absl::Status PassChangesOutputsWithProto(std::string proto_string,
+                                         int64_t arg_set_count,
+                                         OptimizationPass& pass);
+absl::Status EquateProtoToIrTest(
+    std::string proto_string, testing::Matcher<const Node*> expected_ir_node);
 
 }  // namespace xls
 

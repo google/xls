@@ -12,80 +12,56 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/fuzzer/ir_fuzzer/ir_fuzz_builder.h"
-
-#include <memory>
-
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
-#include "absl/log/log.h"
-#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
-#include "google/protobuf/text_format.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/ret_check.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
-#include "xls/ir/ir_test_base.h"
 #include "xls/ir/lsb_or_msb.h"
-#include "xls/ir/package.h"
-#include "xls/ir/verifier.h"
 
 namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
 
-// Performs tests on the IrFuzzBuilder by manually creating a FuzzProgramProto,
-// instantiating it into its IR version, and manually verifying the IR is
-// correct.
-absl::Status EquateProtoToIrTest(
-    std::string proto_string, testing::Matcher<const Node*> expected_ir_node) {
-  // Create the package.
-  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
-  FunctionBuilder fb(IrTestBase::TestName(), p.get());
-  // Create the proto from the string.
-  FuzzProgramProto fuzz_program;
-  XLS_RET_CHECK(
-      google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
-  // Generate the IR from the proto.
-  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
-  BValue proto_ir = ir_fuzz_builder.BuildIr();
-  XLS_ASSIGN_OR_RETURN(Function * f, fb.BuildWithReturnValue(proto_ir));
-  VLOG(3) << "IR Fuzzer-2: IR:" << "\n" << f->DumpIr() << "\n";
-  // Verify that the proto_ir_node matches the expected_ir_node.
-  EXPECT_THAT(f->return_value(), expected_ir_node);
-  return absl::OkStatus();
-}
-
 TEST(IrFuzzBuilderTest, AddTwoLiterals) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            bit_width: 64
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 64
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
         fuzz_ops {
           literal {
-            bit_width: 64
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 64
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 64
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 64
             }
           }
         }
@@ -99,29 +75,39 @@ TEST(IrFuzzBuilderTest, AddTwoLiterals) {
 TEST(IrFuzzBuilderTest, AddTwoParams) {
   std::string proto_string = absl::StrFormat(
       R"(
-      combine_stack_method: LAST_ELEMENT_METHOD
-      fuzz_ops {
-        param {
-          bit_width: 64
-        }
-      }
-      fuzz_ops {
-        param {
-          bit_width: 64
-        }
-      }
-      fuzz_ops {
-        add {
-          bit_width: 64
-          lhs_idx {
-            stack_idx: 0
-          }
-          rhs_idx {
-            stack_idx: 1
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 64
+              }
+            }
           }
         }
-      }
-    )");
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 64
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          add {
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 64
+            }
+          }
+        }
+      )");
   auto expected_ir_node = m::Add(m::Param("p0"), m::Param("p1"));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
@@ -129,59 +115,81 @@ TEST(IrFuzzBuilderTest, AddTwoParams) {
 TEST(IrFuzzBuilderTest, AddLiteralsAndParamsAndAdds) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            bit_width: 64
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 64
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 64
+            type {
+              bits {
+                bit_width: 64
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 64
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 64
             }
           }
         }
         fuzz_ops {
           literal {
-            bit_width: 64
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 64
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 64
-          }
-        }
-        fuzz_ops {
-          add {
-            bit_width: 64
-            lhs_idx {
-              stack_idx: 3
-            }
-            rhs_idx {
-              stack_idx: 4
+            type {
+              bits {
+                bit_width: 64
+              }
             }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 64
             lhs_idx {
-              stack_idx: 2
+              list_idx: 3
             }
             rhs_idx {
-              stack_idx: 5
+              list_idx: 4
+            }
+            operands_type {
+              bit_width: 64
+            }
+          }
+        }
+        fuzz_ops {
+          add {
+            lhs_idx {
+              list_idx: 2
+            }
+            rhs_idx {
+              list_idx: 5
+            }
+            operands_type {
+              bit_width: 64
             }
           }
         }
@@ -193,77 +201,39 @@ TEST(IrFuzzBuilderTest, AddLiteralsAndParamsAndAdds) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, SingleOpAddStack) {
-  std::string proto_string = absl::StrFormat(
-      R"(
-        combine_stack_method: ADD_STACK_METHOD
-        fuzz_ops {
-          param {
-            bit_width: 64
-          }
-        }
-      )");
-  auto expected_ir_node = m::Param("p0");
-  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
-}
-
-TEST(IrFuzzBuilderTest, AddOpThenAddStack) {
-  std::string proto_string = absl::StrFormat(
-      R"(
-        combine_stack_method: ADD_STACK_METHOD
-        fuzz_ops {
-          literal {
-            bit_width: 64
-            value_bytes: "\x%x"
-          }
-        }
-        fuzz_ops {
-          param {
-            bit_width: 64
-          }
-        }
-        fuzz_ops {
-          add {
-            bit_width: 64
-            lhs_idx {
-              stack_idx: 0
-            }
-            rhs_idx {
-              stack_idx: 1
-            }
-          }
-        }
-      )",
-      10);
-  auto expected_ir_node =
-      m::Add(m::Add(m::Literal(UBits(10, 64)), m::Param("p1")),
-             m::Add(m::Literal(UBits(10, 64)), m::Param("p1")));
-  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
-}
-
 TEST(IrFuzzBuilderTest, AddOutOfBoundsIdxs) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            bit_width: 64
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 64
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 64
+            type {
+              bits {
+                bit_width: 64
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 64
             lhs_idx {
-              stack_idx: 2
+              list_idx: 2
             }
             rhs_idx {
-              stack_idx: -1
+              list_idx: -1
+            }
+            operands_type {
+              bit_width: 64
             }
           }
         }
@@ -276,11 +246,15 @@ TEST(IrFuzzBuilderTest, AddOutOfBoundsIdxs) {
 TEST(IrFuzzBuilderTest, LiteralValueOverBoundsOfSmallWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            bit_width: 1
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 1
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
       )",
@@ -292,62 +266,106 @@ TEST(IrFuzzBuilderTest, LiteralValueOverBoundsOfSmallWidth) {
 TEST(IrFuzzBuilderTest, AddDifferentWidthsWithExtensions) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 40
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: ZERO_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 40
+              coercion_method {
+                change_bit_width_method {
+                  increase_width_method: ZERO_EXTEND_METHOD
+                }
               }
+            }
+          }
+        }
+        fuzz_ops {
+          add {
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 40
+              coercion_method {
+                change_bit_width_method {
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
             }
           }
         }
       )");
   auto expected_ir_node =
-      m::Add(m::ZeroExt(m::Param("p0")), m::SignExt(m::Param("p0")));
+      m::Concat(m::Add(m::ZeroExt(m::Param("p0")), m::ZeroExt(m::Param("p0"))),
+                m::Add(m::SignExt(m::Param("p0")), m::SignExt(m::Param("p0"))));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
 TEST(IrFuzzBuilderTest, AddWithSliceAndExtension) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 50
+            type {
+              bits {
+                bit_width: 50
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 25
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: ZERO_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 25
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: ZERO_EXTEND_METHOD
+                }
               }
             }
           }
@@ -358,54 +376,38 @@ TEST(IrFuzzBuilderTest, AddWithSliceAndExtension) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, AddStackWithDifferentWidths) {
-  std::string proto_string = absl::StrFormat(
-      R"(
-        combine_stack_method: ADD_STACK_METHOD
-        fuzz_ops {
-          param {
-            bit_width: 50
-          }
-        }
-        fuzz_ops {
-          param {
-            bit_width: 1
-          }
-        }
-        fuzz_ops {
-          param {
-            bit_width: 25
-          }
-        }
-      )");
-  auto expected_ir_node = m::Add(
-      m::ZeroExt(m::Add(m::BitSlice(m::Param("p0"), 0, 1), m::Param("p1"))),
-      m::Param("p2"));
-  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
-}
-
 TEST(IrFuzzBuilderTest, AddWithLargeWidths) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 800
+            type {
+              bits {
+                bit_width: 800
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 500
+            type {
+              bits {
+                bit_width: 500
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 1000
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 1000
             }
           }
         }
@@ -415,30 +417,501 @@ TEST(IrFuzzBuilderTest, AddWithLargeWidths) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
+TEST(IrFuzzBuilderTest, TupleParam) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              tuple {
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+                tuple_elements {
+                  tuple {
+                    tuple_elements {
+                      bits {
+                        bit_width: 20
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  auto expected_ir_node = m::Param("p0");
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
+TEST(IrFuzzBuilderTest, ArrayParam) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              array {
+                array_size: 2
+                array_element {
+                  tuple {
+                    tuple_elements {
+                      bits {
+                        bit_width: 10
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  auto expected_ir_node = m::Param("p0");
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
+TEST(IrFuzzBuilderTest, TupleLiteral) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          literal {
+            value_type {
+              tuple {
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                    value_bytes: "\x%x"
+                  }
+                }
+                tuple_elements {
+                  tuple {
+                    tuple_elements {
+                      bits {
+                        bit_width: 20
+                        value_bytes: "\x%x"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      )",
+      10, 20);
+  auto expected_ir_node =
+      m::Tuple(m::Literal(UBits(10, 10)), m::Tuple(m::Literal(UBits(20, 20))));
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
+TEST(IrFuzzBuilderTest, ArrayLiteral) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          literal {
+            value_type {
+              array {
+                array_size: 3
+                array_element {
+                  tuple {
+                    tuple_elements {
+                      bits {
+                        bit_width: 10
+                        value_bytes: "\x%x"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      )",
+      10);
+  auto expected_ir_node = m::Array(m::Tuple(m::Literal(UBits(10, 10))),
+                                   m::Tuple(m::Literal(UBits(10, 10))),
+                                   m::Tuple(m::Literal(UBits(10, 10))));
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
+TEST(IrFuzzBuilderTest, TupleExpandCoercion) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              tuple {
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          one_hot_select {
+            selector_idx {
+              list_idx: 0
+            }
+            case_idxs {
+              list_idx: 1
+            }
+            cases_type {
+              tuple {
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+                coercion_method {
+                  change_list_size_method {
+                    increase_size_method: EXPAND_METHOD
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  auto expanded_tuple =
+      m::Tuple(m::TupleIndex(m::Param("p1"), 0), m::Literal(0, 64));
+  auto expected_ir_node = m::OneHotSelect(
+      m::Param("p0"),
+      {m::Tuple(m::TupleIndex(expanded_tuple, 0),
+                m::BitSlice(m::TupleIndex(expanded_tuple, 1)))});
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
+TEST(IrFuzzBuilderTest, ArrayExpandCoercion) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              array {
+                array_size: 1
+                array_element {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          one_hot_select {
+            selector_idx {
+              list_idx: 0
+            }
+            case_idxs {
+              list_idx: 1
+            }
+            cases_type {
+              array {
+                array_size: 2
+                array_element {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+                coercion_method {
+                  change_list_size_method {
+                    increase_size_method: EXPAND_METHOD
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  auto array_element = m::ArrayIndex(m::Param("p1"), {m::Literal(UBits(0, 64))},
+                                     op_matchers::AssumedInBounds());
+  auto expanded_array = m::Array(array_element, array_element);
+  auto expected_ir_node = m::OneHotSelect(
+      m::Param("p0"),
+      {m::Array(m::ArrayIndex(expanded_array, {m::Literal(UBits(0, 64))},
+                              op_matchers::AssumedInBounds()),
+                m::ArrayIndex(expanded_array, {m::Literal(UBits(1, 64))},
+                              op_matchers::AssumedInBounds()))});
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
+TEST(IrFuzzBuilderTest, TupleShrinkCoercion) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              tuple {
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          one_hot_select {
+            selector_idx {
+              list_idx: 0
+            }
+            case_idxs {
+              list_idx: 1
+            }
+            cases_type {
+              tuple {
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+                coercion_method {
+                  change_list_size_method {
+                    decrease_size_method: SHRINK_METHOD
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  auto shrunk_tuple = m::Tuple(m::TupleIndex(m::Param("p1"), 0));
+  auto expected_ir_node = m::OneHotSelect(
+      m::Param("p0"), {m::Tuple(m::TupleIndex(shrunk_tuple, 0))});
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
+TEST(IrFuzzBuilderTest, ArrayShrinkCoercion) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              array {
+                array_size: 2
+                array_element {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          one_hot_select {
+            selector_idx {
+              list_idx: 0
+            }
+            case_idxs {
+              list_idx: 1
+            }
+            cases_type {
+              array {
+                array_size: 1
+                array_element {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+                coercion_method {
+                  change_list_size_method {
+                    decrease_size_method: SHRINK_METHOD
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  auto shrunk_array =
+      m::Array(m::ArrayIndex(m::Param("p1"), {m::Literal(UBits(0, 64))},
+                             op_matchers::AssumedInBounds()));
+  auto expected_ir_node = m::OneHotSelect(
+      m::Param("p0"),
+      {m::Array(m::ArrayIndex(shrunk_array, {m::Literal(UBits(0, 64))},
+                              op_matchers::AssumedInBounds()))});
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
+TEST(IrFuzzBuilderTest, CategoricalTypeMismatchCoercion) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          one_hot_select {
+            selector_idx {
+              list_idx: 0
+            }
+            case_idxs {
+              list_idx: 1
+            }
+            cases_type {
+              tuple {
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  auto expected_ir_node =
+      m::OneHotSelect(m::Param("p0"), {m::Tuple(m::Literal(UBits(0, 10)))});
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
+TEST(IrFuzzBuilderTest, TupleList) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: TUPLE_LIST_METHOD
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
+          }
+        }
+      )");
+  auto expected_ir_node = m::Tuple(m::Param("p0"), m::Param("p1"));
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
 TEST(IrFuzzBuilderTest, ConcatOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 0
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 0
+            }
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -450,24 +923,26 @@ TEST(IrFuzzBuilderTest, ConcatOp) {
 TEST(IrFuzzBuilderTest, EmptyConcat) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           concat {
           }
         }
         fuzz_ops {
           add {
-            bit_width: 100
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: ZERO_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 100
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: ZERO_EXTEND_METHOD
+                }
               }
             }
           }
@@ -475,47 +950,73 @@ TEST(IrFuzzBuilderTest, EmptyConcat) {
       )");
   auto expected_ir_node =
       m::Add(m::ZeroExt(m::Concat(m::Literal(UBits(0, 64)))),
-             m::SignExt(m::Concat(m::Literal(UBits(0, 64)))));
+             m::ZeroExt(m::Concat(m::Literal(UBits(0, 64)))));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
 TEST(IrFuzzBuilderTest, ShiftOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           shra {
-            operand_idx: 0
-            amount_idx: 1
+            operand_idx {
+              list_idx: 0
+            }
+            amount_idx {
+              list_idx: 1
+            }
           }
         }
         fuzz_ops {
           shrl {
-            operand_idx: 0
-            amount_idx: 1
+            operand_idx {
+              list_idx: 0
+            }
+            amount_idx {
+              list_idx: 1
+            }
           }
         }
         fuzz_ops {
           shll {
-            operand_idx: 0
-            amount_idx: 1
+            operand_idx {
+              list_idx: 0
+            }
+            amount_idx {
+              list_idx: 1
+            }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
-            operand_idxs: 4
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
+            operand_idxs {
+              list_idx: 4
+            }
           }
         }
       )");
@@ -528,36 +1029,40 @@ TEST(IrFuzzBuilderTest, ShiftOps) {
 TEST(IrFuzzBuilderTest, NaryOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           or_op {
-            bit_width: 20
             operand_idxs {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: ZERO_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             operand_idxs {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 1
             }
-            operand_idxs {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+            operands_type {
+              bit_width: 20
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
@@ -568,82 +1073,113 @@ TEST(IrFuzzBuilderTest, NaryOps) {
         }
         fuzz_ops {
           xor_op {
-            bit_width: 10
             operand_idxs {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           and_op {
-            bit_width: 10
             operand_idxs {
-              stack_idx: 0
+              list_idx: 0
             }
             operand_idxs {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           nand {
-            bit_width: 10
             operand_idxs {
-              stack_idx: 0
+              list_idx: 0
             }
             operand_idxs {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
-            operand_idxs: 4
-            operand_idxs: 5
-            operand_idxs: 6
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
+            operand_idxs {
+              list_idx: 4
+            }
+            operand_idxs {
+              list_idx: 5
+            }
+            operand_idxs {
+              list_idx: 6
+            }
           }
         }
       )");
-  auto expected_ir_node =
-      m::Concat(m::Or(m::ZeroExt(m::Param("p0")), m::SignExt(m::Param("p0")),
-                      m::BitSlice(m::Param("p1"), 0, 20)),
-                m::Nor(m::Literal(UBits(0, 1))), m::Xor(m::Param("p0")),
-                m::And(m::Param("p0"), m::Param("p0")),
-                m::Nand(m::Param("p0"), m::Param("p0")));
+  auto expected_ir_node = m::Concat(
+      m::Or(m::SignExt(m::Param("p0")), m::BitSlice(m::Param("p1"), 0, 20)),
+      m::Nor(m::Literal(UBits(0, 1))), m::Xor(m::Param("p0")),
+      m::And(m::Param("p0"), m::Param("p0")),
+      m::Nand(m::Param("p0"), m::Param("p0")));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
 TEST(IrFuzzBuilderTest, ReduceOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           and_reduce {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           or_reduce {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           xor_reduce {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
-            operand_idxs: 3
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
           }
         }
       )");
@@ -656,42 +1192,69 @@ TEST(IrFuzzBuilderTest, ReduceOps) {
 TEST(IrFuzzBuilderTest, MulOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           umul {
-            lhs_idx: 0
-            rhs_idx: 1
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 1
+            }
+            bit_width: 30
           }
         }
         fuzz_ops {
           umul {
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 1
+            }
             bit_width: 500
-            lhs_idx: 0
-            rhs_idx: 1
           }
         }
         fuzz_ops {
           smul {
-            bit_width: 10
-            lhs_idx: 0
-            rhs_idx: 1
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 1
+            }
+            bit_width: 5
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
-            operand_idxs: 4
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
+            operand_idxs {
+              list_idx: 4
+            }
           }
         }
       )");
@@ -704,49 +1267,65 @@ TEST(IrFuzzBuilderTest, MulOps) {
 TEST(IrFuzzBuilderTest, DivOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           udiv {
-            bit_width: 20
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 20
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
         }
         fuzz_ops {
           sdiv {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
           }
         }
       )");
@@ -759,49 +1338,65 @@ TEST(IrFuzzBuilderTest, DivOps) {
 TEST(IrFuzzBuilderTest, ModOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           umod {
-            bit_width: 20
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 20
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
         }
         fuzz_ops {
           smod {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
           }
         }
       )");
@@ -814,49 +1409,65 @@ TEST(IrFuzzBuilderTest, ModOps) {
 TEST(IrFuzzBuilderTest, AssociativeOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 20
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 20
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
         }
         fuzz_ops {
           subtract {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
           }
         }
       )");
@@ -869,145 +1480,193 @@ TEST(IrFuzzBuilderTest, AssociativeOps) {
 TEST(IrFuzzBuilderTest, ComparisonOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           ule {
-            bit_width: 20
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 20
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
         }
         fuzz_ops {
           ult {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           uge {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           ugt {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           sle {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           slt {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           sge {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           sgt {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           eq {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           ne {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
-            operand_idxs: 4
-            operand_idxs: 5
-            operand_idxs: 6
-            operand_idxs: 7
-            operand_idxs: 8
-            operand_idxs: 9
-            operand_idxs: 10
-            operand_idxs: 11
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
+            operand_idxs {
+              list_idx: 4
+            }
+            operand_idxs {
+              list_idx: 5
+            }
+            operand_idxs {
+              list_idx: 6
+            }
+            operand_idxs {
+              list_idx: 7
+            }
+            operand_idxs {
+              list_idx: 8
+            }
+            operand_idxs {
+              list_idx: 9
+            }
+            operand_idxs {
+              list_idx: 10
+            }
+            operand_idxs {
+              list_idx: 11
+            }
           }
         }
       )");
@@ -1028,26 +1687,38 @@ TEST(IrFuzzBuilderTest, ComparisonOps) {
 TEST(IrFuzzBuilderTest, InvertOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           negate {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           not_op {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1059,36 +1730,54 @@ TEST(IrFuzzBuilderTest, InvertOps) {
 TEST(IrFuzzBuilderTest, SelectOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           select {
-            bit_width: 20
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 2
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 2
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 20
+                coercion_method {
+                  change_bit_width_method {
+                    decrease_width_method: BIT_SLICE_METHOD
+                    increase_width_method: SIGN_EXTEND_METHOD
+                  }
+                }
               }
             }
           }
@@ -1103,26 +1792,40 @@ TEST(IrFuzzBuilderTest, SelectOp) {
 TEST(IrFuzzBuilderTest, SelectWithLargeSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1000
+            type {
+              bits {
+                bit_width: 1000
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           select {
-            bit_width: 10
-            selector_idx: 0
+            selector_idx {
+              list_idx: 0
+            }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             default_value_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 10
+              }
             }
           }
         }
@@ -1135,29 +1838,43 @@ TEST(IrFuzzBuilderTest, SelectWithLargeSelectorWidth) {
 TEST(IrFuzzBuilderTest, SelectWithSmallSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           select {
-            bit_width: 10
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 10
+              }
             }
           }
         }
@@ -1170,29 +1887,43 @@ TEST(IrFuzzBuilderTest, SelectWithSmallSelectorWidth) {
 TEST(IrFuzzBuilderTest, SelectWithUselessDefault) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           select {
-            bit_width: 10
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 1
             }
             default_value_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 10
+              }
             }
           }
         }
@@ -1205,23 +1936,37 @@ TEST(IrFuzzBuilderTest, SelectWithUselessDefault) {
 TEST(IrFuzzBuilderTest, SelectNeedingDefault) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           select {
-            bit_width: 10
-            selector_idx: 0
+            selector_idx {
+              list_idx: 0
+            }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 10
+              }
             }
           }
         }
@@ -1234,28 +1979,40 @@ TEST(IrFuzzBuilderTest, SelectNeedingDefault) {
 TEST(IrFuzzBuilderTest, OneHotOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           one_hot {
-            input_idx: 0
+            input_idx {
+              list_idx: 0
+            }
             priority: LSB_PRIORITY
           }
         }
         fuzz_ops {
           one_hot {
-            input_idx: 0
+            input_idx {
+              list_idx: 0
+            }
             priority: MSB_PRIORITY
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1267,78 +2024,99 @@ TEST(IrFuzzBuilderTest, OneHotOp) {
 TEST(IrFuzzBuilderTest, OneHotSelectOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 3
+            type {
+              bits {
+                bit_width: 2
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
-          }
-        }
-        fuzz_ops {
-          param {
-            bit_width: 100
+            type {
+              bits {
+                bit_width: 100
+              }
+            }
           }
         }
         fuzz_ops {
           one_hot_select {
-            bit_width: 40
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
-              width_fitting_method {
-                increase_width_method: ZERO_EXTEND_METHOD
-              }
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 2
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 3
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 2
+            }
+            cases_type {
+              bits {
+                bit_width: 40
+                coercion_method {
+                  change_bit_width_method {
+                    decrease_width_method: BIT_SLICE_METHOD
+                    increase_width_method: SIGN_EXTEND_METHOD
+                  }
+                }
               }
             }
           }
         }
       )");
   auto expected_ir_node = m::OneHotSelect(
-      m::Param("p0"), {m::ZeroExt(m::Param("p1")), m::SignExt(m::Param("p2")),
-                       m::BitSlice(m::Param("p3"), 0, 40)});
+      m::Param("p0"),
+      {m::SignExt(m::Param("p1")), m::BitSlice(m::Param("p2"), 0, 40)});
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
 TEST(IrFuzzBuilderTest, OneHotSelectWithLargeSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 100
+            type {
+              bits {
+                bit_width: 100
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           one_hot_select {
-            bit_width: 20
-            selector_idx: 0
+            selector_idx {
+              list_idx: 0
+            }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            cases_type {
+              bits {
+                bit_width: 20
+              }
             }
           }
         }
@@ -1350,32 +2128,46 @@ TEST(IrFuzzBuilderTest, OneHotSelectWithLargeSelectorWidth) {
 TEST(IrFuzzBuilderTest, OneHotSelectWithExtraCases) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 3
+            type {
+              bits {
+                bit_width: 3
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           one_hot_select {
-            bit_width: 20
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 1
+            }
+            cases_type {
+              bits {
+                bit_width: 20
+              }
             }
           }
         }
@@ -1388,45 +2180,67 @@ TEST(IrFuzzBuilderTest, OneHotSelectWithExtraCases) {
 TEST(IrFuzzBuilderTest, PrioritySelectOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 2
+            type {
+              bits {
+                bit_width: 2
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           priority_select {
-            bit_width: 20
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 3
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
-              }
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 3
             }
             default_value_idx {
-              stack_idx: 2
+              list_idx: 2
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 20
+                coercion_method {
+                  change_bit_width_method {
+                    decrease_width_method: BIT_SLICE_METHOD
+                    increase_width_method: SIGN_EXTEND_METHOD
+                  }
+                }
+              }
             }
           }
         }
@@ -1441,26 +2255,40 @@ TEST(IrFuzzBuilderTest, PrioritySelectOp) {
 TEST(IrFuzzBuilderTest, PrioritySelectWithLargeSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 100
+            type {
+              bits {
+                bit_width: 100
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           priority_select {
-            bit_width: 20
-            selector_idx: 0
+            selector_idx {
+              list_idx: 0
+            }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             default_value_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 20
+              }
             }
           }
         }
@@ -1473,32 +2301,46 @@ TEST(IrFuzzBuilderTest, PrioritySelectWithLargeSelectorWidth) {
 TEST(IrFuzzBuilderTest, PrioritySelectWithExtraCases) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 3
+            type {
+              bits {
+                bit_width: 3
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           priority_select {
-            bit_width: 20
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 20
+              }
             }
           }
         }
@@ -1512,26 +2354,38 @@ TEST(IrFuzzBuilderTest, PrioritySelectWithExtraCases) {
 TEST(IrFuzzBuilderTest, CountOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           clz {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           ctz {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1545,59 +2399,74 @@ TEST(IrFuzzBuilderTest, CountOps) {
 TEST(IrFuzzBuilderTest, MatchOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 40
+            type {
+              bits {
+                bit_width: 40
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 50
+            type {
+              bits {
+                bit_width: 50
+              }
+            }
           }
         }
         fuzz_ops {
           match {
-            condition_idx: 2
+            condition_idx {
+              list_idx: 2
+            }
             case_protos {
               clause_idx {
-                stack_idx: 0
-                width_fitting_method {
-                  increase_width_method: ZERO_EXTEND_METHOD
-                }
+                list_idx: 0
               }
               value_idx {
-                stack_idx: 1
-                width_fitting_method {
-                  increase_width_method: SIGN_EXTEND_METHOD
-                }
+                list_idx: 1
               }
             }
             case_protos {
               clause_idx {
-                stack_idx: 2
+                list_idx: 2
               }
               value_idx {
-                stack_idx: 3
-                width_fitting_method {
-                  decrease_width_method: BIT_SLICE_METHOD
-                }
+                list_idx: 3
               }
             }
             default_value_idx {
-              stack_idx: 3
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 3
+            }
+            operands_type {
+              bit_width: 40
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
@@ -1605,7 +2474,7 @@ TEST(IrFuzzBuilderTest, MatchOp) {
       )");
   auto expected_ir_node = m::PrioritySelect(
       m::Concat(m::Eq(m::Param("p2"), m::Param("p2")),
-                m::Eq(m::Param("p2"), m::ZeroExt(m::Param("p0")))),
+                m::Eq(m::Param("p2"), m::SignExt(m::Param("p0")))),
       {m::SignExt(m::Param("p1")), m::BitSlice(m::Param("p3"), 0, 40)},
       m::BitSlice(m::Param("p3"), 0, 40));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
@@ -1614,47 +2483,68 @@ TEST(IrFuzzBuilderTest, MatchOp) {
 TEST(IrFuzzBuilderTest, MatchTrueOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 40
+            type {
+              bits {
+                bit_width: 40
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 50
+            type {
+              bits {
+                bit_width: 50
+              }
+            }
           }
         }
         fuzz_ops {
           match_true {
             case_protos {
               clause_idx {
-                stack_idx: 0
+                list_idx: 0
               }
               value_idx {
-                stack_idx: 1
+                list_idx: 1
               }
             }
             case_protos {
               clause_idx {
-                stack_idx: 2
+                list_idx: 2
               }
               value_idx {
-                stack_idx: 3
+                list_idx: 3
               }
             }
             default_value_idx {
-              stack_idx: 3
+              list_idx: 3
+            }
+            operands_coercion_method {
+              change_bit_width_method {
+                decrease_width_method: BIT_SLICE_METHOD
+              }
             }
           }
         }
@@ -1662,7 +2552,7 @@ TEST(IrFuzzBuilderTest, MatchTrueOp) {
   auto expected_ir_node = m::PrioritySelect(
       m::Concat(m::BitSlice(m::Param("p2"), 0, 1),
                 m::BitSlice(m::Param("p0"), 0, 1)),
-      {m::BitSlice(m::Param("p1"), 0, 1), m::BitSlice(m::Param("p3"), 0, 1)},
+      {m::BitSlice(m::Param("p0"), 0, 1), m::BitSlice(m::Param("p2"), 0, 1)},
       m::BitSlice(m::Param("p3"), 0, 1));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
@@ -1670,15 +2560,21 @@ TEST(IrFuzzBuilderTest, MatchTrueOp) {
 TEST(IrFuzzBuilderTest, ReverseOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           reverse {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
       )");
@@ -1689,15 +2585,21 @@ TEST(IrFuzzBuilderTest, ReverseOp) {
 TEST(IrFuzzBuilderTest, IdentityOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           identity {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
       )");
@@ -1708,28 +2610,40 @@ TEST(IrFuzzBuilderTest, IdentityOp) {
 TEST(IrFuzzBuilderTest, ExtendOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           sign_extend {
+            operand_idx {
+              list_idx: 0
+            }
             bit_width: 20
-            operand_idx: 0
           }
         }
         fuzz_ops {
           zero_extend {
+            operand_idx {
+              list_idx: 0
+            }
             bit_width: 5
-            operand_idx: 0
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1741,30 +2655,42 @@ TEST(IrFuzzBuilderTest, ExtendOps) {
 TEST(IrFuzzBuilderTest, BitSliceOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           bit_slice {
-            bit_width: 10
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
             start: 0
+            bit_width: 10
           }
         }
         fuzz_ops {
           bit_slice {
-            bit_width: 10
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
             start: 100
+            bit_width: 10
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1776,27 +2702,45 @@ TEST(IrFuzzBuilderTest, BitSliceOp) {
 TEST(IrFuzzBuilderTest, BitSliceUpdateOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           bit_slice_update {
-            operand_idx: 0
-            start_idx: 1
-            update_value_idx: 2
+            operand_idx {
+              list_idx: 0
+            }
+            start_idx {
+              list_idx: 1
+            }
+            update_value_idx {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1808,27 +2752,39 @@ TEST(IrFuzzBuilderTest, BitSliceUpdateOp) {
 TEST(IrFuzzBuilderTest, DynamicBitSliceOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           dynamic_bit_slice {
-            bit_width: 30
             operand_idx {
-              stack_idx: 0
-              width_fitting_method {
+              list_idx: 0
+            }
+            start_idx {
+              list_idx: 1
+            }
+            bit_width: 30
+            operand_coercion_method {
+              change_bit_width_method {
                 increase_width_method: SIGN_EXTEND_METHOD
               }
             }
-            start_idx: 1
           }
         }
       )");
@@ -1840,15 +2796,21 @@ TEST(IrFuzzBuilderTest, DynamicBitSliceOp) {
 TEST(IrFuzzBuilderTest, EncodeOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           encode {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
       )");
@@ -1859,27 +2821,39 @@ TEST(IrFuzzBuilderTest, EncodeOp) {
 TEST(IrFuzzBuilderTest, DecodeOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           decode {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           decode {
+            operand_idx {
+              list_idx: 0
+            }
             bit_width: 20
-            operand_idx: 0
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1891,26 +2865,38 @@ TEST(IrFuzzBuilderTest, DecodeOp) {
 TEST(IrFuzzBuilderTest, GateOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           gate {
             condition_idx {
-              stack_idx: 0
-              width_fitting_method {
+              list_idx: 0
+            }
+            data_idx {
+              list_idx: 1
+            }
+            condition_coercion_method {
+              change_bit_width_method {
                 decrease_width_method: BIT_SLICE_METHOD
               }
             }
-            data_idx: 1
           }
         }
       )");

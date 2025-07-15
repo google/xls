@@ -15,6 +15,7 @@
 #include "xls/passes/reassociation_pass.h"
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -1355,19 +1356,13 @@ TEST_F(ReassociationPassTest, SignExtendOfNegationOverflows) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-// Generates random IR, runs the ReassociationPass over it, plugs in parameters
-// into the non-reassociated IR and the reassociated IR, and verifies that the
-// results are the same.
 void IrFuzzReassociationPassTest(
-    const PackageAndTestParams& paramaterized_package) {
+    PackageAndFuzzProgram package_and_fuzz_program) {
   ReassociationPass pass;
-  OptimizationPassChangesOutputs(paramaterized_package, pass);
+  OptimizationPassChangesOutputs(std::move(package_and_fuzz_program),
+                                 /*arg_set_count=*/10, pass);
 }
-// Use the IrFuzzDomainWithParams domain to generate random integer parameters
-// that can be plugged into the IR function. This test generates 10 different
-// sets of parameters.
-FUZZ_TEST(IrFuzzTest, IrFuzzReassociationPassTest)
-    .WithDomains(IrFuzzDomainWithParams(10));
+FUZZ_TEST(IrFuzzTest, IrFuzzReassociationPassTest).WithDomains(IrFuzzDomain());
 
 }  // namespace
 }  // namespace xls
