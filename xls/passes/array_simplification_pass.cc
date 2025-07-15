@@ -221,8 +221,8 @@ bool IsSmallArray(Node* node) {
 // those results.
 //
 // Example transformation:
-//   select(p, array_index(A0, {idx}), array_index(A1, {idx}))
-//     => array_index(select(p, A0, A1), {idx})
+//   array_index(select(p, cases=[A0, A1]), {idx})
+//     => select(p, array_index(A0, {idx}), array_index(A1, {idx}))
 template <typename NewOpT>
 absl::StatusOr<SimplifyResult> SimplifySelectOfArrayOperation(
     Node* array_op, Node* select_node,
@@ -1151,7 +1151,7 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
   }
 
   // Replace a slice with a known start with the operands. This optimization
-  // is more restrictive than the identity case above beause it requires the
+  // is more restrictive than the identity case above because it requires the
   // actual node to be a kArray, whereas the identity optimization only requires
   // the type to be an array.
   //
