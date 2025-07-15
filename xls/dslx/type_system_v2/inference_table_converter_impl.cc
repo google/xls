@@ -778,7 +778,37 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // parametric-dependent field type declaration inside a parametric struct
       // declaration can't just be concretized like that. Rather than trying to
       // identify such cases, we just consider such nodes best-effort.
-      return node_is_annotation ? absl::OkStatus() : type.status();
+      if (node_is_annotation) {
+        return absl::OkStatus();
+      }
+
+      // We don't need to concretize a type alias that is "abstract" in the
+      // sense of leaving some parametric bindings of the underlying type
+      // unspecified. There is also no way to do so with v2's avoidance of
+      // `TypeDim`. Only uses of the alias, which provide the parametrics, can
+      // be concretized.
+      if (node->kind() == AstNodeKind::kTypeAlias ||
+          (node->kind() == AstNodeKind::kNameDef && node->parent() != nullptr &&
+           node->parent()->kind() == AstNodeKind::kTypeAlias)) {
+        const TypeAlias* alias =
+            node->kind() == AstNodeKind::kTypeAlias
+                ? down_cast<const TypeAlias*>(node)
+                : down_cast<const TypeAlias*>(node->parent());
+
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<StructOrProcRef> struct_or_proc,
+            GetStructOrProcRef(&alias->type_annotation(), import_data_));
+        if (struct_or_proc.has_value() &&
+            GetRequiredParametricBindings(
+                struct_or_proc->def->parametric_bindings())
+                    .size() > struct_or_proc->parametrics.size()) {
+          VLOG(6) << "Not concretizing alias that has unspecified parametrics: "
+                  << node->ToString();
+          return absl::OkStatus();
+        }
+      }
+
+      return type.status();
     }
 
     XLS_RETURN_IF_ERROR(ValidateConcreteType(
@@ -903,7 +933,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const ParametricBinding* binding = struct_def.parametric_bindings()[i];
       if (i >= actual_parametrics.size()) {
         // The default must exist but is not computed yet or put in the env.
-        XLS_RET_CHECK(binding->expr() != nullptr);
+        if (binding->expr() == nullptr) {
+          missing_parametric_names.push_back(binding->identifier());
+        }
         continue;
       }
       ExprOrType parametric = actual_parametrics[i];
@@ -922,6 +954,15 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             "Type inference version 2 is a work in progress and cannot yet "
             "handle generic type parametrics for structs");
       }
+    }
+    if (!missing_parametric_names.empty()) {
+      return TypeInferenceErrorStatus(
+          error_span, /*type=*/nullptr,
+          absl::Substitute(
+              "Could not infer parametric(s) for instance of struct $0: $1",
+              struct_def.identifier(),
+              absl::StrJoin(missing_parametric_names, ", ")),
+          file_table_);
     }
     return ParametricEnv(values);
   }

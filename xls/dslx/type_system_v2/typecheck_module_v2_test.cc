@@ -5322,6 +5322,41 @@ fn f() -> MyS { MyS {x: 3, y: 4 } }
                         HasNodeWithType("MyS", "S { x: uN[3], y: uN[4] }"))));
 }
 
+TEST(TypecheckV2Test, TypeAliasWithUnspecifiedParametrics) {
+  EXPECT_THAT(R"(
+struct S<X: u32, Y: u32> {
+  x: bits[X],
+  y: bits[Y],
+}
+type Alias = S;
+fn f() -> Alias<24, 32> { Alias {x: 3, y: 4 } }
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("f", "() -> S { x: uN[24], y: uN[32] }"))));
+}
+
+TEST(TypecheckV2Test, TypeAliasWithUnspecifiedParametricsAsParameter) {
+  EXPECT_THAT(R"(
+pub struct A<T: u32> { v: uN[T] }
+type X = A;
+fn f(a: X<32>) {}
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("f", "(A { v: uN[32] }) -> ()"))));
+}
+
+TEST(TypecheckV2Test, TypeAliasWithUnspecifiedParametricsChained) {
+  EXPECT_THAT(R"(
+pub struct A<T: u32> { v: uN[T] }
+type X = A;
+type Y = X;
+type Z = Y<32>;
+fn f(a: Z) {}
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("f", "(A { v: uN[32] }) -> ()"))));
+}
+
 TEST(TypecheckV2Test, ParametricValuesDefinedMultipleTimesInTypeAlias) {
   EXPECT_THAT(R"(
 struct S<X: u32, Y: u32 = {X * 2}> {
@@ -5337,6 +5372,22 @@ fn f() -> uN[4] {
 )",
               TypecheckFails(HasSubstr("Parametric values defined multiple "
                                        "times for annotation: `S<3>`")));
+}
+
+TEST(TypecheckV2Test, ParametricValuesNeverDefinedInTypeAlias) {
+  EXPECT_THAT(
+      R"(
+struct S<X: u32, Y: u32 = {X * 2}> {
+  x: bits[X],
+  y: bits[Y],
+}
+type MyS = S;
+fn f() -> MyS {
+  MyS { x: 3, y: 4 };
+}
+)",
+      TypecheckFails(HasSubstr(
+          "Could not infer parametric(s) for instance of struct S: X")));
 }
 
 TEST(TypecheckV2Test, ElementInTypeAliasOfStructWithBoundParametrics) {

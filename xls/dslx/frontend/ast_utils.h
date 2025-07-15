@@ -245,6 +245,10 @@ class ParametricBindings {
 // type-annotation children are included in the traversal.
 bool ContainsInvocation(const AstNode* node, bool want_types = true);
 
+// Returns the bindings from `bindings` that do not have a default value.
+std::vector<ParametricBinding*> GetRequiredParametricBindings(
+    const std::vector<ParametricBinding*>& bindings);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

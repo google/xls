@@ -860,20 +860,20 @@ class StatefulResolver : public TypeAnnotationResolver {
         } else {
           latest = table_.GetTypeAnnotation(colon_ref);
         }
-
-        // If the TRTA containing the colon ref has parametrics, add them to the
-        // type that the colon ref equates to.
-        if (latest.has_value() &&
-            (*latest)->IsAnnotation<TypeRefTypeAnnotation>() &&
-            !type_ref_annotation->parametrics().empty()) {
-          latest = (*latest)->owner()->Make<TypeRefTypeAnnotation>(
-              (*latest)->span(),
-              (*latest)->AsAnnotation<TypeRefTypeAnnotation>()->type_ref(),
-              type_ref_annotation->parametrics());
-        }
       } else {
         latest = table_.GetTypeAnnotation(ToAstNode(TypeDefinitionGetNameDef(
             type_ref_annotation->type_ref()->type_definition())));
+      }
+
+      // If the TRTA unwrapped in this iteration specified parametrics, add them
+      // to the unwrapped type.
+      if (latest.has_value() &&
+          (*latest)->IsAnnotation<TypeRefTypeAnnotation>() &&
+          !type_ref_annotation->parametrics().empty()) {
+        latest = (*latest)->owner()->Make<TypeRefTypeAnnotation>(
+            (*latest)->span(),
+            (*latest)->AsAnnotation<TypeRefTypeAnnotation>()->type_ref(),
+            type_ref_annotation->parametrics());
       }
 
       if (latest.has_value()) {

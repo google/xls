@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -24,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -611,6 +613,16 @@ bool ContainsInvocation(const AstNode* node, bool want_types) {
     }
   }
   return false;
+}
+
+std::vector<ParametricBinding*> GetRequiredParametricBindings(
+    const std::vector<ParametricBinding*>& bindings) {
+  std::vector<ParametricBinding*> result;
+  absl::c_copy_if(bindings, std::back_inserter(result),
+                  [&](const ParametricBinding* binding) {
+                    return binding->expr() == nullptr;
+                  });
+  return result;
 }
 
 }  // namespace xls::dslx

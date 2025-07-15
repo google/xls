@@ -73,7 +73,9 @@ class TypeRefUnwrapper : public AstNodeVisitorWithDefault {
           import_data_.file_table());
     }
 
-    parametrics_ = annotation->parametrics();
+    if (!annotation->parametrics().empty()) {
+      parametrics_ = annotation->parametrics();
+    }
     if (!instantiator_.has_value()) {
       instantiator_ = annotation->instantiator();
     }
