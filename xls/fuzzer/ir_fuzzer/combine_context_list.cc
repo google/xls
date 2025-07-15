@@ -12,23 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_FUZZER_IR_FUZZER_COMBINE_STACK_H_
-#define XLS_FUZZER_IR_FUZZER_COMBINE_STACK_H_
+#include "xls/fuzzer/ir_fuzzer/combine_context_list.h"
 
-#include "absl/types/span.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
 #include "xls/ir/function_builder.h"
 
 namespace xls {
 
-BValue CombineStack(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
-                    absl::Span<const BValue> stack);
+// Combines the context list of BValues into a single IR object/BValue. There
+// are multiple ways to combine the context list, based off of the
+// CombineListMethod specified in the FuzzProgramProto.
+BValue CombineContextList(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
+                          IrNodeContextList& context_list) {
+  switch (fuzz_program->combine_list_method()) {
+    case CombineListMethod::LAST_ELEMENT_METHOD:
+    default:
+      return LastElement(fuzz_program, fb, context_list);
+  }
+}
 
+// Returns the last element of the combined context list.
 BValue LastElement(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
-                   absl::Span<const BValue> stack);
-BValue AddStack(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
-                absl::Span<const BValue> stack);
+                   IrNodeContextList& context_list) {
+  return context_list.GetLastElement();
+}
 
 }  // namespace xls
-
-#endif  // XLS_FUZZER_IR_FUZZER_COMBINE_STACK_H_

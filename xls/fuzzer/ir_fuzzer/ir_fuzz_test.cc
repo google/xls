@@ -14,34 +14,81 @@
 
 #include <memory>
 
+#include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
-#include "xls/ir/function.h"
-#include "xls/ir/function_builder.h"
-#include "xls/ir/ir_test_base.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/node.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/verifier.h"
+#include "xls/passes/reassociation_pass.h"
 
 namespace xls {
 namespace {
 
 // Perform tests on the Package object which contains the IR. This is a general
 // test that just verifies if the Package object is valid.
-void VerifyIrFuzzPackage(std::shared_ptr<Package> p) {
-  XLS_ASSERT_OK(VerifyPackage(p.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p->GetFunction(IrTestBase::TestName()));
-  VLOG(3) << "IR Fuzzer-2: IR:" << "\n" << f->DumpIr() << "\n";
+void VerifyIrFuzzPackage(PackageAndFuzzProgram package_and_fuzz_program) {
+  std::unique_ptr<Package>& p = package_and_fuzz_program.p;
+  VLOG(3) << "IR Fuzzer-2: IR:" << "\n" << p->DumpIr() << "\n";
 }
 // Use of gtest FUZZ_TEST to randomly generate IR while being compatible with
 // Google infrastructure. The IrFuzzTest function is called and represents the
 // main test logic. A domain is specified to define the range of possible values
 // that the FuzzProgram protobuf can have when generating random values.
 FUZZ_TEST(IrFuzzTest, VerifyIrFuzzPackage).WithDomains(IrFuzzDomain());
+
+// This test makes sure that the OptimizationPassChangesOutputs test works for
+// this specific example.
+TEST(IrFuzzTest, PassChangesOutputsWithBitsParam) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
+          }
+        }
+      )");
+  ReassociationPass pass;
+  XLS_ASSERT_OK(
+      PassChangesOutputsWithProto(proto_string, /*arg_set_count=*/10, pass));
+}
+
+TEST(IrFuzzTest, PassChangesOutputsWithTwoBitsParams) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
+          }
+        }
+      )");
+  ReassociationPass pass;
+  XLS_ASSERT_OK(
+      PassChangesOutputsWithProto(proto_string, /*arg_set_count=*/10, pass));
+}
 
 }  // namespace
 }  // namespace xls
