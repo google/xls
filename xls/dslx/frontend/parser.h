@@ -439,8 +439,8 @@ class Parser : public TokenParser {
       std::variant<absl::Span<TokenKind const>, absl::Span<Keyword const>>
           target_tokens);
 
-  absl::StatusOr<Expr*> ParseCastAsExpression(Bindings& bindings,
-                                              ExprRestrictions restrictions);
+  absl::StatusOr<Expr*> TryParseCastAsAndRhs(Expr* lhs, Bindings& bindings,
+                                             ExprRestrictions restrictions);
 
   static constexpr std::initializer_list<TokenKind> kStrongArithmeticKinds = {
       TokenKind::kStar, TokenKind::kSlash, TokenKind::kPercent};

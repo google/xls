@@ -2257,6 +2257,23 @@ TEST_F(ParserTest, Cast) { RoundTripExpr("foo() as u32", {"foo"}); }
 
 TEST_F(ParserTest, CastOfCast) { RoundTripExpr("x as s32 as u32", {"x"}); }
 
+TEST_F(ParserTest, AddToCastOfConditional) {
+  RoundTripExpr("3 + if x == 1 { x + 1 } else { 0 } as u32", {"x"});
+}
+
+TEST_F(ParserTest, ParenthesizedAddToCastOfConditional) {
+  RoundTripExpr("(3 + if x == 1 { x + 1 } else { 0 } as u32)", {"x"});
+}
+
+TEST_F(ParserTest, ParenthesizedAddToCastOfConditionalInLargerExpr) {
+  RoundTripExpr("2 + (3 + if x == 1 { x + 1 } else { 0 } as u32) as u16",
+                {"x"});
+}
+
+TEST_F(ParserTest, ConditionalOnCast) {
+  RoundTripExpr("if x as bool { x as u32 } else { 0 as u32 }", {"x"});
+}
+
 TEST_F(ParserTest, CheckedCast) {
   RoundTripExpr("checked_cast<u32>(foo())", {"foo"},
                 /*populate_dslx_builtins=*/true, "checked_cast<u32>(foo())");

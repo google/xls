@@ -1565,10 +1565,10 @@ absl::StatusOr<Expr*> Parser::ParseStrongArithmeticExpression(
     Bindings& bindings, ExprRestrictions restrictions) {
   auto sub_production = [&]() -> absl::StatusOr<Expr*> {
     XLS_ASSIGN_OR_RETURN(bool peek_is_if, PeekTokenIs(Keyword::kIf));
-    if (peek_is_if) {
-      return ParseConditionalNode(bindings, restrictions);
-    }
-    return ParseCastAsExpression(bindings, restrictions);
+    XLS_ASSIGN_OR_RETURN(
+        Expr * lhs, peek_is_if ? ParseConditionalNode(bindings, restrictions)
+                               : ParseTerm(bindings, restrictions));
+    return TryParseCastAsAndRhs(lhs, bindings, restrictions);
   };
   return ParseBinopChain(sub_production, kStrongArithmeticKinds);
 }
@@ -2687,11 +2687,10 @@ absl::StatusOr<Index*> Parser::ParseBitSlice(const Pos& start_pos, Expr* lhs,
   return module_->Make<Index>(Span(start_pos, GetPos()), lhs, index);
 }
 
-absl::StatusOr<Expr*> Parser::ParseCastAsExpression(
-    Bindings& bindings, ExprRestrictions restrictions) {
-  VLOG(5) << "ParseCastAsExpression @ " << GetPos()
+absl::StatusOr<Expr*> Parser::TryParseCastAsAndRhs(
+    Expr* lhs, Bindings& bindings, ExprRestrictions restrictions) {
+  VLOG(5) << "TryParseCastAsAndRhs @ " << GetPos()
           << " restrictions: " << ExprRestrictionsToString(restrictions);
-  XLS_ASSIGN_OR_RETURN(Expr * lhs, ParseTerm(bindings, restrictions));
   while (true) {
     XLS_ASSIGN_OR_RETURN(bool dropped_as, TryDropKeyword(Keyword::kAs));
     if (!dropped_as) {
