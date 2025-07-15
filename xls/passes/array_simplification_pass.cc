@@ -1161,8 +1161,8 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
   //   array_slice(array(a, b, c, d), start=1, width=2) → array(b, c)
   //   array_slice(array(a, b, c, d), start=2, width=3) → array(c, d, d)
   if (array_slice->width() > 0 && array_slice->array()->Is<Array>() &&
-      start_bits.has_value() && start_bits->FitsInUint64()) {
-    uint64_t start = start_bits->ToUint64().value();
+      start_bits.has_value()) {
+    uint64_t start = bits_ops::UnsignedBitsToSaturatedInt64(start_bits.value());
     auto* inner_array = array_slice->array()->As<Array>();
 
     std::vector<Node*> new_ops;
