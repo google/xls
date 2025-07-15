@@ -20,6 +20,7 @@
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -1605,40 +1606,45 @@ VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
   VerilogFunction* func = section->Add<VerilogFunction>(
       slice->loc(), function_name,
       file->BitVectorType(slice->BitCountOrDie(), slice->loc()));
+  int64_t op_width = slice->to_slice()->BitCountOrDie();
   Expression* operand = func->AddArgument(
-      "operand",
-      file->BitVectorType(slice->to_slice()->BitCountOrDie(), slice->loc()),
-      slice->loc());
+      "operand", file->BitVectorType(op_width, slice->loc()), slice->loc());
+  int64_t start_width = slice->start()->BitCountOrDie();
   Expression* start = func->AddArgument(
-      "start",
-      file->BitVectorType(slice->start()->BitCountOrDie(), slice->loc()),
-      slice->loc());
+      "start", file->BitVectorType(start_width, slice->loc()), slice->loc());
   int64_t width = slice->width();
 
-  LogicRef* extended_operand = func->AddRegDef(
-      slice->loc(), "extended_operand",
-      file->BitVectorType(slice->to_slice()->BitCountOrDie() + width,
-                          slice->loc()),
-      /*init=*/nullptr);
+  LogicRef* extended_operand =
+      func->AddRegDef(slice->loc(), "extended_operand",
+                      file->BitVectorType(op_width + width, slice->loc()),
+                      /*init=*/nullptr);
 
   Expression* zeros = file->Literal(0, width, slice->loc());
-  Expression* op_width = file->Literal(
-      slice->operand(0)->BitCountOrDie(),
-      Bits::MinBitCountUnsigned(slice->to_slice()->BitCountOrDie()),
-      slice->loc());
-  // If start of slice is greater than or equal to operand width, result is
-  // completely out of bounds and set to all zeros.
-  Expression* out_of_bounds =
-      file->GreaterThanEquals(start, op_width, slice->loc());
-  // Pad with width zeros
   func->AddStatement<BlockingAssignment>(
       slice->loc(), extended_operand,
       file->Concat({zeros, operand}, slice->loc()));
   Expression* sliced_operand =
       file->PartSelect(extended_operand, start, width, slice->loc());
-  func->AddStatement<BlockingAssignment>(
-      slice->loc(), func->return_value_ref(),
-      file->Ternary(out_of_bounds, zeros, sliced_operand, slice->loc()));
+  int64_t max_start =
+      start_width < 64 ? static_cast<int64_t>((uint64_t{1} << start_width) - 1)
+                       : std::numeric_limits<int64_t>::max();
+  if (max_start < op_width) {
+    // Start of slice is never out of bounds.
+    func->AddStatement<BlockingAssignment>(
+        slice->loc(), func->return_value_ref(), sliced_operand);
+  } else {
+    // If start of slice is greater than or equal to operand width, result is
+    // completely out of bounds and set to all zeros.
+    Expression* max_slice_index_plus_one = file->Literal(
+        op_width, Bits::MinBitCountUnsigned(slice->to_slice()->BitCountOrDie()),
+        slice->loc());
+    Expression* out_of_bounds =
+        file->GreaterThanEquals(start, max_slice_index_plus_one, slice->loc());
+    // Pad with width zeros
+    func->AddStatement<BlockingAssignment>(
+        slice->loc(), func->return_value_ref(),
+        file->Ternary(out_of_bounds, zeros, sliced_operand, slice->loc()));
+  }
   return func;
 }
 

@@ -1,0 +1,24 @@
+module DynamicBitSliceStartAlwaysInBounds(
+  input wire [7:0] x,
+  input wire [2:0] y,
+  input wire [3:0] z
+);
+  function automatic logic dynamic_bit_slice_w1_8b_3b (input reg [7:0] operand, input reg [2:0] start);
+    reg [8:0] extended_operand;
+    begin
+      extended_operand = {1'h0, operand};
+      dynamic_bit_slice_w1_8b_3b = extended_operand[start +: 1];
+    end
+  endfunction
+  function automatic logic dynamic_bit_slice_w1_8b_4b (input reg [7:0] operand, input reg [3:0] start);
+    reg [8:0] extended_operand;
+    begin
+      extended_operand = {1'h0, operand};
+      dynamic_bit_slice_w1_8b_4b = start >= 4'h8 ? 1'h0 : extended_operand[start +: 1];
+    end
+  endfunction
+  wire dyn_slice_x_u8_y_u3_1;
+  wire dyn_slice_x_u8_y_u4_1;
+  assign dyn_slice_x_u8_y_u3_1 = dynamic_bit_slice_w1_8b_3b(x, y);
+  assign dyn_slice_x_u8_y_u4_1 = dynamic_bit_slice_w1_8b_4b(x, z);
+endmodule

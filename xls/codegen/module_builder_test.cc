@@ -460,6 +460,37 @@ TEST_P(ModuleBuilderTest, DynamicBitSliceAsFunction) {
                                  file.Emit());
 }
 
+TEST_P(ModuleBuilderTest, DynamicBitSliceStartAlwaysInBounds) {
+  VerilogFile file = NewVerilogFile();
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  Type* u3 = package.GetBitsType(3);
+  Type* u4 = package.GetBitsType(4);
+  BValue x_param = fb.Param("x", u8);
+  BValue y_param = fb.Param("y", u3);
+  BValue z_param = fb.Param("z", u4);
+  BValue dyn_slice_x_u8_y_u3_1 = fb.DynamicBitSlice(x_param, y_param, 1);
+  BValue dyn_slice_x_u8_z_u4_1 = fb.DynamicBitSlice(x_param, z_param, 1);
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u8));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u3));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * z, mb.AddInputPort("z", u4));
+
+  XLS_ASSERT_OK(mb.EmitAsAssignment("dyn_slice_x_u8_y_u3_1",
+                                    dyn_slice_x_u8_y_u3_1.node(), {x, y})
+                    .status());
+
+  XLS_ASSERT_OK(mb.EmitAsAssignment("dyn_slice_x_u8_y_u4_1",
+                                    dyn_slice_x_u8_z_u4_1.node(), {x, z})
+                    .status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
 TEST_P(ModuleBuilderTest, BitSliceUpdateAsFunction) {
   VerilogFile file = NewVerilogFile();
   Package package(TestBaseName());
