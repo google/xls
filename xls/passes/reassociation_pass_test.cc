@@ -672,7 +672,7 @@ TEST_F(ReassociationPassTest, DeepChainOfFullWidthUnsignedAdds) {
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(f->return_value(), AllOf(m::Add(), m::Type("bits[17]")));
 
-  ScopedVerifyEquivalence stays_equivalent(f, /*timeout=*/absl::Seconds(30));
+  ScopedVerifyEquivalence stays_equivalent(f);
   // NB We could perform significant narrowing ourselves (by noticing that
   // arguments are both ExtendOp) but things are simpler if we just let the
   // normal narrowing pass do that for us.
@@ -694,7 +694,7 @@ TEST_F(ReassociationPassTest, DeepChainOfFullWidthSignedAdds) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(f->return_value(), AllOf(m::Add(), m::Type("bits[17]")));
 
-  ScopedVerifyEquivalence stays_equivalent(f, /*timeout=*/absl::Seconds(30));
+  ScopedVerifyEquivalence stays_equivalent(f);
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(RunWithNarrowing(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
@@ -879,7 +879,7 @@ TEST_F(ReassociationPassTest, BalanceEarlyUse) {
   }
   fb.Tuple({lhs, fb.Add(lhs, rhs)});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  ScopedVerifyEquivalence sve(f, absl::Minutes(1));
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   auto lhs_match = m::Add(m::Add(m::Add(m::Param("lhs0"), m::Param("lhs1")),
                                  m::Add(m::Param("lhs2"), m::Param("lhs3"))),
@@ -1270,7 +1270,8 @@ TEST_F(ReassociationPassTest, MultipleOverflowTypes) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   // NB Z3 seems to have a surprisingly hard time proving this. Possibly because
   // a value switches sides on the add tree breaking pattern matching proofs?
-  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  // Since we are sharded we can give it a bit of time however.
+  ScopedVerifyEquivalence stays_equivalent(f);
   ScopedRecordIr sri(p.get(), "_ir");
   ASSERT_THAT(RunWithNarrowing(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(MaxAddDepth(f), 4);
