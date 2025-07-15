@@ -82,8 +82,15 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     op.channel_op_index = channel->total_ops++;
   }
 
+  // When splitting activations on channel ops, a slice with no after_op
+  // must be created in order to make it possible to transition activations
+  // or "jump" to this slice, as it has no IO op input.
+  if (generate_new_fsm_ && split_states_on_channel_ops_ && channel != nullptr) {
+    XLS_RETURN_IF_ERROR(NewContinuation(op, /*slice_before=*/true));
+  }
+
   // Add the continuation before, not including the received parameter
-  XLS_RETURN_IF_ERROR(NewContinuation(op));
+  XLS_RETURN_IF_ERROR(NewContinuation(op, /*slice_before=*/false));
 
   std::shared_ptr<CType> channel_item_type;
 
@@ -480,7 +487,10 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
                 CChannelType::MemoryAddressType(channel->memory_size), loc));
         op.op = OpType::kRead;
         op.ret_value =
-            context().fb->Tuple({addr_val, channel_specific_condition}, loc);
+            context().fb->Tuple({addr_val, channel_specific_condition}, loc,
+                                /*name=*/
+                                absl::StrFormat("%s_op%i", channel->unique_name,
+                                                channel->total_ops));
         op.is_blocking = true;
       }
     } else if (op_name == "nb_read") {
@@ -504,7 +514,11 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
 
         std::vector<TrackedBValue> sp = {out_val.rvalue(),
                                          channel_specific_condition};
-        op.ret_value = context().fb->Tuple(ToNativeBValues(sp), loc);
+        op.ret_value =
+            context().fb->Tuple(ToNativeBValues(sp), loc,
+                                /*name=*/
+                                absl::StrFormat("%s_op%i", channel->unique_name,
+                                                channel->total_ops));
         op.op = OpType::kSend;
         op.is_blocking = true;
       } else {  // memory write(addr, value)
@@ -522,12 +536,19 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
                 CChannelType::MemoryAddressType(channel->memory_size), loc));
         CValue data_val = arg_vals.at(1);
         XLSCC_CHECK(data_val.valid(), loc);
-        auto addr_val_tup =
-            context().fb->Tuple({addr_val, data_val.rvalue()}, loc);
+        auto addr_val_tup = context().fb->Tuple(
+            {addr_val, data_val.rvalue()}, loc,
+            /*name=*/
+            absl::StrFormat("addr_%s_%i", channel->unique_name,
+                            channel->total_ops));
 
         std::vector<TrackedBValue> sp = {addr_val_tup,
                                          channel_specific_condition};
-        op.ret_value = context().fb->Tuple(ToNativeBValues(sp), loc);
+        op.ret_value =
+            context().fb->Tuple(ToNativeBValues(sp), loc,
+                                /*name=*/
+                                absl::StrFormat("%s_op%i", channel->unique_name,
+                                                channel->total_ops));
         op.op = OpType::kWrite;
         op.is_blocking = true;
       }
@@ -550,17 +571,28 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         CHECK(assignment_value.rvalue().valid());
 
         auto addr_val_tup = context().fb->Tuple(
-            {addr_val_converted, assignment_value.rvalue()}, loc);
+            {addr_val_converted, assignment_value.rvalue()}, loc,
+            /*name=*/
+            absl::StrFormat("addr_%s_%i", channel->unique_name,
+                            channel->total_ops));
 
         std::vector<TrackedBValue> sp = {addr_val_tup,
                                          channel_specific_condition};
-        op.ret_value = context().fb->Tuple(ToNativeBValues(sp), loc);
+        op.ret_value =
+            context().fb->Tuple(ToNativeBValues(sp), loc,
+                                /*name=*/
+                                absl::StrFormat("%s_op%i", channel->unique_name,
+                                                channel->total_ops));
 
       } else {
         op.op = OpType::kRead;
         std::vector<TrackedBValue> sp = {addr_val_converted,
                                          channel_specific_condition};
-        op.ret_value = context().fb->Tuple(ToNativeBValues(sp), loc);
+        op.ret_value =
+            context().fb->Tuple(ToNativeBValues(sp), loc,
+                                /*name=*/
+                                absl::StrFormat("%s_op%i", channel->unique_name,
+                                                channel->total_ops));
       }
     } else if (op_name == "size") {
       XLSCC_CHECK_GT(channel->memory_size, 0, loc);
