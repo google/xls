@@ -603,7 +603,7 @@ proc ZstdDecoderInternal<
             },
 
             Fsm::WRITE_OUTPUT => {
-                // trace_fmt!("[WRITE_OUTPUT]");
+                trace_fmt!("[WRITE_OUTPUT]");
                 let error = (output_write_resp.status != mem_writer::MemWriterRespStatus::OKAY);
                 let fsm = match (output_write_done, error) {
                     (true,  false) => Fsm::FINISH,
@@ -615,7 +615,7 @@ proc ZstdDecoderInternal<
             },
 
             Fsm::ERROR => {
-                 // trace_fmt!("[ERROR]");
+                 trace_fmt!("[ERROR]");
                  State { fsm: Fsm::IDLE, ..zero!<State>() }
             },
 
@@ -946,6 +946,7 @@ pub proc ZstdDecoder<
 
     HISTORY_BUFFER_SIZE_KB: u32,
     AXI_CHAN_N: u32,
+    FSE_MAX_ACCURACY_LOG: u32 = {common::FSE_MAX_ACCURACY_LOG},
 
     // calculated parameters
     AXI_DATA_W_DIV8: u32 = {AXI_DATA_W / u32:8},
@@ -1113,32 +1114,34 @@ pub proc ZstdDecoder<
         tmp2_wr_resp_r: chan<Tmp2RamWrResp> in,
 
         ll_def_fse_rd_req_s: chan<FseRamRdReq> out,
-        ll_fse_rd_req_s: chan<FseRamRdReq> out,
-        ml_def_fse_rd_req_s: chan<FseRamRdReq> out,
-        ml_fse_rd_req_s: chan<FseRamRdReq> out,
-        of_def_fse_rd_req_s: chan<FseRamRdReq> out,
-        of_fse_rd_req_s: chan<FseRamRdReq> out,
-
         ll_def_fse_rd_resp_r: chan<FseRamRdResp> in,
-        ll_fse_rd_resp_r: chan<FseRamRdResp> in,
-        ml_def_fse_rd_resp_r: chan<FseRamRdResp> in,
-        ml_fse_rd_resp_r: chan<FseRamRdResp> in,
-        of_def_fse_rd_resp_r: chan<FseRamRdResp> in,
-        of_fse_rd_resp_r: chan<FseRamRdResp> in,
-
         ll_def_fse_wr_req_s: chan<FseRamWrReq> out,
-        ll_fse_wr_req_s: chan<FseRamWrReq> out,
-        ml_def_fse_wr_req_s: chan<FseRamWrReq> out,
-        ml_fse_wr_req_s: chan<FseRamWrReq> out,
-        of_def_fse_wr_req_s: chan<FseRamWrReq> out,
-        of_fse_wr_req_s: chan<FseRamWrReq> out,
-
         ll_def_fse_wr_resp_r: chan<FseRamWrResp> in,
+
+        ll_fse_rd_req_s: chan<FseRamRdReq> out,
+        ll_fse_rd_resp_r: chan<FseRamRdResp> in,
+        ll_fse_wr_req_s: chan<FseRamWrReq> out,
         ll_fse_wr_resp_r: chan<FseRamWrResp> in,
-        ml_def_fse_wr_resp_r: chan<FseRamWrResp> in,
-        ml_fse_wr_resp_r: chan<FseRamWrResp> in,
+
+        of_def_fse_rd_req_s: chan<FseRamRdReq> out,
+        of_def_fse_rd_resp_r: chan<FseRamRdResp> in,
+        of_def_fse_wr_req_s: chan<FseRamWrReq> out,
         of_def_fse_wr_resp_r: chan<FseRamWrResp> in,
+
+        of_fse_rd_req_s: chan<FseRamRdReq> out,
+        of_fse_rd_resp_r: chan<FseRamRdResp> in,
+        of_fse_wr_req_s: chan<FseRamWrReq> out,
         of_fse_wr_resp_r: chan<FseRamWrResp> in,
+
+        ml_def_fse_rd_req_s: chan<FseRamRdReq> out,
+        ml_def_fse_rd_resp_r: chan<FseRamRdResp> in,
+        ml_def_fse_wr_req_s: chan<FseRamWrReq> out,
+        ml_def_fse_wr_resp_r: chan<FseRamWrResp> in,
+
+        ml_fse_rd_req_s: chan<FseRamRdReq> out,
+        ml_fse_rd_resp_r: chan<FseRamRdResp> in,
+        ml_fse_wr_req_s: chan<FseRamWrReq> out,
+        ml_fse_wr_resp_r: chan<FseRamWrResp> in,
 
         litbuf_rd_req_s: chan<LitBufRamRdReq>[u32:8] out,
         litbuf_rd_resp_r: chan<LitBufRamRdResp>[u32:8] in,
@@ -1338,6 +1341,7 @@ pub proc ZstdDecoder<
             HUFFMAN_WEIGHTS_TMP_RAM_ADDR_W, HUFFMAN_WEIGHTS_TMP_RAM_DATA_W, HUFFMAN_WEIGHTS_TMP_RAM_NUM_PARTITIONS,
             HUFFMAN_WEIGHTS_TMP2_RAM_ADDR_W, HUFFMAN_WEIGHTS_TMP2_RAM_DATA_W, HUFFMAN_WEIGHTS_TMP2_RAM_NUM_PARTITIONS,
             HUFFMAN_WEIGHTS_FSE_RAM_ADDR_W, HUFFMAN_WEIGHTS_FSE_RAM_DATA_W, HUFFMAN_WEIGHTS_FSE_RAM_NUM_PARTITIONS,
+            FSE_MAX_ACCURACY_LOG,
         >(
             // MAIN IOs
 
@@ -1355,11 +1359,10 @@ pub proc ZstdDecoder<
             tmp2_rd_req_s, tmp2_rd_resp_r, tmp2_wr_req_s, tmp2_wr_resp_r,
             ll_def_fse_rd_req_s, ll_def_fse_rd_resp_r, ll_def_fse_wr_req_s, ll_def_fse_wr_resp_r,
             ll_fse_rd_req_s, ll_fse_rd_resp_r, ll_fse_wr_req_s, ll_fse_wr_resp_r,
-            ml_def_fse_rd_req_s, ml_def_fse_rd_resp_r, ml_def_fse_wr_req_s, ml_def_fse_wr_resp_r,
-            ml_fse_rd_req_s, ml_fse_rd_resp_r, ml_fse_wr_req_s, ml_fse_wr_resp_r,
             of_def_fse_rd_req_s, of_def_fse_rd_resp_r, of_def_fse_wr_req_s, of_def_fse_wr_resp_r,
             of_fse_rd_req_s, of_fse_rd_resp_r, of_fse_wr_req_s, of_fse_wr_resp_r,
-
+            ml_def_fse_rd_req_s, ml_def_fse_rd_resp_r, ml_def_fse_wr_req_s, ml_def_fse_wr_resp_r,
+            ml_fse_rd_req_s, ml_fse_rd_resp_r, ml_fse_wr_req_s, ml_fse_wr_resp_r,
             // LITERALS DECODING
 
             // axi channels for literals decoding
@@ -1478,7 +1481,8 @@ const INST_DPD_RAM_NUM_PARTITIONS = ram::num_partitions(
     INST_DPD_RAM_WORD_PARTITION_SIZE, INST_DPD_RAM_DATA_W);
 
 const INST_FSE_RAM_DATA_W = u32:32;
-const INST_FSE_RAM_SIZE = u32:256;
+const INST_FSE_MAX_ACCURACY_LOG = common::FSE_MAX_ACCURACY_LOG;
+const INST_FSE_RAM_SIZE = u32:1 << INST_FSE_MAX_ACCURACY_LOG;
 const INST_FSE_RAM_ADDR_W = std::clog2(INST_FSE_RAM_SIZE);
 const INST_FSE_RAM_WORD_PARTITION_SIZE = INST_FSE_RAM_DATA_W;
 const INST_FSE_RAM_NUM_PARTITIONS = ram::num_partitions(
@@ -1745,10 +1749,35 @@ proc ZstdDecoderInst {
         tmp2_wr_req_s: chan<Tmp2RamWrReq> out,
         tmp2_wr_resp_r: chan<Tmp2RamWrResp> in,
 
-        fse_rd_req_s: chan<FseRamRdReq>[u32:6] out,
-        fse_rd_resp_r: chan<FseRamRdResp>[u32:6] in,
-        fse_wr_req_s: chan<FseRamWrReq>[u32:6] out,
-        fse_wr_resp_r: chan<FseRamWrResp>[u32:6] in,
+        ll_def_fse_rd_req_s: chan<FseRamRdReq> out,
+        ll_def_fse_rd_resp_r: chan<FseRamRdResp> in,
+        ll_def_fse_wr_req_s: chan<FseRamWrReq> out,
+        ll_def_fse_wr_resp_r: chan<FseRamWrResp> in,
+
+        ll_fse_rd_req_s: chan<FseRamRdReq> out,
+        ll_fse_rd_resp_r: chan<FseRamRdResp> in,
+        ll_fse_wr_req_s: chan<FseRamWrReq> out,
+        ll_fse_wr_resp_r: chan<FseRamWrResp> in,
+
+        of_def_fse_rd_req_s: chan<FseRamRdReq> out,
+        of_def_fse_rd_resp_r: chan<FseRamRdResp> in,
+        of_def_fse_wr_req_s: chan<FseRamWrReq> out,
+        of_def_fse_wr_resp_r: chan<FseRamWrResp> in,
+
+        of_fse_rd_req_s: chan<FseRamRdReq> out,
+        of_fse_rd_resp_r: chan<FseRamRdResp> in,
+        of_fse_wr_req_s: chan<FseRamWrReq> out,
+        of_fse_wr_resp_r: chan<FseRamWrResp> in,
+
+        ml_def_fse_rd_req_s: chan<FseRamRdReq> out,
+        ml_def_fse_rd_resp_r: chan<FseRamRdResp> in,
+        ml_def_fse_wr_req_s: chan<FseRamWrReq> out,
+        ml_def_fse_wr_resp_r: chan<FseRamWrResp> in,
+
+        ml_fse_rd_req_s: chan<FseRamRdReq> out,
+        ml_fse_rd_resp_r: chan<FseRamRdResp> in,
+        ml_fse_wr_req_s: chan<FseRamWrReq> out,
+        ml_fse_wr_resp_r: chan<FseRamWrResp> in,
 
         litbuf_rd_req_s: chan<LitBufRamRdReq>[u32:8] out,
         litbuf_rd_resp_r: chan<LitBufRamRdResp>[u32:8] in,
@@ -1853,6 +1882,7 @@ proc ZstdDecoderInst {
 
             INST_HISTORY_BUFFER_SIZE_KB,
             INST_AXI_CHAN_N,
+            INST_FSE_MAX_ACCURACY_LOG,
         >(
             csr_axi_aw_r, csr_axi_w_r, csr_axi_b_s, csr_axi_ar_r, csr_axi_r_s,
             fh_axi_ar_s, fh_axi_r_r,
@@ -1865,10 +1895,12 @@ proc ZstdDecoderInst {
             tmp_wr_req_s, tmp_wr_resp_r,
             tmp2_rd_req_s, tmp2_rd_resp_r,
             tmp2_wr_req_s, tmp2_wr_resp_r,
-            fse_rd_req_s[0], fse_rd_req_s[1], fse_rd_req_s[2], fse_rd_req_s[3], fse_rd_req_s[4], fse_rd_req_s[5],
-            fse_rd_resp_r[0], fse_rd_resp_r[1], fse_rd_resp_r[2], fse_rd_resp_r[3], fse_rd_resp_r[4], fse_rd_resp_r[5],
-            fse_wr_req_s[0], fse_wr_req_s[1], fse_wr_req_s[2], fse_wr_req_s[3], fse_wr_req_s[4], fse_wr_req_s[5],
-            fse_wr_resp_r[0], fse_wr_resp_r[1], fse_wr_resp_r[2], fse_wr_resp_r[3], fse_wr_resp_r[4], fse_wr_resp_r[5],
+            ll_def_fse_rd_req_s, ll_def_fse_rd_resp_r, ll_def_fse_wr_req_s, ll_def_fse_wr_resp_r,
+            ll_fse_rd_req_s, ll_fse_rd_resp_r, ll_fse_wr_req_s, ll_fse_wr_resp_r,
+            of_def_fse_rd_req_s, of_def_fse_rd_resp_r, of_def_fse_wr_req_s, of_def_fse_wr_resp_r,
+            of_fse_rd_req_s, of_fse_rd_resp_r, of_fse_wr_req_s, of_fse_wr_resp_r,
+            ml_def_fse_rd_req_s, ml_def_fse_rd_resp_r, ml_def_fse_wr_req_s, ml_def_fse_wr_resp_r,
+            ml_fse_rd_req_s, ml_fse_rd_resp_r, ml_fse_wr_req_s, ml_fse_wr_resp_r,
             litbuf_rd_req_s, litbuf_rd_resp_r,
             litbuf_wr_req_s, litbuf_wr_resp_r,
             huffman_lit_weights_mem_rd_req_s, huffman_lit_weights_mem_rd_resp_r,

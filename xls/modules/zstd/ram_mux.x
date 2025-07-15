@@ -16,9 +16,9 @@
 // More information about the ZSTD Block Header can be found in:
 // https://datatracker.ietf.org/doc/html/rfc8878#section-3.1.1.2
 
-
 import std;
 import xls.examples.ram;
+import xls.modules.zstd.ram_passthrough;
 
 struct RamMuxState { sel: u1, cnt0: u32, cnt1: u32 }
 
@@ -31,7 +31,8 @@ pub proc RamMux<
     type WriteReq = ram::WriteReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>;
     type WriteResp = ram::WriteResp;
 
-    sel_r: chan<u1> in;
+    sel_req_r: chan<u1> in;
+    sel_resp_s: chan<()> out;
 
     rd_req0_r: chan<ReadReq> in;
     rd_resp0_s: chan<ReadResp> out;
@@ -47,7 +48,8 @@ pub proc RamMux<
     wr_resp_r: chan<WriteResp> in;
 
     config(
-        sel_r: chan<u1> in,
+        sel_req_r: chan<u1> in,
+        sel_resp_s: chan<()> out,
         rd_req0_r: chan<ReadReq> in,
         rd_resp0_s: chan<ReadResp> out,
         wr_req0_r: chan<WriteReq> in,
@@ -62,7 +64,7 @@ pub proc RamMux<
         wr_resp_r: chan<WriteResp> in
     ) {
         (
-            sel_r,
+            sel_req_r, sel_resp_s,
             rd_req0_r, rd_resp0_s, wr_req0_r, wr_resp0_s,
             rd_req1_r, rd_resp1_s, wr_req1_r, wr_resp1_s,
             rd_req_s, rd_resp_r, wr_req_s, wr_resp_r,
@@ -138,10 +140,132 @@ pub proc RamMux<
 
         // handle select
         let (tok2_6, sel, sel_valid) =
-            recv_if_non_blocking(tok1, sel_r, cnt0 == u32:0 && cnt1 == u32:0, state.sel);
+            recv_if_non_blocking(tok1, sel_req_r, cnt0 == u32:0 && cnt1 == u32:0, state.sel);
+        send_if(tok2_6, sel_resp_s, sel_valid, ());
 
         RamMuxState { sel, cnt0, cnt1 }
     }
+}
+
+pub proc RamMuxWrapped<
+    ADDR_WIDTH: u32, DATA_WIDTH: u32, NUM_PARTITIONS: u32,
+    INIT_SEL: u1 = {u1:0}
+> {
+    type ReadReq = ram::ReadReq<ADDR_WIDTH, NUM_PARTITIONS>;
+    type ReadResp = ram::ReadResp<DATA_WIDTH>;
+    type WriteReq = ram::WriteReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>;
+    type WriteResp = ram::WriteResp;
+
+    config(
+        sel_req_r: chan<u1> in,
+        sel_resp_s: chan<()> out,
+        rd_req0_r: chan<ReadReq> in,
+        rd_resp0_s: chan<ReadResp> out,
+        wr_req0_r: chan<WriteReq> in,
+        wr_resp0_s: chan<WriteResp> out,
+        rd_req1_r: chan<ReadReq> in,
+        rd_resp1_s: chan<ReadResp> out,
+        wr_req1_r: chan<WriteReq> in,
+        wr_resp1_s: chan<WriteResp> out,
+        rd_req_s: chan<ReadReq> out,
+        rd_resp_r: chan<ReadResp> in,
+        wr_req_s: chan<WriteReq> out,
+        wr_resp_r: chan<WriteResp> in
+    ) {
+        const CHANNEL_DEPTH = u32:1;
+
+        let (rd_req_pass_s, rd_req_pass_r) = chan<ReadReq, CHANNEL_DEPTH>("rd_req_pass");
+        let (rd_resp_pass_s, rd_resp_pass_r) = chan<ReadResp, CHANNEL_DEPTH>("rd_resp_pass");
+        let (wr_req_pass_s, wr_req_pass_r) = chan<WriteReq, CHANNEL_DEPTH>("wr_req_pass");
+        let (wr_resp_pass_s, wr_resp_pass_r) = chan<WriteResp, CHANNEL_DEPTH>("wr_resp_pass");
+
+        spawn RamMux<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>(
+            sel_req_r, sel_resp_s,
+            rd_req0_r, rd_resp0_s, wr_req0_r, wr_resp0_s,
+            rd_req1_r, rd_resp1_s, wr_req1_r, wr_resp1_s,
+            rd_req_pass_s, rd_resp_pass_r, wr_req_pass_s, wr_resp_pass_r);
+
+        spawn ram_passthrough::RamPassthrough<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>(
+            rd_req_pass_r, rd_resp_pass_s, wr_req_pass_r, wr_resp_pass_s,
+            rd_req_s, rd_resp_r, wr_req_s, wr_resp_r,
+        );
+    }
+
+    init { }
+    next(state: ()) { }
+}
+
+const INST_SIZE = u32:1024;
+const INST_DATA_WIDTH = u32:64;
+const INST_ADDR_WIDTH = std::clog2(INST_SIZE);
+const INST_WORD_PARTITION_SIZE = u32:1;
+const INST_NUM_PARTITIONS = ram::num_partitions(INST_WORD_PARTITION_SIZE, INST_DATA_WIDTH);
+
+pub proc RamMuxInst {
+    type ReadReq = ram::ReadReq<INST_ADDR_WIDTH, INST_NUM_PARTITIONS>;
+    type ReadResp = ram::ReadResp<INST_DATA_WIDTH>;
+    type WriteReq = ram::WriteReq<INST_ADDR_WIDTH, INST_DATA_WIDTH, INST_NUM_PARTITIONS>;
+    type WriteResp = ram::WriteResp;
+
+    config(
+        sel_req_r: chan<u1> in,
+        sel_resp_s: chan<()> out,
+        rd_req0_r: chan<ReadReq> in,
+        rd_resp0_s: chan<ReadResp> out,
+        wr_req0_r: chan<WriteReq> in,
+        wr_resp0_s: chan<WriteResp> out,
+        rd_req1_r: chan<ReadReq> in,
+        rd_resp1_s: chan<ReadResp> out,
+        wr_req1_r: chan<WriteReq> in,
+        wr_resp1_s: chan<WriteResp> out,
+        rd_req_s: chan<ReadReq> out,
+        rd_resp_r: chan<ReadResp> in,
+        wr_req_s: chan<WriteReq> out,
+        wr_resp_r: chan<WriteResp> in
+    ) {
+        spawn RamMux<INST_ADDR_WIDTH, INST_DATA_WIDTH, INST_NUM_PARTITIONS>(
+            sel_req_r, sel_resp_s,
+            rd_req0_r, rd_resp0_s, wr_req0_r, wr_resp0_s,
+            rd_req1_r, rd_resp1_s, wr_req1_r, wr_resp1_s,
+            rd_req_s, rd_resp_r, wr_req_s, wr_resp_r
+        );
+    }
+
+    init { }
+    next(state:()) {}
+}
+
+pub proc RamMuxWrappedInst {
+    type ReadReq = ram::ReadReq<INST_ADDR_WIDTH, INST_NUM_PARTITIONS>;
+    type ReadResp = ram::ReadResp<INST_DATA_WIDTH>;
+    type WriteReq = ram::WriteReq<INST_ADDR_WIDTH, INST_DATA_WIDTH, INST_NUM_PARTITIONS>;
+    type WriteResp = ram::WriteResp;
+
+    config(
+        sel_req_r: chan<u1> in,
+        sel_resp_s: chan<()> out,
+        rd_req0_r: chan<ReadReq> in,
+        rd_resp0_s: chan<ReadResp> out,
+        wr_req0_r: chan<WriteReq> in,
+        wr_resp0_s: chan<WriteResp> out,
+        rd_req1_r: chan<ReadReq> in,
+        rd_resp1_s: chan<ReadResp> out,
+        wr_req1_r: chan<WriteReq> in,
+        wr_resp1_s: chan<WriteResp> out,
+        rd_req_s: chan<ReadReq> out,
+        rd_resp_r: chan<ReadResp> in,
+        wr_req_s: chan<WriteReq> out,
+        wr_resp_r: chan<WriteResp> in
+    ) {
+        spawn RamMuxWrapped<INST_ADDR_WIDTH, INST_DATA_WIDTH, INST_NUM_PARTITIONS>(
+            sel_req_r, sel_resp_s,
+            rd_req0_r, rd_resp0_s, wr_req0_r, wr_resp0_s,
+            rd_req1_r, rd_resp1_s, wr_req1_r, wr_resp1_s,
+            rd_req_s, rd_resp_r, wr_req_s, wr_resp_r);
+    }
+
+    init { }
+    next(state:()) {}
 }
 
 const MUX_TEST_SIZE = u32:32;
@@ -165,14 +289,14 @@ fn MuxTestReadWordReq(addr: MuxTestAddr) ->
 
 #[test_proc]
 proc RamMuxTest {
-    terminator: chan<bool> out;
-    sel_s: chan<u1> out;
-
     type ReadReq = ram::ReadReq<MUX_TEST_ADDR_WIDTH, MUX_TEST_NUM_PARTITIONS>;
     type ReadResp = ram::ReadResp<MUX_TEST_DATA_WIDTH>;
     type WriteReq = ram::WriteReq<MUX_TEST_ADDR_WIDTH, MUX_TEST_DATA_WIDTH, MUX_TEST_NUM_PARTITIONS>;
     type WriteResp = ram::WriteResp;
 
+    terminator: chan<bool> out;
+    sel_req_s: chan<u1> out;
+    sel_resp_r: chan<()> in;
 
     rd_req0_s: chan<ReadReq> out;
     rd_resp0_r: chan<ReadResp> in;
@@ -184,7 +308,8 @@ proc RamMuxTest {
     wr_resp1_r: chan<WriteResp> in;
 
     config(terminator: chan<bool> out) {
-        let (sel_s, sel_r) = chan<u1>("sel");
+        let (sel_req_s, sel_req_r) = chan<u1>("sel_req");
+        let (sel_resp_s, sel_resp_r) = chan<()>("sel_resp");
 
         let (rd_req0_s, rd_req0_r) = chan<ReadReq>("rd_req0");
         let (rd_resp0_s, rd_resp0_r) = chan<ReadResp>("rd_resp0");
@@ -202,14 +327,21 @@ proc RamMuxTest {
         let (wr_resp_s, wr_resp_r) = chan<WriteResp>("wr_resp");
 
         spawn RamMux<MUX_TEST_ADDR_WIDTH, MUX_TEST_DATA_WIDTH, MUX_TEST_NUM_PARTITIONS>(
-            sel_r, rd_req0_r, rd_resp0_s, wr_req0_r, wr_resp0_s, rd_req1_r, rd_resp1_s, wr_req1_r,
-            wr_resp1_s, rd_req_s, rd_resp_r, wr_req_s, wr_resp_r);
+            sel_req_r, sel_resp_s,
+            rd_req0_r, rd_resp0_s, wr_req0_r, wr_resp0_s,
+            rd_req1_r, rd_resp1_s, wr_req1_r, wr_resp1_s,
+            rd_req_s, rd_resp_r, wr_req_s, wr_resp_r
+        );
 
         spawn ram::RamModel<MUX_TEST_DATA_WIDTH, MUX_TEST_SIZE, MUX_TEST_WORD_PARTITION_SIZE>(
-            rd_req_r, rd_resp_s, wr_req_r, wr_resp_s);
+            rd_req_r, rd_resp_s, wr_req_r, wr_resp_s
+        );
+
         (
-            terminator, sel_s, rd_req0_s, rd_resp0_r, wr_req0_s, wr_resp0_r, rd_req1_s, rd_resp1_r,
-            wr_req1_s, wr_resp1_r,
+            terminator,
+            sel_req_s, sel_resp_r,
+            rd_req0_s, rd_resp0_r, wr_req0_s, wr_resp0_r,
+            rd_req1_s, rd_resp1_r, wr_req1_s, wr_resp1_r,
         )
     }
 
@@ -226,7 +358,8 @@ proc RamMuxTest {
 
         let req = MuxTestWriteWordReq(MuxTestAddr:1, MuxTestData:0xCD);
         let tok = send(tok, wr_req1_s, req);
-        let tok = send(tok, sel_s, u1:1);
+        let tok = send(tok, sel_req_s, u1:1);
+        let (tok, _) = recv(tok, sel_resp_r);
         let (tok, _) = recv(tok, wr_resp1_r);
         let tok = send(tok, rd_req1_s, MuxTestReadWordReq(req.addr));
         let (tok, resp) = recv(tok, rd_resp1_r);

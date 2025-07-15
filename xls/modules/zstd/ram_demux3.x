@@ -29,8 +29,8 @@ pub proc RamDemux3<
     NUM_PARTITIONS: u32,
     INIT_SEL: u2 = {u2:0},
     QUEUE_LEN: u32 = {u32:5},
-    D1_INIT_SEL: u1 = {INIT_SEL == u2:1 || INIT_SEL == u2:2},
-    D2_INIT_SEL: u1 = {INIT_SEL == u2:2 || INIT_SEL == u2:3},
+    D1_INIT_SEL: u1 = { if INIT_SEL == u2:0 { u1:0 } else { u1:1 }},
+    D2_INIT_SEL: u1 = { if INIT_SEL == u2:2 { u1:1 } else { u1:0 }},
 > {
     type ReadReq = ram::ReadReq<ADDR_WIDTH, NUM_PARTITIONS>;
     type ReadResp = ram::ReadResp<DATA_WIDTH>;
@@ -79,7 +79,7 @@ pub proc RamDemux3<
         let (tmp_wr_req_s, tmp_wr_req_r) = chan<WriteReq, CHANNEL_DEPTH>("tmp_wr_req");
         let (tmp_wr_resp_s, tmp_wr_resp_r) = chan<WriteResp, CHANNEL_DEPTH>("tmp_wr_resp");
 
-        spawn ram_demux::RamDemux<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS, u32:0xFF, D1_INIT_SEL, QUEUE_LEN>(
+        spawn ram_demux::RamDemuxWrapped<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS, u32:0xFF, D1_INIT_SEL, QUEUE_LEN>(
             d1_sel_req_r, d1_sel_resp_s,
             rd_req_r, rd_resp_s, wr_req_r, wr_resp_s,
             rd_req0_s, rd_resp0_r, wr_req0_s, wr_resp0_r,
@@ -89,7 +89,7 @@ pub proc RamDemux3<
         let (d2_sel_req_s, d2_sel_req_r) = chan<u1, CHANNEL_DEPTH>("d2_sel_req");
         let (d2_sel_resp_s, d2_sel_resp_r) = chan<(), CHANNEL_DEPTH>("d2_sel_resp");
 
-        spawn ram_demux::RamDemux<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS, u32:0xFE, D2_INIT_SEL, QUEUE_LEN>(
+        spawn ram_demux::RamDemuxWrapped<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS, u32:0xFE, D2_INIT_SEL, QUEUE_LEN>(
             d2_sel_req_r, d2_sel_resp_s,
             tmp_rd_req_r, tmp_rd_resp_s, tmp_wr_req_r, tmp_wr_resp_s,
             rd_req1_s, rd_resp1_r, wr_req1_s, wr_resp1_r,
@@ -106,8 +106,8 @@ pub proc RamDemux3<
     init { }
 
     next(state: ()) {
-        let tok = join();
-        let (tok, sel) = recv(tok, sel_req_r);
+        let tok0 = join();
+        let (tok1, sel) = recv(tok0, sel_req_r);
 
         let (sel1, sel2) = match sel {
             u2:0 => (u1:0, u1:0),
@@ -116,14 +116,14 @@ pub proc RamDemux3<
             _    => (u1:0, u1:1),
         };
 
-        let tok1_0 = send(tok, d1_sel_req_s, sel1);
-        let (tok2_0, ()) = recv(tok1_0, d1_sel_resp_r);
+        let tok2_0 = send(tok1, d1_sel_req_s, sel1);
+        let (tok3_0, _) = recv(tok2_0, d1_sel_resp_r);
 
-        let tok1_1 = send(tok, d2_sel_req_s, sel2);
-        let (tok2_1, ()) = recv(tok, d2_sel_resp_r);
+        let tok2_0 = send(tok1, d2_sel_req_s, sel2);
+        let (tok3_1, _) = recv(tok2_0, d2_sel_resp_r);
 
-        let tok2 = join(tok2_0, tok2_1);
-        send(tok2, sel_resp_s, ());
+        let tok3 = join(tok3_0, tok3_1);
+        send(tok3, sel_resp_s, ());
     }
 }
 

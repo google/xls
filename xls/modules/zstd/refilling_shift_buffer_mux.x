@@ -76,11 +76,11 @@ pub proc RefillingShiftBufferMux<
         let tok0 = join();
 
         let (tok1, sel, sel_valid) = recv_non_blocking(tok0, sel_req_r, state.sel);
-        let tok2_0 = send(tok0, sel_resp_s, ());
+        let tok2_0 = send_if(tok1, sel_resp_s, sel_valid, ());
 
-        let (tok2_0, ctrl0, ctrl0_valid) = recv_if_non_blocking(tok1, ctrl0_r, sel == u1:0, zero!<SBCtrl>());
-        let (tok2_1, ctrl1, ctrl1_valid) = recv_if_non_blocking(tok1, ctrl1_r, sel == u1:1, zero!<SBCtrl>());
-        let tok2 = join(tok2_0, tok2_1);
+        let (tok2_1, ctrl0, ctrl0_valid) = recv_if_non_blocking(tok1, ctrl0_r, sel == u1:0, zero!<SBCtrl>());
+        let (tok2_2, ctrl1, ctrl1_valid) = recv_if_non_blocking(tok1, ctrl1_r, sel == u1:1, zero!<SBCtrl>());
+        let tok2 = join(tok2_0, tok2_1, tok2_2);
 
         let (ctrl, ctrl_valid) = if ctrl0_valid {
             (ctrl0, true)
