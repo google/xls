@@ -24,7 +24,7 @@ shift 1
 for dslx_file in $(find $dir -name "*.x" | sort);
 do
   fail=0
-  echo "Checking" $i
+  echo "Checking" $dslx_file
   a=$($WORKSPACE_ROOT/bazel-bin/xls/dslx/ir_convert/ir_converter_main $dslx_file $@ 2> >(head -n 5))
   if (( $? )); then
     echo "$a"
