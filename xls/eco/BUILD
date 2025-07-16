@@ -120,10 +120,9 @@ py_library(
     ],
 )
 
-py_binary(
-    name = "ir_diff_main",
+py_library(
+    name = "ir_diff_main_lib",
     srcs = ["ir_diff_main.py"],
-    test_lib = True,
     deps = [
         ":ir_diff",
         ":ir_diff_utils",
@@ -134,17 +133,22 @@ py_binary(
     ],
 )
 
+py_binary(
+    name = "ir_diff_main",
+    srcs = ["ir_diff_main.py"],
+    deps = [":ir_diff_main_lib"],
+)
+
 py_test(
     name = "ir_diff_main_test",
     srcs = ["ir_diff_main_test.py"],
     data = [
-        ":ir_diff_main",
         "//xls/examples:riscv_simple.ir",  # unopt
         "//xls/examples:riscv_simple.opt.ir",  #opt
     ],
     deps = [
         ":ir_diff",
-        ":ir_diff_main.testonly_lib",
+        ":ir_diff_main_lib",
         ":ir_patch_py_pb2",
         "//xls/common:runfiles",
         "@abseil-py//absl/flags",
