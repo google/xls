@@ -20,6 +20,10 @@
 #include "mlir/include/mlir/IR/OwningOpRef.h"
 #include "xls/ir/package.h"
 
+namespace xls {
+class Package;
+}  // namespace xls
+
 namespace mlir::xls {
 
 OwningOpRef<Operation*> XlsToMlirXlsTranslate(llvm::SourceMgr& mgr,
