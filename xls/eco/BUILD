@@ -123,7 +123,6 @@ py_library(
 py_binary(
     name = "ir_diff_main",
     srcs = ["ir_diff_main.py"],
-    test_lib = True,
     deps = [
         ":ir_diff",
         ":ir_diff_utils",
@@ -143,13 +142,9 @@ py_test(
         "//xls/examples:riscv_simple.opt.ir",  #opt
     ],
     deps = [
-        ":ir_diff",
-        ":ir_diff_main.testonly_lib",
         ":ir_patch_py_pb2",
         "//xls/common:runfiles",
-        "@abseil-py//absl/flags",
         "@abseil-py//absl/testing:absltest",
-        "@abseil-py//absl/testing:flagsaver",
     ],
 )
 
