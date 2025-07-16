@@ -448,7 +448,7 @@ absl::Status Translator::AddContinuationsToNewSlice(
 
 // The continuation comes before the IO op, and so does not include its input
 // parameter
-absl::Status Translator::NewContinuation(IOOp& op) {
+absl::Status Translator::NewContinuation(const IOOp& op, bool slice_before) {
   // If there is no first slice, then don't generate any
   if (context().sf->slices.empty()) {
     return absl::OkStatus();
@@ -513,7 +513,8 @@ absl::Status Translator::NewContinuation(IOOp& op) {
       xls_names_for_functions_generated_.at(context().sf->clang_decl);
 
   function_in_progress.builder = std::make_unique<TrackedFunctionBuilder>(
-      absl::StrFormat("%s_slice_after_%s_%i", xls_name, Debug_OpName(op),
+      absl::StrFormat("%s_slice_%s_%s_%i", xls_name,
+                      slice_before ? "before" : "after", Debug_OpName(op),
                       op.channel_op_index),
       package_);
 
@@ -643,6 +644,8 @@ absl::Status Translator::FinishLastSlice(TrackedBValue return_bval,
   XLS_RETURN_IF_ERROR(FinishSlice(return_bval, loc));
 
   XLS_RETURN_IF_ERROR(OptimizeContinuations(*context().sf, loc));
+
+  LogContinuations(*context().sf);
 
   return absl::OkStatus();
 }
@@ -1154,12 +1157,28 @@ std::string GenerateSliceGraph(const GeneratedFunction& func) {
   std::string last_rank_name = "";
 
   int64_t slice_index = -1;
+
+  absl::flat_hash_map<int64_t, const GeneratedFunctionSlice*> slice_by_index;
+  for (const GeneratedFunctionSlice& slice : func.slices) {
+    ++slice_index;
+    slice_by_index[slice_index] = &slice;
+  }
+
+  slice_index = -1;
   for (const GeneratedFunctionSlice& slice : func.slices) {
     ++slice_index;
 
     std::string new_rank = "(first)";
-    if (slice.after_op != nullptr) {
-      new_rank = Debug_OpName(*slice.after_op);
+
+    if (slice_index > 0) {
+      if (slice.after_op != nullptr) {
+        new_rank = "after_" + Debug_OpName(*slice.after_op);
+      } else {
+        CHECK_LT(slice_index, (func.slices.size() - 1));
+        const IOOp* before_op = slice_by_index.at(slice_index + 1)->after_op;
+        CHECK_NE(before_op, nullptr);
+        new_rank = "before_" + Debug_OpName(*before_op);
+      }
     }
 
     const std::string rank_input_name =
@@ -1177,11 +1196,11 @@ std::string GenerateSliceGraph(const GeneratedFunction& func) {
     node_names.push_back(
         absl::StrFormat("  %s [label=%s style=rounded];", rank_input_name,
                         GraphvizEscape(absl::StrFormat(
-                            "after [%i] %s inputs", slice_index, new_rank))));
+                            "[%i] %s inputs", slice_index, new_rank))));
     node_names.push_back(
         absl::StrFormat("  %s [label=%s];", rank_output_name,
                         GraphvizEscape(absl::StrFormat(
-                            "after [%i] %s outputs", slice_index, new_rank))));
+                            "[%i] %s outputs", slice_index, new_rank))));
 
     last_rank_name = rank_output_name;
 

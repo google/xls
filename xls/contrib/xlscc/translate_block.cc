@@ -158,6 +158,12 @@ absl::Status Translator::GenerateExternalChannels(
                              ? channel_config.WithInputFlopKind(flop_kind)
                              : channel_config.WithOutputFlopKind(flop_kind);
       }
+      if (top_decl.is_input) {
+        channel_config = channel_config.WithFifoConfig(
+            xls::FifoConfig(/*depth=*/1, /*bypass=*/false,
+                            /*register_push_outputs=*/true,
+                            /*register_pop_outputs=*/true));
+      }
       XLS_ASSIGN_OR_RETURN(
           new_channel.regular,
           package_->CreateStreamingChannel(
@@ -523,7 +529,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   GenerateFSMInvocationReturn fsm_ret;
   if (generate_new_fsm_) {
-    NewFSMGenerator generator(*this, *this, DebugIrTraceFlags_FSMStates);
+    NewFSMGenerator generator(*this, *this, debug_ir_trace_flags_,
+                              split_states_on_channel_ops_);
     XLS_ASSIGN_OR_RETURN(
         fsm_ret,
         generator.GenerateNewFSMInvocation(
