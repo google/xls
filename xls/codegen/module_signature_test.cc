@@ -140,10 +140,10 @@ TEST(ModuleSignatureTest, SingleValueChannelsInterface) {
 
   b.AddSingleValueChannelInterface("single_val_in", CHANNEL_DIRECTION_RECEIVE,
                                    p.GetBitsType(32), "single_val_in_port",
-                                   FLOP_KIND_NONE);
+                                   FLOP_KIND_NONE, /*stage=*/std::nullopt);
   b.AddSingleValueChannelInterface("single_val_out", CHANNEL_DIRECTION_SEND,
                                    p.GetBitsType(64), "single_val_out_port",
-                                   FLOP_KIND_NONE);
+                                   FLOP_KIND_NONE, /*stage=*/2);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -159,10 +159,9 @@ TEST(ModuleSignatureTest, SingleValueChannelsInterface) {
   EXPECT_THAT(p.GetTypeFromProto(input.type()),
               IsOkAndHolds(p.GetBitsType(32)));
   EXPECT_EQ(input.kind(), CHANNEL_KIND_SINGLE_VALUE);
-  EXPECT_EQ(input.flow_control(), CHANNEL_FLOW_CONTROL_NONE);
-  EXPECT_EQ(input.data_port_name(), "single_val_in_port");
-  EXPECT_FALSE(input.has_valid_port_name());
-  EXPECT_FALSE(input.has_ready_port_name());
+  ASSERT_TRUE(input.has_single_value());
+  EXPECT_EQ(input.single_value().data_port_name(), "single_val_in_port");
+  EXPECT_FALSE(input.has_stage());
 
   const ChannelInterfaceProto output =
       signature.GetOutputChannelInterfaces().front();
@@ -171,10 +170,9 @@ TEST(ModuleSignatureTest, SingleValueChannelsInterface) {
   EXPECT_THAT(p.GetTypeFromProto(output.type()),
               IsOkAndHolds(p.GetBitsType(64)));
   EXPECT_EQ(output.kind(), CHANNEL_KIND_SINGLE_VALUE);
-  EXPECT_EQ(output.flow_control(), CHANNEL_FLOW_CONTROL_NONE);
-  EXPECT_EQ(output.data_port_name(), "single_val_out_port");
-  EXPECT_FALSE(output.has_valid_port_name());
-  EXPECT_FALSE(output.has_ready_port_name());
+  ASSERT_TRUE(output.has_single_value());
+  EXPECT_EQ(output.single_value().data_port_name(), "single_val_out_port");
+  EXPECT_EQ(output.stage(), 2);
 }
 
 TEST(ModuleSignatureTest, StreamingChannelsInterface) {
@@ -193,13 +191,13 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
                                  /*data_port=_name=*/"streaming_in_data",
                                  /*ready_port=_name=*/"streaming_in_ready",
                                  /*valid_port=_name=*/"streaming_in_valid",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/42);
   b.AddStreamingChannelInterface("streaming_out", CHANNEL_DIRECTION_SEND,
                                  p.GetBitsType(16), FlowControl::kNone,
                                  /*data_port=_name=*/"streaming_out_data",
                                  /*ready_port=_name=*/std::nullopt,
                                  /*valid_port=_name=*/std::nullopt,
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -215,10 +213,12 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
   EXPECT_THAT(p.GetTypeFromProto(input.type()),
               IsOkAndHolds(p.GetBitsType(24)));
   EXPECT_EQ(input.kind(), CHANNEL_KIND_STREAMING);
-  EXPECT_EQ(input.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
-  EXPECT_EQ(input.data_port_name(), "streaming_in_data");
-  EXPECT_EQ(input.ready_port_name(), "streaming_in_ready");
-  EXPECT_EQ(input.valid_port_name(), "streaming_in_valid");
+  ASSERT_TRUE(input.has_streaming());
+  EXPECT_EQ(input.streaming().flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
+  EXPECT_EQ(input.streaming().data_port_name(), "streaming_in_data");
+  EXPECT_EQ(input.streaming().ready_port_name(), "streaming_in_ready");
+  EXPECT_EQ(input.streaming().valid_port_name(), "streaming_in_valid");
+  EXPECT_EQ(input.stage(), 42);
 
   const ChannelInterfaceProto output =
       signature.GetOutputChannelInterfaces().front();
@@ -227,10 +227,12 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
   EXPECT_THAT(p.GetTypeFromProto(output.type()),
               IsOkAndHolds(p.GetBitsType(16)));
   EXPECT_EQ(output.kind(), CHANNEL_KIND_STREAMING);
-  EXPECT_EQ(output.flow_control(), CHANNEL_FLOW_CONTROL_NONE);
-  EXPECT_EQ(output.data_port_name(), "streaming_out_data");
-  EXPECT_FALSE(output.has_valid_port_name());
-  EXPECT_FALSE(output.has_ready_port_name());
+  ASSERT_TRUE(output.has_streaming());
+  EXPECT_EQ(output.streaming().flow_control(), CHANNEL_FLOW_CONTROL_NONE);
+  EXPECT_EQ(output.streaming().data_port_name(), "streaming_out_data");
+  EXPECT_FALSE(output.streaming().has_valid_port_name());
+  EXPECT_FALSE(output.streaming().has_ready_port_name());
+  EXPECT_FALSE(output.has_stage());
 }
 
 TEST(ModuleSignatureTest, GetByName) {
@@ -249,10 +251,10 @@ TEST(ModuleSignatureTest, GetByName) {
                                  /*data_port=_name=*/"streaming_in_data",
                                  /*ready_port=_name=*/"streaming_in_ready",
                                  /*valid_port=_name=*/"streaming_in_valid",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
   b.AddSingleValueChannelInterface("single_val_out", CHANNEL_DIRECTION_SEND,
                                    p.GetBitsType(64), "single_val_out_port",
-                                   FLOP_KIND_NONE);
+                                   FLOP_KIND_NONE, /*stage=*/std::nullopt);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -296,10 +298,10 @@ TEST(ModuleSignatureTest, GetChannels) {
                                  /*data_port=_name=*/"streaming_in_data",
                                  /*ready_port=_name=*/"streaming_in_ready",
                                  /*valid_port=_name=*/"streaming_in_valid",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
   b.AddSingleValueChannelInterface("single_val_out", CHANNEL_DIRECTION_SEND,
                                    p.GetBitsType(64), "single_val_out_port",
-                                   FLOP_KIND_NONE);
+                                   FLOP_KIND_NONE, /*stage=*/std::nullopt);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -330,10 +332,10 @@ TEST(ModuleSignatureTest, GetChannelInterfaceNameForPort) {
                                  /*data_port=_name=*/"streaming_in_data",
                                  /*ready_port=_name=*/"streaming_in_ready",
                                  /*valid_port=_name=*/"streaming_in_valid",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
   b.AddSingleValueChannelInterface("single_val_out", CHANNEL_DIRECTION_SEND,
                                    p.GetBitsType(64), "single_val_out_port",
-                                   FLOP_KIND_NONE);
+                                   FLOP_KIND_NONE, /*stage=*/std::nullopt);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -369,10 +371,10 @@ TEST(ModuleSignatureTest, RemoveChannelInterface) {
                                  /*data_port=_name=*/"streaming_in_data",
                                  /*ready_port=_name=*/"streaming_in_ready",
                                  /*valid_port=_name=*/"streaming_in_valid",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
   b.AddSingleValueChannelInterface("single_val_out", CHANNEL_DIRECTION_SEND,
                                    p.GetBitsType(64), "single_val_out_port",
-                                   FLOP_KIND_NONE);
+                                   FLOP_KIND_NONE, /*stage=*/std::nullopt);
 
   {
     XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());

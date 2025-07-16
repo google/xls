@@ -63,17 +63,23 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
   for (absl::Span<StreamingInput const> streaming_inputs :
        streaming_io.inputs) {
     for (const StreamingInput& input : streaming_inputs) {
-      XLS_RET_CHECK(!input.GetFifoInstantiation().has_value() ||
-                    instantiations.contains(*input.GetFifoInstantiation()));
+      XLS_RET_CHECK(!input.GetInstantiation().has_value() ||
+                    instantiations.contains(*input.GetInstantiation()));
       if (input.GetDataPort().has_value()) {
         XLS_RET_CHECK(nodes.contains(*input.GetDataPort()))
             << absl::StreamFormat("Port not found for %s",
                                   input.GetChannelName());
       }
-      XLS_RET_CHECK(nodes.contains(input.GetReadyPort())) << absl::StreamFormat(
-          "Ready port not found for %s", input.GetChannelName());
-      XLS_RET_CHECK(nodes.contains(input.GetValidPort())) << absl::StreamFormat(
-          "Valid port not found for %s", input.GetChannelName());
+      if (input.GetReadyPort().has_value()) {
+        XLS_RET_CHECK(nodes.contains(*input.GetReadyPort()))
+            << absl::StreamFormat("Ready port not found for %s",
+                                  input.GetChannelName());
+      }
+      if (input.GetValidPort().has_value()) {
+        XLS_RET_CHECK(nodes.contains(*input.GetValidPort()))
+            << absl::StreamFormat("Valid port not found for %s",
+                                  input.GetChannelName());
+      }
       if (input.GetSignalData().has_value()) {
         XLS_RET_CHECK(nodes.contains(*input.GetSignalData()))
             << absl::StreamFormat("Signal data not found for %s",
@@ -94,13 +100,17 @@ absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
   for (absl::Span<StreamingOutput const> streaming_outputs :
        streaming_io.outputs) {
     for (const StreamingOutput& output : streaming_outputs) {
-      XLS_RET_CHECK(!output.GetFifoInstantiation().has_value() ||
-                    instantiations.contains(*output.GetFifoInstantiation()));
+      XLS_RET_CHECK(!output.GetInstantiation().has_value() ||
+                    instantiations.contains(*output.GetInstantiation()));
       if (output.GetDataPort().has_value()) {
         XLS_RET_CHECK(nodes.contains(*output.GetDataPort()));
       }
-      XLS_RET_CHECK(nodes.contains(output.GetReadyPort()));
-      XLS_RET_CHECK(nodes.contains(output.GetValidPort()));
+      if (output.GetReadyPort().has_value()) {
+        XLS_RET_CHECK(nodes.contains(*output.GetReadyPort()));
+      }
+      if (output.GetValidPort().has_value()) {
+        XLS_RET_CHECK(nodes.contains(*output.GetValidPort()));
+      }
       if (output.GetPredicate().has_value()) {
         XLS_RET_CHECK(nodes.contains(*output.GetPredicate()))
             << absl::StreamFormat("Predicate not found for %s",

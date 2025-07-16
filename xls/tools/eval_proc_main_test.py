@@ -198,10 +198,12 @@ channel_interfaces {
     bit_count: 32
   }
   kind: CHANNEL_KIND_STREAMING
-  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
-  data_port_name: "in_data"
-  ready_port_name: "in_rdy"
-  valid_port_name: "in_vld"
+  streaming {
+    flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+    data_port_name: "in_data"
+    ready_port_name: "in_rdy"
+    valid_port_name: "in_vld"
+  }
 }
 channel_interfaces {
   channel_name: "out"
@@ -211,10 +213,12 @@ channel_interfaces {
     bit_count: 32
   }
   kind: CHANNEL_KIND_STREAMING
-  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
-  data_port_name: "out_data"
-  ready_port_name: "out_rdy"
-  valid_port_name: "out_vld"
+  streaming {
+    flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+    data_port_name: "out_data"
+    ready_port_name: "out_rdy"
+    valid_port_name: "out_vld"
+  }
 }
 """
 

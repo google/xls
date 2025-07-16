@@ -58,6 +58,17 @@ message PortProto {
   optional TypeProto type = 4;
 }
 
+message StreamingChannelInterfaceProto {
+  optional ChannelFlowControlProto flow_control = 1;
+  optional string data_port_name = 2;
+  optional string ready_port_name = 3;
+  optional string valid_port_name = 4;
+}
+
+message SingleValueChannelInterfaceProto {
+  optional string data_port_name = 1;
+}
+
 // Data structure describing the ports and metadata of a channel which exists on
 // the interface of the module. This binds particular ports (data, ready, valid)
 // back to the metadata about the channel for which the port is created. This
@@ -69,13 +80,15 @@ message ChannelInterfaceProto {
   optional ChannelDirectionProto direction = 2;
   optional TypeProto type = 3;
   optional ChannelKindProto kind = 4;
-  optional ChannelFlowControlProto flow_control = 5;
-  // TODO(meheff): Consider encapsulating these port names into a oneof for each
-  // of the channel kinds.
-  optional string data_port_name = 6;
-  optional string ready_port_name = 7;
-  optional string valid_port_name = 8;
-  optional FlopKindProto flop_kind = 9;
+
+  oneof interface_oneof {
+    StreamingChannelInterfaceProto streaming = 5;
+    SingleValueChannelInterfaceProto single_value = 6;
+  }
+  optional FlopKindProto flop_kind = 7;
+
+  // The stage in which the send/receive is scheduled in the pipeline.
+  optional int64 stage = 8;
 }
 
 // Data structure describing a channel which is contained within a module. For

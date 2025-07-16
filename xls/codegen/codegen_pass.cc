@@ -58,31 +58,27 @@ std::optional<Node*> StreamingInput::GetDataPort() const {
       .value();
 }
 
-Node* StreamingInput::GetValidPort() const {
+std::optional<Node*> StreamingInput::GetValidPort() const {
   if (kind_ == ConnectionKind::kExternal) {
     return block_
         ->GetValidPortForChannel(channel_name_, ChannelDirection::kReceive)
-        .value()
         .value();
   }
   return block_
       ->GetValidInstantiationConnectionForChannel(channel_name_,
                                                   ChannelDirection::kReceive)
-      .value()
       .value();
 }
 
-Node* StreamingInput::GetReadyPort() const {
+std::optional<Node*> StreamingInput::GetReadyPort() const {
   if (kind_ == ConnectionKind::kExternal) {
     return block_
         ->GetReadyPortForChannel(channel_name_, ChannelDirection::kReceive)
-        .value()
         .value();
   }
   return block_
       ->GetReadyInstantiationConnectionForChannel(channel_name_,
                                                   ChannelDirection::kReceive)
-      .value()
       .value();
 }
 
@@ -101,31 +97,27 @@ std::optional<Node*> StreamingOutput::GetDataPort() const {
       .value();
 }
 
-Node* StreamingOutput::GetValidPort() const {
+std::optional<Node*> StreamingOutput::GetValidPort() const {
   if (kind_ == ConnectionKind::kExternal) {
     return block_
         ->GetValidPortForChannel(channel_name_, ChannelDirection::kSend)
-        .value()
         .value();
   }
   return block_
       ->GetValidInstantiationConnectionForChannel(channel_name_,
                                                   ChannelDirection::kSend)
-      .value()
       .value();
 }
 
-Node* StreamingOutput::GetReadyPort() const {
+std::optional<Node*> StreamingOutput::GetReadyPort() const {
   if (kind_ == ConnectionKind::kExternal) {
     return block_
         ->GetReadyPortForChannel(channel_name_, ChannelDirection::kSend)
-        .value()
         .value();
   }
   return block_
       ->GetReadyInstantiationConnectionForChannel(channel_name_,
                                                   ChannelDirection::kSend)
-      .value()
       .value();
 }
 

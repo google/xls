@@ -317,10 +317,8 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
     EXPECT_THAT(package.GetTypeFromProto(ch.type()),
                 IsOkAndHolds(m::Type("bits[32]")));
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_SINGLE_VALUE);
-    EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_NONE);
-    EXPECT_EQ(ch.data_port_name(), "in_single_val");
-    EXPECT_FALSE(ch.has_ready_port_name());
-    EXPECT_FALSE(ch.has_valid_port_name());
+    ASSERT_TRUE(ch.has_single_value());
+    EXPECT_EQ(ch.single_value().data_port_name(), "in_single_val");
   }
 
   {
@@ -331,10 +329,11 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
     EXPECT_THAT(package.GetTypeFromProto(ch.type()),
                 IsOkAndHolds(m::Type("bits[32]")));
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_STREAMING);
-    EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
-    EXPECT_EQ(ch.data_port_name(), "in_streaming_data");
-    EXPECT_EQ(ch.ready_port_name(), "in_streaming_ready");
-    EXPECT_EQ(ch.valid_port_name(), "in_streaming_valid");
+    ASSERT_TRUE(ch.has_streaming());
+    EXPECT_EQ(ch.streaming().flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
+    EXPECT_EQ(ch.streaming().data_port_name(), "in_streaming_data");
+    EXPECT_EQ(ch.streaming().ready_port_name(), "in_streaming_ready");
+    EXPECT_EQ(ch.streaming().valid_port_name(), "in_streaming_valid");
   }
 
   {
@@ -345,10 +344,8 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
     EXPECT_THAT(package.GetTypeFromProto(ch.type()),
                 IsOkAndHolds(m::Type("bits[32]")));
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_SINGLE_VALUE);
-    EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_NONE);
-    EXPECT_EQ(ch.data_port_name(), "out_single_val");
-    EXPECT_FALSE(ch.has_ready_port_name());
-    EXPECT_FALSE(ch.has_valid_port_name());
+    ASSERT_TRUE(ch.has_single_value());
+    EXPECT_EQ(ch.single_value().data_port_name(), "out_single_val");
   }
 
   {
@@ -359,10 +356,11 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
     EXPECT_THAT(package.GetTypeFromProto(ch.type()),
                 IsOkAndHolds(m::Type("bits[32]")));
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_STREAMING);
-    EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
-    EXPECT_EQ(ch.data_port_name(), "out_streaming_data");
-    EXPECT_EQ(ch.ready_port_name(), "out_streaming_ready");
-    EXPECT_EQ(ch.valid_port_name(), "out_streaming_valid");
+    ASSERT_TRUE(ch.has_streaming());
+    EXPECT_EQ(ch.streaming().flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
+    EXPECT_EQ(ch.streaming().data_port_name(), "out_streaming_data");
+    EXPECT_EQ(ch.streaming().ready_port_name(), "out_streaming_ready");
+    EXPECT_EQ(ch.streaming().valid_port_name(), "out_streaming_valid");
   }
 }
 
@@ -615,10 +613,12 @@ top block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
   EXPECT_THAT(p->GetTypeFromProto(top_in_channel.type()),
               IsOkAndHolds(p->GetBitsType(32)));
   EXPECT_EQ(top_in_channel.kind(), CHANNEL_KIND_STREAMING);
-  EXPECT_EQ(top_in_channel.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
-  EXPECT_EQ(top_in_channel.data_port_name(), "in");
-  EXPECT_EQ(top_in_channel.ready_port_name(), "in_ready");
-  EXPECT_EQ(top_in_channel.valid_port_name(), "in_valid");
+  ASSERT_TRUE(top_in_channel.has_streaming());
+  EXPECT_EQ(top_in_channel.streaming().flow_control(),
+            CHANNEL_FLOW_CONTROL_READY_VALID);
+  EXPECT_EQ(top_in_channel.streaming().data_port_name(), "in");
+  EXPECT_EQ(top_in_channel.streaming().ready_port_name(), "in_ready");
+  EXPECT_EQ(top_in_channel.streaming().valid_port_name(), "in_valid");
 
   XLS_ASSERT_OK_AND_ASSIGN(ChannelInterfaceProto top_out_channel,
                            sig.GetChannelInterfaceByName("out"));
@@ -627,10 +627,12 @@ top block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
   EXPECT_THAT(p->GetTypeFromProto(top_out_channel.type()),
               IsOkAndHolds(p->GetBitsType(32)));
   EXPECT_EQ(top_out_channel.kind(), CHANNEL_KIND_STREAMING);
-  EXPECT_EQ(top_out_channel.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
-  EXPECT_EQ(top_out_channel.data_port_name(), "out");
-  EXPECT_EQ(top_out_channel.ready_port_name(), "out_ready");
-  EXPECT_EQ(top_out_channel.valid_port_name(), "out_valid");
+  ASSERT_TRUE(top_out_channel.has_streaming());
+  EXPECT_EQ(top_out_channel.streaming().flow_control(),
+            CHANNEL_FLOW_CONTROL_READY_VALID);
+  EXPECT_EQ(top_out_channel.streaming().data_port_name(), "out");
+  EXPECT_EQ(top_out_channel.streaming().ready_port_name(), "out_ready");
+  EXPECT_EQ(top_out_channel.streaming().valid_port_name(), "out_valid");
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * subblock, p->GetBlock("subblock"));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -644,11 +646,12 @@ top block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
   EXPECT_THAT(p->GetTypeFromProto(subblock_in_channel.type()),
               IsOkAndHolds(p->GetBitsType(32)));
   EXPECT_EQ(subblock_in_channel.kind(), CHANNEL_KIND_STREAMING);
-  EXPECT_EQ(subblock_in_channel.flow_control(),
+  ASSERT_TRUE(subblock_in_channel.has_streaming());
+  EXPECT_EQ(subblock_in_channel.streaming().flow_control(),
             CHANNEL_FLOW_CONTROL_READY_VALID);
-  EXPECT_EQ(subblock_in_channel.data_port_name(), "in");
-  EXPECT_EQ(subblock_in_channel.ready_port_name(), "in_ready");
-  EXPECT_EQ(subblock_in_channel.valid_port_name(), "in_valid");
+  EXPECT_EQ(subblock_in_channel.streaming().data_port_name(), "in");
+  EXPECT_EQ(subblock_in_channel.streaming().ready_port_name(), "in_ready");
+  EXPECT_EQ(subblock_in_channel.streaming().valid_port_name(), "in_valid");
 
   XLS_ASSERT_OK_AND_ASSIGN(ChannelInterfaceProto subblock_out_channel,
                            subblock_sig.GetChannelInterfaceByName("out"));
@@ -657,11 +660,12 @@ top block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
   EXPECT_THAT(p->GetTypeFromProto(subblock_out_channel.type()),
               IsOkAndHolds(p->GetBitsType(32)));
   EXPECT_EQ(subblock_out_channel.kind(), CHANNEL_KIND_STREAMING);
-  EXPECT_EQ(subblock_out_channel.flow_control(),
+  ASSERT_TRUE(subblock_out_channel.has_streaming());
+  EXPECT_EQ(subblock_out_channel.streaming().flow_control(),
             CHANNEL_FLOW_CONTROL_READY_VALID);
-  EXPECT_EQ(subblock_out_channel.data_port_name(), "out");
-  EXPECT_EQ(subblock_out_channel.ready_port_name(), "out_ready");
-  EXPECT_EQ(subblock_out_channel.valid_port_name(), "out_valid");
+  EXPECT_EQ(subblock_out_channel.streaming().data_port_name(), "out");
+  EXPECT_EQ(subblock_out_channel.streaming().ready_port_name(), "out_ready");
+  EXPECT_EQ(subblock_out_channel.streaming().valid_port_name(), "out_valid");
 }
 
 }  // namespace

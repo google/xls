@@ -157,13 +157,14 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
         b.AddStreamingChannelInterface(
             metadata.channel_name, direction_proto, metadata.type, flow_control,
             metadata.data_port, metadata.ready_port, metadata.valid_port,
-            ToProtoFlop(metadata.flop_kind));
+            ToProtoFlop(metadata.flop_kind), metadata.stage);
         break;
       }
       case ChannelKind::kSingleValue:
         b.AddSingleValueChannelInterface(
             metadata.channel_name, direction_proto, metadata.type,
-            metadata.data_port.value(), ToProtoFlop(metadata.flop_kind));
+            metadata.data_port.value(), ToProtoFlop(metadata.flop_kind),
+            metadata.stage);
         break;
     }
   }
