@@ -405,19 +405,19 @@ std::optional<const InvocationData*> TypeInfo::GetRootInvocationData(
   return it->second.get();
 }
 
-std::vector<ParametricEnv> TypeInfo::GetUniqueParametricEnvs(
+std::vector<InvocationCalleeData> TypeInfo::GetUniqueInvocationCalleeData(
     const Function* f) const {
   const TypeInfo* top = GetRoot();
-  auto entry = top->parametric_envs_.find(f);
-  if (entry == top->parametric_envs_.end()) {
+  auto entries = top->callee_data_.find(f);
+  if (entries == top->callee_data_.end()) {
     // No envs
     return {};
   }
   absl::flat_hash_set<ParametricEnv> unique_envs;
-  std::vector<ParametricEnv> result;
-  for (auto& env : entry->second) {
-    if (unique_envs.insert(env).second) {
-      result.push_back(env);
+  std::vector<InvocationCalleeData> result;
+  for (auto& callee_data : entries->second) {
+    if (unique_envs.insert(callee_data.callee_bindings).second) {
+      result.push_back(callee_data);
     }
   }
   return result;
@@ -493,14 +493,14 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
   if (it == top->invocations_.end()) {
     // No data for this invocation yet.
     absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data;
-    env_to_callee_data[caller_env] =
-        InvocationCalleeData{callee_env, derived_type_info};
+    InvocationCalleeData callee_data{callee_env, derived_type_info};
+    env_to_callee_data[caller_env] = callee_data;
 
     top->invocations_.emplace(&invocation, std::make_unique<InvocationData>(
                                                &invocation, callee, caller,
                                                std::move(env_to_callee_data)));
     // Add the parametric env to the vector for this function
-    top->parametric_envs_[callee].push_back(std::move(callee_env));
+    top->callee_data_[callee].push_back(callee_data);
 
     return absl::OkStatus();
   }
