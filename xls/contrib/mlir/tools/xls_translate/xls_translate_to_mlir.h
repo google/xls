@@ -18,10 +18,14 @@
 #include "llvm/include/llvm/Support/SourceMgr.h"
 #include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/OwningOpRef.h"
+#include "xls/ir/package.h"
 
 namespace mlir::xls {
 
 OwningOpRef<Operation*> XlsToMlirXlsTranslate(llvm::SourceMgr& mgr,
+                                              MLIRContext* ctx);
+
+OwningOpRef<Operation*> XlsToMlirXlsTranslate(const ::xls::Package& package,
                                               MLIRContext* ctx);
 
 }  // namespace mlir::xls

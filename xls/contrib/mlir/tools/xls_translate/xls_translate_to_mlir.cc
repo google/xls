@@ -33,6 +33,7 @@
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "mlir/include/mlir/IR/BuiltinTypes.h"
+#include "mlir/include/mlir/IR/Diagnostics.h"
 #include "mlir/include/mlir/IR/Location.h"
 #include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/OwningOpRef.h"
@@ -55,6 +56,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/public/ir_parser.h"
@@ -1425,7 +1427,7 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
 
   // Function body:
   Value return_value;
-  for (auto* n : xls_func.nodes()) {
+  for (auto* n : TopoSort(&xls_func)) {
     builder.setInsertionPointToEnd(body);
     if (n->Is<::xls::Param>()) {
       // Params have already been converted and added to func context.
@@ -1503,7 +1505,7 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
   absl::flat_hash_map<std::string, std::vector<::xls::Next*>> next_value_ops{};
 
   // Proc next:
-  for (auto n : xls_proc.nodes()) {
+  for (auto n : ::xls::TopoSort(&xls_proc)) {
     builder.setInsertionPointToEnd(body);
 
     // StateRead nodes give state elements an SSA identifier:
@@ -1663,7 +1665,7 @@ absl::Status translateChannel(::xls::Channel& xls_chn, OpBuilder& builder,
 // Package Translation
 //===----------------------------------------------------------------------===//
 
-absl::Status translatePackage(::xls::Package& xls_pkg, OpBuilder& builder,
+absl::Status translatePackage(const ::xls::Package& xls_pkg, OpBuilder& builder,
                               ModuleOp module) {
   TranslationState state;
 
@@ -1703,6 +1705,26 @@ absl::Status translatePackage(::xls::Package& xls_pkg, OpBuilder& builder,
   }
 
   return absl::OkStatus();
+}
+
+OwningOpRef<Operation*> XlsToMlirXlsTranslate(const ::xls::Package& package,
+                                              MLIRContext* ctx) {
+  OpBuilder builder(ctx);
+  Location loc = builder.getUnknownLoc();
+  // Employ simple heuristic of using the first file as the location of the
+  // module (if it exists).
+  if (auto name = package.GetFilename(::xls::Fileno(0)); name.has_value()) {
+    loc = FileLineColLoc::get(StringAttr::get(ctx, name.value()), /*line=*/0,
+                              /*column=*/0);
+  }
+  OwningOpRef<ModuleOp> module(ModuleOp::create(loc));
+  // Translate package from XLS IR to MLIR:
+  if (auto err = translatePackage(package, builder, module.get()); !err.ok()) {
+    mlir::emitError(loc, err.message());
+    return {};
+  }
+
+  return module;
 }
 
 OwningOpRef<Operation*> XlsToMlirXlsTranslate(llvm::SourceMgr& mgr,
