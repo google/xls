@@ -3029,7 +3029,15 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     initial_element = proc_data_->id_to_initial_value.at(proc_id);
   }
 
-  auto builder = std::make_unique<ProcBuilder>(mangled_name, package());
+  std::unique_ptr<ProcBuilder> builder;
+  if (options_.lower_to_proc_scoped_channels) {
+    builder =
+        std::make_unique<ProcBuilder>(NewStyleProc{}, mangled_name, package());
+  } else {
+    // TODO: https://github.com/google/xls/issues/2078 - Remove this else
+    // when all procs are generated as new style/proc scoped channels.
+    builder = std::make_unique<ProcBuilder>(mangled_name, package());
+  }
   auto implicit_token =
       builder->Literal(Value::Token(), SourceInfo(), token_name);
   BValue state = builder->StateElement(state_name, initial_element);

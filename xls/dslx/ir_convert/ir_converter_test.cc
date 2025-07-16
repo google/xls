@@ -4187,6 +4187,25 @@ proc Proc {
               "Accessing proc member in non-unrolled loop is unsupported")));
 }
 
+TEST(ProcScopedChannelsIrConverterTest, ProcNextOnly) {
+  constexpr std::string_view kProgram = R"(
+proc main {
+  init { }
+  config() { () }
+  next(state: ()) { }
+})";
+
+  ConvertOptions options;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  options.lower_to_proc_scoped_channels = true;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+  ExpectIr(converted);
+}
+
 INSTANTIATE_TEST_SUITE_P(IrConverterWithBothTypecheckVersionsTestSuite,
                          IrConverterWithBothTypecheckVersionsTest,
                          testing::Values(TypeInferenceVersion::kVersion1,
