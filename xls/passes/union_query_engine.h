@@ -49,6 +49,11 @@ class UnownedUnionQueryEngine : public QueryEngine {
  public:
   explicit UnownedUnionQueryEngine(std::vector<QueryEngine*> engines)
       : engines_(std::move(engines)) {}
+  UnownedUnionQueryEngine(UnownedUnionQueryEngine&&) = default;
+  UnownedUnionQueryEngine& operator=(UnownedUnionQueryEngine&&) = default;
+  UnownedUnionQueryEngine(const UnownedUnionQueryEngine&) = default;
+  UnownedUnionQueryEngine& operator=(const UnownedUnionQueryEngine&) = default;
+
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
   bool IsTracked(Node* node) const override;
@@ -125,29 +130,50 @@ class UnownedConstUnionQueryEngine : public UnownedUnionQueryEngine {
 
 // A query engine that combines the results of multiple given query engines.
 class UnionQueryEngine : public UnownedUnionQueryEngine {
+ private:
+  struct QueryEngineReferences {
+    std::vector<std::unique_ptr<QueryEngine>> owned;
+    std::vector<QueryEngine*> pointers;
+  };
+
  public:
   // If any `unowned_engines` are provided, they must live at least as long as
   // this query engine does.
-  explicit UnionQueryEngine(std::vector<std::unique_ptr<QueryEngine>> engines,
-                            std::vector<QueryEngine*> unowned_engines = {})
+  explicit UnionQueryEngine(
+      std::vector<std::unique_ptr<QueryEngine>> engines = {},
+      std::vector<QueryEngine*> unowned_engines = {})
       : UnownedUnionQueryEngine(ToUnownedVector(engines, unowned_engines)),
         owned_engines_(std::move(engines)) {}
 
+  UnionQueryEngine(UnionQueryEngine&&) = default;
+  UnionQueryEngine& operator=(UnionQueryEngine&&) = default;
+  UnionQueryEngine(const UnionQueryEngine&) = delete;
+  UnionQueryEngine& operator=(const UnionQueryEngine&) = delete;
+
   // Helper to create a union-query-engine with a compile constant set of
-  // engines. All engines must be movable.
+  // engines. All engines must be movable or a pointer which bounds this engines
+  // lifetime.
   template <typename... Engines>
   static UnionQueryEngine Of(Engines... e) {
-    std::vector<std::unique_ptr<QueryEngine>> vec =
-        MakeVec<sizeof...(Engines), Engines...>(std::forward<Engines>(e)...);
+    QueryEngineReferences vecs =
+        MakeVecs<sizeof...(Engines), Engines...>(std::forward<Engines>(e)...);
+    auto [owned, unowned] = std::move(vecs);
     // Reverse the list so that the order of arguments is the same as the order
     // in the list of unique_ptr<QueryEngine> we use to construct the actual
     // UnionQueryEngine. NB Assuming well-behaved QEs this should never be
     // semantically meaningful but it makes debugging easier.
-    absl::c_reverse(vec);
-    return UnionQueryEngine(std::move(vec));
+    absl::c_reverse(unowned);
+    return UnionQueryEngine(std::in_place, std::move(owned),
+                            std::move(unowned));
   }
 
  private:
+  // Private constructor with a set order.
+  UnionQueryEngine(std::in_place_t,
+                   std::vector<std::unique_ptr<QueryEngine>> engines,
+                   std::vector<QueryEngine*> all_engines)
+      : UnownedUnionQueryEngine(std::move(all_engines)),
+        owned_engines_(std::move(engines)) {}
   static std::vector<QueryEngine*> ToUnownedVector(
       absl::Span<std::unique_ptr<QueryEngine> const> ptrs,
       absl::Span<QueryEngine* const> unowned_ptrs) {
@@ -162,20 +188,48 @@ class UnionQueryEngine : public UnownedUnionQueryEngine {
   std::vector<std::unique_ptr<QueryEngine>> owned_engines_;
 
   template <size_t kCnt, typename E>
-    requires(std::is_base_of_v<QueryEngine, E>)
-  static std::vector<std::unique_ptr<QueryEngine>> MakeVec(E e) {
-    std::vector<std::unique_ptr<QueryEngine>> res;
-    res.reserve(kCnt);
-    res.push_back(std::make_unique<E>(std::move(e)));
+    requires(std::is_base_of_v<QueryEngine, E> ||
+             std::is_convertible_v<E, std::unique_ptr<QueryEngine>> ||
+             (std::is_pointer_v<E> &&
+              std::is_base_of_v<QueryEngine, std::remove_pointer_t<E>>))
+  static QueryEngineReferences MakeVecs(E e) {
+    QueryEngineReferences res;
+    res.owned.reserve(kCnt);
+    res.pointers.reserve(kCnt);
+    if constexpr (std::is_pointer_v<E>) {
+      res.pointers.push_back(e);
+    } else if constexpr (std::is_base_of_v<QueryEngine, E>) {
+      std::unique_ptr<QueryEngine> e_out = std::make_unique<E>(std::move(e));
+      QueryEngine* e_ptr = e_out.get();
+      res.owned.push_back(std::move(e_out));
+      res.pointers.push_back(e_ptr);
+    } else {
+      res.owned.push_back(std::unique_ptr<QueryEngine>(std::move(e)));
+      QueryEngine* e_ptr = res.owned.back().get();
+      res.pointers.push_back(e_ptr);
+    }
     return res;
   }
 
   template <size_t kCnt, typename E, typename... Engines>
-    requires(std::is_base_of_v<QueryEngine, E>)
-  static std::vector<std::unique_ptr<QueryEngine>> MakeVec(E e, Engines... es) {
-    std::vector<std::unique_ptr<QueryEngine>> res =
-        MakeVec<kCnt, Engines...>(std::forward<Engines>(es)...);
-    res.emplace_back(std::make_unique<E>(std::move(e)));
+    requires(std::is_base_of_v<QueryEngine, E> ||
+             std::is_convertible_v<E, std::unique_ptr<QueryEngine>> ||
+             (std::is_pointer_v<E> &&
+              std::is_base_of_v<QueryEngine, std::remove_pointer_t<E>>))
+  static QueryEngineReferences MakeVecs(E e, Engines... es) {
+    QueryEngineReferences res =
+        MakeVecs<kCnt, Engines...>(std::forward<Engines>(es)...);
+    if constexpr (std::is_pointer_v<E>) {
+      res.pointers.push_back(e);
+    } else if constexpr (std::is_base_of_v<QueryEngine, E>) {
+      auto e_out = std::make_unique<E>(std::move(e));
+      QueryEngine* e_ptr = e_out.get();
+      res.owned.push_back(std::move(e_out));
+      res.pointers.push_back(e_ptr);
+    } else {
+      res.owned.push_back(std::unique_ptr<QueryEngine>(std::move(e)));
+      res.pointers.push_back(res.owned.back().get());
+    }
     return res;
   }
 };

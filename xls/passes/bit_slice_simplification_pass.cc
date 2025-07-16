@@ -57,22 +57,19 @@
 namespace xls {
 namespace {
 
-static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
+static absl::StatusOr<UnionQueryEngine> GetQueryEngine(
     FunctionBase* f, int64_t opt_level, OptimizationContext& context) {
-  std::vector<std::unique_ptr<QueryEngine>> owned_engines;
-  std::vector<QueryEngine*> unowned_engines;
-  owned_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  QueryEngine* base_query_engine;
   if (opt_level >= 3) {
-    unowned_engines.push_back(
-        context.SharedQueryEngine<PartialInfoQueryEngine>(f));
+    // High opt level, use the range analysis too.
+    base_query_engine = context.SharedQueryEngine<PartialInfoQueryEngine>(f);
   } else {
-    unowned_engines.push_back(
-        context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
+    // Normal use only the ternary alone.
+    base_query_engine = context.SharedQueryEngine<LazyTernaryQueryEngine>(f);
   }
-  auto query_engine = std::make_unique<UnionQueryEngine>(
-      std::move(owned_engines), std::move(unowned_engines));
-
-  XLS_RETURN_IF_ERROR(query_engine->Populate(f).status());
+  UnionQueryEngine query_engine =
+      UnionQueryEngine::Of(StatelessQueryEngine(), base_query_engine);
+  XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
   return std::move(query_engine);
 }
 
@@ -1067,7 +1064,7 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext& context) const {
   bool changed = false;
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> query_engine,
+  XLS_ASSIGN_OR_RETURN(UnionQueryEngine query_engine,
                        GetQueryEngine(f, options.opt_level, context));
 
   // Iterating through these operations in reverse topological order makes sure
@@ -1078,13 +1075,13 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
   for (Node* node : context.ReverseTopoSort(f)) {
     bool node_changed = false;
     if (node->Is<DynamicBitSlice>()) {
-      XLS_ASSIGN_OR_RETURN(node_changed,
-                           SimplifyDynamicBitSlice(node->As<DynamicBitSlice>(),
-                                                   query_engine.get()));
+      XLS_ASSIGN_OR_RETURN(
+          node_changed,
+          SimplifyDynamicBitSlice(node->As<DynamicBitSlice>(), &query_engine));
     } else if (node->Is<BitSliceUpdate>()) {
-      XLS_ASSIGN_OR_RETURN(node_changed,
-                           SimplifyBitSliceUpdate(node->As<BitSliceUpdate>(),
-                                                  query_engine.get()));
+      XLS_ASSIGN_OR_RETURN(
+          node_changed,
+          SimplifyBitSliceUpdate(node->As<BitSliceUpdate>(), &query_engine));
     }
 
     if (node_changed) {

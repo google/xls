@@ -17,10 +17,12 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -28,6 +30,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
@@ -429,6 +432,47 @@ TEST_F(UnionQueryEngineTest, TokenValueUnknown) {
   UnionQueryEngine union_query_engine(std::move(engines));
 
   EXPECT_EQ(union_query_engine.KnownValue(tok.node()), std::nullopt);
+}
+
+TEST_F(UnionQueryEngineTest, OfGeneric) {
+  auto p = CreatePackage();
+  auto tern =
+      [&](std::string_view sv) -> absl::StatusOr<LeafTypeTree<TernaryVector>> {
+    XLS_ASSIGN_OR_RETURN(TernaryVector tv, StringToTernaryVector(sv));
+    return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+        p->GetBitsType(tv.size()), tv);
+  };
+  FunctionBuilder fb(TestName(), p.get());
+  BValue res = fb.Param("res", p->GetBitsType(8));
+  XLS_ASSERT_OK(fb.Build());
+  FakeQueryEngine a;
+  XLS_ASSERT_OK_AND_ASSIGN(auto tt, tern("0b1XXXXXXX"));
+  a.AddTernary(res.node(), tt);
+  auto b = std::make_unique<FakeQueryEngine>();
+  XLS_ASSERT_OK_AND_ASSIGN(tt, tern("0bX1XXXXXX"));
+  b->AddTernary(res.node(), tt);
+  FakeQueryEngine c;
+  XLS_ASSERT_OK_AND_ASSIGN(tt, tern("0bXX1XXXXX"));
+  c.AddTernary(res.node(), tt);
+  FakeQueryEngine d;
+  XLS_ASSERT_OK_AND_ASSIGN(tt, tern("0bXXX1XXXX"));
+  d.AddTernary(res.node(), tt);
+
+  UnionQueryEngine uqe =
+      UnionQueryEngine::Of(&a, std::move(b), c, std::move(d));
+
+  EXPECT_THAT(b.get(), testing::IsNull());
+  XLS_ASSERT_OK_AND_ASSIGN(auto exp, tern("0b1111XXXX"));
+  EXPECT_THAT(uqe.GetTernary(res.node()), testing::Optional(exp));
+  // a is referenced by pointer so this changes the result.
+  XLS_ASSERT_OK_AND_ASSIGN(tt, tern("0b1XXXXXX1"));
+  a.AddTernary(res.node(), tt);
+  // C is copied so this has no effect.
+  XLS_ASSERT_OK_AND_ASSIGN(tt, tern("0bX1XXXX1X"));
+  c.AddTernary(res.node(), tt);
+  XLS_ASSERT_OK_AND_ASSIGN(exp, tern("0b1111XXX1"));
+  EXPECT_THAT(uqe.GetTernary(res.node()), testing::Optional(exp))
+      << uqe.GetTernary(res.node())->ToString();
 }
 
 }  // namespace

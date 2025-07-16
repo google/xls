@@ -920,16 +920,14 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     XLS_ASSIGN_OR_RETURN(changed, EliminateNoopNext(f));
   }
 
-  std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
-  std::vector<QueryEngine*> unowned_query_engines;
-  owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  UnionQueryEngine query_engine;
   if (use_bdd_) {
-    unowned_query_engines.push_back(
-        context.SharedQueryEngine<BddQueryEngine>(f));
+    query_engine = UnionQueryEngine::Of(
+        StatelessQueryEngine(), context.SharedQueryEngine<BddQueryEngine>(f));
+  } else {
+    query_engine = UnionQueryEngine::Of(StatelessQueryEngine());
   }
 
-  UnionQueryEngine query_engine(std::move(owned_query_engines),
-                                std::move(unowned_query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   ConditionMap condition_map(f, context);

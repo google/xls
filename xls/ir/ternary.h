@@ -61,6 +61,19 @@ inline std::string ToString(const TernaryVector& value) {
 // emitted by ToString (for example, 0b01X0). Underscores are ignored.
 absl::StatusOr<TernaryVector> StringToTernaryVector(std::string_view s);
 
+template <typename Sink>
+void AbslStringify(Sink& sink, TernarySpan e) {
+  sink.Append(ToString(e));
+}
+template <typename Sink>
+void AbslStringify(Sink& sink, const TernaryVector& e) {
+  AbslStringify(sink, TernarySpan(e));
+}
+template <typename Sink>
+void AbslStringify(Sink& sink, TernaryValue e) {
+  sink.Append(ToString(e));
+}
+
 inline std::ostream& operator<<(std::ostream& os, const TernaryValue& value) {
   os << ToString(value);
   return os;

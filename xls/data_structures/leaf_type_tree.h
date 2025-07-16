@@ -1073,6 +1073,16 @@ template <typename T>
 SharedLeafTypeTree<T> LeafTypeTreeView<T>::AsShared() const {
   return SharedLeafTypeTree<T>(*this);
 }
+
+template <typename T>
+bool operator==(const LeafTypeTree<T>& lhs, const SharedLeafTypeTree<T>& rhs) {
+  return lhs.AsView() == rhs.AsView();
+}
+
+template <typename T>
+bool operator==(const SharedLeafTypeTree<T>& lhs, const LeafTypeTree<T>& rhs) {
+  return lhs.AsView() == rhs.AsView();
+}
 }  // namespace xls
 
 #endif  // XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_

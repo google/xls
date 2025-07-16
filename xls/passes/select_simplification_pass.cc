@@ -2020,20 +2020,16 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext& context) const {
-  std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
-  std::vector<QueryEngine*> unowned_query_engines;
-  owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  QueryEngine* value_engine;
   if (range_analysis_) {
-    unowned_query_engines.push_back(
-        context.SharedQueryEngine<PartialInfoQueryEngine>(func));
+    value_engine = context.SharedQueryEngine<PartialInfoQueryEngine>(func);
   } else {
-    unowned_query_engines.push_back(
-        context.SharedQueryEngine<LazyTernaryQueryEngine>(func));
+    value_engine = context.SharedQueryEngine<LazyTernaryQueryEngine>(func);
   }
   VLOG(2) << "Range analysis is " << std::boolalpha << range_analysis_;
 
-  UnionQueryEngine query_engine(std::move(owned_query_engines),
-                                std::move(unowned_query_engines));
+  auto query_engine =
+      UnionQueryEngine::Of(StatelessQueryEngine(), value_engine);
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   XLS_ASSIGN_OR_RETURN(BitProvenanceAnalysis provenance,

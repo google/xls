@@ -2974,6 +2974,7 @@ cc_test(
         ":union_query_engine",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
         "//xls/ir:bits",
