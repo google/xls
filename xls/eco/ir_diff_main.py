@@ -79,6 +79,8 @@ def main(argv: Sequence[str]) -> int:
       pathlib.Path(_AFTER_IR_PATH.value)
   )
   # Compute IR diff
+  # Initialize edit_paths to None to avoid potential UnboundLocalError.
+  edit_paths = None
   if _TIMEOUT.value is None:
     edit_paths = ir_diff.find_optimal_edit_paths(
         before_ir_graph, after_ir_graph
@@ -108,6 +110,11 @@ def main(argv: Sequence[str]) -> int:
                 _OUTPUT_PATH.value, "optimized_edit_paths_benchmark.png"
             ),
         )
+  if edit_paths is None:
+    raise ValueError(
+        "edit paths was not set, find_optimized_edit_paths timed out before"
+        " producing a result."
+    )
   interpreted_edit_paths_path = None
   if _OUTPUT_PATH.value:
     interpreted_edit_paths_path = os.path.join(
