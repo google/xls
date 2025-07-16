@@ -1356,19 +1356,13 @@ TEST_F(ReassociationPassTest, SignExtendOfNegationOverflows) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-// Generates random IR, runs the ReassociationPass over it, plugs in parameters
-// into the non-reassociated IR and the reassociated IR, and verifies that the
-// results are the same.
 void IrFuzzReassociationPassTest(
     const PackageAndTestParams& paramaterized_package) {
   ReassociationPass pass;
   OptimizationPassChangesOutputs(paramaterized_package, pass);
 }
-// Use the IrFuzzDomainWithParams domain to generate random integer parameters
-// that can be plugged into the IR function. This test generates 10 different
-// sets of parameters.
 FUZZ_TEST(IrFuzzTest, IrFuzzReassociationPassTest)
-    .WithDomains(IrFuzzDomainWithParams(10));
+    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

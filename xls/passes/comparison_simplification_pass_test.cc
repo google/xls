@@ -17,7 +17,10 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "third_party/googlefuzztest/fuzztest_macros.h"
 #include "xls/common/status/matchers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -321,6 +324,14 @@ TEST_F(ComparisonSimplificationPassTest, UltAndCommutedSle) {
               m::Tuple(m::ULt(m::Param("x"), m::Param("y")),
                        m::Not(m::ULt(m::Param("x"), m::Param("y")))));
 }
+
+void IrFuzzComparisonSimplificationPassTest(
+    const PackageAndTestParams& paramaterized_package) {
+  ComparisonSimplificationPass pass;
+  OptimizationPassChangesOutputs(paramaterized_package, pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzComparisonSimplificationPassTest)
+    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
 
 }  // namespace
 }  // namespace xls
