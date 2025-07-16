@@ -935,7 +935,7 @@ Extracts the MSb (Most Significant bit) from the value `x` and returns it.
 #### `std::lsbs`
 
 ```dslx-snippet
-pub fn lsbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> uN[R]
+pub fn lsbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> bits[R]
 ```
 
 Returns the R LSbs of x.

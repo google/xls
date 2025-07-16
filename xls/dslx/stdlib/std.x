@@ -376,11 +376,10 @@ fn msb_test() {
 
 // Returns the R LSbs of x.
 // `x` must be at least R bits wide.
-// A signed value is returned as an unsigned value, as the sign bit has (presumably) been
-// discarded.
-pub fn lsbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> uN[R] {
+// A signed value is returned as `bits` because the sign bit has (presumably) been discarded.
+pub fn lsbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> bits[R] {
     const_assert!(N >= R);
-    (x as uN[N])[0+:uN[R]]
+    (x as bits[N])[0+:bits[R]]
 }
 
 #[test]
