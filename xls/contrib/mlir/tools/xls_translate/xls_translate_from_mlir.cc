@@ -486,6 +486,16 @@ BValue convertOp(TraceOp op, const TranslationState& state, BuilderBase& fb) {
                   op.getVerbosity(), state.getLoc(op));
 }
 
+BValue convertOp(AssertOp op, const TranslationState& state, BuilderBase& fb) {
+  std::optional<std::string> label;
+  if (op.getLabel()) {
+    label = op.getLabel()->str();
+  }
+  return fb.Assert(state.getXlsValue(op.getTkn()),
+                   state.getXlsValue(op.getCondition()), op.getMessage(), label,
+                   state.getLoc(op));
+}
+
 // Tuple operations
 BValue convertOp(TupleOp op, const TranslationState& state, BuilderBase& fb) {
   std::vector<BValue> values;
@@ -1195,7 +1205,8 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
             // Debugging ops
             TraceOp,
             // Misc. side-effecting ops
-            GateOp>([&](auto t) { return convertOp(t, translation_state, fb); })
+            AssertOp, GateOp>(
+            [&](auto t) { return convertOp(t, translation_state, fb); })
         .Case<func::ReturnOp, YieldOp>([&](auto ret) {
           if (ret.getNumOperands() == 1) {
             return out = value_map[ret.getOperand(0)];

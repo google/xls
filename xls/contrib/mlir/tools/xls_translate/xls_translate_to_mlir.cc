@@ -1270,6 +1270,31 @@ absl::StatusOr<Operation*> translateOp(::xls::Trace& node, OpBuilder& builder,
       builder.getI64IntegerAttr(node.verbosity()));
 }
 
+absl::StatusOr<Operation*> translateOp(::xls::Assert& node, OpBuilder& builder,
+                                       TranslationState& state) {
+  auto token = state.getMlirValue(node.token()->id());
+  if (!token.ok()) {
+    return token.status();
+  }
+
+  auto condition = state.getMlirValue(node.condition()->id());
+  if (!condition.ok()) {
+    return condition.status();
+  }
+
+  auto result_type = translateType(node.GetType(), builder);
+  auto loc = translateLoc(node.loc(), builder, state);
+  if (!loc.ok()) {
+    return loc.status();
+  }
+
+  return builder.create<xls::AssertOp>(
+      *loc, result_type, *token, *condition,
+      builder.getStringAttr(node.message()),
+      node.label().has_value() ? builder.getStringAttr(*node.label())
+                               : nullptr);
+}
+
 absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
                                           OpBuilder& builder,
                                           TranslationState& state) {
@@ -1342,6 +1367,8 @@ absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
     op = translateOp(*xls_op, builder, state);
   } else if (auto* xls_op = dynamic_cast<::xls::Trace*>(&xls_node)) {
     op = translateOp(*xls_op, builder, state);
+  } else if (auto* xls_op = dynamic_cast<::xls::Assert*>(&xls_node)) {
+    op = translateOp(*xls_op, builder, state);
   } else if (dynamic_cast<::xls::Param*>(&xls_node)) {
     return absl::InternalError(
         "Param not handeled during function translation.");
@@ -1351,7 +1378,6 @@ absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
   } else if (dynamic_cast<::xls::Next*>(&xls_node)) {
     return absl::InternalError("Next not handeled during proc translation.");
   } else if (dynamic_cast<::xls::Cover*>(&xls_node) ||
-             dynamic_cast<::xls::Assert*>(&xls_node) ||
              dynamic_cast<::xls::MinDelay*>(&xls_node) ||
              dynamic_cast<::xls::RegisterRead*>(&xls_node) ||
              dynamic_cast<::xls::RegisterWrite*>(&xls_node)) {
