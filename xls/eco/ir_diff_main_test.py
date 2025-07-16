@@ -28,7 +28,6 @@ from xls.eco import ir_diff
 from xls.eco import ir_diff_main
 from xls.eco import ir_patch_pb2
 
-_IR_DIFF_MAIN_PATH = runfiles.get_path("xls/eco/ir_diff_main")
 _RISCV_SIMPLE_UNOPT_IR_PATH = runfiles.get_path("xls/examples/riscv_simple.ir")
 _RISCV_SIMPLE_OPT_IR_PATH = runfiles.get_path(
     "xls/examples/riscv_simple.opt.ir"
