@@ -398,7 +398,7 @@ IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
     if (bits_ops::ULessThan(left->UpperBound(), right->UpperBound())) {
       if (std::optional<Interval> intersection =
               Interval::Intersect(*left, *right)) {
-        result.AddInterval(*intersection);
+        result.AddInterval(*std::move(intersection));
         // The difference should only ever contain 0 or 1 interval.
         std::vector<Interval> difference = Interval::Difference(*right, *left);
         std::reverse(difference.begin(), difference.end());
@@ -412,7 +412,7 @@ IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
     if (bits_ops::ULessThan(right->UpperBound(), left->UpperBound())) {
       if (std::optional<Interval> intersection =
               Interval::Intersect(*left, *right)) {
-        result.AddInterval(*intersection);
+        result.AddInterval(*std::move(intersection));
         // The difference should only ever contain 0 or 1 interval.
         std::vector<Interval> difference = Interval::Difference(*left, *right);
         std::reverse(difference.begin(), difference.end());
@@ -426,7 +426,7 @@ IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
     if (bits_ops::UEqual(left->UpperBound(), right->UpperBound())) {
       if (std::optional<Interval> intersection =
               Interval::Intersect(*left, *right)) {
-        result.AddInterval(*intersection);
+        result.AddInterval(*std::move(intersection));
       }
       ++left;
       ++right;

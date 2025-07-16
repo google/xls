@@ -254,6 +254,13 @@ class IntervalSet {
     intervals_.push_back(interval);
   }
 
+  // Move-version of `AddInterval`.
+  void AddInterval(Interval&& interval) {
+    is_normalized_ = false;
+    CHECK_EQ(BitCount(), interval.BitCount());
+    intervals_.push_back(std::move(interval));
+  }
+
   // Modify the set of intervals in this to be exactly the given set.
   // If the set of intervals is empty, then the `BitCount()` is set to -1.
   // Otherwise, the `BitCount()` is set to the `BitCount()` of the
