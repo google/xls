@@ -232,6 +232,42 @@ char* xls_dslx_function_get_identifier(struct xls_dslx_function* fn) {
   return xls::ToOwnedCString(result);
 }
 
+struct xls_dslx_quickcheck* xls_dslx_module_member_get_quickcheck(
+    struct xls_dslx_module_member* member) {
+  auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
+  auto* cpp_qc = std::get<xls::dslx::QuickCheck*>(*cpp_member);
+  return reinterpret_cast<xls_dslx_quickcheck*>(cpp_qc);
+}
+
+struct xls_dslx_function* xls_dslx_quickcheck_get_function(
+    struct xls_dslx_quickcheck* quickcheck) {
+  auto* cpp_qc = reinterpret_cast<xls::dslx::QuickCheck*>(quickcheck);
+  xls::dslx::Function* cpp_fn = cpp_qc->fn();
+  return reinterpret_cast<xls_dslx_function*>(cpp_fn);
+}
+
+bool xls_dslx_quickcheck_is_exhaustive(struct xls_dslx_quickcheck* quickcheck) {
+  auto* cpp_qc = reinterpret_cast<xls::dslx::QuickCheck*>(quickcheck);
+  return cpp_qc->test_cases().tag() ==
+         xls::dslx::QuickCheckTestCasesTag::kExhaustive;
+}
+
+bool xls_dslx_quickcheck_get_count(struct xls_dslx_quickcheck* quickcheck,
+                                   int64_t* result_out) {
+  auto* cpp_qc = reinterpret_cast<xls::dslx::QuickCheck*>(quickcheck);
+  const xls::dslx::QuickCheckTestCases& tc = cpp_qc->test_cases();
+  if (tc.tag() != xls::dslx::QuickCheckTestCasesTag::kCounted) {
+    return false;
+  }
+  std::optional<int64_t> count = tc.count();
+  if (count.has_value()) {
+    *result_out = *count;
+  } else {
+    *result_out = xls::dslx::QuickCheckTestCases::kDefaultTestCount;
+  }
+  return true;
+}
+
 int64_t xls_dslx_module_get_type_definition_count(
     struct xls_dslx_module* module) {
   auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
