@@ -2132,7 +2132,6 @@ cc_test(
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
-        ":priority_select_reduction_pass",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",

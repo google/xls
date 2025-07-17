@@ -21,6 +21,9 @@
 #include <string_view>
 #include <utility>
 
+#include "llvm/include/llvm/Support/ErrorHandling.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/TaskDispatch.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/SymbolStringPool.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
 #include "absl/memory/memory.h"

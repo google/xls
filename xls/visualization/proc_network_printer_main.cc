@@ -25,7 +25,6 @@
 #include "absl/container/btree_map.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/exit_status.h"

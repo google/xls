@@ -148,6 +148,7 @@ cc_library(
         "//xls/ir:function_builder",
         "//xls/ir:op",
         "//xls/ir:source_location",
+        "//xls/ir:state_element",
         "//xls/ir:type",
         "//xls/ir:value",
         "@com_google_absl//absl/container:btree",

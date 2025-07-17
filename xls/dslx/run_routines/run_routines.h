@@ -19,7 +19,6 @@
 #define XLS_DSLX_RUN_ROUTINES_RUN_ROUTINES_H_
 
 #include <cstdint>
-#include <filesystem>
 #include <functional>
 #include <memory>
 #include <optional>

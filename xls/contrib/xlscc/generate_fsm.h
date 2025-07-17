@@ -15,7 +15,16 @@
 #ifndef XLS_CONTRIB_XLSCC_GENERATE_FSM_H_
 #define XLS_CONTRIB_XLSCC_GENERATE_FSM_H_
 
+#include <vector>
+#include <optional>
+#include <cstdint>
 #include "absl/status/status.h"
+#include "clang/include/clang/AST/Decl.h"
+#include "xls/contrib/xlscc/tracked_bvalue.h"
+#include "xls/ir/nodes.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "xls/ir/state_element.h"
 #include "absl/status/statusor.h"
 #include "xls/contrib/xlscc/translator_types.h"
 #include "xls/ir/function_builder.h"

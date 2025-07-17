@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/include/mlir/Support/LogicalResult.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/Dialect/Math/IR/Math.h"
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"

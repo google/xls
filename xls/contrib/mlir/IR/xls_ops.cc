@@ -22,6 +22,7 @@
 
 // Some of these need the keep IWYU pragma as they are required by *.inc files
 
+#include "mlir/include/mlir/IR/OpAsmSupport.h"
 #include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/TypeSwitch.h"  // IWYU pragma: keep

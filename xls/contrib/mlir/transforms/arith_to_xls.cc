@@ -18,6 +18,8 @@
 #include <utility>
 
 #include "llvm/include/llvm/ADT/TypeSwitch.h"
+#include "mlir/include/mlir/Support/WalkResult.h"
+#include "mlir/include/mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/Dialect/Math/IR/Math.h"  // IWYU pragma: keep
