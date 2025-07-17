@@ -42,8 +42,8 @@ namespace {
 // inside a Package object.
 absl::StatusOr<std::shared_ptr<Package>> BuildPackage(
     FuzzProgramProto& fuzz_program) {
-  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
-  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  std::unique_ptr<Package> p = std::make_unique<VerifiedPackage>(kFuzzTestName);
+  FunctionBuilder fb(kFuzzTestName, p.get());
   IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
   BValue ir = ir_fuzz_builder.BuildIr();
   XLS_RET_CHECK_OK(fb.BuildWithReturnValue(ir));
@@ -60,7 +60,7 @@ fuzztest::Domain<
 IrFuzzDomainWithBytesParams(int64_t param_set_count) {
   return fuzztest::FlatMap(
       [param_set_count](std::shared_ptr<Package> p) {
-        Function* f = p->GetFunction(IrTestBase::TestName()).value();
+        Function* f = p->GetFunction(kFuzzTestName).value();
         return fuzztest::PairOf(
             // fuzztest::Just does not like to deal with move-only types so we
             // are using a shared_ptr for now.
@@ -136,7 +136,7 @@ fuzztest::Domain<PackageAndTestParams> IrFuzzDomainWithParams(
                    std::vector<std::vector<std::string>>>
              bytes_paramaterized_package) {
         auto [p, bytes_param_sets] = bytes_paramaterized_package;
-        Function* f = p->GetFunction(IrTestBase::TestName()).value();
+        Function* f = p->GetFunction(kFuzzTestName).value();
         std::vector<std::vector<Value>> param_sets(bytes_param_sets.size());
         // Iterate over the number of param sets.
         for (int64_t i = 0; i < bytes_param_sets.size(); i += 1) {

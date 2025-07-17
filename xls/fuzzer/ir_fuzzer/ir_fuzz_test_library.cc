@@ -29,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
@@ -81,8 +82,8 @@ void OptimizationPassChangesOutputs(
   ScopedMaybeRecord<std::string> pre("original",
                                      paramaterized_package.p->DumpIr());
   XLS_ASSERT_OK(VerifyPackage(paramaterized_package.p.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, paramaterized_package.p->GetFunction(
-                                             IrTestBase::TestName()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           paramaterized_package.p->GetFunction(kFuzzTestName));
   VLOG(3) << "IR Fuzzer-3: Before Pass IR:" << "\n" << f->DumpIr() << "\n";
   // Interpret the IR function with the parameters before reassociation.
   XLS_ASSERT_OK_AND_ASSIGN(

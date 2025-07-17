@@ -50,12 +50,12 @@ cc_test(
     srcs = ["ir_fuzz_test.cc"],
     deps = [
         ":ir_fuzz_domain",
+        ":ir_fuzz_helpers",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:function_builder",
-        "//xls/ir:ir_test_base",
         "//xls/ir:verifier",
         "@com_google_absl//absl/log",
     ],
@@ -118,6 +118,7 @@ cc_test(
     deps = [
         ":fuzz_program_cc_proto",
         ":ir_fuzz_builder",
+        ":ir_fuzz_helpers",
         "//xls/common:xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
@@ -178,6 +179,7 @@ cc_library(
     deps = [
         ":fuzz_program_cc_proto",
         ":ir_fuzz_domain",
+        ":ir_fuzz_helpers",
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",

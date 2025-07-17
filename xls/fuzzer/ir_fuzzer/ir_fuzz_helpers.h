@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/ir/bits.h"
@@ -25,6 +26,9 @@
 // Generic helper functions used in the IR Fuzzer.
 
 namespace xls {
+
+// Used as a test name for Functions and Packages in GoogleTests.
+constexpr std::string_view kFuzzTestName = "FuzzTest";
 
 BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width,
                       WidthFittingMethodProto* width_fitting_method);

@@ -27,6 +27,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -46,8 +47,8 @@ namespace {
 absl::Status EquateProtoToIrTest(
     std::string proto_string, testing::Matcher<const Node*> expected_ir_node) {
   // Create the package.
-  std::unique_ptr<Package> p = IrTestBase::CreatePackage();
-  FunctionBuilder fb(IrTestBase::TestName(), p.get());
+  std::unique_ptr<Package> p = std::make_unique<VerifiedPackage>(kFuzzTestName);
+  FunctionBuilder fb(kFuzzTestName, p.get());
   // Create the proto from the string.
   FuzzProgramProto fuzz_program;
   XLS_RET_CHECK(

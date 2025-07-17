@@ -18,9 +18,9 @@
 #include "absl/log/log.h"
 #include "xls/common/status/matchers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
-#include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -33,8 +33,7 @@ namespace {
 // test that just verifies if the Package object is valid.
 void VerifyIrFuzzPackage(std::shared_ptr<Package> p) {
   XLS_ASSERT_OK(VerifyPackage(p.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           p->GetFunction(IrTestBase::TestName()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction(kFuzzTestName));
   VLOG(3) << "IR Fuzzer-2: IR:" << "\n" << f->DumpIr() << "\n";
 }
 // Use of gtest FUZZ_TEST to randomly generate IR while being compatible with
