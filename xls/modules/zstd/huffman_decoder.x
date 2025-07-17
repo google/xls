@@ -326,7 +326,7 @@ pub proc HuffmanDecoder {
         let decoded_literals = common::LiteralsDataWithSync{
             data: data,
             length: state.decoded_literals_len as common::LitLength,
-            last: done && state.last_stream,
+            last: done && state.last_stream && state.data_last,
             id: state.id,
             literals_last: state.literals_last,
         };
