@@ -129,7 +129,7 @@ class ConditionSet {
   // The maximum size limit on the number of conditions to avoid superlinear
   // behavior.
   static constexpr int64_t kMaxConditions = 64;
-  using ConditionVector = absl::InlinedVector<Condition, kMaxConditions + 1>;
+  using ConditionVector = std::vector<Condition>;
 
  public:
   explicit ConditionSet(const absl::flat_hash_map<Node*, int64_t>& topo_index)
