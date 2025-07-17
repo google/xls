@@ -1072,6 +1072,46 @@ inline ::testing::Matcher<const ::xls::Node*> ArrayUpdate() {
   return ::xls::op_matchers::NodeMatcher(Op::kArrayUpdate, {});
 }
 
+// ArraySlice matcher. Supported forms:
+//
+//   EXPECT_THAT(foo, m::ArraySlice());
+//   EXPECT_THAT(foo, m::ArraySlice(m::Param(), m::Param()));
+//   EXPECT_THAT(foo, m::ArraySlice(/*array=*/m::Param(),
+//                                  /*start=*/m::Param(), /*width=*/8));
+class ArraySliceMatcher : public NodeMatcher {
+ public:
+  ArraySliceMatcher(::testing::Matcher<const Node*> array,
+                    ::testing::Matcher<const Node*> start,
+                    std::optional<int64_t> width = std::nullopt)
+      : NodeMatcher(Op::kArraySlice, {std::move(array), std::move(start)}),
+        width_(width) {}
+  ArraySliceMatcher() : NodeMatcher(Op::kArraySlice, {}) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+
+ private:
+  std::optional<int64_t> width_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> ArraySlice() {
+  return ::xls::op_matchers::ArraySliceMatcher();
+}
+
+inline ::testing::Matcher<const ::xls::Node*> ArraySlice(
+    ::testing::Matcher<const Node*> array,
+    ::testing::Matcher<const Node*> start) {
+  return ::xls::op_matchers::ArraySliceMatcher(std::move(array),
+                                               std::move(start));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> ArraySlice(
+    ::testing::Matcher<const Node*> array,
+    ::testing::Matcher<const Node*> start, int64_t width) {
+  return ::xls::op_matchers::ArraySliceMatcher(std::move(array),
+                                               std::move(start), width);
+}
+
 // Trace matcher. Supported forms:
 //
 // EXPECT_THAT(foo, m::Trace());
