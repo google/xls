@@ -147,6 +147,10 @@ absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
   for (Stage stage = 0; stage < stage_count; ++stage) {
     std::vector<Node*> active_readys;
     for (StreamingOutput& streaming_output : streaming_outputs[stage]) {
+      if (!streaming_output.GetReadyPort().has_value()) {
+        continue;
+      }
+
       if (streaming_output.GetPredicate().has_value()) {
         // Logic for the active ready signal for a Send operation with a
         // predicate `pred`.
@@ -164,20 +168,22 @@ absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
           not_pred->SetName(absl::StrFormat("%s_not_pred",
                                             streaming_output.GetChannelName()));
         }
-        std::vector<Node*> operands{not_pred, streaming_output.GetReadyPort()};
+        XLS_RET_CHECK(streaming_output.GetReadyPort().has_value());
+        std::vector<Node*> operands{not_pred,
+                                    streaming_output.GetReadyPort().value()};
         XLS_ASSIGN_OR_RETURN(
             Node * active_ready,
             block->MakeNode<NaryOp>(SourceInfo(), operands, Op::kOr));
         // not_pred will have an assigned name or be inlined, so only check
         // the ready port. If it has an assigned name, just let everything
         // inline. Otherwise, give a descriptive name.
-        if (!streaming_output.GetReadyPort()->HasAssignedName()) {
+        if (!streaming_output.GetReadyPort().value()->HasAssignedName()) {
           active_ready->SetName(absl::StrFormat(
               "%s_active_ready", streaming_output.GetChannelName()));
         }
         active_readys.push_back(active_ready);
       } else {
-        active_readys.push_back(streaming_output.GetReadyPort());
+        active_readys.push_back(streaming_output.GetReadyPort().value());
       }
     }
 
@@ -210,6 +216,10 @@ absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
     // value.
     std::vector<Node*> active_valids;
     for (StreamingInput& streaming_input : streaming_inputs[stage]) {
+      if (!streaming_input.GetValidPort().has_value()) {
+        continue;
+      }
+
       // Input ports for input channels are already created during
       // HandleReceiveNode().
       XLS_RET_CHECK(streaming_input.GetSignalValid().has_value());
@@ -433,9 +443,14 @@ absl::Status MakeOutputValidPortsForOutputChannels(
   absl::flat_hash_map<Node*, ChannelRef> channels;
   for (Stage stage = 0; stage < streaming_outputs.size(); ++stage) {
     for (StreamingOutput& streaming_output : streaming_outputs[stage]) {
-      valid_predicates[streaming_output.GetValidPort()][stage].push_back(
-          streaming_output.GetPredicate());
-      channels[streaming_output.GetValidPort()] = streaming_output.GetChannel();
+      if (!streaming_output.GetValidPort().has_value()) {
+        continue;
+      }
+      XLS_RET_CHECK(streaming_output.GetValidPort().has_value());
+      valid_predicates[streaming_output.GetValidPort().value()][stage]
+          .push_back(streaming_output.GetPredicate());
+      channels[streaming_output.GetValidPort().value()] =
+          streaming_output.GetChannel();
     }
   }
 
@@ -622,9 +637,13 @@ absl::Status MakeOutputReadyPortsForInputChannels(
   absl::flat_hash_map<Node*, ChannelRef> channels;
   for (Stage stage = 0; stage < streaming_inputs.size(); ++stage) {
     for (StreamingInput& streaming_input : streaming_inputs[stage]) {
-      ready_predicates[streaming_input.GetReadyPort()][stage].push_back(
+      if (!streaming_input.GetReadyPort().has_value()) {
+        continue;
+      }
+      ready_predicates[streaming_input.GetReadyPort().value()][stage].push_back(
           streaming_input.GetPredicate());
-      channels[streaming_input.GetReadyPort()] = streaming_input.GetChannel();
+      channels[streaming_input.GetReadyPort().value()] =
+          streaming_input.GetChannel();
     }
   }
 

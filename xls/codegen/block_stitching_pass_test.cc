@@ -781,14 +781,16 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
           continue;
         }
         ChannelSource source(input.GetDataPort().value()->GetName(),
-                             input.GetValidPort()->GetName(),
-                             input.GetReadyPort()->GetName(), 0.5, block,
+                             input.GetValidPort().value()->GetName(),
+                             input.GetReadyPort().value()->GetName(), 0.5,
+                             block,
                              ChannelSource::BehaviorDuringReset::kIgnoreReady);
         VLOG(3) << absl::StreamFormat(
             "Adding source for channel %s with ports %s %s %s",
             std::get<Channel*>(input.GetChannel())->name(),
             input.GetDataPort().value()->GetName(),
-            input.GetValidPort()->GetName(), input.GetReadyPort()->GetName());
+            input.GetValidPort().value()->GetName(),
+            input.GetReadyPort().value()->GetName());
         std::vector<uint64_t> cast_data_sequence;
         cast_data_sequence.reserve(
             inputs.at(std::get<Channel*>(input.GetChannel())->name()).size());
@@ -834,10 +836,11 @@ absl::StatusOr<BlockEvaluationResults> EvalBlock(
             ChannelOps::kSendReceive) {
           continue;
         }
-        sinks.push_back(ChannelSink(
-            output.GetDataPort().value()->GetName(),
-            output.GetValidPort()->GetName(), output.GetReadyPort()->GetName(),
-            0.5, block, ChannelSink::BehaviorDuringReset::kIgnoreValid));
+        sinks.push_back(
+            ChannelSink(output.GetDataPort().value()->GetName(),
+                        output.GetValidPort().value()->GetName(),
+                        output.GetReadyPort().value()->GetName(), 0.5, block,
+                        ChannelSink::BehaviorDuringReset::kIgnoreValid));
         sink_names_by_data_name[sinks.back().data_name()] =
             std::get<Channel*>(output.GetChannel())->name();
       }

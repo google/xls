@@ -294,17 +294,17 @@ absl::Status Ram1RWUpdateSignature(
        }) {
     XLS_ASSIGN_OR_RETURN(ChannelInterfaceProto channel_interface,
                          signature.GetChannelInterfaceByName(channel_name));
-    if (channel_interface.has_data_port_name()) {
+    if (channel_interface.streaming().has_data_port_name()) {
       XLS_RETURN_IF_ERROR(
-          builder.RemoveData(channel_interface.data_port_name()));
+          builder.RemoveData(channel_interface.streaming().data_port_name()));
     }
-    if (channel_interface.has_valid_port_name()) {
+    if (channel_interface.streaming().has_valid_port_name()) {
       XLS_RETURN_IF_ERROR(
-          builder.RemoveData(channel_interface.valid_port_name()));
+          builder.RemoveData(channel_interface.streaming().valid_port_name()));
     }
-    if (channel_interface.has_ready_port_name()) {
+    if (channel_interface.streaming().has_ready_port_name()) {
       XLS_RETURN_IF_ERROR(
-          builder.RemoveData(channel_interface.ready_port_name()));
+          builder.RemoveData(channel_interface.streaming().ready_port_name()));
     }
     XLS_RETURN_IF_ERROR(builder.RemoveChannelInterface(channel_name));
   }
@@ -746,17 +746,17 @@ absl::StatusOr<bool> Ram1R1WRewrite(Package* package,
            }) {
         XLS_ASSIGN_OR_RETURN(ChannelInterfaceProto channel_interface,
                              signature.GetChannelInterfaceByName(channel_name));
-        if (channel_interface.has_data_port_name()) {
-          XLS_RETURN_IF_ERROR(
-              builder.RemoveData(channel_interface.data_port_name()));
+        if (channel_interface.streaming().has_data_port_name()) {
+          XLS_RETURN_IF_ERROR(builder.RemoveData(
+              channel_interface.streaming().data_port_name()));
         }
-        if (channel_interface.has_valid_port_name()) {
-          XLS_RETURN_IF_ERROR(
-              builder.RemoveData(channel_interface.valid_port_name()));
+        if (channel_interface.streaming().has_valid_port_name()) {
+          XLS_RETURN_IF_ERROR(builder.RemoveData(
+              channel_interface.streaming().valid_port_name()));
         }
-        if (channel_interface.has_ready_port_name()) {
-          XLS_RETURN_IF_ERROR(
-              builder.RemoveData(channel_interface.ready_port_name()));
+        if (channel_interface.streaming().has_ready_port_name()) {
+          XLS_RETURN_IF_ERROR(builder.RemoveData(
+              channel_interface.streaming().ready_port_name()));
         }
         XLS_RETURN_IF_ERROR(builder.RemoveChannelInterface(channel_name));
       }

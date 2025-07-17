@@ -251,26 +251,29 @@ absl::Status ProcElaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
   std::vector<ChannelBinding> interface_bindings;
   ProcInstantiationPath path;
   path.top = top;
-  for (ChannelInterface* channel_ref : top->interface()) {
+  for (ChannelInterface* channel_interface : top->interface()) {
     // TODO(https://github.com/google/xls/issues/869): Add options for
     // fifo-config, strictness, etc.
-    ChannelOps ops = channel_ref->direction() == ChannelDirection::kSend
+    ChannelOps ops = channel_interface->direction() == ChannelDirection::kSend
                          ? ChannelOps::kSendOnly
                          : ChannelOps::kReceiveOnly;
-    if (channel_ref->kind() == ChannelKind::kStreaming) {
+    if (channel_interface->kind() == ChannelKind::kStreaming) {
       elaboration.interface_channels_.push_back(
           std::make_unique<StreamingChannel>(
-              channel_ref->name(), channel_id, ops, channel_ref->type(),
+              channel_interface->name(), channel_id, ops,
+              channel_interface->type(),
               /*intial_values=*/absl::Span<const Value>(),
               /*channel_config=*/ChannelConfig(),
-              /*flow_control=*/FlowControl::kReadyValid,
+              /*flow_control=*/channel_interface->flow_control(),
               /*strictness=*/
-              channel_ref->strictness().value_or(kDefaultChannelStrictness)));
+              channel_interface->strictness().value_or(
+                  kDefaultChannelStrictness)));
     } else {
-      XLS_RET_CHECK_EQ(channel_ref->kind(), ChannelKind::kSingleValue);
+      XLS_RET_CHECK_EQ(channel_interface->kind(), ChannelKind::kSingleValue);
       elaboration.interface_channels_.push_back(
-          std::make_unique<SingleValueChannel>(channel_ref->name(), channel_id,
-                                               ops, channel_ref->type()));
+          std::make_unique<SingleValueChannel>(channel_interface->name(),
+                                               channel_id, ops,
+                                               channel_interface->type()));
     }
     ++channel_id;
     elaboration.interface_channel_instances_.push_back(

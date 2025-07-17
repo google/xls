@@ -77,15 +77,15 @@ absl::StatusOr<verilog::CodegenResult> GetInputChannelMonitorModule() {
   b.AddStreamingChannelInterface("input", CHANNEL_DIRECTION_RECEIVE,
                                  p.GetBitsType(8), FlowControl::kReadyValid,
                                  "input_data", "input_ready", "input_valid",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
 
   b.AddDataOutputAsBits("monitor_data", 9);
   b.AddDataInputAsBits("monitor_ready", 1);
   b.AddDataOutputAsBits("monitor_valid", 1);
-  b.AddStreamingChannelInterface("monitor", CHANNEL_DIRECTION_SEND,
-                                 p.GetBitsType(8), FlowControl::kReadyValid,
-                                 "monitor_data", "monitor_ready",
-                                 "monitor_valid", FLOP_KIND_NONE);
+  b.AddStreamingChannelInterface(
+      "monitor", CHANNEL_DIRECTION_SEND, p.GetBitsType(8),
+      FlowControl::kReadyValid, "monitor_data", "monitor_ready",
+      "monitor_valid", FLOP_KIND_NONE, /*stage=*/std::nullopt);
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
   return verilog::CodegenResult{
       .verilog_text = verilog_text,
@@ -203,15 +203,15 @@ endmodule
   b.AddStreamingChannelInterface("operand_0", CHANNEL_DIRECTION_RECEIVE,
                                  p.GetBitsType(32), FlowControl::kReadyValid,
                                  "operand_0", "operand_0_rdy", "operand_0_vld",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
   b.AddStreamingChannelInterface("operand_1", CHANNEL_DIRECTION_RECEIVE,
                                  p.GetBitsType(32), FlowControl::kReadyValid,
                                  "operand_1", "operand_1_rdy", "operand_1_vld",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
   b.AddStreamingChannelInterface("result", CHANNEL_DIRECTION_SEND,
                                  p.GetBitsType(32), FlowControl::kReadyValid,
                                  "result", "result_rdy", "result_vld",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
 
   return verilog::CodegenResult{
@@ -516,15 +516,15 @@ endmodule
   b.AddStreamingChannelInterface("operand_0", CHANNEL_DIRECTION_RECEIVE,
                                  p.GetBitsType(32), FlowControl::kReadyValid,
                                  "operand_0", "operand_0_rdy", "operand_0_vld",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
   b.AddStreamingChannelInterface("operand_1", CHANNEL_DIRECTION_RECEIVE,
                                  p.GetBitsType(32), FlowControl::kReadyValid,
                                  "operand_1", "operand_1_rdy", "operand_1_vld",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
   b.AddStreamingChannelInterface("result", CHANNEL_DIRECTION_SEND,
                                  p.GetBitsType(32), FlowControl::kReadyValid,
                                  "result", "result_rdy", "result_vld",
-                                 FLOP_KIND_NONE);
+                                 FLOP_KIND_NONE, /*stage=*/std::nullopt);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 

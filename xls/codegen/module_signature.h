@@ -102,12 +102,14 @@ class ModuleSignatureBuilder {
   // Add a channel interface to the module.
   ModuleSignatureBuilder& AddSingleValueChannelInterface(
       std::string_view name, ChannelDirectionProto direction, Type* type,
-      std::string_view data_port_name, FlopKindProto flop_kind);
+      std::string_view data_port_name, FlopKindProto flop_kind,
+      std::optional<int64_t> stage);
   ModuleSignatureBuilder& AddStreamingChannelInterface(
       std::string_view name, ChannelDirectionProto direction, Type* type,
       FlowControl flow_control, std::optional<std::string> data_port_name,
       std::optional<std::string> ready_port_name,
-      std::optional<std::string> valid_port_name, FlopKindProto flop_kind);
+      std::optional<std::string> valid_port_name, FlopKindProto flop_kind,
+      std::optional<int64_t> stage);
 
   ModuleSignatureBuilder& AddFifoInstantiation(
       Package* package, std::string_view instance_name,

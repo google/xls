@@ -87,6 +87,11 @@ struct ChannelPortMetadata {
   std::optional<std::string> valid_port;
   std::optional<std::string> ready_port;
 
+  // For channels with no flow control, this is the number of cycles after reset
+  // in which a value appears on the port (direction is kSend) or when a value
+  // is read at the data port (direction is kReceive). Unused otherwise.
+  std::optional<int64_t> stage;
+
   std::string ToString() const;
 };
 
@@ -341,11 +346,12 @@ class Block : public FunctionBase {
   // Add metadata describing the mapping from ports to the channel they are
   // derived from.
   absl::Status AddChannelPortMetadata(ChannelPortMetadata metadata);
-  absl::Status AddChannelPortMetadata(ChannelRef channel,
-                                      ChannelDirection direction,
-                                      std::optional<std::string> data_port,
-                                      std::optional<std::string> valid_port,
-                                      std::optional<std::string> ready_port);
+  absl::Status AddChannelPortMetadata(
+      ChannelRef channel, ChannelDirection direction,
+      std::optional<std::string> data_port,
+      std::optional<std::string> valid_port,
+      std::optional<std::string> ready_port,
+      std::optional<int64_t> stage = std::nullopt);
 
   // Returns the port metadata for the channel with the given name or an error
   // if no such metadata exists.
@@ -369,7 +375,7 @@ class Block : public FunctionBase {
       std::string_view channel_name, ChannelDirection direction) const;
 
   // Returns the FifoInstantiation reresenting the channel with the given name.
-  absl::StatusOr<FifoInstantiation*> GetFifoInstantiationForChannel(
+  absl::StatusOr<Instantiation*> GetInstantiationForChannel(
       std::string_view channel_name) const;
 
   // Returns the instantiation input/output associated with teh ready/valid/data

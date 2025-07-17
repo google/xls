@@ -992,7 +992,7 @@ TEST(IrParserTest, ParseChannelPortMetadata) {
 
 block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
                out: bits[32]) {
-  #![channel_ports(name=foo, type=bits[32], direction=receive, kind=streaming, flop=skid, data_port=in, ready_port=in_ready, valid_port=in_valid)]
+  #![channel_ports(name=foo, type=bits[32], direction=receive, kind=streaming, flop=skid, data_port=in, ready_port=in_ready, valid_port=in_valid, stage=3)]
   #![channel_ports(name=bar, type=bits[32], direction=send, kind=single_value, data_port=out)]
   in: bits[32] = input_port(name=in)
   in_valid: bits[1] = input_port(name=in_valid)
@@ -1017,6 +1017,7 @@ block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
   EXPECT_THAT(foo_metadata.data_port, Optional(Eq("in")));
   EXPECT_THAT(foo_metadata.ready_port, Optional(Eq("in_ready")));
   EXPECT_THAT(foo_metadata.valid_port, Optional(Eq("in_valid")));
+  EXPECT_THAT(foo_metadata.stage, Optional(3));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ChannelPortMetadata bar_metadata,

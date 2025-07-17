@@ -27,6 +27,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/codegen/passes_ng/stage_conversion.h"
@@ -87,19 +88,23 @@ class StreamingInput {
       : block_(block), channel_name_(channel_name), kind_(kind) {}
 
   std::optional<Node*> GetDataPort() const;
-  Node* GetValidPort() const;
-  Node* GetReadyPort() const;
+  std::optional<Node*> GetValidPort() const;
+  std::optional<Node*> GetReadyPort() const;
   std::string_view GetChannelName() const { return channel_name_; }
   ChannelRef GetChannel() const;
 
   const std ::optional<Node*>& GetPredicate() const { return predicate_; }
   void SetPredicate(std::optional<Node*> value) { predicate_ = value; }
 
-  std ::optional<FifoInstantiation*> GetFifoInstantiation() const {
+  std ::optional<Instantiation*> GetInstantiation() const {
     if (IsExternal()) {
       return std::nullopt;
     }
-    return block_->GetFifoInstantiationForChannel(channel_name_).value();
+    auto result = block_->GetInstantiationForChannel(channel_name_);
+    if (result.status().code() == absl::StatusCode::kNotFound) {
+      return result.value();
+    }
+    return std::nullopt;
   }
 
   const std ::optional<Node*>& GetSignalData() const { return signal_data_; }
@@ -144,8 +149,8 @@ class StreamingOutput {
       : block_(block), channel_name_(channel_name), kind_(kind) {}
 
   std::optional<Node*> GetDataPort() const;
-  Node* GetValidPort() const;
-  Node* GetReadyPort() const;
+  std::optional<Node*> GetValidPort() const;
+  std::optional<Node*> GetReadyPort() const;
   std::string_view GetChannelName() const { return channel_name_; }
 
   ChannelRef GetChannel() const;
@@ -156,11 +161,11 @@ class StreamingOutput {
   const std::optional<Node*>& GetData() const { return data_; }
   void SetData(Node* value) { data_ = value; }
 
-  std ::optional<FifoInstantiation*> GetFifoInstantiation() const {
+  std ::optional<Instantiation*> GetInstantiation() const {
     if (IsExternal()) {
       return std::nullopt;
     }
-    return block_->GetFifoInstantiationForChannel(channel_name_).value();
+    return block_->GetInstantiationForChannel(channel_name_).value();
   }
 
   bool IsExternal() const { return kind_ == ConnectionKind::kExternal; }

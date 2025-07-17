@@ -226,10 +226,11 @@ absl::Status StitchStreamingOutputToFifo(
       xls::Node * block_data,
       block->MakeNode<xls::InstantiationOutput>(
           SourceInfo(), block_inst, output->GetDataPort().value()->GetName()));
+  XLS_RET_CHECK(output->GetValidPort().has_value());
   XLS_ASSIGN_OR_RETURN(
       xls::Node * block_valid,
       block->MakeNode<xls::InstantiationOutput>(
-          SourceInfo(), block_inst, output->GetValidPort()->GetName()));
+          SourceInfo(), block_inst, (*output->GetValidPort())->GetName()));
   XLS_ASSIGN_OR_RETURN(
       xls::Node * fifo_ready,
       block->MakeNode<xls::InstantiationOutput>(
@@ -244,10 +245,11 @@ absl::Status StitchStreamingOutputToFifo(
                               SourceInfo(), block_valid, fifo_inst,
                               FifoInstantiation::kPushValidPortName)
                           .status());
+  XLS_RET_CHECK(output->GetReadyPort().has_value());
   XLS_RETURN_IF_ERROR(block
                           ->MakeNode<xls::InstantiationInput>(
                               SourceInfo(), fifo_ready, block_inst,
-                              output->GetReadyPort()->GetName())
+                              output->GetReadyPort().value()->GetName())
                           .status());
   return absl::OkStatus();
 }
@@ -273,19 +275,21 @@ absl::Status StitchStreamingInputToFifo(
       xls::Node * fifo_valid,
       block->MakeNode<xls::InstantiationOutput>(
           SourceInfo(), fifo_inst, FifoInstantiation::kPopValidPortName));
+  XLS_RET_CHECK(input->GetReadyPort().has_value());
   XLS_ASSIGN_OR_RETURN(
       xls::Node * block_ready,
       block->MakeNode<xls::InstantiationOutput>(
-          SourceInfo(), block_inst, input->GetReadyPort()->GetName()));
+          SourceInfo(), block_inst, input->GetReadyPort().value()->GetName()));
   XLS_RETURN_IF_ERROR(block
                           ->MakeNode<xls::InstantiationInput>(
                               SourceInfo(), fifo_data, block_inst,
                               input->GetDataPort().value()->GetName())
                           .status());
+  XLS_RET_CHECK(input->GetValidPort().has_value());
   XLS_RETURN_IF_ERROR(block
                           ->MakeNode<xls::InstantiationInput>(
                               SourceInfo(), fifo_valid, block_inst,
-                              input->GetValidPort()->GetName())
+                              input->GetValidPort().value()->GetName())
                           .status());
   XLS_RETURN_IF_ERROR(block
                           ->MakeNode<xls::InstantiationInput>(
@@ -299,12 +303,18 @@ absl::Status StitchStreamingInputToFifo(
 absl::Status ExposeStreamingOutput(
     const absl::flat_hash_map<Block*, ::xls::Instantiation*>& instantiations,
     Block* block, const StreamingOutput* output) {
-  VLOG(5) << "Exposing output port: "
-          << output->GetDataPort().value()->GetName();
+  auto name_or_none = [](std::optional<Node*> n) {
+    return n.has_value() ? n.value()->GetName() : "<none>";
+  };
+  VLOG(5) << "Exposing output port: " << name_or_none(output->GetDataPort());
   VLOG(5) << "Exposing output port valid: "
-          << output->GetValidPort()->GetName();
+          << name_or_none(output->GetValidPort());
   VLOG(5) << "Exposing output port ready: "
-          << output->GetReadyPort()->GetName();
+          << name_or_none(output->GetReadyPort());
+
+  XLS_RET_CHECK(output->GetDataPort().has_value());
+  XLS_RET_CHECK(output->GetReadyPort().has_value());
+  XLS_RET_CHECK(output->GetValidPort().has_value());
 
   Block* instantiated_block =
       output->GetDataPort().value()->function_base()->AsBlockOrDie();
@@ -321,26 +331,30 @@ absl::Status ExposeStreamingOutput(
   XLS_ASSIGN_OR_RETURN(
       xls::Node * block_valid,
       block->MakeNode<xls::InstantiationOutput>(
-          SourceInfo(), block_inst, output->GetValidPort()->GetName()));
-  XLS_ASSIGN_OR_RETURN(xls::Node * ext_ready,
-                       block->AddInputPort(output->GetReadyPort()->GetName(),
-                                           output->GetReadyPort()->GetType()));
+          SourceInfo(), block_inst, output->GetValidPort().value()->GetName()));
+  XLS_ASSIGN_OR_RETURN(
+      xls::Node * ext_ready,
+      block->AddInputPort(output->GetReadyPort().value()->GetName(),
+                          output->GetReadyPort().value()->GetType()));
   XLS_RETURN_IF_ERROR(
       block->AddOutputPort(output->GetDataPort().value()->GetName(), block_data)
           .status());
   XLS_RETURN_IF_ERROR(
-      block->AddOutputPort(output->GetValidPort()->GetName(), block_valid)
+      block
+          ->AddOutputPort(output->GetValidPort().value()->GetName(),
+                          block_valid)
           .status());
   XLS_RETURN_IF_ERROR(block
                           ->MakeNode<xls::InstantiationInput>(
                               SourceInfo(), ext_ready, block_inst,
-                              output->GetReadyPort()->GetName())
+                              output->GetReadyPort().value()->GetName())
                           .status());
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
       output->GetChannel(), ChannelDirection::kSend,
       output->GetDataPort().value()->GetName(),
-      output->GetValidPort()->GetName(), output->GetReadyPort()->GetName()));
+      output->GetValidPort().value()->GetName(),
+      output->GetReadyPort().value()->GetName(), /*stage=*/std::nullopt));
 
   return absl::OkStatus();
 }
@@ -353,6 +367,10 @@ absl::Status ExposeStreamingInput(
   Block* instantiated_block =
       input->GetDataPort().value()->function_base()->AsBlockOrDie();
 
+  XLS_RET_CHECK(input->GetDataPort().has_value());
+  XLS_RET_CHECK(input->GetReadyPort().has_value());
+  XLS_RET_CHECK(input->GetValidPort().has_value());
+
   auto itr = instantiations.find(instantiated_block);
   if (itr == instantiations.end()) {
     return absl::NotFoundError(
@@ -363,13 +381,14 @@ absl::Status ExposeStreamingInput(
       xls::Node * ext_data,
       block->AddInputPort(input->GetDataPort().value()->GetName(),
                           input->GetDataPort().value()->GetType()));
-  XLS_ASSIGN_OR_RETURN(xls::Node * ext_valid,
-                       block->AddInputPort(input->GetValidPort()->GetName(),
-                                           input->GetValidPort()->GetType()));
+  XLS_ASSIGN_OR_RETURN(
+      xls::Node * ext_valid,
+      block->AddInputPort(input->GetValidPort().value()->GetName(),
+                          input->GetValidPort().value()->GetType()));
   XLS_ASSIGN_OR_RETURN(
       xls::Node * block_ready,
       block->MakeNode<xls::InstantiationOutput>(
-          SourceInfo(), block_inst, input->GetReadyPort()->GetName()));
+          SourceInfo(), block_inst, input->GetReadyPort().value()->GetName()));
   XLS_RETURN_IF_ERROR(block
                           ->MakeNode<xls::InstantiationInput>(
                               SourceInfo(), ext_data, block_inst,
@@ -378,16 +397,18 @@ absl::Status ExposeStreamingInput(
   XLS_RETURN_IF_ERROR(block
                           ->MakeNode<xls::InstantiationInput>(
                               SourceInfo(), ext_valid, block_inst,
-                              input->GetValidPort()->GetName())
+                              input->GetValidPort().value()->GetName())
                           .status());
   XLS_RETURN_IF_ERROR(
-      block->AddOutputPort(input->GetReadyPort()->GetName(), block_ready)
+      block
+          ->AddOutputPort(input->GetReadyPort().value()->GetName(), block_ready)
           .status());
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
       input->GetChannel(), ChannelDirection::kReceive,
-      input->GetDataPort().value()->GetName(), input->GetValidPort()->GetName(),
-      input->GetReadyPort()->GetName()));
+      input->GetDataPort().value()->GetName(),
+      input->GetValidPort().value()->GetName(),
+      input->GetReadyPort().value()->GetName(), /*stage=*/std::nullopt));
 
   return absl::OkStatus();
 }
@@ -436,7 +457,8 @@ absl::Status StitchSingleValueChannel(
                                             input_port.value()->GetType()));
     XLS_RETURN_IF_ERROR(container->AddChannelPortMetadata(
         channel, ChannelDirection::kReceive, input_port.value()->GetName(),
-        /*valid_port=*/std::nullopt, /*ready_port=*/std::nullopt));
+        /*valid_port=*/std::nullopt, /*ready_port=*/std::nullopt,
+        /*stage=*/std::nullopt));
   }
   if (has_input) {
     std::optional<InputPort*> input_port = subblock_input->GetDataPort();
@@ -460,7 +482,8 @@ absl::Status StitchSingleValueChannel(
           .status());
   return container->AddChannelPortMetadata(
       channel, ChannelDirection::kSend, output_port.value()->GetName(),
-      /*valid_port=*/std::nullopt, /*ready_port=*/std::nullopt);
+      /*valid_port=*/std::nullopt, /*ready_port=*/std::nullopt,
+      /*stage=*/std::nullopt);
 }
 
 // Stitch two ends of a streaming channel together.

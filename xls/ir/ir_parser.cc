@@ -2798,6 +2798,7 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
     std::optional<std::string> data_port;
     std::optional<std::string> ready_port;
     std::optional<std::string> valid_port;
+    std::optional<int64_t> stage;
 
     XLS_RETURN_IF_ERROR(
         scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
@@ -2844,6 +2845,10 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
       XLS_ASSIGN_OR_RETURN(ready_port, ParseIdentifier());
       return absl::OkStatus();
     };
+    handlers["stage"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(stage, ParseInt64());
+      return absl::OkStatus();
+    };
     XLS_RETURN_IF_ERROR(
         ParseKeywordArguments(handlers, {"name", "type", "direction", "kind"}));
     XLS_RETURN_IF_ERROR(
@@ -2858,7 +2863,8 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
                            .flop_kind = flop_kind.value_or(FlopKind::kNone),
                            .data_port = data_port,
                            .valid_port = valid_port,
-                           .ready_port = ready_port}};
+                           .ready_port = ready_port,
+                           .stage = stage}};
   }
   if (attribute_name.value() == "reset") {
     std::optional<std::string> port;

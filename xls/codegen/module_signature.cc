@@ -44,6 +44,20 @@
 
 namespace xls {
 namespace verilog {
+namespace {
+
+std::optional<std::string> GetDataPortName(
+    const ChannelInterfaceProto& interface) {
+  if (interface.has_streaming() && interface.streaming().has_data_port_name()) {
+    return interface.streaming().data_port_name();
+  } else if (interface.has_single_value() &&
+             interface.single_value().has_data_port_name()) {
+    return interface.single_value().data_port_name();
+  }
+  return std::nullopt;
+}
+
+}  // namespace
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithClock(
     std::string_view name) {
@@ -176,15 +190,19 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannelInterface(
     std::string_view name, ChannelDirectionProto direction, Type* type,
-    std::string_view data_port_name, FlopKindProto flop_kind) {
+    std::string_view data_port_name, FlopKindProto flop_kind,
+    std::optional<int64_t> stage) {
   ChannelInterfaceProto* interface = proto_.add_channel_interfaces();
   interface->set_channel_name(ToProtoString(name));
   interface->set_direction(direction);
   *interface->mutable_type() = type->ToProto();
   interface->set_kind(CHANNEL_KIND_SINGLE_VALUE);
-  interface->set_flow_control(CHANNEL_FLOW_CONTROL_NONE);
-  interface->set_data_port_name(ToProtoString(data_port_name));
+  interface->mutable_single_value()->set_data_port_name(
+      ToProtoString(data_port_name));
   interface->set_flop_kind(flop_kind);
+  if (stage.has_value()) {
+    interface->set_stage(*stage);
+  }
   return *this;
 }
 
@@ -192,26 +210,32 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannelInterface(
     std::string_view name, ChannelDirectionProto direction, Type* type,
     FlowControl flow_control, std::optional<std::string> data_port_name,
     std::optional<std::string> ready_port_name,
-    std::optional<std::string> valid_port_name, FlopKindProto flop_kind) {
+    std::optional<std::string> valid_port_name, FlopKindProto flop_kind,
+    std::optional<int64_t> stage) {
   ChannelInterfaceProto* interface = proto_.add_channel_interfaces();
   interface->set_channel_name(ToProtoString(name));
   interface->set_direction(direction);
   *interface->mutable_type() = type->ToProto();
   interface->set_kind(CHANNEL_KIND_STREAMING);
-  if (flow_control == FlowControl::kReadyValid) {
-    interface->set_flow_control(CHANNEL_FLOW_CONTROL_READY_VALID);
-  } else {
-    interface->set_flow_control(CHANNEL_FLOW_CONTROL_NONE);
-  }
+  interface->mutable_streaming()->set_flow_control(
+      flow_control == FlowControl::kReadyValid
+          ? CHANNEL_FLOW_CONTROL_READY_VALID
+          : CHANNEL_FLOW_CONTROL_NONE);
   interface->set_flop_kind(flop_kind);
   if (data_port_name.has_value()) {
-    interface->set_data_port_name(ToProtoString(*data_port_name));
+    interface->mutable_streaming()->set_data_port_name(
+        ToProtoString(*data_port_name));
   }
   if (ready_port_name.has_value()) {
-    interface->set_ready_port_name(ToProtoString(*ready_port_name));
+    interface->mutable_streaming()->set_ready_port_name(
+        ToProtoString(*ready_port_name));
   }
   if (valid_port_name.has_value()) {
-    interface->set_valid_port_name(ToProtoString(*valid_port_name));
+    interface->mutable_streaming()->set_valid_port_name(
+        ToProtoString(*valid_port_name));
+  }
+  if (stage.has_value()) {
+    interface->set_stage(*stage);
   }
   return *this;
 }
@@ -495,64 +519,82 @@ static absl::Status ValidateProto(const ModuleSignatureProto& proto) {
     }
 
     // Ensure the specified ports for the channel exist in the port list.
-    if (channel.has_data_port_name()) {
-      if (!name_data_ports_map.contains(channel.data_port_name())) {
+    std::optional<std::string> data_port = GetDataPortName(channel);
+    if (data_port.has_value()) {
+      if (!name_data_ports_map.contains(*data_port)) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Port '%s' of channel '%s' is not present in the port list.",
-            channel.data_port_name(), channel.channel_name()));
+            *data_port, channel.channel_name()));
       }
-      if (!is_same_direction(
-              channel.direction(),
-              name_data_ports_map.at(channel.data_port_name()).direction())) {
+      if (!is_same_direction(channel.direction(),
+                             name_data_ports_map.at(*data_port).direction())) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Data port '%s' of channel '%s' is not the correct direction",
-            channel.data_port_name(), channel.channel_name()));
+            *data_port, channel.channel_name()));
       }
-      auto [_, inserted] = channel_ports_seen.insert(channel.data_port_name());
+      auto [_, inserted] = channel_ports_seen.insert(*data_port);
       if (!inserted) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Port '%s' is used by multiple channels.",
-                            channel.data_port_name()));
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Port '%s' is used by multiple channels.", *data_port));
       }
     }
-    if (channel.has_valid_port_name()) {
-      if (!name_data_ports_map.contains(channel.valid_port_name())) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Port '%s' of channel '%s' is not present in the port list.",
-            channel.valid_port_name(), channel.channel_name()));
+    if (channel.has_streaming()) {
+      const StreamingChannelInterfaceProto& streaming = channel.streaming();
+      if (streaming.has_valid_port_name()) {
+        if (streaming.flow_control() != CHANNEL_FLOW_CONTROL_READY_VALID) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Channel '%s' has a valid port specified, but "
+                              "flow control is not ready-valid.",
+                              channel.channel_name()));
+        }
+        if (!name_data_ports_map.contains(streaming.valid_port_name())) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Port '%s' of channel '%s' is not present in the port list.",
+              streaming.valid_port_name(), channel.channel_name()));
+        }
+        if (!is_same_direction(
+                channel.direction(),
+                name_data_ports_map.at(streaming.valid_port_name())
+                    .direction())) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Valid port '%s' of channel '%s' is not the correct direction",
+              streaming.valid_port_name(), channel.channel_name()));
+        }
+        auto [_, inserted] =
+            channel_ports_seen.insert(streaming.valid_port_name());
+        if (!inserted) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Port '%s' is used by multiple channels.",
+                              streaming.valid_port_name()));
+        }
       }
-      if (!is_same_direction(
-              channel.direction(),
-              name_data_ports_map.at(channel.valid_port_name()).direction())) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Valid port '%s' of channel '%s' is not the correct direction",
-            channel.valid_port_name(), channel.channel_name()));
-      }
-      auto [_, inserted] = channel_ports_seen.insert(channel.valid_port_name());
-      if (!inserted) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Port '%s' is used by multiple channels.",
-                            channel.valid_port_name()));
-      }
-    }
-    if (channel.has_ready_port_name()) {
-      if (!name_data_ports_map.contains(channel.ready_port_name())) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Port '%s' of channel '%s' is not present in the port list.",
-            channel.ready_port_name(), channel.channel_name()));
-      }
-      if (!is_opposite_direction(
-              channel.direction(),
-              name_data_ports_map.at(channel.ready_port_name()).direction())) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Ready port '%s' of channel '%s' is not the correct direction",
-            channel.ready_port_name(), channel.channel_name()));
-      }
-      auto [_, inserted] = channel_ports_seen.insert(channel.ready_port_name());
-      if (!inserted) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Port '%s' is used by multiple channels.",
-                            channel.ready_port_name()));
+      if (streaming.has_ready_port_name()) {
+        if (streaming.flow_control() != CHANNEL_FLOW_CONTROL_READY_VALID) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Channel '%s' has a ready port specified, but "
+                              "flow control is not ready-valid.",
+                              channel.channel_name()));
+        }
+        if (!name_data_ports_map.contains(streaming.ready_port_name())) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Port '%s' of channel '%s' is not present in the port list.",
+              streaming.ready_port_name(), channel.channel_name()));
+        }
+        if (!is_opposite_direction(
+                channel.direction(),
+                name_data_ports_map.at(streaming.ready_port_name())
+                    .direction())) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Ready port '%s' of channel '%s' is not the correct direction",
+              streaming.ready_port_name(), channel.channel_name()));
+        }
+        auto [_, inserted] =
+            channel_ports_seen.insert(streaming.ready_port_name());
+        if (!inserted) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Port '%s' is used by multiple channels.",
+                              streaming.ready_port_name()));
+        }
       }
     }
   }
@@ -708,8 +750,12 @@ absl::Status ModuleSignature::ValidateChannelBitsInputs(
     return absl::FailedPreconditionError(
         absl::StrFormat("Channel '%s' is not an input channel.", channel_name));
   }
-  XLS_ASSIGN_OR_RETURN(PortProto port,
-                       GetInputPortByName(iter->data_port_name()));
+  std::optional<std::string> data_port = GetDataPortName(*iter);
+  if (!data_port.has_value()) {
+    return absl::FailedPreconditionError(absl::StrFormat(
+        "Channel '%s' does not have a data port.", channel_name));
+  }
+  XLS_ASSIGN_OR_RETURN(PortProto port, GetInputPortByName(*data_port));
   for (const Bits& value : values) {
     if (port.width() != value.bit_count()) {
       return absl::InvalidArgumentError(absl::StrFormat(
@@ -731,6 +777,11 @@ absl::Status ModuleSignature::ValidateChannelValueInputs(
     return absl::FailedPreconditionError(
         absl::StrFormat("Channel '%s' is not an input channel.", channel_name));
   }
+  std::optional<std::string> data_port = GetDataPortName(*iter);
+  if (!data_port.has_value()) {
+    return absl::FailedPreconditionError(absl::StrFormat(
+        "Channel '%s' does not have a data port.", channel_name));
+  }
   const TypeProto& expected_type_proto = iter->type();
   for (const Value& value : values) {
     XLS_ASSIGN_OR_RETURN(TypeProto value_type_proto, value.TypeAsProto());
@@ -738,8 +789,8 @@ absl::Status ModuleSignature::ValidateChannelValueInputs(
                                                            value_type_proto));
     if (!types_equal) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Input value '%s' is wrong type. Expected '%s', got '%s'",
-          iter->data_port_name(), TypeProtoToString(expected_type_proto),
+          "Input value '%s' is wrong type. Expected '%s', got '%s'", *data_port,
+          TypeProtoToString(expected_type_proto),
           TypeProtoToString(value_type_proto)));
     }
   }
@@ -824,9 +875,12 @@ absl::StatusOr<std::string> ModuleSignature::GetChannelInterfaceNameForPort(
   auto iter = absl::c_find_if(
       proto_.channel_interfaces(),
       [&](const ChannelInterfaceProto& channel_interface) {
-        return channel_interface.data_port_name() == port_name ||
-               channel_interface.ready_port_name() == port_name ||
-               channel_interface.valid_port_name() == port_name;
+        if (channel_interface.has_streaming()) {
+          return channel_interface.streaming().data_port_name() == port_name ||
+                 channel_interface.streaming().ready_port_name() == port_name ||
+                 channel_interface.streaming().valid_port_name() == port_name;
+        }
+        return channel_interface.single_value().data_port_name() == port_name;
       });
   if (iter == proto_.channel_interfaces().end()) {
     return absl::NotFoundError(absl::StrFormat(
