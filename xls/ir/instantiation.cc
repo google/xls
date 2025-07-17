@@ -40,6 +40,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/type.h"
 #include "re2/re2.h"
 
@@ -53,6 +54,8 @@ std::string InstantiationKindToString(InstantiationKind kind) {
       return "fifo";
     case InstantiationKind::kExtern:
       return "extern";
+    case InstantiationKind::kDelayLine:
+      return "delay_line";
   }
   LOG(FATAL) << "Invalid instantiation kind: " << static_cast<int64_t>(kind);
 }
@@ -67,6 +70,9 @@ absl::StatusOr<InstantiationKind> StringToInstantiationKind(
   }
   if (str == "extern") {
     return InstantiationKind::kExtern;
+  }
+  if (str == "delay_line") {
+    return InstantiationKind::kDelayLine;
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Invalid instantiation kind '%s'", str));
@@ -96,6 +102,12 @@ absl::StatusOr<ExternInstantiation*> Instantiation::AsExternInstantiation() {
 }
 absl::StatusOr<FifoInstantiation*> Instantiation::AsFifoInstantiation() {
   return UnexpectedKind(/*expected=*/InstantiationKind::kFifo,
+                        /*actual=*/kind());
+}
+
+absl::StatusOr<DelayLineInstantiation*>
+Instantiation::AsDelayLineInstantiation() {
+  return UnexpectedKind(/*expected=*/InstantiationKind::kDelayLine,
                         /*actual=*/kind());
 }
 
@@ -336,6 +348,73 @@ std::string FifoInstantiation::ToString() const {
       fifo_config_.bypass() ? "true" : "false",
       fifo_config_.register_push_outputs() ? "true" : "false",
       fifo_config_.register_pop_outputs() ? "true" : "false", channel_str);
+}
+
+DelayLineInstantiation::DelayLineInstantiation(
+    std::string_view inst_name, int64_t latency, Type* data_type,
+    std::optional<std::string_view> channel_name,
+    std::optional<ResetBehavior> reset_behavior, Package* package)
+    : Instantiation(inst_name, InstantiationKind::kDelayLine),
+      latency_(latency),
+      data_type_(data_type),
+      channel_name_(channel_name),
+      reset_behavior_(reset_behavior),
+      package_(package) {
+  CHECK(package->IsOwnedType(data_type));
+}
+
+absl::StatusOr<InstantiationPort> DelayLineInstantiation::GetInputPort(
+    std::string_view name) {
+  if (name == kPushDataPortName) {
+    return InstantiationPort{.name = std::string{kPushDataPortName},
+                             .type = data_type()};
+  }
+  if (name == kResetPortName) {
+    return InstantiationPort{.name = std::string{kResetPortName},
+                             .type = package_->GetBitsType(1)};
+  }
+  return absl::NotFoundError(
+      absl::Substitute("No such input port `$0`: must be one of push_data, "
+                       "push_valid, or pop_ready.",
+                       name));
+}
+
+absl::StatusOr<InstantiationType> DelayLineInstantiation::type() const {
+  if (reset_behavior_.has_value()) {
+    return InstantiationType(
+        {{std::string(kPushDataPortName), data_type()},
+         {std::string(kResetPortName), package_->GetBitsType(1)}},
+        {{std::string(kPopDataPortName), data_type()}});
+  }
+  return InstantiationType({{std::string(kPushDataPortName), data_type()}},
+                           {{std::string(kPopDataPortName), data_type()}});
+}
+
+absl::StatusOr<InstantiationPort> DelayLineInstantiation::GetOutputPort(
+    std::string_view name) {
+  if (name == kPopDataPortName) {
+    return InstantiationPort{.name = std::string{kPopDataPortName},
+                             .type = data_type()};
+  }
+  return absl::NotFoundError(absl::StrFormat("No such output port `%s`", name));
+}
+
+std::optional<InstantiationPort> DelayLineInstantiation::GetResetPort() {
+  if (reset_behavior_.has_value()) {
+    return InstantiationPort{.name = std::string{kResetPortName},
+                             .type = data_type()};
+  }
+  return std::nullopt;
+}
+
+std::string DelayLineInstantiation::ToString() const {
+  std::string channel_str;
+  if (channel_name_.has_value()) {
+    channel_str = absl::StrFormat("channel=%s, ", *channel_name_);
+  }
+
+  return absl::StrFormat("instantiation %s(data_type=%s, latency=%d)", name(),
+                         data_type_->ToString(), latency());
 }
 
 }  // namespace xls

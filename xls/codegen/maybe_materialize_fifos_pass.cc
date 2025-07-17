@@ -15,6 +15,7 @@
 #include "xls/codegen/maybe_materialize_fifos_pass.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -38,10 +39,64 @@
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value_utils.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 namespace {
+
+// Construct a Block implementing a DelayLine instantiation. The block consists
+// of a number of registers equal to the latency of the delay line.
+absl::StatusOr<Block*> MaterializeDelayLine(
+    Block* instantiating_block, DelayLineInstantiation* instantiation) {
+  Package* package = instantiating_block->package();
+  Block* block = package->AddBlock(
+      std::make_unique<Block>(instantiation->name(), package));
+  if (instantiating_block->GetClockPort().has_value()) {
+    XLS_RETURN_IF_ERROR(
+        block->AddClockPort(instantiating_block->GetClockPort()->name));
+  }
+  if (instantiating_block->GetResetPort().has_value()) {
+    XLS_RETURN_IF_ERROR(
+        block
+            ->AddResetPort(
+                instantiating_block->GetResetPort().value()->GetName(),
+                instantiating_block->GetResetBehavior().value())
+            .status());
+  }
+  XLS_ASSIGN_OR_RETURN(
+      InputPort * input_port,
+      block->AddInputPort(DelayLineInstantiation::kPushDataPortName,
+                          instantiation->data_type()));
+  Node* data = input_port;
+  for (int64_t i = 0; i < instantiation->latency(); ++i) {
+    std::string reg_name =
+        instantiation->channel_name().has_value()
+            ? absl::StrFormat("delay_line_%s_%d",
+                              instantiation->channel_name().value(), i)
+            : absl::StrFormat("delay_line_%d", i);
+    XLS_ASSIGN_OR_RETURN(
+        Register * reg,
+        block->AddRegister(reg_name, instantiation->data_type(),
+                           ZeroOfType(instantiation->data_type())));
+    XLS_RETURN_IF_ERROR(block
+                            ->MakeNode<RegisterWrite>(
+                                SourceInfo(), data,
+                                /*load_enable=*/std::nullopt,
+                                /*reset_value=*/block->GetResetPort(), reg)
+                            .status());
+    XLS_ASSIGN_OR_RETURN(
+        data, block->MakeNodeWithName<RegisterRead>(SourceInfo(), reg,
+                                                    /*name=*/reg->name()));
+  }
+
+  XLS_RETURN_IF_ERROR(
+      block->AddOutputPort(DelayLineInstantiation::kPopDataPortName, data)
+          .status());
+
+  return block;
+}
+
 absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
                                        FifoInstantiation* inst,
                                        const ResetBehavior& reset_behavior,
@@ -277,7 +332,12 @@ absl::StatusOr<bool> MaybeMaterializeFifosPass::RunInternal(
     CodegenContext& context) const {
   XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
                        BlockElaboration::Elaborate(context.top_block()));
-  std::vector<FifoInstantiation*> insts;
+  struct MaterializedInstantiation {
+    Block* instantiating_block;
+    Instantiation* instantiation;
+    Block* implementation = nullptr;
+  };
+  std::vector<MaterializedInstantiation> insts;
   for (Block* b : elab.blocks()) {
     for (xls::Instantiation* i : b->GetInstantiations()) {
       if (i->kind() == InstantiationKind::kFifo) {
@@ -289,8 +349,12 @@ absl::StatusOr<bool> MaybeMaterializeFifosPass::RunInternal(
                 : options.codegen_options.fifo_module().empty();
         XLS_RETURN_IF_ERROR(fifo->fifo_config().Validate());
         if (should_materialize) {
-          insts.push_back(fifo);
+          insts.push_back(MaterializedInstantiation{.instantiating_block = b,
+                                                    .instantiation = i});
         }
+      } else if (i->kind() == InstantiationKind::kDelayLine) {
+        insts.push_back(MaterializedInstantiation{.instantiating_block = b,
+                                                  .instantiation = i});
       }
     }
   }
@@ -300,64 +364,81 @@ absl::StatusOr<bool> MaybeMaterializeFifosPass::RunInternal(
   NameUniquer uniquer("___");
   // Intermediate list new blocks created.
 
-  absl::flat_hash_map<xls::Instantiation*, Block*> impls;
-  XLS_RET_CHECK(options.codegen_options.GetResetBehavior().has_value())
-      << "Reset behavior must be set to materialize fifos";
-  XLS_RET_CHECK(options.codegen_options.reset().has_value())
-      << "Fifo materialization requires reset";
-  XLS_RET_CHECK(options.codegen_options.reset().value().has_name())
-      << "Fifo materialization requires reset name";
-  std::string_view reset_name = options.codegen_options.reset().value().name();
-
-  for (FifoInstantiation* f : insts) {
-    XLS_ASSIGN_OR_RETURN(
-        impls[f], MaterializeFifo(uniquer, package, f,
-                                  *options.codegen_options.GetResetBehavior(),
-                                  reset_name));
-  }
-
-  // The name of the reset port of the materialized FIFO is given by the codegen
-  // options and hence might differ from the name of the reset port of the
-  // original fifo instantiation (which is always
-  // FifoInstantiation::kResetPortName). This ensure the materialized fifo block
-  // behaves like any other require any special handling and acts like any other
-  // and does not require special handling. This needs to be taken into account
-  // when replacing the fifo instantiation with instantiation of the
-  // materialized fifo:
-  absl::flat_hash_map<std::string, std::string> port_renaming_rules = {};
-  if (reset_name != FifoInstantiation::kResetPortName) {
-    port_renaming_rules[FifoInstantiation::kResetPortName] = reset_name;
-  }
-
-  std::vector<Block*> saved_blocks(elab.blocks().begin(), elab.blocks().end());
-  for (Block* b : saved_blocks) {
-    std::vector<xls::Instantiation*> saved_instantiations(
-        b->GetInstantiations().begin(), b->GetInstantiations().end());
-    for (xls::Instantiation* i : saved_instantiations) {
-      if (!impls.contains(i)) {
-        continue;
-      }
+  for (MaterializedInstantiation& inst : insts) {
+    if (inst.instantiation->kind() == InstantiationKind::kFifo) {
+      XLS_RET_CHECK(options.codegen_options.GetResetBehavior().has_value())
+          << "Reset behavior must be set to materialize fifos";
+      XLS_RET_CHECK(options.codegen_options.reset().has_value())
+          << "Fifo materialization requires reset";
+      XLS_RET_CHECK(options.codegen_options.reset().value().has_name())
+          << "Fifo materialization requires reset name";
+      std::string_view reset_name =
+          options.codegen_options.reset().value().name();
       XLS_ASSIGN_OR_RETURN(
-          xls::Instantiation * new_inst,
-          b->AddBlockInstantiation(
-              absl::StrFormat("materialized_fifo_%s_", i->name()),
-              impls.at(i)));
-      XLS_RETURN_IF_ERROR(
-          b->ReplaceInstantiationWith(i, new_inst, port_renaming_rules));
+          inst.implementation,
+          MaterializeFifo(uniquer, package,
+                          inst.instantiation->AsFifoInstantiation().value(),
+                          *options.codegen_options.GetResetBehavior(),
+                          reset_name));
+    } else {
+      XLS_RET_CHECK_EQ(inst.instantiation->kind(),
+                       InstantiationKind::kDelayLine);
+      XLS_ASSIGN_OR_RETURN(
+          inst.implementation,
+          MaterializeDelayLine(
+              inst.instantiating_block,
+              inst.instantiation->AsDelayLineInstantiation().value()));
     }
+  }
+  for (const MaterializedInstantiation& inst : insts) {
+    std::string old_reset_name;
+    std::string name;
+    if (inst.instantiation->kind() == InstantiationKind::kFifo) {
+      name =
+          absl::StrFormat("materialized_fifo_%s_", inst.instantiation->name());
+      old_reset_name = FifoInstantiation::kResetPortName;
+    } else {
+      XLS_RET_CHECK_EQ(inst.instantiation->kind(),
+                       InstantiationKind::kDelayLine);
+      name = absl::StrFormat("materialized_delay_line_%s_",
+                             inst.instantiation->name());
+      old_reset_name = DelayLineInstantiation::kResetPortName;
+    }
+
+    // The name of the reset port of the materialized FIFO/delay-line is given
+    // by the codegen options and hence might differ from the name of the reset
+    // port of the original instantiation. This ensure the materialized block
+    // behaves like any other require any special handling and acts like any
+    // other and does not require special handling. This needs to be taken into
+    // account when replacing the fifo/delay-line instantiation with
+    // instantiation of the implementation.
+    absl::flat_hash_map<std::string, std::string> port_renaming_rules;
+    if (options.codegen_options.reset().has_value() &&
+        options.codegen_options.reset()->name() != old_reset_name) {
+      port_renaming_rules[old_reset_name] =
+          options.codegen_options.reset()->name();
+    }
+    XLS_ASSIGN_OR_RETURN(xls::Instantiation * new_inst,
+                         inst.instantiating_block->AddBlockInstantiation(
+                             name, inst.implementation));
+    XLS_RETURN_IF_ERROR(inst.instantiating_block->ReplaceInstantiationWith(
+        inst.instantiation, new_inst, port_renaming_rules));
   }
 
   // Record all the elaboration registers added by this new block.
   XLS_ASSIGN_OR_RETURN(BlockElaboration new_elab,
                        BlockElaboration::Elaborate(context.top_block()));
-  for (const auto& [i, blk] : impls) {
-    for (BlockInstance* inst : new_elab.GetInstances(blk)) {
-      for (Register* reg : blk->GetRegisters()) {
+  for (const MaterializedInstantiation& inst : insts) {
+    for (BlockInstance* block_instance :
+         new_elab.GetInstances(inst.implementation)) {
+      for (Register* reg : inst.implementation->GetRegisters()) {
         context.inserted_registers()[absl::StrFormat(
-            "%s%s", inst->RegisterPrefix(), reg->name())] = reg->type();
+            "%s%s", block_instance->RegisterPrefix(), reg->name())] =
+            reg->type();
       }
     }
   }
+
   return true;
 }
 

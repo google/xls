@@ -707,7 +707,7 @@ absl::Status BlockJitContinuation::SetRegisters(
     std::ostringstream oss;
     for (const auto& reg_name : metadata_.register_names) {
       if (!regs.contains(reg_name)) {
-        oss << "\n\tMissing value for port '" << reg_name << "'";
+        oss << "\n\tMissing value for register '" << reg_name << "'";
       }
     }
     return absl::InvalidArgumentError(

@@ -160,6 +160,33 @@ absl::StatusOr<std::vector<ElaboratedNode>> FifoInstantiationPredecessors(
   return predecessors;
 }
 
+absl::StatusOr<std::vector<ElaboratedNode>> DelayLineInstantiationPredecessors(
+    BlockInstance* parent_instance,
+    DelayLineInstantiation* delay_line_instantiation,
+    InstantiationOutput* output) {
+  if (output->port_name() != DelayLineInstantiation::kPopDataPortName) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Invalid delay-line instantiation port name `%s`",
+                        output->port_name()));
+  }
+  XLS_ASSIGN_OR_RETURN(
+      InstantiationInput * data_input,
+      parent_instance->block().value()->GetInstantiationInput(
+          delay_line_instantiation, DelayLineInstantiation::kPushDataPortName));
+  std::vector<ElaboratedNode> predecessors = {
+      ElaboratedNode{.node = data_input, .instance = parent_instance}};
+
+  if (delay_line_instantiation->GetResetPort().has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        InstantiationInput * reset_input,
+        parent_instance->block().value()->GetInstantiationInput(
+            delay_line_instantiation, DelayLineInstantiation::kResetPortName));
+    predecessors.push_back(
+        ElaboratedNode{.node = reset_input, .instance = parent_instance});
+  }
+  return predecessors;
+}
+
 absl::StatusOr<std::vector<ElaboratedNode>> FifoInstantiationSuccessors(
     BlockInstance* parent_instance, FifoInstantiation* fifo_instantiation,
     std::string_view fifo_port_name) {
@@ -236,6 +263,13 @@ absl::StatusOr<std::vector<ElaboratedNode>> InstantiationOutputPredecessor(
       // Unimplemented for now, assume no connections.
       return std::vector<ElaboratedNode>{};
     }
+    case InstantiationKind::kDelayLine: {
+      XLS_RET_CHECK(child_instance->parent_instance().has_value());
+      return DelayLineInstantiationPredecessors(
+          *child_instance->parent_instance(),
+          down_cast<DelayLineInstantiation*>(child_instantiation),
+          instantiation_output);
+    }
   }
 }
 
@@ -269,6 +303,19 @@ absl::StatusOr<std::vector<ElaboratedNode>> InstantiationInputSuccessor(
     case InstantiationKind::kExtern: {
       // Unimplemented for now, assume no connections.
       return std::vector<ElaboratedNode>{};
+    }
+    case InstantiationKind::kDelayLine: {
+      // The only success of the inputs (data and optionally reset) is the
+      // output data port of the instantiation.
+      XLS_RET_CHECK(child_instance->parent_instance().has_value());
+      Block* block = child_instance->parent_instance().value()->block().value();
+      XLS_ASSIGN_OR_RETURN(
+          InstantiationOutput * data_output,
+          block->GetInstantiationOutput(
+              child_instantiation, DelayLineInstantiation::kPopDataPortName));
+      return std::vector<ElaboratedNode>(
+          {ElaboratedNode{.node = data_output,
+                          .instance = *child_instance->parent_instance()}});
     }
   }
 }

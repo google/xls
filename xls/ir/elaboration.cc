@@ -52,6 +52,8 @@ template <>
       return "fifo";
     case InstantiationKind::kExtern:
       return down_cast<const ExternInstantiation&>(inst).function()->name();
+    case InstantiationKind::kDelayLine:
+      return "delay_line";
   }
   ABSL_UNREACHABLE();
 }

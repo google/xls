@@ -1825,6 +1825,7 @@ cc_library(
         "//xls/ir:register",
         "//xls/ir:source_location",
         "//xls/ir:type",
+        "//xls/ir:value_utils",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",

@@ -132,10 +132,23 @@ then the `reset` argument of `register_write` must be unset.
 #### Instantiation
 
 An instantiation is a block-scoped construct that represents a module
-instantiation at the Verilog level. The instantiated object can be another
-block, a FIFO (not yet supported), or a externally defined Verilog module (not
-yet supported). The instantiation is integrated into the instantiating block
-with `instantiation_input` and `instantiation_output` operations. There is a
+instantiation at the Verilog level. Three kinds of instantiations are supported:
+
+-   **block instantiation**: An instantiation of block defined elsewhere in the
+    package.
+
+-   **FIFO instantiation**: An instantiation of a FIFO. The instantiation
+    includes parameters of the FIFO such as depth and data type.
+
+-   **Delay line instantiation**: An instantiation of a delay line which is a
+    chain of registers of fixed length (the *latency*) extending from the input
+    port to the output port.
+
+-   **Extern instantiation**: An instantiation of an externally defined Verilog
+    module.
+
+Instantiations are integrated into the instantiating block with
+`instantiation_input` and `instantiation_output` operations. There is a
 one-to-one mapping between the instantiation input/output and the ports of the
 instantiated objects.
 

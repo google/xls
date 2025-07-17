@@ -2340,5 +2340,114 @@ TEST_P(FifoTest, BackpressureLatencyCorrectPreFallingEdge) {
       *this, BlockEvaluator::OutputPortSampleTime::kAtLastPosEdgeClock);
 }
 
+TEST_P(BlockEvaluatorTest, DelayLine) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  bb.ResetPort("rst",
+               ResetBehavior{.asynchronous = false, .active_low = false});
+  BValue x = bb.InputPort("x", u32);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block::DelayLineInstantiationAndConnections inst,
+      block->AddAndConnectDelayLineInstantiation("delay3_inst", 3, x.node()));
+  XLS_ASSERT_OK(block->AddOutputPort("out", inst.data_output).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto cont, evaluator().NewContinuation(
+                     block, OutputPortSampleTime::kAtLastPosEdgeClock));
+
+  // Assert reset for one cycle.
+  XLS_ASSERT_OK(cont->RunOneCycle(
+      {{"x", Value(UBits(0, 32))}, {"rst", Value(UBits(1, 1))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(0, 32)))));
+
+  // Deassert reset and start running the block.
+  XLS_ASSERT_OK(cont->RunOneCycle(
+      {{"x", Value(UBits(42, 32))}, {"rst", Value(UBits(0, 1))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(0, 32)))));
+
+  XLS_ASSERT_OK(cont->RunOneCycle(
+      {{"x", Value(UBits(43, 32))}, {"rst", Value(UBits(0, 1))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(0, 32)))));
+
+  XLS_ASSERT_OK(cont->RunOneCycle(
+      {{"x", Value(UBits(44, 32))}, {"rst", Value(UBits(0, 1))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(0, 32)))));
+
+  XLS_ASSERT_OK(cont->RunOneCycle(
+      {{"x", Value(UBits(45, 32))}, {"rst", Value(UBits(0, 1))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(42, 32)))));
+
+  XLS_ASSERT_OK(cont->RunOneCycle(
+      {{"x", Value(UBits(46, 32))}, {"rst", Value(UBits(0, 1))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(43, 32)))));
+}
+
+TEST_P(BlockEvaluatorTest, DelayLineWithAfterLastClockSampling) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  bb.ResetPort("rst",
+               ResetBehavior{.asynchronous = false, .active_low = false});
+  BValue x = bb.InputPort("x", u32);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block::DelayLineInstantiationAndConnections inst,
+      block->AddAndConnectDelayLineInstantiation("delay1_inst", 1, x.node()));
+  XLS_ASSERT_OK(block->AddOutputPort("out", inst.data_output).status());
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont,
+                           evaluator().NewContinuation(
+                               block, OutputPortSampleTime::kAfterLastClock));
+
+  // Assert reset for one cycle.
+  XLS_ASSERT_OK(cont->RunOneCycle(
+      {{"x", Value(UBits(0, 32))}, {"rst", Value(UBits(1, 1))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(0, 32)))));
+
+  // Deassert reset and start running the block. Input value should be
+  // immediately available with kAfterLastClock sampling.
+  XLS_ASSERT_OK(cont->RunOneCycle(
+      {{"x", Value(UBits(42, 32))}, {"rst", Value(UBits(0, 1))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(42, 32)))));
+}
+
+TEST_P(BlockEvaluatorTest, ZeroLatencyDelayLine) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  BlockBuilder bb(TestName(), p.get());
+  BValue x = bb.InputPort("x", u32);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block::DelayLineInstantiationAndConnections inst,
+      block->AddAndConnectDelayLineInstantiation("delay0_inst", 0, x.node()));
+  XLS_ASSERT_OK(block->AddOutputPort("out", inst.data_output).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto cont, evaluator().NewContinuation(
+                     block, OutputPortSampleTime::kAtLastPosEdgeClock));
+
+  XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(42, 32))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(42, 32)))));
+  XLS_ASSERT_OK(cont->RunOneCycle({{"x", Value(UBits(100, 32))}}));
+  EXPECT_THAT(cont->output_ports(),
+              UnorderedElementsAre(Pair("out", Value(UBits(100, 32)))));
+}
+
 }  // namespace
 }  // namespace xls

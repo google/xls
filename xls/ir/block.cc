@@ -746,7 +746,7 @@ absl::StatusOr<BlockInstantiation*> Block::AddBlockInstantiation(
   return down_cast<BlockInstantiation*>(instantiation.value());
 }
 
-absl::StatusOr<Block::InstantiationAndConnections>
+absl::StatusOr<Block::BlockInstantiationAndConnections>
 Block::AddAndConnectBlockInstantiation(
     std::string_view instantiation_name, Block* instantiated_block,
     const absl::flat_hash_map<std::string, Node*>& inputs) {
@@ -775,7 +775,7 @@ Block::AddAndConnectBlockInstantiation(
         name()));
   }
 
-  Block::InstantiationAndConnections result;
+  BlockInstantiationAndConnections result;
   XLS_ASSIGN_OR_RETURN(
       result.instantiation,
       AddBlockInstantiation(instantiation_name, instantiated_block));
@@ -805,6 +805,47 @@ Block::AddAndConnectBlockInstantiation(
   return result;
 }
 
+absl::StatusOr<Block::DelayLineInstantiationAndConnections>
+Block::AddAndConnectDelayLineInstantiation(
+    std::string_view instantiation_name, int64_t latency, Node* input,
+    std::optional<std::string_view> channel) {
+  // If latency is non-zero then block must have reset and clock.
+  if (latency > 0 && !GetResetPort().has_value()) {
+    return absl::InternalError(
+        absl::StrFormat("Cannot instantiate delay line in block `%s` because "
+                        "block does not have a reset port.",
+                        name()));
+  }
+  if (latency > 0 && !GetClockPort().has_value()) {
+    return absl::InternalError(
+        absl::StrFormat("Cannot instantiate delay line in block `%s` because "
+                        "block does not have a clock port.",
+                        name()));
+  }
+
+  DelayLineInstantiationAndConnections result;
+  XLS_ASSIGN_OR_RETURN(
+      result.instantiation,
+      AddDelayLineInstantiation(instantiation_name, latency, input->GetType(),
+                                channel, GetResetBehavior()));
+  XLS_ASSIGN_OR_RETURN(
+      result.data_input,
+      MakeNode<InstantiationInput>(SourceInfo(), input, result.instantiation,
+                                   DelayLineInstantiation::kPushDataPortName));
+  XLS_ASSIGN_OR_RETURN(
+      result.data_output,
+      MakeNode<InstantiationOutput>(SourceInfo(), result.instantiation,
+                                    DelayLineInstantiation::kPopDataPortName));
+  if (GetResetPort().has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        result.reset,
+        MakeNode<InstantiationInput>(SourceInfo(), GetResetPort().value(),
+                                     result.instantiation,
+                                     DelayLineInstantiation::kResetPortName));
+  }
+  return result;
+}
+
 absl::StatusOr<FifoInstantiation*> Block::AddFifoInstantiation(
     std::string_view name, FifoConfig fifo_config, Type* data_type,
     std::optional<std::string_view> channel) {
@@ -815,6 +856,19 @@ absl::StatusOr<FifoInstantiation*> Block::AddFifoInstantiation(
                        std::make_unique<FifoInstantiation>(
                            name, fifo_config, data_type, channel, package())));
   return down_cast<FifoInstantiation*>(instantiation.value());
+}
+
+absl::StatusOr<DelayLineInstantiation*> Block::AddDelayLineInstantiation(
+    std::string_view name, int64_t latency, Type* data_type,
+    std::optional<std::string_view> channel,
+    std::optional<ResetBehavior> reset_behavior) {
+  XLS_RET_CHECK(package()->IsOwnedType(data_type));
+  XLS_ASSIGN_OR_RETURN(
+      absl::StatusOr<Instantiation*> instantiation,
+      AddInstantiation(name, std::make_unique<DelayLineInstantiation>(
+                                 name, latency, data_type, channel,
+                                 reset_behavior, package())));
+  return down_cast<DelayLineInstantiation*>(instantiation.value());
 }
 
 absl::StatusOr<Instantiation*> Block::AddInstantiation(
@@ -885,7 +939,9 @@ absl::Status Block::ReplaceInstantiationWith(
 
   // Validate that signature matches after renaming:
   XLS_RET_CHECK(old_type_renamed == new_type)
-      << "Type mismatch of instantiations";
+      << "Type mismatch of instantiations"
+      << "\nold = " << old_type_renamed.ToString()
+      << "\nnew = " << new_type.ToString();
 
   // Replace instantiation:
   for (InstantiationInput* inp : inps) {
@@ -975,6 +1031,36 @@ absl::Span<InstantiationOutput* const> Block::GetInstantiationOutputs(
   return instantiation_outputs_.at(instantiation);
 }
 
+absl::StatusOr<InstantiationOutput*> Block::GetInstantiationOutput(
+    Instantiation* instantiation, std::string_view port_name) const {
+  CHECK(IsOwned(instantiation))
+      << absl::StreamFormat("Block %s does not have instantiation %s (%p)",
+                            name(), instantiation->name(), instantiation);
+  for (InstantiationOutput* output : instantiation_outputs_.at(instantiation)) {
+    if (output->port_name() == port_name) {
+      return output;
+    }
+  }
+  return absl::NotFoundError(absl::StrFormat(
+      "No instantiation output found corresponding to a port named `%s`",
+      port_name));
+}
+
+absl::StatusOr<InstantiationInput*> Block::GetInstantiationInput(
+    Instantiation* instantiation, std::string_view port_name) const {
+  CHECK(IsOwned(instantiation))
+      << absl::StreamFormat("Block %s does not have instantiation %s (%p)",
+                            name(), instantiation->name(), instantiation);
+  for (InstantiationInput* input : instantiation_inputs_.at(instantiation)) {
+    if (input->port_name() == port_name) {
+      return input;
+    }
+  }
+  return absl::NotFoundError(absl::StrFormat(
+      "No instantiation input found corresponding to a port named `%s`",
+      port_name));
+}
+
 absl::StatusOr<Block*> Block::Clone(
     std::string_view new_name, Package* target_package,
     const absl::flat_hash_map<std::string, std::string>& reg_name_map,
@@ -1015,7 +1101,6 @@ absl::StatusOr<Block*> Block::Clone(
                                                 to_new_name(reg), mapped_type,
                                                 reg->reset_value()));
   }
-
   for (Instantiation* inst : GetInstantiations()) {
     if (inst->kind() == InstantiationKind::kBlock) {
       XLS_ASSIGN_OR_RETURN(BlockInstantiation * block_inst,
@@ -1040,9 +1125,7 @@ absl::StatusOr<Block*> Block::Clone(
           cloned_block->AddInstantiation(
               inst->name(), std::make_unique<ExternInstantiation>(
                                 inst->name(), extern_inst->function())));
-    } else {
-      XLS_RET_CHECK_EQ(inst->kind(), InstantiationKind::kFifo)
-          << "Unknown instantiation kind";
+    } else if (inst->kind() == InstantiationKind::kFifo) {
       XLS_ASSIGN_OR_RETURN(FifoInstantiation * fifo_inst,
                            inst->AsFifoInstantiation());
       XLS_ASSIGN_OR_RETURN(
@@ -1052,6 +1135,20 @@ absl::StatusOr<Block*> Block::Clone(
           FifoInstantiation * cloned_inst,
           cloned_block->AddFifoInstantiation(
               inst->name(), fifo_inst->fifo_config(), data_type));
+      instantiation_map[inst] = cloned_inst;
+    } else {
+      XLS_RET_CHECK_EQ(inst->kind(), InstantiationKind::kDelayLine)
+          << "Unknown instantiation kind";
+      XLS_ASSIGN_OR_RETURN(DelayLineInstantiation * delay_line_inst,
+                           inst->AsDelayLineInstantiation());
+      XLS_ASSIGN_OR_RETURN(Type * data_type,
+                           target_package->MapTypeFromOtherPackage(
+                               delay_line_inst->data_type()));
+      XLS_ASSIGN_OR_RETURN(DelayLineInstantiation * cloned_inst,
+                           cloned_block->AddDelayLineInstantiation(
+                               inst->name(), delay_line_inst->latency(),
+                               data_type, delay_line_inst->channel_name(),
+                               delay_line_inst->GetResetBehavior()));
       instantiation_map[inst] = cloned_inst;
     }
   }

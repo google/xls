@@ -1335,6 +1335,7 @@ cc_library(
         ":channel",
         ":ir",
         ":op",
+        ":proc_elaboration",
         ":source_location",
         ":ternary",
         ":type",

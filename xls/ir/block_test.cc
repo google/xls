@@ -730,7 +730,7 @@ TEST_F(BlockTest, AddAndRemoveBlockInstantiation) {
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      Block::InstantiationAndConnections inst1,
+      Block::BlockInstantiationAndConnections inst1,
       block->AddAndConnectBlockInstantiation(
           "inst1", subblock1, {{"a", in1.node()}, {"b", in2.node()}}));
   EXPECT_EQ(inst1.instantiation->instantiated_block()->name(), "subblock1");
@@ -743,7 +743,7 @@ TEST_F(BlockTest, AddAndRemoveBlockInstantiation) {
                                    Pair("y", m::InstantiationOutput("y"))));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      Block::InstantiationAndConnections inst2,
+      Block::BlockInstantiationAndConnections inst2,
       block->AddAndConnectBlockInstantiation("inst2", subblock2, {}));
   EXPECT_EQ(inst2.instantiation->instantiated_block()->name(), "subblock2");
   EXPECT_THAT(inst2.inputs,

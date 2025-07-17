@@ -226,7 +226,7 @@ class Block : public FunctionBase {
   absl::StatusOr<BlockInstantiation*> AddBlockInstantiation(
       std::string_view instantiation_name, Block* instantiated_block);
 
-  struct InstantiationAndConnections {
+  struct BlockInstantiationAndConnections {
     BlockInstantiation* instantiation;
     absl::flat_hash_map<std::string, InstantiationInput*> inputs;
     absl::flat_hash_map<std::string, InstantiationOutput*> outputs;
@@ -236,9 +236,24 @@ class Block : public FunctionBase {
   // if applicable. `inputs` includes the values to connect to the instantiation
   // inputs and should contain a value for every non-reset input port on
   // `instantiated_block`.
-  absl::StatusOr<InstantiationAndConnections> AddAndConnectBlockInstantiation(
+  absl::StatusOr<BlockInstantiationAndConnections>
+  AddAndConnectBlockInstantiation(
       std::string_view instantiation_name, Block* instantiated_block,
       const absl::flat_hash_map<std::string, Node*>& inputs);
+
+  struct DelayLineInstantiationAndConnections {
+    DelayLineInstantiation* instantiation;
+    InstantiationInput* data_input;
+    InstantiationOutput* data_output;
+    std::optional<InstantiationInput*> reset;
+  };
+  // Adds a delay line instantiation and creates the associated
+  // InstantiationConnection nodes. Reset and clock are automatically connected,
+  // if applicable. `input` is the data input to the delay line.
+  absl::StatusOr<DelayLineInstantiationAndConnections>
+  AddAndConnectDelayLineInstantiation(
+      std::string_view instantiation_name, int64_t latency, Node* input,
+      std::optional<std::string_view> channel = std::nullopt);
 
   // Add an instantiation of a FIFO to this block. InstantiationInput and
   // InstantiationOutput operations must be later added to connect the
@@ -246,6 +261,10 @@ class Block : public FunctionBase {
   absl::StatusOr<FifoInstantiation*> AddFifoInstantiation(
       std::string_view name, FifoConfig fifo_config, Type* data_type,
       std::optional<std::string_view> channel = std::nullopt);
+  absl::StatusOr<DelayLineInstantiation*> AddDelayLineInstantiation(
+      std::string_view name, int64_t latency, Type* data_type,
+      std::optional<std::string_view> channel = std::nullopt,
+      std::optional<ResetBehavior> reset_behavior = std::nullopt);
 
   absl::StatusOr<Instantiation*> AddInstantiation(
       std::string_view name, std::unique_ptr<Instantiation> instantiation);
@@ -282,6 +301,13 @@ class Block : public FunctionBase {
       Instantiation* instantiation) const;
   absl::Span<InstantiationOutput* const> GetInstantiationOutputs(
       Instantiation* instantiation) const;
+
+  // Returns the instantiation input/output node associated with the port of the
+  // given name.
+  absl::StatusOr<InstantiationOutput*> GetInstantiationOutput(
+      Instantiation* instantiation, std::string_view port_name) const;
+  absl::StatusOr<InstantiationInput*> GetInstantiationInput(
+      Instantiation* instantiation, std::string_view port_name) const;
 
   // Returns true if the given block-scoped construct (register or
   // instantiation) is owned by this block.

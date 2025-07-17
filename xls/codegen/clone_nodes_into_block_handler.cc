@@ -540,7 +540,7 @@ absl::Status CloneNodesIntoBlockHandler::AddBlockInstantiations(
       }
     }
 
-    XLS_ASSIGN_OR_RETURN(Block::InstantiationAndConnections instantiation,
+    XLS_ASSIGN_OR_RETURN(Block::BlockInstantiationAndConnections instantiation,
                          block()->AddAndConnectBlockInstantiation(
                              proc_instantiation->name(), instantiated_block,
                              instantiation_inputs));

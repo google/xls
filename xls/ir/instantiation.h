@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/type.h"
 
 namespace xls {
@@ -40,6 +41,9 @@ enum class InstantiationKind : uint8_t {
 
   // Instantiation of an externally defined Verilog module.
   kExtern,
+
+  // Instantiation of an externally defined Verilog module.
+  kDelayLine,
 };
 
 std::string InstantiationKindToString(InstantiationKind kind);
@@ -60,6 +64,7 @@ struct InstantiationPort {
 class BlockInstantiation;
 class ExternInstantiation;
 class FifoInstantiation;
+class DelayLineInstantiation;
 // Base class for an instantiation which is a block-scoped construct that
 // represents a module instantiation at the Verilog level. The instantiated
 // object can be another block, a FIFO (not yet supported), or a externally
@@ -86,6 +91,7 @@ class Instantiation {
   virtual absl::StatusOr<BlockInstantiation*> AsBlockInstantiation();
   virtual absl::StatusOr<ExternInstantiation*> AsExternInstantiation();
   virtual absl::StatusOr<FifoInstantiation*> AsFifoInstantiation();
+  virtual absl::StatusOr<DelayLineInstantiation*> AsDelayLineInstantiation();
 
  protected:
   std::string name_;
@@ -171,6 +177,50 @@ class FifoInstantiation : public Instantiation {
   FifoConfig fifo_config_;
   Type* data_type_;
   std::optional<std::string> channel_name_;
+  Package* package_;
+};
+
+class DelayLineInstantiation : public Instantiation {
+ public:
+  DelayLineInstantiation(std::string_view inst_name, int64_t latency,
+                         Type* data_type,
+                         std::optional<std::string_view> channel_name,
+                         std::optional<ResetBehavior> reset_behavior,
+                         Package* package);
+
+  static constexpr std::string_view kPushDataPortName = "push_data";
+  static constexpr std::string_view kPopDataPortName = "pop_data";
+  static constexpr std::string_view kResetPortName = "rst";
+
+  absl::StatusOr<InstantiationPort> GetInputPort(std::string_view name) final;
+  absl::StatusOr<InstantiationPort> GetOutputPort(std::string_view name) final;
+  InstantiationPort GetInputPort() {
+    return GetInputPort(kPushDataPortName).value();
+  }
+  InstantiationPort GetOutputPort() {
+    return GetOutputPort(kPopDataPortName).value();
+  }
+  std::optional<InstantiationPort> GetResetPort();
+  absl::StatusOr<InstantiationType> type() const override;
+  std::optional<ResetBehavior> GetResetBehavior() const {
+    return reset_behavior_;
+  }
+
+  int64_t latency() const { return latency_; }
+  Type* data_type() const { return data_type_; }
+  std::optional<std::string_view> channel_name() const { return channel_name_; }
+
+  std::string ToString() const final;
+
+  absl::StatusOr<DelayLineInstantiation*> AsDelayLineInstantiation() override {
+    return this;
+  }
+
+ private:
+  int64_t latency_;
+  Type* data_type_;
+  std::optional<std::string> channel_name_;
+  std::optional<ResetBehavior> reset_behavior_;
   Package* package_;
 };
 

@@ -359,6 +359,79 @@ class FifoModel {
   std::optional<Value> reset_;
 };
 
+class DelayLineModel {
+ public:
+  static constexpr std::string_view kElementsRegisterName = "elements";
+  static constexpr std::vector<std::string_view> kRegisterNames() {
+    return {kElementsRegisterName};
+  }
+  static std::vector<std::pair<std::string_view, Value>>
+  RegisterNamesAndInitialValues(int64_t latency, Type* type) {
+    return {{kElementsRegisterName,
+             Value::Tuple(std::vector<Value>(latency, ZeroOfType(type)))}};
+  }
+
+  DelayLineModel(DelayLineInstantiation* instantiation,
+                 std::string_view instance_prefix,
+                 const absl::flat_hash_map<std::string, Value>& reg_state,
+                 absl::flat_hash_map<std::string, Value>& next_reg_state)
+      : instantiation_(instantiation),
+        instance_prefix_(instance_prefix),
+        elements_register_name_(
+            absl::StrCat(instance_prefix_, kElementsRegisterName)),
+        reg_state_(reg_state),
+        next_reg_state_(next_reg_state) {}
+
+  absl::Status HandleInput(InstantiationInput* input, const Value& value) {
+    if (input->port_name() == DelayLineInstantiation::kResetPortName) {
+      reset_ = value;
+    } else if (input->port_name() ==
+               DelayLineInstantiation::kPushDataPortName) {
+      push_data_ = value;
+      if (instantiation_->latency() == 0) {
+        next_reg_state_[elements_register_name_] = Value::Tuple({});
+      } else {
+        std::vector<Value> next_elements = {value};
+        absl::Span<Value const> remainder =
+            Elements().elements().subspan(0, instantiation_->latency() - 1);
+        next_elements.insert(next_elements.end(), remainder.begin(),
+                             remainder.end());
+        next_reg_state_[elements_register_name_] = Value::Tuple(next_elements);
+      }
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Unexpected port '%s'", input->port_name()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::StatusOr<Value> HandleOutput(InstantiationOutput* output) {
+    XLS_RET_CHECK(Elements().IsTuple());
+    absl::Span<Value const> elements = Elements().elements();
+    XLS_RET_CHECK_EQ(elements.size(), instantiation_->latency());
+    XLS_RET_CHECK_EQ(output->port_name(), FifoInstantiation::kPopDataPortName);
+    XLS_RET_CHECK(push_data_.has_value());
+    if (elements.empty()) {
+      return push_data_.value();
+    }
+    return elements.back();
+  }
+
+ private:
+  const Value& Elements() const {
+    return reg_state_.at(elements_register_name_);
+  }
+
+  DelayLineInstantiation* instantiation_;
+  std::string instance_prefix_;
+  std::string elements_register_name_;
+  const absl::flat_hash_map<std::string, Value>& reg_state_;
+  absl::flat_hash_map<std::string, Value>& next_reg_state_;
+
+  std::optional<Value> push_data_;
+  std::optional<Value> reset_;
+};
+
 class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
  public:
   ElaboratedBlockInterpreter(
@@ -380,6 +453,15 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
                                  fifo_instantiation->fifo_config(),
                                  instance->RegisterPrefix(), reg_state_,
                                  next_reg_state_)});
+      } else if (instance->instantiation().has_value() &&
+                 instance->instantiation().value()->kind() ==
+                     InstantiationKind::kDelayLine) {
+        auto* delay_line_instantiation = down_cast<DelayLineInstantiation*>(
+            instance->instantiation().value());
+        delay_line_models_.insert(
+            {instance, DelayLineModel(delay_line_instantiation,
+                                      instance->RegisterPrefix(), reg_state_,
+                                      next_reg_state_)});
       } else if (instance->block().has_value()) {
         interpreters_.insert(
             {instance,
@@ -436,6 +518,16 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
               .HandleInput(instantiation_input,
                            current_interpreter_->NodeValuesMap().at(
                                instantiation_input->data())));
+    } else if (instantiation_input->instantiation()->kind() ==
+               InstantiationKind::kDelayLine) {
+      BlockInstance* delay_line_instance =
+          instance->instantiation_to_instance().at(
+              instantiation_input->instantiation());
+      XLS_RETURN_IF_ERROR(
+          delay_line_models_.at(delay_line_instance)
+              .HandleInput(instantiation_input,
+                           current_interpreter_->NodeValuesMap().at(
+                               instantiation_input->data())));
     }
     // Instantiation inputs have empty tuple types.
     return current_interpreter_->SetValueResult(instantiation_input,
@@ -454,6 +546,16 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
           fifo_models_.at(fifo_instance).HandleOutput(instantiation_output));
       return current_interpreter_->SetValueResult(instantiation_output,
                                                   fifo_output);
+    } else if (instantiation_output->instantiation()->kind() ==
+               InstantiationKind::kDelayLine) {
+      BlockInstance* delay_line_instance =
+          instance->instantiation_to_instance().at(
+              instantiation_output->instantiation());
+      XLS_ASSIGN_OR_RETURN(Value delay_line_output,
+                           delay_line_models_.at(delay_line_instance)
+                               .HandleOutput(instantiation_output));
+      return current_interpreter_->SetValueResult(instantiation_output,
+                                                  delay_line_output);
     }
     BlockInstance* child_instance = instance->instantiation_to_instance().at(
         instantiation_output->instantiation());
@@ -838,6 +940,7 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
   InterpreterEvents interpreter_events_;
   absl::flat_hash_map<BlockInstance*, BlockInterpreter> interpreters_;
   absl::flat_hash_map<BlockInstance*, FifoModel> fifo_models_;
+  absl::flat_hash_map<BlockInstance*, DelayLineModel> delay_line_models_;
 
   // SetInstance() compares current_instance_ to its argument, so initialize
   // first.
@@ -875,10 +978,17 @@ absl::StatusOr<BlockRunResult> BlockRun(
   absl::flat_hash_set<std::string> reg_names;
   reg_names.reserve(reg_state.size());
   for (BlockInstance* inst : elaboration.instances()) {
-    if (inst->instantiation().has_value() &&
-        inst->instantiation().value()->kind() == InstantiationKind::kFifo) {
-      for (std::string_view register_name : FifoModel::kRegisterNames()) {
-        reg_names.insert(absl::StrCat(inst->RegisterPrefix(), register_name));
+    if (inst->instantiation().has_value()) {
+      if (inst->instantiation().value()->kind() == InstantiationKind::kFifo) {
+        for (std::string_view register_name : FifoModel::kRegisterNames()) {
+          reg_names.insert(absl::StrCat(inst->RegisterPrefix(), register_name));
+        }
+      } else if (inst->instantiation().value()->kind() ==
+                 InstantiationKind::kDelayLine) {
+        for (std::string_view register_name :
+             DelayLineModel::kRegisterNames()) {
+          reg_names.insert(absl::StrCat(inst->RegisterPrefix(), register_name));
+        }
       }
     }
     if (!inst->block().has_value()) {
@@ -914,24 +1024,13 @@ absl::StatusOr<BlockRunResult> BlockRun(
   return result;
 }
 
-// A template for a generic BlockContinuation that calls a stateless evaluate
-// function with all input.
-template <typename Evaluate>
-  requires std::is_same_v<
-      absl::StatusOr<BlockRunResult>,
-      std::invoke_result_t<
-          Evaluate, const absl::flat_hash_map<std::string, Value>&,
-          const absl::flat_hash_map<std::string, Value>&,
-          const BlockElaboration&, std::optional<EvaluationObserver*>>>
 class StatelessBlockContinuation final : public BlockContinuation {
  public:
-  StatelessBlockContinuation(BlockElaboration&& block,
+  StatelessBlockContinuation(BlockElaboration&& elaboration,
                              BlockRunResult&& initial_result,
-                             Evaluate evaluator,
                              BlockEvaluator::OutputPortSampleTime sample_time)
-      : elaboration_(std::move(block)),
+      : elaboration_(std::move(elaboration)),
         last_result_(std::move(initial_result)),
-        evaluator_(std::move(evaluator)),
         sample_time_(sample_time) {}
 
   BlockEvaluator::OutputPortSampleTime sample_time() const final {
@@ -953,15 +1052,14 @@ class StatelessBlockContinuation final : public BlockContinuation {
   absl::Status RunOneCycle(
       const absl::flat_hash_map<std::string, Value>& inputs) final {
     // Run to get the next value of all registers.
-    XLS_ASSIGN_OR_RETURN(
-        last_result_,
-        evaluator_(inputs, last_result_.reg_state, elaboration_, observer_));
+    XLS_ASSIGN_OR_RETURN(last_result_, BlockRun(inputs, last_result_.reg_state,
+                                                elaboration_, observer_));
 
     if (sample_time_ == BlockEvaluator::OutputPortSampleTime::kAfterLastClock) {
       // Propagate that register value forwards.
       XLS_ASSIGN_OR_RETURN(
           BlockRunResult raw,
-          evaluator_(inputs, last_result_.reg_state, elaboration_, observer_));
+          BlockRun(inputs, last_result_.reg_state, elaboration_, observer_));
       last_result_.outputs = std::move(raw.outputs);
     }
     return absl::OkStatus();
@@ -990,15 +1088,10 @@ class StatelessBlockContinuation final : public BlockContinuation {
  private:
   BlockElaboration elaboration_;
   BlockRunResult last_result_;
-  Evaluate evaluator_;
   std::optional<EvaluationObserver*> observer_;
   BlockEvaluator::OutputPortSampleTime sample_time_;
 };
 
-template <typename Evaluate>
-StatelessBlockContinuation(BlockElaboration&&, BlockRunResult&&, Evaluate,
-                           BlockEvaluator::OutputPortSampleTime)
-    -> StatelessBlockContinuation<Evaluate>;
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<BlockContinuation>>
@@ -1010,20 +1103,31 @@ InterpreterBlockEvaluator::MakeNewContinuation(
   // register-state. We need to add these here.
   absl::flat_hash_map<std::string, Value> ext_regs = initial_registers;
   for (BlockInstance* inst : elaboration.instances()) {
-    if (inst->instantiation().has_value() &&
-        inst->instantiation().value()->kind() == InstantiationKind::kFifo) {
-      // TODO: google/xls#1389 - Factor FIFO state out.
-      for (const auto& [name, initial_value] :
-           FifoModel::RegisterNamesAndInitialValues()) {
-        ext_regs.insert(
-            {absl::StrCat(inst->RegisterPrefix(), name), initial_value});
+    if (inst->instantiation().has_value()) {
+      if (inst->instantiation().value()->kind() == InstantiationKind::kFifo) {
+        // TODO: google/xls#1389 - Factor FIFO state out.
+        for (const auto& [name, initial_value] :
+             FifoModel::RegisterNamesAndInitialValues()) {
+          ext_regs.insert(
+              {absl::StrCat(inst->RegisterPrefix(), name), initial_value});
+        }
+      } else if (inst->instantiation().value()->kind() ==
+                 InstantiationKind::kDelayLine) {
+        auto* delay_line_inst =
+            down_cast<DelayLineInstantiation*>(inst->instantiation().value());
+        for (const auto& [name, initial_value] :
+             DelayLineModel::RegisterNamesAndInitialValues(
+                 delay_line_inst->latency(), delay_line_inst->data_type())) {
+          ext_regs.insert(
+              {absl::StrCat(inst->RegisterPrefix(), name), initial_value});
+        }
       }
     }
   }
 
   auto* cont = new StatelessBlockContinuation(
       std::move(elaboration), BlockRunResult{.reg_state = std::move(ext_regs)},
-      BlockRun, sample_time);
+      sample_time);
   return std::unique_ptr<BlockContinuation>(cont);
 }
 

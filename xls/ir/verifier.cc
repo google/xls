@@ -974,6 +974,29 @@ static absl::Status VerifyFifoInstantiation(Package* package,
   return absl::OkStatus();
 }
 
+static absl::Status VerifyDelayLineInstantiation(
+    DelayLineInstantiation* instantiation, Block* block) {
+  XLS_ASSIGN_OR_RETURN(
+      InstantiationOutput * data_output,
+      block->GetInstantiationOutput(instantiation,
+                                    DelayLineInstantiation::kPopDataPortName));
+  if (instantiation->data_type() != data_output->GetType()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Expected data output node of delay line instantiation %s to "
+        "have the same type as the instantiation (%s != %s)",
+        instantiation->name(), data_output->GetType()->ToString(),
+        instantiation->data_type()->ToString()));
+  }
+  if (instantiation->GetResetBehavior().has_value()) {
+    XLS_RETURN_IF_ERROR(
+        block
+            ->GetInstantiationInput(instantiation,
+                                    DelayLineInstantiation::kResetPortName)
+            .status());
+  }
+  return absl::OkStatus();
+}
+
 absl::Status VerifyBlock(Block* block, bool codegen) {
   VLOG(4) << "Verifying block:\n";
   XLS_VLOG_LINES(4, block->DumpIr());
@@ -1155,6 +1178,10 @@ absl::Status VerifyBlock(Block* block, bool codegen) {
       case InstantiationKind::kFifo:
         XLS_RETURN_IF_ERROR(VerifyFifoInstantiation(
             block->package(), down_cast<FifoInstantiation*>(instantiation)));
+        break;
+      case InstantiationKind::kDelayLine:
+        XLS_RETURN_IF_ERROR(VerifyDelayLineInstantiation(
+            down_cast<DelayLineInstantiation*>(instantiation), block));
         break;
       default:
         XLS_RET_CHECK_FAIL()

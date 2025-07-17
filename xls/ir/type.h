@@ -25,7 +25,9 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/ir/xls_type.pb.h"
@@ -261,6 +263,20 @@ class InstantiationType {
     return input_types_ == o.input_types_ && output_types_ == o.output_types_;
   }
   bool operator!=(const InstantiationType& it) const { return !(*this == it); }
+
+  std::string ToString() const {
+    std::vector<std::string> inputs;
+    for (const auto& [name, type] : input_types_) {
+      inputs.push_back(absl::StrCat(name, ": ", type->ToString()));
+    }
+    std::vector<std::string> outputs;
+    for (const auto& [name, type] : output_types_) {
+      outputs.push_back(absl::StrCat(name, ": ", type->ToString()));
+    }
+    return absl::StrFormat("InstantiationType(inputs=[%s], outputs=[%s])",
+                           absl::StrJoin(inputs, ", "),
+                           absl::StrJoin(outputs, ", "));
+  }
 
  private:
   absl::flat_hash_map<std::string, Type*> input_types_;
