@@ -15,6 +15,7 @@
 #include "xls/dslx/ir_convert/get_conversion_records.h"
 
 #include <optional>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -24,6 +25,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -36,10 +38,10 @@ namespace {
 // Makes the conversion record from the pieces.
 absl::StatusOr<ConversionRecord> MakeConversionRecord(
     Function* f, Module* m, TypeInfo* type_info, const ParametricEnv& bindings,
-    bool is_top = false) {
-  return ConversionRecord::Make(
-      f, /*invocation=*/nullptr, m, type_info, bindings,
-      /*orig_callees=*/{}, /*proc_id=*/std::nullopt, is_top);
+    std::optional<ProcId> proc_id, bool is_top) {
+  return ConversionRecord::Make(f, /*invocation=*/nullptr, m, type_info,
+                                bindings,
+                                /*orig_callees=*/{}, proc_id, is_top);
 }
 
 // An AstNodeVisitor that creates ConversionRecords from appropriate AstNodes
@@ -47,8 +49,13 @@ absl::StatusOr<ConversionRecord> MakeConversionRecord(
 class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
  public:
   ConversionRecordVisitor(Module* module, TypeInfo* type_info,
-                          bool include_tests)
-      : module_(module), type_info_(type_info), include_tests_(include_tests) {}
+                          bool include_tests, ProcIdFactory proc_id_factory,
+                          AstNode* top)
+      : module_(module),
+        type_info_(type_info),
+        include_tests_(include_tests),
+        proc_id_factory_(proc_id_factory),
+        top_(top) {}
 
   absl::Status HandleFunction(const Function* f) override {
     if (f->tag() == FunctionTag::kProcInit ||
@@ -58,6 +65,12 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
+    std::optional<ProcId> proc_id;
+    if (f->proc().has_value()) {
+      proc_id = proc_id_factory_.CreateProcId(
+          /*parent=*/std::nullopt, f->proc().value(),
+          /*count_as_new_instance=*/false);
+    }
     if (f->IsParametric()) {
       // We want one ConversionRecord per *unique* parametric binding of
       // this function.
@@ -66,14 +79,17 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
             ConversionRecord cr,
             MakeConversionRecord(const_cast<Function*>(f), module_,
                                  callee_data.derived_type_info,
-                                 callee_data.callee_bindings));
+                                 callee_data.callee_bindings, proc_id,
+                                 // parametric functions can never be 'top'
+                                 false));
         records_.push_back(cr);
       }
       return DefaultHandler(f);
     }
-    XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
-                         MakeConversionRecord(const_cast<Function*>(f), module_,
-                                              type_info_, ParametricEnv()));
+    XLS_ASSIGN_OR_RETURN(
+        ConversionRecord cr,
+        MakeConversionRecord(const_cast<Function*>(f), module_, type_info_,
+                             ParametricEnv(), proc_id, f == top_));
     records_.push_back(cr);
     return DefaultHandler(f);
   }
@@ -118,6 +134,8 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
   Module* const module_;
   TypeInfo* const type_info_;
   const bool include_tests_;
+  ProcIdFactory proc_id_factory_;
+  AstNode* top_;
 
   std::vector<ConversionRecord> records_;
 };
@@ -126,10 +144,39 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
 
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
     Module* module, TypeInfo* type_info, bool include_tests) {
-  ConversionRecordVisitor visitor(module, type_info, include_tests);
+  ProcIdFactory proc_id_factory;
+  // TODO: https://github.com/google/xls/issues/2078 - properly set
+  // top instead of setting to nullptr.
+  ConversionRecordVisitor visitor(module, type_info, include_tests,
+                                  proc_id_factory, /*top=*/nullptr);
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));
 
   return visitor.records();
 }
 
+absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
+    std::variant<Proc*, Function*> entry, TypeInfo* type_info) {
+  ProcIdFactory proc_id_factory;
+  if (std::holds_alternative<Function*>(entry)) {
+    Function* f = std::get<Function*>(entry);
+    Module* m = f->owner();
+    // We are only ever called for tests, so we set include_tests to
+    // true, and make sure that this function is top.
+    ConversionRecordVisitor visitor(m, type_info, /*include_tests=*/true,
+                                    proc_id_factory, f);
+    XLS_RETURN_IF_ERROR(m->Accept(&visitor));
+    return visitor.records();
+  }
+
+  Proc* p = std::get<Proc*>(entry);
+  Module* m = p->owner();
+  XLS_ASSIGN_OR_RETURN(TypeInfo * new_ti,
+                       type_info->GetTopLevelProcTypeInfo(p));
+  // We are only ever called for tests, so we set include_tests to true,
+  // and make sure that this proc's next function is top.
+  ConversionRecordVisitor visitor(m, new_ti, /*include_tests=*/true,
+                                  proc_id_factory, &p->next());
+  XLS_RETURN_IF_ERROR(m->Accept(&visitor));
+  return visitor.records();
+}
 }  // namespace xls::dslx

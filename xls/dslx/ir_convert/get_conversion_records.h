@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_IR_CONVERT_ET_CONVERSION_RECORDS_H_
 #define XLS_DSLX_IR_CONVERT_ET_CONVERSION_RECORDS_H_
 
+#include <variant>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -30,9 +31,15 @@ namespace xls::dslx {
 //  module: Module to convert the (non-parametric) functions for.
 //  type_info: Mapping from node to type.
 //  include_tests: should test functions be included.
-
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
     Module* module, TypeInfo* type_info, bool include_tests);
+
+// Returns order for functions/procs to be converted to IR. For testing only.
+// Args:
+//  entry: Proc or Function to start from (the top)
+//  type_info: Mapping from node to type.
+absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecordsForEntry(
+    std::variant<Proc*, Function*> entry, TypeInfo* type_info);
 
 }  // namespace xls::dslx
 

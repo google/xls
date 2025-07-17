@@ -452,6 +452,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:proc_id",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "//xls/public:status_macros",

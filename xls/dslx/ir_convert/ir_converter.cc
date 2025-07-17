@@ -187,6 +187,9 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
 
   Function* f = record.f();
   if (f->tag() == FunctionTag::kProcConfig) {
+    XLS_RET_CHECK(!options.lower_to_proc_scoped_channels)
+        << "Should not process config or init methods if "
+           "lower_to_proc_scoped_channels set";
     // TODO(rspringer): 2021-09-29: Probably need to pass constants in here.
     ProcConfigIrConverter config_converter(
         f, record.type_info(), import_data, proc_data, channel_scope,
@@ -374,13 +377,26 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
 absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
     Module* module, TypeInfo* type_info, const ConvertOptions& options) {
   // TODO: https://github.com/google/xls/issues/2078 - Remove this `if` after
-  // lower_to_proc_scoped_channels is turned on everywhere.
+  // lower_to_proc_scoped_channels is turned on everywhere, and call
+  // GetConversionRecords unconditionally.
   if (options.lower_to_proc_scoped_channels) {
     return GetConversionRecords(module, type_info,
                                 /*include_tests=*/options.convert_tests);
   }
   return GetOrder(module, type_info,
                   /* include_tests=*/options.convert_tests);
+}
+
+template <typename BlockT>
+absl::StatusOr<std::vector<ConversionRecord>> GetConversionRecords(
+    BlockT* block, TypeInfo* type_info, const ConvertOptions& options) {
+  // TODO: https://github.com/google/xls/issues/2078 - Remove this `if` after
+  // lower_to_proc_scoped_channels is turned on everywhere, and call
+  // GetConversionRecordsForEntry unconditionally.
+  if (options.lower_to_proc_scoped_channels) {
+    return GetConversionRecordsForEntry(block, type_info);
+  }
+  return GetOrderForEntry(block, type_info);
 }
 
 }  // namespace
@@ -451,7 +467,7 @@ absl::Status ConvertOneFunctionIntoPackageInternal(
   XLS_ASSIGN_OR_RETURN(TypeInfo * func_type_info,
                        import_data->GetRootTypeInfoForNode(block));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
-                       GetOrderForEntry(block, func_type_info));
+                       GetConversionRecords(block, func_type_info, options));
   PackageData package_data{.conversion_info = conv};
   XLS_RETURN_IF_ERROR(
       ConvertCallGraph(order, import_data, options, package_data));

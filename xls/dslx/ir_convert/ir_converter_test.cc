@@ -4071,6 +4071,49 @@ proc main {
   ExpectIr(converted);
 }
 
+TEST(ProcScopedChannelsIrConverterTest, MultipleSimpleProcs) {
+  // Tests that it properly assigns p2 as the top.
+  constexpr std::string_view kProgram = R"(
+proc p1 {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc p2 {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "p2", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST(ProcScopedChannelsIrConverterTest, ProcNextInitOnly) {
+  constexpr std::string_view kProgram = R"(
+proc main {
+  init { u32:1 }
+  config() { () }
+  next(state: u32) { state }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{
+                                         .emit_positions = false,
+                                         .lower_to_proc_scoped_channels = true,
+                                     }));
+  ExpectIr(converted);
+}
+
 INSTANTIATE_TEST_SUITE_P(IrConverterWithBothTypecheckVersionsTestSuite,
                          IrConverterWithBothTypecheckVersionsTest,
                          testing::Values(TypeInferenceVersion::kVersion1,
