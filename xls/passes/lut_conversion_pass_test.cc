@@ -16,8 +16,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -208,6 +211,13 @@ TEST_F(LutConversionPassTest, ComplexExample) {
               m::Select(m::Param("x"), {m::Literal(0), m::Literal(0),
                                         m::Literal(0), m::Literal(0)}));
 }
+
+void IrFuzzLutConversion(const PackageAndTestParams& package_and_test_params) {
+  LutConversionPass pass;
+  OptimizationPassChangesOutputs(package_and_test_params, pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzLutConversion)
+    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

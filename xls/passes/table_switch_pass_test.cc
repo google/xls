@@ -20,6 +20,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -27,6 +28,8 @@
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
@@ -1136,6 +1139,13 @@ fn main(x0: bits[2]) -> bits[2] {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   ASSERT_THAT(Run(f), IsOkAndHolds(false));
 }
+
+void IrFuzzTableSwitch(const PackageAndTestParams& package_and_test_params) {
+  TableSwitchPass pass;
+  OptimizationPassChangesOutputs(package_and_test_params, pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzTableSwitch)
+    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

@@ -33,6 +33,8 @@
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_test_utils.h"
@@ -2285,6 +2287,14 @@ TEST_F(ArithSimplificationPassTest, AddSignExtPlusConstant) {
   EXPECT_THAT(f->return_value(),
               m::Select(m::Param("c"), {m::Literal(3), m::Literal(2)}));
 }
+
+void IrFuzzArithSimplification(
+    const PackageAndTestParams& package_and_test_params) {
+  ArithSimplificationPass pass;
+  OptimizationPassChangesOutputs(package_and_test_params, pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzArithSimplification)
+    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

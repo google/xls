@@ -16,10 +16,13 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -522,6 +525,14 @@ TEST_F(StrengthReductionPassTest, HandlesOneBitMuxWithDefault) {
                                                        p.get()));
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 }
+
+void IrFuzzStrengthReduction(
+    const PackageAndTestParams& package_and_test_params) {
+  StrengthReductionPass pass;
+  OptimizationPassChangesOutputs(package_and_test_params, pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzStrengthReduction)
+    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

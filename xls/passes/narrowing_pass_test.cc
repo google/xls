@@ -20,12 +20,15 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/base/log_severity.h"
 #include "absl/log/scoped_mock_log.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/scoped_vlog_level.h"
 #include "xls/common/status/matchers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel_ops.h"
@@ -1881,6 +1884,21 @@ INSTANTIATE_TEST_SUITE_P(
                       NarrowingPass::AnalysisType::kRange,
                       NarrowingPass::AnalysisType::kRangeWithContext),
     ::testing::PrintToStringParamName());
+
+void IrFuzzNarrowingTernary(
+    const PackageAndTestParams& package_and_test_params) {
+  NarrowingPass pass(NarrowingPass::AnalysisType::kTernary);
+  OptimizationPassChangesOutputs(package_and_test_params, pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzNarrowingTernary)
+    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+
+void IrFuzzNarrowingRange(const PackageAndTestParams& package_and_test_params) {
+  NarrowingPass pass(NarrowingPass::AnalysisType::kRange);
+  OptimizationPassChangesOutputs(package_and_test_params, pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzNarrowingRange)
+    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

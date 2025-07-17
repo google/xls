@@ -18,6 +18,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -26,6 +27,8 @@
 #include "cppitertools/zip.hpp"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
@@ -51,7 +54,7 @@ class ResourceSharingPassTest : public IrTestBase {
  protected:
   ResourceSharingPassTest() = default;
 
-  absl::StatusOr<bool> Run(Function *f) {
+  absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
     OptimizationContext context;
 
@@ -71,7 +74,7 @@ class ResourceSharingPassTest : public IrTestBase {
 
 uint64_t NumberOfNodes(Function* f, absl::Span<const Op> node_types) {
   uint64_t c = 0;
-  for (Node *node : f->nodes()) {
+  for (Node* node : f->nodes()) {
     if (node->OpIn(node_types)) {
       c++;
     }
@@ -114,7 +117,7 @@ void InterpretAndCheck(Function* f, const std::vector<int32_t>& inputs,
   EXPECT_EQ(r.value, Value(UBits(expected_output, expected_output_bitwidth)));
 }
 
-void InterpretAndCheck(Function *f, const std::vector<int32_t> &inputs,
+void InterpretAndCheck(Function* f, const std::vector<int32_t>& inputs,
                        int32_t expected_output) {
   // Prepare the list of default bitwidths, one per input
   std::vector<uint32_t> bitwidths(inputs.size(), 32);
@@ -1195,6 +1198,14 @@ TEST_F(ResourceSharingPassTest, MergeShift) {
   InterpretAndCheck(f, {1, 0, 0, 4, 1}, 7);
   InterpretAndCheck(f, {0, 8, 1, 0, 0}, 16);
 }
+
+void IrFuzzResourceSharing(
+    const PackageAndTestParams& package_and_test_params) {
+  ResourceSharingPass pass;
+  OptimizationPassChangesOutputs(package_and_test_params, pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzResourceSharing)
+    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
 
 }  // namespace
 

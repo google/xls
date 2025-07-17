@@ -1381,19 +1381,12 @@ TEST_F(ReassociationPassTest,
   EXPECT_EQ(original_result.value, optimized_result.value);
 }
 
-// Generates random IR, runs the ReassociationPass over it, plugs in parameters
-// into the non-reassociated IR and the reassociated IR, and verifies that the
-// results are the same.
-void IrFuzzReassociationPassTest(
-    const PackageAndTestParams& paramaterized_package) {
+void IrFuzzReassociation(const PackageAndTestParams& package_and_test_params) {
   ReassociationPass pass;
-  OptimizationPassChangesOutputs(paramaterized_package, pass);
+  OptimizationPassChangesOutputs(package_and_test_params, pass);
 }
-// Use the IrFuzzDomainWithParams domain to generate random integer parameters
-// that can be plugged into the IR function. This test generates 10 different
-// sets of parameters.
-FUZZ_TEST(IrFuzzTest, IrFuzzReassociationPassTest)
-    .WithDomains(IrFuzzDomainWithParams(10));
+FUZZ_TEST(IrFuzzTest, IrFuzzReassociation)
+    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
 
 }  // namespace
 }  // namespace xls
