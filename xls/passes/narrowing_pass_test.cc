@@ -89,6 +89,21 @@ class ContextNarrowingPassTest : public NarrowingPassTestBase {
   }
 };
 
+// This was found by fuzzing. The range-query-engine deep inside of context-qe
+// had a bug where it incorrectly check-failed instead of returning unknown.
+TEST_P(NarrowingPassTest, RequestsUntrackedNode) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto param = fb.Param("param", p->GetBitsType(1));
+  fb.Add(fb.UMod(param, param), param);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(
+      Run(p.get()),
+      IsOkAndHolds(analysis() != NarrowingPass::AnalysisType::kTernary));
+}
+
 TEST_P(NarrowingPassTest, NarrowSub) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

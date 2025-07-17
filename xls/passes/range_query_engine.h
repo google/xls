@@ -150,7 +150,7 @@ class RangeQueryEngine : public QueryEngine {
 
   std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override {
-    if (!node->GetType()->IsBits()) {
+    if (!node->GetType()->IsBits() || !IsTracked(node)) {
       return std::nullopt;
     }
     TernaryVector tvec = ternary_ops::FromKnownBits(known_bits_.at(node),
