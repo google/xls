@@ -2525,4 +2525,52 @@ top fn add(x: bits[32], y: bits[32]) -> bits[32] {
             "(lambda ((x (_ BitVec 32)) (y (_ BitVec 32))) (bvadd x y))");
 }
 
+// Tests that we can determine whether a DSLX function is parametric via the
+// C API.
+TEST(XlsCApiTest, DslxFunctionIsParametric) {
+  const std::string_view kProgram = R"(
+fn non_parametric(x: u32) -> u32 { x }
+
+fn parametric_fn<N: u32>(x: bits[N]) -> bits[N] { x }
+)";
+
+  const char* additional_search_paths[] = {};
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [=] { xls_dslx_import_data_free(import_data); });
+
+  xls_dslx_typechecked_module* tm = nullptr;
+  char* error = nullptr;
+  bool ok =
+      xls_dslx_parse_and_typecheck(kProgram.data(), "test_module.x",
+                                   "test_module", import_data, &error, &tm);
+  absl::Cleanup free_tm([=] { xls_dslx_typechecked_module_free(tm); });
+  ASSERT_TRUE(ok) << "parse-and-typecheck error: " << error;
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(tm, nullptr);
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  int64_t member_count = xls_dslx_module_get_member_count(module);
+  ASSERT_EQ(member_count, 2);
+
+  // First function: non-parametric.
+  {
+    xls_dslx_module_member* member0 = xls_dslx_module_get_member(module, 0);
+    xls_dslx_function* fn0 = xls_dslx_module_member_get_function(member0);
+    ASSERT_NE(fn0, nullptr);
+    EXPECT_FALSE(xls_dslx_function_is_parametric(fn0));
+  }
+
+  // Second function: parametric.
+  {
+    xls_dslx_module_member* member1 = xls_dslx_module_get_member(module, 1);
+    xls_dslx_function* fn1 = xls_dslx_module_member_get_function(member1);
+    ASSERT_NE(fn1, nullptr);
+    EXPECT_TRUE(xls_dslx_function_is_parametric(fn1));
+  }
+}
+
 }  // namespace
