@@ -91,6 +91,7 @@ def get_embedded_data(
         mnemonic = "EmbedDataSources",
         progress_message = "Generating Embedded Data sources",
         toolchain = None,
+        use_default_shell_env = True,
     )
     (comp_ctx, comp_outputs) = cc_common.compile(
         name = name,
