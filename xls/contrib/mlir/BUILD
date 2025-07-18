@@ -474,6 +474,7 @@ cc_binary(
         "@llvm-project//mlir:MathDialect",
         "@llvm-project//mlir:MlirLspServerLib",
         "@llvm-project//mlir:SCFDialect",
+        "@llvm-project//mlir:Support",
         "@llvm-project//mlir:TensorDialect",
     ],
 )

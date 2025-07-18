@@ -26,8 +26,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"

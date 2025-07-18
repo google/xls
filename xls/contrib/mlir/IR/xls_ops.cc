@@ -37,6 +37,7 @@
 #include "mlir/include/mlir/IR/Diagnostics.h"
 #include "mlir/include/mlir/IR/Dialect.h"
 #include "mlir/include/mlir/IR/MLIRContext.h"
+#include "mlir/include/mlir/IR/OpAsmSupport.h"
 #include "mlir/include/mlir/IR/OpDefinition.h"
 #include "mlir/include/mlir/IR/OpImplementation.h"
 #include "mlir/include/mlir/IR/Operation.h"

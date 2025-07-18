@@ -15,8 +15,11 @@
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 
 #include <cstdint>
+#include <memory>
 #include <sstream>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"

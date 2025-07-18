@@ -15,6 +15,7 @@
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_builder.h"
 
 #include <memory>
+#include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

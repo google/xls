@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <sstream>
+#include <string>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -27,7 +28,6 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/interpreter/function_interpreter.h"

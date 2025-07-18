@@ -48,7 +48,6 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_testutils.h"
 #include "xls/ir/value.h"
-#include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/optimization_pass_registry.h"

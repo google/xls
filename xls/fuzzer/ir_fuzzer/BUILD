@@ -177,7 +177,6 @@ cc_library(
     srcs = ["ir_fuzz_test_library.cc"],
     hdrs = ["ir_fuzz_test_library.h"],
     deps = [
-        ":fuzz_program_cc_proto",
         ":ir_fuzz_domain",
         ":ir_fuzz_helpers",
         "//xls/common/fuzzing:fuzztest",

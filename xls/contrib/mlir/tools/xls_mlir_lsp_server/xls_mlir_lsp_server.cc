@@ -18,6 +18,7 @@
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/include/mlir/IR/Dialect.h"  // IWYU pragma: keep
+#include "mlir/include/mlir/Support/LogicalResult.h"
 #include "mlir/include/mlir/Tools/mlir-lsp-server/MlirLspServerMain.h"
 #include "xls/contrib/mlir/IR/register.h"
 
