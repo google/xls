@@ -1140,6 +1140,34 @@ class RegisterWrite final : public Node {
     return absl::OkStatus();
   }
 
+  absl::Status SetLoadEnable(std::optional<Node*> new_load_enable) {
+    if (has_load_enable_ && new_load_enable.has_value()) {
+      return ReplaceOperandNumber(*load_enable_operand_number(),
+                                  *new_load_enable);
+    }
+    if (!has_load_enable_ && !new_load_enable.has_value()) {
+      // Replacing no load enable with no load enable. Nothing to do.
+      return absl::OkStatus();
+    }
+    if (has_load_enable_ && !new_load_enable.has_value()) {
+      has_load_enable_ = false;
+      return RemoveOptionalOperand(1);
+    }
+    // RegisterWrite has no load enable, but one is being added. The load enable
+    // operand is before the (optional) reset so remove the reset, add the load
+    // enable, then re-add the optional reset.
+    std::optional<Node*> reset_value = reset();
+    if (reset_value.has_value()) {
+      XLS_RETURN_IF_ERROR(RemoveOptionalOperand(1));
+    }
+    has_load_enable_ = true;
+    AddOptionalOperand(*new_load_enable);
+    if (reset_value.has_value()) {
+      AddOptionalOperand(*reset_value);
+    }
+    return absl::OkStatus();
+  }
+
   absl::StatusOr<int64_t> load_enable_operand_number() const {
     if (!has_load_enable_) {
       return absl::InternalError("load_enable is not present");

@@ -25,5 +25,5 @@ module main(
     end
   endfunction
 
-  assign out = {priority_sel_16b_2way(p | 2'h1, x, y, d), priority_sel_16b_2way(p, x, y, d)};
+  assign out = {x, priority_sel_16b_2way(p, x, y, d)};
 endmodule
