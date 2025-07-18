@@ -237,6 +237,9 @@ class Module : public AstNode {
   std::vector<ProcDef*> GetProcDefs() { return GetTopWithT<ProcDef>(); }
 
   std::vector<Proc*> GetProcs() const { return GetTopWithT<Proc>(); }
+  std::vector<TestProc*> GetTestProcs() const {
+    return GetTopWithT<TestProc>();
+  }
 
   std::vector<Impl*> GetImpls() const { return GetTopWithT<Impl>(); }
 

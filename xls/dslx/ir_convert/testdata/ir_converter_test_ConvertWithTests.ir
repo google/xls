@@ -1,0 +1,103 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+chan test_module__terminator(bits[1], id=0, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test_module__tester_req((), id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test_module__tester_resp((), id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test_module__user_req((), id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan test_module__user_resp((), id=4, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+
+fn __itok__test_module__test_utility_function(__token: token id=1, __activated: bits[1] id=2) -> (token, ()) {
+  trace.3: token = trace(__token, __activated, format="Message from a test utility function", data_operands=[], id=3)
+  after_all.5: token = after_all(trace.3, id=5)
+  tuple.4: () = tuple(id=4)
+  ret tuple.6: (token, ()) = tuple(after_all.5, tuple.4, id=6)
+}
+
+fn __itok__test_module__normal_function(__token: token id=7, __activated: bits[1] id=8) -> (token, ()) {
+  trace.9: token = trace(__token, __activated, format="Message from a normal function", data_operands=[], id=9)
+  after_all.11: token = after_all(trace.9, id=11)
+  tuple.10: () = tuple(id=10)
+  ret tuple.12: (token, ()) = tuple(after_all.11, tuple.10, id=12)
+}
+
+fn __itok__test_module__test_func(__token: token id=13, __activated: bits[1] id=14) -> (token, ()) {
+  invoke.15: (token, ()) = invoke(__token, __activated, to_apply=__itok__test_module__test_utility_function, id=15)
+  invoke.18: (token, ()) = invoke(__token, __activated, to_apply=__itok__test_module__normal_function, id=18)
+  tuple_index.16: token = tuple_index(invoke.15, index=0, id=16)
+  tuple_index.19: token = tuple_index(invoke.18, index=0, id=19)
+  trace.21: token = trace(__token, __activated, format="Message from a test function", data_operands=[], id=21)
+  after_all.23: token = after_all(tuple_index.16, tuple_index.19, trace.21, id=23)
+  tuple.22: () = tuple(id=22)
+  tuple_index.17: () = tuple_index(invoke.15, index=1, id=17)
+  tuple_index.20: () = tuple_index(invoke.18, index=1, id=20)
+  ret tuple.24: (token, ()) = tuple(after_all.23, tuple.22, id=24)
+}
+
+fn __test_module__TestUtilityProc.init() -> () {
+  ret tuple.25: () = tuple(id=25)
+}
+
+fn __test_module__NormalProc.init() -> () {
+  ret tuple.26: () = tuple(id=26)
+}
+
+proc __test_module__TestProc_0_next(__state: (), init={()}) {
+  after_all.41: token = after_all(id=41)
+  literal.29: bits[1] = literal(value=1, id=29)
+  after_all.33: token = after_all(id=33)
+  receive.42: (token, ()) = receive(after_all.41, predicate=literal.29, channel=test_module__user_resp, id=42)
+  after_all.30: token = after_all(id=30)
+  tuple.31: () = tuple(id=31)
+  receive.34: (token, ()) = receive(after_all.33, predicate=literal.29, channel=test_module__tester_resp, id=34)
+  after_all.38: token = after_all(id=38)
+  tuple.39: () = tuple(id=39)
+  __token: token = literal(value=token, id=27)
+  tok__3: token = tuple_index(receive.42, index=0, id=44)
+  literal.47: bits[1] = literal(value=1, id=47)
+  __state: () = state_read(state_element=__state, id=28)
+  tuple.49: () = tuple(id=49)
+  tok: token = send(after_all.30, tuple.31, predicate=literal.29, channel=test_module__tester_req, id=32)
+  tuple_index.35: token = tuple_index(receive.34, index=0, id=35)
+  tok__1: token = tuple_index(receive.34, index=0, id=36)
+  tuple_index.37: () = tuple_index(receive.34, index=1, id=37)
+  tok__2: token = send(after_all.38, tuple.39, predicate=literal.29, channel=test_module__user_req, id=40)
+  tuple_index.43: token = tuple_index(receive.42, index=0, id=43)
+  tuple_index.45: () = tuple_index(receive.42, index=1, id=45)
+  trace.46: token = trace(__token, literal.29, format="Message from a TestProc", data_operands=[], id=46)
+  send.48: token = send(tok__3, literal.47, predicate=literal.29, channel=test_module__terminator, id=48)
+  next_value.50: () = next_value(param=__state, value=tuple.49, id=50)
+}
+
+proc __test_module__TestProc__TestUtilityProc_0_next(__state: (), init={()}) {
+  after_all.54: token = after_all(id=54)
+  literal.53: bits[1] = literal(value=1, id=53)
+  receive.55: (token, ()) = receive(after_all.54, predicate=literal.53, channel=test_module__tester_req, id=55)
+  __token: token = literal(value=token, id=51)
+  tok: token = tuple_index(receive.55, index=0, id=57)
+  tuple.60: () = tuple(id=60)
+  __state: () = state_read(state_element=__state, id=52)
+  tuple.62: () = tuple(id=62)
+  tuple_index.56: token = tuple_index(receive.55, index=0, id=56)
+  tuple_index.58: () = tuple_index(receive.55, index=1, id=58)
+  trace.59: token = trace(__token, literal.53, format="Message from a TestUtilityProc", data_operands=[], id=59)
+  send.61: token = send(tok, tuple.60, predicate=literal.53, channel=test_module__tester_resp, id=61)
+  next_value.63: () = next_value(param=__state, value=tuple.62, id=63)
+}
+
+proc __test_module__TestProc__NormalProc_0_next(__state: (), init={()}) {
+  after_all.67: token = after_all(id=67)
+  literal.66: bits[1] = literal(value=1, id=66)
+  receive.68: (token, ()) = receive(after_all.67, predicate=literal.66, channel=test_module__user_req, id=68)
+  __token: token = literal(value=token, id=64)
+  tok: token = tuple_index(receive.68, index=0, id=70)
+  tuple.73: () = tuple(id=73)
+  __state: () = state_read(state_element=__state, id=65)
+  tuple.75: () = tuple(id=75)
+  tuple_index.69: token = tuple_index(receive.68, index=0, id=69)
+  tuple_index.71: () = tuple_index(receive.68, index=1, id=71)
+  trace.72: token = trace(__token, literal.66, format="Message from a NormalProc", data_operands=[], id=72)
+  send.74: token = send(tok, tuple.73, predicate=literal.66, channel=test_module__user_resp, id=74)
+  next_value.76: () = next_value(param=__state, value=tuple.75, id=76)
+}
