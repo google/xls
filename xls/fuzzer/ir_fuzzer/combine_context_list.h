@@ -12,22 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_FUZZER_IR_FUZZER_COMBINE_STACK_H_
-#define XLS_FUZZER_IR_FUZZER_COMBINE_STACK_H_
+#ifndef XLS_FUZZER_IR_FUZZER_COMBINE_CONTEXT_LIST_H_
+#define XLS_FUZZER_IR_FUZZER_COMBINE_CONTEXT_LIST_H_
 
-#include "absl/types/span.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
 #include "xls/ir/function_builder.h"
 
 namespace xls {
 
-BValue CombineStack(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
-                    absl::Span<const BValue> stack);
+BValue CombineContextList(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
+                          const IrNodeContextList& context_list);
 
-BValue LastElement(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
-                   absl::Span<const BValue> stack);
-BValue AddStack(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
-                absl::Span<const BValue> stack);
+BValue LastElement(FunctionBuilder* fb, const IrNodeContextList& context_list);
+BValue AddList(FunctionBuilder* fb, const IrNodeContextList& context_list);
 
 }  // namespace xls
 
