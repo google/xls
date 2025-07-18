@@ -545,6 +545,140 @@ TEST(XlsCApiTest, FlattenArrayValueToBits) {
       << "flattened: " << flattened_str << "\nwant_bits: " << want_bits_str;
 }
 
+TEST(XlsCApiTest, MakeBitsFromBytesNoPadding) {
+  char* error_out = nullptr;
+  xls_bits* bits = nullptr;
+  xls_bits* bits_byte0 = nullptr;
+  xls_bits* bits_byte1 = nullptr;
+  uint8_t bytes[] = {0x01, 0x02, 0x03, 0x04};
+
+  ASSERT_TRUE(xls_bits_make_bits_from_bytes(16, bytes, 3, &error_out, &bits));
+
+  ASSERT_NE(bits, nullptr);
+  ASSERT_EQ(error_out, nullptr);
+  EXPECT_EQ(xls_bits_get_bit_count(bits), 16);
+
+  bits_byte0 = xls_bits_width_slice(bits, 0, 8);
+  bits_byte1 = xls_bits_width_slice(bits, 8, 8);
+
+  ASSERT_NE(bits_byte0, nullptr);
+  ASSERT_NE(bits_byte1, nullptr);
+
+  EXPECT_EQ(xls_bits_get_bit_count(bits_byte0), 8);
+
+  uint64_t byte0_value = 0;
+  ASSERT_TRUE(xls_bits_to_uint64(bits_byte0, &error_out, &byte0_value));
+  ASSERT_EQ(error_out, nullptr);
+  uint64_t byte1_value = 0;
+  ASSERT_TRUE(xls_bits_to_uint64(bits_byte1, &error_out, &byte1_value));
+  ASSERT_EQ(error_out, nullptr);
+
+  ASSERT_EQ(byte0_value, 0x01);
+  ASSERT_EQ(byte1_value, 0x02);
+
+  absl::Cleanup free_bits([bits, bits_byte0, bits_byte1, error_out] {
+    xls_bits_free(bits);
+    xls_bits_free(bits_byte0);
+    xls_bits_free(bits_byte1);
+    xls_c_str_free(error_out);
+  });
+}
+
+TEST(XlsCApiTest, MakeBitsFromBytesWithPadding) {
+  char* error_out = nullptr;
+  xls_bits* bits = nullptr;
+  xls_bits* bits_byte0 = nullptr;
+  xls_bits* bits_byte1 = nullptr;
+  uint8_t bytes[] = {0x01, 0x02, 0x03, 0x04};
+
+  ASSERT_TRUE(xls_bits_make_bits_from_bytes(14, bytes, 2, &error_out, &bits));
+
+  ASSERT_NE(bits, nullptr);
+  ASSERT_EQ(error_out, nullptr);
+  EXPECT_EQ(xls_bits_get_bit_count(bits), 14);
+
+  bits_byte0 = xls_bits_width_slice(bits, 0, 8);
+  bits_byte1 = xls_bits_width_slice(bits, 8, 6);
+
+  ASSERT_NE(bits_byte0, nullptr);
+  ASSERT_NE(bits_byte1, nullptr);
+
+  EXPECT_EQ(xls_bits_get_bit_count(bits_byte0), 8);
+  EXPECT_EQ(xls_bits_get_bit_count(bits_byte1), 6);
+
+  uint64_t byte0_value = 0;
+  ASSERT_TRUE(xls_bits_to_uint64(bits_byte0, &error_out, &byte0_value));
+  ASSERT_EQ(error_out, nullptr);
+  uint64_t byte1_value = 0;
+  ASSERT_TRUE(xls_bits_to_uint64(bits_byte1, &error_out, &byte1_value));
+  ASSERT_EQ(error_out, nullptr);
+
+  ASSERT_EQ(byte0_value, 0x01);
+  ASSERT_EQ(byte1_value, 0x02);
+
+  absl::Cleanup free_bits([bits, bits_byte0, bits_byte1, error_out] {
+    xls_bits_free(bits);
+    xls_bits_free(bits_byte0);
+    xls_bits_free(bits_byte1);
+    xls_c_str_free(error_out);
+  });
+}
+
+TEST(XlsCApiTest, MakeBitsFromBytesWithInvalidInputs) {
+  uint8_t bytes[] = {0x01, 0x02, 0x03, 0x04};
+  {
+    char* error_out = nullptr;
+    xls_bits* bits = nullptr;
+    ASSERT_FALSE(
+        xls_bits_make_bits_from_bytes(16, nullptr, 0, &error_out, &bits));
+    ASSERT_NE(error_out, nullptr);
+    ASSERT_EQ(bits, nullptr);
+    EXPECT_THAT(std::string_view{error_out}, HasSubstr("bytes is null"));
+    absl::Cleanup free_error([&error_out] { xls_c_str_free(error_out); });
+  }
+  {
+    char* error_out = nullptr;
+    xls_bits* bits = nullptr;
+    ASSERT_FALSE(
+        xls_bits_make_bits_from_bytes(16, bytes, 0, &error_out, &bits));
+    ASSERT_NE(error_out, nullptr);
+    ASSERT_EQ(bits, nullptr);
+    EXPECT_THAT(std::string_view{error_out}, HasSubstr("byte_count is 0"));
+    absl::Cleanup free_error([&error_out] { xls_c_str_free(error_out); });
+  }
+  {
+    char* error_out = nullptr;
+    xls_bits* bits = nullptr;
+    ASSERT_FALSE(xls_bits_make_bits_from_bytes(0, bytes, 5, &error_out, &bits));
+    ASSERT_NE(error_out, nullptr);
+    ASSERT_EQ(bits, nullptr);
+    EXPECT_THAT(std::string_view{error_out}, HasSubstr("bit_count is 0"));
+    absl::Cleanup free_error([&error_out] { xls_c_str_free(error_out); });
+  }
+  {
+    char* error_out = nullptr;
+    xls_bits* bits = nullptr;
+    ASSERT_FALSE(xls_bits_make_bits_from_bytes(16, bytes, UINT64_MAX / 8 + 1,
+                                               &error_out, &bits));
+    ASSERT_NE(error_out, nullptr);
+    ASSERT_EQ(bits, nullptr);
+    EXPECT_THAT(std::string_view{error_out},
+                HasSubstr("byte_count is too large"));
+    absl::Cleanup free_error([&error_out] { xls_c_str_free(error_out); });
+  }
+  {
+    char* error_out = nullptr;
+    xls_bits* bits = nullptr;
+    ASSERT_FALSE(
+        xls_bits_make_bits_from_bytes(16, bytes, 1, &error_out, &bits));
+    ASSERT_NE(error_out, nullptr);
+    ASSERT_EQ(bits, nullptr);
+    EXPECT_THAT(std::string_view{error_out},
+                HasSubstr("byte_count*8 < bit_count"));
+    absl::Cleanup free_error([&error_out] { xls_c_str_free(error_out); });
+  }
+}
+
 TEST(XlsCApiTest, MakeSignedBits) {
   char* error_out = nullptr;
   xls_bits* bits = nullptr;
