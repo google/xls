@@ -274,9 +274,9 @@ struct ChannelOptions {
   absl::flat_hash_map<std::string, xls::ChannelStrictness> strictness_map;
 };
 
-class Translator : public GeneratorBase,
-                   public TranslatorTypeInterface,
-                   public TranslatorIOInterface {
+class Translator final : public GeneratorBase,
+                         public TranslatorTypeInterface,
+                         public TranslatorIOInterface {
   void debug_prints(const TranslationContext& context);
 
  public:
@@ -966,20 +966,20 @@ class Translator : public GeneratorBase,
 
   absl::StatusOr<TrackedBValue> GetOpCondition(const IOOp& op,
                                                TrackedBValue op_out_value,
-                                               xls::ProcBuilder& pb);
+                                               xls::ProcBuilder& pb) final;
 
   // Returns new token
   absl::StatusOr<TrackedBValue> GenerateTrace(TrackedBValue trace_out_value,
                                               TrackedBValue before_token,
                                               TrackedBValue condition,
                                               const IOOp& op,
-                                              xls::ProcBuilder& pb);
+                                              xls::ProcBuilder& pb) final;
 
   absl::StatusOr<GenerateIOReturn> GenerateIO(
       const IOOp& op, TrackedBValue before_token, TrackedBValue op_out_value,
       xls::ProcBuilder& pb,
       const std::optional<ChannelBundle>& optional_channel_bundle,
-      std::optional<TrackedBValue> extra_condition = std::nullopt);
+      std::optional<TrackedBValue> extra_condition = std::nullopt) final;
 
   struct IOOpReturn {
     bool generate_expr;

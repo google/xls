@@ -28,7 +28,7 @@
 namespace xls {
 
 // Used as a test name for Functions and Packages in GoogleTests.
-constexpr std::string_view kFuzzTestName = "FuzzTest";
+inline constexpr std::string_view kFuzzTestName = "FuzzTest";
 
 BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width,
                       WidthFittingMethodProto* width_fitting_method);

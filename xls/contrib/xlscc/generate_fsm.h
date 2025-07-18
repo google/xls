@@ -122,7 +122,7 @@ class NewFSMGenerator : public GeneratorBase {
           phi_elements_by_param_node_id,
       const absl::flat_hash_map<const ContinuationValue*, TrackedBValue>&
           value_by_continuation_value,
-      const int64_t slice_index, xls::ProcBuilder& pb,
+      int64_t slice_index, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc);
 
   absl::Status SetupNewFSMGenerationContext(const GeneratedFunction& func,

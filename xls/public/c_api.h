@@ -490,7 +490,7 @@ bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
 
 // frees the array of  `xls_function` pointers -- the function should have been
 // allocated by the XLS library where ownership was passed back to the caller.
-void xls_function_ptr_array_free(struct xls_function** functions);
+void xls_function_ptr_array_free(struct xls_function** function_pointer_array);
 
 void xls_trace_messages_free(struct xls_trace_message* trace_messages,
                              size_t count);
