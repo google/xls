@@ -111,6 +111,8 @@ struct xls_dslx_enum_def* xls_dslx_module_member_get_enum_def(
 struct xls_dslx_type_alias* xls_dslx_module_member_get_type_alias(
     struct xls_dslx_module_member*);
 
+// Returns the function AST node from the given module member if it is a
+// function; otherwise returns nullptr.
 struct xls_dslx_function* xls_dslx_module_member_get_function(
     struct xls_dslx_module_member*);
 
@@ -335,6 +337,15 @@ struct xls_dslx_type_dim* xls_dslx_type_array_get_size(struct xls_dslx_type*);
 // -- type_dim (deduced type information)
 
 bool xls_dslx_type_dim_is_parametric(struct xls_dslx_type_dim*);
+
+// Determines whether `function` requires the implicit-token calling
+// convention. Returns true on success and sets `*result_out` to the answer.
+// On failure (e.g. no information recorded for that function) returns false
+// and populates `*error_out` with a description (caller must free via
+// `xls_c_str_free`).
+bool xls_dslx_type_info_get_requires_implicit_token(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_function* function,
+    char** error_out, bool* result_out);
 
 bool xls_dslx_type_dim_get_as_bool(struct xls_dslx_type_dim*, char** error_out,
                                    bool* result_out);
