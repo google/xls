@@ -47,7 +47,7 @@ absl::StatusOr<std::shared_ptr<Package>> BuildPackage(
     FuzzProgramProto& fuzz_program) {
   std::unique_ptr<Package> p = std::make_unique<VerifiedPackage>(kFuzzTestName);
   FunctionBuilder fb(kFuzzTestName, p.get());
-  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  IrFuzzBuilder ir_fuzz_builder(fuzz_program, p.get(), &fb);
   BValue ir = ir_fuzz_builder.BuildIr();
   XLS_RET_CHECK_OK(fb.BuildWithReturnValue(ir));
   return std::move(p);

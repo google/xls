@@ -23,23 +23,61 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/package.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 
+// Returns a BValue that is coerced to the specified type.
+BValue Coerced(Package* p, FunctionBuilder* fb, BValue bvalue,
+               const CoercedTypeProto& coerced_type, Type* target_type) {
+  // If the bvalue is already the specified type, return it as is.
+  if (bvalue.GetType() == target_type) {
+    return bvalue;
+  }
+  switch (coerced_type.type_case()) {
+    case CoercedTypeProto::kBits:
+      return CoercedBits(p, fb, bvalue, coerced_type.bits(), target_type);
+    default:
+      return DefaultValue(p, fb);
+  }
+}
+
+BValue CoercedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
+                   const BitsCoercedTypeProto& coerced_type,
+                   Type* target_type) {
+  Type* bvalue_type = bvalue.GetType();
+  // If the bvalue is already the specified type, return it as is.
+  if (bvalue_type == target_type) {
+    return bvalue;
+  }
+  // If the bvalue differs in categorical type to bits, simply return a default
+  // value of the specified type.
+  if (!bvalue_type->IsBits()) {
+    return DefaultValueOfBitsType(p, fb, target_type);
+  }
+  BitsType* bits_type = target_type->AsBitsOrDie();
+  auto coercion_method = coerced_type.coercion_method();
+  // Change the bit width to the specified bit width.
+  return ChangeBitWidth(fb, bvalue, bits_type->bit_count(),
+                        coercion_method.change_bit_width_method());
+}
+
 // Changes the bit width of an inputted BValue to a specified bit width.
 // Multiple bit width modification methods can be used and specified.
-BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width,
-                      WidthFittingMethodProto* width_fitting_method) {
-  if (bvalue.BitCountOrDie() > bit_width) {
+BValue ChangeBitWidth(
+    FunctionBuilder* fb, BValue bvalue, int64_t new_bit_width,
+    const ChangeBitWidthMethodProto& change_bit_width_method) {
+  if (bvalue.BitCountOrDie() > new_bit_width) {
     // If the bvalue is larger than the bit width, use the decrease width method
     // to reduce the bit width.
-    return DecreaseBitWidth(fb, bvalue, bit_width,
-                            width_fitting_method->decrease_width_method());
-  } else if (bvalue.BitCountOrDie() < bit_width) {
+    return DecreaseBitWidth(fb, bvalue, new_bit_width,
+                            change_bit_width_method.decrease_width_method());
+  } else if (bvalue.BitCountOrDie() < new_bit_width) {
     // If the bvalue is smaller than the bit width, use the increase width
     // method to increase the bit width.
-    return IncreaseBitWidth(fb, bvalue, bit_width,
-                            width_fitting_method->increase_width_method());
+    return IncreaseBitWidth(fb, bvalue, new_bit_width,
+                            change_bit_width_method.increase_width_method());
   } else {
     // If the bvalue is the same bit width as the specified bit width, return
     // the bvalue as is because no change is needed.
@@ -49,48 +87,90 @@ BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width,
 
 // Overloaded version of ChangeBitWidth that uses default width fitting methods.
 BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width) {
-  WidthFittingMethodProto default_method;
+  ChangeBitWidthMethodProto default_method;
   default_method.set_decrease_width_method(
       DecreaseWidthMethod::UNSET_DECREASE_WIDTH_METHOD);
   default_method.set_increase_width_method(
       IncreaseWidthMethod::UNSET_INCREASE_WIDTH_METHOD);
-  return ChangeBitWidth(fb, bvalue, bit_width, &default_method);
+  return ChangeBitWidth(fb, bvalue, bit_width, default_method);
 }
 
-BValue DecreaseBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width,
-                        DecreaseWidthMethod decrease_width_method) {
+BValue DecreaseBitWidth(FunctionBuilder* fb, BValue bvalue,
+                        int64_t new_bit_width,
+                        const DecreaseWidthMethod& decrease_width_method) {
   switch (decrease_width_method) {
     case BIT_SLICE_METHOD:
     default:
-      return fb->BitSlice(bvalue, 0, bit_width);
+      return fb->BitSlice(bvalue, /*start=*/0, new_bit_width);
   }
 }
 
-BValue IncreaseBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t bit_width,
-                        IncreaseWidthMethod increase_width_method) {
+BValue IncreaseBitWidth(FunctionBuilder* fb, BValue bvalue,
+                        int64_t new_bit_width,
+                        const IncreaseWidthMethod& increase_width_method) {
   switch (increase_width_method) {
     case SIGN_EXTEND_METHOD:
-      return fb->SignExtend(bvalue, bit_width);
+      return fb->SignExtend(bvalue, new_bit_width);
     case ZERO_EXTEND_METHOD:
     default:
-      return fb->ZeroExtend(bvalue, bit_width);
+      return fb->ZeroExtend(bvalue, new_bit_width);
   }
 }
 
-// Accepts a string representing a byte array, which represents an integer. This
-// byte array is converted into a Bits object, then truncated or zero extended
-// to the specified bit width.
-Bits ChangeBytesBitWidth(std::string bytes, int64_t bit_width) {
-  Bits bits = Bits::FromBytes(
-      absl::MakeSpan(reinterpret_cast<const uint8_t*>(bytes.data()),
-                     bytes.size()),
-      bytes.size() * 8);
-  if (bits.bit_count() > bit_width) {
-    bits = bits_ops::Truncate(bits, bit_width);
-  } else if (bits.bit_count() < bit_width) {
-    bits = bits_ops::ZeroExtend(bits, bit_width);
+// Returns a default BValue of the specified type.
+BValue DefaultValue(Package* p, FunctionBuilder* fb, TypeCase type_case) {
+  switch (type_case) {
+    case TypeCase::UNSET_CASE:
+    case TypeCase::BITS_CASE:
+      return DefaultBitsValue(fb);
   }
-  return bits;
+}
+
+BValue DefaultBitsValue(FunctionBuilder* fb) {
+  return fb->Literal(UBits(0, 64));
+}
+
+// Returns a default BValue of the specified type.
+BValue DefaultValueOfType(Package* p, FunctionBuilder* fb, Type* type) {
+  if (type->IsBits()) {
+    return DefaultValueOfBitsType(p, fb, type);
+  } else {
+    return DefaultValue(p, fb);
+  }
+}
+
+BValue DefaultValueOfBitsType(Package* p, FunctionBuilder* fb, Type* type) {
+  BitsType* bits_type = type->AsBitsOrDie();
+  return fb->Literal(UBits(0, bits_type->bit_count()));
+}
+
+// These template specializations define that the ConvertTypeProtoToType
+// function can be called with the following types. Use of a template to
+// allow the traversal of any type proto.
+template Type* ConvertTypeProtoToType<FuzzTypeProto>(Package*,
+                                                     const FuzzTypeProto&);
+template Type* ConvertTypeProtoToType<ValueTypeProto>(Package*,
+                                                      const ValueTypeProto&);
+template Type* ConvertTypeProtoToType<CoercedTypeProto>(
+    Package*, const CoercedTypeProto&);
+// Returns a Type object from the specified type proto.
+template <typename TypeProto>
+Type* ConvertTypeProtoToType(Package* p, const TypeProto& type_proto) {
+  using TypeCase = decltype(type_proto.type_case());
+  switch (type_proto.type_case()) {
+    case TypeCase::kBits:
+      return ConvertBitsTypeProtoToType(p, type_proto.bits());
+    default:
+      return p->GetBitsType(64);
+  }
+}
+
+template Type* ConvertBitsTypeProtoToType<BitsCoercedTypeProto>(
+    Package*, const BitsCoercedTypeProto&);
+template <typename BitsTypeProto>
+Type* ConvertBitsTypeProtoToType(Package* p, const BitsTypeProto& bits_type) {
+  int64_t bit_width = BoundedWidth(bits_type.bit_width());
+  return p->GetBitsType(bit_width);
 }
 
 // Returns a default integer if the integer is not in bounds.
@@ -109,6 +189,22 @@ int64_t Bounded(int64_t value, int64_t left_bound, int64_t right_bound) {
 int64_t BoundedWidth(int64_t bit_width, int64_t left_bound,
                      int64_t right_bound) {
   return Bounded(bit_width, left_bound, right_bound);
+}
+
+// Accepts a string representing a byte array, which represents an integer. This
+// byte array is converted into a Bits object, then truncated or zero extended
+// to the specified bit width.
+Bits ChangeBytesBitWidth(std::string bytes, int64_t bit_width) {
+  Bits bits = Bits::FromBytes(
+      absl::MakeSpan(reinterpret_cast<const uint8_t*>(bytes.data()),
+                     bytes.size()),
+      bytes.size() * 8);
+  if (bits.bit_count() > bit_width) {
+    bits = bits_ops::Truncate(bits, bit_width);
+  } else if (bits.bit_count() < bit_width) {
+    bits = bits_ops::ZeroExtend(bits, bit_width);
+  }
+  return bits;
 }
 
 }  // namespace xls
