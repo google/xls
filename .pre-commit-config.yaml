@@ -17,7 +17,5 @@ repos:
     rev: v3.3.4
     hooks:
       - id: pylint
-        files: ^xls/dev_tools/check_.*.py$
-        args: [
-          --rcfile=.pylintrc
-        ]
+        files: ^(xls/dev_tools/check_.*\.py|xls/dslx/interpreter_test\.py)$
+        args: [--rcfile=.pylintrc]
