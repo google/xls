@@ -165,6 +165,7 @@ class IrEvaluatorTestBase
   absl::StatusOr<Bits> RunWithBitsNoEvents(Function* f,
                                            absl::Span<const Bits> args) {
     std::vector<Value> value_args;
+    value_args.reserve(args.size());
     for (int64_t i = 0; i < args.size(); ++i) {
       value_args.push_back(Value(args[i]));
     }

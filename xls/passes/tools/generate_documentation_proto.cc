@@ -181,7 +181,7 @@ absl::StatusOr<std::string> ParseCppComments(
   XLS_ASSIGN_OR_RETURN(
       std::filesystem::path runfile_path,
       GetXlsRunfilePath(std::string(kLlvmHeaders) + "/stddef.h",
-                        /*project=*/"llvm-project"));
+                        /*package=*/"llvm-project"));
   argv.push_back(absl::StrFormat("-isystem%s", runfile_path.parent_path()));
 
   llvm::IntrusiveRefCntPtr<clang::FileManager> libtool_files;

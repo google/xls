@@ -35,7 +35,7 @@
 namespace xls {
 
 // The name of the default pipeline in the optimization pipeline proto.
-static constexpr std::string_view kDefaultPassPipelineName = "default_pipeline";
+inline constexpr std::string_view kDefaultPassPipelineName = "default_pipeline";
 
 // Helper for pass_registry which allows one to create a copy that can be
 // overridden and to register the pipeline proto.

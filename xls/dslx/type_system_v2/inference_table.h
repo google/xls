@@ -100,7 +100,7 @@ class TypeInferenceFlag {
  private:
   // Only the named static const TypeInferenceFlag values are allowed to be used
   // externally.
-  constexpr TypeInferenceFlag(uint8_t flags) : flags_(flags) {}
+  explicit constexpr TypeInferenceFlag(uint8_t flags) : flags_(flags) {}
 
   uint8_t flags_;
 };
