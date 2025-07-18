@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import sys
+import math
 import enum
 import pathlib
 import tempfile
@@ -93,6 +94,40 @@ class FseTableRecord(xlsstruct.XLSStruct):
   symbol: SYMBOL_W
 
 
+PARALLEL_ACCESS_WIDTH = 8
+MAX_WEIGHT = 11
+WEIGHT_LOG = math.ceil(math.log2(MAX_WEIGHT + 1))
+VALID_W = 1
+
+
+@xlsstruct.xls_dataclass
+class CodeBuilderOutput(xlsstruct.XLSStruct):
+  symbol_valid_7: VALID_W
+  symbol_valid_6: VALID_W
+  symbol_valid_5: VALID_W
+  symbol_valid_4: VALID_W
+  symbol_valid_3: VALID_W
+  symbol_valid_2: VALID_W
+  symbol_valid_1: VALID_W
+  symbol_valid_0: VALID_W
+  code_length_7: WEIGHT_LOG
+  code_length_6: WEIGHT_LOG
+  code_length_5: WEIGHT_LOG
+  code_length_4: WEIGHT_LOG
+  code_length_3: WEIGHT_LOG
+  code_length_2: WEIGHT_LOG
+  code_length_1: WEIGHT_LOG
+  code_length_0: WEIGHT_LOG
+  code_7: MAX_WEIGHT
+  code_6: MAX_WEIGHT
+  code_5: MAX_WEIGHT
+  code_4: MAX_WEIGHT
+  code_3: MAX_WEIGHT
+  code_2: MAX_WEIGHT
+  code_1: MAX_WEIGHT
+  code_0: MAX_WEIGHT
+
+
 class CSR(enum.Enum):
   """
   Maps the offsets to the ZSTD Decoder registers.
@@ -127,6 +162,10 @@ def print_fse_ram_contents(mem, name="", size=None):
 def print_ram_contents(mem, name="", size=None):
   for i in range(size):
     print(f"{name} [{i}]\t: {hex(mem[i].value)}")
+
+
+def fields_as_array(data, prefix, count):
+  return [getattr(data, f"{prefix}_{i}") for i in range(count)]
 
 
 def set_termination_event(monitor, event, transactions):
@@ -375,6 +414,76 @@ async def test_fse_lookup_decoder_for_huffman(dut, clock, expected_fse_lookups):
   cocotb.start_soon(get_handshake_event(dut, fse_lookup_resp_handshake, func))
 
 
+def reverse_expected_huffman_codes(exp_codes):
+  def reverse_bits(value, max_bits):
+    bv = BinaryValue(value=value, n_bits=max_bits, bigEndian=False)
+    return int(BinaryValue(value=bv.binstr[::-1], n_bits=max_bits, bigEndian=False))
+
+  max_bits = max(d["length"] for d in exp_codes)
+
+  codes = []
+  for record in exp_codes:
+    codes += [
+      {
+        "code": reverse_bits(record["code"], max_bits),
+        "length": record["length"],
+        "symbol": record["symbol"],
+      }
+    ]
+  return codes
+
+
+async def test_huffman_codes(dut, clock, expected_codes):
+  WEIGHT_CODE_BUILDER_INST = (
+    dut.ZstdDecoder.xls_modules_zstd_huffman_code_builder__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__WeightCodeBuilder_0_next_inst19
+  )
+  CODES_CHANNEL_NAME = "zstd_dec__code_builder_codes"
+
+  codes_channel = xlschannel.XLSChannel(
+    WEIGHT_CODE_BUILDER_INST, CODES_CHANNEL_NAME, dut.clk
+  )
+  huffman_code_handshake = triggers.Event()
+
+  codes = []
+  block_cnt = 0
+  packet_cnt = 0
+  symbol_cnt = 0
+
+  def func():
+    nonlocal codes
+    nonlocal symbol_cnt
+    nonlocal packet_cnt
+    nonlocal block_cnt
+
+    assert block_cnt <= 32
+    codes_data = getattr(WEIGHT_CODE_BUILDER_INST, CODES_CHANNEL_NAME)
+    data = CodeBuilderOutput.from_int(codes_data.value)
+
+    symbol_valid_array = fields_as_array(data, "symbol_valid", 8)
+    code_length_array = fields_as_array(data, "code_length", 8)
+    code_array = fields_as_array(data, "code", 8)
+
+    for symbol_valid, code_length, code in zip(
+      symbol_valid_array, code_length_array, code_array
+    ):
+      if symbol_valid == 1:
+        codes += [{"symbol": symbol_cnt, "code": code, "length": code_length}]
+      symbol_cnt += 1
+    packet_cnt += 1
+
+    if packet_cnt == 32:
+      assert codes == reverse_expected_huffman_codes(expected_codes[block_cnt])
+      packet_cnt = 0
+      symbol_cnt = 0
+      block_cnt += 1
+      codes = []
+
+  cocotb.start_soon(
+    set_handshake_event(dut.clk, codes_channel, huffman_code_handshake)
+  )
+  cocotb.start_soon(get_handshake_event(dut, huffman_code_handshake, func))
+
+
 async def test_huffman_weights(dut, clock, expected_huffman_weights):
   lookup_dec_resp_channel = xlschannel.XLSChannel(
     dut.ZstdDecoder.xls_modules_zstd_huffman_ctrl__ZstdDecoderInst__ZstdDecoder_0__CompressBlockDecoder_0__LiteralsDecoder_0__HuffmanLiteralsDecoder_0__HuffmanControlAndSequence_0__32_64_next_inst20,
@@ -498,6 +607,7 @@ async def testing_routine(
   expected_fse_lookups=None,
   expected_fse_huffman_lookups=None,
   expected_huffman_weights=None,
+  expected_huffman_codes=None,
 ):
   (axi_buses, cpu, clock) = prepare_test_environment(dut)
   frame_id = 0
@@ -508,6 +618,8 @@ async def testing_routine(
       await test_fse_lookup_decoder_for_huffman(
         dut, clock, expected_fse_huffman_lookups
       )
+    if expected_huffman_codes is not None:
+      await test_huffman_codes(dut, clock, expected_huffman_codes)
     if expected_huffman_weights is not None:
       await test_huffman_weights(dut, clock, expected_huffman_weights)
     await test_decoder(
@@ -661,6 +773,31 @@ async def pregenerated_compressed_random_1(dut):
     ],
   ]
 
+  expected_huffman_codes = [
+    [
+      {"code": 0x00, "length": 8, "symbol": 0x31},
+      {"code": 0x01, "length": 8, "symbol": 0x35},
+      {"code": 0x20, "length": 3, "symbol": 0x39},
+      {"code": 0x02, "length": 8, "symbol": 0x6E},
+      {"code": 0x03, "length": 8, "symbol": 0x72},
+      {"code": 0x08, "length": 6, "symbol": 0x76},
+      {"code": 0x40, "length": 2, "symbol": 0x7A},
+      {"code": 0x04, "length": 8, "symbol": 0xAF},
+      {"code": 0x05, "length": 8, "symbol": 0xB3},
+      {"code": 0x0C, "length": 6, "symbol": 0xB7},
+      {"code": 0x80, "length": 1, "symbol": 0xBB},
+      {"code": 0x06, "length": 8, "symbol": 0xF0},
+      {"code": 0x07, "length": 8, "symbol": 0xF4},
+      {"code": 0x10, "length": 4, "symbol": 0xF8},
+    ],
+    [
+      {"code": 0x02, "length": 2, "symbol": 0x01},
+      {"code": 0x00, "length": 3, "symbol": 0x66},
+      {"code": 0x04, "length": 1, "symbol": 0x9C},
+      {"code": 0x01, "length": 3, "symbol": 0xCB},
+    ],
+  ]
+
   expected_fse_huffman_lookups = [
     [
       FseTableRecord(symbol=0x00, num_of_bits=0x01, base=0x0016),
@@ -804,6 +941,7 @@ async def pregenerated_compressed_random_1(dut):
     block_type,
     literal_type,
     input_name,
+    expected_huffman_codes=expected_huffman_codes,
     expected_huffman_weights=expected_huffman_weights,
     expected_fse_huffman_lookups=expected_fse_huffman_lookups,
   )
@@ -961,7 +1099,51 @@ async def fse_huffman_literals_predefined_sequences_seed_319146(dut):
   test_cases = 1
   block_type = data_generator.BlockType.COMPRESSED
   literal_type = data_generator.LiteralType.RANDOM
-  await testing_routine(dut, test_cases, block_type, literal_type, input_name)
+
+  expected_huffman_codes = [
+    [
+      {"code": 0x300, "length": 2, "symbol": 0x07},
+      {"code": 0x60, "length": 5, "symbol": 0x0E},
+      {"code": 0x0A, "length": 9, "symbol": 0x15},
+      {"code": 0x00, "length": 10, "symbol": 0x1C},
+      {"code": 0x180, "length": 3, "symbol": 0x25},
+      {"code": 0x30, "length": 6, "symbol": 0x2C},
+      {"code": 0x0C, "length": 9, "symbol": 0x33},
+      {"code": 0x01, "length": 10, "symbol": 0x3A},
+      {"code": 0xC0, "length": 4, "symbol": 0x43},
+      {"code": 0x18, "length": 7, "symbol": 0x4A},
+      {"code": 0x02, "length": 10, "symbol": 0x51},
+      {"code": 0x100, "length": 4, "symbol": 0x61},
+      {"code": 0x20, "length": 7, "symbol": 0x68},
+      {"code": 0x03, "length": 10, "symbol": 0x6F},
+      {"code": 0x80, "length": 5, "symbol": 0x7F},
+      {"code": 0x10, "length": 8, "symbol": 0x86},
+      {"code": 0x04, "length": 10, "symbol": 0x8D},
+      {"code": 0x200, "length": 3, "symbol": 0x96},
+      {"code": 0x40, "length": 6, "symbol": 0x9D},
+      {"code": 0x0E, "length": 9, "symbol": 0xA4},
+      {"code": 0x05, "length": 10, "symbol": 0xAB},
+      {"code": 0x280, "length": 3, "symbol": 0xB4},
+      {"code": 0x50, "length": 6, "symbol": 0xBB},
+      {"code": 0x06, "length": 10, "symbol": 0xC2},
+      {"code": 0x07, "length": 10, "symbol": 0xC9},
+      {"code": 0x140, "length": 4, "symbol": 0xD2},
+      {"code": 0x28, "length": 7, "symbol": 0xD9},
+      {"code": 0x08, "length": 10, "symbol": 0xE0},
+      {"code": 0xA0, "length": 5, "symbol": 0xF0},
+      {"code": 0x14, "length": 8, "symbol": 0xF7},
+      {"code": 0x09, "length": 10, "symbol": 0xFE},
+    ]
+  ]
+
+  await testing_routine(
+    dut,
+    test_cases,
+    block_type,
+    literal_type,
+    input_name,
+    expected_huffman_codes=expected_huffman_codes,
+  )
 
 
 @cocotb.test(timeout_time=1000, timeout_unit="ms")
@@ -973,7 +1155,38 @@ async def fse_huffman_literals_predefined_sequences_seed_331938(dut):
   test_cases = 1
   block_type = data_generator.BlockType.COMPRESSED
   literal_type = data_generator.LiteralType.RANDOM
-  await testing_routine(dut, test_cases, block_type, literal_type, input_name)
+
+  expected_huffman_codes = [
+    [
+      {"code": 0x00, "length": 9, "symbol": 0x13},
+      {"code": 0x20, "length": 5, "symbol": 0x1B},
+      {"code": 0x01, "length": 9, "symbol": 0x32},
+      {"code": 0x10, "length": 6, "symbol": 0x3A},
+      {"code": 0x100, "length": 2, "symbol": 0x42},
+      {"code": 0x02, "length": 9, "symbol": 0x51},
+      {"code": 0x18, "length": 6, "symbol": 0x59},
+      {"code": 0x180, "length": 2, "symbol": 0x61},
+      {"code": 0x08, "length": 7, "symbol": 0x78},
+      {"code": 0x80, "length": 3, "symbol": 0x80},
+      {"code": 0x0C, "length": 7, "symbol": 0x97},
+      {"code": 0xC0, "length": 3, "symbol": 0x9F},
+      {"code": 0x04, "length": 8, "symbol": 0xB6},
+      {"code": 0x40, "length": 4, "symbol": 0xBE},
+      {"code": 0x06, "length": 8, "symbol": 0xD5},
+      {"code": 0x60, "length": 4, "symbol": 0xDD},
+      {"code": 0x03, "length": 9, "symbol": 0xF4},
+      {"code": 0x30, "length": 5, "symbol": 0xFC},
+    ]
+  ]
+
+  await testing_routine(
+    dut,
+    test_cases,
+    block_type,
+    literal_type,
+    input_name,
+    expected_huffman_codes=expected_huffman_codes,
+  )
 
 
 @cocotb.test(timeout_time=350, timeout_unit="ms")
@@ -1473,6 +1686,16 @@ async def treeless_huffman_literals_compressed_sequences_seed_400077(dut):
     ]
   ]
 
+  expected_huffman_codes = [
+    [
+      {"code": 0x00, "length": 4, "symbol": 0x00},
+      {"code": 0x02, "length": 3, "symbol": 0x3D},
+      {"code": 0x04, "length": 2, "symbol": 0x7A},
+      {"code": 0x08, "length": 1, "symbol": 0xB7},
+      {"code": 0x01, "length": 4, "symbol": 0xC3},
+    ]
+  ]
+
   expected_fse_huffman_lookups = [
     [
       FseTableRecord(symbol=0x00, num_of_bits=0x01, base=0x0018),
@@ -1516,6 +1739,7 @@ async def treeless_huffman_literals_compressed_sequences_seed_400077(dut):
     block_type,
     literal_type,
     input_name,
+    expected_huffman_codes=expected_huffman_codes,
     expected_huffman_weights=expected_huffman_weights,
     expected_fse_huffman_lookups=expected_fse_huffman_lookups,
   )
@@ -1540,12 +1764,34 @@ async def treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400
     ]
   ]
 
+  expected_huffman_codes = [
+    [
+      {"code": 0x00, "length": 4, "symbol": 0x00},
+      {"code": 0x01, "length": 4, "symbol": 0x01},
+      {"code": 0x02, "length": 4, "symbol": 0x02},
+      {"code": 0x03, "length": 4, "symbol": 0x03},
+      {"code": 0x04, "length": 4, "symbol": 0x04},
+      {"code": 0x05, "length": 4, "symbol": 0x05},
+      {"code": 0x06, "length": 4, "symbol": 0x06},
+      {"code": 0x07, "length": 4, "symbol": 0x07},
+      {"code": 0x08, "length": 4, "symbol": 0x08},
+      {"code": 0x09, "length": 4, "symbol": 0x09},
+      {"code": 0x0A, "length": 4, "symbol": 0x0A},
+      {"code": 0x0B, "length": 4, "symbol": 0x0B},
+      {"code": 0x0C, "length": 4, "symbol": 0x0C},
+      {"code": 0x0D, "length": 4, "symbol": 0x0D},
+      {"code": 0x0E, "length": 4, "symbol": 0x0E},
+      {"code": 0x0F, "length": 4, "symbol": 0x0F},
+    ]
+  ]
+
   await testing_routine(
     dut,
     test_cases,
     block_type,
     literal_type,
     input_name,
+    expected_huffman_codes=expected_huffman_codes,
     expected_huffman_weights=expected_huffman_weights,
   )
 
@@ -1569,12 +1815,34 @@ async def treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400
     ]
   ]
 
+  expected_huffman_codes = [
+    [
+      {"code": 0x00, "length": 4, "symbol": 0x00},
+      {"code": 0x01, "length": 4, "symbol": 0x01},
+      {"code": 0x02, "length": 4, "symbol": 0x02},
+      {"code": 0x03, "length": 4, "symbol": 0x03},
+      {"code": 0x04, "length": 4, "symbol": 0x04},
+      {"code": 0x05, "length": 4, "symbol": 0x05},
+      {"code": 0x06, "length": 4, "symbol": 0x06},
+      {"code": 0x07, "length": 4, "symbol": 0x07},
+      {"code": 0x08, "length": 4, "symbol": 0x08},
+      {"code": 0x09, "length": 4, "symbol": 0x09},
+      {"code": 0x0A, "length": 4, "symbol": 0x0A},
+      {"code": 0x0B, "length": 4, "symbol": 0x0B},
+      {"code": 0x0C, "length": 4, "symbol": 0x0C},
+      {"code": 0x0D, "length": 4, "symbol": 0x0D},
+      {"code": 0x0E, "length": 4, "symbol": 0x0E},
+      {"code": 0x0F, "length": 4, "symbol": 0x0F},
+    ]
+  ]
+
   await testing_routine(
     dut,
     test_cases,
     block_type,
     literal_type,
     input_name,
+    expected_huffman_codes=expected_huffman_codes,
     expected_huffman_weights=expected_huffman_weights,
   )
 
@@ -1623,6 +1891,26 @@ async def treeless_huffman_literals_rle_sequences_seed_403927(dut):
     ]
   ]
 
+  expected_huffman_codes = [
+    [
+      {"code": 0x0C, "length": 6, "symbol": 0x04},
+      {"code": 0x00, "length": 8, "symbol": 0x07},
+      {"code": 0x08, "length": 7, "symbol": 0x29},
+      {"code": 0x01, "length": 8, "symbol": 0x2C},
+      {"code": 0x0A, "length": 7, "symbol": 0x4E},
+      {"code": 0x02, "length": 8, "symbol": 0x51},
+      {"code": 0x80, "length": 1, "symbol": 0x70},
+      {"code": 0x03, "length": 8, "symbol": 0x73},
+      {"code": 0x04, "length": 8, "symbol": 0x76},
+      {"code": 0x40, "length": 2, "symbol": 0x95},
+      {"code": 0x05, "length": 8, "symbol": 0x98},
+      {"code": 0x20, "length": 3, "symbol": 0xBA},
+      {"code": 0x06, "length": 8, "symbol": 0xBD},
+      {"code": 0x10, "length": 4, "symbol": 0xDF},
+      {"code": 0x07, "length": 8, "symbol": 0xE2},
+    ]
+  ]
+
   expected_fse_huffman_lookups = [
     [
       FseTableRecord(symbol=0x00, num_of_bits=0x01, base=0x0012),
@@ -1666,6 +1954,7 @@ async def treeless_huffman_literals_rle_sequences_seed_403927(dut):
     block_type,
     literal_type,
     input_name,
+    expected_huffman_codes=expected_huffman_codes,
     expected_huffman_weights=expected_huffman_weights,
     expected_fse_huffman_lookups=expected_fse_huffman_lookups,
   )
