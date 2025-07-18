@@ -25,8 +25,11 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
@@ -34,6 +37,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
+#include "ortools/graph/graph_io.h"
 
 namespace xls {
 namespace {
@@ -420,6 +424,405 @@ TEST_F(ElaborationTest, ElaborateOldStyleMultiprocNetwork) {
   EXPECT_EQ(elab.ToString(), R"(proc1
 proc2
 proc3)");
+}
+
+// TODO(allight): Use proc_network.x once ir_converter is capable of making
+// new-style procs.
+TEST_F(ElaborationTest, GraphNewStyle) {
+  // Proc graph.
+  // A -> B1 -> B2 -> B3 -> C -> A
+  // EXT -> I -> A
+  // C -> I -> EXT
+  // NB The actual ir is in examples/proc_network.x
+  auto p = CreatePackage();
+  Proc* initiator;
+  Proc* a_proc;
+  Proc* b_proc;
+  Proc* c_proc;
+  Type* s32 = p->GetBitsType(32);
+  {
+    TokenlessProcBuilder ab(NewStyleProc{}, "A_proc", "tok", p.get());
+    // A channels
+    XLS_ASSERT_OK_AND_ASSIGN(auto a_inp, ab.AddInputChannel("inp", s32));
+    XLS_ASSERT_OK_AND_ASSIGN(auto a_output, ab.AddOutputChannel("output", s32));
+    XLS_ASSERT_OK_AND_ASSIGN(auto a_ext, ab.AddInputChannel("ext", s32));
+    // A Next
+    auto recv_ext = ab.Receive(a_ext, ab.AfterAll({}));
+    auto recv_inp = ab.ReceiveNonBlocking(a_inp, ab.TupleIndex(recv_ext, 0));
+    ab.Send(
+        a_output, ab.TupleIndex(recv_inp, 0),
+        ab.Add(ab.Add(ab.TupleIndex(recv_ext, 1), ab.TupleIndex(recv_inp, 1)),
+               ab.Literal(UBits(1, 32))));
+    XLS_ASSERT_OK_AND_ASSIGN(a_proc, ab.Build({}));
+  }
+  {
+    TokenlessProcBuilder bb(NewStyleProc{}, "B_proc", "tok", p.get());
+    // B Channels
+    XLS_ASSERT_OK_AND_ASSIGN(auto b_inp, bb.AddInputChannel("inp", s32));
+    XLS_ASSERT_OK_AND_ASSIGN(auto b_output, bb.AddOutputChannel("output", s32));
+    // B Next
+    auto recv_inp = bb.Receive(b_inp, bb.AfterAll({}));
+    bb.Send(b_output, bb.TupleIndex(recv_inp, 0),
+            bb.Add(bb.TupleIndex(recv_inp, 1), bb.Literal(UBits(100, 32))));
+    XLS_ASSERT_OK_AND_ASSIGN(b_proc, bb.Build({}));
+  }
+  {
+    TokenlessProcBuilder cb(NewStyleProc{}, "C_proc", "tok", p.get());
+    // C Channels
+    XLS_ASSERT_OK_AND_ASSIGN(auto c_inp, cb.AddInputChannel("inp", s32));
+    XLS_ASSERT_OK_AND_ASSIGN(auto c_output, cb.AddOutputChannel("output", s32));
+    XLS_ASSERT_OK_AND_ASSIGN(auto c_ext, cb.AddOutputChannel("ext", s32));
+    // C Next
+    auto recv = cb.Receive(c_inp, cb.AfterAll({}));
+    auto c_data = cb.Add(cb.TupleIndex(recv, 1), cb.Literal(UBits(10000, 32)));
+    auto c_tok = cb.TupleIndex(recv, 0);
+    cb.Send(c_output, c_tok, c_data);
+    cb.Send(c_ext, c_tok, c_data);
+    XLS_ASSERT_OK_AND_ASSIGN(c_proc, cb.Build({}));
+  }
+
+  {
+    TokenlessProcBuilder ib(NewStyleProc{}, "initiator", "tok", p.get());
+    // initiator channels
+    XLS_ASSERT_OK_AND_ASSIGN(auto ext_in_ch, ib.AddInputChannel("ext_in", s32));
+    XLS_ASSERT_OK_AND_ASSIGN(auto ext_out_ch,
+                             ib.AddOutputChannel("ext_out", s32));
+    // config
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c1, c_ext, init_rcv]),
+                             ib.AddChannel("init_in_chans", s32));
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c2, init_snd, a_ext]),
+                             ib.AddChannel("init_out_chans", s32));
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c3, a_to_b1_out, a_to_b1_in]),
+                             ib.AddChannel("a_to_b1", s32));
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c4, b1_to_b2_out, b1_to_b2_in]),
+                             ib.AddChannel("b1_to_b2", s32));
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c5, b2_to_b3_out, b2_to_b3_in]),
+                             ib.AddChannel("b2_to_b3", s32));
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c6, b3_to_c_out, b3_to_c_in]),
+                             ib.AddChannel("b3_to_c", s32));
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c7, c_to_a_out, c_to_a_in]),
+                             ib.AddChannel("c_to_a", s32));
+    XLS_ASSERT_OK(
+        ib.InstantiateProc("a_inst", a_proc, {c_to_a_in, a_to_b1_out, a_ext}));
+    XLS_ASSERT_OK(
+        ib.InstantiateProc("B1_inst", b_proc, {a_to_b1_in, b1_to_b2_out}));
+    XLS_ASSERT_OK(
+        ib.InstantiateProc("B2_inst", b_proc, {b1_to_b2_in, b2_to_b3_out}));
+    XLS_ASSERT_OK(
+        ib.InstantiateProc("B3_inst", b_proc, {b2_to_b3_in, b3_to_c_out}));
+    XLS_ASSERT_OK(
+        ib.InstantiateProc("C_inst", c_proc, {b3_to_c_in, c_to_a_out, c_ext}));
+    // next
+    auto ext_recv = ib.Receive(ext_in_ch, ib.AfterAll({}));
+    auto init_in = ib.Send(init_snd, ib.TupleIndex(ext_recv, 0),
+                           ib.TupleIndex(ext_recv, 1));
+    auto init_out = ib.Receive(init_rcv, init_in);
+    ib.Send(ext_out_ch, ib.TupleIndex(init_out, 0), ib.TupleIndex(init_out, 1));
+    XLS_ASSERT_OK_AND_ASSIGN(initiator, ib.Build({}));
+  }
+  // TODO(allight): Once ir_convert can create proc-scoped channels use the
+  // proc_network.x design instead.
+  // XLS_ASSERT_OK_AND_ASSIGN(
+  //     auto path, GetXlsRunfilePath("xls/examples/proc_network.psc.ir"));
+  // XLS_ASSERT_OK_AND_ASSIGN(auto ir, GetFileContents(path));
+  // XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(ir));
+  RecordProperty("ir", p->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(auto elab, ProcElaboration::Elaborate(initiator));
+  XLS_ASSERT_OK_AND_ASSIGN(const ProcElaboration::ChannelGraph& graph,
+                           elab.GetChannelGraph());
+
+  // 2 nodes should have 2 outputs (C and I). 2 nodes (A & I) should have
+  // 2 inputs.
+  // TODO(allight): Some way to identify the proc associated with each id
+  // would be nice.
+  RecordProperty(
+      "adjacency",
+      util::GraphToString(graph, util::PRINT_GRAPH_ADJACENCY_LISTS_SORTED));
+  int64_t cnt_2s_out = 0;
+  int64_t cnt_2s_in = 0;
+  for (int64_t i = 0; i < elab.proc_instances().size(); ++i) {
+    if (graph.InDegree(i) == 2) {
+      cnt_2s_in++;
+    } else {
+      EXPECT_EQ(graph.InDegree(i), 1);
+    }
+    if (graph.OutDegree(i) == 2) {
+      cnt_2s_out++;
+    } else {
+      EXPECT_EQ(graph.OutDegree(i), 1);
+    }
+  }
+  EXPECT_EQ(cnt_2s_out, 2);
+  EXPECT_EQ(cnt_2s_in, 2);
+  EXPECT_EQ(graph.OutDegree(elab.proc_instances().size()), 1);
+  EXPECT_EQ(graph.InDegree(elab.proc_instances().size()), 1);
+}
+
+MATCHER_P(ChannelInterfaceNameIs, name,
+          absl::StrCat("ChannelInterface arg names (",
+                       testing::DescribeMatcher<std::string>(name), ")")) {
+  *result_listener << arg->name() << " does not match the expectation.";
+  return ExplainMatchResult(name, arg->name(), result_listener);
+}
+
+TEST_F(ElaborationTest, GraphMultipleEdgesNewStyle) {
+  // I -> A
+  // I -> A
+  // I -> A
+  // A -> I
+  // A -> I
+  auto p = CreatePackage();
+  Proc* initiator;
+  Proc* subproc;
+  Type* s32 = p->GetBitsType(32);
+  {
+    TokenlessProcBuilder sb(NewStyleProc{}, "subproc", "tok", p.get());
+    // subproc channels
+    XLS_ASSERT_OK_AND_ASSIGN(auto sub_inp1, sb.AddInputChannel("inp1", s32));
+    XLS_ASSERT_OK_AND_ASSIGN(auto sub_inp2, sb.AddInputChannel("inp2", s32));
+    XLS_ASSERT_OK_AND_ASSIGN(auto sub_inp3, sb.AddInputChannel("inp3", s32));
+    XLS_ASSERT_OK_AND_ASSIGN(auto sub_output1,
+                             sb.AddOutputChannel("output1", s32));
+    XLS_ASSERT_OK_AND_ASSIGN(auto sub_output2,
+                             sb.AddOutputChannel("output2", s32));
+    // subproc Next
+    auto r1 = sb.Receive(sub_inp1);
+    auto r2 = sb.Receive(sub_inp2);
+    auto r3 = sb.Receive(sub_inp3);
+    sb.Send(sub_output1, sb.Add(r1, sb.Literal(UBits(100, 32))));
+    sb.Send(sub_output2, sb.Add(r2, r3));
+    XLS_ASSERT_OK_AND_ASSIGN(subproc, sb.Build({}));
+  }
+  {
+    TokenlessProcBuilder ib(NewStyleProc{}, "initiator", "tok", p.get());
+    // initiator channels
+    // config
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c1, i_snd_1, a_rcv_1]),
+                             ib.AddChannel("send_1", s32));
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c2, i_snd_2, a_rcv_2]),
+                             ib.AddChannel("send_2", s32));
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c3, i_snd_3, a_rcv_3]),
+                             ib.AddChannel("send_3", s32));
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c4, a_snd_1, i_rcv_1]),
+                             ib.AddChannel("recv_1", s32));
+    XLS_ASSERT_OK_AND_ASSIGN((auto [c5, a_snd_2, i_rcv_2]),
+                             ib.AddChannel("recv_2", s32));
+    XLS_ASSERT_OK(ib.InstantiateProc(
+        "subproc", subproc, {a_rcv_1, a_rcv_2, a_rcv_3, a_snd_1, a_snd_2}));
+    // Next
+    ib.Send(i_snd_1, ib.Literal(UBits(1, 32)));
+    ib.Send(i_snd_2, ib.Literal(UBits(2, 32)));
+    ib.Send(i_snd_3, ib.Literal(UBits(3, 32)));
+    ib.Receive(i_rcv_1);
+    ib.Receive(i_rcv_2);
+    XLS_ASSERT_OK_AND_ASSIGN(initiator, ib.Build({}));
+  }
+  RecordProperty("ir", p->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::Elaborate(initiator));
+  XLS_ASSERT_OK_AND_ASSIGN(const ProcElaboration::ChannelGraph& graph,
+                           elab.GetChannelGraph());
+  RecordProperty(
+      "adjacency",
+      util::GraphToString(graph, util::PRINT_GRAPH_ADJACENCY_LISTS_SORTED));
+  ProcElaboration::ProcInstanceId subproc_id;
+  ProcElaboration::ProcInstanceId initiator_id;
+  if (elab.proc_instances().front()->proc() == subproc) {
+    subproc_id = 0;
+    initiator_id = 1;
+  } else {
+    subproc_id = 1;
+    initiator_id = 0;
+  }
+
+  EXPECT_EQ(graph.OutDegree(initiator_id), 3);
+  EXPECT_EQ(graph.InDegree(initiator_id), 2);
+  EXPECT_EQ(graph.OutDegree(subproc_id), 2);
+  EXPECT_EQ(graph.InDegree(subproc_id), 3);
+
+  std::vector<ChannelInterface*> subproc_outs;
+  for (auto arc : graph.OutgoingArcs(subproc_id)) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto edge, elab.GetChannelRefs(arc));
+    subproc_outs.push_back(std::get<SendChannelInterface*>(edge.send));
+  }
+  EXPECT_THAT(subproc_outs,
+              testing::UnorderedElementsAre(ChannelInterfaceNameIs("output1"),
+                                            ChannelInterfaceNameIs("output2")));
+  std::vector<ChannelInterface*> subproc_ins;
+  for (auto arc : graph.IncomingArcs(subproc_id)) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto edge, elab.GetChannelRefs(arc));
+    subproc_ins.push_back(std::get<ReceiveChannelInterface*>(edge.recv));
+  }
+  EXPECT_THAT(subproc_ins,
+              testing::UnorderedElementsAre(ChannelInterfaceNameIs("inp1"),
+                                            ChannelInterfaceNameIs("inp2"),
+                                            ChannelInterfaceNameIs("inp3")));
+
+  std::vector<ChannelInterface*> initiator_outs;
+  for (auto arc : graph.OutgoingArcs(initiator_id)) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto edge, elab.GetChannelRefs(arc));
+    initiator_outs.push_back(std::get<SendChannelInterface*>(edge.send));
+  }
+  EXPECT_THAT(initiator_outs,
+              testing::UnorderedElementsAre(ChannelInterfaceNameIs("send_1"),
+                                            ChannelInterfaceNameIs("send_2"),
+                                            ChannelInterfaceNameIs("send_3")));
+  std::vector<ChannelInterface*> initiator_ins;
+  for (auto arc : graph.IncomingArcs(initiator_id)) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto edge, elab.GetChannelRefs(arc));
+    initiator_ins.push_back(std::get<ReceiveChannelInterface*>(edge.recv));
+  }
+  EXPECT_THAT(initiator_ins,
+              testing::UnorderedElementsAre(ChannelInterfaceNameIs("recv_1"),
+                                            ChannelInterfaceNameIs("recv_2")));
+}
+
+TEST_F(ElaborationTest, GraphOldStyle) {
+  // Proc graph.
+  // A -> B1 -> B2 -> B3 -> C -> A
+  // EXT -> I -> A
+  // C -> I -> EXT
+  // NB The actual ir is in examples/proc_network.x
+  XLS_ASSERT_OK_AND_ASSIGN(auto path,
+                           GetXlsRunfilePath("xls/examples/proc_network.ir"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto ir, GetFileContents(path));
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(ir));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto elab, ProcElaboration::ElaborateOldStylePackage(pkg.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(const ProcElaboration::ChannelGraph& graph,
+                           elab.GetChannelGraph());
+
+  // 2 nodes should have 2 outputs (C and I). 2 nodes (A & I) should have 2
+  // inputs.
+  // TODO(allight): Some way to identify the proc associated with each id would
+  // be nice.
+  RecordProperty(
+      "adjacency",
+      util::GraphToString(graph, util::PRINT_GRAPH_ADJACENCY_LISTS_SORTED));
+  int64_t cnt_2s_out = 0;
+  int64_t cnt_2s_in = 0;
+  for (int64_t i = 0; i < elab.proc_instances().size(); ++i) {
+    if (graph.InDegree(i) == 2) {
+      cnt_2s_in++;
+    } else {
+      EXPECT_EQ(graph.InDegree(i), 1);
+    }
+    if (graph.OutDegree(i) == 2) {
+      cnt_2s_out++;
+    } else {
+      EXPECT_EQ(graph.OutDegree(i), 1);
+    }
+  }
+  EXPECT_EQ(cnt_2s_out, 2);
+  EXPECT_EQ(cnt_2s_in, 2);
+  EXPECT_EQ(graph.OutDegree(elab.proc_instances().size()), 1);
+  EXPECT_EQ(graph.InDegree(elab.proc_instances().size()), 1);
+}
+
+TEST_F(ElaborationTest, GraphMultipleEdgesOldStyle) {
+  // I -> A
+  // I -> A
+  // I -> A
+  // A -> I
+  // A -> I
+  auto p = CreatePackage();
+  Proc* initiator;
+  Proc* subproc;
+  Type* s32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * c1,
+      p->CreateStreamingChannel("chan1", ChannelOps::kSendReceive, s32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * c2,
+      p->CreateStreamingChannel("chan2", ChannelOps::kSendReceive, s32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * c3,
+      p->CreateStreamingChannel("chan3", ChannelOps::kSendReceive, s32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * c4,
+      p->CreateStreamingChannel("chan4", ChannelOps::kSendReceive, s32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * c5,
+      p->CreateStreamingChannel("chan5", ChannelOps::kSendReceive, s32));
+  {
+    TokenlessProcBuilder sb("subproc", "tok", p.get());
+    // subproc channels
+    // subproc Next
+    auto r1 = sb.Receive(c1);
+    auto r2 = sb.Receive(c2);
+    auto r3 = sb.Receive(c3);
+    sb.Send(c4, sb.Add(r1, sb.Literal(UBits(100, 32))));
+    sb.Send(c5, sb.Add(r2, r3));
+    XLS_ASSERT_OK_AND_ASSIGN(subproc, sb.Build({}));
+  }
+  {
+    TokenlessProcBuilder ib("initiator", "tok", p.get());
+    // Next
+    ib.Send(c1, ib.Literal(UBits(1, 32)));
+    ib.Send(c2, ib.Literal(UBits(2, 32)));
+    ib.Send(c3, ib.Literal(UBits(3, 32)));
+    ib.Receive(c4);
+    ib.Receive(c5);
+    XLS_ASSERT_OK_AND_ASSIGN(initiator, ib.Build({}));
+  }
+  RecordProperty("ir", p->DumpIr());
+  XLS_ASSERT_OK_AND_ASSIGN(ProcElaboration elab,
+                           ProcElaboration::ElaborateOldStylePackage(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(const ProcElaboration::ChannelGraph& graph,
+                           elab.GetChannelGraph());
+  RecordProperty(
+      "adjacency",
+      util::GraphToString(graph, util::PRINT_GRAPH_ADJACENCY_LISTS_SORTED));
+  ProcElaboration::ProcInstanceId subproc_id;
+  ProcElaboration::ProcInstanceId initiator_id;
+  if (elab.proc_instances().front()->proc() == subproc) {
+    subproc_id = 0;
+    initiator_id = 1;
+  } else {
+    subproc_id = 1;
+    initiator_id = 0;
+  }
+
+  EXPECT_EQ(graph.OutDegree(initiator_id), 3);
+  EXPECT_EQ(graph.InDegree(initiator_id), 2);
+  EXPECT_EQ(graph.OutDegree(subproc_id), 2);
+  EXPECT_EQ(graph.InDegree(subproc_id), 3);
+
+  std::vector<Channel*> subproc_outs;
+  for (auto arc : graph.OutgoingArcs(subproc_id)) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto edge, elab.GetChannelRefs(arc));
+    subproc_outs.push_back(std::get<Channel*>(edge.send));
+  }
+  EXPECT_THAT(subproc_outs,
+              testing::UnorderedElementsAre(ChannelInterfaceNameIs("chan4"),
+                                            ChannelInterfaceNameIs("chan5")));
+  std::vector<Channel*> subproc_ins;
+  for (auto arc : graph.IncomingArcs(subproc_id)) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto edge, elab.GetChannelRefs(arc));
+    subproc_ins.push_back(std::get<Channel*>(edge.recv));
+  }
+  EXPECT_THAT(subproc_ins,
+              testing::UnorderedElementsAre(ChannelInterfaceNameIs("chan1"),
+                                            ChannelInterfaceNameIs("chan2"),
+                                            ChannelInterfaceNameIs("chan3")));
+
+  std::vector<Channel*> initiator_outs;
+  for (auto arc : graph.OutgoingArcs(initiator_id)) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto edge, elab.GetChannelRefs(arc));
+    initiator_outs.push_back(std::get<Channel*>(edge.send));
+  }
+  EXPECT_THAT(initiator_outs,
+              testing::UnorderedElementsAre(ChannelInterfaceNameIs("chan1"),
+                                            ChannelInterfaceNameIs("chan2"),
+                                            ChannelInterfaceNameIs("chan3")));
+  std::vector<Channel*> initiator_ins;
+  for (auto arc : graph.IncomingArcs(initiator_id)) {
+    XLS_ASSERT_OK_AND_ASSIGN(auto edge, elab.GetChannelRefs(arc));
+    initiator_ins.push_back(std::get<Channel*>(edge.recv));
+  }
+  EXPECT_THAT(initiator_ins,
+              testing::UnorderedElementsAre(ChannelInterfaceNameIs("chan4"),
+                                            ChannelInterfaceNameIs("chan5")));
 }
 
 }  // namespace

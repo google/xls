@@ -1306,6 +1306,25 @@ xls_dslx_opt_ir(
     dslx_top = "xls_pipeline",
 )
 
+xls_dslx_library(
+    name = "proc_network_dslx",
+    srcs = ["proc_network.x"],
+)
+
+xls_dslx_test(
+    name = "proc_network_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":proc_network_dslx",
+)
+
+# TODO(allight): Once the ir converter can generate new-style procs we should use this as test data for both ElaborationTest.GraphOldStyle and GraphNewStyle tests.
+xls_dslx_ir(
+    name = "proc_network_ir",
+    dslx_top = "Initiator",
+    ir_file = "proc_network.ir",
+    library = ":proc_network_dslx",
+)
+
 build_test(
     name = "xls_pipeline_build_test",
     targets = [":xls_pipeline"],

@@ -461,4 +461,16 @@ std::vector<std::pair<std::string, std::string>> ChannelConfig::GetDslxKwargs()
   return kwargs;
 }
 
+ChannelRef ToChannelRef(AnyChannelRef ref) {
+  if (std::holds_alternative<ChannelRef>(ref)) {
+    return std::get<ChannelRef>(ref);
+  }
+  if (std::holds_alternative<SendChannelRef>(ref)) {
+    return std::visit([](const auto& v) -> ChannelRef { return v; },
+                      std::get<SendChannelRef>(ref));
+  }
+  return std::visit([](const auto& v) -> ChannelRef { return v; },
+                    std::get<ReceiveChannelRef>(ref));
+}
+
 }  // namespace xls

@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -38,10 +39,12 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
 #include "xls/ir/value.h"
+#include "ortools/graph/graph.h"
 
 namespace xls {
 namespace {
@@ -501,6 +504,112 @@ absl::StatusOr<ProcInstantiationPath> ProcElaboration::CreatePath(
     proc = (*instantiation)->proc();
   }
   return path;
+}
+
+absl::StatusOr<std::pair<ProcElaboration::ChannelGraph,
+                         std::vector<ProcElaboration::ChannelEdge>>>
+ProcElaboration::BuildChannelGraph() const {
+  ProcElaboration::ChannelGraph graph(
+      /*num_nodes=*/proc_instance_ptrs_.size() + 1,
+      /*arc_capacity=*/channel_instance_ptrs_.size());
+  struct MissingSide {
+    ProcElaboration::ProcInstanceId id;
+    std::variant<SendChannelRef, ReceiveChannelRef> ref;
+  };
+  absl::flat_hash_map<ChannelInstance*, std::optional<MissingSide>> other_side;
+  other_side.reserve(channel_instance_ptrs_.size());
+  int64_t external_id = proc_instance_ptrs_.size();
+  uint64_t id = 0;
+  std::vector<ProcElaboration::ChannelEdge> refs;
+  refs.reserve(channel_instance_ptrs_.size());
+  for (ProcInstance* p : proc_instance_ptrs_) {
+    graph.AddNode(id);
+    for (Node* n : p->proc()->nodes()) {
+      if (n->Is<Send>()) {
+        XLS_ASSIGN_OR_RETURN(SendChannelRef ref,
+                             n->As<Send>()->GetSendChannelRef());
+        // TODO(allight): We should include Single-Value channels in the graph.
+        if (ChannelRefKind(ref) == ChannelKind::kSingleValue) {
+          continue;
+        }
+        ChannelInstance* c = p->GetChannelBinding(ToChannelRef(ref)).instance;
+        if (other_side.contains(c)) {
+          if (!other_side[c].has_value() ||
+              !std::holds_alternative<ReceiveChannelRef>(other_side[c]->ref)) {
+            // This must be one of the rare multi-send/recv channels we sort-of
+            // support. Just ignore it. Mutual exclusion requirements ensure its
+            // in this proc anyway so it must already be recorded.
+            // TODO(allight): This works in the case that all sends are in one
+            // proc and all recvs are in another proc. This is generally the
+            // case and channel_legalization pass forces it but it would be good
+            // to support all cases.
+            continue;
+          }
+          ProcElaboration::ChannelId nxt = graph.AddArc(id, other_side[c]->id);
+          XLS_RET_CHECK_EQ(nxt, refs.size());
+          refs.push_back(
+              {.send = ref,
+               .recv = std::get<ReceiveChannelRef>(other_side[c]->ref)});
+          other_side[c].reset();
+        } else {
+          other_side[c] = {.id = id, .ref = ref};
+        }
+      } else if (n->Is<Receive>()) {
+        XLS_ASSIGN_OR_RETURN(ReceiveChannelRef ref,
+                             n->As<Receive>()->GetReceiveChannelRef());
+        // TODO(allight): We should include Single-Value channels in the graph.
+        if (ChannelRefKind(ref) == ChannelKind::kSingleValue) {
+          continue;
+        }
+        ChannelInstance* c = p->GetChannelBinding(ToChannelRef(ref)).instance;
+        if (other_side.contains(c)) {
+          if (!other_side[c].has_value() ||
+              !std::holds_alternative<SendChannelRef>(other_side[c]->ref)) {
+            // This must be one of the rare multi-send/recv channels we sort-of
+            // support. Just ignore it. Mutual exclusion requirements ensure its
+            // in this proc anyway so it must already be recorded.
+            // TODO(allight): This works in the case that all sends are in one
+            // proc and all recvs are in another proc. This is generally the
+            // case and channel_legalization pass forces it but it would be good
+            // to support all cases.
+            continue;
+          }
+          ProcElaboration::ChannelId nxt = graph.AddArc(other_side[c]->id, id);
+          XLS_RET_CHECK_EQ(nxt, refs.size());
+          refs.push_back({.send = std::get<SendChannelRef>(other_side[c]->ref),
+                          .recv = ref});
+          other_side[c].reset();
+        } else {
+          other_side[c] = {.id = id, .ref = ref};
+        }
+      }
+    }
+    id++;
+  }
+  // Add external channels.
+  graph.AddNode(proc_instance_ptrs_.size());
+  for (const auto& [chan, other] : other_side) {
+    if (!other) {
+      continue;
+    }
+    const MissingSide& side = *other;
+    if (std::holds_alternative<SendChannelRef>(side.ref)) {
+      graph.AddArc(side.id, external_id);
+      refs.push_back({.send = std::get<SendChannelRef>(side.ref),
+                      .recv = static_cast<Channel*>(nullptr)});
+    } else {
+      graph.AddArc(external_id, side.id);
+      refs.push_back({.send = static_cast<Channel*>(nullptr),
+                      .recv = std::get<ReceiveChannelRef>(side.ref)});
+    }
+  }
+  // NB Build can renumber arcs so we need to renumber the channel info.
+  std::vector<ProcElaboration::ChannelId> permutation;
+  graph.Build(&permutation);
+  util::Permute(permutation, &refs);
+  return std::pair<ProcElaboration::ChannelGraph,
+                   std::vector<ProcElaboration::ChannelEdge>>(std::move(graph),
+                                                              std::move(refs));
 }
 
 }  // namespace xls

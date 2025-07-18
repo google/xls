@@ -524,6 +524,9 @@ using ChannelRef = std::variant<Channel*, ChannelInterface*>;
 using SendChannelRef = std::variant<Channel*, SendChannelInterface*>;
 using ReceiveChannelRef = std::variant<Channel*, ReceiveChannelInterface*>;
 
+using AnyChannelRef =
+    std::variant<ChannelRef, SendChannelRef, ReceiveChannelRef>;
+
 // Return the name/type/kind/etc of a channel reference.
 std::string_view ChannelRefName(ChannelRef ref);
 Type* ChannelRefType(ChannelRef ref);
@@ -532,6 +535,29 @@ std::optional<ChannelStrictness> ChannelRefStrictness(ChannelRef ref);
 FlowControl ChannelRefFlowControl(ChannelRef ref);
 
 std::string ChannelRefToString(ChannelRef ref);
+
+ChannelRef ToChannelRef(AnyChannelRef ref);
+
+inline std::string_view ChannelRefName(AnyChannelRef ref) {
+  return ChannelRefName(ToChannelRef(ref));
+}
+inline Type* ChannelRefType(AnyChannelRef ref) {
+  return ChannelRefType(ToChannelRef(ref));
+}
+inline ChannelKind ChannelRefKind(AnyChannelRef ref) {
+  return ChannelRefKind(ToChannelRef(ref));
+}
+inline std::optional<ChannelStrictness> ChannelRefStrictness(
+    AnyChannelRef ref) {
+  return ChannelRefStrictness(ToChannelRef(ref));
+}
+inline FlowControl ChannelRefFlowControl(AnyChannelRef ref) {
+  return ChannelRefFlowControl(ToChannelRef(ref));
+}
+
+inline std::string ChannelRefToString(AnyChannelRef ref) {
+  return ChannelRefToString(ToChannelRef(ref));
+}
 
 }  // namespace xls
 

@@ -16,10 +16,12 @@
 #define XLS_IR_PROC_ELABORATION_H_
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -29,12 +31,15 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/common/status/status_or_ref.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
+#include "ortools/graph/graph.h"
 
 namespace xls {
 
@@ -278,10 +283,69 @@ class ProcElaboration {
   absl::StatusOr<ProcInstantiationPath> CreatePath(
       std::string_view path_str) const;
 
+  using ChannelId = int64_t;
+  using ProcInstanceId = uint64_t;
+  using ChannelGraph = util::ReverseArcStaticGraph<ProcInstanceId, ChannelId>;
+  // A helper struct representing a channel connection from 'send' to 'recv'.
+  struct ChannelEdge {
+    // The send side of the channel. (Channel*) nullptr if the edge is on an
+    // external channel.
+    SendChannelRef send;
+    // The recv side of the channel. (Channel*) nullptr if the edge is on an
+    // external channel.
+    ReceiveChannelRef recv;
+  };
+  // Get a graph representing the elaborated proc network.
+  //
+  // Directed edges are channels going from sender to receiver.
+  //
+  // Procs can be identified by GetProcInstance and channel binding by
+  // GetChannelRefs.
+  //
+  // External channels are represented as coming-from/going to proc instance
+  // 'kExternalProc'.
+  //
+  // Note single-value channels are not included in this graph.
+  //
+  // TODO(allight): Currently this is built on demand based on already
+  // calculated values. It might be better to make this a first-class thing that
+  // is initially calculated then other functions are built on top of it.
+  StatusOrRef<ChannelGraph const> GetChannelGraph() const {
+    if (!channel_graph_) {
+      XLS_ASSIGN_OR_RETURN(std::tie(channel_graph_, channel_refs_),
+                           BuildChannelGraph());
+    }
+    return *channel_graph_;
+  }
+
+  // ID Used as the synthetic proc which is the source and destination of any
+  // external channels. GetProcInstance returns nullptr for this id.
+  ProcInstanceId external_proc_id() const { return proc_instance_ptrs_.size(); }
+
+  // The proc instance that this id in the graph represents. Returns nullptr if
+  // this id represents external channels.
+  const ProcInstance* GetProcInstance(ProcInstanceId id) const {
+    if (id == external_proc_id()) {
+      return nullptr;
+    }
+    return proc_instance_ptrs_[id];
+  }
+
+  absl::StatusOr<ChannelEdge> GetChannelRefs(ChannelId id) const {
+    if (!channel_graph_) {
+      XLS_ASSIGN_OR_RETURN(std::tie(channel_graph_, channel_refs_),
+                           BuildChannelGraph());
+    }
+    return (*channel_refs_)[id];
+  }
+
  private:
   // Walks the hierarchy and builds the data member maps of instances.  Only
   // should be called for new-style procs.
   absl::Status BuildInstanceMaps(ProcInstance* proc_instance);
+
+  absl::StatusOr<std::pair<ChannelGraph, std::vector<ChannelEdge>>>
+  BuildChannelGraph() const;
 
   Package* package_;
 
@@ -330,6 +394,11 @@ class ProcElaboration {
   // List of channel instances for each channel interface.
   absl::flat_hash_map<ChannelInterface*, std::vector<ChannelInstance*>>
       instances_of_channel_interface_;
+
+  // Lazily initialized util::graph representation of the elaborated process
+  // hierarchy. This records the channel edges between proc instances.
+  mutable std::optional<ChannelGraph> channel_graph_;
+  mutable std::optional<std::vector<ChannelEdge>> channel_refs_;
 };
 
 }  // namespace xls

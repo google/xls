@@ -470,6 +470,22 @@ absl::StatusOr<ChannelRef> ChannelNode::GetChannelRef() const {
   return package()->GetChannel(channel_name());
 }
 
+absl::StatusOr<ReceiveChannelRef> Receive::GetReceiveChannelRef() const {
+  Proc* proc = function_base()->AsProcOrDie();
+  if (proc->is_new_style_proc()) {
+    return proc->GetReceiveChannelInterface(channel_name());
+  }
+  return package()->GetChannel(channel_name());
+}
+
+absl::StatusOr<SendChannelRef> Send::GetSendChannelRef() const {
+  Proc* proc = function_base()->AsProcOrDie();
+  if (proc->is_new_style_proc()) {
+    return proc->GetSendChannelInterface(channel_name());
+  }
+  return package()->GetChannel(channel_name());
+}
+
 absl::StatusOr<ChannelInterface*> ChannelNode::GetChannelInterface() const {
   Proc* proc = function_base()->AsProcOrDie();
   if (!proc->is_new_style_proc()) {

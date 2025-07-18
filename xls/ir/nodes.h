@@ -1050,6 +1050,8 @@ class Receive final : public ChannelNode {
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
+  absl::StatusOr<ReceiveChannelRef> GetReceiveChannelRef() const;
+
  private:
   bool is_blocking_;
 };
@@ -1071,6 +1073,9 @@ class Send final : public ChannelNode {
   Node* data() const { return operand(1); }
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
+
+  // Get the send channel reference
+  absl::StatusOr<SendChannelRef> GetSendChannelRef() const;
 };
 
 class RegisterRead final : public Node {
