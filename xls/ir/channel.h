@@ -441,7 +441,7 @@ class ChannelInterface {
         type_(type),
         kind_(kind),
         strictness_(std::nullopt),
-        flow_control_(FlowControl::kNone),
+        flow_control_(FlowControl::kReadyValid),
         flop_kind_(FlopKind::kNone) {}
   virtual ~ChannelInterface() = default;
 

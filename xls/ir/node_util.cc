@@ -47,6 +47,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
@@ -740,19 +741,78 @@ bool IsBinaryPrioritySelect(Node* node) {
   return sel->cases().size() == 1;
 }
 
-absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(
-    Package* package) {
-  absl::flat_hash_map<Channel*, std::vector<Node*>> channel_users;
-  for (std::unique_ptr<Proc>& proc : package->procs()) {
-    for (Node* node : proc->nodes()) {
-      if (!node->Is<ChannelNode>()) {
-        continue;
+absl::StatusOr<absl::flat_hash_map<Channel*, ChannelUsers>> GetChannelUsers(
+    Package* package, std::optional<const ProcElaboration*> elab) {
+  absl::flat_hash_map<Channel*, ChannelUsers> result;
+  if (package->ChannelsAreProcScoped()) {
+    XLS_RET_CHECK(elab.has_value());
+
+    for (Proc* proc : elab.value()->procs()) {
+      for (Channel* channel : proc->channels()) {
+        result[channel] = ChannelUsers();
       }
-      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-      channel_users[channel].push_back(node);
+    }
+
+    for (Proc* proc : elab.value()->procs()) {
+      // A proc may be instantiated multiple times along with the channels in
+      // it, but the mapping from Send/Receive node to Channel is the same for
+      // every instance so just pick the first instance to find the mapping.
+      ProcInstance* proc_instance = elab.value()->GetInstances(proc).front();
+      for (Node* node : proc->nodes()) {
+        if (!node->Is<ChannelNode>()) {
+          continue;
+        }
+        ChannelNode* channel_node = node->As<ChannelNode>();
+        XLS_ASSIGN_OR_RETURN(
+            ChannelInterface * interface,
+            proc->GetChannelInterface(channel_node->channel_name(),
+                                      channel_node->direction()));
+        ChannelBinding binding = proc_instance->GetChannelBinding(interface);
+        if (result.contains(binding.instance->channel)) {
+          if (node->Is<Send>()) {
+            result.at(binding.instance->channel)
+                .sends.push_back(node->As<Send>());
+          } else {
+            result.at(binding.instance->channel)
+                .receives.push_back(node->As<Receive>());
+          }
+        }
+      }
+    }
+  } else {
+    for (std::unique_ptr<Proc>& proc : package->procs()) {
+      for (Node* node : proc->nodes()) {
+        if (!node->Is<ChannelNode>()) {
+          continue;
+        }
+        XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+        if (node->Is<Send>()) {
+          result[channel].sends.push_back(node->As<Send>());
+        } else {
+          result[channel].receives.push_back(node->As<Receive>());
+        }
+      }
     }
   }
-  return channel_users;
+  return result;
+}
+
+absl::StatusOr<
+    absl::flat_hash_map<ChannelInterface*, std::vector<ChannelNode*>>>
+GetChannelInterfaceUsers(Proc* proc) {
+  absl::flat_hash_map<ChannelInterface*, std::vector<ChannelNode*>>
+      interface_users;
+  for (Node* node : proc->nodes()) {
+    if (!node->Is<ChannelNode>()) {
+      continue;
+    }
+    ChannelNode* channel_node = node->As<ChannelNode>();
+    XLS_ASSIGN_OR_RETURN(ChannelInterface * interface,
+                         proc->GetChannelInterface(channel_node->channel_name(),
+                                                   channel_node->direction()));
+    interface_users[interface].push_back(channel_node);
+  }
+  return interface_users;
 }
 
 namespace {
