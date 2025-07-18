@@ -1915,5 +1915,13 @@ void IrFuzzNarrowingRange(const PackageAndTestParams& package_and_test_params) {
 FUZZ_TEST(IrFuzzTest, IrFuzzNarrowingRange)
     .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
 
+void IrFuzzNarrowingRangeWithContext(
+    const PackageAndTestParams& package_and_test_params) {
+  NarrowingPass pass(NarrowingPass::AnalysisType::kRangeWithContext);
+  OptimizationPassChangesOutputs(package_and_test_params, pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzNarrowingRangeWithContext)
+    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+
 }  // namespace
 }  // namespace xls
