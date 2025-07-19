@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -1900,20 +1901,19 @@ INSTANTIATE_TEST_SUITE_P(
                       NarrowingPass::AnalysisType::kRangeWithContext),
     ::testing::PrintToStringParamName());
 
-void IrFuzzNarrowingTernary(
-    const PackageAndTestParams& package_and_test_params) {
+void IrFuzzNarrowingTernary(PackageAndFuzzProgram package_and_fuzz_program) {
   NarrowingPass pass(NarrowingPass::AnalysisType::kTernary);
-  OptimizationPassChangesOutputs(package_and_test_params, pass);
+  OptimizationPassChangesOutputs(std::move(package_and_fuzz_program),
+                                 /*arg_set_count=*/10, pass);
 }
-FUZZ_TEST(IrFuzzTest, IrFuzzNarrowingTernary)
-    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+FUZZ_TEST(IrFuzzTest, IrFuzzNarrowingTernary).WithDomains(IrFuzzDomain());
 
-void IrFuzzNarrowingRange(const PackageAndTestParams& package_and_test_params) {
+void IrFuzzNarrowingRange(PackageAndFuzzProgram package_and_fuzz_program) {
   NarrowingPass pass(NarrowingPass::AnalysisType::kRange);
-  OptimizationPassChangesOutputs(package_and_test_params, pass);
+  OptimizationPassChangesOutputs(std::move(package_and_fuzz_program),
+                                 /*arg_set_count=*/10, pass);
 }
-FUZZ_TEST(IrFuzzTest, IrFuzzNarrowingRange)
-    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+FUZZ_TEST(IrFuzzTest, IrFuzzNarrowingRange).WithDomains(IrFuzzDomain());
 
 void IrFuzzNarrowingRangeWithContext(
     const PackageAndTestParams& package_and_test_params) {

@@ -14,6 +14,8 @@
 
 #include "xls/passes/comparison_simplification_pass.h"
 
+#include <utility>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
@@ -326,12 +328,13 @@ TEST_F(ComparisonSimplificationPassTest, UltAndCommutedSle) {
 }
 
 void IrFuzzComparisonSimplification(
-    const PackageAndTestParams& package_and_test_params) {
+    PackageAndFuzzProgram package_and_fuzz_program) {
   ComparisonSimplificationPass pass;
-  OptimizationPassChangesOutputs(package_and_test_params, pass);
+  OptimizationPassChangesOutputs(std::move(package_and_fuzz_program),
+                                 /*arg_set_count=*/10, pass);
 }
 FUZZ_TEST(IrFuzzTest, IrFuzzComparisonSimplification)
-    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+    .WithDomains(IrFuzzDomain());
 
 }  // namespace
 }  // namespace xls

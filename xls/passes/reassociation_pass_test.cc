@@ -15,6 +15,7 @@
 #include "xls/passes/reassociation_pass.h"
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -1268,7 +1269,6 @@ TEST_F(ReassociationPassTest, MultipleOverflowTypes) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   // NB Z3 seems to have a surprisingly hard time proving this. Possibly because
   // a value switches sides on the add tree breaking pattern matching proofs?
-  // Since we are sharded we can give it a bit of time however.
   ScopedVerifyEquivalence stays_equivalent(f);
   ScopedRecordIr sri(p.get(), "_ir");
   ASSERT_THAT(RunWithNarrowing(p.get()), IsOkAndHolds(true));
@@ -1377,12 +1377,12 @@ TEST_F(ReassociationPassTest, AddZeroToOverflowValueKeepsOverflow) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
-void IrFuzzReassociation(const PackageAndTestParams& package_and_test_params) {
+void IrFuzzReassociation(PackageAndFuzzProgram package_and_fuzz_program) {
   ReassociationPass pass;
-  OptimizationPassChangesOutputs(package_and_test_params, pass);
+  OptimizationPassChangesOutputs(std::move(package_and_fuzz_program),
+                                 /*arg_set_count=*/10, pass);
 }
-FUZZ_TEST(IrFuzzTest, IrFuzzReassociation)
-    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+FUZZ_TEST(IrFuzzTest, IrFuzzReassociation).WithDomains(IrFuzzDomain());
 
 }  // namespace
 }  // namespace xls
