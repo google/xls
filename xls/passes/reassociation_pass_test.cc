@@ -31,9 +31,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
-#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -1356,27 +1354,27 @@ TEST_F(ReassociationPassTest, SignExtendOfNegationOverflows) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-// Discovered by the IR fuzzer.
-TEST_F(ReassociationPassTest,
-       DISABLED_Regression_94240786ff168aa236eb9b9f5d5215223c9d5ce9) {
+// Discovered by the IR fuzzer 2025-07-17 (id:
+// 94240786ff168aa236eb9b9f5d5215223c9d5ce9).
+TEST_F(ReassociationPassTest, AddZeroToOverflowValueKeepsOverflow) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue param = fb.Param("param", p->GetBitsType(1));
   BValue one = fb.Literal(UBits(1, 1));
+  // This add can overflow
   BValue add_1 = fb.Add(one, param);
   BValue zero = fb.Literal(UBits(0, 1));
+  // But this one looks like it can't. Really though the full value is still
+  // overflowing.
   BValue add_2 = fb.Add(add_1, zero);
   BValue zero_ext = fb.ZeroExtend(add_2, 64);
   BValue big_zero = fb.Literal(UBits(0, 64));
   fb.Add(zero_ext, big_zero);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ScopedRecordIr sri(p.get(), "_ir");
 
-  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> original_result,
-                           InterpretFunction(f, {Value(UBits(1, 1))}));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> optimized_result,
-                           InterpretFunction(f, {Value(UBits(1, 1))}));
-  EXPECT_EQ(original_result.value, optimized_result.value);
 }
 
 void IrFuzzReassociation(const PackageAndTestParams& package_and_test_params) {

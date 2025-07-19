@@ -252,15 +252,32 @@ class AssociativeElements {
     CHECK(IsAssociativeOp(n)) << n << " cannot build associative tree";
     CHECK(cur_op == n->op() || (cur_op == Op::kAdd && n->op() == Op::kSub))
         << n << " with op " << cur_op;
+
     auto can_combine_element = [&](const AssociativeElements& e) -> bool {
-      return !e.is_leaf() && e.op() == cur_op &&
-             ((!e.overflows() && !overflows) ||
-              absl::c_all_of(e.all_elements(), [&](const NodeData& nd) {
-                return nd.node->BitCountOrDie() == n->BitCountOrDie();
-              }));
+      if (e.is_leaf()) {
+        // Leafs aren't really combinable in a real sense.. They just get added.
+        // We can return false here to get the addition behavior.
+        return false;
+      }
+      if (e.op() != cur_op) {
+        // the l/r element is from a different operation. Can't combine.
+        return false;
+      }
+      if (!e.overflows() && !overflows) {
+        // No overflow is happening anywhere so you can merge in this element.
+        return true;
+      }
+      // If the bit-width changed we can't combine.
+      return absl::c_all_of(e.all_elements(), [&](const NodeData& nd) {
+        return nd.node->BitCountOrDie() == n->BitCountOrDie();
+      });
     };
     bool can_combine_l = can_combine_element(l);
     bool can_combine_r = can_combine_element(r);
+    // This overall operation overflows if either (1) it trivially overflows or
+    // (2) the embedded operands overflow themselves.
+    bool combined_overflow = overflows || (l.overflows() && can_combine_l) ||
+                             (r.overflows() && can_combine_r);
     std::vector<NodeData> datas;
     std::vector<NodeData> consts;
     auto expected_size = [&](int64_t l_size, int64_t r_size) {
@@ -307,9 +324,9 @@ class AssociativeElements {
     int64_t new_depth = 1 + std::max(can_combine_l ? l.depth() : 0,
                                      can_combine_r ? r.depth() : 0);
     int64_t new_full_var_count = l_var_cnt + r_var_cnt;
-    return AssociativeElements(n, /*leaf=*/std::nullopt, cur_op,
-                               std::move(datas), std::move(consts), overflows,
-                               new_depth, new_full_var_count);
+    return AssociativeElements(
+        n, /*leaf=*/std::nullopt, cur_op, std::move(datas), std::move(consts),
+        combined_overflow, new_depth, new_full_var_count);
   }
 
   Node* node() const { return node_; }
@@ -718,23 +735,6 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
         return GetOperandInfo(1, is_signed);
       }
     }();
-    // For mul which can change size overflow is more complicated since the
-    // operands overflow state persists even if this node can't overflow. EG if
-    // one of the operands is only 0 or 1 or the result is extended then no
-    // overflow can happen on this node but parents could still have overflowed
-    // preventing reassociation. Since overflow simply pessimizes the
-    // reassociation this is a safe transition to include.
-    //
-    // TODO(allight): A more sophisticated analysis could be beneficial here.
-    // For example if we can recognize that this is a mul(0|1, X) we can forward
-    // with a smaller mul. This would require some rather radical rewrites
-    // however and chained multiplies are pretty rare anyway. This to-do is
-    // mostly just an observation that we simply pessimizing the analysis here
-    // and avoiding doing that in some cases (where its safe) may be worthwhile.
-    if (op->OpIn({Op::kSMul, Op::kUMul})) {
-      overflow =
-          overflow || lhs_elements.overflows() || rhs_elements.overflows();
-    }
     return AssociativeElements::Combine(query_engine_, op, real_op,
                                         lhs_elements, rhs_elements, overflow);
   }
