@@ -80,6 +80,7 @@ class Type {
   bool IsToken() const { return kind_ == TypeKind::kToken; }
   TokenType* AsTokenOrDie();
   const TokenType* AsTokenOrDie() const;
+  absl::StatusOr<TokenType*> AsToken();
 
   // Returns the count of bits required to represent the underlying type; e.g.
   // for tuples this will be the sum of the bit count from all its members, for
