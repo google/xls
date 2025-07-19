@@ -1394,7 +1394,7 @@ choose instead to emit a single `next_value` node where `value` uses either a
 to multiple `next_value` nodes to potentially enable better throughput.
 
 ```
-result = next_value(param=read, value=v)
+result = next_value(param=read, value=v, predicate=<pred>)
 ```
 
 **Types**
@@ -1407,10 +1407,11 @@ Value    | Type
 
 <!-- mdformat off(multiline table cells not supported in mkdocs) -->
 
-| Keyword | Type | Required | Default | Description                                    |
-| ------- | ---- | -------- | ------- | ---------------------------------------------- |
-| `param` | `T`  | yes      |         | The `state_read` for the target state element  |
-| `value` | `T`  | yes      |         | The value to write to the target state element |
+| Keyword     | Type      | Required | Default | Description                                                                          |
+| ----------- | --------- | -------- | ------- | ------------------------------------------------------------------------------------ |
+| `param`     | `T`       | yes      |         | The `state_read` for the target state element                                        |
+| `value`     | `T`       | yes      |         | The value to write to the target state element                                       |
+| `predicate` | `bits[1]` | no       |         | The state element is set if `predicate` is true or absent. All `next_value` nodes for the same `param` must have mutually exclusive predicates. |
 
 <!-- mdformat on -->
 
