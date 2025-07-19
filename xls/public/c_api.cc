@@ -1036,6 +1036,172 @@ int64_t xls_type_get_leaf_count(struct xls_type* type) {
   return xls_type->leaf_count();
 }
 
+bool xls_type_is_equal(struct xls_type* type1, struct xls_type* type2) {
+  CHECK(type1 != nullptr);
+  CHECK(type2 != nullptr);
+  xls::Type* xls_type1 = reinterpret_cast<xls::Type*>(type1);
+  xls::Type* xls_type2 = reinterpret_cast<xls::Type*>(type2);
+  return xls_type1->IsEqualTo(xls_type2);
+}
+
+bool xls_type_is_bits(struct xls_type* type) {
+  CHECK(type != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  return xls_type->IsBits();
+}
+bool xls_type_is_tuple(struct xls_type* type) {
+  CHECK(type != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  return xls_type->IsTuple();
+}
+
+bool xls_type_is_array(struct xls_type* type) {
+  CHECK(type != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  return xls_type->IsArray();
+}
+
+bool xls_type_is_token(struct xls_type* type) {
+  CHECK(type != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  return xls_type->IsToken();
+}
+
+// convert a type to a bits type, return false if the type is not a bits
+// type and set the error_out to the error message, error_out should be freed
+// with xls_c_str_free; otherwise return true and set the result_out to the
+// bits type, result_out *does not* need to be freed.
+bool xls_type_to_bits_type(struct xls_type* type, char** error_out,
+                           struct xls_bits_type** result_out) {
+  CHECK(type != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  absl::StatusOr<xls::BitsType*> bits_type = xls_type->AsBits();
+  if (!bits_type.ok()) {
+    *error_out = xls::ToOwnedCString(bits_type.status().ToString());
+    return false;
+  }
+  *result_out = reinterpret_cast<struct xls_bits_type*>(bits_type.value());
+  return true;
+}
+
+// convert a type to a tuple type, return false if the type is not a tuple
+// type and set the error_out to the error message, error_out should be freed
+// with xls_c_str_free; otherwise return true and set the result_out to the
+// tuple type, result_out *does not* need to be freed.
+bool xls_type_to_tuple_type(struct xls_type* type, char** error_out,
+                            struct xls_tuple_type** result_out) {
+  CHECK(type != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  absl::StatusOr<xls::TupleType*> tuple_type = xls_type->AsTuple();
+  if (!tuple_type.ok()) {
+    *error_out = xls::ToOwnedCString(tuple_type.status().ToString());
+    return false;
+  }
+  *result_out = reinterpret_cast<struct xls_tuple_type*>(tuple_type.value());
+  return true;
+}
+
+// convert a type to an array type, return false if the type is not an array
+// type and set the error_out to the error message, error_out should be freed
+// with xls_c_str_free; otherwise return true and set the result_out to the
+// array type, result_out *does not* need to be freed.
+bool xls_type_to_array_type(struct xls_type* type, char** error_out,
+                            struct xls_array_type** result_out) {
+  CHECK(type != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  absl::StatusOr<xls::ArrayType*> array_type = xls_type->AsArray();
+  if (!array_type.ok()) {
+    *error_out = xls::ToOwnedCString(array_type.status().ToString());
+    return false;
+  }
+  *result_out = reinterpret_cast<struct xls_array_type*>(array_type.value());
+  return true;
+}
+
+// convert a type to as token type, return false if the type is not an token
+// type and set the error_out to the error message, error_out should be freed
+// with xls_c_str_free; otherwise return true and set the result_out to the
+// token type, result_out *does not* need to be freed.
+bool xls_type_to_token_type(struct xls_type* type, char** error_out,
+                            struct xls_token_type** result_out) {
+  CHECK(type != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  xls::Type* xls_type = reinterpret_cast<xls::Type*>(type);
+  absl::StatusOr<xls::TokenType*> token_type = xls_type->AsToken();
+  if (!token_type.ok()) {
+    *error_out = xls::ToOwnedCString(token_type.status().ToString());
+    return false;
+  }
+  *result_out = reinterpret_cast<struct xls_token_type*>(token_type.value());
+  return true;
+}
+
+// Returns the element type of the given array type,
+// the returned xls_type does not need to be freed.
+struct xls_type* xls_array_type_get_element_type(
+    struct xls_array_type* array_type) {
+  CHECK(array_type != nullptr);
+  xls::ArrayType* xls_array_type =
+      reinterpret_cast<xls::ArrayType*>(array_type);
+  return reinterpret_cast<struct xls_type*>(xls_array_type->element_type());
+}
+
+// Returns the size  (# of elements) of the given array type.
+int64_t xls_array_type_get_size(struct xls_array_type* array_type) {
+  CHECK(array_type != nullptr);
+  xls::ArrayType* xls_array_type =
+      reinterpret_cast<xls::ArrayType*>(array_type);
+  return xls_array_type->size();
+}
+
+// Returns the element types of the given tuple type. The returned
+// xls_type* array should be freed with xls_type_ptr_array_free.
+bool xls_tuple_type_get_element_types(struct xls_tuple_type* tuple_type,
+                                      char** error_out,
+                                      struct xls_type*** result_out,
+                                      size_t* count_out) {
+  CHECK(tuple_type != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  CHECK(count_out != nullptr);
+  xls::TupleType* xls_tuple_type =
+      reinterpret_cast<xls::TupleType*>(tuple_type);
+  absl::Span<xls::Type* const> element_types = xls_tuple_type->element_types();
+  *count_out = element_types.size();
+
+  if (element_types.empty()) {
+    *result_out = nullptr;
+    return true;
+  }
+
+  *result_out = new struct xls_type*[element_types.size()];
+  for (size_t i = 0; i < element_types.size(); ++i) {
+    (*result_out)[i] = reinterpret_cast<struct xls_type*>(element_types[i]);
+  }
+  return true;
+}
+
+// Returns the size of the given tuple type.
+int64_t xls_tuple_type_get_size(struct xls_tuple_type* tuple_type) {
+  CHECK(tuple_type != nullptr);
+  xls::TupleType* xls_tuple_type =
+      reinterpret_cast<xls::TupleType*>(tuple_type);
+  return xls_tuple_type->size();
+}
+
+int64_t xls_bits_type_get_bit_count(struct xls_bits_type* bits_type) {
+  CHECK(bits_type != nullptr);
+  xls::BitsType* xls_bits_type = reinterpret_cast<xls::BitsType*>(bits_type);
+  return xls_bits_type->bit_count();
+}
+
 bool xls_type_to_string(struct xls_type* type, char** error_out,
                         char** result_out) {
   CHECK(type != nullptr);
@@ -1173,6 +1339,10 @@ void xls_function_jit_free(struct xls_function_jit* jit) {
 
 void xls_function_ptr_array_free(struct xls_function** function_pointer_array) {
   delete[] function_pointer_array;
+}
+
+void xls_type_ptr_array_free(struct xls_type** type_pointer_array) {
+  delete[] type_pointer_array;
 }
 
 bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
