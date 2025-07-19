@@ -67,7 +67,10 @@ class OrcJit : public LlvmCompiler {
       std::string_view function_name);
 
   // Return the underlying LLVM context.
-  llvm::LLVMContext* GetContext() override { return context_.getContext(); }
+  // TODO: b/430302945 - This is not thread safe!
+  llvm::LLVMContext* GetContext() override {
+    return context_.withContextDo([](llvm::LLVMContext* ctxt) { return ctxt; });
+  }
 
   absl::StatusOr<std::unique_ptr<llvm::TargetMachine>> CreateTargetMachine()
       override;
