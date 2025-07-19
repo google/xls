@@ -599,22 +599,6 @@ std::optional<const Function*> GetContainingFunction(const AstNode* node) {
   return std::nullopt;
 }
 
-bool ContainsInvocation(const AstNode* node, bool want_types) {
-  std::deque<const AstNode*> worklist;
-  worklist.push_back(node);
-  while (!worklist.empty()) {
-    const AstNode* current = worklist.front();
-    worklist.pop_front();
-    if (current->kind() == AstNodeKind::kInvocation) {
-      return true;
-    }
-    for (const AstNode* child : current->GetChildren(want_types)) {
-      worklist.push_back(child);
-    }
-  }
-  return false;
-}
-
 std::vector<ParametricBinding*> GetRequiredParametricBindings(
     const std::vector<ParametricBinding*>& bindings) {
   std::vector<ParametricBinding*> result;

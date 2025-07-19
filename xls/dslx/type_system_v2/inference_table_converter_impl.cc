@@ -128,7 +128,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         resolver_(TypeAnnotationResolver::Create(
             module, table, file_table,
             /*error_generator=*/*this, *evaluator_,
-            /*parametric_struct_instantiator=*/*this, *tracer_, import_data_)),
+            /*parametric_struct_instantiator=*/*this, *tracer_, import_data_,
+            [&](std::optional<const ParametricContext*> parametric_context,
+                const Invocation* invocation) {
+              return TryConvertInvocationForUnification(parametric_context,
+                                                        invocation);
+            })),
         constant_collector_(CreateConstantCollector(
             table_, module_, import_data_, warning_collector_, file_table_,
             /*converter=*/*this, *evaluator_,
@@ -334,6 +339,33 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return absl::OkStatus();
   }
 
+  // This is invoked when the `TypeAnnotationResolver` is asked to resolve and
+  // unify a type variable that has an invocation feeding it. The need for this
+  // is due to the fact that `ConvertInvocation` actually adds type annotations
+  // to the table after function resolution. If a variable is unified before the
+  // invocations feeding it have been converted, the table will not yet contain
+  // the type annotations provided by those invocations, so the unification will
+  // consider partial information that may not be enough.
+  absl::Status TryConvertInvocationForUnification(
+      std::optional<const ParametricContext*> caller_context,
+      const Invocation* invocation) {
+    if (converted_invocations_[caller_context].contains(invocation)) {
+      return absl::OkStatus();
+    }
+
+    // If the resolver tries to pre-emptively convert an invocation in a struct
+    // context, that actually can't be done and should not be necessary. Any
+    // invocation, even of an impl member, must have an invocation context or
+    // nullopt as the caller.
+    // TODO: https://github.com/google/xls/issues/2379 - See if we can prevent
+    // these calls further upstream, e.g. via tweaks to populate-table logic.
+    if (caller_context.has_value() && !(*caller_context)->is_invocation()) {
+      return absl::OkStatus();
+    }
+
+    return ConvertInvocation(invocation, caller_context);
+  }
+
   // Converts the type info for the given invocation node and its argument
   // nodes. This involves resolving the callee function and applying the formal
   // types of the arguments to the actual arguments in the inference table.
@@ -342,6 +374,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       std::optional<const ParametricContext*> caller_context) {
     TypeSystemTrace trace =
         tracer_->TraceConvertInvocation(invocation, caller_context);
+    converted_invocations_[caller_context].insert(invocation);
     std::optional<const Function*> caller = GetContainingFunction(invocation);
     VLOG(5) << "Converting invocation: " << invocation->callee()->ToString()
             << " with module: " << invocation->callee()->owner()->name()
@@ -731,7 +764,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 *details.callee->owner(), table_, file_table_,
                 /*error_generator=*/*this, /*evaluator=*/*evaluator_,
                 /*parametric_struct_instantiator=*/*this, *tracer_,
-                import_data_);
+                import_data_,
+                [&](std::optional<const ParametricContext*> parametric_context,
+                    const Invocation* invocation) {
+                  return TryConvertInvocationForUnification(parametric_context,
+                                                            invocation);
+                });
             resolver = foreign_resolver.get();
           }
         }
@@ -1999,6 +2037,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   absl::flat_hash_map<std::optional<const ParametricContext*>,
                       absl::flat_hash_set<const AstNode*>>
       converted_subtrees_;
+  absl::flat_hash_map<std::optional<const ParametricContext*>,
+                      absl::flat_hash_set<const Invocation*>>
+      converted_invocations_;
   absl::flat_hash_set<const Proc*> converted_procs_;
 
   // The top element in this stack is the proc-level type info for the proc (or
