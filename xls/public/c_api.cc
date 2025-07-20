@@ -36,6 +36,7 @@
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bit_push_buffer.h"
 #include "xls/ir/bits.h"
@@ -419,6 +420,58 @@ struct xls_value* xls_value_make_true() {
 struct xls_value* xls_value_make_false() {
   auto* value = new xls::Value(xls::Value::Bool(false));
   return reinterpret_cast<xls_value*>(value);
+}
+
+// Populate the xls_value from a byte array in place. The bit_count must be
+// greater than or equal to the flat bit count of the value.
+// The byte array is expected to be padded with 0s to the end of the value.
+// Returns false if the bit_count is less than the flat bit count of the value
+// or if the value cannot be populated from the bytes, in which case the error
+// message is written to error_out. error_out must be freed by the caller with
+// xls_c_str_free.
+bool xls_value_populate_from_bytes(struct xls_value* value,
+                                   const uint8_t* bytes, size_t byte_count,
+                                   size_t bit_count, char** error_out) {
+  CHECK(value != nullptr);
+  CHECK(bytes != nullptr);
+  CHECK(error_out != nullptr);
+  auto* cpp_value = reinterpret_cast<xls::Value*>(value);
+
+  if (byte_count * 8 < bit_count) {
+    *error_out = xls::ToOwnedCString(
+        absl::StrFormat("byte_count * 8 (%d) is less than the bit count (%d)",
+                        byte_count * 8, bit_count)
+            .c_str());
+    return false;
+  }
+
+  if (bit_count < cpp_value->GetFlatBitCount()) {
+    *error_out = xls::ToOwnedCString(
+        absl::StrFormat("bit_count (%d) is less than the bit count (%d)",
+                        bit_count, cpp_value->GetFlatBitCount())
+            .c_str());
+    return false;
+  }
+
+  absl::Span<const uint8_t> bytes_span(bytes, byte_count);
+  xls::InlineBitmap bitmap =
+      xls::InlineBitmap::FromBytes(bit_count, bytes_span);
+
+  absl::Status status = cpp_value->PopulateFrom(xls::BitmapView(bitmap));
+  if (!status.ok()) {
+    *error_out = xls::ToOwnedCString(status.ToString());
+    return false;
+  }
+  *error_out = nullptr;
+  return true;
+}
+
+// Returns the flat bit count of a value. This is the total number of bits
+// in the value, including all bits in nested values.
+int64_t xls_value_get_flat_bit_count(const struct xls_value* value) {
+  CHECK(value != nullptr);
+  const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
+  return cpp_value->GetFlatBitCount();
 }
 
 struct xls_bits_rope* xls_create_bits_rope(int64_t bit_count) {

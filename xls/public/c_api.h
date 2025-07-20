@@ -202,6 +202,12 @@ bool xls_value_get_element_count(const struct xls_value* value,
 bool xls_value_get_bits(const struct xls_value* value, char** error_out,
                         struct xls_bits** bits_out);
 
+bool xls_value_populate_from_bytes(struct xls_value* value,
+                                   const uint8_t* bytes, size_t byte_count,
+                                   size_t bit_count, char** error_out);
+
+int64_t xls_value_get_flat_bit_count(const struct xls_value* value);
+
 int64_t xls_bits_get_bit_count(const struct xls_bits* bits);
 
 // Returns a string representation of the given bits value.

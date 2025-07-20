@@ -726,6 +726,104 @@ TEST(XlsCApiTest, MakeUnsignedBits) {
   EXPECT_NE(bits, value_bits);
 }
 
+TEST(XlsCApiTest, ValueFlatBitCount) {
+  xls_value* bool_values[] = {xls_value_make_false(), xls_value_make_false()};
+  absl::Cleanup free_values([bool_values] {
+    for (xls_value* value : bool_values) {
+      xls_value_free(value);
+    }
+  });
+
+  ASSERT_EQ(xls_value_get_flat_bit_count(bool_values[0]), 1);
+  ASSERT_EQ(xls_value_get_flat_bit_count(bool_values[1]), 1);
+  struct xls_value* array = nullptr;
+  char* error_out = nullptr;
+  ASSERT_TRUE(xls_value_make_array(2, bool_values, &error_out, &array));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(array, nullptr);
+  absl::Cleanup free_array([array, error_out] {
+    xls_value_free(array);
+    xls_c_str_free(error_out);
+  });
+  ASSERT_EQ(xls_value_get_flat_bit_count(array), 2);
+}
+
+TEST(XlsCApiTest, ValuePopulateFromBytes) {
+  const int kValueCount = 10;
+  xls_value* bool_values[kValueCount] = {};
+
+  for (int i = 0; i < kValueCount; ++i) {
+    bool_values[i] = xls_value_make_false();
+  }
+
+  absl::Cleanup free_values([bool_values] {
+    for (xls_value* value : bool_values) {
+      xls_value_free(value);
+    }
+  });
+
+  xls_value* array = nullptr;
+  char* error_out = nullptr;
+  ASSERT_TRUE(
+      xls_value_make_array(kValueCount, bool_values, &error_out, &array));
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(array, nullptr);
+  absl::Cleanup free_array([array] { xls_value_free(array); });
+
+  auto verify_array_element = [&array, &error_out](bool expected_values) {
+    xls_value* element_value = nullptr;
+    xls_bits* element_bits = nullptr;
+    for (int i = 0; i < kValueCount; ++i) {
+      ASSERT_TRUE(xls_value_get_element(array, i, &error_out, &element_value));
+      ASSERT_NE(element_value, nullptr);
+      ASSERT_EQ(error_out, nullptr);
+
+      ASSERT_TRUE(xls_value_get_bits(element_value, &error_out, &element_bits));
+      ASSERT_NE(element_bits, nullptr);
+      ASSERT_EQ(error_out, nullptr);
+      ASSERT_EQ(xls_bits_get_bit(element_bits, 0), expected_values);
+      absl::Cleanup free_element_bits_and_value(
+          [&element_value, &element_bits] {
+            xls_value_free(element_value);
+            xls_bits_free(element_bits);
+            element_value = nullptr;
+            element_bits = nullptr;
+          });
+    }
+  };
+
+  verify_array_element(false);
+
+  uint8_t bytes[2] = {0xff, 0xff};
+  ASSERT_TRUE(
+      xls_value_populate_from_bytes(array, bytes, 2, kValueCount, &error_out));
+
+  verify_array_element(true);
+
+  {
+    char* error_out_2 = nullptr;
+    uint8_t bytes_2[2] = {0x00, 0x00};
+    ASSERT_FALSE(xls_value_populate_from_bytes(array, bytes_2, 1, kValueCount,
+                                               &error_out_2));
+    ASSERT_NE(error_out_2, nullptr);
+    EXPECT_THAT(std::string_view{error_out_2},
+                HasSubstr("byte_count * 8 (8) is less than the bit count"));
+    verify_array_element(true);
+    absl::Cleanup free_error_2([&error_out_2] { xls_c_str_free(error_out_2); });
+  }
+  {
+    char* error_out_3 = nullptr;
+    uint8_t bytes_3[2] = {0x00, 0x00};
+    ASSERT_FALSE(xls_value_populate_from_bytes(array, bytes_3, 2,
+                                               kValueCount - 1, &error_out_3));
+    ASSERT_NE(error_out_3, nullptr);
+    EXPECT_THAT(std::string_view{error_out_3},
+                HasSubstr("bit_count (9) is less than the bit count"));
+    verify_array_element(true);
+    absl::Cleanup free_error_3([&error_out_3] { xls_c_str_free(error_out_3); });
+  }
+}
+
 TEST(XlsCApiTest, ParsePackageAndGetFunctions) {
   const std::string kPackage0 = R"(package p)";
   const std::string kPackage1 = R"(package p

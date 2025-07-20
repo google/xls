@@ -241,6 +241,7 @@ xls_value_from_bits_owned
 xls_value_get_bits
 xls_value_get_element
 xls_value_get_element_count
+xls_value_get_flat_bit_count
 xls_value_get_kind
 xls_value_make_array
 xls_value_make_false
@@ -249,6 +250,7 @@ xls_value_make_token
 xls_value_make_true
 xls_value_make_tuple
 xls_value_make_ubits
+xls_value_populate_from_bytes
 xls_value_to_string
 xls_value_to_string_format_preference
 xls_vast_always_base_get_statement_block
