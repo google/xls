@@ -287,7 +287,12 @@ absl::StatusOr<Location> translateLoc(const ::xls::SourceInfo& xls_loc,
   for (auto loc : xls_loc.locations) {
     auto filename = state.getFileName(loc.fileno());
     if (!filename.ok()) {
-      return filename.status();
+      // Be tolerant of missing locations: there is currently missing file
+      // information markers when creating XLS Package and then reimporting.
+      mlir::emitWarning(builder.getUnknownLoc(),
+                        "failed to translate location: ")
+          << filename.status().message();
+      return builder.getUnknownLoc();
     }
     locs.push_back(FileLineColLoc::get(*filename, loc.fileno().value(),
                                        loc.colno().value()));
