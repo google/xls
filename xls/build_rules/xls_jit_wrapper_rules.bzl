@@ -16,8 +16,8 @@
 This module contains jit-wrapper-related build rules for XLS.
 """
 
-# @rules_cc//cc:cc_library.bzl
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(
     "//xls/build_rules:xls_common_rules.bzl",
     "get_runfiles_for_xls",
@@ -416,7 +416,7 @@ def cc_xls_ir_jit_wrapper(
         header_file = header_filename,
         **kwargs
     )
-    native.cc_library(
+    cc_library(
         name = name,
         srcs = [":" + source_filename],
         hdrs = [":" + header_filename],

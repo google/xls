@@ -83,6 +83,6 @@ bzl_library(
     srcs = ["cc_generator.bzl"],
     visibility = ["//visibility:private"],
     deps = [
-        # "@rules_cc//cc:core_rules",
+        "@rules_cc//cc:core_rules",
     ],
 )

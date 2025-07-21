@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# @rules_cc//cc:cc_library.bzl
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//xls/build_rules:xls_utilities.bzl", "bool_config_setting")
 
 package(

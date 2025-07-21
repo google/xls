@@ -144,7 +144,7 @@ bzl_library(
         ":xls_internal_build_defs_bzl",
         ":xls_ir_rules_bzl",
         ":xls_type_check_utils_bzl",
-        # "@rules_cc//cc:core_rules",
+        "@rules_cc//cc:core_rules",
     ],
 )
 
@@ -179,8 +179,8 @@ bzl_library(
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
         ":xls_type_check_utils_bzl",
-        # "@rules_cc//cc:core_rules",
         "@bazel_skylib//lib:dicts",
+        "@rules_cc//cc:core_rules",
     ],
 )
 
@@ -226,9 +226,9 @@ bzl_library(
         ":xls_rules_bzl",
         ":xls_toolchains_bzl",
         ":xls_type_check_utils_bzl",
-        # "@rules_cc//cc:core_rules",
         "@bazel_skylib//rules:build_test",
         "@bazel_skylib//rules:diff_test",
+        "@rules_cc//cc:core_rules",
     ],
 )
 
@@ -300,8 +300,8 @@ bzl_library(
         ":xls_cc_embed_data_rules_bzl",
         ":xls_providers_bzl",
         ":xls_utilities_bzl",
-        # "@rules_cc//cc:core_rules",
         "@bazel_skylib//lib:dicts",
+        "@rules_cc//cc:core_rules",
     ],
 )
 

@@ -22,8 +22,8 @@ load("@bazel_skylib//rules:build_test.bzl", "build_test")
 # cc_proto_library is used in this file
 
 # pytype binary only
-# @rules_cc//cc:cc_binary.bzl
-# @rules_cc//cc:cc_library.bzl
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 
 package(

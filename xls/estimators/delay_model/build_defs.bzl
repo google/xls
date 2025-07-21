@@ -14,7 +14,7 @@
 
 """Contains macros for creating XLS delay models."""
 
-# @rules_cc//cc:cc_library.bzl
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
 
 def delay_model(
@@ -56,7 +56,7 @@ def delay_model(
         ],
         **kwargs
     )
-    native.cc_library(
+    cc_library(
         name = name,
         srcs = [":{}_source".format(name)],
         alwayslink = 1,

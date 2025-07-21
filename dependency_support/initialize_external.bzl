@@ -32,7 +32,7 @@ def initialize_external_repositories():
     rules_hdl_init(python_interpreter_target = python_interpreter_target)
     rules_hdl_dependency_support()
     setup_7zip()
-    rules_closure_dependencies()
+    rules_closure_dependencies(omit_com_google_protobuf = True)
     rules_closure_toolchains()
     pip_parse(
         name = "xls_pip_deps",

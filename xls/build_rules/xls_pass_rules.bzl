@@ -14,9 +14,9 @@
 
 """This module contains the rules for defining xls passes."""
 
-# @rules_cc//cc:cc_library.bzl
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_cpp_toolchain")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(
     "//xls/build_rules:xls_cc_embed_data_rules.bzl",
     _embed_data_attrs = "embed_data_attrs",
@@ -155,7 +155,7 @@ def xls_pass(name, pass_class, tags = [], **kwargs):
 
     # Force build-automation stuff to choose the pass-and-reg target for direct users.
     impl_tags = tags + ["alt_dep=%s" % name, "avoid_dep"]
-    native.cc_library(
+    cc_library(
         name = "%s_impl" % name,
         visibility = ["//visibility:private"],
         tags = impl_tags,
@@ -167,7 +167,7 @@ def xls_pass(name, pass_class, tags = [], **kwargs):
         visibility = ["//visibility:private"],
         pass_class = pass_class,
     )
-    native.cc_library(
+    cc_library(
         name = "%s_registration" % name,
         srcs = ["%s_registration_cc" % name],
         visibility = ["//visibility:private"],

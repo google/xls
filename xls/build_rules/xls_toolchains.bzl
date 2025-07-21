@@ -198,7 +198,7 @@ Examples:
 1. User-defined toolchain with a modified DSLX interpreter tool.
 
     ```
-    native.cc_binary(
+    cc_binary(
         name = "custom_dslx_interpreter_tool",
         srcs = [...],
         deps = [...],

@@ -15,9 +15,9 @@
 # Public (exported) XLS APIs.
 
 # pytype binary only
-# @rules_cc//cc:cc_binary.bzl
-# @rules_cc//cc:cc_library.bzl
-# @rules_cc//cc:cc_test.bzl
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//xls/public:xls_public_macros.oss.bzl", "libxls_dylib_binary", "pytype_test_test_c_api_symbols")
 
 package(

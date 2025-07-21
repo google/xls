@@ -15,9 +15,8 @@
 # Build rules for XLS examples.
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-
-# @rules_cc//cc:cc_library.bzl
-# @rules_cc//cc:cc_test.bzl
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_hdl//gds_write:build_defs.bzl", "gds_write")
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")

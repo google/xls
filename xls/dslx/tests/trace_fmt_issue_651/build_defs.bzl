@@ -36,7 +36,7 @@ def xls_dslx_ir_wrapper(name, library = ":test_target_library"):
             name = "trace_u21_hex_wrapper",
         )
 
-        native.cc_test(
+        cc_test(
             name = "trace_fmt_test",
             srcs = ["trace_fmt_test.cc"],
             deps = [

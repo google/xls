@@ -16,9 +16,9 @@
 This module contains build macros for XLS.
 """
 
-# @rules_cc//cc:cc_library.bzl
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
@@ -401,7 +401,7 @@ def xls_dslx_cpp_type_library(
         deps = deps,
         namespace = namespace,
     )
-    native.cc_library(
+    cc_library(
         name = name,
         srcs = [":" + name + ".cc"],
         hdrs = [":" + name + ".h"],

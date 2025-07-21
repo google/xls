@@ -14,7 +14,7 @@
 
 """Contains macros for creating XLS area models."""
 
-# @rules_cc//cc:cc_library.bzl
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//xls/build_rules:genrule_wrapper.bzl", "genrule_wrapper")
 
 def area_model(
@@ -51,7 +51,7 @@ def area_model(
         ],
         **kwargs
     )
-    native.cc_library(
+    cc_library(
         name = name,
         srcs = [":{}_source".format(name)],
         alwayslink = 1,

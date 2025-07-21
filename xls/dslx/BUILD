@@ -14,11 +14,12 @@
 
 # Domain Specific Language implementation for HW construction that mimics Rust.
 
-# pytype tests are present in this file
-# @rules_cc//cc:cc_binary.bzl
-# @rules_cc//cc:cc_library.bzl
-# @rules_cc//cc:cc_test.bzl
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
+# pytype tests are present in this file
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(

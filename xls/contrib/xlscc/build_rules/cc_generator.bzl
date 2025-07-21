@@ -14,8 +14,8 @@
 
 """Provides fuzz test functionality for XLScc"""
 
-# @rules_cc//cc:cc_binary.bzl
-# @rules_cc//cc:cc_test.bzl
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 def xls_ac_fuzz_binaries(name, deps, seed_start, seed_count, test_ac_fixed, test_ac_int):
     """Generate fuzz test binaries for a range of seeds and the result comparison binary
@@ -45,7 +45,7 @@ def xls_ac_fuzz_binaries(name, deps, seed_start, seed_count, test_ac_fixed, test
             cmd = cmd,
             tools = ["cc_generate_test"],
         )
-        native.cc_binary(
+        cc_binary(
             name = "{}_{}".format(name, seed),
             srcs = [srcfile],
             deps = [
@@ -66,7 +66,7 @@ def xls_ac_fuzz_binaries(name, deps, seed_start, seed_count, test_ac_fixed, test
             "//xls/contrib/xlscc:xlscc",
             "@com_github_hlslibs_ac_types//:ac_types_as_data",
         ])
-        native.cc_test(
+        cc_test(
             name = "{}_{}_test".format(name, seed),
             testonly = 1,
             srcs = ["cc_fuzz_tester.cc"],

@@ -1,4 +1,4 @@
-# @rules_cc//cc:cc_binary.bzl
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_dslx_library",

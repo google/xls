@@ -16,7 +16,7 @@
 This module contains IR-related build macros for XLS.
 """
 
-# @rules_cc//cc:cc_library.bzl
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(
     "//xls/build_rules:xls_config_rules.bzl",
     "enable_generated_file_wrapper",
@@ -259,7 +259,7 @@ def xls_ir_cc_library_macro(
         src = src,
         namespaces = namespaces,
     )
-    native.cc_library(
+    cc_library(
         name = name,
         srcs = [
             ":" + wrapper_name,

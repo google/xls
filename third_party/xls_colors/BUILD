@@ -1,9 +1,8 @@
 # XLS color library ported from https://www.vagrearg.org/content/hsvrgb
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_license//rules:license.bzl", "license")
-
-# @rules_cc//cc:cc_library.bzl
-# @rules_cc//cc:cc_test.bzl
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",

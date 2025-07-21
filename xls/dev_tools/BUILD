@@ -13,9 +13,9 @@
 # limitations under the License.
 
 # pytype binary, test, library
-# @rules_cc//cc:cc_binary.bzl
-# @rules_cc//cc:cc_library.bzl
-# @rules_cc//cc:cc_test.bzl
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_equivalence_test")
 
 package(

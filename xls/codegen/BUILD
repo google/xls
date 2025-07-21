@@ -13,9 +13,8 @@
 # limitations under the License.
 
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
-
-# @rules_cc//cc:cc_library.bzl
-# @rules_cc//cc:cc_test.bzl
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 
 # Load proto_library

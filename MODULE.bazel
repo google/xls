@@ -19,7 +19,7 @@ register_toolchains("@llvm_toolchain//:all")
 # Note: some WORKSPACE dependencies still require repo_name aliases.
 bazel_dep(name = "abseil-cpp", version = "20250127.0", repo_name = "com_google_absl")
 bazel_dep(name = "abseil-py", version = "2.1.0")
-bazel_dep(name = "bazel_features", version = "1.25.0")
+bazel_dep(name = "bazel_features", version = "1.28.0")
 bazel_dep(name = "bazel_skylib", version = "1.7.1")
 bazel_dep(name = "boringssl", version = "0.20250114.0")
 bazel_dep(name = "cppitertools", version = "2.2")
@@ -31,10 +31,17 @@ bazel_dep(name = "platforms", version = "0.0.11")
 bazel_dep(name = "protobuf", version = "30.1", repo_name = "com_google_protobuf")
 bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
 bazel_dep(name = "riegeli", version = "0.0.0-20241218-3385e3c")
+bazel_dep(name = "rules_cc", version = "0.1.2")
 bazel_dep(name = "rules_license", version = "1.0.0")
 bazel_dep(name = "rules_pkg", version = "1.0.1")
 bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "verible", version = "0.0.3933")
+
+# Workaround suggested by a Bazel team member; only needed for WORKSPACE to work correctly.
+# TODO: https://github.com/google/xls/issues/931 - Remove this workaround once the WORKSPACE file is migrated to MODULE.bazel.
+proto_bazel_features = use_repo_rule("@com_google_protobuf//bazel/private:proto_bazel_features.bzl", "proto_bazel_features")
+
+proto_bazel_features(name = "proto_bazel_features")
 
 # Dev dependencies
 bazel_dep(name = "fuzztest", version = "20250214.0", dev_dependency = True, repo_name = "com_google_fuzztest")

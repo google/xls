@@ -15,9 +15,9 @@
 # Conversion from frontend representation to XLS IR.
 
 # pytype tests are present in this file
-# @rules_cc//cc:cc_binary.bzl
-# @rules_cc//cc:cc_library.bzl
-# @rules_cc//cc:cc_test.bzl
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 # Load proto_library
 # cc_proto_library is used in this file
 
