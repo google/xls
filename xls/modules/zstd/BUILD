@@ -2924,7 +2924,7 @@ xls_dslx_test(
 HUFFMAN_CODE_BUILDER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanCodeBuilder",
     "pipeline_stages": "8",
-    "clock_period_ps": "750",
+    "clock_period_ps": "1200",
     "worst_case_throughput": "5",
 }
 
