@@ -3244,7 +3244,7 @@ HUFFMAN_CTRL_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanCtrl",
     "pipeline_stages": "8",
     "clock_period_ps": "750",
-    "worst_case_throughput": "2",
+    "worst_case_throughput": "3",
 }
 
 xls_dslx_verilog(
