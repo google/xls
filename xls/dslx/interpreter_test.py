@@ -57,13 +57,14 @@ class InterpreterTest(test_base.TestCase):
   ) -> str:
     temp_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, temp_file.full_path]
-    cmd.append('--compare=%s' % compare)
+    cmd.append(f'--compare={compare}')
     if alsologtostderr:
       cmd.append('--alsologtostderr')
     if not warnings_as_errors:
       cmd.append('--warnings_as_errors=false')
     if disable_warnings:
-      cmd.append('--disable_warnings=%s' % ','.join(disable_warnings))
+      flag_value = ','.join(disable_warnings)
+      cmd.append(f'--disable_warnings={flag_value}')
     cmd.extend(extra_flags)
     env = {} if test_filter is None else dict(TESTBRIDGE_TEST_ONLY=test_filter)
     env.update(extra_env if extra_env else {})
@@ -519,7 +520,7 @@ class InterpreterTest(test_base.TestCase):
     # This fails at 6KiStatements in opt due to deep recursion.
     # Picked this number so it passes with ASAN.
     nesting = 1024 * 1
-    rest = '\n'.join('  let x%d = x%d;' % (i, i - 1) for i in range(1, nesting))
+    rest = '\n'.join(f'  let x{i} = x{i - 1};' for i in range(1, nesting))
     program = textwrap.dedent("""\
     fn f() -> u32 {
       let x0 = u32:42;
@@ -645,7 +646,7 @@ class InterpreterTest(test_base.TestCase):
           stderr,
       )
 
-      with open(output_xml) as f:
+      with open(output_xml, encoding='utf-8') as f:
         xml_got = f.read()
 
       root = ET.fromstring(xml_got)
@@ -674,7 +675,7 @@ class InterpreterTest(test_base.TestCase):
           stderr,
       )
 
-      with open(output_xml) as f:
+      with open(output_xml, encoding='utf-8') as f:
         xml_got = f.read()
 
       root = ET.fromstring(xml_got)
@@ -707,7 +708,7 @@ class InterpreterTest(test_base.TestCase):
           stderr,
       )
 
-      with open(output_xml) as f:
+      with open(output_xml, encoding='utf-8') as f:
         xml_got = f.read()
 
       root = ET.fromstring(xml_got)
@@ -745,7 +746,7 @@ class InterpreterTest(test_base.TestCase):
           stderr,
       )
 
-      with open(output_xml) as f:
+      with open(output_xml, encoding='utf-8') as f:
         xml_got = f.read()
 
       print('xml_got:', xml_got)
@@ -780,7 +781,8 @@ class InterpreterTest(test_base.TestCase):
   def test_alternative_stdlib_path(self):
     with tempfile.TemporaryDirectory(suffix='stdlib') as stdlib_dir:
       # Make a std.x file in our fake stdlib.
-      with open(os.path.join(stdlib_dir, 'std.x'), 'w') as fake_std:
+      std_x_path = os.path.join(stdlib_dir, 'std.x')
+      with open(std_x_path, 'w', encoding='utf-8') as fake_std:
         print('pub fn my_stdlib_func(x: u32) -> u32 { x }', file=fake_std)
 
       # Invoke the function in our fake std.x which should be appropriately
@@ -796,6 +798,81 @@ class InterpreterTest(test_base.TestCase):
           alsologtostderr=True,
           extra_flags=[f'--dslx_stdlib_path={stdlib_dir}'],
       )
+
+
+class OutOfTreeInterpreterTest(test_base.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    # Copy the interpreter binary out of tree to a temporary directory.
+    with open(runfiles.get_path('xls/dslx/interpreter_main'), 'rb') as f:
+      self.interpreter_path = self.create_tempfile(content=f.read())
+    # We have to mark it as executable.
+    os.chmod(self.interpreter_path.full_path, 0o755)
+
+  def test_out_of_tree_interpreter_invocation(self):
+    """Tests invoking interpreter successfully outside the tree."""
+    program = """
+    #[test] fn empty_test() {}
+    """
+    temp_file = self.create_tempfile(content=program)
+    # Note: we have to supply `env` to avoid the Python testbridge setting
+    # seeping in.
+    p = subp.run(
+        [self.interpreter_path.full_path, temp_file.full_path],
+        stdout=subp.PIPE,
+        stderr=subp.PIPE,
+        encoding='utf-8',
+        env={},
+        check=True,
+    )
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
+
+  def test_out_of_tree_interpreter_invocation_with_tiv2_flag(self):
+    """Tests invoking interpreter successfully outside the tree with TIv2."""
+    program = """
+    #[test] fn empty_test() {}
+    """
+    temp_file = self.create_tempfile(content=program)
+    # Note: we have to supply `env` to avoid the Python testbridge setting
+    # seeping in.
+    p = subp.run(
+        [
+            self.interpreter_path.full_path,
+            temp_file.full_path,
+            '--type_inference_v2',
+        ],
+        stdout=subp.PIPE,
+        stderr=subp.PIPE,
+        encoding='utf-8',
+        env={},
+        check=True,
+    )
+    print('p:', p)
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
+
+  def test_out_of_tree_interpreter_invocation_with_tiv2_annotation(self):
+    """Tests invoking interpreter successfully outside the tree with TIv2."""
+    program = """
+    #![feature(type_inference_v2)]
+    #[test] fn empty_test() {}
+    """
+    temp_file = self.create_tempfile(content=program)
+    # Note: we have to supply `env` to avoid the Python testbridge setting
+    # seeping in.
+    p = subp.run(
+        [self.interpreter_path.full_path, temp_file.full_path],
+        stdout=subp.PIPE,
+        stderr=subp.PIPE,
+        encoding='utf-8',
+        env={},
+        check=True,
+    )
+    print('p:', p)
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('1 test(s) ran; 0 failed; 0 skipped', p.stderr)
 
 
 if __name__ == '__main__':
