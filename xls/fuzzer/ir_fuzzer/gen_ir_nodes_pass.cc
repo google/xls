@@ -495,8 +495,14 @@ void GenIrNodesPass::HandleEncode(FuzzEncodeProto* encode) {
 }
 
 void GenIrNodesPass::HandleDecode(FuzzDecodeProto* decode) {
-  decode->set_bit_width(BoundedWidth(decode->bit_width()));
   BValue operand = GetOperand(decode->operand_idx());
+  // The decode bit width cannot exceed 2 ** operand_bit_width.
+  int64_t right_bound = 1000;
+  if (operand.BitCountOrDie() < 64) {
+    right_bound = std::min<int64_t>(1000, 1ULL << operand.BitCountOrDie());
+  }
+  decode->set_bit_width(
+      BoundedWidth(decode->bit_width(), /*left_bound=*/1, right_bound));
   stack_.push_back(fb_->Decode(operand, decode->bit_width()));
 }
 

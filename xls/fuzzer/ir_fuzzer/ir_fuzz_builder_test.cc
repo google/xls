@@ -1868,6 +1868,11 @@ TEST(IrFuzzBuilderTest, DecodeOp) {
           }
         }
         fuzz_ops {
+          param {
+            bit_width: 1
+          }
+        }
+        fuzz_ops {
           decode {
             operand_idx: 0
           }
@@ -1879,14 +1884,22 @@ TEST(IrFuzzBuilderTest, DecodeOp) {
           }
         }
         fuzz_ops {
+          decode {
+            bit_width: 10
+            operand_idx: 1
+          }
+        }
+        fuzz_ops {
           concat {
-            operand_idxs: 1
             operand_idxs: 2
+            operand_idxs: 3
+            operand_idxs: 4
           }
         }
       )");
   auto expected_ir_node =
-      m::Concat(m::Decode(m::Param("p0")), m::Decode(m::Param("p0")));
+      m::Concat(m::Decode(m::Param("p0")), m::Decode(m::Param("p0")),
+                m::Decode(m::Param("p1")));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
