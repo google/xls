@@ -13,6 +13,10 @@
 // limitations under the License.
 
 // This file contains the implementation of Huffman decoder.
+// 1. receives bitstream from HuffmanDataPreprocessor - happens numerous times per stream
+// 2. receives code to symbol mapping from HuffmanCodeBuilder - happens once per block
+// 3. it matches longest possible code to next bits of the bitstream
+// 4. it sends the decoded literals to LiteralsBuffer
 
 import std;
 

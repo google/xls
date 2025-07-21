@@ -13,6 +13,9 @@
 // limitations under the License.
 
 // This file contains Huffman decoder control and sequence proc implementation.
+// 1. For each block it sends huffman table decoding requests, jump table reads (if needed)
+// 2. For each block it also always sends prescan and code building request
+// 3. For each stream it sends axi read requests of the appropriate size (HuffmanAxiReader), preprocessor request (HuffmanPreprocessor), decoding request (HuffmanDecoder)
 
 import xls.modules.zstd.common as common;
 import xls.modules.zstd.memory.mem_reader as mem_reader;

@@ -13,6 +13,40 @@
 // limitations under the License.
 
 // This file contains the implementation of Huffman tree decoder.
+// Let code(w, n) -> symbol assigned to n-th weight w
+// How we compute the codes:
+//
+// For each weight assign the next (according to canonical order) symbol
+// the symbol is computed as follows:
+// code(w, n) = rank(w) + n * (1 << max_number_of_bits - weight)
+// where rank is built from weight frequencies as seen in the proc below
+//
+// Example:
+// max_number_of_bits = 8
+// (bits that don't matter for a given code are put after "|")
+//
+// rank(8)    = 0000 0000
+// code(8, 0) = 0000 0000
+// code(8, 1) = 0000 0001
+// code(8, 2) = 0000 0010
+// code(8, ...)
+// code(8, 7) = 0000 0111
+//
+// rank(7)    = |{w: w = 8}|  * (1<<(8-8)) = 0000 1000
+// code(7, 0) = 0000 100 | 0
+// code(7, 1) = 0000 101 | 0
+//
+// rank(6)    = |{w: w = 7}| * (1 << (8-7))+ rank(7) = 0000 1100
+// code(6, 0) = 0000 11 | 00
+//  ...
+//
+// Analogous codebook in ZSTD:
+//  ...
+// symbols[0b0000 100x] -> code(7,0)
+// symbols[0b0000 101x] -> code(7,1)
+// symbols[0b000011xx] -> code(6,0)
+// length[0b000011xx] -> 6
+//  ...
 
 import std;
 import xls.dslx.stdlib.acm_random as random;

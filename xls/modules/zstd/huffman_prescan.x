@@ -13,6 +13,30 @@
 // limitations under the License.
 
 // This file contains the implementation of Huffmann tree decoder.
+// 1. For each 8 weights read simultaneously from buffer storing decoded Huffman weights it computes frequency statistics - how many times within each packet a weight of certain value occured so far (occurance_number)
+// 2. It also holds a statistic that ensures the same weight values within a single packet are correctly handled (occurance matrix)
+// 3. It sends the statistics to HuffmanCodeBuilder
+//
+// Example
+// RAM response 0x 0a 0b 06 04 0a 09 0b 0b -------------\/
+// Occ matrix
+//             0 1 2 3 4 5 6 7 8 9 a b <- weights
+//
+//             0 0 0 0 0 0 0 0 0 0 0 0
+//             0 0 0 0 0 0 0 0 0 0 1 0 <- increment for 'a'
+//             0 0 0 0 0 0 0 0 0 0 1 1 <- increment for 'b'
+//             0 0 0 0 0 0 1 0 0 0 1 1 <- increment for '6'
+//             0 0 0 0 1 0 1 0 0 0 1 1 <- increment for '4'
+//             0 0 0 0 1 0 1 0 0 0 2 1 <- increment for 'a'
+//             0 0 0 0 1 0 1 0 0 1 2 1 <- increment for '9'
+//             0 0 0 0 1 0 1 0 0 1 2 2 <- increment for 'b'
+//             0 0 0 0 1 0 1 0 0 1 2 3 <- increment for 'b'
+
+// Occ num     0 0 0 0 1 0 1 2
+
+// Valid w     0 0 0 0 1 0 1 0 0 1 1 1
+// W count     0 0 0 0 1 0 1 0 0 1 2 3
+//
 
 import std;
 import xls.dslx.stdlib.acm_random as random;
