@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "xls/ir/function_builder.h"
+#include "xls/ir/package.h"
 
 namespace xls {
 
@@ -34,6 +35,8 @@ enum ContextListType {
 // operands.
 class IrNodeContextList {
  public:
+  IrNodeContextList(Package* p, FunctionBuilder* fb) : p_(p), fb_(fb) {}
+
   BValue GetElementAt(int64_t list_idx,
                       ContextListType list_type = COMBINED_LIST) const;
   int64_t GetListSize(ContextListType list_type = COMBINED_LIST) const;
@@ -42,6 +45,8 @@ class IrNodeContextList {
   void AppendElement(BValue element);
 
  private:
+  Package* p_;
+  FunctionBuilder* fb_;
   // Vector of context lists, where the first is a combined list and the rest
   // are for individual types. Use of a ContextListType enum to specify which
   // list to use.

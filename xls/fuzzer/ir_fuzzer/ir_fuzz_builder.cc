@@ -27,7 +27,7 @@ namespace xls {
 BValue IrFuzzBuilder::BuildIr() {
   // Logs the FuzzProgramProto for debugging.
   VLOG(3) << "IR Fuzzer-1: Fuzz Program Proto:" << "\n"
-          << fuzz_program_->DebugString() << "\n";
+          << fuzz_program_.DebugString() << "\n";
   // Converts the FuzzProgramProto instructions into a context list of BValues.
   GenIrNodesPass gen_ir_nodes_pass(fuzz_program_, p_, fb_, context_list_);
   gen_ir_nodes_pass.GenIrNodes();

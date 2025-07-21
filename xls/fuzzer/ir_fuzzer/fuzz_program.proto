@@ -36,28 +36,75 @@ enum CombineListMethod {
   ADD_LIST_METHOD = 2;
 }
 
-// References a node on the stack by its index. Contains methods to increase and
-// decrease the reference operand's bit width in case the operand must be of a
-// specific bit width.
-message FittedOperandIdxProto {
-  optional int64 stack_idx = 1;
-  optional WidthFittingMethodProto width_fitting_method = 2;
+// References an operand on the context list by its index. Multiple same protos
+// exist to explicitly specify the type of operand.
+message OperandIdxProto {
+  optional int64 list_idx = 1;
+}
+message BitsOperandIdxProto {
+  optional int64 list_idx = 1;
 }
 
-// Specifies the methods used to increase and decrease the bit width of an IR
-// node.
-message WidthFittingMethodProto {
+// Use of a TypeProto (specifically for FuzzParam) to specify the type of an
+// operand.
+// Note that multiple type protos exist, including FuzzTypeProto,
+// ValueTypeProto, and CoercedTypeProto, because each performs a slightly
+// different function. They are all traversed by the same templated recursive
+// functions.
+// TODO: Consider reusing the existing TypeProto.
+message FuzzTypeProto {
+  oneof type {
+    BitsTypeProto bits = 1;
+  }
+}
+message BitsTypeProto {
+  optional int64 bit_width = 1;
+}
+
+// ValueTypeProto is the same as FuzzTypeProto, but it is used to specify
+// the value of a literal.
+message ValueTypeProto {
+  oneof type {
+    BitsValueTypeProto bits = 1;
+  }
+}
+// TODO: Use the ValueProto::Bits proto for bit_width and value_bytes.
+message BitsValueTypeProto {
+  optional int64 bit_width = 1;
+  // Uses value_bytes to specify the integer value of a bits literal.
+  optional bytes value_bytes = 2;
+}
+
+// CoercedTypeProto is the same as FuzzTypeProto, but also contains coercion
+// information in order to coerce any IR node into the specified type. The type
+// and coercion information is randomly generated together to enforce that every
+// sub-type has a coercion method.
+message CoercedTypeProto {
+  oneof type {
+    BitsCoercedTypeProto bits = 1;
+  }
+}
+
+// CoercedTypeProtos containing type and coercion method information.
+message BitsCoercedTypeProto {
+  optional int64 bit_width = 1;
+  optional BitsCoercionMethodProto coercion_method = 2;
+}
+
+// CoercionMethodProtos containing coercion method information.
+message BitsCoercionMethodProto {
+  optional ChangeBitWidthMethodProto change_bit_width_method = 1;
+}
+
+// Methods used to change the bit width of a bits BValue.
+message ChangeBitWidthMethodProto {
   optional DecreaseWidthMethod decrease_width_method = 1;
   optional IncreaseWidthMethod increase_width_method = 2;
 }
-
-// Specifies the method used to decrease the bit width of an IR op.
 enum DecreaseWidthMethod {
   UNSET_DECREASE_WIDTH_METHOD = 0;
   BIT_SLICE_METHOD = 1;
 }
-
-// Specifies the method used to increase the bit width of an IR op.
 enum IncreaseWidthMethod {
   UNSET_INCREASE_WIDTH_METHOD = 0;
   ZERO_EXTEND_METHOD = 1;
@@ -125,206 +172,215 @@ message FuzzOpProto {
   }
 }
 
-// Places a parameter of a specific bit width on the stack.
-// TODO: Consider using the TypeProto to define the type of param generated.
+// The parameter will be placed on the corresponding context list that
+// represents its type.
 message FuzzParamProto {
-  optional int64 bit_width = 1;
+  // Use of FuzzTypeProto to specify the type of the parameter.
+  optional FuzzTypeProto type = 1;
 }
 
 message FuzzShraProto {
-  // Use of idxs which represent an index on the stack. These idx fields
-  // suggest that the FuzzOp uses a node on the stack as an operand.
-  optional int64 operand_idx = 1;
-  optional int64 amount_idx = 2;
+  // Use of idxs which represent an index on the bits context list. These idx
+  // fields suggest that the FuzzOp uses a node on the bits context list as an
+  // operand.
+  optional BitsOperandIdxProto operand_idx = 1;
+  optional BitsOperandIdxProto amount_idx = 2;
 }
 
 message FuzzShrlProto {
-  optional int64 operand_idx = 1;
-  optional int64 amount_idx = 2;
+  optional BitsOperandIdxProto operand_idx = 1;
+  optional BitsOperandIdxProto amount_idx = 2;
 }
 
 message FuzzShllProto {
-  optional int64 operand_idx = 1;
-  optional int64 amount_idx = 2;
+  optional BitsOperandIdxProto operand_idx = 1;
+  optional BitsOperandIdxProto amount_idx = 2;
 }
 
 message FuzzOrProto {
-  // This FuzzOp requires that the operands are all the same bit width. So this
-  // bit_width field is used to specify the bit width that the operands need to
-  // be changed to.
-  optional int64 bit_width = 1;
-  // FittedOperandIdxProto is just like a normal stack index but takes a node
-  // from the stack and fits it to a specified bit width.
-  repeated FittedOperandIdxProto operand_idxs = 2;
+  repeated BitsOperandIdxProto operand_idxs = 1;
+  // This FuzzOp requires that the operands are all of the bits type with the
+  // same bit width. So this BitsCoercedTypeProto field is used to specify the
+  // bit width that the operands need to be changed to.
+  optional BitsCoercedTypeProto operands_type = 2;
 }
 
 message FuzzNorProto {
-  optional int64 bit_width = 1;
-  repeated FittedOperandIdxProto operand_idxs = 2;
+  repeated BitsOperandIdxProto operand_idxs = 1;
+  optional BitsCoercedTypeProto operands_type = 2;
 }
 
 message FuzzXorProto {
-  optional int64 bit_width = 1;
-  repeated FittedOperandIdxProto operand_idxs = 2;
+  repeated BitsOperandIdxProto operand_idxs = 1;
+  optional BitsCoercedTypeProto operands_type = 2;
 }
 
 message FuzzAndProto {
-  optional int64 bit_width = 1;
-  repeated FittedOperandIdxProto operand_idxs = 2;
+  repeated BitsOperandIdxProto operand_idxs = 1;
+  optional BitsCoercedTypeProto operands_type = 2;
 }
 
 message FuzzNandProto {
-  optional int64 bit_width = 1;
-  repeated FittedOperandIdxProto operand_idxs = 2;
+  repeated BitsOperandIdxProto operand_idxs = 1;
+  optional BitsCoercedTypeProto operands_type = 2;
 }
 
 message FuzzAndReduceProto {
-  optional int64 operand_idx = 1;
+  optional BitsOperandIdxProto operand_idx = 1;
 }
 
 message FuzzOrReduceProto {
-  optional int64 operand_idx = 1;
+  optional BitsOperandIdxProto operand_idx = 1;
 }
 
 message FuzzXorReduceProto {
-  optional int64 operand_idx = 1;
+  optional BitsOperandIdxProto operand_idx = 1;
 }
 
 message FuzzUMulProto {
-  optional int64 bit_width = 1;
-  optional int64 lhs_idx = 2;
-  optional int64 rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional int64 bit_width = 3;
+  optional BitsCoercedTypeProto operands_type = 4;
 }
 
 message FuzzSMulProto {
-  optional int64 bit_width = 1;
-  optional int64 lhs_idx = 2;
-  optional int64 rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional int64 bit_width = 3;
+  optional BitsCoercedTypeProto operands_type = 4;
 }
 
 message FuzzUDivProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzSDivProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzUModProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzSModProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzSubtractProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzAddProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzConcatProto {
-  repeated int64 operand_idxs = 1;
+  repeated BitsOperandIdxProto operand_idxs = 1;
 }
 
 message FuzzULeProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzULtProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzUGeProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzUGtProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzSLeProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzSLtProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzSGeProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzSGtProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzEqProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzNeProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto lhs_idx = 2;
-  optional FittedOperandIdxProto rhs_idx = 3;
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional BitsCoercedTypeProto operands_type = 3;
 }
 
 message FuzzNegateProto {
-  optional int64 operand_idx = 1;
+  optional BitsOperandIdxProto operand_idx = 1;
 }
 
 message FuzzNotProto {
-  optional int64 operand_idx = 1;
+  optional BitsOperandIdxProto operand_idx = 1;
 }
 
-// TODO: Use the ValueProto::Bits proto for bit_width and value_bytes.
 message FuzzLiteralProto {
-  optional int64 bit_width = 1;
-  optional bytes value_bytes = 2;
+  // Use of ValueTypeProto to generate a value of a specific type for the
+  // literal.
+  optional ValueTypeProto value_type = 1;
 }
 
 message FuzzSelectProto {
-  optional int64 bit_width = 1;
-  optional int64 selector_idx = 2;
-  repeated FittedOperandIdxProto case_idxs = 3;
-  optional FittedOperandIdxProto default_value_idx = 4;
+  optional BitsOperandIdxProto selector_idx = 1;
+  // OperandIdxProto retrieves an operand of any type from the combined context
+  // list.
+  repeated OperandIdxProto case_idxs = 2;
+  optional OperandIdxProto default_value_idx = 3;
+  // Specifies the exact type that the cases and default value should be.
+  // CoercedTypeProto contains coercion information to coerce any operand into
+  // the specified type.
+  optional CoercedTypeProto cases_and_default_type = 4;
 }
 
 message FuzzOneHotProto {
-  optional int64 input_idx = 1;
+  optional BitsOperandIdxProto input_idx = 1;
+  // OneHot has a priority enum parameter, which is redeclared in this protobuf
+  // for cross compatibility.
   enum OneHotPriority {
     UNSET_ONE_HOT_PRIORITY = 0;
     LSB_PRIORITY = 1;
@@ -334,89 +390,95 @@ message FuzzOneHotProto {
 }
 
 message FuzzOneHotSelectProto {
-  optional int64 bit_width = 1;
-  optional int64 selector_idx = 2;
-  repeated FittedOperandIdxProto case_idxs = 3;
+  optional BitsOperandIdxProto selector_idx = 1;
+  repeated OperandIdxProto case_idxs = 2;
+  optional CoercedTypeProto cases_type = 3;
 }
 
 message FuzzPrioritySelectProto {
-  optional int64 bit_width = 1;
-  optional int64 selector_idx = 2;
-  repeated FittedOperandIdxProto case_idxs = 3;
-  optional FittedOperandIdxProto default_value_idx = 4;
+  optional BitsOperandIdxProto selector_idx = 1;
+  repeated OperandIdxProto case_idxs = 2;
+  optional OperandIdxProto default_value_idx = 3;
+  optional CoercedTypeProto cases_and_default_type = 4;
 }
 
 message FuzzClzProto {
-  optional int64 operand_idx = 1;
+  optional BitsOperandIdxProto operand_idx = 1;
 }
 
 message FuzzCtzProto {
-  optional int64 operand_idx = 1;
+  optional BitsOperandIdxProto operand_idx = 1;
 }
 
 // Corresponds to the Case object in the FunctionBuilder.
 message CaseProto {
-  optional FittedOperandIdxProto clause_idx = 1;
-  optional FittedOperandIdxProto value_idx = 2;
+  optional BitsOperandIdxProto clause_idx = 1;
+  optional BitsOperandIdxProto value_idx = 2;
 }
 
 message FuzzMatchProto {
-  optional int64 condition_idx = 1;
+  optional BitsOperandIdxProto condition_idx = 1;
   repeated CaseProto case_protos = 2;
-  optional FittedOperandIdxProto default_value_idx = 3;
+  optional BitsOperandIdxProto default_value_idx = 3;
+  optional BitsCoercedTypeProto operands_type = 4;
 }
 
 message FuzzMatchTrueProto {
   repeated CaseProto case_protos = 1;
-  optional FittedOperandIdxProto default_value_idx = 2;
+  optional BitsOperandIdxProto default_value_idx = 2;
+  // Use of BitsCoercionMethodProto instead of BitsCoercedTypeProto because we
+  // may not need a defined bit width to be coerced to.
+  optional BitsCoercionMethodProto operands_coercion_method = 3;
 }
 
 message FuzzReverseProto {
-  optional int64 operand_idx = 1;
+  optional BitsOperandIdxProto operand_idx = 1;
 }
 
 message FuzzIdentityProto {
-  optional int64 operand_idx = 1;
+  optional OperandIdxProto operand_idx = 1;
 }
 
 message FuzzSignExtendProto {
-  optional int64 bit_width = 1;
-  optional int64 operand_idx = 2;
+  optional BitsOperandIdxProto operand_idx = 1;
+  optional int64 bit_width = 2;
 }
 
 message FuzzZeroExtendProto {
-  optional int64 bit_width = 1;
-  optional int64 operand_idx = 2;
+  optional BitsOperandIdxProto operand_idx = 1;
+  optional int64 bit_width = 2;
 }
 
 message FuzzBitSliceProto {
-  optional int64 bit_width = 1;
-  optional int64 operand_idx = 2;
-  optional int64 start = 3;
+  optional BitsOperandIdxProto operand_idx = 1;
+  optional int64 start = 2;
+  optional int64 bit_width = 3;
 }
 
 message FuzzBitSliceUpdateProto {
-  optional int64 operand_idx = 1;
-  optional int64 start_idx = 2;
-  optional int64 update_value_idx = 3;
+  optional BitsOperandIdxProto operand_idx = 1;
+  optional BitsOperandIdxProto start_idx = 2;
+  optional BitsOperandIdxProto update_value_idx = 3;
 }
 
 message FuzzDynamicBitSliceProto {
-  optional int64 bit_width = 1;
-  optional FittedOperandIdxProto operand_idx = 2;
-  optional int64 start_idx = 3;
+  optional BitsOperandIdxProto operand_idx = 1;
+  optional BitsOperandIdxProto start_idx = 2;
+  optional int64 bit_width = 3;
+  optional BitsCoercionMethodProto operand_coercion_method = 4;
 }
 
 message FuzzEncodeProto {
-  optional int64 operand_idx = 1;
+  optional BitsOperandIdxProto operand_idx = 1;
 }
 
 message FuzzDecodeProto {
-  optional int64 bit_width = 1;
-  optional int64 operand_idx = 2;
+  optional BitsOperandIdxProto operand_idx = 1;
+  optional int64 bit_width = 2;
 }
 
 message FuzzGateProto {
-  optional FittedOperandIdxProto condition_idx = 1;
-  optional int64 data_idx = 2;
+  optional BitsOperandIdxProto condition_idx = 1;
+  optional BitsOperandIdxProto data_idx = 2;
+  optional BitsCoercionMethodProto condition_coercion_method = 3;
 }

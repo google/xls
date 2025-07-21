@@ -34,7 +34,7 @@ namespace xls {
 // to reference previous FuzzOps through indices.
 class GenIrNodesPass : public IrFuzzVisitor {
  public:
-  GenIrNodesPass(FuzzProgramProto* fuzz_program, Package* p,
+  GenIrNodesPass(const FuzzProgramProto& fuzz_program, Package* p,
                  FunctionBuilder* fb, IrNodeContextList& context_list)
       : fuzz_program_(fuzz_program),
         p_(p),
@@ -43,76 +43,88 @@ class GenIrNodesPass : public IrFuzzVisitor {
 
   void GenIrNodes();
 
-  void HandleParam(FuzzParamProto* param) override;
-  void HandleShra(FuzzShraProto* shra) override;
-  void HandleShrl(FuzzShrlProto* shrl) override;
-  void HandleShll(FuzzShllProto* shll) override;
-  void HandleOr(FuzzOrProto* or_op) override;
-  void HandleNor(FuzzNorProto* nor) override;
-  void HandleXor(FuzzXorProto* xor_op) override;
-  void HandleAnd(FuzzAndProto* and_op) override;
-  void HandleNand(FuzzNandProto* nand) override;
-  void HandleAndReduce(FuzzAndReduceProto* and_reduce) override;
-  void HandleOrReduce(FuzzOrReduceProto* or_reduce) override;
-  void HandleXorReduce(FuzzXorReduceProto* xor_reduce) override;
-  void HandleUMul(FuzzUMulProto* umul) override;
-  void HandleSMul(FuzzSMulProto* smul) override;
-  void HandleUDiv(FuzzUDivProto* udiv) override;
-  void HandleSDiv(FuzzSDivProto* sdiv) override;
-  void HandleUMod(FuzzUModProto* umod) override;
-  void HandleSMod(FuzzSModProto* smod) override;
-  void HandleSubtract(FuzzSubtractProto* subtract) override;
-  void HandleAdd(FuzzAddProto* add) override;
-  void HandleConcat(FuzzConcatProto* concat) override;
-  void HandleULe(FuzzULeProto* ule) override;
-  void HandleULt(FuzzULtProto* ult) override;
-  void HandleUGe(FuzzUGeProto* uge) override;
-  void HandleUGt(FuzzUGtProto* ugt) override;
-  void HandleSLe(FuzzSLeProto* sle) override;
-  void HandleSLt(FuzzSLtProto* slt) override;
-  void HandleSGe(FuzzSGeProto* sge) override;
-  void HandleSGt(FuzzSGtProto* sgt) override;
-  void HandleEq(FuzzEqProto* eq) override;
-  void HandleNe(FuzzNeProto* ne) override;
-  void HandleNegate(FuzzNegateProto* negate) override;
-  void HandleNot(FuzzNotProto* not_op) override;
-  void HandleLiteral(FuzzLiteralProto* literal) override;
-  void HandleSelect(FuzzSelectProto* select) override;
-  void HandleOneHot(FuzzOneHotProto* one_hot) override;
-  void HandleOneHotSelect(FuzzOneHotSelectProto* one_hot_select) override;
-  void HandlePrioritySelect(FuzzPrioritySelectProto* priority_select) override;
-  void HandleClz(FuzzClzProto* clz) override;
-  void HandleCtz(FuzzCtzProto* ctz) override;
-  void HandleMatch(FuzzMatchProto* match) override;
-  void HandleMatchTrue(FuzzMatchTrueProto* match_true) override;
-  void HandleReverse(FuzzReverseProto* reverse) override;
-  void HandleIdentity(FuzzIdentityProto* identity) override;
-  void HandleSignExtend(FuzzSignExtendProto* sign_extend) override;
-  void HandleZeroExtend(FuzzZeroExtendProto* zero_extend) override;
-  void HandleBitSlice(FuzzBitSliceProto* bit_slice) override;
-  void HandleBitSliceUpdate(FuzzBitSliceUpdateProto* bit_slice_update) override;
+  void HandleParam(const FuzzParamProto& param) override;
+  void HandleShra(const FuzzShraProto& shra) override;
+  void HandleShrl(const FuzzShrlProto& shrl) override;
+  void HandleShll(const FuzzShllProto& shll) override;
+  void HandleOr(const FuzzOrProto& or_op) override;
+  void HandleNor(const FuzzNorProto& nor) override;
+  void HandleXor(const FuzzXorProto& xor_op) override;
+  void HandleAnd(const FuzzAndProto& and_op) override;
+  void HandleNand(const FuzzNandProto& nand) override;
+  void HandleAndReduce(const FuzzAndReduceProto& and_reduce) override;
+  void HandleOrReduce(const FuzzOrReduceProto& or_reduce) override;
+  void HandleXorReduce(const FuzzXorReduceProto& xor_reduce) override;
+  void HandleUMul(const FuzzUMulProto& umul) override;
+  void HandleSMul(const FuzzSMulProto& smul) override;
+  void HandleUDiv(const FuzzUDivProto& udiv) override;
+  void HandleSDiv(const FuzzSDivProto& sdiv) override;
+  void HandleUMod(const FuzzUModProto& umod) override;
+  void HandleSMod(const FuzzSModProto& smod) override;
+  void HandleSubtract(const FuzzSubtractProto& subtract) override;
+  void HandleAdd(const FuzzAddProto& add) override;
+  void HandleConcat(const FuzzConcatProto& concat) override;
+  void HandleULe(const FuzzULeProto& ule) override;
+  void HandleULt(const FuzzULtProto& ult) override;
+  void HandleUGe(const FuzzUGeProto& uge) override;
+  void HandleUGt(const FuzzUGtProto& ugt) override;
+  void HandleSLe(const FuzzSLeProto& sle) override;
+  void HandleSLt(const FuzzSLtProto& slt) override;
+  void HandleSGe(const FuzzSGeProto& sge) override;
+  void HandleSGt(const FuzzSGtProto& sgt) override;
+  void HandleEq(const FuzzEqProto& eq) override;
+  void HandleNe(const FuzzNeProto& ne) override;
+  void HandleNegate(const FuzzNegateProto& negate) override;
+  void HandleNot(const FuzzNotProto& not_op) override;
+  void HandleLiteral(const FuzzLiteralProto& literal) override;
+  void HandleSelect(const FuzzSelectProto& select) override;
+  void HandleOneHot(const FuzzOneHotProto& one_hot) override;
+  void HandleOneHotSelect(const FuzzOneHotSelectProto& one_hot_select) override;
+  void HandlePrioritySelect(
+      const FuzzPrioritySelectProto& priority_select) override;
+  void HandleClz(const FuzzClzProto& clz) override;
+  void HandleCtz(const FuzzCtzProto& ctz) override;
+  void HandleMatch(const FuzzMatchProto& match) override;
+  void HandleMatchTrue(const FuzzMatchTrueProto& match_true) override;
+  void HandleReverse(const FuzzReverseProto& reverse) override;
+  void HandleIdentity(const FuzzIdentityProto& identity) override;
+  void HandleSignExtend(const FuzzSignExtendProto& sign_extend) override;
+  void HandleZeroExtend(const FuzzZeroExtendProto& zero_extend) override;
+  void HandleBitSlice(const FuzzBitSliceProto& bit_slice) override;
+  void HandleBitSliceUpdate(
+      const FuzzBitSliceUpdateProto& bit_slice_update) override;
   void HandleDynamicBitSlice(
-      FuzzDynamicBitSliceProto* dynamic_bit_slice) override;
-  void HandleEncode(FuzzEncodeProto* encode) override;
-  void HandleDecode(FuzzDecodeProto* decode) override;
-  void HandleGate(FuzzGateProto* gate) override;
+      const FuzzDynamicBitSliceProto& dynamic_bit_slice) override;
+  void HandleEncode(const FuzzEncodeProto& encode) override;
+  void HandleDecode(const FuzzDecodeProto& decode) override;
+  void HandleGate(const FuzzGateProto& gate) override;
 
  private:
-  std::vector<FunctionBuilder::Case> GetCases(
-      google::protobuf::RepeatedPtrField<CaseProto>* case_protos, int64_t bit_width);
+  BValue GetValueFromValueTypeProto(const ValueTypeProto& value_type);
 
-  BValue GetOperand(int64_t idx);
-  std::vector<BValue> GetOperands(google::protobuf::RepeatedField<int64_t>* operand_idxs,
-                                  int64_t min_operand_count = 0,
-                                  int64_t max_operand_count = -1);
-  BValue GetWidthFittedOperand(FittedOperandIdxProto* operand_idx,
-                               int64_t bit_width);
-  std::vector<BValue> GetWidthFittedOperands(
-      google::protobuf::RepeatedPtrField<FittedOperandIdxProto>* operand_idxs,
-      int64_t bit_width, int64_t min_operand_count = 0,
+  BValue GetOperand(const OperandIdxProto& operand_idx);
+  BValue GetBitsOperand(const BitsOperandIdxProto& operand_idx);
+  BValue GetCoercedOperand(const OperandIdxProto& operand_idx,
+                           const CoercedTypeProto& coerced_type);
+  BValue GetCoercedBitsOperand(const BitsOperandIdxProto& operand_idx,
+                               const BitsCoercedTypeProto& bits_coerced_type);
+  BValue GetBitsFittedOperand(const BitsOperandIdxProto& operand_idx,
+                              int64_t bit_width,
+                              const BitsCoercionMethodProto& coercion_method);
+
+  std::vector<BValue> GetBitsOperands(
+      const google::protobuf::RepeatedPtrField<BitsOperandIdxProto>& operand_idxs,
+      int64_t min_operand_count = 0, int64_t max_operand_count = -1);
+  std::vector<BValue> GetCoercedOperands(
+      const google::protobuf::RepeatedPtrField<OperandIdxProto>& operand_idxs,
+      const CoercedTypeProto& coerced_type, int64_t min_operand_count = 0,
       int64_t max_operand_count = -1);
+  std::vector<BValue> GetCoercedBitsOperands(
+      const google::protobuf::RepeatedPtrField<BitsOperandIdxProto>& operand_idxs,
+      const BitsCoercedTypeProto& bits_coerced_type,
+      int64_t min_operand_count = 0, int64_t max_operand_count = -1);
 
-  FuzzProgramProto* fuzz_program_;
+  const FuzzProgramProto& fuzz_program_;
   Package* p_;
   FunctionBuilder* fb_;
   IrNodeContextList& context_list_;

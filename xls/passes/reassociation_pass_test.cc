@@ -1268,7 +1268,6 @@ TEST_F(ReassociationPassTest, MultipleOverflowTypes) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   // NB Z3 seems to have a surprisingly hard time proving this. Possibly because
   // a value switches sides on the add tree breaking pattern matching proofs?
-  // Since we are sharded we can give it a bit of time however.
   ScopedVerifyEquivalence stays_equivalent(f);
   ScopedRecordIr sri(p.get(), "_ir");
   ASSERT_THAT(RunWithNarrowing(p.get()), IsOkAndHolds(true));

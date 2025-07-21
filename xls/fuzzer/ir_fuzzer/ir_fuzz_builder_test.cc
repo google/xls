@@ -55,7 +55,7 @@ absl::Status EquateProtoToIrTest(
   XLS_RET_CHECK(
       google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
   // Generate the IR from the proto.
-  IrFuzzBuilder ir_fuzz_builder(&fuzz_program, p.get(), &fb);
+  IrFuzzBuilder ir_fuzz_builder(fuzz_program, p.get(), &fb);
   BValue proto_ir = ir_fuzz_builder.BuildIr();
   XLS_ASSIGN_OR_RETURN(Function * f, fb.BuildWithReturnValue(proto_ir));
   VLOG(3) << "IR Fuzzer-2: IR:" << "\n" << f->DumpIr() << "\n";
@@ -70,24 +70,34 @@ TEST(IrFuzzBuilderTest, AddTwoLiterals) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            bit_width: 64
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 64
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
         fuzz_ops {
           literal {
-            bit_width: 64
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 64
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 64
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 64
             }
           }
         }
@@ -101,29 +111,39 @@ TEST(IrFuzzBuilderTest, AddTwoLiterals) {
 TEST(IrFuzzBuilderTest, AddTwoParams) {
   std::string proto_string = absl::StrFormat(
       R"(
-      combine_list_method: LAST_ELEMENT_METHOD
-      fuzz_ops {
-        param {
-          bit_width: 64
-        }
-      }
-      fuzz_ops {
-        param {
-          bit_width: 64
-        }
-      }
-      fuzz_ops {
-        add {
-          bit_width: 64
-          lhs_idx {
-            stack_idx: 0
-          }
-          rhs_idx {
-            stack_idx: 1
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 64
+              }
+            }
           }
         }
-      }
-    )");
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 64
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          add {
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 64
+            }
+          }
+        }
+      )");
   auto expected_ir_node = m::Add(m::Param("p0"), m::Param("p1"));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
@@ -134,56 +154,78 @@ TEST(IrFuzzBuilderTest, AddLiteralsAndParamsAndAdds) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            bit_width: 64
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 64
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 64
+            type {
+              bits {
+                bit_width: 64
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 64
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 64
             }
           }
         }
         fuzz_ops {
           literal {
-            bit_width: 64
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 64
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 64
-          }
-        }
-        fuzz_ops {
-          add {
-            bit_width: 64
-            lhs_idx {
-              stack_idx: 3
-            }
-            rhs_idx {
-              stack_idx: 4
+            type {
+              bits {
+                bit_width: 64
+              }
             }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 64
             lhs_idx {
-              stack_idx: 2
+              list_idx: 3
             }
             rhs_idx {
-              stack_idx: 5
+              list_idx: 4
+            }
+            operands_type {
+              bit_width: 64
+            }
+          }
+        }
+        fuzz_ops {
+          add {
+            lhs_idx {
+              list_idx: 2
+            }
+            rhs_idx {
+              list_idx: 5
+            }
+            operands_type {
+              bit_width: 64
             }
           }
         }
@@ -201,7 +243,11 @@ TEST(IrFuzzBuilderTest, SingleOpAddList) {
         combine_list_method: ADD_LIST_METHOD
         fuzz_ops {
           param {
-            bit_width: 64
+            type {
+              bits {
+                bit_width: 64
+              }
+            }
           }
         }
       )");
@@ -215,23 +261,33 @@ TEST(IrFuzzBuilderTest, AddOpThenAddList) {
         combine_list_method: ADD_LIST_METHOD
         fuzz_ops {
           literal {
-            bit_width: 64
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 64
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 64
+            type {
+              bits {
+                bit_width: 64
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 64
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 64
             }
           }
         }
@@ -249,23 +305,33 @@ TEST(IrFuzzBuilderTest, AddOutOfBoundsIdxs) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            bit_width: 64
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 64
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 64
+            type {
+              bits {
+                bit_width: 64
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 64
             lhs_idx {
-              stack_idx: 2
+              list_idx: 2
             }
             rhs_idx {
-              stack_idx: -1
+              list_idx: -1
+            }
+            operands_type {
+              bit_width: 64
             }
           }
         }
@@ -281,8 +347,12 @@ TEST(IrFuzzBuilderTest, LiteralValueOverBoundsOfSmallWidth) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            bit_width: 1
-            value_bytes: "\x%x"
+            value_type {
+              bits {
+                bit_width: 1
+                value_bytes: "\x%x"
+              }
+            }
           }
         }
       )",
@@ -297,29 +367,63 @@ TEST(IrFuzzBuilderTest, AddDifferentWidthsWithExtensions) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 40
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: ZERO_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 40
+              coercion_method {
+                change_bit_width_method {
+                  increase_width_method: ZERO_EXTEND_METHOD
+                }
               }
+            }
+          }
+        }
+        fuzz_ops {
+          add {
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 40
+              coercion_method {
+                change_bit_width_method {
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
             }
           }
         }
       )");
   auto expected_ir_node =
-      m::Add(m::ZeroExt(m::Param("p0")), m::SignExt(m::Param("p0")));
+      m::Concat(m::Add(m::ZeroExt(m::Param("p0")), m::ZeroExt(m::Param("p0"))),
+                m::Add(m::SignExt(m::Param("p0")), m::SignExt(m::Param("p0"))));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
@@ -329,27 +433,37 @@ TEST(IrFuzzBuilderTest, AddWithSliceAndExtension) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 50
+            type {
+              bits {
+                bit_width: 50
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 25
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: ZERO_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 25
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: ZERO_EXTEND_METHOD
+                }
               }
             }
           }
@@ -366,17 +480,29 @@ TEST(IrFuzzBuilderTest, AddListWithDifferentWidths) {
         combine_list_method: ADD_LIST_METHOD
         fuzz_ops {
           param {
-            bit_width: 50
+            type {
+              bits {
+                bit_width: 50
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 25
+            type {
+              bits {
+                bit_width: 25
+              }
+            }
           }
         }
       )");
@@ -392,22 +518,32 @@ TEST(IrFuzzBuilderTest, AddWithLargeWidths) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 800
+            type {
+              bits {
+                bit_width: 800
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 500
+            type {
+              bits {
+                bit_width: 500
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 1000
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 1000
             }
           }
         }
@@ -423,24 +559,42 @@ TEST(IrFuzzBuilderTest, ConcatOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 0
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 0
+            }
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -459,17 +613,19 @@ TEST(IrFuzzBuilderTest, EmptyConcat) {
         }
         fuzz_ops {
           add {
-            bit_width: 100
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: ZERO_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 100
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: ZERO_EXTEND_METHOD
+                }
               }
             }
           }
@@ -477,7 +633,7 @@ TEST(IrFuzzBuilderTest, EmptyConcat) {
       )");
   auto expected_ir_node =
       m::Add(m::ZeroExt(m::Concat(m::Literal(UBits(0, 64)))),
-             m::SignExt(m::Concat(m::Literal(UBits(0, 64)))));
+             m::ZeroExt(m::Concat(m::Literal(UBits(0, 64)))));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
@@ -487,37 +643,63 @@ TEST(IrFuzzBuilderTest, ShiftOps) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           shra {
-            operand_idx: 0
-            amount_idx: 1
+            operand_idx {
+              list_idx: 0
+            }
+            amount_idx {
+              list_idx: 1
+            }
           }
         }
         fuzz_ops {
           shrl {
-            operand_idx: 0
-            amount_idx: 1
+            operand_idx {
+              list_idx: 0
+            }
+            amount_idx {
+              list_idx: 1
+            }
           }
         }
         fuzz_ops {
           shll {
-            operand_idx: 0
-            amount_idx: 1
+            operand_idx {
+              list_idx: 0
+            }
+            amount_idx {
+              list_idx: 1
+            }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
-            operand_idxs: 4
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
+            operand_idxs {
+              list_idx: 4
+            }
           }
         }
       )");
@@ -533,33 +715,37 @@ TEST(IrFuzzBuilderTest, NaryOps) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           or_op {
-            bit_width: 20
             operand_idxs {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: ZERO_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             operand_idxs {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 1
             }
-            operand_idxs {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+            operands_type {
+              bit_width: 20
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
@@ -570,50 +756,65 @@ TEST(IrFuzzBuilderTest, NaryOps) {
         }
         fuzz_ops {
           xor_op {
-            bit_width: 10
             operand_idxs {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           and_op {
-            bit_width: 10
             operand_idxs {
-              stack_idx: 0
+              list_idx: 0
             }
             operand_idxs {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           nand {
-            bit_width: 10
             operand_idxs {
-              stack_idx: 0
+              list_idx: 0
             }
             operand_idxs {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
-            operand_idxs: 4
-            operand_idxs: 5
-            operand_idxs: 6
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
+            operand_idxs {
+              list_idx: 4
+            }
+            operand_idxs {
+              list_idx: 5
+            }
+            operand_idxs {
+              list_idx: 6
+            }
           }
         }
       )");
-  auto expected_ir_node =
-      m::Concat(m::Or(m::ZeroExt(m::Param("p0")), m::SignExt(m::Param("p0")),
-                      m::BitSlice(m::Param("p1"), 0, 20)),
-                m::Nor(m::Literal(UBits(0, 1))), m::Xor(m::Param("p0")),
-                m::And(m::Param("p0"), m::Param("p0")),
-                m::Nand(m::Param("p0"), m::Param("p0")));
+  auto expected_ir_node = m::Concat(
+      m::Or(m::SignExt(m::Param("p0")), m::BitSlice(m::Param("p1"), 0, 20)),
+      m::Nor(m::Literal(UBits(0, 1))), m::Xor(m::Param("p0")),
+      m::And(m::Param("p0"), m::Param("p0")),
+      m::Nand(m::Param("p0"), m::Param("p0")));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
@@ -623,29 +824,45 @@ TEST(IrFuzzBuilderTest, ReduceOps) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           and_reduce {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           or_reduce {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           xor_reduce {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
-            operand_idxs: 3
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
           }
         }
       )");
@@ -661,39 +878,66 @@ TEST(IrFuzzBuilderTest, MulOps) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           umul {
-            lhs_idx: 0
-            rhs_idx: 1
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 1
+            }
+            bit_width: 30
           }
         }
         fuzz_ops {
           umul {
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 1
+            }
             bit_width: 500
-            lhs_idx: 0
-            rhs_idx: 1
           }
         }
         fuzz_ops {
           smul {
-            bit_width: 10
-            lhs_idx: 0
-            rhs_idx: 1
+            lhs_idx {
+              list_idx: 0
+            }
+            rhs_idx {
+              list_idx: 1
+            }
+            bit_width: 5
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
-            operand_idxs: 4
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
+            operand_idxs {
+              list_idx: 4
+            }
           }
         }
       )");
@@ -709,46 +953,62 @@ TEST(IrFuzzBuilderTest, DivOps) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           udiv {
-            bit_width: 20
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 20
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
         }
         fuzz_ops {
           sdiv {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
           }
         }
       )");
@@ -764,46 +1024,62 @@ TEST(IrFuzzBuilderTest, ModOps) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           umod {
-            bit_width: 20
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 20
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
         }
         fuzz_ops {
           smod {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
           }
         }
       )");
@@ -819,46 +1095,62 @@ TEST(IrFuzzBuilderTest, AssociativeOps) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           add {
-            bit_width: 20
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 20
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
         }
         fuzz_ops {
           subtract {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
           }
         }
       )");
@@ -874,142 +1166,190 @@ TEST(IrFuzzBuilderTest, ComparisonOps) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           ule {
-            bit_width: 20
             lhs_idx {
-              stack_idx: 0
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 1
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            operands_type {
+              bit_width: 20
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
         }
         fuzz_ops {
           ult {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           uge {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           ugt {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           sle {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           slt {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           sge {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           sgt {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           eq {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           ne {
-            bit_width: 10
             lhs_idx {
-              stack_idx: 0
+              list_idx: 0
             }
             rhs_idx {
-              stack_idx: 0
+              list_idx: 0
+            }
+            operands_type {
+              bit_width: 10
             }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
-            operand_idxs: 4
-            operand_idxs: 5
-            operand_idxs: 6
-            operand_idxs: 7
-            operand_idxs: 8
-            operand_idxs: 9
-            operand_idxs: 10
-            operand_idxs: 11
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
+            operand_idxs {
+              list_idx: 4
+            }
+            operand_idxs {
+              list_idx: 5
+            }
+            operand_idxs {
+              list_idx: 6
+            }
+            operand_idxs {
+              list_idx: 7
+            }
+            operand_idxs {
+              list_idx: 8
+            }
+            operand_idxs {
+              list_idx: 9
+            }
+            operand_idxs {
+              list_idx: 10
+            }
+            operand_idxs {
+              list_idx: 11
+            }
           }
         }
       )");
@@ -1033,23 +1373,35 @@ TEST(IrFuzzBuilderTest, InvertOps) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           negate {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           not_op {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1064,33 +1416,51 @@ TEST(IrFuzzBuilderTest, SelectOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           select {
-            bit_width: 20
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 2
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 2
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 20
+                coercion_method {
+                  change_bit_width_method {
+                    decrease_width_method: BIT_SLICE_METHOD
+                    increase_width_method: SIGN_EXTEND_METHOD
+                  }
+                }
               }
             }
           }
@@ -1108,23 +1478,37 @@ TEST(IrFuzzBuilderTest, SelectWithLargeSelectorWidth) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1000
+            type {
+              bits {
+                bit_width: 1000
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           select {
-            bit_width: 10
-            selector_idx: 0
+            selector_idx {
+              list_idx: 0
+            }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             default_value_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 10
+              }
             }
           }
         }
@@ -1140,26 +1524,40 @@ TEST(IrFuzzBuilderTest, SelectWithSmallSelectorWidth) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           select {
-            bit_width: 10
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 10
+              }
             }
           }
         }
@@ -1175,26 +1573,40 @@ TEST(IrFuzzBuilderTest, SelectWithUselessDefault) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           select {
-            bit_width: 10
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 1
             }
             default_value_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 10
+              }
             }
           }
         }
@@ -1210,20 +1622,34 @@ TEST(IrFuzzBuilderTest, SelectNeedingDefault) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           select {
-            bit_width: 10
-            selector_idx: 0
+            selector_idx {
+              list_idx: 0
+            }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 10
+              }
             }
           }
         }
@@ -1239,25 +1665,37 @@ TEST(IrFuzzBuilderTest, OneHotOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           one_hot {
-            input_idx: 0
+            input_idx {
+              list_idx: 0
+            }
             priority: LSB_PRIORITY
           }
         }
         fuzz_ops {
           one_hot {
-            input_idx: 0
+            input_idx {
+              list_idx: 0
+            }
             priority: MSB_PRIORITY
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1272,52 +1710,59 @@ TEST(IrFuzzBuilderTest, OneHotSelectOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 3
+            type {
+              bits {
+                bit_width: 2
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
-          }
-        }
-        fuzz_ops {
-          param {
-            bit_width: 100
+            type {
+              bits {
+                bit_width: 100
+              }
+            }
           }
         }
         fuzz_ops {
           one_hot_select {
-            bit_width: 40
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
-              width_fitting_method {
-                increase_width_method: ZERO_EXTEND_METHOD
-              }
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 2
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 3
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 2
+            }
+            cases_type {
+              bits {
+                bit_width: 40
+                coercion_method {
+                  change_bit_width_method {
+                    decrease_width_method: BIT_SLICE_METHOD
+                    increase_width_method: SIGN_EXTEND_METHOD
+                  }
+                }
               }
             }
           }
         }
       )");
   auto expected_ir_node = m::OneHotSelect(
-      m::Param("p0"), {m::ZeroExt(m::Param("p1")), m::SignExt(m::Param("p2")),
-                       m::BitSlice(m::Param("p3"), 0, 40)});
+      m::Param("p0"),
+      {m::SignExt(m::Param("p1")), m::BitSlice(m::Param("p2"), 0, 40)});
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
@@ -1327,20 +1772,34 @@ TEST(IrFuzzBuilderTest, OneHotSelectWithLargeSelectorWidth) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 100
+            type {
+              bits {
+                bit_width: 100
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           one_hot_select {
-            bit_width: 20
-            selector_idx: 0
+            selector_idx {
+              list_idx: 0
+            }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            cases_type {
+              bits {
+                bit_width: 20
+              }
             }
           }
         }
@@ -1355,29 +1814,43 @@ TEST(IrFuzzBuilderTest, OneHotSelectWithExtraCases) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 3
+            type {
+              bits {
+                bit_width: 3
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           one_hot_select {
-            bit_width: 20
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 1
+            }
+            cases_type {
+              bits {
+                bit_width: 20
+              }
             }
           }
         }
@@ -1393,42 +1866,64 @@ TEST(IrFuzzBuilderTest, PrioritySelectOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 2
+            type {
+              bits {
+                bit_width: 2
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           priority_select {
-            bit_width: 20
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
-              width_fitting_method {
-                increase_width_method: SIGN_EXTEND_METHOD
-              }
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 3
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
-              }
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 3
             }
             default_value_idx {
-              stack_idx: 2
+              list_idx: 2
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 20
+                coercion_method {
+                  change_bit_width_method {
+                    decrease_width_method: BIT_SLICE_METHOD
+                    increase_width_method: SIGN_EXTEND_METHOD
+                  }
+                }
+              }
             }
           }
         }
@@ -1446,23 +1941,37 @@ TEST(IrFuzzBuilderTest, PrioritySelectWithLargeSelectorWidth) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 100
+            type {
+              bits {
+                bit_width: 100
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           priority_select {
-            bit_width: 20
-            selector_idx: 0
+            selector_idx {
+              list_idx: 0
+            }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             default_value_idx {
-              stack_idx: 1
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 20
+              }
             }
           }
         }
@@ -1478,29 +1987,43 @@ TEST(IrFuzzBuilderTest, PrioritySelectWithExtraCases) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 3
+            type {
+              bits {
+                bit_width: 3
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           priority_select {
-            bit_width: 20
-            selector_idx: 0
-            case_idxs {
-              stack_idx: 1
+            selector_idx {
+              list_idx: 0
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
             }
             case_idxs {
-              stack_idx: 1
+              list_idx: 1
+            }
+            case_idxs {
+              list_idx: 1
+            }
+            cases_and_default_type {
+              bits {
+                bit_width: 20
+              }
             }
           }
         }
@@ -1517,23 +2040,35 @@ TEST(IrFuzzBuilderTest, CountOps) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           clz {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           ctz {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1550,56 +2085,71 @@ TEST(IrFuzzBuilderTest, MatchOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 40
+            type {
+              bits {
+                bit_width: 40
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 50
+            type {
+              bits {
+                bit_width: 50
+              }
+            }
           }
         }
         fuzz_ops {
           match {
-            condition_idx: 2
+            condition_idx {
+              list_idx: 2
+            }
             case_protos {
               clause_idx {
-                stack_idx: 0
-                width_fitting_method {
-                  increase_width_method: ZERO_EXTEND_METHOD
-                }
+                list_idx: 0
               }
               value_idx {
-                stack_idx: 1
-                width_fitting_method {
-                  increase_width_method: SIGN_EXTEND_METHOD
-                }
+                list_idx: 1
               }
             }
             case_protos {
               clause_idx {
-                stack_idx: 2
+                list_idx: 2
               }
               value_idx {
-                stack_idx: 3
-                width_fitting_method {
-                  decrease_width_method: BIT_SLICE_METHOD
-                }
+                list_idx: 3
               }
             }
             default_value_idx {
-              stack_idx: 3
-              width_fitting_method {
-                decrease_width_method: BIT_SLICE_METHOD
+              list_idx: 3
+            }
+            operands_type {
+              bit_width: 40
+              coercion_method {
+                change_bit_width_method {
+                  decrease_width_method: BIT_SLICE_METHOD
+                  increase_width_method: SIGN_EXTEND_METHOD
+                }
               }
             }
           }
@@ -1607,7 +2157,7 @@ TEST(IrFuzzBuilderTest, MatchOp) {
       )");
   auto expected_ir_node = m::PrioritySelect(
       m::Concat(m::Eq(m::Param("p2"), m::Param("p2")),
-                m::Eq(m::Param("p2"), m::ZeroExt(m::Param("p0")))),
+                m::Eq(m::Param("p2"), m::SignExt(m::Param("p0")))),
       {m::SignExt(m::Param("p1")), m::BitSlice(m::Param("p3"), 0, 40)},
       m::BitSlice(m::Param("p3"), 0, 40));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
@@ -1619,44 +2169,65 @@ TEST(IrFuzzBuilderTest, MatchTrueOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 40
+            type {
+              bits {
+                bit_width: 40
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 50
+            type {
+              bits {
+                bit_width: 50
+              }
+            }
           }
         }
         fuzz_ops {
           match_true {
             case_protos {
               clause_idx {
-                stack_idx: 0
+                list_idx: 0
               }
               value_idx {
-                stack_idx: 1
+                list_idx: 1
               }
             }
             case_protos {
               clause_idx {
-                stack_idx: 2
+                list_idx: 2
               }
               value_idx {
-                stack_idx: 3
+                list_idx: 3
               }
             }
             default_value_idx {
-              stack_idx: 3
+              list_idx: 3
+            }
+            operands_coercion_method {
+              change_bit_width_method {
+                decrease_width_method: BIT_SLICE_METHOD
+              }
             }
           }
         }
@@ -1664,7 +2235,7 @@ TEST(IrFuzzBuilderTest, MatchTrueOp) {
   auto expected_ir_node = m::PrioritySelect(
       m::Concat(m::BitSlice(m::Param("p2"), 0, 1),
                 m::BitSlice(m::Param("p0"), 0, 1)),
-      {m::BitSlice(m::Param("p1"), 0, 1), m::BitSlice(m::Param("p3"), 0, 1)},
+      {m::BitSlice(m::Param("p0"), 0, 1), m::BitSlice(m::Param("p2"), 0, 1)},
       m::BitSlice(m::Param("p3"), 0, 1));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
@@ -1675,12 +2246,18 @@ TEST(IrFuzzBuilderTest, ReverseOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           reverse {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
       )");
@@ -1694,12 +2271,18 @@ TEST(IrFuzzBuilderTest, IdentityOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           identity {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
       )");
@@ -1713,25 +2296,37 @@ TEST(IrFuzzBuilderTest, ExtendOps) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           sign_extend {
+            operand_idx {
+              list_idx: 0
+            }
             bit_width: 20
-            operand_idx: 0
           }
         }
         fuzz_ops {
           zero_extend {
+            operand_idx {
+              list_idx: 0
+            }
             bit_width: 5
-            operand_idx: 0
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1746,27 +2341,39 @@ TEST(IrFuzzBuilderTest, BitSliceOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           bit_slice {
-            bit_width: 10
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
             start: 0
+            bit_width: 10
           }
         }
         fuzz_ops {
           bit_slice {
-            bit_width: 10
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
             start: 100
+            bit_width: 10
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 1
-            operand_idxs: 2
+            operand_idxs {
+              list_idx: 1
+            }
+            operand_idxs {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1781,24 +2388,42 @@ TEST(IrFuzzBuilderTest, BitSliceUpdateOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 30
+            type {
+              bits {
+                bit_width: 30
+              }
+            }
           }
         }
         fuzz_ops {
           bit_slice_update {
-            operand_idx: 0
-            start_idx: 1
-            update_value_idx: 2
+            operand_idx {
+              list_idx: 0
+            }
+            start_idx {
+              list_idx: 1
+            }
+            update_value_idx {
+              list_idx: 2
+            }
           }
         }
       )");
@@ -1813,24 +2438,36 @@ TEST(IrFuzzBuilderTest, DynamicBitSliceOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           dynamic_bit_slice {
-            bit_width: 30
             operand_idx {
-              stack_idx: 0
-              width_fitting_method {
+              list_idx: 0
+            }
+            start_idx {
+              list_idx: 1
+            }
+            bit_width: 30
+            operand_coercion_method {
+              change_bit_width_method {
                 increase_width_method: SIGN_EXTEND_METHOD
               }
             }
-            start_idx: 1
           }
         }
       )");
@@ -1845,12 +2482,18 @@ TEST(IrFuzzBuilderTest, EncodeOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           encode {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
       )");
@@ -1864,36 +2507,56 @@ TEST(IrFuzzBuilderTest, DecodeOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 1
+            type {
+              bits {
+                bit_width: 1
+              }
+            }
           }
         }
         fuzz_ops {
           decode {
-            operand_idx: 0
+            operand_idx {
+              list_idx: 0
+            }
           }
         }
         fuzz_ops {
           decode {
+            operand_idx {
+              list_idx: 0
+            }
             bit_width: 20
-            operand_idx: 0
           }
         }
         fuzz_ops {
           decode {
+            operand_idx {
+              list_idx: 1
+            }
             bit_width: 10
-            operand_idx: 1
           }
         }
         fuzz_ops {
           concat {
-            operand_idxs: 2
-            operand_idxs: 3
-            operand_idxs: 4
+            operand_idxs {
+              list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
+            operand_idxs {
+              list_idx: 4
+            }
           }
         }
       )");
@@ -1909,23 +2572,35 @@ TEST(IrFuzzBuilderTest, GateOp) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
-            bit_width: 10
+            type {
+              bits {
+                bit_width: 10
+              }
+            }
           }
         }
         fuzz_ops {
           param {
-            bit_width: 20
+            type {
+              bits {
+                bit_width: 20
+              }
+            }
           }
         }
         fuzz_ops {
           gate {
             condition_idx {
-              stack_idx: 0
-              width_fitting_method {
+              list_idx: 0
+            }
+            data_idx {
+              list_idx: 1
+            }
+            condition_coercion_method {
+              change_bit_width_method {
                 decrease_width_method: BIT_SLICE_METHOD
               }
             }
-            data_idx: 1
           }
         }
       )");

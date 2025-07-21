@@ -21,7 +21,8 @@
 
 namespace xls {
 
-BValue CombineContextList(FuzzProgramProto* fuzz_program, FunctionBuilder* fb,
+BValue CombineContextList(const FuzzProgramProto& fuzz_program,
+                          FunctionBuilder* fb,
                           const IrNodeContextList& context_list);
 
 BValue LastElement(FunctionBuilder* fb, const IrNodeContextList& context_list);

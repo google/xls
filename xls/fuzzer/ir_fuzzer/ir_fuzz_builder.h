@@ -31,8 +31,9 @@ namespace xls {
 // context list without using explicit references like the IR does.
 class IrFuzzBuilder {
  public:
-  IrFuzzBuilder(FuzzProgramProto* fuzz_program, Package* p, FunctionBuilder* fb)
-      : fuzz_program_(fuzz_program), p_(p), fb_(fb) {}
+  IrFuzzBuilder(const FuzzProgramProto& fuzz_program, Package* p,
+                FunctionBuilder* fb)
+      : fuzz_program_(fuzz_program), p_(p), fb_(fb), context_list_(p_, fb_) {}
 
   // Main function that returns the final IR BValue.
   BValue BuildIr();
@@ -40,7 +41,7 @@ class IrFuzzBuilder {
  private:
   // FuzzProgramProto is randomly generated instructions based off a protobuf
   // structure used to instantiate IR BValues.
-  FuzzProgramProto* fuzz_program_;
+  const FuzzProgramProto& fuzz_program_;
   // Package and FunctionBuilder are used to create new IR BValues. They are not
   // owned by the IrFuzzBuilder, just referenced.
   Package* p_;

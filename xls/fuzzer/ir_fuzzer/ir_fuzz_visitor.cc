@@ -20,163 +20,163 @@ namespace xls {
 
 // Given a FuzzOpProto, call the corresponding Handle* function based on the
 // FuzzOpProto type. This is a common visitor selection function.
-void IrFuzzVisitor::VisitFuzzOp(FuzzOpProto* fuzz_op) {
-  switch (fuzz_op->fuzz_op_case()) {
+void IrFuzzVisitor::VisitFuzzOp(const FuzzOpProto& fuzz_op) {
+  switch (fuzz_op.fuzz_op_case()) {
     case FuzzOpProto::kParam:
-      HandleParam(fuzz_op->mutable_param());
+      HandleParam(fuzz_op.param());
       break;
     case FuzzOpProto::kShra:
-      HandleShra(fuzz_op->mutable_shra());
+      HandleShra(fuzz_op.shra());
       break;
     case FuzzOpProto::kShll:
-      HandleShll(fuzz_op->mutable_shll());
+      HandleShll(fuzz_op.shll());
       break;
     case FuzzOpProto::kShrl:
-      HandleShrl(fuzz_op->mutable_shrl());
+      HandleShrl(fuzz_op.shrl());
       break;
     case FuzzOpProto::kOrOp:
-      HandleOr(fuzz_op->mutable_or_op());
+      HandleOr(fuzz_op.or_op());
       break;
     case FuzzOpProto::kNor:
-      HandleNor(fuzz_op->mutable_nor());
+      HandleNor(fuzz_op.nor());
       break;
     case FuzzOpProto::kXorOp:
-      HandleXor(fuzz_op->mutable_xor_op());
+      HandleXor(fuzz_op.xor_op());
       break;
     case FuzzOpProto::kAndOp:
-      HandleAnd(fuzz_op->mutable_and_op());
+      HandleAnd(fuzz_op.and_op());
       break;
     case FuzzOpProto::kNand:
-      HandleNand(fuzz_op->mutable_nand());
+      HandleNand(fuzz_op.nand());
       break;
     case FuzzOpProto::kAndReduce:
-      HandleAndReduce(fuzz_op->mutable_and_reduce());
+      HandleAndReduce(fuzz_op.and_reduce());
       break;
     case FuzzOpProto::kOrReduce:
-      HandleOrReduce(fuzz_op->mutable_or_reduce());
+      HandleOrReduce(fuzz_op.or_reduce());
       break;
     case FuzzOpProto::kXorReduce:
-      HandleXorReduce(fuzz_op->mutable_xor_reduce());
+      HandleXorReduce(fuzz_op.xor_reduce());
       break;
     case FuzzOpProto::kUmul:
-      HandleUMul(fuzz_op->mutable_umul());
+      HandleUMul(fuzz_op.umul());
       break;
     case FuzzOpProto::kSmul:
-      HandleSMul(fuzz_op->mutable_smul());
+      HandleSMul(fuzz_op.smul());
       break;
     case FuzzOpProto::kUdiv:
-      HandleUDiv(fuzz_op->mutable_udiv());
+      HandleUDiv(fuzz_op.udiv());
       break;
     case FuzzOpProto::kSdiv:
-      HandleSDiv(fuzz_op->mutable_sdiv());
+      HandleSDiv(fuzz_op.sdiv());
       break;
     case FuzzOpProto::kUmod:
-      HandleUMod(fuzz_op->mutable_umod());
+      HandleUMod(fuzz_op.umod());
       break;
     case FuzzOpProto::kSmod:
-      HandleSMod(fuzz_op->mutable_smod());
+      HandleSMod(fuzz_op.smod());
       break;
     case FuzzOpProto::kSubtract:
-      HandleSubtract(fuzz_op->mutable_subtract());
+      HandleSubtract(fuzz_op.subtract());
       break;
     case FuzzOpProto::kAdd:
-      HandleAdd(fuzz_op->mutable_add());
+      HandleAdd(fuzz_op.add());
       break;
     case FuzzOpProto::kConcat:
-      HandleConcat(fuzz_op->mutable_concat());
+      HandleConcat(fuzz_op.concat());
       break;
     case FuzzOpProto::kUle:
-      HandleULe(fuzz_op->mutable_ule());
+      HandleULe(fuzz_op.ule());
       break;
     case FuzzOpProto::kUlt:
-      HandleULt(fuzz_op->mutable_ult());
+      HandleULt(fuzz_op.ult());
       break;
     case FuzzOpProto::kUge:
-      HandleUGe(fuzz_op->mutable_uge());
+      HandleUGe(fuzz_op.uge());
       break;
     case FuzzOpProto::kUgt:
-      HandleUGt(fuzz_op->mutable_ugt());
+      HandleUGt(fuzz_op.ugt());
       break;
     case FuzzOpProto::kSle:
-      HandleSLe(fuzz_op->mutable_sle());
+      HandleSLe(fuzz_op.sle());
       break;
     case FuzzOpProto::kSlt:
-      HandleSLt(fuzz_op->mutable_slt());
+      HandleSLt(fuzz_op.slt());
       break;
     case FuzzOpProto::kSge:
-      HandleSGe(fuzz_op->mutable_sge());
+      HandleSGe(fuzz_op.sge());
       break;
     case FuzzOpProto::kSgt:
-      HandleSGt(fuzz_op->mutable_sgt());
+      HandleSGt(fuzz_op.sgt());
       break;
     case FuzzOpProto::kEq:
-      HandleEq(fuzz_op->mutable_eq());
+      HandleEq(fuzz_op.eq());
       break;
     case FuzzOpProto::kNe:
-      HandleNe(fuzz_op->mutable_ne());
+      HandleNe(fuzz_op.ne());
       break;
     case FuzzOpProto::kNegate:
-      HandleNegate(fuzz_op->mutable_negate());
+      HandleNegate(fuzz_op.negate());
       break;
     case FuzzOpProto::kNotOp:
-      HandleNot(fuzz_op->mutable_not_op());
+      HandleNot(fuzz_op.not_op());
       break;
     case FuzzOpProto::kLiteral:
-      HandleLiteral(fuzz_op->mutable_literal());
+      HandleLiteral(fuzz_op.literal());
       break;
     case FuzzOpProto::kSelect:
-      HandleSelect(fuzz_op->mutable_select());
+      HandleSelect(fuzz_op.select());
       break;
     case FuzzOpProto::kOneHot:
-      HandleOneHot(fuzz_op->mutable_one_hot());
+      HandleOneHot(fuzz_op.one_hot());
       break;
     case FuzzOpProto::kOneHotSelect:
-      HandleOneHotSelect(fuzz_op->mutable_one_hot_select());
+      HandleOneHotSelect(fuzz_op.one_hot_select());
       break;
     case FuzzOpProto::kPrioritySelect:
-      HandlePrioritySelect(fuzz_op->mutable_priority_select());
+      HandlePrioritySelect(fuzz_op.priority_select());
       break;
     case FuzzOpProto::kClz:
-      HandleClz(fuzz_op->mutable_clz());
+      HandleClz(fuzz_op.clz());
       break;
     case FuzzOpProto::kCtz:
-      HandleCtz(fuzz_op->mutable_ctz());
+      HandleCtz(fuzz_op.ctz());
       break;
     case FuzzOpProto::kMatch:
-      HandleMatch(fuzz_op->mutable_match());
+      HandleMatch(fuzz_op.match());
       break;
     case FuzzOpProto::kMatchTrue:
-      HandleMatchTrue(fuzz_op->mutable_match_true());
+      HandleMatchTrue(fuzz_op.match_true());
       break;
     case FuzzOpProto::kReverse:
-      HandleReverse(fuzz_op->mutable_reverse());
+      HandleReverse(fuzz_op.reverse());
       break;
     case FuzzOpProto::kIdentity:
-      HandleIdentity(fuzz_op->mutable_identity());
+      HandleIdentity(fuzz_op.identity());
       break;
     case FuzzOpProto::kSignExtend:
-      HandleSignExtend(fuzz_op->mutable_sign_extend());
+      HandleSignExtend(fuzz_op.sign_extend());
       break;
     case FuzzOpProto::kZeroExtend:
-      HandleZeroExtend(fuzz_op->mutable_zero_extend());
+      HandleZeroExtend(fuzz_op.zero_extend());
       break;
     case FuzzOpProto::kBitSlice:
-      HandleBitSlice(fuzz_op->mutable_bit_slice());
+      HandleBitSlice(fuzz_op.bit_slice());
       break;
     case FuzzOpProto::kBitSliceUpdate:
-      HandleBitSliceUpdate(fuzz_op->mutable_bit_slice_update());
+      HandleBitSliceUpdate(fuzz_op.bit_slice_update());
       break;
     case FuzzOpProto::kDynamicBitSlice:
-      HandleDynamicBitSlice(fuzz_op->mutable_dynamic_bit_slice());
+      HandleDynamicBitSlice(fuzz_op.dynamic_bit_slice());
       break;
     case FuzzOpProto::kEncode:
-      HandleEncode(fuzz_op->mutable_encode());
+      HandleEncode(fuzz_op.encode());
       break;
     case FuzzOpProto::kDecode:
-      HandleDecode(fuzz_op->mutable_decode());
+      HandleDecode(fuzz_op.decode());
       break;
     case FuzzOpProto::kGate:
-      HandleGate(fuzz_op->mutable_gate());
+      HandleGate(fuzz_op.gate());
       break;
     case FuzzOpProto::FUZZ_OP_NOT_SET:
       break;

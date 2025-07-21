@@ -16,6 +16,7 @@
 
 #include <cstdint>
 
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/ir/function_builder.h"
 
 namespace xls {
@@ -27,10 +28,16 @@ BValue IrNodeContextList::GetElementAt(int64_t list_idx,
                                        ContextListType list_type) const {
   switch (list_type) {
     case ContextListType::COMBINED_LIST:
+      if (combined_context_list_.empty()) {
+        return DefaultValue(p_, fb_);
+      }
       // Use of modulus to ensure the requested operand is within the bounds of
       // the context list.
       return combined_context_list_[list_idx % combined_context_list_.size()];
     case ContextListType::BITS_LIST:
+      if (bits_context_list_.empty()) {
+        return DefaultValue(p_, fb_, TypeCase::BITS_CASE);
+      }
       return bits_context_list_[list_idx % bits_context_list_.size()];
   }
 }
