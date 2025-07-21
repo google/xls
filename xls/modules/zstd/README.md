@@ -452,6 +452,9 @@ results against the decoding of the reference library. Currently, due to the
 restrictions from the ZSTD frame generator, it is possible to test only the
 positive cases (decoding valid ZSTD frames).
 
+Verilog tests are written in Python as
+[cocotb](https://github.com/cocotb/cocotb) testbench.
+
 ZstdDecoder's main communication interfaces are the AXI buses. Due to the way
 XLS handles the codegen of DSLX channels that model the AXI channels, the
 particular ports of the AXI channels are not represented correctly. This
@@ -464,6 +467,31 @@ external memory. The mux is implemented by a third-party [AXI
 Crossbar](https://github.com/alexforencich/verilog-axi).
 
 ![diagram of interfaces of decoder and its wrapper](img/ZSTD_decoder_wrapper.png)
+
+**Figure: Zstd decoder wrapper connection diagram.**
+
+Cocotb testbench interacts with the decoder with the help of a
+[cocotbext-axi](https://github.com/alexforencich/cocotbext-axi) extension that
+provides AXI bus models, drivers, monitors and RAM model accessible through AXI
+interface. Cocotb AXI Manager is connected to the decoder's `CSR Interface` and
+is used to simulate the software's interaction with the decoder.
+
+The Basic test case for the ZstdDecoder is composed of the following steps:
+
+1. The testbench generates a ZSTD frame using the
+   [decodecorpus](https://github.com/facebook/zstd/blob/dev/tests/decodecorpus.c)
+   utility from the [zstd reference library](https://github.com/facebook/zstd).
+2. The encoded frame is placed in an AXI RAM model that is connected to the
+   decoder's `Memory Interface`.
+3. The encoded frame is decoded with the zstd reference library and the results
+   are represented in the decoder's output format as the expected data from the
+   simulation.
+4. AXI Manager performs a series of writes to the ZstdDecoder CSRs to configure
+   it and start the decoding process.
+5. Testbench waits for the signal on the `Notify` channel and checks the output
+   of the decoder stored in the memory against the expected output data.
+6. Test case succeeds once `Notify` is asserted, all expected data is received
+   and the decoder lands in `IDLE` state with status `OKAY` in the `Status` CSR.
 
 ### Failure points
 
@@ -537,3 +565,58 @@ This is done for example in:
 
 * Frame header decoder
 * SequenceExecutor
+
+### Testing against [libzstd](https://github.com/facebook/zstd)
+
+Design is verified by comparing decoding results to the reference library
+`libzstd`. ZSTD frames used for testing are generated with
+[decodecorpus](https://github.com/facebook/zstd/blob/dev/tests/decodecorpus.c)
+utility. The generated frame is then decoded with `libzstd` and with simulated
+`ZstdDecoder`.
+
+#### Positive test cases
+
+If the results of decoding with `libzstd` are valid, the test runs the same
+encoded frame through the simulation of DSLX design. The output of the
+simulation is gathered and compared with the results of `libzstd` in terms of
+its size and contents.
+
+Encoded ZSTD frame is generated with the function `GenerateFrame(seed, btype,
+output_path)` from
+[data_generator](https://github.com/antmicro/xls/blob/main/xls/modules/zstd/cocotb/data_generator.py)
+library. This function takes as arguments the seed for the generator, an enum
+that codes the type of blocks that should be generated in a given frame and the
+output path to write the generated frame into a file. The available block types
+are:
+
+* RAW
+* RLE
+* COMPRESSED
+* RANDOM
+
+The function returns a vector of bytes representing a valid encoded ZSTD frame.
+Such generated frame can be passed to DSLX and cocotb testbenches to be decoded
+in the simulation and compared against the results from the reference library.
+
+Verilog tests are available in the `zstd_dec_cocotb_test.py` file and can be
+launched with the following Bazel command:
+
+```shell
+bazel run -c opt -- //xls/modules/zstd:zstd_dec_cocotb_test --logtostderr
+```
+
+#### Negative test cases
+
+Currently, `decodecorpus` does not support generating ZSTD frames with subtle
+errors that trigger failure points provided in the ZSTD Decoder. Because of
+that, it is not possible to efficiently provide valuable negative tests for the
+integrated ZSTD Decoder.
+
+The alternatives for writing negative tests include:
+
+* Generating a well-known valid ZSTD frame from a specific generator seed and
+then tweaking the raw bits in this frame to trigger the error response from the
+decoder
+
+[^1]: `CompressedBlockDecoder` is to be added in follow-up PRs.
+[^2]: Checksum verification is currently unsupported.
