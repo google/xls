@@ -284,12 +284,31 @@ class ConditionSet {
   absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan> GetAsGivens()
       const {
     absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan> givens;
+    // Optimization: we sort conditions() before adding them to givens because
+    // it is more efficient to insert into the btree_map when the keys are
+    // already sorted.
+    std::vector<const Condition*> ordered_conditions;
+    ordered_conditions.reserve(conditions().size());
     for (const Condition& condition : conditions()) {
       if (condition.partial.IsUnconstrained()) {
         continue;
       }
+      ordered_conditions.push_back(&condition);
+    }
+    absl::c_sort(ordered_conditions,
+                 [](const Condition* a, const Condition* b) {
+                   return Node::NodeIdLessThan()(a->node, b->node);
+                 });
+    for (const Condition* condition_ptr : ordered_conditions) {
+      const Condition& condition = *condition_ptr;
+      CHECK(!condition.partial.IsUnconstrained())
+          << "Unconstrained conditions should have been removed before "
+             "sorting.";
 
-      ValueKnowledge& given = givens[condition.node];
+      ValueKnowledge& given =
+          givens
+              .insert(/*hint=*/givens.end(), {condition.node, ValueKnowledge()})
+              ->second;
       if (condition.partial.Ternary().has_value()) {
         if (given.ternary.has_value()) {
           if (absl::Status merged = ternary_ops::UpdateWithUnion(
