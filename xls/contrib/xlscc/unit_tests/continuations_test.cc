@@ -70,7 +70,8 @@ class ContinuationsTest : public XlsccTestBase {
     LOG(INFO) << package_->DumpIr();
 
     LogContinuations(*func);
-    testing::Test::RecordProperty("GraphViz file", GenerateSliceGraph(*func));
+    testing::Test::RecordProperty("GraphViz file",
+                                  Debug_GenerateSliceGraph(*func));
 
     return func;
   }
@@ -1453,6 +1454,54 @@ TEST_F(ContinuationsTest, DirectInMarked) {
   EXPECT_TRUE(SliceOutputsDecl(second_slice, "dval", /*direct_in=*/true));
 
   EXPECT_TRUE(SliceInputsDecl(third_slice, "dval", /*direct_in=*/true));
+}
+
+TEST_F(ContinuationsTest, SplitOnChannelOps) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      const int y = in.read();
+      const int z = x + y;
+      out.write(y);
+      out.write(z);
+    })";
+
+  split_states_on_channel_ops_ = true;
+  XLS_ASSERT_OK_AND_ASSIGN(const xlscc::GeneratedFunction* func,
+                           GenerateTopFunction(content));
+
+  ASSERT_EQ(func->slices.size(), 9);
+
+  auto slice_it = func->slices.begin();
+  const xlscc::GeneratedFunctionSlice& first_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& second_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& third_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fourth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& fifth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& sixth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& seventh_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& eighth_slice = *slice_it;
+  ++slice_it;
+  const xlscc::GeneratedFunctionSlice& ninth_slice = *slice_it;
+
+  EXPECT_EQ(first_slice.after_op, nullptr);
+  EXPECT_EQ(second_slice.after_op, nullptr);
+  EXPECT_NE(third_slice.after_op, nullptr);
+  EXPECT_EQ(fourth_slice.after_op, nullptr);
+  EXPECT_NE(fifth_slice.after_op, nullptr);
+  EXPECT_EQ(sixth_slice.after_op, nullptr);
+  EXPECT_NE(seventh_slice.after_op, nullptr);
+  EXPECT_EQ(eighth_slice.after_op, nullptr);
+  EXPECT_NE(ninth_slice.after_op, nullptr);
 }
 
 }  // namespace

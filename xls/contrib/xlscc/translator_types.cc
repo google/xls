@@ -33,16 +33,20 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/DeclTemplate.h"
 #include "clang/include/clang/AST/TemplateBase.h"
 #include "clang/include/clang/Basic/LLVM.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/tracked_bvalue.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/dfs_visitor.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -50,6 +54,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 
 using ::std::shared_ptr;
 using ::std::string;
@@ -1115,7 +1120,7 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
   if (node->Is<xls::Literal>()) {
     const xls::Literal* literal = node->As<xls::Literal>();
     if (literal->value().kind() == xls::ValueKind::kBits) {
-      return absl::StrFormat("%li", literal->value().bits().ToInt64().value());
+      return absl::StrFormat("%lu", literal->value().bits().ToUint64().value());
     }
   }
   if (node->Is<xls::Param>()) {
@@ -1143,17 +1148,22 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
                              Debug_NodeToInfix(op->operand(0), n_printed));
     }
   }
-  if (node->op() == xls::Op::kSGt) {
+  if (node->op() == xls::Op::kSGt || node->op() == xls::Op::kUGt) {
     return absl::StrFormat("(%s > %s)",
                            Debug_NodeToInfix(node->operand(0), n_printed),
                            Debug_NodeToInfix(node->operand(1), n_printed));
   }
-  if (node->op() == xls::Op::kSLt) {
+  if (node->op() == xls::Op::kSGe || node->op() == xls::Op::kUGe) {
+    return absl::StrFormat("(%s > %s)",
+                           Debug_NodeToInfix(node->operand(0), n_printed),
+                           Debug_NodeToInfix(node->operand(1), n_printed));
+  }
+  if (node->op() == xls::Op::kSLt || node->op() == xls::Op::kULt) {
     return absl::StrFormat("(%s < %s)",
                            Debug_NodeToInfix(node->operand(0), n_printed),
                            Debug_NodeToInfix(node->operand(1), n_printed));
   }
-  if (node->op() == xls::Op::kSLe) {
+  if (node->op() == xls::Op::kSLe || node->op() == xls::Op::kULe) {
     return absl::StrFormat("(%s <= %s)",
                            Debug_NodeToInfix(node->operand(0), n_printed),
                            Debug_NodeToInfix(node->operand(1), n_printed));
@@ -1164,16 +1174,26 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
                            Debug_NodeToInfix(node->operand(1), n_printed));
   }
   if (node->op() == xls::Op::kAnd) {
-    return absl::StrFormat("(%s & %s)",
-                           Debug_NodeToInfix(node->operand(0), n_printed),
-                           Debug_NodeToInfix(node->operand(1), n_printed));
+    if (node->operand_count() == 2) {
+      return absl::StrFormat("(%s & %s)",
+                             Debug_NodeToInfix(node->operand(0), n_printed),
+                             Debug_NodeToInfix(node->operand(1), n_printed));
+    } else {
+      return absl::StrFormat(
+          "and(%s)",
+          absl::StrJoin(node->operands(), ", ",
+                        [&n_printed](std::string* out, const xls::Node* node) {
+                          absl::StrAppend(out,
+                                          Debug_NodeToInfix(node, n_printed));
+                        }));
+    }
   }
-  if (node->op() == xls::Op::kOr) {
+  if (node->op() == xls::Op::kOr && node->operand_count() == 2) {
     return absl::StrFormat("(%s | %s)",
                            Debug_NodeToInfix(node->operand(0), n_printed),
                            Debug_NodeToInfix(node->operand(1), n_printed));
   }
-  if (node->op() == xls::Op::kAdd) {
+  if (node->op() == xls::Op::kAdd && node->operand_count() == 2) {
     return absl::StrFormat("(%s + %s)",
                            Debug_NodeToInfix(node->operand(0), n_printed),
                            Debug_NodeToInfix(node->operand(1), n_printed));
@@ -1188,12 +1208,16 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
                            Debug_NodeToInfix(node->operand(2), n_printed),
                            Debug_NodeToInfix(node->operand(1), n_printed));
   }
+  if (node->op() == xls::Op::kStateRead) {
+    const xls::StateRead* sr = node->As<xls::StateRead>();
+    return absl::StrFormat("%s", sr->state_element()->name());
+  }
 
   return absl::StrFormat("[unsupported %s / %s]", node->GetName(),
                          typeid(*node).name());
 }
 
-std::string GenerateReadableTypeName(xls::Type* type) {
+std::string Debug_GenerateReadableTypeName(xls::Type* type) {
   constexpr int64_t max_type_len = 64;
   std::string type_str = type->ToString();
   if (type_str.size() > max_type_len) {
@@ -1239,8 +1263,8 @@ void LogContinuations(const xlscc::GeneratedFunction& func) {
     }
     LOG(INFO) << "";
     for (const ContinuationValue& continuation_out : slice.continuations_out) {
-      const std::string type_str =
-          GenerateReadableTypeName(continuation_out.output_node->GetType());
+      const std::string type_str = Debug_GenerateReadableTypeName(
+          continuation_out.output_node->GetType());
 
       LOG(INFO) << absl::StrFormat(
           "  out: %s top decls %s has %li users, type = %s, literal = %s, "
@@ -1290,6 +1314,127 @@ std::string Debug_OpName(const IOOp& op) {
   }
   CHECK_EQ("Unable to form name for op", nullptr);
   return "TODO_OpName";
+}
+
+namespace {
+class ShortCircuitVisitor : public xls::DfsVisitorWithDefault {
+ public:
+  static std::optional<xls::Value> TryResolveAsValue(xls::Node* node) {
+    xls::IrInterpreter ir_interpreter;
+    absl::Status status = node->Accept(&ir_interpreter);
+    if (status.ok()) {
+      return ir_interpreter.ResolveAsValue(node);
+    }
+    return std::nullopt;
+  }
+
+  absl::Status HandleNaryAnd(xls::NaryOp* op) final {
+    xls::IrInterpreter ir_interpreter;
+    absl::Status status = op->Accept(&ir_interpreter);
+    if (status.ok()) {
+      const xls::Value& value = ir_interpreter.ResolveAsValue(op);
+      XLS_ASSIGN_OR_RETURN(xls::Node * replacement,
+                           op->ReplaceUsesWithNew<xls::Literal>(value));
+      rewrites_[op] = replacement;
+      return absl::OkStatus();
+    }
+    std::vector<xls::Node*> new_operands;
+    new_operands.reserve(op->operand_count());
+    for (xls::Node* operand : op->operands()) {
+      std::optional<xls::Value> const_val = TryResolveAsValue(operand);
+      if (!const_val.has_value()) {
+        new_operands.push_back(operand);
+        continue;
+      }
+      if (const_val->IsAllOnes()) {
+        continue;
+      }
+      if (const_val->IsAllZeros()) {
+        XLS_ASSIGN_OR_RETURN(
+            xls::Node * replacement,
+            op->ReplaceUsesWithNew<xls::Literal>(ZeroOfType(op->GetType())));
+        rewrites_[op] = replacement;
+        return absl::OkStatus();
+      }
+      new_operands.push_back(operand);
+    }
+    XLS_RET_CHECK_GT(new_operands.size(), 0);
+    if (new_operands.size() == 1) {
+      rewrites_[op] = new_operands[0];
+      return op->ReplaceUsesWith(new_operands[0]);
+    }
+    if (new_operands.size() != op->operand_count()) {
+      XLS_ASSIGN_OR_RETURN(
+          xls::Node * replacement,
+          op->ReplaceUsesWithNew<xls::NaryOp>(new_operands, op->op()));
+      rewrites_[op] = replacement;
+    }
+    return absl::OkStatus();
+  }
+  absl::Status HandleNaryOr(xls::NaryOp* op) final {
+    xls::IrInterpreter ir_interpreter;
+    absl::Status status = op->Accept(&ir_interpreter);
+    if (status.ok()) {
+      const xls::Value& value = ir_interpreter.ResolveAsValue(op);
+      XLS_ASSIGN_OR_RETURN(xls::Node * replacement,
+                           op->ReplaceUsesWithNew<xls::Literal>(value));
+      rewrites_[op] = replacement;
+      return absl::OkStatus();
+    }
+    std::vector<xls::Node*> new_operands;
+    new_operands.reserve(op->operand_count());
+    for (xls::Node* operand : op->operands()) {
+      std::optional<xls::Value> const_val = TryResolveAsValue(operand);
+      if (!const_val.has_value()) {
+        new_operands.push_back(operand);
+        continue;
+      }
+      if (const_val->IsAllZeros()) {
+        continue;
+      }
+      if (const_val->IsAllOnes()) {
+        XLS_ASSIGN_OR_RETURN(
+            xls::Node * replacement,
+            op->ReplaceUsesWithNew<xls::Literal>(AllOnesOfType(op->GetType())));
+        rewrites_[op] = replacement;
+        return absl::OkStatus();
+      }
+      new_operands.push_back(operand);
+    }
+    XLS_RET_CHECK_GT(new_operands.size(), 0);
+    if (new_operands.size() == 1) {
+      rewrites_[op] = new_operands[0];
+      return op->ReplaceUsesWith(new_operands[0]);
+    }
+    if (new_operands.size() != op->operand_count()) {
+      XLS_ASSIGN_OR_RETURN(
+          xls::Node * replacement,
+          op->ReplaceUsesWithNew<xls::NaryOp>(new_operands, op->op()));
+      rewrites_[op] = replacement;
+    }
+    return absl::OkStatus();
+  }
+  absl::Status DefaultHandler(xls::Node* node) final {
+    return absl::OkStatus();
+  }
+
+  const absl::flat_hash_map<xls::Node*, xls::Node*>& rewrites() const {
+    return rewrites_;
+  }
+
+ private:
+  absl::flat_hash_map<xls::Node*, xls::Node*> rewrites_;
+};
+}  // namespace
+
+absl::Status ShortCircuitBVal(TrackedBValue& bval, const xls::SourceInfo& loc) {
+  ShortCircuitVisitor visitor;
+  XLS_RETURN_IF_ERROR(bval.node()->Accept(&visitor));
+  auto iter = visitor.rewrites().find(bval.node());
+  if (iter != visitor.rewrites().end()) {
+    bval = TrackedBValue(iter->second, bval.builder());
+  }
+  return absl::OkStatus();
 }
 
 }  //  namespace xlscc

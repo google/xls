@@ -59,7 +59,8 @@ class FSMLayoutTest : public XlsccTestBase {
                              package_.get(), top_channel_injections));
 
     NewFSMGenerator generator(*translator_, *translator_,
-                              DebugIrTraceFlags_FSMStates);
+                              DebugIrTraceFlags_FSMStates,
+                              split_states_on_channel_ops_);
 
     return generator.LayoutNewFSM(*func, xls::SourceInfo());
   }
@@ -147,6 +148,18 @@ class FSMLayoutTest : public XlsccTestBase {
 
     return count;
   }
+
+  void ExpectSliceTransition(const NewFSMLayout layout,
+                             int64_t from_slice_index, int64_t to_slice_index,
+                             bool unconditional) {
+    EXPECT_TRUE(
+        layout.transition_by_slice_from_index.contains(from_slice_index));
+    const NewFSMActivationTransition& transition =
+        layout.transition_by_slice_from_index.at(from_slice_index);
+    EXPECT_EQ(transition.from_slice, from_slice_index);
+    EXPECT_EQ(transition.to_slice, to_slice_index);
+    EXPECT_EQ(transition.unconditional_forward, unconditional);
+  }
 };
 
 namespace {
@@ -225,6 +238,9 @@ TEST_F(FSMLayoutTest, PipelinedLoop) {
 
   XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
 
+  ExpectSliceTransition(layout, /*from_slice_index=*/2, /*to_slice_index=*/2,
+                        /*unconditional=*/false);
+
   EXPECT_TRUE(StateInputsDecl(layout, /*slice_index=*/2,
                               /*jumped_from_slice_indices=*/{}, "r",
                               /*from_slice_index=*/1));
@@ -301,6 +317,9 @@ TEST_F(FSMLayoutTest, PipelinedLoopBypass) {
 
   XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
 
+  ExpectSliceTransition(layout, /*from_slice_index=*/2, /*to_slice_index=*/2,
+                        /*unconditional=*/false);
+
   EXPECT_FALSE(StateInputsDecl(layout, /*slice_index=*/2,
                                /*jumped_from_slice_indices=*/{}, "r"));
   EXPECT_FALSE(StateInputsDecl(layout, /*slice_index=*/2,
@@ -342,11 +361,73 @@ TEST_F(FSMLayoutTest, PipelinedLoopNested) {
 
   XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
 
+  ExpectSliceTransition(layout, /*from_slice_index=*/3, /*to_slice_index=*/3,
+                        /*unconditional=*/false);
+  ExpectSliceTransition(layout, /*from_slice_index=*/4, /*to_slice_index=*/2,
+                        /*unconditional=*/false);
+
   for (const NewFSMState& state : layout.states) {
     EXPECT_LE(StateSavesDeclCount(state, "j"), 1);
     EXPECT_LE(StateSavesDeclCount(state, "i"), 1);
     EXPECT_LE(StateSavesDeclCount(state, "a"), 1);
   }
+}
+
+TEST_F(FSMLayoutTest, IOActivationTransitions) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      const int y = in.read();
+      out.write(y);
+      out.write(x);
+    })";
+  split_states_on_channel_ops_ = true;
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  ExpectSliceTransition(layout, /*from_slice_index=*/2, /*to_slice_index=*/3,
+                        /*unconditional=*/true);
+  ExpectSliceTransition(layout, /*from_slice_index=*/6, /*to_slice_index=*/7,
+                        /*unconditional=*/true);
+}
+
+TEST_F(FSMLayoutTest, IOActivationTransitionsMultiTransition) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in,
+                    __xls_channel<int>& out) {
+      const int x = in.read();
+      out.write(x);
+      const int y = in.read();
+      out.write(y);
+    })";
+  split_states_on_channel_ops_ = true;
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  ExpectSliceTransition(layout, /*from_slice_index=*/4, /*to_slice_index=*/5,
+                        /*unconditional=*/true);
+}
+
+TEST_F(FSMLayoutTest, IOActivationTransitionsNoTransition) {
+  const std::string content = R"(
+    #pragma hls_top
+    void my_package(__xls_channel<int>& in1,
+                    __xls_channel<int>& in2,
+                    __xls_channel<int>& out1,
+                    __xls_channel<int>& out2) {
+      const int x = in1.read();
+      out1.write(x);
+      const int y = in2.read();
+      out2.write(y);
+    })";
+  split_states_on_channel_ops_ = true;
+
+  XLS_ASSERT_OK_AND_ASSIGN(NewFSMLayout layout, GenerateTopFunction(content));
+
+  EXPECT_TRUE(layout.transition_by_slice_from_index.empty());
 }
 
 }  // namespace

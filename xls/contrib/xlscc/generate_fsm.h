@@ -59,6 +59,7 @@ struct NewFSMState {
 struct NewFSMActivationTransition {
   int64_t from_slice = -1;
   int64_t to_slice = -1;
+  bool unconditional_forward = false;
 };
 
 // Provides the necessary information to generate an FSM.
@@ -85,7 +86,8 @@ class NewFSMGenerator : public GeneratorBase {
  public:
   NewFSMGenerator(TranslatorTypeInterface& translator_types,
                   TranslatorIOInterface& translator_io,
-                  DebugIrTraceFlags debug_ir_trace_flags);
+                  DebugIrTraceFlags debug_ir_trace_flags,
+                  bool split_states_on_channel_ops);
 
   // Analyzes the control and data flow graphs, ie function slices and
   // continuations, for a translated function, and generates a "layout"
@@ -144,6 +146,7 @@ class NewFSMGenerator : public GeneratorBase {
  private:
   TranslatorIOInterface& translator_io_;
   DebugIrTraceFlags debug_ir_trace_flags_;
+  bool split_states_on_channel_ops_;
 };
 
 }  // namespace xlscc

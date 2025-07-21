@@ -112,7 +112,10 @@ INSTANTIATE_TEST_SUITE_P(
            TestParams{.generate_new_fsm = false,
                       .merge_states = true,
                       .split_states_on_channel_ops = true},
-           TestParams{.generate_new_fsm = true}),
+           TestParams{.generate_new_fsm = true,
+                      .split_states_on_channel_ops = false},
+           TestParams{.generate_new_fsm = true,
+                      .split_states_on_channel_ops = true}),
     GetTestInfo);
 
 // TODO(seanhaskell): Remove this once new FSM has all features
@@ -281,6 +284,45 @@ TEST_P(TranslatorProcTest_OldFSMOnly, IOProcMuxInSubroutine) {
 
     ProcTest(content, block_spec, inputs, outputs);
   }
+}
+
+TEST_P(TranslatorProcTest, IOMultipleOpsPerChannel) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo( __xls_channel<int>& in,
+              __xls_channel<int>& out) {
+      const int x = in.read();
+      const int y = in.read();
+      out.write(x+y);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(CHANNEL_TYPE_FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {
+      xls::Value(xls::SBits(55, 32)), xls::Value(xls::SBits(10, 32)),
+      xls::Value(xls::SBits(20, 32)), xls::Value(xls::SBits(5, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(65, 32)),
+                    xls::Value(xls::SBits(25, 32))};
+
+  ProcTest(content, block_spec, inputs, outputs,
+           /*min_ticks=*/split_states_on_channel_ops_ ? 4 : 2,
+           /*max_ticks=*/split_states_on_channel_ops_ ? 4 : 2);
 }
 
 // Multiple unused channels for determinism check

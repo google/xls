@@ -288,7 +288,7 @@ static absl::Status Run(std::string_view cpp_path) {
       XLS_RETURN_IF_ERROR(xls::SetFileContents(output_file, output));
     }
     if (!debug_write_function_slice_graph_path.empty()) {
-      const std::string graph = GenerateSliceGraph(*top_function);
+      const std::string graph = Debug_GenerateSliceGraph(*top_function);
       XLS_RETURN_IF_ERROR(
           xls::SetFileContents(debug_write_function_slice_graph_path, graph));
     }

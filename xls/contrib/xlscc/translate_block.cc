@@ -523,7 +523,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   GenerateFSMInvocationReturn fsm_ret;
   if (generate_new_fsm_) {
-    NewFSMGenerator generator(*this, *this, DebugIrTraceFlags_FSMStates);
+    NewFSMGenerator generator(*this, *this, debug_ir_trace_flags_,
+                              split_states_on_channel_ops_);
     XLS_ASSIGN_OR_RETURN(
         fsm_ret,
         generator.GenerateNewFSMInvocation(

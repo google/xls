@@ -85,7 +85,6 @@
 #include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
-#include "xls/ir/dfs_visitor.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -5044,128 +5043,6 @@ absl::StatusOr<xls::Value> Translator::EvaluateNode(xls::Node* node,
   }
   xls::Value result = visitor.ResolveAsValue(node);
   return result;
-}
-
-namespace {
-class ShortCircuitVisitor : public xls::DfsVisitorWithDefault {
- public:
-  static std::optional<xls::Value> TryResolveAsValue(xls::Node* node) {
-    xls::IrInterpreter ir_interpreter;
-    absl::Status status = node->Accept(&ir_interpreter);
-    if (status.ok()) {
-      return ir_interpreter.ResolveAsValue(node);
-    }
-    return std::nullopt;
-  }
-
-  absl::Status HandleNaryAnd(xls::NaryOp* op) final {
-    xls::IrInterpreter ir_interpreter;
-    absl::Status status = op->Accept(&ir_interpreter);
-    if (status.ok()) {
-      const xls::Value& value = ir_interpreter.ResolveAsValue(op);
-      XLS_ASSIGN_OR_RETURN(xls::Node * replacement,
-                           op->ReplaceUsesWithNew<xls::Literal>(value));
-      rewrites_[op] = replacement;
-      return absl::OkStatus();
-    }
-    std::vector<xls::Node*> new_operands;
-    new_operands.reserve(op->operand_count());
-    for (xls::Node* operand : op->operands()) {
-      std::optional<xls::Value> const_val = TryResolveAsValue(operand);
-      if (!const_val.has_value()) {
-        new_operands.push_back(operand);
-        continue;
-      }
-      if (const_val->IsAllOnes()) {
-        continue;
-      }
-      if (const_val->IsAllZeros()) {
-        XLS_ASSIGN_OR_RETURN(
-            xls::Node * replacement,
-            op->ReplaceUsesWithNew<xls::Literal>(ZeroOfType(op->GetType())));
-        rewrites_[op] = replacement;
-        return absl::OkStatus();
-      }
-      new_operands.push_back(operand);
-    }
-    XLS_RET_CHECK_GT(new_operands.size(), 0);
-    if (new_operands.size() == 1) {
-      rewrites_[op] = new_operands[0];
-      return op->ReplaceUsesWith(new_operands[0]);
-    }
-    if (new_operands.size() != op->operand_count()) {
-      XLS_ASSIGN_OR_RETURN(
-          xls::Node * replacement,
-          op->ReplaceUsesWithNew<xls::NaryOp>(new_operands, op->op()));
-      rewrites_[op] = replacement;
-    }
-    return absl::OkStatus();
-  }
-  absl::Status HandleNaryOr(xls::NaryOp* op) final {
-    xls::IrInterpreter ir_interpreter;
-    absl::Status status = op->Accept(&ir_interpreter);
-    if (status.ok()) {
-      const xls::Value& value = ir_interpreter.ResolveAsValue(op);
-      XLS_ASSIGN_OR_RETURN(xls::Node * replacement,
-                           op->ReplaceUsesWithNew<xls::Literal>(value));
-      rewrites_[op] = replacement;
-      return absl::OkStatus();
-    }
-    std::vector<xls::Node*> new_operands;
-    new_operands.reserve(op->operand_count());
-    for (xls::Node* operand : op->operands()) {
-      std::optional<xls::Value> const_val = TryResolveAsValue(operand);
-      if (!const_val.has_value()) {
-        new_operands.push_back(operand);
-        continue;
-      }
-      if (const_val->IsAllZeros()) {
-        continue;
-      }
-      if (const_val->IsAllOnes()) {
-        XLS_ASSIGN_OR_RETURN(
-            xls::Node * replacement,
-            op->ReplaceUsesWithNew<xls::Literal>(AllOnesOfType(op->GetType())));
-        rewrites_[op] = replacement;
-        return absl::OkStatus();
-      }
-      new_operands.push_back(operand);
-    }
-    XLS_RET_CHECK_GT(new_operands.size(), 0);
-    if (new_operands.size() == 1) {
-      rewrites_[op] = new_operands[0];
-      return op->ReplaceUsesWith(new_operands[0]);
-    }
-    if (new_operands.size() != op->operand_count()) {
-      XLS_ASSIGN_OR_RETURN(
-          xls::Node * replacement,
-          op->ReplaceUsesWithNew<xls::NaryOp>(new_operands, op->op()));
-      rewrites_[op] = replacement;
-    }
-    return absl::OkStatus();
-  }
-  absl::Status DefaultHandler(xls::Node* node) final {
-    return absl::OkStatus();
-  }
-
-  const absl::flat_hash_map<xls::Node*, xls::Node*>& rewrites() const {
-    return rewrites_;
-  }
-
- private:
-  absl::flat_hash_map<xls::Node*, xls::Node*> rewrites_;
-};
-}  // namespace
-
-absl::Status Translator::ShortCircuitBVal(TrackedBValue& bval,
-                                          const xls::SourceInfo& loc) {
-  ShortCircuitVisitor visitor;
-  XLS_RETURN_IF_ERROR(bval.node()->Accept(&visitor));
-  auto iter = visitor.rewrites().find(bval.node());
-  if (iter != visitor.rewrites().end()) {
-    bval = TrackedBValue(iter->second, context().fb);
-  }
-  return absl::OkStatus();
 }
 
 absl::StatusOr<xls::Value> Translator::EvaluateBVal(TrackedBValue bval,

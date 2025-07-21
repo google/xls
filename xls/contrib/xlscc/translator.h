@@ -80,8 +80,8 @@ class Translator;
 
 class NewFSMGenerator;
 
-std::string GenerateReadableTypeName(xls::Type* type);
-std::string GenerateSliceGraph(const GeneratedFunction& func);
+std::string Debug_GenerateReadableTypeName(xls::Type* type);
+std::string Debug_GenerateSliceGraph(const GeneratedFunction& func);
 
 struct TranslationContext;
 
@@ -1004,7 +1004,7 @@ class Translator final : public GeneratorBase,
   absl::StatusOr<TrackedBValue> AddConditionToIOReturn(
       const IOOp& op, TrackedBValue retval, const xls::SourceInfo& loc);
 
-  absl::Status NewContinuation(IOOp& op);
+  absl::Status NewContinuation(const IOOp& op, bool slice_before);
   absl::Status AddFeedbacksForSlice(GeneratedFunctionSlice& slice,
                                     const xls::SourceInfo& loc);
   absl::StatusOr<std::vector<NATIVE_BVAL>>
@@ -1310,17 +1310,6 @@ class Translator final : public GeneratorBase,
   absl::StatusOr<xls::Value> EvaluateNode(xls::Node* node,
                                           const xls::SourceInfo& loc,
                                           bool do_check = true);
-
-  // Simplifies `bval` (or any dependencies) where AND or OR ops can be
-  // short-circuited.
-  //
-  // Performs constexpr evaluation to perform:
-  // 1) OR(0, a, b) => OR(a, b)
-  // 2) OR(1, a, b) => 1
-  // 3) AND(0, a, b) => 0
-  // 4) AND(1, a, b) => AND(a, b)
-  absl::Status ShortCircuitBVal(TrackedBValue& bval,
-                                const xls::SourceInfo& loc);
   absl::StatusOr<xls::Value> EvaluateBVal(TrackedBValue bval,
                                           const xls::SourceInfo& loc,
                                           bool do_check = true);
