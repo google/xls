@@ -80,6 +80,50 @@ class PassRegistry {
   // Register a generator with a given name.
   absl::Status Register(std::string_view name, GeneratorPtr gen) {
     absl::MutexLock mu(&registry_lock_);
+    return RegisterLocked(name, gen);
+  }
+
+  // Register a generator with a given name.
+  absl::Status Register(std::string_view name, GeneratorUniquePtr gen) {
+    absl::MutexLock mu(&registry_lock_);
+    return RegisterLocked(name, std::move(gen));
+  }
+
+  // Get a pass generator of the given name.
+  absl::StatusOr<PassGenerator<OptionsT, ContextT...>*> Generator(
+      std::string_view name) const {
+    absl::MutexLock mu(&registry_lock_);
+    return GeneratorLocked(name);
+  }
+
+  std::vector<std::string_view> GetRegisteredNames() const {
+    absl::MutexLock mu(&registry_lock_);
+    return GetRegisteredNamesLocked();
+  }
+
+  std::vector<RegistrationInfo> GetRegisteredInfos() const {
+    absl::MutexLock mu(&registry_lock_);
+    return GetRegisteredInfosLocked();
+  }
+
+  void AddRegistrationInfo(std::string_view name, std::string_view class_name,
+                           std::string_view header_file) {
+    absl::MutexLock mu(&registry_lock_);
+    AddRegistrationInfoLocked(name, class_name, header_file);
+  }
+
+  bool allow_overwrite() const { return allow_overwrite_; }
+
+ protected:
+  // Force this registry to allow overwriting of passes.
+  void set_allow_overwrite(bool allow_overwrite) {
+    allow_overwrite_ = allow_overwrite;
+  }
+
+ private:
+  // Register a generator with a given name.
+  absl::Status RegisterLocked(std::string_view name, GeneratorPtr gen)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
     if (!allow_overwrite_ && generators_.contains(name)) {
       return absl::AlreadyExistsError(
           absl::StrFormat("pass %s registered more than once", name));
@@ -89,8 +133,8 @@ class PassRegistry {
   }
 
   // Register a generator with a given name.
-  absl::Status Register(std::string_view name, GeneratorUniquePtr gen) {
-    absl::MutexLock mu(&registry_lock_);
+  absl::Status RegisterLocked(std::string_view name, GeneratorUniquePtr gen)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
     if (!allow_overwrite_ && generators_.contains(name)) {
       return absl::AlreadyExistsError(
           absl::StrFormat("pass %s registered more than once", name));
@@ -101,19 +145,19 @@ class PassRegistry {
   }
 
   // Get a pass generator of the given name.
-  absl::StatusOr<PassGenerator<OptionsT, ContextT...>*> Generator(
-      std::string_view name) const {
-    absl::MutexLock mu(&registry_lock_);
+  absl::StatusOr<PassGenerator<OptionsT, ContextT...>*> GeneratorLocked(
+      std::string_view name) const
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
     if (!generators_.contains(name)) {
       return absl::NotFoundError(
           absl::StrFormat("%s is not registered. Have [%s]", name,
-                          absl::StrJoin(GetRegisteredNames(), ", ")));
+                          absl::StrJoin(GetRegisteredNamesLocked(), ", ")));
     }
     return generators_.at(name);
   }
 
-  std::vector<std::string_view> GetRegisteredNames() const {
-    absl::MutexLock mu(&registry_lock_);
+  std::vector<std::string_view> GetRegisteredNamesLocked() const
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
     std::vector<std::string_view> res;
     res.reserve(generators_.size());
     for (const auto& [k, _] : generators_) {
@@ -123,8 +167,8 @@ class PassRegistry {
     return res;
   }
 
-  std::vector<RegistrationInfo> GetRegisteredInfos() const {
-    absl::MutexLock mu(&registry_lock_);
+  std::vector<RegistrationInfo> GetRegisteredInfosLocked() const
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
     std::vector<RegistrationInfo> res;
     res.reserve(registration_info_.size());
     for (const auto& [_, v] : registration_info_) {
@@ -145,9 +189,10 @@ class PassRegistry {
     return res;
   }
 
-  void AddRegistrationInfo(std::string_view name, std::string_view class_name,
-                           std::string_view header_file) {
-    absl::MutexLock mu(&registry_lock_);
+  void AddRegistrationInfoLocked(std::string_view name,
+                                 std::string_view class_name,
+                                 std::string_view header_file)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(registry_lock_) {
     registration_info_[name] = {
         .short_name = std::string(name),
         .class_name = std::string(class_name),
@@ -155,15 +200,6 @@ class PassRegistry {
     };
   }
 
-  bool allow_overwrite() const { return allow_overwrite_; }
-
- protected:
-  // Force this registry to allow overwriting of passes.
-  void set_allow_overwrite(bool allow_overwrite) {
-    allow_overwrite_ = allow_overwrite;
-  }
-
- private:
   bool allow_overwrite_ = false;
   mutable absl::Mutex registry_lock_;
   absl::flat_hash_map<std::string, GeneratorPtr> generators_
