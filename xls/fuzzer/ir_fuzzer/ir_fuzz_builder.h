@@ -15,9 +15,8 @@
 #ifndef XLS_FUZZER_IR_FUZZER_IR_FUZZ_BUILDER_H_
 #define XLS_FUZZER_IR_FUZZER_IR_FUZZ_BUILDER_H_
 
-#include <vector>
-
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
@@ -26,10 +25,10 @@ namespace xls {
 
 // Class used to convert randomly generated objects into a valid IR object. More
 // specifically, the conversion from a FuzzProgramProto to an IR BValue. It uses
-// a stack to maintain a list of BValues, where each element represents a node
-// in the IR that was instantiated/created from a FuzzOpProto. A stack is used
-// to allow new FuzzOpProtos to retrieve previous BValues from the stack without
-// using explicit references like the IR does.
+// a context list to maintain a list of BValues, where each element represents a
+// node in the IR that was instantiated/created from a FuzzOpProto. A context
+// list is used to allow new FuzzOpProtos to retrieve previous BValues from the
+// context list without using explicit references like the IR does.
 class IrFuzzBuilder {
  public:
   IrFuzzBuilder(FuzzProgramProto* fuzz_program, Package* p, FunctionBuilder* fb)
@@ -46,9 +45,10 @@ class IrFuzzBuilder {
   // owned by the IrFuzzBuilder, just referenced.
   Package* p_;
   FunctionBuilder* fb_;
-  // The stack is used to maintain a list of BValues that are created from the
-  // FuzzProgramProto.
-  std::vector<BValue> stack_;
+  // The context list is used to maintain a list of BValues that are created
+  // from the FuzzProgramProto. It contains multiple lists, including a combined
+  // list and a list for each individual type.
+  IrNodeContextList context_list_;
 };
 
 }  // namespace xls

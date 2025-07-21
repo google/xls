@@ -20,21 +20,20 @@ package xls;
 // populated with values. It contains a list of FuzzOpProtos, where each gets
 // instantiated into a corresponding IR op.
 message FuzzProgramProto {
-  // Specifies how the stack of IR ops will be combined based on the
-  // CombineStackMethod enum.
-  optional CombineStackMethod combine_stack_method = 1;
+  // Specifies how the context list of IR ops will be combined.
+  optional CombineListMethod combine_list_method = 1;
   repeated FuzzOpProto fuzz_ops = 2;
 }
 
-// Specifies the method used to combine the IrFuzzBuilder stack of BValues into
-// a single IR object.
-enum CombineStackMethod {
+// Specifies the method used to combine the context list of BValues into a
+// single IR object.
+enum CombineListMethod {
   // Protobuf enums require a default/unset value as a convention. Some
   // languages prefer to distinguish a default value from a enum that is not
   // set.
-  UNSET_COMBINE_STACK_METHOD = 0;
+  UNSET_COMBINE_LIST_METHOD = 0;
   LAST_ELEMENT_METHOD = 1;
-  ADD_STACK_METHOD = 2;
+  ADD_LIST_METHOD = 2;
 }
 
 // References a node on the stack by its index. Contains methods to increase and

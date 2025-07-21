@@ -67,7 +67,7 @@ absl::Status EquateProtoToIrTest(
 TEST(IrFuzzBuilderTest, AddTwoLiterals) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
             bit_width: 64
@@ -101,7 +101,7 @@ TEST(IrFuzzBuilderTest, AddTwoLiterals) {
 TEST(IrFuzzBuilderTest, AddTwoParams) {
   std::string proto_string = absl::StrFormat(
       R"(
-      combine_stack_method: LAST_ELEMENT_METHOD
+      combine_list_method: LAST_ELEMENT_METHOD
       fuzz_ops {
         param {
           bit_width: 64
@@ -131,7 +131,7 @@ TEST(IrFuzzBuilderTest, AddTwoParams) {
 TEST(IrFuzzBuilderTest, AddLiteralsAndParamsAndAdds) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
             bit_width: 64
@@ -195,10 +195,10 @@ TEST(IrFuzzBuilderTest, AddLiteralsAndParamsAndAdds) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, SingleOpAddStack) {
+TEST(IrFuzzBuilderTest, SingleOpAddList) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: ADD_STACK_METHOD
+        combine_list_method: ADD_LIST_METHOD
         fuzz_ops {
           param {
             bit_width: 64
@@ -209,10 +209,10 @@ TEST(IrFuzzBuilderTest, SingleOpAddStack) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, AddOpThenAddStack) {
+TEST(IrFuzzBuilderTest, AddOpThenAddList) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: ADD_STACK_METHOD
+        combine_list_method: ADD_LIST_METHOD
         fuzz_ops {
           literal {
             bit_width: 64
@@ -246,7 +246,7 @@ TEST(IrFuzzBuilderTest, AddOpThenAddStack) {
 TEST(IrFuzzBuilderTest, AddOutOfBoundsIdxs) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
             bit_width: 64
@@ -278,7 +278,7 @@ TEST(IrFuzzBuilderTest, AddOutOfBoundsIdxs) {
 TEST(IrFuzzBuilderTest, LiteralValueOverBoundsOfSmallWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
             bit_width: 1
@@ -294,7 +294,7 @@ TEST(IrFuzzBuilderTest, LiteralValueOverBoundsOfSmallWidth) {
 TEST(IrFuzzBuilderTest, AddDifferentWidthsWithExtensions) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -326,7 +326,7 @@ TEST(IrFuzzBuilderTest, AddDifferentWidthsWithExtensions) {
 TEST(IrFuzzBuilderTest, AddWithSliceAndExtension) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 1
@@ -360,10 +360,10 @@ TEST(IrFuzzBuilderTest, AddWithSliceAndExtension) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
-TEST(IrFuzzBuilderTest, AddStackWithDifferentWidths) {
+TEST(IrFuzzBuilderTest, AddListWithDifferentWidths) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: ADD_STACK_METHOD
+        combine_list_method: ADD_LIST_METHOD
         fuzz_ops {
           param {
             bit_width: 50
@@ -389,7 +389,7 @@ TEST(IrFuzzBuilderTest, AddStackWithDifferentWidths) {
 TEST(IrFuzzBuilderTest, AddWithLargeWidths) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 800
@@ -420,7 +420,7 @@ TEST(IrFuzzBuilderTest, AddWithLargeWidths) {
 TEST(IrFuzzBuilderTest, ConcatOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -452,7 +452,7 @@ TEST(IrFuzzBuilderTest, ConcatOp) {
 TEST(IrFuzzBuilderTest, EmptyConcat) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           concat {
           }
@@ -484,7 +484,7 @@ TEST(IrFuzzBuilderTest, EmptyConcat) {
 TEST(IrFuzzBuilderTest, ShiftOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -530,7 +530,7 @@ TEST(IrFuzzBuilderTest, ShiftOps) {
 TEST(IrFuzzBuilderTest, NaryOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -620,7 +620,7 @@ TEST(IrFuzzBuilderTest, NaryOps) {
 TEST(IrFuzzBuilderTest, ReduceOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -658,7 +658,7 @@ TEST(IrFuzzBuilderTest, ReduceOps) {
 TEST(IrFuzzBuilderTest, MulOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -706,7 +706,7 @@ TEST(IrFuzzBuilderTest, MulOps) {
 TEST(IrFuzzBuilderTest, DivOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -761,7 +761,7 @@ TEST(IrFuzzBuilderTest, DivOps) {
 TEST(IrFuzzBuilderTest, ModOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -816,7 +816,7 @@ TEST(IrFuzzBuilderTest, ModOps) {
 TEST(IrFuzzBuilderTest, AssociativeOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -871,7 +871,7 @@ TEST(IrFuzzBuilderTest, AssociativeOps) {
 TEST(IrFuzzBuilderTest, ComparisonOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1030,7 +1030,7 @@ TEST(IrFuzzBuilderTest, ComparisonOps) {
 TEST(IrFuzzBuilderTest, InvertOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1061,7 +1061,7 @@ TEST(IrFuzzBuilderTest, InvertOps) {
 TEST(IrFuzzBuilderTest, SelectOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 1
@@ -1105,7 +1105,7 @@ TEST(IrFuzzBuilderTest, SelectOp) {
 TEST(IrFuzzBuilderTest, SelectWithLargeSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 1000
@@ -1137,7 +1137,7 @@ TEST(IrFuzzBuilderTest, SelectWithLargeSelectorWidth) {
 TEST(IrFuzzBuilderTest, SelectWithSmallSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 1
@@ -1172,7 +1172,7 @@ TEST(IrFuzzBuilderTest, SelectWithSmallSelectorWidth) {
 TEST(IrFuzzBuilderTest, SelectWithUselessDefault) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 1
@@ -1207,7 +1207,7 @@ TEST(IrFuzzBuilderTest, SelectWithUselessDefault) {
 TEST(IrFuzzBuilderTest, SelectNeedingDefault) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 1
@@ -1236,7 +1236,7 @@ TEST(IrFuzzBuilderTest, SelectNeedingDefault) {
 TEST(IrFuzzBuilderTest, OneHotOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1269,7 +1269,7 @@ TEST(IrFuzzBuilderTest, OneHotOp) {
 TEST(IrFuzzBuilderTest, OneHotSelectOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 3
@@ -1324,7 +1324,7 @@ TEST(IrFuzzBuilderTest, OneHotSelectOp) {
 TEST(IrFuzzBuilderTest, OneHotSelectWithLargeSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 100
@@ -1352,7 +1352,7 @@ TEST(IrFuzzBuilderTest, OneHotSelectWithLargeSelectorWidth) {
 TEST(IrFuzzBuilderTest, OneHotSelectWithExtraCases) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 3
@@ -1390,7 +1390,7 @@ TEST(IrFuzzBuilderTest, OneHotSelectWithExtraCases) {
 TEST(IrFuzzBuilderTest, PrioritySelectOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 2
@@ -1443,7 +1443,7 @@ TEST(IrFuzzBuilderTest, PrioritySelectOp) {
 TEST(IrFuzzBuilderTest, PrioritySelectWithLargeSelectorWidth) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 100
@@ -1475,7 +1475,7 @@ TEST(IrFuzzBuilderTest, PrioritySelectWithLargeSelectorWidth) {
 TEST(IrFuzzBuilderTest, PrioritySelectWithExtraCases) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 3
@@ -1514,7 +1514,7 @@ TEST(IrFuzzBuilderTest, PrioritySelectWithExtraCases) {
 TEST(IrFuzzBuilderTest, CountOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1547,7 +1547,7 @@ TEST(IrFuzzBuilderTest, CountOps) {
 TEST(IrFuzzBuilderTest, MatchOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1616,7 +1616,7 @@ TEST(IrFuzzBuilderTest, MatchOp) {
 TEST(IrFuzzBuilderTest, MatchTrueOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1672,7 +1672,7 @@ TEST(IrFuzzBuilderTest, MatchTrueOp) {
 TEST(IrFuzzBuilderTest, ReverseOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1691,7 +1691,7 @@ TEST(IrFuzzBuilderTest, ReverseOp) {
 TEST(IrFuzzBuilderTest, IdentityOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1710,7 +1710,7 @@ TEST(IrFuzzBuilderTest, IdentityOp) {
 TEST(IrFuzzBuilderTest, ExtendOps) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1743,7 +1743,7 @@ TEST(IrFuzzBuilderTest, ExtendOps) {
 TEST(IrFuzzBuilderTest, BitSliceOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 20
@@ -1778,7 +1778,7 @@ TEST(IrFuzzBuilderTest, BitSliceOp) {
 TEST(IrFuzzBuilderTest, BitSliceUpdateOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1810,7 +1810,7 @@ TEST(IrFuzzBuilderTest, BitSliceUpdateOp) {
 TEST(IrFuzzBuilderTest, DynamicBitSliceOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1842,7 +1842,7 @@ TEST(IrFuzzBuilderTest, DynamicBitSliceOp) {
 TEST(IrFuzzBuilderTest, EncodeOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1861,7 +1861,7 @@ TEST(IrFuzzBuilderTest, EncodeOp) {
 TEST(IrFuzzBuilderTest, DecodeOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10
@@ -1906,7 +1906,7 @@ TEST(IrFuzzBuilderTest, DecodeOp) {
 TEST(IrFuzzBuilderTest, GateOp) {
   std::string proto_string = absl::StrFormat(
       R"(
-        combine_stack_method: LAST_ELEMENT_METHOD
+        combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           param {
             bit_width: 10

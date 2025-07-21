@@ -79,6 +79,7 @@ cc_library(
         ":fuzz_program_cc_proto",
         ":ir_fuzz_helpers",
         ":ir_fuzz_visitor",
+        ":ir_node_context_list",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
@@ -87,14 +88,14 @@ cc_library(
 )
 
 cc_library(
-    name = "combine_stack",
-    srcs = ["combine_stack.cc"],
-    hdrs = ["combine_stack.h"],
+    name = "combine_context_list",
+    srcs = ["combine_context_list.cc"],
+    hdrs = ["combine_context_list.h"],
     deps = [
         ":fuzz_program_cc_proto",
         ":ir_fuzz_helpers",
+        ":ir_node_context_list",
         "//xls/ir:function_builder",
-        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -103,9 +104,10 @@ cc_library(
     srcs = ["ir_fuzz_builder.cc"],
     hdrs = ["ir_fuzz_builder.h"],
     deps = [
-        ":combine_stack",
+        ":combine_context_list",
         ":fuzz_program_cc_proto",
         ":gen_ir_nodes_pass",
+        ":ir_node_context_list",
         "//xls/ir",
         "//xls/ir:function_builder",
         "@com_google_absl//absl/log",
@@ -196,5 +198,15 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "ir_node_context_list",
+    srcs = ["ir_node_context_list.cc"],
+    hdrs = ["ir_node_context_list.h"],
+    deps = [
+        "//xls/ir:function_builder",
+        "@com_google_absl//absl/log:check",
     ],
 )
