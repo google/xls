@@ -135,6 +135,11 @@ void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f,
   cpp_file->AddInclude(path, xls::SourceInfo());
 }
 
+char* xls_vast_verilog_module_get_name(struct xls_vast_verilog_module* m) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  return xls::ToOwnedCString(cpp_module->name());
+}
+
 struct xls_vast_logic_ref* xls_vast_verilog_module_add_input(
     struct xls_vast_verilog_module* m, const char* name,
     struct xls_vast_data_type* type) {
@@ -366,6 +371,11 @@ struct xls_vast_indexable_expression* xls_vast_index_as_indexable_expression(
       static_cast<xls::verilog::IndexableExpression*>(cpp_index);
   return reinterpret_cast<xls_vast_indexable_expression*>(
       cpp_indexable_expression);
+}
+
+char* xls_vast_logic_ref_get_name(struct xls_vast_logic_ref* logic_ref) {
+  auto* cpp_logic_ref = reinterpret_cast<xls::verilog::LogicRef*>(logic_ref);
+  return xls::ToOwnedCString(cpp_logic_ref->GetName());
 }
 
 struct xls_vast_slice* xls_vast_verilog_file_make_slice_i64(
@@ -614,6 +624,107 @@ struct xls_vast_statement* xls_vast_statement_block_add_nonblocking_assignment(
       cpp_block->Add<xls::verilog::NonblockingAssignment>(xls::SourceInfo(),
                                                           cpp_lhs, cpp_rhs);
   return reinterpret_cast<xls_vast_statement*>(cpp_assignment);
+}
+
+struct xls_vast_module_port** xls_vast_verilog_module_get_ports(
+    struct xls_vast_verilog_module* m, size_t* out_count) {
+  auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
+  absl::Span<const xls::verilog::ModulePort> ports = cpp_module->ports();
+  *out_count = ports.size();
+  if (ports.empty()) {
+    return nullptr;
+  }
+  // Allocate an array owned by the caller (to be freed by
+  // xls_vast_verilog_module_free_ports).
+  auto** result = new xls_vast_module_port*[ports.size()];
+  for (size_t i = 0; i < ports.size(); ++i) {
+    // Cast away const to satisfy the C API – callers must treat the objects as
+    // read-only.
+    result[i] = reinterpret_cast<xls_vast_module_port*>(
+        const_cast<xls::verilog::ModulePort*>(&ports[i]));
+  }
+  return result;
+}
+
+void xls_vast_verilog_module_free_ports(struct xls_vast_module_port** ports,
+                                        size_t /*count*/) {
+  // Only the outer array was allocated – the pointed-to ModulePort objects are
+  // owned by the parent Module.
+  delete[] ports;
+}
+
+xls_vast_module_port_direction xls_vast_verilog_module_port_get_direction(
+    struct xls_vast_module_port* port) {
+  auto* cpp_port = reinterpret_cast<xls::verilog::ModulePort*>(port);
+  switch (cpp_port->direction) {
+    case xls::verilog::ModulePortDirection::kInput:
+      return xls_vast_module_port_direction_input;
+    case xls::verilog::ModulePortDirection::kOutput:
+      return xls_vast_module_port_direction_output;
+  }
+  LOG(FATAL) << "Invalid ModulePortDirection encountered.";
+}
+
+xls_vast_def* xls_vast_verilog_module_port_get_def(
+    struct xls_vast_module_port* port) {
+  auto* cpp_port = reinterpret_cast<xls::verilog::ModulePort*>(port);
+  return reinterpret_cast<xls_vast_def*>(cpp_port->wire);
+}
+
+char* xls_vast_def_get_name(struct xls_vast_def* def) {
+  auto* cpp_def = reinterpret_cast<xls::verilog::Def*>(def);
+  return xls::ToOwnedCString(cpp_def->GetName());
+}
+
+xls_vast_data_type* xls_vast_def_get_data_type(struct xls_vast_def* def) {
+  auto* cpp_def = reinterpret_cast<xls::verilog::Def*>(def);
+  return reinterpret_cast<xls_vast_data_type*>(cpp_def->data_type());
+}
+
+bool xls_vast_data_type_width_as_int64(struct xls_vast_data_type* type,
+                                       int64_t* out_width, char** error_out) {
+  CHECK(out_width != nullptr);
+  CHECK(error_out != nullptr);
+  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  absl::StatusOr<int64_t> result = cpp_type->WidthAsInt64();
+  if (!result.ok()) {
+    *error_out = xls::ToOwnedCString(result.status().ToString());
+    return false;
+  }
+  *out_width = result.value();
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_vast_data_type_flat_bit_count_as_int64(struct xls_vast_data_type* type,
+                                                int64_t* out_flat_bit_count,
+                                                char** error_out) {
+  CHECK(out_flat_bit_count != nullptr);
+  CHECK(error_out != nullptr);
+  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  absl::StatusOr<int64_t> result = cpp_type->FlatBitCountAsInt64();
+  if (!result.ok()) {
+    *error_out = xls::ToOwnedCString(result.status().ToString());
+    return false;
+  }
+  *out_flat_bit_count = result.value();
+  *error_out = nullptr;
+  return true;
+}
+
+struct xls_vast_expression* xls_vast_data_type_width(
+    struct xls_vast_data_type* type) {
+  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  std::optional<xls::verilog::Expression*> expr_opt = cpp_type->width();
+  if (!expr_opt.has_value()) {
+    return nullptr;
+  }
+  return reinterpret_cast<xls_vast_expression*>(*expr_opt);
+}
+
+bool xls_vast_data_type_is_signed(struct xls_vast_data_type* type) {
+  auto* cpp_type = reinterpret_cast<xls::verilog::DataType*>(type);
+  return cpp_type->is_signed();
 }
 
 }  // extern "C"
