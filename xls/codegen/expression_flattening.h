@@ -15,42 +15,19 @@
 // Library defining how arrays and tuples are lowered into vectors of bits by
 // the generators.
 
-#ifndef XLS_CODEGEN_FLATTENING_H_
-#define XLS_CODEGEN_FLATTENING_H_
+#ifndef XLS_CODEGEN_EXPRESSION_FLATTENING_H_
+#define XLS_CODEGEN_EXPRESSION_FLATTENING_H_
 
 #include <cstdint>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/vast/vast.h"
-#include "xls/ir/bits.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
-#include "xls/ir/value.h"
 #include "xls/ir/xls_type.pb.h"
 
 namespace xls {
-
-// Flattens this arbitrarily-typed Value to a bits type containing the same
-// total number of bits. Tuples are flattened by concatenating all of the leaf
-// elements. The zero-th tuple element ends up in the highest-indexed bits in
-// the resulting vector. However, for a flattened array the last element
-// ends up in the highest index bits. This is in line with the behavior of
-// Verilog concatenate operation.
-Bits FlattenValueToBits(const Value& value);
-
-// Unflattens the given Bits to a Value of the given type. This is the inverse
-// of FlattenValueToBits.
-absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits, const Type* type);
-absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits,
-                                           const TypeProto& type_proto);
-
-// Returns the index of the first bit of tuple element at 'index' where the
-// tuple is flattened into a vector of bits.
-int64_t GetFlatBitIndexOfElement(const TupleType* tuple_type, int64_t index);
-
-// Overload which returns the index of an element for an array type.
-int64_t GetFlatBitIndexOfElement(const ArrayType* array_type, int64_t index);
 
 // Flattens the given tuple elements as VAST expressions into a flat bit vector
 // representation of a tuple. 'inputs' should include an expression for each
@@ -83,4 +60,4 @@ verilog::Expression* UnflattenArrayShapedTupleElement(
 
 }  // namespace xls
 
-#endif  // XLS_CODEGEN_FLATTENING_H_
+#endif  // XLS_CODEGEN_EXPRESSION_FLATTENING_H_

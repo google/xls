@@ -2405,3 +2405,39 @@ cc_test(
         "@googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "value_flattening",
+    srcs = ["value_flattening.cc"],
+    hdrs = ["value_flattening.h"],
+    deps = [
+        ":bits",
+        ":bits_ops",
+        ":ir",
+        ":type",
+        ":value",
+        ":xls_type_cc_proto",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "value_flattening_test",
+    srcs = ["value_flattening_test.cc"],
+    deps = [
+        ":bits",
+        ":ir",
+        ":ir_test_base",
+        ":type",
+        ":value",
+        ":value_flattening",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@googletest//:gtest",
+    ],
+)

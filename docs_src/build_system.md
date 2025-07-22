@@ -109,7 +109,7 @@ target - the `rdeps` query performs this:
 
 ```
 $ bazel query 'rdeps(//xls/codegen:all, //xls/codegen:combinational_generator)'
-//xls/codegen:flattening_test
+//xls/codegen:expression_flattening_test
 //xls/ir:ir_test_base
 //xls/codegen:combinational_generator_test
 //xls/codegen:combinational_generator

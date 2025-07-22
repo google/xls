@@ -38,7 +38,7 @@
 #include "absl/strings/strip.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
-#include "xls/codegen/flattening.h"
+#include "xls/codegen/expression_flattening.h"
 #include "xls/codegen/lint_annotate.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/node_expressions.h"
@@ -57,6 +57,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_flattening.h"
 #include "xls/passes/bdd_query_engine.h"
 
 namespace xls {

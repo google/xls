@@ -339,7 +339,7 @@ cc_library(
     hdrs = ["node_expressions.h"],
     deps = [
         ":codegen_options",
-        ":flattening",
+        ":expression_flattening",
         "//xls/codegen/vast",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -349,6 +349,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:type",
+        "//xls/ir:value_flattening",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -359,25 +360,19 @@ cc_library(
 )
 
 cc_library(
-    name = "flattening",
-    srcs = ["flattening.cc"],
-    hdrs = ["flattening.h"],
+    name = "expression_flattening",
+    srcs = ["expression_flattening.cc"],
+    hdrs = ["expression_flattening.h"],
     deps = [
         "//xls/codegen/vast",
         "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:bits_ops",
         "//xls/ir:source_location",
         "//xls/ir:type",
-        "//xls/ir:value",
+        "//xls/ir:value_flattening",
         "//xls/ir:xls_type_cc_proto",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -401,7 +396,7 @@ cc_library(
     hdrs = ["module_builder.h"],
     deps = [
         ":codegen_options",
-        ":flattening",
+        ":expression_flattening",
         ":lint_annotate",
         ":module_signature_cc_proto",
         ":node_expressions",
@@ -419,6 +414,7 @@ cc_library(
         "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/ir:value_flattening",
         "//xls/passes:bdd_query_engine",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
@@ -766,7 +762,7 @@ cc_library(
     deps = [
         ":codegen_options",
         ":conversion_utils",
-        ":flattening",
+        ":expression_flattening",
         ":module_builder",
         ":module_signature_cc_proto",
         ":node_expressions",
@@ -1070,19 +1066,17 @@ cc_test(
 )
 
 cc_test(
-    name = "flattening_test",
-    srcs = ["flattening_test.cc"],
+    name = "expression_flattening_test",
+    srcs = ["expression_flattening_test.cc"],
     deps = [
-        ":flattening",
+        ":expression_flattening",
         "//xls/codegen/vast",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
-        "//xls/ir:bits",
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
         "//xls/ir:type",
-        "//xls/ir:value",
         "@googletest//:gtest",
     ],
 )

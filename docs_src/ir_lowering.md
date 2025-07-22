@@ -9,10 +9,14 @@ constructs don't map directly to Verilog constructs.
 ## Flattening
 
 Some XLS types are flattened into simpler types when IR gets lowered to RTL.
-This flattening is performed
-[here](https://github.com/google/xls/tree/main/xls/codegen/flattening.cc) (also see
-[the more-commented header file](https://github.com/google/xls/tree/main/xls/codegen/flattening.h)).
-The following summarizes how types are flattened.
+Value flattening is performed
+[here](https://github.com/google/xls/tree/main/xls/ir/value_flattening.cc) and expression
+flattening is performed
+[here](https://github.com/google/xls/tree/main/xls/codegen/expression_flattening.cc) (also
+see the more-commented header files
+[here](https://github.com/google/xls/tree/main/xls/ir/value_flattening.h) and
+[here](https://github.com/google/xls/tree/main/xls/codegen/expression_flattening.h)). The
+following summarizes how types are flattened.
 
 ### Arrays
 

@@ -26,7 +26,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
-#include "xls/codegen/flattening.h"
+#include "xls/codegen/expression_flattening.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -38,6 +38,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value_flattening.h"
 
 namespace xls {
 namespace verilog {

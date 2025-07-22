@@ -39,7 +39,7 @@
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/conversion_utils.h"
-#include "xls/codegen/flattening.h"
+#include "xls/codegen/expression_flattening.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/node_expressions.h"
