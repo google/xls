@@ -4024,8 +4024,8 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(IrConverterWithBothTypecheckVersionsTest,
-     ProcMemberInDynamicLoopUnsupported) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       ProcMemberInDynamicLoopUnsupported) {
   constexpr std::string_view kProgram = R"(
 proc Proc {
   inputs: chan<s32>[2] in;
@@ -4052,7 +4052,10 @@ proc Proc {
               "Accessing proc member in non-unrolled loop is unsupported")));
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ProcNextOnly) {
+class ProcScopedChannelsIrConverterTest
+    : public IrConverterWithBothTypecheckVersionsTest {};
+
+TEST_P(ProcScopedChannelsIrConverterTest, ProcNextOnly) {
   constexpr std::string_view kProgram = R"(
 proc main {
   init { }
@@ -4071,7 +4074,7 @@ proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, MultipleSimpleProcs) {
+TEST_P(ProcScopedChannelsIrConverterTest, MultipleSimpleProcs) {
   // Tests that it properly assigns p2 as the top.
   constexpr std::string_view kProgram = R"(
 proc p1 {
@@ -4097,7 +4100,7 @@ proc p2 {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ProcNextInitOnly) {
+TEST_P(ProcScopedChannelsIrConverterTest, ProcNextInitOnly) {
   constexpr std::string_view kProgram = R"(
 proc main {
   init { u32:1 }
@@ -4114,10 +4117,44 @@ proc main {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, SimpleSpawn) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() {
+    spawn spawnee();
+    ()
+  }
+  next(state: ()) { () }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
 INSTANTIATE_TEST_SUITE_P(IrConverterWithBothTypecheckVersionsTestSuite,
                          IrConverterWithBothTypecheckVersionsTest,
                          testing::Values(TypeInferenceVersion::kVersion1,
                                          TypeInferenceVersion::kVersion2));
+
+INSTANTIATE_TEST_SUITE_P(
+    ProcScopedChannelsIrConverterWithBothTypecheckVersionsTestSuite,
+    ProcScopedChannelsIrConverterTest,
+    testing::Values(TypeInferenceVersion::kVersion1,
+                    TypeInferenceVersion::kVersion2));
 
 }  // namespace
 }  // namespace xls::dslx

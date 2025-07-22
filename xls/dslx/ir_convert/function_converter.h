@@ -92,6 +92,7 @@ absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
 struct PackageData {
   PackageConversionData* conversion_info;
   absl::flat_hash_map<xls::FunctionBase*, dslx::Function*> ir_to_dslx;
+  absl::flat_hash_map<dslx::Proc*, xls::Proc*> dslx_proc_to_ir_proc;
   absl::flat_hash_set<xls::Function*> wrappers;
 };
 
@@ -345,6 +346,7 @@ class FunctionConverter {
   absl::Status HandleZeroMacro(const ZeroMacro* node);
   absl::Status HandleAllOnesMacro(const AllOnesMacro* node);
   absl::Status HandleUnrollFor(const UnrollFor* node);
+  absl::Status HandleSpawn(const Spawn* node);
 
   // AstNode handlers that recur "manually" internal to the handler.
   absl::Status HandleArray(const Array* node);

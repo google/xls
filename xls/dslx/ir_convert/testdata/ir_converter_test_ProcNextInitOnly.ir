@@ -6,5 +6,6 @@ proc __test_module__main_0_next<>(__state: bits[32], init={1}) {
   __state: bits[32] = state_read(state_element=__state, id=2)
   __token: token = literal(value=token, id=1)
   literal.3: bits[1] = literal(value=1, id=3)
-  next_value.4: () = next_value(param=__state, value=__state, id=4)
+  tuple.4: () = tuple(id=4)
+  next_value.5: () = next_value(param=__state, value=__state, id=5)
 }

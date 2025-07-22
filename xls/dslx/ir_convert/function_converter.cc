@@ -380,6 +380,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Let)
   NO_TRAVERSE_DISPATCH_VISIT(Match)
   NO_TRAVERSE_DISPATCH_VISIT(Range)
+  NO_TRAVERSE_DISPATCH_VISIT(Spawn)
   NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(Statement)
   NO_TRAVERSE_DISPATCH_VISIT(StatementBlock)
@@ -443,7 +444,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(ProcDef)
   INVALID(ProcMember)
   INVALID(QuickCheck)
-  INVALID(Spawn)
   INVALID(StructDef)
   INVALID(StructMemberNode)
   INVALID(TypeAlias)
@@ -3003,6 +3003,40 @@ absl::Status FunctionConverter::HandleFunction(
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
+  VLOG(5) << "HandleSpawn: " << node->ToString();
+  if (!options_.lower_to_proc_scoped_channels) {
+    return absl::OkStatus();
+  }
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  XLS_RET_CHECK_NE(builder_ptr, nullptr)
+      << "Spawn nodes should only be encountered during proc conversion; "
+         "we seem to be in function conversion.";
+
+  // Get the spawned proc as an AST proc.
+  XLS_ASSIGN_OR_RETURN(Proc * ast_proc,
+                       ResolveProc(node->callee(), current_type_info_));
+  // Translate the AST proc to an IR proc.
+  XLS_RET_CHECK(package_data_.dslx_proc_to_ir_proc.contains(ast_proc))
+      << ast_proc->identifier();
+  xls::Proc* ir_proc = package_data_.dslx_proc_to_ir_proc[ast_proc];
+
+  xls::Proc* top_proc = package()->GetTop().value()->AsProcOrDie();
+  // TODO: https://github.com/google/xls/issues/2078 - set up the channel_args
+  XLS_RETURN_IF_ERROR(
+      top_proc
+          ->AddProcInstantiation(absl::StrFormat("%s_inst", ir_proc->name()),
+                                 /* channel_args=*/{}, ir_proc)
+          .status());
+  // Spawn is an Invocation, which is an Instantiation, which is
+  // technically an Expr, so it needs to have an Ir value in the map, even
+  // though that value is never read.
+  SetNodeToIr(node, BValue());
+
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleProcNextFunction(
     Function* f, const Invocation* invocation, TypeInfo* type_info,
     ImportData* import_data, const ParametricEnv* parametric_env,
@@ -3025,6 +3059,9 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   std::string state_name = "__state";
 
   Value initial_element = Value::Tuple({});
+  // TODO: https://github.com/google/xls/issues/2078 -
+  // The proc_data_->id_to_initial_value map needs more filling-out; right
+  // now it only set for top procs. See ProcConfigIrConverter.HandleSpawn
   if (proc_data_->id_to_initial_value.contains(proc_id)) {
     initial_element = proc_data_->id_to_initial_value.at(proc_id);
   }
@@ -3113,12 +3150,19 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
+  if (options_.lower_to_proc_scoped_channels) {
+    // Process the config function here instead of in ProcConfigIrConverter
+    Function& config_fn = f->proc().value()->config();
+    XLS_RETURN_IF_ERROR(Visit(config_fn.body()));
+  }
+
   XLS_RETURN_IF_ERROR(Visit(f->body()));
 
   builder_ptr->Next(state, std::get<BValue>(node_to_ir_[f->body()]));
 
   XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build());
   package_data_.ir_to_dslx[p] = f;
+  package_data_.dslx_proc_to_ir_proc[f->proc().value()] = p;
   return absl::OkStatus();
 }
 
@@ -3530,6 +3574,8 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
   return absl::visit(
       Visitor{
           [&](Expr* e) -> absl::Status {
+            VLOG(5) << "FunctionConverter::Dealing with expr ; node: "
+                    << node->ToString();
             XLS_RETURN_IF_ERROR(Visit(ToAstNode(e)));
             XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(e));
             SetNodeToIr(node, bvalue);
