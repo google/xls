@@ -628,6 +628,7 @@ struct xls_vast_statement* xls_vast_statement_block_add_nonblocking_assignment(
 
 struct xls_vast_module_port** xls_vast_verilog_module_get_ports(
     struct xls_vast_verilog_module* m, size_t* out_count) {
+  CHECK(out_count != nullptr);
   auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
   absl::Span<const xls::verilog::ModulePort> ports = cpp_module->ports();
   *out_count = ports.size();
