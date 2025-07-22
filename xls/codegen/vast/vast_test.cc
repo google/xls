@@ -23,6 +23,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
@@ -1183,6 +1184,142 @@ TEST_P(VastTest, AlwaysFlopTestSyncReset) {
     b <= b_next;
   end
 end)");
+}
+
+TEST_P(VastTest, CommentAnnotations) {
+  absl::flat_hash_map<Fileno, std::string> filemap = {
+      {Fileno(0), std::string("test.x")}};
+  VerilogFile f(GetFileType(), AnnotationType::kComment, filemap);
+
+  Module* m = f.AddModule("top", SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst,
+      m->AddInput("my_rst", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", f.BitVectorType(8, SourceInfo()),
+                SourceInfo(SourceLocation(Fileno(0), Lineno(1), Colno(1)))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a_next,
+      m->AddReg("a_next", f.BitVectorType(8, SourceInfo()),
+                SourceInfo(SourceLocation(Fileno(0), Lineno(2), Colno(1)))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(8, SourceInfo()),
+                SourceInfo(SourceLocation(Fileno(0), Lineno(3), Colno(1)))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b_next,
+      m->AddReg("b_next", f.BitVectorType(8, SourceInfo()),
+                SourceInfo(SourceLocation(Fileno(0), Lineno(4), Colno(1)))));
+
+  AlwaysFlop* af = m->Add<AlwaysFlop>(
+      SourceInfo(SourceLocation(Fileno(0), Lineno(5), Colno(1))), clk,
+      Reset{.signal = rst, .asynchronous = false, .active_low = false});
+  af->AddRegister(a, a_next,
+                  SourceInfo(SourceLocation(Fileno(0), Lineno(6), Colno(5))),
+                  /*reset_value=*/f.Literal(42, 8, SourceInfo()));
+  af->AddRegister(b, b_next,
+                  SourceInfo(SourceLocation(Fileno(0), Lineno(7), Colno(8))));
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top(
+  input wire my_clk,
+  input wire my_rst
+);
+  // test.x:1:1
+  reg [7:0] a;
+  // test.x:2:1
+  reg [7:0] a_next;
+  // test.x:3:1
+  reg [7:0] b;
+  // test.x:4:1
+  reg [7:0] b_next;
+  // test.x:5:1
+  always @ (posedge my_clk) begin
+    // test.x:5:1
+    if (my_rst) begin
+      // test.x:6:5
+      a <= 8'h2a;
+    end else begin
+      // test.x:6:5
+      a <= a_next;
+      // test.x:7:8
+      b <= b_next;
+    end
+  end
+endmodule)");
+}
+
+TEST_P(VastTest, DirectiveAnnotations) {
+  absl::flat_hash_map<Fileno, std::string> filemap = {
+      {Fileno(0), std::string("test.x")}};
+  VerilogFile f(GetFileType(), AnnotationType::kLineDirective, filemap);
+
+  Module* m = f.AddModule("top", SourceInfo());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * clk,
+      m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * rst,
+      m->AddInput("my_rst", f.BitVectorType(1, SourceInfo()), SourceInfo()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a,
+      m->AddReg("a", f.BitVectorType(8, SourceInfo()),
+                SourceInfo(SourceLocation(Fileno(0), Lineno(1), Colno(1)))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * a_next,
+      m->AddReg("a_next", f.BitVectorType(8, SourceInfo()),
+                SourceInfo(SourceLocation(Fileno(0), Lineno(2), Colno(1)))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b,
+      m->AddReg("b", f.BitVectorType(8, SourceInfo()),
+                SourceInfo(SourceLocation(Fileno(0), Lineno(3), Colno(1)))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      LogicRef * b_next,
+      m->AddReg("b_next", f.BitVectorType(8, SourceInfo()),
+                SourceInfo(SourceLocation(Fileno(0), Lineno(4), Colno(1)))));
+
+  AlwaysFlop* af = m->Add<AlwaysFlop>(
+      SourceInfo(SourceLocation(Fileno(0), Lineno(5), Colno(1))), clk,
+      Reset{.signal = rst, .asynchronous = false, .active_low = false});
+  af->AddRegister(a, a_next,
+                  SourceInfo(SourceLocation(Fileno(0), Lineno(6), Colno(5))),
+                  /*reset_value=*/f.Literal(42, 8, SourceInfo()));
+  af->AddRegister(b, b_next,
+                  SourceInfo(SourceLocation(Fileno(0), Lineno(7), Colno(8))));
+
+  EXPECT_EQ(m->Emit(nullptr),
+            R"(module top(
+  input wire my_clk,
+  input wire my_rst
+);
+  `line 1 "test.x" 0
+  reg [7:0] a;
+  `line 2 "test.x" 0
+  reg [7:0] a_next;
+  `line 3 "test.x" 0
+  reg [7:0] b;
+  `line 4 "test.x" 0
+  reg [7:0] b_next;
+  `line 5 "test.x" 0
+  always @ (posedge my_clk) begin
+    `line 5 "test.x" 0
+    if (my_rst) begin
+      `line 6 "test.x" 0
+      a <= 8'h2a;
+    end else begin
+      `line 6 "test.x" 0
+      a <= a_next;
+      `line 7 "test.x" 0
+      b <= b_next;
+    end
+  end
+endmodule)");
 }
 
 TEST_P(VastTest, AlwaysFlopTestAsyncResetActiveLow) {
