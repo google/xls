@@ -15,6 +15,7 @@
 #include "xls/passes/reassociation_pass.h"
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -1376,12 +1377,12 @@ TEST_F(ReassociationPassTest, AddZeroToOverflowValueKeepsOverflow) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
-void IrFuzzReassociation(const PackageAndTestParams& package_and_test_params) {
+void IrFuzzReassociation(FuzzPackageWithArgs fuzz_package_with_args) {
   ReassociationPass pass;
-  OptimizationPassChangesOutputs(package_and_test_params, pass);
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
 }
 FUZZ_TEST(IrFuzzTest, IrFuzzReassociation)
-    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

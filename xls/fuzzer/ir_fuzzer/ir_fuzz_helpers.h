@@ -17,19 +17,17 @@
 
 #include <cstdint>
 #include <string>
-#include <string_view>
+#include <vector>
 
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 // Generic helper functions used in the IR Fuzzer.
 
 namespace xls {
-
-// Used as a test name for Functions and Packages in GoogleTests.
-inline constexpr std::string_view kFuzzTestName = "FuzzTest";
 
 // A simple type enum. Used for specifying kinds of default values. Also used in
 // the context list to specify which list to use.
@@ -70,6 +68,8 @@ int64_t Bounded(int64_t value, int64_t left_bound, int64_t right_bound);
 int64_t BoundedWidth(int64_t bit_width, int64_t left_bound = 1,
                      int64_t right_bound = 1000);
 
+std::vector<Value> GenArgsForParam(int64_t arg_count, Type* type,
+                                   const Bits& args_bits, int64_t& bits_idx);
 Bits ChangeBytesBitWidth(std::string bytes, int64_t bit_width);
 
 }  // namespace xls

@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -2288,13 +2289,12 @@ TEST_F(ArithSimplificationPassTest, AddSignExtPlusConstant) {
               m::Select(m::Param("c"), {m::Literal(3), m::Literal(2)}));
 }
 
-void IrFuzzArithSimplification(
-    const PackageAndTestParams& package_and_test_params) {
+void IrFuzzArithSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   ArithSimplificationPass pass;
-  OptimizationPassChangesOutputs(package_and_test_params, pass);
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
 }
 FUZZ_TEST(IrFuzzTest, IrFuzzArithSimplification)
-    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

@@ -12,57 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/fuzzer/ir_fuzzer/ir_fuzz_builder.h"
-
-#include <memory>
-#include <string>
-
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
-#include "absl/log/log.h"
-#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
-#include "google/protobuf/text_format.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/ret_check.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
-#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
-#include "xls/ir/ir_test_base.h"
 #include "xls/ir/lsb_or_msb.h"
-#include "xls/ir/package.h"
-#include "xls/ir/verifier.h"
 
 namespace m = ::xls::op_matchers;
 
 namespace xls {
 namespace {
-
-// Performs tests on the IrFuzzBuilder by manually creating a FuzzProgramProto,
-// instantiating it into its IR version, and manually verifying the IR is
-// correct.
-absl::Status EquateProtoToIrTest(
-    std::string proto_string, testing::Matcher<const Node*> expected_ir_node) {
-  // Create the package.
-  std::unique_ptr<Package> p = std::make_unique<VerifiedPackage>(kFuzzTestName);
-  FunctionBuilder fb(kFuzzTestName, p.get());
-  // Create the proto from the string.
-  FuzzProgramProto fuzz_program;
-  XLS_RET_CHECK(
-      google::protobuf::TextFormat::ParseFromString(proto_string, &fuzz_program));
-  // Generate the IR from the proto.
-  IrFuzzBuilder ir_fuzz_builder(fuzz_program, p.get(), &fb);
-  BValue proto_ir = ir_fuzz_builder.BuildIr();
-  XLS_ASSIGN_OR_RETURN(Function * f, fb.BuildWithReturnValue(proto_ir));
-  VLOG(3) << "IR Fuzzer-2: IR:" << "\n" << f->DumpIr() << "\n";
-  // Verify that the proto_ir_node matches the expected_ir_node.
-  EXPECT_THAT(f->return_value(), expected_ir_node);
-  return absl::OkStatus();
-}
 
 TEST(IrFuzzBuilderTest, AddTwoLiterals) {
   std::string proto_string = absl::StrFormat(
@@ -70,22 +34,22 @@ TEST(IrFuzzBuilderTest, AddTwoLiterals) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            value_type {
+            type {
               bits {
                 bit_width: 64
-                value_bytes: "\x%x"
               }
             }
+            value_bytes: "\x%x"
           }
         }
         fuzz_ops {
           literal {
-            value_type {
+            type {
               bits {
                 bit_width: 64
-                value_bytes: "\x%x"
               }
             }
+            value_bytes: "\x%x"
           }
         }
         fuzz_ops {
@@ -154,12 +118,12 @@ TEST(IrFuzzBuilderTest, AddLiteralsAndParamsAndAdds) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            value_type {
+            type {
               bits {
                 bit_width: 64
-                value_bytes: "\x%x"
               }
             }
+            value_bytes: "\x%x"
           }
         }
         fuzz_ops {
@@ -186,12 +150,12 @@ TEST(IrFuzzBuilderTest, AddLiteralsAndParamsAndAdds) {
         }
         fuzz_ops {
           literal {
-            value_type {
+            type {
               bits {
                 bit_width: 64
-                value_bytes: "\x%x"
               }
             }
+            value_bytes: "\x%x"
           }
         }
         fuzz_ops {
@@ -261,12 +225,12 @@ TEST(IrFuzzBuilderTest, AddOpThenAddList) {
         combine_list_method: ADD_LIST_METHOD
         fuzz_ops {
           literal {
-            value_type {
+            type {
               bits {
                 bit_width: 64
-                value_bytes: "\x%x"
               }
             }
+            value_bytes: "\x%x"
           }
         }
         fuzz_ops {
@@ -305,12 +269,12 @@ TEST(IrFuzzBuilderTest, AddOutOfBoundsIdxs) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            value_type {
+            type {
               bits {
                 bit_width: 64
-                value_bytes: "\x%x"
               }
             }
+            value_bytes: "\x%x"
           }
         }
         fuzz_ops {
@@ -347,12 +311,12 @@ TEST(IrFuzzBuilderTest, LiteralValueOverBoundsOfSmallWidth) {
         combine_list_method: LAST_ELEMENT_METHOD
         fuzz_ops {
           literal {
-            value_type {
+            type {
               bits {
                 bit_width: 1
-                value_bytes: "\x%x"
               }
             }
+            value_bytes: "\x%x"
           }
         }
       )",

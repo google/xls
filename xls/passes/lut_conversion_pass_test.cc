@@ -14,6 +14,8 @@
 
 #include "xls/passes/lut_conversion_pass.h"
 
+#include <utility>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
@@ -212,12 +214,12 @@ TEST_F(LutConversionPassTest, ComplexExample) {
                                         m::Literal(0), m::Literal(0)}));
 }
 
-void IrFuzzLutConversion(const PackageAndTestParams& package_and_test_params) {
+void IrFuzzLutConversion(FuzzPackageWithArgs fuzz_package_with_args) {
   LutConversionPass pass;
-  OptimizationPassChangesOutputs(package_and_test_params, pass);
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
 }
 FUZZ_TEST(IrFuzzTest, IrFuzzLutConversion)
-    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
@@ -25,16 +26,14 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/ir/value_flattening.h"
 
 namespace xls {
 
 // Returns a BValue that is coerced to the specified type.
 BValue Coerced(Package* p, FunctionBuilder* fb, BValue bvalue,
                const CoercedTypeProto& coerced_type, Type* target_type) {
-  // If the bvalue is already the specified type, return it as is.
-  if (bvalue.GetType() == target_type) {
-    return bvalue;
-  }
   switch (coerced_type.type_case()) {
     case CoercedTypeProto::kBits:
       return CoercedBits(p, fb, bvalue, coerced_type.bits(), target_type);
@@ -149,8 +148,6 @@ BValue DefaultValueOfBitsType(Package* p, FunctionBuilder* fb, Type* type) {
 // allow the traversal of any type proto.
 template Type* ConvertTypeProtoToType<FuzzTypeProto>(Package*,
                                                      const FuzzTypeProto&);
-template Type* ConvertTypeProtoToType<ValueTypeProto>(Package*,
-                                                      const ValueTypeProto&);
 template Type* ConvertTypeProtoToType<CoercedTypeProto>(
     Package*, const CoercedTypeProto&);
 // Returns a Type object from the specified type proto.
@@ -189,6 +186,31 @@ int64_t Bounded(int64_t value, int64_t left_bound, int64_t right_bound) {
 int64_t BoundedWidth(int64_t bit_width, int64_t left_bound,
                      int64_t right_bound) {
   return Bounded(bit_width, left_bound, right_bound);
+}
+
+// Returns arg_count number of randomly generated arguments that are compatible
+// for a given parameter type.
+std::vector<Value> GenArgsForParam(int64_t arg_count, Type* type,
+                                   const Bits& args_bits, int64_t& bits_idx) {
+  std::vector<Value> args;
+  // Only generate the minimum number of bits needed for the argument.
+  int64_t bit_width = type->GetFlatBitCount();
+  for (int64_t i = 0; i < arg_count; i += 1) {
+    Bits arg_bits;
+    if (bits_idx + bit_width <= args_bits.bit_count()) {
+      // If there are enough bits in the args_bits, use them.
+      arg_bits = args_bits.Slice(bits_idx, bit_width);
+      bits_idx += bit_width;
+    } else {
+      // If there aren't enough bits in the args_bits, use zero bits.
+      arg_bits = bits_ops::ZeroExtend(arg_bits, bit_width);
+    }
+    // Use of UnflattenBitsToValue to convert the arg_bits into a Value of the
+    // specified type.
+    Value arg_value = UnflattenBitsToValue(arg_bits, type).value();
+    args.push_back(arg_value);
+  }
+  return args;
 }
 
 // Accepts a string representing a byte array, which represents an integer. This

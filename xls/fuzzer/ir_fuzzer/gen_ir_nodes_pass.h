@@ -100,8 +100,6 @@ class GenIrNodesPass : public IrFuzzVisitor {
   void HandleGate(const FuzzGateProto& gate) override;
 
  private:
-  BValue GetValueFromValueTypeProto(const ValueTypeProto& value_type);
-
   BValue GetOperand(const OperandIdxProto& operand_idx);
   BValue GetBitsOperand(const BitsOperandIdxProto& operand_idx);
   BValue GetCoercedOperand(const OperandIdxProto& operand_idx,

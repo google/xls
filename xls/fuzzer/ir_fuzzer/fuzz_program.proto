@@ -22,7 +22,10 @@ package xls;
 message FuzzProgramProto {
   // Specifies how the context list of IR ops will be combined.
   optional CombineListMethod combine_list_method = 1;
-  repeated FuzzOpProto fuzz_ops = 2;
+  // Will generate a list of bytes that may be used to create arguments that are
+  // compatible with the parameters of the function.
+  optional bytes args_bytes = 2;
+  repeated FuzzOpProto fuzz_ops = 3;
 }
 
 // Specifies the method used to combine the context list of BValues into a
@@ -45,12 +48,10 @@ message BitsOperandIdxProto {
   optional int64 list_idx = 1;
 }
 
-// Use of a TypeProto (specifically for FuzzParam) to specify the type of an
-// operand.
-// Note that multiple type protos exist, including FuzzTypeProto,
-// ValueTypeProto, and CoercedTypeProto, because each performs a slightly
-// different function. They are all traversed by the same templated recursive
-// functions.
+// Use of a TypeProto to specify the type of an operand.
+// Note that multiple type protos exist, including FuzzTypeProto, and
+// CoercedTypeProto, because each performs a slightly different function. They
+// are all traversed by the same templated recursive functions.
 // TODO: Consider reusing the existing TypeProto.
 message FuzzTypeProto {
   oneof type {
@@ -59,20 +60,6 @@ message FuzzTypeProto {
 }
 message BitsTypeProto {
   optional int64 bit_width = 1;
-}
-
-// ValueTypeProto is the same as FuzzTypeProto, but it is used to specify
-// the value of a literal.
-message ValueTypeProto {
-  oneof type {
-    BitsValueTypeProto bits = 1;
-  }
-}
-// TODO: Use the ValueProto::Bits proto for bit_width and value_bytes.
-message BitsValueTypeProto {
-  optional int64 bit_width = 1;
-  // Uses value_bytes to specify the integer value of a bits literal.
-  optional bytes value_bytes = 2;
 }
 
 // CoercedTypeProto is the same as FuzzTypeProto, but also contains coercion
@@ -360,9 +347,9 @@ message FuzzNotProto {
 }
 
 message FuzzLiteralProto {
-  // Use of ValueTypeProto to generate a value of a specific type for the
-  // literal.
-  optional ValueTypeProto value_type = 1;
+  optional FuzzTypeProto type = 1;
+  // Bytes used to fill the literal with an actual value.
+  optional bytes value_bytes = 2;
 }
 
 message FuzzSelectProto {

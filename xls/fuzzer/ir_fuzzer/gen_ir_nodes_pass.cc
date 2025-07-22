@@ -27,6 +27,8 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/value.h"
+#include "xls/ir/value_flattening.h"
 
 namespace xls {
 
@@ -275,27 +277,12 @@ void GenIrNodesPass::HandleNot(const FuzzNotProto& not_op) {
   context_list_.AppendElement(fb_->Not(operand));
 }
 
-// Traverses the ValueTypeProto and returns a BValue representing the
-// instantiated literal.
-BValue GenIrNodesPass::GetValueFromValueTypeProto(
-    const ValueTypeProto& value_type) {
-  switch (value_type.type_case()) {
-    case ValueTypeProto::kBits: {
-      // Take the bytes protobuf datatype and convert it to a Bits object by
-      // making a const uint8_t span. Any bytes that exceed the bit width of the
-      // literal will be dropped.
-      auto bits_type = value_type.bits();
-      int64_t bit_width = BoundedWidth(bits_type.bit_width());
-      Bits value_bits = ChangeBytesBitWidth(bits_type.value_bytes(), bit_width);
-      return fb_->Literal(value_bits);
-    }
-    default:
-      return DefaultValue(p_, fb_);
-  }
-}
-
 void GenIrNodesPass::HandleLiteral(const FuzzLiteralProto& literal) {
-  context_list_.AppendElement(GetValueFromValueTypeProto(literal.value_type()));
+  Type* type = ConvertTypeProtoToType(p_, literal.type());
+  Bits value_bits =
+      ChangeBytesBitWidth(literal.value_bytes(), type->GetFlatBitCount());
+  Value value = UnflattenBitsToValue(value_bits, type).value();
+  context_list_.AppendElement(fb_->Literal(value));
 }
 
 void GenIrNodesPass::HandleSelect(const FuzzSelectProto& select) {

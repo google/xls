@@ -14,6 +14,8 @@
 
 #include "xls/passes/strength_reduction_pass.h"
 
+#include <utility>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
@@ -526,13 +528,12 @@ TEST_F(StrengthReductionPassTest, HandlesOneBitMuxWithDefault) {
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
 }
 
-void IrFuzzStrengthReduction(
-    const PackageAndTestParams& package_and_test_params) {
+void IrFuzzStrengthReduction(FuzzPackageWithArgs fuzz_package_with_args) {
   StrengthReductionPass pass;
-  OptimizationPassChangesOutputs(package_and_test_params, pass);
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
 }
 FUZZ_TEST(IrFuzzTest, IrFuzzStrengthReduction)
-    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

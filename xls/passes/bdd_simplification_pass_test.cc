@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -597,13 +598,12 @@ TEST_F(BddSimplificationPassTest,
   EXPECT_THAT(f->return_value(), m::Param("input"));
 }
 
-void IrFuzzBddSimplification(
-    const PackageAndTestParams& package_and_test_params) {
+void IrFuzzBddSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   BddSimplificationPass pass;
-  OptimizationPassChangesOutputs(package_and_test_params, pass);
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
 }
 FUZZ_TEST(IrFuzzTest, IrFuzzBddSimplification)
-    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

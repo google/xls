@@ -14,6 +14,7 @@
 #include "xls/passes/resource_sharing_pass.h"
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -1199,13 +1200,12 @@ TEST_F(ResourceSharingPassTest, MergeShift) {
   InterpretAndCheck(f, {0, 8, 1, 0, 0}, 16);
 }
 
-void IrFuzzResourceSharing(
-    const PackageAndTestParams& package_and_test_params) {
+void IrFuzzResourceSharing(FuzzPackageWithArgs fuzz_package_with_args) {
   ResourceSharingPass pass;
-  OptimizationPassChangesOutputs(package_and_test_params, pass);
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
 }
 FUZZ_TEST(IrFuzzTest, IrFuzzResourceSharing)
-    .WithDomains(IrFuzzDomainWithParams(/*param_set_count=*/10));
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 
