@@ -395,9 +395,10 @@ fn lsbs_test() {
 
 // Returns the R MSbs of x.
 // `x` must be at least R bits wide.
-pub fn msbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> xN[S][R] {
+// A signed value is returned as `bits`.
+pub fn msbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> bits[R] {
     const_assert!(N >= R);
-    (x as uN[N])[(N - R)+:xN[S][R]] as xN[S][R]
+    (x as bits[N])[(N - R)+:bits[R]]
 }
 
 #[test]
@@ -406,9 +407,9 @@ fn msbs_test() {
     assert_eq(msbs<u32:2>(u3:5), u2:2);
     assert_eq(msbs<u32:3>(u5:30), u3:7);
 
-    assert_eq(msbs<u32:1>(s2:1), s1:0);
-    assert_eq(msbs<u32:2>(s3:-3), s2:-2);
-    assert_eq(msbs<u32:3>(s5:-2), s3:-1);
+    assert_eq(msbs<u32:1>(s2:0b01), u1:0b0);
+    assert_eq(msbs<u32:2>(s3:0b101), u2:0b10);
+    assert_eq(msbs<u32:2>(s5:0b10101), u2:0b10);
 }
 
 // Splits bits into (the remaining most significant bits, N least significant

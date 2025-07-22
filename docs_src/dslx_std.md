@@ -946,10 +946,10 @@ discarded.
 #### `std::msbs`
 
 ```dslx-snippet
-pub fn msbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> xN[S][R]
+pub fn msbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> bits[R]
 ```
 
-Returns the R MSbs of x. `x` must be at least R bits wide.
+Returns the R MSbs of x. `x` must be at least R bits wide. A signed value is returned as `bits`.
 
 #### `std::keep_lsbs`
 
