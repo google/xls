@@ -48,6 +48,45 @@
 namespace xls {
 namespace verilog {
 
+std::string GetFilename(Fileno fileno, VerilogFile* file) {
+  if (file->fileno_to_filename().contains(fileno)) {
+    return file->fileno_to_filename().at(fileno);
+  }
+  return {};
+}
+
+std::string VastNode::PreEmit(LineInfo* line_info) {
+  if (loc().locations.empty()) {
+    return {};
+  }
+  switch (file()->annotation_type()) {
+    case AnnotationType::kNone: {
+      return {};
+    }
+    case AnnotationType::kComment: {
+      auto append_location = [&](std::string* out,
+                                 const SourceLocation& location) {
+        auto f = GetFilename(location.fileno(), file());
+        auto l = location.lineno().value();
+        auto c = location.colno().value();
+        absl::StrAppendFormat(out, "%s:%d:%d", f, l, c);
+      };
+      auto res = absl::StrJoin(loc().locations, " ", append_location);
+      return absl::StrFormat("// %s", res);
+    }
+    case AnnotationType::kLineDirective: {
+      auto first_loc = loc().locations.begin();
+      auto fileno = first_loc->fileno();
+      std::string filename = GetFilename(fileno, file());
+      return absl::StrFormat("`line %d \"%s\" 0", first_loc->lineno().value(),
+                             filename);
+    }
+    default: {
+      return {};
+    }
+  }
+}
+
 namespace {
 
 int64_t NumberOfNewlines(std::string_view string) {
@@ -466,7 +505,15 @@ UnpackedArrayType* VerilogFile::UnpackedArrayType(
 
 std::string VerilogFile::Emit(LineInfo* line_info) const {
   auto file_member_str = [=](const FileMember& member) -> std::string {
-    return absl::visit([=](auto* m) { return m->Emit(line_info); }, member);
+    return absl::visit(
+        [=](auto* m) {
+          std::string pre_emit = m->PreEmit(line_info);
+          if (!pre_emit.empty()) {
+            return pre_emit + "\n" + m->Emit(line_info);
+          }
+          return m->Emit(line_info);
+        },
+        member);
   };
 
   std::string out;
@@ -491,7 +538,13 @@ CaseArm::CaseArm(CaseLabel label, VerilogFile* file, const SourceInfo& loc)
 std::string CaseArm::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result = absl::visit(
-      Visitor{[=](Expression* named) { return named->Emit(line_info); },
+      Visitor{[=](Expression* named) {
+                std::string pre_emit = named->PreEmit(line_info);
+                if (!pre_emit.empty()) {
+                  return pre_emit + "\n" + named->Emit(line_info);
+                }
+                return named->Emit(line_info);
+              },
               [](DefaultSentinel) { return std::string("default"); }},
       label_);
   LineInfoEnd(line_info, this);
@@ -510,6 +563,10 @@ std::string StatementBlock::Emit(LineInfo* line_info) const {
   LineInfoIncrease(line_info, 1);
   std::vector<std::string> lines;
   for (const auto& statement : statements_) {
+    std::string pre_emit = statement->PreEmit(line_info);
+    if (!pre_emit.empty()) {
+      lines.push_back(pre_emit);
+    }
     lines.push_back(statement->Emit(line_info));
     LineInfoIncrease(line_info, 1);
   }
@@ -542,6 +599,10 @@ std::string GenerateLoop::Emit(LineInfo* line_info) const {
       init_->Emit(line_info), genvar_->Emit(line_info), limit_->Emit(line_info),
       genvar_->Emit(line_info), genvar_->Emit(line_info), label_suffix)));
   for (const auto& node : body_) {
+    std::string pre_emit = node->PreEmit(line_info);
+    if (!pre_emit.empty()) {
+      lines.push_back(Indent(Indent(pre_emit)));
+    }
     lines.push_back(Indent(Indent(node->Emit(line_info))));
     LineInfoIncrease(line_info, 1);
   }
@@ -555,6 +616,10 @@ std::string MacroStatementBlock::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result;
   for (const auto& statement : statements_) {
+    std::string pre_emit = statement->PreEmit(line_info);
+    if (!pre_emit.empty()) {
+      absl::StrAppend(&result, Indent(pre_emit), "\n");
+    }
     absl::StrAppend(&result, Indent(statement->Emit(line_info)), "\n");
     LineInfoIncrease(line_info, 1);
   }
@@ -629,6 +694,10 @@ std::string VerilogFunction::Emit(LineInfo* line_info) const {
   LineInfoIncrease(line_info, 1);
   std::vector<std::string> lines;
   for (RegDef* reg_def : block_reg_defs_) {
+    std::string pre_emit = reg_def->PreEmit(line_info);
+    if (!pre_emit.empty()) {
+      lines.push_back(pre_emit);
+    }
     lines.push_back(reg_def->Emit(line_info));
     LineInfoIncrease(line_info, 1);
   }
@@ -653,7 +722,8 @@ std::string VerilogFunctionCall::Emit(LineInfo* line_info) const {
 
 LogicRef* Module::AddPortDef(ModulePortDirection direction, Def* def,
                              const SourceInfo& loc) {
-  ports_.push_back(ModulePort{.direction = direction, .wire = def});
+  ports_.push_back(ModulePort{
+      .direction = direction, .wire = def, .doc_string = loc.ToString()});
   return file()->Make<LogicRef>(loc, def);
 }
 
@@ -1090,7 +1160,15 @@ namespace {
 
 // "Match" statement for emitting a ModuleMember.
 std::string EmitModuleMember(LineInfo* line_info, const ModuleMember& member) {
-  return absl::visit([=](auto* d) { return d->Emit(line_info); }, member);
+  return absl::visit(
+      [=](auto* d) {
+        std::string pre_emit = d->PreEmit(line_info);
+        if (!pre_emit.empty()) {
+          return pre_emit + "\n" + d->Emit(line_info);
+        }
+        return d->Emit(line_info);
+      },
+      member);
 }
 
 // Visitor for emitting a VerilogPackageMember.
@@ -1137,6 +1215,10 @@ std::string VerilogPackageSection::Emit(LineInfo* line_info) const {
   }
   LineInfoEnd(line_info, this);
   return absl::StrJoin(elements, "\n");
+}
+
+std::string ContinuousAssignment::PreEmit(LineInfo* line_info) {
+  return rhs_->VastNode::PreEmit(line_info);
 }
 
 std::string ContinuousAssignment::Emit(LineInfo* line_info) const {

@@ -473,7 +473,8 @@ class BlockGenerator {
           XLS_ASSIGN_OR_RETURN(
               Expression * port_expr,
               mb_.AddInputPort(input_port->GetName(), input_port->GetType(),
-                               input_port->system_verilog_type()));
+                               input_port->system_verilog_type(),
+                               input_port->loc()));
           node_exprs_[input_port] = port_expr;
         }
       }
@@ -1121,6 +1122,26 @@ absl::StatusOr<std::vector<Block*>> GatherInstantiatedBlocks(Block* top) {
 
 }  // namespace
 
+AnnotationType GetAnnotationType(
+    CodegenOptions::SourceAnnotationStrategy strategy, FileType file_type) {
+  switch (strategy) {
+    case xls::verilog::CodegenOptions::SourceAnnotationStrategy::kNone:
+      return AnnotationType::kNone;
+    case xls::verilog::CodegenOptions::SourceAnnotationStrategy::kComment:
+      return AnnotationType::kComment;
+    case xls::verilog::CodegenOptions::SourceAnnotationStrategy::kLineDirective:
+      if (file_type == FileType::kSystemVerilog) {
+        return AnnotationType::kLineDirective;
+      }
+      // TODO warn as `line directive is available in SystemVerilog only
+      VLOG(5) << absl::StreamFormat(
+          "Line directive is available in SystemVerilog only");
+      return AnnotationType::kNone;
+    default:
+      return AnnotationType::kNone;
+  }
+}
+
 absl::StatusOr<std::string> GenerateVerilog(
     Block* top, const CodegenOptions& options, VerilogLineMap* verilog_line_map,
     CodegenResidualData* output_residual_data) {
@@ -1131,8 +1152,15 @@ absl::StatusOr<std::string> GenerateVerilog(
 
   XLS_ASSIGN_OR_RETURN(std::vector<Block*> blocks,
                        GatherInstantiatedBlocks(top));
-  VerilogFile file(options.use_system_verilog() ? FileType::kSystemVerilog
-                                                : FileType::kVerilog);
+
+  FileType file_type = options.use_system_verilog() ? FileType::kSystemVerilog
+                                                    : FileType::kVerilog;
+  AnnotationType annotation_type =
+      GetAnnotationType(options.source_annotation_strategy(), file_type);
+  auto fileno_to_name = top->package()->fileno_to_name();
+
+  VerilogFile file(file_type, annotation_type, fileno_to_name);
+
   for (Block* block : blocks) {
     XLS_RETURN_IF_ERROR(
         BlockGenerator::Generate(block, &file, options, output_residual_data));

@@ -65,12 +65,14 @@ class ModuleBuilder {
   // Add an input port of the given XLS type to the module.
   absl::StatusOr<LogicRef*> AddInputPort(
       std::string_view name, Type* type,
-      std::optional<std::string_view> sv_type = std::nullopt);
+      std::optional<std::string_view> sv_type = std::nullopt,
+      std::optional<SourceInfo> loc = std::nullopt);
 
   // Add an input port of the given width.
   absl::StatusOr<LogicRef*> AddInputPort(
       std::string_view name, int64_t bit_count,
-      std::optional<std::string_view> sv_type = std::nullopt);
+      std::optional<std::string_view> sv_type = std::nullopt,
+      std::optional<SourceInfo> loc = std::nullopt);
 
   // Add an output port of the given XLS type to the module. The output is
   // assigned the given value.
