@@ -1980,7 +1980,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_ASSIGN_OR_RETURN(
             AstNode * clone,
             table_.Clone(binding->expr(),
-                         NameRefMapper(parametrics_and_constants)));
+                         NameRefMapper(parametrics_and_constants),
+                         /* in_place= */ false));
         value_expr = down_cast<Expr*>(clone);
       } else {
         value_expr = struct_or_proc_ref.parametrics[i];
@@ -2028,8 +2029,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
             return std::nullopt;
           });
     }
-    XLS_ASSIGN_OR_RETURN(AstNode * clone,
-                         table_.Clone(type, std::move(replacer)));
+    XLS_ASSIGN_OR_RETURN(
+        AstNode * clone,
+        table_.Clone(type, std::move(replacer), /* in_place= */ false));
     return down_cast<const TypeAnnotation*>(clone);
   }
 
