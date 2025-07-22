@@ -37,7 +37,6 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dev_tools/tool_timeout.h"
-#include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -50,10 +49,7 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
-#include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
-#include "xls/scheduling/proc_state_legalization_pass.h"
-#include "xls/scheduling/scheduling_pass.h"
 #include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_translator.h"
 
@@ -139,94 +135,6 @@ absl::StatusOr<std::vector<std::string>> CounterexampleParams(
   }
   return counterexample;
 }
-
-class LiteralizeZeroBits final : public OptimizationFunctionBasePass {
- public:
-  static constexpr std::string_view kName = "literalize_zero_bits";
-  LiteralizeZeroBits()
-      : OptimizationFunctionBasePass(kName, "Literalize zero bits") {}
-
- protected:
-  absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext& context) const override {
-    bool changes = false;
-    std::vector<Node*> orig_nodes(f->nodes().begin(), f->nodes().end());
-    for (Node* n : orig_nodes) {
-      if (n->GetType()->IsBits() && !n->Is<Literal>() && !n->Is<Param>() &&
-          n->GetType()->AsBitsOrDie()->bit_count() == 0) {
-        changes = true;
-        XLS_RETURN_IF_ERROR(
-            n->ReplaceUsesWithNew<Literal>(Value(UBits(0, 0))).status());
-      }
-    }
-    return changes;
-  }
-};
-
-// Compatibility shim to use the scheduling pass 'ProcStateLegalizationPass' in
-// the optimization pass pipeline for modernizing procs.
-class ProcStateLegalizationPassShim : public OptimizationFunctionBasePass {
- public:
-  static constexpr std::string_view kName = "proc_state_legalization_shim";
-  ProcStateLegalizationPassShim()
-      : OptimizationFunctionBasePass(kName, "Proc State Legalization Pass") {}
-
- protected:
-  absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* fb, const OptimizationPassOptions& options,
-      PassResults* pass_results, OptimizationContext& context) const override {
-    SchedulingContext sched_context =
-        SchedulingContext::CreateForSingleFunction(fb);
-    PassResults results;
-    if (pass_results) {
-      results.invocation = std::move(pass_results->invocation);
-    }
-    XLS_ASSIGN_OR_RETURN(
-        bool res, proc_state_sched_pass_.RunOnFunctionBase(
-                      fb, SchedulingPassOptions(), &results, sched_context));
-    if (pass_results) {
-      pass_results->invocation = std::move(results.invocation);
-    }
-    return res;
-  }
-
- private:
-  ProcStateLegalizationPass proc_state_sched_pass_;
-};
-
-class AssertAndCoverRemovalPass : public OptimizationFunctionBasePass {
- public:
-  static constexpr std::string_view kName = "assert_and_cover_removal";
-  AssertAndCoverRemovalPass()
-      : OptimizationFunctionBasePass(kName, "Assert and cover removal") {}
-
- protected:
-  absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext& context) const override {
-    bool changes = false;
-    std::vector<Node*> orig_nodes(f->nodes().begin(), f->nodes().end());
-    for (Node* n : orig_nodes) {
-      if (n->Is<Assert>()) {
-        changes = true;
-        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
-        XLS_RETURN_IF_ERROR(f->RemoveNode(n));
-      } else if (n->Is<Cover>()) {
-        changes = true;
-        XLS_RET_CHECK(n->users().empty()) << n << " has users";
-        XLS_RETURN_IF_ERROR(f->RemoveNode(n));
-      }
-    }
-    return changes;
-  }
-};
-
-// TODO(allight): Use a copied registry instead of adding to the default one or
-// maybe make a wrapper that pulls its implementation out of the registry.
-REGISTER_OPT_PASS(LiteralizeZeroBits);
-REGISTER_OPT_PASS(ProcStateLegalizationPassShim);
-REGISTER_OPT_PASS(AssertAndCoverRemovalPass);
 
 absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
                               const std::string& entry,

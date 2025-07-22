@@ -228,6 +228,39 @@ def _xls_pass_registry_impl(ctx):
     pass_infos = []
 
     linking_ctxs = []
+    existing_binpbs = []
+    existing_pipeline_src = []
+    for c in ctx.attr.passes:
+        if XlsOptimizationPassInfo in c:
+            inputs.append(c[XlsOptimizationPassInfo].pass_registration[CcInfo].linking_context)
+            passes.append(c[XlsOptimizationPassInfo].pass_registration[CcInfo])
+            pass_infos.append(XlsOptimizationPassInfo(
+                pass_impl = c[XlsOptimizationPassInfo].pass_impl[CcInfo],
+                pass_registration = c[XlsOptimizationPassInfo].pass_registration[CcInfo],
+            ))
+        elif XlsOptimizationPassRegistryInfo in c:
+            for x in c[XlsOptimizationPassRegistryInfo].passes:
+                inputs.append(x.linking_context)
+            passes.extend(c[XlsOptimizationPassRegistryInfo].passes)
+            pass_infos.extend(c[XlsOptimizationPassRegistryInfo].pass_infos)
+            existing_binpbs.append(c[XlsOptimizationPassRegistryInfo].pipeline_binpb)
+            existing_pipeline_src.append(c[XlsOptimizationPassRegistryInfo].pipeline_src)
+        else:
+            inputs.append(c[CcInfo].linking_context)
+            passes.append(c[CcInfo])
+            pass_infos.append(XlsOptimizationPassInfo(
+                pass_impl = c[CcInfo],
+                pass_registration = c[CcInfo],
+            ))
+
+    if not pipeline_binpb:
+        if len(existing_binpbs) == 1:
+            pipeline_binpb = existing_binpbs[0]
+            pipeline_filename = existing_pipeline_src[0].path if existing_pipeline_src[0] else "FROM DEPENDENCY"
+        elif existing_binpbs:
+            fail("Multiple pipeline protos present in dependencies without directly provided pipeline.")
+
+    linking_ctxs.extend(inputs)
     if pipeline_binpb:
         mangled_label = str(abs(hash("@@{}//{}:{}".format(
             ctx.label.workspace_name,
@@ -285,28 +318,6 @@ def _xls_pass_registry_impl(ctx):
             alwayslink = True,
         )
         linking_ctxs.append(link_ctx)
-
-    for c in ctx.attr.passes:
-        if XlsOptimizationPassInfo in c:
-            inputs.append(c[XlsOptimizationPassInfo].pass_registration[CcInfo].linking_context)
-            passes.append(c[XlsOptimizationPassInfo].pass_registration[CcInfo])
-            pass_infos.append(XlsOptimizationPassInfo(
-                pass_impl = c[XlsOptimizationPassInfo].pass_impl[CcInfo],
-                pass_registration = c[XlsOptimizationPassInfo].pass_registration[CcInfo],
-            ))
-        elif XlsOptimizationPassRegistryInfo in c:
-            for x in c[XlsOptimizationPassRegistryInfo].passes:
-                inputs.append(x.linking_context)
-            passes.extend(c[XlsOptimizationPassRegistryInfo].passes)
-            pass_infos.extend(c[XlsOptimizationPassRegistryInfo].pass_infos)
-        else:
-            inputs.append(c[CcInfo].linking_context)
-            passes.append(c[CcInfo])
-            pass_infos.append(XlsOptimizationPassInfo(
-                pass_impl = c[CcInfo],
-                pass_registration = c[CcInfo],
-            ))
-    linking_ctxs.extend(inputs)
 
     # For now we don't compile anything.
     comp_out = cc_common.create_compilation_outputs()
