@@ -143,12 +143,12 @@ std::string Callee::ToString() const {
 /* static */ absl::StatusOr<ConversionRecord> ConversionRecord::Make(
     Function* f, const Invocation* invocation, Module* module,
     TypeInfo* type_info, ParametricEnv parametric_env,
-    std::vector<Callee> callees, std::optional<ProcId> proc_id, bool is_top) {
+    std::optional<ProcId> proc_id, bool is_top) {
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, parametric_env));
 
   return ConversionRecord(f, invocation, module, type_info,
-                          std::move(parametric_env), std::move(callees),
-                          std::move(proc_id), is_top);
+                          std::move(parametric_env), std::move(proc_id),
+                          is_top);
 }
 
 std::string ConversionRecord::ToString() const {
@@ -157,10 +157,9 @@ std::string ConversionRecord::ToString() const {
     proc_id = proc_id_.value().ToString();
   }
   return absl::StrFormat(
-      "ConversionRecord{m=%s, f=%s, top=%s, pid=%s, parametric_env=%s, "
-      "callees=%s}",
+      "ConversionRecord{m=%s, f=%s, top=%s, pid=%s, parametric_env=%s}",
       module_->name(), f_->identifier(), is_top_ ? "true" : "false", proc_id,
-      parametric_env_.ToString(), CalleesToString(callees_));
+      parametric_env_.ToString());
 }
 
 // Collects all Invocation nodes below the visited node.
@@ -644,10 +643,9 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
 
   auto* fn = std::get<Function*>(f);
   VLOG(3) << "Adding to ready sequence: " << fn->identifier();
-  XLS_ASSIGN_OR_RETURN(
-      ConversionRecord cr,
-      ConversionRecord::Make(fn, invocation, m, type_info, bindings,
-                             orig_callees, proc_id, is_top));
+  XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
+                       ConversionRecord::Make(fn, invocation, m, type_info,
+                                              bindings, proc_id, is_top));
   ready->push_back(std::move(cr));
   return absl::OkStatus();
 }

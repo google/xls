@@ -90,7 +90,7 @@ class ConversionRecord {
   static absl::StatusOr<ConversionRecord> Make(
       Function* f, const Invocation* invocation, Module* module,
       TypeInfo* type_info, ParametricEnv parametric_env,
-      std::vector<Callee> callees, std::optional<ProcId> proc_id, bool is_top);
+      std::optional<ProcId> proc_id, bool is_top);
 
   // Integrity-checks that the parametric_env provided are sufficient to
   // instantiate f (i.e. if it is parametric). Returns an internal error status
@@ -111,14 +111,12 @@ class ConversionRecord {
  private:
   ConversionRecord(Function* f, const Invocation* invocation, Module* module,
                    TypeInfo* type_info, ParametricEnv parametric_env,
-                   std::vector<Callee> callees, std::optional<ProcId> proc_id,
-                   bool is_top)
+                   std::optional<ProcId> proc_id, bool is_top)
       : f_(f),
         invocation_(invocation),
         module_(module),
         type_info_(type_info),
         parametric_env_(std::move(parametric_env)),
-        callees_(std::move(callees)),
         proc_id_(std::move(proc_id)),
         is_top_(is_top) {}
 
@@ -127,7 +125,6 @@ class ConversionRecord {
   Module* module_;
   TypeInfo* type_info_;
   ParametricEnv parametric_env_;
-  std::vector<Callee> callees_;
   std::optional<ProcId> proc_id_;
   bool is_top_;
 };

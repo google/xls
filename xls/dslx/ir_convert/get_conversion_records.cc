@@ -40,8 +40,7 @@ absl::StatusOr<ConversionRecord> MakeConversionRecord(
     Function* f, Module* m, TypeInfo* type_info, const ParametricEnv& bindings,
     std::optional<ProcId> proc_id, bool is_top) {
   return ConversionRecord::Make(f, /*invocation=*/nullptr, m, type_info,
-                                bindings,
-                                /*orig_callees=*/{}, proc_id, is_top);
+                                bindings, proc_id, is_top);
 }
 
 // An AstNodeVisitor that creates ConversionRecords from appropriate AstNodes
