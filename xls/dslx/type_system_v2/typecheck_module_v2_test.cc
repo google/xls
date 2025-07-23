@@ -7578,6 +7578,24 @@ fn main() -> u5 {
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not public")));
 }
 
+TEST(TypecheckV2Test, ImportTypeAliasAsArraySize) {
+  constexpr std::string_view kImported = R"(
+pub type T = u32;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+type T = imported::T;
+
+fn main() {
+  let a: s32[T:2] = [0, ...];
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
 TEST(TypecheckV2Test, ImportTypeAliasWithParametrics) {
   constexpr std::string_view kImported = R"(
 pub struct S<N: u32> {

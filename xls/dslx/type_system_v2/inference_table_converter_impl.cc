@@ -922,13 +922,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
 
     XLS_RETURN_IF_ERROR(ValidateConcreteType(
         node, type->get(), *ti, warning_collector_, import_data_, file_table_));
-    if (node->kind() == AstNodeKind::kNumber) {
-      if (const auto* literal = down_cast<const Number*>(node);
-          literal->type_annotation() != nullptr) {
-        ti->SetItem(literal->type_annotation(),
-                    *std::make_unique<MetaType>((*type)->CloneToUnique()));
-      }
-    }
 
     if (node->kind() == AstNodeKind::kTypeAnnotation ||
         node->kind() == AstNodeKind::kTypeAlias ||

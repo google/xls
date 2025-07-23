@@ -138,18 +138,6 @@ class EvaluatorImpl : public Evaluator {
       // Prevent bleed-over from a different module.
       type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
     }
-    // TODO: https://github.com/google/xls/issues/193 - The if-statement below
-    // is here temporarily to enable easy testing of parametric variables in
-    // inference_table_test. The equivalent is done by `TypecheckModuleV2`, and
-    // that's where the logic belongs, but that doesn't yet deal with parametric
-    // variables.
-    if (expr->kind() == AstNodeKind::kNumber) {
-      if (auto* number = down_cast<const Number*>(expr);
-          number->type_annotation() != nullptr) {
-        type_info->SetItem(number->type_annotation(),
-                           MetaType(type->CloneToUnique()));
-      }
-    }
 
     XLS_ASSIGN_OR_RETURN(
         InterpValue result,
