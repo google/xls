@@ -13,8 +13,7 @@ pyyaml==6.0.1
 # We build most of z3 ourselves but building python is really complicated. Just
 # use pypi version
 z3-solver==4.14.0.0
-pytest==8.2.2
-cocotb==1.9.0
+cocotb==1.7.2
 cocotbext-axi==0.1.24
 cocotb_bus==0.2.1
 zstandard==0.23.0

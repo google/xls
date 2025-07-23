@@ -1854,17 +1854,11 @@ py_test(
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
-    env = {
-        "BUILD_WORKING_DIRECTORY": "sim_build",
-        "PYTHONUNBUFFERED": "1",
-    },
-    imports = ["."],
     tags = ["manual"],
     visibility = ["//xls:xls_users"],
     deps = [
         requirement("cocotb"),
         requirement("cocotbext-axi"),
-        requirement("pytest"),
         requirement("zstandard"),
         "//xls/common:runfiles",
         "//xls/modules/zstd/cocotb:channel",
@@ -2311,7 +2305,6 @@ py_test(
         "@com_icarus_iverilog//:vvp",
     ],
     env = {
-        "BUILD_WORKING_DIRECTORY": "sim_build",
         "PYTHONUNBUFFERED": "1",
     },
     imports = ["."],
@@ -2320,7 +2313,6 @@ py_test(
     deps = [
         requirement("cocotb"),
         requirement("cocotbext-axi"),
-        requirement("pytest"),
         requirement("zstandard"),
         "//xls/common:runfiles",
         "//xls/modules/zstd/cocotb:channel",

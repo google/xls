@@ -17,6 +17,7 @@ import random
 import logging
 import enum
 import pathlib
+import sys
 
 import cocotb
 from cocotb.clock import Clock
@@ -717,13 +718,15 @@ def generate_padded_test_data_arbitrary(mem_size, test_cases):
   )
 
 if __name__ == "__main__":
-    toplevel = "mem_writer_wrapper"
-    verilog_sources = [
-      "xls/modules/zstd/memory/mem_writer.v",
-      "xls/modules/zstd/memory/rtl/mem_writer_wrapper.v",
-    ]
-    test_module=[pathlib.Path(__file__).stem]
-    utils.run_test(toplevel, test_module, verilog_sources)
+  sys.path.append(str(pathlib.Path(__file__).parent))
+
+  toplevel = "mem_writer_wrapper"
+  verilog_sources = [
+    "xls/modules/zstd/memory/mem_writer.v",
+    "xls/modules/zstd/memory/rtl/mem_writer_wrapper.v",
+  ]
+  test_module=[pathlib.Path(__file__).stem]
+  utils.run_test(toplevel, test_module, verilog_sources)
 
 test_cases_single_burst_1_transfer = [
   # Aligned Address; Aligned Length

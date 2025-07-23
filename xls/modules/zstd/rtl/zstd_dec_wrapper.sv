@@ -1304,7 +1304,7 @@ module zstd_dec_wrapper #(
       .SIZE(256),
       .NUM_PARTITIONS(1),
       .ADDR_WIDTH(15),
-      .INIT_FILE("../../xls/modules/zstd/zstd_dec_ll_fse_default.mem")
+      .INIT_FILE("../xls/modules/zstd/zstd_dec_ll_fse_default.mem")
   ) ll_def_fse_ram (
       .clk(clk),
       .rst(rst),
@@ -1361,7 +1361,7 @@ module zstd_dec_wrapper #(
       .SIZE(256),
       .NUM_PARTITIONS(1),
       .ADDR_WIDTH(15),
-      .INIT_FILE("../../xls/modules/zstd/zstd_dec_ml_fse_default.mem")
+      .INIT_FILE("../xls/modules/zstd/zstd_dec_ml_fse_default.mem")
   ) ml_def_fse_ram (
       .clk(clk),
       .rst(rst),
@@ -1418,7 +1418,7 @@ module zstd_dec_wrapper #(
       .SIZE(256),
       .NUM_PARTITIONS(1),
       .ADDR_WIDTH(15),
-      .INIT_FILE("../../xls/modules/zstd/zstd_dec_of_fse_default.mem")
+      .INIT_FILE("../xls/modules/zstd/zstd_dec_of_fse_default.mem")
   ) of_def_fse_ram (
       .clk(clk),
       .rst(rst),

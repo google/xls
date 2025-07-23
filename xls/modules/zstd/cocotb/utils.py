@@ -34,27 +34,45 @@ def setup_com_iverilog():
   )
   os.environ["PATH"] += os.pathsep + str(iverilog_path.parent)
   os.environ["PATH"] += os.pathsep + str(vvp_path.parent)
-  build_dir = pathlib.Path(os.environ['BUILD_WORKING_DIRECTORY'], "sim_build")
+  build_dir = pathlib.Path("sim_build").absolute()
   return build_dir
 
-def run_test(toplevel, test_module, verilog_sources):
+
+def run_test(toplevel, test_module, verilog_sources, timescale=("1ns", "1ps")):
   """Builds and runs a Cocotb testbench using Icarus Verilog."""
   build_dir = setup_com_iverilog()
-  runner = get_runner("icarus")
+  runner = get_runner("icarus")()
+  build_args = []
+
+  cmds_file = build_dir / pathlib.Path("cmds.f")
+  cmds_file.parent.mkdir(parents=True, exist_ok=True)
+  with open(cmds_file, "w") as f:
+    f.write("+timescale+{}/{}\n".format(*timescale))
+  build_args += ["-f", str(cmds_file)]
+
+  dump_file = build_dir / pathlib.Path("cocotb_iverilog_dump.v")
+  wave_file = build_dir / pathlib.Path(f"{toplevel}.fst")
+  with open(dump_file, "w") as f:
+    f.write("module cocotb_iverilog_dump();\n")
+    f.write("initial begin\n")
+    f.write(f'    $dumpfile("{wave_file}");\n')
+    f.write(f"    $dumpvars(0, {toplevel});\n")
+    f.write("end\n")
+    f.write("endmodule\n")
+  wave_file.parent.mkdir(parents=True, exist_ok=True)
+
   runner.build(
-    verilog_sources=verilog_sources,
-    hdl_toplevel=toplevel,
-    timescale=("1ns", "1ps"),
+    verilog_sources=(verilog_sources + [str(dump_file)]),
+    toplevel=toplevel,
     build_dir=build_dir,
+    extra_args=build_args,
     defines={"SIMULATION": "1"},
-    waves=True,
   )
 
   try:
     results_xml = runner.test(
-       hdl_toplevel=toplevel,
-       test_module=test_module,
-       waves=True,
+       toplevel=toplevel,
+       py_module=test_module,
     )
   finally:
     check_results_file(results_xml)
