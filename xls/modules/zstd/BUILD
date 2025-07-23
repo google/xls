@@ -15,7 +15,7 @@
 # Build rules for XLS ZSTD codec implementation.
 
 # pytype binary, library
-load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+load("@rules_hdl//place_and_route:build_defs.bzl", "collect_benchmark_reports", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
@@ -3845,4 +3845,47 @@ xls_dslx_library(
 xls_dslx_test(
     name = "refilling_shift_buffer_mux_dslx_test",
     library = ":refilling_shift_buffer_mux_dslx",
+)
+
+collect_benchmark_reports(
+    name = "all_banchmark_reports",
+    srcs = [
+        ":window_buffer_place_and_route",
+        ":shift_buffer_aligner_place_and_route",
+        ":shift_buffer_storage_place_and_route",
+        ":shift_buffer_place_and_route",
+        ":frame_header_dec_place_and_route",
+        ":block_header_dec_place_and_route",
+        ":raw_block_dec_place_and_route",
+        ":rle_block_dec_place_and_route",
+        ":dec_mux_place_and_route",
+        ":sequence_executor_place_and_route",
+        ":axi_csr_accessor_place_and_route",
+        ":csr_config_place_and_route",
+        ":ram_rw_handler_place_and_route",
+        ":fse_proba_freq_dec_place_and_route",
+        ":refilling_shift_buffer_internal_place_and_route",
+        ":zstd_dec_internal_place_and_route",
+        ":fse_table_iterator_place_and_route",
+        ":fse_table_creator_place_and_route",
+        ":command_constructor_place_and_route",
+        ":ram_demux_place_and_route",
+        ":ram_demux_naive_place_and_route",
+        ":fse_dec_place_and_route",
+        ":ram_demux3_place_and_route",
+        ":rle_literals_dec_place_and_route",
+        ":raw_literals_dec_place_and_route",
+        ":literals_buffer_place_and_route",
+        ":literals_decoder_ctrl_place_and_route",
+        # ":literals_decoder_place_and_route",
+        ":huffman_prescan_place_and_route",
+        # ":huffman_code_builder_place_and_route",
+        ":huffman_axi_reader_place_and_route",
+        # ":huffman_data_preprocessor_place_and_route",
+        # ":huffman_decoder_place_and_route",
+        ":huffman_ctrl_place_and_route",
+        ":huffman_weights_dec_place_and_route",
+        # ":huffman_literals_dec_place_and_route",
+        # ":zstd_dec_place_and_route",
+    ]
 )
