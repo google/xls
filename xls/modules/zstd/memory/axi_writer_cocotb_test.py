@@ -16,6 +16,7 @@
 import random
 import logging
 import pathlib
+import sys
 
 import cocotb
 from cocotb.clock import Clock
@@ -300,10 +301,12 @@ def generate_test_data_arbitrary(mem_size):
   )
 
 if __name__ == "__main__":
-    toplevel = "axi_writer_wrapper"
-    verilog_sources = [
-      "xls/modules/zstd/memory/axi_writer.v",
-      "xls/modules/zstd/memory/rtl/axi_writer_wrapper.v",
-    ]
-    test_module=[pathlib.Path(__file__).stem]
-    utils.run_test(toplevel, test_module, verilog_sources)
+  sys.path.append(str(pathlib.Path(__file__).parent))
+
+  toplevel = "axi_writer_wrapper"
+  verilog_sources = [
+    "xls/modules/zstd/memory/axi_writer.v",
+    "xls/modules/zstd/memory/rtl/axi_writer_wrapper.v",
+  ]
+  test_module=[pathlib.Path(__file__).stem]
+  utils.run_test(toplevel, test_module, verilog_sources)
