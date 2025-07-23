@@ -2641,6 +2641,15 @@ fn id(x: u32) { x }
 )");
 }
 
+TEST_F(ModuleFmtTest, TypeInferenceVersionAnnotationWithCommentAbove) {
+  DoFmt(R"(// Foobar
+
+#![feature(type_inference_v2)]
+
+fn id(x: u32) { x }
+)");
+}
+
 TEST_F(ModuleFmtTest, GithubIssue1229) {
   // Note: we just need it to parse, no need for it to typecheck.
   DoFmt(R"(struct ReadReq<X: u32> {}

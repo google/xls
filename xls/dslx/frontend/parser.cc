@@ -281,11 +281,13 @@ absl::Status Parser::ParseModuleAttribute() {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     if (feature == "use_syntax") {
-      module_->AddAttribute(ModuleAttribute::kAllowUseSyntax);
+      module_->AddAttribute(ModuleAttribute::kAllowUseSyntax, attribute_span);
     } else if (feature == "type_inference_v2") {
-      module_->AddAttribute(ModuleAttribute::kTypeInferenceVersion2);
+      module_->AddAttribute(ModuleAttribute::kTypeInferenceVersion2,
+                            attribute_span);
     } else if (feature == "channel_attributes") {
-      module_->AddAttribute(ModuleAttribute::kChannelAttributes);
+      module_->AddAttribute(ModuleAttribute::kChannelAttributes,
+                            attribute_span);
     } else {
       return ParseErrorStatus(
           attribute_span,

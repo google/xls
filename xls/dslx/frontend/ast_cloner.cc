@@ -1294,8 +1294,9 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
                                                     CloneReplacer replacer) {
   auto new_module = std::make_unique<Module>(module.name(), module.fs_path(),
                                              *module.file_table());
+  std::optional<Span> attribute_span = module.GetAttributeSpan();
   for (const ModuleAttribute& dir : module.attributes()) {
-    new_module->AddAttribute(dir);
+    new_module->AddAttribute(dir, attribute_span);
   }
   AstCloner cloner(new_module.get(), std::move(replacer));
   XLS_RETURN_IF_ERROR(module.Accept(&cloner));

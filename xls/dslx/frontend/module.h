@@ -268,13 +268,31 @@ class Module : public AstNode {
   std::vector<const AstNode*> FindContained(const Span& target) const;
 
   // Tags this module as having the given module-level attribute "attribute".
-  void AddAttribute(ModuleAttribute attribute) {
+  void AddAttribute(ModuleAttribute attribute,
+                    std::optional<Span> span = std::nullopt) {
     attributes_.insert(attribute);
+    if (span.has_value()) {
+      if (!attribute_start_.has_value() || span->start() < *attribute_start_) {
+        attribute_start_ = span->start();
+      }
+      if (!attribute_limit_.has_value() || *attribute_limit_ < span->limit()) {
+        attribute_limit_ = span->limit();
+      }
+    }
   }
 
   // Returns all the module-level attribute tags.
   const absl::btree_set<ModuleAttribute>& attributes() const {
     return attributes_;
+  }
+
+  // Returns the span of all the module-level attribute tags.
+  std::optional<Span> GetAttributeSpan() const {
+    if (!attribute_start_.has_value()) {
+      return std::nullopt;
+    }
+    CHECK(attribute_limit_.has_value());
+    return Span(*attribute_start_, *attribute_limit_);
   }
 
   FileTable* file_table() const { return file_table_; }
@@ -336,6 +354,8 @@ class Module : public AstNode {
   absl::flat_hash_map<std::string, BuiltinNameDef*> builtin_name_defs_;
 
   absl::btree_set<ModuleAttribute> attributes_;
+  std::optional<Pos> attribute_start_;
+  std::optional<Pos> attribute_limit_;
 
   // The span of the module is only known once parsing has completed.
   //

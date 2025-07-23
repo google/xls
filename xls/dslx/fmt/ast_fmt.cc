@@ -2967,7 +2967,21 @@ static int NumHardLinesAfter(const AstNode* node, const ModuleMember& member,
 absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
   std::vector<DocRef> pieces;
 
+  std::optional<Span> last_comment_span;
+  std::optional<Pos> last_entity_pos;
   if (!n.attributes().empty()) {
+    if (std::optional<Span> span = n.GetAttributeSpan(); span.has_value()) {
+      if (std::optional<DocRef> comments_doc =
+              EmitCommentsBetween(std::nullopt, span->limit(), comments_,
+                                  arena_, &last_comment_span);
+          comments_doc.has_value()) {
+        pieces.push_back(comments_doc.value());
+        pieces.push_back(arena_.hard_line());
+        pieces.push_back(arena_.hard_line());
+      }
+      last_entity_pos = span->limit();
+    }
+
     for (ModuleAttribute annotation : n.attributes()) {
       switch (annotation) {
         case ModuleAttribute::kAllowNonstandardConstantNaming:
@@ -2997,7 +3011,6 @@ absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
     pieces.push_back(arena_.hard_line());
   }
 
-  std::optional<Pos> last_entity_pos;
   for (size_t i = 0; i < n.top().size(); ++i) {
     const ModuleMember& member = n.top()[i];
 
@@ -3042,7 +3055,6 @@ absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
       CHECK_GE(member_start, last_entity_pos.value());
     }
 
-    std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc =
             EmitCommentsBetween(last_entity_pos, member_start, comments_,
                                 arena_, &last_comment_span)) {
