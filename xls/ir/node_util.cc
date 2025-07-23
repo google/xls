@@ -211,47 +211,57 @@ absl::StatusOr<Node*> FillPattern(TernarySpan pattern, Node* node) {
   return f->MakeNode<Concat>(node->loc(), slices);
 }
 
+namespace {
+absl::Status ToTreeOfNodesInPlace(Node* node,
+                                  MutableLeafTypeTreeView<Node*> segment) {
+  if (segment.size() == 0) {
+    return absl::OkStatus();
+  }
+  XLS_RET_CHECK_EQ(segment.type(), node->GetType());
+  if (node->GetType()->IsBits() || node->GetType()->IsToken() ||
+      (node->GetType()->IsTuple() &&
+       node->GetType()->AsTupleOrDie()->element_types().empty()) ||
+      (node->GetType()->IsArray() &&
+       node->GetType()->AsArrayOrDie()->size() == 0)) {
+    segment.elements().front() = node;
+    return absl::OkStatus();
+  }
+  if (node->GetType()->IsTuple()) {
+    for (int64_t i = 0; i < node->GetType()->AsTupleOrDie()->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * tup_idx,
+          node->function_base()->MakeNodeWithName<TupleIndex>(
+              node->loc(), node, i,
+              node->HasAssignedName()
+                  ? absl::StrFormat("%s_idx_%d", node->GetNameView(), i)
+                  : ""));
+      XLS_RETURN_IF_ERROR(
+          ToTreeOfNodesInPlace(tup_idx, segment.AsMutableView({i})));
+    }
+    return absl::OkStatus();
+  }
+  XLS_RET_CHECK(node->GetType()->IsArray()) << "unexpected type for " << node;
+  for (int64_t i = 0; i < node->GetType()->AsArrayOrDie()->size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(Node * idx, node->function_base()->MakeNode<Literal>(
+                                         node->loc(), Value(UBits(i, 64))));
+    XLS_ASSIGN_OR_RETURN(
+        Node * arr_idx,
+        node->function_base()->MakeNodeWithName<ArrayIndex>(
+            node->loc(), node, absl::Span<Node* const>{idx},
+            /*assumed_in_bounds=*/true,
+            node->HasAssignedName()
+                ? absl::StrFormat("%s_idx_%d", node->GetNameView(), i)
+                : ""));
+    XLS_RETURN_IF_ERROR(
+        ToTreeOfNodesInPlace(arr_idx, segment.AsMutableView({i})));
+  }
+  return absl::OkStatus();
+}
+}  // namespace
 absl::StatusOr<LeafTypeTree<Node*>> ToTreeOfNodes(Node* node) {
   LeafTypeTree<Node*> result(node->GetType(), nullptr);
-  absl::flat_hash_map<absl::Span<int64_t const>, Node*> index_access;
-  index_access[{}] = node;
-  XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachIndex(
-      result.AsMutableView(),
-      [node, &index_access](Type*, Node*& leaf_node,
-                            absl::Span<const int64_t> indices) -> absl::Status {
-        for (int64_t i = 1; i <= indices.size(); ++i) {
-          auto it = index_access.find(indices.subspan(0, i));
-          if (it != index_access.end()) {
-            continue;
-          }
-
-          Node* accessed_node = index_access[indices.subspan(0, i - 1)];
-          if (accessed_node->GetType()->IsArray()) {
-            Bits index_bits = UBits(
-                indices.back(),
-                Bits::MinBitCountUnsigned(
-                    accessed_node->GetType()->AsArrayOrDie()->size() - 1));
-            XLS_ASSIGN_OR_RETURN(Node * literal_index,
-                                 node->function_base()->MakeNode<Literal>(
-                                     node->loc(), Value(index_bits)));
-            XLS_ASSIGN_OR_RETURN(index_access[indices.subspan(0, i)],
-                                 node->function_base()->MakeNode<ArrayIndex>(
-                                     node->loc(), accessed_node,
-                                     absl::MakeConstSpan({literal_index})));
-          } else if (accessed_node->GetType()->IsTuple()) {
-            XLS_ASSIGN_OR_RETURN(
-                index_access[indices.subspan(0, i)],
-                node->function_base()->MakeNode<TupleIndex>(
-                    node->loc(), accessed_node, indices.back()));
-          } else {
-            return absl::UnimplementedError(
-                absl::StrCat("Unsupported type for index access: ",
-                             accessed_node->GetType()->ToString()));
-          }
-        }
-        leaf_node = index_access.at(indices);
-        return absl::OkStatus();
-      }));
+  XLS_RETURN_IF_ERROR(ToTreeOfNodesInPlace(node, result.AsMutableView()))
+      << "Failed to convert " << node << " into a ltt";
   return result;
 }
 
