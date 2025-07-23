@@ -14,6 +14,9 @@
 
 // DSLX implementation of a 4x4 systolic array, appropriate for part of a
 // matrix multiplier.
+
+#![feature(type_inference_v2)]
+
 import float32;
 
 type F32 = float32::F32;
