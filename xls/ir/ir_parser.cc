@@ -2940,6 +2940,8 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
           absl::StrFormat("Invalid module signature @ %s",
                           attribute_name.pos().ToHumanString()));
     }
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
     return IrAttribute{.name = attribute_name.value(), .payload = proto};
   }
   return absl::InvalidArgumentError(

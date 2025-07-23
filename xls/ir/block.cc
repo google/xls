@@ -261,7 +261,7 @@ std::string Block::DumpIr() const {
     google::protobuf::TextFormat::Printer printer;
     printer.SetSingleLineMode(true);
     printer.PrintToString(*GetSignature(), &textproto);
-    absl::StrAppend(&res, "#[signature(\"\"\"", textproto, "\"\"\"]\n");
+    absl::StrAppend(&res, "#[signature(\"\"\"", textproto, "\"\"\")]\n");
   }
   std::vector<std::string> port_strings;
   for (const Port& port : GetPorts()) {
