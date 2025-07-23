@@ -1785,6 +1785,15 @@ filegroup(
     ],
 )
 
+genrule(
+    name = "axi_crossbar_wrapper",
+    outs = ["axi_crossbar_wrapper.v"],
+    cmd = "$(location @com_github_alexforencich_verilog_axi//:axi_crossbar_wrap) -p 15 1 -n axi_crossbar_wrapper -o  $(OUTS)",
+    tools = [
+        "@com_github_alexforencich_verilog_axi//:axi_crossbar_wrap",
+    ],
+)
+
 py_test(
     name = "zstd_dec_cocotb_test",
     srcs = ["zstd_dec_cocotb_test.py"],
@@ -1828,20 +1837,20 @@ py_test(
         "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400025.zst",
         "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400061.zst",
         "data/treeless_huffman_literals_rle_sequences_seed_403927.zst",
+        ":axi_crossbar_wrapper.v",
         ":zstd_dec.v",
-        "//xls/modules/zstd:zstd_dec_xx_fse_default",
-        "//xls/modules/zstd/external:arbiter.v",
-        "//xls/modules/zstd/external:axi_crossbar.v",
-        "//xls/modules/zstd/external:axi_crossbar_addr.v",
-        "//xls/modules/zstd/external:axi_crossbar_rd.v",
-        "//xls/modules/zstd/external:axi_crossbar_wr.v",
-        "//xls/modules/zstd/external:axi_crossbar_wrapper.v",
-        "//xls/modules/zstd/external:axi_register_rd.v",
-        "//xls/modules/zstd/external:axi_register_wr.v",
-        "//xls/modules/zstd/external:priority_encoder.v",
+        ":zstd_dec_xx_fse_default",
         "//xls/modules/zstd/rtl:ram_1r1w.v",
         "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
         "//xls/modules/zstd/rtl:zstd_dec_wrapper.sv",
+        "@com_github_alexforencich_verilog_axi//:rtl/arbiter.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_addr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_rd.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_wr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_register_rd.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_register_wr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/priority_encoder.v",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
