@@ -15,9 +15,9 @@
 #include "xls/fuzzer/ir_fuzzer/combine_context_list.h"
 
 #include <cstdint>
+#include <vector>
 
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
-#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
 #include "xls/ir/function_builder.h"
 
@@ -30,8 +30,8 @@ BValue CombineContextList(const FuzzProgramProto& fuzz_program,
                           FunctionBuilder* fb,
                           const IrNodeContextList& context_list) {
   switch (fuzz_program.combine_list_method()) {
-    case CombineListMethod::ADD_LIST_METHOD:
-      return AddList(fb, context_list);
+    case CombineListMethod::TUPLE_LIST_METHOD:
+      return TupleList(fb, context_list);
     case CombineListMethod::LAST_ELEMENT_METHOD:
     default:
       return LastElement(fb, context_list);
@@ -43,17 +43,13 @@ BValue LastElement(FunctionBuilder* fb, const IrNodeContextList& context_list) {
   return context_list.GetElementAt(context_list.GetListSize() - 1);
 }
 
-// Adds everything in the list together.
-BValue AddList(FunctionBuilder* fb, const IrNodeContextList& context_list) {
-  BValue combined_list = context_list.GetElementAt(0);
-  for (int64_t i = 1; i < context_list.GetListSize(); i += 1) {
-    // Change the bit width of the combined list to the bit width of the next
-    // element in the list.
-    combined_list = ChangeBitWidth(
-        fb, combined_list, context_list.GetElementAt(i).BitCountOrDie());
-    combined_list = fb->Add(combined_list, context_list.GetElementAt(i));
+// Tuples everything in the combined context list together.
+BValue TupleList(FunctionBuilder* fb, const IrNodeContextList& context_list) {
+  std::vector<BValue> elements;
+  for (int64_t i = 0; i < context_list.GetListSize(); i += 1) {
+    elements.push_back(context_list.GetElementAt(i));
   }
-  return combined_list;
+  return fb->Tuple(elements);
 }
 
 }  // namespace xls

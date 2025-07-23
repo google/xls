@@ -57,6 +57,8 @@ class GenIrNodesPass : public IrFuzzVisitor {
   void HandleXorReduce(const FuzzXorReduceProto& xor_reduce) override;
   void HandleUMul(const FuzzUMulProto& umul) override;
   void HandleSMul(const FuzzSMulProto& smul) override;
+  void HandleUMulp(const FuzzUMulpProto& umulp) override;
+  void HandleSMulp(const FuzzSMulpProto& smulp) override;
   void HandleUDiv(const FuzzUDivProto& udiv) override;
   void HandleSDiv(const FuzzSDivProto& sdiv) override;
   void HandleUMod(const FuzzUModProto& umod) override;
@@ -86,6 +88,13 @@ class GenIrNodesPass : public IrFuzzVisitor {
   void HandleCtz(const FuzzCtzProto& ctz) override;
   void HandleMatch(const FuzzMatchProto& match) override;
   void HandleMatchTrue(const FuzzMatchTrueProto& match_true) override;
+  void HandleTuple(const FuzzTupleProto& tuple) override;
+  void HandleArray(const FuzzArrayProto& array) override;
+  void HandleTupleIndex(const FuzzTupleIndexProto& tuple_index) override;
+  void HandleArrayIndex(const FuzzArrayIndexProto& array_index) override;
+  void HandleArraySlice(const FuzzArraySliceProto& array_slice) override;
+  void HandleArrayUpdate(const FuzzArrayUpdateProto& array_update) override;
+  void HandleArrayConcat(const FuzzArrayConcatProto& array_concat) override;
   void HandleReverse(const FuzzReverseProto& reverse) override;
   void HandleIdentity(const FuzzIdentityProto& identity) override;
   void HandleSignExtend(const FuzzSignExtendProto& sign_extend) override;
@@ -102,16 +111,29 @@ class GenIrNodesPass : public IrFuzzVisitor {
  private:
   BValue GetOperand(const OperandIdxProto& operand_idx);
   BValue GetBitsOperand(const BitsOperandIdxProto& operand_idx);
+  BValue GetTupleOperand(const TupleOperandIdxProto& operand_idx);
+  BValue GetArrayOperand(const ArrayOperandIdxProto& operand_idx);
   BValue GetCoercedOperand(const OperandIdxProto& operand_idx,
                            const CoercedTypeProto& coerced_type);
   BValue GetCoercedBitsOperand(const BitsOperandIdxProto& operand_idx,
-                               const BitsCoercedTypeProto& bits_coerced_type);
+                               const BitsCoercedTypeProto& coerced_type);
+  BValue GetCoercedArrayOperand(const ArrayOperandIdxProto& operand_idx,
+                                const ArrayCoercedTypeProto& coerced_type);
+  BValue GetFittedOperand(const OperandIdxProto& operand_idx,
+                          const CoercionMethodProto& coercion_method,
+                          Type* type);
   BValue GetBitsFittedOperand(const BitsOperandIdxProto& operand_idx,
-                              int64_t bit_width,
-                              const BitsCoercionMethodProto& coercion_method);
+                              const BitsCoercionMethodProto& coercion_method,
+                              int64_t bit_width);
 
+  std::vector<BValue> GetOperands(
+      const google::protobuf::RepeatedPtrField<OperandIdxProto>& operand_idxs,
+      int64_t min_operand_count = 0, int64_t max_operand_count = -1);
   std::vector<BValue> GetBitsOperands(
       const google::protobuf::RepeatedPtrField<BitsOperandIdxProto>& operand_idxs,
+      int64_t min_operand_count = 0, int64_t max_operand_count = -1);
+  std::vector<BValue> GetArrayOperands(
+      const google::protobuf::RepeatedPtrField<ArrayOperandIdxProto>& operand_idxs,
       int64_t min_operand_count = 0, int64_t max_operand_count = -1);
   std::vector<BValue> GetCoercedOperands(
       const google::protobuf::RepeatedPtrField<OperandIdxProto>& operand_idxs,
@@ -119,8 +141,12 @@ class GenIrNodesPass : public IrFuzzVisitor {
       int64_t max_operand_count = -1);
   std::vector<BValue> GetCoercedBitsOperands(
       const google::protobuf::RepeatedPtrField<BitsOperandIdxProto>& operand_idxs,
-      const BitsCoercedTypeProto& bits_coerced_type,
-      int64_t min_operand_count = 0, int64_t max_operand_count = -1);
+      const BitsCoercedTypeProto& coerced_type, int64_t min_operand_count = 0,
+      int64_t max_operand_count = -1);
+  std::vector<BValue> GetCoercedArrayOperands(
+      const google::protobuf::RepeatedPtrField<ArrayOperandIdxProto>& operand_idxs,
+      const ArrayCoercedTypeProto& coerced_type, int64_t min_operand_count = 0,
+      int64_t max_operand_count = -1);
 
   const FuzzProgramProto& fuzz_program_;
   Package* p_;
