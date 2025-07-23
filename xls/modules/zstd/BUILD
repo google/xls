@@ -4974,3 +4974,26 @@ place_and_route(
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "sequence_encoder_dslx",
+    srcs = [
+        "sequence_encoder.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":sequence_header_writer_dslx",
+        ":mem_reader_simple_arbiter_dslx",
+        ":mem_writer_simple_arbiter_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_reader_dslx",
+        "//xls/modules/zstd/memory:axi_ram_writer_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+        "//xls/modules/zstd/memory:mem_writer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "sequence_encoder_dslx_test",
+    library = "sequence_encoder_dslx",
+)

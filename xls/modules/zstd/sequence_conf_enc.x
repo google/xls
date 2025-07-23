@@ -19,14 +19,14 @@ import std;
 import xls.modules.zstd.common;
 import xls.modules.zstd.memory.mem_writer;
 
-struct SequenceSectionHeaderWriterReq<ADDR_W: u32> { addr: uN[ADDR_W], conf: common::SequenceConf }
+pub struct SequenceSectionHeaderWriterReq<ADDR_W: u32> { addr: uN[ADDR_W], conf: common::SequenceConf }
 
-enum SequenceSectionHeaderWriterStatus : u1 {
+pub enum SequenceSectionHeaderWriterStatus : u1 {
     OK = 0,
     ERROR = 1,
 }
 
-struct SequenceSectionHeaderWriterResp { status: SequenceSectionHeaderWriterStatus }
+pub struct SequenceSectionHeaderWriterResp { status: SequenceSectionHeaderWriterStatus }
 
 const LITERALS_MODE_BITS_OFFSET = u32:6;
 const OFFSET_MODE_BITS_OFFSET = u32:4;
