@@ -74,6 +74,9 @@ class ConversionRecordVisitor : public AstNodeVisitorWithDefault {
       // We want one ConversionRecord per *unique* parametric binding of
       // this function.
       for (auto& callee_data : type_info_->GetUniqueInvocationCalleeData(f)) {
+        // TODO: https://github.com/google/xls/issues/2078 - If this is a
+        // next function, get its config invocation and put it in the
+        // conversion record.
         XLS_ASSIGN_OR_RETURN(
             ConversionRecord cr,
             MakeConversionRecord(const_cast<Function*>(f), module_,

@@ -22,6 +22,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
@@ -167,6 +168,111 @@ fn main2() -> u32 { f<u32:1>() + f<u32:0>() + f<u32:2>() }
                   {"N", InterpValue::MakeU32(i)},
               }));
   }
+}
+
+TEST(TypeInfoTest, GetUniqueInvocationCalleeDataParametricProc) {
+  const std::string kInvocation = R"(
+proc spawnee<N: u32>{
+  init { }
+  config() {()}
+  next(state: ()) { state }
+}
+
+proc main {
+  init { }
+  config() {spawn spawnee<u32:0>(); spawn spawnee<u32:1>(); () }
+  next(state: ()) { state }
+}
+
+proc main2 {
+  init { }
+  config() {
+    spawn spawnee<u32:1>();
+    spawn spawnee<u32:0>();
+    spawn spawnee<u32:2>();
+    ()}
+  next(state: ()) { state }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+
+  std::optional<Function*> next_fn =
+      result.tm.module->GetFunction("spawnee.next");
+  ASSERT_TRUE(next_fn.has_value());
+
+  auto next_invocations =
+      result.tm.type_info->GetUniqueInvocationCalleeData(*next_fn);
+  EXPECT_EQ(next_invocations.size(), 3);
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_EQ(next_invocations[i].callee_bindings,
+              ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                  {"N", InterpValue::MakeU32(i)},
+              }));
+    EXPECT_EQ(next_invocations[i].invocation->args().size(), 1);
+    EXPECT_EQ(next_invocations[i].invocation->args()[0]->ToString(),
+              absl::Substitute("spawnee.init<u32:$0>()", i));
+  }
+
+  std::optional<Function*> config_fn =
+      result.tm.module->GetFunction("spawnee.config");
+  auto config_invocations =
+      result.tm.type_info->GetUniqueInvocationCalleeData(*config_fn);
+  EXPECT_EQ(config_invocations.size(), 3);
+  for (auto invocation : config_invocations) {
+    // The config function in this test has no arguments.
+    EXPECT_EQ(invocation.invocation->args().size(), 0);
+  }
+}
+
+TEST(TypeInfoTest, GetUniqueInvocationCalleeDataProcWithConfigArgs) {
+  const std::string kInvocation = R"(
+proc spawnee<N: u32>{
+  a: uN[N];
+  init { zero!<uN[N]>() }
+  config(x: uN[N]) {(x,)}
+  next(state: uN[N]) { state }
+}
+
+proc main {
+  init { }
+  config() {
+    spawn spawnee<u32:8>(u8:0);
+    spawn spawnee<u32:16>(u16:1);
+    ()
+  }
+  next(state: ()) { state }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kInvocation));
+
+  std::optional<Function*> next_fn =
+      result.tm.module->GetFunction("spawnee.next");
+  ASSERT_TRUE(next_fn.has_value());
+
+  auto next_invocations =
+      result.tm.type_info->GetUniqueInvocationCalleeData(*next_fn);
+  EXPECT_EQ(next_invocations.size(), 2);
+  EXPECT_EQ(next_invocations[0].callee_bindings,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeU32(8)},
+            }));
+  EXPECT_EQ(next_invocations[1].callee_bindings,
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
+                {"N", InterpValue::MakeU32(16)},
+            }));
+
+  std::optional<Function*> config_fn =
+      result.tm.module->GetFunction("spawnee.config");
+  auto config_invocations =
+      result.tm.type_info->GetUniqueInvocationCalleeData(*config_fn);
+  EXPECT_EQ(config_invocations.size(), 2);
+  auto args8 = config_invocations[0].invocation->args();
+  EXPECT_EQ(args8.size(), 1);
+  EXPECT_EQ(args8[0]->ToString(), "u8:0");
+
+  auto args16 = config_invocations[1].invocation->args();
+  EXPECT_EQ(args16.size(), 1);
+  EXPECT_EQ(args16[0]->ToString(), "u16:1");
 }
 
 }  // namespace

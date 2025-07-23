@@ -69,6 +69,7 @@ struct SliceData {
 struct InvocationCalleeData {
   ParametricEnv callee_bindings;
   TypeInfo* derived_type_info;
+  const Invocation* invocation;
 };
 
 // Parametric instantiation information related to an invocation AST node.

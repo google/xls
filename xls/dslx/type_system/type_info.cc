@@ -413,6 +413,8 @@ std::vector<InvocationCalleeData> TypeInfo::GetUniqueInvocationCalleeData(
     // No envs
     return {};
   }
+  // Note: this ignores multiple invocations of the same parametric environment
+  // with different spawn arguments.
   absl::flat_hash_set<ParametricEnv> unique_envs;
   std::vector<InvocationCalleeData> result;
   for (auto& callee_data : entries->second) {
@@ -493,7 +495,8 @@ absl::Status TypeInfo::AddInvocationTypeInfo(const Invocation& invocation,
   if (it == top->invocations_.end()) {
     // No data for this invocation yet.
     absl::flat_hash_map<ParametricEnv, InvocationCalleeData> env_to_callee_data;
-    InvocationCalleeData callee_data{callee_env, derived_type_info};
+    InvocationCalleeData callee_data{callee_env, derived_type_info,
+                                     &invocation};
     env_to_callee_data[caller_env] = callee_data;
 
     top->invocations_.emplace(&invocation, std::make_unique<InvocationData>(

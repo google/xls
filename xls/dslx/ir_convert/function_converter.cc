@@ -3062,6 +3062,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   // TODO: https://github.com/google/xls/issues/2078 -
   // The proc_data_->id_to_initial_value map needs more filling-out; right
   // now it only set for top procs. See ProcConfigIrConverter.HandleSpawn
+  // This data can be gleaned from the invocation.
   if (proc_data_->id_to_initial_value.contains(proc_id)) {
     initial_element = proc_data_->id_to_initial_value.at(proc_id);
   }
