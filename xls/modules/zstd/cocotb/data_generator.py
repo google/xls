@@ -39,6 +39,24 @@ class BlockType(enum.Enum):
     except KeyError as e:
       raise ValueError(str(e)) from e
 
+class LiteralType(enum.Enum):
+  """Enum encoding of ZSTD literal types."""
+
+  RAW = 0
+  RLE = 1
+  COMPRESSED = 2
+  RANDOM = 3
+
+  def __str__(self):
+    return self.name
+
+  @staticmethod
+  def from_string(s):
+    try:
+      return BlockType[s]
+    except KeyError as e:
+      raise ValueError(str(e)) from e
+
 def CallDecodecorpus(args):
   decodecorpus = pathlib.Path(
     runfiles.get_path("decodecorpus", repository = "zstd")
@@ -52,11 +70,15 @@ def DecompressFrame(data):
   dctx = zstandard.ZstdDecompressor()
   return dctx.decompress(data)
 
-def GenerateFrame(seed, btype, output_path):
+def GenerateFrame(seed, btype, output_path, ltype=LiteralType.RANDOM):
   args = []
   args.append("-s" + str(seed))
   if (btype != BlockType.RANDOM):
     args.append("--block-type=" + str(btype.value))
+
+  if (ltype != LiteralType.RANDOM):
+    args.append("--literal-type=" + str(ltype.value))
+
   args.append("--content-size")
   # Test payloads up to 16KB
   args.append("--max-content-size-log=14")
