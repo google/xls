@@ -22,12 +22,14 @@ import std;
 
 import xls.examples.ram;
 import xls.modules.zstd.mem_copy;
+import xls.modules.zstd.rle_block_encoder;
 import xls.modules.zstd.frame_header_dec;
 import xls.modules.zstd.frame_header_enc;
 import xls.modules.zstd.block_header;
 import xls.modules.zstd.memory.mem_writer;
 import xls.modules.zstd.memory.mem_reader;
 import xls.modules.zstd.mem_writer_simple_arbiter;
+import xls.modules.zstd.mem_reader_simple_arbiter;
 import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;
 import xls.modules.zstd.compression.block_size;
@@ -37,11 +39,16 @@ pub enum ZstdEncodeRespStatus : u1 {
     OK=1
 }
 
+pub struct ZstdEncodeParams {
+    enable_rle: bool
+}
+
 pub struct ZstdEncodeReq<ADDR_W: u32, DATA_W: u32> {
     input_offset: uN[ADDR_W], // bytes
     data_size: uN[DATA_W],
     output_offset: uN[ADDR_W], // bytes
     max_block_size: uN[DATA_W], //
+    params: ZstdEncodeParams
 }
 
 pub struct ZstdEncodeResp {
@@ -53,6 +60,7 @@ struct ZstdEncoderBlockWriterConf<ADDR_W: u32, DATA_W: u32> {
     input_offset: uN[ADDR_W],
     output_offset: uN[ADDR_W],
     max_block_size: uN[DATA_W],
+    params: ZstdEncodeParams
 }
 
 struct ZstdEncoderBlockWriterState<ADDR_W: u32, DATA_W: u32> {
@@ -64,6 +72,7 @@ const ARBITER_SUBBLOCKS = u32:2;
 const BLOCK_HEADER_LENGTH_BYTES = u32:3;
 const XFERS_FOR_HEADER = u32:5;
 const ZSTD_WINDOW_ABSOLUTEMIN = u64:1024;
+const RLE_HEURISTIC_SAMPLE_COUNT = u32:8;
 
 pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
     type MemReaderReq = mem_reader::MemReaderReq<ADDR_W>;
@@ -71,6 +80,7 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
     type MemWriterReq = mem_writer::MemWriterReq<ADDR_W>;
     type MemWriterData = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
     type MemWriterResp = mem_writer::MemWriterResp;
+    type MemWriterStatus = mem_writer::MemWriterRespStatus;
 
     type Resp = ZstdEncodeResp;
     type State = ZstdEncoderBlockWriterState<ADDR_W, DATA_W>;
@@ -87,6 +97,10 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
     type RawMemcopyRespStatus = mem_copy::RawMemcopyStatus;
     type RawMemcopyReq = RawMemcopyReq<ADDR_W>;
 
+    type RleBlockEncoderReq = rle_block_encoder::RleBlockEncoderReq<ADDR_W>;
+    type RleBlockEncoderResp = rle_block_encoder::RleBlockEncoderResp<ADDR_W>;
+    type RleBlockEncoderStatus = rle_block_encoder::RleBlockEncoderStatus;
+
     type Addr = uN[ADDR_W];
     type Data = uN[DATA_W];
     type BlockType = common::BlockType;
@@ -96,11 +110,20 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
     conf_r: chan<Conf> in;
     resp_s: chan<Status> out;
 
-    // communication
+    // block header
     bhw_req_s: chan<BlockHeaderWriterReq> out;
     bhw_resp_r: chan<BlockHeaderWriterResp> in;
-    memcpy_req_s: chan<RawMemcopyReq> out;
-    memcpy_resp_r: chan<RawMemcopyResp> in;
+
+    // block types
+    raw_req_s: chan<RawMemcopyReq> out;
+    raw_resp_r: chan<RawMemcopyResp> in;
+    rle_req_s: chan<RleBlockEncoderReq> out;
+    rle_resp_r: chan<RleBlockEncoderResp> in;
+
+    // general memory writing
+    mem_wr_req_s: chan<MemWriterReq> out;
+    mem_wr_data_s: chan<MemWriterData> out;
+    mem_wr_resp_r: chan<MemWriterResp> in;
 
     init { zero!<State>() }
     config(
@@ -114,17 +137,29 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
     ) {
         let (bhw_req_s, bhw_req_r) = chan<BlockHeaderWriterReq, u32:1>("bhw_req");
         let (bhw_resp_s, bhw_resp_r) = chan<BlockHeaderWriterResp, u32:1>("bhw_resp");
-        let (memcpy_req_s, memcpy_req_r) = chan<RawMemcopyReq, u32:1>("memcpy_req");
-        let (memcpy_resp_s, memcpy_resp_r) = chan<RawMemcopyResp, u32:1>("memcpy_resp");
 
-        let (n_mem_wr_req_s, n_mem_wr_req_r) = chan<MemWriterReq, u32:1>[2]("n_req");
-        let (n_mem_wr_data_s, n_mem_wr_data_r) = chan<MemWriterData, u32:1>[2]("n_data");
-        let (n_mem_wr_resp_s, n_mem_wr_resp_r) = chan<MemWriterResp, u32:1>[2]("n_resp");
+        // block types
+        let (raw_req_s, raw_req_r) = chan<RawMemcopyReq, u32:1>("memcpy_req");
+        let (raw_resp_s, raw_resp_r) = chan<RawMemcopyResp, u32:1>("memcpy_resp");
+        let (rle_req_s, rle_req_r) = chan<RleBlockEncoderReq, u32:1>("memcpy_req");
+        let (rle_resp_s, rle_resp_r) = chan<RleBlockEncoderResp, u32:1>("memcpy_resp");
 
-        spawn mem_writer_simple_arbiter::MemWriterSimpleArbiter<ADDR_W, DATA_W, u32:2>
+        let (n_mem_wr_req_s, n_mem_wr_req_r) = chan<MemWriterReq, u32:1>[3]("n_wr_req");
+        let (n_mem_wr_data_s, n_mem_wr_data_r) = chan<MemWriterData, u32:1>[3]("n_wr_data");
+        let (n_mem_wr_resp_s, n_mem_wr_resp_r) = chan<MemWriterResp, u32:1>[3]("n_resp");
+        let (n_mem_rd_req_s, n_mem_rd_req_r) = chan<MemReaderReq, u32:1>[2]("n_rd_req");
+        let (n_mem_rd_resp_s, n_mem_rd_resp_r) = chan<MemReaderResp, u32:1>[2]("n_rd_resp");
+
+        spawn mem_writer_simple_arbiter::MemWriterSimpleArbiter<ADDR_W, DATA_W, u32:3>
         (
             n_mem_wr_req_r, n_mem_wr_data_r, n_mem_wr_resp_s,
             mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r,
+        );
+
+        spawn mem_reader_simple_arbiter::MemReaderSimpleArbiter<ADDR_W, DATA_W, u32:2>
+        (
+            n_mem_rd_req_r, n_mem_rd_resp_s,
+            mem_rd_req_s, mem_rd_resp_r,
         );
 
         spawn block_header::BlockHeaderWriter<DATA_W, ADDR_W>
@@ -135,15 +170,23 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
 
         spawn mem_copy::RawMemcopy<ADDR_W, DATA_W>
         (
-            memcpy_req_r, memcpy_resp_s,
-            mem_rd_req_s, mem_rd_resp_r,
+            raw_req_r, raw_resp_s,
+            n_mem_rd_req_s[1], n_mem_rd_resp_r[1],
             n_mem_wr_req_s[1], n_mem_wr_data_s[1], n_mem_wr_resp_r[1]
+        );
+
+        spawn rle_block_encoder::RleBlockEncoder<ADDR_W, DATA_W, ADDR_W, RLE_HEURISTIC_SAMPLE_COUNT>
+        (
+            rle_req_r, rle_resp_s,
+            n_mem_rd_req_s[0], n_mem_rd_resp_r[0]
         );
 
         (
             conf_r, resp_s,
             bhw_req_s, bhw_resp_r,
-            memcpy_req_s, memcpy_resp_r
+            raw_req_s, raw_resp_r,
+            rle_req_s, rle_resp_r,
+            n_mem_wr_req_s[2], n_mem_wr_data_s[2], n_mem_wr_resp_r[2]
         )
     }
     next(state: State) {
@@ -154,9 +197,9 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
                 conf: conf
             }
         } else {
+            let tok = join();
             let conf = state.conf;
             let size = block_size::get_block_size(conf.bytes_left, conf.max_block_size as BlockSize);
-
             // BlockSize calculation
             // 1. Limit BlockSize value to rfc-defined and parameter-based max value,
             // and reduce it further in case there's not much data left to compress
@@ -171,33 +214,84 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
             //    * see `ZSTD_splitBlock_fromBorders` and `compareFingerprints` in zstd for reference
             //    * https://github.com/facebook/zstd/blob/d654fca78690fa15cceb8058ac47454d914a0e63/lib/compress/zstd_preSplit.c#L198
             //    * https://github.com/facebook/zstd/blob/d654fca78690fa15cceb8058ac47454d914a0e63/lib/compress/zstd_preSplit.c#L110
-
             let last_block: bool = state.conf.bytes_left <= size as u32;
 
-            let tok1 = send(join(), bhw_req_s, BlockHeaderWriterReq{
+            // step 1: choose block type
+            let (
+                tok,
+                btype,
+                rle_symbol
+            ) =
+            if conf.params.enable_rle {
+                let tok = send(tok, rle_req_s, RleBlockEncoderReq {
+                    addr: conf.input_offset,
+                    length: size as uN[ADDR_W]
+                });
+
+                let (tok, rle_resp) = recv(tok, rle_resp_r);
+                let btype = if rle_resp.status == RleBlockEncoderStatus::OK {
+                    BlockType::RLE
+                } else {
+                    BlockType::RAW
+                };
+
+                (tok, btype, rle_resp.symbol)
+            } else {
+                (tok, BlockType::RAW, u8: 0)
+            };
+
+            // step 2: write block header
+            let tok1 = send(tok, bhw_req_s, BlockHeaderWriterReq{
                     addr: conf.output_offset,
                     header: BlockHeader {
                         last: last_block,
                         size: size,
-                        btype: BlockType::RAW //TODO: Receive block type from the parent
+                        btype: btype
                     }
                 }
             );
             trace_fmt!("writing block header to {:#x}", conf.output_offset);
             let (tok1, bhw_resp) = recv(tok1, bhw_resp_r);
 
-            let tok2 = send(join(), memcpy_req_s, RawMemcopyReq {
-                lit_addr: conf.input_offset,
-                lit_cnt: size as Data,
-                out_addr: conf.output_offset + BLOCK_HEADER_LENGTH_BYTES
-            });
-            trace_fmt!("raw copying: {:#x} -> {:#x} (size: {})", conf.input_offset, conf.output_offset + BLOCK_HEADER_LENGTH_BYTES, size);
-            let (tok2, memcpy_resp) = recv(tok2, memcpy_resp_r);
+            // step 3: write block content
+            let block_content_offset = conf.output_offset + BLOCK_HEADER_LENGTH_BYTES;
+            let (tok2, blwr_status, block_content_size) = match btype {
+                BlockType::RLE => {
+                    let tok2 = send(tok, mem_wr_req_s, MemWriterReq {
+                        addr: block_content_offset, length: Addr:1
+                    });
+                    let tok2 = send(tok2, mem_wr_data_s, MemWriterData {
+                        data: rle_symbol as Data,
+                        length: Addr:1,
+                        last: true
+                    });
+                    trace_fmt!("writing rle pair: {:#x} -> {:#x} (symbol: {:#x} size: {})", conf.input_offset, block_content_offset, rle_symbol, size);
+                    let (tok2, rle_resp) = recv(tok2, mem_wr_resp_r);
+                    let out_status =  if rle_resp.status == MemWriterStatus::OKAY { Status::OK } else { Status::ERROR };
+                    (tok2, out_status, Addr:1)
+                },
+                BlockType::RAW => {
+                    let tok2 = send(tok, raw_req_s, RawMemcopyReq {
+                        lit_addr: conf.input_offset,
+                        lit_cnt: size as Data,
+                        out_addr: block_content_offset
+                    });
+                    trace_fmt!("raw copying: {:#x} -> {:#x} (size: {})", conf.input_offset, block_content_offset, size);
+                    let (tok2, memcpy_resp) = recv(tok2, raw_resp_r);
 
-            let status = if memcpy_resp.status == RawMemcopyRespStatus::OK && bhw_resp.status == BlockHeaderWriterStatus::OKAY {
+                    let out_status = if memcpy_resp.status == RawMemcopyRespStatus::OK { Status::OK } else { Status::ERROR };
+                    (tok2, out_status, size as Addr)
+                },
+                _ => {
+                    trace_fmt!("Unsupported block type");
+                    (tok, Status::ERROR, Addr:0)
+                }
+            };
+
+            let status = if blwr_status == Status::OK && bhw_resp.status == BlockHeaderWriterStatus::OKAY {
                 Status::OK
             } else {
-                trace_fmt!("failed writing block: {} {}", bhw_resp, memcpy_resp);
+                trace_fmt!("failed writing block: {} {}", bhw_resp, blwr_status);
                 Status::ERROR
             };
 
@@ -205,7 +299,7 @@ pub proc ZstdEncoderBlockWriter<ADDR_W: u32, DATA_W: u32> {
                 let tok = send(join(tok1, tok2), resp_s, status);
                 zero!<State>()
             } else {
-                let bytes_written = size as Data + BLOCK_HEADER_LENGTH_BYTES;
+                let bytes_written = block_content_size as Data + BLOCK_HEADER_LENGTH_BYTES;
                 State {
                     active: true,
                     conf: Conf {
@@ -273,9 +367,9 @@ pub proc ZstdEncoder<ADDR_W: u32, DATA_W: u32> {
         let (fhw_req_s, fhw_req_r) = chan<FrameHeaderEncoderReq, u32:1>("bhw_req");
         let (fhw_resp_s, fhw_resp_r) = chan<FrameHeaderEncoderResp, u32:1>("bhw_resp");
 
-        let (n_mem_wr_req_s, n_mem_wr_req_r) = chan<MemWriterReq, u32:1>[ARBITER_SUBBLOCKS]("n_req");
-        let (n_mem_wr_data_s, n_mem_wr_data_r) = chan<MemWriterData, u32:1>[ARBITER_SUBBLOCKS]("n_data");
-        let (n_mem_wr_resp_s, n_mem_wr_resp_r) = chan<MemWriterResp, u32:1>[ARBITER_SUBBLOCKS]("n_resp");
+        let (n_mem_wr_req_s, n_mem_wr_req_r) = chan<MemWriterReq, u32:1>[ARBITER_SUBBLOCKS]("n_wr_req");
+        let (n_mem_wr_data_s, n_mem_wr_data_r) = chan<MemWriterData, u32:1>[ARBITER_SUBBLOCKS]("n_wr_data");
+        let (n_mem_wr_resp_s, n_mem_wr_resp_r) = chan<MemWriterResp, u32:1>[ARBITER_SUBBLOCKS]("n_wr_resp");
 
         let (bw_resp_s, bw_resp_r) = chan<Status, u32:1>("bw_resp");
 
@@ -309,7 +403,6 @@ pub proc ZstdEncoder<ADDR_W: u32, DATA_W: u32> {
 
     next(state: ()) {
         let (tok, request) = recv(join(), enc_req);
-
         let window_size = ZSTD_WINDOW_ABSOLUTEMIN; // TODO: Calculate the window size based on the frame content
         trace_fmt!("writing frame header to {:#x}", request.output_offset);
 
@@ -334,7 +427,8 @@ pub proc ZstdEncoder<ADDR_W: u32, DATA_W: u32> {
                 bytes_left: request.data_size,
                 input_offset: request.input_offset,
                 output_offset: request.output_offset + resp.length as uN[ADDR_W],
-                max_block_size: request.max_block_size
+                max_block_size: request.max_block_size,
+                params: request.params
             });
             let (tok, status) = recv(tok, bw_resp_r);
             send(tok, enc_resp_s, ZstdEncodeResp{status: status});

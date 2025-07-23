@@ -33,18 +33,18 @@ import xls.modules.zstd.memory.axi_ram_writer;
 import xls.modules.zstd.memory.mem_writer;
 import xls.modules.zstd.mem_reader_simple_arbiter;
 
-struct RleBlockEncoderReq<ADDR_W: u32> {
+pub struct RleBlockEncoderReq<ADDR_W: u32> {
     addr: uN[ADDR_W],  // start address
     length: uN[ADDR_W] // length of the block
   }
 
-enum RleBlockEncoderStatus: u2 {
+pub enum RleBlockEncoderStatus: u2 {
     OK = 0,
     INCOMPRESSIBLE = 1,
     ERROR = 2
 }
 
-struct RleBlockEncoderResp<LENGTH_W: u32> {
+pub struct RleBlockEncoderResp<LENGTH_W: u32> {
     symbol: u8,
     length: uN[LENGTH_W],
     status: RleBlockEncoderStatus
