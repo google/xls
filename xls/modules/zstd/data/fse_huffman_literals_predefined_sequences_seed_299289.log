@@ -1,0 +1,39 @@
+seed: 299289
+frame seed: 299289
+ frame content size:	68
+ frame window size:	294912
+ content size flag:	1
+ single segment flag:	0
+ block:
+  block content size: 68
+  last block: yes
+  compressed block:
+   compressed literals
+    distribution weight: 24%
+     huffman log: 11
+    regenerated size: 60
+    compressed size: 74
+     trying again
+    distribution weight: 44%
+     huffman log: 9
+    regenerated size: 41
+    compressed size: 45
+     trying again
+    distribution weight: 86%
+     huffman log: 11
+    regenerated size: 46
+    compressed size: 26
+   literals size: 46
+    total match lengths: 22
+      LL:     7 OF:     6 ML:     5 srcPos:       12 seqNb:   0
+      LL:     5 OF:     8 ML:     4 srcPos:       21 seqNb:   1
+      LL:    18 OF:     1 ML:     6 srcPos:       45 seqNb:   2
+        repeat offset: 2
+      LL:     0 OF:    16 ML:     4 srcPos:       49 seqNb:   3
+      LL:    16 OF:    29 ML:     3 srcPos:       68 seqNb:   4
+      excess literals:     0 srcPos:       68 
+    LL type: 0 OF type: 0 ML type: 0
+   number of sequences: 5
+  block type: compressed
+  block size field: 43
+  checksum: 28ab4e28

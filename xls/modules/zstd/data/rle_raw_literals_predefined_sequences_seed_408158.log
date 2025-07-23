@@ -1,0 +1,111 @@
+seed: 408158
+frame seed: 408158
+ frame content size:	44
+ frame window size:	90112
+ content size flag:	1
+ single segment flag:	0
+ block:
+  block content size: 43
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 15
+    total match lengths: 28
+      LL:     7 OF:     3 ML:     9 srcPos:       16 seqNb:   0
+      LL:     0 OF:     2 ML:     4 srcPos:       20 seqNb:   1
+      LL:     0 OF:    12 ML:     3 srcPos:       23 seqNb:   2
+      LL:     8 OF:     6 ML:    12 srcPos:       43 seqNb:   3
+      excess literals:     0 srcPos:       43 
+    LL type: 0 OF type: 0 ML type: 0
+   number of sequences: 4
+  block type: compressed
+  block size field: 27
+ block:
+  block content size: 1
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 1
+    total match lengths: 0
+      excess literals:     1 srcPos:       44 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+ block:
+  block content size: 0
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 0
+    total match lengths: 0
+      excess literals:     0 srcPos:       44 
+   number of sequences: 0
+  block type: compressed
+  block size field: 2
+ block:
+  block content size: 0
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 0
+    total match lengths: 0
+      excess literals:     0 srcPos:       44 
+   number of sequences: 0
+  block type: compressed
+  block size field: 2
+ block:
+  block content size: 0
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 0
+    total match lengths: 0
+      excess literals:     0 srcPos:       44 
+   number of sequences: 0
+  block type: compressed
+  block size field: 2
+ block:
+  block content size: 0
+  last block: no
+  compressed block:
+   rle literals: 0x57
+   literals size: 0
+    total match lengths: 0
+      excess literals:     0 srcPos:       44 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+ block:
+  block content size: 0
+  last block: no
+  compressed block:
+   rle literals: 0x02
+   literals size: 0
+    total match lengths: 0
+      excess literals:     0 srcPos:       44 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+ block:
+  block content size: 0
+  last block: no
+  compressed block:
+   rle literals: 0x96
+   literals size: 0
+    total match lengths: 0
+      excess literals:     0 srcPos:       44 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+ block:
+  block content size: 0
+  last block: yes
+  compressed block:
+   rle literals: 0x40
+   literals size: 0
+    total match lengths: 0
+      excess literals:     0 srcPos:       44 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+  checksum: 975ba214

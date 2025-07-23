@@ -36,6 +36,7 @@ exports_files(
     [
         "zstd_dec_wrapper.sv",
         "xls_fifo_wrapper.sv",
+        "ram_1r1w.v"
     ],
 )
 
