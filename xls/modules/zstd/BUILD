@@ -4909,6 +4909,7 @@ xls_dslx_library(
         ":mem_reader_simple_arbiter_dslx",
         ":frame_header_dec_dslx",
         ":frame_header_enc_dslx",
+        ":rle_block_encoder_dslx",
         ":block_header_dslx",
         ":mem_copy_dslx",
         "//xls/modules/zstd/memory:axi_dslx",
@@ -4930,7 +4931,7 @@ xls_dslx_test(
 
 zstd_encoder_codegen_args = common_codegen_args | {
     "module_name": "ZstdEncoder",
-    "worst_case_throughput": "3",
+    "worst_case_throughput": "4",
 }
 
 xls_dslx_verilog(

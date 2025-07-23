@@ -24,12 +24,14 @@ module zstd_enc_wrapper #(
     parameter WUSER_WIDTH = 1,
     parameter BUSER_WIDTH = 1,
     parameter ARUSER_WIDTH = 1,
-    parameter RUSER_WIDTH = 1
+    parameter RUSER_WIDTH = 1,
+    parameter CONF_W = 1,
+    parameter REQ_W = AXI_DATA_W + AXI_ADDR_W + AXI_ADDR_W + AXI_DATA_W + CONF_W
 ) (
     input wire clk,
     input wire rst,
     // request
-    input wire [127:0] req_r_data,
+    input wire [REQ_W-1:0] req_r_data,
     input wire  req_r_vld,
     output wire req_r_rdy,
 
