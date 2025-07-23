@@ -12,24 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
-#define XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
+#ifndef XLS_PUBLIC_IR_FUZZER_H_
+#define XLS_PUBLIC_IR_FUZZER_H_
 
-#include <cstdint>
+// IWYU pragma: begin_exports
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+// IWYU pragma: end_exports
 
-#include "xls/common/fuzzing/fuzztest.h"
-#include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
-#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
-#include "xls/ir/package.h"
-
-// Contains functions that return IR fuzz test domains.
-
-namespace xls {
-
-fuzztest::Domain<std::shared_ptr<Package>> IrFuzzDomain();
-fuzztest::Domain<FuzzPackageWithArgs> IrFuzzDomainWithArgs(
-    int64_t arg_set_count);
-
-}  // namespace xls
-
-#endif  // XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
+#endif  // XLS_PUBLIC_IR_FUZZER_H_
