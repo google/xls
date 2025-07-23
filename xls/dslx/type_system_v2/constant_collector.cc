@@ -15,12 +15,14 @@
 #include "xls/dslx/type_system_v2/constant_collector.h"
 
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -50,6 +52,7 @@
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
+#include "xls/dslx/type_system_v2/populate_table_visitor.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/warning_collector.h"
@@ -318,6 +321,31 @@ class Visitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  // Creates a Let node shadowing an unroll_for! input (iterator or
+  // accumulator), which assigns that to the computed `iteration_value` for one
+  // iteration of the loop. Adds pairs in `old_to_new_name_defs` mapping all
+  // original name defs in `input` to their shadowing ones in the returned `Let`
+  // subtree. In a basic case like `unroll_for!((i, acc)...)`, the `input` here
+  // is just `i` or `acc`, but each of those is allowed to be a further
+  // destructured tuple.
+  absl::StatusOr<Let*> ShadowUnrollForInput(
+      const NameDefTree* input, Expr* iteration_value,
+      absl::flat_hash_map<const NameDef*, NameDef*>& old_to_new_name_defs) {
+    absl::flat_hash_map<const AstNode*, AstNode*> pairs;
+    XLS_ASSIGN_OR_RETURN(
+        pairs, CloneAstAndGetAllPairs(input, &PreserveTypeDefinitionsReplacer));
+    NameDefTree* iteration_ndt = down_cast<NameDefTree*>(pairs.at(input));
+    for (const auto& [old_node, new_node] : pairs) {
+      if (old_node->kind() == AstNodeKind::kNameDef) {
+        old_to_new_name_defs.emplace(down_cast<const NameDef*>(old_node),
+                                     down_cast<NameDef*>(new_node));
+      }
+    }
+    return module_.Make<Let>(input->span(), iteration_ndt, /*type=*/nullptr,
+                             iteration_value,
+                             /*is_const=*/false);
+  }
+
   absl::Status HandleUnrollFor(const UnrollFor* unroll_for) override {
     // Unroll for is expanded to a sequence of statements as following.
     // ```
@@ -396,10 +424,12 @@ class Visitor : public AstNodeVisitorWithDefault {
     bool has_result_value = !accumulator_name->IsWildcardLeaf();
     Expr* accumulator_value = unroll_for->init();
     for (uint64_t i = 0; i < size; i++) {
+      absl::flat_hash_map<const NameDef*, NameDef*> iteration_name_def_mapping;
       if (has_result_value) {
-        Let* accumulator =
-            module_.Make<Let>(accumulator_name->span(), accumulator_name,
-                              accumulator_type, accumulator_value, false);
+        XLS_ASSIGN_OR_RETURN(
+            Let * accumulator,
+            ShadowUnrollForInput(accumulator_name, accumulator_value,
+                                 iteration_name_def_mapping));
         XLS_RETURN_IF_ERROR(
             table_.SetTypeAnnotation(accumulator, accumulator_type));
         unrolled_statements.push_back(module_.Make<Statement>(accumulator));
@@ -410,7 +440,7 @@ class Visitor : public AstNodeVisitorWithDefault {
           Number* value =
               module_.Make<Number>(unroll_for->iterable()->span(),
                                    (*iterable_values)[i].ToString(true),
-                                   NumberKind::kOther, iterator_type);
+                                   NumberKind::kOther, nullptr);
           XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(value, iterator_type));
 
           XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(value, std::nullopt,
@@ -418,8 +448,9 @@ class Visitor : public AstNodeVisitorWithDefault {
           XLS_ASSIGN_OR_RETURN(Type * value_type, ti_->GetItemOrError(value));
           ti_->SetItem(value, MetaType(value_type->CloneToUnique()));
 
-          iterator = module_.Make<Let>(iterator_name->span(), iterator_name,
-                                       iterator_type, value, false);
+          XLS_ASSIGN_OR_RETURN(
+              iterator, ShadowUnrollForInput(iterator_name, value,
+                                             iteration_name_def_mapping));
         } else {
           Expr* index = module_.Make<Number>(
               unroll_for->iterable()->span(), absl::StrCat(i),
@@ -434,20 +465,32 @@ class Visitor : public AstNodeVisitorWithDefault {
           Expr* element =
               module_.Make<Index>(unroll_for->iterable()->span(),
                                   unroll_for->iterable(), index, false);
-          iterator = module_.Make<Let>(iterator_name->span(), iterator_name,
-                                       iterator_type, element, false);
+          XLS_ASSIGN_OR_RETURN(
+              iterator, ShadowUnrollForInput(iterator_name, element,
+                                             iteration_name_def_mapping));
         }
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(iterator, iterator_type));
         unrolled_statements.push_back(module_.Make<Statement>(iterator));
       }
 
+      // Clone the body and replace name refs to the iterator/accumulator with
+      // refs to the most current shadowing definition. We intentionally do not
+      // clone the table data, because it may not be valid for the cloned body.
+      // That is because references to the iterator and accumulator within type
+      // annotations in the table are not edited with clone replacement.
+      // Instead, we will populate the table data for the whole unrolled loop
+      // from scratch, further below.
       XLS_ASSIGN_OR_RETURN(
           AstNode * copy_body,
-          table_.Clone(unroll_for->body(), &NoopCloneReplacer));
+          CloneAst(unroll_for->body(),
+                   ChainCloneReplacers(
+                       &PreserveTypeDefinitionsReplacer,
+                       NameRefReplacer(&iteration_name_def_mapping))));
       StatementBlock* copy_body_statementblock =
           down_cast<StatementBlock*>(copy_body);
       absl::Span<Statement* const> statements =
           copy_body_statementblock->statements();
+
       if (has_result_value) {
         // If accumulator is not wildcard, we expect the last body statement to
         // be an expr updating the accumulator, which will be handled in the
@@ -471,6 +514,21 @@ class Visitor : public AstNodeVisitorWithDefault {
     StatementBlock* unrolled_statement_block = module_.Make<StatementBlock>(
         unroll_for->span(), unrolled_statements, !has_result_value);
 
+    // This enables us to figure out whether a nested unroll_for! is in a proc.
+    unrolled_statement_block->SetParentNonLexical(unroll_for->parent());
+
+    VLOG(6) << "Unrolled loop: " << unrolled_statement_block->ToString();
+    auto populate_visitor = CreatePopulateTableVisitor(
+        unroll_for->owner(), &table_, &import_data_,
+        [](std::unique_ptr<Module>, std::filesystem::path path)
+            -> absl::StatusOr<std::unique_ptr<ModuleInfo>> {
+          XLS_RET_CHECK_FAIL()
+              << "Typecheck for an import should not be triggered while "
+                 "populating an expanded unroll_for! body.";
+        });
+
+    XLS_RETURN_IF_ERROR(populate_visitor->PopulateFromUnrolledLoopBody(
+        unrolled_statement_block));
     XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(
         unrolled_statement_block, std::nullopt, parametric_context_));
     if (has_result_value) {

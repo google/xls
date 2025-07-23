@@ -1249,6 +1249,24 @@ CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
   };
 }
 
+CloneReplacer NameRefReplacer(
+    const absl::flat_hash_map<const NameDef*, NameDef*>* replacement_defs) {
+  return [=](const AstNode* original_node) -> std::optional<AstNode*> {
+    if (original_node->kind() == AstNodeKind::kNameRef) {
+      const auto* original_ref = down_cast<const NameRef*>(original_node);
+      const AstNode* def = ToAstNode(original_ref->name_def());
+      if (def->kind() == AstNodeKind::kNameDef) {
+        const auto it = replacement_defs->find(down_cast<const NameDef*>(def));
+        if (it != replacement_defs->end()) {
+          return original_node->owner()->Make<NameRef>(
+              original_ref->span(), original_ref->identifier(), it->second);
+        }
+      }
+    }
+    return std::nullopt;
+  };
+}
+
 absl::StatusOr<absl::flat_hash_map<const AstNode*, AstNode*>>
 CloneAstAndGetAllPairs(const AstNode* root, CloneReplacer replacer) {
   if (root->kind() == AstNodeKind::kModule) {

@@ -83,6 +83,19 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     return invocation->Accept(this);
   }
 
+  absl::Status PopulateFromUnrolledLoopBody(
+      const StatementBlock* root) override {
+    XLS_RET_CHECK(!handle_proc_functions_);
+    std::optional<const Function*> containing_function =
+        GetContainingFunction(root);
+    handle_proc_functions_ =
+        containing_function.has_value() && (*containing_function)->IsInProc();
+
+    absl::Status result = root->Accept(this);
+    handle_proc_functions_ = false;
+    return result;
+  }
+
   absl::Status HandleImport(const Import* node) override {
     VLOG(5) << "HandleImport: " << node->ToString();
     ImportTokens import_subject = ImportTokens(node->subject());

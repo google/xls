@@ -34,6 +34,8 @@ class PopulateTableVisitor {
   // Populate the InferenceTable with the data from the module.
   virtual absl::Status PopulateFromModule(const Module* module) = 0;
   virtual absl::Status PopulateFromInvocation(const Invocation* invocation) = 0;
+  virtual absl::Status PopulateFromUnrolledLoopBody(
+      const StatementBlock* body) = 0;
 };
 
 // Creates a PopulateTableVisitor for the given module and table.

@@ -72,6 +72,11 @@ std::optional<AstNode*> PreserveTypeDefinitionsReplacer(
 // the given `replacement`.
 CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement);
 
+// Creates a `CloneReplacer` that replaces references to any def that is a key
+// in `replacement_defs`, with a ref to the corresponding value.
+CloneReplacer NameRefReplacer(
+    const absl::flat_hash_map<const NameDef*, NameDef*>* replacement_defs);
+
 // Creates a deep copy of the given AST node (inside the same module), generally
 // duplicating all nodes. The given `replacer` may override whether and how a
 // given node gets duplicated. The `replacer` is invoked for each original node
