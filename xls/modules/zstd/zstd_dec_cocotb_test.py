@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import sys
 import enum
 import pathlib
 import tempfile
@@ -550,7 +550,7 @@ async def zstd_rle_frames_test(dut):
 # Use them to verify progress in specific parts of the decoder.
 
 # TODO the workdir / data relation is weird. How to pass this better?
-PREGENERATED_FILES_DIR = "../../xls/modules/zstd/data/"
+PREGENERATED_FILES_DIR = "../xls/modules/zstd/data/"
 
 
 @cocotb.test(timeout_time=2000, timeout_unit="ms")
@@ -1689,6 +1689,7 @@ async def zstd_compressed_frames_test(dut):
 # await testing_routine(dut, test_cases, block_type)
 
 if __name__ == "__main__":
+  sys.path.append(str(pathlib.Path(__file__).parent))
   with tempfile.NamedTemporaryFile(mode="w") as modified_zstd_verilog:
     toplevel = "zstd_dec_wrapper"
     test_module = [pathlib.Path(__file__).stem]
