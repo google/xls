@@ -544,22 +544,41 @@ InterpretBlockSignature(
   // Pull the information out of the channel_protos
   for (const verilog::ChannelInterfaceProto& channel :
        signature.channel_interfaces()) {
-    XLS_RET_CHECK(channel.has_streaming());
+    ChannelInfo info;
+    if (channel.has_single_value()) {
+      info.ready_valid = false;
+      info.channel_data = channel.single_value().data_port_name();
+    } else if (channel.has_streaming()) {
+      info.ready_valid = channel.streaming().flow_control() ==
+                         verilog::CHANNEL_FLOW_CONTROL_READY_VALID;
+      info.channel_data = channel.streaming().data_port_name();
+      if (info.ready_valid) {
+        if (!channel.streaming().has_ready_port_name()) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Ready/valid channel '%s' has no ready port.",
+                              channel.channel_name()));
+        }
+        if (!channel.streaming().has_valid_port_name()) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Ready/valid channel '%s' has no valid port.",
+                              channel.channel_name()));
+        }
+        info.channel_valid = channel.streaming().valid_port_name();
+        info.channel_ready = channel.streaming().ready_port_name();
+      }
+    } else {
+      return absl::InternalError("Unknown channel interface type.");
+    }
     const auto& data_port_it = absl::c_find_if(
         signature.data_ports(), [&](const verilog::PortProto& port) {
-          return port.name() == channel.streaming().data_port_name();
+          return port.name() == info.channel_data;
         });
     if (data_port_it == signature.data_ports().cend()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Channel '%s' names its data port as '%s' but no such port exists.",
-          channel.channel_name(), channel.streaming().data_port_name()));
+          channel.channel_name(), info.channel_data));
     }
-    ChannelInfo info{
-        .width = data_port_it->width(),
-        .ready_valid = channel.streaming().flow_control() ==
-                       verilog::CHANNEL_FLOW_CONTROL_READY_VALID,
-        .channel_data = channel.streaming().data_port_name(),
-    };
+    info.width = data_port_it->width();
     if (channel.direction() == verilog::CHANNEL_DIRECTION_SEND) {
       // Output channel
       info.port_input = false;
@@ -570,20 +589,6 @@ InterpretBlockSignature(
       XLS_RET_CHECK_FAIL() << "Internal/send&recv channel '"
                            << channel.DebugString()
                            << "' ended up in block signature.";
-    }
-    if (info.ready_valid) {
-      if (!channel.streaming().has_ready_port_name()) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Ready/valid channel '%s' has no ready port.",
-                            channel.channel_name()));
-      }
-      if (!channel.streaming().has_valid_port_name()) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Ready/valid channel '%s' has no valid port.",
-                            channel.channel_name()));
-      }
-      info.channel_valid = channel.streaming().valid_port_name();
-      info.channel_ready = channel.streaming().ready_port_name();
     }
     channel_info[channel.channel_name()] = std::move(info);
   }

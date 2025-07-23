@@ -249,6 +249,121 @@ out: {
 }
 """
 
+# Block generated from the proc with:
+# --delay_model=unit --pipeline_stages=1 --reset=rst --flop-outputs=false
+# TODO: google/xls#1281 - Rewrite test to be writable using a dslx source when
+# single-value channels are supported.
+SINGLE_VALUE_IR = '''
+package SingleValueTest
+
+chan in(bits[32], id=0, kind=single_value, ops=receive_only)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, input_flop_kind=none, output_flop_kind=none)
+
+top proc SingleValueTest(st: (), init={()}) {
+  literal.2: token = literal(value=token, id=2)
+  receive.3: (token, bits[32], bits[1]) = receive(literal.2, channel=in, blocking=false, id=3)
+  tuple_index.6: bits[32] = tuple_index(receive.3, index=1, id=6)
+  st: () = state_read(state_element=st, id=9)
+  send.4: token = send(literal.2, tuple_index.6, channel=out, id=4)
+  next_value.8: () = next_value(param=st, value=st, id=8)
+}
+
+#[signature("""module_name: "SingleValueTest" data_ports { direction: PORT_DIRECTION_INPUT name: "in" width: 32 type { type_enum: BITS bit_count: 32 } } data_ports { direction: PORT_DIRECTION_OUTPUT name: "out" width: 32 type { type_enum: BITS bit_count: 32 } } data_ports { direction: PORT_DIRECTION_OUTPUT name: "out_vld" width: 1 type { type_enum: BITS bit_count: 1 } } data_ports { direction: PORT_DIRECTION_INPUT name: "out_rdy" width: 1 type { type_enum: BITS bit_count: 1 } } clock_name: "clk" reset { name: "rst" asynchronous: false active_low: false } combinational { } channel_interfaces { channel_name: "in" direction: CHANNEL_DIRECTION_RECEIVE type { type_enum: BITS bit_count: 32 } kind: CHANNEL_KIND_SINGLE_VALUE single_value { data_port_name: "in" } flop_kind: FLOP_KIND_NONE } channel_interfaces { channel_name: "out" direction: CHANNEL_DIRECTION_SEND type { type_enum: BITS bit_count: 32 } kind: CHANNEL_KIND_STREAMING streaming { flow_control: CHANNEL_FLOW_CONTROL_READY_VALID data_port_name: "out" ready_port_name: "out_rdy" valid_port_name: "out_vld" } flop_kind: FLOP_KIND_NONE } """)]
+block SingleValueTest(rst: bits[1], clk: clock, in: bits[32], out: bits[32], out_vld: bits[1], out_rdy: bits[1]) {
+  #![provenance(name="SingleValueTest", kind="proc")]
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  #![channel_ports(name=in, type=bits[32], direction=receive, kind=single_value, data_port=in)]
+  #![channel_ports(name=out, type=bits[32], direction=send, kind=streaming, data_port=out, ready_port=out_rdy, valid_port=out_vld)]
+  rst: bits[1] = input_port(name=rst, id=10)
+  in: bits[32] = input_port(name=in, id=12)
+  out_rdy: bits[1] = input_port(name=out_rdy, id=17)
+  literal.30: bits[1] = literal(value=1, id=30)
+  out: () = output_port(in, name=out, id=14)
+  out_vld: () = output_port(literal.30, name=out_vld, id=16)
+}
+'''
+
+SINGLE_VALUE_BLOCK_SIG = """
+# proto-file: xls/codegen/module_signature.proto
+# proto-message: ModuleSignatureProto
+
+module_name: "SingleValueTest"
+data_ports {
+  direction: PORT_DIRECTION_INPUT
+  name: "in"
+  width: 32
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+}
+data_ports {
+  direction: PORT_DIRECTION_OUTPUT
+  name: "out"
+  width: 32
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+}
+data_ports {
+  direction: PORT_DIRECTION_OUTPUT
+  name: "out_vld"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+data_ports {
+  direction: PORT_DIRECTION_INPUT
+  name: "out_rdy"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+clock_name: "clk"
+reset {
+  name: "rst"
+  asynchronous: false
+  active_low: false
+}
+combinational {
+}
+channel_interfaces {
+  channel_name: "in"
+  direction: CHANNEL_DIRECTION_RECEIVE
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+  kind: CHANNEL_KIND_SINGLE_VALUE
+  single_value {
+    data_port_name: "in"
+  }
+  flop_kind: FLOP_KIND_NONE
+}
+channel_interfaces {
+  channel_name: "out"
+  direction: CHANNEL_DIRECTION_SEND
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+  kind: CHANNEL_KIND_STREAMING
+  streaming {
+    flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+    data_port_name: "out"
+    ready_port_name: "out_rdy"
+    valid_port_name: "out_vld"
+  }
+  flop_kind: FLOP_KIND_FLOP
+}
+"""
+
+
 MULTI_BLOCK_IR_FILE = runfiles.get_path(
     "xls/examples/dslx_module/manual_chan_caps_streaming_configured_multiproc.block.ir"
 )
@@ -1039,6 +1154,36 @@ rewrites {
     output = run_command(shared_args)
     self.assertIn(
         "Proc __eval_proc_main_test_memory__test_proc_0_next", output.stderr
+    )
+
+  @parameterized_block_backends
+  def test_single_value_block(self, backend):
+    ir_file = self.create_tempfile(content=SINGLE_VALUE_IR)
+    sig_file = self.create_tempfile(content=SINGLE_VALUE_BLOCK_SIG)
+    inp_file = self.create_tempfile(content="""
+in: {
+  bits[32]: 42
+}
+""")
+    out_file = self.create_tempfile(content="""
+out: {
+  bits[32]: 42
+  bits[32]: 42
+  bits[32]: 42
+  bits[32]: 42
+  bits[32]: 42
+}""")
+    run_command(
+        [
+            EVAL_PROC_MAIN_PATH,
+            ir_file.full_path,
+            f"--inputs_for_all_channels={inp_file.full_path}",
+            f"--expected_outputs_for_all_channels={out_file.full_path}",
+            f"--block_signature_proto={sig_file.full_path}",
+            "--alsologtostderr",
+            "--ticks=5",
+        ]
+        + backend
     )
 
   @parameterized_block_backends
