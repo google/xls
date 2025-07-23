@@ -33,6 +33,7 @@ from xls.modules.zstd.cocotb.data_generator import DecompressFrame
 
 DATA_W = 32
 ADDR_W = 32
+PARAMS_W = 1
 STATUS_W = 1
 LAST_W = 1
 STATUS_W = 1
@@ -65,6 +66,7 @@ class Req(XLSStruct):
   data_size: DATA_W
   output_offset: ADDR_W
   max_block_size: DATA_W
+  enable_rle: PARAMS_W
 
 @xls_dataclass
 class Resp(XLSStruct):
@@ -80,21 +82,22 @@ def generate_random_bytes():
   # we do it this way so that there's a bigger probability of symbols repeating
   return bytearray(sum([[0,0,0,0,0,0,0, random.randint(*INPUT_RANGE)] for _ in range(INPUT_SIZE//8)], []))
 
-@cocotb.test(timeout_time=1000, timeout_unit="ms")
-async def basic_test(dut):
+def generate_single_byte():
+  return bytearray([0x42 for _ in range(INPUT_SIZE)])
 
+async def testcase(dut, params, input_data):
   dut.rst.setimmediatevalue(0)
   clock = Clock(dut.clk, 10, units="us")
   cocotb.start_soon(clock.start())
 
   # setup input data
-  input_data = generate_random_bytes()
   memory = AxiRamFromArray(connect_axi_bus(dut, "memory"), dut.clk, dut.rst, arr=input_data, size=MEM_SIZE)
   req = Req(
       input_offset=0x0,
       data_size=INPUT_SIZE,
       output_offset=OBUF_ADDR,
-      max_block_size=128
+      max_block_size=128,
+      **params
   )
 
   # channels
@@ -114,6 +117,25 @@ async def basic_test(dut):
   dctx = DecompressFrame(mem_contents)
   assert(dctx == input_data)
 
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
+async def raw_block_test(dut):
+  await testcase(
+    dut, 
+    params={
+      "enable_rle": False
+    },
+    input_data=generate_random_bytes()
+  )
+
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
+async def rle_block_test(dut):
+  await testcase(
+    dut, 
+    params={
+      "enable_rle": True
+    },
+    input_data=generate_single_byte()
+  )
 
 if __name__ == "__main__":
   toplevel = "zstd_enc_wrapper"

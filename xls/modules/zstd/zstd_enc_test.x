@@ -129,6 +129,34 @@ const TEST_EMPTY_EXPECTED = u32[TEST_EMPTY_EXPECTED_SIZE]:[
     u32:0xFD2F_B528,     u32:0x0001_0020,   u32:0x0
 ];
 
+// decodecorpus -p./ -o./ -n1 --block-type=1 --content-size -s35766 (after hard-coding certain values)
+// xxd -e -c4 z000000
+const TEST_RLE_INPUT_SIZE = u32:64;
+const TEST_RLE_INPUT_SIZE_BYTES = TEST_RLE_INPUT_SIZE * (TEST_RAM_DATA_W / u32:8);
+const TEST_RLE_INPUT_DATA = u32[TEST_RLE_INPUT_SIZE]:[
+    u32: 0xa3a3a3a3, u32: 0xa3a3a3a3, u32: 0xa3a3a3a3, u32: 0xa3a3a3a3, u32: 0xa3a3a3a3, u32: 0xa3a3a3a3, u32: 0xa3a3a3a3, u32: 0xa3a3a3a3,
+    u32: 0x4d4d4d4d, u32: 0x4d4d4d4d, u32: 0x4d4d4d4d, u32: 0x4d4d4d4d, u32: 0x4d4d4d4d, u32: 0x4d4d4d4d, u32: 0x4d4d4d4d, u32: 0x4d4d4d4d,
+    u32: 0x4f4f4f4f, u32: 0x4f4f4f4f, u32: 0x4f4f4f4f, u32: 0x4f4f4f4f, u32: 0x4f4f4f4f, u32: 0x4f4f4f4f, u32: 0x4f4f4f4f, u32: 0x4f4f4f4f,
+    u32: 0x14141414, u32: 0x14141414, u32: 0x14141414, u32: 0x14141414, u32: 0x14141414, u32: 0x14141414, u32: 0x14141414, u32: 0x14141414,
+    u32: 0xf6f6f6f6, u32: 0xf6f6f6f6, u32: 0xf6f6f6f6, u32: 0xf6f6f6f6, u32: 0xf6f6f6f6, u32: 0xf6f6f6f6, u32: 0xf6f6f6f6, u32: 0xf6f6f6f6,
+    u32: 0xe0e0e0e0, u32: 0xe0e0e0e0, u32: 0xe0e0e0e0, u32: 0xe0e0e0e0, u32: 0xe0e0e0e0, u32: 0xe0e0e0e0, u32: 0xe0e0e0e0, u32: 0xe0e0e0e0,
+    u32: 0x5b5b5b5b, u32: 0x5b5b5b5b, u32: 0x5b5b5b5b, u32: 0x5b5b5b5b, u32: 0x5b5b5b5b, u32: 0x5b5b5b5b, u32: 0x5b5b5b5b, u32: 0x5b5b5b5b,
+    u32: 0x61616161, u32: 0x61616161, u32: 0x61616161, u32: 0x61616161, u32: 0x61616161, u32: 0x61616161, u32: 0x61616161, u32: 0x61616161,
+];
+// xxd -e -c4 z000000.zst
+const TEST_RLE_EXPECTED_SIZE = u32:10;
+const TEST_RLE_EXPECTED = u32[TEST_RLE_EXPECTED_SIZE]:[
+    // block indexes        1               2 1 1 1         3 2 2 2
+    // Magic_Number        BHFHFHFH        BHBBBHBH        BHBBBHBH
+    u32: 0xfd2fb528, u32:0x02000060, u32:0x02a30001, u32:0x024d0001,
+    //      4 3 3 3         5 4 4 4         6 5 5 5        7  6 6 6
+    //     BHBBBHBH        BHBBBHBH        BHBBBHBH        BHBBBHBH
+    u32: 0x024f0001, u32:0x02140001, u32:0x02f60001, u32:0x02e00001,
+    //      8 7 7 7           8 8 8
+    //     BHBBBHBH        --BBBHBH
+    u32: 0x035b0001, u32:0x00610001
+];
+
 const TEST_RAM_SIZE = TEST_EXPECTED_SIZE * u32:2;
 
 
@@ -242,7 +270,7 @@ proc ZstdEncoderTestEmpty {
             let tok = send(tok, input_wr_req_s, TestWriteReq {
                 addr: i as Addr,
                 data: u32:0,
-                mask: !bits[TEST_RAM_NUM_PARTITIONS]:0,
+                mask: all_ones!<uN[TEST_RAM_NUM_PARTITIONS]>(),
             });
             let (tok, _) = recv(tok, input_wr_resp_r);
             tok
@@ -254,6 +282,7 @@ proc ZstdEncoderTestEmpty {
             data_size: uN[TEST_RAM_DATA_W]:0,
             output_offset: uN[TEST_ADDR_W]:0,
             max_block_size: TEST_MAX_BLOCK_SIZE,
+            params: zero!<zstd_enc::ZstdEncodeParams>()
         });
         let (tok, resp) = recv(tok, enc_resp_r);
         assert_eq(resp.status, ZstdEncodeRespStatus::OK);
@@ -262,7 +291,7 @@ proc ZstdEncoderTestEmpty {
         let tok = for ((i, expected_val), tok): ((u32, u32), token) in enumerate(TEST_EMPTY_EXPECTED) {
             let tok = send(tok, output_rd_req_s, TestReadReq {
                 addr: i as Addr,
-                mask: !bits[TEST_RAM_NUM_PARTITIONS]:0,
+                mask: all_ones!<uN[TEST_RAM_NUM_PARTITIONS]>(),
             });
             let (tok, data) = recv(tok, output_rd_resp_r);
 
@@ -277,34 +306,27 @@ proc ZstdEncoderTestEmpty {
     }
 }
 
-#[test_proc]
-proc ZstdEncoderTest {
+
+proc ZstdEncoderTestBase {
     type AxiAr = axi::AxiAr<TEST_AXI_ADDR_W, TEST_AXI_ID_W>;
     type AxiR = axi::AxiR<TEST_AXI_DATA_W, TEST_AXI_ID_W>;
     type AxiAw = axi::AxiAw<TEST_AXI_ADDR_W, TEST_AXI_ID_W>;
     type AxiW = axi::AxiW<TEST_AXI_DATA_W, TEST_RAM_NUM_PARTITIONS>;
     type AxiB = axi::AxiB<TEST_AXI_ID_W>;
 
-    input_wr_req_s: chan<TestWriteReq> out;
-    input_wr_resp_r: chan<TestWriteResp> in;
-    output_rd_req_s: chan<TestReadReq> out;
-    output_rd_resp_r: chan<TestReadResp> in;
-    enc_req_s: chan<TestZstdEncodeReq> out;
-    enc_resp_r: chan<TestZstdEncodeResp> in;
-    terminator: chan<bool> out;
+    init {}
 
-    init {  }
-
-    config(terminator: chan<bool> out) {
-        // IO for Encoder <-> test
-        let (enc_req_s, enc_req_r) = chan<TestZstdEncodeReq>("enc_req");
-        let (enc_resp_s, enc_resp_r) = chan<TestZstdEncodeResp>("enc_resp");
-
+    config(
+        input_wr_req_r: chan<TestWriteReq> in,
+        input_wr_resp_s: chan<TestWriteResp> out,
+        output_rd_req_r: chan<TestReadReq> in,
+        output_rd_resp_s: chan<TestReadResp> out,
+        enc_req_r: chan<TestZstdEncodeReq> in,
+        enc_resp_s: chan<TestZstdEncodeResp> out
+    ) {
         // IO for input RAM
         let (input_rd_req_s, input_rd_req_r) = chan<TestReadReq>("input_rd_req");
         let (input_rd_resp_s, input_rd_resp_r) = chan<TestReadResp>("input_rd_resp");
-        let (input_wr_req_s, input_wr_req_r) = chan<TestWriteReq>("input_wr_req");
-        let (input_wr_resp_s, input_wr_resp_r) = chan<TestWriteResp>("input_wr_resp");
 
         spawn ram::RamModel<
             TEST_RAM_DATA_W, TEST_RAM_SIZE, TEST_RAM_WORD_PARTITION_SIZE,
@@ -335,8 +357,6 @@ proc ZstdEncoderTest {
         );
 
         // IO for output RAM
-        let (output_rd_req_s, output_rd_req_r) = chan<TestReadReq>("output_rd_req");
-        let (output_rd_resp_s, output_rd_resp_r) = chan<TestReadResp>("output_rd_resp");
         let (output_wr_req_s, output_wr_req_r) = chan<TestWriteReq>("output_wr_req");
         let (output_wr_resp_s, output_wr_resp_r) = chan<TestWriteResp>("output_wr_resp");
 
@@ -381,6 +401,44 @@ proc ZstdEncoderTest {
             mem_wr_req_s, mem_wr_data_s, mem_wr_resp_r
         );
 
+    }
+
+    next(state: ()) {}
+}
+
+
+#[test_proc]
+proc ZstdEncoderRawTest {
+    type AxiAr = axi::AxiAr<TEST_AXI_ADDR_W, TEST_AXI_ID_W>;
+    type AxiR = axi::AxiR<TEST_AXI_DATA_W, TEST_AXI_ID_W>;
+    type AxiAw = axi::AxiAw<TEST_AXI_ADDR_W, TEST_AXI_ID_W>;
+    type AxiW = axi::AxiW<TEST_AXI_DATA_W, TEST_RAM_NUM_PARTITIONS>;
+    type AxiB = axi::AxiB<TEST_AXI_ID_W>;
+
+    input_wr_req_s: chan<TestWriteReq> out;
+    input_wr_resp_r: chan<TestWriteResp> in;
+    output_rd_req_s: chan<TestReadReq> out;
+    output_rd_resp_r: chan<TestReadResp> in;
+    enc_req_s: chan<TestZstdEncodeReq> out;
+    enc_resp_r: chan<TestZstdEncodeResp> in;
+    terminator: chan<bool> out;
+
+    init {  }
+
+    config(terminator: chan<bool> out) {
+        let (input_wr_req_s, input_wr_req_r) = chan<TestWriteReq>("input_wr_req");
+        let (input_wr_resp_s, input_wr_resp_r) = chan<TestWriteResp>("input_wr_resp");
+        let (output_rd_req_s, output_rd_req_r) = chan<TestReadReq>("output_rd_req");
+        let (output_rd_resp_s, output_rd_resp_r) = chan<TestReadResp>("output_rd_resp");
+        let (enc_req_s, enc_req_r) = chan<TestZstdEncodeReq>("enc_req");
+        let (enc_resp_s, enc_resp_r) = chan<TestZstdEncodeResp>("enc_resp");
+
+        spawn ZstdEncoderTestBase (
+            input_wr_req_r, input_wr_resp_s,
+            output_rd_req_r, output_rd_resp_s,
+            enc_req_r, enc_resp_s
+        );
+
         (
             input_wr_req_s, input_wr_resp_r,
             output_rd_req_s, output_rd_resp_r,
@@ -397,7 +455,7 @@ proc ZstdEncoderTest {
             let tok = send(tok, input_wr_req_s, TestWriteReq {
                 addr: i as Addr,
                 data: data,
-                mask: !bits[TEST_RAM_NUM_PARTITIONS]:0,
+                mask: all_ones!<uN[TEST_RAM_NUM_PARTITIONS]>(),
             });
             let (tok, _) = recv(tok, input_wr_resp_r);
             tok
@@ -410,6 +468,7 @@ proc ZstdEncoderTest {
             data_size: TEST_INPUT_SIZE_BYTES as uN[TEST_RAM_DATA_W],
             output_offset: uN[TEST_ADDR_W]:0,
             max_block_size: TEST_MAX_BLOCK_SIZE,
+            params: zero!<zstd_enc::ZstdEncodeParams>()
         });
         let (tok, resp) = recv(tok, enc_resp_r);
         assert_eq(resp.status, ZstdEncodeRespStatus::OK);
@@ -418,7 +477,7 @@ proc ZstdEncoderTest {
         let tok = for ((i, expected_val), tok): ((u32, u32), token) in enumerate(TEST_EXPECTED) {
             let tok = send(tok, output_rd_req_s, TestReadReq {
                 addr: i as Addr,
-                mask: !bits[TEST_RAM_NUM_PARTITIONS]:0,
+                mask: all_ones!<uN[TEST_RAM_NUM_PARTITIONS]>(),
             });
             let (tok, data) = recv(tok, output_rd_resp_r);
 
@@ -549,6 +608,7 @@ proc ZstdEncoderReadFaultTest {
             data_size: TEST_INPUT_SIZE as uN[TEST_RAM_DATA_W],
             output_offset: uN[TEST_ADDR_W]:0,
             max_block_size: TEST_MAX_BLOCK_SIZE,
+            params: zero!<zstd_enc::ZstdEncodeParams>()
         });
         let (tok, resp) = recv(tok, enc_resp_r);
 
@@ -670,7 +730,7 @@ proc ZstdEncoderWriteFaultTest {
             let tok = send(tok, input_wr_req_s, TestWriteReq {
                 addr: i as Addr,
                 data: data,
-                mask: !bits[TEST_RAM_NUM_PARTITIONS]:0,
+                mask: all_ones!<uN[TEST_RAM_NUM_PARTITIONS]>(),
             });
             let (tok, _) = recv(tok, input_wr_resp_r);
             tok
@@ -682,6 +742,7 @@ proc ZstdEncoderWriteFaultTest {
             data_size: TEST_INPUT_SIZE as uN[TEST_RAM_DATA_W],
             output_offset: uN[TEST_ADDR_W]:0,
             max_block_size: TEST_MAX_BLOCK_SIZE,
+            params: zero!<zstd_enc::ZstdEncodeParams>()
         });
         let (tok, resp) = recv(tok, enc_resp_r);
 
@@ -691,3 +752,92 @@ proc ZstdEncoderWriteFaultTest {
         send(join(), terminator, true);
     }
 }
+
+#[test_proc]
+proc ZstdEncoderRleTest {
+    type AxiAr = axi::AxiAr<TEST_AXI_ADDR_W, TEST_AXI_ID_W>;
+    type AxiR = axi::AxiR<TEST_AXI_DATA_W, TEST_AXI_ID_W>;
+    type AxiAw = axi::AxiAw<TEST_AXI_ADDR_W, TEST_AXI_ID_W>;
+    type AxiW = axi::AxiW<TEST_AXI_DATA_W, TEST_RAM_NUM_PARTITIONS>;
+    type AxiB = axi::AxiB<TEST_AXI_ID_W>;
+
+    input_wr_req_s: chan<TestWriteReq> out;
+    input_wr_resp_r: chan<TestWriteResp> in;
+    output_rd_req_s: chan<TestReadReq> out;
+    output_rd_resp_r: chan<TestReadResp> in;
+    enc_req_s: chan<TestZstdEncodeReq> out;
+    enc_resp_r: chan<TestZstdEncodeResp> in;
+    terminator: chan<bool> out;
+
+    init {  }
+
+    config(terminator: chan<bool> out) {
+        let (input_wr_req_s, input_wr_req_r) = chan<TestWriteReq>("input_wr_req");
+        let (input_wr_resp_s, input_wr_resp_r) = chan<TestWriteResp>("input_wr_resp");
+        let (output_rd_req_s, output_rd_req_r) = chan<TestReadReq>("output_rd_req");
+        let (output_rd_resp_s, output_rd_resp_r) = chan<TestReadResp>("output_rd_resp");
+        let (enc_req_s, enc_req_r) = chan<TestZstdEncodeReq>("enc_req");
+        let (enc_resp_s, enc_resp_r) = chan<TestZstdEncodeResp>("enc_resp");
+
+        spawn ZstdEncoderTestBase (
+            input_wr_req_r, input_wr_resp_s,
+            output_rd_req_r, output_rd_resp_s,
+            enc_req_r, enc_resp_s
+        );
+
+        (
+            input_wr_req_s, input_wr_resp_r,
+            output_rd_req_s, output_rd_resp_r,
+            enc_req_s, enc_resp_r,
+            terminator
+        )
+    }
+
+    next(state: ()) {
+        type Addr = bits[TEST_ADDR_W];
+
+        // write input data to RAM
+        let tok = for ((i, data), tok): ((u32, u32), token) in enumerate(TEST_RLE_INPUT_DATA) {
+            let tok = send(tok, input_wr_req_s, TestWriteReq {
+                addr: i as Addr,
+                data: data,
+                mask: all_ones!<uN[TEST_RAM_NUM_PARTITIONS]>(),
+            });
+            let (tok, _) = recv(tok, input_wr_resp_r);
+            tok
+        }(join());
+
+        trace_fmt!("Request: encode data of size: {:#x} bytes", TEST_RLE_INPUT_SIZE_BYTES);
+        // send request to encoder
+        let tok = send(tok, enc_req_s, TestZstdEncodeReq{
+            input_offset: uN[TEST_ADDR_W]:0,
+            data_size: TEST_RLE_INPUT_SIZE_BYTES as uN[TEST_RAM_DATA_W],
+            output_offset: uN[TEST_ADDR_W]:0,
+            max_block_size: u32:32,
+            params: zstd_enc::ZstdEncodeParams {
+                enable_rle: true
+            }
+        });
+        let (tok, resp) = recv(tok, enc_resp_r);
+        assert_eq(resp.status, ZstdEncodeRespStatus::OK);
+
+        // read state of output RAM
+        let tok = for ((i, expected_val), tok): ((u32, u32), token) in enumerate(TEST_RLE_EXPECTED) {
+            let tok = send(tok, output_rd_req_s, TestReadReq {
+                addr: i as Addr,
+                mask: all_ones!<uN[TEST_RAM_NUM_PARTITIONS]>(),
+            });
+            let (tok, data) = recv(tok, output_rd_resp_r);
+
+            if (data.data != expected_val) {
+                trace_fmt!("at index {} the expected value is {:#x}, the outcome is {:#x}", i, expected_val, data.data);
+            } else { };
+
+            assert_eq(data.data, expected_val);
+            tok
+        }(join());
+
+        send(join(), terminator, true);
+    }
+}
+
