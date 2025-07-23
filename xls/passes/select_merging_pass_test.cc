@@ -14,11 +14,16 @@
 
 #include "xls/passes/select_merging_pass.h"
 
+#include <utility>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -245,6 +250,13 @@ TEST_F(SelectMergingPassTest, ComplexMergeablePrioritySelects) {
            m::Param("w")},
           /*default_value=*/m::Param("y")));
 }
+
+void IrFuzzSelectMerging(FuzzPackageWithArgs fuzz_package_with_args) {
+  SelectMergingPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzSelectMerging)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 

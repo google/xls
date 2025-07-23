@@ -17,12 +17,16 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_builder.h"
@@ -268,6 +272,13 @@ TEST_F(BooleanSimplificationPassTest, ManyPaths) {
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::And(m::Param("x"), m::Param("y")));
 }
+
+void IrFuzzBooleanSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
+  BooleanSimplificationPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzBooleanSimplification)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 // TODO(leary): 2019-10-11 Needs AOI21 logical function to map against.
 #if 0

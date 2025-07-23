@@ -19,10 +19,12 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -32,6 +34,8 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
@@ -912,6 +916,13 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1R1WRewriteProcScoped) {
   EXPECT_THAT(proc->GetReceiveChannelInterface("ram_1r1w_write_completion"),
               IsOkAndHolds(m::ChannelWithType("()")));
 }
+
+void IrFuzzRamRewrite(FuzzPackageWithArgs fuzz_package_with_args) {
+  RamRewritePass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzRamRewrite)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

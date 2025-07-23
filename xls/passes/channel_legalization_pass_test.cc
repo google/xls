@@ -25,6 +25,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -34,6 +35,8 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
@@ -1063,6 +1066,13 @@ INSTANTIATE_TEST_SUITE_P(SingleValueChannelLegalizationPassTestInstantiation,
                          ValuesIn(kTestParameters), [](const auto& info) {
                            return std::string(info.param.test_name);
                          });
+
+void IrFuzzChannelLegalization(FuzzPackageWithArgs fuzz_package_with_args) {
+  ChannelLegalizationPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzChannelLegalization)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

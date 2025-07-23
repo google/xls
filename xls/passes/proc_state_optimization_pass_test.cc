@@ -15,15 +15,19 @@
 #include "xls/passes/proc_state_optimization_pass.h"
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/base/optimization.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
@@ -435,6 +439,13 @@ INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateOptimizationPassTest,
                          testing::Values(NextValueType::kNextStateVector,
                                          NextValueType::kNextValueNodes),
                          testing::PrintToStringParamName());
+
+void IrFuzzProcStateOptimization(FuzzPackageWithArgs fuzz_package_with_args) {
+  ProcStateOptimizationPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzProcStateOptimization)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

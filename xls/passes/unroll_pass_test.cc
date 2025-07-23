@@ -16,10 +16,14 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
@@ -64,6 +68,13 @@ fn unrollable() -> bits[32] {
                         m::Invoke(m::Literal(0), m::Literal(0), m::Literal(0)),
                         m::Literal(0)));
 }
+
+void IrFuzzUnroll(FuzzPackageWithArgs fuzz_package_with_args) {
+  UnrollPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzUnroll)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

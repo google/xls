@@ -16,11 +16,15 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
@@ -90,6 +94,13 @@ TEST_F(ProcStateBitsShatteringPassTest, SimpleSplitStateElement) {
               m::Send(m::Literal(Value::Token()), m::StateRead("y")))
       << proc->DumpIr();
 }
+
+void IrFuzzProcStateBitsShattering(FuzzPackageWithArgs fuzz_package_with_args) {
+  ProcStateBitsShatteringPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzProcStateBitsShattering)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

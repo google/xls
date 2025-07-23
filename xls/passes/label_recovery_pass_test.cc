@@ -16,12 +16,16 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -215,6 +219,13 @@ top fn caller(the_token: token, p: bits[1]) -> token {
       package->GetTopAsFunction().value()->return_value()->As<Assert>();
   EXPECT_EQ(asrt->label(), "my_assert_label");
 }
+
+void IrFuzzLabelRecovery(FuzzPackageWithArgs fuzz_package_with_args) {
+  LabelRecoveryPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzLabelRecovery)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

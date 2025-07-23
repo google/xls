@@ -17,14 +17,18 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
@@ -1216,6 +1220,13 @@ TEST_F(BitSliceSimplificationPassTest, BitSliceCannotReachAllBits) {
                                                m::BitSlice(m::Param("y")),
                                            }));
 }
+
+void IrFuzzBitSliceSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
+  BitSliceSimplificationPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzBitSliceSimplification)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

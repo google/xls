@@ -14,12 +14,17 @@
 
 #include "xls/passes/proc_state_array_flattening_pass.h"
 
+#include <utility>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
@@ -114,6 +119,14 @@ TEST_F(ProcStateArrayFlatteningPassTest, FlattenSize2ArrayParams) {
                                   // After flattening, state should be a 2-tuple
                                   "(bits[8], bits[8])")));
 }
+
+void IrFuzzProcStateArrayFlattening(
+    FuzzPackageWithArgs fuzz_package_with_args) {
+  ProcStateArrayFlatteningPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzProcStateArrayFlattening)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

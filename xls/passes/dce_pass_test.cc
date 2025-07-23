@@ -15,13 +15,17 @@
 #include "xls/passes/dce_pass.h"
 
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/function.h"
@@ -195,6 +199,13 @@ TEST_F(DeadCodeEliminationPassTest, SideEffectingInvokeNotRemoved) {
               UnorderedElementsAre(m::Function("side_effecting"),
                                    m::Function("invoker")));
 }
+
+void IrFuzzDeadCodeElimination(FuzzPackageWithArgs fuzz_package_with_args) {
+  DeadCodeEliminationPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzDeadCodeElimination)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

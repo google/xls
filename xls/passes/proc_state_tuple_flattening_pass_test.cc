@@ -16,14 +16,18 @@
 
 #include <cstdint>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/base/optimization.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
@@ -414,6 +418,14 @@ INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateFlatteningPassTest,
                          testing::Values(NextValueType::kNextStateVector,
                                          NextValueType::kNextValueNodes),
                          testing::PrintToStringParamName());
+
+void IrFuzzProcStateTupleFlattening(
+    FuzzPackageWithArgs fuzz_package_with_args) {
+  ProcStateTupleFlatteningPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzProcStateTupleFlattening)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

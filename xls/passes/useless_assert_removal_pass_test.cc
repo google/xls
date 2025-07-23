@@ -14,12 +14,17 @@
 
 #include "xls/passes/useless_assert_removal_pass.h"
 
+#include <utility>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -176,6 +181,13 @@ TEST_F(AssertCleanupPassTest, RemoveCascadedAssertTokenThreading_20Levels) {
   // Asserts and literal 1 conditions removed, token rewired.
   EXPECT_EQ(f->node_count(), 5);
 }
+
+void IrFuzzUselessAssertRemoval(FuzzPackageWithArgs fuzz_package_with_args) {
+  UselessAssertRemovalPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzUselessAssertRemoval)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 

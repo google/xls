@@ -16,12 +16,16 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -284,6 +288,13 @@ TEST_F(NextValueOptimizationPassTest,
                   m::Select(m::StateRead("b"), {m::Literal(2), m::Literal(3)}),
                   m::Eq(m::StateRead("a"), m::Literal(1)))));
 }
+
+void IrFuzzNextValueOptimization(FuzzPackageWithArgs fuzz_package_with_args) {
+  NextValueOptimizationPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzNextValueOptimization)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

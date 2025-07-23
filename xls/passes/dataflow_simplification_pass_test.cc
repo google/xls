@@ -15,12 +15,16 @@
 #include "xls/passes/dataflow_simplification_pass.h"
 
 #include <cstdint>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -512,6 +516,13 @@ TEST_F(DataflowSimplificationPassTest,
   EXPECT_THAT(f->return_value(),
               m::Array(m::Param("a"), m::Literal(0), m::Param("c")));
 }
+
+void IrFuzzDataflowSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
+  DataflowSimplificationPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzDataflowSimplification)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

@@ -16,13 +16,17 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
@@ -1336,6 +1340,22 @@ TEST_F(ConditionalSpecializationPassTest, StateReadSpecializationDisabled) {
       Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/false),
       IsOkAndHolds(false));
 }
+
+void IrFuzzConditionalSpecialization(
+    FuzzPackageWithArgs fuzz_package_with_args) {
+  ConditionalSpecializationPass pass(/*use_bdd=*/false);
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzConditionalSpecialization)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
+
+void IrFuzzConditionalSpecializationWithBdd(
+    FuzzPackageWithArgs fuzz_package_with_args) {
+  ConditionalSpecializationPass pass(/*use_bdd=*/true);
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzConditionalSpecializationWithBdd)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

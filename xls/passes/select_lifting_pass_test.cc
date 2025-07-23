@@ -14,15 +14,19 @@
 
 #include "xls/passes/select_lifting_pass.h"
 
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/log.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -242,6 +246,13 @@ TEST_F(SelectLiftingPassTest, LiftSingleSelectWithNoCases) {
   // Set the expected outputs
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
 }
+
+void IrFuzzSelectLifting(FuzzPackageWithArgs fuzz_package_with_args) {
+  SelectLiftingPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzSelectLifting)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 

@@ -15,12 +15,16 @@
 #include "xls/passes/receive_default_value_simplification_pass.h"
 
 #include <cstdint>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
@@ -265,6 +269,14 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
 }
+
+void IrFuzzReceiveDefaultValueSimplification(
+    FuzzPackageWithArgs fuzz_package_with_args) {
+  ReceiveDefaultValueSimplificationPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzReceiveDefaultValueSimplification)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls

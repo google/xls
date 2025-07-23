@@ -16,12 +16,16 @@
 
 #include <cstdint>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
@@ -453,6 +457,13 @@ TEST_F(ArrayUntuplePassTest, ProcStateArrayImplicitNext) {
               IsSupersetOf({m::StateElement(_, m::Type("bits[1][4]")),
                             m::StateElement(_, m::Type("bits[3][4]"))}));
 }
+
+void IrFuzzArrayUntuple(FuzzPackageWithArgs fuzz_package_with_args) {
+  ArrayUntuplePass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
+FUZZ_TEST(IrFuzzTest, IrFuzzArrayUntuple)
+    .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
 }  // namespace
 }  // namespace xls
