@@ -1,0 +1,81 @@
+seed: 400061
+frame seed: 400061
+ frame content size:	241
+ frame window size:	2048
+ content size flag:	1
+ single segment flag:	0
+ block:
+  block content size: 60
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 60
+    total match lengths: 0
+      excess literals:    60 srcPos:       60 
+   number of sequences: 0
+  block type: compressed
+  block size field: 63
+ block:
+  block content size: 91
+  last block: no
+  compressed block:
+   compressed literals
+    small range literals
+     huffman log: 10
+    regenerated size: 44
+    compressed size: 39
+   literals size: 44
+    total match lengths: 47
+      LL:     1 OF:    40 ML:     3 srcPos:       64 seqNb:   0
+      LL:     0 OF:    12 ML:     3 srcPos:       67 seqNb:   1
+      LL:     2 OF:    13 ML:     3 srcPos:       72 seqNb:   2
+      LL:     0 OF:    70 ML:     3 srcPos:       75 seqNb:   3
+      LL:     8 OF:    71 ML:     3 srcPos:       86 seqNb:   4
+      LL:    17 OF:    17 ML:     3 srcPos:      106 seqNb:   5
+      LL:     0 OF:    39 ML:     3 srcPos:      109 seqNb:   6
+      LL:     0 OF:    56 ML:     3 srcPos:      112 seqNb:   7
+      LL:     1 OF:    78 ML:     5 srcPos:      118 seqNb:   8
+      LL:     1 OF:    48 ML:     3 srcPos:      122 seqNb:   9
+      LL:     0 OF:   122 ML:     3 srcPos:      125 seqNb:  10
+      LL:     1 OF:     1 ML:     3 srcPos:      129 seqNb:  11
+      LL:     7 OF:    31 ML:     4 srcPos:      140 seqNb:  12
+      LL:     3 OF:    19 ML:     5 srcPos:      148 seqNb:  13
+      excess literals:     3 srcPos:      151 
+    LL type: 2 OF type: 0 ML type: 2
+   number of sequences: 14
+  block type: compressed
+  block size field: 74
+ block:
+  block content size: 11
+  last block: no
+  compressed block:
+   rle literals: 0x9c
+   literals size: 8
+    total match lengths: 3
+      LL:     4 OF:     1 ML:     3 srcPos:      158 seqNb:   0
+        repeat offset: 2
+      excess literals:     4 srcPos:      162 
+    LL type: 1 OF type: 1 ML type: 1
+   number of sequences: 1
+  block type: compressed
+  block size field: 8
+ block:
+  block content size: 79
+  last block: yes
+  compressed block:
+   compressed literals
+    huffman repeat stats
+    regenerated size: 57
+    compressed size: 37
+   literals size: 57
+    total match lengths: 22
+      LL:    22 OF:    18 ML:     3 srcPos:      187 seqNb:   0
+      LL:     7 OF:   168 ML:     5 srcPos:      199 seqNb:   1
+      LL:    28 OF:    48 ML:     5 srcPos:      232 seqNb:   2
+      LL:     0 OF:   176 ML:     9 srcPos:      241 seqNb:   3
+      excess literals:     0 srcPos:      241 
+    LL type: 2 OF type: 0 ML type: 2
+   number of sequences: 4
+  block type: compressed
+  block size field: 69
+  checksum: 1d05f549

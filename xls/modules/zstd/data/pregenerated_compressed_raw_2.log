@@ -1,0 +1,100 @@
+seed: 2
+frame seed: 2
+ frame content size:	152
+ frame window size:	114688
+ content size flag:	1
+ single segment flag:	0
+ block:
+  block content size: 91
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 68
+    total match lengths: 23
+      LL:    38 OF:     4 ML:    23 srcPos:       61 seqNb:   0
+        repeat offset: 1
+      excess literals:    30 srcPos:       91 
+    LL type: 1 OF type: 1 ML type: 1
+   number of sequences: 1
+  block type: compressed
+  block size field: 76
+ block:
+  block content size: 32
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 15
+    total match lengths: 17
+      LL:     7 OF:     1 ML:     3 srcPos:      101 seqNb:   0
+        repeat offset: 1
+      LL:     0 OF:    36 ML:     5 srcPos:      106 seqNb:   1
+      LL:     0 OF:     9 ML:     9 srcPos:      115 seqNb:   2
+      excess literals:     8 srcPos:      123 
+    LL type: 2 OF type: 0 ML type: 2
+   number of sequences: 3
+  block type: compressed
+  block size field: 36
+ block:
+  block content size: 23
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 8
+    total match lengths: 15
+      LL:     3 OF:    55 ML:     4 srcPos:      130 seqNb:   0
+      LL:     2 OF:    36 ML:     5 srcPos:      137 seqNb:   1
+        repeat offset: 2
+      LL:     0 OF:    27 ML:     3 srcPos:      140 seqNb:   2
+      LL:     3 OF:   113 ML:     3 srcPos:      146 seqNb:   3
+      excess literals:     0 srcPos:      146 
+    LL type: 2 OF type: 2 ML type: 0
+   number of sequences: 4
+  block type: compressed
+  block size field: 31
+ block:
+  block content size: 4
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 0
+    total match lengths: 4
+      LL:     0 OF:    52 ML:     4 srcPos:      150 seqNb:   0
+      excess literals:     0 srcPos:      150 
+    LL type: 1 OF type: 1 ML type: 1
+   number of sequences: 1
+  block type: compressed
+  block size field: 7
+ block:
+  block content size: 0
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 0
+    total match lengths: 0
+      excess literals:     0 srcPos:      150 
+   number of sequences: 0
+  block type: compressed
+  block size field: 2
+ block:
+  block content size: 1
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 1
+    total match lengths: 0
+      excess literals:     1 srcPos:      151 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+ block:
+  block content size: 1
+  last block: yes
+  compressed block:
+   raw literals
+   literals size: 1
+    total match lengths: 0
+      excess literals:     1 srcPos:      152 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+  checksum: abf90678

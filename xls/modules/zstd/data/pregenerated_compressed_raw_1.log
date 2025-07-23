@@ -1,0 +1,347 @@
+seed: 1
+frame seed: 1
+ frame content size:	1019
+ frame window size:	294912
+ content size flag:	1
+ single segment flag:	0
+ block:
+  block content size: 181
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 139
+    total match lengths: 42
+      LL:    37 OF:    31 ML:    13 srcPos:       50 seqNb:   0
+      LL:    25 OF:    16 ML:    29 srcPos:      104 seqNb:   1
+      excess literals:    77 srcPos:      181 
+    LL type: 2 OF type: 2 ML type: 2
+   number of sequences: 2
+  block type: compressed
+  block size field: 168
+ block:
+  block content size: 0
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 0
+    total match lengths: 0
+      excess literals:     0 srcPos:      181 
+   number of sequences: 0
+  block type: compressed
+  block size field: 2
+ block:
+  block content size: 63
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 7
+    total match lengths: 56
+      LL:     0 OF:    70 ML:     3 srcPos:      184 seqNb:   0
+      LL:     0 OF:    56 ML:     3 srcPos:      187 seqNb:   1
+      LL:     0 OF:    55 ML:     3 srcPos:      190 seqNb:   2
+        repeat offset: 2
+      LL:     0 OF:    23 ML:     3 srcPos:      193 seqNb:   3
+      LL:     0 OF:     4 ML:     3 srcPos:      196 seqNb:   4
+      LL:     0 OF:   136 ML:     3 srcPos:      199 seqNb:   5
+      LL:     0 OF:    23 ML:     3 srcPos:      202 seqNb:   6
+      LL:     0 OF:    28 ML:     3 srcPos:      205 seqNb:   7
+      LL:     0 OF:     2 ML:     3 srcPos:      208 seqNb:   8
+      LL:     1 OF:     5 ML:     3 srcPos:      212 seqNb:   9
+      LL:     0 OF:     4 ML:     3 srcPos:      215 seqNb:  10
+        repeat offset: 2
+      LL:     0 OF:     2 ML:     3 srcPos:      218 seqNb:  11
+        repeat offset: 2
+      LL:     0 OF:    56 ML:     3 srcPos:      221 seqNb:  12
+      LL:     2 OF:   209 ML:     3 srcPos:      226 seqNb:  13
+      LL:     0 OF:    24 ML:     4 srcPos:      230 seqNb:  14
+      LL:     0 OF:    14 ML:     3 srcPos:      233 seqNb:  15
+      LL:     0 OF:   112 ML:     4 srcPos:      237 seqNb:  16
+      LL:     0 OF:   233 ML:     3 srcPos:      240 seqNb:  17
+      excess literals:     4 srcPos:      244 
+    LL type: 2 OF type: 2 ML type: 2
+   number of sequences: 18
+  block type: compressed
+  block size field: 39
+ block:
+  block content size: 59
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 19
+    total match lengths: 40
+      LL:     2 OF:    90 ML:     6 srcPos:      252 seqNb:   0
+      LL:     2 OF:   153 ML:     5 srcPos:      259 seqNb:   1
+      LL:    10 OF:    76 ML:    10 srcPos:      279 seqNb:   2
+      LL:     1 OF:   226 ML:     5 srcPos:      285 seqNb:   3
+      LL:     2 OF:     5 ML:     4 srcPos:      291 seqNb:   4
+      LL:     2 OF:    33 ML:     7 srcPos:      300 seqNb:   5
+      LL:     0 OF:   262 ML:     3 srcPos:      303 seqNb:   6
+      excess literals:     0 srcPos:      303 
+    LL type: 2 OF type: 2 ML type: 0
+   number of sequences: 7
+  block type: compressed
+  block size field: 45
+ block:
+  block content size: 614
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 159
+    total match lengths: 455
+      LL:     2 OF:   128 ML:     3 srcPos:      308 seqNb:   0
+      LL:     3 OF:    96 ML:     3 srcPos:      314 seqNb:   1
+      LL:     0 OF:   123 ML:     3 srcPos:      317 seqNb:   2
+      LL:     0 OF:   225 ML:     3 srcPos:      320 seqNb:   3
+      LL:     1 OF:   172 ML:     3 srcPos:      324 seqNb:   4
+      LL:     2 OF:    56 ML:     3 srcPos:      329 seqNb:   5
+      LL:     2 OF:    13 ML:     3 srcPos:      334 seqNb:   6
+      LL:     1 OF:   327 ML:     3 srcPos:      338 seqNb:   7
+      LL:     0 OF:   264 ML:     3 srcPos:      341 seqNb:   8
+      LL:     0 OF:    13 ML:     3 srcPos:      344 seqNb:   9
+        repeat offset: 2
+      LL:     0 OF:   340 ML:     3 srcPos:      347 seqNb:  10
+      LL:     0 OF:    95 ML:     3 srcPos:      350 seqNb:  11
+      LL:     0 OF:   221 ML:     3 srcPos:      353 seqNb:  12
+      LL:     0 OF:    95 ML:     3 srcPos:      356 seqNb:  13
+        repeat offset: 1
+      LL:     0 OF:    94 ML:     3 srcPos:      359 seqNb:  14
+        repeat offset: 2
+      LL:     0 OF:    95 ML:     3 srcPos:      362 seqNb:  15
+        repeat offset: 1
+      LL:     0 OF:   294 ML:     3 srcPos:      365 seqNb:  16
+      LL:     0 OF:   250 ML:     3 srcPos:      368 seqNb:  17
+      LL:     3 OF:   310 ML:     3 srcPos:      374 seqNb:  18
+      LL:     0 OF:    59 ML:     3 srcPos:      377 seqNb:  19
+      LL:     0 OF:    17 ML:     3 srcPos:      380 seqNb:  20
+      LL:     1 OF:    59 ML:     3 srcPos:      384 seqNb:  21
+        repeat offset: 1
+      LL:     0 OF:   372 ML:     3 srcPos:      387 seqNb:  22
+      LL:     1 OF:   203 ML:     3 srcPos:      391 seqNb:  23
+      LL:     1 OF:   251 ML:     3 srcPos:      395 seqNb:  24
+      LL:     0 OF:   203 ML:     3 srcPos:      398 seqNb:  25
+        repeat offset: 1
+      LL:     1 OF:   363 ML:     3 srcPos:      402 seqNb:  26
+      LL:     0 OF:   321 ML:     3 srcPos:      405 seqNb:  27
+      LL:     1 OF:   395 ML:     3 srcPos:      409 seqNb:  28
+      LL:     1 OF:   381 ML:     3 srcPos:      413 seqNb:  29
+      LL:     3 OF:    99 ML:     3 srcPos:      419 seqNb:  30
+      LL:     1 OF:   116 ML:     3 srcPos:      423 seqNb:  31
+      LL:     0 OF:   293 ML:     3 srcPos:      426 seqNb:  32
+      LL:     0 OF:   292 ML:     3 srcPos:      429 seqNb:  33
+        repeat offset: 2
+      LL:     1 OF:   127 ML:     3 srcPos:      433 seqNb:  34
+      LL:     0 OF:   219 ML:     3 srcPos:      436 seqNb:  35
+      LL:     0 OF:   236 ML:     3 srcPos:      439 seqNb:  36
+      LL:     1 OF:   353 ML:     3 srcPos:      443 seqNb:  37
+      LL:     1 OF:    46 ML:     3 srcPos:      447 seqNb:  38
+      LL:     3 OF:   404 ML:     3 srcPos:      453 seqNb:  39
+      LL:     0 OF:   267 ML:     3 srcPos:      456 seqNb:  40
+      LL:     0 OF:   421 ML:     3 srcPos:      459 seqNb:  41
+      LL:     1 OF:   201 ML:     3 srcPos:      463 seqNb:  42
+      LL:     1 OF:    12 ML:     3 srcPos:      467 seqNb:  43
+      LL:     0 OF:   438 ML:     3 srcPos:      470 seqNb:  44
+      LL:     1 OF:   136 ML:     3 srcPos:      474 seqNb:  45
+      LL:     2 OF:   126 ML:     3 srcPos:      479 seqNb:  46
+      LL:     0 OF:   400 ML:     3 srcPos:      482 seqNb:  47
+      LL:     0 OF:   130 ML:     3 srcPos:      485 seqNb:  48
+      LL:     2 OF:   206 ML:     3 srcPos:      490 seqNb:  49
+      LL:     0 OF:   302 ML:     3 srcPos:      493 seqNb:  50
+      LL:     0 OF:   206 ML:     3 srcPos:      496 seqNb:  51
+      LL:     1 OF:   420 ML:     3 srcPos:      500 seqNb:  52
+      LL:     1 OF:   131 ML:     3 srcPos:      504 seqNb:  53
+      LL:     1 OF:   172 ML:     3 srcPos:      508 seqNb:  54
+      LL:     0 OF:   131 ML:     3 srcPos:      511 seqNb:  55
+        repeat offset: 1
+      LL:     2 OF:   438 ML:     3 srcPos:      516 seqNb:  56
+      LL:     0 OF:   453 ML:     3 srcPos:      519 seqNb:  57
+      LL:     0 OF:   248 ML:     3 srcPos:      522 seqNb:  58
+      LL:     0 OF:   438 ML:     3 srcPos:      525 seqNb:  59
+        repeat offset: 2
+      LL:     1 OF:   326 ML:     3 srcPos:      529 seqNb:  60
+      LL:     0 OF:   248 ML:     3 srcPos:      532 seqNb:  61
+        repeat offset: 2
+      LL:     1 OF:    46 ML:     3 srcPos:      536 seqNb:  62
+      LL:     2 OF:   139 ML:     3 srcPos:      541 seqNb:  63
+      LL:     1 OF:   139 ML:     3 srcPos:      545 seqNb:  64
+        repeat offset: 0
+      LL:     0 OF:   508 ML:     4 srcPos:      549 seqNb:  65
+      LL:     2 OF:   482 ML:     3 srcPos:      554 seqNb:  66
+      LL:     1 OF:   127 ML:     3 srcPos:      558 seqNb:  67
+      LL:     3 OF:   485 ML:     3 srcPos:      564 seqNb:  68
+      LL:     0 OF:   300 ML:     3 srcPos:      567 seqNb:  69
+      LL:     2 OF:   338 ML:     3 srcPos:      572 seqNb:  70
+      LL:     1 OF:   285 ML:     3 srcPos:      576 seqNb:  71
+      LL:     0 OF:   300 ML:     3 srcPos:      579 seqNb:  72
+        repeat offset: 2
+      LL:     1 OF:    60 ML:     3 srcPos:      583 seqNb:  73
+      LL:     2 OF:   304 ML:     3 srcPos:      588 seqNb:  74
+      LL:     2 OF:   106 ML:     3 srcPos:      593 seqNb:  75
+      LL:     4 OF:   106 ML:     3 srcPos:      600 seqNb:  76
+        repeat offset: 0
+      LL:     2 OF:   106 ML:     3 srcPos:      605 seqNb:  77
+        repeat offset: 0
+      LL:     5 OF:    60 ML:     3 srcPos:      613 seqNb:  78
+        repeat offset: 2
+      LL:     2 OF:   594 ML:     3 srcPos:      618 seqNb:  79
+      LL:     1 OF:   234 ML:     3 srcPos:      622 seqNb:  80
+      LL:     1 OF:   227 ML:     3 srcPos:      626 seqNb:  81
+      LL:     0 OF:   235 ML:     3 srcPos:      629 seqNb:  82
+      LL:     1 OF:   311 ML:     3 srcPos:      633 seqNb:  83
+      LL:     0 OF:   253 ML:     3 srcPos:      636 seqNb:  84
+      LL:     1 OF:   286 ML:     3 srcPos:      640 seqNb:  85
+      LL:     0 OF:   175 ML:     3 srcPos:      643 seqNb:  86
+      LL:     1 OF:   395 ML:     3 srcPos:      647 seqNb:  87
+      LL:     2 OF:   544 ML:     3 srcPos:      652 seqNb:  88
+      LL:     0 OF:   278 ML:     3 srcPos:      655 seqNb:  89
+      LL:     1 OF:   450 ML:     3 srcPos:      659 seqNb:  90
+      LL:     4 OF:   469 ML:     3 srcPos:      666 seqNb:  91
+      LL:     5 OF:   192 ML:     3 srcPos:      674 seqNb:  92
+      LL:     0 OF:   492 ML:     3 srcPos:      677 seqNb:  93
+      LL:     2 OF:   192 ML:     3 srcPos:      682 seqNb:  94
+        repeat offset: 1
+      LL:     2 OF:   597 ML:     3 srcPos:      687 seqNb:  95
+      LL:     1 OF:   501 ML:     3 srcPos:      691 seqNb:  96
+      LL:     0 OF:   148 ML:     3 srcPos:      694 seqNb:  97
+      LL:     1 OF:   513 ML:     3 srcPos:      698 seqNb:  98
+      LL:     0 OF:   143 ML:     3 srcPos:      701 seqNb:  99
+      LL:     2 OF:    89 ML:     3 srcPos:      706 seqNb: 100
+      LL:     1 OF:   513 ML:     3 srcPos:      710 seqNb: 101
+        repeat offset: 2
+      LL:     0 OF:    35 ML:     3 srcPos:      713 seqNb: 102
+      LL:     0 OF:   218 ML:     3 srcPos:      716 seqNb: 103
+      LL:     1 OF:   140 ML:     3 srcPos:      720 seqNb: 104
+      LL:     2 OF:   465 ML:     3 srcPos:      725 seqNb: 105
+      LL:     0 OF:   183 ML:     3 srcPos:      728 seqNb: 106
+      LL:     0 OF:   704 ML:     4 srcPos:      732 seqNb: 107
+      LL:     2 OF:   361 ML:     3 srcPos:      737 seqNb: 108
+      LL:     1 OF:   460 ML:     3 srcPos:      741 seqNb: 109
+      LL:     3 OF:   554 ML:     3 srcPos:      747 seqNb: 110
+      LL:     3 OF:   544 ML:     3 srcPos:      753 seqNb: 111
+      LL:     0 OF:    19 ML:     3 srcPos:      756 seqNb: 112
+      LL:     2 OF:   539 ML:     3 srcPos:      761 seqNb: 113
+      LL:     0 OF:   557 ML:     3 srcPos:      764 seqNb: 114
+      LL:     3 OF:   501 ML:     3 srcPos:      770 seqNb: 115
+      LL:     2 OF:   557 ML:     3 srcPos:      775 seqNb: 116
+        repeat offset: 1
+      LL:     0 OF:   683 ML:     3 srcPos:      778 seqNb: 117
+      LL:     0 OF:   362 ML:     3 srcPos:      781 seqNb: 118
+      LL:     1 OF:   723 ML:     4 srcPos:      786 seqNb: 119
+      LL:     1 OF:   526 ML:     4 srcPos:      791 seqNb: 120
+      LL:     0 OF:   653 ML:     3 srcPos:      794 seqNb: 121
+      LL:     0 OF:   572 ML:     3 srcPos:      797 seqNb: 122
+      LL:     1 OF:   572 ML:     3 srcPos:      801 seqNb: 123
+        repeat offset: 0
+      LL:     0 OF:   383 ML:     4 srcPos:      805 seqNb: 124
+      LL:     4 OF:   383 ML:     4 srcPos:      813 seqNb: 125
+        repeat offset: 0
+      LL:     1 OF:    46 ML:     4 srcPos:      818 seqNb: 126
+      LL:     0 OF:   742 ML:     3 srcPos:      821 seqNb: 127
+      LL:     2 OF:    84 ML:     4 srcPos:      827 seqNb: 128
+      LL:     1 OF:   793 ML:     3 srcPos:      831 seqNb: 129
+      LL:     4 OF:   277 ML:     3 srcPos:      838 seqNb: 130
+      LL:     0 OF:   312 ML:     3 srcPos:      841 seqNb: 131
+      LL:     1 OF:   306 ML:     3 srcPos:      845 seqNb: 132
+      LL:     0 OF:   706 ML:     3 srcPos:      848 seqNb: 133
+      LL:     0 OF:   244 ML:     3 srcPos:      851 seqNb: 134
+      LL:     4 OF:   301 ML:     3 srcPos:      858 seqNb: 135
+      LL:     1 OF:    53 ML:     3 srcPos:      862 seqNb: 136
+      LL:     1 OF:   313 ML:     3 srcPos:      866 seqNb: 137
+      LL:     1 OF:    53 ML:     3 srcPos:      870 seqNb: 138
+        repeat offset: 1
+      LL:     1 OF:   301 ML:     4 srcPos:      875 seqNb: 139
+        repeat offset: 2
+      LL:     6 OF:    53 ML:     3 srcPos:      884 seqNb: 140
+        repeat offset: 1
+      LL:     3 OF:   295 ML:     3 srcPos:      890 seqNb: 141
+      LL:     0 OF:   363 ML:     3 srcPos:      893 seqNb: 142
+      LL:     1 OF:   742 ML:     4 srcPos:      898 seqNb: 143
+      LL:     2 OF:   742 ML:     4 srcPos:      904 seqNb: 144
+        repeat offset: 0
+      LL:     2 OF:   728 ML:     3 srcPos:      909 seqNb: 145
+      LL:     1 OF:   728 ML:     3 srcPos:      913 seqNb: 146
+        repeat offset: 0
+      LL:     0 OF:   597 ML:     3 srcPos:      916 seqNb: 147
+      excess literals:     1 srcPos:      917 
+    LL type: 0 OF type: 0 ML type: 3
+   number of sequences: 148
+  block type: compressed
+  block size field: 550
+ block:
+  block content size: 24
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 21
+    total match lengths: 3
+      LL:     9 OF:   905 ML:     3 srcPos:      929 seqNb:   0
+      excess literals:    12 srcPos:      941 
+    LL type: 1 OF type: 1 ML type: 3
+   number of sequences: 1
+  block type: compressed
+  block size field: 28
+ block:
+  block content size: 0
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 0
+    total match lengths: 0
+      excess literals:     0 srcPos:      941 
+   number of sequences: 0
+  block type: compressed
+  block size field: 2
+ block:
+  block content size: 24
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 14
+    total match lengths: 10
+      LL:    11 OF:   506 ML:    10 srcPos:      962 seqNb:   0
+      excess literals:     3 srcPos:      965 
+    LL type: 1 OF type: 1 ML type: 1
+   number of sequences: 1
+  block type: compressed
+  block size field: 22
+ block:
+  block content size: 47
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 40
+    total match lengths: 7
+      LL:    40 OF:   833 ML:     4 srcPos:     1009 seqNb:   0
+      LL:     0 OF:   832 ML:     3 srcPos:     1012 seqNb:   1
+        repeat offset: 2
+      excess literals:     0 srcPos:     1012 
+    LL type: 0 OF type: 0 ML type: 2
+   number of sequences: 2
+  block type: compressed
+  block size field: 53
+ block:
+  block content size: 4
+  last block: no
+  compressed block:
+   raw literals
+   literals size: 0
+    total match lengths: 4
+      LL:     0 OF:    92 ML:     4 srcPos:     1016 seqNb:   0
+      excess literals:     0 srcPos:     1016 
+    LL type: 3 OF type: 1 ML type: 3
+   number of sequences: 1
+  block type: compressed
+  block size field: 7
+ block:
+  block content size: 3
+  last block: yes
+  compressed block:
+   raw literals
+   literals size: 0
+    total match lengths: 3
+      LL:     0 OF:   280 ML:     3 srcPos:     1019 seqNb:   0
+      excess literals:     0 srcPos:     1019 
+    LL type: 1 OF type: 1 ML type: 1
+   number of sequences: 1
+  block type: compressed
+  block size field: 8
+  checksum: 20a07047

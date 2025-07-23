@@ -839,7 +839,7 @@ SEQUENCE_EXECUTOR_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "delay_model": "asap7",
     "ram_configurations": ",".join([
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "ram{}".format(num),
             rd_req = "sequence_executor__rd_req_m{}_s".format(num),
             rd_resp = "sequence_executor__rd_resp_m{}_r".format(num),
@@ -1186,7 +1186,7 @@ xls_dslx_verilog(
         "delay_model": "asap7",
         # FIXME: update ram rewrite
         #"ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-        #    latency = 5,
+        #    latency = 1,
         #    rd_req = "fse_proba_freq_dec__rd_req_s",
         #    rd_resp = "fse_proba_freq_dec__rd_resp_r",
         #    wr_req = "fse_proba_freq_dec__wr_req_s",
@@ -1212,7 +1212,7 @@ xls_benchmark_ir(
         "reset": "rst",
         # FIXME: update ram rewrite
         #"ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-        #    latency = 5,
+        #    latency = 1,
         #    rd_req = "fse_proba_freq_dec__rd_req_s",
         #    rd_resp = "fse_proba_freq_dec__rd_resp_r",
         #    wr_req = "fse_proba_freq_dec__wr_req_s",
@@ -1521,14 +1521,14 @@ ZSTD_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "ZstdDecoder",
     "clock_period_ps": "0",
     "pipeline_stages": "16",
-    "flop_inputs_kind": "skid",
-    "flop_outputs_kind": "skid",
     "worst_case_throughput": "6",
+    # "flop_inputs_kind": "skid",
+    # "flop_outputs_kind": "skid",
     "materialize_internal_fifos": "false",  # TODO: remove once this option works with loopback channels
     "ram_configurations": ",".join([
         ",".join([
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
+                latency = 1,
                 ram_name = "history_buffer_ram{}".format(num),
                 rd_req = "zstd_dec__ram_rd_req_{}_s".format(num),
                 rd_resp = "zstd_dec__ram_rd_resp_{}_r".format(num),
@@ -1538,7 +1538,7 @@ ZSTD_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
             for num in range(8)
         ]),
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "dpd_ram",
             rd_req = "zstd_dec__dpd_rd_req_s",
             rd_resp = "zstd_dec__dpd_rd_resp_r",
@@ -1546,7 +1546,7 @@ ZSTD_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
             wr_resp = "zstd_dec__dpd_wr_resp_r",
         ),
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "fse_tmp_ram",
             rd_req = "zstd_dec__tmp_rd_req_s",
             rd_resp = "zstd_dec__tmp_rd_resp_r",
@@ -1554,44 +1554,112 @@ ZSTD_DEC_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
             wr_resp = "zstd_dec__tmp_wr_resp_r",
         ),
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "fse_tmp2_ram",
             rd_req = "zstd_dec__tmp2_rd_req_s",
             rd_resp = "zstd_dec__tmp2_rd_resp_r",
             wr_req = "zstd_dec__tmp2_wr_req_s",
             wr_resp = "zstd_dec__tmp2_wr_resp_r",
         ),
-        ",".join([
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
-                ram_name = "fse_lookup_ram{}".format(num),
-                rd_req = "zstd_dec__fse_rd_req_s__{}".format(num),
-                rd_resp = "zstd_dec__fse_rd_resp_r__{}".format(num),
-                wr_req = "zstd_dec__fse_wr_req_s__{}".format(num),
-                wr_resp = "zstd_dec__fse_wr_resp_r__{}".format(num),
-            )
-            for num in range(6)
-        ]),
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
+            ram_name = "ll_def_fse_ram",
+            rd_req = "zstd_dec__ll_def_fse_rd_req_s",
+            rd_resp = "zstd_dec__ll_def_fse_rd_resp_r",
+            wr_req = "zstd_dec__ll_def_fse_wr_req_s",
+            wr_resp = "zstd_dec__ll_def_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ll_fse_ram",
+            rd_req = "zstd_dec__ll_fse_rd_req_s",
+            rd_resp = "zstd_dec__ll_fse_rd_resp_r",
+            wr_req = "zstd_dec__ll_fse_wr_req_s",
+            wr_resp = "zstd_dec__ll_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ml_def_fse_ram",
+            rd_req = "zstd_dec__ml_def_fse_rd_req_s",
+            rd_resp = "zstd_dec__ml_def_fse_rd_resp_r",
+            wr_req = "zstd_dec__ml_def_fse_wr_req_s",
+            wr_resp = "zstd_dec__ml_def_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ml_fse_ram",
+            rd_req = "zstd_dec__ml_fse_rd_req_s",
+            rd_resp = "zstd_dec__ml_fse_rd_resp_r",
+            wr_req = "zstd_dec__ml_fse_wr_req_s",
+            wr_resp = "zstd_dec__ml_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "of_def_fse_ram",
+            rd_req = "zstd_dec__of_def_fse_rd_req_s",
+            rd_resp = "zstd_dec__of_def_fse_rd_resp_r",
+            wr_req = "zstd_dec__of_def_fse_wr_req_s",
+            wr_resp = "zstd_dec__of_def_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "of_fse_ram",
+            rd_req = "zstd_dec__of_fse_rd_req_s",
+            rd_resp = "zstd_dec__of_fse_rd_resp_r",
+            wr_req = "zstd_dec__of_fse_wr_req_s",
+            wr_resp = "zstd_dec__of_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
             ram_name = "huffman_literals_prescan_ram",
             rd_req = "zstd_dec__huffman_lit_prescan_mem_rd_req_s",
             rd_resp = "zstd_dec__huffman_lit_prescan_mem_rd_resp_r",
             wr_req = "zstd_dec__huffman_lit_prescan_mem_wr_req_s",
             wr_resp = "zstd_dec__huffman_lit_prescan_mem_wr_resp_r",
         ),
-        # FIXME: Enable once HuffmanLiteralsDecoder has states independent of data read from RAM
-        #"{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-        #    latency = 5,
-        #    ram_name = "huffman_literals_weights_ram",
-        #    rd_req = "zstd_dec__huffman_lit_weights_mem_rd_req_s",
-        #    rd_resp = "zstd_dec__huffman_lit_weights_mem_rd_resp_r",
-        #    wr_req = "zstd_dec__huffman_lit_weights_mem_wr_req_s",
-        #    wr_resp = "zstd_dec__huffman_lit_weights_mem_wr_resp_r",
-        #),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_dpd_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_dpd_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_dpd_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_dpd_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_dpd_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_tmp_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_tmp_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_tmp_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_tmp_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_tmp_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_tmp2_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_tmp2_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_tmp2_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_tmp2_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_tmp2_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_fse_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_fse_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_fse_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_fse_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_fse_wr_resp_r",
+        ),
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "huffman_literals_weights_mem_ram",
+            rd_req = "zstd_dec__huffman_lit_weights_mem_rd_req_s",
+            rd_resp = "zstd_dec__huffman_lit_weights_mem_rd_resp_r",
+            wr_req = "zstd_dec__huffman_lit_weights_mem_wr_req_s",
+            wr_resp = "zstd_dec__huffman_lit_weights_mem_wr_resp_r",
+        ),
         ",".join([
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
+                latency = 1,
                 ram_name = "literals_buffer_ram{}".format(num),
                 rd_req = "zstd_dec__litbuf_rd_req_s__{}".format(num),
                 rd_resp = "zstd_dec__litbuf_rd_resp_r__{}".format(num),
@@ -1708,11 +1776,60 @@ benchmark_synth(
 #    target_die_utilization_percentage = "1",
 #)
 
+filegroup(
+    name = "zstd_dec_xx_fse_default",
+    srcs = [
+        "zstd_dec_ll_fse_default.mem",
+        "zstd_dec_ml_fse_default.mem",
+        "zstd_dec_of_fse_default.mem",
+    ],
+)
+
 py_test(
     name = "zstd_dec_cocotb_test",
     srcs = ["zstd_dec_cocotb_test.py"],
     data = [
+        "data/comp_frame.zst",
+        "data/comp_frame_fse_comp.zst",
+        "data/comp_frame_fse_repeated.zst",
+        "data/comp_frame_huffman.zst",
+        "data/comp_frame_huffman_fse.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_107958.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_204626.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_210872.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_299289.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_319146.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_331938.zst",
+        "data/fse_huffman_literals_predefined_sequences_seed_333824.zst",
+        "data/pregenerated_compressed_minimal.zst",
+        "data/pregenerated_compressed_random_1.zst",
+        "data/pregenerated_compressed_random_2.zst",
+        "data/pregenerated_compressed_raw_1.zst",
+        "data/pregenerated_compressed_raw_2.zst",
+        "data/pregenerated_compressed_rle_1.zst",
+        "data/pregenerated_compressed_rle_2.zst",
+        "data/pregenerated_uncompressed.zst",
+        "data/raw_literals_compressed_sequences_seed_903062.zst",
+        "data/raw_literals_predefined_sequences_seed_422473.zst",
+        "data/raw_literals_predefined_sequences_seed_436965.zst",
+        "data/raw_literals_predefined_sequences_seed_462302.zst",
+        "data/raw_literals_rle_sequences_seed_700216.zst",
+        "data/rle_literals_compressed_sequences_seed_701326.zst",
+        "data/rle_literals_predefined_sequences_seed_406229.zst",
+        "data/rle_literals_predefined_sequences_seed_411034.zst",
+        "data/rle_literals_predefined_sequences_seed_413015.zst",
+        "data/rle_literals_predefined_sequences_seed_436165.zst",
+        "data/rle_literals_predefined_sequences_seed_464057.zst",
+        "data/rle_literals_predefined_sequences_seed_466803.zst",
+        "data/rle_literals_rle_sequences_seed_2.zst",
+        "data/rle_raw_literals_predefined_sequences_seed_408158.zst",
+        "data/rle_raw_literals_predefined_sequences_seed_499212.zst",
+        "data/treeless_huffman_literals_compressed_sequences_seed_400077.zst",
+        "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400025.zst",
+        "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400061.zst",
+        "data/treeless_huffman_literals_rle_sequences_seed_403927.zst",
         ":zstd_dec.v",
+        "//xls/modules/zstd:zstd_dec_xx_fse_default",
         "//xls/modules/zstd/external:arbiter.v",
         "//xls/modules/zstd/external:axi_crossbar.v",
         "//xls/modules/zstd/external:axi_crossbar_addr.v",
@@ -1722,12 +1839,16 @@ py_test(
         "//xls/modules/zstd/external:axi_register_rd.v",
         "//xls/modules/zstd/external:axi_register_wr.v",
         "//xls/modules/zstd/external:priority_encoder.v",
+        "//xls/modules/zstd/rtl:ram_1r1w.v",
         "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
         "//xls/modules/zstd/rtl:zstd_dec_wrapper.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
-    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    env = {
+        "BUILD_WORKING_DIRECTORY": "sim_build",
+        "PYTHONUNBUFFERED": "1",
+    },
     imports = ["."],
     tags = ["manual"],
     visibility = ["//xls:xls_users"],
@@ -2080,7 +2201,7 @@ RAM_DEMUX_CODEGEN_ARGS = {
     "worst_case_throughput": "6",
     "ram_configurations": ",".join([
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "ram{}".format(num),
             rd_req = "ram_demux__rd_req{}_s".format(num),
             rd_resp = "ram_demux__rd_resp{}_r".format(num),
@@ -2371,7 +2492,7 @@ xls_dslx_verilog(
         "delay_model": "asap7",
         "ram_configurations": ",".join([
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
+                latency = 1,
                 ram_name = "ram{}".format(num),
                 rd_req = "ram_demux3__rd_req{}_s".format(num),
                 rd_resp = "ram_demux3__rd_resp{}_r".format(num),
@@ -2782,7 +2903,7 @@ xls_dslx_verilog(
         "delay_model": "asap7",
         "ram_configurations": ",".join([
             "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
+                latency = 1,
                 ram_name = "ram{}".format(num),
                 rd_req = "literals_buffer__rd_req_m{}_s".format(num),
                 rd_resp = "literals_buffer__rd_resp_m{}_r".format(num),
@@ -2949,7 +3070,7 @@ LITERALS_DECODER_CODEGEN_ARGS = {
     "delay_model": "asap7",
     "ram_configurations": ",".join([
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-            latency = 5,
+            latency = 1,
             ram_name = "ram{}".format(num),
             rd_req = "literals_decoder__rd_req_m{}_s".format(num),
             rd_resp = "literals_decoder__rd_resp_m{}_r".format(num),
