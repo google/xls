@@ -796,5 +796,19 @@ TEST_F(NodeUtilTest, RemoveNodeFromBooleanExpression) {
                           m::Literal(1))));
 }
 
+TEST_F(NodeUtilTest, ToTreeOfNodes) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param(
+      "param", p->GetTupleType(
+                   {p->GetBitsType(4), p->GetArrayType(2, p->GetBitsType(3))}));
+  XLS_ASSERT_OK(fb.Build().status());
+  XLS_ASSERT_OK_AND_ASSIGN(auto n, ToTreeOfNodes(param.node()));
+  EXPECT_THAT(n.Get({0}), m::TupleIndex(param.node(), 0));
+  EXPECT_THAT(n.Get({1, 0}), m::ArrayIndex(m::TupleIndex(param.node(), 1),
+                                           {m::Literal(UBits(0, 64))}));
+  EXPECT_THAT(n.Get({1, 1}), m::ArrayIndex(m::TupleIndex(param.node(), 1),
+                                           {m::Literal(UBits(1, 64))}));
+}
 }  // namespace
 }  // namespace xls
