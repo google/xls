@@ -1,0 +1,179 @@
+seed: 1
+frame seed: 1
+ frame content size:	1019
+ frame window size:	294912
+ content size flag:	1
+ single segment flag:	0
+ block:
+  block content size: 181
+  last block: no
+  compressed block:
+   rle literals: 0xed
+   literals size: 139
+    total match lengths: 42
+      LL:   139 OF:    97 ML:    42 srcPos:      181 seqNb:   0
+      excess literals:     0 srcPos:      181 
+    LL type: 1 OF type: 1 ML type: 1
+   number of sequences: 1
+  block type: compressed
+  block size field: 10
+ block:
+  block content size: 178
+  last block: no
+  compressed block:
+   rle literals: 0xc6
+   literals size: 21
+    total match lengths: 157
+      LL:     0 OF:    53 ML:     4 srcPos:      185 seqNb:   0
+      LL:     0 OF:   155 ML:     3 srcPos:      188 seqNb:   1
+      LL:     0 OF:     7 ML:     3 srcPos:      191 seqNb:   2
+      LL:     2 OF:   124 ML:     4 srcPos:      197 seqNb:   3
+      LL:     0 OF:   138 ML:     4 srcPos:      201 seqNb:   4
+      LL:     0 OF:    92 ML:     4 srcPos:      205 seqNb:   5
+      LL:     0 OF:     1 ML:     5 srcPos:      210 seqNb:   6
+      LL:     0 OF:    93 ML:     3 srcPos:      213 seqNb:   7
+      LL:     1 OF:   144 ML:     5 srcPos:      219 seqNb:   8
+      LL:     1 OF:   183 ML:     4 srcPos:      224 seqNb:   9
+      LL:     0 OF:   140 ML:     3 srcPos:      227 seqNb:  10
+      LL:     1 OF:    42 ML:     5 srcPos:      233 seqNb:  11
+      LL:     0 OF:   118 ML:     4 srcPos:      237 seqNb:  12
+      LL:     1 OF:    47 ML:     4 srcPos:      242 seqNb:  13
+      LL:     0 OF:   232 ML:     5 srcPos:      247 seqNb:  14
+      LL:     0 OF:    24 ML:     4 srcPos:      251 seqNb:  15
+      LL:     1 OF:    24 ML:     5 srcPos:      257 seqNb:  16
+        repeat offset: 0
+      LL:     0 OF:     2 ML:     3 srcPos:      260 seqNb:  17
+      LL:     0 OF:   212 ML:     4 srcPos:      264 seqNb:  18
+      LL:     1 OF:    66 ML:     4 srcPos:      269 seqNb:  19
+      LL:     0 OF:    65 ML:     5 srcPos:      274 seqNb:  20
+        repeat offset: 2
+      LL:     0 OF:   212 ML:     5 srcPos:      279 seqNb:  21
+        repeat offset: 2
+      LL:     0 OF:   119 ML:     4 srcPos:      283 seqNb:  22
+      LL:     1 OF:   245 ML:     4 srcPos:      288 seqNb:  23
+      LL:     0 OF:   152 ML:     5 srcPos:      293 seqNb:  24
+      LL:     0 OF:   219 ML:     3 srcPos:      296 seqNb:  25
+      LL:     0 OF:   107 ML:     5 srcPos:      301 seqNb:  26
+      LL:     0 OF:   157 ML:     4 srcPos:      305 seqNb:  27
+      LL:     1 OF:    30 ML:     6 srcPos:      312 seqNb:  28
+      LL:     1 OF:    44 ML:     5 srcPos:      318 seqNb:  29
+      LL:     0 OF:   151 ML:     4 srcPos:      322 seqNb:  30
+      LL:     1 OF:    30 ML:     4 srcPos:      327 seqNb:  31
+        repeat offset: 2
+      LL:     1 OF:     8 ML:     4 srcPos:      332 seqNb:  32
+      LL:     1 OF:   238 ML:     4 srcPos:      337 seqNb:  33
+      LL:     6 OF:   244 ML:     5 srcPos:      348 seqNb:  34
+      LL:     0 OF:   290 ML:     3 srcPos:      351 seqNb:  35
+      LL:     1 OF:   271 ML:     3 srcPos:      355 seqNb:  36
+      LL:     0 OF:   111 ML:     4 srcPos:      359 seqNb:  37
+      excess literals:     0 srcPos:      359 
+    LL type: 0 OF type: 2 ML type: 2
+   number of sequences: 38
+  block type: compressed
+  block size field: 80
+ block:
+  block content size: 419
+  last block: no
+  compressed block:
+   rle literals: 0xc1
+   literals size: 282
+    total match lengths: 137
+      LL:     0 OF:   353 ML:     5 srcPos:      364 seqNb:   0
+      LL:     1 OF:   111 ML:     3 srcPos:      368 seqNb:   1
+        repeat offset: 1
+      LL:    18 OF:    65 ML:     4 srcPos:      390 seqNb:   2
+      LL:     3 OF:   213 ML:     6 srcPos:      399 seqNb:   3
+      LL:     0 OF:   249 ML:     6 srcPos:      405 seqNb:   4
+      LL:    11 OF:   285 ML:    11 srcPos:      427 seqNb:   5
+      LL:     4 OF:   297 ML:     5 srcPos:      436 seqNb:   6
+      LL:     4 OF:    61 ML:     5 srcPos:      445 seqNb:   7
+      LL:    11 OF:   204 ML:     4 srcPos:      460 seqNb:   8
+      LL:     7 OF:   394 ML:     3 srcPos:      470 seqNb:   9
+      LL:     7 OF:    30 ML:     5 srcPos:      482 seqNb:  10
+      LL:     4 OF:   346 ML:     6 srcPos:      492 seqNb:  11
+      LL:     1 OF:   394 ML:     3 srcPos:      496 seqNb:  12
+        repeat offset: 2
+      LL:    53 OF:   501 ML:     5 srcPos:      554 seqNb:  13
+      LL:    15 OF:   116 ML:     3 srcPos:      572 seqNb:  14
+      LL:     5 OF:   116 ML:     3 srcPos:      580 seqNb:  15
+        repeat offset: 0
+      LL:     4 OF:    80 ML:     5 srcPos:      589 seqNb:  16
+      LL:    32 OF:   434 ML:     3 srcPos:      624 seqNb:  17
+      LL:     6 OF:    80 ML:     4 srcPos:      634 seqNb:  18
+        repeat offset: 1
+      LL:     3 OF:   387 ML:     4 srcPos:      641 seqNb:  19
+      LL:     0 OF:   639 ML:     6 srcPos:      647 seqNb:  20
+      LL:     4 OF:   319 ML:     7 srcPos:      658 seqNb:  21
+      LL:     0 OF:   639 ML:     4 srcPos:      662 seqNb:  22
+        repeat offset: 1
+      LL:     5 OF:   387 ML:     3 srcPos:      670 seqNb:  23
+        repeat offset: 2
+      LL:     0 OF:   639 ML:     4 srcPos:      674 seqNb:  24
+        repeat offset: 1
+      LL:     5 OF:   166 ML:     3 srcPos:      682 seqNb:  25
+      LL:     0 OF:   135 ML:     3 srcPos:      685 seqNb:  26
+      LL:    60 OF:    91 ML:     5 srcPos:      750 seqNb:  27
+      LL:     1 OF:   141 ML:     4 srcPos:      755 seqNb:  28
+      LL:     0 OF:   667 ML:     5 srcPos:      760 seqNb:  29
+      excess literals:    18 srcPos:      778 
+    LL type: 2 OF type: 0 ML type: 2
+   number of sequences: 30
+  block type: compressed
+  block size field: 80
+ block:
+  block content size: 7
+  last block: no
+  compressed block:
+   rle literals: 0x3a
+   literals size: 1
+    total match lengths: 6
+      LL:     1 OF:   282 ML:     6 srcPos:      785 seqNb:   0
+      excess literals:     0 srcPos:      785 
+    LL type: 1 OF type: 1 ML type: 1
+   number of sequences: 1
+  block type: compressed
+  block size field: 9
+ block:
+  block content size: 129
+  last block: no
+  compressed block:
+   rle literals: 0xcf
+   literals size: 60
+    total match lengths: 69
+      LL:     0 OF:   455 ML:    69 srcPos:      854 seqNb:   0
+      excess literals:    60 srcPos:      914 
+    LL type: 1 OF type: 1 ML type: 1
+   number of sequences: 1
+  block type: compressed
+  block size field: 10
+ block:
+  block content size: 85
+  last block: no
+  compressed block:
+   rle literals: 0xf1
+   literals size: 76
+    total match lengths: 9
+      LL:    44 OF:   616 ML:     4 srcPos:      962 seqNb:   0
+      LL:    11 OF:   455 ML:     5 srcPos:      978 seqNb:   1
+        repeat offset: 1
+      excess literals:    21 srcPos:      999 
+    LL type: 2 OF type: 2 ML type: 2
+   number of sequences: 2
+  block type: compressed
+  block size field: 29
+ block:
+  block content size: 20
+  last block: yes
+  compressed block:
+   rle literals: 0xf5
+   literals size: 11
+    total match lengths: 9
+      LL:     1 OF:   118 ML:     3 srcPos:     1003 seqNb:   0
+      LL:     2 OF:   709 ML:     3 srcPos:     1008 seqNb:   1
+      LL:     8 OF:   168 ML:     3 srcPos:     1019 seqNb:   2
+      excess literals:     0 srcPos:     1019 
+    LL type: 2 OF type: 2 ML type: 1
+   number of sequences: 3
+  block type: compressed
+  block size field: 24
+  checksum: 043d84eb
