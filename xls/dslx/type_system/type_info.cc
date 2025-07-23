@@ -768,7 +768,8 @@ absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
   return const_cast<TypeInfo*>(this)->GetImportedOrError(import);
 }
 
-std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {
+std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m,
+                                                       bool recursive) {
   TypeInfo* root = GetRoot();
   if (root != this) {
     return root->GetImportedTypeInfo(m);
@@ -779,6 +780,15 @@ std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {
   for (auto& [import, info] : imports_) {
     if (info.module == m) {
       return info.type_info;
+    }
+  }
+  if (recursive) {
+    for (auto& [import, info] : imports_) {
+      std::optional<TypeInfo*> result =
+          info.type_info->GetImportedTypeInfo(m, true);
+      if (result.has_value()) {
+        return result;
+      }
     }
   }
   return std::nullopt;

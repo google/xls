@@ -295,8 +295,10 @@ class TypeInfo {
       ImportSubject import) const;
 
   // Returns the type information for m, if it is available either as this
-  // module or an import of this module.
-  std::optional<TypeInfo*> GetImportedTypeInfo(Module* m);
+  // module or an import of this module. If `recursive` is true, the function
+  // checks recursively on imports of an imported module.
+  std::optional<TypeInfo*> GetImportedTypeInfo(Module* m,
+                                               bool recursive = false);
 
   // Returns whether function "f" requires an implicit token parameter; i.e. it
   // contains a `fail!()` or `cover!()` as determined during type inferencing.
