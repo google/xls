@@ -590,6 +590,16 @@ class InferenceTableImpl : public InferenceTable {
     return result;
   }
 
+  absl::StatusOr<std::vector<const Invocation*>>
+  GetInvocationsFeedingTypeVariable(const NameRef* ref) const override {
+    XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
+    const auto it = invocations_feeding_type_variable_.find(variable);
+    if (it == invocations_feeding_type_variable_.end()) {
+      return std::vector<const Invocation*>{};
+    }
+    return it->second;
+  }
+
   void SetColonRefTarget(const ColonRef* colon_ref,
                          const AstNode* target) override {
     colon_ref_targets_[colon_ref] = target;
@@ -870,6 +880,10 @@ class InferenceTableImpl : public InferenceTable {
                                 (*old_variable)->name_ref());
     }
     if (node_data.type_variable.has_value()) {
+      if (node->kind() == AstNodeKind::kInvocation) {
+        invocations_feeding_type_variable_[*node_data.type_variable].push_back(
+            down_cast<const Invocation*>(node));
+      }
       cache_.InvalidateVariable(/*parametric_context=*/std::nullopt,
                                 (*node_data.type_variable)->name_ref());
     }
@@ -925,6 +939,8 @@ class InferenceTableImpl : public InferenceTable {
   absl::flat_hash_map<const ParametricContext*,
                       absl::flat_hash_map<const NameDef*, ExprOrType>>
       parametric_value_exprs_;
+  absl::flat_hash_map<const InferenceVariable*, std::vector<const Invocation*>>
+      invocations_feeding_type_variable_;
   UnificationCache cache_;
 };
 

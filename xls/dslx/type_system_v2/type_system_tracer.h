@@ -102,7 +102,8 @@ class TypeSystemTracer {
   virtual TypeSystemTrace TraceConvertNode(const AstNode* node) = 0;
   virtual TypeSystemTrace TraceConvertInvocation(
       const Invocation* invocation,
-      std::optional<const ParametricContext*> caller_context) = 0;
+      std::optional<const ParametricContext*> caller_context,
+      std::optional<bool> convert_for_type_variable_unification) = 0;
   virtual TypeSystemTrace TraceInferImplicitParametrics(
       const absl::flat_hash_set<const ParametricBinding*>& bindings) = 0;
   virtual TypeSystemTrace TraceEvaluate(

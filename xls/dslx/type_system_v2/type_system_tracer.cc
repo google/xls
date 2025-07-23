@@ -76,6 +76,7 @@ struct TypeSystemTraceImpl {
   std::optional<InterpValue> result_value;
   std::optional<bool> used_cache;
   std::optional<bool> populated_cache;
+  std::optional<bool> convert_for_type_variable_unification;
 };
 
 std::string TraceKindToString(TraceKind kind) {
@@ -143,6 +144,10 @@ std::string TraceImplToString(const TypeSystemTraceImpl& impl) {
     }
     pieces.push_back(
         absl::StrCat("bindings: ", absl::StrJoin(annotation_strings, ", ")));
+  }
+  if (impl.convert_for_type_variable_unification.has_value()) {
+    pieces.push_back(absl::StrCat("for_var_unification: ",
+                                  *impl.convert_for_type_variable_unification));
   }
   if (impl.parametric_context.has_value()) {
     pieces.push_back(
@@ -223,11 +228,15 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
 
   TypeSystemTrace TraceConvertInvocation(
       const Invocation* invocation,
-      std::optional<const ParametricContext*> caller_context) override {
-    return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
-                                     .kind = TraceKind::kConvertInvocation,
-                                     .node = invocation,
-                                     .parametric_context = caller_context});
+      std::optional<const ParametricContext*> caller_context,
+      std::optional<bool> convert_for_type_variable_unification) override {
+    return Trace(
+        TypeSystemTraceImpl{.parent = stack_.top(),
+                            .kind = TraceKind::kConvertInvocation,
+                            .node = invocation,
+                            .parametric_context = caller_context,
+                            .convert_for_type_variable_unification =
+                                convert_for_type_variable_unification});
   }
 
   TypeSystemTrace TraceInferImplicitParametrics(
@@ -414,7 +423,8 @@ class NoopTracer final : public TypeSystemTracer {
 
   TypeSystemTrace TraceConvertInvocation(
       const Invocation* invocation,
-      std::optional<const ParametricContext*> caller_context) final {
+      std::optional<const ParametricContext*> caller_context,
+      std::optional<bool> convert_for_type_variable_unification) final {
     return Noop();
   }
 

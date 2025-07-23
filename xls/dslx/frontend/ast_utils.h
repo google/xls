@@ -195,8 +195,8 @@ absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
                                                          bool want_types);
 
 // Collects NameDefs referred to by NameRefs under "root".
-absl::StatusOr<std::vector<const NameDef*>> CollectReferencedUnder(
-    const AstNode* root, bool want_types = false);
+absl::StatusOr<std::vector<std::pair<const NameRef*, const NameDef*>>>
+CollectReferencedUnder(const AstNode* root, bool want_types = false);
 
 // Wrapper around GetUnaryParametricBuiltinNames() that checks whether name_ref
 // refers to a builtin name def and whether that builtin name is a parametric
@@ -239,11 +239,6 @@ class ParametricBindings {
  private:
   absl::flat_hash_map<std::string, const ParametricBinding*> bindings_;
 };
-
-// Returns true if the subtree rooted at "node" contains any `Invocation`
-// AST node. `want_types` is forwarded to `GetChildren()` to control whether
-// type-annotation children are included in the traversal.
-bool ContainsInvocation(const AstNode* node, bool want_types = true);
 
 // Returns the bindings from `bindings` that do not have a default value.
 std::vector<ParametricBinding*> GetRequiredParametricBindings(

@@ -488,6 +488,11 @@ class InferenceTable {
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* variable) const = 0;
 
+  // Returns the `Invocation` nodes that feed information into the given type
+  // variable.
+  virtual absl::StatusOr<std::vector<const Invocation*>>
+  GetInvocationsFeedingTypeVariable(const NameRef* variable) const = 0;
+
   // Clones the given `input` subtree and the table data for each node.
   virtual absl::StatusOr<AstNode*> Clone(const AstNode* input,
                                          CloneReplacer replacer) = 0;

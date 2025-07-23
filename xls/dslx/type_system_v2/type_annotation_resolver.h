@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_RESOLVER_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_RESOLVER_H_
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -47,7 +48,10 @@ class TypeAnnotationResolver {
       Module& module, InferenceTable& table, const FileTable& file_table,
       UnificationErrorGenerator& error_generator, Evaluator& evaluator,
       ParametricStructInstantiator& parametric_struct_instantiator,
-      TypeSystemTracer& tracer, ImportData& import_data);
+      TypeSystemTracer& tracer, ImportData& import_data,
+      std::function<absl::Status(std::optional<const ParametricContext*>,
+                                 const Invocation*)>
+          invocation_converter);
 
   virtual ~TypeAnnotationResolver() = default;
 

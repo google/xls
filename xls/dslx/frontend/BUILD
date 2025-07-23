@@ -185,6 +185,7 @@ cc_library(
         ":module",
         ":pos",
         ":token_utils",
+        "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

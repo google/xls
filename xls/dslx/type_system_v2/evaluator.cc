@@ -131,13 +131,8 @@ class EvaluatorImpl : public Evaluator {
         converter_.Concretize(type_annotation, parametric_context,
                               /*needs_conversion_before_eval=*/false));
     if (!type_info->Contains(const_cast<Expr*>(expr))) {
-      if (expr->kind() == AstNodeKind::kNumber ||
-          expr->kind() == AstNodeKind::kNameRef) {
-        type_info->SetItem(expr, *type);
-      } else {
-        XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(
-            expr, /*function=*/std::nullopt, parametric_context));
-      }
+      XLS_RETURN_IF_ERROR(converter_.ConvertSubtree(
+          expr, /*function=*/std::nullopt, parametric_context));
     }
     if (type_annotation->owner() == type_info->module()) {
       // Prevent bleed-over from a different module.

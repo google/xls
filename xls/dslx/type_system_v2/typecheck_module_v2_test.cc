@@ -3156,6 +3156,82 @@ const Z = match X {
               TypecheckFails(HasSizeMismatch("u31", "u32")));
 }
 
+TEST(TypecheckV2Test, MatchArmWithConversionForUnification) {
+  // Based on https://github.com/google/xls/issues/2379.
+  EXPECT_THAT(R"(
+fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }
+fn repro(x: u3) -> u2 {
+    let (_dummy, upper) = match x {
+        u3:0b000 | u3:0b001 => (u8:0, 0b00),
+        u3:0b010 | u3:0b011 => (u8:0, lsb(x) ++ u1:0),
+        _ => (u8:0, x[0 +: u2]),
+    };
+    upper
+}
+  )",
+              TypecheckSucceeds(HasNodeWithType("upper", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, MatchArmWithConversionForUnificationAndLetDep) {
+  EXPECT_THAT(R"(
+fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }
+fn repro(x: u3) -> u2 {
+    let (_dummy, upper) = match x {
+        u3:0b000 | u3:0b001 => (u8:0, 0b00),
+        u3:0b010 | u3:0b011 => {
+          let a = s32:0;
+          (u8:0, lsb(x[a:]) ++ u1:0)
+        },
+        _ => (u8:0, x[0 +: u2]),
+    };
+    upper
+}
+  )",
+              TypecheckSucceeds(HasNodeWithType("upper", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, MatchArmWithConversionForUnificationAndLetDepChain) {
+  EXPECT_THAT(R"(
+fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }
+fn repro(x: u3) -> u2 {
+    let (_dummy, upper) = match x {
+        u3:0b000 | u3:0b001 => (u8:0, 0b00),
+        u3:0b010 | u3:0b011 => {
+          let a = s32:0;
+          let b = a;
+          (u8:0, lsb(x[b:]) ++ u1:0)
+        },
+        _ => (u8:0, x[0 +: u2]),
+    };
+    upper
+}
+  )",
+              TypecheckSucceeds(HasNodeWithType("upper", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, ConditionalWithConversionForUnification) {
+  EXPECT_THAT(R"(
+fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }
+fn repro(x: u3) -> u2 {
+    let (_dummy, upper) =
+        if x == u3:0 { (u8:0, 0b00) } else { (u8:0, lsb(x) ++ u1:0) };
+    upper
+}
+  )",
+              TypecheckSucceeds(HasNodeWithType("upper", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, BinopWithConversionForUnification) {
+  EXPECT_THAT(R"(
+fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }
+fn repro(x: u3) -> u2 {
+  let upper = u2:1 + (lsb(x) ++ u1:0);
+  upper
+}
+  )",
+              TypecheckSucceeds(HasNodeWithType("upper", "uN[2]")));
+}
+
 TEST(TypecheckV2Test, MatchMismatch) {
   EXPECT_THAT(R"(
 const X = u32:1;

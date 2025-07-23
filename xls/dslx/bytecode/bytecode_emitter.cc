@@ -215,10 +215,10 @@ BytecodeEmitter::EmitExpression(
   BytecodeEmitter emitter(import_data, type_info, caller_bindings,
                           /*channel_instance_allocator=*/std::nullopt, options);
 
-  XLS_ASSIGN_OR_RETURN(std::vector<const NameDef*> name_defs,
-                       CollectReferencedUnder(expr));
+  std::vector<std::pair<const NameRef*, const NameDef*>> references;
+  XLS_ASSIGN_OR_RETURN(references, CollectReferencedUnder(expr));
   absl::flat_hash_map<std::string, const NameDef*> identifier_to_name_def;
-  for (const NameDef* name_def : name_defs) {
+  for (const auto& [_, name_def] : references) {
     identifier_to_name_def[name_def->identifier()] = name_def;
   }
 

@@ -34,6 +34,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -514,19 +515,20 @@ absl::StatusOr<std::vector<const AstNode*>> CollectUnder(const AstNode* root,
   return result;
 }
 
-absl::StatusOr<std::vector<const NameDef*>> CollectReferencedUnder(
-    const AstNode* root, bool want_types) {
+absl::StatusOr<std::vector<std::pair<const NameRef*, const NameDef*>>>
+CollectReferencedUnder(const AstNode* root, bool want_types) {
   XLS_ASSIGN_OR_RETURN(std::vector<const AstNode*> nodes,
                        CollectUnder(root, want_types));
-  std::vector<const NameDef*> name_defs;
+  std::vector<std::pair<const NameRef*, const NameDef*>> result;
   for (const AstNode* n : nodes) {
-    if (const NameRef* nr = dynamic_cast<const NameRef*>(n)) {
+    if (n->kind() == AstNodeKind::kNameRef) {
+      const auto* nr = down_cast<const NameRef*>(n);
       if (std::holds_alternative<const NameDef*>(nr->name_def())) {
-        name_defs.push_back(std::get<const NameDef*>(nr->name_def()));
+        result.emplace_back(nr, std::get<const NameDef*>(nr->name_def()));
       }
     }
   }
-  return name_defs;
+  return result;
 }
 
 bool IsBuiltinParametricNameRef(const NameRef* name_ref) {
@@ -597,22 +599,6 @@ std::optional<const Function*> GetContainingFunction(const AstNode* node) {
     current = current->parent();
   }
   return std::nullopt;
-}
-
-bool ContainsInvocation(const AstNode* node, bool want_types) {
-  std::deque<const AstNode*> worklist;
-  worklist.push_back(node);
-  while (!worklist.empty()) {
-    const AstNode* current = worklist.front();
-    worklist.pop_front();
-    if (current->kind() == AstNodeKind::kInvocation) {
-      return true;
-    }
-    for (const AstNode* child : current->GetChildren(want_types)) {
-      worklist.push_back(child);
-    }
-  }
-  return false;
 }
 
 std::vector<ParametricBinding*> GetRequiredParametricBindings(
