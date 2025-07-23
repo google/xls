@@ -15,6 +15,8 @@
 // This implements a parametric delay proc implemented using loopback channels that are ultimately
 // generated as FIFOs.
 
+#![feature(type_inference_v2)]
+
 import std;
 
 // TODO(google/xls#889): Make top parametric when supported.

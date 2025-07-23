@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(type_inference_v2)]
+
 // This demonstrates how to emulate a pipeline in DSLX as well as
 // how stage can be modeled.
 //

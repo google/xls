@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(type_inference_v2)]
+
 // Example of assertions being used in functions.
 
 fn func_0<N: u32>(x: bits[N]) -> bits[N] {

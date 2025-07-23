@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(type_inference_v2)]
+
 // A simple proc that forwards the received information from
 // an input channel to an output channel.
 

@@ -19,9 +19,9 @@ module assertions_top(
   assign out = ult_209 ? {add_212, y[0]} : y & {32{ult_205}};
   `ifdef ASSERT_ON
   `ifndef SYNTHESIS
-  y_ge_than_21: assert final ($isunknown(ult_205) || ult_205) else $fatal(0, "Assertion failure via fail! @ xls/examples/assertions/assertions.x:30:14-30:37");
-  __assertions__main_0___itok__assertions__main___itok__assertions__main_0___itok__assertions__func_0__32_x_less_than_5: assert final ($isunknown(nand_214) || nand_214) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:19:12-19:40");
-  __assertions__main_0___itok__assertions__main___itok__assertions__main_1___itok__assertions__func_0__32_x_less_than_5: assert final ($isunknown(nand_215) || nand_215) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:19:12-19:40");
+  y_ge_than_21: assert final ($isunknown(ult_205) || ult_205) else $fatal(0, "Assertion failure via fail! @ xls/examples/assertions/assertions.x:32:14-32:37");
+  __assertions__main_0___itok__assertions__main___itok__assertions__main_0___itok__assertions__func_0__32_x_less_than_5: assert final ($isunknown(nand_214) || nand_214) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:21:12-21:40");
+  __assertions__main_0___itok__assertions__main___itok__assertions__main_1___itok__assertions__func_0__32_x_less_than_5: assert final ($isunknown(nand_215) || nand_215) else $fatal(0, "Assertion failure via assert! @ xls/examples/assertions/assertions.x:21:12-21:40");
   `endif  // SYNTHESIS
   `endif  // ASSERT_ON
 endmodule
