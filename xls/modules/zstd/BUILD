@@ -5193,3 +5193,119 @@ xls_dslx_fmt_test(
     name = "comp_block_enc_fmt_test",
     src = "comp_block_enc.x"
 )
+
+xls_dslx_library(
+    name = "huffman_algorithm_dslx",
+    srcs = [
+        "huffman_algorithm.x",
+    ],
+    deps = [
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "huffman_algorithm_dslx_test",
+    library = "huffman_algorithm_dslx",
+)
+
+HUFFMAN_INITIAL_TREE_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "huffman_initial_tree",
+}
+
+xls_dslx_verilog(
+    name = "huffman_initial_tree_verilog",
+    codegen_args = HUFFMAN_INITIAL_TREE_CODEGEN_ARGS,
+    dslx_top = "huffman_initial_tree_inst",
+    library = ":huffman_algorithm_dslx",
+    tags = ["manual"],
+    verilog_file = "huffman_initial_tree.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_initial_tree_opt_ir_benchmark",
+    src = ":huffman_initial_tree_verilog.opt.ir",
+    benchmark_ir_args = HUFFMAN_INITIAL_TREE_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+HUFFMAN_GET_PREFIXES_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "huffman_get_prefixes",
+}
+
+xls_dslx_verilog(
+    name = "huffman_get_prefixes_verilog",
+    codegen_args = HUFFMAN_GET_PREFIXES_CODEGEN_ARGS,
+    dslx_top = "huffman_get_prefixes_inst",
+    library = ":huffman_algorithm_dslx",
+    tags = ["manual"],
+    verilog_file = "huffman_get_prefixes.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_get_prefixes_opt_ir_benchmark",
+    src = ":huffman_get_prefixes_verilog.opt.ir",
+    benchmark_ir_args = HUFFMAN_GET_PREFIXES_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+HUFFMAN_BUILD_TREE_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "huffman_build_tree",
+}
+
+xls_dslx_verilog(
+    name = "huffman_build_tree_verilog",
+    codegen_args = HUFFMAN_BUILD_TREE_CODEGEN_ARGS,
+    dslx_top = "huffman_build_tree_inst",
+    library = ":huffman_algorithm_dslx",
+    tags = ["manual"],
+    verilog_file = "huffman_build_tree.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_build_tree_opt_ir_benchmark",
+    src = ":huffman_build_tree_verilog.opt.ir",
+    benchmark_ir_args = HUFFMAN_BUILD_TREE_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+HUFFMAN_TREE_TO_TABLE_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "huffman_tree_to_table",
+    "clock_period_ps": "2000"
+}
+
+xls_dslx_verilog(
+    name = "huffman_tree_to_table_verilog",
+    codegen_args = HUFFMAN_TREE_TO_TABLE_CODEGEN_ARGS,
+    dslx_top = "huffman_tree_to_table_inst",
+    library = ":huffman_algorithm_dslx",
+    tags = ["manual"],
+    verilog_file = "huffman_tree_to_table.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_tree_to_table_opt_ir_benchmark",
+    src = ":huffman_tree_to_table_verilog.opt.ir",
+    benchmark_ir_args = HUFFMAN_TREE_TO_TABLE_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+HUFFMAN_MAX_NBITS_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "huffman_max_nbits",
+}
+
+xls_dslx_verilog(
+    name = "huffman_max_nbits_verilog",
+    codegen_args = HUFFMAN_MAX_NBITS_CODEGEN_ARGS,
+    dslx_top = "huffman_max_nbits_inst",
+    library = ":huffman_algorithm_dslx",
+    tags = ["manual"],
+    verilog_file = "huffman_max_nbits.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_max_nbits_opt_ir_benchmark",
+    src = ":huffman_max_nbits_verilog.opt.ir",
+    benchmark_ir_args = HUFFMAN_MAX_NBITS_CODEGEN_ARGS,
+    tags = ["manual"],
+)
