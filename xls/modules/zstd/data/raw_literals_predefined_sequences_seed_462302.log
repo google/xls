@@ -1,0 +1,21 @@
+seed: 462302
+frame seed: 462302
+ frame content size:	27
+ frame window size:	11264
+ content size flag:	1
+ single segment flag:	0
+ block:
+  block content size: 27
+  last block: yes
+  compressed block:
+   raw literals
+   literals size: 6
+    total match lengths: 21
+      LL:     1 OF:     1 ML:    18 srcPos:       19 seqNb:   0
+      LL:     5 OF:    16 ML:     3 srcPos:       27 seqNb:   1
+      excess literals:     0 srcPos:       27 
+    LL type: 0 OF type: 0 ML type: 0
+   number of sequences: 2
+  block type: compressed
+  block size field: 14
+  checksum: 8eb0243a

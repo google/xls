@@ -1,0 +1,80 @@
+seed: 400077
+frame seed: 400077
+ frame content size:	233
+ frame window size:	26624
+ content size flag:	1
+ single segment flag:	0
+ block:
+  block content size: 109
+  last block: no
+  compressed block:
+   compressed literals
+    distribution weight: 56%
+     huffman log: 11
+    regenerated size: 44
+    compressed size: 44
+     trying again
+    distribution weight: 16%
+     huffman log: 11
+    regenerated size: 40
+    compressed size: 72
+     trying again
+    distribution weight: 87%
+     huffman log: 10
+    regenerated size: 32
+    compressed size: 27
+   literals size: 32
+    total match lengths: 77
+      LL:     3 OF:     3 ML:    12 srcPos:       15 seqNb:   0
+      LL:     3 OF:    15 ML:    37 srcPos:       55 seqNb:   1
+      LL:    19 OF:    67 ML:     4 srcPos:       78 seqNb:   2
+      LL:     7 OF:    23 ML:     4 srcPos:       89 seqNb:   3
+      LL:     0 OF:    21 ML:    20 srcPos:      109 seqNb:   4
+      excess literals:     0 srcPos:      109 
+    LL type: 2 OF type: 2 ML type: 2
+   number of sequences: 5
+  block type: compressed
+  block size field: 60
+ block:
+  block content size: 16
+  last block: no
+  compressed block:
+   rle literals: 0x31
+   literals size: 16
+    total match lengths: 0
+      excess literals:    16 srcPos:      125 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+ block:
+  block content size: 100
+  last block: no
+  compressed block:
+   compressed literals
+    huffman repeat stats
+    regenerated size: 63
+    compressed size: 18
+   literals size: 63
+    total match lengths: 37
+      LL:     4 OF:   127 ML:     3 srcPos:      132 seqNb:   0
+      LL:    11 OF:    36 ML:     5 srcPos:      148 seqNb:   1
+      LL:    48 OF:    30 ML:    11 srcPos:      207 seqNb:   2
+      LL:     0 OF:     1 ML:    15 srcPos:      222 seqNb:   3
+      LL:     0 OF:    11 ML:     3 srcPos:      225 seqNb:   4
+      excess literals:     0 srcPos:      225 
+    LL type: 2 OF type: 2 ML type: 2
+   number of sequences: 5
+  block type: compressed
+  block size field: 50
+ block:
+  block content size: 8
+  last block: yes
+  compressed block:
+   rle literals: 0xd8
+   literals size: 8
+    total match lengths: 0
+      excess literals:     8 srcPos:      233 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+  checksum: 9e8dd98a

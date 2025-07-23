@@ -50,12 +50,14 @@ def run_test(toplevel, test_module, verilog_sources):
     waves=True,
   )
 
-  results_xml = runner.test(
-     hdl_toplevel=toplevel,
-     test_module=test_module,
-     waves=True,
-  )
-  check_results_file(results_xml)
+  try:
+    results_xml = runner.test(
+       hdl_toplevel=toplevel,
+       test_module=test_module,
+       waves=True,
+    )
+  finally:
+    check_results_file(results_xml)
 
 @cocotb.coroutine
 async def reset(clk, rst, cycles=1):

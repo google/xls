@@ -1,0 +1,37 @@
+seed: 406229
+frame seed: 406229
+ frame content size:	83
+ frame window size:	57344
+ content size flag:	1
+ single segment flag:	0
+ block:
+  block content size: 76
+  last block: no
+  compressed block:
+   rle literals: 0xba
+   literals size: 49
+    total match lengths: 27
+      LL:     1 OF:     1 ML:     6 srcPos:        7 seqNb:   0
+      LL:    14 OF:    16 ML:     4 srcPos:       25 seqNb:   1
+      LL:    15 OF:    27 ML:     4 srcPos:       44 seqNb:   2
+      LL:     5 OF:    16 ML:     4 srcPos:       53 seqNb:   3
+        repeat offset: 1
+      LL:    14 OF:    23 ML:     6 srcPos:       73 seqNb:   4
+      LL:     0 OF:    20 ML:     3 srcPos:       76 seqNb:   5
+      excess literals:     0 srcPos:       76 
+    LL type: 0 OF type: 0 ML type: 0
+   number of sequences: 6
+  block type: compressed
+  block size field: 19
+ block:
+  block content size: 7
+  last block: yes
+  compressed block:
+   rle literals: 0x27
+   literals size: 7
+    total match lengths: 0
+      excess literals:     7 srcPos:       83 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+  checksum: e20e662f

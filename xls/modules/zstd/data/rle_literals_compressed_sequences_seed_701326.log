@@ -1,0 +1,87 @@
+seed: 701326
+frame seed: 701326
+ frame content size:	28
+ frame window size:	11264
+ content size flag:	1
+ single segment flag:	0
+ block:
+  block content size: 1
+  last block: no
+  compressed block:
+   rle literals: 0xf3
+   literals size: 1
+    total match lengths: 0
+      excess literals:     1 srcPos:        1 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+ block:
+  block content size: 3
+  last block: no
+  compressed block:
+   rle literals: 0x08
+   literals size: 3
+    total match lengths: 0
+      excess literals:     3 srcPos:        4 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+ block:
+  block content size: 18
+  last block: no
+  compressed block:
+   rle literals: 0x62
+   literals size: 7
+    total match lengths: 11
+      LL:     0 OF:     1 ML:     3 srcPos:        7 seqNb:   0
+      LL:     4 OF:    11 ML:     8 srcPos:       19 seqNb:   1
+      excess literals:     3 srcPos:       22 
+    LL type: 2 OF type: 2 ML type: 2
+   number of sequences: 2
+  block type: compressed
+  block size field: 22
+ block:
+  block content size: 2
+  last block: no
+  compressed block:
+   rle literals: 0x90
+   literals size: 2
+    total match lengths: 0
+      excess literals:     2 srcPos:       24 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+ block:
+  block content size: 0
+  last block: no
+  compressed block:
+   rle literals: 0xfd
+   literals size: 0
+    total match lengths: 0
+      excess literals:     0 srcPos:       24 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+ block:
+  block content size: 1
+  last block: no
+  compressed block:
+   rle literals: 0xab
+   literals size: 1
+    total match lengths: 0
+      excess literals:     1 srcPos:       25 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+ block:
+  block content size: 3
+  last block: yes
+  compressed block:
+   rle literals: 0x2d
+   literals size: 3
+    total match lengths: 0
+      excess literals:     3 srcPos:       28 
+   number of sequences: 0
+  block type: compressed
+  block size field: 3
+  checksum: 08dc0268
