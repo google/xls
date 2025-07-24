@@ -33,15 +33,22 @@ bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
 bazel_dep(name = "riegeli", version = "0.0.0-20241218-3385e3c")
 bazel_dep(name = "rules_cc", version = "0.1.2")
 bazel_dep(name = "rules_license", version = "1.0.0")
-bazel_dep(name = "rules_pkg", version = "1.0.1")
 bazel_dep(name = "rules_proto", version = "7.1.0")
 bazel_dep(name = "verible", version = "0.0.3933")
+
+# Used both by XLS and rules_hdl.
+bazel_dep(name = "rules_pkg", version = "1.0.1")
 
 # Workaround suggested by a Bazel team member; only needed for WORKSPACE to work correctly.
 # TODO: https://github.com/google/xls/issues/931 - Remove this workaround once the WORKSPACE file is migrated to MODULE.bazel.
 proto_bazel_features = use_repo_rule("@com_google_protobuf//bazel/private:proto_bazel_features.bzl", "proto_bazel_features")
 
 proto_bazel_features(name = "proto_bazel_features")
+
+# rules_hdl deps with bzlmod support.
+bazel_dep(name = "rules_bison", version = "0.3")
+bazel_dep(name = "rules_flex", version = "0.3")
+bazel_dep(name = "rules_m4", version = "0.3")
 
 # Dev dependencies
 bazel_dep(name = "fuzztest", version = "20250214.0", dev_dependency = True, repo_name = "com_google_fuzztest")
@@ -51,8 +58,6 @@ bazel_dep(name = "googletest", version = "1.15.2", dev_dependency = True)
 # Repositories we don't really depend on directly, but we need to provide
 # for other dependencies as they are using old versions that are not
 # compatible with current bazel.
-bazel_dep(name = "rules_bison", version = "0.3")
-bazel_dep(name = "rules_flex", version = "0.3")
 bazel_dep(name = "rules_java", version = "8.7.2")
 bazel_dep(name = "protoc-gen-validate", version = "1.2.1.bcr.1")
 
