@@ -22,6 +22,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
@@ -49,6 +50,7 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::testing::Eq;
 
@@ -1463,6 +1465,48 @@ TEST_P(SelectSimplificationPassTest, NarrowWithRangeAnalysis) {
               m::SignExt(m::Select(m::Param("d"),
                                    {m::BitSlice(m::Literal()),
                                     m::BitSlice(m::SignExt(m::Select()))})));
+}
+
+// Regression test for https://github.com/google/xls/issues/2673; checks that we
+// work correctly (and don't crash) when processing a single-bit select with a
+// default value. (This is usually canonicalized to two cases first, but we
+// can handle it correctly either way... and with enough other noise in the
+// program, it isn't always canonicalized.)
+TEST_P(SelectSimplificationPassTest, SingleBitSelectWithDefaultRegression) {
+  const std::string program = R"(
+fn FuzzTest(p0: bits[1] id=1, p6: bits[64] id=12) -> bits[1] {
+  literal.6: bits[1] = literal(value=0, id=6)
+  eq.7: bits[1] = eq(p0, literal.6, id=7)
+  concat.8: bits[1] = concat(eq.7, id=8)
+  not.28: bits[1] = not(p0, id=28)
+  literal.4: bits[1] = literal(value=0, id=4)
+  not.32: bits[1] = not(concat.8, id=32)
+  literal.2: bits[1] = literal(value=0, id=2)
+  literal.13: bits[64] = literal(value=0, id=13)
+  literal.14: bits[64] = literal(value=0, id=14)
+  and.27: bits[1] = and(p0, p0, id=27)
+  and.29: bits[1] = and(not.28, literal.4, id=29)
+  and.31: bits[1] = and(concat.8, literal.6, id=31)
+  and.33: bits[1] = and(not.32, p0, id=33)
+  nand.3: bits[1] = nand(literal.2, id=3)
+  sel.5: bits[1] = sel(p0, cases=[literal.4], default=p0, id=5)
+  priority_sel.9: bits[1] = priority_sel(concat.8, cases=[literal.6], default=p0, id=9)
+  zero_ext.10: bits[1] = zero_ext(p0, new_bit_count=1, id=10)
+  sgt.11: bits[1] = sgt(p0, p0, id=11)
+  priority_sel.15: bits[64] = priority_sel(p0, cases=[literal.13], default=literal.14, id=15)
+  or.30: bits[1] = or(and.27, and.29, id=30)
+  or.34: bits[1] = or(and.31, and.33, id=34)
+  literal.35: bits[64] = literal(value=0, id=35)
+  ret or_reduce.16: bits[1] = or_reduce(p0, id=16)
+})";
+
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(f), IsOk());
 }
 
 INSTANTIATE_TEST_SUITE_P(SelectSimplificationPassTest,

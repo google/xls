@@ -1364,10 +1364,11 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     std::optional<Node*> on_false;
     if (node->Is<Select>()) {
       Select* select = node->As<Select>();
-      XLS_RET_CHECK(!select->default_value().has_value()) << select->ToString();
       s = select->selector();
-      on_true = select->get_case(1);
       on_false = select->get_case(0);
+      on_true = select->default_value().has_value()
+                    ? select->default_value().value()
+                    : select->get_case(1);
     } else if (node->Is<PrioritySelect>()) {
       s = node->As<PrioritySelect>()->selector();
       on_true = node->As<PrioritySelect>()->get_case(0);
