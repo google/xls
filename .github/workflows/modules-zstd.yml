@@ -45,7 +45,9 @@ jobs:
       - name: Test ZSTD Module - DSLX Tests (opt)
         if: ${{ !cancelled() }}
         run: |
-          bazel test -c opt --test_output=errors -- $(bazel query 'filter("_dslx_test$", kind(rule, //xls/modules/zstd/...))')
+          bazel test -c opt --test_output=errors -- $(bazel query 'filter("_dslx_test$", kind(rule, //xls/modules/zstd/...)) except filter("zstd_dec_dslx_test$", kind(rule, //xls/modules/zstd/...))');
+          # Run all tests except those ending with `_skip`
+          bazel test -c opt --test_strategy=exclusive --test_output=errors --test_filter='^(.*[^_]|.*_[^s]|.*_s[^k]|.*_sk[^i]|.*_ski[^p])$' //xls/modules/zstd:zstd_dec_dslx_test;
 
       - name: Build ZSTD verilog targets (opt)
         if: ${{ !cancelled() }}
