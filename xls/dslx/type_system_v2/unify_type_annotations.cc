@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -76,6 +77,39 @@ const TypeAnnotation* SignednessAndSizeToAnnotation(
 
   return CreateUnOrSnAnnotation(module, span, signedness_and_size.is_signed,
                                 signedness_and_size.size);
+}
+
+// Returns the first annotation from `annotations` that is flagged as a slice
+// container type. If there is no such annotation, returns `nullopt`.
+std::optional<const TypeAnnotation*> GetSliceContainerSize(
+    const InferenceTable& table,
+    const std::vector<const TypeAnnotation*>& annotations) {
+  for (const TypeAnnotation* annotation : annotations) {
+    if (table.GetAnnotationFlag(annotation)
+            .HasFlag(TypeInferenceFlag::kSliceContainerSize)) {
+      return annotation;
+    }
+  }
+  return std::nullopt;
+}
+
+absl::Status MinSizeLargerThanStandardSizeError(
+    const TypeAnnotation* min_annotation, const SignednessAndSize& min,
+    const SignednessAndSize& standard, const FileTable& file_table) {
+  std::string message;
+  if (standard.flag.HasFlag(TypeInferenceFlag::kSliceContainerSize)) {
+    message = absl::Substitute(
+        "Inferred type of slice bound ($0 bits) is too large for slicing an "
+        "array of size $1",
+        min.size, standard.size);
+  } else {
+    message = absl::Substitute(
+        "Value is too large ($0 bits); at most $1 bits "
+        "can be used here.",
+        min.size, standard.size);
+  }
+  return TypeInferenceErrorStatusForAnnotation(
+      min_annotation->span(), min_annotation, message, file_table);
 }
 
 class Unifier {
@@ -507,13 +541,23 @@ class Unifier {
     const TypeAnnotation* prior_annotation = annotations[0];
     for (int i = 0; i < annotations.size(); ++i) {
       const TypeAnnotation* current_annotation = annotations[i];
-      XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
-                           GetSignednessAndBitCountWithUserFacingError(
-                               current_annotation, file_table_, [&] {
-                                 return error_generator_.TypeMismatchError(
-                                     parametric_context_, current_annotation,
-                                     annotations[0]);
-                               }));
+      XLS_ASSIGN_OR_RETURN(
+          SignednessAndBitCountResult signedness_and_bit_count,
+          GetSignednessAndBitCountWithUserFacingError(
+              current_annotation, file_table_, [&] {
+                std::optional<const TypeAnnotation*> slice_container_size =
+                    GetSliceContainerSize(table_, annotations);
+                if (slice_container_size.has_value()) {
+                  return TypeInferenceErrorStatus(
+                      current_annotation->span(), /*type=*/nullptr,
+                      absl::Substitute(
+                          "Expected slice bound to be bits-typed; got `$0`",
+                          current_annotation->ToString()),
+                      file_table_);
+                }
+                return error_generator_.TypeMismatchError(
+                    parametric_context_, current_annotation, annotations[0]);
+              }));
 
       XLS_ASSIGN_OR_RETURN(
           bool current_annotation_signedness,
@@ -618,21 +662,29 @@ class Unifier {
           update_annotation(*x, x_annotation));
     };
     if (x_is_min || y_is_min) {
-      SignednessAndSize& auto_value = x_is_min ? *x : y;
-      SignednessAndSize& explicit_value = x_is_min ? y : *x;
-      if (auto_value.is_signed && !explicit_value.is_signed) {
+      SignednessAndSize& min_type = x_is_min ? *x : y;
+      SignednessAndSize& non_min_type = x_is_min ? y : *x;
+      if (min_type.is_signed && !non_min_type.is_signed) {
         return signedness_mismatch_error();
       }
-      if (!auto_value.is_signed && explicit_value.is_signed &&
+      if (!min_type.is_signed && non_min_type.is_signed &&
           (x_is_min ? !x_has_prefix : !y_has_prefix)) {
         // An auto value being coerced to be signed needs to be extended for the
         // same reason as above.
-        auto_value.is_signed = true;
-        ++auto_value.size;
+        min_type.is_signed = true;
+        ++min_type.size;
       }
-      if (explicit_value.size >= auto_value.size) {
-        return explicit_value;
+      if (non_min_type.size >= min_type.size) {
+        return non_min_type;
       }
+
+      if (non_min_type.flag.HasFlag(TypeInferenceFlag::kStandardType)) {
+        const TypeAnnotation* min_annotation =
+            x_is_min ? x_annotation : y_annotation;
+        return MinSizeLargerThanStandardSizeError(min_annotation, min_type,
+                                                  non_min_type, file_table_);
+      }
+
       return bit_count_mismatch_error();
     }
 
@@ -647,11 +699,11 @@ class Unifier {
     }
 
     // In all other cases, they must match.
-    if (x->size != y.size) {
-      return bit_count_mismatch_error();
-    }
     if (x->is_signed != y.is_signed) {
       return signedness_mismatch_error();
+    }
+    if (x->size != y.size) {
+      return bit_count_mismatch_error();
     }
     return *x;
   }

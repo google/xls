@@ -1103,10 +1103,10 @@ absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
   // bit_count and element_count are similar to array_size, but use the
   // parametric argument rather than a value.
   if (fn_name == "bit_count" || fn_name == "element_count") {
-    CHECK_EQ(invocation->explicit_parametrics().size(), 1);
+    XLS_RET_CHECK_EQ(invocation->explicit_parametrics().size(), 1);
     std::optional<const Type*> explicit_parametric_type = ti->GetItem(
         std::get<TypeAnnotation*>(invocation->explicit_parametrics()[0]));
-    CHECK(explicit_parametric_type.has_value());
+    XLS_RET_CHECK(explicit_parametric_type.has_value());
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         fn_name == "element_count"

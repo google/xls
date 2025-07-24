@@ -1234,9 +1234,12 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
                                                           lhs_tvta, slice));
             },
             [&](WidthSlice* width_slice) -> absl::Status {
-              return table_.SetTypeAnnotation(
+              table_.SetAnnotationFlag(lhs_tvta,
+                                       TypeInferenceFlag::kBitsLikeType);
+              XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
                   node, module_.Make<SliceTypeAnnotation>(
-                            node->span(), lhs_tvta, width_slice));
+                            node->span(), lhs_tvta, width_slice)));
+              return HandleWidthSliceInternal(lhs_tvta, width_slice);
             },
             [&](Expr* expr) -> absl::Status {
               // A node like `array[i]` is basically a binary operator with
@@ -1267,6 +1270,14 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   }
 
   absl::Status HandleWidthSlice(const WidthSlice* node) override {
+    // We handle this out-of-band via `HandleWidthSliceInternal` while looking
+    // at the `Index` node that contains the slice, because the default type of
+    // the slice index depends on the type of the container being sliced.
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleWidthSliceInternal(TypeVariableTypeAnnotation* lhs_tvta,
+                                        const WidthSlice* node) {
     // A width slice uses an unsigned start index.
     Expr* start = node->start();
     XLS_ASSIGN_OR_RETURN(
@@ -1276,9 +1287,22 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
             GenerateInternalTypeVariableName(start) + "_width_slice_start"));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(start, start_variable));
 
-    const TypeAnnotation* u32 = CreateU32Annotation(module_, start->span());
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(start, u32));
-    table_.SetAnnotationFlag(u32, TypeInferenceFlag::kStandardType);
+    Expr* lhs_element_count = CreateElementCountInvocation(module_, lhs_tvta);
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* element_count_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, lhs_element_count,
+            GenerateInternalTypeVariableName(lhs_element_count)));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(lhs_element_count, element_count_variable));
+    XLS_RETURN_IF_ERROR(lhs_element_count->Accept(this));
+
+    const TypeAnnotation* rhs_standard_type = CreateUnOrSnAnnotation(
+        module_, lhs_tvta->span(), /*is_signed=*/false, lhs_element_count);
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(start, rhs_standard_type));
+    TypeInferenceFlag flag = TypeInferenceFlag::kStandardType;
+    flag.SetFlag(TypeInferenceFlag::kSliceContainerSize);
+    table_.SetAnnotationFlag(rhs_standard_type, flag);
     return DefaultHandler(node);
   }
 

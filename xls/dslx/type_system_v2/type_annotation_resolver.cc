@@ -207,7 +207,8 @@ class StatefulResolver : public TypeAnnotationResolver {
       }
       absl::StatusOr<const TypeAnnotation*> result =
           ResolveAndUnifyTypeAnnotations(parametric_context, *type_variable,
-                                         *node_span, filter);
+                                         *node_span, filter,
+                                         /*require_bits_like=*/false);
       if (result.ok()) {
         trace.SetResult(*result);
       }
@@ -221,7 +222,8 @@ class StatefulResolver : public TypeAnnotationResolver {
         XLS_ASSIGN_OR_RETURN(
             const TypeAnnotation* result,
             ResolveAndUnifyTypeAnnotations(parametric_context, {*annotation},
-                                           *node->GetSpan(), filter));
+                                           *node->GetSpan(), filter,
+                                           /*require_bits_like=*/false));
         trace.SetResult(result);
         return result;
       }
@@ -236,7 +238,7 @@ class StatefulResolver : public TypeAnnotationResolver {
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* type_variable, const Span& span,
-      TypeAnnotationFilter filter) override {
+      TypeAnnotationFilter filter, bool require_bits_like) override {
     TypeSystemTrace trace = tracer_.TraceUnify(type_variable);
     VLOG(6) << "Unifying type annotations for variable "
             << type_variable->ToString();
@@ -245,7 +247,7 @@ class StatefulResolver : public TypeAnnotationResolver {
     if (type_variable->owner() != &module_) {
       XLS_ASSIGN_OR_RETURN(auto new_resolver, ResolverForNode(type_variable));
       return new_resolver->ResolveAndUnifyTypeAnnotations(
-          parametric_context, type_variable, span, filter);
+          parametric_context, type_variable, span, filter, require_bits_like);
     }
 
     const NameDef* type_variable_def =
@@ -254,7 +256,7 @@ class StatefulResolver : public TypeAnnotationResolver {
     if (it != temp_cache_.end()) {
       VLOG(6) << "Using request-scoped cached type for "
               << type_variable->ToString();
-      return it->second;
+      return CheckBitsLikeForDirectAnnotation(it->second, require_bits_like);
     }
 
     std::optional<const TypeAnnotation*> cached =
@@ -264,7 +266,7 @@ class StatefulResolver : public TypeAnnotationResolver {
       VLOG(6) << "Using cached type for " << type_variable->ToString();
       trace.SetUsedCache(true);
       trace.SetResult(*cached);
-      return *cached;
+      return CheckBitsLikeForDirectAnnotation(*cached, require_bits_like);
     }
 
     XLS_ASSIGN_OR_RETURN(
@@ -294,7 +296,8 @@ class StatefulResolver : public TypeAnnotationResolver {
             TypeAnnotationFilter::CaptureRejectCount(&reject_count)
                 .Chain(TypeAnnotationFilter::CaptureVariables(
                     &variables_traversed))
-                .Chain(filter)));
+                .Chain(filter),
+            require_bits_like));
     VLOG(6) << "Unified type for variable " << type_variable->ToString() << ": "
             << result->ToString();
     trace.SetResult(result);
@@ -320,9 +323,18 @@ class StatefulResolver : public TypeAnnotationResolver {
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*> annotations, const Span& span,
-      TypeAnnotationFilter filter) override {
+      TypeAnnotationFilter filter, bool require_bits_like) override {
     XLS_RETURN_IF_ERROR(ResolveIndirectTypeAnnotations(parametric_context,
                                                        annotations, filter));
+
+    if (require_bits_like) {
+      for (const TypeAnnotation* annotation : annotations) {
+        XLS_RETURN_IF_ERROR(
+            CheckBitsLikeForDirectAnnotation(annotation, require_bits_like)
+                .status());
+      }
+    }
+
     TypeSystemTrace trace = tracer_.TraceUnify(annotations);
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* result,
@@ -411,6 +423,22 @@ class StatefulResolver : public TypeAnnotationResolver {
   }
 
  private:
+  // Makes sure the given direct annotation is bits-like if `require_bits_like`
+  // is true. This function presumes `annotation` is post-resolution. Returns
+  // the passed-in annotation if it passes the check.
+  absl::StatusOr<const TypeAnnotation*> CheckBitsLikeForDirectAnnotation(
+      const TypeAnnotation* annotation, bool require_bits_like) {
+    if (!require_bits_like ||
+        GetSignednessAndBitCount(annotation, false).ok()) {
+      return annotation;
+    }
+    return TypeInferenceErrorStatusForAnnotation(
+        annotation->span(), annotation,
+        absl::Substitute("Expected a bits-like type; got: `$0`",
+                         annotation->ToString()),
+        file_table_);
+  }
+
   // Converts `member_type` into a regular `TypeAnnotation` that expresses the
   // type of the given struct member independently of the struct type. For
   // example, if `member_type` refers to `SomeStruct.foo`, and the type
@@ -738,21 +766,25 @@ class StatefulResolver : public TypeAnnotationResolver {
       : public AstNodeVisitorWithDefault {
    public:
     ReplaceIndirectTypeAnnotationsVisitor(
-        Module& module, StatefulResolver& resolver,
+        Module& module, const InferenceTable& table, StatefulResolver& resolver,
         std::optional<const ParametricContext*> parametric_context,
         TypeAnnotationFilter filter)
         : module_(module),
+          table_(table),
           resolver_(resolver),
           parametric_context_(parametric_context),
           filter_(filter) {}
 
     absl::Status HandleTypeVariableTypeAnnotation(
         const TypeVariableTypeAnnotation* variable_type_annotation) override {
+      const bool require_bits_like =
+          table_.GetAnnotationFlag(variable_type_annotation)
+              .HasFlag(TypeInferenceFlag::kBitsLikeType);
       XLS_ASSIGN_OR_RETURN(
           result_,
           resolver_.ResolveAndUnifyTypeAnnotations(
               parametric_context_, variable_type_annotation->type_variable(),
-              variable_type_annotation->span(), filter_));
+              variable_type_annotation->span(), filter_, require_bits_like));
       return absl::OkStatus();
     }
 
@@ -820,6 +852,7 @@ class StatefulResolver : public TypeAnnotationResolver {
 
    private:
     Module& module_;
+    const InferenceTable& table_;
     StatefulResolver& resolver_;
     std::optional<const ParametricContext*> parametric_context_;
     TypeAnnotationFilter filter_;
@@ -832,7 +865,7 @@ class StatefulResolver : public TypeAnnotationResolver {
       const AstNode* node,
       std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation, TypeAnnotationFilter filter) {
-    ReplaceIndirectTypeAnnotationsVisitor visitor(module_, *this,
+    ReplaceIndirectTypeAnnotationsVisitor visitor(module_, table_, *this,
                                                   parametric_context, filter);
     XLS_RETURN_IF_ERROR(node->Accept(&visitor));
     return visitor.result();
@@ -1032,17 +1065,17 @@ class StatelessResolver : public TypeAnnotationResolver {
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* type_variable, const Span& span,
-      TypeAnnotationFilter filter) final {
+      TypeAnnotationFilter filter, bool require_bits_like) final {
     return CreateStatefulResolver()->ResolveAndUnifyTypeAnnotations(
-        parametric_context, type_variable, span, filter);
+        parametric_context, type_variable, span, filter, require_bits_like);
   }
 
   absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*> annotations, const Span& span,
-      TypeAnnotationFilter filter) final {
+      TypeAnnotationFilter filter, bool require_bits_like) final {
     return CreateStatefulResolver()->ResolveAndUnifyTypeAnnotations(
-        parametric_context, annotations, span, filter);
+        parametric_context, annotations, span, filter, require_bits_like);
   }
 
   absl::StatusOr<const TypeAnnotation*> ResolveIndirectTypeAnnotations(

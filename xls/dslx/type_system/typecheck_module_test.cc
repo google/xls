@@ -1986,10 +1986,10 @@ fn bar() -> bits[1] {
 )"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          AllOf(
-              HasSubstrInV1(GetParam(), "Cannot fit slice start 4 in 2 bits"),
-              HasSubstrInV2(GetParam(),
-                            "Slice range out of bounds for array of size 2"))));
+          AllOf(HasSubstrInV1(GetParam(), "Cannot fit slice start 4 in 2 bits"),
+                HasSubstrInV2(GetParam(),
+                              "Inferred type of slice bound (3 bits) is too "
+                              "large for slicing an array of size 2"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, NonParametricCallInParametricExpr) {
@@ -2862,7 +2862,9 @@ TEST_P(TypecheckBothVersionsTest, SliceWithNonS32LiteralBounds) {
                          GetParam(),
                          "Value '40000000000000000000' does not fit in the "
                          "bitwidth of a sN[32]"),
-                     HasSizeMismatchInV2(GetParam(), "s32", "sN[67]"))));
+                     HasSubstrInV2(GetParam(),
+                                   "Value is too large (67 bits); at most 32 "
+                                   "bits can be used here."))));
   // overlarge value in limit
   EXPECT_THAT(
       Typecheck("fn f(x: uN[128]) -> uN[128] { x[:40000000000000000000] }"),
@@ -2871,7 +2873,9 @@ TEST_P(TypecheckBothVersionsTest, SliceWithNonS32LiteralBounds) {
                          GetParam(),
                          "Value '40000000000000000000' does not fit in the "
                          "bitwidth of a sN[32]"),
-                     HasSizeMismatchInV2(GetParam(), "s32", "sN[67]"))));
+                     HasSubstrInV2(GetParam(),
+                                   "Value is too large (67 bits); at most 32 "
+                                   "bits can be used here."))));
 }
 
 TEST_P(TypecheckBothVersionsTest, WidthSlices) {
@@ -2944,20 +2948,25 @@ TEST_P(TypecheckBothVersionsTest, WidthSliceSignedStart) {
 TEST_P(TypecheckBothVersionsTest, WidthSliceTupleStart) {
   EXPECT_THAT(
       Typecheck("fn f(start: (s32), x: u32) -> u3 { x[start+:u3] }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               AllOf(HasSubstrInV1(
-                         GetParam(),
-                         "Start expression for width slice must be bits typed"),
-                     HasTypeMismatchInV2(GetParam(), "(s32,)", "u32"))));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(
+                    GetParam(),
+                    "Start expression for width slice must be bits typed"),
+                HasSubstrInV2(
+                    GetParam(),
+                    "Expected slice bound to be bits-typed; got `(s32,)`"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, WidthSliceTupleSubject) {
   EXPECT_THAT(
       Typecheck("fn f(start: s32, x: (u32)) -> u3 { x[start+:u3] }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               AllOf(HasSubstrInV1(GetParam(),
-                                   "Value to slice is not of 'bits' type"),
-                     HasTypeMismatchInV2(GetParam(), "s32", "u32"))));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(
+              HasSubstrInV1(GetParam(), "Value to slice is not of 'bits' type"),
+              HasSubstrInV2(GetParam(),
+                            "Expected a bits-like type; got: `(u32,)`"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, OverlargeWidthSlice) {

@@ -172,6 +172,9 @@ absl::Status VerifyAllParametricsSatisfied(
 CloneReplacer NameRefMapper(
     const absl::flat_hash_map<const NameDef*, ExprOrType>& map);
 
+// Creates an `Expr` representing `element_count<annotation>()`.
+Expr* CreateElementCountInvocation(Module& module, TypeAnnotation* annotation);
+
 // Creates an `Expr` representing `element_count<lhs>() +
 // element_count<rhs>()`.
 Expr* CreateElementCountSum(Module& module, TypeAnnotation* lhs,

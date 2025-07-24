@@ -42,18 +42,6 @@
 #include "xls/ir/number_parser.h"
 
 namespace xls::dslx {
-namespace {
-
-Expr* CreateElementCountInvocation(Module& module, TypeAnnotation* annotation) {
-  NameRef* element_count =
-      module.Make<NameRef>(annotation->span(), "element_count",
-                           module.GetOrCreateBuiltinNameDef("element_count"));
-  return module.Make<Invocation>(annotation->span(), element_count,
-                                 std::vector<Expr*>{},
-                                 std::vector<ExprOrType>{annotation});
-}
-
-}  // namespace
 
 Number* CreateUntypedZero(Module& module, const Span& span) {
   return module.Make<Number>(span, "0", NumberKind::kOther,
@@ -343,6 +331,15 @@ CloneReplacer NameRefMapper(
     }
     return std::nullopt;
   };
+}
+
+Expr* CreateElementCountInvocation(Module& module, TypeAnnotation* annotation) {
+  NameRef* element_count =
+      module.Make<NameRef>(annotation->span(), "element_count",
+                           module.GetOrCreateBuiltinNameDef("element_count"));
+  return module.Make<Invocation>(annotation->span(), element_count,
+                                 std::vector<Expr*>{},
+                                 std::vector<ExprOrType>{annotation});
 }
 
 Expr* CreateElementCountSum(Module& module, TypeAnnotation* lhs,

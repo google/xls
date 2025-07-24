@@ -5621,12 +5621,12 @@ TEST(TypecheckV2Test, WidthSliceOfBitsWithSmallerThanU32Start) {
 
 TEST(TypecheckV2Test, WidthSliceOfBitsWithNegativeStartFails) {
   EXPECT_THAT("const X = 0b100111[-5+:u3];",
-              TypecheckFails(HasSignednessMismatch("s4", "u32")));
+              TypecheckFails(HasSignednessMismatch("s4", "u6")));
 }
 
 TEST(TypecheckV2Test, WidthSliceOfBitsWithSignedStartFails) {
   EXPECT_THAT("const X = 0b100111[s32:2+:u3];",
-              TypecheckFails(HasSignednessMismatch("s32", "u32")));
+              TypecheckFails(HasSignednessMismatch("s32", "u6")));
 }
 
 TEST(TypecheckV2Test, WidthSliceWithNonBitsWidthAnnotationFails) {
@@ -5638,7 +5638,7 @@ TEST(TypecheckV2Test, WidthSliceWithNonBitsWidthAnnotationFails) {
 TEST(TypecheckV2Test, WidthSliceOfNonBitsFails) {
   EXPECT_THAT(
       "const X = [u32:1, u32:2, u32:3][0+:u2];",
-      TypecheckFails(HasSubstr("Value to slice is not of 'bits' type.")));
+      TypecheckFails(HasSubstr("Expected a bits-like type; got: `u32[3]`")));
 }
 
 TEST(TypecheckV2Test, WidthSliceOfSignedBitsFails) {
@@ -5648,7 +5648,7 @@ TEST(TypecheckV2Test, WidthSliceOfSignedBitsFails) {
 
 TEST(TypecheckV2Test, WidthSliceBeforeStartFails) {
   EXPECT_THAT("const X = (u6:0b011100)[-7+:u4];",
-              TypecheckFails(HasSignednessMismatch("s4", "u32")));
+              TypecheckFails(HasSignednessMismatch("s4", "u6")));
 }
 
 TEST(TypecheckV2Test, WidthSliceAfterEndFails) {

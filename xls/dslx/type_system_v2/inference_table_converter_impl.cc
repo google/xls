@@ -809,12 +809,45 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     // Resolve and unify the type information for the node, if it was not
     // pre-unified.
     bool node_is_annotation = false;
+    std::unique_ptr<TypeAnnotationResolver> foreign_resolver;
+    TypeAnnotationResolver* resolver = resolver_.get();
+    if (parametric_context.has_value() &&
+        (*parametric_context)->is_invocation()) {
+      auto details = std::get<ParametricInvocationDetails>(
+          (*parametric_context)->details());
+      if (details.callee->owner() != &module_) {
+        foreign_resolver = TypeAnnotationResolver::Create(
+            *details.callee->owner(), table_, file_table_,
+            /*error_generator=*/*this, /*evaluator=*/*evaluator_,
+            /*parametric_struct_instantiator=*/*this, *tracer_, import_data_,
+            [&](std::optional<const ParametricContext*> parametric_context,
+                const Invocation* invocation) {
+              return TryConvertInvocationForUnification(parametric_context,
+                                                        invocation);
+            });
+        resolver = foreign_resolver.get();
+      }
+    }
     if (!annotation.has_value()) {
       if (node->kind() == AstNodeKind::kTypeAnnotation) {
-        // If the node itself is a `TypeAnnotation`, it doesn't need type
-        // unification.
+        // If the node itself is a `TypeAnnotation`, we can usually use it as
+        // is.
         node_is_annotation = true;
         annotation = down_cast<const TypeAnnotation*>(node);
+
+        // An annotation that is a generic argument, e.g.
+        // `element_count<annotation>()`, may be an internally-fabricated
+        // indirect one that needs resolution. These cannot be written in DSLX
+        // code.
+        if (node->parent() != nullptr &&
+            node->parent()->kind() == AstNodeKind::kInvocation) {
+          XLS_ASSIGN_OR_RETURN(
+              annotation, resolver->ResolveAndUnifyTypeAnnotations(
+                              parametric_context, {*annotation},
+                              (*annotation)->span(), type_annotation_filter,
+                              table_.GetAnnotationFlag(*annotation)
+                                  .HasFlag(TypeInferenceFlag::kBitsLikeType)));
+        }
 
         // Builtin fragments of bits-like types, like `uN` and `xN[true]` have
         // no `Type` conversion. We only convert the complete thing.
@@ -824,26 +857,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       } else {
         // In most cases, come up with a unified type annotation using the
         // table (or the table of the owning module).
-        std::unique_ptr<TypeAnnotationResolver> foreign_resolver;
-        TypeAnnotationResolver* resolver = resolver_.get();
-        if (parametric_context.has_value() &&
-            (*parametric_context)->is_invocation()) {
-          auto details = std::get<ParametricInvocationDetails>(
-              (*parametric_context)->details());
-          if (details.callee->owner() != &module_) {
-            foreign_resolver = TypeAnnotationResolver::Create(
-                *details.callee->owner(), table_, file_table_,
-                /*error_generator=*/*this, /*evaluator=*/*evaluator_,
-                /*parametric_struct_instantiator=*/*this, *tracer_,
-                import_data_,
-                [&](std::optional<const ParametricContext*> parametric_context,
-                    const Invocation* invocation) {
-                  return TryConvertInvocationForUnification(parametric_context,
-                                                            invocation);
-                });
-            resolver = foreign_resolver.get();
-          }
-        }
         XLS_ASSIGN_OR_RETURN(
             annotation, resolver->ResolveAndUnifyTypeAnnotationsForNode(
                             parametric_context, node, type_annotation_filter));
@@ -1709,7 +1722,8 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           const TypeAnnotation* actual_arg_type,
           resolver_->ResolveAndUnifyTypeAnnotations(
               actual_arg_context, actual_arg_annotations,
-              actual_args[i]->span(), caller_type_annotation_filter));
+              actual_args[i]->span(), caller_type_annotation_filter,
+              /*require_bits_like=*/false));
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(actual_arg_type, std::nullopt, actual_arg_context));
       VLOG(5) << "Infer using actual type: " << actual_arg_type->ToString()

@@ -69,13 +69,13 @@ class TypeAnnotationResolver {
   virtual absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* type_variable, const Span& span,
-      TypeAnnotationFilter filter) = 0;
+      TypeAnnotationFilter filter, bool require_bits_like) = 0;
 
   // Overload that resolves and unifies specific type annotations.
   virtual absl::StatusOr<const TypeAnnotation*> ResolveAndUnifyTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*> annotations, const Span& span,
-      TypeAnnotationFilter filter) = 0;
+      TypeAnnotationFilter filter, bool require_bits_like) = 0;
 
   // Returns `annotation` with any indirect annotations resolved into direct
   // annotations. An indirect annotation is an internally-generated one that

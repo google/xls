@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(type_inference_v2)]
+
 // This floating point adder splits the computation into two parallel paths
 // for lower latency. Code based on papers by P.M. Seidel and G. Even:
 //   * "On the design of fast IEEE floating-point adders" (2001)

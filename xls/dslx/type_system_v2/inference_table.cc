@@ -57,6 +57,8 @@ const TypeInferenceFlag TypeInferenceFlag::kNone(0);
 const TypeInferenceFlag TypeInferenceFlag::kMinSize(1);
 const TypeInferenceFlag TypeInferenceFlag::kStandardType(1 << 1);
 const TypeInferenceFlag TypeInferenceFlag::kHasPrefix(1 << 2);
+const TypeInferenceFlag TypeInferenceFlag::kSliceContainerSize(1 << 3);
+const TypeInferenceFlag TypeInferenceFlag::kBitsLikeType(1 << 4);
 
 namespace {
 

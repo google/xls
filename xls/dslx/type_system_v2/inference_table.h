@@ -78,6 +78,14 @@ class TypeInferenceFlag {
   // rather than the quantity of a number.
   static const TypeInferenceFlag kHasPrefix;
 
+  // Used only to refine error messages. It indicates that the size is that of
+  // the container being sliced in a slice operation.
+  static const TypeInferenceFlag kSliceContainerSize;
+
+  // The annotation (e.g. a TVTA) is expected to resolve to a bits-like type;
+  // otherwise, resolution should error.
+  static const TypeInferenceFlag kBitsLikeType;
+
   bool HasFlag(const TypeInferenceFlag& value) const {
     if (value.flags_ == kNone.flags_) {
       return flags_ == kNone.flags_;
@@ -89,9 +97,9 @@ class TypeInferenceFlag {
     flags_ |= value.flags_;
     // Only certain combinations of flags are allowed, all others result in an
     // internal error.
-    // 1. Zero or one flag is set.
+    // 1. Zero or one flag is set (except for error refinement flags).
     // 2. Both kMinSize and kHasPrefix are set.
-    CHECK((flags_ & (flags_ - 1)) == 0 ||
+    CHECK((flags_ & (flags_ - 1) & ~kSliceContainerSize.flags_) == 0 ||
           flags_ == (kMinSize.flags_ | kHasPrefix.flags_));
   }
 
