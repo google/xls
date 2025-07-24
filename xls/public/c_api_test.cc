@@ -2806,4 +2806,56 @@ fn no_token(x: u32) -> u32 {
   EXPECT_EQ(error, nullptr);
 }
 
+TEST(XlsCApiTest, DslxFunctionParamIntrospection) {
+  const char kProgram[] = R"(enum MyE : u3 { A = u3:0, B = u3:1 }
+fn top(x: u32, y: MyE) -> u32 { x }
+)";
+  const char* additional_search_paths[] = {};
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      0);
+  ASSERT_NE(import_data, nullptr);
+
+  xls_dslx_typechecked_module* tm = nullptr;
+  char* error = nullptr;
+  ASSERT_TRUE(xls_dslx_parse_and_typecheck(kProgram, "m.x", "m", import_data,
+                                           &error, &tm))
+      << (error ? error : "");
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(tm, nullptr);
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  int64_t members = xls_dslx_module_get_member_count(module);
+
+  xls_dslx_function* fn = nullptr;
+  for (int64_t i = 0; i < members; ++i) {
+    xls_dslx_module_member* mm = xls_dslx_module_get_member(module, i);
+    fn = xls_dslx_module_member_get_function(mm);
+    if (fn != nullptr) break;
+  }
+  ASSERT_NE(fn, nullptr);
+
+  EXPECT_EQ(xls_dslx_function_get_param_count(fn), 2);
+
+  xls_dslx_param* p0 = xls_dslx_function_get_param(fn, 0);
+  xls_dslx_param* p1 = xls_dslx_function_get_param(fn, 1);
+  ASSERT_NE(p0, nullptr);
+  ASSERT_NE(p1, nullptr);
+
+  char* p0_name = xls_dslx_param_get_name(p0);
+  char* p1_name = xls_dslx_param_get_name(p1);
+  ASSERT_NE(p0_name, nullptr);
+  ASSERT_NE(p1_name, nullptr);
+  EXPECT_STREQ(p0_name, "x");
+  EXPECT_STREQ(p1_name, "y");
+  xls_c_str_free(p0_name);
+  xls_c_str_free(p1_name);
+
+  EXPECT_NE(xls_dslx_param_get_type_annotation(p0), nullptr);
+  EXPECT_NE(xls_dslx_param_get_type_annotation(p1), nullptr);
+
+  xls_dslx_typechecked_module_free(tm);
+  xls_dslx_import_data_free(import_data);
+}
+
 }  // namespace

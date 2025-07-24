@@ -237,6 +237,30 @@ char* xls_dslx_function_get_identifier(struct xls_dslx_function* fn) {
   return xls::ToOwnedCString(result);
 }
 
+int64_t xls_dslx_function_get_param_count(struct xls_dslx_function* fn) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  return static_cast<int64_t>(cpp_function->params().size());
+}
+
+struct xls_dslx_param* xls_dslx_function_get_param(
+    struct xls_dslx_function* fn, int64_t index) {
+  auto* cpp_function = reinterpret_cast<xls::dslx::Function*>(fn);
+  xls::dslx::Param* cpp_param = cpp_function->params().at(index);
+  return reinterpret_cast<xls_dslx_param*>(cpp_param);
+}
+
+char* xls_dslx_param_get_name(struct xls_dslx_param* p) {
+  auto* cpp_param = reinterpret_cast<xls::dslx::Param*>(p);
+  return xls::ToOwnedCString(cpp_param->name_def()->identifier());
+}
+
+struct xls_dslx_type_annotation* xls_dslx_param_get_type_annotation(
+    struct xls_dslx_param* p) {
+  auto* cpp_param = reinterpret_cast<xls::dslx::Param*>(p);
+  xls::dslx::TypeAnnotation* cpp_ta = cpp_param->type_annotation();
+  return reinterpret_cast<xls_dslx_type_annotation*>(cpp_ta);
+}
+
 struct xls_dslx_quickcheck* xls_dslx_module_member_get_quickcheck(
     struct xls_dslx_module_member* member) {
   auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
