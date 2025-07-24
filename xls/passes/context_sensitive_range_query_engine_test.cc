@@ -17,17 +17,21 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
@@ -37,9 +41,11 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value_builder.h"
 #include "xls/passes/predicate_state.h"
+#include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 
 namespace xls {
@@ -387,8 +393,9 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, DeadBranchEq) {
       BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))});
 
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
+  // NB getting the consequent is impossible so we fall back to normal ranges.
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
-            BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
+            BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
   EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()), cond_ist);
 }
 
@@ -417,8 +424,9 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, DeadBranchNe) {
       BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))});
 
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
+  // NB getting the alternate is impossible so we fall back to normal ranges.
   EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
-            BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
+            BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()), cond_ist);
 }
 
@@ -447,8 +455,9 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, DeadBranchCmp) {
       BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))});
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()), cond_ist);
+  // NB Getting the consequent is impossible so we fall back to normal ranges.
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
-            BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
+            BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
 }
 
 TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableLtConstantUseInIf) {
@@ -1781,6 +1790,122 @@ TEST_F(ContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(engine.GetIntervals(sel.node()),
             BitsLTT(sel.node(), {Interval(UBits(0, 16), UBits(1, 16))}));
 }
+
+TEST_F(ContextSensitiveRangeQueryEngineTest,
+       SelectLiteralWithImpossibleBranches) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lit_zero = fb.Literal(UBits(0, 1));
+  BValue sel =
+      fb.Select(lit_zero, absl::Span<BValue const>{fb.Literal(UBits(1, 1))},
+                // NB This identity is actually load-bearing for this test.
+                fb.Identity(lit_zero));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+  // This branch is actually unreachable but we should make sure that the
+  // calculated range is still compatible with its actual range.
+  auto specialized = engine.SpecializeGivenPredicate(
+      {PredicateState(sel.node()->As<Select>(), PredicateState::kDefaultArm)});
+  EXPECT_THAT(
+      specialized->GetTernary(*sel.node()->As<Select>()->default_value())
+          ->Get({}),
+      // Make sure the contextual value does not conflict with the basic
+      // calculation.
+      testing::ElementsAre(
+          testing::AnyOf(TernaryValue::kKnownZero, TernaryValue::kUnknown)));
+}
+
+MATCHER_P(TernaryTreeCompatible, base,
+          absl::StrCat("Interval set tree overlaps with ", base->ToString())) {
+  std::optional<TernaryTreeView> tree = base;
+  const std::optional<SharedTernaryTree>& other = arg;
+  if (!other || !tree) {
+    return true;
+  }
+  auto bool_ltt = leaf_type_tree::Zip<bool, TernaryVector, TernaryVector>(
+      *tree, other->AsView(), [](TernarySpan l, TernarySpan r) -> bool {
+        return ternary_ops::IsCompatible(l, r);
+      });
+  return testing::ExplainMatchResult(testing::Each(testing::IsTrue()),
+                                     bool_ltt.elements(), result_listener);
+}
+MATCHER_P(IntervalTreeCompatible, base,
+          absl::StrCat("Interval set tree overlaps with ", base.ToString())) {
+  IntervalSetTreeView tree = base;
+  const IntervalSetTree& other = arg;
+  auto bool_ltt = leaf_type_tree::Zip<bool, IntervalSet, IntervalSet>(
+      tree, other.AsView(),
+      [](const IntervalSet& l, const IntervalSet& r) -> bool {
+        return !IntervalSet::Intersect(l, r).IsEmpty();
+      });
+  return testing::ExplainMatchResult(testing::Each(testing::IsTrue()),
+                                     bool_ltt.elements(), result_listener);
+}
+void ContextIsBoundedByBaseRange(std::shared_ptr<Package> p) {
+  ASSERT_EQ(p->functions().size(), 1);
+  Function* f = p->functions().front().get();
+  ContextSensitiveRangeQueryEngine ctx;
+  XLS_ASSERT_OK(ctx.Populate(f));
+  RangeQueryEngine rqe;
+  XLS_ASSERT_OK(rqe.Populate(f));
+  std::vector<std::pair<PredicateState, std::unique_ptr<QueryEngine>>>
+      contextuals;
+  for (Node* n : f->nodes()) {
+    if (n->Is<Select>()) {
+      Select* sel = n->As<Select>();
+      for (int64_t arm = 0; arm < sel->cases().size(); ++arm) {
+        contextuals.emplace_back(
+            PredicateState(sel, arm),
+            ctx.SpecializeGivenPredicate({PredicateState(sel, arm)}));
+      }
+      if (sel->default_value()) {
+        contextuals.emplace_back(
+            PredicateState(sel, PredicateState::kDefaultArm),
+            ctx.SpecializeGivenPredicate(
+                {PredicateState(sel, PredicateState::kDefaultArm)}));
+      }
+    }
+    if (n->Is<PrioritySelect>()) {
+      PrioritySelect* sel = n->As<PrioritySelect>();
+      for (int64_t arm = 0; arm < sel->cases().size(); ++arm) {
+        contextuals.emplace_back(
+            PredicateState(sel, arm),
+            ctx.SpecializeGivenPredicate({PredicateState(sel, arm)}));
+      }
+      if (sel->default_value()) {
+        contextuals.emplace_back(
+            PredicateState(sel, PredicateState::kDefaultArm),
+            ctx.SpecializeGivenPredicate(
+                {PredicateState(sel, PredicateState::kDefaultArm)}));
+      }
+    }
+  }
+  for (Node* n : f->nodes()) {
+    auto base_intervals = rqe.GetIntervals(n);
+    auto interval_view = base_intervals.AsView();
+    auto base_tern = rqe.GetTernary(n);
+    auto ternary_view =
+        base_tern ? std::optional<TernaryTreeView>(base_tern->AsView())
+                  : std::nullopt;
+    ASSERT_THAT(ctx.GetIntervals(n), IntervalTreeCompatible(interval_view))
+        << " for " << n;
+    ASSERT_THAT(ctx.GetTernary(n), TernaryTreeCompatible(ternary_view))
+        << " for " << n;
+    for (const auto& [predicate, contextual] : contextuals) {
+      ASSERT_THAT(contextual->GetIntervals(n),
+                  IntervalTreeCompatible(interval_view))
+          << " for " << n << " with " << predicate;
+      ASSERT_THAT(contextual->GetTernary(n),
+                  TernaryTreeCompatible(ternary_view))
+          << " for " << n << " with " << predicate;
+    }
+  }
+}
+
+FUZZ_TEST(ContextSensitiveRangeQueryEngineFuzzTest, ContextIsBoundedByBaseRange)
+    .WithDomains(IrFuzzDomain());
 
 INSTANTIATE_TEST_SUITE_P(Signed, SignedContextSensitiveRangeQueryEngineTest,
                          testing::Values(Signedness::kSigned,

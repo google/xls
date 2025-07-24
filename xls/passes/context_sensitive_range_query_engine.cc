@@ -325,10 +325,17 @@ class Analysis {
       PredicateState s, const InlineBitmap& interesting_nodes,
       const absl::flat_hash_map<Node*, int64_t>& node_ids) const {
     RangeQueryEngine result;
-    absl::flat_hash_map<Node*, RangeData> known_data;
-    XLS_ASSIGN_OR_RETURN(known_data, ExtractKnownData(s));
+    XLS_ASSIGN_OR_RETURN(
+        (std::optional<absl::flat_hash_map<Node*, RangeData>> known_data),
+        ExtractKnownData(s));
+    if (!known_data) {
+      // This is an impossible situation. Just return the default base range.
+      // TODO(allight): We should communicate this up somehow.
+      result = base_range_;
+      return result;
+    }
     ContextGivens givens(
-        topo_sort_, s.node(), known_data,
+        topo_sort_, s.node(), *known_data,
         [&](Node* n) -> std::optional<RangeData> {
           if (interesting_nodes.Get(node_ids.at(n))) {
             // Affected by known data.
@@ -348,8 +355,8 @@ class Analysis {
     return result;
   }
 
-  absl::StatusOr<absl::flat_hash_map<Node*, RangeData>> ExtractKnownData(
-      PredicateState s) const {
+  absl::StatusOr<std::optional<absl::flat_hash_map<Node*, RangeData>>>
+  ExtractKnownData(PredicateState s) const {
     XLS_RET_CHECK(!s.IsBasePredicate())
         << "Can't back-propagate base predicate!";
     Select* select_node = s.node()->As<Select>();
@@ -365,6 +372,14 @@ class Analysis {
       given = IntervalSet::Precise(value);
     }
     given.Normalize();
+    if (IntervalSet::Intersect(given,
+                               base_range_.GetIntervals(selector).Get({}))
+            .IsEmpty()) {
+      // This given can never even be selected in real code.
+      // TODO(allight): Ideally we'd communicate in some way that this value is
+      // impossible.
+      return std::nullopt;
+    }
     XLS_ASSIGN_OR_RETURN(
         (absl::flat_hash_map<Node*, IntervalSet> intervals),
         PropagateOneGivenBackwards(base_range_, selector, given));
@@ -372,16 +387,11 @@ class Analysis {
     ranges.reserve(intervals.size());
     for (auto [node, interval] : std::move(intervals)) {
       if (interval.IsEmpty()) {
-        // This case is actually impossible? For now just ignore.
-        // TODO: Figure out some way to communicate this.
-        std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
-            base_range_.GetTernary(node);
-        ranges[node] = RangeData{
-            .ternary = ternary.has_value()
-                           ? std::make_optional(ternary->Get({}))
-                           : std::nullopt,
-            .interval_set = base_range_.GetIntervals(node),
-        };
+        // This case is actually impossible since it implies a contradiction in
+        // our predecessors. Force fallback to basic range analysis.
+        // TODO(allight): Ideally we'd communicate in some way that this value
+        // is impossible.
+        return std::nullopt;
       } else {
         ranges[node] =
             RangeData{.ternary = interval_ops::ExtractTernaryVector(interval),
