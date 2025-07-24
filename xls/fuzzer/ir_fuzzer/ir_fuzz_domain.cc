@@ -30,12 +30,13 @@
 
 namespace xls {
 
+namespace {
 // Returns a fuzztest domain, which is a range of possible values that an object
 // can have. In this case, our object is a FuzzProgramProto protobuf. The
 // Arbitrary domain allows all possible values and vector sizes for fields. Some
 // fields may be unset. fuzztest::Map is used to convert the FuzzProgramProto
 // domain into a Package domain for test creation readability.
-fuzztest::Domain<FuzzPackage> IrFuzzDomain() {
+fuzztest::Domain<FuzzPackage> IrFuzzWithProtoDomain() {
   return fuzztest::Map(
       [](FuzzProgramProto fuzz_program) {
         // Create the package.
@@ -63,6 +64,15 @@ fuzztest::Domain<FuzzPackage> IrFuzzDomain() {
                   // Generate at least one FuzzOp.
                   .WithMinSize(1)));
 }
+}  // namespace
+
+fuzztest::Domain<std::shared_ptr<Package>> IrFuzzDomain() {
+  return fuzztest::Map(
+      [](FuzzPackage fuzz_package) {
+        return std::shared_ptr<Package>(fuzz_package.p.release());
+      },
+      IrFuzzWithProtoDomain());
+}
 
 // Same as IrFuzzDomain but returns a FuzzPackageWithArgs domain which also
 // contains the argument sets that are compatible with the function.
@@ -72,7 +82,7 @@ fuzztest::Domain<FuzzPackageWithArgs> IrFuzzDomainWithArgs(
       [arg_set_count](FuzzPackage fuzz_package) {
         return GenArgSetsForPackage(std::move(fuzz_package), arg_set_count);
       },
-      IrFuzzDomain());
+      IrFuzzWithProtoDomain());
 }
 
 }  // namespace xls

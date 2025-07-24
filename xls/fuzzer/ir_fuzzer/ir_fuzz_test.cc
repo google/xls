@@ -31,8 +31,7 @@ namespace {
 
 // Perform tests on the Package object which contains the IR. This is a general
 // test that just verifies if the Package object is valid.
-void VerifyIrFuzzPackage(FuzzPackage fuzz_package) {
-  std::unique_ptr<Package>& p = fuzz_package.p;
+void VerifyIrFuzzPackage(std::shared_ptr<Package> p) {
   XLS_ASSERT_OK(VerifyPackage(p.get()));
   VLOG(3) << "IR Fuzzer-2: IR:" << "\n" << p->DumpIr() << "\n";
 }

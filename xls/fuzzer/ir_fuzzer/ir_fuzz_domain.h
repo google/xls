@@ -16,16 +16,18 @@
 #define XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
 
 #include <cstdint>
+#include <utility>
 
 #include "xls/common/fuzzing/fuzztest.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
+#include "xls/ir/package.h"
 
 // Contains functions that return IR fuzz test domains.
 
 namespace xls {
 
-fuzztest::Domain<FuzzPackage> IrFuzzDomain();
+fuzztest::Domain<std::shared_ptr<Package>> IrFuzzDomain();
 fuzztest::Domain<FuzzPackageWithArgs> IrFuzzDomainWithArgs(
     int64_t arg_set_count);
 
