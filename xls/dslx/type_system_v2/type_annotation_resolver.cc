@@ -970,28 +970,36 @@ class StatefulResolver : public TypeAnnotationResolver {
               if (node->kind() == AstNodeKind::kTypeRef) {
                 return const_cast<AstNode*>(node);
               }
-              if (node->kind() != AstNodeKind::kNameRef ||
-                  !vars.name_refs().contains(down_cast<const NameRef*>(node))) {
+
+              std::optional<InterpValue> value;
+              if (node->kind() == AstNodeKind::kAttr &&
+                  node->owner() != annotation->owner()) {
+                XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                                     import_data_.GetRootTypeInfoForNode(node));
+                XLS_ASSIGN_OR_RETURN(value, ti->GetConstExpr(node));
+              } else if (node->kind() != AstNodeKind::kNameRef ||
+                         !vars.name_refs().contains(
+                             down_cast<const NameRef*>(node))) {
                 return std::nullopt;
+              } else {
+                const NameRef* ref = down_cast<const NameRef*>(node);
+                const NameDef* def = std::get<const NameDef*>(ref->name_def());
+                XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                                     import_data_.GetRootTypeInfoForNode(def));
+                XLS_ASSIGN_OR_RETURN(value, ti->GetConstExpr(def));
+                if (value->IsTuple()) {
+                  return std::nullopt;
+                }
               }
 
-              const NameRef* ref = down_cast<const NameRef*>(node);
-              const NameDef* def = std::get<const NameDef*>(ref->name_def());
-              XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
-                                   import_data_.GetRootTypeInfoForNode(def));
-              XLS_ASSIGN_OR_RETURN(InterpValue value, ti->GetConstExpr(def));
-              if (value.IsTuple()) {
-                return std::nullopt;
-              }
-
-              // Get a type for `ref` that is owned by annotation->owner(),
+              // Get a type for `node` that is owned by annotation->owner(),
               // because the end goal is to fabricate a literal in that module.
               // Note that there is no need for a parametric context because we
               // only deal with references to module-level constants here.
               XLS_ASSIGN_OR_RETURN(
                   std::optional<const TypeAnnotation*> ref_type,
                   ResolveAndUnifyTypeAnnotationsForNode(
-                      std::nullopt, ref, TypeAnnotationFilter::None()));
+                      std::nullopt, node, TypeAnnotationFilter::None()));
               CHECK(ref_type.has_value());
               if ((*ref_type)->owner() != annotation->owner()) {
                 XLS_ASSIGN_OR_RETURN(
@@ -1007,7 +1015,7 @@ class StatefulResolver : public TypeAnnotationResolver {
                                   annotation->span(), import_data_));
               }
               auto* result = annotation->owner()->Make<Number>(
-                  Span::None(), value.ToString(/*humanize=*/true),
+                  Span::None(), value->ToString(/*humanize=*/true),
                   NumberKind::kOther, const_cast<TypeAnnotation*>(*ref_type),
                   /*in_parens=*/false, /*leave_span_intact=*/true);
               return result;
