@@ -222,23 +222,6 @@ Z3_lbool RunSolver(Z3_context c, Z3_ast asserted) {
   return satisfiable;
 }
 
-// Returns a list of all predicates in a deterministic order, paired with their
-// index in the list.
-std::vector<std::pair<Node*, int64_t>> PredicateNodes(Predicates* p,
-                                                      FunctionBase* f) {
-  std::vector<std::pair<Node*, int64_t>> result;
-
-  int64_t i = 0;
-  for (Node* node : f->nodes()) {
-    if (!p->GetNodesPredicatedBy(node).empty()) {
-      result.push_back({node, i});
-      ++i;
-    }
-  }
-
-  return result;
-}
-
 bool IsHeavyOp(Op op) { return op == Op::kSend || op == Op::kReceive; }
 
 std::string_view GetChannelName(Node* node) {
