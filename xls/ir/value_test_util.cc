@@ -14,8 +14,19 @@
 
 #include "xls/ir/value_test_util.h"
 
+#include <cstdint>
+
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
+#include "absl/log/check.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits_test_utils.h"
+#include "xls/ir/fuzz_type_domain.h"
+#include "xls/ir/type.h"
+#include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_flattening.h"
+#include "xls/ir/xls_type.pb.h"
 
 namespace xls {
 
@@ -25,6 +36,43 @@ namespace xls {
            << a.ToString() << " != " << b.ToString();
   }
   return testing::AssertionSuccess();
+}
+
+fuzztest::Domain<Value> ArbitraryValue(fuzztest::Domain<TypeProto> type) {
+  return fuzztest::FlatMap(
+      [](TypeProto ty_proto) -> fuzztest::Domain<Value> {
+        TypeManager man;
+        auto ty_ptr = man.GetTypeFromProto(ty_proto);
+        CHECK_OK(ty_ptr.status())
+            << "Unable to parse type info from " << ty_proto.DebugString();
+        Type* ty = ty_ptr.value();
+
+        return fuzztest::Map(
+            [](TypeProto ty_proto, Bits raw_data) -> Value {
+              TypeManager man;
+              auto ty_ptr = man.GetTypeFromProto(ty_proto);
+              CHECK_OK(ty_ptr.status()) << "Unable to parse type info from "
+                                        << ty_proto.DebugString();
+              Type* ty = ty_ptr.value();
+              auto res = UnflattenBitsToValue(raw_data, ty);
+              CHECK_OK(res) << "Failed to unflatten "
+                            << raw_data.ToDebugString() << " into " << ty;
+              return res.value();
+            },
+            fuzztest::Just(ty_proto), ArbitraryBits(ty->GetFlatBitCount()));
+      },
+      type);
+}
+
+fuzztest::Domain<Value> ArbitraryValue(int64_t max_bit_count,
+                                       int64_t max_elements,
+                                       int64_t max_nesting_level) {
+  return ArbitraryValue(
+      TypeDomain(max_bit_count, max_elements, max_nesting_level));
+}
+
+fuzztest::Domain<Value> ArbitraryValue(TypeProto type) {
+  return ArbitraryValue(fuzztest::Just(type));
 }
 
 }  // namespace xls

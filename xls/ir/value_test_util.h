@@ -15,8 +15,12 @@
 #ifndef XLS_IR_VALUE_TEST_UTIL_H_
 #define XLS_IR_VALUE_TEST_UTIL_H_
 
+#include <cstdint>
+
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "xls/ir/value.h"
+#include "xls/ir/xls_type.pb.h"
 
 namespace xls {
 
@@ -27,6 +31,17 @@ namespace xls {
 // highlighting the differences between the two Values rather than just dumping
 // the string representation of the Values.
 ::testing::AssertionResult ValuesEqual(const Value& a, const Value& b);
+
+// Create an arbitrary `Value` domain of the given type.
+fuzztest::Domain<Value> ArbitraryValue(int64_t max_bit_count = 64,
+                                       int64_t max_elements = 5,
+                                       int64_t max_nesting_level = 5);
+
+// Create a domain for an arbitrary value which is of the given type.
+fuzztest::Domain<Value> ArbitraryValue(fuzztest::Domain<TypeProto> type);
+
+// Create a domain for an arbitrary value which is of the given type.
+fuzztest::Domain<Value> ArbitraryValue(TypeProto type);
 
 }  // namespace xls
 
