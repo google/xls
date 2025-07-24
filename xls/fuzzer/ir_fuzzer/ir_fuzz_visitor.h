@@ -41,6 +41,8 @@ class IrFuzzVisitor {
   virtual void HandleXorReduce(const FuzzXorReduceProto& xor_reduce) = 0;
   virtual void HandleUMul(const FuzzUMulProto& umul) = 0;
   virtual void HandleSMul(const FuzzSMulProto& smul) = 0;
+  virtual void HandleUMulp(const FuzzUMulpProto& umulp) = 0;
+  virtual void HandleSMulp(const FuzzSMulpProto& smulp) = 0;
   virtual void HandleUDiv(const FuzzUDivProto& udiv) = 0;
   virtual void HandleSDiv(const FuzzSDivProto& sdiv) = 0;
   virtual void HandleUMod(const FuzzUModProto& umod) = 0;
@@ -71,6 +73,13 @@ class IrFuzzVisitor {
   virtual void HandleCtz(const FuzzCtzProto& ctz) = 0;
   virtual void HandleMatch(const FuzzMatchProto& match) = 0;
   virtual void HandleMatchTrue(const FuzzMatchTrueProto& match_true) = 0;
+  virtual void HandleTuple(const FuzzTupleProto& tuple) = 0;
+  virtual void HandleArray(const FuzzArrayProto& array) = 0;
+  virtual void HandleTupleIndex(const FuzzTupleIndexProto& tuple_index) = 0;
+  virtual void HandleArrayIndex(const FuzzArrayIndexProto& array_index) = 0;
+  virtual void HandleArraySlice(const FuzzArraySliceProto& array_slice) = 0;
+  virtual void HandleArrayUpdate(const FuzzArrayUpdateProto& array_update) = 0;
+  virtual void HandleArrayConcat(const FuzzArrayConcatProto& array_concat) = 0;
   virtual void HandleReverse(const FuzzReverseProto& reverse) = 0;
   virtual void HandleIdentity(const FuzzIdentityProto& identity) = 0;
   virtual void HandleSignExtend(const FuzzSignExtendProto& sign_extend) = 0;

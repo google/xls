@@ -27,6 +27,8 @@ namespace xls {
 enum ContextListType {
   COMBINED_LIST = 0,
   BITS_LIST = 1,
+  TUPLE_LIST = 2,
+  ARRAY_LIST = 3,
 };
 
 // Maintains several lists of IR nodes to act as context for the use as operands
@@ -52,6 +54,8 @@ class IrNodeContextList {
   // list to use.
   std::vector<BValue> combined_context_list_;
   std::vector<BValue> bits_context_list_;
+  std::vector<BValue> tuple_context_list_;
+  std::vector<BValue> array_context_list_;
 };
 
 }  // namespace xls

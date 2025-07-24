@@ -93,7 +93,6 @@ cc_library(
     hdrs = ["combine_context_list.h"],
     deps = [
         ":fuzz_program_cc_proto",
-        ":ir_fuzz_helpers",
         ":ir_node_context_list",
         "//xls/ir:function_builder",
     ],
