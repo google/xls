@@ -50,8 +50,7 @@ class CallGraph {
   }
 
  private:
-  explicit CallGraph(Package* package) : package_(package) {}
-  Package* package_;
+  explicit CallGraph() {}
   absl::flat_hash_map<FunctionBase*, std::vector<Node*>> callee_functions_;
   absl::flat_hash_map<FunctionBase*, std::vector<FunctionBase*>>
       caller_functions_;

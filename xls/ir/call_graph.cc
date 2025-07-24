@@ -106,7 +106,7 @@ std::vector<FunctionBase*> CalledFunctions(FunctionBase* function_base,
 }  // namespace
 
 absl::StatusOr<CallGraph> CallGraph::Create(Package* package) {
-  CallGraph call_graph_analysis(package);
+  CallGraph call_graph_analysis;
   // NB We could dedup but its useful to know how many edges there are.
   for (FunctionBase* f : package->GetFunctionBases()) {
     for (Node* node : f->nodes()) {
