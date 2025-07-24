@@ -154,6 +154,7 @@ inline bool IsFullyKnown(TernarySpan ternary) {
   return absl::c_all_of(ternary, IsKnown);
 }
 inline bool AllUnknown(TernarySpan v) { return absl::c_all_of(v, IsUnknown); }
+inline bool AnyKnown(TernarySpan v) { return absl::c_any_of(v, IsKnown); }
 
 inline bool IsKnownOne(TernarySpan ternary) {
   return absl::c_all_of(

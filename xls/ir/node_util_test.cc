@@ -18,25 +18,32 @@
 #include <memory>
 #include <ostream>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "cppitertools/zip.hpp"
 #include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/fuzz_type_domain.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
@@ -44,8 +51,15 @@
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
+#include "xls/ir/value_test_util.h"
+#include "xls/ir/value_utils.h"
+#include "xls/ir/xls_type.pb.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
+#include "xls/solvers/z3_ir_equivalence_testutils.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -810,5 +824,174 @@ TEST_F(NodeUtilTest, ToTreeOfNodes) {
   EXPECT_THAT(n.Get({1, 1}), m::ArrayIndex(m::TupleIndex(param.node(), 1),
                                            {m::Literal(UBits(1, 64))}));
 }
+
+TEST_F(NodeUtilTest, RemoveKnownBitsType) {
+  TypeManager tys;
+  XLS_ASSERT_OK_AND_ASSIGN(auto lhs_mask, StringToTernaryVector("0bXXXX"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto rhs_mask,
+                           StringToTernaryVector("0bX_XX1X_11XX"));
+  Type* start = tys.GetTupleType({tys.GetBitsType(4), tys.GetBitsType(9)});
+  LeafTypeTree<TernaryVector> tree(start, {lhs_mask, rhs_mask});
+  XLS_ASSERT_OK_AND_ASSIGN(Type * res,
+                           RemoveKnownBitsType(tys, start, tree.AsView()));
+  EXPECT_THAT(res, m::Type("(bits[4], bits[6])"));
+}
+
+TEST_F(NodeUtilTest, RemoveKnownBitsTypeArray) {
+  TypeManager tys;
+  XLS_ASSERT_OK_AND_ASSIGN(auto lhs_mask, StringToTernaryVector("0bXXXX"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto arr1_mask,
+                           StringToTernaryVector("0b1_X11X_11XX"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto arr2_mask,
+                           StringToTernaryVector("0b1_1111_1111"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto arr3_mask,
+                           StringToTernaryVector("0bX_XX1X_11XX"));
+  Type* start = tys.GetTupleType(
+      {tys.GetBitsType(4), tys.GetArrayType(3, tys.GetBitsType(9))});
+  LeafTypeTree<TernaryVector> tree(start,
+                                   {lhs_mask, arr1_mask, arr2_mask, arr3_mask});
+  XLS_ASSERT_OK_AND_ASSIGN(Type * res,
+                           RemoveKnownBitsType(tys, start, tree.AsView()));
+  EXPECT_THAT(res, m::Type("(bits[4], (bits[4], bits[0], bits[6]))"));
+}
+
+namespace {
+// Test pass which just removes and restores the known bits in 'mask' on
+// 'target'.
+class KnownBitsRoundTripPass final : public OptimizationFunctionBasePass {
+ public:
+  explicit KnownBitsRoundTripPass(Node* target,
+                                  const LeafTypeTree<TernaryVector>& mask)
+      : OptimizationFunctionBasePass(
+            "known_bits_round_trip",
+            "RemoveKnownBits RestoreKnownBits round trip"),
+        target_(target),
+        mask_(mask) {}
+
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const OptimizationPassOptions& options,
+      PassResults* results, OptimizationContext& ctx) const override {
+    if (target_->function_base() != f) {
+      return false;
+    }
+    XLS_RET_CHECK_EQ(f->AsFunctionOrDie()->return_value(), target_);
+    bool changed = false;
+    XLS_ASSIGN_OR_RETURN(Node * small,
+                         RemoveKnownBits(target_, mask_.AsView(), &changed));
+    XLS_ASSIGN_OR_RETURN(Node * res,
+                         RestoreKnownBits(small, mask_.AsView(), &changed));
+    XLS_RETURN_IF_ERROR(f->AsFunctionOrDie()->set_return_value(res));
+    return changed;
+  }
+
+ private:
+  Node* target_;
+  const LeafTypeTree<TernaryVector>& mask_;
+};
+
+BValue ForceKnownBits(FunctionBuilder& fb, BValue n, TernarySpan ts) {
+  auto vals = ternary_ops::ToKnownBitsValues(ts, /*default_set=*/false);
+  auto mask = ternary_ops::ToKnownBits(ts);
+  return fb.Or(fb.And(n, fb.Literal(bits_ops::Not(mask))), fb.Literal(vals));
+}
+absl::StatusOr<BValue> ForceKnownBits(FunctionBuilder& fb, BValue n,
+                                      std::string_view s) {
+  XLS_ASSIGN_OR_RETURN(auto ts, StringToTernaryVector(s));
+  return ForceKnownBits(fb, n, ts);
+}
+}  // namespace
+
+struct RemoveRestoreKnownBitsTy {
+  // Type proto used to create an ltt with mask_list.
+  TypeProto ty;
+  // Flattened elements of a LTT of 'ty'
+  std::vector<TernaryVector> mask_list;
+
+  Type* type(TypeManager& man) const {
+    auto res = man.GetTypeFromProto(ty);
+    EXPECT_THAT(res.status(), IsOk());
+    return res.value_or(man.GetTupleType({}));
+  }
+  LeafTypeTree<TernaryVector> mask(TypeManager& man) const {
+    return LeafTypeTree<TernaryVector>(type(man), mask_list);
+  }
+};
+
+void RemoveRestoreKnownBits(const RemoveRestoreKnownBitsTy& arg) {
+  VerifiedPackage p("RemoveRestoreKnownBits");
+  FunctionBuilder fb("RemoveRestoreKnownBits", &p);
+  BValue param = fb.Param("param", arg.type(p.type_manager()));
+  XLS_ASSERT_OK_AND_ASSIGN(auto tree, ToTreeOfNodes(param.node()));
+  auto mask = arg.mask(p.type_manager());
+  auto new_tree = leaf_type_tree::Zip<Node*, Node*, TernaryVector>(
+      tree.AsView(), mask.AsView(), [&](Node* n, TernarySpan ts) -> Node* {
+        return ForceKnownBits(fb, BValue(n, &fb), ts).node();
+      });
+  XLS_ASSERT_OK_AND_ASSIGN(Node * forced_nd,
+                           FromTreeOfNodes(fb.function(), new_tree.AsView()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(BValue(forced_nd, &fb)));
+  solvers::z3::ScopedVerifyEquivalence sve(f);
+  KnownBitsRoundTripPass kbrtp(forced_nd, mask);
+  PassResults res;
+  OptimizationContext ctx;
+  EXPECT_THAT(kbrtp.Run(&p, {}, &res, ctx).status(), IsOk());
+}
+
+TEST_F(NodeUtilTest, BasicRemoveRestore) {
+  TypeManager tys;
+  XLS_ASSERT_OK_AND_ASSIGN(auto lhs_mask, StringToTernaryVector("0bXXXX"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto rhs_mask,
+                           StringToTernaryVector("0bX_XX1X_11XX"));
+  Type* start = tys.GetTupleType({tys.GetBitsType(4), tys.GetBitsType(9)});
+  RemoveRestoreKnownBits(
+      {.ty = start->ToProto(), .mask_list = {lhs_mask, rhs_mask}});
+}
+
+TEST_F(NodeUtilTest, RemoveRestoreAllBits) {
+  TypeManager tys;
+  XLS_ASSERT_OK_AND_ASSIGN(auto lhs_mask, StringToTernaryVector("0b1111"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto rhs_mask,
+                           StringToTernaryVector("0b1_1111_1111"));
+  Type* start = tys.GetTupleType({tys.GetBitsType(4), tys.GetBitsType(9)});
+  RemoveRestoreKnownBits(
+      {.ty = start->ToProto(), .mask_list = {lhs_mask, rhs_mask}});
+}
+
+FUZZ_TEST(NodeUtilFuzzTest, RemoveRestoreKnownBits)
+    .WithDomains(fuzztest::FlatMap(
+        [](TypeProto ty) -> fuzztest::Domain<RemoveRestoreKnownBitsTy> {
+          return fuzztest::Map(
+              [](TypeProto ty_proto, Value knowns,
+                 Value values) -> RemoveRestoreKnownBitsTy {
+                TypeManager man;
+                auto ty_ptr = man.GetTypeFromProto(ty_proto);
+                CHECK_OK(ty_ptr.status()) << "Unable to parse type info from "
+                                          << ty_proto.DebugString();
+                Type* ty = ty_ptr.value();
+                auto known_ltt = ValueToLeafTypeTree(knowns, ty);
+                auto vals_ltt = ValueToLeafTypeTree(values, ty);
+                CHECK_OK(known_ltt.status());
+                CHECK_OK(vals_ltt.status());
+                std::vector<TernaryVector> masks;
+                masks.reserve(known_ltt->size());
+                for (const auto& [known, val] :
+                     iter::zip(known_ltt->elements(), vals_ltt->elements())) {
+                  if (!known.IsBits()) {
+                    // Must be a zero-length leaf like empty-tuple or token.
+                    masks.push_back({});
+                    continue;
+                  }
+                  masks.push_back(
+                      ternary_ops::FromKnownBits(known.bits(), val.bits()));
+                }
+                return {.ty = std::move(ty_proto),
+                        .mask_list = std::move(masks)};
+              },
+              fuzztest::Just(ty), ArbitraryValue(ty), ArbitraryValue(ty));
+        },
+        TypeDomain(/*max_bit_count=*/10, /*max_elements=*/5)));
+
 }  // namespace
 }  // namespace xls

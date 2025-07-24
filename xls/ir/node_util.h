@@ -40,6 +40,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
 
 namespace xls {
@@ -170,6 +171,28 @@ absl::StatusOr<Node*> GatherBits(Node* node, const Bits& mask);
 // of 'node' at the indices where 'mask' is true, discarding all bits where
 // 'mask' is false. 'mask' must have the same type as 'node'.
 absl::StatusOr<Node*> GatherBits(Node* node, LeafTypeTreeView<Bits> mask);
+
+// Returns an IR expression whose value is a flattened concatenation of the bits
+// of 'node' at the indices where the ternary value is unknown, discarding all
+// bits where the ternary is known. 'ts' must have the same type as 'node'.
+absl::StatusOr<Node*> GatherUnknownBits(Node* node, TernarySpan ts);
+
+// Get the type of running RemoveKnownBits on a node of type 'ty' with the given
+// mask.
+absl::StatusOr<Type*> RemoveKnownBitsType(TypeManager& arena, Type* ty,
+                                          LeafTypeTreeView<TernaryVector> mask);
+
+// Split the node such that bits known in the mask are not present.
+//
+// Bits type leaves are 'GatherUnknownBits' together.
+absl::StatusOr<Node*> RemoveKnownBits(Node* node,
+                                      LeafTypeTreeView<TernaryVector> mask,
+                                      bool* any_changed = nullptr);
+
+// Inverse of RemoveKnownBits. Restores value of node.
+absl::StatusOr<Node*> RestoreKnownBits(Node* split,
+                                       LeafTypeTreeView<TernaryVector> mask,
+                                       bool* any_changed = nullptr);
 
 // Returns an IR expression whose bits is equal to the values in 'pattern' where
 // known, and otherwise fills in with the bits from 'node' (both going in

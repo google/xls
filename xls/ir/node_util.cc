@@ -16,8 +16,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -35,11 +37,14 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "cppitertools/chain.hpp"
+#include "cppitertools/reversed.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function_base.h"
@@ -50,6 +55,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
+#include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 
@@ -88,6 +94,10 @@ bool IsLiteralWithRunOfSetBits(Node* node, int64_t* leading_zero_count,
                                     trailing_zero_count);
 }
 
+absl::StatusOr<Node*> GatherUnknownBits(Node* node, TernarySpan ts) {
+  return GatherBits(node, bits_ops::Not(ternary_ops::ToKnownBits(ts)));
+}
+
 absl::StatusOr<Node*> GatherBits(Node* node,
                                  absl::Span<int64_t const> indices) {
   XLS_RET_CHECK(node->GetType()->IsBits());
@@ -104,6 +114,8 @@ absl::StatusOr<Node*> GatherBits(Node* node,
   return GatherBits(node, Bits::FromBitmap(std::move(mask)));
 }
 
+// TODO(allight): We should clean this up and deduplicate this and
+// RemoveKnownBits.
 absl::StatusOr<Node*> GatherBits(
     Node* node, LeafTypeTreeView<std::vector<int64_t>> positions) {
   XLS_RET_CHECK(node->GetType()->IsBits());
@@ -302,6 +314,8 @@ absl::StatusOr<Node*> FromTreeOfNodes(FunctionBase* f,
   return leaf;
 }
 
+// TODO(allight): We should clean this up and deduplicate this and
+// RemoveKnownBits.
 absl::StatusOr<Node*> GatherBits(Node* node, LeafTypeTreeView<Bits> mask) {
   std::vector<Node*> gathered_bits;
   absl::flat_hash_map<absl::Span<int64_t const>, Node*> index_access;
@@ -990,6 +1004,147 @@ absl::StatusOr<Node*> RemoveNodeFromBooleanExpression(Node* to_remove,
         expression->loc(), Value(UBits((favored_outcome ? 1 : 0), 1)));
   }
   return expression;
+}
+
+absl::StatusOr<Type*> RemoveKnownBitsType(
+    TypeManager& arena, Type* ty, LeafTypeTreeView<TernaryVector> mask) {
+  XLS_RET_CHECK_EQ(ty, mask.type());
+  if (ty->GetFlatBitCount() == 0 ||
+      absl::c_none_of(mask.elements(), ternary_ops::AnyKnown)) {
+    return ty;
+  }
+  if (ty->IsBits()) {
+    return arena.GetBitsType(
+        absl::c_count_if(mask.Get({}), ternary_ops::IsUnknown));
+  }
+  if (ty->IsTuple()) {
+    std::vector<Type*> res;
+    res.reserve(ty->AsTupleOrDie()->size());
+    for (int64_t i = 0; i < ty->AsTupleOrDie()->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          std::back_inserter(res),
+          RemoveKnownBitsType(arena, ty->AsTupleOrDie()->element_type(i),
+                              mask.AsView({i})));
+    }
+    return arena.GetTupleType(res);
+  }
+  // token handled by bitcount == 0
+  XLS_RET_CHECK(ty->IsArray()) << "unexpected type " << ty;
+  // We encode the array as a tuple to allow for individual elements to be
+  // narrowed.
+  std::vector<Type*> res;
+  res.reserve(ty->AsArrayOrDie()->size());
+  for (int64_t i = 0; i < ty->AsArrayOrDie()->size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(
+        std::back_inserter(res),
+        RemoveKnownBitsType(arena, ty->AsArrayOrDie()->element_type(),
+                            mask.AsView({i})));
+  }
+  return arena.GetTupleType(res);
+}
+namespace {
+absl::StatusOr<LeafTypeTree<Node*>> RemoveKnownBitsFromTree(
+    LeafTypeTreeView<Node*> node, LeafTypeTreeView<TernaryVector> mask) {
+  XLS_RET_CHECK_GT(node.size(), 0) << "Zero-size tree?";
+  FunctionBase* fb = node.elements().front()->function_base();
+  XLS_ASSIGN_OR_RETURN(
+      Type * new_ty,
+      RemoveKnownBitsType(fb->package()->type_manager(), node.type(), mask));
+  XLS_ASSIGN_OR_RETURN(
+      LeafTypeTree<Node*> res_old_type,
+      (leaf_type_tree::ZipIndex<Node*, Node*, TernaryVector>(
+          node.AsView(), mask.AsView(),
+          [&](Type*, Node* n, TernarySpan t,
+              absl::Span<int64_t const>) -> absl::StatusOr<Node*> {
+            if (ternary_ops::AllUnknown(t)) {
+              // No splitting.
+              return n;
+            }
+            // segment the bits.
+            XLS_ASSIGN_OR_RETURN(auto res, GatherUnknownBits(n, t),
+                                 _ << "Invalid narrowing: " << n);
+            return res;
+          })));
+  return LeafTypeTree<Node*>(new_ty, std::move(res_old_type).elements());
+}
+
+absl::StatusOr<LeafTypeTree<Node*>> RestoreKnownBitsFromTree(
+    FunctionBase* fb, LeafTypeTreeView<Node*> node,
+    LeafTypeTreeView<TernaryVector> mask) {
+  XLS_RET_CHECK_GT(mask.size(), 0) << "Zero-size tree?";
+  return leaf_type_tree::MapIndex<Node*, TernaryVector>(
+      mask.AsView(),
+      [&](Type* ty, TernarySpan ts,
+          absl::Span<int64_t const> index) -> absl::StatusOr<Node*> {
+        if (ternary_ops::AllUnknown(ts)) {
+          // No need to split.
+          return node.Get(index);
+        }
+        if (ternary_ops::IsFullyKnown(ts) && ty->IsBits()) {
+          XLS_ASSIGN_OR_RETURN(
+              Node * lit,
+              fb->MakeNode<Literal>(SourceInfo(),
+                                    Value(ternary_ops::ToKnownBitsValues(ts))));
+          return lit;
+        }
+        auto view = node.AsView(index);
+        XLS_RET_CHECK(view.type()->IsBits())
+            << view.ToString([](Node* n) { return n->ToString(); });
+        XLS_RET_CHECK_EQ(view.type()->GetFlatBitCount() +
+                             absl::c_count_if(ts, ternary_ops::IsKnown),
+                         ty->GetFlatBitCount())
+            << "bits of " << view.Get({}) << " don't match " << ts;
+        return FillPattern(ts, view.Get({}));
+      });
+}
+}  // namespace
+absl::StatusOr<Node*> RemoveKnownBits(Node* node,
+                                      LeafTypeTreeView<TernaryVector> mask,
+                                      bool* any_changed) {
+  if (absl::c_none_of(mask.elements(), ternary_ops::AnyKnown)) {
+    if (any_changed != nullptr) {
+      *any_changed = false;
+    }
+    return node;
+  }
+  if (any_changed != nullptr) {
+    *any_changed = true;
+  }
+  XLS_ASSIGN_OR_RETURN(LeafTypeTree<Node*> split, ToTreeOfNodes(node));
+  XLS_ASSIGN_OR_RETURN(LeafTypeTree<Node*> narrowed,
+                       RemoveKnownBitsFromTree(split.AsView(), mask));
+  return FromTreeOfNodes(node->function_base(), narrowed.AsView(),
+                         node->HasAssignedName()
+                             ? absl::StrCat(node->GetNameView(), "_narrowed")
+                             : "",
+                         node->loc());
+}
+absl::StatusOr<Node*> RestoreKnownBits(Node* split,
+                                       LeafTypeTreeView<TernaryVector> mask,
+                                       bool* any_changed) {
+  if (absl::c_none_of(mask.elements(), ternary_ops::AnyKnown)) {
+    if (any_changed != nullptr) {
+      *any_changed = false;
+    }
+    return split;
+  }
+  if (any_changed != nullptr) {
+    *any_changed = true;
+  }
+  XLS_ASSIGN_OR_RETURN(LeafTypeTree<Node*> split_tree, ToTreeOfNodes(split));
+  XLS_ASSIGN_OR_RETURN(
+      auto expected_type,
+      RemoveKnownBitsType(split->package()->type_manager(), mask.type(), mask));
+  XLS_RET_CHECK_EQ(split_tree.type(), expected_type)
+      << "Incorrect type restoration.";
+  XLS_ASSIGN_OR_RETURN(LeafTypeTree<Node*> restored,
+                       RestoreKnownBitsFromTree(split->function_base(),
+                                                split_tree.AsView(), mask));
+  return FromTreeOfNodes(split->function_base(), restored.AsView(),
+                         split->HasAssignedName()
+                             ? absl::StrCat(split->GetNameView(), "_restored")
+                             : "",
+                         split->loc());
 }
 
 }  // namespace xls
