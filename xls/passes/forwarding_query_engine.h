@@ -61,6 +61,10 @@ class ForwardingQueryEngine : public QueryEngine {
     return real().SpecializeGiven(givens);
   }
 
+  bool IsPredicatePossible(PredicateState state) const override {
+    return real().IsPredicatePossible(state);
+  }
+
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
     return real().GetIntervals(node);
   }

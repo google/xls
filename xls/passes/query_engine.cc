@@ -469,4 +469,27 @@ std::unique_ptr<QueryEngine> QueryEngine::SpecializeGiven(
   return std::make_unique<BaseForwardingQueryEngine>(*this);
 }
 
+bool QueryEngine::IsPredicatePossible(PredicateState state) const {
+  if (state.IsArrayUpdatePredicate() || state.IsBasePredicate()) {
+    // TODO(allight): Can we be more specific here?
+    return true;
+  }
+  Node* selector = state.node()->operand(0);
+  if (!IsTracked(selector)) {
+    return true;
+  }
+  auto range_status = state.SelectorRange();
+  if (!range_status.ok()) {
+    LOG(WARNING) << "Unable to get implied predicate selector values: "
+                 << range_status.status();
+    // We can just assume this didn't prove the predicate was impossible.
+    return true;
+  }
+  auto [range, tern] = *range_status;
+  auto my_tern = GetTernary(selector);
+  return !IntervalSet::Intersect(range, GetIntervals(selector).Get({}))
+              .IsEmpty() &&
+         (!my_tern || ternary_ops::IsCompatible(tern, my_tern->Get({})));
+}
+
 }  // namespace xls

@@ -155,6 +155,15 @@ std::unique_ptr<QueryEngine> UnownedUnionQueryEngine::SpecializeGivenPredicate(
   return std::make_unique<UnionQueryEngine>(std::move(engines));
 }
 
+bool UnownedUnionQueryEngine::IsPredicatePossible(PredicateState state) const {
+  for (const auto& engine : engines_) {
+    if (!engine->IsPredicatePossible(state)) {
+      return false;
+    }
+  }
+  return QueryEngine::IsPredicatePossible(state);
+}
+
 std::unique_ptr<QueryEngine> UnownedUnionQueryEngine::SpecializeGiven(
     const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>& givens)
     const {

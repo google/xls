@@ -1257,7 +1257,13 @@ cc_library(
     hdrs = ["predicate_state.h"],
     deps = [
         "//xls/common:visitor",
+        "//xls/common/status:ret_check",
         "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:interval",
+        "//xls/ir:interval_ops",
+        "//xls/ir:interval_set",
+        "//xls/ir:ternary",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",

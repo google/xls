@@ -18,6 +18,7 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <variant>
 
 #include "absl/log/check.h"
@@ -25,9 +26,15 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/visitor.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/interval.h"
+#include "xls/ir/interval_ops.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/ternary.h"
 
 namespace xls {
 
@@ -57,6 +64,12 @@ struct InBoundsArm : public std::monostate {
   }
 };
 
+// Known values that a particular predicate state implies.
+struct SelectorValues {
+  IntervalSet range;
+  TernaryVector ternary;
+};
+
 // Abstraction representing the state of some operation where access to a value
 // is predicated.
 class PredicateState {
@@ -83,6 +96,69 @@ class PredicateState {
     return std::holds_alternative<Select*>(node_) ||
            std::holds_alternative<OneHotSelect*>(node_) ||
            std::holds_alternative<PrioritySelect*>(node_);
+  }
+
+  // Get the values of the selector implied by this predicate being selected.
+  absl::StatusOr<SelectorValues> SelectorRange() const {
+    XLS_RET_CHECK(IsSelectPredicate());
+    Node* selector = node()->operand(0);
+    if (std::holds_alternative<Select*>(node_)) {
+      if (IsDefaultArm()) {
+        auto intervals = IntervalSet::Of(
+            {Interval::Open(UBits(cases_count(), selector->BitCountOrDie()),
+                            Bits::AllOnes(selector->BitCountOrDie()))});
+        auto tern = interval_ops::ExtractTernaryVector(intervals);
+        return SelectorValues{.range = std::move(intervals),
+                              .ternary = std::move(tern)};
+      } else {
+        auto intervals =
+            IntervalSet::Precise(UBits(arm_index(), selector->BitCountOrDie()));
+        auto tern = ternary_ops::BitsToTernary(
+            UBits(arm_index(), selector->BitCountOrDie()));
+        return SelectorValues{.range = std::move(intervals),
+                              .ternary = std::move(tern)};
+      }
+    }
+    if (std::holds_alternative<OneHotSelect*>(node_)) {
+      if (IsDefaultArm()) {
+        return SelectorValues{
+            .range = IntervalSet::Precise(UBits(0, selector->BitCountOrDie())),
+            .ternary = TernaryVector(selector->BitCountOrDie(),
+                                     TernaryValue::kKnownZero)};
+      } else {
+        TernaryVector vec(selector->BitCountOrDie(), TernaryValue::kUnknown);
+        vec[arm_index()] = TernaryValue::kKnownOne;
+        return SelectorValues{.range = IntervalSet::Precise(UBits(
+                                  1 << arm_index(), selector->BitCountOrDie())),
+                              .ternary = std::move(vec)};
+      }
+    }
+    if (IsDefaultArm()) {
+      return SelectorValues{
+          .range = IntervalSet::Precise(UBits(0, selector->BitCountOrDie())),
+          .ternary = TernaryVector(selector->BitCountOrDie(),
+                                   TernaryValue::kKnownZero)};
+    } else {
+      TernaryVector vec(selector->BitCountOrDie(), TernaryValue::kKnownZero);
+      vec[arm_index()] = TernaryValue::kKnownOne;
+      for (int64_t i = arm_index() - 1; i >= 0; --i) {
+        vec[i] = TernaryValue::kKnownZero;
+      }
+      auto interval = interval_ops::FromTernary(vec);
+      return SelectorValues{.range = std::move(interval),
+                            .ternary = std::move(vec)};
+    }
+  }
+
+  int64_t cases_count() const {
+    CHECK(IsSelectPredicate());
+    if (std::holds_alternative<Select*>(node_)) {
+      return std::get<Select*>(node_)->cases().size();
+    }
+    if (std::holds_alternative<OneHotSelect*>(node_)) {
+      return std::get<OneHotSelect*>(node_)->cases().size();
+    }
+    return std::get<PrioritySelect*>(node_)->cases().size();
   }
 
   // Does this state represent a predicate for an array update.

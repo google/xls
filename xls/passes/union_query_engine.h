@@ -70,6 +70,8 @@ class UnownedUnionQueryEngine : public QueryEngine {
       const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>&
           givens) const override;
 
+  bool IsPredicatePossible(PredicateState state) const override;
+
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;
 
   bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override;

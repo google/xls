@@ -103,6 +103,9 @@ class AliasingQueryEngine final : public QueryEngine {
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
     return base_->GetIntervals(UnaliasNode(node));
   }
+  bool IsPredicatePossible(PredicateState state) const override {
+    return base_->IsPredicatePossible(state);
+  }
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override {
     return base_->AtMostOneTrue(UnaliasLocationList(bits));
   }

@@ -86,7 +86,8 @@ class SpecializedQueryEngines {
                           AliasingQueryEngine& base)
       : type_(type), base_(base), pda_(pda) {}
   const QueryEngine& ForSelect(PredicateState state) const {
-    if (type_ != AnalysisType::kRangeWithContext) {
+    if (type_ != AnalysisType::kRangeWithContext ||
+        !base_.IsPredicatePossible(state)) {
       return base_;
     }
     if (!engines_.contains(state)) {

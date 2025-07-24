@@ -143,6 +143,12 @@ class QueryEngine {
       const absl::btree_map<Node*, ValueKnowledge, Node::NodeIdLessThan>&
           givens) const;
 
+  // Returns 'false' if this query engine can conclusively prove that the
+  // predicates in states cannot be active.
+  //
+  // TODO(allight): Support multiple predicates.
+  virtual bool IsPredicatePossible(PredicateState state) const;
+
   // Returns a `LeafTypeTree<IntervalSet>` indicating which interval sets the
   // various parts of the value for a given node can exist in.
   virtual LeafTypeTree<IntervalSet> GetIntervals(Node* node) const;
