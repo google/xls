@@ -51,6 +51,7 @@ namespace xls {
 namespace {
 
 using ::absl::ScopedMockLog;
+using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::xls::solvers::z3::ScopedVerifyEquivalence;
 using ::xls::solvers::z3::ScopedVerifyProcEquivalence;
@@ -1892,6 +1893,25 @@ TEST_P(NarrowingPassTest, UninterestingBitSlice) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Literal(Value::Tuple({Value(UBits(0, 243))})));
+}
+
+TEST_P(NarrowingPassTest, DISABLED_Reproducer_4d97dfa3ad3738ac) {
+  // NOTE: We use the exact program here, as matching this with a
+  //       FunctionBuilder didn't reproduce the error.
+  const std::string program = R"(
+fn FuzzTest() -> bits[1] {
+  literal.21: bits[1] = literal(value=0, id=21)
+  identity.6: bits[1] = identity(literal.21, id=6)
+  ret sel.8: bits[1] = sel(literal.21, cases=[literal.21], default=identity.6, id=8)
+})";
+
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOk());
 }
 
 INSTANTIATE_TEST_SUITE_P(
