@@ -15,6 +15,7 @@
 #include "xls/passes/bit_count_query_engine.h"
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -1107,6 +1108,24 @@ void SubFuzzZ3(int8_t lhs, int8_t rhs) {
 }
 FUZZ_TEST(BitCountQueryEngineFuzzTest, SubFuzzZ3)
     .WithDomains(fuzztest::InRange(0, 16), fuzztest::InRange(0, 16));
+
+TEST_F(BitCountQueryEngineTest, ShraNoOverflow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Param("lhs", p->GetBitsType(16));
+  BValue rhs = fb.Literal(UBits(std::numeric_limits<int64_t>::max(), 64));
+  BValue shr = fb.Shra(lhs, rhs);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  BitCountQueryEngine qe;
+
+  XLS_ASSERT_OK(qe.Populate(f));
+  XLS_ASSERT_OK(qe.AddGiven(
+      lhs.node(), LeadingBitsTree::CreateSingleElementTree(
+                      p->GetBitsType(16), LeadingBits::SignValues(8))));
+  EXPECT_EQ(qe.KnownLeadingZeros(shr.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingOnes(shr.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingSignBits(shr.node()), 16);
+}
 
 }  // namespace
 }  // namespace xls
