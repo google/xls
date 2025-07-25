@@ -71,5 +71,6 @@ py_library(
     deps = [
         "//xls/common:runfiles",
         "@zstd//:decodecorpus",
+        "@zstd//:zstd_cli",
     ],
 )
