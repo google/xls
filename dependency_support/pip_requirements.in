@@ -16,7 +16,6 @@ z3-solver==4.14.0.0
 cocotb==1.7.2
 cocotbext-axi==0.1.24
 cocotb_bus==0.2.1
-zstandard==0.23.0
 
 # Note: numpy and scipy version availability seems to differ between Ubuntu
 # versions that we want to support (e.g. 18.04 vs 20.04), so we accept a
