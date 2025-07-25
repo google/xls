@@ -1052,6 +1052,13 @@ gds_write(
     implemented_rtl = ":find_index_place_and_route_asap7",
 )
 
+build_test(
+    name = "find_index_gds_asap7_build_test",
+    targets = [
+        ":find_index_gds_asap7",
+    ],
+)
+
 xls_dslx_library(
     name = "apfloat_fmac_dslx",
     srcs = ["apfloat_fmac.x"],
