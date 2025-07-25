@@ -1509,6 +1509,78 @@ fn FuzzTest(p0: bits[1] id=1, p6: bits[64] id=12) -> bits[1] {
   ASSERT_THAT(Run(f), IsOk());
 }
 
+TEST_P(SelectSimplificationPassTest, CompareEqualRearrangeWithSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue ugt_result = fb.Param("ugt_result", u32);
+  BValue ult_result = fb.Param("ult_result", u32);
+  BValue eq_result = fb.Param("eq_result", u32);
+  BValue ugt = fb.UGt(a, b);
+  BValue ult = fb.ULt(a, b);
+  BValue sub_select = fb.Select(ult, {eq_result, ult_result});
+  fb.Select(ugt, {sub_select, ugt_result});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::UGt(m::Param("a"), m::Param("b")),
+                {m::Select(m::Eq(m::Param("a"), m::Param("b")),
+                           {m::Param("ult_result"), m::Param("eq_result")}),
+                 m::Param("ugt_result")}));
+}
+
+TEST_P(SelectSimplificationPassTest,
+       CompareEqualRearrangeWithSelectAndFlippedConditions) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue ugt_1_result = fb.Param("ugt_1_result", u32);
+  BValue ugt_2_result = fb.Param("ugt_2_result", u32);
+  BValue eq_result = fb.Param("eq_result", u32);
+  BValue ugt_1 = fb.UGt(b, a);
+  BValue ugt_2 = fb.UGt(a, b);
+  BValue sub_select = fb.Select(ugt_2, {eq_result, ugt_2_result});
+  fb.Select(ugt_1, {sub_select, ugt_1_result});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::UGt(m::Param("b"), m::Param("a")),
+                {m::Select(m::Eq(m::Param("b"), m::Param("a")),
+                           {m::Param("ugt_2_result"), m::Param("eq_result")}),
+                 m::Param("ugt_1_result")}));
+}
+
+TEST_P(SelectSimplificationPassTest, CompareEqualRearrangeWithPrioritySelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue a = fb.Param("a", u32);
+  BValue b = fb.Param("b", u32);
+  BValue ugt_result = fb.Param("ugt_result", u32);
+  BValue ult_result = fb.Param("ult_result", u32);
+  BValue eq_result = fb.Param("eq_result", u32);
+  BValue ugt = fb.UGt(a, b);
+  BValue ult = fb.ULt(a, b);
+  BValue concat = fb.Concat({ugt, ult});
+  fb.PrioritySelect(concat, {ult_result, ugt_result}, eq_result);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::Concat(m::UGt(m::Param("a"), m::Param("b")),
+                                          m::Eq(m::Param("a"), m::Param("b"))),
+                                {m::Param("eq_result"), m::Param("ugt_result")},
+                                m::Param("ult_result")));
+}
+
 INSTANTIATE_TEST_SUITE_P(SelectSimplificationPassTest,
                          SelectSimplificationPassTest,
                          testing::Values(AnalysisType::kTernary,

@@ -478,6 +478,33 @@ std::string ToString(const MatchedPairs& pairs) {
   return ret;
 }
 
+bool IsGtOp(Node* node) {
+  return node->op() == Op::kUGt || node->op() == Op::kSGt;
+}
+
+bool IsLtOp(Node* node) {
+  return node->op() == Op::kULt || node->op() == Op::kSLt;
+}
+
+bool IsCompareEqualRearrangeViable(Node* first_compare, Node* second_compare) {
+  if (first_compare->operand_count() != 2 ||
+      second_compare->operand_count() != 2) {
+    return false;
+  }
+  Node* first_compare_lhs = first_compare->operands().at(0);
+  Node* first_compare_rhs = first_compare->operands().at(1);
+  Node* second_compare_lhs = second_compare->operands().at(0);
+  Node* second_compare_rhs = second_compare->operands().at(1);
+  return (((IsGtOp(first_compare) && IsLtOp(second_compare)) ||
+           (IsLtOp(first_compare) && IsGtOp(second_compare))) &&
+          ((first_compare_lhs == second_compare_lhs &&
+            first_compare_rhs == second_compare_rhs))) ||
+         (((IsGtOp(first_compare) && IsGtOp(second_compare)) ||
+           (IsLtOp(first_compare) && IsLtOp(second_compare))) &&
+          ((first_compare_lhs == second_compare_rhs &&
+            first_compare_rhs == second_compare_lhs)));
+}
+
 // Returns a bit-based select instruction which selects a slice of the given
 // bit-based select's cases. The cases are sliced with the given start and width
 // and then selected with a new bit-based select which is returned.
@@ -1020,6 +1047,66 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       }
       // Has an unknown bit before the first known one, so the result is
       // unknown.
+    }
+  }
+
+  // Compare Equal Rearrange with Select:
+  // Checking if a > b followed by a < b with an else is a common coding
+  // practice:
+  //
+  // if (a > b) {
+  // } else if (a < b) {
+  // } else {}  // a == b
+  //
+  // This can be simplified to use a comparison op for the default case instead
+  // of an equality op because the comparison op is more expensive:
+  //
+  // if (a > b) {
+  // } else if (a == b) {
+  // } else {}  // a < b
+  //
+  // sel(ugt, [sel(ult, [eq_result, ult_result]), ugt_result]) becomes
+  // sel(ugt, [sel(eq, [ult_result, eq_result]), ugt_result])
+  if (node->Is<Select>() && node->operand_count() == 3) {
+    Select* sel = node->As<Select>();
+    if (sel->cases().size() == 2 && sel->cases().at(0)->op() == Op::kSel) {
+      Select* sub_sel = sel->cases().at(0)->As<Select>();
+      if (sub_sel->operand_count() == 3 && sub_sel->cases().size() == 2) {
+        Node* first_compare = sel->selector();
+        Node* second_compare = sub_sel->selector();
+        if (IsCompareEqualRearrangeViable(first_compare, second_compare)) {
+          XLS_RETURN_IF_ERROR(second_compare
+                                  ->ReplaceUsesWithNew<CompareOp>(
+                                      first_compare->operands().at(0),
+                                      first_compare->operands().at(1), Op::kEq)
+                                  .status());
+          sub_sel->SwapOperands(1, 2);
+          return true;
+        }
+      }
+    }
+  }
+
+  // Compare Equal Rearrange with PrioritySelect:
+  // Same as the above optimizations but uses PrioritySelect:
+  //
+  // priority_sel(concat(ugt, ult), [ult_result, ugt_result], eq_result) becomes
+  // priority_sel(concat(ugt, eq), [eq_result, ugt_result], ult_result)
+  if (node->Is<PrioritySelect>() && node->operand_count() == 4) {
+    PrioritySelect* sel = node->As<PrioritySelect>();
+    Node* selector = sel->selector();
+    if (selector->op() == Op::kConcat && selector->operand_count() == 2) {
+      Node* first_compare = selector->operands().at(0);
+      Node* second_compare = selector->operands().at(1);
+      if (IsCompareEqualRearrangeViable(first_compare, second_compare)) {
+        XLS_RETURN_IF_ERROR(second_compare
+                                ->ReplaceUsesWithNew<CompareOp>(
+                                    first_compare->operands().at(0),
+                                    first_compare->operands().at(1), Op::kEq)
+                                .status());
+        sel->SwapOperands(1, 3);
+        return true;
+      }
     }
   }
 
