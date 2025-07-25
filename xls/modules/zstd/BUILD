@@ -1411,7 +1411,6 @@ py_binary(
     tags = ["manual"],
     visibility = ["//xls:xls_users"],
     deps = [
-        requirement("zstandard"),
         "//xls/common:runfiles",
         "//xls/modules/zstd/cocotb:data_generator",
         "@com_google_protobuf//:protobuf_python",
@@ -1816,7 +1815,6 @@ py_test(
     deps = [
         requirement("cocotb"),
         requirement("cocotbext-axi"),
-        requirement("zstandard"),
         "//xls/common:runfiles",
         "//xls/modules/zstd/cocotb:channel",
         "//xls/modules/zstd/cocotb:data_generator",
@@ -2259,7 +2257,6 @@ py_test(
     deps = [
         requirement("cocotb"),
         requirement("cocotbext-axi"),
-        requirement("zstandard"),
         "//xls/common:runfiles",
         "//xls/modules/zstd/cocotb:channel",
         "//xls/modules/zstd/cocotb:data_generator",
