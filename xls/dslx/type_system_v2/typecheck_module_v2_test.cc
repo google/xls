@@ -8339,5 +8339,45 @@ fn test() {
                         HasNodeWithType("val<3>() ++ val<3>()", "uN[6]"))));
 }
 
+TEST(TypecheckV2Test, ImportConstantStruct) {
+  constexpr std::string_view kImported = R"(
+pub struct X { x: u32 }
+
+pub const X_VAL = X { x: 30 };
+
+pub type Word = bits[X_VAL.x];
+
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn test() -> imported::Word {
+    widening_cast<imported::Word>(0)
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(
+      TypecheckV2(kProgram, "main", &import_data),
+      IsOkAndHolds(HasTypeInfo(HasNodeWithType("test", "() -> uN[30]"))));
+}
+
+TEST(TypecheckV2Test, ImportConstantAndCast) {
+  constexpr std::string_view kImported = R"(
+pub const TO_CAST = s32:17;
+
+pub type T = uN[TO_CAST as u32];
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+const ARR = imported::T[2]:[0, 0];
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("ARR", "uN[17][2]"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx
