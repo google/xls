@@ -17,7 +17,6 @@
 # TODO: https://github.com/google/xls/issues/931 - with MODULE.bazel, probably some of these can be removed now, with the
 # eventual goal that none of this is needed anymore and the file can be removed.
 
-load("@io_bazel_rules_closure//closure:repositories.bzl", "rules_closure_dependencies", "rules_closure_toolchains")
 load("@project_python//:defs.bzl", python_interpreter_target = "interpreter")
 load("@rules_7zip//:setup.bzl", "setup_7zip")  # needed by rules_hdl
 load("@rules_hdl//:init.bzl", rules_hdl_init = "init")
@@ -31,8 +30,6 @@ def initialize_external_repositories():
     rules_hdl_init(python_interpreter_target = python_interpreter_target)
     rules_hdl_dependency_support()
     setup_7zip()
-    rules_closure_dependencies(omit_com_google_protobuf = True)
-    rules_closure_toolchains()
     pip_parse(
         name = "xls_pip_deps",
         requirements_lock = Label("//dependency_support:pip_requirements_lock.txt"),

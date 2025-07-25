@@ -58,16 +58,6 @@ def load_external_repositories():
         build_file = Label("//dependency_support/z3:bundled.BUILD.bazel"),
     )
 
-    # Release 2024-02-23, current as of 2024-06-26
-    http_archive(
-        name = "io_bazel_rules_closure",
-        sha256 = "70ef2b4da987bf0d266e663d7c251eac509ff70dd65bba02d41d1e86e840a569",
-        strip_prefix = "rules_closure-0.13.0",
-        urls = [
-            "https://github.com/bazelbuild/rules_closure/archive/0.13.0.tar.gz",
-        ],
-    )
-
     # Commit from 2024-02-22, current as of 2024-06-26
     http_archive(
         name = "linenoise",

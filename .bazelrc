@@ -95,6 +95,10 @@ build:asan --copt -g
 build:asan --copt -fno-omit-frame-pointer
 build:asan --linkopt -fsanitize=address
 
+# Use new-ish hermetic java (closure seems to care about this)
+common --tool_java_language_version=21
+common --tool_java_runtime_version=remotejdk_21
+
 # To regenerate this file (if needed), please run:
 #
 #  bazel run @com_google_fuzztest//bazel:setup_configs > fuzztest.bazelrc
