@@ -932,6 +932,25 @@ pub fn msb<N: u32>(x: uN[N]) -> u1
 
 Extracts the MSb (Most Significant bit) from the value `x` and returns it.
 
+#### `std::lsbs`
+
+```dslx-snippet
+pub fn lsbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> bits[R]
+```
+
+Returns the R LSbs of x.
+`x` must be at least R bits wide.
+A signed value is returned as an unsigned value, as the sign bit has (presumably) been
+discarded.
+
+#### `std::msbs`
+
+```dslx-snippet
+pub fn msbs<R: u32, S: bool, N: u32>(x: xN[S][N]) -> bits[R]
+```
+
+Returns the R MSbs of x. `x` must be at least R bits wide. A signed value is returned as `bits`.
+
 #### `std::keep_lsbs`
 
 ```dslx-snippet
