@@ -49,6 +49,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/value.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
@@ -280,14 +281,35 @@ bool DoesErase(Node *node, uint32_t case_number,
                absl::flat_hash_map<Node *, bool> &nodes_with_side_effects,
                absl::flat_hash_map<Node *, absl::flat_hash_map<uint32_t, bool>>
                    &nodes_with_side_effects_at_case) {
+  // The default case's index is the number of selector bits, the "last" case.
+  if (case_number == selector_bits.size()) {
+    // Check if @node stops propagation. Assuming we select some case of
+    // the select except for the default, we assert @node's value to be known.
+    std::vector<std::pair<TreeBitLocation, bool>> assumed_values;
+    for (const auto &selector_bit : selector_bits) {
+      VLOG(5) << "  Assuming selector bit is true: " << selector_bit;
+      assumed_values.push_back(std::make_pair(selector_bit, true));
+
+      std::optional<Bits> node_value_when_default_selected =
+          bdd_engine.ImpliedNodeValue(assumed_values, node);
+      if (!node_value_when_default_selected) {
+        VLOG(5) << "     does not imply a value :(";
+        return false;
+      }
+      VLOG(5) << "     implies a value: " << *node_value_when_default_selected;
+    }
+
+    nodes_with_side_effects[node] = false;
+    return true;
+  }
+
   // Check if @node stops the propagation knowing we do not select @case_number
   // of the select being targeted.
   std::vector<std::pair<TreeBitLocation, bool>> assumed_values;
   assumed_values.push_back(std::make_pair(selector_bits[case_number], false));
   std::optional<Bits> node_value_when_case_not_selected =
       bdd_engine.ImpliedNodeValue(assumed_values, node);
-  if (node_value_when_case_not_selected &&
-      node_value_when_case_not_selected->IsZero()) {
+  if (node_value_when_case_not_selected) {
     // Memoize the result of the analysis
     nodes_with_side_effects[node] = false;
 
@@ -295,7 +317,7 @@ bool DoesErase(Node *node, uint32_t case_number,
   }
 
   // Check if @node erases @source
-  // To do it, we check if @node is guaranteed to be "0" (and therefore erase
+  // To do it, we check if @node is guaranteed to be known (and therefore erase
   // @source through this def-use chain) when the case selected is not
   // @case_number.
   for (const auto &[t_number, t] : iter::enumerate(selector_bits)) {
@@ -312,8 +334,7 @@ bool DoesErase(Node *node, uint32_t case_number,
     // Check if the current def-use chain gets erased.
     std::optional<Bits> node_value_when_case_not_selected =
         bdd_engine.ImpliedNodeValue(assumed_values, node);
-    if (!node_value_when_case_not_selected ||
-        !node_value_when_case_not_selected->IsZero()) {
+    if (!node_value_when_case_not_selected) {
       // We cannot guarantee @node erases @source.
       return false;
     }
@@ -485,6 +506,17 @@ absl::Span<Node *const> GetCases(Node *select) {
   return select->As<Select>()->cases();
 }
 
+absl::Span<Node *const> GetCasesAndDefault(Node *select) {
+  if (select->Is<PrioritySelect>()) {
+    return select->As<PrioritySelect>()->operands().subspan(1);
+  }
+  if (select->Is<OneHotSelect>()) {
+    return select->As<OneHotSelect>()->operands().subspan(1);
+  }
+  CHECK(select->Is<Select>());
+  return select->As<Select>()->operands().subspan(1);
+}
+
 Node *GetSelector(Node *select) {
   if (select->Is<PrioritySelect>()) {
     return select->As<PrioritySelect>()->selector();
@@ -597,7 +629,7 @@ std::optional<std::unique_ptr<BinaryFoldingAction>> CanMapInto(
   bool folding_destination_found = false;
   uint32_t folding_destination_case_number = 0;
   for (const auto &[case_number, current_case] :
-       iter::enumerate(GetCases(select))) {
+       iter::enumerate(GetCasesAndDefault(select))) {
     // Check @node_to_map
     std::optional<uint32_t> node_to_map_case_number_opt =
         GetSelectCaseNumberOfNode(reachability_result, node_to_map,
@@ -875,10 +907,10 @@ ComputeMutualExclusionAnalysis(
     // This will be used by the BDD query engine to identify nodes that stop the
     // propagation of a node in a def-use chain.
     Node *selector = GetSelector(n);
-    absl::Span<Node *const> cases = GetCases(n);
+    absl::Span<Node *const> cases_and_default = GetCasesAndDefault(n);
     std::vector<TreeBitLocation> selector_bits;
-    selector_bits.reserve(cases.length());
-    for (uint32_t case_number = 0; case_number < cases.length();
+    selector_bits.reserve(cases_and_default.length() - 1);
+    for (uint32_t case_number = 0; case_number < cases_and_default.length() - 1;
          case_number++) {
       selector_bits.emplace_back(selector, case_number);
     }
@@ -887,11 +919,15 @@ ComputeMutualExclusionAnalysis(
     absl::flat_hash_map<Node *, bool> nodes_with_side_effects;
     absl::flat_hash_map<Node *, absl::flat_hash_map<uint32_t, bool>>
         nodes_with_side_effects_at_case;
-    for (uint32_t case_number = 0; case_number < cases.length();
+    for (uint32_t case_number = 0; case_number < cases_and_default.length();
          case_number++) {
-      Node *current_case = cases[case_number];
+      Node *current_case = cases_and_default[case_number];
       VLOG(4) << "  Case number = " << case_number;
-      VLOG(4) << "  Selection condition = " << selector_bits[case_number];
+      if (case_number < selector_bits.size()) {
+        VLOG(4) << "  Selection condition = " << selector_bits[case_number];
+      } else {
+        VLOG(4) << "  Selection condition = default";
+      }
       VLOG(4) << "  Case " << current_case->ToString();
 
       // Check if any of the nodes that reach the current case (including it)
@@ -931,8 +967,8 @@ ComputeMutualExclusionAnalysis(
 
         // Check if the current reaching node reaches the other cases
         for (uint32_t case_number_2 = case_number + 1;
-             case_number_2 < cases.length(); case_number_2++) {
-          Node *current_case_2 = cases[case_number_2];
+             case_number_2 < cases_and_default.length(); case_number_2++) {
+          Node *current_case_2 = cases_and_default[case_number_2];
           if (DoesReach(reachability_result, current_case_2,
                         current_case_reaching_node)) {
             VLOG(5)
@@ -944,8 +980,12 @@ ComputeMutualExclusionAnalysis(
           // Compute the condition for which nodes are selected through the
           // current case of the select @n.
           VLOG(4) << "        Case number = " << case_number_2;
-          VLOG(4) << "        Selection condition = "
-                  << selector_bits[case_number_2];
+          if (case_number_2 < selector_bits.size()) {
+            VLOG(4) << "        Selection condition = "
+                    << selector_bits[case_number_2];
+          } else {
+            VLOG(4) << "        Selection condition = default";
+          }
 
           // The current reaching node @current_case_reaching_node does not
           // reach the other case @current_case_2.
@@ -2264,6 +2304,7 @@ absl::StatusOr<bool> PerformFoldingActions(
     // This might have been renamed by previous folding actions already
     // performed.
     Node *select = folding->GetSelect();
+    uint64_t num_cases = GetCases(select).size();
     Node *to_node = folding->GetTo();
     if (renaming_done_by_previous_folding.contains(to_node)) {
       // Rename the destination of @folding
@@ -2345,13 +2386,23 @@ absl::StatusOr<bool> PerformFoldingActions(
       VLOG(4) << "        Source: " << from_node->ToString();
 
       // We need to take out the bit that enables @from_node.
-      //
-      // We currently avoid generating a bitslice node only if a concat has
-      // 1-bit operands.
-      // This can be extended to a multi-bits operands concats in the future.
       Node *from_bit = nullptr;
-      if (selector->Is<Concat>() &&
-          (selector->BitCountOrDie() == selector->operand_count())) {
+      if (from_node_case_number == num_cases) {
+        VLOG(4) << "          Default case, selector bit is expression:"
+                   " (selector == 0)";
+        XLS_ASSIGN_OR_RETURN(
+            Node * selector_all_zeros,
+            f->MakeNode<Literal>(selector->loc(),
+                                 Value(UBits(0, selector->BitCountOrDie()))));
+        XLS_ASSIGN_OR_RETURN(
+            from_bit, f->MakeNode<CompareOp>(selector->loc(), selector,
+                                             selector_all_zeros, Op::kEq));
+
+        // We currently avoid generating a bitslice node only if a concat has
+        // 1-bit operands.
+        // This can be extended to a multi-bits operands concats in the future.
+      } else if (selector->Is<Concat>() &&
+                 (selector->BitCountOrDie() == selector->operand_count())) {
         VLOG(4) << "          No need for bitslice";
         uint32_t bit_to_extract =
             selector->operand_count() - from_node_case_number - 1;
