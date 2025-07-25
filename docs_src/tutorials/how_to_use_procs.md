@@ -217,6 +217,12 @@ test proc is very similar to a normal proc with the following changes:
     output channel for terminating interpretation. When the test is complete,
     the proc should send the test's status (`true` on success, `false` on
     failure) on that channel (commonly called the "terminator" channel).
+*   The `#[test_proc]` attribute also supports an optional `expected_fail`
+    parameter. This allows writing tests that are expected to fail due to
+    a specific `assert!` or `fail!` condition. The value must match the label
+    on the failing assertion. If a failure with the matching label occurs,
+    the test is treated as successful, and if no such failure happens,
+    the test is treated as failed.
 
 A skeletal example:
 

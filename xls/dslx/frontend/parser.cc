@@ -817,8 +817,29 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
         peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
   }
   if (attribute_name == "test_proc") {
+    std::optional<std::string> expected_fail_label = std::nullopt;
+    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+    if (peek->kind() == TokenKind::kOParen) {
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+      XLS_ASSIGN_OR_RETURN(Token parameter_name,
+                           PopTokenOrError(TokenKind::kIdentifier));
+
+      if (parameter_name.GetStringValue() == "expected_fail_label") {
+        XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
+        XLS_ASSIGN_OR_RETURN(Token parameter_value,
+                             PopTokenOrError(TokenKind::kString));
+        expected_fail_label = parameter_value.GetStringValue();
+      } else {
+        return ParseErrorStatus(
+            attribute_tok.span(),
+            absl::StrFormat(
+                "Unknown parameter name in the #[test_proc] attribute: '%s'",
+                parameter_name.ToString()));
+      }
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
+    }
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
-    return ParseTestProc(bindings);
+    return ParseTestProc(bindings, expected_fail_label);
   }
   return ParseErrorStatus(
       attribute_tok.span(),
@@ -3959,7 +3980,8 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
   return tf;
 }
 
-absl::StatusOr<TestProc*> Parser::ParseTestProc(Bindings& bindings) {
+absl::StatusOr<TestProc*> Parser::ParseTestProc(
+    Bindings& bindings, std::optional<std::string> expected_fail_label) {
   XLS_ASSIGN_OR_RETURN(ModuleMember m,
                        ParseProc(GetPos(), /*is_public=*/false, bindings));
   if (!std::holds_alternative<Proc*>(m)) {
@@ -3981,7 +4003,7 @@ absl::StatusOr<TestProc*> Parser::ParseTestProc(Bindings& bindings) {
   }
 
   // Verify no state or config args
-  return module_->Make<TestProc>(p);
+  return module_->Make<TestProc>(p, expected_fail_label);
 }
 
 const Span& GetSpan(

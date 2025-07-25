@@ -202,9 +202,23 @@ absl::Status RunDslxTestProc(ImportData* import_data, TypeInfo* type_info,
       hierarchy_interpreter->GetInterfaceChannel(0);
 
   // Run until a single output appears in the terminal channel.
-  XLS_RETURN_IF_ERROR(
+  absl::Status status =
       hierarchy_interpreter->TickUntilOutput({{terminal_channel_name, 1}})
-          .status());
+          .status();
+  std::optional<std::string> fail_label_opt =
+      GetAssertionLabelFromError(status);
+  if (!status.ok() && tp->expected_fail_label().has_value() &&
+      fail_label_opt.has_value()) {
+    if (*fail_label_opt == *tp->expected_fail_label()) {
+      return absl::OkStatus();
+    }
+    return FailureErrorStatus(
+        tp->proc()->span(),
+        absl::StrFormat("Proc failed on '%s', but expected to fail on '%s'",
+                        *fail_label_opt, *tp->expected_fail_label()),
+        import_data->file_table());
+  }
+  XLS_RETURN_IF_ERROR(status);
 
   InterpValue ret_val = terminal_channel.Read();
   XLS_RET_CHECK(ret_val.IsBool());

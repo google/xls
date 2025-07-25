@@ -39,6 +39,13 @@ absl::Status ArgCountMismatchErrorStatus(const Span& span,
 absl::Status FailureErrorStatus(const Span& span, std::string_view message,
                                 const FileTable& file_table);
 
+// Variant of `FailureErrorStatus` for  when interpretation of a design
+// fails on assertion.
+absl::Status FailureErrorStatusForAssertion(const Span& span,
+                                            std::string_view label,
+                                            std::string_view message,
+                                            const FileTable& file_table);
+
 // Returned when proof of a property fails.
 absl::Status ProofErrorStatus(const Span& span, std::string_view message,
                               const FileTable& file_table);
@@ -142,6 +149,11 @@ absl::Status RangeStartGreaterThanEndErrorStatus(const Span& span,
 absl::Status RangeTooLargeErrorStatus(const Span& span, const Range* range,
                                       const InterpValue& size,
                                       const FileTable& file_table);
+
+// Extracts the assertion label from an error message.
+// Intended for use with errors returned by `FailureErrorStatusForAssertion()`.
+std::optional<std::string> GetAssertionLabelFromError(
+    const absl::Status& status);
 
 }  // namespace xls::dslx
 
