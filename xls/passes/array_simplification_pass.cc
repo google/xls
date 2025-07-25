@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -1066,70 +1067,53 @@ absl::StatusOr<SimplifyResult> SimplifyArraySlice(
   if (array_slice->array()->Is<ArraySlice>()) {
     // Collect inner slices and the ultimate base array.
     std::vector<ArraySlice*> chain;
-    Node* base = array_slice->array();
+    Node* base = array_slice;
     while (base->Is<ArraySlice>()) {
-      chain.push_back(base->As<ArraySlice>());
+      ArraySlice* slice = base->As<ArraySlice>();
+      chain.push_back(slice);
       base = base->As<ArraySlice>()->array();
+
+      // If this slice could run off the end of `base`, then it can't chain with
+      // `base`, even if `base` happens to be an ArraySlice.
+      SaturatedResult<int64_t> slice_end_max =
+          SaturatingAdd(bits_ops::UnsignedBitsToSaturatedInt64(
+                            query_engine.MaxUnsignedValue(slice->start())),
+                        slice->width());
+      if (slice_end_max.did_overflow ||
+          slice_end_max.result > base->GetType()->AsArrayOrDie()->size()) {
+        break;
+      }
     }
 
-    // Helper: Returns the exact constant if known, else the max possible
-    // unsigned value it can take.
-    auto get_max_start = [&](Node* n) -> absl::StatusOr<uint64_t> {
-      if (query_engine.IsFullyKnown(n)) {
-        std::optional<Bits> known = query_engine.KnownValueAsBits(n);
-        if (!known.has_value() || !known->FitsInUint64()) {
-          return absl::InvalidArgumentError("Known value does not fit");
+    if (chain.size() > 1) {
+      // Helper: zero-extend a node to bit-width w.
+      auto zext = [&](Node* n, int64_t w) -> absl::StatusOr<Node*> {
+        if (n->BitCountOrDie() >= w) {
+          return n;
         }
-        return known->ToUint64();
-      }
-      return query_engine.MaxUnsignedValue(n).ToUint64();
-    };
+        return array_slice->function_base()->MakeNode<ExtendOp>(
+            SourceInfo(), n, w, Op::kZeroExt);
+      };
 
-    // We must double-walk: first check bounds using only query-engine and
-    // constants, then, if safe, build the new start expression. This avoids
-    // creating IR nodes unless we know the transform will be applied.
-    Node* start = array_slice->start();
-    int64_t array_size = base->GetType()->AsArrayOrDie()->size();
-    absl::StatusOr<uint64_t> running_max_start = get_max_start(start);
-    if (!running_max_start.ok()) {
-      return SimplifyResult::Unchanged();
+      Node* start = chain.front()->start();
+      int64_t array_size = base->GetType()->AsArrayOrDie()->size();
+      for (ArraySlice* slice : absl::MakeConstSpan(chain).subspan(1)) {
+        int64_t width =
+            std::max({start->BitCountOrDie(), slice->start()->BitCountOrDie(),
+                      Bits::MinBitCountUnsigned(array_size - 1)});
+
+        XLS_ASSIGN_OR_RETURN(Node * lhs, zext(start, width));
+        XLS_ASSIGN_OR_RETURN(Node * rhs, zext(slice->start(), width));
+        XLS_ASSIGN_OR_RETURN(start,
+                             array_slice->function_base()->MakeNode<BinOp>(
+                                 SourceInfo(), lhs, rhs, Op::kAdd));
+      }
+
+      XLS_ASSIGN_OR_RETURN(ArraySlice * repl,
+                           array_slice->ReplaceUsesWithNew<ArraySlice>(
+                               base, start, array_slice->width()));
+      return SimplifyResult::Changed({repl});
     }
-    for (ArraySlice* slice : chain) {
-      absl::StatusOr<uint64_t> slice_start_max = get_max_start(slice->start());
-      if (!slice_start_max.ok()) {
-        return SimplifyResult::Unchanged();
-      }
-      running_max_start.value() += slice_start_max.value();
-      if (running_max_start.value() + array_slice->width() - 1 >=
-          static_cast<uint64_t>(array_size)) {
-        return SimplifyResult::Unchanged();
-      }
-    }
-
-    // Helper: zero-extend a node to bit-width w.
-    auto zext = [&](Node* n, int64_t w) -> absl::StatusOr<Node*> {
-      if (n->BitCountOrDie() >= w) {
-        return n;
-      }
-      return array_slice->function_base()->MakeNode<ExtendOp>(SourceInfo(), n,
-                                                              w, Op::kZeroExt);
-    };
-
-    for (ArraySlice* slice : chain) {
-      int64_t width =
-          std::max({start->BitCountOrDie(), slice->start()->BitCountOrDie(),
-                    Bits::MinBitCountUnsigned(array_size - 1)});
-
-      XLS_ASSIGN_OR_RETURN(Node * lhs, zext(start, width));
-      XLS_ASSIGN_OR_RETURN(Node * rhs, zext(slice->start(), width));
-      XLS_ASSIGN_OR_RETURN(start, array_slice->function_base()->MakeNode<BinOp>(
-                                      SourceInfo(), lhs, rhs, Op::kAdd));
-    }
-
-    XLS_ASSIGN_OR_RETURN(ArraySlice * repl,
-                         array_slice->ReplaceUsesWithNew<ArraySlice>(
-                             base, start, array_slice->width()));
-    return SimplifyResult::Changed({repl});
   }
 
   // Replace a slice that covers the entire array with the array itself.

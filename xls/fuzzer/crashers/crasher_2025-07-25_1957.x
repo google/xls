@@ -47,8 +47,7 @@
 //   codegen_args: "--reset_active_low=false"
 //   codegen_args: "--reset_asynchronous=false"
 //   codegen_args: "--reset_data_path=true"
-//   simulate: true
-//   simulator: "sandboxed-"
+//   simulate: false
 //   use_system_verilog: false
 //   timeout_seconds: 1500
 //   calls_per_sample: 128
