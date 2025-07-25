@@ -402,7 +402,6 @@ TEST_F(PipelineSchedulingPassTest, MultiProcScopedChannels) {
 
   // Create a top proc which instantiates two leaf procs and sends an input
   // value through the chain, accumulates it and then sends to the output.
-  Proc* top;
   {
     TokenlessProcBuilder pb(NewStyleProc(), "myproc", "tkn", p.get());
     XLS_ASSERT_OK_AND_ASSIGN(ReceiveChannelInterface * in,
@@ -423,7 +422,7 @@ TEST_F(PipelineSchedulingPassTest, MultiProcScopedChannels) {
     BValue next_accum = pb.Add(pb.Receive(tmp1_ch.receive_interface), accum);
     pb.Send(out, next_accum);
     XLS_ASSERT_OK(pb.SetAsTop());
-    XLS_ASSERT_OK_AND_ASSIGN(top, pb.Build({next_accum}));
+    XLS_ASSERT_OK(pb.Build({next_accum}).status());
   }
 
   XLS_ASSERT_OK(RunPipelineSchedulingPass(
