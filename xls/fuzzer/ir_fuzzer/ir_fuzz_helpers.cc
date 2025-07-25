@@ -31,7 +31,11 @@
 
 namespace xls {
 
-// Returns a BValue that is coerced to the specified type.
+// Accepts a bvalue that is coerced to a type specified by target_type. The
+// coerced_type contains coercion information that specifies how the bvalue
+// should be coerced to the target_type. The target_type should be created based
+// off of the coerced_type. Additional helper functions, like CoercedBits, are
+// provided if you already know that the bvalue is of a bits type.
 BValue Coerced(Package* p, FunctionBuilder* fb, BValue bvalue,
                const CoercedTypeProto& coerced_type, Type* target_type) {
   switch (coerced_type.type_case()) {
@@ -126,6 +130,100 @@ BValue CoercedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
     coerced_elements.push_back(coerced_element);
   }
   return fb->Array(coerced_elements, array_type->element_type());
+}
+
+// Accepts a bvalue that is coerced to a type specified by target_type. The
+// coercion_method contains coercion information that specifies how the bvalue
+// should be coerced to the target_type. Fitted() is different from Coerced()
+// because Fitted() uses coercion_method instead of coerced_type. Additional
+// helper functions, like FittedBits, are provided if you already know that the
+// bvalue is of a bits type.
+BValue Fitted(Package* p, FunctionBuilder* fb, BValue bvalue,
+              const CoercionMethodProto& coercion_method, Type* target_type) {
+  if (target_type->IsBits()) {
+    return FittedBits(p, fb, bvalue, coercion_method.bits(), target_type);
+  } else if (target_type->IsTuple()) {
+    return FittedTuple(p, fb, bvalue, coercion_method, target_type);
+  } else if (target_type->IsArray()) {
+    return FittedArray(p, fb, bvalue, coercion_method, target_type);
+  } else {
+    return DefaultValue(p, fb);
+  }
+}
+
+BValue FittedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
+                  const BitsCoercionMethodProto& coercion_method,
+                  Type* target_type) {
+  Type* bvalue_type = bvalue.GetType();
+  // If the bvalue is already the specified type, return it as is.
+  if (bvalue_type == target_type) {
+    return bvalue;
+  }
+  // If the bvalue differs in categorical type to bits, simply return a default
+  // value of the specified type.
+  if (!bvalue_type->IsBits()) {
+    return DefaultValueOfBitsType(p, fb, target_type);
+  }
+  BitsType* bits_type = target_type->AsBitsOrDie();
+  return ChangeBitWidth(fb, bvalue, bits_type->bit_count(),
+                        coercion_method.change_bit_width_method());
+}
+
+BValue FittedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
+                   const CoercionMethodProto& coercion_method,
+                   Type* target_type) {
+  Type* bvalue_type = bvalue.GetType();
+  if (bvalue_type == target_type) {
+    return bvalue;
+  }
+  if (!bvalue_type->IsTuple()) {
+    return DefaultValueOfTupleType(p, fb, target_type);
+  }
+  TupleType* tuple_type = target_type->AsTupleOrDie();
+  auto tuple_coercion_method = coercion_method.tuple();
+  // Change the size of the tuple to match the specified size.
+  bvalue = ChangeTupleSize(fb, bvalue, tuple_type->size(),
+                           tuple_coercion_method.change_tuple_size_method());
+  std::vector<BValue> fitted_elements;
+  // Fit each tuple element and create a new tuple with the fitted elements.
+  for (int64_t i = 0; i < tuple_type->size(); i += 1) {
+    BValue element = fb->TupleIndex(bvalue, i);
+    BValue fitted_element =
+        Fitted(p, fb, element, coercion_method, tuple_type->element_type(i));
+    fitted_elements.push_back(fitted_element);
+  }
+  return fb->Tuple(fitted_elements);
+}
+
+BValue FittedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
+                   const CoercionMethodProto& coercion_method,
+                   Type* target_type) {
+  Type* bvalue_type = bvalue.GetType();
+  if (bvalue_type == target_type) {
+    return bvalue;
+  }
+  if (!bvalue_type->IsArray()) {
+    return DefaultValueOfArrayType(p, fb, target_type);
+  }
+  ArrayType* array_type = target_type->AsArrayOrDie();
+  auto array_coercion_method = coercion_method.array();
+  // Change the size of the array to match the specified size.
+  bvalue = ChangeArraySize(p, fb, bvalue, array_type->size(),
+                           array_coercion_method.change_array_size_method());
+  // If the array elements are already of the specified type, return it as is.
+  if (array_type->element_type() ==
+      target_type->AsArrayOrDie()->element_type()) {
+    return bvalue;
+  }
+  std::vector<BValue> fitted_elements;
+  // Fit each array element and create a new array with the fitted elements.
+  for (int64_t i = 0; i < array_type->size(); i += 1) {
+    BValue element = fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, 64))}, true);
+    BValue fitted_element =
+        Fitted(p, fb, element, coercion_method, array_type->element_type());
+    fitted_elements.push_back(fitted_element);
+  }
+  return fb->Array(fitted_elements, array_type->element_type());
 }
 
 // Changes the bit width of an inputted BValue to a specified bit width.
@@ -329,9 +427,9 @@ BValue DefaultValue(Package* p, FunctionBuilder* fb, TypeCase type_case) {
     case TypeCase::BITS_CASE:
       return DefaultBitsValue(fb);
     case TypeCase::TUPLE_CASE:
-      return fb->Tuple({});
+      return fb->Tuple({DefaultBitsValue(fb)});
     case TypeCase::ARRAY_CASE:
-      return fb->Array({}, p->GetBitsType(64));
+      return fb->Array({DefaultBitsValue(fb)}, p->GetBitsType(64));
   }
 }
 

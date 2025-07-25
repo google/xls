@@ -204,5 +204,42 @@ TEST(IrFuzzTest, PassChangesOutputsWithEmptyArrayParam) {
       PassChangesOutputsWithProto(proto_string, /*arg_set_count=*/10, pass));
 }
 
+TEST(IrFuzzTest, PassChangesOutputsWithParamAndLiteralTuple) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: TUPLE_LIST_METHOD
+        args_bytes: "\x9c\xbe\x22\xda\x0f\x89\x3b\x2b\x01\x5a\xcc\x81\x12\x23\xea\x45\x7c\x14\xc7\x82\x47\xe5\x55\x54\xb5\xce\x45\x17\xed\xce\x20\xe2"
+        fuzz_ops {
+          param {
+            type {
+              tuple {
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          literal {
+            type {
+              tuple {
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  ReassociationPass pass;
+  XLS_ASSERT_OK(
+      PassChangesOutputsWithProto(proto_string, /*arg_set_count=*/10, pass));
+}
+
 }  // namespace
 }  // namespace xls

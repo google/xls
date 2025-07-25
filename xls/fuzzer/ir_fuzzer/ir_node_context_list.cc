@@ -40,8 +40,14 @@ BValue IrNodeContextList::GetElementAt(int64_t list_idx,
       }
       return bits_context_list_[list_idx % bits_context_list_.size()];
     case ContextListType::TUPLE_LIST:
+      if (tuple_context_list_.empty()) {
+        return DefaultValue(p_, fb_, TypeCase::TUPLE_CASE);
+      }
       return tuple_context_list_[list_idx % tuple_context_list_.size()];
     case ContextListType::ARRAY_LIST:
+      if (array_context_list_.empty()) {
+        return DefaultValue(p_, fb_, TypeCase::ARRAY_CASE);
+      }
       return array_context_list_[list_idx % array_context_list_.size()];
   }
 }

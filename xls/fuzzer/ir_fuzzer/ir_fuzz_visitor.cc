@@ -64,6 +64,12 @@ void IrFuzzVisitor::VisitFuzzOp(const FuzzOpProto& fuzz_op) {
     case FuzzOpProto::kSmul:
       HandleSMul(fuzz_op.smul());
       break;
+    case FuzzOpProto::kUmulp:
+      HandleUMulp(fuzz_op.umulp());
+      break;
+    case FuzzOpProto::kSmulp:
+      HandleSMulp(fuzz_op.smulp());
+      break;
     case FuzzOpProto::kUdiv:
       HandleUDiv(fuzz_op.udiv());
       break;
@@ -147,6 +153,27 @@ void IrFuzzVisitor::VisitFuzzOp(const FuzzOpProto& fuzz_op) {
       break;
     case FuzzOpProto::kMatchTrue:
       HandleMatchTrue(fuzz_op.match_true());
+      break;
+    case FuzzOpProto::kTuple:
+      HandleTuple(fuzz_op.tuple());
+      break;
+    case FuzzOpProto::kArray:
+      HandleArray(fuzz_op.array());
+      break;
+    case FuzzOpProto::kTupleIndex:
+      HandleTupleIndex(fuzz_op.tuple_index());
+      break;
+    case FuzzOpProto::kArrayIndex:
+      HandleArrayIndex(fuzz_op.array_index());
+      break;
+    case FuzzOpProto::kArraySlice:
+      HandleArraySlice(fuzz_op.array_slice());
+      break;
+    case FuzzOpProto::kArrayUpdate:
+      HandleArrayUpdate(fuzz_op.array_update());
+      break;
+    case FuzzOpProto::kArrayConcat:
+      HandleArrayConcat(fuzz_op.array_concat());
       break;
     case FuzzOpProto::kReverse:
       HandleReverse(fuzz_op.reverse());

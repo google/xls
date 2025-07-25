@@ -162,6 +162,40 @@ void GenIrNodesPass::HandleSMul(const FuzzSMulProto& smul) {
   }
 }
 
+// Same as UMul.
+void GenIrNodesPass::HandleUMulp(const FuzzUMulpProto& umulp) {
+  if (umulp.has_bit_width()) {
+    BValue lhs = GetBitsOperand(umulp.lhs_idx());
+    BValue rhs = GetBitsOperand(umulp.rhs_idx());
+    int64_t right_bound =
+        std::min<int64_t>(1000, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t bit_width =
+        BoundedWidth(umulp.bit_width(), /*left_bound=*/1, right_bound);
+    context_list_.AppendElement(fb_->UMulp(lhs, rhs, bit_width));
+  } else {
+    BValue lhs = GetCoercedBitsOperand(umulp.lhs_idx(), umulp.operands_type());
+    BValue rhs = GetCoercedBitsOperand(umulp.rhs_idx(), umulp.operands_type());
+    context_list_.AppendElement(fb_->UMulp(lhs, rhs));
+  }
+}
+
+// Same as UMul.
+void GenIrNodesPass::HandleSMulp(const FuzzSMulpProto& smulp) {
+  if (smulp.has_bit_width()) {
+    BValue lhs = GetBitsOperand(smulp.lhs_idx());
+    BValue rhs = GetBitsOperand(smulp.rhs_idx());
+    int64_t right_bound =
+        std::min<int64_t>(1000, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t bit_width =
+        BoundedWidth(smulp.bit_width(), /*left_bound=*/1, right_bound);
+    context_list_.AppendElement(fb_->SMulp(lhs, rhs, bit_width));
+  } else {
+    BValue lhs = GetCoercedBitsOperand(smulp.lhs_idx(), smulp.operands_type());
+    BValue rhs = GetCoercedBitsOperand(smulp.rhs_idx(), smulp.operands_type());
+    context_list_.AppendElement(fb_->SMulp(lhs, rhs));
+  }
+}
+
 void GenIrNodesPass::HandleUDiv(const FuzzUDivProto& udiv) {
   BValue lhs = GetCoercedBitsOperand(udiv.lhs_idx(), udiv.operands_type());
   BValue rhs = GetCoercedBitsOperand(udiv.rhs_idx(), udiv.operands_type());
@@ -416,20 +450,82 @@ void GenIrNodesPass::HandleMatchTrue(const FuzzMatchTrueProto& match_true) {
   std::vector<FunctionBuilder::Case> cases;
   for (const CaseProto& case_proto : match_true.case_protos()) {
     cases.push_back(FunctionBuilder::Case{
-        GetBitsFittedOperand(case_proto.clause_idx(), /*bit_width=*/1,
-                             match_true.operands_coercion_method()),
-        GetBitsFittedOperand(case_proto.clause_idx(), /*bit_width=*/1,
-                             match_true.operands_coercion_method())});
+        GetBitsFittedOperand(case_proto.clause_idx(),
+                             match_true.operands_coercion_method(),
+                             /*bit_width=*/1),
+        GetBitsFittedOperand(case_proto.clause_idx(),
+                             match_true.operands_coercion_method(),
+                             /*bit_width=*/1)});
   }
   if (cases.empty()) {
     BValue default_case_value = fb_->Literal(UBits(0, 1));
     cases.push_back(
         FunctionBuilder::Case{default_case_value, default_case_value});
   }
-  BValue default_value =
-      GetBitsFittedOperand(match_true.default_value_idx(), /*bit_width=*/1,
-                           match_true.operands_coercion_method());
+  BValue default_value = GetBitsFittedOperand(
+      match_true.default_value_idx(), match_true.operands_coercion_method(),
+      /*bit_width=*/1);
   context_list_.AppendElement(fb_->MatchTrue(cases, default_value));
+}
+
+void GenIrNodesPass::HandleTuple(const FuzzTupleProto& tuple) {
+  std::vector<BValue> operands = GetOperands(tuple.operand_idxs());
+  context_list_.AppendElement(fb_->Tuple(operands));
+}
+
+void GenIrNodesPass::HandleArray(const FuzzArrayProto& array) {
+  // Arrays must have at least one element.
+  std::vector<BValue> operands =
+      GetCoercedOperands(array.operand_idxs(), array.operands_type(),
+                         /*min_operand_count=*/1);
+  Type* element_type = ConvertTypeProtoToType(p_, array.operands_type());
+  context_list_.AppendElement(fb_->Array(operands, element_type));
+}
+
+void GenIrNodesPass::HandleTupleIndex(const FuzzTupleIndexProto& tuple_index) {
+  BValue operand = GetTupleOperand(tuple_index.operand_idx());
+  int64_t tuple_size = operand.GetType()->AsTupleOrDie()->size();
+  // The tuple must have at least one element.
+  if (tuple_size == 0) {
+    operand = DefaultValue(p_, fb_, TypeCase::TUPLE_CASE);
+    tuple_size = operand.GetType()->AsTupleOrDie()->size();
+  }
+  int64_t index =
+      Bounded(tuple_index.index(), /*left_bound=*/0, tuple_size - 1);
+  context_list_.AppendElement(fb_->TupleIndex(operand, index));
+}
+
+void GenIrNodesPass::HandleArrayIndex(const FuzzArrayIndexProto& array_index) {
+  BValue operand = GetArrayOperand(array_index.operand_idx());
+  BValue indices = GetBitsOperand(array_index.indices_idx());
+  context_list_.AppendElement(
+      fb_->ArrayIndex(operand, {indices}, /*assumed_in_bounds=*/false));
+}
+
+void GenIrNodesPass::HandleArraySlice(const FuzzArraySliceProto& array_slice) {
+  BValue operand = GetArrayOperand(array_slice.operand_idx());
+  BValue start = GetBitsOperand(array_slice.start_idx());
+  int64_t width = BoundedArraySize(array_slice.width());
+  context_list_.AppendElement(fb_->ArraySlice(operand, start, width));
+}
+
+void GenIrNodesPass::HandleArrayUpdate(
+    const FuzzArrayUpdateProto& array_update) {
+  BValue operand = GetArrayOperand(array_update.operand_idx());
+  Type* element_type = operand.GetType()->AsArrayOrDie()->element_type();
+  BValue update_value = GetFittedOperand(
+      array_update.update_value_idx(),
+      array_update.update_value_coercion_method(), element_type);
+  BValue indices = GetBitsOperand(array_update.indices_idx());
+  context_list_.AppendElement(
+      fb_->ArrayUpdate(operand, update_value, {indices}));
+}
+
+void GenIrNodesPass::HandleArrayConcat(
+    const FuzzArrayConcatProto& array_concat) {
+  std::vector<BValue> operands =
+      GetArrayOperands(array_concat.operand_idxs(), /*min_operand_count=*/1);
+  context_list_.AppendElement(fb_->ArrayConcat(operands));
 }
 
 void GenIrNodesPass::HandleReverse(const FuzzReverseProto& reverse) {
@@ -522,8 +618,8 @@ void GenIrNodesPass::HandleDecode(const FuzzDecodeProto& decode) {
 
 void GenIrNodesPass::HandleGate(const FuzzGateProto& gate) {
   // The Gate condition only supports bit widths of 1.
-  BValue condition = GetBitsFittedOperand(gate.condition_idx(), /*bit_width=*/1,
-                                          gate.condition_coercion_method());
+  BValue condition = GetBitsFittedOperand(
+      gate.condition_idx(), gate.condition_coercion_method(), /*bit_width=*/1);
   BValue data = GetBitsOperand(gate.data_idx());
   context_list_.AppendElement(fb_->Gate(condition, data));
 }
@@ -540,6 +636,20 @@ BValue GenIrNodesPass::GetOperand(const OperandIdxProto& operand_idx) {
 BValue GenIrNodesPass::GetBitsOperand(const BitsOperandIdxProto& operand_idx) {
   return context_list_.GetElementAt(operand_idx.list_idx(),
                                     ContextListType::BITS_LIST);
+}
+
+// Retrieves an operand from the tuple context list.
+BValue GenIrNodesPass::GetTupleOperand(
+    const TupleOperandIdxProto& operand_idx) {
+  return context_list_.GetElementAt(operand_idx.list_idx(),
+                                    ContextListType::TUPLE_LIST);
+}
+
+// Retrieves an operand from the array context list.
+BValue GenIrNodesPass::GetArrayOperand(
+    const ArrayOperandIdxProto& operand_idx) {
+  return context_list_.GetElementAt(operand_idx.list_idx(),
+                                    ContextListType::ARRAY_LIST);
 }
 
 // Retrieves an operand from the combined context list and then coerces it to
@@ -561,21 +671,32 @@ BValue GenIrNodesPass::GetCoercedBitsOperand(
   return CoercedBits(p_, fb_, operand, coerced_type, type);
 }
 
-// Retrieves an operand from the bits context list and then changes the bit
-// width to the specified bit width.
-BValue GenIrNodesPass::GetBitsFittedOperand(
-    const BitsOperandIdxProto& operand_idx, int64_t bit_width,
-    const BitsCoercionMethodProto& coercion_method) {
-  BValue operand = GetBitsOperand(operand_idx);
-  return ChangeBitWidth(fb_, operand, bit_width,
-                        coercion_method.change_bit_width_method());
+// Same as GetCoercedOperand, but uses a CoercionMethodProto directly rather
+// than a CoercedTypeProto. It coerces the operand by referencing a Type object
+// rather than referencing a coerced type.
+BValue GenIrNodesPass::GetFittedOperand(
+    const OperandIdxProto& operand_idx,
+    const CoercionMethodProto& coercion_method, Type* type) {
+  BValue operand = GetOperand(operand_idx);
+  return Fitted(p_, fb_, operand, coercion_method, type);
 }
 
-// Retrieves multiple operands from the bits context list. If min_operand_count
-// and max_operand_count are specified, the number of returned operands will be
-// constrained to be between the specified minimum/maximum.
-std::vector<BValue> GenIrNodesPass::GetBitsOperands(
-    const google::protobuf::RepeatedPtrField<BitsOperandIdxProto>& operand_idxs,
+// Same as GetCoercedBitsOperand, but uses a BitsCoercionMethodProto directly
+// rather than a BitsCoercedTypeProto. It coerces the operand by referencing a
+// Type object rather than referencing a coerced type.
+BValue GenIrNodesPass::GetBitsFittedOperand(
+    const BitsOperandIdxProto& operand_idx,
+    const BitsCoercionMethodProto& coercion_method, int64_t bit_width) {
+  BValue operand = GetBitsOperand(operand_idx);
+  Type* type = p_->GetBitsType(bit_width);
+  return FittedBits(p_, fb_, operand, coercion_method, type);
+}
+
+// Retrieves multiple operands from the combined context list. If
+// min_operand_count and max_operand_count are specified, the number of returned
+// operands will be constrained to be between the specified minimum/maximum.
+std::vector<BValue> GenIrNodesPass::GetOperands(
+    const google::protobuf::RepeatedPtrField<OperandIdxProto>& operand_idxs,
     int64_t min_operand_count, int64_t max_operand_count) {
   // If the max operand count is less than the min operand count, assume invalid
   // or default inputs, so just ignore max_operand_count.
@@ -586,10 +707,46 @@ std::vector<BValue> GenIrNodesPass::GetBitsOperands(
   // Add operands up to the max operand count or up to the end of the vector.
   for (int64_t i = 0; i < operand_idxs.size() && i < max_operand_count;
        i += 1) {
-    operands.push_back(GetBitsOperand(operand_idxs.at(i)));
+    operands.push_back(GetOperand(operand_idxs.at(i)));
   }
   // Fill in any remaining operands with default values.
+  BValue default_value = DefaultValue(p_, fb_);
+  while (operands.size() < min_operand_count) {
+    operands.push_back(default_value);
+  }
+  return operands;
+}
+
+std::vector<BValue> GenIrNodesPass::GetBitsOperands(
+    const google::protobuf::RepeatedPtrField<BitsOperandIdxProto>& operand_idxs,
+    int64_t min_operand_count, int64_t max_operand_count) {
+  if (max_operand_count < min_operand_count) {
+    max_operand_count = operand_idxs.size();
+  }
+  std::vector<BValue> operands;
+  for (int64_t i = 0; i < operand_idxs.size() && i < max_operand_count;
+       i += 1) {
+    operands.push_back(GetBitsOperand(operand_idxs.at(i)));
+  }
   BValue default_value = DefaultValue(p_, fb_, TypeCase::BITS_CASE);
+  while (operands.size() < min_operand_count) {
+    operands.push_back(default_value);
+  }
+  return operands;
+}
+
+std::vector<BValue> GenIrNodesPass::GetArrayOperands(
+    const google::protobuf::RepeatedPtrField<ArrayOperandIdxProto>& operand_idxs,
+    int64_t min_operand_count, int64_t max_operand_count) {
+  if (max_operand_count < min_operand_count) {
+    max_operand_count = operand_idxs.size();
+  }
+  std::vector<BValue> operands;
+  for (int64_t i = 0; i < operand_idxs.size() && i < max_operand_count;
+       i += 1) {
+    operands.push_back(GetArrayOperand(operand_idxs.at(i)));
+  }
+  BValue default_value = DefaultValue(p_, fb_, TypeCase::ARRAY_CASE);
   while (operands.size() < min_operand_count) {
     operands.push_back(default_value);
   }

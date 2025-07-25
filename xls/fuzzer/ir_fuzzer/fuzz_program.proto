@@ -104,7 +104,11 @@ message ArrayCoercedTypeProto {
   optional ArrayCoercionMethodProto coercion_method = 3;
 }
 
-// CoercionMethodProtos containing coercion method information.
+message CoercionMethodProto {
+  BitsCoercionMethodProto bits = 1;
+  TupleCoercionMethodProto tuple = 2;
+  ArrayCoercionMethodProto array = 3;
+}
 message BitsCoercionMethodProto {
   optional ChangeBitWidthMethodProto change_bit_width_method = 1;
 }
@@ -179,44 +183,53 @@ message FuzzOpProto {
     FuzzXorReduceProto xor_reduce = 12;
     FuzzUMulProto umul = 13;
     FuzzSMulProto smul = 14;
-    FuzzUDivProto udiv = 15;
-    FuzzSDivProto sdiv = 16;
-    FuzzUModProto umod = 17;
-    FuzzSModProto smod = 18;
-    FuzzSubtractProto subtract = 19;
-    FuzzAddProto add = 20;
-    FuzzConcatProto concat = 21;
-    FuzzULeProto ule = 22;
-    FuzzULtProto ult = 23;
-    FuzzUGeProto uge = 24;
-    FuzzUGtProto ugt = 25;
-    FuzzSLeProto sle = 26;
-    FuzzSLtProto slt = 27;
-    FuzzSGeProto sge = 28;
-    FuzzSGtProto sgt = 29;
-    FuzzEqProto eq = 30;
-    FuzzNeProto ne = 31;
-    FuzzNegateProto negate = 32;
-    FuzzNotProto not_op = 33;
-    FuzzLiteralProto literal = 34;
-    FuzzSelectProto select = 35;
-    FuzzOneHotProto one_hot = 36;
-    FuzzOneHotSelectProto one_hot_select = 37;
-    FuzzPrioritySelectProto priority_select = 38;
-    FuzzClzProto clz = 39;
-    FuzzCtzProto ctz = 40;
-    FuzzMatchProto match = 41;
-    FuzzMatchTrueProto match_true = 42;
-    FuzzReverseProto reverse = 43;
-    FuzzIdentityProto identity = 44;
-    FuzzSignExtendProto sign_extend = 45;
-    FuzzZeroExtendProto zero_extend = 46;
-    FuzzBitSliceProto bit_slice = 47;
-    FuzzBitSliceUpdateProto bit_slice_update = 48;
-    FuzzDynamicBitSliceProto dynamic_bit_slice = 49;
-    FuzzEncodeProto encode = 50;
-    FuzzDecodeProto decode = 51;
-    FuzzGateProto gate = 52;
+    FuzzUMulpProto umulp = 15;
+    FuzzSMulpProto smulp = 16;
+    FuzzUDivProto udiv = 17;
+    FuzzSDivProto sdiv = 18;
+    FuzzUModProto umod = 19;
+    FuzzSModProto smod = 20;
+    FuzzSubtractProto subtract = 21;
+    FuzzAddProto add = 22;
+    FuzzConcatProto concat = 23;
+    FuzzULeProto ule = 24;
+    FuzzULtProto ult = 25;
+    FuzzUGeProto uge = 26;
+    FuzzUGtProto ugt = 27;
+    FuzzSLeProto sle = 28;
+    FuzzSLtProto slt = 29;
+    FuzzSGeProto sge = 30;
+    FuzzSGtProto sgt = 31;
+    FuzzEqProto eq = 32;
+    FuzzNeProto ne = 33;
+    FuzzNegateProto negate = 34;
+    FuzzNotProto not_op = 35;
+    FuzzLiteralProto literal = 36;
+    FuzzSelectProto select = 37;
+    FuzzOneHotProto one_hot = 38;
+    FuzzOneHotSelectProto one_hot_select = 39;
+    FuzzPrioritySelectProto priority_select = 40;
+    FuzzClzProto clz = 41;
+    FuzzCtzProto ctz = 42;
+    FuzzMatchProto match = 43;
+    FuzzMatchTrueProto match_true = 44;
+    FuzzTupleProto tuple = 45;
+    FuzzArrayProto array = 46;
+    FuzzTupleIndexProto tuple_index = 47;
+    FuzzArrayIndexProto array_index = 48;
+    FuzzArraySliceProto array_slice = 49;
+    FuzzArrayUpdateProto array_update = 50;
+    FuzzArrayConcatProto array_concat = 51;
+    FuzzReverseProto reverse = 52;
+    FuzzIdentityProto identity = 53;
+    FuzzSignExtendProto sign_extend = 54;
+    FuzzZeroExtendProto zero_extend = 55;
+    FuzzBitSliceProto bit_slice = 56;
+    FuzzBitSliceUpdateProto bit_slice_update = 57;
+    FuzzDynamicBitSliceProto dynamic_bit_slice = 58;
+    FuzzEncodeProto encode = 59;
+    FuzzDecodeProto decode = 60;
+    FuzzGateProto gate = 61;
   }
 }
 
@@ -289,10 +302,26 @@ message FuzzUMulProto {
   optional BitsOperandIdxProto lhs_idx = 1;
   optional BitsOperandIdxProto rhs_idx = 2;
   optional int64 bit_width = 3;
+  // If the bit width is set, then the operands may need to be coerced. But
+  // otherwise they are not coerced.
   optional BitsCoercedTypeProto operands_type = 4;
 }
 
 message FuzzSMulProto {
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional int64 bit_width = 3;
+  optional BitsCoercedTypeProto operands_type = 4;
+}
+
+message FuzzUMulpProto {
+  optional BitsOperandIdxProto lhs_idx = 1;
+  optional BitsOperandIdxProto rhs_idx = 2;
+  optional int64 bit_width = 3;
+  optional BitsCoercedTypeProto operands_type = 4;
+}
+
+message FuzzSMulpProto {
   optional BitsOperandIdxProto lhs_idx = 1;
   optional BitsOperandIdxProto rhs_idx = 2;
   optional int64 bit_width = 3;
@@ -477,6 +506,46 @@ message FuzzMatchTrueProto {
   // Use of BitsCoercionMethodProto instead of BitsCoercedTypeProto because we
   // may not need a defined bit width to be coerced to.
   optional BitsCoercionMethodProto operands_coercion_method = 3;
+}
+
+message FuzzTupleProto {
+  repeated OperandIdxProto operand_idxs = 1;
+}
+
+message FuzzArrayProto {
+  repeated OperandIdxProto operand_idxs = 1;
+  optional CoercedTypeProto operands_type = 2;
+}
+
+message FuzzTupleIndexProto {
+  optional TupleOperandIdxProto operand_idx = 1;
+  optional int64 index = 2;
+}
+
+message FuzzArrayIndexProto {
+  optional ArrayOperandIdxProto operand_idx = 1;
+  // TODO: Add support for multiple indices, which requires multi-dimensional
+  // array management.
+  optional BitsOperandIdxProto indices_idx = 2;
+}
+
+message FuzzArraySliceProto {
+  optional ArrayOperandIdxProto operand_idx = 1;
+  optional BitsOperandIdxProto start_idx = 2;
+  optional int64 width = 3;
+}
+
+message FuzzArrayUpdateProto {
+  optional ArrayOperandIdxProto operand_idx = 1;
+  optional OperandIdxProto update_value_idx = 2;
+  optional BitsOperandIdxProto indices_idx = 3;
+  // Coercion information to specify how to coerce the update value into the
+  // specified array element type.
+  optional CoercionMethodProto update_value_coercion_method = 4;
+}
+
+message FuzzArrayConcatProto {
+  repeated ArrayOperandIdxProto operand_idxs = 1;
 }
 
 message FuzzReverseProto {

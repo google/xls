@@ -49,6 +49,18 @@ BValue CoercedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
                     const ArrayCoercedTypeProto& coerced_type,
                     Type* target_type);
 
+BValue Fitted(Package* p, FunctionBuilder* fb, BValue bvalue,
+              const CoercionMethodProto& coercion_method, Type* type);
+BValue FittedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
+                  const BitsCoercionMethodProto& coercion_method,
+                  Type* target_type);
+BValue FittedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
+                   const CoercionMethodProto& coercion_method,
+                   Type* target_type);
+BValue FittedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
+                   const CoercionMethodProto& coercion_method,
+                   Type* target_type);
+
 BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue, int64_t new_bit_width,
                       const ChangeBitWidthMethodProto& change_bit_width_method);
 BValue ChangeBitWidth(FunctionBuilder* fb, BValue bvalue,
@@ -80,9 +92,9 @@ BValue IncreaseArraySize(Package* p, FunctionBuilder* fb, BValue bvalue,
 int64_t Bounded(int64_t value, int64_t left_bound, int64_t right_bound);
 int64_t BoundedWidth(int64_t bit_width, int64_t left_bound = 1,
                      int64_t right_bound = 1000);
-int64_t BoundedTupleSize(int64_t size, int64_t left_bound = 0,
+int64_t BoundedTupleSize(int64_t tuple_size, int64_t left_bound = 0,
                          int64_t right_bound = 100);
-int64_t BoundedArraySize(int64_t size, int64_t left_bound = 1,
+int64_t BoundedArraySize(int64_t array_size, int64_t left_bound = 1,
                          int64_t right_bound = 100);
 
 BValue DefaultValue(Package* p, FunctionBuilder* fb,
