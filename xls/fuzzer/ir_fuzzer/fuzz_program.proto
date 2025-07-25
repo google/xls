@@ -36,7 +36,7 @@ enum CombineListMethod {
   // set.
   UNSET_COMBINE_LIST_METHOD = 0;
   LAST_ELEMENT_METHOD = 1;
-  ADD_LIST_METHOD = 2;
+  TUPLE_LIST_METHOD = 2;
 }
 
 // References an operand on the context list by its index. Multiple same protos
@@ -45,6 +45,12 @@ message OperandIdxProto {
   optional int64 list_idx = 1;
 }
 message BitsOperandIdxProto {
+  optional int64 list_idx = 1;
+}
+message TupleOperandIdxProto {
+  optional int64 list_idx = 1;
+}
+message ArrayOperandIdxProto {
   optional int64 list_idx = 1;
 }
 
@@ -56,10 +62,19 @@ message BitsOperandIdxProto {
 message FuzzTypeProto {
   oneof type {
     BitsTypeProto bits = 1;
+    TupleTypeProto tuple = 2;
+    ArrayTypeProto array = 3;
   }
 }
 message BitsTypeProto {
   optional int64 bit_width = 1;
+}
+message TupleTypeProto {
+  repeated FuzzTypeProto tuple_elements = 1;
+}
+message ArrayTypeProto {
+  optional int64 array_size = 1;
+  optional FuzzTypeProto array_element = 2;
 }
 
 // CoercedTypeProto is the same as FuzzTypeProto, but also contains coercion
@@ -69,6 +84,8 @@ message BitsTypeProto {
 message CoercedTypeProto {
   oneof type {
     BitsCoercedTypeProto bits = 1;
+    TupleCoercedTypeProto tuple = 2;
+    ArrayCoercedTypeProto array = 3;
   }
 }
 
@@ -77,10 +94,25 @@ message BitsCoercedTypeProto {
   optional int64 bit_width = 1;
   optional BitsCoercionMethodProto coercion_method = 2;
 }
+message TupleCoercedTypeProto {
+  repeated CoercedTypeProto tuple_elements = 1;
+  optional TupleCoercionMethodProto coercion_method = 2;
+}
+message ArrayCoercedTypeProto {
+  optional int64 array_size = 1;
+  optional CoercedTypeProto array_element = 2;
+  optional ArrayCoercionMethodProto coercion_method = 3;
+}
 
 // CoercionMethodProtos containing coercion method information.
 message BitsCoercionMethodProto {
   optional ChangeBitWidthMethodProto change_bit_width_method = 1;
+}
+message TupleCoercionMethodProto {
+  optional ChangeTupleSizeMethodProto change_tuple_size_method = 1;
+}
+message ArrayCoercionMethodProto {
+  optional ChangeArraySizeMethodProto change_array_size_method = 1;
 }
 
 // Methods used to change the bit width of a bits BValue.
@@ -96,6 +128,35 @@ enum IncreaseWidthMethod {
   UNSET_INCREASE_WIDTH_METHOD = 0;
   ZERO_EXTEND_METHOD = 1;
   SIGN_EXTEND_METHOD = 2;
+}
+
+// Methods used to coerce a tuple to a different sized tuple.
+message ChangeTupleSizeMethodProto {
+  optional DecreaseTupleSizeMethod decrease_size_method = 1;
+  optional IncreaseTupleSizeMethod increase_size_method = 2;
+}
+enum DecreaseTupleSizeMethod {
+  UNSET_DECREASE_TUPLE_SIZE_METHOD = 0;
+  SHRINK_TUPLE_METHOD = 1;
+}
+enum IncreaseTupleSizeMethod {
+  UNSET_INCREASE_TUPLE_SIZE_METHOD = 0;
+  EXPAND_TUPLE_METHOD = 1;
+}
+
+// Methods used to coerce an array to a different sized array.
+message ChangeArraySizeMethodProto {
+  optional DecreaseArraySizeMethod decrease_size_method = 1;
+  optional IncreaseArraySizeMethod increase_size_method = 2;
+}
+enum DecreaseArraySizeMethod {
+  UNSET_DECREASE_ARRAY_SIZE_METHOD = 0;
+  SHRINK_ARRAY_METHOD = 1;
+  ARRAY_SLICE_METHOD = 2;
+}
+enum IncreaseArraySizeMethod {
+  UNSET_INCREASE_ARRAY_SIZE_METHOD = 0;
+  EXPAND_ARRAY_METHOD = 1;
 }
 
 // Each FuzzOpProto represents an IR node. A FuzzOpProto is used as a

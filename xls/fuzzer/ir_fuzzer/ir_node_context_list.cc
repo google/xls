@@ -39,6 +39,10 @@ BValue IrNodeContextList::GetElementAt(int64_t list_idx,
         return DefaultValue(p_, fb_, TypeCase::BITS_CASE);
       }
       return bits_context_list_[list_idx % bits_context_list_.size()];
+    case ContextListType::TUPLE_LIST:
+      return tuple_context_list_[list_idx % tuple_context_list_.size()];
+    case ContextListType::ARRAY_LIST:
+      return array_context_list_[list_idx % array_context_list_.size()];
   }
 }
 
@@ -48,6 +52,10 @@ int64_t IrNodeContextList::GetListSize(ContextListType list_type) const {
       return combined_context_list_.size();
     case ContextListType::BITS_LIST:
       return bits_context_list_.size();
+    case ContextListType::TUPLE_LIST:
+      return tuple_context_list_.size();
+    case ContextListType::ARRAY_LIST:
+      return array_context_list_.size();
   }
 }
 
@@ -57,6 +65,10 @@ bool IrNodeContextList::IsEmpty(ContextListType list_type) const {
       return combined_context_list_.empty();
     case ContextListType::BITS_LIST:
       return bits_context_list_.empty();
+    case ContextListType::TUPLE_LIST:
+      return tuple_context_list_.empty();
+    case ContextListType::ARRAY_LIST:
+      return array_context_list_.empty();
   }
 }
 
@@ -66,6 +78,10 @@ void IrNodeContextList::AppendElement(BValue element) {
   Type* type = element.GetType();
   if (type->IsBits()) {
     bits_context_list_.push_back(element);
+  } else if (type->IsTuple()) {
+    tuple_context_list_.push_back(element);
+  } else if (type->IsArray()) {
+    array_context_list_.push_back(element);
   }
 }
 

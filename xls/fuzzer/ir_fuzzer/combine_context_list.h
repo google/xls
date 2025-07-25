@@ -26,7 +26,7 @@ BValue CombineContextList(const FuzzProgramProto& fuzz_program,
                           const IrNodeContextList& context_list);
 
 BValue LastElement(FunctionBuilder* fb, const IrNodeContextList& context_list);
-BValue AddList(FunctionBuilder* fb, const IrNodeContextList& context_list);
+BValue TupleList(FunctionBuilder* fb, const IrNodeContextList& context_list);
 
 }  // namespace xls
 

@@ -92,5 +92,117 @@ TEST(IrFuzzTest, PassChangesOutputsWithTwoBitsParams) {
       PassChangesOutputsWithProto(proto_string, /*arg_set_count=*/10, pass));
 }
 
+TEST(IrFuzzTest, PassChangesOutputsWithTupleParam) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        args_bytes: "\x58\xa7\xe5\xf6\x60\x1b\xee\xac\x9a\x82\xe4\x4e\x95\xb3\xbc\x31\xa8\x61\x86\x97\x77\x90\xa3\x45\x6b\x50\x58\xf5\xde\xb8\xdc\xb2\x0d\x1c\xf4\x7f\x27\xde\x09\x60\x90\x85\xbb\x27\x4b\x0e\x18\xb1\xa9\xf1\x92\x17\x7d\x56\x90\x1a\x3d\x30\x4a\x78\x29\x2b\x21\x68"
+        fuzz_ops {
+          param {
+            type {
+              tuple {
+                tuple_elements {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+                tuple_elements {
+                  bits {
+                    bit_width: 20
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  ReassociationPass pass;
+  XLS_ASSERT_OK(
+      PassChangesOutputsWithProto(proto_string, /*arg_set_count=*/10, pass));
+}
+
+TEST(IrFuzzTest, PassChangesOutputsWithArrayParam) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        args_bytes: "\xe9\x32\x4f\xa7\x1d\xad\x40\x3b\xdc\x0f\xe7\x65\xb4\x2d\xac\x1d\x1d\x20\x35\x54\xc4\x49\x02\x28\x71\x3d\x43\x3c\x80\xba\xb5\xaa\x33\x9c\xa8\x8c\xe4\xa0\xd1\xba\x29\x65\xc2\x73\x57\xcd\x94\x18"
+        fuzz_ops {
+          param {
+            type {
+              array {
+                array_size: 2
+                array_element {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  ReassociationPass pass;
+  XLS_ASSERT_OK(
+      PassChangesOutputsWithProto(proto_string, /*arg_set_count=*/10, pass));
+}
+
+TEST(IrFuzzTest, PassChangesOutputsWithNestedTupleParam) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        args_bytes: "\xbd\x0f\x24\xdf\xbc\x9d\x56\x08\xf1\xf0\x8d\xc4\x65\x04\x08\x3e\xc0\x2e\x74\xdc\x23\xaf\x3f\x6d\xca\x59\x9a\x22\x8d\x42\x08\x7e\x42\x5b\x71\xf2\x42\x92\x2f\xfa\xaf\x73\x7d\x33\x3b\xed\x6a\xf9\x47\x7d\x58\x11\xe7\x4f\xec\xf4\x5d\xae\x53\xb3\x66\x5d\x69\x27"
+        fuzz_ops {
+          param {
+            type {
+              tuple {
+                tuple_elements {
+                  tuple {
+                    tuple_elements {
+                      bits {
+                        bit_width: 10
+                      }
+                    }
+                  }
+                }
+                tuple_elements {
+                  bits {
+                    bit_width: 20
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  ReassociationPass pass;
+  XLS_ASSERT_OK(
+      PassChangesOutputsWithProto(proto_string, /*arg_set_count=*/10, pass));
+}
+
+TEST(IrFuzzTest, PassChangesOutputsWithEmptyArrayParam) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: TUPLE_LIST_METHOD
+        args_bytes: "\x4d\xa7\xa6\x21\x56\x9a\x0d\x42\xed\x0f\xc2\x38\xd3\xaa\x49\x67"
+        fuzz_ops {
+          param {
+            type {
+              array {
+                array_size: 0
+                array_element {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+              }
+            }
+          }
+        }
+      )");
+  ReassociationPass pass;
+  XLS_ASSERT_OK(
+      PassChangesOutputsWithProto(proto_string, /*arg_set_count=*/10, pass));
+}
+
 }  // namespace
 }  // namespace xls

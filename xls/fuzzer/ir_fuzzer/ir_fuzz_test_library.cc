@@ -191,7 +191,7 @@ void OptimizationPassChangesOutputs(FuzzPackageWithArgs fuzz_package_with_args,
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction(kFuzzTestName));
   VLOG(3) << "IR Fuzzer-3: Argument Sets: " << StringifyArgSets(arg_sets)
           << "\n";
-  // Interpret the IR function with the arguments before reassociation.
+  // Interpret the IR function with the arguments before optimization.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<InterpreterResult<Value>> before_pass_results,
       EvaluateArgSets(f, arg_sets));
@@ -203,7 +203,7 @@ void OptimizationPassChangesOutputs(FuzzPackageWithArgs fuzz_package_with_args,
       pass.Run(p.get(), OptimizationPassOptions(), &results, context));
   VLOG(3) << "IR Fuzzer-4: After Pass IR:" << "\n" << p->DumpIr() << "\n";
   ScopedMaybeRecord<std::string> post("after_pass", p->DumpIr());
-  // Interpret the IR function with the arguments after reassociation.
+  // Interpret the IR function with the arguments after optimization.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<InterpreterResult<Value>> after_pass_results,
       EvaluateArgSets(f, arg_sets));
@@ -213,7 +213,7 @@ void OptimizationPassChangesOutputs(FuzzPackageWithArgs fuzz_package_with_args,
           << StringifyResults(before_pass_results) << "\n";
   VLOG(3) << "IR Fuzzer-7: After Pass Results: "
           << StringifyResults(after_pass_results) << "\n";
-  // Check if the results are the same before and after reassociation.
+  // Check if the results are the same before and after optimization.
   bool results_changed =
       DoResultsChange(before_pass_results, after_pass_results);
   VLOG(3) << "IR Fuzzer-8: Results Changed: "
