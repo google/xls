@@ -19,7 +19,7 @@ import enum
 
 from xls.common import runfiles
 import subprocess
-import zstandard
+import tempfile
 
 class BlockType(enum.Enum):
   """Enum encoding of ZSTD block types."""
@@ -67,8 +67,16 @@ def CallDecodecorpus(args):
   subprocess.run(cmd_concat, shell=True, check=True)
 
 def DecompressFrame(data):
-  dctx = zstandard.ZstdDecompressor()
-  return dctx.decompress(data)
+  zstd_cli = pathlib.Path(runfiles.get_path("zstd_cli", repository = "zstd"))
+  with tempfile.NamedTemporaryFile(mode='wb') as input_data, \
+       tempfile.NamedTemporaryFile(mode='wb') as output_data:
+    input_data.write(data)
+    input_data.flush()
+    cmd = f"{str(zstd_cli)} -f -d {input_data.name} -o {output_data.name}"
+    output_data.close()
+    subprocess.run(cmd, shell=True, check=True)
+    with open(output_data.name, "rb") as output_data:
+      return output_data.read()
 
 def GenerateFrame(seed, btype, output_path, ltype=LiteralType.RANDOM):
   args = []
