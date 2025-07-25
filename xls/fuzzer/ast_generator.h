@@ -104,6 +104,12 @@ struct BitsAndSignedness {
   bool signedness;
 };
 
+enum class AvailableChannelKind : uint8_t { kToChildProc, kToParentProc };
+struct AvailableChannel {
+  ProcMember* member;
+  AvailableChannelKind kind;
+};
+
 // Options that are used to configure the AST generator.
 //
 // See ast_generator_options.proto for field descriptions.
@@ -115,6 +121,7 @@ struct AstGeneratorOptions {
   bool emit_gate = true;
   bool generate_proc = false;
   bool emit_stateless_proc = false;
+  bool emit_proc_spawns = false;
   // TODO(https://github.com/google/xls/issues/1138): Switch this to default
   // true.
   bool emit_zero_width_bits_types = false;
@@ -131,6 +138,35 @@ bool AbslParseFlag(std::string_view text,
                    AstGeneratorOptions* ast_generator_options,
                    std::string* error);
 std::string AbslUnparseFlag(const AstGeneratorOptions& ast_generator_options);
+
+// Note: we use a btree for a stable iteration order; i.e. so we can stably
+// select a random value from the environment across something like different
+// hash function seed states. That is, ideally different process invocation
+// would all produce identical generated functions for the same seed.
+using Env = absl::btree_map<std::string, TypedExpr>;
+
+// The context contains information for an instance in the call stack.
+struct Context {
+  // TODO(https://github.com/google/xls/issues/789).
+  // TODO(https://github.com/google/xls/issues/790).
+  Env env;
+
+  // Context of the proc currently being generated.
+  struct ProcContext {
+    // Proc state type.
+    TypeAnnotation* state_type;
+
+    int64_t spawn_depth;
+
+    // Channels available to the proc next functiont that have not yet been
+    // interacted with:
+    std::vector<AvailableChannel> available_channels;
+  };
+
+  // Only present if generating a proc.
+  std::optional<ProcContext*> proc_context;
+  bool IsGeneratingProc() const { return proc_context.has_value(); }
+};
 
 // Type that generates a random module for use in fuzz testing; i.e.
 //
@@ -179,20 +215,6 @@ class AstGenerator {
 
   XLS_FRIEND_TEST(AstGeneratorTest, GeneratesParametricBindings);
   XLS_FRIEND_TEST(AstGeneratorTest, BitsTypeGetMetadata);
-
-  // Note: we use a btree for a stable iteration order; i.e. so we can stably
-  // select a random value from the environment across something like different
-  // hash function seed states. That is, ideally different process invocation
-  // would all produce identical generated functions for the same seed.
-  using Env = absl::btree_map<std::string, TypedExpr>;
-
-  // The context contains information for an instance in the call stack.
-  struct Context {
-    // TODO(https://github.com/google/xls/issues/789).
-    // TODO(https://github.com/google/xls/issues/790).
-    Env env;
-    bool is_generating_proc;
-  };
 
   static bool IsTypeRef(const TypeAnnotation* t);
   static bool IsBits(const TypeAnnotation* t);
@@ -252,21 +274,38 @@ class AstGenerator {
       const std::string& name, int64_t call_depth,
       absl::Span<const AnnotatedType> param_types);
 
-  // Generate the proc's config function with the given name and proc parameters
-  // (proc members).
-  absl::StatusOr<Function*> GenerateProcConfigFunction(
-      std::string name, absl::Span<Param* const> proc_params);
+  // TODO
+  absl::StatusOr<std::tuple<Statement*, NameDef*, NameDef*>>
+  GenerateProcConfigChannel(TypeAnnotation* element_type);
+
+  // Generate the proc's config function with the given name. proc_io, defines
+  // the number and types of the channels the proc's config function accepts.
+  // spawn_depth is the current depth of the parent procs (if any) that spawn
+  // this proc.
+  //
+  // Returns the config function and proc members.
+  absl::StatusOr<std::pair<Function*, std::vector<AvailableChannel>>>
+  GenerateProcConfigFunction(
+      std::string name,
+      absl::Span<const std::pair<TypeAnnotation*, ChannelDirection>> proc_io,
+      int64_t spawn_depth);
 
   // Generate the proc's next function with the given name.
-  absl::StatusOr<AnnotatedFunction> GenerateProcNextFunction(std::string name);
+  absl::StatusOr<AnnotatedFunction> GenerateProcNextFunction(
+      std::string name, Context::ProcContext* proc_ctx);
 
-  // Generate a function to return a constant with the given TypeAnnotation to
-  // serve as a Proc's [required] init function.
-  absl::StatusOr<Function*> GenerateProcInitFunction(
-      std::string_view name, TypeAnnotation* return_type);
+  // Generate a function to return a constant initial state to serve as a Proc's
+  // [required] init function.
+  absl::StatusOr<Function*> GenerateProcInitFunction(std::string_view name,
+                                                     TypeAnnotation* state_typ);
 
-  // Generate a DSLX proc with the given name.
-  absl::StatusOr<AnnotatedProc> GenerateProc(const std::string& name);
+  // Generate a DSLX proc with the given name. proc_io, defines the number and
+  // types of the channels the proc's config function accepts. spawn_depth is
+  // the current depth of the parent procs (if any) that spaw this proc.
+  absl::StatusOr<AnnotatedProc> GenerateProc(
+      const std::string& name,
+      absl::Span<const std::pair<TypeAnnotation*, ChannelDirection>> proc_io,
+      int64_t spawn_depth);
 
   // Chooses a value from the environment that satisfies the predicate "take",
   // or returns nullopt if none exists.
@@ -724,19 +763,6 @@ class AstGenerator {
     return absl::OkStatus();
   }
 
-  struct ProcProperties {
-    // A list of the state types in the proc's next function. Currently, at most
-    // a single state is supported. The order of types as they appear in the
-    // container mirrors the order present in the proc's next function.
-    std::vector<TypeAnnotation*> state_types;
-
-    // Parameters of the proc config function.
-    std::vector<Param*> config_params;
-
-    // Members of the proc.
-    std::vector<ProcMember*> members;
-  };
-
   absl::BitGenRef bit_gen_;
 
   const AstGeneratorOptions options_;
@@ -762,8 +788,8 @@ class AstGenerator {
   // Set of constants defined during module generation.
   absl::btree_map<std::string, ConstantDef*> constants_;
 
-  // Contains properties of the generated proc.
-  ProcProperties proc_properties_;
+  // Procs created during generation.
+  std::vector<AnnotatedProc> procs_;
 };
 
 }  // namespace xls::dslx

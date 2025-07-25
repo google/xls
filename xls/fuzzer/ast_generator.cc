@@ -116,6 +116,7 @@ LastDelayingOp ComposeDelayingOps(LastDelayingOp op1, LastDelayingOp op2,
       .emit_gate = proto.emit_gate(),
       .generate_proc = proto.generate_proc(),
       .emit_stateless_proc = proto.emit_stateless_proc(),
+      .emit_proc_spawns = proto.emit_proc_spawns(),
       .emit_zero_width_bits_types = proto.emit_zero_width_bits_types(),
   };
 }
@@ -129,6 +130,7 @@ AstGeneratorOptionsProto AstGeneratorOptions::ToProto() const {
   proto.set_emit_gate(emit_gate);
   proto.set_generate_proc(generate_proc);
   proto.set_emit_stateless_proc(emit_stateless_proc);
+  proto.set_emit_proc_spawns(emit_proc_spawns);
   proto.set_emit_zero_width_bits_types(emit_zero_width_bits_types);
   return proto;
 }
@@ -428,13 +430,85 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
 }  // namespace
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
-  // Equal distribution for channel ops.
-  ChannelOpType chan_op_type =
-      RandomChoice(absl::MakeConstSpan(
-                       {ChannelOpType::kRecv, ChannelOpType::kRecvNonBlocking,
-                        ChannelOpType::kRecvIf, ChannelOpType::kSend,
-                        ChannelOpType::kSendIf}),
-                   bit_gen_);
+  CHECK(ctx->IsGeneratingProc());
+  Context::ProcContext* proc_ctx = ctx->proc_context.value();
+
+  // We can only generate a new channel op if there are unused channels left:
+  if (proc_ctx->available_channels.empty()) {
+    return RecoverableError("No unused channels left.");
+  }
+
+  auto is_send = [](const AvailableChannel& chn) {
+    return down_cast<ChannelTypeAnnotation*>(chn.member->type_annotation())
+               ->direction() == kOut;
+  };
+
+  // Pick random channel to interact with.
+  // For child procs, we first generate all sends before generating all
+  // receives. For top procs, all channels are fair game.
+  size_t chn_idx;
+  if (proc_ctx->spawn_depth == 0) {
+    chn_idx = absl::Uniform<int64_t>(bit_gen_, 0,
+                                     proc_ctx->available_channels.size());
+  } else {
+    bool sends_left = std::any_of(
+        proc_ctx->available_channels.begin(),
+        proc_ctx->available_channels.end(),
+        [&is_send](const AvailableChannel& chn) { return is_send(chn); });
+    if (sends_left) {
+      std::vector<size_t> possible_indices;
+      possible_indices.reserve(proc_ctx->available_channels.size());
+      for (size_t i = 0; i < proc_ctx->available_channels.size(); ++i) {
+        if (is_send(proc_ctx->available_channels[i])) {
+          possible_indices.push_back(i);
+        }
+      }
+      chn_idx = RandomChoice(possible_indices, bit_gen_);
+    } else {
+      chn_idx = absl::Uniform<int64_t>(bit_gen_, 0,
+                                       proc_ctx->available_channels.size());
+    }
+  }
+
+  AvailableChannel chn = proc_ctx->available_channels[chn_idx];
+  auto* chn_type =
+      down_cast<ChannelTypeAnnotation*>(chn.member->type_annotation());
+  auto* chn_payload_type = chn_type->payload();
+  NameRef* chan_expr = module_->Make<NameRef>(
+      fake_span_, chn.member->identifier(), chn.member->name_def());
+
+  // Generate list of all ops that support interaction with this channel:
+  std::vector<ChannelOpType> possible_ops;
+  possible_ops.reserve(6);
+
+  if (chn_type->direction() == kIn) {
+    possible_ops.push_back(ChannelOpType::kRecv);
+
+    // To prevent deadlocks, we do not generate conditional sends in children
+    // or while interacting with a child proc.
+    if (proc_ctx->spawn_depth == 0 && chn.kind == AvailableChannelKind::kToParentProc) {
+      possible_ops.push_back(ChannelOpType::kRecvIf);
+    }
+
+    // `recv_non_blocking` has an implicit bool in its return type. Therefore,
+    // we can only generate it if the channel element type width is at most one
+    // less than the maximum width defined in the AST generator options.
+    int64_t payload_width = GetTypeBitCount(chn_payload_type);
+    if (payload_width < options_.max_width_aggregate_types &&
+        payload_width < options_.max_width_bits_types) {
+      possible_ops.push_back(ChannelOpType::kRecvNonBlocking);
+    }
+  } else {
+    possible_ops.push_back(ChannelOpType::kSend);
+    // To prevent deadlocks, we do not generate conditional receives in children
+    // or while interacting with a child proc.
+    if (proc_ctx->spawn_depth == 0 && chn.kind == AvailableChannelKind::kToParentProc) {
+      possible_ops.push_back(ChannelOpType::kSendIf);
+    }
+  }
+
+  // Pick one possible op:
+  ChannelOpType chan_op_type = RandomChoice(possible_ops, bit_gen_);
   ChannelOpInfo chan_op_info = GetChannelOpInfo(chan_op_type);
 
   int64_t min_stage = 1;
@@ -463,32 +537,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
     min_stage = std::max(min_stage, successor_min_stage);
   }
 
-  // The recv_non_blocking has an implicit bool in its return type, resulting in
-  // one bit. Therefore, its maximum width must be one less than the maximum
-  // width defined in the AST generator options.
-  std::optional<int64_t> max_width_bits_types;
-  std::optional<int64_t> max_width_aggregate_types;
-  if (chan_op_type == ChannelOpType::kRecvNonBlocking) {
-    // The recv_non_blocking returns an aggregate type that may contain a bits
-    // type. If the max_width_bits_types > max_width_aggregate_types, it would
-    // fail the aggregate width bounds check. Therefore, the bits type is
-    // bounded within aggregate types maximum width.
-    max_width_bits_types = std::min(options_.max_width_bits_types,
-                                    options_.max_width_aggregate_types - 1);
-    max_width_aggregate_types = options_.max_width_aggregate_types - 1;
-  }
-  // Generate an arbitrary type for the channel.
-  TypeAnnotation* channel_type =
-      GenerateType(0, max_width_bits_types, max_width_aggregate_types);
-
   // If needed, generate a default value.
   std::optional<TypedExpr> default_value;
   if (chan_op_info.requires_default_value) {
-    // TODO(meheff): 2023/03/10 Use ChooseEnvValueOptional with randomly
-    // generated constant as backup. Will require the ability to generate a
-    // random constant of arbitrary type.
-    XLS_ASSIGN_OR_RETURN(default_value,
-                         ChooseEnvValue(&ctx->env, channel_type));
+    default_value = ChooseEnvValueOptional(&ctx->env, chn_payload_type);
+    if (!default_value) {
+      XLS_ASSIGN_OR_RETURN(
+          Expr * default_literal,
+          GenerateDslxConstant(bit_gen_, module_.get(), chn_payload_type));
+      default_value = TypedExpr{default_literal, chn_payload_type};
+    }
 
     int64_t successor_min_stage = default_value->min_stage;
     if (default_value->last_delaying_op == LastDelayingOp::kSend &&
@@ -502,10 +560,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   // If needed, choose a payload from the environment.
   std::optional<TypedExpr> payload;
   if (chan_op_info.requires_payload) {
-    // TODO(vmirian): 8-22-2002 Payloads of the type may not be present in the
-    // env. Create payload of the type enabling more ops requiring a payload
-    // (e.g. send and send_if).
-    XLS_ASSIGN_OR_RETURN(payload, ChooseEnvValue(&ctx->env, channel_type));
+    payload = ChooseEnvValueOptional(&ctx->env, chn_payload_type);
+    if (!payload) {
+      XLS_ASSIGN_OR_RETURN(
+          Expr * payload_literal,
+          GenerateDslxConstant(bit_gen_, module_.get(), chn_payload_type));
+      payload = TypedExpr{payload_literal, chn_payload_type};
+    }
 
     int64_t successor_min_stage = payload->min_stage;
     if (payload->last_delaying_op == LastDelayingOp::kSend &&
@@ -515,28 +576,6 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
     }
     min_stage = std::max(min_stage, successor_min_stage);
   }
-
-  // Create the channel.
-  // TODO(vmirian): 8-22-2022 If payload type exists, create an array of
-  // channels.
-  ChannelTypeAnnotation* channel_type_annotation =
-      module_->Make<ChannelTypeAnnotation>(fake_span_,
-                                           chan_op_info.channel_direction,
-                                           channel_type, std::nullopt);
-  Param* param = GenerateParam({.type = channel_type_annotation}).param;
-  auto to_member = [this](const Param* p) -> absl::StatusOr<ProcMember*> {
-    XLS_ASSIGN_OR_RETURN(NameDef * name_def, CloneNode(p->name_def()));
-    XLS_ASSIGN_OR_RETURN(
-        AstNode * type_annotation,
-        CloneAst(p->type_annotation(), &PreserveTypeDefinitionsReplacer));
-    return module_->Make<ProcMember>(
-        name_def, down_cast<TypeAnnotation*>(type_annotation));
-  };
-  XLS_ASSIGN_OR_RETURN(ProcMember * member, to_member(param));
-  proc_properties_.members.push_back(member);
-  proc_properties_.config_params.push_back(param);
-  NameRef* chan_expr = module_->Make<NameRef>(fake_span_, param->identifier(),
-                                              param->name_def());
 
   Expr* token_ref = nullptr;
   if (EnvContainsToken(ctx->env) && RandomBool(0.9)) {
@@ -562,12 +601,18 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   TypeAnnotation* token_type = module_->Make<BuiltinTypeAnnotation>(
       fake_span_, BuiltinType::kToken,
       module_->GetOrCreateBuiltinNameDef(BuiltinType::kToken));
+
+  // All requirements met. Remove channel from unused channels list.
+  proc_ctx->available_channels.erase(proc_ctx->available_channels.begin() +
+                                     chn_idx);
+
+  // Generate actual channel op:
   switch (chan_op_type) {
     case ChannelOpType::kRecv:
       return TypedExpr{.expr = module_->Make<Invocation>(
                            fake_span_, MakeBuiltinNameRef("recv"),
                            std::vector<Expr*>{token_ref, chan_expr}),
-                       .type = MakeTupleType({token_type, channel_type}),
+                       .type = MakeTupleType({token_type, chn_payload_type}),
                        .last_delaying_op = LastDelayingOp::kRecv,
                        .min_stage = min_stage};
     case ChannelOpType::kRecvNonBlocking:
@@ -575,7 +620,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
                            fake_span_, MakeBuiltinNameRef("recv_non_blocking"),
                            std::vector<Expr*>{token_ref, chan_expr,
                                               default_value.value().expr}),
-                       .type = MakeTupleType({token_type, channel_type,
+                       .type = MakeTupleType({token_type, chn_payload_type,
                                               MakeBoolTypeAnnotation()}),
                        .last_delaying_op = LastDelayingOp::kRecv,
                        .min_stage = min_stage};
@@ -585,7 +630,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
               fake_span_, MakeBuiltinNameRef("recv_if"),
               std::vector<Expr*>{token_ref, chan_expr, predicate.value().expr,
                                  default_value.value().expr}),
-          .type = MakeTupleType({token_type, channel_type}),
+          .type = MakeTupleType({token_type, chn_payload_type}),
           .last_delaying_op = LastDelayingOp::kRecv,
           .min_stage = min_stage};
     case ChannelOpType::kSend:
@@ -1848,20 +1893,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
 // state is present.
 absl::StatusOr<TypedExpr> AstGenerator::GenerateProcNextFunctionRetval(
     Context* ctx) {
-  TypedExpr retval;
-  if (proc_properties_.state_types.empty()) {
-    // Return an empty tuple.
-    retval = TypedExpr{
-        .expr = module_->Make<XlsTuple>(fake_span_, std::vector<Expr*>{},
-                                        /*has_trailing_comma=*/false),
-        .type = MakeTupleType(std::vector<TypeAnnotation*>()),
-    };
-  } else {
-    // A state is present, therefore the return value for a proc's next function
-    // must be of the state type.
-    XLS_ASSIGN_OR_RETURN(
-        retval, ChooseEnvValue(&ctx->env, proc_properties_.state_types[0]));
-  }
+  CHECK(ctx->IsGeneratingProc());
+  Context::ProcContext* proc_ctx = ctx->proc_context.value();
+
+  XLS_ASSIGN_OR_RETURN(TypedExpr retval,
+                       ChooseEnvValue(&ctx->env, proc_ctx->state_type));
   retval.last_delaying_op = LastDelayingOp::kNone;
   for (auto& [name, value] : ctx->env) {
     if (IsToken(value.type)) {
@@ -2556,7 +2592,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t call_depth,
                                                      Context* ctx) {
   absl::StatusOr<TypedExpr> generated = RecoverableError("Not yet generated.");
   while (IsRecoverableError(generated.status())) {
-    switch (ChooseOp(bit_gen_, ctx->is_generating_proc)) {
+    switch (ChooseOp(bit_gen_, ctx->IsGeneratingProc())) {
       case kArray:
         generated = GenerateArray(ctx);
         break;
@@ -2784,9 +2820,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
 
   std::vector<Statement*> statements;
   statements.reserve(body_size + 1);
-  for (int64_t i = 0; i < body_size; ++i) {
-    XLS_ASSIGN_OR_RETURN(TypedExpr rhs, GenerateExpr(call_depth, ctx));
 
+  auto append_stmt = [this, &statements, &ctx](TypedExpr rhs) {
     // Add the expression into the environment with a unique name.
     std::string identifier = GenSym();
 
@@ -2814,11 +2849,34 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
     if (IsTuple(rhs.type)) {
       GenerateTupleAssignment(name_ref, rhs, ctx, statements);
     }
+  };
+
+  for (int64_t i = 0; i < body_size; ++i) {
+    XLS_ASSIGN_OR_RETURN(TypedExpr rhs, GenerateExpr(call_depth, ctx));
+    append_stmt(rhs);
+  }
+
+  // If this is a proc and there are channels left that have not yet been
+  // interacted with, add extra ops to interact with them:
+  if (ctx->IsGeneratingProc()) {
+    size_t unusued_channel_count =
+        ctx->proc_context.value()->available_channels.size();
+    for (size_t i = 0; i < unusued_channel_count; i++) {
+      auto chan_op = GenerateChannelOp(ctx);
+      if (!chan_op.ok()) {
+        return absl::AbortedError(
+            absl::StrCat("Failed to generate channel op while trying to use "
+                         "all unused channel ops. Unrecoverable. ",
+                         chan_op.status()));
+      }
+      append_stmt(chan_op.value());
+    }
+    CHECK(ctx->proc_context.value()->available_channels.empty());
   }
 
   // Done building up the body; finish with the retval.
   XLS_ASSIGN_OR_RETURN(TypedExpr retval,
-                       ctx->is_generating_proc
+                       ctx->IsGeneratingProc()
                            ? GenerateProcNextFunctionRetval(ctx)
                            : GenerateRetval(ctx));
   statements.push_back(module_->Make<Statement>(retval.expr));
@@ -2928,7 +2986,10 @@ void AstGenerator::GenerateTupleAssignment(
 absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateFunction(
     const std::string& name, int64_t call_depth,
     absl::Span<const AnnotatedType> param_types) {
-  Context context{.is_generating_proc = false};
+  Context context = {
+      .env = Env(),
+      .proc_context = std::nullopt,
+  };
 
   std::vector<Param*> params;
   std::vector<AnnotatedParam> annotated_params;
@@ -3011,24 +3072,266 @@ absl::StatusOr<int64_t> AstGenerator::GenerateFunctionInModule(
   return f.min_stage;
 }
 
-absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
-    std::string name, absl::Span<Param* const> proc_params) {
-  std::vector<Param*> params;
-  std::vector<Expr*> tuple_members;
-  std::vector<TypeAnnotation*> tuple_member_types;
-  for (Param* proc_param : proc_params) {
-    params.push_back(module_->Make<Param>(proc_param->name_def(),
-                                          proc_param->type_annotation()));
-    tuple_members.push_back(MakeNameRef(proc_param->name_def()));
-    tuple_member_types.push_back(proc_param->type_annotation());
+absl::StatusOr<std::tuple<Statement*, NameDef*, NameDef*>>
+AstGenerator::GenerateProcConfigChannel(TypeAnnotation* element_type) {
+  NameDef* out_name_def = module_->Make<NameDef>(fake_span_, GenSym(),
+                                                 /*definer=*/nullptr);
+  NameDef* in_name_def = module_->Make<NameDef>(fake_span_, GenSym(),
+                                                /*definer=*/nullptr);
+
+  NameDefTree* return_name_def = module_->Make<NameDefTree>(
+      fake_span_,
+      std::vector({module_->Make<NameDefTree>(fake_span_, out_name_def),
+                   module_->Make<NameDefTree>(fake_span_, in_name_def)}));
+
+  BuiltinType u32 = BuiltinTypeFromString("u32").value();
+  TypeAnnotation* u32_type_annot = module_->Make<BuiltinTypeAnnotation>(
+      Span::Fake(), u32, module_->GetOrCreateBuiltinNameDef(u32));
+  auto fifo_depth =
+      MakeNumber(RandomIntWithExpectedValue(2, 1), u32_type_annot);
+
+  auto chan_decl = module_->Make<ChannelDecl>(
+      fake_span_, element_type,
+      /*dims=*/std::nullopt,
+      /*fifo_depth=*/fifo_depth,
+      /*channel_name_expr=*/*module_->Make<String>(fake_span_, GenSym()),
+      /*in_parens=*/false);
+
+  auto* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/return_name_def,
+                                 /*type=*/nullptr, /*rhs=*/chan_decl,
+                                 /*is_const=*/false);
+
+  auto* stmt = module_->Make<Statement>(let);
+
+  return std::tuple(stmt, out_name_def, in_name_def);
+}
+
+absl::StatusOr<std::pair<Function*, std::vector<AvailableChannel>>>
+AstGenerator::GenerateProcConfigFunction(
+    std::string name,
+    absl::Span<const std::pair<TypeAnnotation*, ChannelDirection>> proc_io,
+    int64_t spawn_depth) {
+  std::vector<Statement*> body;
+
+  // If this is the top proc and the generation of proc spawns is enabled,
+  // fifty percent of the time we spawn a child proc.
+  bool generate_child =
+      options_.emit_proc_spawns && spawn_depth == 0 && RandomBool(0.50);
+
+  // Since the proc interface (the arguments of the proc's config function) are
+  // pre-defined, we send a random portion of these channels to the generated
+  // child (`chns_io_child`). The rest of the channels are used as proc members
+  // and are interacted with in the proc next function (`chns_io_body`).
+  //
+  // We also generate a random set of internal channels (`chns_child_body`) that
+  // connect the child proc to the proc members, allowing the us to interact
+  // with it from the next function. The required interface for the child proc
+  // is therefor the combination of channels connecting it to the parent proc
+  // interface and parent proc next function (`chns_io_child` and
+  // `chns_io_body`).
+  //
+  // This scheme is illustrated below:
+  //
+  //                        Proc I/O
+  //                 (Config func. params)
+  //                      ▲         ▲
+  //                      │ │       │ │
+  //                 ─────┼─┼───────┼─┼──
+  //                      │ │       │ │
+  //     chns_io_child    │ │       │ │
+  //                      │ │       │ │
+  //                   ┌──┴─▼──┐    │ │
+  //                   │       │    │ │
+  //        child proc │       │    │ │ chns_io_body
+  //                   │       │    │ │
+  //                   └──▲─┬──┘    │ │
+  //                      │ │       │ │
+  //   chns_child_body    │ │       │ │
+  //                      │ │       │ │
+  //                 ─────┼─┼───────┼─┼───
+  //                      │ │       │ │
+  //                        ▼         ▼
+  //                     Proc Members
+  //               (Channels used in `next`)
+  //
+  //
+  // We always use the following channel ordering:
+  //
+  // Proc I/O:      [*chns_io_child, *chns_io_body]
+  // Child I/O:     [*chns_io_child, *chns_child_body]
+  // Proc Members:  [*chns_child_body, *chns_io_body]
+
+  std::vector<std::pair<TypeAnnotation*, ChannelDirection>> chns_io_child;
+  std::vector<std::pair<TypeAnnotation*, ChannelDirection>> chns_io_body;
+  std::vector<std::pair<TypeAnnotation*, ChannelDirection>> chns_child_body;
+
+  // Allocate I/O between child proc and this proc:
+  if (generate_child) {
+    // 20% percent of the time, send a portion of the proc/io channels directly
+    // to the child.
+    if (RandomBool(0.2)) {
+      // Number of channels send to child proc:
+      int64_t chn_to_child =
+          absl::Uniform<int64_t>(bit_gen_, 0, proc_io.size());
+      for (int64_t i = 0; i < proc_io.size(); i++) {
+        if (i < chn_to_child) {
+          chns_io_child.push_back(proc_io[i]);
+        } else {
+          chns_io_body.push_back(proc_io[i]);
+        }
+      }
+    } else {
+      chns_io_body.insert(chns_io_body.end(), proc_io.begin(), proc_io.end());
+    }
+
+    // Additional channels connecting child to this proc:
+    int64_t num_child_body_chn = RandomIntWithExpectedValue(2);
+    chns_child_body.reserve(num_child_body_chn);
+    for (int64_t i = 0; i < num_child_body_chn; i++) {
+      auto channel_dir = RandomChoice(
+          absl::MakeConstSpan({ChannelDirection::kIn, ChannelDirection::kOut}),
+          bit_gen_);
+      TypeAnnotation* element_type = GenerateType();
+      chns_child_body.push_back(std::pair(element_type, channel_dir));
+    }
+  } else {
+    // No child. The proc i/o is completely forwarded to the proc members/next
+    // function.
+    chns_io_body.insert(chns_io_body.end(), proc_io.begin(), proc_io.end());
   }
+
+  // Config function parameters: [*chns_io_child, *chns_io_body]
+  std::vector<Param*> params;
+
+  // Config function return/proc member: [*chns_child_body, *chns_io_body]
+  std::vector<AvailableChannel> available_channels;
+  std::vector<Expr*> ret_tuple_members;
+  std::vector<TypeAnnotation*> ret_tuple_member_types;
+
+  std::vector<Expr*> child_spawn_args;
+
+  for (auto& [channel_element_type, channel_dir] : chns_io_child) {
+    // Parameter to accept this channel:
+    ChannelTypeAnnotation* channel_type_annotation =
+        module_->Make<ChannelTypeAnnotation>(
+            fake_span_, channel_dir, channel_element_type, std::nullopt);
+    Param* param = GenerateParam({.type = channel_type_annotation}).param;
+    params.push_back(param);
+
+    // Add to child spawn args:
+    child_spawn_args.push_back(MakeNameRef(param->name_def()));
+  }
+
+  auto build_member = [this](NameDef* n,
+                             TypeAnnotation* t) -> absl::StatusOr<ProcMember*> {
+    XLS_ASSIGN_OR_RETURN(NameDef * name_def, CloneNode(n));
+    XLS_ASSIGN_OR_RETURN(AstNode * type_annotation,
+                         CloneAst(t, &PreserveTypeDefinitionsReplacer));
+    return module_->Make<ProcMember>(
+        name_def, down_cast<TypeAnnotation*>(type_annotation));
+  };
+
+  for (auto& [channel_element_type, channel_dir] : chns_io_body) {
+    ChannelTypeAnnotation* channel_type_annotation =
+        module_->Make<ChannelTypeAnnotation>(
+            fake_span_, channel_dir, channel_element_type, std::nullopt);
+
+    // Parameter to accept this channel:
+    Param* param = GenerateParam({.type = channel_type_annotation}).param;
+    params.push_back(param);
+
+    // Generate proc member to hold this channel:
+    XLS_ASSIGN_OR_RETURN(
+        ProcMember * member,
+        build_member(param->name_def(), param->type_annotation()));
+    available_channels.push_back({
+        .member = member,
+        .kind = AvailableChannelKind::kToParentProc,
+    });
+    ret_tuple_members.push_back(MakeNameRef(param->name_def()));
+    ret_tuple_member_types.push_back(param->type_annotation());
+  }
+
+  for (auto& [channel_element_type, channel_dir] : chns_child_body) {
+    // Internal channel:
+    XLS_ASSIGN_OR_RETURN(auto internal_chn,
+                         GenerateProcConfigChannel(channel_element_type));
+    auto [stmt, out_name_def, in_name_def] = internal_chn;
+    body.push_back(stmt);
+
+    // Generate proc member to hold this channel:
+    ChannelTypeAnnotation* member_chn_type_annotation =
+        module_->Make<ChannelTypeAnnotation>(
+            fake_span_, channel_dir, channel_element_type, std::nullopt);
+    XLS_ASSIGN_OR_RETURN(
+        ProcMember * member,
+        build_member(channel_dir == kIn ? in_name_def : out_name_def,
+                     member_chn_type_annotation));
+    available_channels.push_back({
+        .member = member,
+        .kind = AvailableChannelKind::kToChildProc,
+    });
+    ret_tuple_members.push_back(
+        MakeNameRef(channel_dir == kIn ? in_name_def : out_name_def));
+    ret_tuple_member_types.push_back(member->type_annotation());
+
+    // Child proc spawn argument:
+    if (channel_dir == kIn) {
+      child_spawn_args.push_back(MakeNameRef(out_name_def));
+    } else {
+      child_spawn_args.push_back(MakeNameRef(in_name_def));
+    }
+  }
+
+  if (generate_child) {
+    // Child I/O = [*chns_io_child, *chns_child_body]
+    std::vector<std::pair<TypeAnnotation*, ChannelDirection>>
+        child_proc_signature;
+    child_proc_signature.reserve(chns_io_child.size() + chns_child_body.size());
+    child_proc_signature.insert(child_proc_signature.end(),
+                                chns_io_child.begin(), chns_io_child.end());
+    for (auto [type, dir] : chns_child_body) {
+      child_proc_signature.push_back(std::pair(type, dir == kIn ? kOut : kIn));
+    }
+
+    // Generate random child proc:
+    XLS_ASSIGN_OR_RETURN(
+        AnnotatedProc child,
+        GenerateProc(GenSym(), child_proc_signature, spawn_depth + 1));
+    procs_.push_back(child);
+
+    // Spawn child proc:
+    auto* child_config_invocation = module_->Make<Invocation>(
+        fake_span_, MakeNameRef(child.proc->config().name_def()),
+        child_spawn_args);
+
+    auto* child_init_invocation = module_->Make<Invocation>(
+        fake_span_, MakeNameRef(child.proc->init().name_def()),
+        std::vector<Expr*>());
+
+    std::vector<ExprOrType> explicit_parametrics;
+    auto* child_spawn = module_->Make<Spawn>(
+        fake_span_, MakeNameRef(child.proc->name_def()),
+        child_config_invocation, child_init_invocation, explicit_parametrics);
+
+    Statement* child_spawn_stmt = module_->Make<Statement>(child_spawn);
+    body.push_back(child_spawn_stmt);
+  }
+
+  // Return tuple:
   TupleTypeAnnotation* ret_tuple_type =
-      module_->Make<TupleTypeAnnotation>(fake_span_, tuple_member_types);
-  XlsTuple* ret_tuple = module_->Make<XlsTuple>(fake_span_, tuple_members,
+      module_->Make<TupleTypeAnnotation>(fake_span_, ret_tuple_member_types);
+  XlsTuple* ret_tuple = module_->Make<XlsTuple>(fake_span_, ret_tuple_members,
                                                 /*has_trailing_comma=*/false);
+
+  // Body:
   Statement* ret_stmt = module_->Make<Statement>(ret_tuple);
-  auto* block = module_->Make<StatementBlock>(
-      fake_span_, std::vector<Statement*>{ret_stmt}, /*trailing_semi=*/false);
+  body.push_back(ret_stmt);
+
+  auto* block =
+      module_->Make<StatementBlock>(fake_span_, body, /*trailing_semi=*/false);
+
+  // Function:
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Function* f = module_->Make<Function>(
@@ -3038,30 +3341,28 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
       /*return_type=*/ret_tuple_type, block, FunctionTag::kProcConfig,
       /*is_public=*/false);
   name_def->set_definer(f);
-  return f;
+  return std::pair(f, available_channels);
 }
 
 absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateProcNextFunction(
-    std::string name) {
-  Context context{.is_generating_proc = true};
+    std::string name, Context::ProcContext* proc_ctx) {
+  // New context for function:
+  Context ctx = Context{
+      .env = Env(),
+      .proc_context = proc_ctx,
+  };
 
+  // Next function has a single param through which it receives the state:
   std::vector<Param*> params;
-  TypeAnnotation* state_param_type = nullptr;
-  if (options_.emit_stateless_proc) {
-    state_param_type = MakeTupleType({});
-  } else {
-    state_param_type = GenerateType();
-  }
-  params.insert(params.end(), GenerateParam({.type = state_param_type}).param);
-  proc_properties_.state_types.push_back(params.back()->type_annotation());
+  auto state_param = GenerateParam({.type = proc_ctx->state_type}).param;
+  params.insert(params.end(), state_param);
+  ctx.env[state_param->identifier()] = TypedExpr{
+      MakeNameRef(state_param->name_def()), state_param->type_annotation()};
 
-  for (Param* param : params) {
-    context.env[param->identifier()] =
-        TypedExpr{MakeNameRef(param->name_def()), param->type_annotation()};
-  }
+  // Generate random body:
+  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(0, &ctx));
 
-  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(0, &context));
-
+  // Body:
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Statement* retval_stmt = module_->Make<Statement>(retval.expr);
@@ -3082,13 +3383,13 @@ absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateProcNextFunction(
 }
 
 absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
-    std::string_view name, TypeAnnotation* return_type) {
+    std::string_view name, TypeAnnotation* state_type) {
   NameDef* name_def = module_->Make<NameDef>(fake_span_, std::string(name),
                                              /*definer=*/nullptr);
 
   XLS_ASSIGN_OR_RETURN(
       Expr * init_constant,
-      GenerateDslxConstant(bit_gen_, module_.get(), return_type));
+      GenerateDslxConstant(bit_gen_, module_.get(), state_type));
   Statement* s = module_->Make<Statement>(init_constant);
   auto* b =
       module_->Make<StatementBlock>(fake_span_, std::vector<Statement*>{s},
@@ -3097,33 +3398,61 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
       fake_span_, name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(),
-      /*return_type=*/return_type, b, FunctionTag::kProcInit,
+      /*return_type=*/state_type, b, FunctionTag::kProcInit,
       /*is_public=*/false);
   name_def->set_definer(f);
   return f;
 }
 
 absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
-    const std::string& name) {
-  XLS_ASSIGN_OR_RETURN(AnnotatedFunction next_function,
-                       GenerateProcNextFunction("next"));
+    const std::string& name,
+    absl::Span<const std::pair<TypeAnnotation*, ChannelDirection>> proc_io,
+    int64_t spawn_depth) {
+  // We currently only generated a maximum proc spawn depth of 1.
+  XLS_RET_CHECK(spawn_depth <= 1);
 
-  XLS_ASSIGN_OR_RETURN(
-      Function * config_function,
-      GenerateProcConfigFunction("config", proc_properties_.config_params));
+  // Pick state type:
+  TypeAnnotation* state_type;
+  if (options_.emit_stateless_proc) {
+    state_type = MakeTupleType({});
+  } else {
+    state_type = GenerateType();
+  }
 
-  CHECK_EQ(proc_properties_.state_types.size(), 1);
+  // Generate init function that assigns random init value to state:
   XLS_ASSIGN_OR_RETURN(
       Function * init_fn,
-      GenerateProcInitFunction(absl::StrCat(name, ".init"),
-                               proc_properties_.state_types[0]));
+      GenerateProcInitFunction(absl::StrCat(name, ".init"), state_type));
 
+  // Generate config function that accepts I/O channels and forwards them to
+  // proc members:
+  XLS_ASSIGN_OR_RETURN(
+      auto config_and_members,
+      GenerateProcConfigFunction("config", proc_io, spawn_depth));
+  auto [config_function, available_channels] = config_and_members;
+
+  std::vector<ProcMember*> proc_members;
+  proc_members.reserve(available_channels.size());
+  for (auto chn : available_channels) {
+    proc_members.push_back(chn.member);
+  }
+
+  Context::ProcContext proc_ctx = Context::ProcContext{
+      .state_type = state_type,
+      .spawn_depth = spawn_depth,
+      .available_channels = available_channels,
+  };
+
+  XLS_ASSIGN_OR_RETURN(AnnotatedFunction next_function,
+                       GenerateProcNextFunction("next", &proc_ctx));
+
+  // Proc name:
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
 
   std::vector<ProcStmt> proc_stmts;
-  proc_stmts.reserve(proc_properties_.members.size());
-  for (ProcMember* member : proc_properties_.members) {
+  proc_stmts.reserve(proc_members.size());
+  for (ProcMember* member : proc_members) {
     proc_stmts.push_back(member);
   }
 
@@ -3132,7 +3461,7 @@ absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
       .config = config_function,
       .next = next_function.function,
       .init = init_fn,
-      .members = proc_properties_.members,
+      .members = proc_members,
   };
   Proc* proc = module_->Make<Proc>(
       fake_span_, /*body_span=*/fake_span_, name_def,
@@ -3144,7 +3473,22 @@ absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
 
 absl::StatusOr<int64_t> AstGenerator::GenerateProcInModule(
     const std::string& proc_name) {
-  XLS_ASSIGN_OR_RETURN(AnnotatedProc proc, GenerateProc(proc_name));
+  int64_t num_io_ch = RandomIntWithExpectedValue(5);
+  std::vector<std::pair<TypeAnnotation*, ChannelDirection>> io_chns;
+  io_chns.reserve(num_io_ch);
+  for (int64_t i = 0; i < num_io_ch; i++) {
+    auto channel_dir = RandomChoice(
+        absl::MakeConstSpan({ChannelDirection::kIn, ChannelDirection::kOut}),
+        bit_gen_);
+    TypeAnnotation* element_type = GenerateType();
+    io_chns.push_back(std::pair(element_type, channel_dir));
+  }
+
+  XLS_ASSIGN_OR_RETURN(AnnotatedProc proc,
+                       GenerateProc(proc_name, io_chns, /*spawn_depth=*/0));
+  procs_.push_back(proc);
+  int64_t min_stages = proc.min_stages;
+
   for (auto& item : constants_) {
     XLS_RETURN_IF_ERROR(
         module_->AddTop(item.second, /*make_collision_error=*/nullptr));
@@ -3157,9 +3501,14 @@ absl::StatusOr<int64_t> AstGenerator::GenerateProcInModule(
     XLS_RETURN_IF_ERROR(
         module_->AddTop(item, /*make_collision_error=*/nullptr));
   }
-  XLS_RETURN_IF_ERROR(
-      module_->AddTop(proc.proc, /*make_collision_error=*/nullptr));
-  return proc.min_stages;
+  for (auto& item : procs_) {
+    XLS_RETURN_IF_ERROR(
+        module_->AddTop(item.proc, /*make_collision_error=*/nullptr));
+    if (item.min_stages > min_stages) {
+      min_stages = item.min_stages;
+    }
+  }
+  return min_stages;
 }
 
 absl::StatusOr<AnnotatedModule> AstGenerator::Generate(
