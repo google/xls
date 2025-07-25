@@ -51,6 +51,11 @@ struct FuzzPackageWithArgs {
   std::vector<std::vector<Value>> arg_sets;
 };
 
+void RecordFuzzInfo(const FuzzPackageWithArgs& args);
+void RecordFuzzInfo(const FuzzPackage& args);
+void RecordFuzzInfo(std::shared_ptr<Package> args);
+void RecordFuzzInfo(const Package& args);
+
 void OptimizationPassChangesOutputs(FuzzPackageWithArgs fuzz_package_with_args,
                                     OptimizationPass& pass);
 absl::Status PassChangesOutputsWithProto(std::string proto_string,

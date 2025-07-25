@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -24,12 +25,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "google/protobuf/text_format.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -48,6 +51,13 @@
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+
+ABSL_FLAG(bool, print_ir_fuzzer_info, false,
+          "Force the ir fuzzer to print ir fuzzer and args.");
+ABSL_FLAG(bool, print_ir_fuzzer_info_on_fail, false,
+          "Force the ir fuzzer to print ir fuzzer and args on failure.");
+ABSL_FLAG(std::string, print_ir_fuzzer_info_file, "/dev/stderr",
+          "File to print ir fuzzer info to.");
 
 namespace xls {
 namespace {
@@ -105,6 +115,66 @@ std::string StringifyResults(
 
 }  // namespace
 
+namespace {
+void RecordFuzzInfoString(std::string_view package,
+                          std::optional<std::string_view> args) {
+  std::ostringstream oss;
+  oss << "IR: \n";
+  oss << package << "\n";
+  if (args) {
+    oss << "args: " << *args << "\n";
+  }
+  auto status = AppendStringToFile(
+      absl::GetFlag(FLAGS_print_ir_fuzzer_info_file), std::move(oss).str());
+  if (!status.ok()) {
+    LOG(ERROR) << "Failed to write output: " << status;
+  }
+}
+
+class PrintIrOnFailure : public testing::EmptyTestEventListener {
+ public:
+  PrintIrOnFailure(const testing::TestInfo* test, std::string_view ir,
+                   std::optional<std::string_view> args)
+      : test_(test),
+        ir_(ir),
+        args_(args ? std::optional<std::string>(std::string(*args))
+                   : std::nullopt) {}
+  void OnTestEnd(const testing::TestInfo& result) override {
+    if (&result == test_ && result.result()->Failed()) {
+      RecordFuzzInfoString(ir_, args_);
+    }
+  }
+
+ private:
+  const testing::TestInfo* test_;
+  std::string ir_;
+  std::optional<std::string> args_;
+};
+void MaybeRecordFuzzInfoString(std::string_view initial_ir,
+                               std::optional<std::string_view> args) {
+  auto inst = testing::UnitTest::GetInstance();
+  const testing::TestInfo* cur_test = inst->current_test_info();
+  if (absl::GetFlag(FLAGS_print_ir_fuzzer_info)) {
+    RecordFuzzInfoString(initial_ir, args);
+  } else if (absl::GetFlag(FLAGS_print_ir_fuzzer_info_on_fail) && cur_test) {
+    inst->listeners().Append(new PrintIrOnFailure(cur_test, initial_ir, args));
+  }
+}
+}  // namespace
+void RecordFuzzInfo(const FuzzPackageWithArgs& args) {
+  MaybeRecordFuzzInfoString(args.fuzz_package.p->DumpIr(),
+                            StringifyArgSets(args.arg_sets));
+}
+void RecordFuzzInfo(const FuzzPackage& args) {
+  MaybeRecordFuzzInfoString(args.p->DumpIr(), std::nullopt);
+}
+void RecordFuzzInfo(std::shared_ptr<Package> args) {
+  MaybeRecordFuzzInfoString(args->DumpIr(), std::nullopt);
+}
+void RecordFuzzInfo(const Package& args) {
+  MaybeRecordFuzzInfoString(args.DumpIr(), std::nullopt);
+}
+
 // Takes an IR function from a Package object and puts it through an
 // optimization pass. It then evaluates the IR function with a set of argument
 // values before and after the pass. It returns the boolean value of whether the
@@ -114,6 +184,7 @@ void OptimizationPassChangesOutputs(FuzzPackageWithArgs fuzz_package_with_args,
   std::unique_ptr<Package>& p = fuzz_package_with_args.fuzz_package.p;
   FuzzProgramProto& fuzz_program =
       fuzz_package_with_args.fuzz_package.fuzz_program;
+  RecordFuzzInfo(fuzz_package_with_args);
   std::vector<std::vector<Value>>& arg_sets = fuzz_package_with_args.arg_sets;
   VLOG(3) << "IR Fuzzer-2: Before Pass IR:" << "\n" << p->DumpIr() << "\n";
   ScopedMaybeRecord<std::string> pre("before_pass", p->DumpIr());
