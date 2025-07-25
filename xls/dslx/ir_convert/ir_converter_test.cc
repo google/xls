@@ -3684,7 +3684,8 @@ fn main() -> (u5[3], u6[3]) {
   ExpectIr(converted);
 }
 
-TEST(IrConverterTest, MapInvocationWithImplicitToken) {
+TEST_P(IrConverterWithBothTypecheckVersionsTest,
+       MapInvocationWithImplicitToken) {
   constexpr std::string_view program =
       R"(
 fn f(x: u32) -> u64 {

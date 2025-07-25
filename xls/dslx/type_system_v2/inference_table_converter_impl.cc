@@ -317,6 +317,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (!caller.has_value()) {
       return absl::OkStatus();
     }
+
     // ImplicitToken notation always happens at the `root` level, so the context
     // is not relevant when retrieving type info.
     XLS_ASSIGN_OR_RETURN(TypeInfo * callee_ti,
@@ -1401,7 +1402,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // Given an invocation of the `map` builtin, creates a FunctionTypeAnnotation
   // for the `mapper` argument
   absl::StatusOr<const FunctionTypeAnnotation*> CreateMapperFunctionType(
-      const Invocation* invocation,
+      const std::optional<const Function*> caller, const Invocation* invocation,
       const ParametricContext* invocation_context) {
     std::vector<ExprOrType> explicit_parametrics =
         invocation->explicit_parametrics();
@@ -1417,8 +1418,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     Expr* array_arg = invocation->args()[0];
     std::optional<const ParametricContext*> caller_context =
         invocation_context->parent_context();
-    XLS_RETURN_IF_ERROR(
-        ConvertSubtree(array_arg, std::nullopt, caller_context));
+    XLS_RETURN_IF_ERROR(ConvertSubtree(array_arg, caller, caller_context));
     XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> array_type,
                          resolver_->ResolveAndUnifyTypeAnnotationsForNode(
                              caller_context, array_arg));
@@ -1443,6 +1443,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         mapper->span(), mapper, std::vector<Expr*>{array_of_0},
         std::move(mapper_explicit_parametrics), /*in_parens=*/false,
         invocation);
+    if (caller.has_value()) {
+      // ConvertInvocation figures out the caller by querying the AST. We need
+      // it to believe the fake invocation is in the caller of `map()`, in order
+      // for it to correctly set up the implicit token requirements.
+      mapper_invocation->SetParentNonLexical(const_cast<Function*>(*caller));
+    }
     XLS_ASSIGN_OR_RETURN(
         const NameRef* mapper_invocation_var,
         table_.DefineInternalVariable(
@@ -1459,7 +1465,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_RETURN_IF_ERROR(visitor->PopulateFromInvocation(mapper_invocation));
 
     XLS_RETURN_IF_ERROR(
-        ConvertSubtree(mapper_invocation, std::nullopt, caller_context));
+        ConvertSubtree(mapper_invocation, caller, caller_context));
     XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> mapper_type,
                          resolver_->ResolveAndUnifyTypeAnnotationsForNode(
                              caller_context, mapper_invocation->callee()));
@@ -1495,7 +1501,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     if (IsMapInvocation(invocation)) {
       XLS_ASSIGN_OR_RETURN(
           const FunctionTypeAnnotation* mapper_fn_type,
-          CreateMapperFunctionType(invocation, invocation_context));
+          CreateMapperFunctionType(std::get<ParametricInvocationDetails>(
+                                       invocation_context->details())
+                                       .caller,
+                                   invocation, invocation_context));
 
       // These must be the first actual two parametrics because they're listed
       // as the first two formals.
