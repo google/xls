@@ -262,6 +262,7 @@ cc_library(
         ":runtime_build_actions",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
+        "//xls/data_structures:inline_bitmap",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:bit_push_buffer",
