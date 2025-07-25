@@ -75,6 +75,7 @@ struct xls_dslx_constant_def;
 struct xls_dslx_function;
 struct xls_dslx_quickcheck;
 struct xls_dslx_function;
+struct xls_dslx_param;
 
 struct xls_dslx_import_data* xls_dslx_import_data_create(
     const char* dslx_stdlib_path, const char* additional_search_paths[],
@@ -121,6 +122,23 @@ bool xls_dslx_function_is_parametric(struct xls_dslx_function*);
 
 // Note: return value is owned by the caller, free via `xls_c_str_free`.
 char* xls_dslx_function_get_identifier(struct xls_dslx_function*);
+
+// Returns the number of parameters for the given DSLX function.
+int64_t xls_dslx_function_get_param_count(struct xls_dslx_function* fn);
+
+// Returns the i-th parameter of the given DSLX function.
+// The returned pointer is borrowed and tied to the lifetime of the underlying
+// function/module objects.
+struct xls_dslx_param* xls_dslx_function_get_param(struct xls_dslx_function* fn,
+                                                   int64_t index);
+
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_param_get_name(struct xls_dslx_param* p);
+
+// Returns the syntactic type annotation of this parameter as written in the
+// DSLX source.
+struct xls_dslx_type_annotation* xls_dslx_param_get_type_annotation(
+    struct xls_dslx_param* p);
 
 // Returns the QuickCheck AST node from the given module member. The caller
 // should ensure the module member kind is
