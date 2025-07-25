@@ -219,10 +219,13 @@ pub proc FseLookupDecoder<
         let tok0 = join();
 
         let (tok1, req) = recv(tok0, fse_lookup_dec_req_r);
+        trace_fmt!("[FseLookupDecoder]: Received req: {:#x}", req);
 
         let sel = (req.is_rle == true);
         let tok2_0 = send(tok1, shift_buffer_sel_req_s, sel);
+        trace_fmt!("[FseLookupDecoder]: Sending sel req to ShiftBuffer demux: {:#x}", sel);
         let (tok3_0, _) = recv(tok2_0, shift_buffer_sel_resp_r);
+        trace_fmt!("[FseLookupDecoder]: Received sel resp from ShiftBuffer");
 
         let tok2_1 = send(tok1, fse_ram_sel_req_s, sel);
         trace_fmt!("[FseLookupDecoder]: Send RAM sel req");
@@ -231,10 +234,14 @@ pub proc FseLookupDecoder<
         let tok3 = join(tok3_1, tok3_0);
 
         let tok4_0 = send_if(tok3, rle_lookup_req_s, req.is_rle, LookupDecoderReq {});
+        if req.is_rle { trace_fmt!("[FseLookupDecoder]: Send request to RLE lookup decoder"); } else { };
         let (tok5_0, rle_lookup_resp) = recv_if(tok4_0, rle_lookup_resp_r, req.is_rle, zero!<LookupDecoderResp>());
+        if req.is_rle { trace_fmt!("[FseLookupDecoder]: Received response from RLE lookup decoder"); } else { };
 
         let tok4_1 = send_if(tok3, comp_lookup_req_s, !req.is_rle, CompLookupDecoderReq {});
+        if !req.is_rle { trace_fmt!("[FseLookupDecoder]: Send request to Comp lookup decoder"); } else { };
         let (tok5_1, comp_lookup_resp) = recv_if(tok4_1, comp_lookup_resp_r, !req.is_rle, zero!<CompLookupDecoderResp>());
+        if !req.is_rle { trace_fmt!("[FseLookupDecoder]: Received response from Comp lookup decoder"); } else { };
 
         let tok5 = join(tok5_0, tok5_1);
 

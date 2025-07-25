@@ -13,6 +13,40 @@
 // limitations under the License.
 
 // This file contains the implementation of Huffman tree decoder.
+// Let code(w, n) -> symbol assigned to n-th weight w
+// How we compute the codes:
+//
+// For each weight assign the next (according to canonical order) symbol
+// the symbol is computed as follows:
+// code(w, n) = rank(w) + n * (1 << max_number_of_bits - weight)
+// where rank is built from weight frequencies as seen in the proc below
+//
+// Example:
+// max_number_of_bits = 8
+// (bits that don't matter for a given code are put after "|")
+//
+// rank(8)    = 0000 0000
+// code(8, 0) = 0000 0000
+// code(8, 1) = 0000 0001
+// code(8, 2) = 0000 0010
+// code(8, ...)
+// code(8, 7) = 0000 0111
+//
+// rank(7)    = |{w: w = 8}|  * (1<<(8-8)) = 0000 1000
+// code(7, 0) = 0000 100 | 0
+// code(7, 1) = 0000 101 | 0
+//
+// rank(6)    = |{w: w = 7}| * (1 << (8-7))+ rank(7) = 0000 1100
+// code(6, 0) = 0000 11 | 00
+//  ...
+//
+// Analogous codebook in ZSTD:
+//  ...
+// symbols[0b0000 100x] -> code(7,0)
+// symbols[0b0000 101x] -> code(7,1)
+// symbols[0b000011xx] -> code(6,0)
+// length[0b000011xx] -> 6
+//  ...
 
 import std;
 import xls.dslx.stdlib.acm_random as random;
@@ -29,7 +63,11 @@ const PARALLEL_ACCESS_WIDTH = hcommon::PARALLEL_ACCESS_WIDTH;
 const COUNTER_WIDTH = hcommon::COUNTER_WIDTH;
 
 const RECV_COUNT = MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH;
-const RECV_COUNT_W = std::clog2(RECV_COUNT + u32:1);
+// recv_counter is used to iterate:
+//   0...MAX_RECV
+//   (MAX_RECV+1)...MAX_RECV*2
+// so the counter type must be wide enough to store (MAX_RECV*2)
+const RECV_COUNT_W = std::clog2((RECV_COUNT * u32:2) + u32:1);
 const MAX_RECV   = RECV_COUNT as uN[RECV_COUNT_W];
 
 type WeightPreScanMetaData = hcommon::WeightPreScanMetaData;
@@ -52,6 +90,7 @@ struct WeightCodeBuilderState {
     huffman_codes:          uN[MAX_WEIGHT][MAX_WEIGHT + u32:1],
     seen_weights:           u1[MAX_WEIGHT + u32:1],
     max_number_of_bits:     uN[WEIGHT_LOG],
+    huffman_base_codes:     uN[MAX_WEIGHT][MAX_WEIGHT + u32:1]
 }
 
 pub proc WeightCodeBuilder
@@ -104,11 +143,11 @@ pub proc WeightCodeBuilder
         let (_, prescan_data, prescan_data_valid) = recv_if_non_blocking(tok, weight_r, recv_prescan, zero!<PreScanData>());
 
         if start_valid {
-            trace_fmt!("Received start {:#x}", start);
+            trace_fmt!("[WeightCodeBuilder] Received start {:#x}", start);
         } else {};
 
         if prescan_data_valid {
-            trace_fmt!("Received prescan {:#x}", prescan_data);
+            trace_fmt!("[WeightCodeBuilder] Received prescan {:#x}", prescan_data);
         } else {};
 
         let (advance_state, send_lookahead, send_codes) = match state.fsm {
@@ -127,19 +166,19 @@ pub proc WeightCodeBuilder
 
         let next_fsm_state = match(state.fsm, advance_state) {
             (FSM::IDLE, true) => {
-                trace_fmt!("IDLE -> GATHER_WEIGHTS_RUN");
+                trace_fmt!("[WeightCodeBuilder] IDLE -> GATHER_WEIGHTS_RUN");
                 FSM::GATHER_WEIGHTS_RUN
             },
             (FSM::GATHER_WEIGHTS_RUN, true) => {
-                trace_fmt!("GATHER_WEIGHTS_RUN -> COMPUTE_MAX_LENGTH");
+                trace_fmt!("[WeightCodeBuilder] GATHER_WEIGHTS_RUN -> COMPUTE_MAX_LENGTH");
                 FSM::COMPUTE_MAX_LENGTH
             },
             (FSM::COMPUTE_MAX_LENGTH, true) => {
-                trace_fmt!("COMPUTE_MAX_LENGTH -> GENERATE_CODES_RUN");
+                trace_fmt!("[WeightCodeBuilder] COMPUTE_MAX_LENGTH -> GENERATE_CODES_RUN");
                 FSM::GENERATE_CODES_RUN
             },
             (FSM::GENERATE_CODES_RUN, true) => {
-                trace_fmt!("GENERATE_CODES_RUN -> IDLE");
+                trace_fmt!("[WeightCodeBuilder] GENERATE_CODES_RUN -> IDLE");
                 FSM::IDLE
             },
             (_, false) => state.fsm,
@@ -171,6 +210,29 @@ pub proc WeightCodeBuilder
             uN[MAX_WEIGHT + u32:2]:0
         };
 
+        // compute the codes as in ZSTD, but incrementally
+        // https://github.com/facebook/zstd/blob/f9a6031963dee08620855545bdad7d519c208e8a/doc/educational_decoder/zstd_decompress.c#L1938-L1946
+        let huffman_base_codes = if do_send_loopback {
+            let base = for (i, huffman_base_codes) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
+                let adder_weight = prescan_data.weights[i];
+                let increment = (u32:1 << (adder_weight as u32 - u32:1));
+                if adder_weight != uN[WEIGHT_LOG]:0 {
+                    for (weight, huffman_base_codes) in range(u32:0, MAX_WEIGHT + u32:1) {
+                        if weight as uN[WEIGHT_LOG] > adder_weight {
+                            update(huffman_base_codes, weight, huffman_base_codes[weight] + increment as uN[MAX_WEIGHT])
+                        } else {
+                            huffman_base_codes
+                        }
+                    }(huffman_base_codes)
+                } else {
+                    huffman_base_codes
+                }
+            }(state.huffman_base_codes);
+            trace_fmt!("Updating Huffman base codes ({}) -> {:#b}", prescan_data.weights, base);
+            base
+        } else {
+            state.huffman_base_codes
+        };
         let tok = send_if(tok, weights_pow_sum_loopback_s, do_send_loopback, sum_of_weights_powers);
 
         // receive sum of weights powers from loopback
@@ -179,7 +241,13 @@ pub proc WeightCodeBuilder
         );
         let sum_of_weights_powers = state.sum_of_weights_powers + sum_of_weights_powers;
         let loopback_counter = if sum_of_weights_powers_valid {
-            trace_fmt!("Sum of weights powers: {}", sum_of_weights_powers);
+            trace_fmt!("[WeightCodeBuilder] Sum of weights powers: {}", sum_of_weights_powers);
+
+            if (state.loopback_counter == std::unsigned_max_value<RECV_COUNT_W>()) {
+                trace_fmt!("[WeightCodeBuilder] ERROR: loopback_counter overflows, state: {}", state);
+                fail!("loopback_counter_overflows", state);
+            } else {};
+
             state.loopback_counter + uN[RECV_COUNT_W]:1
         } else {
             state.loopback_counter
@@ -188,14 +256,11 @@ pub proc WeightCodeBuilder
         // compute max number of bits
         let max_number_of_bits = encode(sum_of_weights_powers >> u32:1) as uN[WEIGHT_LOG];
 
-        // intial value for huffman codes is 0 for weight 1 and 1 for the rest
-        // then the value is computed based on number of occurances of given weight
         let huffman_codes = match(state.fsm, advance_state) {
             (FSM::IDLE, _) => {
-                let huffman_codes = for (i, codes) in range(u32:0, MAX_WEIGHT + u32:1) {
-                    update(codes, i, uN[MAX_WEIGHT]:1)
-                }(zero!<uN[MAX_WEIGHT][MAX_WEIGHT + u32:1]>());
-                update(huffman_codes, u32:1, uN[MAX_WEIGHT]:0)
+                for (i, codes) in range(u32:0, MAX_WEIGHT + u32:1) {
+                    update(codes, i, uN[MAX_WEIGHT]:0)
+                }(zero!<uN[MAX_WEIGHT][MAX_WEIGHT + u32:1]>())
             },
             (FSM::GENERATE_CODES_RUN, _) => {
                 let weights_count = meta_data.weights_count;
@@ -216,6 +281,10 @@ pub proc WeightCodeBuilder
             },
             (FSM::GATHER_WEIGHTS_RUN) => {
                 let recv_counter = if prescan_data_valid {
+                    if (state.recv_counter == std::unsigned_max_value<RECV_COUNT_W>()) {
+                        trace_fmt!("[WeightCodeBuilder] ERROR: recv_counter overflows in GATHER_WEIGHTS_RUN, state: {}", state);
+                        fail!("recv_counter_overflows", state);
+                    } else {};
                     state.recv_counter + uN[RECV_COUNT_W]:1
                 } else {
                     state.recv_counter
@@ -225,6 +294,7 @@ pub proc WeightCodeBuilder
                     loopback_counter: loopback_counter,
                     sum_of_weights_powers: sum_of_weights_powers,
                     recv_counter: recv_counter,
+                    huffman_base_codes: huffman_base_codes,
                     ..state
                 }
             },
@@ -239,6 +309,10 @@ pub proc WeightCodeBuilder
             },
             (FSM::GENERATE_CODES_RUN) => {
                 let recv_counter = if prescan_data_valid {
+                    if (state.recv_counter == std::unsigned_max_value<RECV_COUNT_W>()) {
+                        trace_fmt!("[WeightCodeBuilder] ERROR: recv_counter overflows in GENERATE_CODES_RUN, state: {}", state);
+                        fail!("recv_counter_overflows2", state);
+                    } else {};
                     state.recv_counter + uN[RECV_COUNT_W]:1
                 } else {
                     state.recv_counter
@@ -273,19 +347,16 @@ pub proc WeightCodeBuilder
             update(code_length, i, state.max_number_of_bits - prescan_data.weights[i] + uN[WEIGHT_LOG]:1)
         }(zero!<uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH]>());
 
-        // set codes using weight, occurance number and Huffman codes per weight from previous iteration
+        // the computations below are equivalent to
+        // https://github.com/facebook/zstd/blob/f9a6031963dee08620855545bdad7d519c208e8a/doc/educational_decoder/zstd_decompress.c#L1949-L1960
         let codes = for (i, codes) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
-            let length = state.max_number_of_bits - prescan_data.weights[i] + uN[WEIGHT_LOG]:1;
-            let base_code = for(j, base_code) in range(u32:0, MAX_WEIGHT + u32:1) {
-                if (prescan_data.weights[i] == j as uN[WEIGHT_LOG]) {
-                    state.huffman_codes[j]
-                } else {
-                    base_code
-                }
-            }(uN[MAX_WEIGHT]:0);
-            let code = base_code + (meta_data.occurance_number[i] as uN[MAX_WEIGHT]);
-            let code = rev(code) >> (MAX_WEIGHT - length as u32);
-            update(codes, i, code)
+            let current_weight = prescan_data.weights[i];
+            let length = state.max_number_of_bits - current_weight + uN[WEIGHT_LOG]:1;
+            let cardinality = state.huffman_codes[current_weight] + meta_data.occurance_number[i] as uN[MAX_WEIGHT];
+            let shift = (state.max_number_of_bits - length);
+            let code = state.huffman_base_codes[current_weight] as u32 + (u32:1 << shift) * cardinality as u32;
+            let code = rev(code) >> (u32:32 - state.max_number_of_bits as u32); // flip bottom max_number_of_bits bits
+            update(codes, i, code as uN[MAX_WEIGHT])
         }(zero!<uN[MAX_WEIGHT][PARALLEL_ACCESS_WIDTH]>());
 
         let code_packet = DecoderOutput {
@@ -295,7 +366,7 @@ pub proc WeightCodeBuilder
         };
         let tok = send_if(tok, codes_s, send_codes, code_packet);
         if send_codes {
-            trace_fmt!("Sent codes: \nsymbols_valid: {}\ncodes_length: {}\ncodes: {:#b}\nstate.huffman_codes: {:#b}", symbols_valid, codes_length, codes, state.huffman_codes);
+            trace_fmt!("[WeightCodeBuilder] Sent codes: \nsymbols_valid: {}\ncodes_length: {}\ncodes: {:#b}\nstate.huffman_codes: {:#b} state.huffman_base_codes {:#b}", symbols_valid, codes_length, codes, state.huffman_codes, state.huffman_base_codes);
         } else {};
 
 

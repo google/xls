@@ -90,7 +90,7 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_D
         let (_, ctrl, ctrl_valid) = recv_if_non_blocking(join(), ctrl_r, state.ctrl.len == state.bytes_sent, zero!<Ctrl>());
 
         let state = if ctrl_valid {
-            trace_fmt!("Received CTRL {:#x}", ctrl);
+            trace_fmt!("[HuffmanAxiReader] Received CTRL {:#x}", ctrl);
             State {
                 ctrl: ctrl,
                 ..zero!<State>()
@@ -107,7 +107,7 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_D
         let do_send_mem_rd_req = (state.bytes_requested < state.ctrl.len);
         send_if(join(), mem_rd_req_s, do_send_mem_rd_req, mem_rd_req);
         if (do_send_mem_rd_req) {
-            trace_fmt!("Sent memory read request {:#x}", mem_rd_req);
+            trace_fmt!("[HuffmanAxiReader] Sent memory read request {:#x}", mem_rd_req);
         } else {};
 
         let state = if do_send_mem_rd_req {
@@ -123,7 +123,7 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_D
         let do_read_mem_rd_resp = (state.bytes_requested > state.bytes_sent) && (state.bytes_sent < state.bytes_requested);
         let (tok, mem_rd_resp, mem_rd_resp_valid) = recv_if_non_blocking(join(), mem_rd_resp_r, do_read_mem_rd_resp, zero!<MemRdResp>());
         if mem_rd_resp_valid {
-            trace_fmt!("Received memory read response {:#x}", mem_rd_resp);
+            trace_fmt!("[HuffmanAxiReader] Received memory read response {:#x}", mem_rd_resp);
         } else {};
 
         // send data
@@ -134,7 +134,7 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_D
         };
         let tok = send_if(tok, data_s, mem_rd_resp_valid, data);
         if mem_rd_resp_valid {
-            trace_fmt!("Sent output data {:#x}", data);
+            trace_fmt!("[HuffmanAxiReader] Sent output data {:#x}", data);
         } else {};
 
         let state = if last {

@@ -108,6 +108,7 @@ pub proc RamDemux3<
     next(state: ()) {
         let tok0 = join();
         let (tok1, sel) = recv(tok0, sel_req_r);
+        trace_fmt!("[RamDemux3] Received req: {:#x}", sel);
 
         let (sel1, sel2) = match sel {
             u2:0 => (u1:0, u1:0),
@@ -117,13 +118,18 @@ pub proc RamDemux3<
         };
 
         let tok2_0 = send(tok1, d1_sel_req_s, sel1);
+        trace_fmt!("[RamDemux3] Sent sel1 req: {:#x}", sel1);
         let (tok3_0, _) = recv(tok2_0, d1_sel_resp_r);
+        trace_fmt!("[RamDemux3] Received sel1 resp");
 
         let tok2_0 = send(tok1, d2_sel_req_s, sel2);
+        trace_fmt!("[RamDemux3] Sent sel2 req: {:#x}", sel2);
         let (tok3_1, _) = recv(tok2_0, d2_sel_resp_r);
+        trace_fmt!("[RamDemux3] Received sel2 resp");
 
         let tok3 = join(tok3_0, tok3_1);
         send(tok3, sel_resp_s, ());
+        trace_fmt!("[RamDemux3] Sent resp");
     }
 }
 

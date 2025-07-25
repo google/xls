@@ -35,7 +35,7 @@ import xls.modules.zstd.sequence_executor;
 import xls.modules.zstd.huffman_literals_dec;
 import xls.modules.zstd.literals_buffer;
 import xls.modules.zstd.parallel_rams;
-import xls.modules.zstd.ram_merge;
+import xls.modules.zstd.ram_passthrough;
 
 type BlockSize = common::BlockSize;
 type BlockType = common::BlockType;
@@ -1396,12 +1396,9 @@ pub proc ZstdDecoder<
             huffman_lit_weights_fse_wr_req_s, huffman_lit_weights_fse_wr_resp_r,
         );
 
-        spawn ram_merge::RamMerge<HUFFMAN_WEIGHTS_RAM_ADDR_W, HUFFMAN_WEIGHTS_RAM_DATA_W, HUFFMAN_WEIGHTS_RAM_NUM_PARTITIONS>(
-            // Read side
+        spawn ram_passthrough::RamPassthrough<HUFFMAN_WEIGHTS_RAM_ADDR_W, HUFFMAN_WEIGHTS_RAM_DATA_W, HUFFMAN_WEIGHTS_RAM_NUM_PARTITIONS>(
             huffman_lit_weights_read_side_rd_req_r, huffman_lit_weights_read_side_rd_resp_s,
-            // Write side
             huffman_lit_weights_write_side_wr_req_r, huffman_lit_weights_write_side_wr_resp_s,
-            // Merge side
             huffman_lit_weights_mem_rd_req_s, huffman_lit_weights_mem_rd_resp_r,
             huffman_lit_weights_mem_wr_req_s, huffman_lit_weights_mem_wr_resp_r,
         );
@@ -1459,7 +1456,7 @@ pub proc ZstdDecoder<
 }
 
 const INST_AXI_DATA_W = u32:64;
-const INST_AXI_ADDR_W = u32:16;
+const INST_AXI_ADDR_W = u32:32;
 const INST_AXI_ID_W = u32:4;
 const INST_AXI_DEST_W = u32:4;
 const INST_REGS_N = u32:16;
@@ -1810,6 +1807,11 @@ proc ZstdDecoderInst {
         huffman_lit_weights_fse_wr_req_s: chan<HuffmanWeightsFseRamWrReq> out,
         huffman_lit_weights_fse_wr_resp_r: chan<HuffmanWeightsFseRamWrResp> in,
 
+        huffman_lit_weights_mem_rd_req_s: chan<HuffmanWeightsReadReq> out,
+        huffman_lit_weights_mem_rd_resp_r: chan<HuffmanWeightsReadResp> in,
+        huffman_lit_weights_mem_wr_req_s: chan<HuffmanWeightsWriteReq> out,
+        huffman_lit_weights_mem_wr_resp_r: chan<HuffmanWeightsWriteResp> in,
+
         // AXI Output Writer (manager)
         output_axi_aw_s: chan<MemAxiAw> out,
         output_axi_w_s: chan<MemAxiW> out,
@@ -1851,20 +1853,6 @@ proc ZstdDecoderInst {
 
         notify_s: chan<()> out,
     ) {
-        // FIXME: Remove inline Huffman Weights memory once HuffmanLiteralsDecoder's memory ports are able to be rewritten
-        let (huffman_lit_weights_mem_rd_req_s, huffman_lit_weights_mem_rd_req_r) = chan<HuffmanWeightsReadReq, u32:1>("huffman_lit_weights_mem_rd_req");
-        let (huffman_lit_weights_mem_rd_resp_s, huffman_lit_weights_mem_rd_resp_r) = chan<HuffmanWeightsReadResp, u32:1>("huffman_lit_weights_mem_rd_resp");
-        let (huffman_lit_weights_mem_wr_req_s, huffman_lit_weights_mem_wr_req_r) = chan<HuffmanWeightsWriteReq, u32:1>("huffman_lit_weights_mem_wr_req");
-        let (huffman_lit_weights_mem_wr_resp_s, huffman_lit_weights_mem_wr_resp_r) = chan<HuffmanWeightsWriteResp, u32:1>("huffman_lit_weights_mem_wr_resp");
-
-        spawn ram::RamModel<
-            HUFFMAN_WEIGHTS_RAM_DATA_W, HUFFMAN_WEIGHTS_RAM_SIZE, HUFFMAN_WEIGHTS_RAM_PARTITION_WORD_SIZE,
-            INST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, INST_RAM_INITIALIZED
-        >(
-            huffman_lit_weights_mem_rd_req_r, huffman_lit_weights_mem_rd_resp_s,
-            huffman_lit_weights_mem_wr_req_r, huffman_lit_weights_mem_wr_resp_s,
-        );
-
         spawn ZstdDecoder<
             INST_AXI_DATA_W, INST_AXI_ADDR_W, INST_AXI_ID_W, INST_AXI_DEST_W,
             INST_REGS_N, INST_WINDOW_LOG_MAX,

@@ -471,7 +471,7 @@ proc LiteralsBufferWriter<
         let (_, sync_data, sync_data_valid) = recv_non_blocking(tok0, buffer_sync_r, zero!<LiteralsBufferReaderToWriterSync>());
 
         if (sync_data_valid) {
-            trace_fmt!("Received buffer reader-to-writer sync data {:#x}", sync_data);
+            trace_fmt!("[LiteralsBufferWriter] Received buffer reader-to-writer sync data {:#x}", sync_data);
         } else {};
 
         // read literals
@@ -520,7 +520,7 @@ proc LiteralsBufferWriter<
 
         // write completion
         let (do_write, wr_resp_handler_data) = parallel_rams::create_ram_wr_data(write_reqs, state.hyp_ptr);
-        if do_write {trace_fmt!("Sending request to RamWrRespHandler: {:#x}", wr_resp_handler_data);} else { };
+        if do_write {trace_fmt!("[LiteralsBufferWriter] Sending request to RamWrRespHandler: {:#x}", wr_resp_handler_data);} else { };
 
         let tok3_0 = send_if(tok2, ram_comp_input_s, do_write, wr_resp_handler_data);
 
@@ -538,7 +538,7 @@ proc LiteralsBufferWriter<
         };
 
         let state = if (comp_data_valid) {
-            trace_fmt!("COMP {:#x}", comp_data);
+            trace_fmt!("[LiteralsBufferWriter] COMP {:#x}", comp_data);
             State {
                 literals_in_ram: state.literals_in_ram + comp_data.length as uN[RAM_ADDR_WIDTH + std::clog2(RAM_NUM)],
                 ..state
@@ -566,7 +566,7 @@ proc LiteralsBufferWriter<
         let tok4 = send_if(tok3, buffer_sync_s, comp_data_valid, sync_data);
 
         if (comp_data_valid) {
-            trace_fmt!("Sent buffer writer-to-reader sync data {:#x}", sync_data);
+            trace_fmt!("[LiteralsBufferWriter] Sent buffer writer-to-reader sync data {:#x}", sync_data);
         } else {};
 
         state
@@ -761,7 +761,7 @@ proc LiteralsBufferReader<
                 read_reqs, read_start, read_len, last_access, !last_access
             );
         if do_read {
-            trace_fmt!("Sending request to RamRdRespHandler: {:#x}", rd_resp_handler_data);
+            trace_fmt!("[LiteralsBufferReader] Sending request to RamRdRespHandler: {:#x}", rd_resp_handler_data);
         } else { };
         let tok3 = send_if(tok2, ram_resp_input_s, do_read, rd_resp_handler_data);
 
@@ -769,7 +769,7 @@ proc LiteralsBufferReader<
         let (_, sync_data, sync_data_valid) = recv_non_blocking(tok0, buffer_sync_r, zero!<LiteralsBufferWriterToReaderSync>());
 
         if (sync_data_valid) {
-            trace_fmt!("Received buffer writer-to-reader sync data {:#x}", sync_data);
+            trace_fmt!("[LiteralsBufferReader] Received buffer writer-to-reader sync data {:#x}", sync_data);
         } else {};
 
         let state = if (sync_data_valid) {

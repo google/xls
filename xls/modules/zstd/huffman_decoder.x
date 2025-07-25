@@ -13,6 +13,10 @@
 // limitations under the License.
 
 // This file contains the implementation of Huffman decoder.
+// 1. receives bitstream from HuffmanDataPreprocessor - happens numerous times per stream
+// 2. receives code to symbol mapping from HuffmanCodeBuilder - happens once per block
+// 3. it matches longest possible code to next bits of the bitstream
+// 4. it sends the decoded literals to LiteralsBuffer
 
 import std;
 
@@ -162,7 +166,7 @@ pub proc HuffmanDecoder {
 
         let state = if start_valid {
             if start.new_config {
-                trace_fmt!("{} -> AWAITING_CONFIG", state.fsm);
+                trace_fmt!("[HuffmanDecoder] {} -> AWAITING_CONFIG", state.fsm);
                 assert!(state.fsm == FSM::IDLE, "invalid_state_transition");
                 State {
                     fsm: FSM::AWAITING_CONFIG,
@@ -173,7 +177,7 @@ pub proc HuffmanDecoder {
                     ..state
                 }
             } else {
-                trace_fmt!("{} -> READ_DATA", state.fsm);
+                trace_fmt!("[HuffmanDecoder] {} -> READ_DATA", state.fsm);
                 assert!(state.fsm == FSM::IDLE, "invalid_state_transition");
                 State {
                     fsm: FSM::READ_DATA,
@@ -210,16 +214,16 @@ pub proc HuffmanDecoder {
                     update(symbol_code_len, (state.symbol_config_id as u32 * u32:8) + i, config.code_length[i]),
                 )
             }((state.symbol_valid, state.symbol_code, state.symbol_code_len));
-            trace_fmt!("state.symbol_config_id+1: {:#x}", state.symbol_config_id as u32 + u32:1);
-            trace_fmt!("SYMBOLS_N: {:#x}", SYMBOLS_N);
-            trace_fmt!("hcommon::PARALLEL_ACCESS_WIDTH: {:#x}", hcommon::PARALLEL_ACCESS_WIDTH);
+            trace_fmt!("[HuffmanDecoder] state.symbol_config_id+1: {:#x}", state.symbol_config_id as u32 + u32:1);
+            trace_fmt!("[HuffmanDecoder] SYMBOLS_N: {:#x}", SYMBOLS_N);
+            trace_fmt!("[HuffmanDecoder] hcommon::PARALLEL_ACCESS_WIDTH: {:#x}", hcommon::PARALLEL_ACCESS_WIDTH);
             let fsm = if (state.symbol_config_id as u32 + u32:1) == (SYMBOLS_N / hcommon::PARALLEL_ACCESS_WIDTH) {
-                trace_fmt!("{} -> READ_DATA", state.fsm);
+                trace_fmt!("[HuffmanDecoder] {} -> READ_DATA", state.fsm);
                 assert!(state.fsm == FSM::AWAITING_CONFIG, "invalid_state_transition");
-                trace_fmt!("Received codes:");
+                trace_fmt!("[HuffmanDecoder] Received codes:");
                 for (i, ()) in range(u32:0, SYMBOLS_N) {
                     if symbol_valid[i] {
-                        trace_fmt!("  {:#b} (len {}) -> {:#x}", symbol_code[i], symbol_code_len[i], i);
+                        trace_fmt!("[HuffmanDecoder]   {:#b} (len {}) -> {:#x}", symbol_code[i], symbol_code_len[i], i);
                     } else {};
                 }(());
                 FSM::READ_DATA
@@ -242,9 +246,9 @@ pub proc HuffmanDecoder {
         );
 
         let state = if data_valid {
-            trace_fmt!("{} -> DECODE", state.fsm);
+            trace_fmt!("[HuffmanDecoder] {} -> DECODE", state.fsm);
             assert!(state.fsm == FSM::READ_DATA, "invalid_state_transition");
-            trace_fmt!("Received data: {:#b} (len: {})", data.data, data.data_len);
+            trace_fmt!("[HuffmanDecoder] Received data: {:#b} (len: {})", data.data, data.data_len);
             State {
                 fsm: FSM::DECODE,
                 data_len: state.data_len + data.data_len as uN[BUFF_W_LOG2],
@@ -260,40 +264,50 @@ pub proc HuffmanDecoder {
         // decode data
         let state = if (
             state.fsm == FSM::DECODE &&
-            state.data_len > uN[BUFF_W_LOG2]:0 &&
-            state.data_len >= state.code_length[0] as uN[BUFF_W_LOG2]
+            state.data_len > uN[BUFF_W_LOG2]:0
         ) {
-            let data_mask = (!uN[hcommon::MAX_WEIGHT]:0) >> (hcommon::MAX_WEIGHT - state.code_length[0] as u32);
-            let data_masked = state.data as uN[hcommon::MAX_WEIGHT] & data_mask;
-
-            trace_fmt!("Data to be decoded: {:#b} (len: {})", data_masked, state.code_length[0]);
-
-            let literals = for (i, literals):(u32, uN[common::SYMBOL_WIDTH][SYMBOLS_N]) in range(u32:0, SYMBOLS_N){
+            // greedily take longest match, won't skip anything since no symbol is a prefix of another (Huffman property)
+            let (literal, matched) = for(i, (literal, matched)) : (u32, (uN[common::SYMBOL_WIDTH], bool)) in range(u32:0, SYMBOLS_N) {
+                let test_length = state.symbol_code_len[i];
+                let data_mask = (!uN[hcommon::MAX_WEIGHT]:0) >> (hcommon::MAX_WEIGHT - test_length as u32);
+                let data_masked = state.data as uN[hcommon::MAX_WEIGHT] & data_mask;
                 if (
-                    state.symbol_valid[i] &&
-                    (data_masked == state.symbol_code[i]) &&
-                    (state.code_length[0] == state.symbol_code_len[i] as CodeLen)
+                    state.symbol_valid[i] && (data_masked == state.symbol_code[i]) && state.data_len >= test_length as uN[BUFF_W_LOG2]
                 ) {
-                    update(literals, i, i as uN[common::SYMBOL_WIDTH])
+                    trace_fmt!("decoded {:#b} as {:#x} (length={}, data_length={})", data_masked, i, test_length, state.data_len);
+                    (i as uN[common::SYMBOL_WIDTH], true)
                 } else {
-                    literals
+                    (literal, matched)
                 }
-            }(zero!<uN[common::SYMBOL_WIDTH][SYMBOLS_N]>());
-
-            // assuming only one code was valid, we can compute 'or' of all array elements
-            let literal = for (i, literal):(u32, uN[common::SYMBOL_WIDTH]) in range(u32:0, SYMBOLS_N) {
-                literal | literals[i]
-            }(uN[common::SYMBOL_WIDTH]:0);
+            }((uN[common::SYMBOL_WIDTH]:0, false));
+            let length = state.symbol_code_len[literal];
 
             // shift buffer
-            State {
-                decoded_literals: update(state.decoded_literals, state.decoded_literals_len, literal),
-                decoded_literals_len: state.decoded_literals_len + u4:1,
-                data_len: state.data_len - state.code_length[0] as uN[BUFF_W_LOG2],
-                data: state.data >> state.code_length[0],
-                code_length: shift_buff_array(state.code_length, state.code_length[0] as u32),
-                ..state
+            if matched {
+                State {
+                    decoded_literals: update(state.decoded_literals, state.decoded_literals_len, literal),
+                    decoded_literals_len: state.decoded_literals_len + u4:1,
+                    data_len: state.data_len - length as uN[BUFF_W_LOG2],
+                    data: state.data >> length,
+                    code_length: shift_buff_array(state.code_length, state.code_length[0] as u32),
+                    ..state
+                }
+            } else {
+                // means we've got dangling bits from the next package
+                State {
+                    fsm: FSM::READ_DATA,
+                    ..state
+                }
             }
+
+        } else if (state.fsm == FSM::DECODE && state.data_len > uN[BUFF_W_LOG2]:0) {
+            trace_fmt!(
+                "[HuffmanDecoder] ERROR: data_len is {} which is shorter than the code length {}",
+                state.data_len,
+                state.code_length[0]
+            );
+            assert!(state.data_len >= state.code_length[0] as uN[BUFF_W_LOG2], "invalid_data_or_code_length");
+            state
         } else {
             state
         };
@@ -316,26 +330,26 @@ pub proc HuffmanDecoder {
         let decoded_literals = common::LiteralsDataWithSync{
             data: data,
             length: state.decoded_literals_len as common::LitLength,
-            last: done && state.last_stream,
+            last: done && state.last_stream && state.data_last,
             id: state.id,
             literals_last: state.literals_last,
         };
         let tok = send_if(tok, decoded_literals_s, do_send_literals, decoded_literals);
         if (do_send_literals) {
-           trace_fmt!("Sent decoded literals: {:#x}", decoded_literals);
+           trace_fmt!("[HuffmanDecoder] Sent decoded literals: {:#x}", decoded_literals);
         } else {};
 
         let state = if do_send_literals {
             let fsm = if state.data_len == uN[BUFF_W_LOG2]:0 {
                 if state.data_last {
-                    trace_fmt!("{} -> IDLE", state.fsm);
+                    trace_fmt!("[HuffmanDecoder] {} -> IDLE", state.fsm);
                     FSM::IDLE
                 } else {
-                    trace_fmt!("{} -> READ_DATA", state.fsm);
+                    trace_fmt!("[HuffmanDecoder] {} -> READ_DATA", state.fsm);
                     FSM::READ_DATA
                 }
             } else {
-                trace_fmt!("{} -> DECODE", state.fsm);
+                trace_fmt!("[HuffmanDecoder] {} -> DECODE", state.fsm);
                 FSM::DECODE
             };
             assert!(state.fsm == FSM::DECODE, "invalid_state_transition");

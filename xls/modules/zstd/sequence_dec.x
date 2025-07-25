@@ -586,7 +586,11 @@ pub proc SequenceDecoderCtrl<
         // Set proper LL lookup through demux
         let ll_demux_sel = (conf_resp.header.literals_mode != CompressionMode::PREDEFINED);
         let ll_demux_do_send = !zero_sequences && (conf_resp.header.literals_mode != CompressionMode::REPEAT);
+
         let tok_ll_demux = send_if(tok_recv_scd, ll_demux_req_s, ll_demux_do_send, ll_demux_sel);
+        if ll_demux_do_send {
+            trace_fmt!("[SequenceDecoderCtrl] Sending LL sel: {:#x}", ll_demux_sel);
+        } else {};
         // Receive response from LL lookup demux
         let (tok_ll_demux, _) = recv_if(tok_ll_demux, ll_demux_resp_r, ll_demux_do_send, ());
         if ll_demux_do_send {

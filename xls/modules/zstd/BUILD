@@ -1428,12 +1428,6 @@ xls_dslx_test(
     ],
 )
 
-xls_dslx_library(
-    name = "ram_merge_dslx",
-    srcs = ["ram_merge.x"],
-    deps = ["//xls/examples:ram_dslx"],
-)
-
 zstd_dec_deps = [
     ":axi_csr_accessor_dslx",
     ":block_header_dec_dslx",
@@ -1449,7 +1443,6 @@ zstd_dec_deps = [
     ":huffman_literals_dec_dslx",
     ":literals_buffer_dslx",
     ":parallel_rams_dslx",
-    ":ram_merge_dslx",
     "//xls/examples:ram_dslx",
     "//xls/modules/zstd/memory:mem_reader_dslx",
     "//xls/modules/zstd/memory:mem_writer_dslx",
@@ -1486,6 +1479,7 @@ xls_dslx_test(
 ZSTD_DEC_INTERNAL_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "ZstdDecoderInternal",
     "pipeline_stages": "2",
+    "worst_case_throughput": "2",
 }
 
 xls_dslx_verilog(
@@ -1936,28 +1930,30 @@ place_and_route(
     target_die_utilization_percentage = "5",
 )
 
+ram_demux_naive_codegen_args = {
+    "module_name": "RamDemuxNaive",
+    "generator": "pipeline",
+    "delay_model": "asap7",
+    "ram_configurations": ",".join([
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 1,
+            ram_name = "ram{}".format(num),
+            rd_req = "ram_demux__rd_req{}_s".format(num),
+            rd_resp = "ram_demux__rd_resp{}_r".format(num),
+            wr_req = "ram_demux__wr_req{}_s".format(num),
+            wr_resp = "ram_demux__wr_resp{}_r".format(num),
+        )
+        for num in range(2)
+    ]),
+    "pipeline_stages": "6",
+    "reset": "rst",
+    "use_system_verilog": "false",
+    "materialize_internal_fifos": "true",
+}
+
 xls_dslx_verilog(
     name = "ram_demux_naive_verilog",
-    codegen_args = {
-        "module_name": "RamDemuxNaive",
-        "generator": "pipeline",
-        "delay_model": "asap7",
-        "ram_configurations": ",".join([
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
-                ram_name = "ram{}".format(num),
-                rd_req = "ram_demux__rd_req{}_s".format(num),
-                rd_resp = "ram_demux__rd_resp{}_r".format(num),
-                wr_req = "ram_demux__wr_req{}_s".format(num),
-                wr_resp = "ram_demux__wr_resp{}_r".format(num),
-            )
-            for num in range(2)
-        ]),
-        "pipeline_stages": "6",
-        "reset": "rst",
-        "use_system_verilog": "false",
-        "materialize_internal_fifos": "true",
-    },
+    codegen_args = ram_demux_naive_codegen_args,
     dslx_top = "RamDemuxNaiveWrappedInst",
     library = ":ram_demux_dslx",
     tags = ["manual"],
@@ -1967,9 +1963,7 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "ram_demux_naive_opt_ir_benchmark",
     src = "ram_demux_naive_verilog.opt.ir",
-    codegen_args = {
-        "pipeline_stages": "10",
-    },
+    codegen_args = ram_demux_naive_codegen_args,
     tags = ["manual"],
 )
 
@@ -2242,6 +2236,73 @@ xls_dslx_test(
     name = "ram_mux_dslx_test",
     library = ":ram_mux_dslx",
     tags = ["manual"],
+)
+
+RAM_MUX_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
+    "module_name": "RamMux",
+    "worst_case_throughput": "4",
+    "ram_configurations": "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+        latency = 1,
+        ram_name = "ram",
+        rd_req = "ram_mux__rd_req_s",
+        rd_resp = "ram_mux__rd_resp_r",
+        wr_req = "ram_mux__wr_req_s",
+        wr_resp = "ram_mux__wr_resp_r",
+    ),
+}
+
+xls_dslx_verilog(
+    name = "ram_mux_verilog",
+    codegen_args = RAM_MUX_CODEGEN_ARGS,
+    dslx_top = "RamMuxWrappedInst",
+    library = ":ram_mux_dslx",
+    tags = ["manual"],
+    verilog_file = "ram_mux.v",
+)
+
+xls_benchmark_ir(
+    name = "ram_mux_opt_ir_benchmark",
+    src = ":ram_mux_verilog.opt.ir",
+    codegen_args = RAM_MUX_CODEGEN_ARGS,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "ram_mux_verilog_lib",
+    srcs = [
+        ":ram_mux.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "ram_mux_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "RamMux",
+    deps = [
+        ":ram_mux_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "ram_mux_benchmark_synth",
+    synth_target = ":ram_mux_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "ram_mux_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    die_height_microns = 120,
+    die_width_microns = 120,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":ram_mux_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_library(
@@ -2862,7 +2923,7 @@ xls_dslx_test(
 HUFFMAN_CODE_BUILDER_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanCodeBuilder",
     "pipeline_stages": "8",
-    "clock_period_ps": "750",
+    "clock_period_ps": "1200",
     "worst_case_throughput": "5",
 }
 
@@ -3182,7 +3243,7 @@ HUFFMAN_CTRL_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
     "module_name": "HuffmanCtrl",
     "pipeline_stages": "8",
     "clock_period_ps": "750",
-    "worst_case_throughput": "2",
+    "worst_case_throughput": "3",
 }
 
 xls_dslx_verilog(
