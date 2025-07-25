@@ -417,7 +417,7 @@ class BlockGenerator {
           XLS_ASSIGN_OR_RETURN(
               Expression * port_expr,
               mb_.AddInputPort(input_port->GetName(), input_port->GetType(),
-                               input_port->system_verilog_type()));
+                               input_port->system_verilog_type(), input_port->loc()));
           node_exprs_[input_port] = port_expr;
         }
       }
