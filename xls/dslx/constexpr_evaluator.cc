@@ -56,6 +56,7 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_zero_value.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/type_system_v2/inference_table_converter.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
@@ -726,8 +727,17 @@ absl::StatusOr<ConstexprEnvData> MakeConstexprEnv(
     XLS_RETURN_IF_ERROR(
         ConstexprEvaluator::Evaluate(import_data, type_info, warning_collector,
                                      parametric_env, sample_ref, nullptr));
+    TypeInfo* target_def_ti = type_info;
+    if (target_def->owner() != type_info->module()) {
+      XLS_ASSIGN_OR_RETURN(
+          InferenceTableConverter * converter,
+          import_data->GetInferenceTableConverter(type_info->module()));
+      XLS_ASSIGN_OR_RETURN(
+          target_def_ti,
+          converter->GetTypeInfo(target_def->owner(), std::nullopt));
+    }
     absl::StatusOr<InterpValue> const_expr =
-        type_info->GetConstExpr(target_def);
+        target_def_ti->GetConstExpr(target_def);
     if (const_expr.ok()) {
       env.insert({name, const_expr.value()});
     } else {
