@@ -569,7 +569,7 @@ class VastToDslxTranslator {
         CreateNodeSpan(function), fn_name,
         /*parametric_bindings=*/std::vector<dslx::ParametricBinding*>(), params,
         fn_type, block, dslx::FunctionTag::kNormal,
-        /*is_public=*/true);
+        /*is_public=*/true, /*is_test_utility=*/false);
     XLS_RETURN_IF_ERROR(module().AddTop(fn, /*make_collision_error=*/nullptr));
     fn_name->set_definer(fn);
     return fn;

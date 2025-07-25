@@ -51,6 +51,88 @@ using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 
+constexpr std::string_view kProgramToVerifyTestConversion = R"(
+#[cfg(test)]
+fn test_utility_function() { trace_fmt!("Message from a test utility function"); }
+
+fn normal_function() { trace_fmt!("Message from a normal function"); }
+
+#[test]
+fn test_func() {
+    test_utility_function();
+    normal_function();
+    trace_fmt!("Message from a test function");
+}
+
+#[cfg(test)]
+proc TestUtilityProc {
+    req_r: chan<()> in;
+    resp_s: chan<()> out;
+
+    config(req_r: chan<()> in, resp_s: chan<()> out) { (req_r, resp_s) }
+
+    init {  }
+
+    next(state: ()) {
+        let (tok, _) = recv(join(), req_r);
+        trace_fmt!("Message from a TestUtilityProc");
+        send(tok, resp_s, ());
+    }
+}
+
+proc NormalProc {
+    req_r: chan<()> in;
+    resp_s: chan<()> out;
+
+    config(req_r: chan<()> in, resp_s: chan<()> out) { (req_r, resp_s) }
+
+    init {  }
+
+    next(state: ()) {
+        let (tok, _) = recv(join(), req_r);
+        trace_fmt!("Message from a NormalProc");
+        send(tok, resp_s, ());
+    }
+}
+
+#[test_proc]
+proc TestProc {
+    terminator: chan<bool> out;
+    tester_req_s: chan<()> out;
+    tester_resp_r: chan<()> in;
+    user_req_s: chan<()> out;
+    user_resp_r: chan<()> in;
+
+    config(terminator: chan<bool> out) {
+        let (tester_req_s, tester_req_r) = chan<()>("tester_req");
+        let (tester_resp_s, tester_resp_r) = chan<()>("tester_resp");
+
+        spawn TestUtilityProc(tester_req_r, tester_resp_s);
+
+        let (user_req_s, user_req_r) = chan<()>("user_req");
+        let (user_resp_s, user_resp_r) = chan<()>("user_resp");
+
+        spawn NormalProc(user_req_r, user_resp_s);
+
+        (terminator, tester_req_s, tester_resp_r, user_req_s, user_resp_r)
+    }
+
+    init {  }
+
+    next(state: ()) {
+        let tok = send(join(), tester_req_s, ());
+        let (tok, _) = recv(join(), tester_resp_r);
+
+        let tok = send(join(), user_req_s, ());
+        let (tok, _) = recv(join(), user_resp_r);
+
+        trace_fmt!("Message from a TestProc");
+
+        send(tok, terminator, true);
+    }
+}
+)";
+
 absl::StatusOr<TestResultData> ParseAndTest(
     std::string_view program, std::string_view module_name,
     std::string_view filename, const ParseAndTestOptions& options) {
@@ -4143,6 +4225,47 @@ pub proc main {
                                     .lower_to_proc_scoped_channels = true,
                                 }));
   ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(
+          kProgramToVerifyTestConversion,
+          ConvertOptions{.emit_positions = false, .convert_tests = false}));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithTests) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(
+          kProgramToVerifyTestConversion,
+          ConvertOptions{.emit_positions = false, .convert_tests = true}));
+  ExpectIr(converted);
+}
+
+TEST_P(IrConverterWithBothTypecheckVersionsTest, UtilityFunctionIncorrectUse) {
+  constexpr std::string_view kProgram = R"(
+#[cfg(test)]
+fn utility() { trace_fmt!("Test utility function"); }
+
+fn func() {
+  trace_fmt!("Regular function");
+  utility();
+}
+
+#[test]
+fn test_func() {
+  func();
+}
+)";
+  EXPECT_THAT(
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false,
+                                                    .convert_tests = false}),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Tried to convert a function 'utility' used in tests, "
+                         "but test conversion is disabled")));
 }
 
 INSTANTIATE_TEST_SUITE_P(IrConverterWithBothTypecheckVersionsTestSuite,
