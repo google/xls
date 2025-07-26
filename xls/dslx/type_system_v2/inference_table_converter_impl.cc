@@ -1650,8 +1650,9 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         TypeInfo * actual_arg_ti,
         GetTypeInfo(&module_, invocation_context->parent_context()));
     return InferImplicitParametrics(
-        invocation_context->parent_context(), invocation_context,
-        implicit_parametrics, formal_types, actual_args, ti, actual_arg_ti,
+        invocation->span(), invocation_context->parent_context(),
+        invocation_context, implicit_parametrics, formal_types, actual_args, ti,
+        actual_arg_ti,
         /*caller_type_annotation_filter=*/TypeAnnotationFilter::None(),
         /*pre_use_actual_arg=*/
         [&](const Expr* actual_arg) {
@@ -1679,6 +1680,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
   // desired prework before some actual argument gets used to infer parametrics.
   absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>>
   InferImplicitParametrics(
+      const Span& span,
       std::optional<const ParametricContext*> actual_arg_context,
       std::optional<const ParametricContext*> target_context,
       absl::flat_hash_set<const ParametricBinding*> implicit_parametrics,
@@ -1791,16 +1793,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       for (const ParametricBinding* binding : implicit_parametrics) {
         binding_names.push_back(binding->identifier());
       }
-      return absl::InvalidArgumentError(absl::StrCat(
-          "Could not infer parametric(s): ", absl::StrJoin(binding_names, ", "),
-          "; target context: ", ToString(target_context),
-          "; module: ", module_.name()));
+      return TypeInferenceErrorStatus(
+          span, /*type=*/nullptr,
+          absl::StrCat("Could not infer parametric(s): ",
+                       absl::StrJoin(binding_names, ", "), "; target context: ",
+                       ToString(target_context), "; module: ", module_.name()),
+          file_table_);
     }
     return values;
   }
 
   absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
-      std::optional<const ParametricContext*> parent_context,
+      const Span& span, std::optional<const ParametricContext*> parent_context,
       const StructDef& struct_def,
       const std::vector<InterpValue>& explicit_parametrics,
       std::optional<const StructInstanceBase*> instantiator_node) override {
@@ -1883,7 +1887,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_ASSIGN_OR_RETURN(
           new_values,
           InferImplicitParametrics(
-              parent_context, /*target_context=*/std::nullopt,
+              span, parent_context, /*target_context=*/std::nullopt,
               implicit_parametrics, formal_member_types, actual_member_exprs,
               instance_type_info, instance_type_info,
               // When inferring a parametric using a member of the actual
