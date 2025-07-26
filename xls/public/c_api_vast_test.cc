@@ -40,6 +40,11 @@ TEST(XlsCApiTest, VastAddIncludesAndEmit) {
       xls_vast_verilog_file_add_module(f, "my_empty_module");
   ASSERT_NE(m, nullptr);
 
+  char* name = xls_vast_verilog_module_get_name(m);
+  ASSERT_NE(name, nullptr);
+  absl::Cleanup free_name([&] { xls_c_str_free(name); });
+  EXPECT_EQ(std::string_view{name}, "my_empty_module");
+
   // Add input/output and a wire.
   xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
   xls_vast_data_type* u8 =
@@ -124,6 +129,16 @@ TEST(XlsCApiTest, ContinuousAssignmentOfSlice) {
       xls_vast_verilog_module_add_input(m, "my_input", u8);
   xls_vast_logic_ref* output_ref =
       xls_vast_verilog_module_add_output(m, "my_output", u4);
+
+  char* input_name = xls_vast_logic_ref_get_name(input_ref);
+  ASSERT_NE(input_name, nullptr);
+  absl::Cleanup free_input_name([&] { xls_c_str_free(input_name); });
+  EXPECT_EQ(std::string_view{input_name}, "my_input");
+
+  char* output_name = xls_vast_logic_ref_get_name(output_ref);
+  ASSERT_NE(output_name, nullptr);
+  absl::Cleanup free_output_name([&] { xls_c_str_free(output_name); });
+  EXPECT_EQ(std::string_view{output_name}, "my_output");
 
   xls_vast_slice* input_slice = xls_vast_verilog_file_make_slice_i64(
       f, xls_vast_logic_ref_as_indexable_expression(input_ref), 3, 0);
@@ -915,3 +930,132 @@ endmodule
 
 INSTANTIATE_TEST_SUITE_P(VastSequentialBlockTestSuite, VastSequentialBlockTest,
                          testing::Bool());
+
+// Tests enumeration and inspection of module ports.
+TEST(XlsCApiTest, VastModulePortEnumerationAndInspection) {
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m =
+      xls_vast_verilog_file_add_module(f, "my_port_enum_module");
+  ASSERT_NE(m, nullptr);
+
+  // Create a scalar type once and reuse it for ports.
+  xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
+
+  // Add one input and one output port.
+  ASSERT_NE(xls_vast_verilog_module_add_input(m, "in_sig", scalar), nullptr);
+  ASSERT_NE(xls_vast_verilog_module_add_output(m, "out_sig", scalar), nullptr);
+
+  // Enumerate ports.
+  size_t port_count = 0;
+  xls_vast_module_port** ports =
+      xls_vast_verilog_module_get_ports(m, &port_count);
+  ASSERT_EQ(port_count, 2);
+  ASSERT_NE(ports, nullptr);
+  absl::Cleanup free_ports(
+      [&] { xls_vast_verilog_module_free_ports(ports, port_count); });
+
+  // Verify the first port (input).
+  {
+    xls_vast_module_port* port = ports[0];
+    EXPECT_EQ(xls_vast_verilog_module_port_get_direction(port),
+              xls_vast_module_port_direction_input);
+    xls_vast_def* def = xls_vast_verilog_module_port_get_def(port);
+    ASSERT_NE(def, nullptr);
+    char* def_name = xls_vast_def_get_name(def);
+    ASSERT_NE(def_name, nullptr);
+    absl::Cleanup free_name([&] { xls_c_str_free(def_name); });
+    EXPECT_EQ(std::string_view{def_name}, "in_sig");
+    EXPECT_EQ(xls_vast_def_get_data_type(def), scalar);
+  }
+
+  // Verify the second port (output).
+  {
+    xls_vast_module_port* port = ports[1];
+    EXPECT_EQ(xls_vast_verilog_module_port_get_direction(port),
+              xls_vast_module_port_direction_output);
+    xls_vast_def* def = xls_vast_verilog_module_port_get_def(port);
+    ASSERT_NE(def, nullptr);
+    char* def_name = xls_vast_def_get_name(def);
+    ASSERT_NE(def_name, nullptr);
+    absl::Cleanup free_name([&] { xls_c_str_free(def_name); });
+    EXPECT_EQ(std::string_view{def_name}, "out_sig");
+    EXPECT_EQ(xls_vast_def_get_data_type(def), scalar);
+  }
+}
+
+// Tests accessor helpers for DataType and Def.
+TEST(XlsCApiTest, VastDataTypeAccessors) {
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  // Unsigned 8-bit vector type.
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, /*is_signed=*/false);
+  int64_t width = 0;
+  char* error_out = nullptr;
+  ASSERT_TRUE(xls_vast_data_type_width_as_int64(u8, &width, &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  EXPECT_EQ(width, 8);
+
+  // Width expression should not be null for bit vectors created via literal
+  // width.
+  EXPECT_NE(xls_vast_data_type_width(u8), nullptr);
+  EXPECT_FALSE(xls_vast_data_type_is_signed(u8));
+
+  // Signed 4-bit vector.
+  xls_vast_data_type* s4 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 4, /*is_signed=*/true);
+  EXPECT_TRUE(xls_vast_data_type_is_signed(s4));
+
+  // Packed array: u8[3][2] => flat bit count 8*3*2 = 48.
+  const std::vector<int64_t> dims = {3, 2};
+  xls_vast_data_type* packed_arr = xls_vast_verilog_file_make_packed_array_type(
+      f, u8, dims.data(), dims.size());
+  int64_t flat_bits = 0;
+  ASSERT_TRUE(xls_vast_data_type_flat_bit_count_as_int64(packed_arr, &flat_bits,
+                                                         &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  EXPECT_EQ(flat_bits, 48);
+
+  // Scalar type should have width 1 and no width expression.
+  xls_vast_data_type* scalar = xls_vast_verilog_file_make_scalar_type(f);
+  ASSERT_TRUE(xls_vast_data_type_width_as_int64(scalar, &width, &error_out));
+  EXPECT_EQ(width, 1);
+  EXPECT_EQ(xls_vast_data_type_width(scalar), nullptr);
+
+  // Create module with an input of the packed array type; test Def helpers.
+  xls_vast_verilog_module* m =
+      xls_vast_verilog_file_add_module(f, "dtype_module");
+  ASSERT_NE(m, nullptr);
+  ASSERT_NE(xls_vast_verilog_module_add_input(m, "arr", packed_arr), nullptr);
+
+  size_t port_count = 0;
+  xls_vast_module_port** ports =
+      xls_vast_verilog_module_get_ports(m, &port_count);
+  ASSERT_EQ(port_count, 1);
+  ASSERT_NE(ports, nullptr);
+  absl::Cleanup free_ports(
+      [&] { xls_vast_verilog_module_free_ports(ports, port_count); });
+
+  xls_vast_def* def = xls_vast_verilog_module_port_get_def(ports[0]);
+  ASSERT_NE(def, nullptr);
+  // Obtain width via def->data_type path.
+  xls_vast_data_type* def_type = xls_vast_def_get_data_type(def);
+  ASSERT_NE(def_type, nullptr);
+  int64_t def_width = 0;
+  ASSERT_TRUE(xls_vast_data_type_flat_bit_count_as_int64(def_type, &def_width,
+                                                         &error_out));
+  ASSERT_EQ(error_out, nullptr);
+  EXPECT_EQ(def_width, flat_bits);  // Should match packed array flat width.
+
+  char* def_name = xls_vast_def_get_name(def);
+  ASSERT_NE(def_name, nullptr);
+  absl::Cleanup free_name([&] { xls_c_str_free(def_name); });
+  EXPECT_EQ(std::string_view{def_name}, "arr");
+}

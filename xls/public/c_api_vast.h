@@ -49,6 +49,8 @@ struct xls_vast_comment;
 struct xls_vast_always_base;
 struct xls_vast_statement;
 struct xls_vast_statement_block;
+struct xls_vast_module_port;
+struct xls_vast_def;
 
 // Note: We define the enum with a fixed width integer type for clarity of the
 // exposed ABI.
@@ -142,6 +144,62 @@ struct xls_vast_logic_ref* xls_vast_verilog_module_add_wire(
     struct xls_vast_data_type* type);
 // TODO(cdleary): 2024-09-05 Add xls_vast_verilog_module_add_wire_with_expr
 
+// Note: returned value is owned by the caller, free via `xls_c_str_free`.
+char* xls_vast_verilog_module_get_name(struct xls_vast_verilog_module* m);
+
+// Returns the ports that are present on the given module.
+//
+// Note: the returned array is owned by the caller, to be freed by
+// `xls_vast_verilog_module_free_ports`.
+struct xls_vast_module_port** xls_vast_verilog_module_get_ports(
+    struct xls_vast_verilog_module* m, size_t* out_count);
+
+typedef int32_t xls_vast_module_port_direction;
+enum {
+  xls_vast_module_port_direction_input,
+  xls_vast_module_port_direction_output,
+};
+
+xls_vast_module_port_direction xls_vast_verilog_module_port_get_direction(
+    struct xls_vast_module_port* port);
+
+xls_vast_def* xls_vast_verilog_module_port_get_def(
+    struct xls_vast_module_port* port);
+
+// Note: returned value is owned by the caller, free via `xls_c_str_free`.
+char* xls_vast_def_get_name(struct xls_vast_def* def);
+
+// Returns the data type of the given `def`.
+xls_vast_data_type* xls_vast_def_get_data_type(struct xls_vast_def* def);
+
+bool xls_vast_data_type_width_as_int64(struct xls_vast_data_type* type,
+                                       int64_t* out_width, char** error_out);
+
+bool xls_vast_data_type_flat_bit_count_as_int64(struct xls_vast_data_type* type,
+                                                int64_t* out_flat_bit_count,
+                                                char** error_out);
+
+// Returns the width expression for the type; note that scalars (e.g. "wire
+// foo;") and integers return a nullptr.
+xls_vast_expression* xls_vast_data_type_width(struct xls_vast_data_type* type);
+
+bool xls_vast_data_type_is_signed(struct xls_vast_data_type* type);
+
+typedef int32_t xls_vast_data_kind;
+enum {
+  xls_vast_data_kind_reg,
+  xls_vast_data_kind_wire,
+  xls_vast_data_kind_logic,
+  xls_vast_data_kind_integer,
+  xls_vast_data_kind_user,
+  xls_vast_data_kind_untyped_enum,
+  xls_vast_data_kind_genvar,
+};
+
+// Frees the ports array returned by `xls_vast_verilog_module_get_ports`.
+void xls_vast_verilog_module_free_ports(struct xls_vast_module_port** ports,
+                                        size_t count);
+
 struct xls_vast_continuous_assignment*
 xls_vast_verilog_file_make_continuous_assignment(
     struct xls_vast_verilog_file* f, struct xls_vast_expression* lhs,
@@ -223,6 +281,9 @@ struct xls_vast_expression* xls_vast_index_as_expression(
 struct xls_vast_indexable_expression*
 xls_vast_logic_ref_as_indexable_expression(
     struct xls_vast_logic_ref* logic_ref);
+
+// Note: returned value is owned by the caller, free via `xls_c_str_free`.
+char* xls_vast_logic_ref_get_name(struct xls_vast_logic_ref* logic_ref);
 
 struct xls_vast_indexable_expression* xls_vast_index_as_indexable_expression(
     struct xls_vast_index* index);
