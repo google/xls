@@ -835,6 +835,29 @@ bool IsInterfaceChannelRef(ChannelRef channel_ref, Package* package) {
 absl::StatusOr<SimplificationResult> SimplifyNode(
     Node* n, absl::BitGenRef rng, std::string* which_transform) {
   FunctionBase* f = n->function_base();
+  if (n->Is<Param>() && absl::GetFlag(FLAGS_can_remove_params) &&
+      absl::GetFlag(FLAGS_can_extract_segments) &&
+      n->function_base()->IsFunction() && n->users().size() >= 1 &&
+      n->users().size() < 4 && absl::Bernoulli(rng, 0.2 / n->users().size())) {
+    // Make the users a param instead.
+    std::vector<Node*> user_cpy(n->users().begin(), n->users().end());
+    bool any_changes = false;
+    for (Node* user : user_cpy) {
+      if (absl::Bernoulli(rng, 0.25)) {
+        continue;
+      }
+      any_changes = true;
+      XLS_ASSIGN_OR_RETURN(
+          Node * new_param,
+          n->function_base()->MakeNodeWithName<Param>(
+              n->loc(), user->GetType(),
+              absl::StrFormat("%s_user_%d", n->GetName(), user->id())));
+      XLS_RETURN_IF_ERROR(user->ReplaceUsesWith(new_param));
+    }
+    if (any_changes) {
+      return SimplificationResult::kDidChange;
+    }
+  }
   if (((n->Is<Receive>() && absl::GetFlag(FLAGS_can_remove_receives)) ||
        (n->Is<Send>() && absl::GetFlag(FLAGS_can_remove_sends))) &&
       absl::Bernoulli(rng, 0.3)) {
