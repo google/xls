@@ -362,6 +362,15 @@ cc_binary(
     ],
 )
 
+cc_library(
+    name = "ir_fuzz_domain",
+    testonly = True,
+    hdrs = ["ir_fuzz_domain.h"],
+    deps = [
+        "//xls/fuzzer/ir_fuzzer:ir_fuzz_domain",
+    ],
+)
+
 libxls_dylib_binary()
 
 pytype_test_test_c_api_symbols()
