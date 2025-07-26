@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <ostream>
 #include <string>
 #include <utility>
 #include <variant>
@@ -512,4 +513,47 @@ bool Value::operator==(const Value& other) const {
   return absl::c_equal(elements(), other.elements());
 }
 
+void FuzzTestPrintSourceCode(const Value& v, std::ostream* os) {
+  if (v.IsBits()) {
+    if (v.bits().IsZero()) {
+      *os << "Value(Bits(" << v.bits().bit_count() << "))";
+    } else if (v.bits().IsAllOnes()) {
+      *os << "Value(Bits::AllOnes(" << v.bits().bit_count() << "))";
+    } else if (v.bits().bit_count() <= 64) {
+      *os << "Value(UBits(" << v.bits().ToUint64().value() << ", "
+          << v.bits().bit_count() << "))";
+    } else {
+      *os << "Value(Bits::FromBytes({"
+          << absl::StrJoin(v.bits().ToBytes(), ", ",
+                           [](std::string* out, uint8_t v) {
+                             absl::StrAppendFormat(out, "%d", v);
+                           })
+          << "}, " << v.bits().bit_count() << ")";
+    }
+  } else if (v.IsToken()) {
+    *os << "Value::Token()";
+  } else if (v.IsTuple()) {
+    *os << "Value::TupleOwned({";
+    bool first = true;
+    for (const Value& i : v.elements()) {
+      if (!first) {
+        *os << ", ";
+      }
+      first = false;
+      FuzzTestPrintSourceCode(i, os);
+    }
+    *os << "})";
+  } else {
+    *os << "Value::ArrayOwned({";
+    bool first = true;
+    for (const Value& i : v.elements()) {
+      if (!first) {
+        *os << ", ";
+      }
+      first = false;
+      FuzzTestPrintSourceCode(i, os);
+    }
+    *os << "})";
+  }
+}
 }  // namespace xls

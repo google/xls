@@ -215,6 +215,8 @@ inline std::ostream& operator<<(std::ostream& os, const Value& value) {
   return os;
 }
 
+void FuzzTestPrintSourceCode(const Value& v, std::ostream* os);
+
 }  // namespace xls
 
 #endif  // XLS_IR_VALUE_H_

@@ -310,4 +310,11 @@ FuzzPackageWithArgs GenArgSetsForPackage(FuzzPackage fuzz_package,
   return fuzz_package_with_args;
 }
 
+// TODO(allight): Should we bother to serialize the proto. I don't think its
+// useful very often.
+void FuzzTestPrintSourceCode(const FuzzPackage& fp, std::ostream* os) {
+  *os << "FuzzPackage{ .p = ";
+  FuzzTestPrintSourceCode(fp.p, os);
+  *os << " }";
+}
 }  // namespace xls

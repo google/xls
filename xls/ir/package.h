@@ -489,6 +489,12 @@ class Package {
   TransformMetrics transform_metrics_ = {0};
 };
 
+// Printers for fuzztest use.
+void FuzzTestPrintSourceCode(const std::unique_ptr<Package>& p,
+                             std::ostream* os);
+void FuzzTestPrintSourceCode(const std::shared_ptr<Package>& p,
+                             std::ostream* os);
+
 std::ostream& operator<<(std::ostream& os, const Package& package);
 
 // Implements the common idiom of:

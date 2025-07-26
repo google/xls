@@ -15,7 +15,9 @@
 #include "xls/ir/value.h"
 
 #include <cstdint>
+#include <sstream>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -798,6 +800,25 @@ TEST(ValueProto, RoundTripFlattenToPopulateFromRegression) {
       )pb",
       &proto));
   RoundTripFlattenToPopulateFrom(proto);
+}
+
+TEST(ValueTest, FuzzTestPrintSourceCode) {
+  auto to_src = [](const Value& v) -> std::string {
+    std::ostringstream oss;
+    FuzzTestPrintSourceCode(v, &oss);
+    return std::move(oss).str();
+  };
+  EXPECT_EQ(to_src(Value::Token()), "Value::Token()");
+  EXPECT_EQ(to_src(Value::TupleOwned({Value::Token(), Value::Token()})),
+            "Value::TupleOwned({Value::Token(), Value::Token()})");
+  EXPECT_EQ(to_src(Value::ArrayOwned({Value::Token(), Value::Token()})),
+            "Value::ArrayOwned({Value::Token(), Value::Token()})");
+  EXPECT_EQ(to_src(Value::Tuple({Value(UBits(32, 32))})),
+            "Value::TupleOwned({Value(UBits(32, 32))})");
+  EXPECT_EQ(to_src(Value::Tuple({Value(Bits(300))})),
+            "Value::TupleOwned({Value(Bits(300))})");
+  EXPECT_EQ(to_src(Value::Tuple({Value(Bits::AllOnes(300))})),
+            "Value::TupleOwned({Value(Bits::AllOnes(300))})");
 }
 
 }  // namespace

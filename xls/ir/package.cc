@@ -929,4 +929,22 @@ TransformMetricsProto TransformMetrics::ToProto() const {
   return ret;
 }
 
+// Printers for fuzztest use.
+namespace {
+void WriteParseFunction(const Package& p, std::ostream* os) {
+  *os << "Parser::ParsePackage(R\"xls_ir(" << p.DumpIr()
+      << ")xls_ir\").value()";
+}
+}  // namespace
+void FuzzTestPrintSourceCode(const std::unique_ptr<Package>& p,
+                             std::ostream* os) {
+  WriteParseFunction(*p, os);
+}
+void FuzzTestPrintSourceCode(const std::shared_ptr<Package>& p,
+                             std::ostream* os) {
+  *os << "std::shared_ptr<Package>(";
+  WriteParseFunction(*p, os);
+  *os << ".release())";
+}
+
 }  // namespace xls

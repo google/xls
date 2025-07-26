@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -68,6 +69,9 @@ absl::StatusOr<FuzzPackage> BuildPackageFromProtoString(
 
 FuzzPackageWithArgs GenArgSetsForPackage(FuzzPackage fuzz_package,
                                          int64_t arg_set_count);
+
+// Intentionally override just this printer to avoid printing the protobuf.
+void FuzzTestPrintSourceCode(const FuzzPackage& fp, std::ostream* os);
 
 }  // namespace xls
 
