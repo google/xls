@@ -608,7 +608,10 @@ void GenIrNodesPass::HandleDecode(const FuzzDecodeProto& decode) {
   BValue operand = GetBitsOperand(decode.operand_idx());
   // The decode bit width cannot exceed 2 ** operand_bit_width.
   int64_t right_bound = 1000;
-  if (operand.BitCountOrDie() < 64) {
+  // We could choose a larger size for this check, but we're clamping to 1000
+  // and 10 bits is sufficient for this while completely avoiding potential
+  // overflow, unlike e.g. checking for 64 bits.
+  if (operand.BitCountOrDie() < 10) {
     right_bound = std::min<int64_t>(1000, 1ULL << operand.BitCountOrDie());
   }
   int64_t bit_width =
