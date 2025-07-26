@@ -212,3 +212,37 @@ cc_library(
         "//xls/ir:function_builder",
     ],
 )
+
+cc_library(
+    name = "verilog_fuzz_domain",
+    testonly = True,
+    srcs = ["verilog_fuzz_domain.cc"],
+    hdrs = ["verilog_fuzz_domain.h"],
+    deps = [
+        ":ir_fuzz_domain",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/public:runtime_build_actions",
+        "//xls/tools:codegen_flags_cc_proto",
+        "//xls/tools:scheduling_options_flags_cc_proto",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "codegen_fuzz_test",
+    srcs = ["codegen_fuzz_test.cc"],
+    deps = [
+        ":verilog_fuzz_domain",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/tools:codegen_flags_cc_proto",
+        "//xls/tools:scheduling_options_flags_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+        "@googletest//:gtest",
+    ],
+)
