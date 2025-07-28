@@ -72,6 +72,9 @@ FuzzPackageWithArgs GenArgSetsForPackage(FuzzPackage fuzz_package,
 
 // Intentionally override just this printer to avoid printing the protobuf.
 void FuzzTestPrintSourceCode(const FuzzPackage& fp, std::ostream* os);
+// Implement printing for arg sets.
+void FuzzTestPrintSourceCode(const std::vector<std::vector<Value>>& fp,
+                             std::ostream* os);
 
 }  // namespace xls
 

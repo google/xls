@@ -317,4 +317,17 @@ void FuzzTestPrintSourceCode(const FuzzPackage& fp, std::ostream* os) {
   FuzzTestPrintSourceCode(fp.p, os);
   *os << " }";
 }
+void FuzzTestPrintSourceCode(const std::vector<std::vector<Value>>& fp,
+                             std::ostream* os) {
+  *os << "std::vector<std::vector<Value>>{";
+  bool first = true;
+  for (auto& v : fp) {
+    if (!first) {
+      *os << ", ";
+    }
+    first = false;
+    FuzzTestPrintSourceCode(v, os);
+  }
+  *os << "}";
+}
 }  // namespace xls

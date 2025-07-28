@@ -216,6 +216,7 @@ inline std::ostream& operator<<(std::ostream& os, const Value& value) {
 }
 
 void FuzzTestPrintSourceCode(const Value& v, std::ostream* os);
+void FuzzTestPrintSourceCode(const std::vector<Value>& v, std::ostream* os);
 
 }  // namespace xls
 

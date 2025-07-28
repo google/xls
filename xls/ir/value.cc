@@ -513,6 +513,18 @@ bool Value::operator==(const Value& other) const {
   return absl::c_equal(elements(), other.elements());
 }
 
+void FuzzTestPrintSourceCode(const std::vector<Value>& v, std::ostream* os) {
+  *os << "std::vector<Value>{";
+  bool first = true;
+  for (const Value& i : v) {
+    if (!first) {
+      *os << ", ";
+    }
+    first = false;
+    FuzzTestPrintSourceCode(i, os);
+  }
+  *os << "}";
+}
 void FuzzTestPrintSourceCode(const Value& v, std::ostream* os) {
   if (v.IsBits()) {
     if (v.bits().IsZero()) {
