@@ -247,6 +247,208 @@ TEST_F(SelectLiftingPassTest, LiftSingleSelectWithNoCases) {
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
 }
 
+TEST_F(SelectLiftingPassTest, LiftBinaryOperationSharedLHS) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue selector = fb.Param("selector", p->GetBitsType(1));
+  BValue shared = fb.Param("shared", p->GetBitsType(32));
+  BValue case_a = fb.Param("case_a", p->GetBitsType(32));
+  BValue case_b = fb.Param("case_b", p->GetBitsType(32));
+  BValue add_a = fb.Add(shared, case_a);
+  BValue add_b = fb.Add(shared, case_b);
+  BValue select_node = fb.Select(selector, {add_a, add_b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select_node));
+
+  auto p_expect = CreatePackage();
+  FunctionBuilder fb_expect(TestName(), p_expect.get());
+  BValue final_selector = fb_expect.Param("selector", p_expect->GetBitsType(1));
+  BValue final_shared = fb_expect.Param("shared", p_expect->GetBitsType(32));
+  BValue final_case_a = fb_expect.Param("case_a", p_expect->GetBitsType(32));
+  BValue final_case_b = fb_expect.Param("case_b", p_expect->GetBitsType(32));
+  BValue final_select =
+      fb_expect.Select(final_selector, {final_case_a, final_case_b});
+  BValue final_add = fb_expect.Add(final_shared, final_select);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
+                           fb_expect.BuildWithReturnValue(final_add));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  VLOG(3) << "After the transformations:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 6);
+  EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
+}
+
+TEST_F(SelectLiftingPassTest, LiftBinaryOperationSharedRHSWithDefault) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue selector = fb.Param("selector", p->GetBitsType(2));
+  BValue shared = fb.Param("shared", p->GetBitsType(32));
+  BValue case_a = fb.Param("case_a", p->GetBitsType(32));
+  BValue case_b = fb.Param("case_b", p->GetBitsType(32));
+  BValue default_case = fb.Param("default_case", p->GetBitsType(32));
+
+  BValue smul_a = fb.SMul(case_a, shared);
+  BValue smul_b = fb.SMul(case_b, shared);
+  BValue smul_default = fb.SMul(default_case, shared);
+  BValue select_node = fb.Select(selector, {smul_a, smul_b}, smul_default);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select_node));
+
+  auto p_expect = CreatePackage();
+  FunctionBuilder fb_expect(TestName(), p_expect.get());
+  BValue final_selector = fb_expect.Param("selector", p_expect->GetBitsType(2));
+  BValue final_shared = fb_expect.Param("shared", p_expect->GetBitsType(32));
+  BValue final_case_a = fb_expect.Param("case_a", p_expect->GetBitsType(32));
+  BValue final_case_b = fb_expect.Param("case_b", p_expect->GetBitsType(32));
+  BValue final_default =
+      fb_expect.Param("default_case", p_expect->GetBitsType(32));
+  BValue final_select = fb_expect.Select(
+      final_selector, {final_case_a, final_case_b}, final_default);
+  BValue final_smul = fb_expect.SMul(final_select, final_shared);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f_expect,
+                           fb_expect.BuildWithReturnValue(final_smul));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  VLOG(3) << "After the transformations:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 7);
+  EXPECT_TRUE(f->IsDefinitelyEqualTo(f_expect));
+}
+
+TEST_F(SelectLiftingPassTest, DontLiftBinaryOpsSharingInconsistentOperandSide) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue selector = fb.Param("selector", p->GetBitsType(1));
+  BValue shared = fb.Param("shared", p->GetBitsType(32));
+  BValue case_a = fb.Param("case_a", p->GetBitsType(32));
+  BValue case_b = fb.Param("case_b", p->GetBitsType(32));
+
+  BValue add_a = fb.Add(shared, case_a);
+  BValue add_b = fb.Add(case_b, shared);
+  BValue select_node = fb.Select(selector, {add_a, add_b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select_node));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  VLOG(3) << "After no transformation:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 7);
+}
+
+TEST_F(SelectLiftingPassTest, DontLiftBinaryOpsUsingDifferentOperationTypes) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue selector = fb.Param("selector", p->GetBitsType(1));
+  BValue shared = fb.Param("shared", p->GetBitsType(32));
+  BValue case_a = fb.Param("case_a", p->GetBitsType(32));
+  BValue case_b = fb.Param("case_b", p->GetBitsType(32));
+
+  BValue add_a = fb.Add(shared, case_a);
+  BValue sub_b = fb.Subtract(shared, case_b);
+  BValue select_node = fb.Select(selector, {add_a, sub_b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select_node));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  VLOG(3) << "After no transformation:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 7);
+}
+
+TEST_F(SelectLiftingPassTest, DontLiftBinaryOpsUsingDifferentBitWidths) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue selector = fb.Param("selector", p->GetBitsType(1));
+  BValue shared = fb.Param("shared", p->GetBitsType(22));
+  BValue case_a = fb.Param("case_a", p->GetBitsType(24));
+  BValue case_b = fb.Param("case_b", p->GetBitsType(26));
+  BValue shll_a = fb.Shll(shared, case_a);
+  BValue shll_b = fb.Shll(shared, case_b);
+  BValue select_differ_bitwidth = fb.Select(selector, {shll_a, shll_b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(select_differ_bitwidth));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  VLOG(3) << "After no transformation:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 7);
+
+  p = CreatePackage();
+  FunctionBuilder fb2(TestName(), p.get());
+
+  selector = fb2.Param("selector", p->GetBitsType(1));
+  shared = fb2.Param("shared", p->GetBitsType(22));
+  case_a = fb2.Param("case_a", p->GetBitsType(24));
+  case_b = fb2.Param("case_b", p->GetBitsType(24));
+  shll_a = fb2.Shll(shared, case_a);
+  shll_b = fb2.Shll(shared, case_b);
+  BValue select_same_bitwidth = fb2.Select(selector, {shll_a, shll_b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f2,
+                           fb2.BuildWithReturnValue(select_same_bitwidth));
+
+  EXPECT_THAT(Run(f2), absl_testing::IsOkAndHolds(true));
+  VLOG(3) << "After the transformation:" << f2->DumpIr();
+  EXPECT_EQ(f2->node_count(), 6);
+}
+
+TEST_F(SelectLiftingPassTest, DontLiftNonBinaryOperation) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue selector = fb.Param("selector", p->GetBitsType(1));
+  BValue shared = fb.Param("shared", p->GetBitsType(32));
+  BValue case_a = fb.Param("case_a", p->GetBitsType(32));
+  BValue case_b = fb.Param("case_b", p->GetBitsType(32));
+  BValue case_c = fb.Param("case_c", p->GetBitsType(32));
+  BValue and_a = fb.And(shared, case_a);
+  BValue and_b = fb.And({shared, case_b, case_c});
+  BValue select_node = fb.Select(selector, {and_a, and_b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select_node));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  VLOG(3) << "After no transformation:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 8);
+}
+
+TEST_F(SelectLiftingPassTest, LiftBinaryOpIfDecreasesOutputBitwidth) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue selector = fb.Param("selector", p->GetBitsType(2));
+  BValue shared = fb.Param("shared", p->GetBitsType(32));
+  BValue case_a = fb.Param("case_a", p->GetBitsType(32));
+  BValue case_b = fb.Param("case_b", p->GetBitsType(32));
+  BValue case_c = fb.Param("case_c", p->GetBitsType(32));
+
+  BValue add_a = fb.Add(shared, case_a);
+  BValue add_b = fb.Add(shared, case_b);
+  BValue add_c = fb.Add(shared, case_c);
+  BValue select = fb.Select(selector, {add_a, add_b, add_c, add_c});
+  BValue final_add = fb.Add(add_a, select);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(final_add));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(true));
+  VLOG(3) << "After the transformation:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 9);
+}
+
+TEST_F(SelectLiftingPassTest, DontLiftBinaryOpIfIncreasesOutputBitwidth) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue selector = fb.Param("selector", p->GetBitsType(1));
+  BValue shared = fb.Param("shared", p->GetBitsType(32));
+  BValue case_a = fb.Param("case_a", p->GetBitsType(32));
+  BValue case_b = fb.Param("case_b", p->GetBitsType(32));
+
+  BValue add_a = fb.Add(shared, case_a);
+  BValue add_b = fb.Add(shared, case_b);
+  BValue select = fb.Select(selector, {add_a, add_b});
+  BValue later_add = fb.Add(add_a, add_b);
+  BValue final_add = fb.Add(later_add, select);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(final_add));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  VLOG(3) << "After no transformation:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 9);
+}
+
 void IrFuzzSelectLifting(FuzzPackageWithArgs fuzz_package_with_args) {
   SelectLiftingPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
