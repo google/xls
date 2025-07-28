@@ -667,6 +667,7 @@ cc_library(
         ":type_annotation_utils",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/status:statusor",
     ],
 )

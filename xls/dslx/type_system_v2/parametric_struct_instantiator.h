@@ -20,6 +20,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -33,7 +34,7 @@ class ParametricStructInstantiator {
   virtual ~ParametricStructInstantiator() = default;
 
   virtual absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
-      std::optional<const ParametricContext*> parent_context,
+      const Span& span, std::optional<const ParametricContext*> parent_context,
       const StructDef& struct_def,
       const std::vector<InterpValue>& explicit_parametrics,
       std::optional<const StructInstanceBase*> instantiator_node) = 0;
