@@ -16,7 +16,6 @@
 #define XLS_FUZZER_IR_FUZZER_IR_FUZZ_DOMAIN_H_
 
 #include <cstdint>
-#include <optional>
 #include <utility>
 
 #include "xls/common/fuzzing/fuzztest.h"

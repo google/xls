@@ -362,6 +362,15 @@ cc_binary(
     ],
 )
 
+cc_library(
+    name = "verilog_fuzz_domain",
+    testonly = True,
+    hdrs = ["verilog_fuzz_domain.h"],
+    deps = [
+        "//xls/fuzzer/verilog_fuzzer:verilog_fuzz_domain",
+    ],
+)
+
 libxls_dylib_binary()
 
 pytype_test_test_c_api_symbols()
