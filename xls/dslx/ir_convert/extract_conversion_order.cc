@@ -479,14 +479,28 @@ static absl::StatusOr<std::vector<Spawn*>> GetSpawns(Proc& p) {
 }
 
 absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
-                                                    TypeInfo* type_info) {
+                                                    TypeInfo* type_info,
+                                                    bool include_tests) {
   absl::flat_hash_set<Spawn*> spawns;
-
-  std::vector<Proc*> procs;
-  for (Proc* proc : module->GetProcs()) {
+  auto collect_spawns_from_proc =
+      [&spawns](Proc* proc, bool include_tests) -> absl::Status {
+    if (proc->is_test_utility() && !include_tests) {
+      return absl::OkStatus();
+    }
     XLS_RET_CHECK(proc != nullptr);
     XLS_ASSIGN_OR_RETURN(std::vector<Spawn*> this_spawns, GetSpawns(*proc));
     spawns.insert(this_spawns.begin(), this_spawns.end());
+    return absl::OkStatus();
+  };
+  for (Proc* proc : module->GetProcs()) {
+    XLS_RETURN_IF_ERROR(collect_spawns_from_proc(proc, include_tests));
+  }
+  if (include_tests) {
+    for (TestProc* test_proc : module->GetTestProcs()) {
+      XLS_RET_CHECK(test_proc != nullptr);
+      XLS_RETURN_IF_ERROR(
+          collect_spawns_from_proc(test_proc->proc(), include_tests));
+    }
   }
 
   absl::flat_hash_set<Proc*> spawned;
@@ -506,7 +520,7 @@ absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
 
   // All non-parametric procs that are not spawned are top level.
   std::vector<Proc*> results;
-  for (Proc* proc : module->GetProcs()) {
+  auto add_if_top_level_proc = [&results, &spawned](Proc* proc) {
     if (!proc->IsParametric() && !spawned.contains(proc) &&
         absl::c_all_of(proc->config().params(),
                        [&](const Param* param) -> bool {
@@ -516,6 +530,14 @@ absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
                        })) {
       // Proc is not parametric and not spawned, thus top level.
       results.push_back(proc);
+    }
+  };
+  for (Proc* proc : module->GetProcs()) {
+    add_if_top_level_proc(proc);
+  }
+  if (include_tests) {
+    for (TestProc* test_proc : module->GetTestProcs()) {
+      add_if_top_level_proc(test_proc->proc());
     }
   }
 
@@ -732,6 +754,11 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
       return absl::OkStatus();
     }
 
+    // Skip converting functions used in tests unless requested
+    if (f->is_test_utility() && !include_tests) {
+      return absl::OkStatus();
+    }
+
     return AddToReady(f, /*invocation=*/nullptr, module, type_info,
                       ParametricEnv(), &ready, {});
   };
@@ -783,10 +810,15 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
 
   // Collect the top level procs.
   XLS_ASSIGN_OR_RETURN(std::vector<Proc*> top_level_procs,
-                       GetTopLevelProcs(module, type_info));
+                       GetTopLevelProcs(module, type_info, include_tests));
 
   // Get the order for each top level proc.
   for (Proc* proc : top_level_procs) {
+    // Skip converting procs used in tests unless requested
+    if (proc->is_test_utility() && !include_tests) {
+      continue;
+    }
+
     XLS_ASSIGN_OR_RETURN(TypeInfo * proc_ti,
                          type_info->GetTopLevelProcTypeInfo(proc));
 

@@ -2970,7 +2970,8 @@ absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateFunction(
       /*parametric_bindings=*/parametric_bindings,
       /*params=*/params,
       /*return_type=*/retval.type, block, FunctionTag::kNormal,
-      /*is_public=*/false);
+      /*is_public=*/false,
+      /*test_only=*/false);
   name_def->set_definer(f);
 
   return AnnotatedFunction{.function = f,
@@ -3036,7 +3037,8 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/params,
       /*return_type=*/ret_tuple_type, block, FunctionTag::kProcConfig,
-      /*is_public=*/false);
+      /*is_public=*/false,
+      /*test_only=*/false);
   name_def->set_definer(f);
   return f;
 }
@@ -3073,7 +3075,8 @@ absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateProcNextFunction(
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/params,
       /*return_type=*/retval.type, block, FunctionTag::kProcNext,
-      /*is_public=*/false);
+      /*is_public=*/false,
+      /*test_only=*/false);
   name_def->set_definer(f);
 
   return AnnotatedFunction{.function = f,
@@ -3098,7 +3101,8 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(),
       /*return_type=*/return_type, b, FunctionTag::kProcInit,
-      /*is_public=*/false);
+      /*is_public=*/false,
+      /*test_only=*/false);
   name_def->set_definer(f);
   return f;
 }
