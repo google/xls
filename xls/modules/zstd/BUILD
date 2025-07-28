@@ -4683,11 +4683,11 @@ place_and_route(
     clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
-    placement_density = "0.30",
+    placement_density = "0.3",
     stop_after_step = "global_routing",
     synthesized_rtl = ":mem_copy_synth_asap7",
     tags = ["manual"],
-    target_die_utilization_percentage = "10",
+    target_die_utilization_percentage = "8",
 )
 
 xls_dslx_library(
@@ -4755,7 +4755,7 @@ place_and_route(
     clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
-    placement_density = "0.30",
+    placement_density = "0.20",
     stop_after_step = "global_routing",
     synthesized_rtl = ":frame_header_enc_synth_asap7",
     tags = ["manual"],
