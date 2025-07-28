@@ -768,8 +768,19 @@ class OneShotReassociationVisitor : public DfsVisitorWithDefault {
                      TernaryValue::kKnownZero &&
                  !(l_lead_signs > 1 && r_lead_signs > 1);
         } else {
-          return eval.SubWithUnsignedUnderflow(lv, rv).overflow !=
-                 TernaryValue::kKnownZero;
+          bool normal_sub_overflows =
+              eval.SubWithUnsignedUnderflow(lv, rv).overflow !=
+              TernaryValue::kKnownZero;
+          if (normal_sub_overflows) {
+            return true;
+          }
+          // int_min == -int_min so we need check the add case too.
+          bool can_be_int_min =
+              ternary_ops::IsCompatible(rv, Bits::MinSigned(rv.size()));
+          if (!can_be_int_min) {
+            return false;
+          }
+          return eval.AddWithCarry(lv, rv).overflow != TernaryValue::kKnownZero;
         }
       case Op::kUMul:
         // TODO(allight): We can use leading bit counts here to get better

@@ -36,6 +36,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -1374,6 +1375,28 @@ TEST_F(ReassociationPassTest, AddZeroToOverflowValueKeepsOverflow) {
   ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
   ScopedRecordIr sri(p.get(), "_ir");
 
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+}
+
+TEST_F(ReassociationPassTest, BadReassociation) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(R"ir(
+package FuzzTest
+
+top fn FuzzTest(p3: bits[1] id=1) -> bits[64] {
+  zero_literal: bits[1] = literal(value=0, id=2)
+  one_literal_1: bits[1] = literal(value=1, id=3)
+  one_literal_2: bits[1] = literal(value=1, id=4)
+  add.5: bits[1] = add(p3, zero_literal, id=5)
+  sub.6: bits[1] = sub(one_literal_1, one_literal_2, id=6)
+  add.7: bits[1] = add(add.5, sub.6, id=7)
+  zero_literal_7: bits[7] = literal(value=0, id=8)
+  zero_ext.9: bits[64] = zero_ext(add.7, new_bit_count=64, id=9)
+  zero_ext.10: bits[64] = zero_ext(zero_literal_7, new_bit_count=64, id=10)
+  ret add.11: bits[64] = add(zero_ext.9, zero_ext.10, id=11)
+}
+  )ir"));
+  ScopedVerifyEquivalence stays_equivalent(
+      p->GetTop().value()->AsFunctionOrDie(), kProverTimeout);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 }
 
