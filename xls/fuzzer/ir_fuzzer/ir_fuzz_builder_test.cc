@@ -2109,8 +2109,17 @@ TEST(IrFuzzBuilderTest, OneHotOp) {
           }
         }
         fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 1000
+              }
+            }
+          }
+        }
+        fuzz_ops {
           one_hot {
-            input_idx {
+            operand_idx {
               list_idx: 0
             }
             priority: LSB_PRIORITY
@@ -2118,25 +2127,45 @@ TEST(IrFuzzBuilderTest, OneHotOp) {
         }
         fuzz_ops {
           one_hot {
-            input_idx {
+            operand_idx {
               list_idx: 0
             }
             priority: MSB_PRIORITY
           }
         }
         fuzz_ops {
-          concat {
-            operand_idxs {
+          one_hot {
+            operand_idx {
               list_idx: 1
             }
+          }
+        }
+        fuzz_ops {
+          sign_extend {
+            operand_idx {
+              list_idx: 4
+            }
+            bit_width: 1000
+          }
+        }
+        fuzz_ops {
+          concat {
             operand_idxs {
               list_idx: 2
+            }
+            operand_idxs {
+              list_idx: 3
+            }
+            operand_idxs {
+              list_idx: 5
             }
           }
         }
       )");
   auto expected_ir_node =
-      m::Concat(m::OneHot(LsbOrMsb::kLsb), m::OneHot(LsbOrMsb::kMsb));
+      m::Concat(m::OneHot(m::Param("p0"), LsbOrMsb::kLsb),
+                m::OneHot(m::Param("p0"), LsbOrMsb::kMsb),
+                m::SignExt(m::OneHot(m::BitSlice(m::Param("p1"), 0, 999))));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 

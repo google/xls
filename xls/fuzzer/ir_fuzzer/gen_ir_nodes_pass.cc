@@ -352,7 +352,14 @@ void GenIrNodesPass::HandleSelect(const FuzzSelectProto& select) {
 }
 
 void GenIrNodesPass::HandleOneHot(const FuzzOneHotProto& one_hot) {
-  BValue input = GetBitsOperand(one_hot.input_idx());
+  BValue operand = GetBitsOperand(one_hot.operand_idx());
+  // If the operand bit width is 1000, decrease it by 1 because OneHot returns
+  // an operand with a bit width of 1 + the bit width of the operand.
+  if (operand.BitCountOrDie() == 1000) {
+    auto operand_coercion_method = one_hot.operand_coercion_method();
+    operand = ChangeBitWidth(fb_, operand, 1000 - 1,
+                             operand_coercion_method.change_bit_width_method());
+  }
   // Convert the LsbOrMsb proto enum to the FunctionBuilder enum.
   LsbOrMsb priority;
   switch (one_hot.priority()) {
@@ -364,7 +371,7 @@ void GenIrNodesPass::HandleOneHot(const FuzzOneHotProto& one_hot) {
       priority = LsbOrMsb::kLsb;
       break;
   }
-  context_list_.AppendElement(fb_->OneHot(input, priority));
+  context_list_.AppendElement(fb_->OneHot(operand, priority));
 }
 
 // Same as Select, but each selector_width bit corresponds to a case and there

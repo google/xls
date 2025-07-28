@@ -455,7 +455,7 @@ message FuzzSelectProto {
 }
 
 message FuzzOneHotProto {
-  optional BitsOperandIdxProto input_idx = 1;
+  optional BitsOperandIdxProto operand_idx = 1;
   // OneHot has a priority enum parameter, which is redeclared in this protobuf
   // for cross compatibility.
   enum OneHotPriority {
@@ -464,6 +464,7 @@ message FuzzOneHotProto {
     MSB_PRIORITY = 2;
   }
   optional OneHotPriority priority = 2;
+  optional BitsCoercionMethodProto operand_coercion_method = 3;
 }
 
 message FuzzOneHotSelectProto {
