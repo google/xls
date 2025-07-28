@@ -1404,8 +1404,32 @@ void IrFuzzReassociation(FuzzPackageWithArgs fuzz_package_with_args) {
   ReassociationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
 }
+void IrFuzzReassociationOnlyAddSub(FuzzPackageWithArgs fuzz_package_with_args) {
+  IrFuzzReassociation(std::move(fuzz_package_with_args));
+}
+void IrFuzzReassociationOnlyMul(FuzzPackageWithArgs fuzz_package_with_args) {
+  IrFuzzReassociation(std::move(fuzz_package_with_args));
+}
 FUZZ_TEST(IrFuzzTest, IrFuzzReassociation)
     .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
 
+FUZZ_TEST(IrFuzzTest, IrFuzzReassociationOnlyAddSub)
+    .WithDomains(PackageWithArgsDomainBuilder(/*arg_set_count=*/10)
+                     .WithOnlyBitsOperations()
+                     .WithOperations({Op::kAdd, Op::kSub, Op::kSignExt,
+                                      Op::kZeroExt, Op::kLiteral, Op::kParam})
+                     .NoClz()
+                     .NoCtz()
+                     .MinOpCount(5)
+                     .Build());
+FUZZ_TEST(IrFuzzTest, IrFuzzReassociationOnlyMul)
+    .WithDomains(PackageWithArgsDomainBuilder(/*arg_set_count=*/10)
+                     .WithOnlyBitsOperations()
+                     .WithOperations({Op::kUMul, Op::kSMul, Op::kSignExt,
+                                      Op::kZeroExt, Op::kLiteral, Op::kParam})
+                     .MinOpCount(5)
+                     .NoClz()
+                     .NoCtz()
+                     .Build());
 }  // namespace
 }  // namespace xls
