@@ -63,10 +63,10 @@ BValue CoercedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
   if (!bvalue_type->IsBits()) {
     return DefaultValueOfBitsType(p, fb, target_type);
   }
-  BitsType* bits_type = target_type->AsBitsOrDie();
+  BitsType* target_bits_type = target_type->AsBitsOrDie();
   auto coercion_method = coerced_type.coercion_method();
   // Change the bit width to the specified bit width.
-  return ChangeBitWidth(fb, bvalue, bits_type->bit_count(),
+  return ChangeBitWidth(fb, bvalue, target_bits_type->bit_count(),
                         coercion_method.change_bit_width_method());
 }
 
@@ -80,19 +80,19 @@ BValue CoercedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
   if (!bvalue_type->IsTuple()) {
     return DefaultValueOfTupleType(p, fb, target_type);
   }
-  TupleType* tuple_type = target_type->AsTupleOrDie();
+  TupleType* target_tuple_type = target_type->AsTupleOrDie();
   auto coercion_method = coerced_type.coercion_method();
   // Change the size of the tuple to match the specified size.
-  bvalue = ChangeTupleSize(fb, bvalue, tuple_type->size(),
+  bvalue = ChangeTupleSize(fb, bvalue, target_tuple_type->size(),
                            coercion_method.change_tuple_size_method());
   std::vector<BValue> coerced_elements;
   // Coerce each tuple element and create a new tuple with the coerced
   // elements.
-  for (int64_t i = 0; i < tuple_type->size(); i += 1) {
+  for (int64_t i = 0; i < target_tuple_type->size(); i += 1) {
     BValue element = fb->TupleIndex(bvalue, i);
     BValue coerced_element =
         Coerced(p, fb, element, coerced_type.tuple_elements(i),
-                tuple_type->element_type(i));
+                target_tuple_type->element_type(i));
     coerced_elements.push_back(coerced_element);
   }
   return fb->Tuple(coerced_elements);
@@ -108,15 +108,15 @@ BValue CoercedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
   if (!bvalue_type->IsArray()) {
     return DefaultValueOfArrayType(p, fb, target_type);
   }
-  ArrayType* array_type = target_type->AsArrayOrDie();
+  ArrayType* target_array_type = target_type->AsArrayOrDie();
   auto coercion_method = coerced_type.coercion_method();
-  int64_t array_size = array_type->size();
+  int64_t array_size = target_array_type->size();
   // Change the size of the array to match the specified size.
   bvalue = ChangeArraySize(p, fb, bvalue, array_size,
                            coercion_method.change_array_size_method());
   // If the array elements are already of the specified type, return it as is.
-  if (array_type->element_type() ==
-      target_type->AsArrayOrDie()->element_type()) {
+  if (bvalue_type->AsArrayOrDie()->element_type() ==
+      target_array_type->element_type()) {
     return bvalue;
   }
   std::vector<BValue> coerced_elements;
@@ -126,10 +126,10 @@ BValue CoercedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
     BValue element = fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, 64))}, true);
     BValue coerced_element =
         Coerced(p, fb, element, coerced_type.array_element(),
-                array_type->element_type());
+                target_array_type->element_type());
     coerced_elements.push_back(coerced_element);
   }
-  return fb->Array(coerced_elements, array_type->element_type());
+  return fb->Array(coerced_elements, target_array_type->element_type());
 }
 
 // Accepts a bvalue that is coerced to a type specified by target_type. The
@@ -164,8 +164,8 @@ BValue FittedBits(Package* p, FunctionBuilder* fb, BValue bvalue,
   if (!bvalue_type->IsBits()) {
     return DefaultValueOfBitsType(p, fb, target_type);
   }
-  BitsType* bits_type = target_type->AsBitsOrDie();
-  return ChangeBitWidth(fb, bvalue, bits_type->bit_count(),
+  BitsType* target_bits_type = target_type->AsBitsOrDie();
+  return ChangeBitWidth(fb, bvalue, target_bits_type->bit_count(),
                         coercion_method.change_bit_width_method());
 }
 
@@ -179,17 +179,17 @@ BValue FittedTuple(Package* p, FunctionBuilder* fb, BValue bvalue,
   if (!bvalue_type->IsTuple()) {
     return DefaultValueOfTupleType(p, fb, target_type);
   }
-  TupleType* tuple_type = target_type->AsTupleOrDie();
+  TupleType* target_tuple_type = target_type->AsTupleOrDie();
   auto tuple_coercion_method = coercion_method.tuple();
   // Change the size of the tuple to match the specified size.
-  bvalue = ChangeTupleSize(fb, bvalue, tuple_type->size(),
+  bvalue = ChangeTupleSize(fb, bvalue, target_tuple_type->size(),
                            tuple_coercion_method.change_tuple_size_method());
   std::vector<BValue> fitted_elements;
   // Fit each tuple element and create a new tuple with the fitted elements.
-  for (int64_t i = 0; i < tuple_type->size(); i += 1) {
+  for (int64_t i = 0; i < target_tuple_type->size(); i += 1) {
     BValue element = fb->TupleIndex(bvalue, i);
-    BValue fitted_element =
-        Fitted(p, fb, element, coercion_method, tuple_type->element_type(i));
+    BValue fitted_element = Fitted(p, fb, element, coercion_method,
+                                   target_tuple_type->element_type(i));
     fitted_elements.push_back(fitted_element);
   }
   return fb->Tuple(fitted_elements);
@@ -205,25 +205,25 @@ BValue FittedArray(Package* p, FunctionBuilder* fb, BValue bvalue,
   if (!bvalue_type->IsArray()) {
     return DefaultValueOfArrayType(p, fb, target_type);
   }
-  ArrayType* array_type = target_type->AsArrayOrDie();
+  ArrayType* target_array_type = target_type->AsArrayOrDie();
   auto array_coercion_method = coercion_method.array();
   // Change the size of the array to match the specified size.
-  bvalue = ChangeArraySize(p, fb, bvalue, array_type->size(),
+  bvalue = ChangeArraySize(p, fb, bvalue, target_array_type->size(),
                            array_coercion_method.change_array_size_method());
   // If the array elements are already of the specified type, return it as is.
-  if (array_type->element_type() ==
-      target_type->AsArrayOrDie()->element_type()) {
+  if (bvalue_type->AsArrayOrDie()->element_type() ==
+      target_array_type->element_type()) {
     return bvalue;
   }
   std::vector<BValue> fitted_elements;
   // Fit each array element and create a new array with the fitted elements.
-  for (int64_t i = 0; i < array_type->size(); i += 1) {
+  for (int64_t i = 0; i < target_array_type->size(); i += 1) {
     BValue element = fb->ArrayIndex(bvalue, {fb->Literal(UBits(i, 64))}, true);
-    BValue fitted_element =
-        Fitted(p, fb, element, coercion_method, array_type->element_type());
+    BValue fitted_element = Fitted(p, fb, element, coercion_method,
+                                   target_array_type->element_type());
     fitted_elements.push_back(fitted_element);
   }
-  return fb->Array(fitted_elements, array_type->element_type());
+  return fb->Array(fitted_elements, target_array_type->element_type());
 }
 
 // Changes the bit width of an inputted BValue to a specified bit width.
