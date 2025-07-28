@@ -34,9 +34,12 @@ cc_library(
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:op",
         "//xls/ir:verifier",
-        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -50,6 +53,8 @@ cc_test(
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/ir",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:op",
         "//xls/ir:verifier",
         "//xls/passes:reassociation_pass",
         "@com_google_absl//absl/log",

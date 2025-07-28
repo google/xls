@@ -2293,8 +2293,17 @@ void IrFuzzArithSimplification(FuzzPackageWithArgs fuzz_package_with_args) {
   ArithSimplificationPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
 }
+void IrFuzzArithSimplificationOnlyBits(
+    FuzzPackageWithArgs fuzz_package_with_args) {
+  ArithSimplificationPass pass;
+  OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);
+}
 FUZZ_TEST(IrFuzzTest, IrFuzzArithSimplification)
     .WithDomains(IrFuzzDomainWithArgs(/*arg_set_count=*/10));
+FUZZ_TEST(IrFuzzTest, IrFuzzArithSimplificationOnlyBits)
+    .WithDomains(PackageWithArgsDomainBuilder(/*arg_set_count=*/10)
+                     .WithOnlyBitsOperations()
+                     .Build());
 
 }  // namespace
 }  // namespace xls
