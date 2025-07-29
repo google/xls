@@ -45,6 +45,7 @@ nav:
       - Data Layout: 'data_layout.md'
     - Formal: 'solvers.md'
     - Elaboration: 'elaboration.md'
+    - IR Fuzzer: 'ir_fuzzer.md'
   - DSLX:
     - Reference: 'dslx_reference.md'
     - Standard Library : 'dslx_std.md'

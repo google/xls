@@ -155,6 +155,14 @@ which are optional, are described below:
 
     [(Code example)](https://github.com/google/xls/commit/feeac2c4c0bcc73b529cb0c4a976abae47f96730)
 
+1.  [IR Fuzzer](https://github.com/google/xls/tree/main/xls/ir_fuzzer/ir_fuzzer)
+
+    The IR Fuzzer generates a fuzzed IR function which may contain a variety of
+    different IR operations. This fuzzed function is then provided to FuzzTests
+    to discover bugs in the XLS codebase.
+
+    [(Code example)](https://github.com/google/xls/commit/ca64d7e8b5d35bc5eb87b9126300fa0d9b9b43dd)
+
 1.  [Fuzzer](https://github.com/google/xls/tree/main/xls/fuzzer)
 
     The fuzzer generates random DSLX functions and random inputs to check and
