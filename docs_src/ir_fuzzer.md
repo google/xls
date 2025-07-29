@@ -298,7 +298,7 @@ require a type, but also coercion instructions to coerce an operand into that
 type. The helper protobufs like `BitsCoercedTypeProto` can also be used if we
 require a bits type instead of just a general type.
 
-## 2\. FuzzTest Randomizer
+### 2\. FuzzTest Randomizer
 
 #### **IR Fuzz Domain**
 
@@ -386,7 +386,7 @@ absl::StatusOr<Value> UnflattenBitsToValue(const Bits& bits, const Type* type);
 `UnflattenBitsToValue()` generates a value of a specified type, which can be
 used as an argument to a function.
 
-## 3\. Generate IR Nodes
+### 3\. Generate IR Nodes
 
 #### **High-level Design**
 
@@ -525,7 +525,7 @@ Various different tasks are performed by type traversal functions:
     bits, Type type)** \- Uses bits data to generate a Value object of a
     specified type.
 
-## 4\. Combine IR Nodes
+### 4\. Combine IR Nodes
 
 At this stage, we have already filled our entire context list with IR nodes. Now
 we must combine the IR nodes together such that a single IR node can represent
@@ -556,7 +556,7 @@ context list. This is specifically useful for testing. The `TupleList()`
 function tuples all of the elements in the context list together. This method is
 preferable as it captures the entire context of this list into a single IR node.
 
-## 5\. Perform Tests
+### 5\. Perform Tests
 
 Now that we have generated a fuzzed function and potentially some arguments that
 can be plugged into that function, we can find ways to test other parts of the
