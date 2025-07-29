@@ -304,19 +304,15 @@ absl::Status AddCombinationalFlowControl(
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
     std::vector<std::optional<Node*>>& stage_valid,
     const CodegenOptions& options, Proc* proc, Block* block) {
-  std::string_view valid_suffix = options.streaming_channel_valid_suffix();
-  std::string_view ready_suffix = options.streaming_channel_ready_suffix();
-  std::string_view data_suffix = options.streaming_channel_data_suffix();
-
   XLS_ASSIGN_OR_RETURN(
       std::vector<Node*> all_active_outputs_ready,
       MakeInputReadyPortsForOutputChannels(streaming_outputs, /*stage_count=*/1,
-                                           ready_suffix, block));
+                                           options, block));
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<Node*> all_active_inputs_valid,
       MakeInputValidPortsForInputChannels(streaming_inputs, /*stage_count=*/1,
-                                          valid_suffix, block));
+                                          options, block));
 
   XLS_ASSIGN_OR_RETURN(Node * literal_1, block->MakeNode<xls::Literal>(
                                              SourceInfo(), Value(UBits(1, 1))));
@@ -324,14 +320,13 @@ absl::Status AddCombinationalFlowControl(
   std::vector<Node*> next_stage_open{literal_1};
   XLS_RETURN_IF_ERROR(MakeOutputValidPortsForOutputChannels(
       all_active_inputs_valid, pipelined_valids, next_stage_open,
-      streaming_outputs, valid_suffix, proc, {}, block));
+      streaming_outputs, options, proc, {}, block));
   XLS_RETURN_IF_ERROR(MakeOutputDataPortsForOutputChannels(
       all_active_inputs_valid, pipelined_valids, next_stage_open,
-      streaming_outputs, data_suffix, block));
+      streaming_outputs, options, block));
 
   XLS_RETURN_IF_ERROR(MakeOutputReadyPortsForInputChannels(
-      all_active_outputs_ready, streaming_inputs, ready_suffix, proc, {},
-      block));
+      all_active_outputs_ready, streaming_inputs, options, proc, {}, block));
 
   XLS_RET_CHECK(stage_valid.empty());
   XLS_RET_CHECK_EQ(all_active_inputs_valid.size(), 1);
