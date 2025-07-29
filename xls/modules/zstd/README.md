@@ -10,7 +10,7 @@ the diagram below. The decoder comprises:
 * Control and Status Registers,
 * Frame Header Decoder,
 * Block Header Decoder,
-* 3 types of processing units: RAW-, RLE-, and Compressed Block Decoders[^1],
+* 3 types of processing units: RAW-, RLE-, and Compressed Block Decoders,
 * Command Aggregator,
 
 The Decoder interacts with the environment through a set of ports:
@@ -39,7 +39,7 @@ Once the decoding process is started, the decoder:
     updates the history,
 7.  Prepares the final output of the decoder and writes it to the memory,
 8.  (Optional) Calculates checksum and compares it against the checksum read
-    from the frame.[^2]
+    from the frame.[^1]
 
 ![brief data flow diagram of ZstdDecoder](img/ZSTD_decoder.png)
 
@@ -220,7 +220,7 @@ processing request to the `RleBlockDecoder`. The proc produces `N*s` repeats of
 the given symbol. This step preserves the block ID and attaches the literals tag
 to all its outputs.
 
-#### CompressedBlockDecoder[^1]
+#### CompressedBlockDecoder
 
 This part of the design is responsible for decoding the compressed data blocks.
 It ingests the bytes stream, and internally translates and interprets incoming
@@ -262,7 +262,7 @@ will show the following behavior, depending on the tag:
     *   Copy `copy_length` literals starting `offset _length` from the newest in
         history buffer to the history buffer as the newest.
 
-### Compressed block decoder architecture[^1] {#compressed-block-decoder-architecture1}
+### Compressed block decoder architecture {#compressed-block-decoder-architecture1}
 
 This part of the design is responsible for processing the compressed blocks up
 to the `literals`/`copy` command sequence. This sequence is then processed by
@@ -278,7 +278,7 @@ Treeless blocks.
 #### Compressed block dispatcher
 
 This proc parses literals section headers to calculate block compression format,
-Huffmman tree size (if applicable based on compression format), compressed and
+Huffman tree size (if applicable based on compression format), compressed and
 regenerated sizes for literals. If compressed block format is
 `Compressed_Literals_Block`, dispatcher reads Huffman tree header byte from
 Huffman bitstream, and directs expected number of bytes to the Huffman tree
@@ -493,6 +493,8 @@ The Basic test case for the ZstdDecoder is composed of the following steps:
 6. Test case succeeds once `Notify` is asserted, all expected data is received
    and the decoder lands in `IDLE` state with status `OKAY` in the `Status` CSR.
 
+Additionally, pregenerated test cases are provided in the [data](data/) subdirectory. `*.zst` files contain frames encoded using the ZSTD library. Supplementary `*.log` files provide additional info regarding the contents of each frame. Among the aforementioned test cases, those generated using `decodecorpus` follow the `<literals_encoding>_<sequences_encoding>_seed_<zstd_seed>` naming convention.
+
 ### Failure points
 
 #### User-facing decoder errors
@@ -506,6 +508,10 @@ The design will fail the tests under the following conditions:
     results from the reference library
   * The decoding result from the simulation has different contents than the
     results from the reference library
+* Failures caused by incorrect intermediate results (only in the selected tests):
+  * Incorrect decoding of the FSE table
+  * Incorrect Huffman weights
+  * Incorrect Huffman codebook
 
 Currently, all mentioned conditions lead to an eventual test failure.
 
@@ -566,14 +572,6 @@ This is done for example in:
 * Frame header decoder
 * SequenceExecutor
 
-### Testing against [libzstd](https://github.com/facebook/zstd)
-
-Design is verified by comparing decoding results to the reference library
-`libzstd`. ZSTD frames used for testing are generated with
-[decodecorpus](https://github.com/facebook/zstd/blob/dev/tests/decodecorpus.c)
-utility. The generated frame is then decoded with `libzstd` and with simulated
-`ZstdDecoder`.
-
 #### Positive test cases
 
 If the results of decoding with `libzstd` are valid, the test runs the same
@@ -618,5 +616,4 @@ The alternatives for writing negative tests include:
 then tweaking the raw bits in this frame to trigger the error response from the
 decoder
 
-[^1]: `CompressedBlockDecoder` is to be added in follow-up PRs.
-[^2]: Checksum verification is currently unsupported.
+[^1]: Checksum verification is currently unsupported.
