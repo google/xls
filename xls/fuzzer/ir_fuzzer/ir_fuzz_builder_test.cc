@@ -12,16 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
+#include "xls/fuzzer/ir_fuzzer/gen_ir_nodes_pass.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_helpers.h"
 #include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
+#include "xls/fuzzer/ir_fuzzer/ir_node_context_list.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/package.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -3456,6 +3463,39 @@ TEST(IrFuzzBuilderTest, GateOp) {
       m::Gate(m::BitSlice(m::Param("p0"), 0, 1), m::Param("p1"));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
+
+void GenIrNodesGeneratesValidSizes(const FuzzProgramProto& proto) {
+  Package p("test_package");
+  FunctionBuilder fb("test_function", &p);
+  IrNodeContextList context_list(&p, &fb);
+  GenIrNodesPass pass(proto, &p, &fb, context_list);
+  pass.GenIrNodes();
+  for (int64_t i = 0; i < context_list.GetListSize(ContextListType::BITS_LIST);
+       ++i) {
+    ASSERT_LE(context_list.GetElementAt(i, ContextListType::BITS_LIST)
+                  .BitCountOrDie(),
+              kMaxFuzzBitWidth);
+  }
+  for (int64_t i = 0; i < context_list.GetListSize(ContextListType::TUPLE_LIST);
+       ++i) {
+    ASSERT_LE(context_list.GetElementAt(i, ContextListType::TUPLE_LIST)
+                  .GetType()
+                  ->AsTupleOrDie()
+                  ->size(),
+              kMaxFuzzTupleSize);
+  }
+  for (int64_t i = 0; i < context_list.GetListSize(ContextListType::ARRAY_LIST);
+       ++i) {
+    ASSERT_LE(context_list.GetElementAt(i, ContextListType::ARRAY_LIST)
+                  .GetType()
+                  ->AsArrayOrDie()
+                  ->size(),
+              kMaxFuzzArraySize);
+  }
+}
+
+FUZZ_TEST(IrFuzzBuilderTest, GenIrNodesGeneratesValidSizes)
+    .WithDomains(fuzztest::Arbitrary<FuzzProgramProto>());
 
 }  // namespace
 }  // namespace xls

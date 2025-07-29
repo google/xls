@@ -132,8 +132,8 @@ void GenIrNodesPass::HandleUMul(const FuzzUMulProto& umul) {
     BValue lhs = GetBitsOperand(umul.lhs_idx());
     BValue rhs = GetBitsOperand(umul.rhs_idx());
     // The bit width cannot exceed the sum of the bit widths of the operands.
-    int64_t right_bound =
-        std::min<int64_t>(1000, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t right_bound = std::min<int64_t>(
+        kMaxFuzzBitWidth, lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
         BoundedWidth(umul.bit_width(), /*left_bound=*/1, right_bound);
     context_list_.AppendElement(fb_->UMul(lhs, rhs, bit_width));

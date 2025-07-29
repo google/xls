@@ -89,13 +89,17 @@ BValue IncreaseArraySize(Package* p, FunctionBuilder* fb, BValue bvalue,
                          int64_t new_size,
                          const IncreaseArraySizeMethod& increase_size_method);
 
+constexpr int64_t kMaxFuzzBitWidth = 1000;
+constexpr int64_t kMaxFuzzTupleSize = 100;
+constexpr int64_t kMaxFuzzArraySize = 100;
+
 int64_t Bounded(int64_t value, int64_t left_bound, int64_t right_bound);
 int64_t BoundedWidth(int64_t bit_width, int64_t left_bound = 1,
-                     int64_t right_bound = 1000);
+                     int64_t right_bound = kMaxFuzzBitWidth);
 int64_t BoundedTupleSize(int64_t tuple_size, int64_t left_bound = 0,
-                         int64_t right_bound = 100);
+                         int64_t right_bound = kMaxFuzzTupleSize);
 int64_t BoundedArraySize(int64_t array_size, int64_t left_bound = 1,
-                         int64_t right_bound = 100);
+                         int64_t right_bound = kMaxFuzzArraySize);
 
 BValue DefaultValue(Package* p, FunctionBuilder* fb,
                     TypeCase type_case = UNSET_CASE);
