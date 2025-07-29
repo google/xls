@@ -998,6 +998,37 @@ TEST(IrFuzzBuilderTest, EmptyConcat) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
+TEST(IrFuzzBuilderTest, ConcatExceedsWidthLimit) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              bits {
+                bit_width: 500
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          concat {
+            operand_idxs {
+              list_idx: 0
+            }
+            operand_idxs {
+              list_idx: 0
+            }
+            operand_idxs {
+              list_idx: 0
+            }
+          }
+        }
+      )");
+  auto expected_ir_node = m::Concat(m::Param("p0"), m::Param("p0"));
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
 TEST(IrFuzzBuilderTest, ShiftOps) {
   std::string proto_string = absl::StrFormat(
       R"(
@@ -2149,7 +2180,7 @@ TEST(IrFuzzBuilderTest, OneHotOp) {
           }
         }
         fuzz_ops {
-          concat {
+          tuple {
             operand_idxs {
               list_idx: 2
             }
@@ -2163,9 +2194,9 @@ TEST(IrFuzzBuilderTest, OneHotOp) {
         }
       )");
   auto expected_ir_node =
-      m::Concat(m::OneHot(m::Param("p0"), LsbOrMsb::kLsb),
-                m::OneHot(m::Param("p0"), LsbOrMsb::kMsb),
-                m::SignExt(m::OneHot(m::BitSlice(m::Param("p1"), 0, 999))));
+      m::Tuple(m::OneHot(m::Param("p0"), LsbOrMsb::kLsb),
+               m::OneHot(m::Param("p0"), LsbOrMsb::kMsb),
+               m::SignExt(m::OneHot(m::BitSlice(m::Param("p1"), 0, 999))));
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 

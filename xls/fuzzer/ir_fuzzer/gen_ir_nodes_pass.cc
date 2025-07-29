@@ -238,6 +238,18 @@ void GenIrNodesPass::HandleConcat(const FuzzConcatProto& concat) {
   // Requires at least one operand.
   std::vector<BValue> operands =
       GetBitsOperands(concat.operand_idxs(), /*min_operand_count=*/1);
+  // Only use operands such that their summed bit width is less than or equal to
+  // 1000. Don't use the remaining operands.
+  int64_t bit_width_sum = 0;
+  int64_t operand_count = 0;
+  for (const auto& operand : operands) {
+    bit_width_sum += operand.BitCountOrDie();
+    if (bit_width_sum > 1000) {
+      break;
+    }
+    operand_count += 1;
+  }
+  operands.resize(operand_count);
   context_list_.AppendElement(fb_->Concat(operands));
 }
 
