@@ -5885,6 +5885,9 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     return channel_type;
   }
 
+  if (type->getTypeClass() == clang::Type::PredefinedSugar) {
+    type = t.getCanonicalType().getTypePtr();
+  }
   if (auto builtin = clang::dyn_cast<const clang::BuiltinType>(type)) {
     if (builtin->isVoidType()) {
       return shared_ptr<CType>(new CVoidType());
