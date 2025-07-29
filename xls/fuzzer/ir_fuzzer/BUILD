@@ -87,6 +87,7 @@ cc_library(
         "//xls/ir:function_builder",
         "//xls/ir:value",
         "//xls/ir:value_flattening",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_protobuf//:protobuf_lite",
     ],

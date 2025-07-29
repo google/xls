@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "google/protobuf/repeated_ptr_field.h"
 #include "xls/fuzzer/ir_fuzzer/fuzz_program.pb.h"
@@ -239,7 +240,7 @@ void GenIrNodesPass::HandleConcat(const FuzzConcatProto& concat) {
   std::vector<BValue> operands =
       GetBitsOperands(concat.operand_idxs(), /*min_operand_count=*/1);
   // Only use operands such that their summed bit width is less than or equal to
-  // 1000. Don't use the remaining operands.
+  // 1000.
   int64_t bit_width_sum = 0;
   int64_t operand_count = 0;
   for (const auto& operand : operands) {
@@ -249,7 +250,9 @@ void GenIrNodesPass::HandleConcat(const FuzzConcatProto& concat) {
     }
     operand_count += 1;
   }
+  // Drop the remaining operands.
   operands.resize(operand_count);
+  CHECK(!operands.empty());
   context_list_.AppendElement(fb_->Concat(operands));
 }
 
