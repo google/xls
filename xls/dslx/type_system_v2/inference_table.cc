@@ -614,14 +614,15 @@ class InferenceTableImpl : public InferenceTable {
                                           : std::make_optional(it->second);
   }
 
-  absl::StatusOr<AstNode*> Clone(const AstNode* input,
-                                 CloneReplacer replacer) override {
+  absl::StatusOr<AstNode*> Clone(const AstNode* input, CloneReplacer replacer,
+                                 bool in_place) override {
     absl::flat_hash_map<const AstNode*, AstNode*> all_pairs;
     XLS_ASSIGN_OR_RETURN(
-        all_pairs,
-        CloneAstAndGetAllPairs(
-            input, ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
-                                       std::move(replacer))));
+        all_pairs, CloneAstAndGetAllPairs(
+                       input,
+                       ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
+                                           std::move(replacer)),
+                       in_place));
     for (const auto& [old_node, new_node] : all_pairs) {
       if (old_node != new_node) {
         const auto it = node_data_.find(old_node);

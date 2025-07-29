@@ -1006,9 +1006,9 @@ class StatefulResolver : public TypeAnnotationResolver {
                                   std::vector<const TypeAnnotation*>{*ref_type},
                                   annotation->span(), import_data_));
               }
-              auto* result = annotation->owner()->Make<Number>(
+              auto* result = node->owner()->Make<Number>(
                   Span::None(), value.ToString(/*humanize=*/true),
-                  NumberKind::kOther, const_cast<TypeAnnotation*>(*ref_type),
+                  NumberKind::kOther, nullptr,
                   /*in_parens=*/false, /*leave_span_intact=*/true);
               return result;
             }));
