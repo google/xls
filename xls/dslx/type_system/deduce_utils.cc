@@ -515,6 +515,14 @@ static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
   // If the name is defined by an import statement we return the module that it
   // imports as the subject.
   if (Import* import = dynamic_cast<Import*>(definer); import != nullptr) {
+    if (import->owner() != type_info->module()) {
+      auto import_type_info =
+          const_cast<TypeInfo*>(type_info)->GetImportedTypeInfo(import->owner(),
+                                                                true);
+      if (import_type_info.has_value()) {
+        type_info = import_type_info.value();
+      }
+    }
     std::optional<const ImportedInfo*> imported =
         type_info->GetImported(import);
     if (!imported.has_value()) {
@@ -699,6 +707,18 @@ absl::StatusOr<Function*> ResolveFunction(Expr* callee,
   std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value())
       << "ColonRef did not refer to an import: " << colon_ref->ToString();
+  if (ToAstNode(*import)->owner() != type_info->module()) {
+    auto import_type_info =
+        const_cast<TypeInfo*>(type_info)->GetImportedTypeInfo(
+            ToAstNode(*import)->owner(), true);
+    if (import_type_info.has_value()) {
+      type_info = import_type_info.value();
+    } else {
+      return absl::InternalError(
+          absl::StrFormat("Could not find import for import `%s`.",
+                          ToAstNode(*import)->ToString()));
+    }
+  }
   XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported_info,
                        type_info->GetImportedOrError(import.value()));
   return imported_info->module->GetMemberOrError<Function>(colon_ref->attr());
