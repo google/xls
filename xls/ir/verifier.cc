@@ -317,7 +317,7 @@ absl::Status VerifyElaboration(Package* package) {
                            streaming_bound_channel->GetStrictness())
               << absl::StreamFormat(
                      "Strictness of ChannelInterface `%s` in proc `%s` does "
-                     "not match  the strictness of channel `%s` to which it is "
+                     "not match the strictness of channel `%s` to which it is "
                      "bound: %s vs %s",
                      channel_interface->name(), proc->name(),
                      bound_channel->name(),
@@ -325,6 +325,17 @@ absl::Status VerifyElaboration(Package* package) {
                          channel_interface->strictness().value()),
                      ChannelStrictnessToString(
                          streaming_bound_channel->GetStrictness()));
+          XLS_RET_CHECK_EQ(channel_interface->flow_control(),
+                           streaming_bound_channel->GetFlowControl())
+              << absl::StreamFormat(
+                     "Flow control of ChannelInterface `%s` in proc `%s` does "
+                     "not match the flow control of channel `%s` to which it "
+                     "is bound: %s vs %s",
+                     channel_interface->name(), proc->name(),
+                     bound_channel->name(),
+                     FlowControlToString(channel_interface->flow_control()),
+                     FlowControlToString(
+                         streaming_bound_channel->GetFlowControl()));
 
         } else {
           XLS_RET_CHECK(!channel_interface->strictness().has_value())
