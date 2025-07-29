@@ -1948,8 +1948,9 @@ fn foo(a: u32, b: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
                            module->GetMemberOrError<Function>("foo"));
   absl::flat_hash_map<const AstNode*, AstNode*> clones;
-  XLS_ASSERT_OK_AND_ASSIGN(clones,
-                           CloneAstAndGetAllPairs(foo, &NoopCloneReplacer));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      clones,
+      CloneAstAndGetAllPairs(foo, /*in_place=*/false, &NoopCloneReplacer));
   absl::flat_hash_set<const AstNode*> original_nodes = FlattenToSet(foo);
   // This is EXPECT_GE because the cloner traverses nodes that are suppressed by
   // GetChildren() while the flattener doesn't.

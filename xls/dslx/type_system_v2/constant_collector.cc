@@ -333,7 +333,8 @@ class Visitor : public AstNodeVisitorWithDefault {
       absl::flat_hash_map<const NameDef*, NameDef*>& old_to_new_name_defs) {
     absl::flat_hash_map<const AstNode*, AstNode*> pairs;
     XLS_ASSIGN_OR_RETURN(
-        pairs, CloneAstAndGetAllPairs(input, &PreserveTypeDefinitionsReplacer));
+        pairs, CloneAstAndGetAllPairs(input, /*in_place=*/false,
+                                      &PreserveTypeDefinitionsReplacer));
     NameDefTree* iteration_ndt = down_cast<NameDefTree*>(pairs.at(input));
     for (const auto& [old_node, new_node] : pairs) {
       if (old_node->kind() == AstNodeKind::kNameDef) {
