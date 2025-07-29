@@ -7596,6 +7596,53 @@ fn main() {
   XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
 }
 
+TEST(TypecheckV2Test, ImportArrayTypeSizeWithImportedInvocation) {
+  constexpr std::string_view kImported1 = R"(
+pub fn f(a:u32) -> u32 {
+  a
+}
+)";
+  constexpr std::string_view kImported2 = R"(
+import imported1;
+pub const B = u32:16;
+pub type b = bits[imported1::f(B)];
+)";
+  constexpr std::string_view kProgram = R"(
+import imported2;
+pub fn g() -> imported2::b {
+ imported2::b:1
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported1, "imported1", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kImported2, "imported2", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
+TEST(TypecheckV2Test, ImportArrayTypeSizeWithImportedConst) {
+  constexpr std::string_view kImported1 = R"(
+pub type T = u32;
+pub const A = u32:2;
+)";
+  constexpr std::string_view kImported2 = R"(
+import imported1;
+pub fn f(i:imported1::T) -> u32[imported1::A + u32:1] {
+  u32[3]:[0,0,0]
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported1;
+import imported2;
+fn g(i:imported1::T) -> u32[imported1::A + u32:1] {
+  imported2::f(i)
+}
+)";
+  ImportData import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported1, "imported1", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kImported2, "imported2", &import_data));
+  XLS_EXPECT_OK(TypecheckV2(kProgram, "main", &import_data));
+}
+
 TEST(TypecheckV2Test, ImportTypeAliasWithParametrics) {
   constexpr std::string_view kImported = R"(
 pub struct S<N: u32> {
