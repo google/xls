@@ -86,13 +86,13 @@ class RegisterCombiningPassTest : public IrTestBase {
     // TODO(allight): Recreates a block-conversion function.
     EXPECT_THAT(st.node(), m::StateRead());
     StateElement* state_element = st.node()->As<StateRead>()->state_element();
-    return Reg(absl::StrFormat("__%s", state_element->name()));
+    return Reg(state_element->name());
   }
   auto StateToRegFullMatcher(BValue st) {
     // TODO(allight): Recreates a block-conversion function.
     EXPECT_THAT(st.node(), m::StateRead());
     StateElement* state_element = st.node()->As<StateRead>()->state_element();
-    return Reg(absl::StrFormat("__%s_full", state_element->name()));
+    return Reg(absl::StrFormat("%s_full", state_element->name()));
   }
   auto StageValidMatcher(Stage s) {
     return Reg(absl::StrFormat("p%d_valid", s));
@@ -102,7 +102,7 @@ class RegisterCombiningPassTest : public IrTestBase {
     if (v.node()->Is<StateRead>()) {
       StateElement* state_element = v.node()->As<StateRead>()->state_element();
       return Reg(MatchesRegex(
-          absl::StrFormat("p%d___%s__[0-9]+", s, state_element->name())));
+          absl::StrFormat("p%d_%s__[0-9]+", s, state_element->name())));
     }
     return Reg(MatchesRegex(absl::StrFormat("p%d_%s", s, NodeName(v))));
   }

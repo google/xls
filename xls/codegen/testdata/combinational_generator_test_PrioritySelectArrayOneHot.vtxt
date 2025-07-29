@@ -20,14 +20,14 @@ module main(
   assign d_unflattened[1] = d[31:16];
   assign d_unflattened[2] = d[47:32];
   assign d_unflattened[3] = d[63:48];
-  wire [1:0] one_hot_15;
+  wire [1:0] concat_27;
   wire [2:0] one_hot_18;
   wire [15:0] one_hot_sel_23[0:3];
-  assign one_hot_15 = {!p, p};
-  assign one_hot_18 = {one_hot_15[1:0] == 2'h0, one_hot_15[1] && !one_hot_15[0], one_hot_15[0]};
-  assign one_hot_sel_23[0] = x_unflattened[0] & {16{one_hot_15[0]}} | y_unflattened[0] & {16{one_hot_15[1]}};
-  assign one_hot_sel_23[1] = x_unflattened[1] & {16{one_hot_15[0]}} | y_unflattened[1] & {16{one_hot_15[1]}};
-  assign one_hot_sel_23[2] = x_unflattened[2] & {16{one_hot_15[0]}} | y_unflattened[2] & {16{one_hot_15[1]}};
-  assign one_hot_sel_23[3] = x_unflattened[3] & {16{one_hot_15[0]}} | y_unflattened[3] & {16{one_hot_15[1]}};
+  assign concat_27 = {~p, p};
+  assign one_hot_18 = {concat_27[1:0] == 2'h0, concat_27[1] && !concat_27[0], concat_27[0]};
+  assign one_hot_sel_23[0] = x_unflattened[0] & {16{concat_27[0]}} | y_unflattened[0] & {16{concat_27[1]}};
+  assign one_hot_sel_23[1] = x_unflattened[1] & {16{concat_27[0]}} | y_unflattened[1] & {16{concat_27[1]}};
+  assign one_hot_sel_23[2] = x_unflattened[2] & {16{concat_27[0]}} | y_unflattened[2] & {16{concat_27[1]}};
+  assign one_hot_sel_23[3] = x_unflattened[3] & {16{concat_27[0]}} | y_unflattened[3] & {16{concat_27[1]}};
   assign out = {one_hot_sel_23[3], one_hot_sel_23[2], one_hot_sel_23[1], one_hot_sel_23[0]};
 endmodule
