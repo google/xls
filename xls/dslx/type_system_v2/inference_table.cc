@@ -984,4 +984,22 @@ bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr) {
           (*colon_ref_target)->kind() == AstNodeKind::kTypeAnnotation);
 }
 
+CloneReplacer NameRefMapper(
+    InferenceTable& table,
+    const absl::flat_hash_map<const NameDef*, ExprOrType>& map) {
+  return [&](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
+    if (node->kind() == AstNodeKind::kNameRef) {
+      const auto* ref = down_cast<const NameRef*>(node);
+      if (std::holds_alternative<const NameDef*>(ref->name_def())) {
+        const auto it = map.find(std::get<const NameDef*>(ref->name_def()));
+        if (it != map.end()) {
+          return table.Clone(ToAstNode(it->second),
+                             &PreserveTypeDefinitionsReplacer);
+        }
+      }
+    }
+    return std::nullopt;
+  };
+}
+
 }  // namespace xls::dslx

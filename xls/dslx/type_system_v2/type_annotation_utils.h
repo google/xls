@@ -166,12 +166,6 @@ absl::Status VerifyAllParametricsSatisfied(
     std::string_view binding_owner_identifier, const Span& error_span,
     const FileTable& file_table);
 
-// Creates a CloneReplacer that replaces any `NameRef` to a `NameDef` in `map`
-// with the corresponding `ExprOrType`. This is used for replacement of
-// parametric variables with values.
-CloneReplacer NameRefMapper(
-    const absl::flat_hash_map<const NameDef*, ExprOrType>& map);
-
 // Creates an `Expr` representing `element_count<annotation>()`.
 Expr* CreateElementCountInvocation(Module& module, TypeAnnotation* annotation);
 

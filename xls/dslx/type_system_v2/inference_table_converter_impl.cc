@@ -2007,7 +2007,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         XLS_ASSIGN_OR_RETURN(
             AstNode * clone,
             table_.Clone(binding->expr(),
-                         NameRefMapper(parametrics_and_constants),
+                         NameRefMapper(table_, parametrics_and_constants),
                          /*in_place=*/false));
         value_expr = down_cast<Expr*>(clone);
       } else {
@@ -2043,7 +2043,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       const TypeAnnotation* type,
       const absl::flat_hash_map<const NameDef*, ExprOrType> actual_values,
       std::optional<const TypeAnnotation*> real_self_type = std::nullopt) {
-    CloneReplacer replacer = NameRefMapper(actual_values);
+    CloneReplacer replacer = NameRefMapper(table_, actual_values);
     if (real_self_type.has_value()) {
       replacer = ChainCloneReplacers(
           std::move(replacer),

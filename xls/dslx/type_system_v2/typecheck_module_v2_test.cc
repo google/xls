@@ -6655,6 +6655,49 @@ proc main {
                         HasNodeWithType("spawn Counter<32>(p32, 50)", "()"))));
 }
 
+TEST(TypecheckV2Test, ParametricProcValueCloning) {
+  // This is the version of matmul in https://github.com/google/xls/issues/2706
+  // but reduced to a minimal repro. Note that it is too minimized to be valid
+  // for IR conversion. The original error was due to not cloning parametric
+  // values when replacing references to them in `NameRefMapper`.
+  EXPECT_THAT(
+      R"(
+type F32 = u32;
+
+struct Command<ROWS: u32, COLS: u32> {
+  weights: F32[COLS][ROWS]
+}
+
+proc A<ROWS: u32, COLS: u32> {
+  commands: chan<Command<ROWS, COLS>> in;
+  from_norths: chan<F32>[COLS][ROWS + u32:1] in;
+  to_souths: chan<F32>[COLS][ROWS + u32:1] out;
+
+  config(commands: chan<Command<ROWS, COLS>> in) {
+    let (to_souths, from_norths) = chan<F32>[COLS][ROWS + u32:1]("north_south");
+    (commands, from_norths, to_souths)
+  }
+
+  init { () }
+  next(state: ()) { () }
+}
+
+proc main {
+  commands: chan<Command<u32:4, u32:4>> out;
+
+  config() {
+    let (commands_out, commands_in) = chan<Command<u32:4, u32:4>>("commands");
+    spawn A<4, 4>(commands_in);
+    (commands_out,)
+  }
+
+  init { () }
+  next(state: ()) { () }
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("spawn A<4, 4>(commands_in)", "()")));
+}
+
 TEST(TypecheckV2Test, SpawnWithTypeMismatchFails) {
   EXPECT_THAT(R"(
 proc Counter {

@@ -317,22 +317,6 @@ absl::Status VerifyAllParametricsSatisfied(
       file_table);
 }
 
-CloneReplacer NameRefMapper(
-    const absl::flat_hash_map<const NameDef*, ExprOrType>& map) {
-  return [&](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
-    if (node->kind() == AstNodeKind::kNameRef) {
-      const auto* ref = down_cast<const NameRef*>(node);
-      if (std::holds_alternative<const NameDef*>(ref->name_def())) {
-        const auto it = map.find(std::get<const NameDef*>(ref->name_def()));
-        if (it != map.end()) {
-          return ToAstNode(it->second);
-        }
-      }
-    }
-    return std::nullopt;
-  };
-}
-
 Expr* CreateElementCountInvocation(Module& module, TypeAnnotation* annotation) {
   NameRef* element_count =
       module.Make<NameRef>(annotation->span(), "element_count",

@@ -583,6 +583,14 @@ absl::StatusOr<Number*> MakeTypeCheckedNumber(
 // will not actually resolve and analyze the `ColonRef` itself.
 bool IsColonRefWithTypeTarget(const InferenceTable& table, const Expr* expr);
 
+// Creates a CloneReplacer that replaces any `NameRef` to a `NameDef` in `map`
+// with the corresponding `ExprOrType`. This is used for replacement of
+// parametric variables with values. Each time the returned replacer uses a node
+// that is value in `map`, it clones it via `table.Clone()`.
+CloneReplacer NameRefMapper(
+    InferenceTable& table,
+    const absl::flat_hash_map<const NameDef*, ExprOrType>& map);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_H_
