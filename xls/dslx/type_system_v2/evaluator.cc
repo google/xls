@@ -147,6 +147,7 @@ class EvaluatorImpl : public Evaluator {
     VLOG(7) << "Evaluation result for: " << expr->ToString()
             << " in context: " << ToString(parametric_context)
             << " value: " << result.ToString();
+    trace.SetResult(result);
     return result;
   }
 

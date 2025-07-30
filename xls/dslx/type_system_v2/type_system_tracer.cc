@@ -304,9 +304,11 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
       return x.second.total_processing_time > y.second.total_processing_time;
     });
 
-    constexpr size_t kMaxNodes = 50;
-    for (int i = 0; i < std::min(kMaxNodes, stats.size()); i++) {
-      auto& [node, node_stats] = stats[i];
+    absl::StrAppendFormat(
+        &result, "Type variable unifications: %d (%d used global cache).\n\n",
+        variable_unification_count_, cached_variable_unification_count_);
+
+    for (auto& [node, node_stats] : stats) {
       std::string node_string = node->ToString();
       if (const auto* fn = dynamic_cast<const Function*>(node)) {
         node_string = fn->identifier();
@@ -331,13 +333,6 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
           absl::FormatDuration(node_stats.total_processing_time));
     }
 
-    if (stats.size() > kMaxNodes) {
-      absl::StrAppendFormat(&result, "+ %d more\n\n", stats.size() - kMaxNodes);
-    }
-
-    absl::StrAppendFormat(
-        &result, "Type variable unifications: %d (%d used global cache).\n\n",
-        variable_unification_count_, cached_variable_unification_count_);
     return result;
   }
 
