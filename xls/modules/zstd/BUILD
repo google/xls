@@ -1870,7 +1870,6 @@ py_binary(
     name = "zstd_dec_cocotb_cli",
     srcs = ["zstd_dec_cocotb_cli.py"],
     env = {
-        "PYTHONUNBUFFERED": "1",
         "BUILD_WORKING_DIRECTORY": "sim_build",
         "PERL": "$(PERL)",
     },
