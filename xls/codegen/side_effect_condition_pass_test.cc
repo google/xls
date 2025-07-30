@@ -97,11 +97,11 @@ std::string_view CodegenPassName(CodegenPassType type) {
   return "";
 }
 
-static CodegenOptions kDefaultCodegenOptions =
+static const CodegenOptions kDefaultCodegenOptions =
     CodegenOptions().clock_name("clk").reset("rst", /*asynchronous=*/false,
                                              /*active_low=*/false,
                                              /*reset_data_path=*/false);
-static SchedulingOptions kDefaultSchedulingOptions =
+static const SchedulingOptions kDefaultSchedulingOptions =
     SchedulingOptions().clock_period_ps(2);
 
 class SideEffectConditionPassTest
@@ -802,12 +802,12 @@ TEST_P(SideEffectConditionPassTest, FunctionWithActiveLowReset) {
                            fb.BuildWithReturnValue(fb.Add(x, y)));
   XLS_ASSERT_OK(package.SetTop(top));
 
-  EXPECT_THAT(
-      Run(&package, kDefaultCodegenOptions.valid_control("in_vld", "out_vld")
-                        .reset("rst", /*asynchronous=*/false,
-                               /*active_low=*/true,
-                               /*reset_data_path=*/false)),
-      IsOkAndHolds(true));
+  EXPECT_THAT(Run(&package, CodegenOptions(kDefaultCodegenOptions)
+                                .valid_control("in_vld", "out_vld")
+                                .reset("rst", /*asynchronous=*/false,
+                                       /*active_low=*/true,
+                                       /*reset_data_path=*/false)),
+              IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package.GetBlock("f"));
 
   XLS_ASSERT_OK_AND_ASSIGN(Node * cover, block->GetNode("cover_"));
