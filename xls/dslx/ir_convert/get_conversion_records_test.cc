@@ -164,14 +164,17 @@ proc top {
       GetConversionRecords(tm.module, tm.type_info, false));
   ASSERT_EQ(3, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "P.next");
+  EXPECT_EQ(order[0].invocation()->ToString(), "P.config<u32:2>(u2:1)");
   EXPECT_EQ(order[0].parametric_env(),
             ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/2)}}));
   EXPECT_EQ(order[1].f()->identifier(), "P.next");
+  EXPECT_EQ(order[1].invocation()->ToString(), "P.config<u32:4>(u4:2)");
   EXPECT_EQ(order[1].parametric_env(),
             ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/4)}}));
   EXPECT_EQ(order[2].f()->identifier(), "top.next");
+  EXPECT_EQ(order[2].invocation(), nullptr);
   EXPECT_EQ(order[2].parametric_env(), ParametricEnv());
 }
 

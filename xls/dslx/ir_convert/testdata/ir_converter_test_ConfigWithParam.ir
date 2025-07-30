@@ -1,0 +1,21 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__adder_0_next<>(__state: bits[32], init={1}) {
+  __state: bits[32] = state_read(state_element=__state, id=2)
+  literal.4: bits[32] = literal(value=3, id=4)
+  add.5: bits[32] = add(__state, literal.4, id=5)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  next_value.6: () = next_value(param=__state, value=add.5, id=6)
+}
+
+top proc __test_module__main_0_next<>(__state: (), init={()}) {
+  proc_instantiation __test_module__adder_0_next_inst(proc=__test_module__adder_0_next)
+  __state: () = state_read(state_element=__state, id=8)
+  __token: token = literal(value=token, id=7)
+  literal.9: bits[1] = literal(value=1, id=9)
+  tuple.10: () = tuple(id=10)
+  next_value.11: () = next_value(param=__state, value=__state, id=11)
+}

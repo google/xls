@@ -4228,6 +4228,36 @@ pub proc main {
   ExpectIr(converted);
 }
 
+TEST(ProcScopedChannelsIrConverterTest, ConfigWithParam) {
+  // This only works with tiv2 at the moment. With v1, an error is thrown in
+  // ConstexprEvaluator.HandleNumber because (I think) it hasn't noted the u32:1
+  // in init as a constant.
+  constexpr std::string_view kProgram = R"(
+#![feature(type_inference_v2)]
+proc adder {
+  amount: u32;
+  init { u32:1 }
+  config(input: u32) { (input,) }
+  next(acc: u32) { acc + amount }
+}
+
+pub proc main {
+  init { }
+  config() { spawn adder(u32:3); }
+  next(state: ()) { state }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,

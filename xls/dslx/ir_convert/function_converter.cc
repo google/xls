@@ -822,7 +822,8 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
 
   if (!node_to_ir_.contains(from)) {
     XLS_RET_CHECK(proc_id_.has_value());
-    XLS_RET_CHECK(proc_data_->id_to_members.contains(proc_id_.value()));
+    XLS_RET_CHECK(proc_data_->id_to_members.contains(proc_id_.value()))
+        << proc_id_->ToString();
     for (const auto& [k, v] : proc_data_->id_to_members.at(proc_id_.value())) {
       if (k == node->identifier()) {
         if (std::holds_alternative<Value>(v)) {
@@ -3042,13 +3043,64 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     ImportData* import_data, const ParametricEnv* parametric_env,
     const ProcId& proc_id, ProcConversionData* proc_data) {
   XLS_RET_CHECK_NE(type_info, nullptr);
-  VLOG(5) << "HandleProcNextFunction: " << f->ToString();
+  VLOG(5) << "HandleProcNextFunction: " << f->ToString() << " proc id "
+          << proc_id.ToString();
 
   if (parametric_env != nullptr) {
     SetParametricEnv(parametric_env);
   }
 
+  // Overwrites this.current_type_info_. When this object goes out of scope,
+  // restores the previous current_type_info_
   ScopedTypeInfoSwap stis(this, type_info);
+
+  XLS_RET_CHECK(f->proc().has_value());
+  Proc* proc = f->proc().value();
+  if (options_.lower_to_proc_scoped_channels) {
+    if (!proc_data->id_to_members.contains(proc_id)) {
+      proc_data->id_to_members[proc_id] = {};
+    }
+    if (invocation != nullptr) {
+      VLOG(5) << "Processing config invocation " << invocation->ToString();
+      // In a proc, the config method should evaluate to a const expression.
+      // The invocation passed into this method corresponds to the spawn
+      // calling the config method with its arguments. So, evaluating the
+      // invocation should yield the value of the final tuple of the config
+      // method.
+      XLS_ASSIGN_OR_RETURN(InterpValue iv,
+                           ConstexprEvaluator::EvaluateToValue(
+                               import_data, type_info, kNoWarningCollector,
+                               *parametric_env, invocation));
+      XLS_ASSIGN_OR_RETURN(Value final_tuple, InterpValueToValue(iv));
+      XLS_RET_CHECK(final_tuple.IsTuple());
+
+      // Use the final tuple to populate the proc members.
+      XLS_RET_CHECK_EQ(proc->members().size(), final_tuple.size());
+      for (int i = 0; i < proc->members().size(); i++) {
+        Value value = final_tuple.element(i);
+        ProcMember* member = proc->members()[i];
+        proc_data_->id_to_members.at(proc_id)[member->identifier()] = value;
+      }
+    }
+  }
+
+  Value initial_element = Value::Tuple({});
+  if (proc_data_->id_to_initial_value.contains(proc_id)) {
+    initial_element = proc_data_->id_to_initial_value.at(proc_id);
+    VLOG(5) << "HandleProcNextFunction: previously established initial element "
+            << initial_element.ToHumanString();
+  } else if (options_.lower_to_proc_scoped_channels) {
+    VLOG(5) << "HandleProcNextFunction: evaluating init "
+            << proc->init().body()->ToString();
+    XLS_ASSIGN_OR_RETURN(InterpValue value,
+                         ConstexprEvaluator::EvaluateToValue(
+                             import_data, type_info, kNoWarningCollector,
+                             *parametric_env, proc->init().body()));
+    XLS_ASSIGN_OR_RETURN(initial_element, InterpValueToValue(value));
+    proc_data_->id_to_initial_value[proc_id] = initial_element;
+    VLOG(5) << "HandleProcNextFunction: initial element now "
+            << initial_element.ToHumanString();
+  }
 
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
@@ -3057,15 +3109,6 @@ absl::Status FunctionConverter::HandleProcNextFunction(
                      parametric_env));
   std::string token_name = "__token";
   std::string state_name = "__state";
-
-  Value initial_element = Value::Tuple({});
-  // TODO: https://github.com/google/xls/issues/2078 -
-  // The proc_data_->id_to_initial_value map needs more filling-out; right
-  // now it only set for top procs. See ProcConfigIrConverter.HandleSpawn
-  // This data can be gleaned from the invocation.
-  if (proc_data_->id_to_initial_value.contains(proc_id)) {
-    initial_element = proc_data_->id_to_initial_value.at(proc_id);
-  }
 
   std::unique_ptr<ProcBuilder> builder;
   if (options_.lower_to_proc_scoped_channels) {
@@ -3151,8 +3194,9 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
-  if (options_.lower_to_proc_scoped_channels) {
-    // Process the config function here instead of in ProcConfigIrConverter
+  if (options_.lower_to_proc_scoped_channels && invocation == nullptr) {
+    // Process the config function when there is no 'spawn' invocation.
+    // This can happen in tests or for a top-level proc.
     Function& config_fn = f->proc().value()->config();
     XLS_RETURN_IF_ERROR(Visit(config_fn.body()));
   }
@@ -3575,7 +3619,7 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
   return absl::visit(
       Visitor{
           [&](Expr* e) -> absl::Status {
-            VLOG(5) << "FunctionConverter::Dealing with expr ; node: "
+            VLOG(5) << "HandleStatement dealing with expr: "
                     << node->ToString();
             XLS_RETURN_IF_ERROR(Visit(ToAstNode(e)));
             XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(e));
