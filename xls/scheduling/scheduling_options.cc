@@ -93,7 +93,7 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   for (const std::string& c : proto.io_constraints()) {
     std::vector<std::string> components = absl::StrSplit(c, ':');
     if (components.size() != 6) {
-      return absl::InternalError(
+      return absl::InvalidArgumentError(
           absl::StrFormat("Could not parse IO constraint: `%s`", c));
     }
     auto parse_dir =
@@ -104,7 +104,7 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
       if (str == "recv") {
         return IODirection::kReceive;
       }
-      return absl::InternalError(
+      return absl::InvalidArgumentError(
           absl::StrFormat("Could not parse IO constraint: "
                           "invalid channel direction in `%s`",
                           c));
@@ -117,7 +117,7 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     if (components[4] == "none") {
       min_latency = std::numeric_limits<int64_t>::min();
     } else if (!absl::SimpleAtoi(components[4], &min_latency)) {
-      return absl::InternalError(
+      return absl::InvalidArgumentError(
           absl::StrFormat("Could not parse IO constraint: "
                           "invalid minimum latency in `%s`",
                           c));
@@ -125,7 +125,7 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     if (components[5] == "none") {
       max_latency = std::numeric_limits<int64_t>::max();
     } else if (!absl::SimpleAtoi(components[5], &max_latency)) {
-      return absl::InternalError(
+      return absl::InvalidArgumentError(
           absl::StrFormat("Could not parse IO constraint: "
                           "invalid maximum latency in `%s`",
                           c));
@@ -153,13 +153,13 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
       if (std::holds_alternative<IOConstraint>(c)) {
         IOConstraint io_constr = std::get<IOConstraint>(c);
         if (!p->GetChannel(io_constr.SourceChannel()).ok()) {
-          return absl::InternalError(absl::StrFormat(
+          return absl::InvalidArgumentError(absl::StrFormat(
               "Invalid channel name in IO constraint: %s; "
               "this name did not correspond to any channel in the package",
               io_constr.SourceChannel()));
         }
         if (!p->GetChannel(io_constr.TargetChannel()).ok()) {
-          return absl::InternalError(absl::StrFormat(
+          return absl::InvalidArgumentError(absl::StrFormat(
               "Invalid channel name in IO constraint: %s; "
               "this name did not correspond to any channel in the package",
               io_constr.TargetChannel()));
@@ -192,14 +192,15 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
 
   if (proto.has_fdo_iteration_number()) {
     if (proto.fdo_iteration_number() < 2) {
-      return absl::InternalError("fdo_iteration_number must be >= 2");
+      return absl::InvalidArgumentError("fdo_iteration_number must be >= 2");
     }
     scheduling_options.fdo_iteration_number(proto.fdo_iteration_number());
   }
 
   if (proto.has_fdo_delay_driven_path_number()) {
     if (proto.fdo_delay_driven_path_number() < 0) {
-      return absl::InternalError("delay_driven_path_number must be >= 0");
+      return absl::InvalidArgumentError(
+          "delay_driven_path_number must be >= 0");
     }
     scheduling_options.fdo_delay_driven_path_number(
         proto.fdo_delay_driven_path_number());
@@ -207,7 +208,8 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
 
   if (proto.has_fdo_fanout_driven_path_number()) {
     if (proto.fdo_fanout_driven_path_number() < 0) {
-      return absl::InternalError("fanout_driven_path_number must be >= 0");
+      return absl::InvalidArgumentError(
+          "fanout_driven_path_number must be >= 0");
     }
     scheduling_options.fdo_fanout_driven_path_number(
         proto.fdo_fanout_driven_path_number());
@@ -216,7 +218,7 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   if (proto.has_fdo_refinement_stochastic_ratio()) {
     if (proto.fdo_refinement_stochastic_ratio() > 1.0 ||
         proto.fdo_refinement_stochastic_ratio() <= 0.0) {
-      return absl::InternalError(
+      return absl::InvalidArgumentError(
           "refinement_stochastic_ratio must be <= 1.0 and > 0.0");
     }
     scheduling_options.fdo_refinement_stochastic_ratio(
@@ -227,7 +229,7 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     if (proto.fdo_path_evaluate_strategy() != "path" &&
         proto.fdo_path_evaluate_strategy() != "cone" &&
         proto.fdo_path_evaluate_strategy() != "window") {
-      return absl::InternalError(
+      return absl::InvalidArgumentError(
           "path_evaluate_strategy must be 'path', 'cone', or 'window'");
     }
     scheduling_options.fdo_path_evaluate_strategy(
