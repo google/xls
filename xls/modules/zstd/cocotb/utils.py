@@ -17,12 +17,41 @@
 import os
 import pathlib
 
+import subprocess
 import cocotb
 from cocotb.runner import check_results_file
 from cocotb.runner import get_runner
 from cocotb.triggers import ClockCycles
 
 from xls.common import runfiles
+
+import tempfile
+
+def add_to_path(executable):
+  dir = str(pathlib.Path(executable).parent)
+  os.environ["PATH"] = dir + os.pathsep + os.environ["PATH"]
+
+def setup_verilator():
+  build_dir = pathlib.Path("sim_build").absolute()
+  build_dir.mkdir(parents=True, exist_ok=True)
+  if not os.path.exists(build_dir / "external"):
+        # verilator will be launched in build dir. We need to link external there
+        # to make relative paths to toolchains (CC and other) work
+        os.symlink(os.path.relpath("external", build_dir), build_dir / "external")
+
+  # cocotb does something like `perl $(which verilator) so we have to add both of them to $PATH
+  verilator_perl_wrapper_path = runfiles.get_path("bin/verilator", repository = "verilator")
+  add_to_path(verilator_perl_wrapper_path)
+  add_to_path(os.environ["PERL"])
+
+  # normally verilator's perl wrapper exepects that binary is located next to it under name "verilator_bin"
+  # rules_hdl uses different location and name so we have to use $VERILATOR_BIN.
+  verilator_binary_path = pathlib.Path(runfiles.get_path("verilator_executable", repository = "verilator"))
+  os.environ["VERILATOR_BIN"] = str(verilator_binary_path)
+
+  os.environ.pop("VERILATOR_ROOT", None) # prevent picking wrong env from host
+
+  return build_dir
 
 
 def setup_com_iverilog():
@@ -38,41 +67,26 @@ def setup_com_iverilog():
   return build_dir
 
 
-def run_test(toplevel, test_module, verilog_sources, timescale=("1ns", "1ps")):
-  """Builds and runs a Cocotb testbench using Icarus Verilog."""
-  build_dir = setup_com_iverilog()
-  runner = get_runner("icarus")()
-  build_args = []
-
-  cmds_file = build_dir / pathlib.Path("cmds.f")
-  cmds_file.parent.mkdir(parents=True, exist_ok=True)
-  with open(cmds_file, "w") as f:
-    f.write("+timescale+{}/{}\n".format(*timescale))
-  build_args += ["-f", str(cmds_file)]
-
-  dump_file = build_dir / pathlib.Path("cocotb_iverilog_dump.v")
-  wave_file = build_dir / pathlib.Path(f"{toplevel}.fst")
-  with open(dump_file, "w") as f:
-    f.write("module cocotb_iverilog_dump();\n")
-    f.write("initial begin\n")
-    f.write(f'    $dumpfile("{wave_file}");\n')
-    f.write(f"    $dumpvars(0, {toplevel});\n")
-    f.write("end\n")
-    f.write("endmodule\n")
-  wave_file.parent.mkdir(parents=True, exist_ok=True)
+def run_test(toplevel, test_module, verilog_sources, timescale=("1ns", "1ps"), sim="icarus", build_args=[]):
+  """Builds and runs a Cocotb testbench"""
+  build_dir = setup_verilator() if sim == "verilator" else setup_com_iverilog()
+  runner = get_runner(sim)
 
   runner.build(
-    verilog_sources=(verilog_sources + [str(dump_file)]),
-    toplevel=toplevel,
+    verilog_sources=verilog_sources,
+    hdl_toplevel=toplevel,
+    timescale=("1ns", "1ps"),
     build_dir=build_dir,
-    extra_args=build_args,
     defines={"SIMULATION": "1"},
+    waves=True,
+    build_args=build_args,
   )
 
   try:
     results_xml = runner.test(
-       toplevel=toplevel,
-       py_module=test_module,
+       hdl_toplevel=toplevel,
+       test_module=test_module,
+       waves=True,
     )
   finally:
     check_results_file(results_xml)
