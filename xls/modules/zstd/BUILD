@@ -1644,7 +1644,16 @@ xls_dslx_verilog(
     dslx_top = "ZstdDecoderInst",
     library = ":zstd_dec_dslx",
     tags = ["manual"],
-    verilog_file = "zstd_dec.v",
+    verilog_file = "zstd_dec_prepatch.v",
+)
+
+# Work around issues with acessing stuff starting with double underscore from cocotb
+# (python considers such names private)
+genrule(
+    name = "patch_zstd_dec",
+    srcs = ["zstd_dec_prepatch.v"],
+    outs = ["zstd_dec.v"],
+    cmd = 'sed "s/__xls_modules_zstd/xls_modules_zstd/g" "$(SRCS)" > "$(OUTS)"'
 )
 
 ZSTD_DEC_INTERNAL_CODEGEN_ARGS = COMMON_CODEGEN_ARGS | {
@@ -1708,7 +1717,7 @@ place_and_route(
 verilog_library(
     name = "zstd_dec_verilog_lib",
     srcs = [
-        ":zstd_dec.v",
+        ":patch_zstd_dec",
     ],
     tags = ["manual"],
 )
@@ -1760,6 +1769,46 @@ genrule(
     ],
 )
 
+
+py_library(
+    name = "zstd_dec_cocotb_common",
+    srcs = ["zstd_dec_cocotb_common.py"],
+    data = [
+        ":axi_crossbar_wrapper.v",
+        ":patch_zstd_dec",
+        ":zstd_dec_xx_fse_default",
+        "//xls/modules/zstd/rtl:ram_1r1w.v",
+        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
+        "//xls/modules/zstd/rtl:zstd_dec_wrapper.sv",
+        "@com_github_alexforencich_verilog_axi//:rtl/arbiter.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_addr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_rd.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_wr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_register_rd.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/axi_register_wr.v",
+        "@com_github_alexforencich_verilog_axi//:rtl/priority_encoder.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
 py_test(
     name = "zstd_dec_cocotb_test",
     srcs = ["zstd_dec_cocotb_test.py"],
@@ -1803,38 +1852,36 @@ py_test(
         "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400025.zst",
         "data/treeless_huffman_literals_predefined_rle_compressed_sequences_seed_400061.zst",
         "data/treeless_huffman_literals_rle_sequences_seed_403927.zst",
-        ":axi_crossbar_wrapper.v",
-        ":zstd_dec.v",
-        ":zstd_dec_xx_fse_default",
-        "//xls/modules/zstd/rtl:ram_1r1w.v",
-        "//xls/modules/zstd/rtl:xls_fifo_wrapper.sv",
-        "//xls/modules/zstd/rtl:zstd_dec_wrapper.sv",
-        "@com_github_alexforencich_verilog_axi//:rtl/arbiter.v",
-        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar.v",
-        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_addr.v",
-        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_rd.v",
-        "@com_github_alexforencich_verilog_axi//:rtl/axi_crossbar_wr.v",
-        "@com_github_alexforencich_verilog_axi//:rtl/axi_register_rd.v",
-        "@com_github_alexforencich_verilog_axi//:rtl/axi_register_wr.v",
-        "@com_github_alexforencich_verilog_axi//:rtl/priority_encoder.v",
-        "@com_icarus_iverilog//:iverilog",
-        "@com_icarus_iverilog//:vvp",
     ],
+    tags = [
+        "manual",
+        "exclusive", # Test with heavy use of multithreading. Running it in parallel results in significant performance drop
+    ],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        "//xls/modules/zstd:zstd_dec_cocotb_common",
+        "//xls/modules/zstd/cocotb:data_generator",
+    ],
+    toolchains=["@rules_perl//:current_toolchain"],
+)
+
+py_binary(
+    name = "zstd_dec_cocotb_cli",
+    srcs = ["zstd_dec_cocotb_cli.py"],
+    env = {
+        "PYTHONUNBUFFERED": "1",
+        "BUILD_WORKING_DIRECTORY": "sim_build",
+        "PERL": "$(PERL)",
+    },
+    imports = ["."],
     tags = ["manual"],
     visibility = ["//xls:xls_users"],
     deps = [
         requirement("cocotb"),
-        requirement("cocotbext-axi"),
-        "//xls/common:runfiles",
-        "//xls/modules/zstd/cocotb:channel",
-        "//xls/modules/zstd/cocotb:data_generator",
-        "//xls/modules/zstd/cocotb:memory",
-        "//xls/modules/zstd/cocotb:utils",
-        "//xls/modules/zstd/cocotb:xlsstruct",
-        "@abseil-py//absl:app",
-        "@abseil-py//absl/flags",
-        "@com_google_protobuf//:protobuf_python",
+        "//xls/modules/zstd:zstd_dec_cocotb_common",
     ],
+    toolchains=["@rules_perl//:current_toolchain"],
 )
 
 xls_dslx_library(
