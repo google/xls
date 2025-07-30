@@ -44,5 +44,6 @@ def repo():
             Label("@//dependency_support/rules_hdl:rules_hdl_deps.patch"),
             Label("@//dependency_support/rules_hdl:rename_eigen.patch"),
             Label("@//dependency_support/rules_hdl:rename_swig.patch"),
+            Label("@//dependency_support/rules_hdl:add_standalone_verilator.patch"),
         ],
     )
