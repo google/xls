@@ -1914,6 +1914,24 @@ fn FuzzTest() -> bits[1] {
   ASSERT_THAT(Run(p.get()), IsOk());
 }
 
+TEST_P(NarrowingPassTest, NoSignedOverflow) {
+  // Found in narrowing fuzz test. UBSan signed overflow.
+  // package FuzzTest
+
+  // top fn FuzzTest() -> bits[1000] {
+  //   literal.1: bits[1000] = literal(value=<all-ones>, id=1)
+  //   ret shrl.2: bits[1000] = shrl(literal.1, literal.1, id=2)
+  // }
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue huge = fb.Literal(Bits::AllOnes(1000));
+  fb.Shrl(huge, huge);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOk());
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     ::testing::Values(NarrowingPass::AnalysisType::kTernary,

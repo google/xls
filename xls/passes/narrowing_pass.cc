@@ -853,7 +853,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         is_arithmetic ? values_bit_cnt + 1 : values_bit_cnt;
 
     IntervalSet amnt_range = shift_amnt_qe.GetIntervals(shift_amnt).Get({});
-    if (!amnt_range.IsEmpty() && amnt_range.LowerBound()->FitsInInt64() &&
+    if (!amnt_range.IsEmpty() && amnt_range.LowerBound()->FitsInUint64() &&
         amnt_range.LowerBound()->ToUint64().value() > values_bit_cnt) {
       // Shift all non-sign-bit values out.
       if (is_arithmetic) {
