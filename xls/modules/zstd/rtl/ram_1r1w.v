@@ -16,7 +16,7 @@ module ram_1r1w # (
     parameter DATA_WIDTH = 4,
     parameter SIZE = 32,
     parameter NUM_PARTITIONS = 1,
-    parameter ADDR_WIDTH = $clog(SIZE),
+    parameter ADDR_WIDTH = $clog2(SIZE),
     parameter INIT_FILE = ""
 ) (
     input  wire clk,
