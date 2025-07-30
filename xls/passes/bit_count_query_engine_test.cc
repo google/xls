@@ -1127,5 +1127,25 @@ TEST_F(BitCountQueryEngineTest, ShraNoOverflow) {
   EXPECT_EQ(qe.KnownLeadingSignBits(shr.node()), 16);
 }
 
+TEST_F(BitCountQueryEngineTest, NoSignedOverflow) {
+  // Found in narrowing fuzz test. UBSan signed overflow.
+  // package FuzzTest
+
+  // top fn FuzzTest() -> bits[1000] {
+  //   literal.1: bits[1000] = literal(value=<all-ones>, id=1)
+  //   ret shrl.2: bits[1000] = shrl(literal.1, literal.1, id=2)
+  // }
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue huge = fb.Literal(Bits::AllOnes(1000));
+  BValue shrl = fb.Shrl(huge, huge);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  BitCountQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f));
+  EXPECT_EQ(qe.KnownLeadingZeros(shrl.node()), 1000);
+  EXPECT_EQ(qe.KnownLeadingOnes(shrl.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingSignBits(shrl.node()), 1000);
+}
+
 }  // namespace
 }  // namespace xls

@@ -16,7 +16,9 @@
 #define XLS_PASSES_BIT_COUNT_QUERY_ENGINE_H_
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <utility>
 
@@ -70,8 +72,15 @@ class LeadingBits {
     return LeadingBits(TernaryValue::kKnownOne, cnt);
   }
 
-  LeadingBits ExtendBy(int64_t extend_by) const {
-    return LeadingBits(value_, count_ + extend_by);
+  LeadingBits ExtendBy(
+      int64_t extend_by,
+      int64_t limited_to = std::numeric_limits<int64_t>::max()) const {
+    return LeadingBits(
+        value_,
+        std::min(limited_to,
+                 count_ > (std::numeric_limits<int64_t>::max() - extend_by)
+                     ? std::numeric_limits<int64_t>::max()
+                     : count_ + extend_by));
   }
   LeadingBits LimitSizeTo(int64_t size) const {
     return LeadingBits(value_, std::min(count_, size));

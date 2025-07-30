@@ -274,8 +274,8 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
                             : std::numeric_limits<int64_t>::max();
       return SetSingleValue(
           // Avoid possible overflow.
-          op, lhs_cnt.ExtendBy(std::min(rhs_int, lhs->BitCountOrDie()))
-                  .LimitSizeTo(op->BitCountOrDie()));
+          op, lhs_cnt.ExtendBy(std::min(rhs_int, lhs->BitCountOrDie()),
+                               /*limited_to=*/op->BitCountOrDie()));
     }
     // TODO(allight): Technically we can tell a bit about the range of values
     // using known-sign but not really worth doing anything. Be conservative,
