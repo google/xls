@@ -1,0 +1,85 @@
+--- dependency_support/verilator/verilator.BUILD.bazel
++++ dependency_support/verilator/verilator.BUILD.bazel
+@@ -13,6 +13,7 @@
+ # Original implementation by Kevin Kiningham (@kkiningh) in kkiningh/rules_verilator.
+ # Ported to bazel_rules_hdl by Stephen Tridgell (@stridge-cruxml)
+ 
++load("@aspect_bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
+ load("@bazel_skylib//rules:write_file.bzl", "write_file")
+ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+ load("@rules_hdl//dependency_support/com_github_westes_flex:flex.bzl", "genlex")
+@@ -370,3 +371,74 @@
+     visibility = ["//visibility:public"],
+     deps = [":verilator_libV3"],
+ )
++
++genrule(
++    name = "verilated_makefile",
++    srcs = ["include/verilated.mk.in"],
++    outs = ["include/verilated.mk"],
++    cmd = """
++    cp "$(SRCS)" "$(OUTS)"
++    sed "s%@AR@%$(AR)%" "$(OUTS)" -i
++    sed "s%@CXX@%$(CC)%" "$(OUTS)" -i
++    sed "s%@LINK@%$(CC)%" "$(OUTS)" -i
++    sed "s%@PERL@%$(PERL)%" "$(OUTS)" -i
++    sed "s%@PYTHON3@%$(PYTHON3)%" "$(OUTS)" -i
++    sed "s%@OBJCACHE@%%" "$(OUTS)" -i
++
++    if [ "$(C_COMPILER)" = "clang" ]; then
++        # Compiler option to put in front of filename to read precompiled header
++        sed "s%@CFG_CXXFLAGS_PCH_I@%-include-pch%" "$(OUTS)" -i
++        # Compiler's filename suffix for precompiled headers, .gch if clang, empty if GCC
++        sed "s%@CFG_GCH_IF_CLANG@%.gch%" "$(OUTS)" -i
++    else
++        sed "s%@CFG_CXXFLAGS_PCH_I@%-include%" "$(OUTS)" -i
++        sed "s%@CFG_GCH_IF_CLANG@%%" "$(OUTS)" -i
++    fi
++    
++    # Select language required to compile
++    sed "s%@CFG_CXXFLAGS_STD@%-x c++%" "$(OUTS)" -i
++    sed "s%@CFG_LDFLAGS_VERILATED@%-lstdc++%" "$(OUTS)" -i
++
++    # Compiler flags to use to turn off unused and generated code warnings, such as -Wno-div-by-zero "$(OUTS)" -i
++    sed "s%@CFG_CXXFLAGS_NO_UNUSED@%-faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable%" "$(OUTS)" -i
++    # Linker libraries for multithreading
++    sed "s%@CFG_LDLIBS_THREADS@%-pthread -lpthread -latomic%" "$(OUTS)" -i
++    """,
++    toolchains = [
++        "@bazel_tools//tools/cpp:current_cc_toolchain",
++        "@rules_python//python:current_py_toolchain",
++        "@rules_perl//:current_toolchain",
++    ],
++    visibility = ["//visibility:public"],
++)
++
++filegroup(
++    name = "includes",
++    srcs = glob(["include/**"]),
++)
++
++# The perl wrapper assumes that runtime resources are stored under $(realpath verilator)/../
++# using perl binary would be problematic due to symlinks
++# potential alternative solution: write simplified perl wrapper that does not depend on realpath
++copy_to_bin(
++    name = "verilator_runtime_extras",
++    srcs = [
++        "bin/verilator",
++        "bin/verilator_includer",
++        ":includes",
++    ],
++)
++
++filegroup(
++    name = "standalone_verilator",
++    srcs = [
++        ":verilated_config",
++        ":verilated_makefile",
++        ":verilator_executable",
++        ":verilator_runtime_extras",
++        "@bazel_tools//tools/cpp:current_cc_toolchain",
++        "@rules_perl//:current_toolchain",
++        "@rules_python//python:current_py_toolchain",
++    ],
++    visibility = ["//visibility:public"],
++)

@@ -1790,6 +1790,7 @@ py_library(
         "@com_github_alexforencich_verilog_axi//:rtl/priority_encoder.v",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
+        "@verilator//:standalone_verilator",
     ],
     imports = ["."],
     tags = ["manual"],

@@ -40,4 +40,5 @@ def repo():
         urls = [
             "https://github.com/hdl/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
         ],
+        patches = ["@//dependency_support/rules_hdl:add_standalone_verilator.patch"],
     )
