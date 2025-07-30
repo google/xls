@@ -1669,6 +1669,56 @@ TEST_F(ArraySimplificationPassTest, ArraySliceChain) {
   EXPECT_THAT(f->return_value(), m::ArraySlice(m::Param("arr"), m::Add()));
 }
 
+TEST_F(ArraySimplificationPassTest, ArraySliceChainReenlarged) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  fn array_slice_chain(arr: bits[4][4]) -> bits[4][2] {
+    zero: bits[4] = literal(value=0)
+    t0: bits[4][1] = array_slice(arr, zero, width=1)
+    ret result: bits[4][2] = array_slice(t0, zero, width=2)
+  }
+  )",
+                                                       p));
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+}
+
+TEST_F(ArraySimplificationPassTest, ArraySliceChainAlternatingSize) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  fn array_slice_chain(arr: bits[4][4]) -> bits[4][1] {
+    zero: bits[4] = literal(value=0)
+    t0: bits[4][1] = array_slice(arr, zero, width=1)
+    t1: bits[4][2] = array_slice(t0, zero, width=2)
+    ret result: bits[4][1] = array_slice(t1, zero, width=1)
+  }
+  )",
+                                                       p));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArraySlice(m::Param("arr"), m::Literal(0), /*width=*/1));
+}
+
+TEST_F(ArraySimplificationPassTest, ArraySliceChainAlternatingSize2) {
+  Package* p = GetPackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+  fn array_slice_chain(arr: bits[4][4]) -> bits[4][2] {
+    zero: bits[4] = literal(value=0)
+    t0: bits[4][1] = array_slice(arr, zero, width=1)
+    t1: bits[4][2] = array_slice(t0, zero, width=2)
+    t2: bits[4][1] = array_slice(t1, zero, width=1)
+    ret result: bits[4][2] = array_slice(t2, zero, width=2)
+  }
+  )",
+                                                       p));
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArraySlice(m::ArraySlice(m::Param("arr"), m::Literal(0), /*width=*/1),
+                    m::Literal(0), /*width=*/2));
+}
+
 TEST_F(ArraySimplificationPassTest, ArraySliceChainLargeLiterals) {
   Package* p = GetPackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
