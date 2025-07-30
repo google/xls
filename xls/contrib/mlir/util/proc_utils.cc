@@ -73,9 +73,9 @@ SprocOp createSprocSkeleton(ImplicitLocOpBuilder& builder, TypeRange inputs,
                             TypeRange results, TypeRange stateTypes, Twine name,
                             SymbolTable& symbolTable) {
   OpBuilder::InsertionGuard guard(builder);
-  auto sproc = builder.create<SprocOp>(builder.getStringAttr(name),
-                                       /*is_top=*/false,
-                                       /*boundary_channel_names=*/nullptr);
+  auto sproc = SprocOp::create(builder, builder.getStringAttr(name),
+                               /*is_top=*/false,
+                               /*boundary_channel_names=*/nullptr);
   symbolTable.insert(sproc);
   Block& spawns = sproc.getSpawns().emplaceBlock();
   Block& next = sproc.getNext().emplaceBlock();
@@ -93,9 +93,9 @@ SprocOp createSprocSkeleton(ImplicitLocOpBuilder& builder, TypeRange inputs,
   auto stateArgs = next.addArguments(stateTypes, locs);
   SmallVector<Value> stateArgsVec(stateArgs.begin(), stateArgs.end());
   builder.setInsertionPointToEnd(&spawns);
-  builder.create<YieldOp>(builder.getLoc(), spawns.getArguments());
+  YieldOp::create(builder, builder.getLoc(), spawns.getArguments());
   builder.setInsertionPointToEnd(&next);
-  builder.create<YieldOp>(builder.getLoc(), stateArgsVec);
+  YieldOp::create(builder, builder.getLoc(), stateArgsVec);
   return sproc;
 }
 
@@ -142,7 +142,7 @@ std::pair<SmallVector<Value>, SmallVector<Value>> createChannels(
   SmallVector<Value> outChannels;
   for (auto [i, type] : enumerate(types)) {
     auto chanName = (llvm::Twine(name) + "_" + llvm::Twine(i)).str();
-    SchanOp chanOp = builder.create<SchanOp>(chanName, type);
+    SchanOp chanOp = SchanOp::create(builder, chanName, type);
     inChannels.push_back(chanOp.getIn());
     outChannels.push_back(chanOp.getOut());
   }
@@ -206,8 +206,8 @@ void populateController(SprocOp controller, scf::ForOp forOp,
       createChannels(b, "body_result", innerChanTypes);
 
   auto spawnArgs = concat(innerInArgChans, innerOutResultChans);
-  b.create<SpawnOp>(spawnArgs, SymbolRefAttr::get(body.getSymNameAttr()),
-                    nullptr);
+  SpawnOp::create(b, spawnArgs, SymbolRefAttr::get(body.getSymNameAttr()),
+                  nullptr);
 
   Value innerIndvarArg = innerOutArgChans.front();
   ValueRange innerIterArgs =
@@ -223,60 +223,60 @@ void populateController(SprocOp controller, scf::ForOp forOp,
   assert(innerResults.size() == outerResults.size());
 
   Type i32 = b.getI32Type();
-  Value c0 = b.create<ConstantOp>(b.getI32IntegerAttr(0));
-  Value c1 = b.create<ConstantOp>(b.getI32IntegerAttr(1));
-  Value cTripCount = b.create<ConstantOp>(b.getI32IntegerAttr(tripCount));
+  Value c0 = ConstantOp::create(b, b.getI32IntegerAttr(0));
+  Value c1 = ConstantOp::create(b, b.getI32IntegerAttr(1));
+  Value cTripCount = ConstantOp::create(b, b.getI32IntegerAttr(tripCount));
 
   auto readChans = [&](ValueRange chans, ImplicitLocOpBuilder& b) {
     SmallVector<Value> data;
     for (Value chan : chans) {
-      data.push_back(b.create<xls::SBlockingReceiveOp>(chan).getResult());
+      data.push_back(xls::SBlockingReceiveOp::create(b, chan).getResult());
     }
     return data;
   };
 
-  auto ifOp = b.create<scf::IfOp>(
-      b.create<CmpIOp>(CmpIPredicate::eq, state, c0),
+  auto ifOp = scf::IfOp::create(
+      b, CmpIOp::create(b, CmpIPredicate::eq, state, c0),
       [&](OpBuilder& builder, Location loc) {
         ImplicitLocOpBuilder b(loc, builder);
-        b.create<scf::YieldOp>(concat(readChans(outerInitArgs, b),
-                                      readChans(outerInvariantArgs, b)));
+        scf::YieldOp::create(b, concat(readChans(outerInitArgs, b),
+                                       readChans(outerInvariantArgs, b)));
       },
       [&](OpBuilder& builder, Location loc) {
         ImplicitLocOpBuilder b(loc, builder);
-        b.create<scf::YieldOp>(
-            concat(readChans(innerResults, b), invariantsState));
+        scf::YieldOp::create(
+            b, concat(readChans(innerResults, b), invariantsState));
       });
   auto iterArgs = ifOp.getResults().drop_back(invariants.size());
   auto newInvariantsState = ifOp.getResults().take_back(invariants.size());
 
   auto sendToChans = [&](ValueRange chans) {
     for (auto [from, to] : zip(iterArgs, chans)) {
-      b.create<xls::SSendOp>(from, to);
+      xls::SSendOp::create(b, from, to);
     }
   };
 
   Value finalState =
-      b.create<scf::IfOp>(
-           b.create<CmpIOp>(CmpIPredicate::eq, state, cTripCount),
-           [&](OpBuilder& builder, Location loc) {
-             ImplicitLocOpBuilder b(loc, builder);
-             sendToChans(outerResults);
-             b.create<scf::YieldOp>(c0);
-           },
-           [&](OpBuilder& builder, Location loc) {
-             ImplicitLocOpBuilder b(loc, builder);
-             sendToChans(innerIterArgs);
-             for (auto [from, to] :
-                  zip(newInvariantsState, innerInvariantArgs)) {
-               b.create<xls::SSendOp>(from, to);
-             }
-             b.create<xls::SSendOp>(
-                 b.create<IndexCastOp>(b.getIndexType(), state),
-                 innerIndvarArg);
-             b.create<scf::YieldOp>(
-                 b.create<AddIOp>(i32, state, c1).getResult());
-           })
+      scf::IfOp::create(
+          b, CmpIOp::create(b, CmpIPredicate::eq, state, cTripCount),
+          [&](OpBuilder& builder, Location loc) {
+            ImplicitLocOpBuilder b(loc, builder);
+            sendToChans(outerResults);
+            scf::YieldOp::create(b, c0);
+          },
+          [&](OpBuilder& builder, Location loc) {
+            ImplicitLocOpBuilder b(loc, builder);
+            sendToChans(innerIterArgs);
+            for (auto [from, to] :
+                 zip(newInvariantsState, innerInvariantArgs)) {
+              xls::SSendOp::create(b, from, to);
+            }
+            xls::SSendOp::create(
+                b, IndexCastOp::create(b, b.getIndexType(), state),
+                innerIndvarArg);
+            scf::YieldOp::create(b,
+                                 AddIOp::create(b, i32, state, c1).getResult());
+          })
           .getResult(0);
 
   next.getTerminator()->setOperand(0, finalState);
@@ -297,14 +297,16 @@ void populateBody(SprocOp body, scf::ForOp forOp, ValueRange invariants,
   auto builder = ImplicitLocOpBuilder::atBlockBegin(forOp.getLoc(), &next);
   IRMapping mapper;
   ValueRange forBodyArguments = forOp.getBody()->getArguments();
-  Value token = builder.create<AfterAllOp>();
+  Value token = AfterAllOp::create(builder);
   for (auto [from, to] : zip(forBodyArguments, next.getArguments())) {
-    mapper.map(from, builder.create<SBlockingReceiveOp>(token, to).getResult());
+    mapper.map(from,
+               SBlockingReceiveOp::create(builder, token, to).getResult());
   }
   for (auto [from, to] :
        zip(invariants, next.getArguments().slice(forBodyArguments.size(),
                                                  invariants.size()))) {
-    mapper.map(from, builder.create<SBlockingReceiveOp>(token, to).getResult());
+    mapper.map(from,
+               SBlockingReceiveOp::create(builder, token, to).getResult());
   }
   for (Value value : toClone) {
     builder.clone(*value.getDefiningOp(), mapper);
@@ -318,10 +320,10 @@ void populateBody(SprocOp body, scf::ForOp forOp, ValueRange invariants,
   yieldTerminator->moveBefore(&next, next.end());
 
   ValueRange yielded = forOp.getBody()->getTerminator()->getOperands();
-  token = builder.create<AfterAllOp>();
+  token = AfterAllOp::create(builder);
   for (auto [from, to] : zip(yielded, next.getArguments().drop_back().take_back(
                                           yielded.size()))) {
-    builder.create<SSendOp>(token, mapper.lookup(from), to);
+    SSendOp::create(builder, token, mapper.lookup(from), to);
   }
 }
 
@@ -433,19 +435,19 @@ LogicalResult convertForOpToSprocCall(scf::ForOp forOp,
   auto [recvChanOuts, recvChanIns] =
       createChannels(builder, "for_result", forOp.getResultTypes());
   auto spawnArgs = concat(sendChanIns, recvChanOuts);
-  builder.create<SpawnOp>(
-      spawnArgs, SymbolRefAttr::get(controller.getSymNameAttr()), nullptr);
+  SpawnOp::create(builder, spawnArgs,
+                  SymbolRefAttr::get(controller.getSymNameAttr()), nullptr);
 
-  Value token = builder.create<AfterAllOp>();
+  Value token = AfterAllOp::create(builder);
   SmallVector<Value> tokens;
   for (auto [chan, arg] : zip(sendChanOuts, sendArgs)) {
-    tokens.push_back(builder.create<SSendOp>(token, arg, chan));
+    tokens.push_back(SSendOp::create(builder, token, arg, chan));
   }
-  token = builder.create<AfterAllOp>(tokens);
+  token = AfterAllOp::create(builder, tokens);
   SmallVector<Value> results;
   for (auto [chan, arg] : zip(recvChanIns, forOp.getResultTypes())) {
     results.push_back(
-        builder.create<SBlockingReceiveOp>(token, chan).getResult());
+        SBlockingReceiveOp::create(builder, token, chan).getResult());
   }
   forOp->replaceAllUsesWith(results);
   forOp.erase();

@@ -41,15 +41,15 @@ class ArrayUpdateSliceOpRewrite : public OpRewritePattern<ArrayUpdateSliceOp> {
     Value v = op.getArray();
     Type elementType = op.getType().getElementType();
     for (int64_t i = 0, e = op.getWidth(); i < e; ++i) {
-      Value extracted = rewriter.create<ArrayIndexStaticOp>(
-          op.getLoc(), elementType, op.getSlice(),
+      Value extracted = ArrayIndexStaticOp::create(
+          rewriter, op.getLoc(), elementType, op.getSlice(),
           rewriter.getI64IntegerAttr(i));
-      Value index = rewriter.create<AddOp>(
-          op.getLoc(), op.getStart(),
-          rewriter.create<ConstantScalarOp>(op.getLoc(), rewriter.getI32Type(),
-                                            rewriter.getI32IntegerAttr(i)));
-      v = rewriter.create<ArrayUpdateOp>(op.getLoc(), v.getType(), v, extracted,
-                                         index);
+      Value index = AddOp::create(
+          rewriter, op.getLoc(), op.getStart(),
+          ConstantScalarOp::create(rewriter, op.getLoc(), rewriter.getI32Type(),
+                                   rewriter.getI32IntegerAttr(i)));
+      v = ArrayUpdateOp::create(rewriter, op.getLoc(), v.getType(), v,
+                                extracted, index);
     }
     rewriter.replaceOp(op, v);
     return success();

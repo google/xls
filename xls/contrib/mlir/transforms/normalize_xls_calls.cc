@@ -70,8 +70,8 @@ void NormalizeXlsCallsPass::runOnOperation() {
         auto [it, inserted] = packageImports.insert({call.getFilename(), {}});
         std::filesystem::path path(call.getFilename().str());
         if (inserted) {
-          auto pkgImport = builder.create<ImportDslxFilePackageOp>(
-              op->getLoc(), call.getFilenameAttr(),
+          auto pkgImport = ImportDslxFilePackageOp::create(
+              builder, op->getLoc(), call.getFilenameAttr(),
               builder.getStringAttr(path.stem().string()));
           // Ensure unique symbol name.
           symbolTable.insert(pkgImport);
@@ -91,8 +91,8 @@ void NormalizeXlsCallsPass::runOnOperation() {
                                             call->getResultTypes());
         }
 
-        auto func = builder.create<mlir::func::FuncOp>(
-            op->getLoc(),
+        auto func = mlir::func::FuncOp::create(
+            builder, op->getLoc(),
             llvm::formatv("{0}_{1}", path.stem(), call.getFunction()).str(),
             newType);
         func.setVisibility(SymbolTable::Visibility::Private);
@@ -108,11 +108,11 @@ void NormalizeXlsCallsPass::runOnOperation() {
       OpBuilder b(op);
       Operation* fnCall;
       if (call.getIsVectorCall()) {
-        fnCall = b.create<mlir::xls::VectorizedCallOp>(
-            op->getLoc(), fIt->second.front(), call.getOperands());
+        fnCall = mlir::xls::VectorizedCallOp::create(
+            b, op->getLoc(), fIt->second.front(), call.getOperands());
       } else {
-        fnCall = b.create<mlir::func::CallOp>(op->getLoc(), fIt->second.front(),
-                                              call.getOperands());
+        fnCall = mlir::func::CallOp::create(
+            b, op->getLoc(), fIt->second.front(), call.getOperands());
       }
       op->replaceAllUsesWith(fnCall->getResults());
       op->erase();

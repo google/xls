@@ -118,7 +118,7 @@ class LegalizeConstantTensorPattern
     for (int i = 0; i < size; ++i) {
       auto attr = op.getValue().getValues<Attribute>()[i];
       results.push_back(
-          rewriter.create<ConstantScalarOp>(op.getLoc(), etype, attr)
+          ConstantScalarOp::create(rewriter, op.getLoc(), etype, attr)
               .getResult());
     }
     rewriter.replaceOpWithNewOp<ArrayOp>(
@@ -163,13 +163,13 @@ Value getFlattenedIndex(OpBuilder& builder, TensorType type,
   Location firstLoc =
       values.empty() ? builder.getUnknownLoc() : values.front().getLoc();
   Type idxType = builder.getIndexType();
-  Value acc = builder.create<mlir::arith::ConstantOp>(firstLoc, idxType,
-                                                      builder.getIndexAttr(0));
+  Value acc = mlir::arith::ConstantOp::create(builder, firstLoc, idxType,
+                                              builder.getIndexAttr(0));
   int dimMultiplier = 1;
   for (int i = type.getRank() - 1; i >= 0; --i) {
     Location loc = values[i].getLoc();
-    Value multiplier = builder.create<mlir::arith::ConstantOp>(
-        loc, idxType, builder.getIndexAttr(dimMultiplier));
+    Value multiplier = mlir::arith::ConstantOp::create(
+        builder, loc, idxType, builder.getIndexAttr(dimMultiplier));
     Value addend = builder.createOrFold<UmulOp>(
         loc, idxType, castTo(builder, idxType, values[i]), multiplier);
     acc = builder.createOrFold<AddOp>(loc, idxType, ValueRange{acc, addend});
@@ -190,8 +190,8 @@ void buildOffsetValues(ValueRange dynamicOffsets,
     if (ShapedType::isDynamic(offset)) {
       value = *dynamicOffsetsIt++;
     } else {
-      value = rewriter.create<mlir::arith::ConstantOp>(
-          loc, idxType, rewriter.getIndexAttr(offset));
+      value = mlir::arith::ConstantOp::create(rewriter, loc, idxType,
+                                              rewriter.getIndexAttr(offset));
     }
     offsets.push_back(value);
   }
@@ -241,8 +241,8 @@ class LegalizeTensorInsertPattern
   LogicalResult matchAndRewrite(
       mlir::tensor::InsertOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto flattened = rewriter.create<arith::IndexCastOp>(
-        op.getLoc(), rewriter.getI32Type(),
+    auto flattened = arith::IndexCastOp::create(
+        rewriter, op.getLoc(), rewriter.getI32Type(),
         getFlattenedIndex(rewriter, op.getType(), adaptor.getIndices()));
     rewriter.replaceOpWithNewOp<ArrayUpdateOp>(op, adaptor.getDest().getType(),
                                                adaptor.getDest(),
@@ -428,16 +428,16 @@ class RankReduceTensorExtractSlicePattern
     // to remove the unnecessary cast after it's converted the child
     // ExtractSliceOp.
     Value sourceAsTensor =
-        rewriter
-            .create<UnrealizedConversionCastOp>(op.getLoc(), op.getSourceType(),
-                                                adaptor.getSource())
+        UnrealizedConversionCastOp::create(
+            rewriter, op.getLoc(), op.getSourceType(), adaptor.getSource())
             .getResult(0);
 
     SmallVector<Value> elements;
     for (int64_t i = op.getStaticOffset(splitDim); i < splitSize; ++i) {
       offsets[splitDim] = rewriter.getIndexAttr(i);
-      tensor::ExtractSliceOp cloned = rewriter.create<tensor::ExtractSliceOp>(
-          op.getLoc(), sourceAsTensor, offsets, sizes, op.getMixedStrides());
+      tensor::ExtractSliceOp cloned =
+          tensor::ExtractSliceOp::create(rewriter, op.getLoc(), sourceAsTensor,
+                                         offsets, sizes, op.getMixedStrides());
       elements.push_back(cloned);
     }
     // Stick the smaller slices back together. This is guaranteed to be a
@@ -487,8 +487,8 @@ class LegalizeTensorInsertSingleSlicePattern
     // Calculate the `start` index. `getFlattenIndex` does the right thing:
     // `offsets` corresponds to the index of the first element in the slice,
     // which gives us the first index in the flattened array.
-    Value start = rewriter.create<arith::IndexCastOp>(
-        loc, rewriter.getI32Type(),
+    Value start = arith::IndexCastOp::create(
+        rewriter, loc, rewriter.getI32Type(),
         getFlattenedIndex(rewriter, sourceType, offsets));
 
     // Replace the op with a single `array_slice` op.
@@ -647,8 +647,8 @@ class LegalizeScalarizableOpPattern
       SmallVector<Value> newOperands;
       for (Value operand : operands) {
         if (ArrayType vtype = dyn_cast<ArrayType>(operand.getType())) {
-          newOperands.push_back(rewriter.create<ArrayIndexStaticOp>(
-              op->getLoc(), vtype.getElementType(), operand,
+          newOperands.push_back(ArrayIndexStaticOp::create(
+              rewriter, op->getLoc(), vtype.getElementType(), operand,
               rewriter.getI64IntegerAttr(i)));
         } else {
           newOperands.push_back(operand);
@@ -665,8 +665,8 @@ class LegalizeScalarizableOpPattern
 
     SmallVector<Value> newResultArrays;
     for (auto [i, result_array] : resultArrayMembers) {
-      newResultArrays.push_back(rewriter.create<ArrayOp>(
-          op->getLoc(),
+      newResultArrays.push_back(ArrayOp::create(
+          rewriter, op->getLoc(),
           ArrayType::get(rewriter.getContext(), result_array.size(),
                          result_array.front().getType()),
           result_array));
@@ -696,8 +696,8 @@ class ConvertForOpTypes : public OpConversionPattern<ForOp> {
       return failure();
     }
 
-    ForOp newOp = rewriter.create<ForOp>(op.getLoc(), resultTypes,
-                                         adaptor.getOperands(), op->getAttrs());
+    ForOp newOp = ForOp::create(rewriter, op.getLoc(), resultTypes,
+                                adaptor.getOperands(), op->getAttrs());
     // Inline the type converted region from the original operation.
     rewriter.inlineRegionBefore(op.getRegion(), newOp.getRegion(),
                                 newOp.getRegion().end());
@@ -746,7 +746,7 @@ LogicalResult convertVectorizedCall(mlir::Operation* op,
   for (Type resultType : resultTypes) {
     assert(isa<ArrayType>(resultType));
     forOperands.push_back(
-        rewriter.create<ArrayZeroOp>(op->getLoc(), resultType));
+        ArrayZeroOp::create(rewriter, op->getLoc(), resultType));
   }
 
   ForOp forOp = rewriter.replaceOpWithNewOp<ForOp>(op, resultTypes, forOperands,
@@ -765,20 +765,20 @@ LogicalResult convertVectorizedCall(mlir::Operation* op,
     // We allow for scalar implicit broadcasting.
     Value blockArg = block->addArgument(operand.getType(), operand.getLoc());
     Value arg = isa<ArrayType>(operand.getType())
-                    ? rewriter.create<ArrayIndexOp>(loc, blockArg, indvar)
+                    ? ArrayIndexOp::create(rewriter, loc, blockArg, indvar)
                     : blockArg;
     operands.push_back(arg);
   }
   auto thisResultTypes = llvm::to_vector<4>(llvm::map_range(
       resultTypes, [](Type type) { return mlir::getElementTypeOrSelf(type); }));
-  Operation* newOp = rewriter.create<CallOpTy>(op->getLoc(), thisResultTypes,
-                                               operands, op->getAttrs());
+  Operation* newOp = CallOpTy::create(rewriter, op->getLoc(), thisResultTypes,
+                                      operands, op->getAttrs());
   SmallVector<Value> results;
   for (auto [resArg, newRes] : llvm::zip(resultArgs, newOp->getResults())) {
     results.push_back(
-        rewriter.create<ArrayUpdateOp>(op->getLoc(), resArg, newRes, indvar));
+        ArrayUpdateOp::create(rewriter, op->getLoc(), resArg, newRes, indvar));
   }
-  rewriter.create<YieldOp>(op->getLoc(), results);
+  YieldOp::create(rewriter, op->getLoc(), results);
   return success();
 }
 

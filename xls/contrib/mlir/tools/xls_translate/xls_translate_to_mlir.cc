@@ -218,9 +218,8 @@ absl::StatusOr<Operation*> translateBitsLiteral(const ::xls::Bits& b,
                                                 TranslationState& state) {
   APInt converted_value = bitsToAPInt(b);
   auto type = builder.getIntegerType(b.bit_count());
-  return builder
-      .create<ConstantScalarOp>(loc, type,
-                                builder.getIntegerAttr(type, converted_value))
+  return ConstantScalarOp::create(builder, loc, type,
+                                  builder.getIntegerAttr(type, converted_value))
       .getOperation();
 }
 
@@ -234,8 +233,8 @@ absl::StatusOr<Operation*> translateLiteral(const ::xls::Value& b,
                                   state);
 
     case ::xls::ValueKind::kToken: {
-      return builder.create<xls::AfterAllOp>(builder.getUnknownLoc(),
-                                             ValueRange{});
+      return xls::AfterAllOp::create(builder, builder.getUnknownLoc(),
+                                     ValueRange{});
     }
 
     case ::xls::ValueKind::kTuple:
@@ -257,12 +256,12 @@ absl::StatusOr<Operation*> translateLiteral(const ::xls::Value& b,
           return absl::InternalError("Empty arrays are not supported.");
         }
         Type result_type = ArrayType::get(types.size(), types[0]);
-        return builder.create<xls::ArrayOp>(builder.getUnknownLoc(),
-                                            result_type, ValueRange(members));
+        return xls::ArrayOp::create(builder, builder.getUnknownLoc(),
+                                    result_type, ValueRange(members));
       } else {
         auto result_type = TupleType::get(ctx, types);
-        return builder.create<xls::TupleOp>(builder.getUnknownLoc(),
-                                            result_type, ValueRange(members));
+        return xls::TupleOp::create(builder, builder.getUnknownLoc(),
+                                    result_type, ValueRange(members));
       }
 
       break;
@@ -333,9 +332,11 @@ absl::StatusOr<Operation*> translateOp(::xls::ArithOp& node, OpBuilder& builder,
 
   switch (node.op()) {
     case ::xls::Op::kUMul:
-      return builder.create<xls::UmulOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::UmulOp::create(builder, *loc, result_type, *opr_lhs,
+                                 *opr_rhs);
     case ::xls::Op::kSMul:
-      return builder.create<xls::SmulOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::SmulOp::create(builder, *loc, result_type, *opr_lhs,
+                                 *opr_rhs);
     default:
       return absl::InternalError(absl::StrCat(
           "Expected ArithOp operation, not ", ::xls::OpToString(node.op())));
@@ -367,10 +368,10 @@ absl::StatusOr<Operation*> translateOp(::xls::PartialProductOp& node,
   Operation* op = nullptr;
   switch (node.op()) {
     case ::xls::Op::kSMulp:
-      op = builder.create<xls::SmulpOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      op = xls::SmulpOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
       break;
     case ::xls::Op::kUMulp:
-      op = builder.create<xls::UmulpOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      op = xls::UmulpOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
       break;
     default:
       return absl::InternalError(
@@ -382,7 +383,7 @@ absl::StatusOr<Operation*> translateOp(::xls::PartialProductOp& node,
   result_tuple_elems.push_back(op->getResult(0));
   result_tuple_elems.push_back(op->getResult(1));
   ValueRange result_tuple(result_tuple_elems);
-  return builder.create<xls::TupleOp>(*loc, result_tuple);
+  return xls::TupleOp::create(builder, *loc, result_tuple);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::CompareOp& node,
@@ -408,25 +409,25 @@ absl::StatusOr<Operation*> translateOp(::xls::CompareOp& node,
 
   switch (node.op()) {
     case ::xls::Op::kEq:
-      return builder.create<xls::EqOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::EqOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     case ::xls::Op::kNe:
-      return builder.create<xls::NeOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::NeOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     case ::xls::Op::kSLe:
-      return builder.create<xls::SleOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::SleOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     case ::xls::Op::kSGe:
-      return builder.create<xls::SgeOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::SgeOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     case ::xls::Op::kSLt:
-      return builder.create<xls::SltOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::SltOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     case ::xls::Op::kSGt:
-      return builder.create<xls::SgtOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::SgtOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     case ::xls::Op::kULe:
-      return builder.create<xls::UleOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::UleOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     case ::xls::Op::kUGe:
-      return builder.create<xls::UgeOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::UgeOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     case ::xls::Op::kULt:
-      return builder.create<xls::UltOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::UltOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     case ::xls::Op::kUGt:
-      return builder.create<xls::UgtOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::UgtOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     default:
       return absl::InternalError(absl::StrCat(
           "Expected CompareOp operation, not ", ::xls::OpToString(node.op())));
@@ -454,23 +455,30 @@ absl::StatusOr<Operation*> translateOp(::xls::BinOp& node, OpBuilder& builder,
 
   switch (node.op()) {
     case ::xls::Op::kAdd:
-      return builder.create<xls::AddOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::AddOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     case ::xls::Op::kSDiv:
-      return builder.create<xls::SdivOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::SdivOp::create(builder, *loc, result_type, *opr_lhs,
+                                 *opr_rhs);
     case ::xls::Op::kSMod:
-      return builder.create<xls::SmodOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::SmodOp::create(builder, *loc, result_type, *opr_lhs,
+                                 *opr_rhs);
     case ::xls::Op::kShll:
-      return builder.create<xls::ShllOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::ShllOp::create(builder, *loc, result_type, *opr_lhs,
+                                 *opr_rhs);
     case ::xls::Op::kShrl:
-      return builder.create<xls::ShrlOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::ShrlOp::create(builder, *loc, result_type, *opr_lhs,
+                                 *opr_rhs);
     case ::xls::Op::kShra:
-      return builder.create<xls::ShraOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::ShraOp::create(builder, *loc, result_type, *opr_lhs,
+                                 *opr_rhs);
     case ::xls::Op::kSub:
-      return builder.create<xls::SubOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::SubOp::create(builder, *loc, result_type, *opr_lhs, *opr_rhs);
     case ::xls::Op::kUDiv:
-      return builder.create<xls::UdivOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::UdivOp::create(builder, *loc, result_type, *opr_lhs,
+                                 *opr_rhs);
     case ::xls::Op::kUMod:
-      return builder.create<xls::UmodOp>(*loc, result_type, *opr_lhs, *opr_rhs);
+      return xls::UmodOp::create(builder, *loc, result_type, *opr_lhs,
+                                 *opr_rhs);
     default:
       return absl::InternalError(absl::StrCat("Expected BinOp operation, not ",
                                               ::xls::OpToString(node.op())));
@@ -492,13 +500,13 @@ absl::StatusOr<Operation*> translateOp(::xls::UnOp& node, OpBuilder& builder,
 
   switch (node.op()) {
     case ::xls::Op::kIdentity:
-      return builder.create<xls::IdentityOp>(*loc, *operand);
+      return xls::IdentityOp::create(builder, *loc, *operand);
     case ::xls::Op::kNeg:
-      return builder.create<xls::NegOp>(*loc, *operand);
+      return xls::NegOp::create(builder, *loc, *operand);
     case ::xls::Op::kNot:
-      return builder.create<xls::NotOp>(*loc, *operand);
+      return xls::NotOp::create(builder, *loc, *operand);
     case ::xls::Op::kReverse:
-      return builder.create<xls::ReverseOp>(*loc, *operand);
+      return xls::ReverseOp::create(builder, *loc, *operand);
     default:
       return absl::InternalError(absl::StrCat("Expected UnOp operation, not ",
                                               ::xls::OpToString(node.op())));
@@ -522,9 +530,9 @@ absl::StatusOr<Operation*> translateOp(::xls::ExtendOp& node,
 
   switch (node.op()) {
     case ::xls::Op::kZeroExt:
-      return builder.create<xls::ZeroExtOp>(*loc, result_type, *operand);
+      return xls::ZeroExtOp::create(builder, *loc, result_type, *operand);
     case ::xls::Op::kSignExt:
-      return builder.create<xls::SignExtOp>(*loc, result_type, *operand);
+      return xls::SignExtOp::create(builder, *loc, result_type, *operand);
     default:
       return absl::InternalError(absl::StrCat(
           "Expected ExtendOp operation, not ", ::xls::OpToString(node.op())));
@@ -547,7 +555,7 @@ absl::StatusOr<Operation*> translateOp(::xls::TupleIndex& node,
   }
   auto index = builder.getI64IntegerAttr(node.index());
 
-  return builder.create<xls::TupleIndexOp>(*loc, result_type, *operand, index);
+  return xls::TupleIndexOp::create(builder, *loc, result_type, *operand, index);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Array& node, OpBuilder& builder,
@@ -568,7 +576,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Array& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<xls::ArrayOp>(*loc, result_type, operands);
+  return xls::ArrayOp::create(builder, *loc, result_type, operands);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ArrayIndex& node,
@@ -596,8 +604,8 @@ absl::StatusOr<Operation*> translateOp(::xls::ArrayIndex& node,
     return loc.status();
   }
 
-  return builder.create<xls::ArrayIndexOp>(*loc, result_type, *xls_arg,
-                                           *xls_index);
+  return xls::ArrayIndexOp::create(builder, *loc, result_type, *xls_arg,
+                                   *xls_index);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ArrayConcat& node,
@@ -619,7 +627,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ArrayConcat& node,
     return loc.status();
   }
 
-  return builder.create<xls::ArrayConcatOp>(*loc, result_type, operands);
+  return xls::ArrayConcatOp::create(builder, *loc, result_type, operands);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ArraySlice& node,
@@ -642,8 +650,8 @@ absl::StatusOr<Operation*> translateOp(::xls::ArraySlice& node,
     return loc.status();
   }
 
-  return builder.create<xls::ArraySliceOp>(*loc, result_type, *array, *start,
-                                           node.width());
+  return xls::ArraySliceOp::create(builder, *loc, result_type, *array, *start,
+                                   node.width());
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ArrayUpdate& node,
@@ -673,8 +681,8 @@ absl::StatusOr<Operation*> translateOp(::xls::ArrayUpdate& node,
     return loc.status();
   }
 
-  return builder.create<xls::ArrayUpdateOp>(*loc, *array_to_update, *value,
-                                            *index);
+  return xls::ArrayUpdateOp::create(builder, *loc, *array_to_update, *value,
+                                    *index);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::BitSlice& node,
@@ -692,8 +700,8 @@ absl::StatusOr<Operation*> translateOp(::xls::BitSlice& node,
     return loc.status();
   }
 
-  return builder.create<xls::BitSliceOp>(*loc, result_type, *arg, node.start(),
-                                         node.width());
+  return xls::BitSliceOp::create(builder, *loc, result_type, *arg, node.start(),
+                                 node.width());
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::BitSliceUpdate& node,
@@ -721,8 +729,8 @@ absl::StatusOr<Operation*> translateOp(::xls::BitSliceUpdate& node,
     return loc.status();
   }
 
-  return builder.create<xls::BitSliceUpdateOp>(*loc, result_type, *to_update,
-                                               *start, *update_value);
+  return xls::BitSliceUpdateOp::create(builder, *loc, result_type, *to_update,
+                                       *start, *update_value);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::DynamicBitSlice& node,
@@ -745,8 +753,9 @@ absl::StatusOr<Operation*> translateOp(::xls::DynamicBitSlice& node,
     return loc.status();
   }
 
-  return builder.create<xls::DynamicBitSliceOp>(
-      *loc, result_type, *arg, *start, builder.getI64IntegerAttr(node.width()));
+  return xls::DynamicBitSliceOp::create(
+      builder, *loc, result_type, *arg, *start,
+      builder.getI64IntegerAttr(node.width()));
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Concat& node, OpBuilder& builder,
@@ -769,7 +778,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Concat& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<xls::ConcatOp>(*loc, result_type, operands);
+  return xls::ConcatOp::create(builder, *loc, result_type, operands);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Tuple& node, OpBuilder& builder,
@@ -789,7 +798,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Tuple& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<xls::TupleOp>(*loc, operands);
+  return xls::TupleOp::create(builder, *loc, operands);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Literal& node, OpBuilder& builder,
@@ -806,7 +815,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Literal& node, OpBuilder& builder,
       auto result_type = translateType(node.GetType(), builder);
 
       // Create literal with region:
-      auto literal_op = builder.create<xls::LiteralOp>(*loc, result_type);
+      auto literal_op = xls::LiteralOp::create(builder, *loc, result_type);
       builder.setInsertionPointToStart(&literal_op.getRegion().emplaceBlock());
 
       // Construct value using ops:
@@ -816,8 +825,8 @@ absl::StatusOr<Operation*> translateOp(::xls::Literal& node, OpBuilder& builder,
       }
 
       // Add yield:
-      builder.create<YieldOp>(builder.getUnknownLoc(),
-                              final_op.value()->getResults());
+      YieldOp::create(builder, builder.getUnknownLoc(),
+                      final_op.value()->getResults());
 
       return literal_op;
     }
@@ -843,15 +852,15 @@ absl::StatusOr<Operation*> translateOp(::xls::NaryOp& node, OpBuilder& builder,
 
   switch (node.op()) {
     case ::xls::Op::kAnd:
-      return builder.create<xls::AndOp>(*loc, operands);
+      return xls::AndOp::create(builder, *loc, operands);
     case ::xls::Op::kNand:
-      return builder.create<xls::NandOp>(*loc, operands);
+      return xls::NandOp::create(builder, *loc, operands);
     case ::xls::Op::kOr:
-      return builder.create<xls::OrOp>(*loc, operands);
+      return xls::OrOp::create(builder, *loc, operands);
     case ::xls::Op::kNor:
-      return builder.create<xls::NorOp>(*loc, operands);
+      return xls::NorOp::create(builder, *loc, operands);
     case ::xls::Op::kXor:
-      return builder.create<xls::XorOp>(*loc, operands);
+      return xls::XorOp::create(builder, *loc, operands);
     default:
       return absl::InternalError(absl::StrCat("Expected BinOp operation, not ",
                                               ::xls::OpToString(node.op())));
@@ -875,11 +884,11 @@ absl::StatusOr<Operation*> translateOp(::xls::BitwiseReductionOp& node,
 
   switch (node.op()) {
     case ::xls::Op::kAndReduce:
-      return builder.create<xls::AndReductionOp>(*loc, result_type, *operand);
+      return xls::AndReductionOp::create(builder, *loc, result_type, *operand);
     case ::xls::Op::kOrReduce:
-      return builder.create<xls::OrReductionOp>(*loc, result_type, *operand);
+      return xls::OrReductionOp::create(builder, *loc, result_type, *operand);
     case ::xls::Op::kXorReduce:
-      return builder.create<xls::XorReductionOp>(*loc, result_type, *operand);
+      return xls::XorReductionOp::create(builder, *loc, result_type, *operand);
     default:
       return absl::InternalError(
           absl::StrCat("Expected BitwiseReductionOp operation, not ",
@@ -901,7 +910,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Encode& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<xls::EncodeOp>(*loc, result_type, *arg);
+  return xls::EncodeOp::create(builder, *loc, result_type, *arg);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Decode& node, OpBuilder& builder,
@@ -920,7 +929,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Decode& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<xls::DecodeOp>(*loc, result_type, *arg, width);
+  return xls::DecodeOp::create(builder, *loc, result_type, *arg, width);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::OneHot& node, OpBuilder& builder,
@@ -939,7 +948,7 @@ absl::StatusOr<Operation*> translateOp(::xls::OneHot& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<xls::OneHotOp>(*loc, result_type, *arg, lsb_prio);
+  return xls::OneHotOp::create(builder, *loc, result_type, *arg, lsb_prio);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::OneHotSelect& node,
@@ -967,7 +976,7 @@ absl::StatusOr<Operation*> translateOp(::xls::OneHotSelect& node,
     return loc.status();
   }
 
-  return builder.create<xls::OneHotSelOp>(*loc, result_type, *selector, cases);
+  return xls::OneHotSelOp::create(builder, *loc, result_type, *selector, cases);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Invoke& node, OpBuilder& builder,
@@ -993,7 +1002,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Invoke& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<func::CallOp>(*loc, *fn, result_type, operands);
+  return func::CallOp::create(builder, *loc, *fn, result_type, operands);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Map& node, OpBuilder& builder,
@@ -1015,7 +1024,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Map& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<xls::MapOp>(*loc, result_type, *array, *fn);
+  return xls::MapOp::create(builder, *loc, result_type, *array, *fn);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Select& node, OpBuilder& builder,
@@ -1053,8 +1062,8 @@ absl::StatusOr<Operation*> translateOp(::xls::Select& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<xls::SelOp>(*loc, result_type, *selector, default_value,
-                                    cases);
+  return xls::SelOp::create(builder, *loc, result_type, *selector,
+                            default_value, cases);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::PrioritySelect& node,
@@ -1087,8 +1096,8 @@ absl::StatusOr<Operation*> translateOp(::xls::PrioritySelect& node,
     return loc.status();
   }
 
-  return builder.create<xls::PrioritySelOp>(*loc, result_type, *selector, cases,
-                                            *default_value);
+  return xls::PrioritySelOp::create(builder, *loc, result_type, *selector,
+                                    cases, *default_value);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::AfterAll& node,
@@ -1109,7 +1118,7 @@ absl::StatusOr<Operation*> translateOp(::xls::AfterAll& node,
     return loc.status();
   }
 
-  return builder.create<xls::AfterAllOp>(*loc, operands);
+  return xls::AfterAllOp::create(builder, *loc, operands);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::ChannelNode& node,
@@ -1150,15 +1159,16 @@ absl::StatusOr<Operation*> translateOp(::xls::ChannelNode& node,
     SmallVector<Value> result_elems;
 
     if (recv->is_blocking()) {
-      auto receive_op = builder.create<xls::BlockingReceiveOp>(
-          *loc, token_type, data_type, *inp_token, predicate, *chn);
+      auto receive_op = xls::BlockingReceiveOp::create(
+          builder, *loc, token_type, data_type, *inp_token, predicate, *chn);
 
       result_elems.push_back(receive_op.getTknOut());
       result_elems.push_back(receive_op.getResult());
 
     } else {
-      auto receive_op = builder.create<xls::NonblockingReceiveOp>(
-          *loc, token_type, data_type, valid_type, *inp_token, predicate, *chn);
+      auto receive_op = xls::NonblockingReceiveOp::create(
+          builder, *loc, token_type, data_type, valid_type, *inp_token,
+          predicate, *chn);
 
       result_elems.push_back(receive_op.getTknOut());
       result_elems.push_back(receive_op.getResult());
@@ -1169,7 +1179,7 @@ absl::StatusOr<Operation*> translateOp(::xls::ChannelNode& node,
     // values. We add a TupleOp that fuses the elements together, because
     // the operation using the result expects a tuple.
     ValueRange operands(result_elems);
-    return builder.create<xls::TupleOp>(*loc, operands);
+    return xls::TupleOp::create(builder, *loc, operands);
 
   } else {
     auto send = node.As<::xls::Send>();
@@ -1179,8 +1189,8 @@ absl::StatusOr<Operation*> translateOp(::xls::ChannelNode& node,
       return data.status();
     }
 
-    return builder.create<xls::SendOp>(*loc, token_type, *inp_token, *data,
-                                       predicate, *chn);
+    return xls::SendOp::create(builder, *loc, token_type, *inp_token, *data,
+                               predicate, *chn);
   }
 }
 
@@ -1201,7 +1211,7 @@ absl::StatusOr<Operation*> translateOp(::xls::Gate& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<xls::GateOp>(*loc, *condition, *data);
+  return xls::GateOp::create(builder, *loc, *condition, *data);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::CountedFor& node,
@@ -1237,8 +1247,8 @@ absl::StatusOr<Operation*> translateOp(::xls::CountedFor& node,
     return loc.status();
   }
 
-  return builder.create<xls::CountedForOp>(
-      *loc, result_type, *initial_value, invar_args, trip_count, *body, stride);
+  return xls::CountedForOp::create(builder, *loc, result_type, *initial_value,
+                                   invar_args, trip_count, *body, stride);
 }
 
 absl::StatusOr<Operation*> translateOp(::xls::Trace& node, OpBuilder& builder,
@@ -1269,8 +1279,8 @@ absl::StatusOr<Operation*> translateOp(::xls::Trace& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<xls::TraceOp>(
-      *loc, result_type, *token, *predicate, args,
+  return xls::TraceOp::create(
+      builder, *loc, result_type, *token, *predicate, args,
       builder.getStringAttr(::xls::StepsToXlsFormatString(node.format())),
       builder.getI64IntegerAttr(node.verbosity()));
 }
@@ -1293,11 +1303,11 @@ absl::StatusOr<Operation*> translateOp(::xls::Assert& node, OpBuilder& builder,
     return loc.status();
   }
 
-  return builder.create<xls::AssertOp>(
-      *loc, result_type, *token, *condition,
-      builder.getStringAttr(node.message()),
-      node.label().has_value() ? builder.getStringAttr(*node.label())
-                               : nullptr);
+  return xls::AssertOp::create(builder, *loc, result_type, *token, *condition,
+                               builder.getStringAttr(node.message()),
+                               node.label().has_value()
+                                   ? builder.getStringAttr(*node.label())
+                                   : nullptr);
 }
 
 absl::StatusOr<Operation*> translateAnyOp(::xls::Node& xls_node,
@@ -1492,8 +1502,8 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
 
   // Function body terminator (return):
   builder.setInsertionPointToEnd(body);
-  builder.create<func::ReturnOp>(builder.getUnknownLoc(),
-                                 ValueRange(return_value));
+  func::ReturnOp::create(builder, builder.getUnknownLoc(),
+                         ValueRange(return_value));
 
   return func;
 }
@@ -1511,9 +1521,9 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
 
   // Create Eproc:
   EprocOp eproc =
-      builder.create<EprocOp>(builder.getUnknownLoc(),
-                              /*name=*/builder.getStringAttr(xls_proc.name()),
-                              /*discardable=*/false);
+      EprocOp::create(builder, builder.getUnknownLoc(),
+                      /*name=*/builder.getStringAttr(xls_proc.name()),
+                      /*discardable=*/false);
 
   auto* body = &eproc.getRegion().emplaceBlock();
 
@@ -1619,9 +1629,9 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
       auto elem_type = translateType(state_elem->type(), builder);
 
       builder.setInsertionPointToEnd(body);
-      auto next = builder.create<NextValueOp>(
-          builder.getUnknownLoc(), elem_type, ValueRange(predicates_vec),
-          ValueRange(values_vec));
+      auto next = NextValueOp::create(builder, builder.getUnknownLoc(),
+                                      elem_type, ValueRange(predicates_vec),
+                                      ValueRange(values_vec));
 
       state_elem_next_value[state_elem->name()] = next;
     }
@@ -1633,8 +1643,8 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
     next_value_elems.push_back(state_elem_next_value[state_elem->name()]);
   }
   builder.setInsertionPointToEnd(body);
-  builder.create<YieldOp>(builder.getUnknownLoc(),
-                          ValueRange(next_value_elems));
+  YieldOp::create(builder, builder.getUnknownLoc(),
+                  ValueRange(next_value_elems));
 
   return eproc;
 }
@@ -1659,8 +1669,8 @@ FlopKind convertFlopKind(::xls::FlopKind kind) {
 absl::Status translateChannel(::xls::Channel& xls_chn, OpBuilder& builder,
                               TranslationState& state) {
   MLIRContext* ctx = builder.getContext();
-  auto chn = builder.create<xls::ChanOp>(
-      builder.getUnknownLoc(),
+  auto chn = xls::ChanOp::create(
+      builder, builder.getUnknownLoc(),
       /*name=*/builder.getStringAttr(xls_chn.name()),
       /*type=*/TypeAttr::get(translateType(xls_chn.type(), builder)),
       /*fifo_config=*/nullptr,

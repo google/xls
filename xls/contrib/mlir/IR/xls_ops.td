@@ -437,7 +437,7 @@ class Xls_ArithBinaryOp<string name, string desc, list<Trait> traits = []>
   );
   let builders = [
     OpBuilder<(ins "::mlir::Value":$lhs, "int":$rhs), [{
-      ::mlir::Value rhs_val = $_builder.create<ConstantScalarOp>(lhs.getLoc(), lhs.getType(), $_builder.getI32IntegerAttr(rhs));
+      ::mlir::Value rhs_val = ConstantScalarOp::create($_builder, lhs.getLoc(), lhs.getType(), $_builder.getI32IntegerAttr(rhs));
       build($_builder, $_state, lhs.getType(), lhs, rhs_val);
     }]>
   ];
@@ -531,7 +531,7 @@ class Xls_ComparisonOp<string name, Type operand_type>
       build($_builder, $_state, getI1TypeOf(lhs.getType()), lhs, rhs);
     }]>,
     OpBuilder<(ins "::mlir::Value":$lhs, "int":$rhs), [{
-      ::mlir::Value rhs_val = $_builder.create<ConstantScalarOp>(lhs.getLoc(), lhs.getType(), $_builder.getI32IntegerAttr(rhs));
+      ::mlir::Value rhs_val = ConstantScalarOp::create($_builder, lhs.getLoc(), lhs.getType(), $_builder.getI32IntegerAttr(rhs));
       build($_builder, $_state, getI1TypeOf(lhs.getType()), lhs, rhs_val);
     }]>,
   ];
@@ -2122,7 +2122,7 @@ def Xls_SBlockingReceiveOp : Xls_Op<"sblocking_receive", []> {
       build($_builder, $_state, token.getType(), element_type, token, channel, nullptr);
     }]>,
     OpBuilder<(ins "::mlir::Value":$channel), [{
-      ::mlir::Value token = $_builder.create<AfterAllOp>($_builder.getUnknownLoc());
+      ::mlir::Value token = AfterAllOp::create($_builder, $_builder.getUnknownLoc());
       Type element_type = cast<SchanType>(channel.getType()).getElementType();
       build($_builder, $_state, token.getType(), element_type, token, channel, nullptr);
     }]>
@@ -2160,7 +2160,7 @@ def Xls_SNonblockingReceiveOp : Xls_Op<"snonblocking_receive", []> {
       build($_builder, $_state, token.getType(), element_type, $_builder.getI1Type(),  token, channel, nullptr);
     }]>,
     OpBuilder<(ins "::mlir::Value":$channel), [{
-      ::mlir::Value token = $_builder.create<AfterAllOp>($_builder.getUnknownLoc());
+      ::mlir::Value token = AfterAllOp::create($_builder, $_builder.getUnknownLoc());
       Type element_type = cast<SchanType>(channel.getType()).getElementType();
       build($_builder, $_state, token.getType(), element_type, $_builder.getI1Type(), token, channel, nullptr);
     }]>
@@ -2194,7 +2194,7 @@ def Xls_SSendOp : Xls_Op<"ssend", []> {
       build($_builder, $_state, token.getType(), token, value, channel, nullptr);
     }]>,
     OpBuilder<(ins "::mlir::Value":$value, "::mlir::Value":$channel), [{
-      ::mlir::Value token = $_builder.create<AfterAllOp>($_builder.getUnknownLoc());
+      ::mlir::Value token = AfterAllOp::create($_builder, $_builder.getUnknownLoc());
       build($_builder, $_state, token.getType(), token, value, channel, nullptr);
     }]>
   ];
@@ -2254,7 +2254,7 @@ def Xls_TraceOp : Xls_Op<"trace", [TensorArrayTypeFungible,
     OpBuilder<(ins "::llvm::StringRef":$format,
                     CArg<"::mlir::ValueRange", "{}">:$args,
                     CArg<"int", "0">:$verbosity), [{
-      ::mlir::Value token = $_builder.create<AfterAllOp>($_builder.getUnknownLoc());
+      ::mlir::Value token = AfterAllOp::create($_builder, $_builder.getUnknownLoc());
       build($_builder, $_state, token, nullptr, args, $_builder.getStringAttr(format), $_builder.getI64IntegerAttr(verbosity));
     }]>
   ];

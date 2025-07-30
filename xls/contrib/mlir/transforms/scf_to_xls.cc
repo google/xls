@@ -77,9 +77,9 @@ LogicalResult rewriteFor(mlir::scf::ForOp op, mlir::PatternRewriter& rewriter) {
                isa<Attribute>(results[0]);
       });
 
-  auto xls_for = rewriter.create<ForOp>(
-      op->getLoc(), op.getResultTypes(), op.getInitArgs(), invariant_args,
-      rewriter.getI64IntegerAttr(trip_count.getLimitedValue()));
+  auto xls_for = ForOp::create(
+      rewriter, op->getLoc(), op.getResultTypes(), op.getInitArgs(),
+      invariant_args, rewriter.getI64IntegerAttr(trip_count.getLimitedValue()));
   rewriter.inlineRegionBefore(op.getBodyRegion(), xls_for.getBody(),
                               xls_for.getBody().end());
   Operation* terminator = xls_for.getBody().front().getTerminator();
@@ -114,9 +114,9 @@ class ScfIfOpRewrite : public OpConversionPattern<IfOp> {
            llvm::zip(thenYield->getOperands(), elseYield->getOperands())) {
         // SelOp treats condition as a 1-bit index, so zero will return the
         // first variadic operand and one till return the otherwise.
-        yields.push_back(rewriter.create<SelOp>(op.getLoc(), op.getCondition(),
-                                                /*otherwise=*/thenOp,
-                                                ValueRange{elseOp}));
+        yields.push_back(SelOp::create(rewriter, op.getLoc(), op.getCondition(),
+                                       /*otherwise=*/thenOp,
+                                       ValueRange{elseOp}));
       }
       rewriter.replaceOp(op, yields);
     }
@@ -155,18 +155,18 @@ class ScfIndexSwitchOpRewrite : public OpConversionPattern<IndexSwitchOp> {
     // function_builder.cc:MatchTrue.
     SmallVector<Value> selectors;
     for (int64_t caseValue : op.getCases()) {
-      selectors.push_back(rewriter.create<EqOp>(
-          op.getLoc(), op.getOperand(),
-          rewriter.create<ConstantScalarOp>(op.getLoc(),
-                                            rewriter.getIndexType(),
-                                            rewriter.getIndexAttr(caseValue))));
+      selectors.push_back(EqOp::create(
+          rewriter, op.getLoc(), op.getOperand(),
+          ConstantScalarOp::create(rewriter, op.getLoc(),
+                                   rewriter.getIndexType(),
+                                   rewriter.getIndexAttr(caseValue))));
     }
     // Reverse the order of the bits because bit index and indexing of concat
     // elements are reversed.
     std::reverse(selectors.begin(), selectors.end());
-    Value concat = rewriter.create<ConcatOp>(
-        op.getLoc(), rewriter.getIntegerType(selectors.size()),
-        ValueRange(selectors));
+    Value concat = ConcatOp::create(rewriter, op.getLoc(),
+                                    rewriter.getIntegerType(selectors.size()),
+                                    ValueRange(selectors));
 
     int numOperands = yieldOps.empty() ? 0 : yieldOps[0]->getNumOperands();
     SmallVector<Value> results;
@@ -175,9 +175,9 @@ class ScfIndexSwitchOpRewrite : public OpConversionPattern<IndexSwitchOp> {
       for (Operation* yieldOp : yieldOps) {
         operands.push_back(yieldOp->getOperand(i));
       }
-      results.push_back(rewriter.create<PrioritySelOp>(
-          op.getLoc(), operands[0].getType(), concat, operands,
-          defaultYield->getOperand(i)));
+      results.push_back(
+          PrioritySelOp::create(rewriter, op.getLoc(), operands[0].getType(),
+                                concat, operands, defaultYield->getOperand(i)));
     }
     for (Operation* yieldOp : yieldOps) {
       rewriter.eraseOp(yieldOp);
@@ -216,14 +216,15 @@ class PredicateRewriter {
     } else {
       OpBuilder b(at);
       conditionStack.push_back(
-          b.create<AndOp>(at->getLoc(), conditionStack.back().getType(),
-                          ValueRange{conditionStack.back(), condition}));
+          AndOp::create(b, at->getLoc(), conditionStack.back().getType(),
+                        ValueRange{conditionStack.back(), condition}));
     }
     return conditionStack.back();
   }
 
   Value negateCondition(Operation* op, Value condition) {
-    return OpBuilder(op).create<NotOp>(op->getLoc(), condition);
+    OpBuilder builder(op);
+    return NotOp::create(builder, op->getLoc(), condition);
   }
 
   void popCondition() { conditionStack.pop_back(); }
@@ -241,16 +242,17 @@ class PredicateRewriter {
         // Default region.
         SmallVector<Value> cases;
         for (int64_t caseValue : indexSwitchOp.getCases()) {
-          cases.push_back(builder.create<EqOp>(
-              builder.getI1Type(), indexSwitchOp.getOperand(),
-              indexTypedScalar(builder, caseValue)));
+          cases.push_back(EqOp::create(builder, builder.getI1Type(),
+                                       indexSwitchOp.getOperand(),
+                                       indexTypedScalar(builder, caseValue)));
         }
-        addCondition(builder.create<NotOp>(builder.create<OrOp>(
-                         builder.getI1Type(), ValueRange(cases))),
-                     op);
+        addCondition(
+            NotOp::create(builder, OrOp::create(builder, builder.getI1Type(),
+                                                ValueRange(cases))),
+            op);
       } else {
-        Value condition = builder.create<EqOp>(
-            builder.getI1Type(), indexSwitchOp.getOperand(),
+        Value condition = EqOp::create(
+            builder, builder.getI1Type(), indexSwitchOp.getOperand(),
             indexTypedScalar(builder,
                              indexSwitchOp.getCases()[regionIndex - 1]));
         addCondition(condition, op);
@@ -277,8 +279,8 @@ class PredicateRewriter {
   }
 
   Value indexTypedScalar(mlir::ImplicitLocOpBuilder builder, int64_t value) {
-    return builder.create<ConstantScalarOp>(builder.getIndexType(),
-                                            builder.getIndexAttr(value));
+    return ConstantScalarOp::create(builder, builder.getIndexType(),
+                                    builder.getIndexAttr(value));
   }
 
   SmallVector<Value> conditionStack;

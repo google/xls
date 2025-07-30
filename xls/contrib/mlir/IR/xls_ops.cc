@@ -901,7 +901,7 @@ Region& EprocOp::getBodyRegion() { return getBody(); }
 ::llvm::StringRef EprocOp::getName() { return getSymName(); }
 Operation* EprocOp::buildTerminator(Location loc, OpBuilder& builder,
                                     ValueRange operands) {
-  return builder.create<YieldOp>(loc, operands);
+  return YieldOp::create(builder, loc, operands);
 }
 
 // Signature conversion for an EprocOp. Exposed as part of the
@@ -957,7 +957,7 @@ Region& SprocOp::getBodyRegion() {
 ::llvm::StringRef SprocOp::getName() { return getSymName(); }
 Operation* SprocOp::buildTerminator(Location loc, OpBuilder& builder,
                                     ValueRange operands) {
-  return builder.create<YieldOp>(loc, operands);
+  return YieldOp::create(builder, loc, operands);
 }
 
 void SprocOp::addSignatureConversionPatterns(RewritePatternSet& patterns,
@@ -988,7 +988,7 @@ struct FuncIsXlsRegionOpAdaptor
 
   static Operation* buildTerminator(Location loc, OpBuilder& builder,
                                     ValueRange operands) {
-    return builder.create<::mlir::func::ReturnOp>(loc, operands);
+    return ::mlir::func::ReturnOp::create(builder, loc, operands);
   }
 
   static void addSignatureConversionPatterns(RewritePatternSet& patterns,
@@ -1051,7 +1051,7 @@ XlsDialect::XlsDialect(mlir::MLIRContext* ctx)
 
 Operation* XlsDialect::materializeConstant(OpBuilder& builder, Attribute value,
                                            Type type, Location loc) {
-  return builder.create<ConstantScalarOp>(loc, type, value);
+  return ConstantScalarOp::create(builder, loc, type, value);
 }
 
 LogicalResult ArrayOp::verify() {

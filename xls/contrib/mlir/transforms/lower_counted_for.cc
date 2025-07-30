@@ -92,7 +92,7 @@ FailureOr<func::FuncOp> outlineSingleBlockRegion(RewriterBase &rewriter,
       FunctionType::get(rewriter.getContext(), outlinedFuncArgTypes,
                         originalTerminator->getOperandTypes());
   auto outlinedFunc =
-      rewriter.create<func::FuncOp>(loc, funcName, outlinedFuncType);
+      func::FuncOp::create(rewriter, loc, funcName, outlinedFuncType);
   Block *outlinedFuncBody = outlinedFunc.addEntryBlock();
 
   // Merge blocks while replacing the original block operands.
@@ -107,8 +107,8 @@ FailureOr<func::FuncOp> outlineSingleBlockRegion(RewriterBase &rewriter,
         outlinedFuncBlockArgs.take_front(numOriginalBlockArguments));
     // Explicitly set up a new ReturnOp terminator.
     rewriter.setInsertionPointToEnd(outlinedFuncBody);
-    rewriter.create<func::ReturnOp>(loc, originalTerminator->getResultTypes(),
-                                    originalTerminator->getOperands());
+    func::ReturnOp::create(rewriter, loc, originalTerminator->getResultTypes(),
+                           originalTerminator->getOperands());
   }
 
   // Reconstruct the block that was deleted and add a
@@ -124,7 +124,7 @@ FailureOr<func::FuncOp> outlineSingleBlockRegion(RewriterBase &rewriter,
     SmallVector<Value> callValues;
     llvm::append_range(callValues, newBlock->getArguments());
     llvm::append_range(callValues, outlinedValues);
-    auto call = rewriter.create<func::CallOp>(loc, outlinedFunc, callValues);
+    auto call = func::CallOp::create(rewriter, loc, outlinedFunc, callValues);
     if (callOp) {
       *callOp = call;
     }
@@ -177,17 +177,17 @@ class TuplifyRewrite : public OpConversionPattern<ForOp> {
       return failure();
     }
     // Tuple up the inits.
-    auto tupleOp = rewriter.create<TupleOp>(op.getLoc(), op.getInits());
+    auto tupleOp = TupleOp::create(rewriter, op.getLoc(), op.getInits());
 
-    auto forOp = rewriter.create<ForOp>(
-        op->getLoc(), tupleOp.getType(), tupleOp->getResults(),
-        op.getInvariants(), op.getTripCountAttr());
+    auto forOp = ForOp::create(rewriter, op->getLoc(), tupleOp.getType(),
+                               tupleOp->getResults(), op.getInvariants(),
+                               op.getTripCountAttr());
     forOp->setAttr(kPreferredNameAttr, op->getAttr(kPreferredNameAttr));
 
     SmallVector<Value> results;
     for (auto [i, result] : llvm::enumerate(op->getResults())) {
-      results.push_back(rewriter.create<TupleIndexOp>(
-          op->getLoc(), result.getType(), forOp.getResult(0), i));
+      results.push_back(TupleIndexOp::create(
+          rewriter, op->getLoc(), result.getType(), forOp.getResult(0), i));
     }
 
     // Modify the body to use the tuple.
@@ -202,8 +202,8 @@ class TuplifyRewrite : public OpConversionPattern<ForOp> {
     BlockArgument newCarry = block->addArgument(tupleOp.getType(), op.getLoc());
     for (auto [i, oldArg] :
          llvm::enumerate(oldArguments.slice(1, op.getInits().size()))) {
-      auto tupleIndexOp = rewriter.create<TupleIndexOp>(
-          op->getLoc(), oldArg.getType(), newCarry, i);
+      auto tupleIndexOp = TupleIndexOp::create(rewriter, op->getLoc(),
+                                               oldArg.getType(), newCarry, i);
       mapping.map(oldArg, tupleIndexOp);
     }
     for (auto &invariant : oldArguments.take_back(op.getInvariants().size())) {
@@ -219,8 +219,8 @@ class TuplifyRewrite : public OpConversionPattern<ForOp> {
     rewriter.mergeBlocks(&forOp.getBody().back(), &forOp.getBody().front());
 
     rewriter.setInsertionPoint(block->getTerminator());
-    auto tupleOpForYield = rewriter.create<TupleOp>(
-        op->getLoc(), block->getTerminator()->getOperands());
+    auto tupleOpForYield = TupleOp::create(
+        rewriter, op->getLoc(), block->getTerminator()->getOperands());
     block->getTerminator()->setOperands(tupleOpForYield->getResults());
 
     rewriter.replaceOp(op, results);

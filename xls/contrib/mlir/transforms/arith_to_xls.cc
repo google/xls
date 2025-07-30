@@ -61,9 +61,9 @@ FuncOp maybeDeclareDslxFn(SymbolTable& symtab, OpBuilder builder,
     return fn;
   }
 
-  FuncOp fn = builder.create<FuncOp>(importOp->getLoc(), symbolName,
-                                     builder.getFunctionType(operands, results),
-                                     std::nullopt);
+  FuncOp fn =
+      FuncOp::create(builder, importOp->getLoc(), symbolName,
+                     builder.getFunctionType(operands, results), std::nullopt);
   fn.setVisibility(SymbolTable::Visibility::Private);
   fn->setAttr("xls.linkage",
               xls::TranslationLinkage::get(
@@ -80,8 +80,8 @@ xls::ImportDslxFilePackageOp maybeImportDslxFilePackage(
   if (auto importOp = symtab.lookup<xls::ImportDslxFilePackageOp>(symbolName)) {
     return importOp;
   }
-  return builder.create<xls::ImportDslxFilePackageOp>(
-      builder.getUnknownLoc(), builder.getStringAttr(packageName),
+  return xls::ImportDslxFilePackageOp::create(
+      builder, builder.getUnknownLoc(), builder.getStringAttr(packageName),
       builder.getStringAttr(symbolName));
 }
 

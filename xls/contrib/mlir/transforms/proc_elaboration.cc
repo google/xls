@@ -131,9 +131,9 @@ class ElaborationContext
     }
 
     StringRef originalName = originalSymbolName(sproc);
-    EprocOp eproc = builder.create<EprocOp>(sproc.getLoc(), originalName,
-                                            /*discardable=*/true,
-                                            sproc.getMinPipelineStages());
+    EprocOp eproc =
+        EprocOp::create(builder, sproc.getLoc(), originalName,
+                        /*discardable=*/true, sproc.getMinPipelineStages());
     symbolTable.insert(eproc);
     IRMapping mapping;
     sproc.getNext().cloneInto(&eproc.getBody(), mapping);
@@ -142,8 +142,8 @@ class ElaborationContext
     for (auto [i, arg] : llvm::enumerate(sproc.getNextChannels())) {
       // TODO(jpienaar): Remove unnecessary default args once they are generated
       // automatically.
-      auto chan = builder.create<ChanOp>(
-          sproc.getLoc(),
+      auto chan = ChanOp::create(
+          builder, sproc.getLoc(),
           absl::StrFormat("%s_arg%d", eproc.getSymName().str(), i),
           cast<SchanType>(arg.getType()).getElementType(),
           /*fifo_config=*/nullptr,
@@ -173,9 +173,9 @@ class ElaborationContext
         llvm::map_to_vector(globalChannels, flatchan);
     SmallVector<Attribute> localSymbols =
         llvm::map_to_vector(localChannels, flatchan);
-    builder.create<InstantiateEprocOp>(
-        eproc.getLoc(), eproc.getSymName(), builder.getArrayAttr(globalSymbols),
-        builder.getArrayAttr(localSymbols), nameHint);
+    InstantiateEprocOp::create(builder, eproc.getLoc(), eproc.getSymName(),
+                               builder.getArrayAttr(globalSymbols),
+                               builder.getArrayAttr(localSymbols), nameHint);
   }
 
   void instantiateExternEproc(ExternSprocOp externSproc,
@@ -187,9 +187,10 @@ class ElaborationContext
     SmallVector<Attribute> globalSymbols =
         llvm::map_to_vector(globalChannels, flatchan);
     StringAttr symName = externSproc.getSymNameAttr();
-    builder.create<InstantiateExternEprocOp>(
-        externSproc.getLoc(), symName, builder.getArrayAttr(globalSymbols),
-        externSproc.getBoundaryChannelNames(), nameHint);
+    InstantiateExternEprocOp::create(builder, externSproc.getLoc(), symName,
+                                     builder.getArrayAttr(globalSymbols),
+                                     externSproc.getBoundaryChannelNames(),
+                                     nameHint);
   }
 
   SymbolTable& getSymbolTable() { return symbolTable; }
@@ -231,9 +232,10 @@ class ElaborationInterpreter
   absl::Status Interpret(SchanOp op, ElaborationContext& ctx) {
     std::string name = op.getName().str();
     auto uniqueName = ctx.Uniquify(op.getNameAttr());
-    ChanOp chan = ctx.getBuilder().create<ChanOp>(
-        op.getLoc(), uniqueName, op.getType(), op.getFifoConfigAttr(),
-        op.getInputFlopKindAttr(), op.getOutputFlopKindAttr());
+    ChanOp chan =
+        ChanOp::create(ctx.getBuilder(), op.getLoc(), uniqueName, op.getType(),
+                       op.getFifoConfigAttr(), op.getInputFlopKindAttr(),
+                       op.getOutputFlopKindAttr());
 
     ctx.getSymbolTable().insert(chan);
     ctx.Set(op.getResult(0), chan);
@@ -328,11 +330,11 @@ void ProcElaborationPass::runOnOperation() {
         auto nameAttr = cast<StringAttr>(name);
         // TODO(jpienaar): Remove unnecessary default args once they are
         // generated automatically.
-        auto echan = builder.create<ChanOp>(sproc.getLoc(), nameAttr.str(),
-                                            schan.getElementType(),
-                                            /*fifo_config=*/nullptr,
-                                            /*input_flop_kind=*/nullptr,
-                                            /*output_flop_kind=*/nullptr);
+        auto echan = ChanOp::create(builder, sproc.getLoc(), nameAttr.str(),
+                                    schan.getElementType(),
+                                    /*fifo_config=*/nullptr,
+                                    /*input_flop_kind=*/nullptr,
+                                    /*output_flop_kind=*/nullptr);
         // We insert the channel in the symbol table, since there might be
         // a clash with an *eproc* name later, so we need to know. Alternatively
         // we could have done something similar in the constructor of the
