@@ -14,6 +14,7 @@
 
 #include "xls/fuzzer/verilog_fuzzer/verilog_fuzz_domain.h"
 
+#include <cstdint>
 #include <string>
 
 #include "xls/common/fuzzing/fuzztest.h"
@@ -74,6 +75,35 @@ fuzztest::Domain<std::string> VerilogFuzzDomain(
             return verilog.ok();
           },
           StatusOrVerilogFuzzDomain(scheduling_options, codegen_options)));
+}
+
+fuzztest::Domain<CodegenFlagsProto> CodegenFlagsDomain() {
+  return fuzztest::Arbitrary<CodegenFlagsProto>()
+      .WithInt64Field("codegen_version",
+                      fuzztest::ElementOf<int64_t>({0, 1, 2}))
+      .WithEnumFieldAlwaysSet(
+          "generator", fuzztest::ElementOf<int>(
+                           {GeneratorKind::GENERATOR_KIND_PIPELINE,
+                            GeneratorKind::GENERATOR_KIND_COMBINATIONAL}))
+      // We don't set this field because we set "top" via the IR domain.
+      .WithFieldUnset("top");
+}
+
+fuzztest::Domain<SchedulingOptionsFlagsProto>
+NoFdoSchedulingOptionsFlagsDomain() {
+  return fuzztest::Arbitrary<SchedulingOptionsFlagsProto>()
+      .WithFieldUnset("use_fdo")
+      .WithFieldUnset("fdo_iteration_number")
+      .WithFieldUnset("fdo_delay_driven_path_number")
+      .WithFieldUnset("fdo_fanout_driven_path_number")
+      .WithFieldUnset("fdo_refinement_stochastic_ratio")
+      .WithFieldUnset("fdo_path_evaluate_strategy")
+      .WithFieldUnset("fdo_synthesizer_name")
+      .WithFieldUnset("fdo_yosys_path")
+      .WithFieldUnset("fdo_sta_path")
+      .WithFieldUnset("fdo_synthesis_libraries")
+      .WithFieldUnset("fdo_default_driver_cell")
+      .WithFieldUnset("fdo_default_load");
 }
 
 }  // namespace xls

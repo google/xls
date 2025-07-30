@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "xls/common/fuzzing/fuzztest.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/fuzzer/verilog_fuzzer/verilog_fuzz_domain.h"
@@ -26,6 +27,9 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
+using ::testing::AnyOf;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
 
@@ -57,6 +61,37 @@ void CodegenSucceedsForEveryFunctionWithNoPipelineLimit(
 FUZZ_TEST(CodegenFuzzTest, CodegenSucceedsForEveryFunctionWithNoPipelineLimit)
     .WithDomains(StatusOrVerilogFuzzDomain(DefaultSchedulingOptions(),
                                            DefaultCodegenOptions()));
+
+void CodegenSucceedsOrThrowsReasonableError(
+    absl::StatusOr<std::string> verilog) {
+  // We check for success or expected errors here. The expected errors are:
+  // - absl::NotFoundError("No delay estimator found named")- an
+  //   incorrectly-named delay estimator in the scheduling options.
+  // - absl::InternalError("Schedule does not meet timing")- the schedule does
+  //   not meet the timing constraints.
+  // - absl::ResourceExhaustedError("schedule")- one of a number of errors
+  //   indicating that we couldn't produce a schedule.
+  // - absl::InvalidArgumentError()- any of a number of invalid arguments
+  //   (e.g. invalid IO constraints).
+  // - absl::UnimplementedError()- when XLS is complete we'll remove this one :)
+  // We don't expect:
+  // - CHECK-fails, OOMs, etc.
+  // - Random absl::InternalError(), or other "unexpected" errors.
+  EXPECT_THAT(verilog,
+              AnyOf(IsOkAndHolds(Not(IsEmpty())),
+                    StatusIs(absl::StatusCode::kNotFound,
+                             HasSubstr("No delay estimator found named")),
+                    StatusIs(absl::StatusCode::kInternal,
+                             HasSubstr("Schedule does not meet timing")),
+                    StatusIs(absl::StatusCode::kResourceExhausted,
+                             HasSubstr("schedule")),
+                    StatusIs(AnyOf(absl::StatusCode::kInvalidArgument,
+                                   absl::StatusCode::kUnimplemented))));
+}
+FUZZ_TEST(CodegenFuzzTest, CodegenSucceedsOrThrowsReasonableError)
+    .WithDomains(fuzztest::FlatMap(StatusOrVerilogFuzzDomain,
+                                   NoFdoSchedulingOptionsFlagsDomain(),
+                                   CodegenFlagsDomain()));
 
 }  // namespace
 }  // namespace xls
