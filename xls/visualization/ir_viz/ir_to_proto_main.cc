@@ -41,14 +41,18 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/visualization/ir_viz/ir_to_proto.h"
 #include "xls/visualization/ir_viz/visualization.pb.h"
 
 ABSL_FLAG(std::string, delay_model, "", "Delay model to use.");
+ABSL_FLAG(std::optional<std::string>, schedule_path, std::nullopt,
+          "Schedule to use");
 ABSL_FLAG(std::optional<int64_t>, pipeline_stages, std::nullopt,
-          "Pipeline stages to use when scheduling the function");
+          "Pipeline stages to use when scheduling the function, if desired and "
+          "no schedule is provided.");
 ABSL_FLAG(std::optional<std::string>, entry_name, std::nullopt, "Entry name");
 ABSL_FLAG(bool, binary_format, false,
           "Whether to return the proto in binary serialized format (defaults "
@@ -79,6 +83,7 @@ absl::StatusOr<FunctionBase*> GetFunctionBaseToView(Package* package) {
 
 absl::Status RealMain(const std::filesystem::path& ir_path,
                       std::string_view delay_model_name,
+                      std::optional<std::filesystem::path> schedule_path,
                       std::optional<int64_t> pipeline_stages,
                       std::optional<std::string_view> entry_name,
                       bool token_dag) {
@@ -96,23 +101,25 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
   XLS_ASSIGN_OR_RETURN(AreaEstimator * area_estimator,
                        GetAreaEstimator(delay_model_name));
 
-  xls::viz::Package proto;
-  if (pipeline_stages.has_value()) {
-    // TODO(meheff): Support scheduled procs.
-    XLS_RET_CHECK(func_base->IsFunction());
+  std::optional<PipelineSchedule> schedule = std::nullopt;
+  if (schedule_path.has_value()) {
     XLS_ASSIGN_OR_RETURN(
-        PipelineSchedule schedule,
-        RunPipelineSchedule(
-            func_base->AsFunctionOrDie(), *delay_estimator,
-            SchedulingOptions().pipeline_stages(pipeline_stages.value())));
+        PackageScheduleProto schedule_proto,
+        ParseTextProtoFile<PackageScheduleProto>(*schedule_path));
     XLS_ASSIGN_OR_RETURN(
-        proto, IrToProto(package.get(), *delay_estimator, *area_estimator,
-                         &schedule, func_base->name(), token_dag));
-  } else {
+        schedule, PipelineSchedule::FromProto(func_base, schedule_proto));
+  } else if (pipeline_stages.has_value()) {
     XLS_ASSIGN_OR_RETURN(
-        proto, IrToProto(package.get(), *delay_estimator, *area_estimator,
-                         /*schedule=*/nullptr, func_base->name(), token_dag));
+        schedule, RunPipelineSchedule(func_base, *delay_estimator,
+                                      SchedulingOptions().pipeline_stages(
+                                          pipeline_stages.value())));
   }
+
+  XLS_ASSIGN_OR_RETURN(
+      xls::viz::Package proto,
+      IrToProto(package.get(), *delay_estimator, *area_estimator,
+                (schedule.has_value() ? &*schedule : nullptr),
+                func_base->name(), token_dag));
   google::protobuf::io::OstreamOutputStream cout(&std::cout);
   if (absl::GetFlag(FLAGS_binary_format)) {
     proto.SerializeToZeroCopyStream(&cout);
@@ -137,8 +144,13 @@ int main(int argc, char** argv) {
     LOG(QFATAL) << "--delay_model is required";
   }
 
+  std::optional<std::filesystem::path> schedule_path;
+  if (absl::GetFlag(FLAGS_schedule_path).has_value()) {
+    schedule_path = *absl::GetFlag(FLAGS_schedule_path);
+  }
+
   return xls::ExitStatus(xls::RealMain(
-      positional_arguments[0], absl::GetFlag(FLAGS_delay_model),
+      positional_arguments[0], absl::GetFlag(FLAGS_delay_model), schedule_path,
       absl::GetFlag(FLAGS_pipeline_stages), absl::GetFlag(FLAGS_entry_name),
       absl::GetFlag(FLAGS_token_dag)));
 }

@@ -50,7 +50,10 @@ message NodeAttributes {
   optional bool blocking = 15;
   optional string to_apply = 16;
   optional string known_bits = 6;
+
   optional bool on_critical_path = 7;
+  optional int64 critical_path_delay_ps = 33;
+
   optional int64 trip_count = 17;
   optional int64 stride = 18;
   optional string body = 19;

@@ -100,7 +100,7 @@ std::optional<int64_t> MaybeGetStateReadIndex(Node* node) {
 // instruction) as a proto which is to be serialized to JSON.
 absl::StatusOr<viz::NodeAttributes> NodeAttributes(
     Node* node,
-    const absl::flat_hash_map<Node*, CriticalPathEntry*>& critical_path_map,
+    const absl::flat_hash_map<Node*, CriticalPathEntry>& critical_path_map,
     const QueryEngine& query_engine, const PipelineSchedule* schedule,
     const DelayEstimator& delay_estimator,
     const AreaEstimator& area_estimator) {
@@ -110,6 +110,7 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
   auto it = critical_path_map.find(node);
   if (it != critical_path_map.end()) {
     attributes.set_on_critical_path(true);
+    attributes.set_critical_path_delay_ps(it->second.path_delay_ps);
   }
   if (query_engine.IsTracked(node)) {
     attributes.set_known_bits(query_engine.ToString(node));
@@ -137,7 +138,7 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
     attributes.set_area_um(*area_um_status);
   }
 
-  if (schedule != nullptr) {
+  if (schedule != nullptr && schedule->IsScheduled(node)) {
     attributes.set_cycle(schedule->cycle(node));
   }
 
@@ -160,17 +161,40 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
     proto.set_kind("block");
   }
   proto.set_id(function_ids.at(function));
-  absl::StatusOr<std::vector<CriticalPathEntry>> critical_path =
-      AnalyzeCriticalPath(function, /*clock_period_ps=*/std::nullopt,
-                          delay_estimator);
-  absl::flat_hash_map<Node*, CriticalPathEntry*> node_to_critical_path_entry;
-  if (critical_path.ok()) {
-    for (CriticalPathEntry& entry : critical_path.value()) {
-      node_to_critical_path_entry[entry.node] = &entry;
+
+  absl::flat_hash_map<Node*, CriticalPathEntry> node_to_critical_path_entry;
+  if (schedule == nullptr) {
+    absl::StatusOr<std::vector<CriticalPathEntry>> critical_path =
+        AnalyzeCriticalPath(function, /*clock_period_ps=*/std::nullopt,
+                            delay_estimator);
+    if (critical_path.ok()) {
+      for (CriticalPathEntry& entry : critical_path.value()) {
+        node_to_critical_path_entry[entry.node] = entry;
+      }
+    } else {
+      LOG(WARNING) << "Could not analyze critical path for function: "
+                   << critical_path.status();
     }
   } else {
-    LOG(WARNING) << "Could not analyze critical path for function: "
-                 << critical_path.status();
+    // Analyze the critical path for each stage, rather than for the function as
+    // a whole.
+    for (int64_t stage = 0; stage < schedule->length(); ++stage) {
+      auto is_in_stage = [&](Node* node) {
+        return schedule->IsScheduled(node) && schedule->cycle(node) == stage;
+      };
+      absl::StatusOr<std::vector<CriticalPathEntry>> critical_path =
+          AnalyzeCriticalPath(
+              function, /*clock_period_ps=*/std::nullopt, delay_estimator,
+              /*source_filter=*/is_in_stage, /*sink_filter=*/is_in_stage);
+      if (critical_path.ok()) {
+        for (CriticalPathEntry& entry : critical_path.value()) {
+          node_to_critical_path_entry[entry.node] = entry;
+        }
+      } else {
+        LOG(WARNING) << "Could not analyze critical path for function: "
+                     << critical_path.status();
+      }
+    }
   }
 
   auto query_engine = UnionQueryEngine::Of(

@@ -205,6 +205,7 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
         "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/flags:flag",

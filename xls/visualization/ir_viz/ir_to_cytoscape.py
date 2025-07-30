@@ -50,10 +50,22 @@ _ENTRY_NAME = flags.DEFINE_string(
     help='top',
     required=False,
 )
+_SCHEDULE_PATH = flags.DEFINE_string(
+    'schedule_path',
+    default=None,
+    help='path to the schedule used (in textproto format)',
+    required=False,
+)
 _PIPELINE_STAGES = flags.DEFINE_integer(
     'pipeline_stages',
     default=None,
     help='pipeline stages to use',
+    required=False,
+)
+_TARGET_ENTITY = flags.DEFINE_string(
+    'target_entity',
+    default=None,
+    help='target entity to visualize',
     required=False,
 )
 
@@ -91,7 +103,7 @@ def node_attrs(node: visualization_pb2.Node) -> Mapping[str, Any]:
       'ir': node.ir,
       'opcode': node.opcode,
       'all_locs': '\n'.join(
-          f'{loc.file.strip()}:{loc.line}' for loc in node.loc
+          f'{loc.file.strip()}:{loc.line + 1}' for loc in node.loc
       ),
   }
   forced = {'area_um', 'value', 'known_bits', 'initial_value'}
@@ -106,6 +118,8 @@ def main(argv: Sequence[str]) -> None:
     raise app.UsageError('Too many command-line arguments.')
 
   pipeline_args = []
+  if _SCHEDULE_PATH.value is not None:
+    pipeline_args.append(f'--schedule_path={_SCHEDULE_PATH.value}')
   if _PIPELINE_STAGES.value is not None:
     pipeline_args.append(f'--pipeline_stages={_PIPELINE_STAGES.value}')
   entry_args = []
@@ -123,6 +137,8 @@ def main(argv: Sequence[str]) -> None:
       check=False,
       capture_output=True,
   )
+  if run_result.stderr:
+    print(f'stderr:\n{run_result.stderr.decode('utf-8')}', file=sys.stderr)
   if run_result.returncode != 0:
     print(f'stderr: {run_result.stderr}', file=sys.stderr)
     run_result.check_returncode()
@@ -130,6 +146,8 @@ def main(argv: Sequence[str]) -> None:
 
   graph = nx.MultiDiGraph()
   for fb in proto.function_bases:
+    if _TARGET_ENTITY.value is not None and fb.name != _TARGET_ENTITY.value:
+      continue
     for node in fb.nodes:
       graph.add_node(
           node.id, function=fb.name, function_kind=fb.kind, **node_attrs(node)
