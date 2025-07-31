@@ -222,3 +222,46 @@ cc_library(
         "//xls/ir:function_builder",
     ],
 )
+
+cc_library(
+    name = "query_engine_helpers",
+    testonly = 1,
+    srcs = ["query_engine_helpers.cc"],
+    hdrs = ["query_engine_helpers.h"],
+    deps = [
+        ":ir_fuzz_test_library",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/interpreter:observer",
+        "//xls/ir",
+        "//xls/ir:value",
+        "//xls/passes:query_engine",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "query_engine_helpers_test",
+    srcs = ["query_engine_helpers_test.cc"],
+    deps = [
+        ":ir_fuzz_test_library",
+        ":query_engine_helpers",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "//xls/passes:stateless_query_engine",
+        "//xls/passes:ternary_query_engine",
+        "@com_google_absl//absl/log:check",
+        "@googletest//:gtest",
+    ],
+)
