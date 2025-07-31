@@ -380,18 +380,16 @@ class Visitor : public AstNodeVisitorWithDefault {
     std::optional<const TypeAnnotation*> name_type_annotation =
         table_.GetTypeAnnotation(unroll_for->names());
     if (name_type_annotation.has_value()) {
-      if ((*name_type_annotation)->IsAnnotation<TupleTypeAnnotation>()) {
-        const auto* types =
-            (*name_type_annotation)->AsAnnotation<TupleTypeAnnotation>();
-        CHECK_EQ(types->size(), 2);
-        iterator_type = types->members()[0];
-        accumulator_type = types->members()[1];
-      } else {
-        return absl::InvalidArgumentError(
-            absl::StrCat("Invalid type annotation in unroll_for!: ",
-                         unroll_for->type_annotation()->ToString(),
-                         ", expect a tuple type with two members"));
-      }
+      // Note that common type checking for ForLoopBase should verify this
+      // before it gets here.
+      XLS_RET_CHECK(
+          (*name_type_annotation)->IsAnnotation<TupleTypeAnnotation>());
+
+      const auto* types =
+          (*name_type_annotation)->AsAnnotation<TupleTypeAnnotation>();
+      CHECK_EQ(types->size(), 2);
+      iterator_type = types->members()[0];
+      accumulator_type = types->members()[1];
     }
 
     // The only thing that needs to be evaluated to a constant here is the size

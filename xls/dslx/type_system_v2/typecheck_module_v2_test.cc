@@ -6201,6 +6201,18 @@ fn foo() {
           HasRepeatedNodeWithType("let C = B + i;", "uN[32]", 5))));
 }
 
+TEST(TypecheckV2Test, UnrollForTupleTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  unroll_for! (i) in u32:0..5 {} (u32:0);
+}
+)",
+      TypecheckFails(
+          HasSubstr("For-loop iterator and accumulator name tuple must contain "
+                    "2 top-level elements; got: `(i)`")));
+}
+
 TEST(TypecheckV2Test, UnrollForNested) {
   // Unrolled 0 + 1 + 2 + 3 + 4 = 10 times.
   EXPECT_THAT(
@@ -8059,12 +8071,13 @@ const Y = zero!<imported::E>();
 
 TEST(TypecheckV2Test, ImportEnumValue) {
   constexpr std::string_view kImported = R"(
-import std;
-
 pub const MY_CONST = u32:5;
+
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a / 2 }
+
 pub enum ImportEnum : u16 {
   SINGLE_MY_CONST = MY_CONST as u16,
-  DOUBLE_MY_CONST = std::clog2(MY_CONST) as u16 * u16:2,
+  DOUBLE_MY_CONST = foo(MY_CONST) as u16 * u16:2,
   TRIPLE_MY_CONST = (MY_CONST * u32:3) as u16,
 }
 )";

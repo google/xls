@@ -488,10 +488,12 @@ class StatefulResolver : public TypeAnnotationResolver {
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                          GetStructOrProcRef(object_type, import_data_));
     if (!struct_or_proc_ref.has_value()) {
-      return absl::InvalidArgumentError(absl::Substitute(
-          "Invalid access of member `$0` of non-struct type: `$1` at $2",
-          member_type->member_name(), object_type->ToString(),
-          member_type->span().ToString(file_table_)));
+      return TypeInferenceErrorStatus(
+          member_type->span(), /*type=*/nullptr,
+          absl::Substitute(
+              "Invalid access of member `$0` of non-struct type: `$1`",
+              member_type->member_name(), object_type->ToString()),
+          file_table_);
     }
     const StructDefBase* struct_def = struct_or_proc_ref->def;
     if (struct_def->IsParametric()) {

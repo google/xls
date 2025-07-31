@@ -524,10 +524,14 @@ class Unifier {
         if (i == explicit_parametrics.size()) {
           explicit_parametrics.push_back(value);
         } else if (value != explicit_parametrics[i]) {
-          return absl::InvalidArgumentError(absl::Substitute(
-              "Value mismatch for parametric `$0` of struct `$1`: $2 vs. $3",
-              binding->identifier(), struct_def.identifier(), value.ToString(),
-              explicit_parametrics[i].ToString()));
+          return TypeInferenceErrorStatusForAnnotation(
+              annotation->span(), annotation,
+              absl::Substitute("Value mismatch for parametric `$0` of struct "
+                               "`$1`: $2 vs. $3",
+                               binding->identifier(), struct_def.identifier(),
+                               value.ToString(),
+                               explicit_parametrics[i].ToString()),
+              file_table_);
         }
       }
     }
