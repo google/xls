@@ -14,6 +14,7 @@
 
 #include "xls/passes/bit_count_query_engine.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -27,12 +28,16 @@
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
+#include "xls/fuzzer/ir_fuzzer/query_engine_helpers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
 #include "xls/passes/query_engine.h"
 #include "xls/solvers/z3_ir_translator.h"
@@ -42,6 +47,9 @@ namespace xls {
 namespace {
 
 using internal::LeadingBits;
+using testing::Eq;
+using testing::Le;
+using testing::Optional;
 using LeadingBitsTree = LeafTypeTree<LeadingBits>;
 
 class BitCountQueryEngineTest : public IrTestBase {};
@@ -1167,5 +1175,101 @@ fn FuzzTest() -> bits[513] {
   EXPECT_EQ(qe.KnownLeadingSignBits(shrl), 513);
 }
 
+TEST_F(BitCountQueryEngineTest, NegAccurateForAlmostZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p1 = fb.Param("a", p->GetBitsType(1));
+  BValue p2 = fb.Param("b", p->GetBitsType(1));
+  BValue res =
+      fb.Negate(fb.Add(fb.ZeroExtend(p1, 100), fb.ZeroExtend(p2, 100)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  BitCountQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f));
+  EXPECT_EQ(qe.KnownLeadingZeros(res.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingOnes(res.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingSignBits(res.node()), 98);
+}
+TEST_F(BitCountQueryEngineTest, NegAccurateForAlmostNegZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue p1 = fb.Param("a", p->GetBitsType(1));
+  BValue p2 = fb.Param("b", p->GetBitsType(1));
+  BValue ones = fb.Literal(Bits::AllOnes(99));
+  BValue res = fb.Negate(fb.Add(fb.Concat({ones, p1}), fb.Concat({ones, p2})));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  BitCountQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f));
+  EXPECT_EQ(qe.KnownLeadingZeros(res.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingOnes(res.node()), 0);
+  EXPECT_EQ(qe.KnownLeadingSignBits(res.node()), 97);
+}
+TEST_F(BitCountQueryEngineTest, NegAccurateForOne) {
+  static constexpr std::string_view kXlsIr = R"xls(
+fn FuzzTest() -> bits[64] {
+  literal.1: bits[64] = literal(value=1, id=1)
+  ret neg.3: bits[64] = neg(literal.1, id=3)
+}
+  )xls";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           Parser::ParseFunction(kXlsIr, p.get()));
+  BitCountQueryEngine qe;
+  Node* neg = f->return_value();
+  XLS_ASSERT_OK(qe.Populate(f));
+  EXPECT_EQ(qe.KnownLeadingZeros(neg), 0);
+  EXPECT_EQ(qe.KnownLeadingOnes(neg), 0);
+  EXPECT_EQ(qe.KnownLeadingSignBits(neg), 63);
+}
+TEST_F(BitCountQueryEngineTest, NegAccurateForZero) {
+  static constexpr std::string_view kXlsIr = R"xls(
+fn FuzzTest() -> bits[64] {
+  literal.1: bits[64] = literal(value=0, id=1)
+  not.2: bits[64] = not(literal.1, id=2)
+  ret neg.3: bits[64] = neg(not.2, id=3)
+}
+  )xls";
+  // not.2 == 0xffff_ffff_ffff_ffff
+  // neg.3 == 0x1
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           Parser::ParseFunction(kXlsIr, p.get()));
+  BitCountQueryEngine qe;
+  Node* neg = f->return_value();
+  XLS_ASSERT_OK(qe.Populate(f));
+  EXPECT_EQ(qe.KnownLeadingZeros(neg), 0);
+  EXPECT_EQ(qe.KnownLeadingOnes(neg), 0);
+  EXPECT_EQ(qe.KnownLeadingSignBits(neg), 63);
+}
+
+void ConsistencyTest(FuzzPackageWithArgs fuzz) {
+  CheckQueryEngineConsistency<BitCountQueryEngine>(
+      fuzz, [](const BitCountQueryEngine& qe, Node* n, Value value) -> bool {
+        if (!value.IsBits()) {
+          EXPECT_THAT(qe.KnownLeadingSignBits(n), Eq(std::nullopt))
+              << n << " inconsistent with " << value;
+          EXPECT_THAT(qe.KnownLeadingOnes(n), Eq(std::nullopt))
+              << n << " inconsistent with " << value;
+          EXPECT_THAT(qe.KnownLeadingZeros(n), Eq(std::nullopt))
+              << n << " inconsistent with " << value;
+          return true;
+        }
+        EXPECT_THAT(qe.KnownLeadingSignBits(n),
+                    Optional(Le(std::max(value.bits().CountLeadingOnes(),
+                                         value.bits().CountLeadingZeros()))))
+            << n << " inconsistent with " << value;
+        EXPECT_THAT(qe.KnownLeadingOnes(n),
+                    Optional(Le(value.bits().CountLeadingOnes())))
+            << n << " inconsistent with " << value;
+        EXPECT_THAT(qe.KnownLeadingZeros(n),
+                    Optional(Le(value.bits().CountLeadingZeros())))
+            << n << " inconsistent with " << value;
+        return true;
+      });
+}
+
+FUZZ_TEST(BitCountQueryEngineFuzzTest, ConsistencyTest)
+    .WithDomains(PackageWithArgsDomainBuilder(/*arg_set_count=*/10)
+                     .WithOnlyBitsOperations()
+                     .Build());
 }  // namespace
 }  // namespace xls

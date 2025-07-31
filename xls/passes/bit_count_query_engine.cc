@@ -156,20 +156,27 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
     }
     Node* input = neg->operand(0);
     internal::LeadingBits cnts = GetValue(input).Get({});
-    // Since 0 and INT_MIN map to themselves only sign-bits stay the same unless
-    // the value is exactly either 0 or int-min
-    if (!(cnts.leading_ones() == input->BitCountOrDie() ||
-          cnts.leading_zeros() == input->BitCountOrDie())) {
-      // NB Need to reduce the number of sign bits by one since, for example
-      // i16{-1} has 16 sign bits but i16{1} only has 15.
-      // 0 might still be a possible value so we can't swap non-sign bits.
-      bool known_positive = cnts.leading_zeros() != 0;
-      cnts = cnts.ToSignBits();
+    // Since 0 map to themselves only sign-bits stay the same unless
+    // the value is exactly either 0. NB For int-min we could also stay the same
+    // but we aren't able to recognize that.
+    bool is_zero = cnts.leading_zeros() == input->BitCountOrDie();
+    // int-min is 0b1000...000
+    bool can_be_int_min =
+        cnts.leading_signs() == 1 && cnts.value() != TernaryValue::kKnownZero;
+    bool known_positive = cnts.leading_zeros() != 0;
+    if (is_zero) {
+      // If we know the input is exactly zero then we don't need to do anything.
+    } else if (can_be_int_min) {
+      cnts = internal::LeadingBits::SignValues(1);
+    } else {
       if (!known_positive) {
-        // Positive -> negative doesn't lose any sign bits. Negative -> positive
-        // can however.
+        // NB Need to reduce the number of sign bits by one since, for example
+        // i16{-1} has 16 sign bits but i16{1} only has 15.
         cnts = cnts.ShortenBy(1);
       }
+      // Because we can't definitively say this is not zero we need to assume it
+      // might be and go to sign bits.
+      cnts = cnts.ToSignBits();
     }
     return SetSingleValue(neg, cnts);
   }
