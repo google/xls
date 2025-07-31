@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![feature(type_inference_v2)]
+
 // This file implements a parametric delay proc implemented using external RAM.
 //
 // The delay proc reproduces the input you send to it DELAY transactions after
@@ -79,10 +81,10 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
                    HALF_FLOOR_DELAY:u32={half_floor(DELAY)}> {
     data_in: chan<bits[DATA_WIDTH]> in;
     data_out: chan<bits[DATA_WIDTH]> out;
-    ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH, 0>> out;
+    ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH>> out;
     ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> in;
     ram_wr_comp: chan<()> in;
-    type DelayInternalRamReq = RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH, 0>;
+    type DelayInternalRamReq = RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH>;
 
     init {
         DelayState {
@@ -96,7 +98,7 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
 
     config(data_in: chan<bits[DATA_WIDTH]> in,
            data_out: chan<bits[DATA_WIDTH]> out,
-           ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH, 0>> out,
+           ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH>> out,
            ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> in,
            ram_wr_comp: chan<()> in) {
         (data_in, data_out, ram_req, ram_resp, ram_wr_comp)
@@ -174,7 +176,7 @@ pub proc Delay<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
                DELAY_IS_ODD:bool={is_odd(DELAY)}> {
     data_in: chan<bits[DATA_WIDTH]> in;
     data_out: chan<bits[DATA_WIDTH]> out;
-    ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH, 0>> out;
+    ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH>> out;
     ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> in;
     ram_wr_comp: chan<()> in;
 
@@ -182,7 +184,7 @@ pub proc Delay<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
 
     config(data_in: chan<bits[DATA_WIDTH]> in,
         data_out: chan<bits[DATA_WIDTH]> out,
-        ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH, 0>> out,
+        ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH>> out,
         ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> in,
         ram_wr_comp: chan<()> in) {
         let (internal_data_s, internal_data_r) = chan<bits[DATA_WIDTH]>("even_delay");
@@ -200,7 +202,7 @@ pub proc Delay<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
 
 
 // Define a concretized Delay for codegen.
-type DelayRamReq32x2048 = RamReq<10, 64, 0>;
+type DelayRamReq32x2048 = RamReq<10, 64>;
 type DelayRamResp32x2048 = RamResp<64>;
 
 pub proc Delay32x2048_init3 {
@@ -237,7 +239,7 @@ proc delay_smoke_test_even {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (ram_req_s, ram_req_r) = chan<RamReq<10, 64, 0>>("ram_req");
+        let (ram_req_s, ram_req_r) = chan<RamReq<10, 64>>("ram_req");
         let (ram_resp_s, ram_resp_r) = chan<RamResp<64>>("ram_resp");
         let (ram_wr_comp_s, ram_wr_comp_r) = chan<()>("ram_wr_comp");
         spawn ram::SinglePortRamModel<u32:64, u32:1024>(
@@ -287,7 +289,7 @@ const TEST1_DELAY = u32:2047;
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (ram_req_s, ram_req_r) = chan<RamReq<10, 64, 0>>("ram_req");
+        let (ram_req_s, ram_req_r) = chan<RamReq<10, 64>>("ram_req");
         let (ram_resp_s, ram_resp_r) = chan<RamResp<64>>("ram_resp");
         let (ram_wr_comp_s, ram_wr_comp_r) = chan<()>("ram_wr_comp");
         spawn ram::SinglePortRamModel<u32:64, u32:1024>(

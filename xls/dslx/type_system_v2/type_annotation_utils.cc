@@ -125,6 +125,11 @@ ChannelTypeAnnotation* GetChannelArrayElementType(
       channel_array_type->payload(), rest_of_dims);
 }
 
+TypeAnnotation* CreateTokenTypeAnnotation(Module& module, const Span& span) {
+  return module.Make<BuiltinTypeAnnotation>(
+      span, BuiltinType::kToken, module.GetOrCreateBuiltinNameDef("token"));
+}
+
 absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
     const TypeAnnotation* annotation, bool ignore_missing_dimensions) {
   if (annotation->IsAnnotation<BuiltinTypeAnnotation>()) {

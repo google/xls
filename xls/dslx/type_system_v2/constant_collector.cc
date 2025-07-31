@@ -420,7 +420,8 @@ class Visitor : public AstNodeVisitorWithDefault {
       XLS_ASSIGN_OR_RETURN(size, size_from_type);
     }
 
-    bool has_result_value = !accumulator_name->IsWildcardLeaf();
+    bool has_result_value = !accumulator_name->IsWildcardLeaf() &&
+                            !unroll_for->body()->trailing_semi();
     Expr* accumulator_value = unroll_for->init();
     for (uint64_t i = 0; i < size; i++) {
       absl::flat_hash_map<const NameDef*, NameDef*> iteration_name_def_mapping;

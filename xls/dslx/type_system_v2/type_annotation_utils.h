@@ -112,6 +112,9 @@ TypeAnnotation* CreateStructAnnotation(Module& module,
 ChannelTypeAnnotation* GetChannelArrayElementType(
     Module& module, const ChannelTypeAnnotation* channel_array_type);
 
+// Returns a type annotation representing the `token` type.
+TypeAnnotation* CreateTokenTypeAnnotation(Module& module, const Span& span);
+
 // Returns the signedness and bit count from the given type annotation, if it is
 // a bits-like annotation; otherwise, returns an error. The kind of error is
 // either:

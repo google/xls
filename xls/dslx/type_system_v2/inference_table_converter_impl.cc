@@ -1883,7 +1883,17 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       if (implicit_parametrics.empty()) {
         return absl::OkStatus();
       }
-      XLS_RET_CHECK(instantiator_node.has_value());
+      if (!instantiator_node.has_value()) {
+        return TypeInferenceErrorStatus(
+            span, /*type=*/nullptr,
+            absl::Substitute(
+                "Reference to parametric struct type `$0` must have all "
+                "parametrics specified in this context. Implicit struct "
+                "parametrics are only allowed in struct instance expressions.",
+                struct_def.identifier()),
+            file_table_);
+      }
+
       absl::flat_hash_map<std::string, InterpValue> new_values;
       // Note: setting target_context to null is temporary until we support
       // generic type parametrics for structs.

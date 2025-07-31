@@ -1439,6 +1439,18 @@ const C = Foo<32>{ x: u16:2 };
               TypecheckSucceeds(HasNodeWithType("C", "Foo { x: uN[16] }")));
 }
 
+TEST(TypecheckV2Test, ParametricStructAnnotationWithoutParametrics) {
+  EXPECT_THAT(
+      R"(
+struct Foo<A: u32> {}
+
+const C = zero!<Foo>();
+)",
+      TypecheckFails(
+          HasSubstr("Reference to parametric struct type `Foo` must have all "
+                    "parametrics specified in this context")));
+}
+
 TEST(TypecheckV2Test, AccessOfParametricStructMemberArray) {
   EXPECT_THAT(
       R"(
@@ -6216,6 +6228,23 @@ fn foo() {
           HasRepeatedNodeWithType("let C = B + i;", "uN[32]", 5))));
 }
 
+TEST(TypecheckV2Test, UnrollForBodyNotUpdatingAcc) {
+  EXPECT_THAT(
+      R"(
+const A = u32:1;
+fn foo() {
+  let B = u32:2;
+  const X = unroll_for! (i, a) in u32:0..u32:5 {
+    let C = B + i;
+    let D = A * a;
+  } (u32:0);
+  let Y : u32[X] = [0, ...];
+}
+)",
+      TypecheckFails(HasSubstr(
+          "Loop has an accumulator but the body does not produce a value")));
+}
+
 TEST(TypecheckV2Test, UnrollForTupleTypeMismatch) {
   EXPECT_THAT(
       R"(
@@ -6806,7 +6835,7 @@ proc P {
 }
 )",
       TypecheckSucceeds(
-          HasRepeatedNodeWithType(R"(trace_fmt!("v: {}", v))", "()", 4)));
+          HasRepeatedNodeWithType(R"(trace_fmt!("v: {}", v))", "token", 4)));
 }
 
 TEST(TypecheckV2Test, ProcWithChannelArrayOutOfBoundsFails) {
@@ -6850,7 +6879,7 @@ proc P {
 }
 )",
       TypecheckSucceeds(
-          HasRepeatedNodeWithType(R"(trace_fmt!("v: {}", v))", "()", 20)));
+          HasRepeatedNodeWithType(R"(trace_fmt!("v: {}", v))", "token", 20)));
 }
 
 TEST(TypecheckV2Test, ProcWith2DChannelArrayIndexOutOfBoundsFails) {

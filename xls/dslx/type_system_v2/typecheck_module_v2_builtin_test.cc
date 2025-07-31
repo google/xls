@@ -1653,10 +1653,11 @@ proc P {
 }
 
 TEST(TypecheckV2BuiltinTest, TraceFmt) {
-  EXPECT_THAT(R"(
+  EXPECT_THAT(
+      R"(
 fn f() { trace_fmt!("foo"); }
 )",
-              TypecheckSucceeds(HasNodeWithType(R"(trace_fmt!("foo"))", "()")));
+      TypecheckSucceeds(HasNodeWithType(R"(trace_fmt!("foo"))", "token")));
 }
 
 TEST(TypecheckV2BuiltinTest, VtraceFmt) {
@@ -1666,7 +1667,7 @@ fn f() { vtrace_fmt!(1, "foo"); }
 )",
       TypecheckSucceeds(
           AllOf(HasNodeWithType("1", "uN[1]"),
-                HasNodeWithType(R"(vtrace_fmt!(1, "foo"))", "()"))));
+                HasNodeWithType(R"(vtrace_fmt!(1, "foo"))", "token"))));
 }
 
 TEST(TypecheckV2BuiltinTest, TraceFmtInteger) {
@@ -1742,7 +1743,8 @@ struct S {
 
 fn f(a: S) { trace_fmt!("a is {}", a); }
 )",
-      TypecheckSucceeds(HasNodeWithType(R"(trace_fmt!("a is {}", a))", "()")));
+      TypecheckSucceeds(
+          HasNodeWithType(R"(trace_fmt!("a is {}", a))", "token")));
 }
 
 TEST(TypecheckV2BuiltinTest, TraceFmtFunctionFails) {

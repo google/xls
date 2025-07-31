@@ -814,6 +814,16 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     AstNode* accumulator = accumulator_ndt->is_leaf()
                                ? ToAstNode(accumulator_ndt->leaf())
                                : accumulator_ndt;
+
+    if (node->body()->trailing_semi() && !accumulator_ndt->IsWildcardLeaf() &&
+        !accumulator_ndt->IsRestOfTupleLeaf() && accumulator_ndt->is_leaf()) {
+      return TypeInferenceErrorStatus(
+          accumulator_ndt->span(), /*type=*/nullptr,
+          "Loop has an accumulator but the body does not produce a value. The "
+          "semicolon at the end of the last body statement may be unintended.",
+          file_table_);
+    }
+
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(accumulator, for_node_type_variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
@@ -1762,7 +1772,7 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
     }
 
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node, CreateUnitTupleAnnotation(module_, node->span())));
+        node, CreateTokenTypeAnnotation(module_, node->span())));
     return DefaultHandler(node);
   }
 

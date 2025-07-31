@@ -467,7 +467,7 @@ proc RamModelAssertNoConflictWriteOnlyTest {
 }
 
 // Single-port RAM request
-pub struct RWRamReq<ADDR_WIDTH: u32, DATA_WIDTH: u32, NUM_PARTITIONS: u32> {
+pub struct RWRamReq<ADDR_WIDTH: u32, DATA_WIDTH: u32> {
     addr: bits[ADDR_WIDTH],
     data: bits[DATA_WIDTH],
     // TODO(google/xls#861): represent masks when we have type generics.
@@ -485,11 +485,11 @@ pub proc SinglePortRamModel<DATA_WIDTH: u32, SIZE: u32, WORD_PARTITION_SIZE: u32
 u32 = {
     std::clog2(SIZE)}, NUM_PARTITIONS: u32 = {num_partitions(WORD_PARTITION_SIZE, DATA_WIDTH)}>
 {
-    req_chan: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>> in;
+    req_chan: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in;
     resp_chan: chan<RWRamResp<DATA_WIDTH>> out;
     wr_comp_chan: chan<()> out;
 
-    config(req: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>> in,
+    config(req: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in,
            resp: chan<RWRamResp<DATA_WIDTH>> out, wr_comp: chan<()> out) {
         (req, resp, wr_comp)
     }
@@ -514,13 +514,13 @@ u32 = {
 // afterwards and checking that you got what you wrote.
 #[test_proc]
 proc SinglePortRamModelTest {
-    req_out: chan<RWRamReq<10, 32, 0>> out;
+    req_out: chan<RWRamReq<10, 32>> out;
     resp_in: chan<RWRamResp<32>> in;
     wr_comp_in: chan<()> in;
     terminator: chan<bool> out;
 
     config(terminator: chan<bool> out) {
-        let (req_s, req_r) = chan<RWRamReq<10, 32, 0>>("req");
+        let (req_s, req_r) = chan<RWRamReq<10, 32>>("req");
         let (resp_s, resp_r) = chan<RWRamResp<32>>("resp");
         let (wr_comp_s, wr_comp_r) = chan<()>("wr_comp");
         const DATA_WIDTH = u32:32;
@@ -582,16 +582,16 @@ SimultaneousReadWriteBehavior = {
 u32 = {
     num_partitions(WORD_PARTITION_SIZE, DATA_WIDTH)}>
 {
-    req_chan0: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>> in;
-    req_chan1: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>> in;
+    req_chan0: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in;
+    req_chan1: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in;
     resp_chan0: chan<RWRamResp<DATA_WIDTH>> out;
     resp_chan1: chan<RWRamResp<DATA_WIDTH>> out;
     wr_comp_chan0: chan<()> out;
     wr_comp_chan1: chan<()> out;
 
-    config(req0: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>> in,
+    config(req0: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in,
            resp0: chan<RWRamResp<DATA_WIDTH>> out, wr_comp0: chan<()> out,
-           req1: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>> in,
+           req1: chan<RWRamReq<ADDR_WIDTH, DATA_WIDTH>> in,
            resp1: chan<RWRamResp<DATA_WIDTH>> out, wr_comp1: chan<()> out) {
         (req0, req1, resp0, resp1, wr_comp0, wr_comp1)
     }
@@ -599,8 +599,10 @@ u32 = {
     init { bits[DATA_WIDTH][SIZE]:[bits[DATA_WIDTH]:0, ...] }
 
     next(state: bits[DATA_WIDTH][SIZE]) {
-        let (tok0, request0, valid0) = recv_non_blocking(join(), req_chan0, zero!<RWRamReq>());
-        let (tok1, request1, valid1) = recv_non_blocking(join(), req_chan1, zero!<RWRamReq>());
+        let (tok0, request0, valid0) = recv_non_blocking(
+            join(), req_chan0, zero!<RWRamReq<ADDR_WIDTH, DATA_WIDTH>>());
+        let (tok1, request1, valid1) = recv_non_blocking(
+            join(), req_chan1, zero!<RWRamReq<ADDR_WIDTH, DATA_WIDTH>>());
         let fatal_hazard = valid0 && valid1 && request0.addr == request1.addr &&
                            match SIMULTANEOUS_READ_WRITE_BEHAVIOR {
                                SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT =>
@@ -648,19 +650,19 @@ u32 = {
 // afterwards and checking that you got what you wrote.
 #[test_proc]
 proc RamModel2RWTest {
-    req0_out: chan<RWRamReq<10, 32, 0>> out;
+    req0_out: chan<RWRamReq<10, 32>> out;
     resp0_in: chan<RWRamResp<32>> in;
     wr_comp0_in: chan<()> in;
-    req1_out: chan<RWRamReq<10, 32, 0>> out;
+    req1_out: chan<RWRamReq<10, 32>> out;
     resp1_in: chan<RWRamResp<32>> in;
     wr_comp1_in: chan<()> in;
     terminator: chan<bool> out;
 
     config(terminator: chan<bool> out) {
-        let (req0_s, req0_r) = chan<RWRamReq<10, 32, 0>>("req0");
+        let (req0_s, req0_r) = chan<RWRamReq<10, 32>>("req0");
         let (resp0_s, resp0_r) = chan<RWRamResp<32>>("resp0");
         let (wr_comp0_s, wr_comp0_r) = chan<()>("wr_comp0");
-        let (req1_s, req1_r) = chan<RWRamReq<10, 32, 0>>("req1");
+        let (req1_s, req1_r) = chan<RWRamReq<10, 32>>("req1");
         let (resp1_s, resp1_r) = chan<RWRamResp<32>>("resp1");
         let (wr_comp1_s, wr_comp1_r) = chan<()>("wr_comp");
 
