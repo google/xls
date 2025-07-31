@@ -48,6 +48,13 @@
 namespace xls {
 namespace verilog {
 
+std::string VastNode::PreEmit(LineInfo* line_info) {
+    // TODO if (!loc().Empty)
+    //   emit a comment with source location information
+    // TODO define the format for the comment
+    return absl::StrFormat("// PreEmit: %s\n", loc().ToString());
+}
+
 namespace {
 
 int64_t NumberOfNewlines(std::string_view string) {
@@ -510,6 +517,7 @@ std::string StatementBlock::Emit(LineInfo* line_info) const {
   LineInfoIncrease(line_info, 1);
   std::vector<std::string> lines;
   for (const auto& statement : statements_) {
+    lines.push_back(statement->PreEmit(line_info));
     lines.push_back(statement->Emit(line_info));
     LineInfoIncrease(line_info, 1);
   }
@@ -542,6 +550,7 @@ std::string GenerateLoop::Emit(LineInfo* line_info) const {
       init_->Emit(line_info), genvar_->Emit(line_info), limit_->Emit(line_info),
       genvar_->Emit(line_info), genvar_->Emit(line_info), label_suffix)));
   for (const auto& node : body_) {
+    lines.push_back(Indent(Indent(node->PreEmit(line_info))));
     lines.push_back(Indent(Indent(node->Emit(line_info))));
     LineInfoIncrease(line_info, 1);
   }
@@ -629,6 +638,7 @@ std::string VerilogFunction::Emit(LineInfo* line_info) const {
   LineInfoIncrease(line_info, 1);
   std::vector<std::string> lines;
   for (RegDef* reg_def : block_reg_defs_) {
+    lines.push_back(reg_def->PreEmit(line_info));
     lines.push_back(reg_def->Emit(line_info));
     LineInfoIncrease(line_info, 1);
   }
@@ -653,7 +663,7 @@ std::string VerilogFunctionCall::Emit(LineInfo* line_info) const {
 
 LogicRef* Module::AddPortDef(ModulePortDirection direction, Def* def,
                              const SourceInfo& loc) {
-  ports_.push_back(ModulePort{.direction = direction, .wire = def});
+  ports_.push_back(ModulePort{.direction = direction, .wire = def, ._docstring = loc.ToString()});
   return file()->Make<LogicRef>(loc, def);
 }
 
@@ -1090,7 +1100,7 @@ namespace {
 
 // "Match" statement for emitting a ModuleMember.
 std::string EmitModuleMember(LineInfo* line_info, const ModuleMember& member) {
-  return absl::visit([=](auto* d) { return d->Emit(line_info); }, member);
+  return absl::visit([=](auto* d) { return d->PreEmit(line_info) + d->Emit(line_info); }, member);
 }
 
 // Visitor for emitting a VerilogPackageMember.
