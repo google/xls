@@ -30,6 +30,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value_builder.h"
@@ -1145,6 +1146,25 @@ TEST_F(BitCountQueryEngineTest, NoSignedOverflow) {
   EXPECT_EQ(qe.KnownLeadingZeros(shrl.node()), 1000);
   EXPECT_EQ(qe.KnownLeadingOnes(shrl.node()), 0);
   EXPECT_EQ(qe.KnownLeadingSignBits(shrl.node()), 1000);
+}
+
+TEST_F(BitCountQueryEngineTest, NoSignedUnderflow) {
+  static constexpr std::string_view kXlsIr = R"xls(
+fn FuzzTest() -> bits[513] {
+  literal.1: bits[513] = literal(value=0, id=1)
+  literal.6: bits[513] = literal(value=0x1_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff, id=6)
+  ret shrl.4: bits[513] = shrl(literal.1, literal.6, id=4)
+}
+  )xls";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           Parser::ParseFunction(kXlsIr, p.get()));
+  BitCountQueryEngine qe;
+  Node* shrl = f->return_value();
+  XLS_ASSERT_OK(qe.Populate(f));
+  EXPECT_EQ(qe.KnownLeadingZeros(shrl), 513);
+  EXPECT_EQ(qe.KnownLeadingOnes(shrl), 0);
+  EXPECT_EQ(qe.KnownLeadingSignBits(shrl), 513);
 }
 
 }  // namespace

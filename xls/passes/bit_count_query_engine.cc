@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "cppitertools/zip.hpp"
+#include "xls/common/math_util.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -244,10 +245,11 @@ class BitCountVisitor : public DataflowVisitor<internal::LeadingBits> {
       if (rhs_int == 0) {
         return SetSingleValue(op, lhs_cnt);
       }
-      int64_t new_lead_zeros = std::min(lhs_cnt.leading_zeros() != 0
-                                            ? lhs_cnt.leading_zeros() + rhs_int
-                                            : rhs_int,
-                                        op->BitCountOrDie());
+      int64_t new_lead_zeros =
+          std::min(lhs_cnt.leading_zeros() != 0
+                       ? SaturatingAdd(lhs_cnt.leading_zeros(), rhs_int).result
+                       : rhs_int,
+                   op->BitCountOrDie());
       return SetSingleValue(op,
                             internal::LeadingBits::KnownZeros(new_lead_zeros));
     }
