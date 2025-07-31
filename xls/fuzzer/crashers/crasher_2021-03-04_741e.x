@@ -177,14 +177,14 @@ fn main(x0: u62, x1: s25, x2: u24) -> (u63, s25, u1, (s25, u24, u25, s20, u1, u1
   let x15: u63 = (x0) ++ (x5);
   let x16: u62 = one_hot_sel(x6, [x13]);
   let x17: (u25, s20) = (x12, x8);
-  let x18: (s25, u24, u25, s20, u1, u1, (u48,), u1, (u48,), u62) = for (i, x): (u4, (s25, u24, u25, s20, u1, u1, (u48,), u1, (u48,), u62)) in range(u4:0x0, u4:0x4) {
+  let x18: (s25, u24, u25, s20, u1, u1, (u48,), u1, (u48,), u62) = for (i, x): (u4, (s25, u24, u25, s20, u1, u1, (u48,), u1, (u48,), u62)) in u4:0x0..u4:0x4 {
     x
   }(x10);
-  let x19: u62 = for (i, x): (u4, u62) in range(u4:0x0, u4:0x4) {
+  let x19: u62 = for (i, x): (u4, u62) in u4:0x0..u4:0x4 {
     x
   }(x0);
   let x20: u62 = -(x0);
-  let x21: s25 = for (i, x): (u4, s25) in range(u4:0x0, u4:0x5) {
+  let x21: s25 = for (i, x): (u4, s25) in u4:0x0..u4:0x5 {
     x
   }(x1);
   let x22: u13 = (x12)[-0x15:0x11];
@@ -197,7 +197,7 @@ fn main(x0: u62, x1: s25, x2: u24) -> (u63, s25, u1, (s25, u24, u25, s20, u1, u1
   let x29: u63 = (x28) ++ (x25);
   let x30: u25 = rev(x26);
   let x31: u64 = u64:0x20;
-  let x32: u62 = for (i, x): (u4, u62) in range(u4:0x0, u4:0x1) {
+  let x32: u62 = for (i, x): (u4, u62) in u4:0x0..u4:0x1 {
     x
   }(x16);
   let x33: u64 = one_hot_sel(x6, [x31]);

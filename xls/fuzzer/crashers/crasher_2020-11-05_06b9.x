@@ -113,7 +113,7 @@ fn main(x0: s32, x1: u26) -> u62 {
   let x16: (u1, s39, s32) = (x15, x3, x7);
   let x17: u1 = (x10 as u16)[:-0xf];
   let x18: x19[0x4] = ((x4) as x19[0x4]);
-  let x20: u1 = for (i, x): (u4, u1) in range(u4:0x0, u4:0x1) {
+  let x20: u1 = for (i, x): (u4, u1) in u4:0x0..u4:0x1 {
     x
   }(x11);
   let x21: s11 = (((x20) as s11)) << (if ((x13) >= (s11:0x9)) { (u11:0x9) } else { (x13 as u11) });
@@ -121,7 +121,7 @@ fn main(x0: s32, x1: u26) -> u62 {
   let x23: s32 = -(x7);
   let x24: u1 = (((x23) as u1)) >> (if ((x6) >= (u1:0x0)) { (u1:0x0) } else { (x6) });
   let x25: u1 = one_hot_sel(x15, [x8]);
-  let x26: s39 = for (i, x): (u4, s39) in range(u4:0x0, u4:0x0) {
+  let x26: s39 = for (i, x): (u4, s39) in u4:0x0..u4:0x0 {
     x
   }(x3);
   let x27: x28[0x1] = ((x8) as x28[0x1]);

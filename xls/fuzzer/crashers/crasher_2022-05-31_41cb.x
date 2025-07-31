@@ -180,7 +180,7 @@ fn main(x0: u62, x1: x2[W32_V8], x3: s50, x4: u28, x5: s33, x6: s45, x7: u36, x8
   let x21: x20[2] = [x19, x4];
   let x22: bool = (x0) != (x0);
   let x23: u36 = (((x19) as u36)) | (x7);
-  let x24: s50 = for (i, x): (u4, s50) in range(u4:0, u4:6) {
+  let x24: s50 = for (i, x): (u4, s50) in u4:0..u4:6 {
     x
   }(x3);
   let x25: uN[180] = (((x19) ++ (x0)) ++ (x0)) ++ (x4);

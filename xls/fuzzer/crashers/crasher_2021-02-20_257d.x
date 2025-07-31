@@ -179,7 +179,7 @@ fn main(x0: u26, x1: u1, x2: s14, x3: u2) -> (u35, u35, u35) {
   let x16: s54 = s54:0x1000;
   let x17: u38 = (x5) ++ (x8);
   let x18: u35 = rev(x13);
-  let x19: (u35, u26, u3, u35, u35, u3, u2, u35, u35, u35, u35) = for (i, x): (u4, (u35, u26, u3, u35, u35, u3, u2, u35, u35, u35, u35)) in range(u4:0x0, u4:0x2) {
+  let x19: (u35, u26, u3, u35, u35, u3, u2, u35, u35, u35, u35) = for (i, x): (u4, (u35, u26, u3, u35, u35, u3, u2, u35, u35, u35, u35)) in u4:0x0..u4:0x2 {
     x
   }(x12);
   let x20: u2 = one_hot(x1, u1:0x1);

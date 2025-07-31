@@ -174,7 +174,7 @@ fn main(x0: s60, x1: s18) -> (u12, u43, u12, u43, u7, u20, u58, u43, s47, u26, x
   let x8: u20 = (x5)[:0x14];
   let x9: u43 = -(x5);
   let x10: u18 = u18:0x80;
-  let x11: u43 = for (i, x): (u4, u43) in range(u4:0x0, u4:0x0) {
+  let x11: u43 = for (i, x): (u4, u43) in u4:0x0..u4:0x0 {
     x
   }(x5);
   let x12: x13[W2_V2] = ((x8) as x13[W2_V2]);

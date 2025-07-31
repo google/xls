@@ -166,11 +166,11 @@ type x32 = u31;
 type x46 = u64;
 type x48 = u16;
 fn x6(x7: s40) -> (s40, (s40,), s40, s40, s40, s40, (s40, s40), s40, s40, s40, (s40, s40), s40) {
-  let x8: s40 = for (i, x): (u4, s40) in range(u4:0x0, u4:0x0) {
+  let x8: s40 = for (i, x): (u4, s40) in u4:0x0..u4:0x0 {
     x
   }(x7);
   let x9: s40 = -(x8);
-  let x10: s40 = for (i, x): (u4, s40) in range(u4:0x0, u4:0x1) {
+  let x10: s40 = for (i, x): (u4, s40) in u4:0x0..u4:0x1 {
     x
   }(x8);
   let x11: (s40, s40) = (x9, x8);
@@ -179,19 +179,19 @@ fn x6(x7: s40) -> (s40, (s40,), s40, s40, s40, s40, (s40, s40), s40, s40, s40, (
   let x14: s40 = (x9) * (x8);
   let x15: s40 = one_hot_sel(u5:0x15, [x7, x8, x7, x7, x7]);
   let x16: u1 = u1:0x1;
-  let x17: u1 = for (i, x): (u4, u1) in range(u4:0x0, u4:0x7) {
+  let x17: u1 = for (i, x): (u4, u1) in u4:0x0..u4:0x7 {
     x
   }(x16);
   let x18: s40 = (x8) << (if ((x8) >= (s40:0xb)) { (u40:0xb) } else { (x8 as u40) });
   (x8, x12, x8, x14, x14, x15, x11, x18, x10, x10, x11, x9)
 }
 fn main(x0: s52, x1: s16, x2: u62, x3: u6) -> (u14, x48[0x4]) {
-  let x4: u62 = for (i, x): (u4, u62) in range(u4:0x0, u4:0x1) {
+  let x4: u62 = for (i, x): (u4, u62) in u4:0x0..u4:0x1 {
     x
   }(x2);
   let x5: x19[0x1] = map(s40[0x1]:[s40:0x7fffffffff], x6);
   let x20: u6 = ctz(x3);
-  let x21: u6 = for (i, x): (u4, u6) in range(u4:0x0, u4:0x1) {
+  let x21: u6 = for (i, x): (u4, u6) in u4:0x0..u4:0x1 {
     x
   }(x20);
   let x22: s64 = s64:0x1000000000000;
@@ -206,7 +206,7 @@ fn main(x0: s52, x1: s16, x2: u62, x3: u6) -> (u14, x48[0x4]) {
   let x33: u6 = ((x27 as s64) >> (x27)) as u6;
   let x34: s64 = one_hot_sel(x21, [x24, x22, x22, x22, x24, x24]);
   let x35: u64 = rev(x23);
-  let x36: u64 = for (i, x): (u4, u64) in range(u4:0x0, u4:0x3) {
+  let x36: u64 = for (i, x): (u4, u64) in u4:0x0..u4:0x3 {
     x
   }(x30);
   let x37: u64 = ctz(x23);

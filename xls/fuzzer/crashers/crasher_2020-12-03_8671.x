@@ -174,17 +174,17 @@ fn main(x0: u24, x1: u39) -> (x3[0x27], u24, u45, u39, u39, u39, x3[0x75], x3[0x
   let x11: u39 = (x5)[:];
   let x12: x3[0x75] = (x8) ++ (x2);
   let x13: u39 = ctz(x9);
-  let x14: u39 = for (i, x): (u4, u39) in range(u4:0x0, u4:0x7) {
+  let x14: u39 = for (i, x): (u4, u39) in u4:0x0..u4:0x7 {
     x
   }(x5);
-  let x15: u39 = for (i, x): (u4, u39) in range(u4:0x0, u4:0x0) {
+  let x15: u39 = for (i, x): (u4, u39) in u4:0x0..u4:0x0 {
     x
   }(x9);
   let x16: (u24, u39) = (x0, x9);
   let x17: u45 = u45:0x20000;
   let x18: u39 = rev(x1);
   let x19: u45 = x17;
-  let x20: u39 = for (i, x): (u4, u39) in range(u4:0x0, u4:0x1) {
+  let x20: u39 = for (i, x): (u4, u39) in u4:0x0..u4:0x1 {
     x
   }(x1);
   let x21: u39 = (x13) ^ (x15);

@@ -179,7 +179,7 @@ type x38 = u40;
 type x45 = (x10, (x10,));
 fn x20(x21: x2) -> (x2, (x2,), x2, (x2, x2, x2), (x2,)) {
   let x22: (x2,) = (x21,);
-  let x23: x2 = for (i, x): (u4, x2) in range(u4:0, u4:6) {
+  let x23: x2 = for (i, x): (u4, x2) in u4:0..u4:6 {
     x
   }(x21);
   let x24: (x2, x2, x2) = (x23, x23, x23);
@@ -189,7 +189,7 @@ fn x20(x21: x2) -> (x2, (x2,), x2, (x2, x2, x2), (x2,)) {
 fn x40(x41: x10) -> (x10, (x10,)) {
   let x42: (x10,) = (x41,);
   let x43: s57 = s57:0x0;
-  let x44: x10 = for (i, x): (u4, x10) in range(u4:0, u4:5) {
+  let x44: x10 = for (i, x): (u4, x10) in u4:0..u4:5 {
     x
   }(x41);
   (x41, x42)
@@ -201,7 +201,7 @@ fn main(x0: s34, x1: x2[W3_V6], x3: u40, x4: (s3,), x5: s17) -> ((s3,), u41, u40
   let x9: bool = (x8) <= (x5);
   let x11: x10[2] = [x5, x8];
   let x12: s17 = one_hot_sel(x9, [x8]);
-  let x13: x2 = for (i, x): (u4, x2) in range(u4:0, u4:5) {
+  let x13: x2 = for (i, x): (u4, x2) in u4:0..u4:5 {
     x
   }(x7);
   let x14: x2[W3_V6] = update(x1, if ((x3) >= (u40:5)) { (u40:5) } else { (x3) }, x7);

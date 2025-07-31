@@ -160,7 +160,7 @@
 // }
 // END_CONFIG
 fn main(x0: u19, x1: u23, x2: (u15, u29), x3: (), x4: u3) -> (bool, u23, u23, (), u19, u19, (), u19, bool, ()) {
-  let x5: () = for (i, x): (u4, ()) in range(u4:0, u4:1) {
+  let x5: () = for (i, x): (u4, ()) in u4:0..u4:1 {
     x
   }(x3);
   let x6: bool = (x4) == (((x0) as u3));

@@ -175,7 +175,7 @@ fn main(x0: s59, x1: s52) -> (s59, u28, bool) {
   let x3: s59 = !(x2);
   let x4: s59 = (x2) & (x0);
   let x5: bool = (x4) > (((x1) as s59));
-  let x6: s59 = for (i, x) in range(u4:0, u4:1) {
+  let x6: s59 = for (i, x) in u4:0..u4:1 {
     x
   }(x3);
   let x7: u3 = ((x5) ++ (x5)) ++ (x5);
@@ -191,7 +191,7 @@ fn main(x0: s59, x1: s52) -> (s59, u28, bool) {
   let x17: s52 = (x1) << (if (x12) >= (u53:24) { u53:24 } else { x12 });
   let x18: s59 = (x4) + (((x15) as s59));
   let x19: bool = -(x16);
-  let x20: s59 = for (i, x): (u4, s59) in range(u4:0, u4:4) {
+  let x20: s59 = for (i, x): (u4, s59) in u4:0..u4:4 {
     x
   }(x4);
   let x21: u53 = (x11) & (x11);

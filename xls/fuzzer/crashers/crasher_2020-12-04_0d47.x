@@ -166,7 +166,7 @@
 type x9 = u3;
 type x21 = u1;
 fn main(x0: u1) -> (u1, u1, x21[0x4]) {
-  let x1: u1 = for (i, x): (u4, u1) in range(u4:0x0, u4:0x5) {
+  let x1: u1 = for (i, x): (u4, u1) in u4:0x0..u4:0x5 {
     x
   }(x0);
   let x2: u1 = (x0) != (x0);
@@ -180,7 +180,7 @@ fn main(x0: u1) -> (u1, u1, x21[0x4]) {
   let x11: u2 = (x10)[0x1+:u2];
   let x12: u1 = one_hot_sel(x1, [x1]);
   let x13: s30 = s30:0x1;
-  let x14: u1 = for (i, x): (u4, u1) in range(u4:0x0, u4:0x7) {
+  let x14: u1 = for (i, x): (u4, u1) in u4:0x0..u4:0x7 {
     x
   }(x2);
   let x15: u4 = ((x0) ++ (x11)) ++ (x0);
@@ -198,7 +198,7 @@ fn main(x0: u1) -> (u1, u1, x21[0x4]) {
   let x28: u4 = ctz(x15);
   let x29: x21[0x8] = (x20) ++ (x20);
   let x30: x21[0x8] = (x20) ++ (x20);
-  let x31: u4 = for (i, x): (u4, u4) in range(u4:0x0, u4:0x2) {
+  let x31: u4 = for (i, x): (u4, u4) in u4:0x0..u4:0x2 {
     x
   }(x15);
   (x0, x3, x20)

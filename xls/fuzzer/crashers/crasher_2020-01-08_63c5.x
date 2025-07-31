@@ -64,7 +64,7 @@ type x24 = u1;fn x8(x9: u1) -> u1 {
     let x17: uN[1] = (x10)[0x0+:uN[1]];
     let x18: u1 = one_hot_sel(x9, [x9]);
     let x19: uN[3] = ((x9) ++ (x10)) ++ (x16);
-    let x20: s14 = for (i, x): (u4, s14) in range((u4:0x0), (u4:0x1)) {
+    let x20: s14 = for (i, x): (u4, s14) in (u4:0x0)..(u4:0x1) {
     x
   }(x12)
   ;
@@ -75,7 +75,7 @@ type x24 = u1;fn x8(x9: u1) -> u1 {
 fn main(x0: u7, x1: s5, x2: u59, x3: u60, x4: u23, x5: s13) -> (s13, uN[15], s5, u7, uN[306], x24[0xa], s53, s13, u59, uN[15]) {
     let x6: uN[232] = (((((x3) ++ (x3)) ++ (x2)) ++ (x4)) ++ (x4)) ++ (x0);
     let x7: x24[0xa] = map(x23[0xa]:[(u1:0x0), (u1:0x0), (u1:0x1), (u1:0x0), (u1:0x0), (u1:0x0), (u1:0x1), (u1:0x0), (u1:0x0), (u1:0x1)], x8);
-    let x25: u7 = for (i, x): (u4, u7) in range((u4:0x0), (u4:0x1)) {
+    let x25: u7 = for (i, x): (u4, u7) in (u4:0x0)..(u4:0x1) {
     x
   }(x0)
   ;

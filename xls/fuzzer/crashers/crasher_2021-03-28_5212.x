@@ -174,7 +174,7 @@ fn main(x0: s46, x1: (u45, u43), x2: s47, x3: u22) -> (uN[484], s47, uN[484], uN
   let x12: uN[1760] = (((x7) ++ (x6)) ++ (x6)) ++ (x6);
   let x13: uN[484] = rev(x6);
   let x14: u16 = (x6)[x9+:u16];
-  let x15: s46 = for (i, x): (u4, s46) in range(u4:0, u4:7) {
+  let x15: s46 = for (i, x): (u4, s46) in u4:0..u4:7 {
     x
   }(x0);
   let x16: uN[485] = (x9)[x5+:uN[485]];
@@ -189,7 +189,7 @@ fn main(x0: s46, x1: (u45, u43), x2: s47, x3: u22) -> (uN[484], s47, uN[484], uN
   let x26: uN[1982] = ((((x11) ++ (x6)) ++ (x6)) ++ (x9)) ++ (x8);
   let x27: uN[326] = (((x5) ++ (x14)) ++ (x23)) ++ (x23);
   let x28: s46 = (((x7) as s46)) | (x15);
-  let x29: uN[485] = for (i, x): (u4, uN[485]) in range(u4:0, u4:5) {
+  let x29: uN[485] = for (i, x): (u4, uN[485]) in u4:0..u4:5 {
     x
   }(x9);
   let x30: bool = (((x10) as uN[88])) == (x4);

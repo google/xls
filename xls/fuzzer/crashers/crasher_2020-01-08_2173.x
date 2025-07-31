@@ -55,7 +55,7 @@ fn main(x0: s57, x1: s36, x2: s24, x3: u12) -> (u62, u45, u62) {
     let x5: uN[84] = ((((((x3) ++ (x3)) ++ (x3)) ++ (x3)) ++ (x3)) ++ (x3)) ++ (x3);
     let x6: u62 = (u62:0x400000);
     let x7: uN[6] = (x3)[:0x6];
-    let x8: s24 = for (i, x): (u4, s24) in range((u4:0x0), (u4:0x5)) {
+    let x8: s24 = for (i, x): (u4, s24) in (u4:0x0)..(u4:0x5) {
     x
   }(x2)
   ;
@@ -65,21 +65,21 @@ fn main(x0: s57, x1: s36, x2: s24, x3: u12) -> (u62, u45, u62) {
     let x12: uN[62] = (x6)[:];
     let x13: s36 = (x1) + ((x10 as s36));
     let x14: uN[260] = ((((x6) ++ (x3)) ++ (x6)) ++ (x6)) ++ (x10);
-    let x15: s24 = for (i, x): (u4, s24) in range((u4:0x0), (u4:0x3)) {
+    let x15: s24 = for (i, x): (u4, s24) in (u4:0x0)..(u4:0x3) {
     x
   }(x8)
   ;
     let x16: uN[186] = ((x10) ++ (x6)) ++ (x6);
     let x17: uN[13] = one_hot(x3, (u1:0));
     let x18: u45 = (u45:0x8000000);
-    let x19: u62 = for (i, x): (u4, u62) in range((u4:0x0), (u4:0x3)) {
+    let x19: u62 = for (i, x): (u4, u62) in (u4:0x0)..(u4:0x3) {
     x
   }(x10)
   ;
     let x20: s29 = (s29:0x40000);
     let x21: uN[57] = (x0 as u57)[:];
     let x22: uN[1320] = x10 ++ x18 ++ x10 ++ x10 ++ x18 ++ x10 ++ x19 ++ x6 ++ x10 ++ x6 ++ x18 ++ x10 ++ x19 ++ x19 ++ x6 ++ x6 ++ x10 ++ x19 ++ x18 ++ x6 ++ x3 ++ x3 ++ x10 ++ x6;
-    let x23: s24 = for (i, x): (u4, s24) in range((u4:0x0), (u4:0x7)) {
+    let x23: s24 = for (i, x): (u4, s24) in (u4:0x0)..(u4:0x7) {
     x
   }(x15)
   ;

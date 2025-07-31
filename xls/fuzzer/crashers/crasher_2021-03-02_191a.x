@@ -170,13 +170,13 @@ fn x3(x4: u44) -> (u9, (u9,)) {
   let x7: u9 = ((x5) ++ (x5)) ++ (x5);
   let x8: (u44, u44) = (x4, x4);
   let x9: u9 = one_hot_sel(x5, [x7, x7, x7]);
-  let x10: u3 = for (i, x): (u4, u3) in range(u4:0x0, u4:0x6) {
+  let x10: u3 = for (i, x): (u4, u3) in u4:0x0..u4:0x6 {
     x
   }(x5);
   let x11: u9 = (x7) * (x7);
   let x12: (u9,) = (x11,);
   let x13: u3 = (x6).0;
-  let x14: u9 = for (i, x): (u4, u9) in range(u4:0x0, u4:0x3) {
+  let x14: u9 = for (i, x): (u4, u9) in u4:0x0..u4:0x3 {
     x
   }(x7);
   let x15: s55 = s55:0x8000000000000;
@@ -184,13 +184,13 @@ fn x3(x4: u44) -> (u9, (u9,)) {
   let x17: u44 = (x8).0;
   let x18: u9 = rev(x11);
   let x19: u9 = !(x9);
-  let x20: u9 = for (i, x): (u4, u9) in range(u4:0x0, u4:0x7) {
+  let x20: u9 = for (i, x): (u4, u9) in u4:0x0..u4:0x7 {
     x
   }(x14);
-  let x21: u9 = for (i, x): (u4, u9) in range(u4:0x0, u4:0x0) {
+  let x21: u9 = for (i, x): (u4, u9) in u4:0x0..u4:0x0 {
     x
   }(x9);
-  let x22: u9 = for (i, x): (u4, u9) in range(u4:0x0, u4:0x1) {
+  let x22: u9 = for (i, x): (u4, u9) in u4:0x0..u4:0x1 {
     x
   }(x11);
   (x9, x12)
@@ -218,7 +218,7 @@ fn main(x0: s43, x1: u15) -> (u15, u15, u15, (u30,), u1, u23, (u1,), u15, u1, u1
   let x43: u30 = !(x37);
   let x44: s20 = s20:0x400;
   let x45: x23[0x4] = (x2) ++ (x2);
-  let x46: u1 = for (i, x): (u4, u1) in range(u4:0x0, u4:0x7) {
+  let x46: u1 = for (i, x): (u4, u1) in u4:0x0..u4:0x7 {
     x
   }(x26);
   let x47: u55 = one_hot_sel(x26, [x40]);

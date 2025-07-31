@@ -167,24 +167,24 @@ fn main(x0: s7) -> (u1, s7, u1, u54, u27, s7, u27, u27, u1, s38, s38, u1, u54, u
   let x2: u27 = ctz(x1);
   let x3: u54 = (x1) ++ (x1);
   let x4: u27 = clz(x1);
-  let x5: u27 = for (i, x): (u4, u27) in range(u4:0x0, u4:0x6) {
+  let x5: u27 = for (i, x): (u4, u27) in u4:0x0..u4:0x6 {
     x
   }(x1);
   let x6: u54 = (x3) + (((x4) as u54));
   let x7: u1 = (((x4) as u54)) != (x3);
   let x8: u54 = one_hot_sel(x7, [x6]);
-  let x9: u54 = for (i, x): (u4, u54) in range(u4:0x0, u4:0x0) {
+  let x9: u54 = for (i, x): (u4, u54) in u4:0x0..u4:0x0 {
     x
   }(x3);
   let x10: s48 = s48:0x200000;
-  let x11: u27 = for (i, x): (u4, u27) in range(u4:0x0, u4:0x1) {
+  let x11: u27 = for (i, x): (u4, u27) in u4:0x0..u4:0x1 {
     x
   }(x5);
   let x12: u27 = -(x11);
   let x13: s38 = s38:0x100;
   let x14: u27 = -(x5);
   let x15: u27 = (x13 as u38)[x11+:u27];
-  let x16: u54 = for (i, x): (u4, u54) in range(u4:0x0, u4:0x3) {
+  let x16: u54 = for (i, x): (u4, u54) in u4:0x0..u4:0x3 {
     x
   }(x9);
   let x17: s48 = s48:0x400000;

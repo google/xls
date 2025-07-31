@@ -172,11 +172,11 @@ fn main(x0: s53) -> (bool, s53, (s53, s53), u1, s53, s53, u1, s53, u1, (s53, s53
   let x6: u1 = !(x3);
   let x7: s16 = s16:0x8;
   let x8: s16 = (x7) >> (((x5) as u16));
-  let x9: u1 = for (i, x): (u4, u1) in range(u4:0x0, u4:0x6) {
+  let x9: u1 = for (i, x): (u4, u1) in u4:0x0..u4:0x6 {
     x
   }(x3);
   let x10: u1 = one_hot_sel(x1, [x3]);
-  let x11: (s53, s53) = for (i, x): (u4, (s53, s53)) in range(u4:0x0, u4:0x5) {
+  let x11: (s53, s53) = for (i, x): (u4, (s53, s53)) in u4:0x0..u4:0x5 {
     x
   }(x2);
   let x12: s53 = one_hot_sel(x6, [x0]);

@@ -179,7 +179,7 @@ fn main(x0: u38, x1: s1) -> (u39, u38, u18, u20) {
   let x7: u38 = -(x2);
   let x8: u20 = (x5)[0+:u20];
   let x9: u2 = (((x7) as u2)) | (x4);
-  let x10: u38 = for (i, x): (u4, u38) in range(u4:0, u4:0) {
+  let x10: u38 = for (i, x): (u4, u38) in u4:0..u4:0 {
     x
   }(x5);
   let x11: bool = (x5) != (((x6) as u38));

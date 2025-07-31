@@ -47,7 +47,7 @@ fn main(x0: s45, x1: s50, x2: s38, x3: u8, x4: u49, x5: u13, x6: u12, x7: s14, x
     let x21: s26 = (s26:0x40000);
     let x22: x23[0x8] = (x18 as x23[0x8]);
     let x24: u1 = xor_reduce(x14);
-    let x25: s14 = for (i, x): (u4, s14) in range((u4:0x0), (u4:0x3)) {
+    let x25: s14 = for (i, x): (u4, s14) in (u4:0x0)..(u4:0x3) {
     x
   }(x7)
   ;
@@ -56,7 +56,7 @@ fn main(x0: s45, x1: s50, x2: s38, x3: u8, x4: u49, x5: u13, x6: u12, x7: s14, x
     let x28: uN[50] = (x1 as u50)[x3+:uN[50]];
     let x29: u49 = one_hot_sel(x24, [x4]);
     let x30: u8 = one_hot_sel(x24, [x18]);
-    let x31: s26 = for (i, x): (u4, s26) in range((u4:0x0), (u4:0x6)) {
+    let x31: s26 = for (i, x): (u4, s26) in (u4:0x0)..(u4:0x6) {
     x
   }(x21)
   ;

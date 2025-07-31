@@ -170,7 +170,7 @@ fn main(x0: s5) -> (u1, x8[0x2], u1, s5, x21[0x1], x21[0x1], s5, u1, s5, (s5, s5
   let x6: s5 = one_hot_sel(x2 as u5, [x1, x0, x4, x3, x0]);
   let x7: x8[0x1] = ((x5) as x8[0x1]);
   let x9: x8[0x2] = (x7) ++ (x7);
-  let x10: s5 = for (i, x): (u4, s5) in range(u4:0x0, u4:0x4) {
+  let x10: s5 = for (i, x): (u4, s5) in u4:0x0..u4:0x4 {
     x
   }(x3);
   let x11: (s5,) = (x3,);

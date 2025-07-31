@@ -183,7 +183,7 @@ fn main(x0: s46, x1: s42) -> (s42, u2, s46, bool) {
   let x4: u2 = u2:0x3;
   let x5: u8 = (((x4) ++ (x4)) ++ (x4)) ++ (x4);
   let x6: s42 = (x3) + (((x5) as s42));
-  let x7: u8 = for (i, x): (u4, u8) in range(u4:0, u4:2) {
+  let x7: u8 = for (i, x): (u4, u8) in u4:0..u4:2 {
     x
   }(x5);
   let x8: (s42, s46) = (x1, x0);

@@ -186,7 +186,7 @@ fn main(x0: s38, x1: u1) -> (u2, u2, u2, u2) {
   let x15: u11 = (((((x6) ++ (x11)) ++ (x6)) ++ (x3)) ++ (x4)) ++ (x4);
   let x17: x16[1] = [x1];
   let x18: x16[2] = (x17) ++ (x17);
-  let x19: u2 = for (i, x): (u4, u2) in range(u4:0, u4:6) {
+  let x19: u2 = for (i, x): (u4, u2) in u4:0..u4:6 {
     x
   }(x4);
   let x20: u2 = (x4) | (x2);
