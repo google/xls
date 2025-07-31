@@ -28,6 +28,7 @@
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/fuzzing/fuzztest.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/log.h"
@@ -42,6 +43,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_domain.h"
+#include "xls/fuzzer/ir_fuzzer/ir_fuzz_test_library.h"
 #include "xls/ir/benchmark_support.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -56,6 +59,7 @@
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
+#include "xls/passes/ternary_query_engine_test_common.h"
 
 namespace xls {
 namespace {
@@ -1864,6 +1868,14 @@ void BM_ArrayIndexExactTree(benchmark::State& state) {
 BENCHMARK(BM_ArrayIndexExactDeep)->DenseRange(2, 14, 1);
 BENCHMARK(BM_ArrayIndexExactShallow)->DenseRange(2, 14, 1);
 BENCHMARK(BM_ArrayIndexExactTree)->DenseRange(2, 12, 1);
+
+void CheckEngineConsistency(FuzzPackageWithArgs a) {
+  CheckTernaryEngineConsistency<TernaryQueryEngine>(a);
+}
+
+FUZZ_TEST(TernaryQueryEngineFuzzTest, CheckEngineConsistency)
+    .WithDomains(
+        PackageWithArgsDomainBuilder(10).WithOnlyBitsOperations().Build());
 
 }  // namespace
 }  // namespace xls
