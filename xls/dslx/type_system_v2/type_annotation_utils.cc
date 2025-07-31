@@ -442,4 +442,34 @@ bool IsBitsLikeFragment(const TypeAnnotation* annotation) {
   return false;
 }
 
+std::string GetParametricBindingOwnerDescription(
+    const ParametricBinding* binding) {
+  if (binding->parent() == nullptr) {
+    return "<unknown>";
+  }
+
+  switch (binding->parent()->kind()) {
+    case AstNodeKind::kFunction:
+      return absl::Substitute(
+          "function `$0`",
+          down_cast<Function*>(binding->parent())->identifier());
+
+    case AstNodeKind::kProc:
+      return absl::Substitute(
+          "proc `$0`", down_cast<Proc*>(binding->parent())->identifier());
+
+    case AstNodeKind::kProcDef:
+      return absl::Substitute(
+          "proc `$0`", down_cast<ProcDef*>(binding->parent())->identifier());
+
+    case AstNodeKind::kStructDef:
+      return absl::Substitute(
+          "struct `$0`",
+          down_cast<StructDef*>(binding->parent())->identifier());
+
+    default:
+      return binding->parent()->ToString();
+  }
+}
+
 }  // namespace xls::dslx

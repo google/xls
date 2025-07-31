@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <variant>
 #include <vector>
@@ -211,6 +212,11 @@ const FunctionTypeAnnotation* ExpandVarargs(
 // unusable without being combined into a larger annotation. For example,
 // returns true for `uN` but false for `uN[4]` or `uN[N]`.
 bool IsBitsLikeFragment(const TypeAnnotation* annotation);
+
+// Returns a description of the entity that owns the given binding, suitable for
+// user-facing error messages.
+std::string GetParametricBindingOwnerDescription(
+    const ParametricBinding* binding);
 
 }  // namespace xls::dslx
 

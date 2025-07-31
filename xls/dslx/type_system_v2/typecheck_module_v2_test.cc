@@ -1425,6 +1425,20 @@ const X = S { x: [1, 2] }.x[0];
       TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, ParametricStructWithParametricCallInMemberType) {
+  // Based upon https://github.com/google/xls/issues/2722.
+  EXPECT_THAT(R"(
+fn bar<N: u32>(a: uN[N]) -> uN[N] { a / 2 }
+
+struct Foo<A: u32> {
+    x: uN[bar(A)],
+}
+
+const C = Foo<32>{ x: u16:2 };
+)",
+              TypecheckSucceeds(HasNodeWithType("C", "Foo { x: uN[16] }")));
+}
+
 TEST(TypecheckV2Test, AccessOfParametricStructMemberArray) {
   EXPECT_THAT(
       R"(
@@ -2351,7 +2365,8 @@ TEST(TypecheckV2Test, ParametricFunctionWithNonInferrableParametric) {
 fn foo<M: u32, N: u32>(a: uN[M]) -> uN[M] { a }
 const X = foo(u10:5);
 )",
-              TypecheckFails(HasSubstr("Could not infer parametric(s): N")));
+              TypecheckFails(HasSubstr(
+                  "Could not infer parametric(s): N of function `foo`")));
 }
 
 TEST(TypecheckV2Test,

@@ -1795,9 +1795,12 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       }
       return TypeInferenceErrorStatus(
           span, /*type=*/nullptr,
-          absl::StrCat("Could not infer parametric(s): ",
-                       absl::StrJoin(binding_names, ", "), "; target context: ",
-                       ToString(target_context), "; module: ", module_.name()),
+          absl::Substitute("Could not infer parametric(s): $0 of $1; target "
+                           "context: $2; module: $3",
+                           absl::StrJoin(binding_names, ", "),
+                           GetParametricBindingOwnerDescription(
+                               *implicit_parametrics.begin()),
+                           ToString(target_context), module_.name()),
           file_table_);
     }
     return values;

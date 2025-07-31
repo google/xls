@@ -627,7 +627,7 @@ class InferenceTableImpl : public InferenceTable {
         const auto it = node_data_.find(old_node);
         if (it != node_data_.end()) {
           NodeData copy = it->second;
-          node_data_.emplace(new_node, std::move(copy));
+          node_data_[new_node] = std::move(copy);
         }
         if (new_node->kind() == AstNodeKind::kTypeAnnotation) {
           const auto flag_it = annotation_flags_.find(
