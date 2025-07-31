@@ -104,11 +104,7 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
       absl::StatusOr<std::unique_ptr<ModuleInfo>> (*)(
           std::unique_ptr<Module>, std::filesystem::path path, ImportData*,
           WarningCollector*);
-  ExtendedTypecheckModuleFn version_entry_point =
-      force_version2 || module->attributes().contains(
-                            ModuleAttribute::kTypeInferenceVersion2)
-          ? &TypecheckModuleV2
-          : static_cast<ExtendedTypecheckModuleFn>(&TypecheckModule);
+  ExtendedTypecheckModuleFn version_entry_point = &TypecheckModuleV2;
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ModuleInfo> module_info,
       version_entry_point(std::move(module), path, import_data, &warnings));
