@@ -166,7 +166,7 @@ compound_passes: [
       "Opt level is capped at 2 and skipped if less than 1"
   },
   {
-    long_name: "pre-inlinng passes"
+    long_name: "pre-inlining passes"
     short_name: "pre-inlining"
     passes: ["dfe", "dce", "simp(>=1,<=2)"]
     comment: "Passes performed before each inlining."

@@ -886,7 +886,7 @@ Min opt level: 1
 
 
 
-## pre-inlining - pre-inlinng passes {#pre-inlining}
+## pre-inlining - pre-inlining passes {#pre-inlining}
 
 
 Passes performed before each inlining.
