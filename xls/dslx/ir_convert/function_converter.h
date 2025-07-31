@@ -92,7 +92,8 @@ absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
 struct PackageData {
   PackageConversionData* conversion_info;
   absl::flat_hash_map<xls::FunctionBase*, dslx::Function*> ir_to_dslx;
-  absl::flat_hash_map<dslx::Proc*, xls::Proc*> dslx_proc_to_ir_proc;
+  absl::flat_hash_map<const dslx::Invocation*, xls::Proc*>
+      invocation_to_ir_proc;
   absl::flat_hash_set<xls::Function*> wrappers;
 };
 
