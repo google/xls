@@ -240,8 +240,8 @@ std::optional<Node *> ApplicabilityGuardForBinaryOperation(
   for (Node *case_node : cases.subspan(1)) {
     int bw = case_node->operand(unique_side)->GetType()->GetFlatBitCount();
     if (bw != bitwidth) {
-      VLOG(3) << "The bitwidth is not the same for case " << index << ": " << bw
-              << " != " << bitwidth;
+      VLOG(3) << "The bitwidth is not the same for case " << *case_node << ": "
+              << bw << " != " << bitwidth;
       return std::nullopt;
     }
   }
