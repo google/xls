@@ -209,7 +209,9 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   }
 
   if (f->tag() == FunctionTag::kProcNext) {
-    if (!proc_data->id_to_initial_value.contains(record.proc_id().value())) {
+    if (!proc_data->id_to_initial_value.contains(record.proc_id().value()) &&
+        (!options.lower_to_proc_scoped_channels || record.IsTop())) {
+      // For proc scoped channels, we will defer the init evaluation to later.
       Proc* p = f->proc().value();
       // If there's no value in the map, then this should be a top-level proc.
       // Verify that there are no parametric bindings.

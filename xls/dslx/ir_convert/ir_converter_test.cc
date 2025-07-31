@@ -4258,6 +4258,34 @@ pub proc main {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricSimpleSpawn) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee<N:u32> {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() {
+    spawn spawnee<u32:0>();
+    ()
+  }
+  next(state: ()) { () }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
