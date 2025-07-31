@@ -449,6 +449,22 @@ TEST_F(SelectLiftingPassTest, DontLiftBinaryOpIfIncreasesOutputBitwidth) {
   EXPECT_EQ(f->node_count(), 9);
 }
 
+TEST_F(SelectLiftingPassTest, DontLiftUnaryOpInDefaultCase) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue input = fb.Param("input", p->GetBitsType(1));
+
+  BValue and_a = fb.And({input});
+  BValue and_b = fb.And({and_a, and_a});
+  BValue select = fb.PrioritySelect(and_a, {and_b}, and_a);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  VLOG(3) << "After no transformation:" << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 4);
+}
+
 void IrFuzzSelectLifting(FuzzPackageWithArgs fuzz_package_with_args) {
   SelectLiftingPass pass;
   OptimizationPassChangesOutputs(std::move(fuzz_package_with_args), pass);

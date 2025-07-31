@@ -181,15 +181,24 @@ std::optional<Node *> ApplicabilityGuardForBinaryOperation(
     absl::Span<Node *const> cases, std::optional<Node *> default_case) {
   // Ensure that every case is an operation of the same type on two operands.
   Op case_op = cases[0]->op();
-  for (Node *current_case : cases) {
+  auto is_valid_case = [&](Node *current_case) -> bool {
     if (current_case->op() != case_op) {
       VLOG(3) << "The case " << current_case->ToString()
               << " uses a different operation than another case: " << case_op;
-      return std::nullopt;
+      return false;
     }
     if (current_case->operand_count() != 2) {
       VLOG(3) << "The case " << current_case->ToString()
               << " is not an operation on two operands";
+      return false;
+    }
+    return true;
+  };
+  if (default_case.has_value() && !is_valid_case(default_case.value())) {
+    return std::nullopt;
+  }
+  for (Node *current_case : cases) {
+    if (!is_valid_case(current_case)) {
       return std::nullopt;
     }
   }
