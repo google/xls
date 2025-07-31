@@ -3095,6 +3095,42 @@ TEST(IrFuzzBuilderTest, ArrayConcatOp) {
   XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
 }
 
+TEST(IrFuzzBuilderTest, ArrayConcatExceedsSizeLimit) {
+  std::string proto_string = absl::StrFormat(
+      R"(
+        combine_list_method: LAST_ELEMENT_METHOD
+        fuzz_ops {
+          param {
+            type {
+              array {
+                array_size: 50
+                array_element {
+                  bits {
+                    bit_width: 10
+                  }
+                }
+              }
+            }
+          }
+        }
+        fuzz_ops {
+          array_concat {
+            operand_idxs {
+              list_idx: 0
+            }
+            operand_idxs {
+              list_idx: 0
+            }
+            operand_idxs {
+              list_idx: 0
+            }
+          }
+        }
+      )");
+  auto expected_ir_node = m::ArrayConcat(m::Param("p0"), m::Param("p0"));
+  XLS_ASSERT_OK(EquateProtoToIrTest(proto_string, expected_ir_node));
+}
+
 TEST(IrFuzzBuilderTest, ReverseOp) {
   std::string proto_string = absl::StrFormat(
       R"(
