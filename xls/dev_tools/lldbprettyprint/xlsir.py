@@ -15,8 +15,9 @@
 """Pretty printers for IR nodes and structures in XLS.
 
 This makes LLDB print the 'ToString' representation of xls::Node, xls::Type,
-xls::BValue, xls::Value, and xls::Bits objects as the summary. This greatly
-improves usability of the debugger when examining tests.
+xls::BValue, xls::Value, xls::Bits, xls::dslx::ASTNode, xls::dslx::Type,
+xls::dslx::InterpValue, and xls::dslx::ParametricContext objects as the summary.
+This greatly improves usability of the debugger when examining tests.
 
 Usage:
   (lldb) command script import xls/dev_tools/lldbprettyprint/lldbprettyprint.py
@@ -60,6 +61,25 @@ def init_printers(debugger):
   debugger.HandleCommand(
       "type summary add --expand --python-function"
       " lldbprettyprint.xlsir.xls_interval_set_summary xls::IntervalSet"
+  )
+  debugger.HandleCommand(
+      "type summary add --expand --python-function"
+      " lldbprettyprint.xlsir.xls_astnode_summary --recognizer-function"
+      " lldbprettyprint.xlsir.xls_is_astnode"
+  )
+  debugger.HandleCommand(
+      "type summary add --expand --python-function"
+      " lldbprettyprint.xlsir.xls_dslxtype_summary --recognizer-function"
+      " lldbprettyprint.xlsir.xls_is_dslxtype"
+  )
+  debugger.HandleCommand(
+      "type summary add --expand --python-function"
+      " lldbprettyprint.xlsir.xls_interpvalue_summary xls::dslx::InterpValue"
+  )
+  debugger.HandleCommand(
+      "type summary add --expand --python-function"
+      " lldbprettyprint.xlsir.xls_parametriccontext_summary"
+      " xls::dslx::ParametricContext"
   )
 
 
@@ -194,6 +214,106 @@ def xls_interval_summary(valobj, _):
 
 def xls_interval_set_summary(valobj, _):
   """Summarize xls::IntervalSet."""
+  try:
+    if not valobj.IsValid() or not valobj.IsInScope():
+      return "<uninitialized>"
+    # Using EvaluateExpression like this can be somewhat slow. The 'correct' way
+    # to do this stuff is implement it all in python. This seems to be fast
+    # enough however.
+    # TODO(allight): Consider rewriting in python.
+    return (
+        _maybe_deref(valobj)
+        .EvaluateExpression("this.ToString()")
+        .GetSummary()
+        .strip('"')
+    )
+  # pylint: disable-next=broad-exception-caught
+  except Exception:
+    return "<INVALID>"
+
+
+def base_type_recognizer_function_generator(base_name):
+  def is_base_type(sbtype, _):
+    if sbtype.IsReferenceType():
+      sbtype = sbtype.GetDereferencedType()
+    if sbtype.IsPointerType():
+      sbtype = sbtype.GetPointeeType()
+    for base in sbtype.get_bases_array():
+      if base.GetName() == base_name or is_base_type(base.GetType(), _):
+        return True
+    return False
+
+  return is_base_type
+
+
+xls_is_astnode = base_type_recognizer_function_generator("xls::dslx::AstNode")
+
+
+def xls_astnode_summary(valobj, _):
+  """Summarize xls::dslx::AstNode."""
+  try:
+    if not valobj.IsValid() or not valobj.IsInScope():
+      return "<uninitialized>"
+    # Using EvaluateExpression like this can be somewhat slow. The 'correct' way
+    # to do this stuff is implement it all in python. This seems to be fast
+    # enough however.
+    # TODO(allight): Consider rewriting in python.
+    return (
+        _maybe_deref(valobj)
+        .EvaluateExpression("this.ToString()")
+        .GetSummary()
+        .strip('"')
+    )
+  # pylint: disable-next=broad-exception-caught
+  except Exception:
+    return "<INVALID>"
+
+
+xls_is_dslxtype = base_type_recognizer_function_generator("xls::dslx::Type")
+
+
+def xls_dslxtype_summary(valobj, _):
+  """Summarize xls::dslx::Type."""
+  try:
+    if not valobj.IsValid() or not valobj.IsInScope():
+      return "<uninitialized>"
+    # Using EvaluateExpression like this can be somewhat slow. The 'correct' way
+    # to do this stuff is implement it all in python. This seems to be fast
+    # enough however.
+    # TODO(allight): Consider rewriting in python.
+    return (
+        _maybe_deref(valobj)
+        .EvaluateExpression("this.ToString()")
+        .GetSummary()
+        .strip('"')
+    )
+  # pylint: disable-next=broad-exception-caught
+  except Exception:
+    return "<INVALID>"
+
+
+def xls_interpvalue_summary(valobj, _):
+  """Summarize xls::dslx::InterpValue."""
+  try:
+    if not valobj.IsValid() or not valobj.IsInScope():
+      return "<uninitialized>"
+    # Using EvaluateExpression like this can be somewhat slow. The 'correct' way
+    # to do this stuff is implement it all in python. This seems to be fast
+    # enough however.
+    # TODO(allight): Consider rewriting in python.
+    return (
+        _maybe_deref(valobj)
+        .EvaluateExpression("this.ToHumanString()")
+        .GetSummary()
+        .strip('"')
+    )
+  # pylint: disable-next=broad-exception-caught
+  except Exception:
+    return "<INVALID>"
+
+
+def xls_parametriccontext_summary(valobj, _):
+  """Summarize xls::dslx::ParametricContext."""
   try:
     if not valobj.IsValid() or not valobj.IsInScope():
       return "<uninitialized>"
