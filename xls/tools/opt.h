@@ -38,7 +38,7 @@ namespace xls::tools {
 // this consolidated library).
 struct OptOptions {
   int64_t opt_level = xls::kMaxOptLevel;
-  std::string_view top;
+  std::string top;
   std::string ir_dump_path = "";
   std::optional<std::string> ir_path = std::nullopt;
   std::vector<std::string> skip_passes;
@@ -52,8 +52,8 @@ struct OptOptions {
   std::string area_model = "v";
   // Custom registry to use to get default pipeline and compound passes.
   std::optional<OptimizationPipelineProto> custom_registry = std::nullopt;
-  std::variant<std::nullopt_t, std::string_view, PassPipelineProto>
-      pass_pipeline = std::nullopt;
+  std::variant<std::nullopt_t, std::string, PassPipelineProto> pass_pipeline =
+      std::nullopt;
   std::optional<int64_t> bisect_limit;
   bool debug_optimizations = false;
 };

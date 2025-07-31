@@ -256,8 +256,8 @@ absl::Status RealMain(std::string_view input_path) {
       absl::GetFlag(FLAGS_pipeline_textproto);
   std::optional<std::string> pipeline_binproto =
       absl::GetFlag(FLAGS_pipeline_proto);
-  std::variant<std::nullopt_t, std::string_view, PassPipelineProto>
-      pass_pipeline = std::nullopt;
+  std::variant<std::nullopt_t, std::string, PassPipelineProto> pass_pipeline =
+      std::nullopt;
   std::optional<OptimizationPipelineProto> custom_registry = std::nullopt;
   if (pipeline_textproto && pipeline_binproto) {
     return absl::InvalidArgumentError(
