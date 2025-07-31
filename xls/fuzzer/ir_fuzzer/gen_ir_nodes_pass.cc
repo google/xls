@@ -151,8 +151,8 @@ void GenIrNodesPass::HandleSMul(const FuzzSMulProto& smul) {
   if (smul.has_bit_width()) {
     BValue lhs = GetBitsOperand(smul.lhs_idx());
     BValue rhs = GetBitsOperand(smul.rhs_idx());
-    int64_t right_bound =
-        std::min<int64_t>(1000, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t right_bound = std::min<int64_t>(
+        kMaxFuzzBitWidth, lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
         BoundedWidth(smul.bit_width(), /*left_bound=*/1, right_bound);
     context_list_.AppendElement(fb_->SMul(lhs, rhs, bit_width));
@@ -168,8 +168,8 @@ void GenIrNodesPass::HandleUMulp(const FuzzUMulpProto& umulp) {
   if (umulp.has_bit_width()) {
     BValue lhs = GetBitsOperand(umulp.lhs_idx());
     BValue rhs = GetBitsOperand(umulp.rhs_idx());
-    int64_t right_bound =
-        std::min<int64_t>(1000, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t right_bound = std::min<int64_t>(
+        kMaxFuzzBitWidth, lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
         BoundedWidth(umulp.bit_width(), /*left_bound=*/1, right_bound);
     context_list_.AppendElement(fb_->UMulp(lhs, rhs, bit_width));
@@ -185,8 +185,8 @@ void GenIrNodesPass::HandleSMulp(const FuzzSMulpProto& smulp) {
   if (smulp.has_bit_width()) {
     BValue lhs = GetBitsOperand(smulp.lhs_idx());
     BValue rhs = GetBitsOperand(smulp.rhs_idx());
-    int64_t right_bound =
-        std::min<int64_t>(1000, lhs.BitCountOrDie() + rhs.BitCountOrDie());
+    int64_t right_bound = std::min<int64_t>(
+        kMaxFuzzBitWidth, lhs.BitCountOrDie() + rhs.BitCountOrDie());
     int64_t bit_width =
         BoundedWidth(smulp.bit_width(), /*left_bound=*/1, right_bound);
     context_list_.AppendElement(fb_->SMulp(lhs, rhs, bit_width));
@@ -240,12 +240,12 @@ void GenIrNodesPass::HandleConcat(const FuzzConcatProto& concat) {
   std::vector<BValue> operands =
       GetBitsOperands(concat.operand_idxs(), /*min_operand_count=*/1);
   // Only use operands such that their summed bit width is less than or equal to
-  // 1000.
+  // kMaxFuzzBitWidth.
   int64_t bit_width_sum = 0;
   int64_t operand_count = 0;
   for (const auto& operand : operands) {
     bit_width_sum += operand.BitCountOrDie();
-    if (bit_width_sum > 1000) {
+    if (bit_width_sum > kMaxFuzzBitWidth) {
       break;
     }
     operand_count += 1;
@@ -368,11 +368,12 @@ void GenIrNodesPass::HandleSelect(const FuzzSelectProto& select) {
 
 void GenIrNodesPass::HandleOneHot(const FuzzOneHotProto& one_hot) {
   BValue operand = GetBitsOperand(one_hot.operand_idx());
-  // If the operand bit width is 1000, decrease it by 1 because OneHot returns
-  // an operand with a bit width of 1 + the bit width of the operand.
-  if (operand.BitCountOrDie() == 1000) {
+  // If the operand bit width is kMaxFuzzBitWidth, decrease it by 1 because
+  // OneHot returns an operand with a bit width of 1 + the bit width of the
+  // operand.
+  if (operand.BitCountOrDie() == kMaxFuzzBitWidth) {
     auto operand_coercion_method = one_hot.operand_coercion_method();
-    operand = ChangeBitWidth(fb_, operand, 1000 - 1,
+    operand = ChangeBitWidth(fb_, operand, kMaxFuzzBitWidth - 1,
                              operand_coercion_method.change_bit_width_method());
   }
   // Convert the LsbOrMsb proto enum to the FunctionBuilder enum.
@@ -547,6 +548,20 @@ void GenIrNodesPass::HandleArrayConcat(
     const FuzzArrayConcatProto& array_concat) {
   std::vector<BValue> operands =
       GetArrayOperands(array_concat.operand_idxs(), /*min_operand_count=*/1);
+  // Only use operands such that their summed array size is less than or equal
+  // to kMaxFuzzArraySize.
+  int64_t array_size_sum = 0;
+  int64_t operand_count = 0;
+  for (const auto& operand : operands) {
+    array_size_sum += operand.GetType()->AsArrayOrDie()->size();
+    if (array_size_sum > kMaxFuzzArraySize) {
+      break;
+    }
+    operand_count += 1;
+  }
+  // Drop the remaining operands.
+  operands.resize(operand_count);
+  CHECK(!operands.empty());
   context_list_.AppendElement(fb_->ArrayConcat(operands));
 }
 
@@ -629,12 +644,13 @@ void GenIrNodesPass::HandleEncode(const FuzzEncodeProto& encode) {
 void GenIrNodesPass::HandleDecode(const FuzzDecodeProto& decode) {
   BValue operand = GetBitsOperand(decode.operand_idx());
   // The decode bit width cannot exceed 2 ** operand_bit_width.
-  int64_t right_bound = 1000;
-  // We could choose a larger size for this check, but we're clamping to 1000
-  // and 10 bits is sufficient for this while completely avoiding potential
-  // overflow, unlike e.g. checking for 64 bits.
+  int64_t right_bound = kMaxFuzzBitWidth;
+  // We could choose a larger size for this check, but we're clamping to
+  // kMaxFuzzBitWidth and 10 bits is sufficient for this while completely
+  // avoiding potential overflow, unlike e.g. checking for 64 bits.
   if (operand.BitCountOrDie() < 10) {
-    right_bound = std::min<int64_t>(1000, 1ULL << operand.BitCountOrDie());
+    right_bound =
+        std::min<int64_t>(kMaxFuzzBitWidth, 1ULL << operand.BitCountOrDie());
   }
   int64_t bit_width =
       BoundedWidth(decode.bit_width(), /*left_bound=*/1, right_bound);
