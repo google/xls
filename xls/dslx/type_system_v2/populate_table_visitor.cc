@@ -145,7 +145,17 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
   absl::Status HandleChannelDecl(const ChannelDecl* node) override {
     VLOG(5) << "HandleChannelDecl: " << node->ToString()
             << " with type: " << node->type()->ToString();
-    if (node->dims()) {
+    if (node->fifo_depth().has_value()) {
+      Expr* fifo_depth = *node->fifo_depth();
+      XLS_ASSIGN_OR_RETURN(const NameRef* fifo_depth_var,
+                           table_.DefineInternalVariable(
+                               InferenceVariableKind::kType, fifo_depth,
+                               GenerateInternalTypeVariableName(fifo_depth)));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(fifo_depth, fifo_depth_var));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          fifo_depth, CreateU32Annotation(module_, fifo_depth->span())));
+    }
+    if (node->dims().has_value()) {
       for (Expr* dim : *node->dims()) {
         XLS_ASSIGN_OR_RETURN(const NameRef* dim_variable,
                              table_.DefineInternalVariable(

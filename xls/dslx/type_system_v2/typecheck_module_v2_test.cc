@@ -6673,6 +6673,68 @@ proc main {
               TypecheckSucceeds(HasNodeWithType("spawn Counter(p, 50)", "()")));
 }
 
+TEST(TypecheckV2Test, ProcWithFifoDepth) {
+  EXPECT_THAT(R"(
+proc Counter {
+  c: chan<u32> out;
+  max: u32;
+  init { 0 }
+  config(c: chan<u32> out, max: u32) {
+    (c, max)
+  }
+  next(i: u32) {
+    send(join(), c, i);
+    if i == max { i } else { i + 1 }
+  }
+}
+
+proc main {
+  c: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p, c) = chan<u32, 11>("my_chan");
+    spawn Counter(p, 50);
+    (c,)
+  }
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("11", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, ProcWithInvalidTypedFifoDepth) {
+  EXPECT_THAT(R"(
+proc Counter {
+  c: chan<u32> out;
+  max: u32;
+  init { 0 }
+  config(c: chan<u32> out, max: u32) {
+    (c, max)
+  }
+  next(i: u32) {
+    send(join(), c, i);
+    if i == max { i } else { i + 1 }
+  }
+}
+
+proc main {
+  c: chan<u32> in;
+  init { (join(), 0) }
+  config() {
+    let (p, c) = chan<u32, u32[2]:[1, 2]>("my_chan");
+    spawn Counter(p, 50);
+    (c,)
+  }
+  next(state: (token, u32)) {
+    recv(state.0, c)
+  }
+}
+)",
+              TypecheckFails(HasTypeMismatch("u32", "u32[2]")));
+}
+
 TEST(TypecheckV2Test, SpawnParametricProc) {
   EXPECT_THAT(R"(
 proc Counter<N: u32> {

@@ -4133,6 +4133,9 @@ class ChannelDecl : public Expr {
     if (want_types) {
       children.push_back(type_);
     }
+    if (std::holds_alternative<Expr*>(metadata_)) {
+      children.push_back(std::get<Expr*>(metadata_));
+    }
     children.push_back(&channel_name_expr_);
     if (dims_.has_value()) {
       for (Expr* dim : dims_.value()) {
