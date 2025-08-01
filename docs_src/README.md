@@ -6,7 +6,7 @@
 
 <!-- GitHub banner -->
 
-## What is XLS?
+## What is XLS? What isn't XLS?
 
 XLS implements a High Level Synthesis toolchain that produces synthesizable
 designs (Verilog and SystemVerilog) from flexible, high-level descriptions of
