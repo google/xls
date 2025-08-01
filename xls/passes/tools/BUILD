@@ -90,7 +90,7 @@ To Update run:
 
 ```
 $ {BUILD_CMD} build {TARGET}
-$ cp {BUILD_BIN}/{GOLD_PATH} {DOC_PREFIX}{DOC_PATH}/passes_list.md
+$ cp {BUILD_BIN}/{GOLD_PATH} {DOC_PREFIX}{DOC_PATH}
 ```
 
 And update the CL.
