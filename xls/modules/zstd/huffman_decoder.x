@@ -221,9 +221,9 @@ pub proc HuffmanDecoder {
                 trace_fmt!("[HuffmanDecoder] {} -> READ_DATA", state.fsm);
                 assert!(state.fsm == FSM::AWAITING_CONFIG, "invalid_state_transition");
                 trace_fmt!("[HuffmanDecoder] Received codes:");
-                for (i, ()) in range(u32:0, SYMBOLS_N) {
+                unroll_for! (i, ()) in range(u32:0, SYMBOLS_N) {
                     if symbol_valid[i] {
-                        trace_fmt!("[HuffmanDecoder]   {:#b} (len {}) -> {:#x}", symbol_code[i], symbol_code_len[i], i);
+                        trace_fmt!("[HuffmanDecoder]   {:#x} (len {}) -> {:#x}", symbol_code[i], symbol_code_len[i], i);
                     } else {};
                 }(());
                 FSM::READ_DATA
