@@ -96,7 +96,7 @@ class AbstractEvaluator {
   }
 
   Element Xor(const Element& a, const Element& b) const {
-    return And(Or(a, b), Not(And(a, b)));
+    return If(a, Not(b), b);
   }
 
   Element Implies(const Element& a, const Element& b) const {
@@ -109,7 +109,7 @@ class AbstractEvaluator {
   };
   AdderResult HalfAdder(const Element& a, const Element& b) const {
     Element carry = And(a, b);
-    Element sum = And(Or(a, b), Not(carry));
+    Element sum = Xor(a, b);
     return {sum, carry};
   }
   AdderResult FullAdder(const Element& a, const Element& b,
