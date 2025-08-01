@@ -326,11 +326,11 @@ pub proc HuffmanDecoder {
             zero!<common::LitData>()
         };
 
-        let done = (state.data_len == uN[BUFF_W_LOG2]:0) && (state.fsm == FSM::DECODE);
+        let done = (state.data_len == uN[BUFF_W_LOG2]:0) && (state.fsm == FSM::DECODE) && state.data_last;
         let decoded_literals = common::LiteralsDataWithSync{
             data: data,
             length: state.decoded_literals_len as common::LitLength,
-            last: done && state.last_stream && state.data_last,
+            last: done && state.last_stream,
             id: state.id,
             literals_last: state.literals_last,
         };
