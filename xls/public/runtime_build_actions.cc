@@ -106,7 +106,7 @@ absl::StatusOr<std::string> OptimizeIr(std::string_view ir,
                                        std::string_view top) {
   const tools::OptOptions options = {
       .opt_level = xls::kMaxOptLevel,
-      .top = top,
+      .top = std::string(top),
   };
   return tools::OptimizeIrForTop(ir, options);
 }
