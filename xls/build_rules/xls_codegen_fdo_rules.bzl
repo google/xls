@@ -366,7 +366,7 @@ def xls_ir_verilog_fdo_impl(ctx, src, original_input_files):
         env = {
             "ABC": yosys_runfiles_dir + "/edu_berkeley_abc/abc",
             "DONT_USE_ARGS": dont_use_args,
-            "YOSYS_DATDIR": yosys_runfiles_dir + "/" + "at_clifford_yosys/techlibs/",
+            "YOSYS_DATDIR": yosys_runfiles_dir + "/at_clifford_yosys/techlibs",
             "TCL_LIBRARY": opensta_runfiles_dir + "/tk_tcl/library",
         }
     else:

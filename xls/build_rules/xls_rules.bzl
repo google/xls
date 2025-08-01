@@ -374,7 +374,7 @@ def _xls_model_generation_impl(ctx):
     default_driver_cell = getattr(standard_cell, "default_input_driver_cell", "")
     default_load = getattr(standard_cell, "default_output_load", "")
 
-    script_contents.append("export YOSYS_DATDIR={}/at_clifford_yosys/techlibs/".format(yosys_runfiles_dir))
+    script_contents.append("export YOSYS_DATDIR=at_clifford_yosys/techlibs")
     script_contents.append("export ABC={}/edu_berkeley_abc/abc".format(yosys_runfiles_dir))
     script_contents.append("export TCL_LIBRARY={}/tk_tcl/library".format(sta_runfiles_dir))
     script_contents.append("export DONT_USE_ARGS=")
