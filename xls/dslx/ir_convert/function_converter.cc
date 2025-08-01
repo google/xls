@@ -3067,17 +3067,24 @@ absl::Status FunctionConverter::HandleProcNextFunction(
       // calling the config method with its arguments. So, evaluating the
       // invocation should yield the value of the final tuple of the config
       // method.
-      XLS_ASSIGN_OR_RETURN(InterpValue iv,
+      XLS_ASSIGN_OR_RETURN(InterpValue config_result,
                            ConstexprEvaluator::EvaluateToValue(
                                import_data, type_info, kNoWarningCollector,
                                *parametric_env, invocation));
-      XLS_ASSIGN_OR_RETURN(Value final_tuple, InterpValueToValue(iv));
-      XLS_RET_CHECK(final_tuple.IsTuple());
+      XLS_RET_CHECK_EQ(config_result.tag(), InterpValueTag::kTuple);
+      auto final_tuple = config_result.GetValuesOrDie();
+      XLS_RET_CHECK_EQ(proc->members().size(), final_tuple.size());
 
       // Use the final tuple to populate the proc members.
-      XLS_RET_CHECK_EQ(proc->members().size(), final_tuple.size());
       for (int i = 0; i < proc->members().size(); i++) {
-        Value value = final_tuple.element(i);
+        InterpValue interp_value = final_tuple[i];
+        ProcConfigValue value;
+        if (interp_value.tag() == InterpValueTag::kChannelReference) {
+          // TODO: davidplass - convert from channel reference to
+          // ProcConfigValue
+        } else {
+          XLS_ASSIGN_OR_RETURN(value, InterpValueToValue(interp_value));
+        }
         ProcMember* member = proc->members()[i];
         proc_data_->id_to_members.at(proc_id)[member->identifier()] = value;
       }
