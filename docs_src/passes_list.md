@@ -786,6 +786,8 @@ Passes performed after inlining
 
 
 - [fixedpoint_simp(2)](#fixedpoint_simp2)
+- [cond_spec(noBdd)](#cond_specnoBdd)
+- [dce](#dce)
 - [bdd_simp(2)](#bdd_simp2)
 - [dce](#dce)
 - [bdd_cse](#bdd_cse)
@@ -1120,8 +1122,6 @@ This is run a large number of times and avoids many time-consuming analyses.
 - [select_simp](#select_simp)
 - [dce](#dce)
 - [dataflow](#dataflow)
-- [dce](#dce)
-- [cond_spec(noBdd)](#cond_specnoBdd)
 - [dce](#dce)
 - [reassociation](#reassociation)
 - [dce](#dce)

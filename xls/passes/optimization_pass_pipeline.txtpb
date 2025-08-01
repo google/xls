@@ -42,8 +42,6 @@ compound_passes: [
       "dce",
       "dataflow",
       "dce",
-      "cond_spec(noBdd)",
-      "dce",
       "reassociation",
       "dce",
       "const_fold",
@@ -205,6 +203,12 @@ compound_passes: [
     short_name: "post-inlining-opt"
     passes: [
       "fixedpoint_simp(2)",
+      # We previously ran cond_spec(noBdd) as part of fixedpoint_simp, but found
+      # it was not beneficial and showed up as hot on profiles. There's some
+      # evidence that it is helpful for reducing memory usage, though, so we
+      # still run it once here.
+      "cond_spec(noBdd)",
+      "dce",
       "bdd_simp(2)",
       "dce",
       "bdd_cse",

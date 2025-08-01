@@ -10,13 +10,15 @@ module foo_proc(
   output wire [31:0] out,
   output wire out_vld
 );
+  wire [31:0] ctx_2__x_literal__1;
   wire continuation_1_ctx_3__full_condi_output__1;
   wire ctx_3__full_condition_ctx_3__rel_output__1;
   wire [31:0] in2_select;
   wire [31:0] in1_select;
   wire p0_all_active_inputs_valid;
   wire [31:0] out_send_value;
-  assign continuation_1_ctx_3__full_condi_output__1 = dir == 32'h0000_0000;
+  assign ctx_2__x_literal__1 = 32'h0000_0000;
+  assign continuation_1_ctx_3__full_condi_output__1 = dir == ctx_2__x_literal__1;
   assign ctx_3__full_condition_ctx_3__rel_output__1 = ~continuation_1_ctx_3__full_condi_output__1;
   assign in2_select = ctx_3__full_condition_ctx_3__rel_output__1 ? in2 : 32'h0000_0000;
   assign in1_select = continuation_1_ctx_3__full_condi_output__1 ? in1 : 32'h0000_0000;
