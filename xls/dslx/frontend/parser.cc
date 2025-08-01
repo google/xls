@@ -908,8 +908,6 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
                        TryPopToken(TokenKind::kHash));
   std::optional<ChannelConfig> channel_config;
   if (hash.has_value()) {
-    absl::flat_hash_map<std::string, std::string> attributes;
-
     XLS_ASSIGN_OR_RETURN(channel_config,
                          ParseExprAttribute(bindings, hash->span().start()));
     if (channel_config.has_value() &&

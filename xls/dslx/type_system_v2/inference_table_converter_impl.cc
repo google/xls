@@ -1839,7 +1839,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       return absl::OkStatus();
     };
     absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
-    absl::flat_hash_map<std::string, int> indices;
     std::vector<const TypeAnnotation*> formal_member_types;
     std::vector<Expr*> actual_member_exprs;
     for (const StructMemberNode* member : struct_def.members()) {
