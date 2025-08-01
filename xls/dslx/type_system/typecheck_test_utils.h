@@ -46,7 +46,8 @@ struct TypecheckResult {
 // If `import_data` is not provided one is created for internal use.
 absl::StatusOr<TypecheckResult> Typecheck(std::string_view program,
                                           std::string_view module_name = "fake",
-                                          ImportData* import_data = nullptr);
+                                          ImportData* import_data = nullptr,
+                                          bool add_version_attribute = true);
 
 // Variant that prepends the `type_inference_v2` DSLX module attribute to
 // `program` to force the use of type_system_v2.

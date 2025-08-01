@@ -3206,12 +3206,31 @@ fn f() { () }
   EXPECT_THAT(module->attributes(), testing::IsEmpty());
 }
 
-TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithValue2) {
+TEST_F(ParserTest, ParseTypeInferenceV1Attribute) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
+#![feature(type_inference_v1)]
+)"));
+  EXPECT_THAT(module->attributes(),
+              testing::ElementsAre(ModuleAttribute::kTypeInferenceVersion1));
+}
+
+TEST_F(ParserTest, ParseTypeInferenceV2Attribute) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
 #![feature(type_inference_v2)]
 )"));
   EXPECT_THAT(module->attributes(),
               testing::ElementsAre(ModuleAttribute::kTypeInferenceVersion2));
+}
+
+TEST_F(ParserTest, ParseTypeInferenceV1AndV2Attributes) {
+  EXPECT_THAT(
+      Parse(R"(
+#![feature(type_inference_v1)]
+#![feature(type_inference_v2)]
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               testing::HasSubstr("Module cannot have both `type_inference_v1` "
+                                  "and `type_inference_v2` attributes")));
 }
 
 // Verifies that we can walk backwards through a tree. In this case, from the

@@ -3796,7 +3796,7 @@ fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
 
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   EXPECT_EQ(tm.warnings.warnings().at(0).span,
-            Span(Pos(fileno, 5, 42), Pos(fileno, 5, 43)));
+            Span(Pos(fileno, 7, 42), Pos(fileno, 7, 43)));
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "'Splatted' struct instance has all members of struct defined, "
             "consider removing the `..s`");
@@ -3821,7 +3821,7 @@ fn f(x: u32) -> u32 {
 
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   EXPECT_EQ(tm.warnings.warnings().at(0).span,
-            Span(Pos(fileno, 2, 6), Pos(fileno, 2, 7)));
+            Span(Pos(fileno, 4, 6), Pos(fileno, 4, 7)));
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "`let _ = expr;` statement can be simplified to `expr;` -- there "
             "is no need for a `let` binding here");
@@ -3845,7 +3845,7 @@ fn f() -> () {
 
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   EXPECT_EQ(tm.warnings.warnings().at(0).span,
-            Span(Pos(fileno, 3, 2), Pos(fileno, 3, 4)));
+            Span(Pos(fileno, 5, 2), Pos(fileno, 5, 4)));
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "Block has a trailing nil (empty) tuple after a semicolon -- this "
             "is implied, please remove it");

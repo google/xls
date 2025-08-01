@@ -285,6 +285,9 @@ absl::Status Parser::ParseModuleAttribute() {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     if (feature == "use_syntax") {
       module_->AddAttribute(ModuleAttribute::kAllowUseSyntax, attribute_span);
+    } else if (feature == "type_inference_v1") {
+      module_->AddAttribute(ModuleAttribute::kTypeInferenceVersion1,
+                            attribute_span);
     } else if (feature == "type_inference_v2") {
       module_->AddAttribute(ModuleAttribute::kTypeInferenceVersion2,
                             attribute_span);
@@ -296,12 +299,21 @@ absl::Status Parser::ParseModuleAttribute() {
           attribute_span,
           absl::StrFormat("Unsupported feature: `%s`", feature));
     }
+
+    if (module_->attributes().contains(
+            ModuleAttribute::kTypeInferenceVersion1) &&
+        module_->attributes().contains(
+            ModuleAttribute::kTypeInferenceVersion2)) {
+      return ParseErrorStatus(attribute_span,
+                              "Module cannot have both `type_inference_v1` and "
+                              "`type_inference_v2` attributes.");
+    }
     return absl::OkStatus();
   }
   if (attribute != "allow") {
-    return ParseErrorStatus(attribute_span,
-                            "Only 'allow' and 'type_inference_version' are "
-                            "supported as module-level attributes");
+    return ParseErrorStatus(
+        attribute_span,
+        absl::StrCat("Unsupported module-level attribute: ", attribute));
   }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
   XLS_ASSIGN_OR_RETURN(std::string to_allow, PopIdentifierOrError());

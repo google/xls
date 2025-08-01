@@ -82,6 +82,9 @@ std::string Module::ToString() const {
             case ModuleAttribute::kAllowNonstandardMemberNaming:
               absl::StrAppend(out, "#![allow(nonstandard_member_naming)]");
               break;
+            case ModuleAttribute::kTypeInferenceVersion1:
+              absl::StrAppend(out, "#![feature(type_inference_v1)]");
+              break;
             case ModuleAttribute::kTypeInferenceVersion2:
               absl::StrAppend(out, "#![feature(type_inference_v2)]");
               break;

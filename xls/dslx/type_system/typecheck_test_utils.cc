@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 
 #include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -32,17 +33,23 @@ namespace xls::dslx {
 
 absl::StatusOr<TypecheckResult> Typecheck(std::string_view program,
                                           std::string_view module_name,
-                                          ImportData* import_data) {
+                                          ImportData* import_data,
+                                          bool add_version_attribute) {
   std::unique_ptr<ImportData> owned_import_data;
   if (import_data == nullptr) {
     owned_import_data = CreateImportDataPtrForTest();
     import_data = owned_import_data.get();
   }
+  std::string program_with_version_attribute =
+      add_version_attribute
+          ? absl::StrCat("#![feature(type_inference_v1)]\n\n", program)
+          : std::string(program);
   absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
-      program, absl::StrCat(module_name, ".x"), module_name, import_data);
+      program_with_version_attribute, absl::StrCat(module_name, ".x"),
+      module_name, import_data);
 
   if (!tm.ok()) {
-    UniformContentFilesystem vfs(program);
+    UniformContentFilesystem vfs(program_with_version_attribute);
     TryPrintError(tm.status(), import_data->file_table(), vfs);
     return tm.status();
   }
@@ -57,7 +64,8 @@ absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program,
                                             std::string_view module_name,
                                             ImportData* import_data) {
   return Typecheck(absl::StrCat("#![feature(type_inference_v2)]\n\n", program),
-                   module_name, import_data);
+                   module_name, import_data,
+                   /*add_version_attribute=*/false);
 }
 
 }  // namespace xls::dslx

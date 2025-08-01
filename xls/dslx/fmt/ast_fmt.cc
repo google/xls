@@ -3023,6 +3023,10 @@ absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
               arena_.MakeText("#![allow(nonstandard_member_naming)]"));
           pieces.push_back(arena_.hard_line());
           break;
+        case ModuleAttribute::kTypeInferenceVersion1:
+          pieces.push_back(arena_.MakeText("#![feature(type_inference_v1)]"));
+          pieces.push_back(arena_.hard_line());
+          break;
         case ModuleAttribute::kTypeInferenceVersion2:
           pieces.push_back(arena_.MakeText("#![feature(type_inference_v2)]"));
           pieces.push_back(arena_.hard_line());

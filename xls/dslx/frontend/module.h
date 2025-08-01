@@ -68,6 +68,8 @@ enum class ModuleAttribute : uint8_t {
 
   kAllowNonstandardMemberNaming,
 
+  kTypeInferenceVersion1,
+
   kTypeInferenceVersion2,
 
   // Enable "use" syntax instead of "import" for this module.
