@@ -331,7 +331,6 @@ class StageToBlockCloner : public ProcToBlockClonerBase {
     XLS_ASSIGN_OR_RETURN(
         Node * all_active_outputs_ready,
         block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
-
     for (std::unique_ptr<BlockChannelMetadata>& output :
          block_metadata_.outputs()) {
       XLS_RET_CHECK(output->adapter().has_value());
@@ -533,7 +532,7 @@ class TopProcToBlockCloner : public ProcToBlockClonerBase {
     std::string valid_name = absl::StrCat(chan->name(), valid_suffix);
     std::string ready_name = absl::StrCat(chan->name(), ready_suffix);
 
-    // Creat dummy connections, literal 1 for ready/valid, and literal 0 for
+    // Create dummy connections, literal 1 for ready/valid, and literal 0 for
     // data.
     XLS_ASSIGN_OR_RETURN(
         Node * literal_1,
@@ -569,11 +568,11 @@ class TopProcToBlockCloner : public ProcToBlockClonerBase {
 
     block_metadata_.AddChannelMetadata(BlockChannelMetadata(recv_chan_interface)
                                            .AddSlot(std::move(recv_slot))
-                                           .SetChannel(chan));
+                                           .SetIsInternalChannel());
 
     block_metadata_.AddChannelMetadata(BlockChannelMetadata(send_chan_interface)
                                            .AddSlot(std::move(send_slot))
-                                           .SetChannel(chan));
+                                           .SetIsInternalChannel());
 
     return absl::OkStatus();
   }
@@ -703,7 +702,7 @@ class TopProcToBlockCloner : public ProcToBlockClonerBase {
   BlockConversionMetadata& block_conversion_metadata_;
 };
 
-// If present, connect the reset ports the top_block down to its instantiations.
+// If present, connect the reset ports of top_block down to its instantiations.
 absl::Status MaybeConnectResetPorts(Block* top_block) {
   std::optional<InputPort*> opt_top_reset_port = top_block->GetResetPort();
 
@@ -724,7 +723,7 @@ absl::Status MaybeConnectResetPorts(Block* top_block) {
   return absl::OkStatus();
 }
 
-// Sitches together the top level block from the stage blocks.
+// Stitches together the top level block from the stage blocks.
 //
 // Each stage block is instantiated, and channels are connected between the
 // stage blocks with wires.

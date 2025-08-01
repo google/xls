@@ -79,7 +79,8 @@ class SlotTestBase : public BlockConversionTestFixture {
   // That reads from input channel x, adds one to the input, and writes to
   // output channel y.
   absl::StatusOr<BlockAndSlots> CreateTestProcAndAssociatedBlock(
-      std::string_view name, bool use_non_blocking = false) {
+      std::string_view name, bool use_non_blocking = false,
+      bool insert_reset = true) {
     // Create block builder with a single token that is simply reused.
     BlockBuilder bb(name, package_.get());
     BValue block_token = bb.AfterAll({});
@@ -111,13 +112,15 @@ class SlotTestBase : public BlockConversionTestFixture {
 
     // Create equivalent block.
     XLS_RETURN_IF_ERROR(bb.block()->AddClockPort("clk"));
-    XLS_RETURN_IF_ERROR(bb.block()
-                            ->AddResetPort("rst",
-                                           ResetBehavior{
-                                               .asynchronous = false,
-                                               .active_low = false,
-                                           })
-                            .status());
+    if (insert_reset) {
+      XLS_RETURN_IF_ERROR(bb.block()
+                              ->AddResetPort("rst",
+                                             ResetBehavior{
+                                                 .asynchronous = false,
+                                                 .active_low = false,
+                                             })
+                              .status());
+    }
 
     BValue x = bb.InputPort("x", package_->GetBitsType(32));
     BValue y = bb.OutputPort("y", bb.Add(x, bb.Literal(UBits(1, 32))));
@@ -151,18 +154,24 @@ class SlotTestBase : public BlockConversionTestFixture {
 
   // Interpret a block created with CreateTestProcAndAssociatedBlock with the
   // given input sequence.
+  //
+  // lambda is the probability that data would be placed on the input channel
+  // or read from the output channel.
   absl::StatusOr<SimulationResults> InterpretTestBlock(
       Block* block, absl::Span<const uint64_t> input_sequence,
-      int64_t cycle_count) {
+      int64_t cycle_count, double lambda = 0.5) {
     SimulationResults results{
-        .sources = {ChannelSource("x", "x_valid", "x_ready", 0.5, block)},
-        .sinks = {ChannelSink("y", "y_valid", "y_ready", 0.5, block)},
+        .sources = {ChannelSource("x", "x_valid", "x_ready", lambda, block)},
+        .sinks = {ChannelSink("y", "y_valid", "y_ready", lambda, block)},
     };
 
     XLS_RETURN_IF_ERROR(results.sources[0].SetDataSequence(input_sequence));
 
     std::vector<absl::flat_hash_map<std::string, uint64_t>> signals(
-        100, {{"rst", 0}});
+        cycle_count,
+        block->GetResetPort().has_value()
+            ? absl::flat_hash_map<std::string, uint64_t>{{"rst", 0}}
+            : absl::flat_hash_map<std::string, uint64_t>());
 
     XLS_ASSIGN_OR_RETURN(results.io_results,
                          InterpretChannelizedSequentialBlockWithUint64(
@@ -181,21 +190,32 @@ class SlotTestBase : public BlockConversionTestFixture {
               .status());
 
       VLOG(1) << "Signal Trace";
-      XLS_RETURN_IF_ERROR(VLogTestPipelinedIO(
-          std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
-                                  {"rst", SignalType::kInput},
-                                  {"x", SignalType::kInput},
-                                  {"x_valid", SignalType::kInput},
-                                  {"x_ready", SignalType::kOutput},
-                                  {"y", SignalType::kOutput},
-                                  {"y_valid", SignalType::kOutput},
-                                  {"y_ready", SignalType::kInput}},
-          /*column_width=*/10, blk_inputs, blk_outputs));
+      if (block->GetResetPort().has_value()) {
+        XLS_RETURN_IF_ERROR(VLogTestPipelinedIO(
+            std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                                    {"rst", SignalType::kInput},
+                                    {"x", SignalType::kInput},
+                                    {"x_valid", SignalType::kInput},
+                                    {"x_ready", SignalType::kOutput},
+                                    {"y", SignalType::kOutput},
+                                    {"y_valid", SignalType::kOutput},
+                                    {"y_ready", SignalType::kInput}},
+            /*column_width=*/10, blk_inputs, blk_outputs));
+      } else {
+        XLS_RETURN_IF_ERROR(VLogTestPipelinedIO(
+            std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                                    {"x", SignalType::kInput},
+                                    {"x_valid", SignalType::kInput},
+                                    {"x_ready", SignalType::kOutput},
+                                    {"y", SignalType::kOutput},
+                                    {"y_valid", SignalType::kOutput},
+                                    {"y_ready", SignalType::kInput}},
+            /*column_width=*/10, blk_inputs, blk_outputs));
+      }
     }
 
     return results;
   }
-
   // Package created for test.
   std::unique_ptr<Package> package_;
 };

@@ -357,12 +357,62 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "block_pipeline_inserter",
+    srcs = ["block_pipeline_inserter.cc"],
+    hdrs = ["block_pipeline_inserter.h"],
+    deps = [
+        ":block_channel_slot",
+        ":stage_to_block_conversion",
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:conversion_utils",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:op",
+        "//xls/ir:register",
+        "//xls/ir:source_location",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "block_pipeline_inserter_test",
+    srcs = ["block_pipeline_inserter_test.cc"],
+    deps = [
+        ":block_channel_slot",
+        ":block_pipeline_inserter",
+        ":passes_ng_test_fixtures",
+        ":stage_to_block_conversion",
+        "//xls/codegen:codegen_options",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "stage_to_block_conversion_test",
     srcs = ["stage_to_block_conversion_test.cc"],
     deps = [
         ":block_channel_adapter",
         ":block_channel_slot",
+        ":block_pipeline_inserter",
         ":stage_conversion",
         ":stage_to_block_conversion",
         "//xls/codegen:block_conversion_test_fixture",

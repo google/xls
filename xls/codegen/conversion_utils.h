@@ -30,6 +30,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
+#include "xls/ir/register.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls::verilog {
@@ -141,6 +142,10 @@ absl::Status MakeOutputReadyPortsForInputChannels(
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
     std::string_view ready_suffix, Proc* proc,
     absl::Span<ProcInstance* const> instances, Block* block);
+
+// Replace `load_en` for the register with the given node.
+absl::Status UpdateRegisterLoadEn(Node* load_en, Register* reg, Block* block);
+
 }  // namespace xls::verilog
 
 #endif  // XLS_CODEGEN_CONVERSION_UTILS_H_

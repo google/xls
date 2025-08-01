@@ -80,19 +80,14 @@ class BlockChannelMetadata {
   // Returns the direction of the channel.
   ChannelDirection direction() const { return channel_interface_->direction(); }
 
-  // Returns the channel associated with the channel interface.
-  //
-  // This is only valid for internal channels.
-  const Channel* channel() const { return channel_; }
-
   // Returns true if the channel is an internal channel (and not an interface
   // channel).
-  bool IsInternalChannel() const { return channel_ != nullptr; }
+  bool IsInternalChannel() const { return is_internal_channel_; }
 
   // Record that this set of slots/adapters is associated with a specific
   // internal channel.
-  BlockChannelMetadata& SetChannel(const Channel* channel) {
-    channel_ = channel;
+  BlockChannelMetadata& SetIsInternalChannel() {
+    is_internal_channel_ = true;
     return *this;
   }
 
@@ -104,9 +99,8 @@ class BlockChannelMetadata {
   std::vector<BlockRDVSlot> slots_;
   std::optional<RDVAdapter> adapter_;
 
-  // For internal channels, this is the channel associated with the channel
-  // reference.
-  const Channel* channel_ = nullptr;
+  // Records that this is associated with an internal channel.
+  bool is_internal_channel_ = false;
 };
 
 // Groups together the metadata needed by codegen passes to generate code
@@ -118,6 +112,10 @@ class BlockMetadata {
   BlockMetadata(ProcMetadata* ABSL_NONNULL stage_metadata,
                 Block* ABSL_NONNULL block)
       : stage_metadata_(stage_metadata), block_(block) {}
+
+  // Creates a new block metadata that is only associated with a block.
+  explicit BlockMetadata(Block* ABSL_NONNULL block)
+      : stage_metadata_(nullptr), block_(block) {}
 
   Block* block() { return block_; }
   const Block* block() const { return block_; }
@@ -177,10 +175,10 @@ class BlockMetadata {
       channel_interface_to_metadata_map_;
 
   // The metadata for the stage proc associated with this block.
-  ProcMetadata* stage_metadata_;
+  ProcMetadata* stage_metadata_ = nullptr;
 
   // The block associated with this metadata.
-  Block* block_;
+  Block* ABSL_NONNULL block_;
 };
 
 // Groups together the metadata needed by codegen passes to generate code

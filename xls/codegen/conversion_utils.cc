@@ -705,4 +705,21 @@ absl::Status MakeOutputReadyPortsForInputChannels(
   return absl::OkStatus();
 }
 
+absl::Status UpdateRegisterLoadEn(Node* load_en, Register* reg, Block* block) {
+  XLS_ASSIGN_OR_RETURN(RegisterWrite * old_reg_write,
+                       block->GetUniqueRegisterWrite(reg));
+
+  XLS_RETURN_IF_ERROR(block
+                          ->MakeNodeWithName<RegisterWrite>(
+                              /*loc=*/old_reg_write->loc(),
+                              /*data=*/old_reg_write->data(),
+                              /*load_enable=*/load_en,
+                              /*reset=*/old_reg_write->reset(),
+                              /*reg=*/old_reg_write->GetRegister(),
+                              /*name=*/old_reg_write->GetName())
+                          .status());
+
+  return block->RemoveNode(old_reg_write);
+}
+
 }  // namespace xls::verilog

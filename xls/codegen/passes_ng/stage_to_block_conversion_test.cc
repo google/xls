@@ -34,6 +34,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/passes_ng/block_channel_adapter.h"
 #include "xls/codegen/passes_ng/block_channel_slot.h"
+#include "xls/codegen/passes_ng/block_pipeline_inserter.h"
 #include "xls/codegen/passes_ng/stage_conversion.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
@@ -62,7 +63,7 @@ namespace {
 
 namespace m = ::xls::op_matchers;
 using ::absl_testing::IsOkAndHolds;
-using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
 using ::testing::Field;
 using ::testing::Optional;
 
@@ -116,6 +117,59 @@ class SweepTrivialPipelinedFunctionFixture : public SweepPipelineStagesFixture {
         "top", schedule, codegen_options(), stage_conversion_metadata_));
 
     return absl::OkStatus();
+  }
+
+  // Simulates the block with the given name and returns the output sequence.
+  absl::StatusOr<std::vector<uint64_t>> SimulateBlock(
+      std::string_view block_name, absl::Span<const uint64_t> x,
+      absl::Span<const uint64_t> y, uint64_t cycle_count) {
+    XLS_RET_CHECK_EQ(x.size(), y.size());
+
+    // Interpret the stage block itself.
+    XLS_ASSIGN_OR_RETURN(Block * block, package_->GetBlock(block_name));
+
+    std::vector<ChannelSource> sources{
+        ChannelSource("x", "x_vld", "x_rdy", 1.0, block),
+        ChannelSource("y", "y_vld", "y_rdy", 1.0, block)};
+
+    XLS_RETURN_IF_ERROR(sources[0].SetDataSequence(x));
+    XLS_RETURN_IF_ERROR(sources[1].SetDataSequence(y));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out", "out_vld", "out_rdy", 0.25, block),
+    };
+    std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(
+        100, {{"rst", 0}});
+    inputs[0]["rst"] = 1;
+
+    XLS_ASSIGN_OR_RETURN(
+        BlockIOResultsAsUint64 results,
+        InterpretChannelizedSequentialBlockWithUint64(
+            block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs,
+            codegen_options().reset()));
+
+    // Add a cycle count for easier comparison with simulation results.
+    XLS_RETURN_IF_ERROR(
+        SetIncrementingSignalOverCycles(0, results.outputs.size() - 1, "cycle",
+                                        0, results.outputs)
+            .status());
+
+    VLOG(1) << "Signal Trace";
+    XLS_RETURN_IF_ERROR(VLogTestPipelinedIO(
+        std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                                {"rst", SignalType::kInput},
+                                {"x", SignalType::kInput},
+                                {"x_vld", SignalType::kInput},
+                                {"x_rdy", SignalType::kOutput},
+                                {"y", SignalType::kInput},
+                                {"y_vld", SignalType::kInput},
+                                {"y_rdy", SignalType::kOutput},
+                                {"out", SignalType::kOutput},
+                                {"out_vld", SignalType::kOutput},
+                                {"out_rdy", SignalType::kInput}},
+        /*column_width=*/10, results.inputs, results.outputs));
+
+    return sinks[0].GetOutputSequenceAsUint64();
   }
 
  protected:
@@ -294,8 +348,8 @@ TEST_P(SweepTrivialPipelinedFunctionFixture, TestBlockChannelMetadata) {
               IsOkAndHolds(top_block_metadata->outputs()[0].get()));
 }
 
-// Test the conversion to stage blocks by creating a multi-stage combinational
-// pipeline, sensitizing the block and testing the I/O behavior.
+// Test the conversion to stage blocks by creating a multi-stage and/or
+// combinational pipeline, sensitizing the block and testing the I/O behavior.
 TEST_P(SweepTrivialPipelinedFunctionFixture, TestConvertProcHierarchyCreation) {
   XLS_ASSERT_OK(CreateStageProcInPackage());
 
@@ -320,49 +374,66 @@ TEST_P(SweepTrivialPipelinedFunctionFixture, TestConvertProcHierarchyCreation) {
 
   XLS_VLOG_LINES(2, package_->DumpIr());
 
-  // Interpret the stage block itself.
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           package_->GetBlock(top_metadata->proc()->name()));
-
-  std::vector<ChannelSource> sources{
-      ChannelSource("x", "x_vld", "x_rdy", 1.0, block),
-      ChannelSource("y", "y_vld", "y_rdy", 1.0, block)};
-
-  XLS_ASSERT_OK(sources[0].SetDataSequence({0x1, 0x10, 0x30}));
-  XLS_ASSERT_OK(sources[1].SetDataSequence({0x2, 0x20, 0x30}));
-
-  std::vector<ChannelSink> sinks{
-      ChannelSink("out", "out_vld", "out_rdy", 0.5, block),
-  };
-  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(10,
-                                                                 {{"rst", 0}});
-  XLS_ASSERT_OK_AND_ASSIGN(
-      BlockIOResultsAsUint64 results,
-      InterpretChannelizedSequentialBlockWithUint64(
-          block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs));
-
-  // Add a cycle count for easier comparison with simulation results.
-  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, results.outputs.size() - 1,
-                                                "cycle", 0, results.outputs));
-
-  VLOG(1) << "Signal Trace";
-  XLS_ASSERT_OK(VLogTestPipelinedIO(
-      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
-                              {"rst", SignalType::kInput},
-                              {"x", SignalType::kInput},
-                              {"x_vld", SignalType::kInput},
-                              {"x_rdy", SignalType::kOutput},
-                              {"y", SignalType::kInput},
-                              {"y_vld", SignalType::kInput},
-                              {"y_rdy", SignalType::kOutput},
-                              {"out", SignalType::kOutput},
-                              {"out_vld", SignalType::kOutput},
-                              {"out_rdy", SignalType::kInput}},
-      /*column_width=*/10, results.inputs, results.outputs));
-
+  // Simulate the pipeline
   // out = 2*x + y
-  EXPECT_THAT(sinks[0].GetOutputSequenceAsUint64(),
-              IsOkAndHolds(ElementsAre(0x4, 0x40, 0x90)));
+  std::vector<uint64_t> x = {0x1, 0x10, 0x30};
+  std::vector<uint64_t> y = {0x2, 0x20, 0x30};
+
+  std::vector<uint64_t> out_expected(x.size());
+  for (int64_t i = 0; i < out_expected.size(); ++i) {
+    out_expected[i] = x[i] * 2 + y[i];
+  }
+
+  EXPECT_THAT(SimulateBlock(top_metadata->proc()->name(), absl::MakeSpan(x),
+                            absl::MakeSpan(y), /*cycle_count=*/100),
+              IsOkAndHolds(ElementsAreArray(out_expected)));
+}
+
+// Test the conversion to stage blocks by creating a multi-stage pipeline,
+// sensitizing the block and testing the I/O behavior.
+TEST_P(SweepTrivialPipelinedFunctionFixture, TestPipelineCreation) {
+  XLS_ASSERT_OK(CreateStageProcInPackage());
+
+  XLS_ASSERT_OK_AND_ASSIGN(ProcMetadata * top_metadata,
+                           stage_conversion_metadata_.GetTopProcMetadata(
+                               package_->GetTop().value()));
+
+  XLS_ASSERT_OK(CreateBlocksForProcHierarchy(codegen_options(), *top_metadata,
+                                             stage_conversion_metadata_,
+                                             block_conversion_metadata_)
+                    .status());
+
+  XLS_ASSERT_OK(AddResetAndClockPortsToBlockHierarchy(
+                    codegen_options(), *top_metadata,
+                    stage_conversion_metadata_, block_conversion_metadata_)
+                    .status());
+
+  XLS_ASSERT_OK(ConvertProcHierarchyToBlocks(codegen_options(), *top_metadata,
+                                             stage_conversion_metadata_,
+                                             block_conversion_metadata_)
+                    .status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockMetadata * top_block_metadata,
+      block_conversion_metadata_.GetBlockMetadata(top_metadata));
+  XLS_ASSERT_OK(
+      InsertPipelineIntoBlock(codegen_options(), *top_block_metadata));
+
+  XLS_VLOG_LINES(2, package_->DumpIr());
+
+  // Simulate the pipeline
+  // out = 2*x + y
+  std::vector<uint64_t> x = {0x1, 0x10, 0x30};
+  std::vector<uint64_t> y = {0x2, 0x20, 0x30};
+
+  std::vector<uint64_t> out_expected(x.size());
+  for (int64_t i = 0; i < out_expected.size(); ++i) {
+    out_expected[i] = x[i] * 2 + y[i];
+  }
+
+  EXPECT_THAT(SimulateBlock(top_metadata->proc()->name(), absl::MakeSpan(x),
+                            absl::MakeSpan(y), /*cycle_count=*/100),
+              IsOkAndHolds(ElementsAreArray(out_expected)));
 }
 
 INSTANTIATE_TEST_SUITE_P(
