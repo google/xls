@@ -10,7 +10,7 @@
 
 [![Ubuntu 22.04 CI](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg)](https://github.com/google/xls/actions/workflows/continuous-integration.yml) [![Ubuntu 22.04 Nightly](https://github.com/google/xls/workflows/Nightly%20Ubuntu%2022.04/badge.svg)](https://github.com/google/xls/actions/workflows/nightly-ubuntu-22.04.yml)
 
-## What is XLS?
+## What is XLS? What isn't XLS? What can it do?
 
 XLS implements a High Level Synthesis toolchain that produces synthesizable
 designs (Verilog and SystemVerilog) from flexible, high-level descriptions of
