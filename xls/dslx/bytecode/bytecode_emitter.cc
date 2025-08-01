@@ -712,6 +712,17 @@ absl::Status BytecodeEmitter::HandleBuiltinCheckedCast(const Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleBuiltinConfiguredValueOr(
+    const Invocation* node) {
+  VLOG(5) << "BytecodeEmitter::HandleInvocation - ConfiguredValueOr @ "
+          << node->span().ToString(file_table());
+  XLS_ASSIGN_OR_RETURN(InterpValue default_or_override_interp_value,
+                       type_info_->GetConstExpr(node));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
+                               default_or_override_interp_value));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleBuiltinWideningCast(
     const Invocation* node) {
   VLOG(5) << "BytecodeEmitter::HandleInvocation - WideningCast @ "
@@ -1101,6 +1112,9 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
     }
     if (name_ref->identifier() == "checked_cast") {
       return HandleBuiltinCheckedCast(node);
+    }
+    if (name_ref->identifier() == "configured_value_or") {
+      return HandleBuiltinConfiguredValueOr(node);
     }
     if (name_ref->identifier() == "decode") {
       return HandleBuiltinDecode(node);
