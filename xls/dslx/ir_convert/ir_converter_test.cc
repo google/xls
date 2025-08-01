@@ -195,7 +195,7 @@ absl::StatusOr<std::string> ConvertModuleForTest(
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test_module.x", "test_module", import_data,
-                        /*comments=*/nullptr, typecheck_version2));
+                        /*comments=*/nullptr, typecheck_version2, options));
   XLS_ASSIGN_OR_RETURN(std::string converted,
                        ConvertModule(tm.module, import_data, options));
   return converted;
@@ -3710,6 +3710,36 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
                            ConvertModuleForTest(kProgram, kNoPosOptions));
+  ExpectIr(converted);
+}
+
+TEST(IrConverterTest, ConfiguredValue) {
+  constexpr std::string_view kProgram = R"(
+enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+  C = 2,
+}
+
+fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
+  let b_default = configured_value_or<bool>("b_default", false);
+  let u_default = configured_value_or<u32>("u32_default", u32:42);
+  let s_default = configured_value_or<s32>("s32_default", s32:-100);
+  let e_default = configured_value_or<MyEnum>("enum_default", MyEnum::C);
+  let b_override = configured_value_or<bool>("b_override", false);
+  let u_override = configured_value_or<u32>("u32_override", u32:42);
+  let s_override = configured_value_or<s32>("s32_override", s32:-100);
+  let e_override = configured_value_or<MyEnum>("enum_override", MyEnum::C);
+  (b_default, u_default, s_default, e_default, b_override, u_override, s_override, e_override)
+}
+)";
+  ConvertOptions options;
+  options.configured_values = {"b_override:true", "u32_override:123",
+                               "s32_override:-200", "enum_override:MyEnum::B"};
+  options.emit_positions = false;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, options, nullptr, true));
   ExpectIr(converted);
 }
 
