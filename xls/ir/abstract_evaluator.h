@@ -213,18 +213,22 @@ class AbstractEvaluator {
   }
 
   Element SLessThan(Span a, Span b) {
-    // A < B if:
-    //  - A is negative && B is non-negative, or
-    //  - B has a more-signficant bit set (when A and B have the same sign)
-    // Which simplifies to:
-    //  (A is neg & B is non-neg) ||
-    //  (Not(A is non_neg & B is neg) & B has a more-significant bit set))
-    // Which simplifies to:
-    //  (A is neg & B is non-neg) ||
-    //  (Not(A is non-neg and B is neg) && ULessThan(a, b))
-    Element a_neg_b_non_neg = And(a.back(), Not(b.back()));
-    Element a_non_neg_b_neg = And(Not(a.back()), b.back());
-    return Or(a_neg_b_non_neg, And(Not(a_non_neg_b_neg), ULessThan(a, b)));
+    CHECK_EQ(a.size(), b.size());
+    Element same_sign = Xnor(a.back(), b.back());
+    if (a.size() == 1) {
+      // If 1 bit then slessthen if not the same sign and a is negative.
+      return If(same_sign, Zero(), a.back());
+    }
+    // Same sign means that the comparison is unsigned otherwise less then if
+    // 'a' is negative.
+    auto a_non_sign = a.subspan(0, a.size() - 1);
+    auto b_non_sign = b.subspan(0, b.size() - 1);
+    return If(same_sign,
+              // NB Since they have the same sign the sign bit is equal so we
+              // can remove it from the comparison.
+              /*consequent=*/ULessThan(a_non_sign, b_non_sign),
+              // Different signs so the < is true if 'a' is negative.
+              /*alternate=*/a.back());
   }
 
   Element ULessThan(Span a, Span b) const {
