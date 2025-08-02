@@ -11,13 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #include "xls/passes/basic_simplification_pass.h"
 
 #include <algorithm>
 #include <functional>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -139,6 +139,49 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
     return true;
+  }
+
+  // Remove duplicate operands of XORs.
+  // For any duplicate operand that appears an even number of times, remove all instances.
+  // For duplicates that appear an odd number of times, collapse to a single instance.
+  //   XOR(x, y, x, x, z) => XOR(x, y, z)
+  //   XOR(a, a) => 0
+  //   XOR(b, b, b) => b
+  if (n->op() == Op::kXor && n->Is<NaryOp>()) {
+    absl::flat_hash_map<Node*, int> counts;
+    std::vector<Node*> order;
+    for (Node* operand : n->operands()) {
+      auto it = counts.find(operand);
+      if (it == counts.end()) {
+        counts[operand] = 1;
+        order.push_back(operand);
+      } else {
+        it->second += 1;
+      }
+    }
+    std::vector<Node*> new_operands;
+    for (Node* operand : order) {
+      if (counts[operand] % 2 == 1) {
+        new_operands.push_back(operand);
+      }
+    }
+
+    if (new_operands.size() != n->operand_count()) {
+      VLOG(2) << "FOUND: collapse duplicate operands in xor";
+      if (new_operands.empty()) {
+        // Result is zero if all operands canceled out.
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
+                .status());
+      } else if (new_operands.size() == 1) {
+        // Single remaining operand.
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(new_operands[0]));
+      } else {
+        XLS_RETURN_IF_ERROR(
+            n->ReplaceUsesWithNew<NaryOp>(new_operands, n->op()).status());
+      }
+      return true;
+    }
   }
 
   // All operands the same for XOR:

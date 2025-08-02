@@ -479,6 +479,28 @@ TEST_F(BasicSimplificationPassTest, XorWithSameOperandsOdd) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
+TEST_F(BasicSimplificationPassTest, XorDuplicateOperandsCancel) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  fb.Xor({x, y, x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("y"));
+}
+
+TEST_F(BasicSimplificationPassTest, XorDuplicateOperandsCollapseToXor) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  fb.Xor({x, y, x, x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Xor(m::Param("x"), m::Param("y")));
+}
+
 TEST_F(BasicSimplificationPassTest, AddWithZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
