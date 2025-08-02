@@ -98,6 +98,9 @@ class AbstractEvaluator {
   Element Xor(const Element& a, const Element& b) const {
     return If(a, Not(b), b);
   }
+  Element Xnor(const Element& a, const Element& b) const {
+    return If(a, b, Not(b));
+  }
 
   Element Implies(const Element& a, const Element& b) const {
     return If(a, b, One());
@@ -204,7 +207,7 @@ class AbstractEvaluator {
     CHECK_EQ(a.size(), b.size());
     Element result = One();
     for (int64_t i = 0; i < a.size(); ++i) {
-      result = And(result, Or(And(a[i], b[i]), And(Not(a[i]), Not(b[i]))));
+      result = And(result, Xnor(a[i], b[i]));
     }
     return result;
   }
