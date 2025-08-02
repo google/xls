@@ -1240,6 +1240,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                                  parametric_context,
                                                  *struct_or_proc, annotation));
       }
+      auto cached = type_cache_.find(std::make_pair(
+          static_cast<const AstNode*>(struct_def_base), struct_context));
+      if (cached != type_cache_.end()) {
+        return cached->second->CloneToUnique();
+      }
       for (const StructMemberNode* member : struct_def_base->members()) {
         XLS_ASSIGN_OR_RETURN(
             const TypeAnnotation* parametric_free_member_type,
@@ -1251,12 +1256,22 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         member_types.push_back(std::move(concrete_member_type));
       }
       if (struct_def_base->kind() == AstNodeKind::kStructDef) {
-        return std::make_unique<StructType>(
+        std::unique_ptr<Type> type = std::make_unique<StructType>(
             std::move(member_types),
             *down_cast<const StructDef*>(struct_def_base));
+        type_cache_.try_emplace(
+            std::make_pair(static_cast<const AstNode*>(struct_def_base),
+                           struct_context),
+            type->CloneToUnique());
+        return type;
       }
-      return std::make_unique<ProcType>(
+      std::unique_ptr<Type> type = std::make_unique<ProcType>(
           std::move(member_types), *down_cast<const ProcDef*>(struct_def_base));
+      type_cache_.try_emplace(
+          std::make_pair(static_cast<const AstNode*>(struct_def_base),
+                         struct_context),
+          type->CloneToUnique());
+      return type;
     }
     XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
                          GetSignednessAndBitCountWithUserFacingError(
@@ -2147,6 +2162,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                       absl::flat_hash_set<const Invocation*>>
       converted_invocations_;
   absl::flat_hash_set<const Proc*> converted_procs_;
+
+  absl::flat_hash_map<
+      std::pair<const AstNode*, std::optional<const ParametricContext*>>,
+      std::unique_ptr<Type>>
+      type_cache_;
 
   // The top element in this stack is the proc-level type info for the proc (or
   // child of a proc) currently being converted, if any. There are only multiple
