@@ -177,7 +177,7 @@ absl::Status RealMain() {
     dslx_path_uris.push_back(LspUri::FromFilesystemPath(path));
   }
 
-  const LspUri stdlib_uri = LspUri::FromFilesystemPath(stdlib_path);
+  const LspUri stdlib_uri = LspUri::FromFilesystemPath(stdlib_realpath);
 
   // Adapter that interfaces between dslx parsing and LSP
   LanguageServerAdapter language_server_adapter(stdlib_uri, dslx_path_uris);
