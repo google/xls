@@ -128,8 +128,8 @@ class Pos {
     return false;
   }
   bool operator==(const Pos& other) const {
-    CHECK_EQ(fileno_, other.fileno_);
-    return lineno_ == other.lineno_ && colno_ == other.colno_;
+    return fileno_ == other.fileno_ && lineno_ == other.lineno_ &&
+           colno_ == other.colno_;
   }
   bool operator!=(const Pos& other) const { return !(*this == other); }
   bool operator<=(const Pos& other) const {
