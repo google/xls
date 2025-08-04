@@ -23,7 +23,6 @@
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
 
@@ -41,7 +40,8 @@ class InliningPass : public OptimizationPass {
   };
   static constexpr std::string_view kName = "inlining";
   explicit InliningPass(InlineDepth depth = InlineDepth::kFull)
-      : OptimizationPass(kName, "Inlines invocations"), depth_(depth) {}
+      : OptimizationPass(ConfiguredName(depth), "Inlines invocations"),
+        depth_(depth) {}
 
   // Inline a single invoke instruction. Provided for test and utility
   // (ir_minimizer) use.
@@ -49,14 +49,22 @@ class InliningPass : public OptimizationPass {
   // have invokes in the function code.
   static absl::Status InlineOneInvoke(Invoke* invoke);
 
-  absl::StatusOr<PassPipelineProto::Element> ToProto() const override;
-
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,
                                    const OptimizationPassOptions& options,
                                    PassResults* results,
                                    OptimizationContext& context) const override;
   InlineDepth depth_;
+
+ private:
+  static std::string_view ConfiguredName(InlineDepth depth) {
+    switch (depth) {
+      case InlineDepth::kFull:
+        return "inlining";
+      case InlineDepth::kLeafOnly:
+        return "leaf-inlining";
+    }
+  }
 };
 
 }  // namespace xls

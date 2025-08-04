@@ -43,7 +43,6 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
 namespace {
@@ -291,13 +290,6 @@ absl::StatusOr<bool> InliningPass::RunInternal(
     }
   }
   return changed;
-}
-
-absl::StatusOr<PassPipelineProto::Element> InliningPass::ToProto() const {
-  PassPipelineProto::Element res;
-  *res.mutable_pass_name() =
-      (depth_ == InlineDepth::kFull) ? "inlining" : "leaf-inlining";
-  return res;
 }
 
 REGISTER_OPT_PASS(InliningPass, InliningPass::InlineDepth::kFull);

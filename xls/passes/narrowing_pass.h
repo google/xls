@@ -23,7 +23,6 @@
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
 
@@ -41,10 +40,9 @@ class NarrowingPass : public OptimizationFunctionBasePass {
   };
   static constexpr std::string_view kName = "narrow";
   explicit NarrowingPass(AnalysisType analysis = AnalysisType::kRange)
-      : OptimizationFunctionBasePass(kName, "Narrowing"), analysis_(analysis) {}
+      : OptimizationFunctionBasePass(ConfiguredName(analysis), "Narrowing"),
+        analysis_(analysis) {}
   ~NarrowingPass() override = default;
-
-  absl::StatusOr<PassPipelineProto::Element> ToProto() const override;
 
  protected:
   AnalysisType analysis_;
@@ -53,6 +51,20 @@ class NarrowingPass : public OptimizationFunctionBasePass {
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results, OptimizationContext& context) const override;
+
+ private:
+  static std::string_view ConfiguredName(AnalysisType analysis) {
+    switch (analysis) {
+      case AnalysisType::kTernary:
+        return "narrow(Ternary)";
+      case AnalysisType::kRange:
+        return "narrow(Range)";
+      case AnalysisType::kRangeWithContext:
+        return "narrow(Context)";
+      case AnalysisType::kRangeWithOptionalContext:
+        return "narrow(OptionalContext)";
+    }
+  }
 };
 
 std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a);

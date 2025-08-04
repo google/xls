@@ -64,7 +64,6 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/union_query_engine.h"
@@ -1431,14 +1430,6 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   }
 
   return changed;
-}
-absl::StatusOr<PassPipelineProto::Element>
-ConditionalSpecializationPass::ToProto() const {
-  // TODO(allight): This is not very elegant. Ideally the registry could handle
-  // this? Doing it there would probably be even more weird though.
-  PassPipelineProto::Element e;
-  *e.mutable_pass_name() = use_bdd_ ? "cond_spec(Bdd)" : "cond_spec(noBdd)";
-  return e;
 }
 
 XLS_REGISTER_MODULE_INITIALIZER(cond_spec, {

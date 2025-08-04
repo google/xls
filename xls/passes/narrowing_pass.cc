@@ -66,7 +66,6 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/partial_info_query_engine.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/predicate_dominator_analysis.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/proc_state_range_query_engine.h"
@@ -2211,27 +2210,6 @@ std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a) {
     case NarrowingPass::AnalysisType::kRangeWithOptionalContext:
       return os << "OptionalContext";
   }
-}
-
-absl::StatusOr<PassPipelineProto::Element> NarrowingPass::ToProto() const {
-  // TODO(allight): This is not very elegant. Ideally the registry could handle
-  // this? Doing it there would probably be even more weird though.
-  PassPipelineProto::Element e;
-  switch (analysis_) {
-    case AnalysisType::kTernary:
-      *e.mutable_pass_name() = "narrow(Ternary)";
-      break;
-    case AnalysisType::kRange:
-      *e.mutable_pass_name() = "narrow(Range)";
-      break;
-    case AnalysisType::kRangeWithContext:
-      *e.mutable_pass_name() = "narrow(Context)";
-      break;
-    case AnalysisType::kRangeWithOptionalContext:
-      *e.mutable_pass_name() = "narrow(OptionalContext)";
-      break;
-  }
-  return e;
 }
 
 XLS_REGISTER_MODULE_INITIALIZER(narrowing_pass, {
