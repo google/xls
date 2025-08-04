@@ -197,3 +197,23 @@ py_binary(
         "@abseil-py//absl/flags",
     ],
 )
+
+cc_library(
+    name = "passes_profile",
+    srcs = ["passes_profile.cc"],
+    hdrs = ["passes_profile.h"],
+    deps = [
+        "//xls/common:module_initializer",
+        "//xls/common:stopwatch",
+        "//xls/common/file:filesystem",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+        "@cppitertools",
+        "@pprof//:profile_cc_proto",
+    ],
+)

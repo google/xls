@@ -42,6 +42,7 @@
 #include "xls/ir/proc.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
+#include "xls/passes/tools/passes_profile.h"
 
 namespace xls {
 
@@ -180,6 +181,8 @@ class PassBase {
     VLOG(3) << "Before:";
     XLS_VLOG_LINES(3, ir->DumpIr());
     int64_t ir_count_before = ir->GetNodeCount();
+    RecordPassEntry(short_name());
+    RecordPassAnnotation(pass_profile::kNodeCountBefore, ir_count_before);
 
     XLS_ASSIGN_OR_RETURN(
         bool changed, RunInternal(ir, options, results, context...),
@@ -195,6 +198,8 @@ class PassBase {
                "Pass %s indicated IR unchanged, but IR is "
                "changed: [Before] %d nodes != [after] %d nodes",
                short_name(), ir_count_before, ir->GetNodeCount());
+    RecordPassAnnotation(pass_profile::kNodeCountAfter, ir->GetNodeCount());
+    ExitPass(changed);
     return changed;
   }
 
@@ -402,6 +407,7 @@ class FixedPointCompoundPassBase
       absl::Span<const typename PassBase<OptionsT,
                                          ContextT...>::InvariantChecker* const>
           invariant_checkers) const override {
+    RecordPassAnnotation(pass_profile::kFixedpoint, "true");
     bool local_changed = true;
     int64_t iteration_count = 0;
     while (local_changed) {
@@ -427,6 +433,7 @@ absl::StatusOr<bool> CompoundPassBase<OptionsT, ContextT...>::RunNested(
     Package* ir, const OptionsT& options, PassResults* results,
     ContextT&... context, PassInvocation& invocation,
     absl::Span<const InvariantChecker* const> invariant_checkers) const {
+  RecordPassAnnotation(pass_profile::kCompound, "true");
   VLOG(1) << "Running " << this->short_name() << " compound pass on package "
           << ir->name();
   VLOG(2) << "Start of compound pass " << this->short_name() << ":";
@@ -500,12 +507,16 @@ absl::StatusOr<bool> CompoundPassBase<OptionsT, ContextT...>::RunNested(
     bool pass_changed;
     PassInvocation nested_pass_invocation{.pass_name = pass->short_name()};
     if (pass->IsCompound()) {
+      RecordPassEntry(pass->short_name());
+      RecordPassAnnotation(pass_profile::kNodeCountBefore, ir->GetNodeCount());
       XLS_ASSIGN_OR_RETURN(pass_changed,
                            pass->RunNested(ir, options, results, context...,
                                            nested_pass_invocation, checkers),
                            _ << "Running pass #" << results->total_invocations
                              << ": " << pass->long_name()
                              << " [short: " << pass->short_name() << "]");
+      RecordPassAnnotation(pass_profile::kNodeCountAfter, ir->GetNodeCount());
+      ExitPass(pass_changed);
     } else {
       XLS_ASSIGN_OR_RETURN(pass_changed,
                            pass->Run(ir, options, results, context...));

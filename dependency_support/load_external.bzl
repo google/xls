@@ -21,6 +21,7 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/llvm:workspace.bzl", repo_llvm = "repo")
+load("//dependency_support/pprof:workspace.bzl", repo_rules_pprof = "repo")
 load("//dependency_support/rules_hdl:workspace.bzl", repo_rules_hdl = "repo")
 
 def load_external_repositories():
@@ -41,6 +42,7 @@ def load_external_repositories():
     repo_boost()
     repo_llvm()
     repo_rules_hdl()
+    repo_rules_pprof()
 
     # Released on 2024-09-24, current as of 2024-10-01
     http_archive(
