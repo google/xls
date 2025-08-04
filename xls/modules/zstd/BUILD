@@ -4123,10 +4123,10 @@ xls_dslx_verilog(
 match_finder_cocotb_codegen_args = common_codegen_args | {
     "module_name": "MatchFinder",
     "clock_period_ps": CLOCK_PERIOD_PS,
-    "worst_case_throughput": "5",
+    "worst_case_throughput": "6",
     "ram_configurations": ",".join([
        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-           latency = 5,
+           latency = 1,
            ram_name = "hb_ram{}".format(num),
            rd_req = "match_finder__hb_ram_rd_req_s__{}".format(num),
            rd_resp = "match_finder__hb_ram_rd_resp_r__{}".format(num),
@@ -4136,7 +4136,7 @@ match_finder_cocotb_codegen_args = common_codegen_args | {
        for num in range(8)
     ] + [
         "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-           latency = 5,
+           latency = 1,
            ram_name = "ht_ram",
            rd_req = "match_finder__ht_ram_rd_req_s",
            rd_resp = "match_finder__ht_ram_rd_resp_r",
