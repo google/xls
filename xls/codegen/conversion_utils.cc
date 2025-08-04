@@ -15,6 +15,7 @@
 #include "xls/codegen/conversion_utils.h"
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -90,6 +91,33 @@ absl::Status CheckForMultiplexingCycle(Channel* channel,
         proc_name, ChannelRefName(channel), ChannelRefName(channel)));
   }
   return absl::OkStatus();
+}
+
+// Takes a vector of optional predicates, and returns the vector of predicates
+// if all are present; otherwise returns an empty vector. (This is useful for
+// cases where an empty predicate is used to indicate "always true".)
+template <typename T>
+std::vector<Node*> CollectPredicates(
+    absl::Span<const T> entries,
+    std::function<const std::optional<Node*>(const T&)> to_predicate) {
+  std::vector<Node*> result;
+  result.reserve(entries.size());
+  for (const T& entry : entries) {
+    if (const std::optional<Node*> predicate = to_predicate(entry);
+        predicate.has_value()) {
+      result.push_back(*predicate);
+    } else {
+      result.clear();
+      break;
+    }
+  }
+  return result;
+}
+std::vector<Node*> CollectPredicates(
+    absl::Span<const std::optional<Node*>> predicates) {
+  return CollectPredicates<std::optional<Node*>>(
+      predicates,
+      [](const std::optional<Node*>& predicate) { return predicate; });
 }
 
 }  // namespace
@@ -481,20 +509,14 @@ absl::Status MakeOutputValidPortsForOutputChannels(
 
       std::vector<Node*> operands;
       operands.reserve(4);
-      operands.push_back(all_active_inputs_valid.at(stage));
-      operands.push_back(pipelined_valids.at(stage));
-      operands.push_back(next_stage_open.at(stage));
+      operands.push_back(all_active_inputs_valid[stage]);
+      operands.push_back(pipelined_valids[stage]);
+      operands.push_back(next_stage_open[stage]);
 
-      std::vector<Node*> conditions;
-      conditions.reserve(predicates.size());
-      for (const auto& predicate : predicates) {
-        if (predicate.has_value()) {
-          conditions.push_back(predicate.value());
-        } else {
-          conditions.clear();
-          break;
-        }
-      }
+      // If we have predicates, we need to add an extra condition to the valid
+      // signal to ensure that the data operation is active; if some operation
+      // is unconditional, then the conditions vector will be empty.
+      std::vector<Node*> conditions = CollectPredicates(predicates);
       if (!conditions.empty()) {
         XLS_ASSIGN_OR_RETURN(Node * predicate,
                              NaryOrIfNeeded(block, conditions));
@@ -580,6 +602,8 @@ absl::Status MakeOutputDataPortsForOutputChannels(
     }
   }
   for (auto& [data_port, data_values_by_stage] : data_values) {
+    const bool data_from_multiple_stages = data_values_by_stage.size() > 1;
+
     std::vector<PredicatedValue> datas;
     for (auto& [stage, stage_data_values] : data_values_by_stage) {
       if (stage_data_values.empty()) {
@@ -590,22 +614,46 @@ absl::Status MakeOutputDataPortsForOutputChannels(
           OneHotSelectIfNeeded(block, stage_data_values,
                                /*ignore_single_value_predicate=*/true));
 
-      std::optional<Node*> valid = std::nullopt;
-      if (data_values_by_stage.size() > 1) {
+      std::optional<Node*> stage_predicate = std::nullopt;
+      if (data_from_multiple_stages) {
         // More than one stage can produce data for this channel; generate a
         // predicate for the output. (Skip creating the predicate otherwise, to
         // avoid creating an unnecessary node.)
-        XLS_ASSIGN_OR_RETURN(valid, block->MakeNode<NaryOp>(
-                                        SourceInfo(),
-                                        absl::MakeConstSpan({
-                                            all_active_inputs_valid.at(stage),
-                                            pipelined_valids.at(stage),
-                                            next_stage_open.at(stage),
-                                        }),
-                                        Op::kAnd));
+        //
+        // Our predicate should be the conjunction of "this stage is valid" and
+        // "one of the outputs from this stage is active".
+
+        // If we have predicates, we need to add an extra condition to the data
+        // signal to ensure that the data operation is active; if some operation
+        // is unconditional, then the conditions vector will be empty.
+        std::vector<Node*> value_predicates =
+            CollectPredicates<PredicatedValue>(
+                stage_data_values,
+                [](const PredicatedValue& value) { return value.predicate; });
+
+        std::vector<Node*> predicate_operands;
+        predicate_operands.reserve(value_predicates.empty() ? 3 : 4);
+        predicate_operands.push_back(all_active_inputs_valid[stage]);
+        predicate_operands.push_back(pipelined_valids[stage]);
+        predicate_operands.push_back(next_stage_open[stage]);
+        if (!value_predicates.empty()) {
+          // If we have value predicates, we need to add an extra condition to
+          // the output predicate, to ensure that at least one of the outputs
+          // from this stage is active.
+          XLS_ASSIGN_OR_RETURN(Node * active_output,
+                               NaryOrIfNeeded(block, value_predicates));
+          predicate_operands.push_back(active_output);
+        }
+
+        // The final predicate is the conjunction of all the conditions.
+        XLS_ASSIGN_OR_RETURN(stage_predicate,
+                             block->MakeNode<NaryOp>(
+                                 SourceInfo(), predicate_operands, Op::kAnd));
       }
-      datas.push_back({.predicate = valid, .value = stage_data});
+      // Add the stage data and predicate to the list of predicated values.
+      datas.push_back({.predicate = stage_predicate, .value = stage_data});
     }
+    // Select the data from the different stages based on their predicates.
     XLS_ASSIGN_OR_RETURN(Node * data,
                          OneHotSelectIfNeeded(block, datas,
                                               /*ignore_single_value_predicate=*/
@@ -669,20 +717,15 @@ absl::Status MakeOutputReadyPortsForInputChannels(
 
     std::vector<Node*> readys;
     for (auto& [stage, predicates] : predicates_by_stage) {
-      Node* stage_ready = all_active_outputs_ready.at(stage);
+      Node* stage_ready = all_active_outputs_ready[stage];
       if (predicates.empty()) {
         continue;
       }
-      std::vector<Node*> conditions;
-      conditions.reserve(predicates.size());
-      for (const auto& predicate : predicates) {
-        if (predicate.has_value()) {
-          conditions.push_back(predicate.value());
-        } else {
-          conditions.clear();
-          break;
-        }
-      }
+
+      // If we have predicates, we need to add an extra condition to the ready
+      // signal to ensure that the data operation is active; if some operation
+      // is unconditional, then the conditions vector will be empty.
+      std::vector<Node*> conditions = CollectPredicates(predicates);
       if (!conditions.empty()) {
         XLS_ASSIGN_OR_RETURN(Node * predicate,
                              NaryOrIfNeeded(block, conditions));
