@@ -42,6 +42,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -3201,10 +3202,10 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_RETURN_IF_ERROR(Visit(dep));
   }
 
+  Function& config_fn = f->proc().value()->config();
   if (options_.lower_to_proc_scoped_channels && invocation == nullptr) {
     // Process the config function when there is no 'spawn' invocation.
     // This can happen in tests or for a top-level proc.
-    Function& config_fn = f->proc().value()->config();
     XLS_RETURN_IF_ERROR(Visit(config_fn.body()));
   }
 
@@ -3213,6 +3214,41 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   builder_ptr->Next(state, std::get<BValue>(node_to_ir_[f->body()]));
 
   XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build());
+
+  // Generate channel interfaces.
+  if (options_.lower_to_proc_scoped_channels) {
+    // This probably was checked already but might as well double-check it.
+    XLS_RET_CHECK(invocation != nullptr || !f->IsParametric())
+        << "Cannot lower a parametric proc without an invocation";
+    for (const Param* param : config_fn.params()) {
+      XLS_ASSIGN_OR_RETURN(Type * type, type_info->GetItemOrError(param));
+      ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
+      if (channel_type == nullptr) {
+        // Non-channel config params are still allowed.
+        continue;
+      }
+      // TOOD: davidplass - figure out how to get strictness, flow control,
+      // kind instead of defaults. These will likely vary depending on if it's
+      // a boundary or a loopback channel.
+      std::optional<ChannelStrictness> strictness = kDefaultChannelStrictness;
+      FlowControl flow_control = FlowControl::kReadyValid;
+      ChannelKind kind = ChannelKind::kStreaming;
+      // Payload_type is a dslx::Type but we need it to be an IR type
+      // (xls::Type)
+      XLS_ASSIGN_OR_RETURN(
+          xls::Type * ir_type,
+          TypeToIr(package(), channel_type->payload_type(), *parametric_env));
+      if (channel_type->direction() == ChannelDirection::kIn) {
+        XLS_ASSIGN_OR_RETURN(
+            auto _, p->AddInputChannel(param->identifier(), ir_type, kind,
+                                       flow_control, strictness));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            auto _, p->AddOutputChannel(param->identifier(), ir_type, kind,
+                                        flow_control, strictness));
+      }
+    }
+  }
   package_data_.ir_to_dslx[p] = f;
   package_data_.dslx_proc_to_ir_proc[f->proc().value()] = p;
   return absl::OkStatus();

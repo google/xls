@@ -273,6 +273,7 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",

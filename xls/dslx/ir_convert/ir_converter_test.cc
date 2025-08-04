@@ -4286,6 +4286,72 @@ pub proc main {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelInterface) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee {
+  init { }
+  config(c: chan<u32> in) { () }
+  next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "spawnee", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ChannelInterfaceOut) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee {
+  init { }
+  config(c: chan<u32> out) { () }
+  next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "spawnee", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ParametricProcNoSpawn) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee<N: u32> {
+  init { }
+  config(c: chan<uN[N]> in) { () }
+  next(state: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+)";
+
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main",
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr("Cannot lower a parametric proc without an invocation")));
+}
+
 TEST_P(IrConverterWithBothTypecheckVersionsTest, ConvertWithoutTests) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
