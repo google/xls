@@ -48,6 +48,7 @@ cc_test(
         "//xls/common/fuzzing:fuzztest",
         "//xls/tools:codegen_flags_cc_proto",
         "//xls/tools:scheduling_options_flags_cc_proto",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",

@@ -37,6 +37,15 @@ fuzztest::Domain<std::string> VerilogFuzzDomain(
     SchedulingOptionsFlagsProto scheduling_options,
     CodegenFlagsProto codegen_options);
 
+// Some codegen options are illegal and lead to CHECK-failures. We provide a
+// domain that filters out such options.
+fuzztest::Domain<CodegenFlagsProto> CodegenFlagsDomain();
+
+// This domain ensures FDO and related flags are disabled. FDO is expected to be
+// more fragile and is not appropriate for fuzzing.
+fuzztest::Domain<SchedulingOptionsFlagsProto>
+NoFdoSchedulingOptionsFlagsDomain();
+
 }  // namespace xls
 
 #endif  // XLS_FUZZER_IR_FUZZER_VERILOG_FUZZ_DOMAIN_H_
