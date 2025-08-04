@@ -87,41 +87,41 @@ def set_termination_event(monitor, event, transactions):
     STATUS = resp.status
   monitor.add_callback(terminate_cb)
 
-def simple_decode(literals, sequences):
+def deserialized_sequences(sequences):
   def word_from_bytes(bytes, ix):
     return int(bytes[ix]) + (int(bytes[ix+1]) << 8)
-
-  literals_ix = 0
-  decoded = []
   for i in range(0, len(sequences), 8):
     match_length = word_from_bytes(sequences, i)
     step_back = word_from_bytes(sequences, i + 2)
     copy_length = word_from_bytes(sequences, i + 4)
-    for j in range(literals_ix * 8, (literals_ix + copy_length) * 8):
-      decoded.append(literals[j])
+    yield (match_length, step_back, copy_length)
 
+def simple_decode(literals, sequences):
+  literals_ix = 0
+  decoded = []
+  for seq in deserialized_sequences(sequences):
+    (match_length, step_back, copy_length) = seq
+    print(f"Processing sequence ({seq})...")
+    for j in range(literals_ix, (literals_ix + copy_length)):
+      print(f"{hex(len(decoded))} = {hex(literals[j])}")
+      decoded.append(literals[j])
     matched = []
     current_decoded_len = len(decoded)
     for j in range(
-      current_decoded_len - step_back * 8,
-      current_decoded_len - (step_back - match_length) * 8):
+      current_decoded_len - step_back,
+      current_decoded_len - (step_back - match_length)):
       matched.append(decoded[j])
+    print(f"{hex(len(decoded))} = {[hex(ma) for ma in matched]}")
     decoded += matched
     literals_ix += copy_length
   return decoded
 
 def generate_input_data():
   random.seed(42) # for reproducibility
-  return bytearray(sum(
-    [[
-        random.randint(*INPUT_RANGE),0,0,0,0,0,0,0]
-        for _ in range(INPUT_SIZE//8)
-      ],
-    []
-  ))
+  return bytearray(random.randint(*INPUT_RANGE) for _ in range(INPUT_SIZE))
 
 
-@cocotb.test(timeout_time=2000, timeout_unit="ms")
+@cocotb.test(timeout_time=10000, timeout_unit="ms")
 async def basic_test(dut):
 
   dut.rst.setimmediatevalue(0)

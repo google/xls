@@ -170,9 +170,11 @@ module match_finder_wrapper #(
     // History Buffer
 
     localparam HB_SIZE = 1024;
-    localparam HB_DATA_W = 64;
-    localparam HB_ADDR_W = $clog2(HB_SIZE);
-    localparam HB_NUM_PARTITIONS = 8;
+    localparam HB_RAM_NUM = 8;
+    localparam HB_DATA_W = 8;
+    localparam HB_RAM_SIZE = HB_SIZE / HB_RAM_NUM;
+    localparam HB_ADDR_W = $clog2(HB_RAM_SIZE);
+    localparam HB_NUM_PARTITIONS = 1;
 
     wire [HB_ADDR_W-1:0]         hb_ram_rd_addr [0:7];
     wire [HB_DATA_W-1:0]         hb_ram_rd_data [0:7];
@@ -208,22 +210,22 @@ module match_finder_wrapper #(
     endgenerate
 
     // Hash Table
-    localparam HT_KEY_W = 64;
+    localparam HT_KEY_W = 32;
     localparam HT_SIZE = 512;
     localparam HT_ADDR_W = $clog2(HT_SIZE);
     localparam HT_ENTRY_W = HT_KEY_W + 32;
-    localparam HT_DATA_W = HT_ENTRY_W + 1;  // 64 (KEY_WIDTH) + 32 (ADDR_W) + 1 (match or not);
-    localparam HT_NUM_PARTITIONS = 1;
+    localparam HT_DATA_W = HT_ENTRY_W + 1;  // 32 (KEY_WIDTH) + 32 (ADDR_W) + 1 (match or not);
+    localparam HT_NUM_PARTITIONS = HT_DATA_W;
 
     wire [HT_DATA_W-1:0]         ht_ram_rd_data;
     wire [HT_ADDR_W-1:0]         ht_ram_rd_addr;
     wire                         ht_ram_rd_en;
-    wire [HT_DATA_W-1:0]         ht_ram_rd_mask;
+    wire [HT_NUM_PARTITIONS-1:0]         ht_ram_rd_mask;
 
     wire [HT_DATA_W-1:0]         ht_ram_wr_data;
     wire [HT_ADDR_W-1:0]         ht_ram_wr_addr;
     wire                         ht_ram_wr_en;
-    wire [HT_DATA_W-1:0]         ht_ram_wr_mask;
+    wire [HT_NUM_PARTITIONS-1:0] ht_ram_wr_mask;
 
     ram_1r1w #(
         .DATA_WIDTH(HT_DATA_W),
