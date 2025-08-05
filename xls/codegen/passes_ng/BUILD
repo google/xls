@@ -327,6 +327,26 @@ cc_test(
 )
 
 cc_library(
+    name = "stage_to_block_conversion_metadata",
+    hdrs = ["stage_to_block_conversion_metadata.h"],
+    deps = [
+        ":block_channel_adapter",
+        ":block_channel_slot",
+        ":stage_conversion",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:xls_ir_interface_cc_proto",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "stage_to_block_conversion",
     srcs = ["stage_to_block_conversion.cc"],
     hdrs = ["stage_to_block_conversion.h"],
@@ -334,6 +354,7 @@ cc_library(
         ":block_channel_adapter",
         ":block_channel_slot",
         ":stage_conversion",
+        ":stage_to_block_conversion_metadata",
         "//xls/codegen:codegen_options",
         "//xls/codegen:conversion_utils",
         "//xls/common:casts",

@@ -34,6 +34,7 @@
 #include "xls/codegen/passes_ng/block_channel_adapter.h"
 #include "xls/codegen/passes_ng/block_channel_slot.h"
 #include "xls/codegen/passes_ng/stage_conversion.h"
+#include "xls/codegen/passes_ng/stage_to_block_conversion_metadata.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
