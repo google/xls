@@ -4384,6 +4384,7 @@ xls_dslx_library(
         ":mem_writer_simple_arbiter_dslx",
         ":mem_reader_simple_arbiter_dslx",
         ":mem_copy_dslx",
+        ":rle_block_encoder_dslx",
         "//xls/modules/zstd/memory:axi_dslx",
         "//xls/modules/zstd/memory:axi_ram_reader_dslx",
     ],
