@@ -3016,13 +3016,11 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
       << "Spawn nodes should only be encountered during proc conversion; "
          "we seem to be in function conversion.";
 
-  // Get the spawned proc as an AST proc.
-  XLS_ASSIGN_OR_RETURN(Proc * ast_proc,
-                       ResolveProc(node->callee(), current_type_info_));
-  // Translate the AST proc to an IR proc.
-  XLS_RET_CHECK(package_data_.dslx_proc_to_ir_proc.contains(ast_proc))
-      << ast_proc->identifier();
-  xls::Proc* ir_proc = package_data_.dslx_proc_to_ir_proc[ast_proc];
+  // Get the ir proc from the map via the config.
+  const Invocation* config = node->config();
+  XLS_RET_CHECK(package_data_.invocation_to_ir_proc.contains(config))
+      << node->ToString();
+  xls::Proc* ir_proc = package_data_.invocation_to_ir_proc[config];
 
   xls::Proc* top_proc = package()->GetTop().value()->AsProcOrDie();
   // TODO: https://github.com/google/xls/issues/2078 - set up the channel_args
@@ -3046,6 +3044,9 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   XLS_RET_CHECK_NE(type_info, nullptr);
   VLOG(5) << "HandleProcNextFunction: " << f->ToString() << " proc id "
           << proc_id.ToString();
+  if (invocation != nullptr) {
+    VLOG(5) << "HandleProcNextFunction: invocation " << invocation->ToString();
+  }
 
   if (parametric_env != nullptr) {
     SetParametricEnv(parametric_env);
@@ -3250,7 +3251,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     }
   }
   package_data_.ir_to_dslx[p] = f;
-  package_data_.dslx_proc_to_ir_proc[f->proc().value()] = p;
+  // The invocation is actually the "config".
+  package_data_.invocation_to_ir_proc[invocation] = p;
   return absl::OkStatus();
 }
 

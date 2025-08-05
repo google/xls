@@ -4286,6 +4286,126 @@ pub proc main {
   ExpectIr(converted);
 }
 
+TEST_P(ProcScopedChannelsIrConverterTest,
+       ParametricSimpleSpawnDifferentParametrics) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee<N:u32> {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() {
+    spawn spawnee<u32:3>();
+    spawn spawnee<u32:4>();
+  }
+  next(state: ()) { () }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST(ProcScopedChannelsIrConverterTest,
+     DISABLED_ParametricSimpleSpawnDifferentParametricsFromEnv) {
+  // This fails with INTERNAL: XLS_RET_CHECK failure
+  // (.../bytecode/bytecode_interpreter.cc:573)
+  // invocation_data->env_to_callee_data().contains(caller_bindings) ||
+  // invocation_data->env_to_callee_data().contains(ParametricEnv()) invocation:
+  // `spawnee2.config<M>()` @ test_module.x:11:32-11:33 caller:
+  // `spawnee1.config` caller_bindings: {N: u32:3}
+
+  // This should "just work".
+  constexpr std::string_view kProgram = R"(
+#![feature(type_inference_v2)]
+proc spawnee2<N:u32> {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc spawnee1<M:u32> {
+  init { }
+  config() { spawn spawnee2<M>(); () }
+  next(state: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() {
+    spawn spawnee1<u32:3>();
+  }
+  next(state: ()) { () }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST(ProcScopedChannelsIrConverterTest,
+     DISABLED_ParametricMultipleSpawnDifferentParametrics) {
+  // This fails with INTERNAL: XLS_RET_CHECK failure
+  // (.../bytecode/bytecode_interpreter.cc:571)
+  // invocation_data->env_to_callee_data().contains(caller_bindings) ||
+  // invocation_data->env_to_callee_data().contains(ParametricEnv()) invocation:
+  // `spawnee2.config<N, u32:1>()` @ test_module.x:12:30-12:31 caller:
+  // `spawnee1.config` caller_bindings: {M: u32:1, N: u32:3}
+
+  // This is a more complex case than the above test, since the spawn tree
+  // needs to be "expanded" for each call of the intermediate proc.
+  constexpr std::string_view kProgram = R"(
+proc spawnee2<N:u32, M:u32> {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc spawnee1<N:u32> {
+  init { }
+  config() {
+    spawn spawnee2<N, u32:1>();
+    spawn spawnee2<N, u32:2>();
+  }
+  next(state: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() {
+    spawn spawnee1<u32:3>();
+    spawn spawnee1<u32:4>();
+  }
+  next(state: ()) { () }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
 TEST_P(ProcScopedChannelsIrConverterTest, ChannelInterface) {
   constexpr std::string_view kProgram = R"(
 proc spawnee {
