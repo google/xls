@@ -1177,6 +1177,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     XLS_ASSIGN_OR_RETURN(std::optional<const EnumDef*> enum_def,
                          GetEnumDef(annotation, import_data_));
     if (enum_def.has_value()) {
+      std::unique_ptr<Type> cached_type =
+          GetCachedType(*enum_def, std::nullopt);
+      if (cached_type) {
+        return cached_type;
+      }
       XLS_ASSIGN_OR_RETURN(
           TypeInfo * ti, GetTypeInfo((*enum_def)->owner(), parametric_context));
       std::vector<InterpValue> members;
@@ -1224,8 +1229,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           members.push_back(enum_value);
         }
       }
-      return std::make_unique<EnumType>(**enum_def, underlying_type->size(),
-                                        underlying_type->is_signed(), members);
+      std::unique_ptr<Type> type =
+          std::make_unique<EnumType>(**enum_def, underlying_type->size(),
+                                     underlying_type->is_signed(), members);
+      XLS_RETURN_IF_ERROR(AddCachedType(*enum_def, std::nullopt, *type));
+      return type;
     }
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc,
                          GetStructOrProcRef(annotation, import_data_));
@@ -1240,6 +1248,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                                                  parametric_context,
                                                  *struct_or_proc, annotation));
       }
+      std::unique_ptr<Type> cached_type =
+          GetCachedType(struct_def_base, struct_context);
+      if (cached_type) {
+        return cached_type;
+      }
       for (const StructMemberNode* member : struct_def_base->members()) {
         XLS_ASSIGN_OR_RETURN(
             const TypeAnnotation* parametric_free_member_type,
@@ -1251,12 +1264,18 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         member_types.push_back(std::move(concrete_member_type));
       }
       if (struct_def_base->kind() == AstNodeKind::kStructDef) {
-        return std::make_unique<StructType>(
+        std::unique_ptr<Type> type = std::make_unique<StructType>(
             std::move(member_types),
             *down_cast<const StructDef*>(struct_def_base));
+        XLS_RETURN_IF_ERROR(
+            AddCachedType(struct_def_base, struct_context, *type));
+        return type;
       }
-      return std::make_unique<ProcType>(
+      std::unique_ptr<Type> type = std::make_unique<ProcType>(
           std::move(member_types), *down_cast<const ProcDef*>(struct_def_base));
+      XLS_RETURN_IF_ERROR(
+          AddCachedType(struct_def_base, struct_context, *type));
+      return type;
     }
     XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
                          GetSignednessAndBitCountWithUserFacingError(
@@ -2063,6 +2082,37 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
     return down_cast<const TypeAnnotation*>(clone);
   }
 
+  // Cache a concretized type for a (node, parametric_context) pair to be
+  // reused, if the same type is expected to be concretized many times.
+  absl::Status AddCachedType(
+      const AstNode* node,
+      std::optional<const ParametricContext*> parametric_context,
+      const Type& type) {
+    auto result = type_cache_.try_emplace(
+        std::make_pair(node, parametric_context), type.CloneToUnique());
+    if (!result.second) {
+      return absl::InternalError(absl::StrCat(
+          "Failed to add type ", type.ToString(), " to type cache, Type ",
+          result.first->second->ToString(), " already exists for key (",
+          node->ToInlineString(),
+          parametric_context ? ", " + parametric_context.value()->ToString()
+                             : "",
+          ")"));
+    }
+    return absl::OkStatus();
+  }
+
+  // Get the cached concretized type for a (node, parametric_context) pair.
+  std::unique_ptr<Type> GetCachedType(
+      const AstNode* node,
+      std::optional<const ParametricContext*> parametric_context) {
+    auto cached = type_cache_.find(std::make_pair(node, parametric_context));
+    if (cached != type_cache_.end()) {
+      return cached->second->CloneToUnique();
+    }
+    return nullptr;
+  }
+
   // Wraps `BitCountMismatchErrorStatus` with resolution of parametrics, so that
   // a nominal type like `uN[N]` will not appear with the variable in the error
   // message.
@@ -2136,6 +2186,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                       absl::flat_hash_set<const Invocation*>>
       converted_invocations_;
   absl::flat_hash_set<const Proc*> converted_procs_;
+
+  absl::flat_hash_map<
+      std::pair<const AstNode*, std::optional<const ParametricContext*>>,
+      std::unique_ptr<Type>>
+      type_cache_;
 
   // The top element in this stack is the proc-level type info for the proc (or
   // child of a proc) currently being converted, if any. There are only multiple
