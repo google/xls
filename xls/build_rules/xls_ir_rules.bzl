@@ -65,6 +65,7 @@ _IR_FILE_EXTENSION = ".ir"
 
 _OPT_IR_FILE_EXTENSION = ".opt.ir"
 _OPT_LOG_FILE_EXTENSION = ".opt.log"
+_OPT_OPTIONS_USED_FILE_EXTENSION = ".opt_options.txtbp"
 
 _CODEGEN_FLAGS = CODEGEN_FIELDS.keys()
 _SCHEDULING_FLAGS = SCHEDULING_FIELDS.keys()
@@ -275,6 +276,14 @@ def _optimize_ir(ctx, src, original_input_files):
     log_file = ctx.actions.declare_file(opt_log_filename)
     args.add("--alsologto", log_file)
 
+    opt_options_used_textproto_filename = get_output_filename_value(
+        ctx,
+        "opt_options_used_textproto_file",
+        ctx.attr.name + _OPT_OPTIONS_USED_FILE_EXTENSION,
+    )
+    opt_options_used_textproto_file = ctx.actions.declare_file(opt_options_used_textproto_filename)
+    args.add("--opt_options_used_textproto_file", opt_options_used_textproto_file)
+
     if "local" in ctx.attr.tags:
         execution_requirements = {"no-remote-exec": "1"}
     else:
@@ -282,7 +291,7 @@ def _optimize_ir(ctx, src, original_input_files):
 
     runfiles = get_runfiles_for_xls(ctx, [], [src.ir_file] + ram_rewrite_files + debug_src_files + original_input_files)
     ctx.actions.run(
-        outputs = [opt_ir_file, log_file],
+        outputs = [opt_ir_file, log_file, opt_options_used_textproto_file],
         executable = ctx.executable._xls_opt_ir_tool,
         execution_requirements = execution_requirements,
         # The files required for optimizing the IR file.
@@ -762,7 +771,13 @@ xls_ir_opt_ir_attrs = dicts.add(
             allow_files = True,
         ),
         "opt_log_file": attr.output(
-            doc = "The filename to log stderr to. If not specified, 'opt.log' is used.",
+            doc = "The filename to log stderr to. If not specified, the name of the target " +
+                  "followed by " + _OPT_LOG_FILE_EXTENSION + " is used.",
+        ),
+        "opt_options_used_textproto_file": attr.output(
+            doc = "The filename to write the OptFlagsProto textproto to. If not specified, the " +
+                  "name of the target followed by " + _OPT_OPTIONS_USED_FILE_EXTENSION +
+                  " is used.",
         ),
     },
 )

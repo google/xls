@@ -1,0 +1,49 @@
+// Copyright 2025 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+edition = "2023";
+
+package xls;
+
+import "xls/ir/ram_rewrite.proto";
+import "xls/passes/optimization_pass_pipeline.proto";
+import "xls/passes/pass_pipeline.proto";
+
+message OptFlagsProto {
+  string top = 1;
+  string ir_dump_path = 2;
+  // Note that this path is generally used as a filename for some already loaded
+  // IR. Not specifying it is OK and specifying it does not mean that the IR at
+  // that path will be used.
+  string ir_path = 3;
+  repeated string skip_passes = 4;
+  int64 convert_array_index_to_select = 5;
+  int64 split_next_value_selects = 6;
+  int64 opt_level = 7;
+  RamRewritesProto ram_rewrites = 8;
+  bool use_context_narrowing_analysis = 9;
+  bool optimize_for_best_case_throughput = 10;
+  bool enable_resource_sharing = 11;
+  bool force_resource_sharing = 12;
+  string area_model = 13;
+  // Note: --pipeline_proto and --pipeline_textproto both map to this message.
+  OptimizationPipelineProto custom_registry = 15;
+  // Note: -passes, --passes_proto, and --passes_textproto all map to this
+  // message.
+  PassPipelineProto pipeline = 16;
+  int64 passes_bisect_limit = 17;
+  bool passes_bisect_limit_is_error = 18;
+  string pass_metrics_path = 19;
+  bool debug_optimizations = 20;
+}

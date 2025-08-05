@@ -19,7 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <variant>
+#include <utility>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -29,7 +29,6 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/visitor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
@@ -42,8 +41,63 @@
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/query_engine_checker.h"
 #include "xls/passes/verifier_checker.h"
+#include "xls/tools/opt_flags.pb.h"
 
 namespace xls::tools {
+
+absl::StatusOr<OptOptions> OptOptionsFromFlagsProto(
+    const OptFlagsProto& proto) {
+  OptOptions options;
+#define POPULATE(field)            \
+  if (proto.has_##field()) {       \
+    options.field = proto.field(); \
+  }
+
+  POPULATE(opt_level)
+  POPULATE(top)
+  POPULATE(ir_dump_path)
+  POPULATE(ir_path)
+  if (proto.skip_passes_size() > 0) {
+    options.skip_passes = {proto.skip_passes().begin(),
+                           proto.skip_passes().end()};
+  }
+  POPULATE(convert_array_index_to_select)
+  POPULATE(split_next_value_selects)
+  // Ram rewrites are encapsulated in a message in the flags proto and their
+  // contained vector is pushed into the options.
+  if (proto.has_ram_rewrites()) {
+    options.ram_rewrites.reserve(proto.ram_rewrites().rewrites_size());
+    for (const RamRewriteProto& rewrite : proto.ram_rewrites().rewrites()) {
+      XLS_ASSIGN_OR_RETURN(RamRewrite ram_rewrite,
+                           RamRewrite::FromProto(rewrite));
+      options.ram_rewrites.push_back(std::move(ram_rewrite));
+    }
+  }
+  POPULATE(use_context_narrowing_analysis)
+  POPULATE(optimize_for_best_case_throughput)
+  POPULATE(enable_resource_sharing)
+  POPULATE(force_resource_sharing)
+  POPULATE(area_model)
+  POPULATE(custom_registry)
+  if (proto.has_pipeline()) {
+    options.pass_pipeline = proto.pipeline();
+  }
+  // Note: the flag's name is passes_bisect_limit but the option is
+  // bisect_limit.
+  if (proto.has_passes_bisect_limit()) {
+    options.bisect_limit = proto.passes_bisect_limit();
+  }
+  POPULATE(debug_optimizations)
+
+  // NOTE: passes_bisect_limit_is_error is not populated in OptOptions as it is
+  // handled outside calls to OptimizeIrForTop() that use the OptOptions struct.
+  // The idea is that you may want to treat exceeding the bisect limit as an
+  // error sometimes and not others, so OptimizeIrForTop() should return an
+  // OkStatus() and the caller should decide what to do about it.
+
+#undef POPULATE
+  return options;
+}
 
 absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
                               OptMetadata* metadata) {
@@ -73,49 +127,26 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options,
   const OptimizationPassRegistry& chosen_registry =
       registry.value_or(GetOptimizationRegistry());
 
-  using PipelineResult = absl::StatusOr<std::unique_ptr<OptimizationPass>>;
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<OptimizationPass> pipeline,
-      std::visit(
-          Visitor{
-              [&](std::nullopt_t) -> PipelineResult {
-                return CreateOptimizationPassPipeline(
-                    options.debug_optimizations, chosen_registry);
-              },
-              [&](std::string_view list) -> PipelineResult {
-                XLS_RET_CHECK(options.skip_passes.empty())
-                    << "Skipping/restricting passes while running a custom "
-                       "pipeline is probably not something you want to do.";
-                XLS_ASSIGN_OR_RETURN(
-                    std::unique_ptr<OptimizationCompoundPass> res,
-                    GetOptimizationPipelineGenerator(chosen_registry)
-                        .GeneratePipeline(list));
-                if (options.debug_optimizations) {
-                  res->AddInvariantChecker<VerifierChecker>();
-                  res->AddInvariantChecker<QueryEngineChecker>();
-                } else {
-                  res->AddWeakInvariantChecker<VerifierChecker>();
-                }
-                return res;
-              },
-              [&](const PassPipelineProto& list) -> PipelineResult {
-                XLS_RET_CHECK(options.skip_passes.empty())
-                    << "Skipping/restricting passes while running a custom "
-                       "pipeline is probably not something you want to do.";
-                XLS_ASSIGN_OR_RETURN(
-                    std::unique_ptr<OptimizationCompoundPass> res,
-                    GetOptimizationPipelineGenerator(chosen_registry)
-                        .GeneratePipeline(list));
-                if (options.debug_optimizations) {
-                  res->AddInvariantChecker<VerifierChecker>();
-                  res->AddInvariantChecker<QueryEngineChecker>();
-                } else {
-                  res->AddWeakInvariantChecker<VerifierChecker>();
-                }
-                return res;
-              },
-          },
-          options.pass_pipeline));
+  std::unique_ptr<OptimizationPass> pipeline;
+  if (options.pass_pipeline.has_value()) {
+    XLS_RET_CHECK(options.skip_passes.empty())
+        << "Skipping/restricting passes while running a custom "
+           "pipeline is probably not something you want to do.";
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<OptimizationCompoundPass> res,
+                         GetOptimizationPipelineGenerator(chosen_registry)
+                             .GeneratePipeline(*options.pass_pipeline));
+    if (options.debug_optimizations) {
+      res->AddInvariantChecker<VerifierChecker>();
+      res->AddInvariantChecker<QueryEngineChecker>();
+    } else {
+      res->AddWeakInvariantChecker<VerifierChecker>();
+    }
+    pipeline = std::move(res);
+  } else {
+    pipeline = CreateOptimizationPassPipeline(options.debug_optimizations,
+                                              chosen_registry);
+  }
+
   OptimizationPassOptions pass_options;
   pass_options.opt_level = options.opt_level;
   pass_options.ir_dump_path = options.ir_dump_path;

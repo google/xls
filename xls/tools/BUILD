@@ -364,7 +364,7 @@ cc_library(
     hdrs = ["opt.h"],
     visibility = ["//xls:xls_users"],
     deps = [
-        "//xls/common:visitor",
+        ":opt_flags_cc_proto",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -388,12 +388,38 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "opt_flags",
+    srcs = ["opt_flags.cc"],
+    hdrs = ["opt_flags.h"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":opt_flags_cc_proto",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:optimization_pass_pipeline",
+        "//xls/passes:optimization_pass_pipeline_cc_proto",
+        "//xls/passes:optimization_pass_registry",
+        "//xls/passes:query_engine_checker",
+        "//xls/passes:verifier_checker",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
 cc_binary(
     name = "opt_main",
     srcs = ["opt_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
         ":opt",
+        ":opt_flags",
+        ":opt_flags_cc_proto",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -402,13 +428,11 @@ cc_binary(
         "//xls/dev_tools:tool_timeout",
         "//xls/ir:ram_rewrite_cc_proto",
         "//xls/passes",
-        "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:optimization_pass_pipeline_cc_proto",
         "//xls/passes:optimization_pass_registry",
         "//xls/passes:pass_metrics_cc_proto",
         "//xls/passes:pass_pipeline_cc_proto",
-        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
@@ -419,7 +443,6 @@ cc_binary(
         "@com_google_absl//absl/log:log_sink_registry",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -558,6 +581,29 @@ cc_proto_library(
     name = "scheduling_options_flags_cc_proto",
     visibility = ["//xls:xls_users"],
     deps = [":scheduling_options_flags_proto"],
+)
+
+proto_library(
+    name = "opt_flags_proto",
+    srcs = ["opt_flags.proto"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "//xls/ir:ram_rewrite_proto",
+        "//xls/passes:optimization_pass_pipeline_proto",
+        "//xls/passes:pass_pipeline_proto",
+    ],
+)
+
+py_proto_library(
+    name = "opt_flags_py_pb2",
+    visibility = ["//xls:xls_users"],
+    deps = [":opt_flags_proto"],
+)
+
+cc_proto_library(
+    name = "opt_flags_cc_proto",
+    visibility = ["//xls:xls_users"],
+    deps = [":opt_flags_proto"],
 )
 
 genrule(

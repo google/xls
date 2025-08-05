@@ -21,7 +21,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -31,6 +30,7 @@
 #include "xls/passes/optimization_pass_pipeline.pb.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
+#include "xls/tools/opt_flags.pb.h"
 
 namespace xls::tools {
 
@@ -52,11 +52,12 @@ struct OptOptions {
   std::string area_model = "v";
   // Custom registry to use to get default pipeline and compound passes.
   std::optional<OptimizationPipelineProto> custom_registry = std::nullopt;
-  std::variant<std::nullopt_t, std::string, PassPipelineProto> pass_pipeline =
-      std::nullopt;
+  std::optional<PassPipelineProto> pass_pipeline = std::nullopt;
   std::optional<int64_t> bisect_limit;
   bool debug_optimizations = false;
 };
+
+absl::StatusOr<OptOptions> OptOptionsFromFlagsProto(const OptFlagsProto& proto);
 
 // Metadata which can be optionally returned from
 // the optimizer.
