@@ -16,46 +16,34 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "xls/codegen/block_conversion_test_fixture.h"
-#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/passes_ng/block_channel_adapter.h"
 #include "xls/codegen/passes_ng/block_channel_slot.h"
 #include "xls/codegen/passes_ng/block_pipeline_inserter.h"
+#include "xls/codegen/passes_ng/passes_ng_test_fixtures.h"
 #include "xls/codegen/passes_ng/stage_conversion.h"
+#include "xls/codegen/passes_ng/stage_to_block_conversion_metadata.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/ret_check.h"
-#include "xls/common/status/status_macros.h"
-#include "xls/interpreter/block_evaluator.h"
-#include "xls/interpreter/block_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
-#include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
-#include "xls/scheduling/pipeline_schedule.h"
-#include "xls/scheduling/run_pipeline_schedule.h"
-#include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/codegen.h"
 
 namespace xls::verilog {
@@ -66,117 +54,6 @@ using ::absl_testing::IsOkAndHolds;
 using ::testing::ElementsAreArray;
 using ::testing::Field;
 using ::testing::Optional;
-
-// Fixture to sweep pipeline stages.
-class SweepPipelineStagesFixture : public BlockConversionTestFixture,
-                                   public testing::WithParamInterface<int64_t> {
- public:
-  virtual CodegenOptions codegen_options() {
-    return CodegenOptions().module_name(TestName());
-  }
-
-  static std::string PrintToStringParamName(
-      const testing::TestParamInfo<ParamType>& info) {
-    return absl::StrFormat("stage_count_%d", info.param);
-  }
-
-  int64_t GetStageCount() const { return GetParam(); }
-};
-
-// Simple pipelined function test fixture.
-class SweepTrivialPipelinedFunctionFixture : public SweepPipelineStagesFixture {
- public:
-  CodegenOptions codegen_options() override {
-    return SweepPipelineStagesFixture::codegen_options()
-        .flop_inputs(false)
-        .flop_outputs(true)
-        .clock_name("clk")
-        .reset("rst", /*asynchronous=*/false, /*active_low=*/false,
-               /*reset_data_path=*/true);
-  }
-
-  absl::Status CreateStageProcInPackage() {
-    package_ = CreatePackage();
-
-    FunctionBuilder fb(TestName(), package_.get());
-    BValue x = fb.Param("x", package_->GetBitsType(32));
-    BValue y = fb.Param("y", package_->GetBitsType(32));
-
-    XLS_ASSIGN_OR_RETURN(
-        Function * f, fb.BuildWithReturnValue(fb.Identity(
-                          fb.Add(fb.Add(fb.Identity(x), fb.Identity(y)), x))));
-    XLS_RETURN_IF_ERROR(package_->SetTop(f));
-
-    XLS_ASSIGN_OR_RETURN(
-        PipelineSchedule schedule,
-        RunPipelineSchedule(
-            f, TestDelayEstimator(),
-            SchedulingOptions().pipeline_stages(GetStageCount())));
-
-    XLS_RET_CHECK_OK(SingleFunctionBaseToPipelinedStages(
-        "top", schedule, codegen_options(), stage_conversion_metadata_));
-
-    return absl::OkStatus();
-  }
-
-  // Simulates the block with the given name and returns the output sequence.
-  absl::StatusOr<std::vector<uint64_t>> SimulateBlock(
-      std::string_view block_name, absl::Span<const uint64_t> x,
-      absl::Span<const uint64_t> y, uint64_t cycle_count) {
-    XLS_RET_CHECK_EQ(x.size(), y.size());
-
-    // Interpret the stage block itself.
-    XLS_ASSIGN_OR_RETURN(Block * block, package_->GetBlock(block_name));
-
-    std::vector<ChannelSource> sources{
-        ChannelSource("x", "x_vld", "x_rdy", 1.0, block),
-        ChannelSource("y", "y_vld", "y_rdy", 1.0, block)};
-
-    XLS_RETURN_IF_ERROR(sources[0].SetDataSequence(x));
-    XLS_RETURN_IF_ERROR(sources[1].SetDataSequence(y));
-
-    std::vector<ChannelSink> sinks{
-        ChannelSink("out", "out_vld", "out_rdy", 0.25, block),
-    };
-    std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(
-        100, {{"rst", 0}});
-    inputs[0]["rst"] = 1;
-
-    XLS_ASSIGN_OR_RETURN(
-        BlockIOResultsAsUint64 results,
-        InterpretChannelizedSequentialBlockWithUint64(
-            block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs,
-            codegen_options().reset()));
-
-    // Add a cycle count for easier comparison with simulation results.
-    XLS_RETURN_IF_ERROR(
-        SetIncrementingSignalOverCycles(0, results.outputs.size() - 1, "cycle",
-                                        0, results.outputs)
-            .status());
-
-    VLOG(1) << "Signal Trace";
-    XLS_RETURN_IF_ERROR(VLogTestPipelinedIO(
-        std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
-                                {"rst", SignalType::kInput},
-                                {"x", SignalType::kInput},
-                                {"x_vld", SignalType::kInput},
-                                {"x_rdy", SignalType::kOutput},
-                                {"y", SignalType::kInput},
-                                {"y_vld", SignalType::kInput},
-                                {"y_rdy", SignalType::kOutput},
-                                {"out", SignalType::kOutput},
-                                {"out_vld", SignalType::kOutput},
-                                {"out_rdy", SignalType::kInput}},
-        /*column_width=*/10, results.inputs, results.outputs));
-
-    return sinks[0].GetOutputSequenceAsUint64();
-  }
-
- protected:
-  std::unique_ptr<Package> package_;
-  StageConversionMetadata stage_conversion_metadata_;
-  BlockConversionMetadata block_conversion_metadata_;
-};
 
 TEST_P(SweepTrivialPipelinedFunctionFixture, TestBlockAndClocksCreation) {
   XLS_ASSERT_OK(CreateStageProcInPackage());
