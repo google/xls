@@ -47,6 +47,7 @@ ALLOWED_INCLUDE_STARTS = frozenset([
     'tools/cpp/runfiles',
     'linenoise.h',
     'libs/json11/',
+    'proto/profile.pb.h',  # the pprof format header.
     '%s',  # For format strings embedded in files.
 ])
 
