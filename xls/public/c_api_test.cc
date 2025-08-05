@@ -2831,7 +2831,9 @@ fn top(x: u32, y: MyE) -> u32 { x }
   for (int64_t i = 0; i < members; ++i) {
     xls_dslx_module_member* mm = xls_dslx_module_get_member(module, i);
     fn = xls_dslx_module_member_get_function(mm);
-    if (fn != nullptr) break;
+    if (fn != nullptr) {
+      break;
+    }
   }
   ASSERT_NE(fn, nullptr);
 
