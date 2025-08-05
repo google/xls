@@ -61,10 +61,14 @@ XLS already has a [DSLX Fuzzer](https://google.github.io/xls/fuzzer/), which
 randomly generates DSLX programs. While the DSLX Fuzzer is useful, it is
 problematic in several ways:
 
-                | Input Generation Method                                                          | Uses GoogleTest | Readable Errors | XLS Layers Covered
---------------- | -------------------------------------------------------------------------------- | --------------- | --------------- | ------------------
-**DSLX Fuzzer** | Randomization                                                                    | No              | Not really      | Full compilation pipeline and build-tools. Relatively slow but runs in parallel.
-**IR Fuzzer**   | [FuzzTest](https://github.com/google/fuzztest/blob/main/doc/overview.md) Fuzzing | Yes             | Yes             | IR, individual passes or transformations. Significantly faster and the results are more focused on individual components.
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+|                 | Input Generation Method                                                          | Uses GoogleTest | Readable Errors | XLS Layers Covered                                                                                                        |
+| --------------- | -------------------------------------------------------------------------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **DSLX Fuzzer** | Randomization                                                                    | No              | Not really      | Full compilation pipeline and build-tools. Relatively slow but runs in parallel.                                          |
+| **IR Fuzzer**   | [FuzzTest](https://github.com/google/fuzztest/blob/main/doc/overview.md) Fuzzing | Yes             | Yes             | IR, individual passes or transformations. Significantly faster and the results are more focused on individual components. |
+
+<!-- mdformat on -->
 
 ## Implementation Details
 
