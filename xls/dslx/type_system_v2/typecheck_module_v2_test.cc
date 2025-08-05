@@ -1534,6 +1534,18 @@ const X = S{ x: u24:5 };
       TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
 }
 
+TEST(TypecheckV2Test, ParametricStructWithInferredParametricFromOtherStruct) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+const X = S{ x: u24:5 };
+const Y = S{ x: X.x };
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "S { x: uN[24] }")));
+}
+
 TEST(TypecheckV2Test, ParametricStructWithTooManyParametricsFails) {
   EXPECT_THAT(R"(
 struct S<N: u32> {}
@@ -1722,7 +1734,7 @@ struct S<N: u32> {
 fn foo() -> S<24> { S { x: u25:5 } }
 const X = foo();
 )",
-      TypecheckFails(HasSizeMismatch("u25", "uN[24]")));
+      TypecheckFails(HasSizeMismatch("u25", "u24")));
 }
 
 TEST(TypecheckV2Test,
@@ -7245,7 +7257,7 @@ fn main() -> uN[5] {
   XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data).status());
   EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSizeMismatch("uN[8]", "uN[5]")));
+                       HasSizeMismatch("u8", "uN[5]")));
 }
 
 TEST(TypecheckV2Test, ImportConstantSizeMismatch) {

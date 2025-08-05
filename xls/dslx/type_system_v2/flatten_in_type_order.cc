@@ -74,6 +74,15 @@ class Flattener : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleStructInstance(const StructInstance* node) override {
+    nodes_.push_back(node);
+    XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
+    for (const auto& [_, member] : node->GetUnorderedMembers()) {
+      XLS_RETURN_IF_ERROR(member->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleInvocation(const Invocation* node) override {
     // Do the equivalent `DefaultHandler`, but exclude most of the arguments.
     // We exclude the arguments because when an argument should

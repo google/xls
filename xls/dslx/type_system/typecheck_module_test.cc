@@ -3692,7 +3692,7 @@ TEST_P(TypecheckBothVersionsTest, BadParametricStructReturnType) {
                AllOf(HasSubstrInV1(GetParam(),
                                    "Point { x: uN[32], y: uN[64] }\nvs Point { "
                                    "x: uN[5], y: uN[10] }"),
-                     HasSizeMismatchInV2(GetParam(), "u32", "bits[5]"))));
+                     HasSizeMismatchInV2(GetParam(), "u32", "u5"))));
 }
 
 // Bad struct type-parametric instantiation in parametric function.

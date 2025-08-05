@@ -37,6 +37,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
@@ -53,12 +54,20 @@
 
 namespace xls::dslx {
 
-const TypeInferenceFlag TypeInferenceFlag::kNone(0);
-const TypeInferenceFlag TypeInferenceFlag::kMinSize(1);
-const TypeInferenceFlag TypeInferenceFlag::kStandardType(1 << 1);
-const TypeInferenceFlag TypeInferenceFlag::kHasPrefix(1 << 2);
-const TypeInferenceFlag TypeInferenceFlag::kSliceContainerSize(1 << 3);
-const TypeInferenceFlag TypeInferenceFlag::kBitsLikeType(1 << 4);
+std::vector<std::pair<uint8_t, std::string>>* TypeInferenceFlag::flag_names_ =
+    new std::vector<std::pair<uint8_t, std::string>>();
+
+const TypeInferenceFlag TypeInferenceFlag::kNone(0, "none");
+const TypeInferenceFlag TypeInferenceFlag::kMinSize(1, "min-size");
+const TypeInferenceFlag TypeInferenceFlag::kStandardType(1 << 1,
+                                                         "standard-type");
+const TypeInferenceFlag TypeInferenceFlag::kHasPrefix(1 << 2, "has-prefix");
+const TypeInferenceFlag TypeInferenceFlag::kSliceContainerSize(
+    1 << 3, "slice-container-size");
+const TypeInferenceFlag TypeInferenceFlag::kBitsLikeType(1 << 4,
+                                                         "bits-like-type");
+const TypeInferenceFlag TypeInferenceFlag::kFormalMemberType(
+    1 << 5, "formal-member-type");
 
 namespace {
 
@@ -72,27 +81,6 @@ std::string_view InferenceVariableKindToString(InferenceVariableKind kind) {
     case InferenceVariableKind::kBool:
       return "bool";
   }
-}
-
-// Converts a `TypeInferenceFlag` to string for tracing purposes.
-std::string_view TypeInferenceFlagToString(TypeInferenceFlag flag) {
-  if (flag.HasFlag(TypeInferenceFlag::kNone)) {
-    return "none";
-  }
-  if (flag.HasFlag(TypeInferenceFlag::kMinSize)) {
-    if (flag.HasFlag(TypeInferenceFlag::kHasPrefix)) {
-      return "min-size,has-prefix";
-    }
-    return "min-size";
-  }
-  if (flag.HasFlag(TypeInferenceFlag::kStandardType)) {
-    return "standard-type";
-  }
-  if (flag.HasFlag(TypeInferenceFlag::kHasPrefix)) {
-    return "has-prefix";
-  }
-  CHECK(0);  // unreachable
-  return "";
 }
 
 // Converts a `TypeAnnotation` for a parametric to an `InferenceVariableKind`.
@@ -660,8 +648,7 @@ class InferenceTableImpl : public InferenceTable {
                                        const TypeAnnotation* annotation) {
       return absl::Substitute(
           std::string(indent) + "Annotation: $0; flag: $1\n",
-          annotation->ToString(),
-          TypeInferenceFlagToString(GetAnnotationFlag(annotation)));
+          annotation->ToString(), GetAnnotationFlag(annotation).ToString());
     };
 
     for (const auto& context : parametric_contexts_) {
@@ -947,6 +934,19 @@ class InferenceTableImpl : public InferenceTable {
 };
 
 }  // namespace
+
+std::string TypeInferenceFlag::ToString() const {
+  if (flags_ == 0) {
+    return "none";
+  }
+  std::vector<std::string> names;
+  for (const auto& [flags, name] : *flag_names_) {
+    if (flags != 0 && (flags_ & flags) != 0) {
+      names.push_back(name);
+    }
+  }
+  return absl::StrJoin(names, ",");
+}
 
 InferenceTable::~InferenceTable() = default;
 

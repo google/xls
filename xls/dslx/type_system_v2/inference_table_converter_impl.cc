@@ -1653,7 +1653,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
         invocation->span(), invocation_context->parent_context(),
         invocation_context, implicit_parametrics, formal_types, actual_args, ti,
         actual_arg_ti,
-        /*caller_type_annotation_filter=*/TypeAnnotationFilter::None(),
         /*pre_use_actual_arg=*/
         [&](const Expr* actual_arg) {
           // If an argument is essentially being used to figure out its own
@@ -1687,8 +1686,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       absl::Span<const TypeAnnotation* const> formal_types,
       absl::Span<Expr* const> actual_args, TypeInfo* output_ti,
       TypeInfo* actual_arg_ti,
-      TypeAnnotationFilter caller_type_annotation_filter =
-          TypeAnnotationFilter::None(),
       absl::FunctionRef<absl::Status(const Expr*)> pre_use_actual_arg =
           [](const Expr*) { return absl::OkStatus(); }) {
     TypeSystemTrace trace =
@@ -1717,10 +1714,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       // just the independent annotations(s) for the purposes of solving for the
       // variable.
       TypeAnnotationFilter filter =
-          caller_type_annotation_filter
-              .Chain(TypeAnnotationFilter::FilterParamTypes())
-              .Chain(TypeAnnotationFilter::FilterRefsToUnknownParametrics(
-                  actual_arg_ti));
+          TypeAnnotationFilter::FilterParamTypes().Chain(
+              TypeAnnotationFilter::FilterRefsToUnknownParametrics(
+                  actual_arg_ti)
+                  .Chain(
+                      TypeAnnotationFilter::FilterFormalMemberTypes(&table_)));
       XLS_RETURN_IF_ERROR(resolver_->ResolveIndirectTypeAnnotations(
           actual_arg_context, actual_arg_annotations, filter));
       if (actual_arg_annotations.empty()) {
@@ -1733,7 +1731,7 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
           const TypeAnnotation* actual_arg_type,
           resolver_->ResolveAndUnifyTypeAnnotations(
               actual_arg_context, actual_arg_annotations,
-              actual_args[i]->span(), caller_type_annotation_filter,
+              actual_args[i]->span(), TypeAnnotationFilter::None(),
               /*require_bits_like=*/false));
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(actual_arg_type, std::nullopt, actual_arg_context));
@@ -1902,15 +1900,6 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
               span, parent_context, /*target_context=*/std::nullopt,
               implicit_parametrics, formal_member_types, actual_member_exprs,
               instance_type_info, instance_type_info,
-              // When inferring a parametric using a member of the actual
-              // struct, we may have e.g. a member with 2 annotations like
-              // `decltype(Foo<N>.x)` and `uN[32]`. The decltype one in this
-              // example is not useful for the inference of `N`, and more
-              // generally, any decltype-ish annotation that refers back to
-              // the struct we are processing is going to be unhelpful, so we
-              // weed those out here.
-              TypeAnnotationFilter::FilterReferencesToStruct(
-                  &table_, parent_context, &struct_def, &import_data_),
               [&](const Expr* actual_arg) {
                 // Invocation arguments within a struct need to be converted
                 // prior to use.

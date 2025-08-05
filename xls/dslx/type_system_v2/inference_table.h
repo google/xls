@@ -33,6 +33,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
 #include "xls/common/visitor.h"
@@ -86,6 +87,16 @@ class TypeInferenceFlag {
   // otherwise, resolution should error.
   static const TypeInferenceFlag kBitsLikeType;
 
+  // Indicates the formal type of a struct member in an instantiation
+  // expression. For example, in `S { data: foo }`, the type variable for `foo`
+  // would have one type annotation that is the formal type of `data` in the
+  // declaration of `S`, and one that is the type of the entity referenced by
+  // `foo`. It is useful to differentiate these when inferring implicit struct
+  // parametrics, because the actual type is independent (e.g. `u32`) while the
+  // formal type is dependent on the parametrics (e.g. uN[N] where N is what we
+  // want to solve for).
+  static const TypeInferenceFlag kFormalMemberType;
+
   bool HasFlag(const TypeInferenceFlag& value) const {
     if (value.flags_ == kNone.flags_) {
       return flags_ == kNone.flags_;
@@ -97,19 +108,28 @@ class TypeInferenceFlag {
     flags_ |= value.flags_;
     // Only certain combinations of flags are allowed, all others result in an
     // internal error.
-    // 1. Zero or one flag is set (except for error refinement flags).
+    // 1. Zero or one flag is set (except those we specifically allow combining
+    // with others).
     // 2. Both kMinSize and kHasPrefix are set.
-    CHECK((flags_ & (flags_ - 1) & ~kSliceContainerSize.flags_) == 0 ||
+    const uint8_t combo_allowed_flags =
+        kSliceContainerSize.flags_ | kFormalMemberType.flags_;
+    CHECK((flags_ & (flags_ - 1) & ~combo_allowed_flags) == 0 ||
           flags_ == (kMinSize.flags_ | kHasPrefix.flags_));
   }
 
   bool operator==(const TypeInferenceFlag& other) const = default;
 
+  std::string ToString() const;
+
  private:
   // Only the named static const TypeInferenceFlag values are allowed to be used
   // externally.
-  explicit constexpr TypeInferenceFlag(uint8_t flags) : flags_(flags) {}
+  explicit constexpr TypeInferenceFlag(uint8_t flags, std::string_view name)
+      : flags_(flags) {
+    flag_names_->push_back(std::make_pair(flags, std::string(name)));
+  }
 
+  static std::vector<std::pair<uint8_t, std::string>>* flag_names_;
   uint8_t flags_;
 };
 

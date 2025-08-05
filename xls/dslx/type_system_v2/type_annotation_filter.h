@@ -51,12 +51,10 @@ class TypeAnnotationFilter {
   static TypeAnnotationFilter FilterRefsToUnknownParametrics(
       const TypeInfo* ti);
 
-  // Creates a filter that excludes any annotation containing a reference to the
-  // given struct.
-  static TypeAnnotationFilter FilterReferencesToStruct(
-      const InferenceTable* table,
-      std::optional<const ParametricContext*> parametric_context,
-      const StructDef* struct_def, const ImportData* import_data);
+  // Creates a filter that excludes any type annotations flagged as formal
+  // struct member types.
+  static TypeAnnotationFilter FilterFormalMemberTypes(
+      const InferenceTable* table);
 
   // Creates a filter that excludes the given specific annotation, with the goal
   // of preventing recursion on an analysis of it.

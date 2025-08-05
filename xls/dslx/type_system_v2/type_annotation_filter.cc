@@ -33,12 +33,10 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
-#include "xls/common/status/status_macros.h"
+#include "xls/common/casts.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/import_data.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system_v2/expand_variables.h"
-#include "xls/dslx/type_system_v2/import_utils.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 
 namespace xls::dslx {
@@ -54,8 +52,9 @@ enum class TypeAnnotationFilterKind : uint8_t {
   kBlockRecursion,
   kCaptureVariables,
   kCaptureRejectCount,
-  kMissingTypeInfo,
-  kStructRef
+  kUnknownParametrics,
+  kStructRef,
+  kFormalMemberType
 };
 
 std::string KindToString(TypeAnnotationFilterKind kind) {
@@ -74,10 +73,12 @@ std::string KindToString(TypeAnnotationFilterKind kind) {
       return "capture-vars";
     case TypeAnnotationFilterKind::kCaptureRejectCount:
       return "capture-reject-count";
-    case TypeAnnotationFilterKind::kMissingTypeInfo:
-      return "refs-with-missing-type-info";
+    case TypeAnnotationFilterKind::kUnknownParametrics:
+      return "refs-to-unknown-parametrics";
     case TypeAnnotationFilterKind::kStructRef:
       return "refs-to-struct";
+    case TypeAnnotationFilterKind::kFormalMemberType:
+      return "formal-member-type";
   }
 }
 
@@ -105,35 +106,6 @@ bool HasAnyReferencesToUnknownParametrics(const TypeInfo* ti,
         return result;
       });
   return vars.GetFreeVariableCount() > 0;
-}
-
-// Determines whether the given type annotation has any reference to the given
-// `struct_def`, taking into consideration the expansions of any variable or
-// indirect type annotations in the annotation tree.
-absl::StatusOr<bool> RefersToStruct(
-    const InferenceTable& table,
-    std::optional<const ParametricContext*> parametric_context,
-    const TypeAnnotation* annotation, const StructDef& struct_def,
-    const ImportData& import_data) {
-  if (annotation->IsAnnotation<ElementTypeAnnotation>()) {
-    annotation =
-        annotation->AsAnnotation<ElementTypeAnnotation>()->container_type();
-  }
-  if (annotation->IsAnnotation<MemberTypeAnnotation>()) {
-    const std::vector<const TypeAnnotation*> annotations =
-        ExpandVariables(annotation, table, parametric_context);
-    for (const TypeAnnotation* annotation : annotations) {
-      XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
-                           GetStructOrProcDef(annotation, import_data));
-      if (def.has_value() && *def == &struct_def) {
-        return true;
-      }
-    }
-    return false;
-  }
-  XLS_ASSIGN_OR_RETURN(std::optional<const StructDefBase*> def,
-                       GetStructOrProcDef(annotation, import_data));
-  return def.has_value() && *def == &struct_def;
 }
 
 class FilterElement {
@@ -242,25 +214,29 @@ TypeAnnotationFilter TypeAnnotationFilter::FilterParamTypes() {
 TypeAnnotationFilter TypeAnnotationFilter::FilterRefsToUnknownParametrics(
     const TypeInfo* ti) {
   return TypeAnnotationFilter(std::make_unique<Impl>(FilterElement(
-      TypeAnnotationFilterKind::kMissingTypeInfo,
+      TypeAnnotationFilterKind::kUnknownParametrics,
       [ti](const TypeAnnotation* candidate) {
         return HasAnyReferencesToUnknownParametrics(ti, candidate);
       })));
 }
 
-TypeAnnotationFilter TypeAnnotationFilter::FilterReferencesToStruct(
-    const InferenceTable* table,
-    std::optional<const ParametricContext*> parametric_context,
-    const StructDef* struct_def, const ImportData* import_data) {
+TypeAnnotationFilter TypeAnnotationFilter::FilterFormalMemberTypes(
+    const InferenceTable* table) {
   return TypeAnnotationFilter(std::make_unique<Impl>(FilterElement(
-      TypeAnnotationFilterKind::kStructRef,
-      [=](const TypeAnnotation* candidate) {
-        absl::StatusOr<bool> result = RefersToStruct(
-            *table, parametric_context, candidate, *struct_def, *import_data);
-        CHECK(result.ok());
-        return *result;
-      },
-      /*custom_string=*/struct_def->identifier())));
+      TypeAnnotationFilterKind::kFormalMemberType,
+      [table](const TypeAnnotation* candidate) {
+        absl::StatusOr<std::vector<const AstNode*>> nodes =
+            CollectUnder(candidate, true);
+        CHECK_OK(nodes);
+        for (const AstNode* node : *nodes) {
+          if (node->kind() == AstNodeKind::kTypeAnnotation &&
+              table->GetAnnotationFlag(down_cast<const TypeAnnotation*>(node))
+                  .HasFlag(TypeInferenceFlag::kFormalMemberType)) {
+            return true;
+          }
+        }
+        return false;
+      })));
 }
 
 TypeAnnotationFilter TypeAnnotationFilter::BlockRecursion(

@@ -451,12 +451,14 @@ cc_library(
     srcs = ["type_annotation_filter.cc"],
     hdrs = ["type_annotation_filter.h"],
     deps = [
-        ":expand_variables",
         ":import_utils",
         ":inference_table",
+        ":type_annotation_utils",
+        "//xls/common:casts",
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -524,22 +526,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
-    ],
-)
-
-cc_library(
-    name = "expand_variables",
-    srcs = ["expand_variables.cc"],
-    hdrs = ["expand_variables.h"],
-    deps = [
-        ":inference_table",
-        "//xls/common:casts",
-        "//xls/common/status:status_macros",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:ast_node_visitor_with_default",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
     ],
 )
 

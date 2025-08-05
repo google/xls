@@ -2207,20 +2207,21 @@ class PopulateInferenceTableVisitor : public PopulateTableVisitor,
         module_.Make<TypeVariableTypeAnnotation>(type_variable);
     for (const auto& [name, actual_member] : node->members()) {
       const StructMemberNode* formal_member = formal_member_map.at(name);
-      TypeAnnotation* member_type = module_.Make<MemberTypeAnnotation>(
-          struct_variable_type, formal_member->name());
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(actual_member, member_type));
+      const TypeAnnotation* formal_member_type =
+          module_.Make<MemberTypeAnnotation>(struct_variable_type,
+                                             formal_member->name());
+      table_.SetAnnotationFlag(formal_member_type,
+                               TypeInferenceFlag::kFormalMemberType);
       XLS_ASSIGN_OR_RETURN(
           const NameRef* member_type_variable,
           table_.DefineInternalVariable(
               InferenceVariableKind::kType, const_cast<Expr*>(actual_member),
               GenerateInternalTypeVariableName(formal_member, actual_member),
-              member_type));
+              formal_member_type));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(actual_member, member_type_variable));
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          actual_member, module_.Make<MemberTypeAnnotation>(
-                             struct_variable_type, formal_member->name())));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(actual_member, formal_member_type));
       XLS_RETURN_IF_ERROR(actual_member->Accept(this));
     }
     return absl::OkStatus();
