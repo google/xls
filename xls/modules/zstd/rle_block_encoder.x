@@ -355,10 +355,14 @@ pub proc RleBlockEncoder<ADDR_W: u32, DATA_W: u32, LENGTH_W: u32, SAMPLE_COUNT: 
         let (tok, req) = recv(join(), req);
         let stride = req.length / (SAMPLE_COUNT);
 
+        // Only do sample scan for data large enough
+        // so that sample scan doesn't perform full scan actually.
+        let do_sample_scan: bool = stride > (DATA_W / u32:8);
 
-        let tok1 = send(
+        let tok1 = send_if(
             tok,
             heuristic_req_s,
+            do_sample_scan,
             LoopConfig {
                 address: req.addr,
                 stride: stride,
@@ -366,12 +370,14 @@ pub proc RleBlockEncoder<ADDR_W: u32, DATA_W: u32, LENGTH_W: u32, SAMPLE_COUNT: 
             }
         );
 
-        let (tok1, loop_resp) = recv(tok1, heuristic_resp_r);
+        let (tok1, loop_resp) = recv_if(tok1, heuristic_resp_r, do_sample_scan, zero!<LoopResp>());
+
+        let do_full_scan: bool = (do_sample_scan && loop_resp.all_equal) || !do_sample_scan;
 
         let tok2 = send_if(
             tok,
             loop_req_s,
-            loop_resp.all_equal,
+            do_full_scan,
             LoopConfig {
                 address: req.addr,
                 stride: uN[ADDR_W]:1,
@@ -379,23 +385,23 @@ pub proc RleBlockEncoder<ADDR_W: u32, DATA_W: u32, LENGTH_W: u32, SAMPLE_COUNT: 
             }
         );
 
-        let result = if !loop_resp.read_success {
-            Status::ERROR
-        } else if !loop_resp.all_equal {
-            Status::INCOMPRESSIBLE
+        let (result, symbol) = if do_sample_scan && !loop_resp.read_success {
+            (Status::ERROR, u8:0)
+        } else if do_sample_scan && !loop_resp.all_equal {
+            (Status::INCOMPRESSIBLE, u8:0)
         } else {
             let (tok2, loop_resp) = recv(tok2, loop_resp_r);
             if !loop_resp.read_success {
-                Status::ERROR
+                (Status::ERROR, u8:0)
             } else if !loop_resp.all_equal {
-                Status::INCOMPRESSIBLE
+                (Status::INCOMPRESSIBLE, u8:0)
             } else {
-                Status::OK
+                (Status::OK, loop_resp.value)
             }
         };
 
         let tok = send(tok, resp, Resp {
-            symbol: loop_resp.value,
+            symbol: symbol,
             length: req.length,
             status: result,
         });
@@ -460,6 +466,22 @@ type TestAddr = bits[TEST_ADDR_W];
 const TEST_CASES = [
     (
         [
+            u64:0x00FF_FFFF_FFFF_FFFF,
+            u64:0x0000_0000_0000_0000,
+            u64:0x0000_0000_0000_0000,
+            u64:0x0000_0000_0000_0000,
+            u64:0x0000_0000_0000_0000,
+            u64:0x0000_0000_0000_0000,
+        ],
+        TestLen:7,
+        TestResp {
+            symbol: u8:0xFF,
+            length: TestLen:7,
+            status: TestStatus::OK
+        }
+    ),
+    (
+        [
             u64:0xFFFF_FFFF_FFFF_FFFF,
             u64:0xFFFF_FFFF_FFFF_FFFF,
             u64:0xFFFF_FFFF_FFFF_FFFF,
@@ -501,7 +523,7 @@ const TEST_CASES = [
         ],
         TestLen:48,
         TestResp {
-           symbol: u8:0xFF,
+           symbol: u8:0x0,
            length: TestLen:48,
            status: TestStatus::INCOMPRESSIBLE
         }
@@ -533,7 +555,7 @@ const TEST_CASES = [
         ],
         TestLen:48,
         TestResp {
-           symbol: u8:0xFF,
+           symbol: u8:0x0,
            length: TestLen:48,
            status: TestStatus::INCOMPRESSIBLE
         }
@@ -549,7 +571,7 @@ const TEST_CASES = [
         ],
         TestLen:48,
         TestResp {
-           symbol: u8:0xFF,
+           symbol: u8:0x0,
            length: TestLen:48,
            status: TestStatus::INCOMPRESSIBLE
         }
@@ -565,7 +587,7 @@ const TEST_CASES = [
         ],
         TestLen:48,
         TestResp {
-            symbol: u8:0xFF,
+            symbol: u8:0x00,
             length: TestLen:48,
             status: TestStatus::INCOMPRESSIBLE
         }
@@ -581,7 +603,7 @@ const TEST_CASES = [
         ],
         TestLen:48,
         TestResp {
-            symbol: u8:0x77,
+            symbol: u8:0x0,
             length: TestLen:48,
             status: TestStatus::INCOMPRESSIBLE
         }
