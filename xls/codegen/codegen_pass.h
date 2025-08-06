@@ -31,6 +31,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/concurrent_stage_groups.h"
 #include "xls/codegen/passes_ng/stage_conversion.h"
+#include "xls/codegen/passes_ng/stage_to_block_conversion_metadata.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
@@ -375,6 +376,11 @@ class CodegenContext {
     return stage_conversion_metadata_;
   }
 
+  // Returns the manager of block conversion metadata.
+  BlockConversionMetadata& block_conversion_metadata() {
+    return block_conversion_metadata_;
+  }
+
   absl::flat_hash_map<std::string, std::string>& register_renames() {
     return register_renames_;
   }
@@ -400,6 +406,10 @@ class CodegenContext {
   // Object that associates function bases to metadata created during
   // stage conversion.
   StageConversionMetadata stage_conversion_metadata_;
+
+  // Object that associates blocks to metadata created during
+  // block conversion.
+  BlockConversionMetadata block_conversion_metadata_;
 
   // A map from original register names to renamed register. Note that the
   // register names are generally going to include the elaboration-prefix if not

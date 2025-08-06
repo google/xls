@@ -390,6 +390,48 @@ cc_library(
 )
 
 cc_library(
+    name = "stage_to_block_conversion_pass",
+    srcs = ["stage_to_block_conversion_pass.cc"],
+    hdrs = ["stage_to_block_conversion_pass.h"],
+    deps = [
+        ":stage_conversion",
+        ":stage_to_block_conversion",
+        ":stage_to_block_conversion_metadata",
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:codegen_pass",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:xls_ir_interface_cc_proto",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "stage_to_block_conversion_pass_test",
+    srcs = ["stage_to_block_conversion_pass_test.cc"],
+    deps = [
+        ":passes_ng_test_fixtures",
+        ":stage_conversion",
+        ":stage_to_block_conversion_pass",
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:codegen_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:matchers",
+        "//xls/ir:function_builder",
+        "//xls/ir:verifier",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "block_pipeline_inserter",
     srcs = ["block_pipeline_inserter.cc"],
     hdrs = ["block_pipeline_inserter.h"],
@@ -438,6 +480,27 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "block_pipeline_inserter_pass",
+    srcs = ["block_pipeline_inserter_pass.cc"],
+    hdrs = ["block_pipeline_inserter_pass.h"],
+    deps = [
+        ":block_pipeline_inserter",
+        ":stage_to_block_conversion_metadata",
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:codegen_pass",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:xls_ir_interface_cc_proto",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/base:nullability",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
 cc_test(
     name = "stage_to_block_conversion_test",
     srcs = ["stage_to_block_conversion_test.cc"],
@@ -465,6 +528,27 @@ cc_test(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "block_pipeline_inserter_pass_test",
+    srcs = ["block_pipeline_inserter_pass_test.cc"],
+    deps = [
+        ":block_pipeline_inserter_pass",
+        ":passes_ng_test_fixtures",
+        ":stage_conversion",
+        ":stage_to_block_conversion_pass",
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:codegen_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:matchers",
+        "//xls/ir:function_builder",
+        "//xls/ir:verifier",
+        "//xls/passes:pass_base",
         "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
     ],
