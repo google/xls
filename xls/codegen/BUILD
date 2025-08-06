@@ -1113,6 +1113,7 @@ cc_library(
     testonly = True,
     hdrs = ["block_conversion_test_fixture.h"],
     deps = [
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:ir_test_base",
         "//xls/tools:codegen",

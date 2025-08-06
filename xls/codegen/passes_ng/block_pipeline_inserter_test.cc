@@ -59,7 +59,7 @@ TEST_F(SlotTestBase, PipelineInsertionShiftsByOneCycle) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       results, InterpretTestBlock(block, input_sequence, /*cycle_count=*/11,
-                                  /*lambda=*/1.0));
+                                  /*lambda_source=*/1.0, /*lambda_sink=*/1.0));
   ASSERT_EQ(results.sinks.size(), 1);
   EXPECT_THAT(
       results.sinks[0].GetOutputCycleSequenceAsUint64(),
@@ -71,7 +71,7 @@ TEST_F(SlotTestBase, PipelineInsertionShiftsByOneCycle) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       results, InterpretTestBlock(block, input_sequence, /*cycle_count=*/11,
-                                  /*lambda=*/1.0));
+                                  /*lambda_source=*/1.0, /*lambda_sink=*/1.0));
   ASSERT_EQ(results.sinks.size(), 1);
   EXPECT_THAT(
       results.sinks[0].GetOutputCycleSequenceAsUint64(),
@@ -101,7 +101,7 @@ TEST_F(SlotTestBase, PipelineInsertionShiftsByOneCycleWithoutReset) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       results, InterpretTestBlock(block, input_sequence, /*cycle_count=*/11,
-                                  /*lambda=*/1.0));
+                                  /*lambda_source=*/1.0, /*lambda_sink=*/1.0));
   ASSERT_EQ(results.sinks.size(), 1);
   EXPECT_THAT(
       results.sinks[0].GetOutputCycleSequenceAsUint64(),
@@ -113,7 +113,8 @@ TEST_F(SlotTestBase, PipelineInsertionShiftsByOneCycleWithoutReset) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       results, InterpretTestBlock(block, input_sequence, /*cycle_count=*/11,
-                                  /*lambda=*/1.0));
+                                  /*lambda_source=*/1.0, /*lambda_sink=*/1.0));
+
   ASSERT_EQ(results.sinks.size(), 1);
   EXPECT_THAT(
       results.sinks[0].GetOutputCycleSequenceAsUint64(),

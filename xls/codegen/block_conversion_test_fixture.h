@@ -31,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/tools/codegen.h"
@@ -123,6 +124,20 @@ class BlockConversionTestFixture : public IrTestBase {
     }
 
     return absl::OkStatus();
+  }
+
+  // For a given signal, retrieve the sequence of values as uint64_t's.
+  absl::StatusOr<std::vector<uint64_t>> GetSignalValuesAsUint64(
+      std::string_view signal_name,
+      std::vector<absl::flat_hash_map<std::string, uint64_t>>& io) const {
+    std::vector<uint64_t> values;
+
+    for (int64_t i = 0; i < io.size(); ++i) {
+      XLS_RET_CHECK(io[i].contains(signal_name));
+      values.push_back(io[i][signal_name]);
+    }
+
+    return values;
   }
 
   // From either an input or output channel, retrieve the sequence of

@@ -170,10 +170,12 @@ class SlotTestBase : public BlockConversionTestFixture {
   // or read from the output channel.
   absl::StatusOr<SimulationResults> InterpretTestBlock(
       Block* block, absl::Span<const uint64_t> input_sequence,
-      int64_t cycle_count, double lambda = 0.5) {
+      int64_t cycle_count, double lambda_source = 0.5,
+      double lambda_sink = 0.5) {
     SimulationResults results{
-        .sources = {ChannelSource("x", "x_valid", "x_ready", lambda, block)},
-        .sinks = {ChannelSink("y", "y_valid", "y_ready", lambda, block)},
+        .sources = {ChannelSource("x", "x_valid", "x_ready", lambda_source,
+                                  block)},
+        .sinks = {ChannelSink("y", "y_valid", "y_ready", lambda_sink, block)},
     };
 
     XLS_RETURN_IF_ERROR(results.sources[0].SetDataSequence(input_sequence));
