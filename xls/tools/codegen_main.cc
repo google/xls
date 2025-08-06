@@ -18,7 +18,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -34,9 +33,9 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dev_tools/tool_timeout.h"
-#include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/verifier.h"
+#include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_result.h"
 #include "xls/tools/codegen.h"
@@ -80,7 +79,6 @@ absl::Status RealMain(std::string_view ir_path) {
 
   XLS_RET_CHECK(p->GetTop().has_value())
       << "Package " << p->name() << " needs a top function/proc.";
-  auto main = [&p]() -> FunctionBase* { return p->GetTop().value(); };
 
   XLS_ASSIGN_OR_RETURN(
       SchedulingOptionsFlagsProto scheduling_options_flags_proto,
@@ -88,17 +86,20 @@ absl::Status RealMain(std::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(
       bool delay_model_flag_passed,
       IsDelayModelSpecifiedViaFlag(scheduling_options_flags_proto));
-  std::pair<SchedulingResult, verilog::CodegenResult> result;
+
+  SchedulingResult scheduling_result;
+  if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
+    XLS_ASSIGN_OR_RETURN(
+        scheduling_result,
+        Schedule(p.get(), scheduling_options_flags_proto, codegen_flags_proto));
+  }
   XLS_ASSIGN_OR_RETURN(
-      result, ScheduleAndCodegen(p.get(), scheduling_options_flags_proto,
-                                 codegen_flags_proto, delay_model_flag_passed));
-  const SchedulingResult& scheduling_result = result.first;
-  verilog::CodegenResult& codegen_result = result.second;
+      PackageSchedule schedules,
+      PackageSchedule::FromProto(p.get(), scheduling_result.package_schedule));
 
   if (!absl::GetFlag(FLAGS_output_schedule_ir_path).empty()) {
-    XLS_RETURN_IF_ERROR(
-        SetFileContents(absl::GetFlag(FLAGS_output_schedule_ir_path),
-                        main()->package()->DumpIr()));
+    XLS_RETURN_IF_ERROR(SetFileContents(
+        absl::GetFlag(FLAGS_output_schedule_ir_path), p->DumpIr()));
   }
 
   if (!absl::GetFlag(FLAGS_output_schedule_path).empty()) {
@@ -106,6 +107,17 @@ absl::Status RealMain(std::string_view ir_path) {
         SetTextProtoFile(absl::GetFlag(FLAGS_output_schedule_path),
                          scheduling_result.package_schedule));
   }
+
+  if (!absl::GetFlag(FLAGS_output_scheduling_pass_metrics_path).empty()) {
+    XLS_RETURN_IF_ERROR(SetTextProtoFile(
+        absl::GetFlag(FLAGS_output_scheduling_pass_metrics_path),
+        scheduling_result.pass_pipeline_metrics));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      verilog::CodegenResult codegen_result,
+      Codegen(p.get(), scheduling_options_flags_proto, codegen_flags_proto,
+              delay_model_flag_passed, &schedules));
 
   if (!absl::GetFlag(FLAGS_output_block_ir_path).empty()) {
     QCHECK_GE(p->blocks().size(), 1)
@@ -119,12 +131,6 @@ absl::Status RealMain(std::string_view ir_path) {
     XLS_RETURN_IF_ERROR(
         SetTextProtoFile(absl::GetFlag(FLAGS_output_signature_path),
                          codegen_result.signature.proto()));
-  }
-
-  if (!absl::GetFlag(FLAGS_output_scheduling_pass_metrics_path).empty()) {
-    XLS_RETURN_IF_ERROR(SetTextProtoFile(
-        absl::GetFlag(FLAGS_output_scheduling_pass_metrics_path),
-        scheduling_result.pass_pipeline_metrics));
   }
 
   if (!absl::GetFlag(FLAGS_output_codegen_pass_metrics_path).empty()) {
