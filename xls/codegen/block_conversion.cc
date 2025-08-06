@@ -352,7 +352,7 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
                                             const CodegenOptions& options,
                                             CodegenContext& context,
                                             Function* f,
-                                            Block* ABSL_NONNULL block) {
+                                            Block* absl_nonnull block) {
   if (options.manual_control().has_value()) {
     return absl::UnimplementedError("Manual pipeline control not implemented");
   }

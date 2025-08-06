@@ -44,7 +44,7 @@ class BlockChannelMetadata {
   // Creates a new metadata object that can associate a channel interface
   // (in a stage proc) with slots and an adapter in a block.
   explicit BlockChannelMetadata(
-      const ChannelInterface* ABSL_NONNULL channel_interface)
+      const ChannelInterface* absl_nonnull channel_interface)
       : channel_interface_(channel_interface) {}
 
   // Returns the channel interface associated with this set of slots
@@ -109,12 +109,12 @@ class BlockMetadata {
  public:
   // Creates a new block metadata associated with the metadata for a stage proc
   // and a block.
-  BlockMetadata(ProcMetadata* ABSL_NONNULL stage_metadata,
-                Block* ABSL_NONNULL block)
+  BlockMetadata(ProcMetadata* absl_nonnull stage_metadata,
+                Block* absl_nonnull block)
       : stage_metadata_(stage_metadata), block_(block) {}
 
   // Creates a new block metadata that is only associated with a block.
-  explicit BlockMetadata(Block* ABSL_NONNULL block)
+  explicit BlockMetadata(Block* absl_nonnull block)
       : stage_metadata_(nullptr), block_(block) {}
 
   Block* block() { return block_; }
@@ -178,7 +178,7 @@ class BlockMetadata {
   ProcMetadata* stage_metadata_ = nullptr;
 
   // The block associated with this metadata.
-  Block* ABSL_NONNULL block_;
+  Block* absl_nonnull block_;
 };
 
 // Groups together the metadata needed by codegen passes to generate code
@@ -189,8 +189,8 @@ class BlockConversionMetadata {
   //
   // The block is associated with a stage proc previously created with
   // Stage Conversion.
-  BlockMetadata* AssociateWithNewBlock(ProcMetadata* ABSL_NONNULL stage,
-                                       Block* ABSL_NONNULL block) {
+  BlockMetadata* AssociateWithNewBlock(ProcMetadata* absl_nonnull stage,
+                                       Block* absl_nonnull block) {
     BlockMetadata* metadata =
         block_metadata_
             .emplace_back(std::make_unique<BlockMetadata>(stage, block))
@@ -202,7 +202,7 @@ class BlockConversionMetadata {
 
   // Returns the block metadata associated with the given stage proc metadata.
   absl::StatusOr<BlockMetadata*> GetBlockMetadata(
-      ProcMetadata* ABSL_NONNULL stage) {
+      ProcMetadata* absl_nonnull stage) {
     auto it = proc_to_block_metadata_map_.find(stage);
     if (it == proc_to_block_metadata_map_.end()) {
       return absl::InvalidArgumentError(absl::StrFormat(
@@ -212,7 +212,7 @@ class BlockConversionMetadata {
   }
 
   // Returns the block metadata associated with the given block.
-  absl::StatusOr<BlockMetadata*> GetBlockMetadata(Block* ABSL_NONNULL block) {
+  absl::StatusOr<BlockMetadata*> GetBlockMetadata(Block* absl_nonnull block) {
     auto it = block_to_block_metadata_map_.find(block);
     if (it == block_to_block_metadata_map_.end()) {
       return absl::InvalidArgumentError(absl::StrFormat(

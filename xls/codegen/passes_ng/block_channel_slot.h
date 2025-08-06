@@ -73,11 +73,11 @@ class BlockRDVSlot {
   //
   static absl::StatusOr<BlockRDVSlot> CreateSendSlot(std::string_view name,
                                                      RDVNodeGroup rdv_group,
-                                                     Block* ABSL_NONNULL block);
+                                                     Block* absl_nonnull block);
 
   // Create a slot for a receive channel.
   static absl::StatusOr<BlockRDVSlot> CreateReceiveSlot(
-      std::string_view name, RDVNodeGroup rdv_group, Block* ABSL_NONNULL block);
+      std::string_view name, RDVNodeGroup rdv_group, Block* absl_nonnull block);
 
   // Returns the name of this slot.
   std::string_view name() const { return name_; }

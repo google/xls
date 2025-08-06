@@ -86,7 +86,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateFunction(
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricWithType> typed_parametrics,
     const absl::flat_hash_map<std::string, InterpValue>& explicit_bindings,
-    absl::Span<const ParametricBinding* ABSL_NONNULL const>
+    absl::Span<const ParametricBinding* absl_nonnull const>
         parametric_bindings) {
   const FileTable& file_table = ctx->file_table();
   VLOG(5) << "Function instantiation @ " << span.ToString(file_table)
@@ -107,7 +107,7 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<Type> const> member_types, DeduceCtx* ctx,
     absl::Span<const ParametricWithType> typed_parametrics,
-    absl::Span<const ParametricBinding* ABSL_NONNULL const>
+    absl::Span<const ParametricBinding* absl_nonnull const>
         parametric_bindings) {
   const FileTable& file_table = ctx->file_table();
   VLOG(5) << "Struct instantiation @ " << span.ToString(file_table)

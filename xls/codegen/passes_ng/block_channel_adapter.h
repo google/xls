@@ -60,23 +60,23 @@ class RDVAdapter {
 
   // Creates a send adapter for a given slot and operation.
   static absl::StatusOr<RDVAdapter> CreateSendAdapter(
-      BlockRDVSlot& slot, const Send* ABSL_NONNULL send,
-      const IrToBlockIrMap& node_map, Block* ABSL_NONNULL block);
+      BlockRDVSlot& slot, const Send* absl_nonnull send,
+      const IrToBlockIrMap& node_map, Block* absl_nonnull block);
 
   // Creates a receive adapter for a given slot and operation.
   static absl::StatusOr<RDVAdapter> CreateReceiveAdapter(
-      BlockRDVSlot& slot, const Receive* ABSL_NONNULL receive,
-      const IrToBlockIrMap& node_map, Block* ABSL_NONNULL block);
+      BlockRDVSlot& slot, const Receive* absl_nonnull receive,
+      const IrToBlockIrMap& node_map, Block* absl_nonnull block);
 
   // Creates a send adapter for a given slot that is not associated with a
   // send operation.
   static absl::StatusOr<RDVAdapter> CreateInterfaceSendAdapter(
-      BlockRDVSlot& slot, Block* ABSL_NONNULL block);
+      BlockRDVSlot& slot, Block* absl_nonnull block);
 
   // Creates a receive adapter for a given slot that is not associated with
   // a receive operation.
   static absl::StatusOr<RDVAdapter> CreateInterfaceReceiveAdapter(
-      BlockRDVSlot& slot, Block* ABSL_NONNULL block);
+      BlockRDVSlot& slot, Block* absl_nonnull block);
 
   // Rewire the ready signal to a new source.
   absl::Status SetReady(Node* new_ready_src) {
@@ -88,7 +88,7 @@ class RDVAdapter {
   }
 
   // Rewire the data signal to a new source.
-  absl::Status SetData(Node* ABSL_NONNULL new_data_src) {
+  absl::Status SetData(Node* absl_nonnull new_data_src) {
     if (adapter_type_ == AdapterType::kReceive) {
       return absl::InvalidArgumentError(
           "Cannot set data on a receive adapter.");
@@ -98,7 +98,7 @@ class RDVAdapter {
   }
 
   // Rewire the valid signal to a new source.
-  absl::Status SetValid(Node* ABSL_NONNULL new_valid_src) {
+  absl::Status SetValid(Node* absl_nonnull new_valid_src) {
     if (adapter_type_ == AdapterType::kReceive) {
       return absl::InvalidArgumentError(
           "Cannot set valid on a receive adapter.");

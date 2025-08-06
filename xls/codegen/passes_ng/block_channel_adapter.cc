@@ -78,8 +78,8 @@ absl::StatusOr<RDVNodeGroup> CreateAdapterBufferBank(
 }  // namespace
 
 absl::StatusOr<RDVAdapter> RDVAdapter::CreateSendAdapter(
-    BlockRDVSlot& slot, const Send* ABSL_NONNULL send,
-    const IrToBlockIrMap& node_map, Block* ABSL_NONNULL block) {
+    BlockRDVSlot& slot, const Send* absl_nonnull send,
+    const IrToBlockIrMap& node_map, Block* absl_nonnull block) {
   const SourceInfo& loc = send->loc();
 
   // Buffer the channel ready/data/and valid signals.
@@ -113,7 +113,7 @@ absl::StatusOr<RDVAdapter> RDVAdapter::CreateSendAdapter(
 }
 
 absl::StatusOr<RDVAdapter> RDVAdapter::CreateInterfaceSendAdapter(
-    BlockRDVSlot& slot, Block* ABSL_NONNULL block) {
+    BlockRDVSlot& slot, Block* absl_nonnull block) {
   const SourceInfo loc;
 
   // Buffer the channel ready/data/and valid signals.
@@ -134,8 +134,8 @@ absl::StatusOr<RDVAdapter> RDVAdapter::CreateInterfaceSendAdapter(
 }
 
 absl::StatusOr<RDVAdapter> RDVAdapter::CreateReceiveAdapter(
-    BlockRDVSlot& slot, const Receive* ABSL_NONNULL receive,
-    const IrToBlockIrMap& node_map, Block* ABSL_NONNULL block) {
+    BlockRDVSlot& slot, const Receive* absl_nonnull receive,
+    const IrToBlockIrMap& node_map, Block* absl_nonnull block) {
   const SourceInfo& loc = receive->loc();
 
   // Buffer the channel ready/data/and valid signals.
@@ -184,7 +184,7 @@ absl::StatusOr<RDVAdapter> RDVAdapter::CreateReceiveAdapter(
 }
 
 absl::StatusOr<RDVAdapter> RDVAdapter::CreateInterfaceReceiveAdapter(
-    BlockRDVSlot& slot, Block* ABSL_NONNULL block) {
+    BlockRDVSlot& slot, Block* absl_nonnull block) {
   SourceInfo loc;
 
   // Buffer the channel ready/data/and valid signals.

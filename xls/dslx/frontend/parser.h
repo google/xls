@@ -162,7 +162,7 @@ class Parser : public TokenParser {
   //    -- if this is not given it is assumed that it should be popped from the
   //    token steam.
   absl::StatusOr<ConstAssert*> ParseConstAssert(
-      Bindings& bindings, const Token* ABSL_NULLABLE identifier = nullptr);
+      Bindings& bindings, const Token* absl_nullable identifier = nullptr);
 
   Module& module() { return *module_; }
 

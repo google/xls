@@ -64,7 +64,7 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
                                             const CodegenOptions& options,
                                             CodegenContext& context,
                                             Function* f,
-                                            Block* ABSL_NONNULL block);
+                                            Block* absl_nonnull block);
 
 // Converts a function into a combinational block. Function arguments become
 // input ports, function return value becomes an output port. Returns a pointer

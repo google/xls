@@ -1010,7 +1010,7 @@ absl::StatusOr<Conditional*> Parser::ParseConditionalNode(
 }
 
 absl::StatusOr<ConstAssert*> Parser::ParseConstAssert(
-    Bindings& bindings, const Token* ABSL_NULLABLE identifier) {
+    Bindings& bindings, const Token* absl_nullable identifier) {
   Pos start;
   if (identifier == nullptr) {
     Span identifier_span;

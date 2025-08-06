@@ -328,7 +328,7 @@ class CodegenContext {
   }
 
   // Sets the top block.
-  void SetTopBlock(Block* ABSL_NONNULL b) { top_block_ = b; }
+  void SetTopBlock(Block* absl_nonnull b) { top_block_ = b; }
 
   // Adds necessary maps from the FunctionBase to the Schedule.
   void AssociateSchedule(FunctionBase* fb, PipelineSchedule schedule) {
@@ -340,17 +340,17 @@ class CodegenContext {
   const MetadataMap& metadata() const { return metadata_; }
 
   // Returns true if we have metadata forthe block.
-  bool HasMetadataForBlock(Block* ABSL_NONNULL block) const {
+  bool HasMetadataForBlock(Block* absl_nonnull block) const {
     return metadata_.contains(block);
   }
 
   // Returns the metadata for the given block (will create one if it doesn't
   // exist).
-  CodegenMetadata& GetMetadataForBlock(Block* ABSL_NONNULL block) {
+  CodegenMetadata& GetMetadataForBlock(Block* absl_nonnull block) {
     return metadata_[block];
   }
 
-  void SetMetadataForBlock(Block* ABSL_NONNULL block,
+  void SetMetadataForBlock(Block* absl_nonnull block,
                            CodegenMetadata metadata) {
     metadata_[block] = std::move(metadata);
   }

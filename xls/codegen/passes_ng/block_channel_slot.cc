@@ -46,7 +46,7 @@ std::string CreateSlotBufferName(std::string_view port_name,
 }  // namespace
 
 absl::StatusOr<BlockRDVSlot> BlockRDVSlot::CreateSendSlot(
-    std::string_view name, RDVNodeGroup rdv_group, Block* ABSL_NONNULL block) {
+    std::string_view name, RDVNodeGroup rdv_group, Block* absl_nonnull block) {
   // Create buffers
   //    upstream     downstream
   // -----<|-------<|----Port Ready
@@ -109,7 +109,7 @@ absl::StatusOr<BlockRDVSlot> BlockRDVSlot::CreateSendSlot(
 }
 
 absl::StatusOr<BlockRDVSlot> BlockRDVSlot::CreateReceiveSlot(
-    std::string_view name, RDVNodeGroup rdv_group, Block* ABSL_NONNULL block) {
+    std::string_view name, RDVNodeGroup rdv_group, Block* absl_nonnull block) {
   // Create buffers
   //                upstream     downstream
   // Port Ready -----<|-------<|----

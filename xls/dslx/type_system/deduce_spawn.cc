@@ -188,7 +188,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSpawn(const Spawn* node,
   // when typechecking the `next` function. Those values are the elements in the
   // `config` function's terminating XlsTuple.
   // 1. Get the last statement in the `config` function.
-  const XlsTuple* ABSL_NULLABLE config_tuple = proc->GetConfigTuple();
+  const XlsTuple* absl_nullable config_tuple = proc->GetConfigTuple();
 
   // 2. Extract the value of each element and associate with the corresponding
   // Proc member (in decl. order).

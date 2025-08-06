@@ -44,9 +44,9 @@ namespace xls::verilog {
 //   x---+             x---+
 //
 inline absl::StatusOr<Node*> CreateBufferAfter(std::string_view buf_name,
-                                               Node* ABSL_NONNULL src,
+                                               Node* absl_nonnull src,
                                                SourceInfo loc,
-                                               Block* ABSL_NONNULL block) {
+                                               Block* absl_nonnull block) {
   XLS_RET_CHECK(src != nullptr);
   XLS_RET_CHECK(block != nullptr);
   XLS_ASSIGN_OR_RETURN(Node * buf, block->MakeNodeWithName<UnOp>(
@@ -63,9 +63,9 @@ inline absl::StatusOr<Node*> CreateBufferAfter(std::string_view buf_name,
 //   x------|>------   x------|>------|>----------
 //
 inline absl::StatusOr<Node*> CreateBufferBefore(std::string_view buf_name,
-                                                Node* ABSL_NONNULL src,
+                                                Node* absl_nonnull src,
                                                 SourceInfo loc,
-                                                Block* ABSL_NONNULL block) {
+                                                Block* absl_nonnull block) {
   XLS_RET_CHECK(src != nullptr);
   XLS_RET_CHECK(block != nullptr);
   if (src->operand_count() != 1) {

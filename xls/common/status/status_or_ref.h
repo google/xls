@@ -31,8 +31,8 @@ namespace xls {
 template <typename T>
 class [[nodiscard]] StatusOrRef {
   using InnerStatusOr =
-#ifdef ABSL_NONNULL
-      absl::StatusOr<T* const ABSL_NONNULL>;
+#ifdef absl_nonnull
+      absl::StatusOr<T* const absl_nonnull>;
 #else
       absl::StatusOr<T* const>;
 #endif

@@ -17,9 +17,9 @@ register_toolchains("@llvm_toolchain//:all")
 
 # Root module dependencies.
 # Note: some WORKSPACE dependencies still require repo_name aliases.
-bazel_dep(name = "abseil-cpp", version = "20250127.0", repo_name = "com_google_absl")
+bazel_dep(name = "abseil-cpp", version = "20250512.0", repo_name = "com_google_absl")
 bazel_dep(name = "abseil-py", version = "2.1.0")
-bazel_dep(name = "bazel_features", version = "1.28.0")
+bazel_dep(name = "bazel_features", version = "1.30.0")
 bazel_dep(name = "bazel_skylib", version = "1.7.1")
 bazel_dep(name = "boringssl", version = "0.20250114.0")
 bazel_dep(name = "cppitertools", version = "2.2")
@@ -28,7 +28,7 @@ bazel_dep(name = "grpc", version = "1.71.0")
 bazel_dep(name = "nlohmann_json", version = "3.11.3.bcr.1")
 bazel_dep(name = "or-tools", version = "9.12", repo_name = "com_google_ortools")
 bazel_dep(name = "platforms", version = "0.0.11")
-bazel_dep(name = "protobuf", version = "30.1", repo_name = "com_google_protobuf")
+bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")
 bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
 bazel_dep(name = "riegeli", version = "0.0.0-20241218-3385e3c")
 bazel_dep(name = "rules_cc", version = "0.1.2")
@@ -52,9 +52,9 @@ bazel_dep(name = "rules_flex", version = "0.3")
 bazel_dep(name = "rules_m4", version = "0.3")
 
 # Dev dependencies
-bazel_dep(name = "fuzztest", version = "20250214.0", dev_dependency = True, repo_name = "com_google_fuzztest")
+bazel_dep(name = "fuzztest", version = "20250805.0", dev_dependency = True, repo_name = "com_google_fuzztest")
 bazel_dep(name = "google_benchmark", version = "1.9.1", dev_dependency = True)
-bazel_dep(name = "googletest", version = "1.15.2", dev_dependency = True)
+bazel_dep(name = "googletest", version = "1.17.0", dev_dependency = True)
 
 # Repositories we don't really depend on directly, but we need to provide
 # for other dependencies as they are using old versions that are not

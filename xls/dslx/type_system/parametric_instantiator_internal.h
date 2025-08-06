@@ -68,7 +68,7 @@ class ParametricInstantiator {
       absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
       absl::Span<const ParametricWithType> typed_parametrics,
       const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics,
-      absl::Span<const ParametricBinding* ABSL_NONNULL const>
+      absl::Span<const ParametricBinding* absl_nonnull const>
           parametric_bindings);
 
   // Non-movable as the destructor performs meaningful work -- the class
@@ -155,7 +155,7 @@ class ParametricInstantiator {
       parametric_binding_types_;
   absl::flat_hash_map<std::string, InterpValue> parametric_env_map_;
 
-  absl::Span<const ParametricBinding* ABSL_NONNULL const> parametric_bindings_;
+  absl::Span<const ParametricBinding* absl_nonnull const> parametric_bindings_;
 };
 
 // Instantiates a parametric function invocation.
@@ -166,7 +166,7 @@ class FunctionInstantiator : public ParametricInstantiator {
       absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
       absl::Span<const ParametricWithType> typed_parametrics,
       const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics,
-      absl::Span<const ParametricBinding* ABSL_NONNULL const>
+      absl::Span<const ParametricBinding* absl_nonnull const>
           parametric_bindings);
 
   // Updates symbolic bindings for the parameter types according to args_'s
@@ -184,7 +184,7 @@ class FunctionInstantiator : public ParametricInstantiator {
       absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
       absl::Span<const ParametricWithType> typed_parametrics,
       const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics,
-      absl::Span<const ParametricBinding* ABSL_NONNULL const>
+      absl::Span<const ParametricBinding* absl_nonnull const>
           parametric_bindings)
       : ParametricInstantiator(
             std::move(span), callee_fn.GetParametricBindingsSpan(), args, ctx,
@@ -206,7 +206,7 @@ class StructInstantiator : public ParametricInstantiator {
       absl::Span<const InstantiateArg> args,
       absl::Span<std::unique_ptr<Type> const> member_types, DeduceCtx* ctx,
       absl::Span<const ParametricWithType> typed_parametrics,
-      absl::Span<const ParametricBinding* ABSL_NONNULL const>
+      absl::Span<const ParametricBinding* absl_nonnull const>
           parametric_bindings);
 
   absl::StatusOr<TypeAndParametricEnv> Instantiate() override;
@@ -219,7 +219,7 @@ class StructInstantiator : public ParametricInstantiator {
                      absl::Span<std::unique_ptr<Type> const> member_types,
                      DeduceCtx* ctx,
                      absl::Span<const ParametricWithType> typed_parametrics,
-                     absl::Span<const ParametricBinding* ABSL_NONNULL const>
+                     absl::Span<const ParametricBinding* absl_nonnull const>
                          parametric_bindings)
       : ParametricInstantiator(
             std::move(span),

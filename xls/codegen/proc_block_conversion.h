@@ -43,7 +43,7 @@ namespace xls::verilog {
 absl::Status SingleProcToPipelinedBlock(
     const PackageSchedule& package_schedule, const CodegenOptions& options,
     CodegenContext& context, Proc* proc,
-    absl::Span<ProcInstance* const> instances, Block* ABSL_NONNULL block,
+    absl::Span<ProcInstance* const> instances, Block* absl_nonnull block,
     const absl::flat_hash_map<FunctionBase*, Block*>& converted_blocks,
     std::optional<const ProcElaboration*> elab = std::nullopt);
 
