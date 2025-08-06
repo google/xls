@@ -1083,7 +1083,8 @@ class ArraySliceMatcher : public NodeMatcher {
   ArraySliceMatcher(::testing::Matcher<const Node*> array,
                     ::testing::Matcher<const Node*> start,
                     std::optional<int64_t> width = std::nullopt)
-      : NodeMatcher(Op::kArraySlice, {std::move(array), std::move(start)}),
+      : NodeMatcher(Op::kArraySlice,
+                    {std::move(array), std::move(start)}),
         width_(width) {}
   ArraySliceMatcher() : NodeMatcher(Op::kArraySlice, {}) {}
 
@@ -1101,15 +1102,16 @@ inline ::testing::Matcher<const ::xls::Node*> ArraySlice() {
 inline ::testing::Matcher<const ::xls::Node*> ArraySlice(
     ::testing::Matcher<const Node*> array,
     ::testing::Matcher<const Node*> start) {
-  return ::xls::op_matchers::ArraySliceMatcher(std::move(array),
-                                               std::move(start));
+  return ::xls::op_matchers::ArraySliceMatcher(
+      std::move(array), std::move(start));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> ArraySlice(
     ::testing::Matcher<const Node*> array,
-    ::testing::Matcher<const Node*> start, int64_t width) {
-  return ::xls::op_matchers::ArraySliceMatcher(std::move(array),
-                                               std::move(start), width);
+    ::testing::Matcher<const Node*> start,
+    int64_t width) {
+  return ::xls::op_matchers::ArraySliceMatcher(
+      std::move(array), std::move(start), width);
 }
 
 // Trace matcher. Supported forms:
