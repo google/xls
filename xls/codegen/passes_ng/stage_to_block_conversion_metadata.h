@@ -15,6 +15,7 @@
 #ifndef XLS_CODEGEN_PASSES_NG_STAGE_TO_BLOCK_CONVERSION_METADATA_H_
 #define XLS_CODEGEN_PASSES_NG_STAGE_TO_BLOCK_CONVERSION_METADATA_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -219,6 +220,10 @@ class BlockConversionMetadata {
           "No block metadata found for block %s", block->name()));
     }
     return it->second;
+  }
+
+  bool HasMetadataForBlock(Block* absl_nonnull block) const {
+    return block_to_block_metadata_map_.contains(block);
   }
 
  private:

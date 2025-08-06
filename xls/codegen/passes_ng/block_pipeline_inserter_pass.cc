@@ -33,6 +33,11 @@ namespace xls::verilog {
 absl::StatusOr<bool> BlockPipelineInserterPass::RunInternal(
     Package* absl_nonnull package, const CodegenPassOptions& options,
     PassResults* absl_nonnull results, CodegenContext& context) const {
+  // TODO(tedhong): 2025-06-03 - Remove once procs are supported.
+  if (!context.HasTopBlock()) {
+    return false;
+  }
+
   VLOG(3) << "Inserting pipeline registers to block ir:";
   XLS_VLOG_LINES(3, package->DumpIr());
 

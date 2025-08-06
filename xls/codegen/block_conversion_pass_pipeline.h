@@ -17,23 +17,11 @@
 
 #include <memory>
 
-#include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
-#include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
-
-// Creates a CodegenPassUnit for the block conversion pass pipeline.
-//
-// Also, initializes the package with blocks for eventual block conversion.
-// TODO(tedhong): 2024-11-22 - Make this a separate pass.
-//
-absl::StatusOr<CodegenContext> CreateBlocksFor(
-    const PackageSchedule& package_schedule, const CodegenOptions& options,
-    Package* package);
 
 // Returns the block conversion pass pipeline which runs on a package and
 // lowers the IR to Block IR in preparation for eventual lowering to Verilog.

@@ -244,11 +244,6 @@ class StageToBlockCloner : public ProcToBlockClonerBase {
 
     std::vector<Node*> active_valids;
 
-    // Assign all_active_inputs_valid to 1 in case there are no inputs.
-    XLS_ASSIGN_OR_RETURN(
-        Node * all_active_inputs_valid,
-        block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
-
     for (std::unique_ptr<BlockChannelMetadata>& input :
          block_metadata_.inputs()) {
       XLS_RET_CHECK(input->adapter().has_value());
@@ -289,13 +284,22 @@ class StageToBlockCloner : public ProcToBlockClonerBase {
       } else {
         // No predicate is the same as pred = true, so
         // active = !pred | valid = !true | valid = false | valid = valid
+        XLS_RET_CHECK(adapter.valid() != nullptr);
         active_valids.push_back(adapter.valid());
       }
     }
 
-    XLS_ASSIGN_OR_RETURN(
-        all_active_inputs_valid,
-        block->MakeNode<NaryOp>(SourceInfo(), active_valids, Op::kAnd));
+    // Assign all_active_inputs_valid to 1 in case there are no inputs.
+    Node* all_active_inputs_valid;
+    if (active_valids.empty()) {
+      XLS_ASSIGN_OR_RETURN(
+          all_active_inputs_valid,
+          block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          all_active_inputs_valid,
+          block->MakeNode<NaryOp>(SourceInfo(), active_valids, Op::kAnd));
+    }
 
     for (std::unique_ptr<BlockChannelMetadata>& output :
          block_metadata_.outputs()) {
@@ -328,10 +332,6 @@ class StageToBlockCloner : public ProcToBlockClonerBase {
 
     std::vector<Node*> active_readys;
 
-    // Assign all_active_readys_valid to 1 in case there are no outputs
-    XLS_ASSIGN_OR_RETURN(
-        Node * all_active_outputs_ready,
-        block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
     for (std::unique_ptr<BlockChannelMetadata>& output :
          block_metadata_.outputs()) {
       XLS_RET_CHECK(output->adapter().has_value());
@@ -375,9 +375,18 @@ class StageToBlockCloner : public ProcToBlockClonerBase {
         active_readys.push_back(adapter.ready());
       }
     }
-    XLS_ASSIGN_OR_RETURN(
-        all_active_outputs_ready,
-        block->MakeNode<NaryOp>(SourceInfo(), active_readys, Op::kAnd));
+
+    // Assign all_active_readys_valid to 1 in case there are no outputs.
+    Node* all_active_outputs_ready;
+    if (active_readys.empty()) {
+      XLS_ASSIGN_OR_RETURN(
+          all_active_outputs_ready,
+          block->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          all_active_outputs_ready,
+          block->MakeNode<NaryOp>(SourceInfo(), active_readys, Op::kAnd));
+    }
 
     for (std::unique_ptr<BlockChannelMetadata>& input :
          block_metadata_.inputs()) {

@@ -362,7 +362,20 @@ class StageConversionHandler {
     XLS_RET_CHECK_EQ(return_metadata.size(), 1);
 
     SendChannelInterface* chan = return_metadata[0]->GetSendChannelInterface();
-    Node* node = proc_metadata->GetFromOrigMapping(return_value);
+    Node* node;
+    if (proc_metadata->HasFromOrigMapping(return_value)) {
+      node = proc_metadata->GetFromOrigMapping(return_value);
+    } else if (IsUntimed(return_value)) {
+      // Untimed nodes are cloned (possibly duplicated) in whichever stages
+      // use them.
+      XLS_RET_CHECK_EQ(return_value->operand_count(), 0);
+      XLS_ASSIGN_OR_RETURN(node,
+                           return_value->CloneInNewFunction({}, pb.proc()));
+    } else {
+      // No prior mapping exists, so this must be a datapath input.
+      XLS_ASSIGN_OR_RETURN(node,
+                           ReceiveStageInput(return_value, pb, proc_metadata));
+    }
 
     std::string send_name = absl::StrFormat("__send_%s", node->GetName());
     BValue token = pb.Literal(Value::Token(), SourceInfo());
@@ -430,6 +443,12 @@ class StageConversionHandler {
           pb.proc()->name(), orig_node->ToString()));
     }
 
+    // Create a receive node if this is the first use, otherwise reuse the
+    // existing receive node.
+    if (proc_metadata->HasFromOrigMapping(orig_node)) {
+      return proc_metadata->GetFromOrigMapping(orig_node);
+    }
+
     ReceiveChannelInterface* chan =
         io_metadata[0]->GetReceiveChannelInterface();
 
@@ -450,6 +469,7 @@ class StageConversionHandler {
           absl::StrFormat("Stage %s has no mapping for node %s",
                           pb.proc()->name(), orig_node->ToString()));
     }
+    XLS_RET_CHECK(proc_metadata->HasFromOrigMapping(orig_node));
     Node* node = proc_metadata->GetFromOrigMapping(orig_node);
 
     XLS_ASSIGN_OR_RETURN(

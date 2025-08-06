@@ -22,6 +22,7 @@ load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # Load proto_library
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_library")
 load("//xls/dslx:strip_comments.bzl", "dslx_strip_comments")
 load("//xls/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file
@@ -1071,4 +1072,9 @@ proto_library(
     name = "sample_proto",
     srcs = ["sample.proto"],
     deps = ["//xls/tests:testvector_proto"],
+)
+
+xls_dslx_library(
+    name = "crashers/crasher_2025_07_07_6866",
+    srcs = ["crashers/crasher_2025-07-07_6866.x"],
 )

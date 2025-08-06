@@ -14,10 +14,10 @@
 
 #include "xls/codegen/unified_generator.h"
 
+#include <algorithm>
 #include <string>
-#include <utility>
+#include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/block_conversion_pass_pipeline.h"
@@ -28,6 +28,7 @@
 #include "xls/codegen/codegen_pass_pipeline.h"
 #include "xls/codegen/codegen_result.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/passes_ng/stage_conversion_pass_pipeline.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/logging/log_lines.h"
@@ -42,6 +43,39 @@
 
 namespace xls {
 namespace verilog {
+namespace {
+
+// Create a CodegenContext associated with the scheduled function bases.
+//
+// Later, when creating block we will update the context with the associated
+// top block.
+absl::StatusOr<CodegenContext> CreateCodegenContextAndAssociateSchedules(
+    const PackageSchedule& schedules, const CodegenOptions& options,
+    Package* package) {
+  // Check that the package has a top and that there is an associated
+  // schedule.
+  XLS_RET_CHECK(package->GetTop().has_value());
+  FunctionBase* top = *package->GetTop();
+  XLS_RET_CHECK(schedules.HasSchedule(top));
+
+  CodegenContext context;
+
+  // Sort functions by name.
+  std::vector<FunctionBase*> functions;
+  for (const auto& [fb, schedule] : schedules.GetSchedules()) {
+    functions.push_back(fb);
+  }
+  std::sort(functions.begin(), functions.end(), FunctionBase::NameLessThan);
+
+  for (FunctionBase* fb : functions) {
+    const PipelineSchedule& schedule = schedules.GetSchedule(fb);
+    context.AssociateSchedule(fb, schedule);
+  }
+
+  return context;
+}
+
+}  // namespace
 
 absl::StatusOr<CodegenResult> GenerateModuleText(
     const PackageSchedule& package_schedule, Package* package,
@@ -62,7 +96,8 @@ absl::StatusOr<CodegenResult> GenerateModuleText(
   // For now, these passes call the existing generators and go directly from IR
   // to Block IR.
   XLS_ASSIGN_OR_RETURN(CodegenContext codegen_context,
-                       CreateBlocksFor(package_schedule, options, package));
+                       CreateCodegenContextAndAssociateSchedules(
+                           package_schedule, options, package));
 
   // Note: this is mutated below so cannot be const. It would be nice to
   // refactor this so it could be.
@@ -73,23 +108,30 @@ absl::StatusOr<CodegenResult> GenerateModuleText(
 
   PassResults results;
   OptimizationContext opt_context;
+
+  XLS_RETURN_IF_ERROR(
+      CreateStageConversionPassPipeline(pass_options.codegen_options,
+                                        opt_context)
+          ->Run(package, pass_options, &results, codegen_context)
+          .status());
+
+  VLOG(2) << "After Stage Conversion";
+  XLS_VLOG_LINES(2, package->DumpIr());
+
   XLS_RETURN_IF_ERROR(
       CreateBlockConversionPassPipeline(options, opt_context)
           ->Run(package, pass_options, &results, codegen_context)
           .status());
 
+  VLOG(2) << "After Block Conversion";
+  XLS_VLOG_LINES(2, package->DumpIr());
+
   // Block to Block codegen passes.
-  if (absl::c_any_of(
-          package_schedule.GetSchedules(),
-          [](const std::pair<FunctionBase*, PipelineSchedule>& element) {
-            return element.first->IsProc();
-          })) {
-    // Force using non-pretty printed codegen when generating procs.
-    // TODO: google/xls#1331 - Update pretty-printer to support blocks with flow
-    // control.
-    // TODO: google/xls#1332 - Update this setting per-block.
-    pass_options.codegen_options.emit_as_pipeline(false);
-  }
+  // Force using non-pretty printed codegen.
+  // TODO: google/xls#1331 - Update pretty-printer to support blocks with flow
+  // control.
+  // TODO: google/xls#1332 - Update this setting per-block.
+  pass_options.codegen_options.emit_as_pipeline(false);
 
   XLS_RETURN_IF_ERROR(
       CreateCodegenPassPipeline(opt_context)
@@ -104,7 +146,8 @@ absl::StatusOr<CodegenResult> GenerateModuleText(
   VerilogLineMap verilog_line_map;
   XLS_ASSIGN_OR_RETURN(
       std::string verilog,
-      GenerateVerilog(codegen_context.top_block(), options, &verilog_line_map));
+      GenerateVerilog(codegen_context.top_block(), pass_options.codegen_options,
+                      &verilog_line_map));
 
   XLS_ASSIGN_OR_RETURN(
       ModuleSignature signature,

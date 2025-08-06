@@ -48,6 +48,12 @@ absl::StatusOr<bool> StageToBlockConversionPass::RunInternal(
 
   std::optional<FunctionBase*> top = package->GetTop();
   XLS_RET_CHECK(top.has_value());
+
+  // TODO(tedhong): 2025-06-03 - Enable for procs.
+  if (top.value()->IsProc()) {
+    return false;
+  }
+
   XLS_ASSIGN_OR_RETURN(
       ProcMetadata * top_metadata,
       stage_conversion_metadata.GetTopProcMetadata(top.value()));
@@ -65,6 +71,9 @@ absl::StatusOr<bool> StageToBlockConversionPass::RunInternal(
                           .status());
 
   // Fill in the blocks.
+  VLOG(3) << "Converting stage ir to block ir - after set up:";
+  XLS_VLOG_LINES(3, package->DumpIr());
+
   XLS_RETURN_IF_ERROR(ConvertProcHierarchyToBlocks(
                           codegen_options, *top_metadata,
                           stage_conversion_metadata, block_conversion_metadata)

@@ -378,7 +378,6 @@ cc_library(
         "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/ir:value_utils",
-        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -551,5 +550,103 @@ cc_test(
         "//xls/passes:pass_base",
         "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "flow_control_simplification",
+    srcs = ["flow_control_simplification.cc"],
+    hdrs = ["flow_control_simplification.h"],
+    deps = [
+        ":block_channel_slot",
+        ":stage_to_block_conversion_metadata",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:value",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "flow_control_simplification_test",
+    srcs = ["flow_control_simplification_test.cc"],
+    deps = [
+        ":block_channel_slot",
+        ":flow_control_simplification",
+        ":passes_ng_test_fixtures",
+        ":stage_to_block_conversion_metadata",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:type",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "flow_control_simplification_pass",
+    srcs = ["flow_control_simplification_pass.cc"],
+    hdrs = ["flow_control_simplification_pass.h"],
+    deps = [
+        ":flow_control_simplification",
+        ":stage_to_block_conversion_metadata",
+        "//xls/codegen:codegen_pass",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "flow_control_simplification_pass_test",
+    srcs = ["flow_control_simplification_pass_test.cc"],
+    deps = [
+        ":block_channel_slot",
+        ":flow_control_simplification",
+        ":passes_ng_test_fixtures",
+        ":stage_to_block_conversion_metadata",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/types:span",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "metadata_conversion_pass",
+    srcs = ["metadata_conversion_pass.cc"],
+    hdrs = ["metadata_conversion_pass.h"],
+    deps = [
+        ":stage_to_block_conversion_metadata",
+        "//xls/codegen:codegen_pass",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
