@@ -41,11 +41,11 @@ namespace xls::verilog {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::AnyOf;
 using ::testing::Each;
 using ::testing::ElementsAreArray;
 using ::testing::IsSupersetOf;
-using ::testing::status::StatusIs;
 
 TEST_F(SlotTestBase, ReadyFlowControlCanBeRemovedFromSenders) {
   XLS_ASSERT_OK_AND_ASSIGN(BlockAndSlots block_and_slots,
