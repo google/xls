@@ -266,7 +266,8 @@ class SchedulingOptions {
         fdo_refinement_stochastic_ratio_(1.0),
         fdo_path_evaluate_strategy_(PathEvaluateStrategy::WINDOW),
         fdo_synthesizer_name_("yosys"),
-        schedule_all_procs_(false) {}
+        schedule_all_procs_(false),
+        merge_on_mutual_exclusion_(true) {}
 
   // Returns the scheduling strategy.
   SchedulingStrategy strategy() const { return strategy_; }
@@ -587,6 +588,12 @@ class SchedulingOptions {
   }
   bool schedule_all_procs() const { return schedule_all_procs_; }
 
+  SchedulingOptions& merge_on_mutual_exclusion(bool value) {
+    merge_on_mutual_exclusion_ = value;
+    return *this;
+  }
+  bool merge_on_mutual_exclusion() const { return merge_on_mutual_exclusion_; }
+
  private:
   SchedulingStrategy strategy_;
   int64_t opt_level_;
@@ -622,6 +629,7 @@ class SchedulingOptions {
   std::string fdo_default_driver_cell_;
   std::string fdo_default_load_;
   bool schedule_all_procs_;
+  bool merge_on_mutual_exclusion_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.

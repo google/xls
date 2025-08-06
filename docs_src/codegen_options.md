@@ -172,12 +172,17 @@ control the scheduler.
     (refactored codegen), 1 (original codegen path), or 0 for default. Currently
     default means the 1 (original).
 
--   `--output_scheduling_pass_metrics_path` Dumps metrics abouth the scheduling
+-   `--merge_on_mutual_exclusion` runs a mutual-exclusion analysis and attempts
+    to merge any I/O operations on the same channel that can be proven to be
+    mutually exclusive. If disabled, instead relies entirely on channel
+    legalization to ensure the results are correct. True by default.
+
+-   `--output_scheduling_pass_metrics_path` Dumps metrics about the scheduling
     pass pipeline to file as a `PassPipelineMetricsProto` proto.
     `dev_tools/pass_metrics_main` can be used to visualize the data.
 
--   `--output_codegen_pass_metrics_path` Dumps metrics abouth the scheduling
-    pass pipeline to file as a `PassPipelineMetricsProto` proto.
+-   `--output_codegen_pass_metrics_path` Dumps metrics about the scheduling pass
+    pipeline to file as a `PassPipelineMetricsProto` proto.
     `dev_tools/pass_metrics_main` can be used to visualize the data.
 
 # Feedback-driven Optimization (FDO) Options

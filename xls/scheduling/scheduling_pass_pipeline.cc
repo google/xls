@@ -17,7 +17,6 @@
 
 #include "xls/scheduling/scheduling_pass_pipeline.h"
 
-#include <cstdint>
 #include <memory>
 #include <utility>
 
@@ -29,13 +28,14 @@
 #include "xls/scheduling/pipeline_scheduling_pass.h"
 #include "xls/scheduling/proc_state_legalization_pass.h"
 #include "xls/scheduling/scheduling_checker.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/scheduling/scheduling_wrapper_pass.h"
 
 namespace xls {
 
 std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
-    OptimizationContext& context, int64_t opt_level) {
+    OptimizationContext& context, const SchedulingOptions& options) {
   auto top = std::make_unique<SchedulingCompoundPass>(
       "scheduling", "Top level scheduling pass pipeline");
   top->AddInvariantChecker<SchedulingChecker>();
@@ -45,22 +45,30 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
   top->Add<ProcStateLegalizationPass>();
 
   bool eliminate_noop_next = false;
-  top->Add<MutualExclusionPass>();
-  if (opt_level > 0) {
+  if (options.merge_on_mutual_exclusion()) {
+    top->Add<MutualExclusionPass>();
+  }
+  if (options.opt_level() > 0) {
     auto fixedpoint =
         GetOptimizationPipelineGenerator().GeneratePipeline("fixedpoint_simp");
     CHECK_OK(fixedpoint.status())
         << "Unable to create fixedpoint-simplification pass. This is a bug.";
-    top->Add<SchedulingWrapperPass>(*std::move(fixedpoint), context, opt_level,
-                                    eliminate_noop_next);
+    top->Add<SchedulingWrapperPass>(*std::move(fixedpoint), context,
+                                    options.opt_level(), eliminate_noop_next);
   }
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                                  context, opt_level, eliminate_noop_next);
+                                  context, options.opt_level(),
+                                  eliminate_noop_next);
   top->Add<PipelineSchedulingPass>();
-  top->Add<MutualExclusionPass>();
-  top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                                  context, opt_level, eliminate_noop_next);
-  top->Add<PipelineSchedulingPass>();
+  if (options.merge_on_mutual_exclusion()) {
+    // Much of mutual exclusion is only possible after scheduling - but it also
+    // invalidates the schedule, so we need to run it again afterwards.
+    top->Add<MutualExclusionPass>();
+    top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
+                                    context, options.opt_level(),
+                                    eliminate_noop_next);
+    top->Add<PipelineSchedulingPass>();
+  }
 
   return top;
 }

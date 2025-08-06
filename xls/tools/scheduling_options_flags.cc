@@ -209,6 +209,9 @@ ABSL_FLAG(std::string, fdo_default_driver_cell, "",
           "Cell to assume is driving primary inputs");
 ABSL_FLAG(std::string, fdo_default_load, "",
           "Cell to assume is being driven by primary outputs");
+ABSL_FLAG(bool, merge_on_mutual_exclusion, true,
+          "Use mutual exclusion to merge I/O operations aggressively. If "
+          "false, relies on channel legalization for correctness.");
 // TODO: google/xls#869 - Remove when proc-scoped channels supplant old-style
 // procs.
 ABSL_FLAG(bool, multi_proc, true,
@@ -292,6 +295,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_FLAG(fdo_default_driver_cell);
   POPULATE_FLAG(fdo_default_load);
   POPULATE_FLAG(multi_proc);
+  POPULATE_FLAG(merge_on_mutual_exclusion);
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
 

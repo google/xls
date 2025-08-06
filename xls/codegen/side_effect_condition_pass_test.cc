@@ -121,7 +121,7 @@ class SideEffectConditionPassTest
     // First, schedule.
     OptimizationContext optimization_context;
     std::unique_ptr<SchedulingPass> scheduling_pipeline =
-        CreateSchedulingPassPipeline(optimization_context);
+        CreateSchedulingPassPipeline(optimization_context, scheduling_options);
     XLS_RET_CHECK(p->GetTop().has_value());
     FunctionBase* top = p->GetTop().value();
     auto scheduling_context =
