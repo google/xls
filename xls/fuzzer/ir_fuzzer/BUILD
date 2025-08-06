@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pytype binary only
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
 
@@ -66,6 +69,40 @@ cc_test(
 proto_library(
     name = "fuzz_program_proto",
     srcs = ["fuzz_program.proto"],
+)
+
+proto_library(
+    name = "fuzzer_arg_list_proto",
+    srcs = ["fuzzer_arg_list.proto"],
+    deps = ["//xls/ir:xls_value_proto"],
+)
+
+cc_proto_library(
+    name = "fuzzer_arg_list_cc_proto",
+    deps = [":fuzzer_arg_list_proto"],
+)
+
+py_proto_library(
+    name = "fuzzer_arg_list_py_pb2",
+    deps = [":fuzzer_arg_list_proto"],
+)
+
+py_binary(
+    name = "minimize_fuzz_failure",
+    testonly = 1,
+    srcs = ["minimize_fuzz_failure.py"],
+    data = [
+        ":reproducer_to_ir_main",
+        "//xls/dev_tools:check_ir_equivalence_main",
+        "//xls/dev_tools:ir_minimizer_main",
+        "//xls/tools:eval_ir_main",
+        "//xls/tools:opt_main",
+    ],
+    deps = [
+        "//xls/common:runfiles",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+    ],
 )
 
 cc_proto_library(
@@ -263,5 +300,48 @@ cc_test(
         "//xls/passes:ternary_query_engine",
         "@com_google_absl//absl/log:check",
         "@googletest//:gtest",
+    ],
+)
+
+cc_binary(
+    name = "reproducer_to_ir_main",
+    testonly = 1,
+    srcs = [
+        "reproducer_repo_files.cc",
+        "reproducer_repo_files.h",
+        "reproducer_to_ir_main.cc",
+    ],
+    deps = [
+        ":fuzzer_arg_list_cc_proto",
+        ":reproducer_to_ir",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:value",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_library(
+    name = "reproducer_to_ir",
+    testonly = 1,
+    srcs = ["reproducer_to_ir.cc"],
+    hdrs = ["reproducer_to_ir.h"],
+    deps = [
+        ":ir_fuzz_domain",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:value",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
