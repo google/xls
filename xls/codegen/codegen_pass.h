@@ -240,17 +240,25 @@ struct StateRegister {
     std::optional<Node*> predicate;
   };
 
+  // A single-bit register indicating whether the data register has a valid
+  // value.
+  struct RegisterFull {
+    Register* reg;
+    std::vector<RegisterWrite*> sets;
+    RegisterWrite* clear;
+    RegisterRead* read;
+  };
+
   std::string name;
   Value reset_value;
   Stage read_stage;
-  Node* read_predicate;
+  std::optional<Node*> read_predicate;
   std::vector<NextValue> next_values;
   Register* reg;
-  RegisterWrite* reg_write;
+  std::vector<RegisterWrite*> reg_writes;
   RegisterRead* reg_read;
-  Register* reg_full;
-  RegisterWrite* reg_full_write;
-  RegisterRead* reg_full_read;
+
+  std::optional<RegisterFull> reg_full;
 };
 
 // The collection of pipeline registers for a single stage.
@@ -264,9 +272,6 @@ struct StreamingIOPipeline {
   // Map of stage# -> state register vector. (Values are pointers into
   // state_registers array). Order of inner list is not meaningful.
   std::vector<std::vector<int64_t>> input_states;
-  // Map of stage# -> state register vector. (Values are pointers into
-  // state_registers array). Order of inner list is not meaningful.
-  std::vector<std::vector<int64_t>> output_states;
   // List linking the single-value input port to the channel it implements.
   std::vector<SingleValueInput> single_value_inputs;
   // List linking the single-value output port to the channel it implements.

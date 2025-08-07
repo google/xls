@@ -116,7 +116,7 @@ absl::StatusOr<ConcurrentStageGroups> CalculateConcurrentGroupsFromStateWrites(
     if (!reg) {
       continue;
     }
-    if (reg->read_predicate != nullptr) {
+    if (reg->read_predicate.has_value()) {
       // If the state read is predicated, then it doesn't start a mutual
       // exclusion zone.
       continue;
@@ -584,7 +584,6 @@ CloneNodesIntoBlockHandler::CloneNodesIntoBlockHandler(
   result_.inputs.resize(stage_count + 1);
   result_.outputs.resize(stage_count + 1);
   result_.input_states.resize(stage_count + 1);
-  result_.output_states.resize(stage_count + 1);
 }
 
 absl::Status CloneNodesIntoBlockHandler::CloneNodes(
@@ -694,15 +693,10 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleStateRead(Node* node,
 
   Register* reg = nullptr;
   RegisterRead* reg_read = nullptr;
+  std::string reg_name = block()->UniquifyNodeName(state_element->name());
   if (!node->GetType()->IsToken() && node->GetType()->GetFlatBitCount() > 0) {
-    // Create a temporary name as this register will later be removed
-    // and updated.  That register should be created with the
-    // state parameter's name.  See UpdateStateRegisterWithReset().
-    std::string name =
-        block()->UniquifyNodeName(absl::StrCat("__", state_element->name()));
-
     XLS_ASSIGN_OR_RETURN(reg,
-                         block()->AddRegister(name, node->GetType(),
+                         block()->AddRegister(reg_name, node->GetType(),
                                               state_element->initial_value()));
 
     XLS_ASSIGN_OR_RETURN(reg_read, block()->MakeNodeWithName<RegisterRead>(
@@ -712,17 +706,54 @@ absl::StatusOr<Node*> CloneNodesIntoBlockHandler::HandleStateRead(Node* node,
     result_.node_to_stage_map[reg_read] = stage;
   }
 
-  // The register write will be created later in HandleNextValue.
-  result_.state_registers[index] = StateRegister{
-      .name = std::string(state_element->name()),
-      .reset_value = state_element->initial_value(),
-      .read_stage = stage,
-      .read_predicate = state_read->predicate().has_value()
-                            ? node_map_.at(*state_read->predicate())
-                            : nullptr,
-      .reg = reg,
-      .reg_write = nullptr,
-      .reg_read = reg_read};
+  std::optional<Node*> state_read_predicate =
+      state_read->predicate().has_value()
+          ? std::make_optional(node_map_.at(*state_read->predicate()))
+          : std::nullopt;
+
+  // If there exists a next-value node which is scheduled in a later cycle than
+  // this state read then a register full bit is needed.
+  std::optional<StateRegister::RegisterFull> reg_full;
+  bool has_next_in_later_stage = false;
+  if (schedule_.has_value()) {
+    for (Node* next : proc->next_values(state_read)) {
+      if (GetSchedule().cycle(next) > stage) {
+        has_next_in_later_stage = true;
+        break;
+      }
+    }
+    if (has_next_in_later_stage) {
+      reg_full = StateRegister::RegisterFull();
+      XLS_ASSIGN_OR_RETURN(
+          reg_full->reg,
+          block()->AddRegister(absl::StrCat(reg_name, "_full"),
+                               block()->package()->GetBitsType(1),
+                               Value(UBits(1, 1))));
+      XLS_ASSIGN_OR_RETURN(reg_full->read,
+                           block()->MakeNodeWithName<RegisterRead>(
+                               node->loc(), reg_full->reg,
+                               /*name=*/reg_full->reg->name()));
+      XLS_ASSIGN_OR_RETURN(Node * literal_0,
+                           block()->MakeNodeWithName<xls::Literal>(
+                               SourceInfo(), Value(UBits(0, 1)), "zero"));
+      XLS_ASSIGN_OR_RETURN(
+          reg_full->clear,
+          block()->MakeNode<RegisterWrite>(node->loc(), literal_0,
+                                           /*load_enable=*/state_read_predicate,
+                                           /*reset=*/block()->GetResetPort(),
+                                           reg_full->reg));
+    }
+  }
+  // The register write(s) will be created later in HandleNextValue.
+  result_.state_registers[index] =
+      StateRegister{.name = std::string(state_element->name()),
+                    .reset_value = state_element->initial_value(),
+                    .read_stage = stage,
+                    .read_predicate = state_read_predicate,
+                    .reg = reg,
+                    .reg_writes = {},
+                    .reg_read = reg_read,
+                    .reg_full = reg_full};
 
   result_.input_states[stage].push_back(index);
 
@@ -765,45 +796,29 @@ absl::Status CloneNodesIntoBlockHandler::HandleNextValue(Node* node,
   XLS_ASSIGN_OR_RETURN(int64_t index,
                        proc->GetStateElementIndex(state_element));
 
+  std::optional<Node*> predicate =
+      next->predicate().has_value()
+          ? std::make_optional(node_map_.at(next->predicate().value()))
+          : std::nullopt;
   StateRegister& state_register = *result_.state_registers.at(index);
   state_register.next_values.push_back(
       {.stage = stage,
        .value = next->value() == next->state_read()
                     ? std::nullopt
                     : std::make_optional(node_map_.at(next->value())),
-       .predicate =
-           next->predicate().has_value()
-               ? std::make_optional(node_map_.at(next->predicate().value()))
-               : std::nullopt});
-
-  bool last_next_value = absl::c_all_of(
-      proc->next_values(proc->GetStateRead(state_element)),
-      [&](Next* next_value) {
-        return next_value == next || node_map_.contains(next_value);
-      });
-  if (!last_next_value) {
-    // We don't create the RegisterWrite until we're at the last `next_value`
-    // for this `param`, so we've translated all the values already.
-    return absl::OkStatus();
-  }
+       .predicate = predicate});
 
   if (state_element->type()->GetFlatBitCount() > 0) {
-    // We need a write for the actual value.
-
-    // We should only create the RegisterWrite once.
-    CHECK_EQ(state_register.reg_write, nullptr);
-
-    // Make a placeholder RegisterWrite; the real one requires access to all
-    // the `next_value` nodes and the control flow logic.
+    // A register can have multiple writes. Create one for each next value
+    // node. These are merged later in the codegen process.
     XLS_ASSIGN_OR_RETURN(
-        state_register.reg_write,
+        RegisterWrite * reg_write,
         block()->MakeNode<RegisterWrite>(
             next->loc(), node_map_.at(next->value()),
-            /*load_enable=*/std::nullopt,
+            /*load_enable=*/predicate,
             /*reset=*/block()->GetResetPort(), state_register.reg));
-
-    result_.output_states[stage].push_back(index);
-    result_.node_to_stage_map[state_register.reg_write] = stage;
+    state_register.reg_writes.push_back(reg_write);
+    result_.node_to_stage_map[reg_write] = stage;
   } else if (!state_element->type()->IsToken() &&
              state_element->type() != proc->package()->GetTupleType({})) {
     return absl::UnimplementedError(
@@ -812,33 +827,51 @@ absl::Status CloneNodesIntoBlockHandler::HandleNextValue(Node* node,
                         index, node->GetType()->ToString()));
   }
 
-  // If the next state can be determined in a later cycle than the state read,
-  // we have a non-trivial backedge between initiations (II>1); use a "full"
-  // bit to track whether the state is currently valid.
-  //
-  // TODO(epastor): Consider an optimization that merges the "full" bits for
-  // all states with the same read stage & matching write stages/predicates...
-  // or maybe a more general optimization that merges registers with identical
-  // type, input, and load-enable values.
-  if (stage > state_register.read_stage) {
+  if (state_register.reg_full.has_value()) {
+    // This state element has a "full" bit because the state read and a state
+    // write are separated by at least one stage. Add a RegisterWrite which sets
+    // this bit.
+    XLS_ASSIGN_OR_RETURN(Node * literal_1,
+                         block()->MakeNodeWithName<xls::Literal>(
+                             SourceInfo(), Value(UBits(1, 1)), "one"));
     XLS_ASSIGN_OR_RETURN(
-        state_register.reg_full,
-        block()->AddRegister(absl::StrCat("__", state_register.name, "_full"),
-                             block()->package()->GetBitsType(1),
-                             Value(UBits(1, 1))));
-    XLS_ASSIGN_OR_RETURN(state_register.reg_full_read,
-                         block()->MakeNodeWithName<RegisterRead>(
-                             next->loc(), state_register.reg_full,
-                             /*name=*/state_register.reg_full->name()));
-    XLS_ASSIGN_OR_RETURN(
-        Node * literal_1,
-        block()->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
-    XLS_ASSIGN_OR_RETURN(
-        state_register.reg_full_write,
+        RegisterWrite * reg_full_set,
         block()->MakeNode<RegisterWrite>(next->loc(), literal_1,
-                                         /*load_enable=*/std::nullopt,
+                                         /*load_enable=*/predicate,
                                          /*reset=*/block()->GetResetPort(),
-                                         state_register.reg_full));
+                                         state_register.reg_full->reg));
+    state_register.reg_full->sets.push_back(reg_full_set);
+
+    // If the next value node is in the same stage as the state read, then the
+    // clearing of the full bit by the state read needs to be suppressed by
+    // predicate.
+    if (stage == state_register.read_stage) {
+      Node* not_predicate;
+      if (predicate.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            not_predicate,
+            block()->MakeNode<UnOp>(next->loc(), predicate.value(), Op::kNot));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            not_predicate,
+            block()->MakeNode<xls::Literal>(next->loc(), Value(UBits(0, 1))));
+      }
+      Node* clear_full_predicate;
+      if (state_register.reg_full->clear->load_enable().has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            clear_full_predicate,
+            block()->MakeNode<NaryOp>(
+                next->loc(),
+                std::vector<Node*>(
+                    {state_register.reg_full->clear->load_enable().value(),
+                     not_predicate}),
+                /*op=*/Op::kAnd));
+      } else {
+        clear_full_predicate = not_predicate;
+      }
+      XLS_RETURN_IF_ERROR(
+          state_register.reg_full->clear->SetLoadEnable(clear_full_predicate));
+    }
   }
 
   return absl::OkStatus();
