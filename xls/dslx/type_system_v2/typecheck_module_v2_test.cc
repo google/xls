@@ -3844,6 +3844,15 @@ TEST(TypecheckV2Test, GlobalConstantEqualsLShiftOfLiteralsSizeTooSmall) {
                                "constexpr shift of 4 exceeds its bit width.")));
 }
 
+TEST(TypecheckV2Test, GlobalConstantOvershiftByNamedConstant) {
+  // Overshifting by a non-literal is allowed.
+  EXPECT_THAT(R"(
+const AMOUNT = u32:4;
+const X = u2:3 << AMOUNT;
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[2]")));
+}
+
 TEST(TypecheckV2Test, GlobalConstantEqualsRShiftOfLiteralsSizeTooSmall) {
   EXPECT_THAT(
       "const X = u1:1 >> 4;",

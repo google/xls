@@ -349,7 +349,10 @@ class TypeValidator : public AstNodeVisitorWithDefault {
         BitsLikeProperties lhs_bits_like,
         GetBitsLikeOrError(binop.lhs(), lhs_type, file_table_));
 
-    if (ti_.IsKnownConstExpr(binop.rhs())) {
+    // Note that a symbolic over-shift was intentionally allowed by v1 on the
+    // basis that it is less obviously erroneous. A named constant may be used
+    // in multiple contexts.
+    if (binop.rhs()->kind() == AstNodeKind::kNumber) {
       XLS_ASSIGN_OR_RETURN(InterpValue rhs_value,
                            ti_.GetConstExpr(binop.rhs()));
       XLS_ASSIGN_OR_RETURN(uint64_t number_value,
