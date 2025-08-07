@@ -729,6 +729,19 @@ Cap opt level: 3
 
 
 
+## non_synth_separation - Non-Synthesizable Separation {#non_synth_separation}
+
+
+Separates out non-synthesizable nodes like assert/cover/trace from the main function into a cloned function. Every function effectively has two versions, one with synthesizable nodes and one without. The synthesizable version invokes the non-synthesizable version of its function. This ensures that non-synthesizable uses of values do not affect the optimization of the synthesizable parts of the function.
+
+
+[Header](http://github.com/google/xls/tree/main/xls/passes/non_synth_separation_pass.h)
+
+
+
+
+
+
 ## one-leaf-inlining - leaf function inlining passes {#one-leaf-inlining}
 
 
@@ -785,6 +798,9 @@ Passes performed after inlining
 ### Invoked Passes
 
 
+- [fixedpoint_simp(2)](#fixedpoint_simp2)
+- [non_synth_separation](#non_synth_separation)
+- [dce](#dce)
 - [fixedpoint_simp(2)](#fixedpoint_simp2)
 - [cond_spec(noBdd)](#cond_specnoBdd)
 - [dce](#dce)
@@ -857,6 +873,8 @@ Passes performed after inlining
 - [select_merge](#select_merge)
 - [dce](#dce)
 - [fixedpoint_simp(3)](#fixedpoint_simp3)
+- [inlining](#inlining)
+- [dfe](#dfe)
 
 
 
