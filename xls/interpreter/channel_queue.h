@@ -77,7 +77,7 @@ class ChannelQueue {
 
   // Returns the number of elements currently in the channel queue.
   int64_t GetSize() const {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     return GetSizeInternal();
   }
 

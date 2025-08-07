@@ -159,7 +159,7 @@ static absl::Mutex mutex;
 static Z3_context active_context;
 static bool z3_interrupted = false;
 void AlarmHandler(int signum) {
-  absl::MutexLock lock(&mutex);
+  absl::MutexLock lock(mutex);
   Z3_interrupt(active_context);
   z3_interrupted = true;
 }
@@ -203,7 +203,7 @@ absl::Status AutoStage(const solvers::z3::LecParams& lec_params,
       struct sigaction old_action = SetAlarm(timeout_sec);
       bool equal = lec->Run();
       CancelAlarm(old_action);
-      absl::MutexLock lock(&mutex);
+      absl::MutexLock lock(mutex);
       if (z3_interrupted) {
         std::cout << "TIMED OUT!\n";
         continue;
@@ -300,7 +300,7 @@ static absl::Status RealMain(
   if (timeout_sec != -1) {
     CancelAlarm(old_action);
   }
-  absl::MutexLock lock(&mutex);
+  absl::MutexLock lock(mutex);
   if (z3_interrupted) {
     return absl::DeadlineExceededError("LEC timed out.");
   }

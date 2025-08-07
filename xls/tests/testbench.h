@@ -167,7 +167,7 @@ class TestbenchBase {
 
   // Sets the number of threads to use. Must be called before Run().
   absl::Status SetNumThreads(int num_threads) {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     if (this->started_) {
       return absl::FailedPreconditionError(
           "Can't change the number of threads after starting execution.");

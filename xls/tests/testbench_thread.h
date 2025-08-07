@@ -201,7 +201,7 @@ class TestbenchThreadBase {
 
     running_.store(false);
     {
-      absl::MutexLock lock(&mutex_);
+      absl::MutexLock lock(mutex_);
       this->status_ = return_status;
     }
     this->WakeParent();
@@ -231,7 +231,7 @@ class TestbenchThreadBase {
   uint64_t num_passes() { return num_passes_.load(); }
 
   absl::Status status() {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     return status_;
   }
 

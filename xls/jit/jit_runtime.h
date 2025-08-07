@@ -99,12 +99,12 @@ class JitRuntime {
   }
 
   int64_t GetTypeByteSize(Type* xls_type) {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     return type_converter_->GetTypeByteSize(xls_type);
   }
 
   int64_t GetTypeAlignment(Type* xls_type) {
-    absl::MutexLock lock(&mutex_);
+    absl::MutexLock lock(mutex_);
     return type_converter_->GetTypePreferredAlignment(xls_type);
   }
 

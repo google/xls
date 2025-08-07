@@ -100,17 +100,17 @@ class CachingDelayEstimator : public DelayEstimator {
 
  private:
   bool ContainsNodeDelay(Node* node) const {
-    absl::ReaderMutexLock lock(&cache_mutex_);
+    absl::ReaderMutexLock lock(cache_mutex_);
     return cache_.contains(node);
   }
 
   int64_t GetNodeDelay(Node* node) const {
-    absl::ReaderMutexLock lock(&cache_mutex_);
+    absl::ReaderMutexLock lock(cache_mutex_);
     return cache_.at(node);
   }
 
   void AddNodeDelay(Node* node, int64_t delay) const {
-    absl::WriterMutexLock lock(&cache_mutex_);
+    absl::WriterMutexLock lock(cache_mutex_);
     cache_.emplace(node, delay);
   }
 

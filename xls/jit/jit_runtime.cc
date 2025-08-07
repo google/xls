@@ -67,7 +67,7 @@ absl::Status JitRuntime::PackArgs(absl::Span<const Value> args,
 }
 
 Value JitRuntime::UnpackBuffer(const uint8_t* buffer, const Type* result_type) {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   return UnpackBufferInternal(buffer, result_type);
 }
 
@@ -133,7 +133,7 @@ Value JitRuntime::UnpackBufferInternal(const uint8_t* buffer,
 
 void JitRuntime::BlitValueToBuffer(const Value& value, const Type* type,
                                    absl::Span<uint8_t> buffer) {
-  absl::MutexLock lock(&mutex_);
+  absl::MutexLock lock(mutex_);
   // Zero the buffer before filling in values. This ensures all padding bytes
   // are cleared.
   memset(buffer.data(), 0, type_converter_->GetTypeByteSize(type));
