@@ -1,70 +1,12 @@
-`include "fifo.v"
-
 module subproc1(
   input wire clk,
   input wire rst,
   input wire [31:0] sub1_in,
-  input wire sub1_in_vld,
-  input wire sub1_out_rdy,
-  output wire sub1_in_rdy,
-  output wire [31:0] sub1_out,
-  output wire sub1_out_vld
+  output wire [31:0] sub1_out
 );
-  reg [31:0] p0_tuple_index_102;
-  reg [31:0] p1_add_108;
-  reg [31:0] p2_neg_113;
-  reg p0_valid;
-  reg p1_valid;
-  reg p2_valid;
-  wire p3_stage_done;
-  wire p3_not_valid;
-  wire p2_enable;
-  wire p2_data_enable;
-  wire p2_load_en;
-  wire p2_not_valid;
-  wire p1_enable;
-  wire p1_data_enable;
-  wire p1_load_en;
-  wire p1_not_valid;
-  wire p0_enable;
-  wire p0_data_enable;
-  wire p0_load_en;
-  wire [31:0] neg_113;
-  wire [31:0] add_108;
-  assign p3_stage_done = p2_valid & sub1_out_rdy;
-  assign p3_not_valid = ~p2_valid;
-  assign p2_enable = p3_stage_done | p3_not_valid;
-  assign p2_data_enable = p2_enable & p1_valid;
-  assign p2_load_en = p2_data_enable | rst;
-  assign p2_not_valid = ~p1_valid;
-  assign p1_enable = p2_load_en | p2_not_valid;
-  assign p1_data_enable = p1_enable & p0_valid;
-  assign p1_load_en = p1_data_enable | rst;
-  assign p1_not_valid = ~p0_valid;
-  assign p0_enable = p1_load_en | p1_not_valid;
-  assign p0_data_enable = p0_enable & sub1_in_vld;
-  assign p0_load_en = p0_data_enable | rst;
-  assign neg_113 = -p1_add_108;
-  assign add_108 = p0_tuple_index_102 + 32'h0000_0001;
-  always_ff @ (posedge clk) begin
-    p0_tuple_index_102 <= p0_load_en ? sub1_in : p0_tuple_index_102;
-    p1_add_108 <= p1_load_en ? add_108 : p1_add_108;
-    p2_neg_113 <= p2_load_en ? neg_113 : p2_neg_113;
-  end
-  always_ff @ (posedge clk) begin
-    if (rst) begin
-      p0_valid <= 1'h0;
-      p1_valid <= 1'h0;
-      p2_valid <= 1'h0;
-    end else begin
-      p0_valid <= p0_enable ? sub1_in_vld : p0_valid;
-      p1_valid <= p1_enable ? p0_valid : p1_valid;
-      p2_valid <= p2_enable ? p1_valid : p2_valid;
-    end
-  end
-  assign sub1_in_rdy = p0_load_en;
-  assign sub1_out = p2_neg_113;
-  assign sub1_out_vld = p2_valid;
+  wire [31:0] add_54;
+  assign add_54 = sub1_in + 32'h0000_0001;
+  assign sub1_out = add_54;
 endmodule
 
 
@@ -72,59 +14,49 @@ module subproc2(
   input wire clk,
   input wire rst,
   input wire [31:0] sub2_in,
-  input wire sub2_in_vld,
-  input wire sub2_out_rdy,
-  output wire sub2_in_rdy,
-  output wire [31:0] sub2_out,
-  output wire sub2_out_vld
+  output wire [31:0] sub2_out
 );
-  // lint_off MULTIPLY
-  function automatic [31:0] umul32b_32b_x_32b (input reg [31:0] lhs, input reg [31:0] rhs);
-    begin
-      umul32b_32b_x_32b = lhs * rhs;
-    end
-  endfunction
-  // lint_on MULTIPLY
-  reg [31:0] p0_tuple_index_41;
-  reg [31:0] p1_umul_47;
-  reg p0_valid;
-  reg p1_valid;
-  wire p2_stage_done;
-  wire p2_not_valid;
-  wire p1_enable;
-  wire p1_data_enable;
-  wire p1_load_en;
-  wire p1_not_valid;
-  wire p0_enable;
-  wire p0_data_enable;
-  wire p0_load_en;
-  wire [31:0] umul_47;
-  assign p2_stage_done = p1_valid & sub2_out_rdy;
-  assign p2_not_valid = ~p1_valid;
-  assign p1_enable = p2_stage_done | p2_not_valid;
-  assign p1_data_enable = p1_enable & p0_valid;
-  assign p1_load_en = p1_data_enable | rst;
-  assign p1_not_valid = ~p0_valid;
-  assign p0_enable = p1_load_en | p1_not_valid;
-  assign p0_data_enable = p0_enable & sub2_in_vld;
-  assign p0_load_en = p0_data_enable | rst;
-  assign umul_47 = umul32b_32b_x_32b(p0_tuple_index_41, 32'h0000_0002);
-  always_ff @ (posedge clk) begin
-    p0_tuple_index_41 <= p0_load_en ? sub2_in : p0_tuple_index_41;
-    p1_umul_47 <= p1_load_en ? umul_47 : p1_umul_47;
-  end
+  wire [31:0] receive_sub2_in;
+  assign receive_sub2_in = sub2_in + 32'h0000_000a;
+  assign sub2_out = receive_sub2_in;
+endmodule
+
+
+module delay_line_tmp1_0(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] push_data,
+  output wire [31:0] pop_data
+);
+  assign pop_data = push_data;
+endmodule
+
+
+module delay_line_tmp2_0(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] push_data,
+  output wire [31:0] pop_data
+);
+  assign pop_data = push_data;
+endmodule
+
+
+module delay_line_tmp3_1(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] push_data,
+  output wire [31:0] pop_data
+);
+  reg [31:0] delay_line_tmp3_0;
   always_ff @ (posedge clk) begin
     if (rst) begin
-      p0_valid <= 1'h0;
-      p1_valid <= 1'h0;
+      delay_line_tmp3_0 <= 32'h0000_0000;
     end else begin
-      p0_valid <= p0_enable ? sub2_in_vld : p0_valid;
-      p1_valid <= p1_enable ? p0_valid : p1_valid;
+      delay_line_tmp3_0 <= push_data;
     end
   end
-  assign sub2_in_rdy = p0_load_en;
-  assign sub2_out = p1_umul_47;
-  assign sub2_out_vld = p1_valid;
+  assign pop_data = delay_line_tmp3_0;
 endmodule
 
 
@@ -132,309 +64,216 @@ module my_proc(
   input wire clk,
   input wire rst,
   input wire [31:0] top_in,
-  input wire top_in_vld,
-  input wire top_out_rdy,
-  output wire top_in_rdy,
-  output wire [31:0] top_out,
-  output wire top_out_vld
+  output wire [31:0] top_out
 );
-  wire instantiation_output_185;
-  wire [31:0] instantiation_output_186;
-  wire instantiation_output_187;
-  wire instantiation_output_194;
-  wire [31:0] instantiation_output_195;
-  wire instantiation_output_196;
-  wire instantiation_output_203;
-  wire [31:0] instantiation_output_204;
-  wire instantiation_output_205;
-  wire instantiation_output_211;
-  wire [31:0] instantiation_output_212;
-  wire instantiation_output_213;
-  wire instantiation_output_218;
-  wire [31:0] instantiation_output_219;
-  wire instantiation_output_220;
-  reg [31:0] p0_tuple_index_223;
-  reg [31:0] p1_neg_229;
-  reg [31:0] p2_neg_229;
-  reg [31:0] p3_neg_229;
-  reg [31:0] p4_neg_229;
-  reg [31:0] p5_neg_229;
-  reg [31:0] p6_neg_229;
-  reg [31:0] p7_neg_229;
-  reg [31:0] p8_neg_229;
-  reg [31:0] p9_neg_229;
-  reg [31:0] p10_neg_229;
-  reg [31:0] p10_tuple_index_269;
-  reg [31:0] p11_add_277;
+  wire [31:0] instantiation_output_82;
+  wire [31:0] instantiation_output_85;
+  wire [31:0] instantiation_output_141;
+  wire [31:0] instantiation_output_144;
+  wire [31:0] instantiation_output_147;
+  reg [31:0] p0_tuple_index_89;
   reg p0_valid;
-  reg p1_valid;
-  reg p2_valid;
-  reg p3_valid;
-  reg p4_valid;
-  reg p5_valid;
-  reg p6_valid;
-  reg p7_valid;
-  reg p8_valid;
-  reg p9_valid;
-  reg p10_valid;
-  reg p11_valid;
-  reg __fifo_tmp1_push_data_has_been_sent_reg;
-  reg __top_out_has_been_sent_reg;
-  wire __top_out_has_sent_or_is_ready;
-  wire p12_stage_done;
-  wire p12_not_valid;
-  wire p11_enable;
-  wire p11_data_enable;
-  wire p11_load_en;
-  wire p11_not_valid;
-  wire p10_enable;
-  wire p10_stage_done;
-  wire p10_data_enable;
-  wire p10_load_en;
-  wire p10_not_valid;
-  wire p9_enable;
-  wire p9_data_enable;
-  wire p9_load_en;
-  wire p9_not_valid;
-  wire p8_enable;
-  wire p8_data_enable;
-  wire p8_load_en;
-  wire p8_not_valid;
-  wire p7_enable;
-  wire p7_data_enable;
-  wire p7_load_en;
-  wire p7_not_valid;
-  wire p6_enable;
-  wire p6_data_enable;
-  wire p6_load_en;
-  wire p6_not_valid;
-  wire p5_enable;
-  wire p5_data_enable;
-  wire p5_load_en;
-  wire p5_not_valid;
-  wire p4_enable;
-  wire p4_data_enable;
-  wire p4_load_en;
-  wire p4_not_valid;
-  wire p3_enable;
-  wire p3_data_enable;
-  wire p3_load_en;
-  wire p3_not_valid;
-  wire __fifo_tmp1_push_data_has_sent_or_is_ready;
-  wire p2_enable;
-  wire p2_stage_done;
-  wire p2_data_enable;
-  wire p2_load_en;
-  wire p2_not_valid;
-  wire p1_enable;
-  wire p1_data_enable;
-  wire p1_load_en;
-  wire p1_not_valid;
-  wire __fifo_tmp1_push_valid_buf;
-  wire __fifo_tmp1_push_data_not_has_been_sent;
-  wire __top_out_not_has_been_sent;
+(??)  reg p1_valid;
+(??)  reg p2_valid;
+(??)  reg p3_valid;
+(??)  reg p4_valid;
+(??)  reg p5_valid;
+(??)  reg p6_valid;
+(??)  reg p7_valid;
+(??)  reg p8_valid;
+(??)  reg p9_valid;
+(??)  reg p10_valid;
+(??)  reg p11_valid;
+(??)  reg __top_out_has_been_sent_reg;
+(??)  wire __top_out_has_sent_or_is_ready;
+(??)  wire p12_stage_done;
+(??)  wire p12_not_valid;
+(??)  wire p11_enable;
+(??)  wire p11_data_enable;
+(??)  wire p11_load_en;
+(??)  wire p11_not_valid;
+(??)  wire p10_enable;
+(??)  wire p10_stage_done;
+(??)  wire p10_data_enable;
+(??)  wire p10_load_en;
+(??)  wire p10_not_valid;
+(??)  wire p9_enable;
+(??)  wire p9_data_enable;
+(??)  wire p9_load_en;
+(??)  wire p9_not_valid;
+(??)  wire p8_enable;
+(??)  wire p8_data_enable;
+(??)  wire p8_load_en;
+(??)  wire p8_not_valid;
+(??)  wire p7_enable;
+(??)  wire p7_data_enable;
+(??)  wire p7_load_en;
+(??)  wire p7_not_valid;
+(??)  wire p6_enable;
+(??)  wire p6_data_enable;
+(??)  wire p6_load_en;
+(??)  wire p6_not_valid;
+(??)  wire p5_enable;
+(??)  wire p5_data_enable;
+(??)  wire p5_load_en;
+(??)  wire p5_not_valid;
+(??)  wire p4_enable;
+(??)  wire p4_data_enable;
+(??)  wire p4_load_en;
+(??)  wire p4_not_valid;
+(??)  wire p3_enable;
+(??)  wire p3_data_enable;
+(??)  wire p3_load_en;
+(??)  wire p3_not_valid;
+(??)  wire p2_enable;
+(??)  wire p2_stage_done;
+(??)  wire p2_data_enable;
+(??)  wire p2_load_en;
+(??)  wire p2_not_valid;
+(??)  wire p1_enable;
+(??)  wire p1_data_enable;
+(??)  wire p1_load_en;
+(??)  wire p1_not_valid;
+(??)  wire __top_out_not_has_been_sent;
   wire p0_enable;
   wire __fifo_tmp1_push_data_valid_and_not_has_been_sent;
-  wire __top_out_valid_and_not_has_been_sent;
-  wire p0_data_enable;
-  wire __fifo_tmp1_push_data_valid_and_all_active_outputs_ready;
-  wire __fifo_tmp1_push_data_valid_and_ready_txfr;
-  wire __top_out_valid_and_all_active_outputs_ready;
-  wire __top_out_valid_and_ready_txfr;
+(??)  wire __top_out_valid_and_not_has_been_sent;
+(??)  wire p0_data_enable;
+(??)  wire __top_out_valid_and_all_active_outputs_ready;
+(??)  wire __top_out_valid_and_ready_txfr;
   wire p0_load_en;
-  wire [31:0] add_277;
-  wire [31:0] neg_229;
-  wire __fifo_tmp1_push_data_not_stage_load;
-  wire __fifo_tmp1_push_data_has_been_sent_reg_load_en;
-  wire __top_out_not_stage_load;
-  wire __top_out_has_been_sent_reg_load_en;
+(??)  wire [31:0] add_277;
+(??)  wire [31:0] neg_229;
+(??)  wire __top_out_not_stage_load;
+(??)  wire __top_out_has_been_sent_reg_load_en;
 
-  assign __top_out_has_sent_or_is_ready = top_out_rdy | __top_out_has_been_sent_reg;
-  assign p12_stage_done = p11_valid & __top_out_has_sent_or_is_ready;
-  assign p12_not_valid = ~p11_valid;
-  assign p11_enable = p12_stage_done | p12_not_valid;
-  assign p11_data_enable = p11_enable & p10_valid;
-  assign p11_load_en = p11_data_enable | rst;
-  assign p11_not_valid = ~p10_valid;
-  assign p10_enable = p11_load_en | p11_not_valid;
-  assign p10_stage_done = p9_valid & instantiation_output_205;
-  assign p10_data_enable = p10_enable & p10_stage_done;
-  assign p10_load_en = p10_data_enable | rst;
-  assign p10_not_valid = ~p9_valid;
-  assign p9_enable = p10_load_en | p10_not_valid;
-  assign p9_data_enable = p9_enable & p8_valid;
-  assign p9_load_en = p9_data_enable | rst;
-  assign p9_not_valid = ~p8_valid;
-  assign p8_enable = p9_load_en | p9_not_valid;
-  assign p8_data_enable = p8_enable & p7_valid;
-  assign p8_load_en = p8_data_enable | rst;
-  assign p8_not_valid = ~p7_valid;
-  assign p7_enable = p8_load_en | p8_not_valid;
-  assign p7_data_enable = p7_enable & p6_valid;
-  assign p7_load_en = p7_data_enable | rst;
-  assign p7_not_valid = ~p6_valid;
-  assign p6_enable = p7_load_en | p7_not_valid;
-  assign p6_data_enable = p6_enable & p5_valid;
-  assign p6_load_en = p6_data_enable | rst;
-  assign p6_not_valid = ~p5_valid;
-  assign p5_enable = p6_load_en | p6_not_valid;
-  assign p5_data_enable = p5_enable & p4_valid;
-  assign p5_load_en = p5_data_enable | rst;
-  assign p5_not_valid = ~p4_valid;
-  assign p4_enable = p5_load_en | p5_not_valid;
-  assign p4_data_enable = p4_enable & p3_valid;
-  assign p4_load_en = p4_data_enable | rst;
-  assign p4_not_valid = ~p3_valid;
-  assign p3_enable = p4_load_en | p4_not_valid;
-  assign p3_data_enable = p3_enable & p2_valid;
-  assign p3_load_en = p3_data_enable | rst;
-  assign p3_not_valid = ~p2_valid;
-  assign __fifo_tmp1_push_data_has_sent_or_is_ready = instantiation_output_185 | __fifo_tmp1_push_data_has_been_sent_reg;
-  assign p2_enable = p3_load_en | p3_not_valid;
-  assign p2_stage_done = p1_valid & __fifo_tmp1_push_data_has_sent_or_is_ready;
-  assign p2_data_enable = p2_enable & p2_stage_done;
-  assign p2_load_en = p2_data_enable | rst;
-  assign p2_not_valid = ~p1_valid;
-  assign p1_enable = p2_load_en | p2_not_valid;
-  assign p1_data_enable = p1_enable & p0_valid;
-  assign p1_load_en = p1_data_enable | rst;
-  assign p1_not_valid = ~p0_valid;
-  assign __fifo_tmp1_push_valid_buf = p1_valid & p2_enable;
-  assign __fifo_tmp1_push_data_not_has_been_sent = ~__fifo_tmp1_push_data_has_been_sent_reg;
-  assign __top_out_not_has_been_sent = ~__top_out_has_been_sent_reg;
-  assign p0_enable = p1_load_en | p1_not_valid;
-  assign __fifo_tmp1_push_data_valid_and_not_has_been_sent = __fifo_tmp1_push_valid_buf & __fifo_tmp1_push_data_not_has_been_sent;
-  assign __top_out_valid_and_not_has_been_sent = p11_valid & __top_out_not_has_been_sent;
-  assign p0_data_enable = p0_enable & top_in_vld;
-  assign __fifo_tmp1_push_data_valid_and_all_active_outputs_ready = __fifo_tmp1_push_valid_buf & instantiation_output_185;
-  assign __fifo_tmp1_push_data_valid_and_ready_txfr = __fifo_tmp1_push_data_valid_and_not_has_been_sent & instantiation_output_185;
-  assign __top_out_valid_and_all_active_outputs_ready = p11_valid & top_out_rdy;
-  assign __top_out_valid_and_ready_txfr = __top_out_valid_and_not_has_been_sent & top_out_rdy;
-  assign p0_load_en = p0_data_enable | rst;
-  assign add_277 = p10_neg_229 + p10_tuple_index_269;
-  assign neg_229 = -p0_tuple_index_223;
-  assign __fifo_tmp1_push_data_not_stage_load = ~__fifo_tmp1_push_data_valid_and_all_active_outputs_ready;
-  assign __fifo_tmp1_push_data_has_been_sent_reg_load_en = __fifo_tmp1_push_data_valid_and_ready_txfr | __fifo_tmp1_push_data_valid_and_all_active_outputs_ready;
-  assign __top_out_not_stage_load = ~__top_out_valid_and_all_active_outputs_ready;
-  assign __top_out_has_been_sent_reg_load_en = __top_out_valid_and_ready_txfr | __top_out_valid_and_all_active_outputs_ready;
+(??)  assign __top_out_has_sent_or_is_ready = top_out_rdy | __top_out_has_been_sent_reg;
+(??)  assign p12_stage_done = p11_valid & __top_out_has_sent_or_is_ready;
+(??)  assign p12_not_valid = ~p11_valid;
+(??)  assign p11_enable = p12_stage_done | p12_not_valid;
+(??)  assign p11_data_enable = p11_enable & p10_valid;
+(??)  assign p11_load_en = p11_data_enable | rst;
+(??)  assign p11_not_valid = ~p10_valid;
+(??)  assign p10_enable = p11_load_en | p11_not_valid;
+(??)  assign p10_stage_done = p9_valid & instantiation_output_205;
+(??)  assign p10_data_enable = p10_enable & p10_stage_done;
+(??)  assign p10_load_en = p10_data_enable | rst;
+(??)  assign p10_not_valid = ~p9_valid;
+(??)  assign p9_enable = p10_load_en | p10_not_valid;
+(??)  assign p9_data_enable = p9_enable & p8_valid;
+(??)  assign p9_load_en = p9_data_enable | rst;
+(??)  assign p9_not_valid = ~p8_valid;
+(??)  assign p8_enable = p9_load_en | p9_not_valid;
+(??)  assign p8_data_enable = p8_enable & p7_valid;
+(??)  assign p8_load_en = p8_data_enable | rst;
+(??)  assign p8_not_valid = ~p7_valid;
+(??)  assign p7_enable = p8_load_en | p8_not_valid;
+(??)  assign p7_data_enable = p7_enable & p6_valid;
+(??)  assign p7_load_en = p7_data_enable | rst;
+(??)  assign p7_not_valid = ~p6_valid;
+(??)  assign p6_enable = p7_load_en | p7_not_valid;
+(??)  assign p6_data_enable = p6_enable & p5_valid;
+(??)  assign p6_load_en = p6_data_enable | rst;
+(??)  assign p6_not_valid = ~p5_valid;
+(??)  assign p5_enable = p6_load_en | p6_not_valid;
+(??)  assign p5_data_enable = p5_enable & p4_valid;
+(??)  assign p5_load_en = p5_data_enable | rst;
+(??)  assign p5_not_valid = ~p4_valid;
+(??)  assign p4_enable = p5_load_en | p5_not_valid;
+(??)  assign p4_data_enable = p4_enable & p3_valid;
+(??)  assign p4_load_en = p4_data_enable | rst;
+(??)  assign p4_not_valid = ~p3_valid;
+(??)  assign p3_enable = p4_load_en | p4_not_valid;
+(??)  assign p3_data_enable = p3_enable & p2_valid;
+(??)  assign p3_load_en = p3_data_enable | rst;
+(??)  assign p3_not_valid = ~p2_valid;
+(??)  assign p2_enable = p3_load_en | p3_not_valid;
+(??)  assign p2_stage_done = p1_valid & instantiation_output_185;
+(??)  assign p2_data_enable = p2_enable & p2_stage_done;
+(??)  assign p2_load_en = p2_data_enable | rst;
+(??)  assign p2_not_valid = ~p1_valid;
+(??)  assign p1_enable = p2_load_en | p2_not_valid;
+(??)  assign p1_data_enable = p1_enable & p0_valid;
+(??)  assign p1_load_en = p1_data_enable | rst;
+(??)  assign p1_not_valid = ~p0_valid;
+(??)  assign __top_out_not_has_been_sent = ~__top_out_has_been_sent_reg;
+(??)  assign p0_enable = p1_load_en | p1_not_valid;
+(??)  assign __top_out_valid_and_not_has_been_sent = p11_valid & __top_out_not_has_been_sent;
+(??)  assign p0_data_enable = p0_enable & top_in_vld;
+(??)  assign __top_out_valid_and_all_active_outputs_ready = p11_valid & top_out_rdy;
+(??)  assign __top_out_valid_and_ready_txfr = __top_out_valid_and_not_has_been_sent & top_out_rdy;
+(??)  assign p0_load_en = p0_data_enable | rst;
+(??)  assign add_277 = p10_neg_229 + p10_tuple_index_269;
+(??)  assign neg_229 = -p0_tuple_index_223;
+(??)  assign __top_out_not_stage_load = ~__top_out_valid_and_all_active_outputs_ready;
+(??)  assign __top_out_has_been_sent_reg_load_en = __top_out_valid_and_ready_txfr | __top_out_valid_and_all_active_outputs_ready;
   always_ff @ (posedge clk) begin
-    p0_tuple_index_223 <= p0_load_en ? top_in : p0_tuple_index_223;
-    p1_neg_229 <= p1_load_en ? neg_229 : p1_neg_229;
-    p2_neg_229 <= p2_load_en ? p1_neg_229 : p2_neg_229;
-    p3_neg_229 <= p3_load_en ? p2_neg_229 : p3_neg_229;
-    p4_neg_229 <= p4_load_en ? p3_neg_229 : p4_neg_229;
-    p5_neg_229 <= p5_load_en ? p4_neg_229 : p5_neg_229;
-    p6_neg_229 <= p6_load_en ? p5_neg_229 : p6_neg_229;
-    p7_neg_229 <= p7_load_en ? p6_neg_229 : p7_neg_229;
-    p8_neg_229 <= p8_load_en ? p7_neg_229 : p8_neg_229;
-    p9_neg_229 <= p9_load_en ? p8_neg_229 : p9_neg_229;
-    p10_neg_229 <= p10_load_en ? p9_neg_229 : p10_neg_229;
-    p10_tuple_index_269 <= p10_load_en ? instantiation_output_204 : p10_tuple_index_269;
-    p11_add_277 <= p11_load_en ? add_277 : p11_add_277;
+    p0_tuple_index_89 <= p0_load_en ? top_in : p0_tuple_index_89;
   end
   always_ff @ (posedge clk) begin
     if (rst) begin
       p0_valid <= 1'h0;
-      p1_valid <= 1'h0;
-      p2_valid <= 1'h0;
-      p3_valid <= 1'h0;
-      p4_valid <= 1'h0;
-      p5_valid <= 1'h0;
-      p6_valid <= 1'h0;
-      p7_valid <= 1'h0;
-      p8_valid <= 1'h0;
-      p9_valid <= 1'h0;
-      p10_valid <= 1'h0;
-      p11_valid <= 1'h0;
-      __fifo_tmp1_push_data_has_been_sent_reg <= 1'h0;
-      __top_out_has_been_sent_reg <= 1'h0;
+(??)      p1_valid <= 1'h0;
+(??)      p2_valid <= 1'h0;
+(??)      p3_valid <= 1'h0;
+(??)      p4_valid <= 1'h0;
+(??)      p5_valid <= 1'h0;
+(??)      p6_valid <= 1'h0;
+(??)      p7_valid <= 1'h0;
+(??)      p8_valid <= 1'h0;
+(??)      p9_valid <= 1'h0;
+(??)      p10_valid <= 1'h0;
+(??)      p11_valid <= 1'h0;
+(??)      __top_out_has_been_sent_reg <= 1'h0;
     end else begin
-      p0_valid <= p0_enable ? top_in_vld : p0_valid;
-      p1_valid <= p1_enable ? p0_valid : p1_valid;
-      p2_valid <= p2_enable ? p2_stage_done : p2_valid;
-      p3_valid <= p3_enable ? p2_valid : p3_valid;
-      p4_valid <= p4_enable ? p3_valid : p4_valid;
-      p5_valid <= p5_enable ? p4_valid : p5_valid;
-      p6_valid <= p6_enable ? p5_valid : p6_valid;
-      p7_valid <= p7_enable ? p6_valid : p7_valid;
-      p8_valid <= p8_enable ? p7_valid : p8_valid;
-      p9_valid <= p9_enable ? p8_valid : p9_valid;
-      p10_valid <= p10_enable ? p10_stage_done : p10_valid;
-      p11_valid <= p11_enable ? p10_valid : p11_valid;
-      __fifo_tmp1_push_data_has_been_sent_reg <= __fifo_tmp1_push_data_has_been_sent_reg_load_en ? __fifo_tmp1_push_data_not_stage_load : __fifo_tmp1_push_data_has_been_sent_reg;
-      __top_out_has_been_sent_reg <= __top_out_has_been_sent_reg_load_en ? __top_out_not_stage_load : __top_out_has_been_sent_reg;
+(??)      p0_valid <= p0_enable ? top_in_vld : p0_valid;
+(??)      p1_valid <= p1_enable ? p0_valid : p1_valid;
+(??)      p2_valid <= p2_enable ? p2_stage_done : p2_valid;
+(??)      p3_valid <= p3_enable ? p2_valid : p3_valid;
+(??)      p4_valid <= p4_enable ? p3_valid : p4_valid;
+(??)      p5_valid <= p5_enable ? p4_valid : p5_valid;
+(??)      p6_valid <= p6_enable ? p5_valid : p6_valid;
+(??)      p7_valid <= p7_enable ? p6_valid : p7_valid;
+(??)      p8_valid <= p8_enable ? p7_valid : p8_valid;
+(??)      p9_valid <= p9_enable ? p8_valid : p9_valid;
+(??)      p10_valid <= p10_enable ? p10_stage_done : p10_valid;
+(??)      p11_valid <= p11_enable ? p10_valid : p11_valid;
+(??)      __top_out_has_been_sent_reg <= __top_out_has_been_sent_reg_load_en ? __top_out_not_stage_load : __top_out_has_been_sent_reg;
     end
   end
   // ===== Instantiations
-  xls_fifo_wrapper #(
-    .Width(32'd32),
-    .Depth(32'd1),
-    .EnableBypass(1'd0),
-    .RegisterPushOutputs(1'd1),
-    .RegisterPopOutputs(1'd0)
-  ) fifo_tmp1 (
-    .clk(clk),
-    .rst(rst),
-    .push_data(p1_neg_229),
-    .push_valid(__fifo_tmp1_push_data_valid_and_not_has_been_sent),
-    .pop_ready(instantiation_output_211),
-    .push_ready(instantiation_output_185),
-    .pop_data(instantiation_output_186),
-    .pop_valid(instantiation_output_187)
-  );
-  xls_fifo_wrapper #(
-    .Width(32'd32),
-    .Depth(32'd1),
-    .EnableBypass(1'd0),
-    .RegisterPushOutputs(1'd1),
-    .RegisterPopOutputs(1'd0)
-  ) fifo_tmp2 (
-    .clk(clk),
-    .rst(rst),
-    .push_data(instantiation_output_212),
-    .push_valid(instantiation_output_213),
-    .pop_ready(instantiation_output_218),
-    .push_ready(instantiation_output_194),
-    .pop_data(instantiation_output_195),
-    .pop_valid(instantiation_output_196)
-  );
-  xls_fifo_wrapper #(
-    .Width(32'd32),
-    .Depth(32'd1),
-    .EnableBypass(1'd0),
-    .RegisterPushOutputs(1'd1),
-    .RegisterPopOutputs(1'd0)
-  ) fifo_tmp3 (
-    .clk(clk),
-    .rst(rst),
-    .push_data(instantiation_output_219),
-    .push_valid(instantiation_output_220),
-    .pop_ready(p10_load_en),
-    .push_ready(instantiation_output_203),
-    .pop_data(instantiation_output_204),
-    .pop_valid(instantiation_output_205)
-  );
   subproc1 inst1 (
     .rst(rst),
-    .sub1_in(instantiation_output_186),
-    .sub1_in_vld(instantiation_output_187),
-    .sub1_out_rdy(instantiation_output_194),
-    .sub1_in_rdy(instantiation_output_211),
-    .sub1_out(instantiation_output_212),
-    .sub1_out_vld(instantiation_output_213),
-    .clk(clk)
+(??)    .push_data(p1_neg_229),
+(??)    .push_valid(p1_valid & p2_enable),
+(??)    .pop_ready(instantiation_output_211),
+(??)    .push_ready(instantiation_output_185),
+(??)    .pop_data(instantiation_output_186),
+(??)    .pop_valid(instantiation_output_187)
   );
   subproc2 inst2 (
     .rst(rst),
-    .sub2_in(instantiation_output_195),
-    .sub2_in_vld(instantiation_output_196),
-    .sub2_out_rdy(instantiation_output_203),
-    .sub2_in_rdy(instantiation_output_218),
-    .sub2_out(instantiation_output_219),
-    .sub2_out_vld(instantiation_output_220),
+    .sub2_in(instantiation_output_144),
+    .sub2_out(instantiation_output_85),
     .clk(clk)
   );
-  assign top_in_rdy = p0_load_en;
-  assign top_out = p11_add_277;
-  assign top_out_vld = __top_out_valid_and_not_has_been_sent;
+  delay_line_tmp1_0 materialized_delay_line_delay_line_tmp1_0_ (
+    .push_data(top_in),
+    .rst(rst),
+    .pop_data(instantiation_output_141),
+    .clk(clk)
+  );
+  delay_line_tmp2_0 materialized_delay_line_delay_line_tmp2_0_ (
+    .push_data(instantiation_output_82),
+    .rst(rst),
+    .pop_data(instantiation_output_144),
+    .clk(clk)
+  );
+  delay_line_tmp3_1 materialized_delay_line_delay_line_tmp3_1_ (
+    .push_data(instantiation_output_85),
+    .rst(rst),
+    .pop_data(instantiation_output_147),
+    .clk(clk)
+  );
+  assign top_out = add_99;
 endmodule

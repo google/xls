@@ -299,7 +299,9 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
     }
     XLS_RETURN_IF_ERROR(SingleProcToPipelinedBlock(
         package_schedule, options.codegen_options, context, proc, instances,
-        block, converted_blocks));
+        block, converted_blocks,
+        proc_elab.has_value() ? std::make_optional(&proc_elab.value())
+                              : std::nullopt));
 
     converted_blocks[fb] = block;
     changed = true;
