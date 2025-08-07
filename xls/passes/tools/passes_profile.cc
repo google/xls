@@ -243,7 +243,7 @@ Generated with commandline: %s)explanation",
     }
     absl::Duration long_duration = absl::ZeroDuration();
     absl::Time earliest_start = absl::InfiniteFuture();
-    res.set_doc_url(str_id("<todo github url>"));
+    res.set_doc_url(str_id("https://google.github.io/xls/ir_pass_profiling/"));
     for (const auto& state : states) {
       if (state->top_entry_->children_.empty()) {
         continue;

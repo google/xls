@@ -34,6 +34,7 @@ nav:
     - Optimizations:
       - Overview: 'optimizations/optimizations.md'
       - Passes: 'passes_list.md'
+      - Profiling: 'ir_pass_profiling.md'
     - Scheduling:
       - Overview: 'scheduling.md'
       - Delay Estimation: 'delay_estimation.md'
