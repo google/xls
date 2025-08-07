@@ -59,6 +59,8 @@
 #include "xls/jit/type_layout.pb.h"
 
 ABSL_FLAG(std::string, input, "", "Path to the IR to compile.");
+ABSL_FLAG(std::string, symbol_salt, "",
+          "Additional text to append to symbol names to ensure no collisions.");
 ABSL_FLAG(std::optional<std::string>, top, std::nullopt,
           "IR function to compile. "
           "If unspecified, the package top function will be used - "
@@ -234,7 +236,8 @@ absl::Status RealMain(const std::string& input_ir_path,
                       const std::optional<std::string>& output_textproto_path,
                       const std::optional<std::string>& output_llvm_ir_path,
                       const std::optional<std::string>& output_llvm_opt_ir_path,
-                      const std::optional<std::string>& output_asm_path) {
+                      const std::optional<std::string>& output_asm_path,
+                      std::string_view symbol_salt) {
   XLS_ASSIGN_OR_RETURN(std::string input_ir, GetFileContents(input_ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(input_ir, input_ir_path));
@@ -263,24 +266,24 @@ absl::Status RealMain(const std::string& input_ir_path,
   if (f->IsFunction()) {
     XLS_ASSIGN_OR_RETURN(object_code, FunctionJit::CreateObjectCode(
                                           f->AsFunctionOrDie(), llvm_opt_level,
-                                          include_msan, &obs));
+                                          include_msan, &obs, symbol_salt));
   } else if (f->IsProc()) {
     if (f->AsProcOrDie()->is_new_style_proc()) {
-      XLS_ASSIGN_OR_RETURN(
-          object_code, CreateProcAotObjectCode(f->AsProcOrDie(), llvm_opt_level,
-                                               include_msan, &obs));
+      XLS_ASSIGN_OR_RETURN(object_code, CreateProcAotObjectCode(
+                                            f->AsProcOrDie(), llvm_opt_level,
+                                            include_msan, &obs, symbol_salt));
     } else {
       // all procs
-      XLS_ASSIGN_OR_RETURN(
-          object_code, CreateProcAotObjectCode(package.get(), llvm_opt_level,
-                                               include_msan, &obs));
+      XLS_ASSIGN_OR_RETURN(object_code, CreateProcAotObjectCode(
+                                            package.get(), llvm_opt_level,
+                                            include_msan, &obs, symbol_salt));
     }
   } else {
     XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
                          BlockElaboration::Elaborate(f->AsBlockOrDie()));
-    XLS_ASSIGN_OR_RETURN(
-        object_code,
-        BlockJit::CreateObjectCode(elab, llvm_opt_level, include_msan, &obs));
+    XLS_ASSIGN_OR_RETURN(object_code, BlockJit::CreateObjectCode(
+                                          elab, llvm_opt_level, include_msan,
+                                          &obs, symbol_salt));
   }
   AotPackageEntrypointsProto all_entrypoints;
   if (output_object_path) {
@@ -346,7 +349,8 @@ int main(int argc, char** argv) {
       absl::GetFlag(FLAGS_llvm_opt_level),
       absl::GetFlag(FLAGS_output_textproto),
       absl::GetFlag(FLAGS_output_llvm_ir),
-      absl::GetFlag(FLAGS_output_llvm_opt_ir), absl::GetFlag(FLAGS_output_asm));
+      absl::GetFlag(FLAGS_output_llvm_opt_ir), absl::GetFlag(FLAGS_output_asm),
+      absl::GetFlag(FLAGS_symbol_salt));
   if (!status.ok()) {
     std::cout << status.message();
     return 1;

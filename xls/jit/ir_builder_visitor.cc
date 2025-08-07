@@ -32,9 +32,12 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "cppitertools/groupby.hpp"
+#include "cppitertools/range.hpp"
 #include "llvm/include/llvm/IR/BasicBlock.h"
 #include "llvm/include/llvm/IR/Constants.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
@@ -1184,6 +1187,7 @@ struct ScopedAdjustBuilderLocation {
   llvm::IRBuilder<>& b_;
   bool is_changed_ = false;
 };
+
 }  // namespace
 llvm::Value* NodeIrContext::GetOperandPtr(int64_t i) {
   Node* operand = node()->operand(i);
@@ -3725,8 +3729,46 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
       /*return_value=*/node_context.entry_builder().getTrue());
 }
 
+static std::string MangleForLLVM(std::string_view name_v, bool with_salt) {
+  absl::Cord name;
+  if (with_salt) {
+    for (auto&& seg : iter::groupby(iter::range(name_v.size()), [&](int64_t i) {
+           return absl::ascii_isalnum(name_v.at(i));
+         })) {
+      int64_t start = *seg.second.begin();
+      int64_t dist = std::distance(seg.second.begin(), seg.second.end());
+      bool is_ascii = seg.first;
+      std::string_view piece = name_v.substr(start, dist);
+      if (is_ascii) {
+        name.Append(piece);
+      } else {
+        for (char c : piece) {
+          name.Append(absl::StrFormat("_%d_", c));
+        }
+      }
+    }
+  } else {
+    name.Append(name_v);
+  }
+  if (name == "main") {
+    return "__XLS__main";
+  }
+  if (name == "write") {
+    return "__XLS__write";
+  }
+  return std::string(name);
+}
 }  // namespace
 
+std::string JitBuilderContext::MangleFunctionName(FunctionBase* f) {
+  bool with_salt = symbol_salt_ != "";
+  if (f == top() || !llvm_compiler().IsSharedCompilation()) {
+    return MangleForLLVM(absl::StrCat(f->name(), symbol_salt_), with_salt);
+  }
+  return MangleForLLVM(
+      absl::StrFormat("%s____SUBROUTINE_OF_%s", f->name(), top()->name()),
+      with_salt);
+}
 llvm::Value* LlvmMemcpy(llvm::Value* tgt, llvm::Value* src, int64_t size,
                         llvm::IRBuilder<>& builder) {
   CHECK(tgt->getType()->isPointerTy());

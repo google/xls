@@ -214,6 +214,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@cppitertools",
         "@llvm-project//llvm:Core",
         "@llvm-project//llvm:Support",
     ],
@@ -337,6 +338,8 @@ cc_test(
         "//xls/ir:value",
         "//xls/ir:value_builder",
         "//xls/ir:value_view",
+        "//xls/jit/testdata/v1:test_jit_wrapper",
+        "//xls/jit/testdata/v2:test_jit_wrapper",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
@@ -562,6 +565,7 @@ xls_dslx_library(
         xls_aot_generate(
             name = "multi_proc_aot%s" % suffix,
             src = ":multi_proc",
+            salt_symbols = False,
             with_msan = XLS_IS_MSAN_BUILD,
         ),
         cc_test(
@@ -1228,6 +1232,7 @@ xls_aot_generate(
     name = "multi_function_aot",
     testonly = True,
     src = ":multi_function",
+    salt_symbols = False,
     top = "multi_function_one",
     with_msan = XLS_IS_MSAN_BUILD,
 )
@@ -1324,6 +1329,7 @@ cc_xls_ir_jit_wrapper(
 xls_aot_generate(
     name = "multi_function_with_trace_aot",
     src = ":multi_function_with_trace.ir",
+    salt_symbols = False,
     top = "multi_function_one",
     with_msan = XLS_IS_MSAN_BUILD,
 )
@@ -1351,6 +1357,7 @@ genrule(
 xls_aot_generate(
     name = "specialized_caps_aot",
     src = ":some_caps_no_idents",
+    salt_symbols = False,
     with_msan = XLS_IS_MSAN_BUILD,
 )
 
