@@ -262,6 +262,45 @@ TEST_F(ResourceSharingPassTest, MergeSingleSignedMultiplication) {
   InterpretAndCheck(f, {0, 2, 3, 0, 0}, 6);
 }
 
+TEST_F(ResourceSharingPassTest, MergeSingleSignedMultiplicationInDefaultCase) {
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+
+  // Create the IR body
+  BValue mulIJ = fb.SMul(i, j);
+  BValue mulKZ = fb.SMul(k, z);
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+  BValue add = fb.Add(mulKZ, kNeg1);
+  BValue selector = fb.Eq(op, fb.Literal(UBits(0, 32)));
+  BValue select = fb.PrioritySelect(selector, {mulIJ}, add);
+
+  // Create the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select));
+
+  // We expect the transformation successfully completed and it returned true
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  // We expect the result function has only one multiplication in its body
+  uint64_t number_of_muls = NumberOfMultiplications(f);
+  EXPECT_EQ(number_of_muls, 1);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  InterpretAndCheck(f, {1, 0, 0, 2, 3}, 5);
+  InterpretAndCheck(f, {0, 2, 3, 0, 0}, 6);
+}
+
 TEST_F(ResourceSharingPassTest, MergeMultipleUnsignedMultiplications) {
   // Create the function builder
   auto package = CreatePackage();
@@ -689,6 +728,64 @@ TEST_F(ResourceSharingPassTest,
   // We expect the resource sharing optimization to have preserved the
   // inputs/outputs pairs we know to be valid.
   InterpretAndCheck(f, {0, 2, 3, 0, 0}, 6);
+  InterpretAndCheck(f, {1, 0, 0, 2, 3}, 10);
+}
+
+TEST_F(ResourceSharingPassTest,
+       MergeMultiplicationsNotPostDominatedBySelectUsingDefaultCase) {
+  // Create the function builder
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue op = fb.Param("op", u32_type);
+  BValue i = fb.Param("i", u32_type);
+  BValue j = fb.Param("j", u32_type);
+  BValue k = fb.Param("k", u32_type);
+  BValue z = fb.Param("z", u32_type);
+
+  // Create the IR body
+  //
+  // Step 0: constants
+  BValue k0 = fb.Literal(UBits(0, 32));
+  BValue kNeg1 = fb.Literal(UBits(4294967295, 32));
+
+  // Step 1: results
+  BValue mulIJ = fb.UMul(i, j);
+  BValue mulKZ = fb.UMul(k, z);
+  BValue add = fb.Add(mulKZ, kNeg1);
+
+  // Step 2: select the result to return
+  BValue isOp0 = fb.Eq(op, k0);
+  BValue select = fb.PrioritySelect(isOp0, {mulIJ}, add);
+
+  // Step 3: post-select computation
+  // BValue not0 = fb.Not(isOp0);
+  // BValue not0Extended = fb.SignExtend(not0, 32);
+  // BValue post_select_and = fb.And(add, not0Extended);
+  // BValue post_select_add = fb.Add(select, post_select_and);
+  BValue is0Extended = fb.SignExtend(isOp0, 32);
+  BValue post_select_or = fb.Or(add, is0Extended);
+  BValue post_select_add = fb.Add(select, post_select_or);
+
+  // Create the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(post_select_add));
+
+  // We expect the transformation successfully completed and it returned true
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+
+  // We expect the result function has only one multiplication in its body
+  uint64_t number_of_muls = NumberOfMultiplications(f);
+  EXPECT_EQ(number_of_muls, 1);
+
+  // We expect the resource sharing optimization to have preserved the
+  // inputs/outputs pairs we know to be valid.
+  // InterpretAndCheck(f, {0, 2, 3, 0, 0}, 6);
+  InterpretAndCheck(f, {0, 2, 3, 0, 0}, 5);
   InterpretAndCheck(f, {1, 0, 0, 2, 3}, 10);
 }
 
