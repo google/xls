@@ -641,6 +641,7 @@ cc_test(
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
     ],
 )

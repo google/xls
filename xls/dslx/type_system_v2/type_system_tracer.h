@@ -84,7 +84,8 @@ class TypeSystemTrace {
 // TraceX and keep the resulting `TypeSystemTrace` around until that is done.
 class TypeSystemTracer {
  public:
-  static std::unique_ptr<TypeSystemTracer> Create(bool active);
+  static std::unique_ptr<TypeSystemTracer> Create(
+      bool active, bool time_every_action = false);
 
   virtual ~TypeSystemTracer() = default;
 

@@ -52,7 +52,7 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
   InferenceTable* table = import_data->GetOrCreateInferenceTable();
   XLS_ASSIGN_OR_RETURN(TypecheckFlagsProto flags, GetTypecheckFlagsProto());
   std::unique_ptr<TypeSystemTracer> tracer =
-      TypeSystemTracer::Create(flags.dump_traces());
+      TypeSystemTracer::Create(flags.dump_traces(), flags.time_every_action());
   auto& tracer_ref = *tracer;
   auto typecheck_imported_module = [import_data, warnings](
                                        std::unique_ptr<Module> module,

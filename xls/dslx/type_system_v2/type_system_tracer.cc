@@ -65,6 +65,7 @@ struct TypeSystemTraceImpl {
   TraceKind kind;
   int level = 0;
   std::optional<absl::Time> start_time;
+  std::optional<const void*> address;
   std::optional<const AstNode*> node;
   std::optional<const TypeAnnotation*> annotation;
   std::optional<const NameRef*> inference_variable;
@@ -77,6 +78,7 @@ struct TypeSystemTraceImpl {
   std::optional<bool> used_cache;
   std::optional<bool> populated_cache;
   std::optional<bool> convert_for_type_variable_unification;
+  absl::Duration duration;
 };
 
 std::string TraceKindToString(TraceKind kind) {
@@ -115,6 +117,9 @@ std::ostream& operator<<(std::ostream& out, TraceKind kind) {
 
 std::string TraceImplToString(const TypeSystemTraceImpl& impl) {
   std::vector<std::string> pieces;
+  if (impl.address.has_value()) {
+    pieces.push_back(absl::StrFormat("%p", *impl.address));
+  }
   if (impl.node.has_value()) {
     pieces.push_back(absl::StrCat("node: ", (*impl.node)->ToString()));
   }
@@ -172,16 +177,19 @@ std::string TraceImplToString(const TypeSystemTraceImpl& impl) {
 
 class TypeSystemTracerImpl : public TypeSystemTracer {
  public:
-  TypeSystemTracerImpl()
+  TypeSystemTracerImpl(bool time_every_action)
       : root_trace_(&traces_.emplace_back(
                         TypeSystemTraceImpl{.kind = TraceKind::kRoot}),
-                    /*cleanup=*/[] {}) {
+                    /*cleanup=*/[] {}),
+        time_every_action_(time_every_action) {
     stack_.push(&*traces_.begin());
   }
 
   TypeSystemTrace TraceUnify(const AstNode* node) override {
-    return Trace(TypeSystemTraceImpl{
-        .parent = stack_.top(), .kind = TraceKind::kUnify, .node = node});
+    return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
+                                     .kind = TraceKind::kUnify,
+                                     .address = node,
+                                     .node = node});
   }
 
   TypeSystemTrace TraceUnify(const NameRef* type_variable) override {
@@ -211,18 +219,22 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
       std::optional<const ParametricContext*> parametric_context) override {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kResolve,
+                                     .address = annotation,
                                      .annotation = annotation,
                                      .parametric_context = parametric_context});
   }
 
   TypeSystemTrace TraceConvertNode(const AstNode* node) override {
-    return Trace(TypeSystemTraceImpl{
-        .parent = stack_.top(), .kind = TraceKind::kConvertNode, .node = node});
+    return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
+                                     .kind = TraceKind::kConvertNode,
+                                     .address = node,
+                                     .node = node});
   }
 
   TypeSystemTrace TraceConvertActualArgument(const AstNode* node) override {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kConvertActualArgument,
+                                     .address = node,
                                      .node = node});
   }
 
@@ -233,6 +245,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
     return Trace(
         TypeSystemTraceImpl{.parent = stack_.top(),
                             .kind = TraceKind::kConvertInvocation,
+                            .address = invocation,
                             .node = invocation,
                             .parametric_context = caller_context,
                             .convert_for_type_variable_unification =
@@ -252,6 +265,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
       const Expr* expr) override {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kEvaluate,
+                                     .address = expr,
                                      .node = expr,
                                      .parametric_context = parametric_context});
   }
@@ -261,6 +275,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
       const AstNode* node) override {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kCollectConstants,
+                                     .address = node,
                                      .node = node,
                                      .parametric_context = parametric_context});
   }
@@ -268,12 +283,15 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
   TypeSystemTrace TraceConcretize(const TypeAnnotation* annotation) override {
     return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
                                      .kind = TraceKind::kConcretize,
+                                     .address = annotation,
                                      .annotation = annotation});
   }
 
   TypeSystemTrace TraceUnroll(const AstNode* node) override {
-    return Trace(TypeSystemTraceImpl{
-        .parent = stack_.top(), .kind = TraceKind::kUnroll, .node = node});
+    return Trace(TypeSystemTraceImpl{.parent = stack_.top(),
+                                     .kind = TraceKind::kUnroll,
+                                     .address = node,
+                                     .node = node});
   }
 
   std::string ConvertTracesToString() const override {
@@ -284,8 +302,12 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
       }
       absl::StrAppend(
           &result,
-          Indent(absl::StrFormat("%s (%s)\n", TraceKindToString(trace.kind),
-                                 TraceImplToString(trace)),
+          Indent(absl::StrFormat("%s (%s)%s\n", TraceKindToString(trace.kind),
+                                 TraceImplToString(trace),
+                                 time_every_action_
+                                     ? absl::StrCat(" ", absl::FormatDuration(
+                                                             trace.duration))
+                                     : ""),
                  (trace.level - 1) * 3));
     }
     return result;
@@ -339,10 +361,14 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
  private:
   void Cleanup(TypeSystemTraceImpl* impl) {
     CHECK(stack_.top() == impl);
-    if (impl->start_time.has_value() && impl->kind == TraceKind::kConvertNode) {
-      NodeStats& node_stats = stats_[*impl->node];
-      node_stats.total_processing_time += absl::Now() - *impl->start_time;
-      ++node_stats.conversion_count;
+    if (impl->start_time.has_value() &&
+        (impl->kind == TraceKind::kConvertNode || time_every_action_)) {
+      impl->duration = absl::Now() - *impl->start_time;
+      if (impl->node && impl->kind == TraceKind::kConvertNode) {
+        NodeStats& node_stats = stats_[*impl->node];
+        node_stats.total_processing_time += impl->duration;
+        ++node_stats.conversion_count;
+      }
     }
     if (impl->kind == TraceKind::kUnify &&
         impl->inference_variable.has_value()) {
@@ -359,7 +385,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
     CHECK_NE(impl.parent, nullptr);
     CHECK_NE(impl.kind, TraceKind::kRoot);
 
-    if (impl.kind == TraceKind::kConvertNode) {
+    if (impl.kind == TraceKind::kConvertNode || time_every_action_) {
       impl.start_time = absl::Now();
     }
 
@@ -381,6 +407,7 @@ class TypeSystemTracerImpl : public TypeSystemTracer {
   absl::flat_hash_map<const AstNode*, NodeStats> stats_;
   int variable_unification_count_ = 0;
   int cached_variable_unification_count_ = 0;
+  bool time_every_action_;
 };
 
 // Implements the tracer interface with negligible overhead, for when tracing is
@@ -455,9 +482,10 @@ class NoopTracer final : public TypeSystemTracer {
   TypeSystemTraceImpl impl_;
 };
 
-std::unique_ptr<TypeSystemTracer> TypeSystemTracer::Create(bool active) {
+std::unique_ptr<TypeSystemTracer> TypeSystemTracer::Create(
+    bool active, bool time_every_action) {
   if (active) {
-    return std::make_unique<TypeSystemTracerImpl>();
+    return std::make_unique<TypeSystemTracerImpl>(time_every_action);
   }
   return std::make_unique<NoopTracer>();
 }

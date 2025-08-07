@@ -19,6 +19,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
@@ -66,25 +67,27 @@ TEST_F(TypeSystemTracerTest, ConvertTracesToString) {
       module_->Make<Number>(Span::Fake(), "1", NumberKind::kOther, nullptr);
   Number* two =
       module_->Make<Number>(Span::Fake(), "2", NumberKind::kOther, nullptr);
+  TypeAnnotation* u32 = nullptr;
   {
     TypeSystemTrace convert_node = tracer_->TraceConvertNode(one);
     {
       TypeSystemTrace unify = tracer_->TraceUnify(one);
       TypeSystemTrace evaluate = tracer_->TraceEvaluate(std::nullopt, one);
     }
-    TypeSystemTrace concretize =
-        tracer_->TraceConcretize(CreateU32Annotation(*module_, Span::Fake()));
+    u32 = CreateU32Annotation(*module_, Span::Fake());
+    TypeSystemTrace concretize = tracer_->TraceConcretize(u32);
   }
   TypeSystemTrace convert_node2 = tracer_->TraceConvertNode(two);
 
   EXPECT_EQ(absl::StrCat("\n", tracer_->ConvertTracesToString()),
-            R"(
-ConvertNode (node: 1)
-   Unify (node: 1)
-      Evaluate (node: 1)
-   Concretize (annotation: u32)
-ConvertNode (node: 2)
-)");
+            absl::StrFormat(R"(
+ConvertNode (%p, node: 1)
+   Unify (%p, node: 1)
+      Evaluate (%p, node: 1)
+   Concretize (%p, annotation: u32)
+ConvertNode (%p, node: 2)
+)",
+                            one, one, one, u32, two));
 }
 
 }  // namespace

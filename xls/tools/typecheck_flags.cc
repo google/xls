@@ -33,6 +33,11 @@ ABSL_FLAG(bool, typecheck_dump_traces, false,
           "Whether to dump per-module traces of the details of what was done "
           "during type inference in `trace_ouput_dir`.");
 
+ABSL_FLAG(
+    bool, typecheck_time_every_action, false,
+    "Whether to time every action being traced, and output the duration along "
+    "with trace outputs.");
+
 namespace xls {
 
 absl::StatusOr<TypecheckFlagsProto> GetTypecheckFlagsProto() {
@@ -41,9 +46,10 @@ absl::StatusOr<TypecheckFlagsProto> GetTypecheckFlagsProto() {
   bool dump_inference_table =
       absl::GetFlag(FLAGS_typecheck_dump_inference_table);
   bool dump_traces = absl::GetFlag(FLAGS_typecheck_dump_traces);
+  bool time_every_action = absl::GetFlag(FLAGS_typecheck_time_every_action);
 
   if (trace_out_dir.empty()) {
-    if (dump_inference_table || dump_traces) {
+    if (dump_inference_table || dump_traces || time_every_action) {
       return absl::InvalidArgumentError(
           "In order to output inference table or traces, "
           "--typecheck_trace_out_dir must be specified.");
@@ -58,6 +64,7 @@ absl::StatusOr<TypecheckFlagsProto> GetTypecheckFlagsProto() {
 
   proto.set_dump_inference_table(dump_inference_table);
   proto.set_dump_traces(dump_traces);
+  proto.set_time_every_action(time_every_action);
   return proto;
 }
 

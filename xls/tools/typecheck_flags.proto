@@ -12,4 +12,8 @@ message TypecheckFlagsProto {
 
   // Whether to dump per-module traces to files in `trace_output_dir`.
   optional bool dump_traces = 3;
+
+  // Whether to time every action being traced, and output the durations along
+  // with `typecheck_dump_traces`.
+  optional bool time_every_action = 4;
 }
