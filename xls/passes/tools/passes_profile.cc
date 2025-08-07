@@ -14,6 +14,7 @@
 
 #include "xls/passes/tools/passes_profile.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
@@ -26,14 +27,18 @@
 #include <vector>
 
 #include "proto/profile.pb.h"
+#include "absl/base/no_destructor.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "cppitertools/reversed.hpp"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/module_initializer.h"
@@ -186,7 +191,8 @@ class ProfileState {
                             std::variant<std::string_view, int64_t> contents) {
     bottom_entry_->RecordAnnotation(key, contents);
   }
-  perftools::profiles::Profile Serialize() {
+  static perftools::profiles::Profile SerializeAll(
+      absl::Span<std::unique_ptr<ProfileState> const> states) {
     perftools::profiles::Profile res;
     absl::flat_hash_map<std::string, int64_t> str_table;
     absl::flat_hash_set<std::string> seen_names;
@@ -232,17 +238,30 @@ class ProfileState {
 
 Generated with commandline: %s)explanation",
         GetCmdline())));
-    res.set_doc_url(str_id("<todo github url>"));
-    if (top_entry_->children_.empty()) {
+    if (states.empty()) {
       return res;
     }
-    res.set_time_nanos(
-        absl::ToUnixNanos(start_.value_or(absl::InfinitePast())));
-    res.set_duration_nanos(absl::ToInt64Nanoseconds(
-        top_entry_->children_.front().elapsed_.value_or(
-            top_entry_->children_.front().stopwatch_.GetElapsedTime())));
-    std::vector<int64_t> locs;
-    top_entry_->children_.front().RecordToProto(res, locs, str_id, loc_id);
+    absl::Duration long_duration = absl::ZeroDuration();
+    absl::Time earliest_start = absl::InfiniteFuture();
+    res.set_doc_url(str_id("<todo github url>"));
+    for (const auto& state : states) {
+      if (state->top_entry_->children_.empty()) {
+        continue;
+      }
+      long_duration = std::max(
+          long_duration, state->top_entry_->children_.front().elapsed_.value_or(
+                             state->top_entry_->children_.front()
+                                 .stopwatch_.GetElapsedTime()));
+      earliest_start = std::min(earliest_start,
+                                state->start_.value_or(absl::InfiniteFuture()));
+      std::vector<int64_t> locs;
+      state->top_entry_->children_.front().RecordToProto(res, locs, str_id,
+                                                         loc_id);
+    }
+    res.set_time_nanos(absl::ToUnixNanos(
+        earliest_start != absl::InfiniteFuture() ? earliest_start
+                                                 : absl::InfinitePast()));
+    res.set_duration_nanos(absl::ToInt64Nanoseconds(long_duration));
     return res;
   }
 
@@ -253,13 +272,29 @@ Generated with commandline: %s)explanation",
   std::optional<absl::Time> start_;
 };
 
-ProfileState the_state;
+absl::Mutex STATE_LIST_MUTEX;
+absl::NoDestructor<std::vector<std::unique_ptr<ProfileState>>> ALL_PROFILES
+    ABSL_GUARDED_BY(STATE_LIST_MUTEX);
+
+ProfileState& GetState() {
+  static thread_local ProfileState* the_state = nullptr;
+  if (the_state == nullptr) {
+    absl::MutexLock mu(&STATE_LIST_MUTEX);
+    ALL_PROFILES->emplace_back(std::make_unique<ProfileState>());
+    the_state = ALL_PROFILES->back().get();
+  }
+  return *the_state;
+}
 
 void WritePprofFile() {
   if (!absl::GetFlag(FLAGS_passes_profile)) {
     return;
   }
-  auto out = the_state.Serialize();
+  absl::MutexLock mu(&STATE_LIST_MUTEX);
+  // Ensure we actually deallocate the profiles.
+  std::vector<std::unique_ptr<ProfileState>> profiles =
+      std::move(*ALL_PROFILES);
+  auto out = ProfileState::SerializeAll(profiles);
   std::string serialized;
   bool changed = out.SerializeToString(&serialized);
   if (!changed) {
@@ -274,14 +309,14 @@ void WritePprofFile() {
 }  // namespace
 
 void RecordPassEntry(std::string_view short_name) {
-  the_state.RecordPassEntry(short_name);
+  GetState().RecordPassEntry(short_name);
 }
 
 void RecordPassAnnotation(std::string_view key,
                           std::variant<std::string_view, int64_t> contents) {
-  the_state.RecordPassAnnotation(key, contents);
+  GetState().RecordPassAnnotation(key, contents);
 }
-void ExitPass(bool changed) { the_state.ExitPass(changed); }
+void ExitPass(bool changed) { GetState().ExitPass(changed); }
 
 XLS_REGISTER_MODULE_INITIALIZER(pass_profile_saver,
                                 { atexit(WritePprofFile); });
