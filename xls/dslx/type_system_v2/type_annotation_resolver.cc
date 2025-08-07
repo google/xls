@@ -366,6 +366,23 @@ class StatefulResolver : public TypeAnnotationResolver {
   absl::StatusOr<const TypeAnnotation*> ResolveIndirectTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation, TypeAnnotationFilter filter) override {
+    return ResolveInternal(parametric_context, annotation, filter,
+                           /*type_refs_only=*/false);
+  }
+
+  absl::StatusOr<const TypeAnnotation*> ResolveTypeRefs(
+      std::optional<const ParametricContext*> parametric_context,
+      const TypeAnnotation* annotation) override {
+    return ResolveInternal(parametric_context, annotation,
+                           TypeAnnotationFilter::None(),
+                           /*type_refs_only=*/true);
+  }
+
+ private:
+  absl::StatusOr<const TypeAnnotation*> ResolveInternal(
+      std::optional<const ParametricContext*> parametric_context,
+      const TypeAnnotation* annotation, TypeAnnotationFilter filter,
+      bool type_refs_only) {
     TypeSystemTrace trace =
         tracer_.TraceResolve(annotation, parametric_context);
     // This is purely to avoid wasting time on annotations that clearly need no
@@ -407,9 +424,11 @@ class StatefulResolver : public TypeAnnotationResolver {
           });
       XLS_ASSIGN_OR_RETURN(
           AstNode * clone,
-          table_.Clone(annotation,
-                       ChainCloneReplacers(std::move(replace_indirect),
-                                           std::move(replace_type_aliases))));
+          table_.Clone(annotation, type_refs_only
+                                       ? std::move(replace_type_aliases)
+                                       : ChainCloneReplacers(
+                                             std::move(replace_indirect),
+                                             std::move(replace_type_aliases))));
       if (replaced_anything) {
         annotation = down_cast<const TypeAnnotation*>(clone);
       } else {
@@ -422,7 +441,6 @@ class StatefulResolver : public TypeAnnotationResolver {
     return annotation;
   }
 
- private:
   // Makes sure the given direct annotation is bits-like if `require_bits_like`
   // is true. This function presumes `annotation` is post-resolution. Returns
   // the passed-in annotation if it passes the check.
@@ -1092,6 +1110,13 @@ class StatelessResolver : public TypeAnnotationResolver {
       TypeAnnotationFilter filter) override {
     return CreateStatefulResolver()->ResolveIndirectTypeAnnotations(
         parametric_context, annotations, filter);
+  }
+
+  absl::StatusOr<const TypeAnnotation*> ResolveTypeRefs(
+      std::optional<const ParametricContext*> parametric_context,
+      const TypeAnnotation* annotation) override {
+    return CreateStatefulResolver()->ResolveTypeRefs(parametric_context,
+                                                     annotation);
   }
 
  private:

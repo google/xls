@@ -1750,6 +1750,11 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                 << " has no independent type annotations.";
         continue;
       }
+
+      XLS_ASSIGN_OR_RETURN(
+          const TypeAnnotation* formal_type,
+          resolver_->ResolveTypeRefs(target_context, formal_types[i]));
+
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* actual_arg_type,
           resolver_->ResolveAndUnifyTypeAnnotations(
@@ -1759,14 +1764,13 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(actual_arg_type, std::nullopt, actual_arg_context));
       VLOG(5) << "Infer using actual type: " << actual_arg_type->ToString()
-              << " and formal type: " << formal_types[i]->ToString()
+              << " and formal type: " << formal_type->ToString()
               << " with effective context: " << ToString(actual_arg_context);
 
       absl::StatusOr<absl::flat_hash_map<const ParametricBinding*,
                                          InterpValueOrTypeAnnotation>>
           resolved = SolveForParametrics(
-              import_data_, actual_arg_type, formal_types[i],
-              implicit_parametrics,
+              import_data_, actual_arg_type, formal_type, implicit_parametrics,
               [&](const TypeAnnotation* expected_type, const Expr* expr) {
                 return evaluator_->Evaluate(ParametricContextScopedExpr(
                     actual_arg_context, expected_type, expr));

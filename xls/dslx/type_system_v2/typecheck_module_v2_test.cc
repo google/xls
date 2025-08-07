@@ -8180,6 +8180,24 @@ const_assert!(main(u2:2) == imported::MyEnum::C);
                   HasNodeWithType("imported::ENUMS[i]", "MyEnum"))));
 }
 
+TEST(TypecheckV2Test, ParametricArrayOfImportedType) {
+  constexpr std::string_view kImported = R"(
+pub type stuff_t = u32;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+type stuff_t = imported::stuff_t;
+fn do_stuff<N: u32>(stuff: stuff_t[N]) -> stuff_t[N] { stuff }
+const X = do_stuff([u32:1, 2, 3]);
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_EXPECT_OK(TypecheckV2(kImported, "imported", &import_data));
+  EXPECT_THAT(TypecheckV2(kProgram, "main", &import_data),
+              IsOkAndHolds(HasTypeInfo(HasNodeWithType("X", "uN[32][3]"))));
+}
+
 TEST(TypecheckV2Test, ZeroMacroImportedEnum) {
   constexpr std::string_view kImported = R"(
 pub enum E: u2 { ZERO=0, ONE=1, TWO=2}

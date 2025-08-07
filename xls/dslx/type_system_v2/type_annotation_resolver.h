@@ -104,6 +104,14 @@ class TypeAnnotationResolver {
       std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*>& annotations,
       TypeAnnotationFilter filter) = 0;
+
+  // Returns a copy of `annotation` with any type aliases resolved, but not
+  // other kinds of indirect type annotations. This is suitable for user-written
+  // annotations, especially formal types of parametric arguments, and avoids
+  // attempting to use the unknown parametrics in that case.
+  virtual absl::StatusOr<const TypeAnnotation*> ResolveTypeRefs(
+      std::optional<const ParametricContext*> parametric_context,
+      const TypeAnnotation* annotation) = 0;
 };
 
 }  // namespace xls::dslx
