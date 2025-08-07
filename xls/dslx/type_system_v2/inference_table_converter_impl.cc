@@ -1738,6 +1738,10 @@ class InferenceTableConverterImpl : public InferenceTableConverter,
                   actual_arg_ti)
                   .Chain(
                       TypeAnnotationFilter::FilterFormalMemberTypes(&table_)));
+      for (const TypeAnnotation* annotation : actual_arg_annotations) {
+        VLOG(6) << "Pre-filtered actual arg annotation: "
+                << annotation->ToString();
+      }
       XLS_RETURN_IF_ERROR(resolver_->ResolveIndirectTypeAnnotations(
           actual_arg_context, actual_arg_annotations, filter));
       if (actual_arg_annotations.empty()) {

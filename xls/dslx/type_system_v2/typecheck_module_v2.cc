@@ -46,7 +46,7 @@ absl::StatusOr<std::unique_ptr<ModuleInfo>> TypecheckModuleV2(
   std::string_view module_name = module->name();
   const bool top_module = !import_data->HasInferenceTable();
   if (top_module) {
-    VLOG(3) << "Using type system v2 for type checking\n";
+    VLOG(3) << "Using type system v2 for type checking of " << path;
   }
 
   InferenceTable* table = import_data->GetOrCreateInferenceTable();

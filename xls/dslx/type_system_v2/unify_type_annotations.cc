@@ -143,7 +143,9 @@ class Unifier {
     if (annotations.empty()) {
       return module_.Make<AnyTypeAnnotation>(/*multiple=*/true);
     }
-    if (annotations.size() == 1) {
+    if (annotations.size() == 1 &&
+        !table_.GetAnnotationFlag(annotations[0])
+             .HasFlag(TypeInferenceFlag::kFormalMemberType)) {
       XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
                            GetStructOrProcRef(annotations[0], import_data_));
       if (!struct_or_proc_ref.has_value() &&
@@ -603,11 +605,11 @@ class Unifier {
     }
     const TypeAnnotation* result = SignednessAndSizeToAnnotation(
         module_, *unified_signedness_and_bit_count, span);
-    // An annotation we fabricate as a unification of a bunch of auto
-    // annotations, is also considered an auto annotation itself.
-    if (!unified_signedness_and_bit_count->flag.HasFlag(
-            TypeInferenceFlag::kNone)) {
-      table_.SetAnnotationFlag(result, unified_signedness_and_bit_count->flag);
+    // An annotation we fabricate as a unification of a bunch of min
+    // annotations, is also considered a min annotation itself.
+    if (unified_signedness_and_bit_count->flag.HasFlag(
+            TypeInferenceFlag::kMinSize)) {
+      table_.SetAnnotationFlag(result, TypeInferenceFlag::kMinSize);
     }
     return result;
   }
