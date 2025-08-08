@@ -61,9 +61,8 @@ FuncOp maybeDeclareDslxFn(SymbolTable& symtab, OpBuilder builder,
     return fn;
   }
 
-  FuncOp fn =
-      FuncOp::create(builder, importOp->getLoc(), symbolName,
-                     builder.getFunctionType(operands, results), std::nullopt);
+  FuncOp fn = FuncOp::create(builder, importOp->getLoc(), symbolName,
+                             builder.getFunctionType(operands, results), {});
   fn.setVisibility(SymbolTable::Visibility::Private);
   fn->setAttr("xls.linkage",
               xls::TranslationLinkage::get(
