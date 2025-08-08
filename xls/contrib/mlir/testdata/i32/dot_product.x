@@ -20,7 +20,7 @@ pub fn dot_product_fixed<BITCOUNT: u32, VECTOR_LENGTH: u32>
   -> sN[BITCOUNT]{
 
   for(idx, acc): (u32, sN[BITCOUNT])
-    in range (u32:0, VECTOR_LENGTH) {
+    in u32:0..VECTOR_LENGTH {
 
     let partial_product = a[idx] * b[idx];
     acc + partial_product

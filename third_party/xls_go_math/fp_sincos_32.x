@@ -124,7 +124,7 @@ fn cos_taylor(z_sq: F32) -> F32 {
                         z_sq,
 
                         for(idx, acc): (u3, F32)
-                          in range (u3:0, u3:5) {
+                          in u3:0..u3:5 {
                           float32::add(
                             float32::mul(
                               acc,
@@ -173,7 +173,7 @@ fn sin_taylor(z:F32, z_sq: F32) -> F32 {
                         z_sq,
 
                         for(idx, acc): (u3, F32)
-                          in range (u3:0, u3:5) {
+                          in u3:0..u3:5 {
                           float32::add(
                             float32::mul(
                               acc,
