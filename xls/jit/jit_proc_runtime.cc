@@ -126,7 +126,8 @@ class SharedCompiler final : public LlvmCompiler {
 absl::StatusOr<JitObjectCode> GetAotObjectCode(ProcElaboration elaboration,
                                                int64_t opt_level,
                                                bool with_msan,
-                                               JitObserver* observer) {
+                                               JitObserver* observer,
+                                               std::string_view symbol_salt) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> compiler,
                        AotCompiler::Create(with_msan, opt_level, observer));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<llvm::TargetMachine> target,
@@ -141,7 +142,7 @@ absl::StatusOr<JitObjectCode> GetAotObjectCode(ProcElaboration elaboration,
   for (Proc* p : elaboration.procs()) {
     entrypoints.push_back({.function = p});
     XLS_ASSIGN_OR_RETURN(entrypoints.back().jit_info,
-                         JittedFunctionBase::Build(p, sc));
+                         JittedFunctionBase::Build(p, sc, symbol_salt));
   }
   XLS_RETURN_IF_ERROR(compiler->CompileModule(std::move(sc).TakeModule()));
   XLS_ASSIGN_OR_RETURN(std::vector<uint8_t> object_code,
@@ -286,23 +287,21 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
   return CreateRuntime(std::move(elaboration), options);
 }
 
-absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(Package* package,
-                                                      int64_t opt_level,
-                                                      bool with_msan,
-                                                      JitObserver* observer) {
+absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
+    Package* package, int64_t opt_level, bool with_msan, JitObserver* observer,
+    std::string_view symbol_salt) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::ElaborateOldStylePackage(package));
   return GetAotObjectCode(std::move(elaboration), opt_level, with_msan,
-                          observer);
+                          observer, symbol_salt);
 }
-absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(Proc* top,
-                                                      int64_t opt_level,
-                                                      bool with_msan,
-                                                      JitObserver* observer) {
+absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
+    Proc* top, int64_t opt_level, bool with_msan, JitObserver* observer,
+    std::string_view symbol_salt) {
   XLS_ASSIGN_OR_RETURN(ProcElaboration elaboration,
                        ProcElaboration::Elaborate(top));
   return GetAotObjectCode(std::move(elaboration), opt_level, with_msan,
-                          observer);
+                          observer, symbol_salt);
 }
 
 // Create a SerialProcRuntime composed of ProcJits. Constructed from the

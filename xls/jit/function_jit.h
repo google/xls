@@ -67,7 +67,7 @@ class FunctionJit {
   // Returns the bytes of an object file containing the compiled XLS function.
   static absl::StatusOr<JitObjectCode> CreateObjectCode(
       Function* xls_function, int64_t opt_level, bool include_msan,
-      JitObserver* observer = nullptr);
+      JitObserver* observer = nullptr, std::string_view symbol_salt = "");
 
   // Executes the compiled function with the specified arguments.
   absl::StatusOr<InterpreterResult<Value>> Run(absl::Span<const Value> args);

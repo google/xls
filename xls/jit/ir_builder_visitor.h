@@ -25,7 +25,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "llvm/include/llvm/IR/Module.h"
@@ -46,8 +45,10 @@ bool ShouldMaterializeAtUse(Node* node);
 // etc.
 class JitBuilderContext {
  public:
-  explicit JitBuilderContext(LlvmCompiler& llvm_compiler, FunctionBase* top)
+  explicit JitBuilderContext(LlvmCompiler& llvm_compiler, FunctionBase* top,
+                             std::string_view symbol_salt)
       : module_(llvm_compiler.NewModule("__module")),
+        symbol_salt_(symbol_salt),
         llvm_compiler_(llvm_compiler),
         top_(top),
         type_converter_(llvm_compiler_.GetContext(),
@@ -94,15 +95,11 @@ class JitBuilderContext {
     return queue_indices_;
   }
 
-  std::string MangleFunctionName(FunctionBase* f) {
-    if (f == top() || !llvm_compiler().IsSharedCompilation()) {
-      return f->name();
-    }
-    return absl::StrFormat("%s____SUBROUTINE_OF_%s", f->name(), top()->name());
-  }
+  std::string MangleFunctionName(FunctionBase* f);
 
  private:
   std::unique_ptr<llvm::Module> module_;
+  std::string_view symbol_salt_;
   LlvmCompiler& llvm_compiler_;
   FunctionBase* top_;
   LlvmTypeConverter type_converter_;

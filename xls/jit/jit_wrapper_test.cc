@@ -36,6 +36,8 @@
 #include "xls/jit/compound_type_jit_wrapper.h"
 #include "xls/jit/multi_func_block_wrapper.h"
 #include "xls/jit/multi_func_with_trace_block_wrapper.h"
+#include "xls/jit/testdata/v1/test_jit_wrapper.h"
+#include "xls/jit/testdata/v2/test_jit_wrapper.h"
 
 namespace xls {
 namespace {
@@ -47,6 +49,13 @@ using ::testing::IsEmpty;
 using ::testing::Optional;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
+
+TEST(JitWrapperTest, CanCallTargetsWithSameName) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto v1_jit, jit_test::v1::TestIr::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto v2_jit, jit_test::v2::TestIr::Create());
+  EXPECT_THAT(v1_jit->Run(0), IsOkAndHolds(1));
+  EXPECT_THAT(v2_jit->Run(0), IsOkAndHolds(2));
+}
 
 TEST(JitWrapperTest, BasicFunctionCall) {
   XLS_ASSERT_OK_AND_ASSIGN(

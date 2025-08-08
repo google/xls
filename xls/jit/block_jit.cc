@@ -419,7 +419,7 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
 
 /* static */ absl::StatusOr<JitObjectCode> BlockJit::CreateObjectCode(
     const BlockElaboration& elab, int64_t opt_level, bool include_msan,
-    JitObserver* obs) {
+    JitObserver* obs, std::string_view symbol_salt) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> comp,
                        AotCompiler::Create(include_msan, opt_level, obs));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout, comp->CreateDataLayout());
@@ -429,7 +429,8 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
   XLS_ASSIGN_OR_RETURN(ElaborationJitData jit_data,
                        CloneElaborationPackage(elab));
   XLS_ASSIGN_OR_RETURN(
-      auto function, JittedFunctionBase::Build(jit_data.inlined_block, *comp));
+      auto function,
+      JittedFunctionBase::Build(jit_data.inlined_block, *comp, symbol_salt));
   XLS_ASSIGN_OR_RETURN(auto obj_code, std::move(comp)->GetObjectCode());
   return JitObjectCode{
       .object_code = std::move(obj_code),

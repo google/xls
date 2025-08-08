@@ -85,18 +85,19 @@ class JittedFunctionBase {
   JittedFunctionBase() = default;
   // Builds and returns an LLVM IR function implementing the given XLS
   // function.
-  static absl::StatusOr<JittedFunctionBase> Build(Function* xls_function,
-                                                  LlvmCompiler& compiler);
+  static absl::StatusOr<JittedFunctionBase> Build(
+      Function* xls_function, LlvmCompiler& compiler,
+      std::string_view symbol_salt = "");
 
   // Builds and returns an LLVM IR function implementing the given XLS
   // proc.
-  static absl::StatusOr<JittedFunctionBase> Build(Proc* proc,
-                                                  LlvmCompiler& compiler);
+  static absl::StatusOr<JittedFunctionBase> Build(
+      Proc* proc, LlvmCompiler& compiler, std::string_view symbol_salt = "");
 
   // Builds and returns an LLVM IR function implementing the given XLS
   // block.
-  static absl::StatusOr<JittedFunctionBase> Build(Block* block,
-                                                  LlvmCompiler& compiler);
+  static absl::StatusOr<JittedFunctionBase> Build(
+      Block* block, LlvmCompiler& compiler, std::string_view symbol_salt = "");
 
   // Builds and returns a JittedFunctionBase using code and ABIs provided by an
   // earlier AOT compile.

@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string_view>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -73,11 +74,11 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
 // Generate AOT code for the given proc elaboration.
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
     Package* package, int64_t opt_level, bool with_msan,
-    JitObserver* observer = nullptr);
+    JitObserver* observer = nullptr, std::string_view symbol_salt = "");
 // Generate AOT code for the given proc elaboration.
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
     Proc* top, int64_t opt_level, bool with_msan,
-    JitObserver* observer = nullptr);
+    JitObserver* observer = nullptr, std::string_view symbol_salt = "");
 
 }  // namespace xls
 
