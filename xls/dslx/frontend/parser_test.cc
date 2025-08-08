@@ -2386,6 +2386,12 @@ TEST_F(ParserTest, ElementCount) {
                 /*populate_dslx_builtins=*/true, "element_count<u32[u32:5]>()");
 }
 
+TEST_F(ParserTest, ConfiguredValueOr) {
+  RoundTripExpr("configured_value_or<u32>(\"foo\", u32:42)", {},
+                /*populate_dslx_builtins=*/true,
+                "configured_value_or<u32>(\"foo\", u32:42)");
+}
+
 TEST_F(ParserTest, CastOfCastEnum) {
   RoundTrip(R"(enum MyEnum : u3 {
     SOME_VALUE = 0,

@@ -40,6 +40,8 @@ fn ceillog2<N: u32>(x: uN[N]) -> uN[N];
 
 fn clz<N: u32>(x: uN[N]) -> uN[N];
 
+fn configured_value_or<T: type, N:u32>(label:u8[N], x: T) -> T;
+
 fn cover!<N: u32>(name: u8[N], condition: u1) -> ();
 
 fn ctz<N: u32>(x: uN[N]) -> uN[N];

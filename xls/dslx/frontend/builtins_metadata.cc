@@ -68,6 +68,7 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           {"bit_slice_update", {.signature = "(uN[N], uN[U], uN[V]) -> uN[N]"}},
           {"ceillog2", {.signature = "(uN[N]) -> uN[N]"}},
           {"clz", {.signature = "(uN[N]) -> uN[N]"}},
+          {"configured_value_or", {.signature = "(u8[N], T) -> T"}},
           {"ctz", {.signature = "(uN[N]) -> uN[N]"}},
           {"gate!", {.signature = "(u1, T) -> T"}},
           {"map", {.signature = "(T[N], (T) -> U) -> U[N]"}},
