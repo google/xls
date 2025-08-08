@@ -10,7 +10,7 @@ the diagram below. The decoder comprises:
 * Control and Status Registers,
 * Frame Header Decoder,
 * Block Header Decoder,
-* 3 types of processing units: RAW-, RLE-, and Compressed Block Decoders[^1],
+* 3 types of processing units: RAW-, RLE-, and Compressed Block Decoders,
 * Command Aggregator,
 
 The Decoder interacts with the environment through a set of ports:
@@ -39,7 +39,7 @@ Once the decoding process is started, the decoder:
     updates the history,
 7.  Prepares the final output of the decoder and writes it to the memory,
 8.  (Optional) Calculates checksum and compares it against the checksum read
-    from the frame.[^2]
+    from the frame.[^1]
 
 ![brief data flow diagram of ZstdDecoder](img/ZSTD_decoder.png)
 
@@ -220,7 +220,7 @@ processing request to the `RleBlockDecoder`. The proc produces `N*s` repeats of
 the given symbol. This step preserves the block ID and attaches the literals tag
 to all its outputs.
 
-#### CompressedBlockDecoder[^1]
+#### CompressedBlockDecoder
 
 This part of the design is responsible for decoding the compressed data blocks.
 It ingests the bytes stream, and internally translates and interprets incoming
@@ -262,7 +262,7 @@ will show the following behavior, depending on the tag:
     *   Copy `copy_length` literals starting `offset _length` from the newest in
         history buffer to the history buffer as the newest.
 
-### Compressed block decoder architecture[^1] {#compressed-block-decoder-architecture1}
+### Compressed block decoder architecture {#compressed-block-decoder-architecture1}
 
 This part of the design is responsible for processing the compressed blocks up
 to the `literals`/`copy` command sequence. This sequence is then processed by
@@ -278,7 +278,7 @@ Treeless blocks.
 #### Compressed block dispatcher
 
 This proc parses literals section headers to calculate block compression format,
-Huffmman tree size (if applicable based on compression format), compressed and
+Huffman tree size (if applicable based on compression format), compressed and
 regenerated sizes for literals. If compressed block format is
 `Compressed_Literals_Block`, dispatcher reads Huffman tree header byte from
 Huffman bitstream, and directs expected number of bytes to the Huffman tree
@@ -452,6 +452,9 @@ results against the decoding of the reference library. Currently, due to the
 restrictions from the ZSTD frame generator, it is possible to test only the
 positive cases (decoding valid ZSTD frames).
 
+Verilog tests are written in Python as
+[cocotb](https://github.com/cocotb/cocotb) testbench.
+
 ZstdDecoder's main communication interfaces are the AXI buses. Due to the way
 XLS handles the codegen of DSLX channels that model the AXI channels, the
 particular ports of the AXI channels are not represented correctly. This
@@ -464,6 +467,33 @@ external memory. The mux is implemented by a third-party [AXI
 Crossbar](https://github.com/alexforencich/verilog-axi).
 
 ![diagram of interfaces of decoder and its wrapper](img/ZSTD_decoder_wrapper.png)
+
+**Figure: Zstd decoder wrapper connection diagram.**
+
+Cocotb testbench interacts with the decoder with the help of a
+[cocotbext-axi](https://github.com/alexforencich/cocotbext-axi) extension that
+provides AXI bus models, drivers, monitors and RAM model accessible through AXI
+interface. Cocotb AXI Manager is connected to the decoder's `CSR Interface` and
+is used to simulate the software's interaction with the decoder.
+
+The Basic test case for the ZstdDecoder is composed of the following steps:
+
+1. The testbench generates a ZSTD frame using the
+   [decodecorpus](https://github.com/facebook/zstd/blob/dev/tests/decodecorpus.c)
+   utility from the [zstd reference library](https://github.com/facebook/zstd).
+2. The encoded frame is placed in an AXI RAM model that is connected to the
+   decoder's `Memory Interface`.
+3. The encoded frame is decoded with the zstd reference library and the results
+   are represented in the decoder's output format as the expected data from the
+   simulation.
+4. AXI Manager performs a series of writes to the ZstdDecoder CSRs to configure
+   it and start the decoding process.
+5. Testbench waits for the signal on the `Notify` channel and checks the output
+   of the decoder stored in the memory against the expected output data.
+6. Test case succeeds once `Notify` is asserted, all expected data is received
+   and the decoder lands in `IDLE` state with status `OKAY` in the `Status` CSR.
+
+Additionally, pregenerated test cases are provided in the [data](data/) subdirectory. `*.zst` files contain frames encoded using the ZSTD library. Supplementary `*.log` files provide additional info regarding the contents of each frame. Among the aforementioned test cases, those generated using `decodecorpus` follow the `<literals_encoding>_<sequences_encoding>_seed_<zstd_seed>` naming convention.
 
 ### Failure points
 
@@ -478,6 +508,10 @@ The design will fail the tests under the following conditions:
     results from the reference library
   * The decoding result from the simulation has different contents than the
     results from the reference library
+* Failures caused by incorrect intermediate results (only in the selected tests):
+  * Incorrect decoding of the FSE table
+  * Incorrect Huffman weights
+  * Incorrect Huffman codebook
 
 Currently, all mentioned conditions lead to an eventual test failure.
 
@@ -537,3 +571,49 @@ This is done for example in:
 
 * Frame header decoder
 * SequenceExecutor
+
+#### Positive test cases
+
+If the results of decoding with `libzstd` are valid, the test runs the same
+encoded frame through the simulation of DSLX design. The output of the
+simulation is gathered and compared with the results of `libzstd` in terms of
+its size and contents.
+
+Encoded ZSTD frame is generated with the function `GenerateFrame(seed, btype,
+output_path)` from
+[data_generator](https://github.com/antmicro/xls/blob/main/xls/modules/zstd/cocotb/data_generator.py)
+library. This function takes as arguments the seed for the generator, an enum
+that codes the type of blocks that should be generated in a given frame and the
+output path to write the generated frame into a file. The available block types
+are:
+
+* RAW
+* RLE
+* COMPRESSED
+* RANDOM
+
+The function returns a vector of bytes representing a valid encoded ZSTD frame.
+Such generated frame can be passed to DSLX and cocotb testbenches to be decoded
+in the simulation and compared against the results from the reference library.
+
+Verilog tests are available in the `zstd_dec_cocotb_test.py` file and can be
+launched with the following Bazel command:
+
+```shell
+bazel run -c opt -- //xls/modules/zstd:zstd_dec_cocotb_test --logtostderr
+```
+
+#### Negative test cases
+
+Currently, `decodecorpus` does not support generating ZSTD frames with subtle
+errors that trigger failure points provided in the ZSTD Decoder. Because of
+that, it is not possible to efficiently provide valuable negative tests for the
+integrated ZSTD Decoder.
+
+The alternatives for writing negative tests include:
+
+* Generating a well-known valid ZSTD frame from a specific generator seed and
+then tweaking the raw bits in this frame to trigger the error response from the
+decoder
+
+[^1]: Checksum verification is currently unsupported.
