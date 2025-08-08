@@ -16,6 +16,8 @@
 #define XLS_DSLX_IR_CONVERT_CONVERT_OPTIONS_H_
 
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/channel.h"
@@ -64,6 +66,9 @@ struct ConvertOptions {
   // Should we generate proc-scoped channels without global channels as an
   // intermediate step? See https://github.com/google/xls/issues/2078
   bool lower_to_proc_scoped_channels = false;
+
+  // Configured values to override for use in IR conversion.
+  std::vector<std::string> configured_values;
 };
 
 }  // namespace xls::dslx

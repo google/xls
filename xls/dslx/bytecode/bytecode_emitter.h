@@ -153,6 +153,7 @@ class BytecodeEmitter : public ExprVisitor {
   // keep-sorted start
   absl::Status HandleBuiltinBitCount(const Invocation* node);
   absl::Status HandleBuiltinCheckedCast(const Invocation* node);
+  absl::Status HandleBuiltinConfiguredValueOr(const Invocation* node);
   absl::Status HandleBuiltinDecode(const Invocation* node);
   absl::Status HandleBuiltinElementCount(const Invocation* node);
   absl::Status HandleBuiltinJoin(const Invocation* node);

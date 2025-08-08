@@ -39,6 +39,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -1579,6 +1580,84 @@ uadd)";
   ImportData import_data(CreateImportDataForTest());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
                            EmitBytecodes(&import_data, kProgram, "main"));
+
+  std::string got = absl::StrJoin(
+      bf->bytecodes(), "\n",
+      [&import_data](std::string* out, const Bytecode& b) {
+        absl::StrAppend(
+            out, b.ToString(import_data.file_table(), /*source_locs=*/false));
+      });
+
+  EXPECT_EQ(kWant, got);
+}
+
+TEST(BytecodeEmitterTest, ConfiguredValueOr) {
+  constexpr std::string_view kProgram = R"(
+enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+  C = 2,
+}
+
+#[test]
+fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
+  let b_default = configured_value_or<bool>("b_default", false);
+  let u_default = configured_value_or<u32>("u32_default", u32:42);
+  let s_default = configured_value_or<s32>("s32_default", s32:-100);
+  let e_default = configured_value_or<MyEnum>("enum_default", MyEnum::C);
+  let b_override = configured_value_or<bool>("b_override", false);
+  let u_override = configured_value_or<u32>("u32_override", u32:42);
+  let s_override = configured_value_or<s32>("s32_override", s32:-100);
+  let e_override = configured_value_or<MyEnum>("enum_override", MyEnum::C);
+  (b_default, u_default, s_default, e_default, b_override, u_override, s_override, e_override)
+})";
+  constexpr std::string_view kWant = R"(literal u1:0
+store 0
+literal u32:42
+store 1
+literal s32:-100
+store 2
+literal MyEnum:2
+store 3
+literal u1:1
+store 4
+literal u32:123
+store 5
+literal s32:-200
+store 6
+literal MyEnum:1
+store 7
+load 0
+load 1
+load 2
+load 3
+load 4
+load 5
+load 6
+load 7
+create_tuple 8)";
+
+  ImportData import_data(CreateImportDataForTest());
+  absl::flat_hash_map<std::string, std::string> configured_values = {
+      {"b_override", "true"},
+      {"u32_override", "123"},
+      {"s32_override", "-200"},
+      {"enum_override", "MyEnum::B"}};
+
+  ConvertOptions options;
+  options.configured_values = {"b_override:true", "u32_override:123",
+                               "s32_override:-200", "enum_override:MyEnum::B"};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data,
+                        /*comments=*/nullptr, /*force_version2=*/false,
+                        options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           BytecodeEmitter::Emit(&import_data, tm.type_info,
+                                                 tf->fn(), std::nullopt));
 
   std::string got = absl::StrJoin(
       bf->bytecodes(), "\n",

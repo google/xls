@@ -40,6 +40,7 @@ namespace xls::dslx {
   X("checked_cast", kCheckedCast)              \
   X("ceillog2", kCeilLog2)                     \
   X("clz", kClz)                               \
+  X("configured_value_or", kConfiguredValueOr) \
   X("cover!", kCover)                          \
   X("ctz", kCtz)                               \
   X("decode", kDecode)                         \

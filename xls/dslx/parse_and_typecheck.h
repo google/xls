@@ -26,6 +26,7 @@
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
@@ -61,7 +62,8 @@ struct TypecheckedModule {
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
     ImportData* import_data, std::vector<CommentData>* comments = nullptr,
-    bool force_version2 = false);
+    bool force_version2 = false,
+    const ConvertOptions& options = ConvertOptions{});
 
 // Helper that parses and creates a new module from the given "text".
 //

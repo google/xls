@@ -149,6 +149,7 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
+        "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/algorithm:container",
