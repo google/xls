@@ -90,29 +90,28 @@ proc LiteralSectionHeaderWriter<ADDR_W: u32, DATA_W: u32> {
         assert!(req.btype == RawMemcopyBlockType::RAW, "unsupported_literal_type");
         let btype = u2:0;
 
-        let (data, length) = if req.regenerated_size < u20:0x1F { // regenerated_size < 31
+        let (data, length) = if req.regenerated_size <= u20:0x1F { // regenerated_size <= 31
             let size_format = u1:0;
             let regenerated_size = checked_cast<u5>(req.regenerated_size);
             let data = (regenerated_size ++ size_format ++ btype) as Data;
 
             (data, Length:1)
 
-        } else if req.regenerated_size < u20:0xFFF { // regenerated size < 4095
+        } else if req.regenerated_size <= u20:0xFFF { // regenerated size <= 4095
             let size_format = u2:0b01;
             let regenerated_size = checked_cast<u12>(req.regenerated_size);
             let data = (regenerated_size ++ size_format ++ btype) as Data;
 
             (data, Length:2)
 
-        } else if req.regenerated_size < u20:0xFFFFF { // regenerated size < 1048575
+        } else {
+            // regenerated size <= 1048575
+            // No need to check the value as the whole range of u20 is covered.
             let size_format = u2:0b11;
             let regenerated_size = checked_cast<u20>(req.regenerated_size);
             let data = (regenerated_size ++ size_format ++ btype) as Data;
 
             (data, Length:3)
-
-        } else {
-            fail!("invalid_regenerated_size_value", (Data:0, Length:0))
         };
 
         let mem_wr_req = MemWriterReq { addr: req.addr, length };
