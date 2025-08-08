@@ -16,14 +16,14 @@ enum class MyEnum : uint32_t {
   kB = 17,
   kC = 289,
 };
-constexpr int64_t kMyEnumNumElements = 3;
-constexpr int64_t kMyEnumWidth = 32;
-constexpr std::array<MyEnum, 3> kMyEnumValues = {
+inline constexpr int64_t kMyEnumNumElements = 3;
+inline constexpr int64_t kMyEnumWidth = 32;
+inline constexpr std::array<MyEnum, 3> kMyEnumValues = {
   MyEnum::kA,
   MyEnum::kB,
   MyEnum::kC
 };
-constexpr std::array<std::string_view, 3> kMyEnumNames = {
+inline constexpr std::array<std::string_view, 3> kMyEnumNames = {
   "A",
   "B",
   "C"

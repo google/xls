@@ -16,14 +16,14 @@ enum class MyEnum : uint64_t {
   kMID = 9223372036854775808,
   kMAX = 18446744073709551615,
 };
-constexpr int64_t kMyEnumNumElements = 3;
-constexpr int64_t kMyEnumWidth = 64;
-constexpr std::array<MyEnum, 3> kMyEnumValues = {
+inline constexpr int64_t kMyEnumNumElements = 3;
+inline constexpr int64_t kMyEnumWidth = 64;
+inline constexpr std::array<MyEnum, 3> kMyEnumValues = {
   MyEnum::kMIN,
   MyEnum::kMID,
   MyEnum::kMAX
 };
-constexpr std::array<std::string_view, 3> kMyEnumNames = {
+inline constexpr std::array<std::string_view, 3> kMyEnumNames = {
   "MIN",
   "MID",
   "MAX"
