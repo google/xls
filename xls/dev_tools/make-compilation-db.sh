@@ -14,7 +14,6 @@
 # limitations under the License.
 
 set -u
-set -e
 
 # Which bazel and bant to use. If unset, defaults are used.
 BAZEL=${BAZEL:-bazel}
@@ -33,7 +32,7 @@ BAZEL_OPTS="-c opt --remote_download_outputs=all"
 # to provide a complete set of all generated files.
 # If more targets are needed here, try to use the smallest set that covers
 # the needed files to avoid triggering an unnecessarily large build.
-"${BAZEL}" build ${BAZEL_OPTS} \
+"${BAZEL}" build -k ${BAZEL_OPTS} \
   @linenoise @nlohmann_json//:singleheader-json \
   @zstd @eigen//:all @at_clifford_yosys//:json11 @com_github_hlslibs_ac_types//:ac_int \
   @verible//verible/common/lsp:lsp-protocol.h \
