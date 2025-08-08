@@ -742,6 +742,18 @@ absl::Status BytecodeEmitter::HandleBuiltinElementCount(
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleBuiltinConfiguredValueOr(
+    const Invocation* node) {
+  VLOG(5) << "BytecodeEmitter::HandleInvocation - ConfiguredValueOr @ "
+          << node->span().ToString(file_table());
+  const auto& configured_values = node->owner()->configured_values();
+  XLS_ASSIGN_OR_RETURN(InterpValue default_or_override_interp_value,
+                       type_info_->GetConstExpr(node));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
+                               default_or_override_interp_value));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleChannelDecl(const ChannelDecl* node) {
   // Channels are created as constexpr values during type deduction/constexpr
   // evaluation, since they're concrete values that need to be shared amongst
@@ -1108,6 +1120,9 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
     }
     if (name_ref->identifier() == "element_count") {
       return HandleBuiltinElementCount(node);
+    }
+    if (name_ref->identifier() == "configured_value_or") {
+      return HandleBuiltinConfiguredValueOr(node);
     }
     if (name_ref->identifier() == "widening_cast") {
       return HandleBuiltinWideningCast(node);

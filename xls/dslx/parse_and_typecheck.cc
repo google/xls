@@ -33,6 +33,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
@@ -43,7 +44,7 @@ namespace xls::dslx {
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path, std::string_view module_name,
     ImportData* import_data, std::vector<CommentData>* comments,
-    bool force_version2) {
+    bool force_version2, const ConvertOptions& options) {
   XLS_RET_CHECK(import_data != nullptr);
 
   FileTable& file_table = import_data->file_table();
@@ -60,6 +61,8 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
                        ParseModule(text, path, module_name,
                                    import_data->file_table(), comments));
+
+  XLS_RETURN_IF_ERROR(module->SetConfiguredValues(options.configured_values));
   return TypecheckModule(std::move(module), path, import_data, force_version2);
 }
 

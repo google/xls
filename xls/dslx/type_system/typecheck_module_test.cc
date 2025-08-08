@@ -5058,6 +5058,27 @@ fn main() -> u32 {
 })"));
 }
 
+TEST_P(TypecheckBothVersionsTest, ConfiguredValueOr) {
+  XLS_ASSERT_OK(Typecheck(R"(
+enum MyEnum : u2 {
+  A = 0,
+  B = 1,
+  C = 2,
+}
+
+fn main() -> (bool, u32, s32, MyEnum, bool, u32, s32, MyEnum) {
+  let b_default = configured_value_or<bool>("b_default", false);
+  let u_default = configured_value_or<u32>("u32_default", u32:42);
+  let s_default = configured_value_or<s32>("s32_default", s32:-100);
+  let e_default = configured_value_or<MyEnum>("enum_default", MyEnum::C);
+  let b_override = configured_value_or<bool>("b_override", false);
+  let u_override = configured_value_or<u32>("u32_override", u32:42);
+  let s_override = configured_value_or<s32>("s32_override", s32:-100);
+  let e_override = configured_value_or<MyEnum>("enum_override", MyEnum::C);
+  (b_default, u_default, s_default, e_default, b_override, u_override, s_override, e_override)
+})"));
+}
+
 TEST_P(TypecheckBothVersionsTest, BitCountAsConstExpr) {
   XLS_ASSERT_OK(Typecheck(R"(
 fn main() -> u64 {
