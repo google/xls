@@ -598,7 +598,8 @@ class Visitor : public AstNodeVisitorWithDefault {
     if (callee_type.has_value()) {
       const auto& function_type = (*callee_type)->AsFunction();
       XLS_RETURN_IF_ERROR(NoteBuiltinInvocationConstExpr(
-          callee_nameref->identifier(), invocation, function_type, ti_));
+          callee_nameref->identifier(), invocation, function_type, ti_,
+          &import_data_));
       std::optional<InterpValue> value = ti_->GetConstExprOption(invocation);
       if (value.has_value()) {
         trace_.SetResult(*value);

@@ -312,7 +312,8 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
     }
   }
   XLS_RETURN_IF_ERROR(NoteBuiltinInvocationConstExpr(
-      callee_nameref->identifier(), invocation, *fn_type, ctx->type_info()));
+      callee_nameref->identifier(), invocation, *fn_type, ctx->type_info(),
+      ctx->import_data()));
 
   if (callee_nameref->identifier() == "cover!") {
     XLS_RETURN_IF_ERROR(TypecheckCoverBuiltinInvocation(ctx, invocation));

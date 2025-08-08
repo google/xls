@@ -272,7 +272,8 @@ bool IsAcceptableCast(const Type& from, const Type& to);
 absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
                                             const Invocation* invocation,
                                             const FunctionType& fn_type,
-                                            TypeInfo* ti);
+                                            TypeInfo* ti,
+                                            ImportData* import_data);
 
 // Returns the TypeInfo for the given node, preferring the current TypeInfo if
 // the node is in the same module, otherwise giving the root TypeInfo for
@@ -301,6 +302,12 @@ absl::StatusOr<InterpValue> GetBitCountAsInterpValue(const Type* type);
 //  tuple         number of top-level members
 //  struct        number of top-level members
 absl::StatusOr<InterpValue> GetElementCountAsInterpValue(const Type* type);
+
+// Gets the override value of the given `type` as a `InterpValue`. The override
+// value is either a string representation of a boolean, integer, or float.
+absl::StatusOr<InterpValue> GetConfiguredValueAsInterpValue(
+    std::string override_value, const Type* type, const TypeInfo* type_info,
+    ImportData* import_data, const Span& span);
 
 // Returns the patterns of the arm as a string.
 std::string PatternsToString(const MatchArm* arm);

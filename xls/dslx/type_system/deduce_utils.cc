@@ -33,6 +33,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
@@ -57,6 +58,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/number_parser.h"
 
 namespace xls::dslx {
 namespace {
@@ -1090,7 +1092,8 @@ bool IsAcceptableCast(const Type& from, const Type& to) {
 absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
                                             const Invocation* invocation,
                                             const FunctionType& fn_type,
-                                            TypeInfo* ti) {
+                                            TypeInfo* ti,
+                                            ImportData* import_data) {
   // array_size is always a constexpr result since it just needs the type
   // information
   if (fn_name == "array_size") {
@@ -1113,6 +1116,28 @@ absl::Status NoteBuiltinInvocationConstExpr(std::string_view fn_name,
             ? GetElementCountAsInterpValue(*explicit_parametric_type)
             : GetBitCountAsInterpValue(*explicit_parametric_type));
     ti->NoteConstExpr(invocation, value);
+  }
+
+  if (fn_name == "configured_value_or") {
+    XLS_RET_CHECK_EQ(invocation->args().size(), 2);
+    std::string key = down_cast<const String*>(invocation->args()[0])->text();
+    if (!invocation->owner()->configured_values().contains(key)) {
+      Expr* default_value_expr = invocation->args()[1];
+      XLS_ASSIGN_OR_RETURN(InterpValue default_value,
+                           ti->GetConstExpr(default_value_expr));
+      ti->NoteConstExpr(invocation, default_value);
+      return absl::OkStatus();
+    }
+    std::optional<std::string> override_str =
+        invocation->owner()->configured_values().at(key);
+    std::optional<const Type*> explicit_parametric_type = ti->GetItem(
+        std::get<TypeAnnotation*>(invocation->explicit_parametrics()[0]));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue result_value,
+        GetConfiguredValueAsInterpValue(override_str.value(),
+                                        explicit_parametric_type.value(), ti,
+                                        import_data, invocation->span()));
+    ti->NoteConstExpr(invocation, result_value);
   }
   return absl::OkStatus();
 }
@@ -1172,6 +1197,74 @@ absl::StatusOr<InterpValue> GetElementCountAsInterpValue(const Type* type) {
     return InterpValue::MakeU32(struct_type->members().size());
   }
   return GetBitCountAsInterpValue(type);
+}
+
+absl::StatusOr<InterpValue> GetConfiguredValueAsInterpValue(
+    std::string override_value, const Type* type, const TypeInfo* type_info,
+    ImportData* import_data, const Span& span) {
+  if (type->IsMeta()) {
+    XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
+  }
+  if (IsBool(*type)) {
+    return InterpValue::MakeBool(override_value == "true");
+  }
+
+  if (const auto* enum_type = dynamic_cast<const EnumType*>(type)) {
+    XLS_RET_CHECK(type_info != nullptr);
+    XLS_RET_CHECK(import_data != nullptr);
+    const EnumDef* enum_def = &enum_type->nominal_type();
+    const TypeInfo& enum_type_info = GetTypeInfoForNodeIfDifferentModule(
+        const_cast<EnumDef*>(enum_def), *type_info, *import_data);
+    std::vector<std::string_view> parts = absl::StrSplit(override_value, "::");
+    std::string_view enum_identifier = parts.back();
+    for (const EnumMember& member : enum_def->values()) {
+      if (member.name_def->identifier() == enum_identifier) {
+        XLS_ASSIGN_OR_RETURN(InterpValue value,
+                             enum_type_info.GetConstExpr(member.value));
+        return InterpValue::MakeEnum(value.GetBitsOrDie(), enum_type, enum_def);
+      }
+    }
+    return TypeInferenceErrorStatus(
+        span, nullptr,
+        absl::StrFormat("Invalid value \'%s\' for enum %s", override_value,
+                        enum_type->ToString()),
+        import_data->file_table());
+  }
+
+  if (const auto* bits_type = dynamic_cast<const BitsType*>(type)) {
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_type->size().GetAsInt64());
+    bool is_signed = bits_type->is_signed();
+    std::string_view value_str = override_value;
+    if (auto pos = value_str.find(':'); pos != std::string_view::npos) {
+      value_str = value_str.substr(pos + 1);
+    }
+    XLS_ASSIGN_OR_RETURN(Bits bits, ParseNumber(value_str));
+
+    if (bits.bit_count() > bit_count) {
+      return TypeInferenceErrorStatus(
+          span, nullptr,
+          absl::StrFormat("Parsed value \'%s\' (which is %d bits) is too large "
+                          "for type %s (which is %d bits)",
+                          override_value, bits.bit_count(),
+                          bits_type->ToString(), bit_count),
+          import_data->file_table());
+    }
+
+    if (bits.bit_count() < bit_count) {
+      if (is_signed) {
+        bits = bits_ops::SignExtend(bits, bit_count);
+      } else {
+        bits = bits_ops::ZeroExtend(bits, bit_count);
+      }
+    }
+    return InterpValue::MakeBits(is_signed, bits);
+  }
+
+  return TypeInferenceErrorStatus(
+      span, nullptr,
+      absl::StrFormat("Unsupported configured value type: %s for: \'%s\'",
+                      type->ToString(), override_value),
+      import_data->file_table());
 }
 
 std::string PatternsToString(const MatchArm* arm) {

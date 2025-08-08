@@ -798,6 +798,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
+        "//xls/ir:number_parser",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

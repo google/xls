@@ -1241,6 +1241,14 @@ inline bool IsU8Array(const Type& t) {
   return false;
 }
 
+// Returns whether the given type is a bool (u1).
+inline bool IsBool(const Type& t) {
+  if (std::optional<BitsLikeProperties> p = GetBitsLike(t)) {
+    return IsKnownU1(*p);
+  }
+  return false;
+}
+
 // Returns whether the given type, which should be either a bits or an enum
 // type, is signed.
 absl::StatusOr<bool> IsSigned(const Type& c);

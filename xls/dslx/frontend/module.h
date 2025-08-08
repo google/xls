@@ -302,6 +302,11 @@ class Module : public AstNode {
 
   FileTable* file_table() const { return file_table_; }
 
+  const absl::flat_hash_map<std::string, std::string>& configured_values()
+      const {
+    return configured_values_;
+  }
+
  private:
   template <typename T, typename... Args>
   T* MakeInternal(Args&&... args) {
@@ -361,6 +366,10 @@ class Module : public AstNode {
   absl::btree_set<ModuleAttribute> attributes_;
   std::optional<Pos> attribute_start_;
   std::optional<Pos> attribute_limit_;
+
+  // Map of values that can be accessed via configured_value_or calls from
+  // DSLX code within this module.
+  absl::flat_hash_map<std::string, std::string> configured_values_;
 
   // The span of the module is only known once parsing has completed.
   //
