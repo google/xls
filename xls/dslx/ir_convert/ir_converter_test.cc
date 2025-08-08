@@ -4228,7 +4228,38 @@ pub proc main {
   ExpectIr(converted);
 }
 
-TEST(ProcScopedChannelsIrConverterTest, ConfigWithParam) {
+TEST_P(ProcScopedChannelsIrConverterTest, MultipleSpawnees) {
+  constexpr std::string_view kProgram = R"(
+proc spawnee2 {
+  init { }
+  config() { () }
+  next(state: ()) { () }
+}
+
+proc spawnee1 {
+  init { }
+  config() { spawn spawnee2(); }
+  next(state: ()) { () }
+}
+
+pub proc main {
+  init { }
+  config() { spawn spawnee1(); }
+  next(state: ()) { () }
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data,
+                                ConvertOptions{
+                                    .emit_positions = false,
+                                    .lower_to_proc_scoped_channels = true,
+                                }));
+  ExpectIr(converted);
+}
+
+TEST_P(ProcScopedChannelsIrConverterTest, ConfigWithParam) {
   // This only works with tiv2 at the moment. With v1, an error is thrown in
   // ConstexprEvaluator.HandleNumber because (I think) it hasn't noted the u32:1
   // in init as a constant.
@@ -4245,17 +4276,17 @@ pub proc main {
   init { }
   config() { spawn adder(u32:3); }
   next(state: ()) { state }
-})";
+}
+)";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string converted,
-      ConvertOneFunctionForTest(kProgram, "main", import_data,
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(kProgram, "main",
                                 ConvertOptions{
                                     .emit_positions = false,
                                     .lower_to_proc_scoped_channels = true,
-                                }));
-  ExpectIr(converted);
+                                }),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Use a parametric on the proc instead.")));
 }
 
 TEST_P(ProcScopedChannelsIrConverterTest, ParametricSimpleSpawn) {

@@ -3022,10 +3022,10 @@ absl::Status FunctionConverter::HandleSpawn(const Spawn* node) {
       << node->ToString();
   xls::Proc* ir_proc = package_data_.invocation_to_ir_proc[config];
 
-  xls::Proc* top_proc = package()->GetTop().value()->AsProcOrDie();
+  xls::Proc* current_proc = builder_ptr->proc();
   // TODO: https://github.com/google/xls/issues/2078 - set up the channel_args
   XLS_RETURN_IF_ERROR(
-      top_proc
+      current_proc
           ->AddProcInstantiation(absl::StrFormat("%s_inst", ir_proc->name()),
                                  /* channel_args=*/{}, ir_proc)
           .status());
@@ -3058,40 +3058,6 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
   XLS_RET_CHECK(f->proc().has_value());
   Proc* proc = f->proc().value();
-  if (options_.lower_to_proc_scoped_channels) {
-    if (!proc_data->id_to_members.contains(proc_id)) {
-      proc_data->id_to_members[proc_id] = {};
-    }
-    if (invocation != nullptr) {
-      VLOG(5) << "Processing config invocation " << invocation->ToString();
-      // In a proc, the config method should evaluate to a const expression.
-      // The invocation passed into this method corresponds to the spawn
-      // calling the config method with its arguments. So, evaluating the
-      // invocation should yield the value of the final tuple of the config
-      // method.
-      XLS_ASSIGN_OR_RETURN(InterpValue config_result,
-                           ConstexprEvaluator::EvaluateToValue(
-                               import_data, type_info, kNoWarningCollector,
-                               *parametric_env, invocation));
-      XLS_RET_CHECK_EQ(config_result.tag(), InterpValueTag::kTuple);
-      auto final_tuple = config_result.GetValuesOrDie();
-      XLS_RET_CHECK_EQ(proc->members().size(), final_tuple.size());
-
-      // Use the final tuple to populate the proc members.
-      for (int i = 0; i < proc->members().size(); i++) {
-        InterpValue interp_value = final_tuple[i];
-        ProcConfigValue value;
-        if (interp_value.tag() == InterpValueTag::kChannelReference) {
-          // TODO: davidplass - convert from channel reference to
-          // ProcConfigValue
-        } else {
-          XLS_ASSIGN_OR_RETURN(value, InterpValueToValue(interp_value));
-        }
-        ProcMember* member = proc->members()[i];
-        proc_data_->id_to_members.at(proc_id)[member->identifier()] = value;
-      }
-    }
-  }
 
   Value initial_element = Value::Tuple({});
   if (proc_data_->id_to_initial_value.contains(proc_id)) {
@@ -3204,9 +3170,14 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   }
 
   Function& config_fn = f->proc().value()->config();
-  if (options_.lower_to_proc_scoped_channels && invocation == nullptr) {
-    // Process the config function when there is no 'spawn' invocation.
-    // This can happen in tests or for a top-level proc.
+  if (options_.lower_to_proc_scoped_channels) {
+    for (const Param* param : config_fn.params()) {
+      XLS_ASSIGN_OR_RETURN(Type * type, type_info->GetItemOrError(param));
+      XLS_RET_CHECK_NE(dynamic_cast<ChannelType*>(type), nullptr)
+          << "Cannot have non-channel arguments to a `config` function "
+             "anymore. Use a parametric on the proc instead.";
+    }
+    // Process the body of the config function as a function.
     XLS_RETURN_IF_ERROR(Visit(config_fn.body()));
   }
 
@@ -3224,10 +3195,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     for (const Param* param : config_fn.params()) {
       XLS_ASSIGN_OR_RETURN(Type * type, type_info->GetItemOrError(param));
       ChannelType* channel_type = dynamic_cast<ChannelType*>(type);
-      if (channel_type == nullptr) {
-        // Non-channel config params are still allowed.
-        continue;
-      }
+      XLS_RET_CHECK_NE(channel_type, nullptr);
+
       // TOOD: davidplass - figure out how to get strictness, flow control,
       // kind instead of defaults. These will likely vary depending on if it's
       // a boundary or a loopback channel.
