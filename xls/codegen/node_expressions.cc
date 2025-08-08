@@ -715,11 +715,14 @@ absl::StatusOr<Expression*> NodeToExpression(
       return file->Concat(
           {file->Literal(0, bits_added, node->loc()), inputs[0]}, node->loc());
     }
+    case Op::kGate:
     case Op::kInputPort:
-    case Op::kOutputPort:
     case Op::kInstantiationInput:
     case Op::kInstantiationOutput:
-    case Op::kGate:
+    case Op::kNewChannel:
+    case Op::kOutputPort:
+    case Op::kRecvChannelEnd:
+    case Op::kSendChannelEnd:
       return unimplemented();
   }
   LOG(FATAL) << "Invalid op: " << static_cast<int64_t>(node->op());

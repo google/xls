@@ -675,6 +675,12 @@ absl::Status ElaboratedNode::VisitSingleNode(
     case Op::kInstantiationOutput:
       return visitor.HandleInstantiationOutput(
           down_cast<InstantiationOutput*>(node), instance);
+
+    case Op::kNewChannel:
+    case Op::kRecvChannelEnd:
+    case Op::kSendChannelEnd:
+      return absl::UnimplementedError(
+          absl::StrFormat("Cannot elaborate %s yet", node->GetName()));
   }
 }
 

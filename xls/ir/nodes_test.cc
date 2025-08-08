@@ -57,6 +57,7 @@ namespace {
   M(Map)                     \
   M(MinDelay)                \
   M(NaryOp)                  \
+  M(NewChannel)              \
   M(Next)                    \
   M(OneHot)                  \
   M(OneHotSelect)            \
@@ -65,10 +66,12 @@ namespace {
   M(PartialProductOp)        \
   M(PrioritySelect)          \
   M(Receive)                 \
+  M(RecvChannelEnd)          \
   M(RegisterRead)            \
   M(RegisterWrite)           \
   M(Select)                  \
   M(Send)                    \
+  M(SendChannelEnd)          \
   M(StateRead)               \
   M(Trace)                   \
   M(Tuple)                   \
