@@ -58,7 +58,7 @@ absl::StatusOr<std::filesystem::path> GetSelfExecutablePath() {
 
 absl::StatusOr<Runfiles*> GetRunfiles(
     std::optional<std::string_view> argv0 = std::nullopt) {
-  absl::MutexLock lock(&mutex);
+  absl::MutexLock lock(mutex);
   if (runfiles == nullptr) {
     // Need to dereference the path, in case it's a link (as with the default).
     std::filesystem::path path;
