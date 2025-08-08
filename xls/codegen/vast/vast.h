@@ -164,6 +164,8 @@ class VastNode {
       : file_(file), loc_(loc) {}
   virtual ~VastNode() = default;
 
+  std::string PreEmit(LineInfo* line_info);
+
   // The file which owns this node.
   VerilogFile* file() const { return file_; }
 
@@ -2248,6 +2250,13 @@ struct ModulePort {
   std::string ToString() const;
 
   ModulePortDirection direction;
+  // TODO since ModulePort is not a VastNode,
+  // add a field for source location info
+  // use a string for a comment,
+  // or SourceInfo that will be used to format a comment
+  std::string _docstring;
+  const std::string& docstring() const { return _docstring; }
+  void docstring(const std::string& value) { _docstring = value; }
   Def* wire;
 };
 
