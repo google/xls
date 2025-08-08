@@ -150,19 +150,22 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleVerbatimNode(const VerbatimNode* node) override;
   absl::Status HandleXlsTuple(const XlsTuple* node) override;
 
-  absl::Status HandleBuiltinDecode(const Invocation* node);
-  absl::Status HandleBuiltinCheckedCast(const Invocation* node);
-  absl::Status HandleBuiltinWideningCast(const Invocation* node);
+  // keep-sorted start
   absl::Status HandleBuiltinBitCount(const Invocation* node);
+  absl::Status HandleBuiltinCheckedCast(const Invocation* node);
+  absl::Status HandleBuiltinDecode(const Invocation* node);
   absl::Status HandleBuiltinElementCount(const Invocation* node);
-  absl::Status HandleBuiltinSend(const Invocation* node);
-  absl::Status HandleBuiltinSendIf(const Invocation* node);
+  absl::Status HandleBuiltinJoin(const Invocation* node);
   absl::Status HandleBuiltinRecv(const Invocation* node);
   absl::Status HandleBuiltinRecvIf(const Invocation* node);
-  absl::Status HandleBuiltinRecvNonBlocking(const Invocation* node);
   absl::Status HandleBuiltinRecvIfNonBlocking(const Invocation* node);
-  absl::Status HandleBuiltinJoin(const Invocation* node);
+  absl::Status HandleBuiltinRecvNonBlocking(const Invocation* node);
+  absl::Status HandleBuiltinSend(const Invocation* node);
+  absl::Status HandleBuiltinSendIf(const Invocation* node);
   absl::Status HandleBuiltinToken(const Invocation* node);
+  absl::Status HandleBuiltinTrace(const Invocation* node);
+  absl::Status HandleBuiltinWideningCast(const Invocation* node);
+  // keep-sorted end
 
   absl::StatusOr<InterpValue> HandleColonRefToEnum(const ColonRef* colon_ref,
                                                    EnumDef* enum_def,
