@@ -783,17 +783,6 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
   return outputs;
 }
 
-// Mangle the name to avoid important POSIX symbol names. (eg 'main').
-std::string MangleForLLVM(std::string_view name) {
-  if (name == "main") {
-    return "__XLS__main";
-  }
-  if (name == "write") {
-    return "__XLS__write";
-  }
-  return std::string(name);
-}
-
 // Build an llvm::Function implementing the given FunctionBase. The jitted
 // function contains a sequence of calls to partition functions where each
 // partition only implements a subset of the FunctionBase's nodes. This
@@ -857,8 +846,8 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
   std::vector<Node*> inputs = GetJittedFunctionInputs(xls_function);
   std::vector<Node*> outputs = GetJittedFunctionOutputs(xls_function);
   LlvmFunctionWrapper wrapper = LlvmFunctionWrapper::Create(
-      MangleForLLVM(base_name), inputs, outputs,
-      llvm::Type::getInt64Ty(jit_context.context()), jit_context,
+      base_name, inputs, outputs, llvm::Type::getInt64Ty(jit_context.context()),
+      jit_context,
       LlvmFunctionWrapper::FunctionArg{
           .name = "continuation_point",
           .type = llvm::Type::getInt64Ty(jit_context.context())});
@@ -1176,7 +1165,8 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
   std::vector<Node*> inputs = GetJittedFunctionInputs(xls_function);
   std::vector<Node*> outputs = GetJittedFunctionOutputs(xls_function);
   LlvmFunctionWrapper wrapper = LlvmFunctionWrapper::Create(
-      absl::StrFormat("%s_packed", xls_function->name()),
+      absl::StrFormat("%s_packed",
+                      jit_context.MangleFunctionName(xls_function)),
       GetJittedFunctionInputs(xls_function),
       GetJittedFunctionOutputs(xls_function), llvm::Type::getInt64Ty(*context),
       jit_context,
@@ -1309,7 +1299,8 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
     // have each function assign its own tmp buffer starting from 0 and make the
     // overall tmp-buffer the topo sort.
     XLS_RET_CHECK_EQ(
-        jit_context.module()->getFunction(MangleForLLVM(f->name())), nullptr)
+        jit_context.module()->getFunction(jit_context.MangleFunctionName(f)),
+        nullptr)
         << "Multiple copies of the same function created";
     XLS_ASSIGN_OR_RETURN(PartitionedFunction partitioned_function,
                          BuildFunctionInternal(f, allocator, jit_context));
@@ -1321,7 +1312,7 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
   }
   XLS_RET_CHECK(top_function != nullptr);
 
-  std::string function_name = MangleForLLVM(top_function->getName().str());
+  std::string function_name = jit_context.MangleFunctionName(xls_function);
   std::string packed_wrapper_name;
   if (build_packed_wrapper) {
     XLS_ASSIGN_OR_RETURN(
@@ -1390,22 +1381,23 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
 }
 
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
-    Function* xls_function, LlvmCompiler& compiler) {
-  JitBuilderContext jit_context(compiler, xls_function);
+    Function* xls_function, LlvmCompiler& compiler,
+    std::string_view symbol_salt) {
+  JitBuilderContext jit_context(compiler, xls_function, symbol_salt);
   return JittedFunctionBase::BuildInternal(xls_function, jit_context,
                                            /*build_packed_wrapper=*/true);
 }
 
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
-    Proc* proc, LlvmCompiler& compiler) {
-  JitBuilderContext jit_context(compiler, proc);
+    Proc* proc, LlvmCompiler& compiler, std::string_view symbol_salt) {
+  JitBuilderContext jit_context(compiler, proc, symbol_salt);
   return JittedFunctionBase::BuildInternal(proc, jit_context,
                                            /*build_packed_wrapper=*/false);
 }
 
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
-    Block* block, LlvmCompiler& compiler) {
-  JitBuilderContext jit_context(compiler, block);
+    Block* block, LlvmCompiler& compiler, std::string_view symbol_salt) {
+  JitBuilderContext jit_context(compiler, block, symbol_salt);
   return JittedFunctionBase::BuildInternal(block, jit_context,
                                            /*build_packed_wrapper=*/false);
 }

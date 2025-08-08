@@ -85,7 +85,7 @@ class BlockJit {
   // Returns the bytes of an object file containing the compiled XLS function.
   static absl::StatusOr<JitObjectCode> CreateObjectCode(
       const BlockElaboration& elab, int64_t opt_level, bool include_msan,
-      JitObserver* obs);
+      JitObserver* obs, std::string_view symbol_salt = "");
 
   virtual ~BlockJit() = default;
 

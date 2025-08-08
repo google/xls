@@ -64,6 +64,10 @@ _xls_aot_files_attrs = {
         default = "native",
         mandatory = False,
     ),
+    "salt_symbols": attr.bool(
+        default = True,
+        doc = "Use target label to uniqify the symbol names.",
+    ),
     "_save_temps_is_requested": attr.label(
         doc = "save_temps config",
         default = "//xls/common/config:save_temps_is_requested",
@@ -97,6 +101,8 @@ def _xls_aot_generate_impl(ctx):
     obj_file = ctx.actions.declare_file(out_obj_filename)
     args = ctx.actions.args()
     args.add("-input", src.ir_file.path)
+    if (ctx.attr.salt_symbols):
+        args.add("-symbol_salt", str(ctx.label))
     args.add("-top", ctx.attr.top)
     args.add("-output_object", obj_file.path)
     args.add("-output_proto", proto_file.path)
