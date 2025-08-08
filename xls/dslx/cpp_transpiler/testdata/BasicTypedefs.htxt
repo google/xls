@@ -14,7 +14,7 @@
 namespace robs::secret::space {
 
 using MyType = uint8_t;
-constexpr int64_t kMyTypeWidth = 6;
+inline constexpr int64_t kMyTypeWidth = 6;
 absl::Status VerifyMyType(MyType value);
 std::string MyTypeToString(MyType value, int64_t indent = 0);
 std::string MyTypeToDslxString(MyType value, int64_t indent = 0);
@@ -22,7 +22,7 @@ absl::StatusOr<::xls::Value> MyTypeToValue(MyType input);
 absl::StatusOr<MyType> MyTypeFromValue(const ::xls::Value& value);
 
 using MySignedType = int8_t;
-constexpr int64_t kMySignedTypeWidth = 8;
+inline constexpr int64_t kMySignedTypeWidth = 8;
 absl::Status VerifyMySignedType(MySignedType value);
 std::string MySignedTypeToString(MySignedType value, int64_t indent = 0);
 std::string MySignedTypeToDslxString(MySignedType value, int64_t indent = 0);
@@ -30,7 +30,7 @@ absl::StatusOr<::xls::Value> MySignedTypeToValue(MySignedType input);
 absl::StatusOr<MySignedType> MySignedTypeFromValue(const ::xls::Value& value);
 
 using MyThirdType = int16_t;
-constexpr int64_t kMyThirdTypeWidth = 9;
+inline constexpr int64_t kMyThirdTypeWidth = 9;
 absl::Status VerifyMyThirdType(MyThirdType value);
 std::string MyThirdTypeToString(MyThirdType value, int64_t indent = 0);
 std::string MyThirdTypeToDslxString(MyThirdType value, int64_t indent = 0);
@@ -66,7 +66,7 @@ absl::StatusOr<::xls::Value> MyArrayType4ToValue(const MyArrayType4& input);
 absl::StatusOr<MyArrayType4> MyArrayType4FromValue(const ::xls::Value& value);
 
 using MyArrayType5 = bool;
-constexpr int64_t kMyArrayType5Width = 1;
+inline constexpr int64_t kMyArrayType5Width = 1;
 absl::Status VerifyMyArrayType5(MyArrayType5 value);
 std::string MyArrayType5ToString(MyArrayType5 value, int64_t indent = 0);
 std::string MyArrayType5ToDslxString(MyArrayType5 value, int64_t indent = 0);

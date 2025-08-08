@@ -670,7 +670,7 @@ genrule(
     cmd = """(
       echo "#pragma once"
       echo "#include <string_view>"
-      echo 'static inline constexpr std::string_view kBuiltinStubs = R"stubs('
+      echo 'inline constexpr std::string_view kBuiltinStubs = R"stubs('
       cat $<
       echo ')stubs";'
     ) > $@""",

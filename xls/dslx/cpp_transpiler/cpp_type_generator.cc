@@ -85,14 +85,15 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
               absl::StrAppendFormat(out, "  %s = %s,", ev.name, ev.value_str);
             }));
     std::string num_elements_def =
-        absl::StrFormat("constexpr int64_t k%sNumElements = %d;", cpp_type(),
-                        enum_values_.size());
-    std::string width_def = absl::StrFormat("constexpr int64_t k%sWidth = %d;",
-                                            cpp_type(), dslx_bit_count());
+        absl::StrFormat("inline constexpr int64_t k%sNumElements = %d;",
+                        cpp_type(), enum_values_.size());
+    std::string width_def =
+        absl::StrFormat("inline constexpr int64_t k%sWidth = %d;", cpp_type(),
+                        dslx_bit_count());
 
     std::string_view enum_cpp_type = cpp_type();
     std::string enum_values_list_def = absl::StrFormat(
-        "constexpr std::array<%s, %d> k%sValues = {\n%s\n};", cpp_type(),
+        "inline constexpr std::array<%s, %d> k%sValues = {\n%s\n};", cpp_type(),
         enum_values_.size(), cpp_type(),
         absl::StrJoin(enum_values_, ",\n",
                       [enum_cpp_type](std::string* out, const EnumValue& ev) {
@@ -100,7 +101,8 @@ class EnumCppTypeGenerator : public CppTypeGenerator {
                                               ev.name);
                       }));
     std::string enum_names_list_def = absl::StrFormat(
-        "constexpr std::array<std::string_view, %d> k%sNames = {\n%s\n};",
+        "inline constexpr std::array<std::string_view, %d> k%sNames = "
+        "{\n%s\n};",
         enum_values_.size(), cpp_type(),
         absl::StrJoin(enum_values_, ",\n",
                       [](std::string* out, const EnumValue& ev) {
@@ -338,8 +340,9 @@ class TypeAliasCppTypeGenerator : public CppTypeGenerator {
         absl::StrFormat("using %s = %s;", cpp_type(), emitter_->cpp_type()));
     std::optional<int64_t> width = emitter_->GetBitCountIfBitVector();
     if (width.has_value()) {
-      hdr_pieces.push_back(absl::StrFormat("constexpr int64_t k%sWidth = %d;",
-                                           cpp_type(), width.value()));
+      hdr_pieces.push_back(
+          absl::StrFormat("inline constexpr int64_t k%sWidth = %d;", cpp_type(),
+                          width.value()));
     }
     hdr_pieces.push_back(verify_src.header);
     hdr_pieces.push_back(to_string_src.header);
