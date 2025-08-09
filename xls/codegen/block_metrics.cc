@@ -287,21 +287,24 @@ BomKindProto OpToBomKind(Op op) {
       return BOM_KIND_INSIGNIFICANT;
     }
 
-    case Op::kReceive:
-    case Op::kSend:
     case Op::kCountedFor:
     case Op::kDynamicCountedFor:
-    case Op::kInvoke:
     case Op::kInputPort:
-    case Op::kOutputPort:
+    case Op::kInstantiationInput:
+    case Op::kInstantiationOutput:
+    case Op::kInvoke:
     case Op::kMap:
-    case Op::kParam:
-    case Op::kStateRead:
+    case Op::kNewChannel:
     case Op::kNext:
+    case Op::kOutputPort:
+    case Op::kParam:
+    case Op::kReceive:
+    case Op::kRecvChannelEnd:
     case Op::kRegisterRead:
     case Op::kRegisterWrite:
-    case Op::kInstantiationOutput:
-    case Op::kInstantiationInput: {
+    case Op::kSend:
+    case Op::kSendChannelEnd:
+    case Op::kStateRead: {
       return BOM_KIND_MISC;
     }
 

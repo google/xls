@@ -961,6 +961,51 @@ class PrioritySelect final : public Node {
   int64_t cases_size_;
 };
 
+class NewChannel : public Node {
+ public:
+  static constexpr std::array<Op, 1> kOps = {Op::kNewChannel};
+
+  NewChannel(const SourceInfo& loc, Op op, Type* type,
+             std::string_view channel_name, FunctionBase* function)
+      : Node(op, type, loc, channel_name, function),
+        channel_name_(channel_name) {}
+
+  const std::string& channel_name() const { return channel_name_; }
+
+ private:
+  std::string channel_name_;
+};
+
+class RecvChannelEnd : public Node {
+ public:
+  static constexpr std::array<Op, 1> kOps = {Op::kRecvChannelEnd};
+
+  RecvChannelEnd(const SourceInfo& loc, Op op, Type* type,
+                 std::string_view channel_name, FunctionBase* function)
+      : Node(op, type, loc, channel_name, function),
+        channel_name_(channel_name) {}
+
+  const std::string& channel_name() const { return channel_name_; }
+
+ private:
+  std::string channel_name_;
+};
+
+class SendChannelEnd : public Node {
+ public:
+  static constexpr std::array<Op, 1> kOps = {Op::kSendChannelEnd};
+
+  SendChannelEnd(const SourceInfo& loc, Op op, Type* type,
+                 std::string_view channel_name, FunctionBase* function)
+      : Node(op, type, loc, channel_name, function),
+        channel_name_(channel_name) {}
+
+  const std::string& channel_name() const { return channel_name_; }
+
+ private:
+  std::string channel_name_;
+};
+
 // Base class for nodes which communicate over channels.
 class ChannelNode : public Node {
  public:
