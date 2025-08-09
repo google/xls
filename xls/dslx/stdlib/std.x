@@ -474,6 +474,44 @@ fn prop_split_msbs(n: uN[4], o: uN[3]) -> bool {
     n == n2 && o == o2
 }
 
+// Returns a bits that is at least AtLeast bits wide, by inserting the minimum required number
+// of least significant zeros. The result will be wider than AtLeast when the input is wider
+// than AtLeast.
+//
+// Example:
+// zero_pad_lsbs<u32:4>(u1:1) = u4:0b1000
+// zero_pad_lsbs<u32:16>(u32:1) = u32:1
+pub fn zero_pad_lsbs
+    <AtLeast: u32, S: bool, N: u32, R: u32 = {max(AtLeast, N)},
+     NumBitsAppended: u32 = {usub_or_zero(R, N)}>(x: xN[S][N]) -> bits[R] {
+    (x as bits[N]) ++ bits[NumBitsAppended]:0
+}
+
+#[test]
+fn test_zero_pad_lsbs() {
+    assert_eq(zero_pad_lsbs<u32:4>(u1:1), u4:0b1000);
+    assert_eq(zero_pad_lsbs<u32:16>(u32:1), u32:1);
+}
+
+// Returns a bits that is at least AtLeast bits wide, by inserting the minimum required number
+// of most significant zeros. The result will be wider than AtLeast when the input is wider than
+// AtLeast.
+//
+// Example:
+// zero_pad_msbs<u32:4>(u1:1) = u4:1
+// zero_pad_msbs<u32:16>(u32:1) = u32:1
+pub fn zero_pad_msbs
+    <AtLeast: u32, S: bool, N: u32, R: u32 = {max(AtLeast, N)},
+     NumBitsAppended: u32 = {usub_or_zero(R, N)}>(x: xN[S][N]) -> bits[R] {
+    bits[NumBitsAppended]:0 ++ (x as bits[N])
+}
+
+#[test]
+fn test_zero_pad_msbs() {
+    assert_eq(zero_pad_msbs<u32:4>(u1:1), u4:1);
+    assert_eq(zero_pad_msbs<u32:16>(u32:1), u32:1);
+}
+
 // Returns the absolute value of x as a signed number.
 pub fn abs<BITS: u32>(x: sN[BITS]) -> sN[BITS] { if x < sN[BITS]:0 { -x } else { x } }
 
