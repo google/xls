@@ -70,8 +70,7 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
       XLS_ASSIGN_OR_RETURN(int64_t element_count,
                            ResolveDimToInt(t.size(), bindings_));
 
-      if (const auto* bc =
-              dynamic_cast<const BitsConstructorType*>(&t.element_type())) {
+      if (dynamic_cast<const BitsConstructorType*>(&t.element_type())) {
         retval_ = package_->GetBitsType(element_count);
         return absl::OkStatus();
       }

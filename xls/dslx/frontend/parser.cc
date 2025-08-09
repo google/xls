@@ -1088,7 +1088,7 @@ absl::StatusOr<TypeRefOrAnnotation> Parser::ParseTypeRef(Bindings& bindings,
       bindings.ResolveNodeOrError(*tok.GetValue(), tok.span(), file_table()));
   if (std::holds_alternative<NameDef*>(type_def)) {
     NameDef* name_def = std::get<NameDef*>(type_def);
-    if (auto gta = dynamic_cast<GenericTypeAnnotation*>(name_def->definer())) {
+    if (dynamic_cast<GenericTypeAnnotation*>(name_def->definer())) {
       VLOG(5) << "ParseTypeRef ResolveNode to GenericTypeAnnotation: "
               << name_def->definer()->ToString();
 
