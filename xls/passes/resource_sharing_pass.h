@@ -16,11 +16,16 @@
 #define XLS_PASSES_RESOURCE_SHARING_PASS_H_
 
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
+#include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 
@@ -52,6 +57,10 @@ class ResourceSharingPass : public OptimizationFunctionBasePass {
  private:
   ProfitabilityGuard profitability_guard_;
 };
+
+bool InfluencedBySource(
+    Node* node, Node* source, const BddQueryEngine& bdd_engine,
+    std::vector<std::pair<TreeBitLocation, bool>> assumptions);
 
 }  // namespace xls
 
