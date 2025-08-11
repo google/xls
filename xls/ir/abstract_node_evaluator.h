@@ -209,7 +209,7 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
                          GetValueList(update->indices()));
 
     LeafTypeTree<LeafValueT> updated = leaf_type_tree::Clone(to_update);
-    leaf_type_tree::ForEachSubArray<LeafValueT>(
+    XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachSubArray<LeafValueT>(
         updated.AsMutableView(), indices.size(),
         [&](MutableLeafTypeTreeView<LeafValueT> entry,
             absl::Span<const int64_t> concrete_indices) -> absl::Status {
@@ -239,9 +239,8 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
                         /*selector_can_be_zero=*/true,
                         /*default_value=*/entry_element);
                   });
-          leaf_type_tree::ReplaceElements(entry, updated_entry.AsView());
-          return absl::OkStatus();
-        });
+          return leaf_type_tree::ReplaceElements(entry, updated_entry.AsView());
+        }));
     return SetValue(update, std::move(updated).AsShared());
   }
 
